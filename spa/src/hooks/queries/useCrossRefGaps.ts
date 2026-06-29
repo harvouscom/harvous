@@ -13,6 +13,8 @@ export interface CrossRefGap {
   from: CrossRefGapRef;
   to: CrossRefGapRef;
   votes: number;
+  fromNoteId: string;
+  fromTranslation: string;
 }
 
 interface Response {

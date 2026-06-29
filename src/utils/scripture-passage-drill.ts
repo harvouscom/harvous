@@ -1,5 +1,6 @@
 import bibleChaptersData from '@/data/bible-chapters.json';
 import { normalizeScriptureReference, parseScriptureReference } from '@/utils/scripture-detector';
+import { scriptureReferenceContainsReference } from '@/utils/scripture-verse-keys';
 
 type BibleChapterRow = { book: string };
 
@@ -100,6 +101,59 @@ export function findScripturePassageDrill(
     return { bookOrder: indexed.bookOrder, passageKey: indexed.passageKey };
   }
   return computePassageKey(reference.trim());
+}
+
+export type ScriptureIndexNoteBriefLike = {
+  id: string;
+  updatedAt: string | null;
+  createdAt: string;
+};
+
+export type ScriptureIndexPassageWithNotesLike = ScriptureIndexPassageLike & {
+  notes?: ScriptureIndexNoteBriefLike[];
+};
+
+export type ScriptureIndexBookWithNotesLike = {
+  bookOrder: number;
+  passages: ScriptureIndexPassageWithNotesLike[];
+};
+
+function noteRecencyMs(note: ScriptureIndexNoteBriefLike): number {
+  const updated = note.updatedAt ? Date.parse(note.updatedAt) : NaN;
+  if (Number.isFinite(updated)) return updated;
+  const created = Date.parse(note.createdAt);
+  return Number.isFinite(created) ? created : 0;
+}
+
+/** Notes citing a scripture reference, preferring the most recently updated note. */
+export function findMostRecentNoteForScriptureReference(
+  books: ScriptureIndexBookWithNotesLike[],
+  reference: string,
+): ScriptureIndexNoteBriefLike | null {
+  const trimmed = reference.trim();
+  if (!trimmed) return null;
+
+  let best: ScriptureIndexNoteBriefLike | null = null;
+  let bestMs = -1;
+
+  for (const book of books) {
+    for (const passage of book.passages) {
+      if (!passage.notes?.length) continue;
+      const exact =
+        passage.displayRef.localeCompare(trimmed, undefined, { sensitivity: 'accent' }) === 0;
+      const contains = !exact && scriptureReferenceContainsReference(passage.displayRef, trimmed);
+      if (!exact && !contains) continue;
+      for (const note of passage.notes) {
+        const ms = noteRecencyMs(note);
+        if (ms >= bestMs) {
+          bestMs = ms;
+          best = note;
+        }
+      }
+    }
+  }
+
+  return best;
 }
 
 /** Drill coordinates only when the index lists at least one note for the passage. */

@@ -14,6 +14,8 @@ import {
   UserMetadata,
   eq,
   and,
+  or,
+  isNull,
   inArray,
   sql,
 } from '../db';
@@ -43,6 +45,56 @@ export const NOT_ONBOARDING_NOTES_THREAD = sql`NOT starts_with(${Notes.threadId}
 
 /** SQL fragment: exclude system-seeded onboarding pack notes. */
 export const NOT_ONBOARDING_SYSTEM_NOTES = sql`${Notes.addedBy} IS DISTINCT FROM 'system'`;
+
+/** Primary folder label for legacy onboarding Welcome pack notes. */
+export const ONBOARDING_WELCOME_FOLDER_LABEL = 'Welcome to Harvous';
+
+/** SQL fragment: exclude notes filed under the onboarding Welcome folder label. */
+export const NOT_ONBOARDING_WELCOME_FOLDER = sql`(
+  ${Notes.primaryCollection} IS NULL
+  OR trim(${Notes.primaryCollection}) = ''
+  OR lower(trim(${Notes.primaryCollection})) <> lower(${ONBOARDING_WELCOME_FOLDER_LABEL})
+)`;
+
+/** Drizzle WHERE for user-authored notes that count toward usage metrics. */
+export function countableUserNotesWhere() {
+  return and(NOT_ONBOARDING_NOTES_THREAD, NOT_ONBOARDING_SYSTEM_NOTES, NOT_ONBOARDING_WELCOME_FOLDER);
+}
+
+/** JS mirror of {@link countableUserNotesWhere} for tests and client-side checks. */
+export function isCountableUserNote(note: {
+  threadId: string;
+  addedBy: string | null;
+  primaryCollection: string | null;
+}): boolean {
+  if (isOnboardingThreadId(note.threadId)) return false;
+  if (note.addedBy === 'system') return false;
+  const primary = (note.primaryCollection ?? '').trim();
+  if (primary && primary.toLowerCase() === ONBOARDING_WELCOME_FOLDER_LABEL.toLowerCase()) return false;
+  return true;
+}
+
+/** Raw SQL predicate for db.execute() subqueries against unaliased "Notes" columns. */
+export const COUNTABLE_USER_NOTES_SQL = sql`
+  NOT starts_with("threadId"::text, 'thread_onboarding_')
+  AND "addedBy" IS DISTINCT FROM 'system'
+  AND (
+    "primaryCollection" IS NULL
+    OR TRIM("primaryCollection") = ''
+    OR LOWER(TRIM("primaryCollection")) <> LOWER(${ONBOARDING_WELCOME_FOLDER_LABEL})
+  )
+`;
+
+/** Same predicate when "Notes" is aliased (e.g. JOIN ... AS n). */
+export const COUNTABLE_USER_NOTES_N_SQL = sql`
+  NOT starts_with(n."threadId"::text, 'thread_onboarding_')
+  AND n."addedBy" IS DISTINCT FROM 'system'
+  AND (
+    n."primaryCollection" IS NULL
+    OR TRIM(n."primaryCollection") = ''
+    OR LOWER(TRIM(n."primaryCollection")) <> LOWER(${ONBOARDING_WELCOME_FOLDER_LABEL})
+  )
+`;
 
 export type PurgeOnboardingResult = {
   notesDeleted: number;

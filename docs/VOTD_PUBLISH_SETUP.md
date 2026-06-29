@@ -58,7 +58,7 @@ On GitHub, open `**.github/workflows/votd-publish-daily.yml**`. You should see a
 
 ### Step 6 — Editorial preview (optional)
 
-Sign in as the **Harvous system user** and open **`/admin/votd`** to see the next 30 UTC days: calendar vs pool picks, **Refresh pick**, **Override** (pin a reference), or **Clear override**. This does not block the cron.
+Sign in as the **Harvous system user** and open **`/admin/votd`** to browse the passage schedule in a **UTC month calendar** (prev/next navigation): calendar vs pool picks, **Refresh pick**, **Override** (pin a reference), or **Clear override**. This does not block the cron.
 
 ### Step 6b — Legacy pool rows
 

@@ -148,7 +148,12 @@ const adminVotdRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/AdminVotdPage')),
 });
 
-// Public / unauthenticated routes (lazy — less common entry points)
+const adminUsageRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/admin/usage',
+  component: lazyRouteComponent(() => import('./pages/AdminUsagePage')),
+});
+
 const joinSpaceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/spaces/join/$token',
@@ -248,6 +253,7 @@ function buildPrototypeRouteBranch() {
         typeof search.scriptureTranslation === 'string' ? search.scriptureTranslation : undefined,
       highlight: typeof search.highlight === 'string' ? search.highlight : undefined,
       dockReq: typeof search.dockReq === 'string' ? search.dockReq : undefined,
+      crossRefTarget: typeof search.crossRefTarget === 'string' ? search.crossRefTarget : undefined,
     }),
   });
 
@@ -317,12 +323,26 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeKeyboardShortcutsPage')),
   });
 
+  const prototypeAdminUsageRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'admin/usage',
+    component: lazyRouteComponent(() => import('./pages/AdminUsagePage')),
+  });
+
+  const prototypeAdminVotdRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'admin/votd',
+    component: lazyRouteComponent(() => import('./pages/AdminVotdPage')),
+  });
+
   return simplifiedPrototypeRoute.addChildren([
     prototypeLegacySpaceNoteRedirectRoute,
     prototypeLegacySpaceRedirectRoute,
     prototypeLegacyFlatNoteRedirectRoute,
     prototypeHomeRoute,
     prototypeSearchRedirectRoute,
+    prototypeAdminUsageRoute,
+    prototypeAdminVotdRoute,
     prototypeNoteFlatRoute,
     prototypeSettingsRoute.addChildren([
       prototypeSettingsIndexRoute,
@@ -420,6 +440,7 @@ const classicAppRoutes = appLayoutRoute.addChildren([
   threadRoute,
   noteRoute,
   adminVotdRoute,
+  adminUsageRoute,
 ]);
 
 function buildRouteTree() {

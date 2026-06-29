@@ -9,7 +9,7 @@
  *                                          (Bearer cron only) publishes tomorrow's UTC date early so the
  *                                          FeaturedItems row exists before `startsAt` — avoids a gap after
  *                                          midnight UTC when the previous day's `endsAt` passes.
- *   GET    /api/admin/votd/preview         — Editorial preview of upcoming days
+ *   GET    /api/admin/votd/preview         — Editorial preview (days forward or month=YYYY-MM)
  *   POST   /api/admin/votd/override        — Pin reference to a UTC date
  *   POST   /api/admin/votd/refresh         — Re-roll a future day (stores pin)
  *   DELETE /api/admin/votd/override/:date  — Clear pin for date (YYYY-MM-DD)
@@ -18,7 +18,10 @@
 import { Hono } from 'hono';
 import { and, db, desc, eq, first, gte, inArray, isNotNull, lte } from '../db';
 import { now, nowISO } from '../db/dates';
+import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { requireHarvousAdmin } from '../utils/harvous-admin';
+import { getLocalCalendarDateString, isValidIanaTimeZone } from '../utils/votd-local-date';
+import { recordVotdEngagement, type VotdEngagementAction } from '../utils/votd-record-engagement';
 import { FeaturedItems, VotdSchedule, VotdPublishHistory } from '../db/schema';
 import { fetchVerseText } from '../utils/fetch-verse-text';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
@@ -374,18 +377,68 @@ app.post('/api/admin/votd/publish-daily', async (c) => {
   });
 });
 
+const VOTD_PREVIEW_MONTH_WINDOW = 24;
+
+function utcMonthFirstDay(year: number, month1: number): Date {
+  return new Date(Date.UTC(year, month1 - 1, 1, 12, 0, 0));
+}
+
+function utcMonthLastDay(year: number, month1: number): Date {
+  return new Date(Date.UTC(year, month1, 0, 12, 0, 0));
+}
+
+function isUtcMonthWithinPreviewWindow(monthStr: string): boolean {
+  const m = monthStr.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return false;
+  const year = parseInt(m[1]!, 10);
+  const month1 = parseInt(m[2]!, 10);
+  if (month1 < 1 || month1 > 12) return false;
+
+  const today = new Date();
+  today.setUTCHours(12, 0, 0, 0);
+  const minMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - VOTD_PREVIEW_MONTH_WINDOW, 1, 12, 0, 0));
+  const maxMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + VOTD_PREVIEW_MONTH_WINDOW, 1, 12, 0, 0));
+  const requested = utcMonthFirstDay(year, month1);
+  return requested >= minMonth && requested <= maxMonth;
+}
+
+function daysBetweenUtcInclusive(start: Date, end: Date): number {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
+}
+
 // ─── GET /api/admin/votd/preview ───────────────────────────────────────────
 app.get('/api/admin/votd/preview', async (c) => {
   const unauthorized = requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
 
-  const daysRaw = c.req.query('days');
-  const days = Math.min(90, Math.max(1, parseInt(daysRaw || '30', 10) || 30));
+  const monthParam = c.req.query('month')?.trim();
+  let start: Date;
+  let end: Date;
+  let dayCount: number;
 
-  const start = new Date();
-  start.setUTCHours(12, 0, 0, 0);
-  const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + days - 1);
+  if (monthParam) {
+    if (!/^\d{4}-\d{2}$/.test(monthParam)) {
+      return c.json({ error: 'month must be YYYY-MM' }, 400);
+    }
+    if (!isUtcMonthWithinPreviewWindow(monthParam)) {
+      return c.json({ error: `month must be within ±${VOTD_PREVIEW_MONTH_WINDOW} months of today (UTC)` }, 400);
+    }
+    const [yearStr, monthStr] = monthParam.split('-');
+    const year = parseInt(yearStr!, 10);
+    const month1 = parseInt(monthStr!, 10);
+    start = utcMonthFirstDay(year, month1);
+    end = utcMonthLastDay(year, month1);
+    dayCount = daysBetweenUtcInclusive(start, end);
+  } else {
+    const daysRaw = c.req.query('days');
+    dayCount = Math.min(90, Math.max(1, parseInt(daysRaw || '30', 10) || 30));
+    start = new Date();
+    start.setUTCHours(12, 0, 0, 0);
+    end = new Date(start);
+    end.setUTCDate(start.getUTCDate() + dayCount - 1);
+  }
+
   const dateMin = utcDateStr(start);
   const dateMax = utcDateStr(end);
 
@@ -418,7 +471,7 @@ app.get('/api/admin/votd/preview', async (c) => {
   }
 
   const yearsInRange = new Set<number>();
-  for (let i = 0; i < days; i++) {
+  for (let i = 0; i < dayCount; i++) {
     const d = new Date(start);
     d.setUTCDate(start.getUTCDate() + i);
     yearsInRange.add(d.getUTCFullYear());
@@ -455,7 +508,7 @@ app.get('/api/admin/votd/preview', async (c) => {
 
   let previousDayBook = await getPublishedBookOnDate(utcPreviousCalendarDay(dateMin));
 
-  for (let i = 0; i < days; i++) {
+  for (let i = 0; i < dayCount; i++) {
     const d = new Date(start);
     d.setUTCDate(start.getUTCDate() + i);
     const dateStr = utcDateStr(d);
@@ -717,6 +770,28 @@ app.delete('/api/admin/votd/override/:date', async (c) => {
     .where(and(eq(VotdSchedule.scheduledDate, dateStr), eq(VotdSchedule.isPublished, false)));
 
   return c.json({ success: true });
+});
+
+// ─── POST /api/votd/record-engagement ───────────────────────────────────────
+// Prototype / native passage pill: record dismiss or add-note for today's publish.
+app.post('/api/votd/record-engagement', requireAuth, async (c) => {
+  const auth = getAuthenticatedAuth(c);
+  const body = (await c.req.json().catch(() => ({}))) as { action?: string; tz?: string };
+  const action = body.action?.trim() as VotdEngagementAction | undefined;
+  if (action !== 'dismiss' && action !== 'add_note') {
+    return c.json({ error: 'action must be dismiss or add_note' }, 400);
+  }
+
+  const tzHeader = (body.tz ?? c.req.query('tz') ?? c.req.header('X-Votd-Timezone') ?? '').trim();
+  const timeZone = isValidIanaTimeZone(tzHeader) ? tzHeader : 'UTC';
+  const localCalendarDate = getLocalCalendarDateString(timeZone, now());
+
+  const result = await recordVotdEngagement(auth.userId, action, localCalendarDate);
+  if (!result.ok) {
+    return c.json({ error: 'No published passage for this day' }, 404);
+  }
+
+  return c.json({ success: true, featuredItemId: result.featuredItemId });
 });
 
 export default app;

@@ -146,6 +146,7 @@ import {
 } from '@/utils/study-dock-stack';
 import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-list-sync';
 import { backfillOrphanHighlights } from '@/utils/orphan-highlight-backfill';
+import { scriptureReferenceContainsReference } from '@/utils/scripture-verse-keys';
 import LinkPreviewCard from './LinkPreviewCard';
 import UrlLinkPromptUI from './UrlLinkPromptUI';
 import ReferenceDockWeb from './ReferenceDockWeb';
@@ -256,6 +257,11 @@ interface TiptapEditorProps {
   onPrototypeScripturePillOpenRequestConsumed?: () => void;
   /** Prototype: the scripture-pill open request couldn't find a matching pill in the note (poll timed out). */
   onPrototypeScripturePillOpenRequestUnresolved?: () => void;
+  /** Prototype: after the source scripture dock opens, auto-open this cross-ref as a read-only card. */
+  prototypeCrossRefTarget?: {
+    reference: string;
+    requestKey?: string;
+  } | null;
   /**
    * Prototype: set when the user taps a highlight elsewhere (e.g. the Home "revisit" card); TipTap finds
    * the matching highlight mark by study-thread id and opens its dock once the editor mounts.
@@ -269,6 +275,25 @@ interface TiptapEditorProps {
 }
 
 const PROTOTYPE_FORMAT_BAR_HIDE_MS = 2000;
+
+function openSourceScriptureDockWithOptionalCrossRef(
+  stack: StudyDockStack,
+  session: ScripturePillDockSession,
+  crossRefTarget: string | null | undefined,
+  sourceNoteId: string | null,
+  translation: string | null,
+): StudyDockStack {
+  let next = openOrFocusScripture(stack, session);
+  const targetRef = crossRefTarget?.trim();
+  if (targetRef) {
+    next = openOrFocusScripture(
+      next,
+      buildReadOnlyScriptureSession(targetRef, translation, sourceNoteId),
+      { openedFromDockId: next.activeId ?? undefined },
+    );
+  }
+  return next;
+}
 
 /** True when pointer coordinates lie inside the pill element's border box (strict tap, not DOM ancestry alone). */
 function pointerIsInsideElementRect(e: MouseEvent | TouchEvent, el: HTMLElement): boolean {
@@ -3767,6 +3792,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   prototypeScripturePillOpenRequest = null,
   onPrototypeScripturePillOpenRequestConsumed,
   onPrototypeScripturePillOpenRequestUnresolved,
+  prototypeCrossRefTarget = null,
   prototypeHighlightOpenRequest = null,
   onPrototypeHighlightOpenRequestConsumed,
 }) => {
@@ -5856,11 +5882,26 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       return;
     }
     const req = prototypeScripturePillOpenRequest;
+    const crossRefTargetRef = prototypeCrossRefTarget?.reference?.trim() || null;
     let cancelled = false;
     let rafId = 0;
     // Poll a few frames for the matching pill: when navigated from the sidebar Highlights list the
     // note content (and its pills) render a little after the editor mounts, so a single rAF can miss.
     const MAX_ATTEMPTS = 90; // ~1.5s at 60fps
+    const openSourceDock = (session: ScripturePillDockSession) => {
+      setTranslationPicker(null);
+      suppressScriptureDockDismiss();
+      setStudyDockStack((s) =>
+        openSourceScriptureDockWithOptionalCrossRef(
+          s,
+          session,
+          crossRefTargetRef,
+          req.noteId ?? sourceNoteId ?? null,
+          req.translation,
+        ),
+      );
+      onPrototypeScripturePillOpenRequestConsumed?.();
+    };
     const run = (attempt: number) => {
       if (cancelled || !isEditorValid(editor)) return;
       const root = editor.view.dom as HTMLElement;
@@ -5868,16 +5909,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       let pillEl: HTMLElement | null = null;
       pills.forEach((p) => {
         if (pillEl) return;
-        if (p.getAttribute('data-scripture-reference') === req.reference) {
+        const pillRef = p.getAttribute('data-scripture-reference') ?? '';
+        if (
+          pillRef === req.reference ||
+          scriptureReferenceContainsReference(pillRef, req.reference)
+        ) {
           pillEl = p as HTMLElement;
         }
       });
       if (!pillEl) {
         if (attempt < MAX_ATTEMPTS) {
           rafId = window.requestAnimationFrame(() => run(attempt + 1));
+        } else if (crossRefTargetRef) {
+          openSourceDock(
+            buildReadOnlyScriptureSession(req.reference, req.translation, req.noteId ?? sourceNoteId ?? null),
+          );
         } else {
-          // No matching pill in this note — let the host fall back (e.g. standalone passage pane)
-          // rather than silently leaving the user on "just the note".
           onPrototypeScripturePillOpenRequestConsumed?.();
           onPrototypeScripturePillOpenRequestUnresolved?.();
         }
@@ -5885,17 +5932,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       const boundaries = resolveScripturePillDOMRange(editor, pillEl);
       if (!boundaries || cancelled) return;
-      setTranslationPicker(null);
-      suppressScriptureDockDismiss();
-      const session: ScripturePillDockSession = {
+      const pillReference = pillEl.getAttribute('data-scripture-reference') ?? req.reference;
+      openSourceDock({
         boundaries,
-        reference: req.reference,
+        reference: pillReference,
         translation: req.translation,
         noteId: req.noteId,
         pillAccent: req.pillAccent,
-      };
-      setStudyDockStack((s) => openOrFocusScripture(s, session));
-      onPrototypeScripturePillOpenRequestConsumed?.();
+      });
     };
     rafId = window.requestAnimationFrame(() => {
       rafId = window.requestAnimationFrame(() => run(0));
@@ -5908,6 +5952,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editor,
     editorChromeMode,
     prototypeScripturePillOpenRequest,
+    prototypeCrossRefTarget,
+    sourceNoteId,
     onPrototypeScripturePillOpenRequestConsumed,
     onPrototypeScripturePillOpenRequestUnresolved,
   ]);

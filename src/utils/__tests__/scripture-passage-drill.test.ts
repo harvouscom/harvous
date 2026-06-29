@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
+  findMostRecentNoteForScriptureReference,
   findScripturePassageDrill,
   findScripturePassageWithNotes,
   type ScriptureIndexBookLike,
+  type ScriptureIndexBookWithNotesLike,
 } from '@/utils/scripture-passage-drill';
 
 function book(
@@ -77,5 +79,38 @@ describe('findScripturePassageWithNotes', () => {
 
   it('returns null when index is empty even if reference parses', () => {
     expect(findScripturePassageWithNotes([], 'John 3:16')).toBeNull();
+  });
+});
+
+describe('findMostRecentNoteForScriptureReference', () => {
+  it('returns the most recently updated note for a contained single verse', () => {
+    const books: ScriptureIndexBookWithNotesLike[] = [
+      {
+        bookOrder: 24,
+        passages: [
+          {
+            passageKey: '24:3:22:26',
+            displayRef: 'Lamentations 3:22-26',
+            bookOrder: 24,
+            noteCount: 2,
+            notes: [
+              {
+                id: 'note_old',
+                title: 'Older',
+                updatedAt: '2024-01-01T00:00:00.000Z',
+                createdAt: '2024-01-01T00:00:00.000Z',
+              },
+              {
+                id: 'note_new',
+                title: 'Newer',
+                updatedAt: '2025-01-01T00:00:00.000Z',
+                createdAt: '2025-01-01T00:00:00.000Z',
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    expect(findMostRecentNoteForScriptureReference(books, 'Lamentations 3:22')?.id).toBe('note_new');
   });
 });

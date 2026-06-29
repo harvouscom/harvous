@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   isOnboardingThreadId,
   isOnboardingSystemNote,
+  isCountableUserNote,
   onboardingThreadIdForUser,
+  ONBOARDING_WELCOME_FOLDER_LABEL,
 } from '../purge-onboarding-content';
 
 describe('purge-onboarding-content helpers', () => {
@@ -38,5 +40,36 @@ describe('purge-onboarding-content helpers', () => {
         addedBy: 'system',
       }),
     ).toBe(false);
+  });
+
+  it('isCountableUserNote excludes onboarding thread, system seed, and Welcome folder', () => {
+    expect(
+      isCountableUserNote({
+        threadId: `thread_onboarding_${userId}`,
+        addedBy: 'system',
+        primaryCollection: null,
+      }),
+    ).toBe(false);
+    expect(
+      isCountableUserNote({
+        threadId: 'thread_abc',
+        addedBy: 'system',
+        primaryCollection: null,
+      }),
+    ).toBe(false);
+    expect(
+      isCountableUserNote({
+        threadId: 'thread_abc',
+        addedBy: 'user',
+        primaryCollection: ONBOARDING_WELCOME_FOLDER_LABEL,
+      }),
+    ).toBe(false);
+    expect(
+      isCountableUserNote({
+        threadId: 'thread_abc',
+        addedBy: 'user',
+        primaryCollection: 'John',
+      }),
+    ).toBe(true);
   });
 });

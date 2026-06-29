@@ -12,6 +12,7 @@
  *   GET    /api/spaces/:spaceId/study-thread-highlights
  *   GET    /api/spaces/:spaceId/scripture-index
  *   GET    /api/spaces/:spaceId/scripture-connections
+ *   GET    /api/spaces/:spaceId/reference-word-connections
  *   GET    /api/spaces/:spaceId/study-threads/by-scripture
  *   GET    /api/spaces/:spaceId/study-threads
  *   GET    /api/spaces/:spaceId/connect-note-candidates
@@ -86,6 +87,7 @@ import { getHarvousSystemUserId } from '../utils/harvous-admin';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { buildSpaceScriptureIndex } from '../utils/build-space-scripture-index';
 import { buildSpaceScriptureConnections } from '../utils/build-space-scripture-connections';
+import { buildSpaceReferenceWordConnections } from '../utils/build-space-reference-word-connections';
 import {
   NOT_ONBOARDING_NOTES_THREAD,
   NOT_ONBOARDING_SYSTEM_NOTES,
@@ -854,6 +856,32 @@ route.get('/api/spaces/:spaceId/scripture-connections', requireAuth, async (c) =
     const standardError = handleAPIError(error, {
       endpoint: '/api/spaces/[spaceId]/scripture-connections',
       action: 'scripture_connections',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/spaces/:spaceId/reference-word-connections ──────────────────────
+route.get('/api/spaces/:spaceId/reference-word-connections', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    const limitRaw = Number(c.req.query('limit') ?? '3');
+    const limit = Number.isFinite(limitRaw) ? Math.min(10, Math.max(1, Math.floor(limitRaw))) : 3;
+    const payload = await buildSpaceReferenceWordConnections(spaceIdNorm, auth.userId, { limit, minNotes: 2 });
+
+    return c.json({ success: true, ...payload });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/reference-word-connections',
+      action: 'reference_word_connections',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

@@ -203,6 +203,11 @@ interface CardFullEditableProps {
     /** Distinct per request (e.g. the clicked highlight's id) so re-opens fire each time. */
     requestKey?: string;
   } | null;
+  /** Prototype-only: after the source scripture dock opens, auto-open this cross-ref as a read-only card. */
+  initialCrossRefTarget?: {
+    reference: string;
+    requestKey?: string;
+  } | null;
   /**
    * Prototype-only: when set, auto-opens the highlight dock for this study-thread entry once the editor
    * has rendered the matching highlight mark (e.g. navigated from the Home "revisit" card).
@@ -296,6 +301,7 @@ export default function CardFullEditable({
   initialReferenceWord = null,
   initialReferenceRequestKey = null,
   initialScriptureDock = null,
+  initialCrossRefTarget = null,
   initialHighlightDock = null,
   onHighlightDeepLinkHandoff,
   onScriptureDeepLinkHandoff,
@@ -2983,6 +2989,9 @@ export default function CardFullEditable({
                       prototypeScripturePillOpenRequest={
                         editorChromeMode === 'prototypeNative' ? prototypeScripturePillOpenRequest : null
                       }
+                      prototypeCrossRefTarget={
+                        editorChromeMode === 'prototypeNative' ? initialCrossRefTarget : null
+                      }
                       onPrototypeScripturePillOpenRequestConsumed={onPrototypeScripturePillOpenRequestConsumed}
                       onPrototypeScripturePillOpenRequestUnresolved={onScriptureDockUnresolved}
                       prototypeHighlightOpenRequest={
@@ -3381,6 +3390,9 @@ export default function CardFullEditable({
                     }
                     prototypeScripturePillOpenRequest={
                       editorChromeMode === 'prototypeNative' ? prototypeScripturePillOpenRequest : null
+                    }
+                    prototypeCrossRefTarget={
+                      editorChromeMode === 'prototypeNative' ? initialCrossRefTarget : null
                     }
                     onPrototypeScripturePillOpenRequestConsumed={onPrototypeScripturePillOpenRequestConsumed}
                     onPrototypeScripturePillOpenRequestUnresolved={onScriptureDockUnresolved}

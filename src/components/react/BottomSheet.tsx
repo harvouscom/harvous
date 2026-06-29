@@ -120,7 +120,7 @@ const getDrawerTitle = (drawerType: DrawerType, sharePanelData: SharePanelDrawer
     'myPreferences': 'My Preferences',
     'mySharing': 'My Sharing',
     'myInbox': 'My Inbox',
-    'adminVotd': 'Verse of the Day',
+    'adminVotd': "Today's Passage",
     'mySpaces': 'My Spaces',
     'myData': 'My Data',
     'myAchievements': 'My Achievements',

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatBadgeCount } from '@/utils/badge-count';
+import { safeNavigate } from '@/utils/safe-navigate';
 import {
   useFeaturedDismissed,
   featuredDismissedQueryPrefix,
@@ -19,7 +20,7 @@ import {
  * - Email & Password (updates via API)
  * - My Subscription (uses Clerk billing)
  * - My Data (export/import/delete operations)
- * - Verse of the Day (admin) (API)
+ * - Today's Passage (admin) (API)
  * 
  * Options that work offline:
  * - Get Support (no API calls)
@@ -84,6 +85,53 @@ export default function ProfileOptionsList() {
       return; // Prevent event dispatch when offline
     }
     window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName } }));
+  };
+
+  const handleAdminNavClick = (path: string, requiresOnline: boolean) => {
+    if (requiresOnline && isOffline) return;
+    void safeNavigate(path);
+  };
+
+  const renderAdminNavOption = (path: string, label: string, requiresOnline: boolean) => {
+    const disabled = requiresOnline && isOffline;
+    return (
+      <div
+        onClick={() => handleAdminNavClick(path, requiresOnline)}
+        className="w-full"
+        style={{
+          opacity: disabled ? 0.5 : 1,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          pointerEvents: disabled ? 'none' : 'auto',
+        }}
+      >
+        <div
+          className="space-button relative rounded-3xl h-[64px] transition-[scale,shadow] duration-200 pl-4 pr-0 w-full"
+          style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+        >
+          <div className="flex-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+            <div className="flex-fill overflow-hidden">
+              <span className="panel__list-item-label" style={{ color: 'var(--color-deep-grey)' }}>
+                {label}
+              </span>
+            </div>
+            <div className="flex-center relative shrink-0" style={{ gap: '8px' }}>
+              <div className="panel__list-item-icon-wrapper">
+                <div className="flex-center relative shrink-0">
+                  <div className="relative w-6 h-6">
+                    <svg
+                      className="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125"
+                      viewBox="0 0 320 512"
+                    >
+                      <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderOption = (
@@ -158,7 +206,8 @@ export default function ProfileOptionsList() {
 
       {/* Billing & Data Management */}
       {renderOption('myData', 'My Data', true)}
-      {isHarvousAdmin ? renderOption('adminVotd', 'Verse of the Day schedule', true) : null}
+      {isHarvousAdmin ? renderOption('adminVotd', "Today's Passage", true) : null}
+      {isHarvousAdmin ? renderAdminNavOption('/admin/usage', 'Usage dashboard', true) : null}
     </div>
   );
 }

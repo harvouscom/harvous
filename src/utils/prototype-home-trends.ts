@@ -1205,6 +1205,7 @@ export type RecallOpportunityKind =
   | 'passage'
   | 'crossref'
   | 'subject'
+  | 'referenceWord'
   // Generative kinds — prompt you to create/do something new.
   | 'continueBook'
   | 'studyPerson'
@@ -1214,7 +1215,13 @@ export type RecallOpportunityKind =
   | 'connectNotes';
 
 /** Kinds that summarize a trend across notes — eligible for the greeting trend line. */
-export const RECALL_TREND_KINDS: readonly RecallOpportunityKind[] = ['arc', 'passage', 'crossref', 'subject'];
+export const RECALL_TREND_KINDS: readonly RecallOpportunityKind[] = [
+  'arc',
+  'passage',
+  'crossref',
+  'subject',
+  'referenceWord',
+];
 
 /** Generative kinds — "go make something new" rather than "revisit". Get a distinct card accent. */
 export const RECALL_GENERATIVE_KINDS: readonly RecallOpportunityKind[] = [
@@ -1246,6 +1253,7 @@ export const RECALL_KIND_TIER: Record<RecallOpportunityKind, number> = {
   passage: 2,
   subject: 2,
   crossref: 2,
+  referenceWord: 2,
   studyPerson: 3,
   reflection: 3,
 };
@@ -1352,6 +1360,7 @@ export interface RecallTrendLineInput {
   passageRef?: string;
   fromRef?: string;
   toRef?: string;
+  referenceWord?: string;
 }
 
 /** One-sentence greeting trend line for the strongest trend opportunity. Pure. */
@@ -1369,6 +1378,8 @@ export function recallTrendLine(input: RecallTrendLineInput): string {
       return `You keep returning to ${input.passageRef ?? 'a passage'}.`;
     case 'crossref':
       return `${input.fromRef ?? 'Two passages'} and ${input.toRef ?? ''} keep surfacing together in your notes.`.replace(' and .', '.');
+    case 'referenceWord':
+      return `You keep looking up ${input.referenceWord ?? 'a word'} across your notes.`;
     default:
       return '';
   }
@@ -1403,6 +1414,11 @@ export function recallTrendGreetingParts(input: RecallTrendLineInput): RecallTre
       const toRef = input.toRef?.trim();
       if (!fromRef || !toRef) return null;
       return { prefix: ', lately ', labels: [fromRef, toRef], suffix: ' keep surfacing together' };
+    }
+    case 'referenceWord': {
+      const referenceWord = input.referenceWord?.trim();
+      if (!referenceWord) return null;
+      return { prefix: ', often looking up ', labels: [referenceWord], suffix: '' };
     }
     default:
       return null;
@@ -1530,14 +1546,124 @@ export function deriveRecurringPerson(
   return out.slice(0, Math.max(0, limit));
 }
 
-// 3. Finish a bare highlight ──────────────────────────────────────────────────────
+// 3. Recurring dictionary reference words ─────────────────────────────────────────
+
+export interface HomeReferenceWordInput {
+  id: string;
+  entryKind?: string | null;
+  sourceSnippet?: string | null;
+  anchorTextSnapshot?: string | null;
+  focusTitle?: string | null;
+  parentNoteId: string;
+  /** Touch time (ms) — most recent reference row wins for onOpen. */
+  recencyMs?: number;
+}
+
+export interface HomeReferenceWordConnection {
+  wordKey: string;
+  displayWord: string;
+  noteCount: number;
+  latestRowId: string;
+  latestParentNoteId: string;
+  latestRecencyMs: number;
+}
+
+/** Normalized dictionary headword for grouping saved reference rows. Pure. */
+export function referenceWordKey(
+  row: Pick<HomeReferenceWordInput, 'sourceSnippet' | 'anchorTextSnapshot' | 'focusTitle'>,
+): string | null {
+  const raw = (row.sourceSnippet ?? row.anchorTextSnapshot ?? row.focusTitle ?? '').trim();
+  if (!raw) return null;
+  return raw.toLowerCase();
+}
+
+function referenceWordDisplay(
+  row: Pick<HomeReferenceWordInput, 'sourceSnippet' | 'anchorTextSnapshot' | 'focusTitle'>,
+): string {
+  return (row.sourceSnippet ?? row.anchorTextSnapshot ?? row.focusTitle ?? '').trim();
+}
+
+/**
+ * Dictionary words saved from multiple notes — ranked by reach (distinct notes), then recency.
+ * Same word twice in one note counts once. Pure.
+ */
+export function deriveReferenceWordConnections(
+  references: HomeReferenceWordInput[],
+  options: { limit: number; minNotes?: number },
+): HomeReferenceWordConnection[] {
+  const { limit, minNotes = 2 } = options;
+  const byWord = new Map<
+    string,
+    {
+      displayWord: string;
+      noteIds: Set<string>;
+      latestRowId: string;
+      latestParentNoteId: string;
+      latestRecencyMs: number;
+    }
+  >();
+
+  for (const row of references) {
+    if ((row.entryKind ?? '').trim() !== 'reference') continue;
+    const key = referenceWordKey(row);
+    if (!key) continue;
+    const displayWord = referenceWordDisplay(row);
+    if (!displayWord) continue;
+    const recencyMs = row.recencyMs ?? 0;
+    let bucket = byWord.get(key);
+    if (!bucket) {
+      bucket = {
+        displayWord,
+        noteIds: new Set<string>(),
+        latestRowId: row.id,
+        latestParentNoteId: row.parentNoteId,
+        latestRecencyMs: recencyMs,
+      };
+      byWord.set(key, bucket);
+    }
+    bucket.noteIds.add(row.parentNoteId);
+    if (recencyMs >= bucket.latestRecencyMs) {
+      bucket.latestRecencyMs = recencyMs;
+      bucket.latestRowId = row.id;
+      bucket.latestParentNoteId = row.parentNoteId;
+      bucket.displayWord = displayWord;
+    }
+  }
+
+  return [...byWord.entries()]
+    .filter(([, bucket]) => bucket.noteIds.size >= minNotes)
+    .map(([wordKey, bucket]) => ({
+      wordKey,
+      displayWord: bucket.displayWord,
+      noteCount: bucket.noteIds.size,
+      latestRowId: bucket.latestRowId,
+      latestParentNoteId: bucket.latestParentNoteId,
+      latestRecencyMs: bucket.latestRecencyMs,
+    }))
+    .sort(
+      (a, b) =>
+        b.noteCount - a.noteCount ||
+        b.latestRecencyMs - a.latestRecencyMs ||
+        a.displayWord.localeCompare(b.displayWord),
+    )
+    .slice(0, Math.max(0, limit));
+}
+
+// 4. Finish a bare highlight ──────────────────────────────────────────────────────
 
 export interface BareHighlightInput {
   id: string;
+  entryKind?: string | null;
   miniNoteBody?: string | null;
   notesBody?: string | null;
   /** Touch time (ms) — oldest unannotated surfaces first. */
   recencyMs?: number;
+}
+
+/** Only miniNote and scriptureLink rows support the highlight-dock annotation textarea. Pure. */
+export function isAnnotatableHighlight(h: BareHighlightInput): boolean {
+  const kind = (h.entryKind ?? '').trim();
+  return kind === 'miniNote' || kind === 'scriptureLink';
 }
 
 export interface HighlightRefMatchInput extends BareHighlightInput {
@@ -1592,7 +1718,9 @@ export function findUnannotatedHighlightForRef<T extends HighlightRefMatchInput>
   highlights: T[],
   ref: string,
 ): T | undefined {
-  const matches = highlights.filter((h) => isHighlightUnannotated(h) && highlightMatchesScriptureRef(h, ref));
+  const matches = highlights.filter(
+    (h) => isHighlightUnannotated(h) && isAnnotatableHighlight(h) && highlightMatchesScriptureRef(h, ref),
+  );
   return pickOldestHighlightByRecency(matches);
 }
 
@@ -1602,7 +1730,9 @@ export function findUnannotatedHighlightForChapter<T extends HighlightRefMatchIn
   book: string,
   chapter: number,
 ): T | undefined {
-  const matches = highlights.filter((h) => isHighlightUnannotated(h) && highlightMatchesChapter(h, book, chapter));
+  const matches = highlights.filter(
+    (h) => isHighlightUnannotated(h) && isAnnotatableHighlight(h) && highlightMatchesChapter(h, book, chapter),
+  );
   return pickOldestHighlightByRecency(matches);
 }
 
@@ -1613,12 +1743,12 @@ export function isHighlightUnannotated(h: BareHighlightInput): boolean {
 
 /** Oldest-touched highlight that was never annotated — a gentle "add a thought" nudge. Pure. */
 export function pickBareHighlight<T extends BareHighlightInput>(highlights: T[]): T | undefined {
-  const unannotated = highlights.filter(isHighlightUnannotated);
+  const unannotated = highlights.filter((h) => isHighlightUnannotated(h) && isAnnotatableHighlight(h));
   if (unannotated.length === 0) return undefined;
   return [...unannotated].sort((a, b) => (a.recencyMs ?? 0) - (b.recencyMs ?? 0))[0];
 }
 
-// 4. Reflection prompt (season / theme) ───────────────────────────────────────────
+// 5. Reflection prompt (season / theme) ───────────────────────────────────────────
 
 export interface ReflectionPrompt {
   source: 'season' | 'theme';

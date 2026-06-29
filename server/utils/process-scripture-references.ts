@@ -51,6 +51,56 @@ async function resolveParentThreadIds(
   return [...ids];
 }
 
+/** In pills-only mode, pill data-note-id always points at the parent study note. */
+export function resolvePillNoteIdForProcessing(
+  pillNoteId: string,
+  parentNoteId: string,
+  pillsOnly: boolean,
+): string | null {
+  if (!pillNoteId || pillNoteId === 'pending' || pillNoteId === 'null') return null;
+  if (pillsOnly) return parentNoteId;
+  return pillNoteId;
+}
+
+async function upsertScriptureMetadataForNote(
+  targetNoteId: string,
+  normalizedReference: string,
+  effectiveTranslation: string,
+  verseText: string,
+): Promise<void> {
+  const parsed = parseScriptureReference(normalizedReference);
+  if (!parsed) return;
+  const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+  const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
+  const existing = first(
+    await db
+      .select({ id: ScriptureMetadata.id })
+      .from(ScriptureMetadata)
+      .where(and(eq(ScriptureMetadata.noteId, targetNoteId), eq(ScriptureMetadata.reference, normalizedReference)))
+      .limit(1),
+  );
+  if (existing) {
+    await db
+      .update(ScriptureMetadata)
+      .set({ translation: effectiveTranslation, originalText: verseText })
+      .where(eq(ScriptureMetadata.id, existing.id));
+    return;
+  }
+  await db.insert(ScriptureMetadata).values({
+    id: `scripture_${targetNoteId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    noteId: targetNoteId,
+    reference: normalizedReference,
+    book: parsed.book,
+    chapter: parsed.chapter,
+    verse: verseStart,
+    verseEnd: verseEnd || null,
+    chapterEnd: parsed.endChapter ?? null,
+    translation: effectiveTranslation,
+    originalText: verseText,
+    createdAt: new Date(),
+  });
+}
+
 /** Adds a scripture note to every parent thread (NoteThreads + Notes.threadId when leaving unorganized). */
 async function addScriptureNoteToParentThreads(scriptureNoteId: string, parentThreadIds: string[], userId: string): Promise<void> {
   const filtered = parentThreadIds.filter((t) => t && t !== 'thread_unorganized' && !t.startsWith('thread_onboarding_'));
@@ -97,6 +147,12 @@ export interface ProcessScriptureOptions {
   // Set on the load/backfill path (opening a note) so merely viewing a note — which materializes
   // legacy pills — never changes the note's "last updated" sort order.
   skipUpdatedAt?: boolean;
+  /**
+   * Pills + dock model (prototype / default notes): keep scripture on the parent note as pills,
+   * store passage rows on the parent in ScriptureMetadata, and do not create noteType: scripture
+   * child notes or NoteScriptureReferences junctions. Defaults to true for noteType === 'default'.
+   */
+  pillsOnly?: boolean;
 }
 
 export async function processScriptureReferences(
@@ -140,6 +196,8 @@ async function processScriptureReferencesInternal(
     throw new Error('Note not found');
   }
 
+  const pillsOnly = options?.pillsOnly ?? note.noteType === 'default';
+
   // Use provided content or note content
   // Use let instead of const so we can update it when fixing pasted pill noteIds
   let noteContent = contentOverride || note.content;
@@ -161,9 +219,10 @@ async function processScriptureReferencesInternal(
     const pillNoteId = match[2];
 
     // Only treat as an existing reference if it has a real note ID (not "pending")
-    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const normalizedRef = normalizeScriptureReference(reference);
-      existingReferences.set(normalizedRef, pillNoteId);
+      existingReferences.set(normalizedRef, resolvedNoteId);
     }
   }
 
@@ -173,12 +232,12 @@ async function processScriptureReferencesInternal(
     const pillNoteId = match[1];
     const reference = match[2];
 
-    // Only treat as an existing reference if it has a real note ID (not "pending")
-    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const normalizedRef = normalizeScriptureReference(reference);
       // Only add if not already found by pattern 1
       if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
+        existingReferences.set(normalizedRef, resolvedNoteId);
       }
     }
   }
@@ -253,12 +312,11 @@ async function processScriptureReferencesInternal(
   while ((match = pillPattern3.exec(noteContent)) !== null) {
     const reference = match[1];
     const pillNoteId = match[2];
-
-    // Only treat as an existing reference if it has a real note ID (not "pending")
-    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const normalizedRef = normalizeScriptureReference(reference);
       if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
+        existingReferences.set(normalizedRef, resolvedNoteId);
       }
     }
   }
@@ -270,8 +328,8 @@ async function processScriptureReferencesInternal(
   while ((match = noteLinkPattern.exec(noteContent)) !== null) {
     const pillNoteId = match[1];
 
-    // Only treat as an existing reference if it has a real note ID (not "pending")
-    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       // Extract plain text from the inner content (remove any nested HTML like <strong>)
       const innerContent = match[2].replace(/<[^>]*>/g, '').trim();
       // Check if this inner text looks like a scripture reference
@@ -279,7 +337,7 @@ async function processScriptureReferencesInternal(
       if (innerRefs.length > 0) {
         const normalizedRef = normalizeScriptureReference(innerRefs[0].reference);
         if (!existingReferences.has(normalizedRef)) {
-          existingReferences.set(normalizedRef, pillNoteId);
+          existingReferences.set(normalizedRef, resolvedNoteId);
         }
       }
     }
@@ -290,14 +348,14 @@ async function processScriptureReferencesInternal(
   while ((match = noteLinkPattern2.exec(noteContent)) !== null) {
     const pillNoteId = match[1];
 
-    // Only treat as an existing reference if it has a real note ID (not "pending")
-    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const innerContent = match[2].replace(/<[^>]*>/g, '').trim();
       const innerRefs = detectScriptureReferences(innerContent);
       if (innerRefs.length > 0) {
         const normalizedRef = normalizeScriptureReference(innerRefs[0].reference);
         if (!existingReferences.has(normalizedRef)) {
-          existingReferences.set(normalizedRef, pillNoteId);
+          existingReferences.set(normalizedRef, resolvedNoteId);
         }
       }
     }
@@ -308,10 +366,11 @@ async function processScriptureReferencesInternal(
   while ((match = pillPattern6.exec(noteContent)) !== null) {
     const reference = match[1];
     const pillNoteId = match[2];
-    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const normalizedRef = normalizeScriptureReference(reference);
       if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
+        existingReferences.set(normalizedRef, resolvedNoteId);
       }
     }
   }
@@ -321,10 +380,11 @@ async function processScriptureReferencesInternal(
   while ((match = pillPattern7.exec(noteContent)) !== null) {
     const pillNoteId = match[1];
     const reference = match[2];
-    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const normalizedRef = normalizeScriptureReference(reference);
       if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
+        existingReferences.set(normalizedRef, resolvedNoteId);
       }
     }
   }
@@ -334,10 +394,11 @@ async function processScriptureReferencesInternal(
   while ((match = pillPattern8.exec(noteContent)) !== null) {
     const reference = match[1];
     const pillNoteId = match[2];
-    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const normalizedRef = normalizeScriptureReference(reference);
       if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
+        existingReferences.set(normalizedRef, resolvedNoteId);
       }
     }
   }
@@ -346,10 +407,11 @@ async function processScriptureReferencesInternal(
   while ((match = pillPattern9.exec(noteContent)) !== null) {
     const pillNoteId = match[1];
     const reference = match[2];
-    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const normalizedRef = normalizeScriptureReference(reference);
       if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
+        existingReferences.set(normalizedRef, resolvedNoteId);
       }
     }
   }
@@ -506,7 +568,7 @@ async function processScriptureReferencesInternal(
     pendingPills.size === 0 &&
     detectedReferences.every((d) => existingReferences.has(normalizeScriptureReference(d.reference)));
 
-  if (!skipBulkScriptureLoad) {
+  if (!skipBulkScriptureLoad && !pillsOnly) {
     await loadScriptureMapFromDb();
   }
 
@@ -531,6 +593,25 @@ async function processScriptureReferencesInternal(
       const existingNoteId = existingReferences.get(normalizedReference)!;
       referenceMap.set(reference, existingNoteId);
       continue; // Skip processing, don't add to results
+    }
+
+    if (pillsOnly) {
+      try {
+        const pendingPillInfo = pendingPills.get(normalizedReference);
+        const effectiveTranslation = pendingPillInfo?.pillTranslation || translation;
+        const verseText = await fetchVerseText(normalizedReference, effectiveTranslation);
+        await upsertScriptureMetadataForNote(
+          noteId,
+          normalizedReference,
+          effectiveTranslation,
+          verseText || reference,
+        );
+        referenceMap.set(reference, noteId);
+        results.push({ action: 'skipped', noteId, reference });
+      } catch (error) {
+        console.error(`Error processing pills-only scripture reference ${reference}:`, error);
+      }
+      continue;
     }
 
     try {
@@ -738,7 +819,7 @@ async function processScriptureReferencesInternal(
           console.error(`Error creating scripture note for ${reference}:`, error);
         }
       } else {
-        // Scripture exists
+        // Scripture exists (legacy child note)
         const existingNoteId = existingScripture.noteId;
         referenceMap.set(reference, existingNoteId);
 
@@ -851,29 +932,31 @@ async function processScriptureReferencesInternal(
       referencesForHighlighting.push({ reference: referenceForHighlight, noteId: existingScriptureNoteId, translation: pillInfo?.pillTranslation || existingPillTranslations.get(normalizedRef) || translation, accent: pillInfo?.pillAccent || existingPillAccents.get(normalizedRef) });
     }
 
-    // Ensure junction entry exists for existing references (critical for collapsible list)
-    try {
-      const existingJunction = first(await db.select()
-        .from(NoteScriptureReferences)
-        .where(
-          and(
-            eq(NoteScriptureReferences.noteId, noteId),
-            eq(NoteScriptureReferences.scriptureNoteId, existingScriptureNoteId)
+    if (!pillsOnly) {
+      // Ensure junction entry exists for existing references (critical for collapsible list)
+      try {
+        const existingJunction = first(await db.select()
+          .from(NoteScriptureReferences)
+          .where(
+            and(
+              eq(NoteScriptureReferences.noteId, noteId),
+              eq(NoteScriptureReferences.scriptureNoteId, existingScriptureNoteId)
+            )
           )
-        )
-        .limit(1));
+          .limit(1));
 
-      if (!existingJunction) {
-        await db.insert(NoteScriptureReferences).values({
-          id: `note-scripture-${noteId}-${existingScriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-          noteId: noteId,
-          scriptureNoteId: existingScriptureNoteId,
-          createdAt: new Date()
-        });
-      }
-    } catch (junctionError: any) {
-      if (!junctionError?.message?.includes('UNIQUE constraint failed')) {
-        console.error(`[processScriptureReferences] Failed to create junction for existing ref (noteId=${noteId}, scriptureNoteId=${existingScriptureNoteId}):`, junctionError?.message ?? junctionError);
+        if (!existingJunction) {
+          await db.insert(NoteScriptureReferences).values({
+            id: `note-scripture-${noteId}-${existingScriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            noteId: noteId,
+            scriptureNoteId: existingScriptureNoteId,
+            createdAt: new Date()
+          });
+        }
+      } catch (junctionError: any) {
+        if (!junctionError?.message?.includes('UNIQUE constraint failed')) {
+          console.error(`[processScriptureReferences] Failed to create junction for existing ref (noteId=${noteId}, scriptureNoteId=${existingScriptureNoteId}):`, junctionError?.message ?? junctionError);
+        }
       }
     }
   }
@@ -909,6 +992,30 @@ async function processScriptureReferencesInternal(
   // After processing all detected references, ensure junction entries exist for ALL pills
   // This handles pills that were pasted with noteIds from other notes
   for (const [scriptureNoteId, reference] of allExistingPills.entries()) {
+    if (pillsOnly) {
+      try {
+        const normalizedRef = normalizeScriptureReference(reference);
+        const pillInfo = pendingPills.get(normalizedRef);
+        const effectiveTranslation =
+          pillInfo?.pillTranslation || existingPillTranslations.get(normalizedRef) || translation;
+        const verseText = await fetchVerseText(normalizedRef, effectiveTranslation);
+        await upsertScriptureMetadataForNote(noteId, normalizedRef, effectiveTranslation, verseText || reference);
+        if (scriptureNoteId !== noteId) {
+          noteContent = noteContent.replace(
+            new RegExp(`data-note-id=["']${scriptureNoteId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'g'),
+            `data-note-id="${noteId}"`,
+          );
+        }
+        referenceMap.set(reference, noteId);
+      } catch (pillOnlyError: unknown) {
+        console.error(
+          `[processScriptureReferences] Failed pills-only pill sync (noteId=${noteId}, reference=${reference}):`,
+          pillOnlyError instanceof Error ? pillOnlyError.message : pillOnlyError,
+        );
+      }
+      continue;
+    }
+
     try {
       // First, verify that the scripture note exists and belongs to this user
       // This handles cases where pills were pasted with noteIds that don't exist or belong to other users
@@ -1167,31 +1274,33 @@ async function processScriptureReferencesInternal(
   }
 
   // Prune stale NoteScriptureReferences (pills removed from content)
-  // Collect all scripture note IDs that are still present in the final content
-  const presentScriptureNoteIds = new Set<string>();
-  for (const noteId of referenceMap.values()) {
-    if (noteId) presentScriptureNoteIds.add(noteId);
-  }
-  for (const noteId of existingReferences.values()) {
-    if (noteId) presentScriptureNoteIds.add(noteId);
-  }
-  for (const noteId of allExistingPills.keys()) {
-    if (noteId) presentScriptureNoteIds.add(noteId);
-  }
-
-  // Query existing junctions and delete any whose scriptureNoteId is not present
-  try {
-    const existingJunctions = await db.select({ id: NoteScriptureReferences.id, scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
-      .from(NoteScriptureReferences)
-      .where(eq(NoteScriptureReferences.noteId, noteId));
-    
-    for (const junction of existingJunctions) {
-      if (!presentScriptureNoteIds.has(junction.scriptureNoteId)) {
-        await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.id, junction.id));
-      }
+  if (!pillsOnly) {
+    // Collect all scripture note IDs that are still present in the rest of content
+    const presentScriptureNoteIds = new Set<string>();
+    for (const mappedNoteId of referenceMap.values()) {
+      if (mappedNoteId) presentScriptureNoteIds.add(mappedNoteId);
     }
-  } catch (pruneError: any) {
-    console.error('[processScriptureReferences] Failed to prune stale references (non-critical):', pruneError?.message ?? pruneError);
+    for (const mappedNoteId of existingReferences.values()) {
+      if (mappedNoteId) presentScriptureNoteIds.add(mappedNoteId);
+    }
+    for (const mappedNoteId of allExistingPills.keys()) {
+      if (mappedNoteId) presentScriptureNoteIds.add(mappedNoteId);
+    }
+
+    // Query existing junctions and delete any whose scriptureNoteId is not present
+    try {
+      const existingJunctions = await db.select({ id: NoteScriptureReferences.id, scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+        .from(NoteScriptureReferences)
+        .where(eq(NoteScriptureReferences.noteId, noteId));
+
+      for (const junction of existingJunctions) {
+        if (!presentScriptureNoteIds.has(junction.scriptureNoteId)) {
+          await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.id, junction.id));
+        }
+      }
+    } catch (pruneError: any) {
+      console.error('[processScriptureReferences] Failed to prune stale references (non-critical):', pruneError?.message ?? pruneError);
+    }
   }
 
   const updatedContent = canonicalizeNoteHtmlLineBreaks(

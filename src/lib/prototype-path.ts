@@ -54,7 +54,7 @@ function isNonPrototypeAppPath(logical: string): boolean {
  * Single-segment shell children that are NOT notes. Notes live at the root layer
  * (`/<slug>`), so any other single non-reserved segment is treated as a note.
  */
-const RESERVED_PROTOTYPE_SEGMENTS = new Set(['settings', 'space', 'search']);
+const RESERVED_PROTOTYPE_SEGMENTS = new Set(['settings', 'space', 'search', 'admin']);
 
 /**
  * The lone path segment of a prototype-shell URL, or null when the path is the
@@ -88,6 +88,18 @@ export function isPrototypeNotePath(pathname: string): boolean {
 
 export function isPrototypeSettingsPath(pathname: string): boolean {
   return prototypeLogicalPath(pathname).startsWith('/settings');
+}
+
+export function isPrototypeAdminPath(pathname: string): boolean {
+  return prototypeLogicalPath(pathname).startsWith('/admin');
+}
+
+export function prototypeAdminUsageRouteTo(): '/admin/usage' | '/prototype/admin/usage' {
+  return isDedicatedPrototypeHost() ? '/admin/usage' : '/prototype/admin/usage';
+}
+
+export function prototypeAdminVotdRouteTo(): '/admin/votd' | '/prototype/admin/votd' {
+  return isDedicatedPrototypeHost() ? '/admin/votd' : '/prototype/admin/votd';
 }
 
 export function matchPrototypeNoteId(pathname: string): string | null {

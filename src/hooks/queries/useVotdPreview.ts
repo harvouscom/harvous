@@ -69,10 +69,28 @@ export function useVotdPreviewForAdmin(days = 30) {
   const { userId, isLoaded, isSignedIn } = useAuth();
   const admin = useHarvousAdminCheck();
   const preview = useQuery({
-    queryKey: [...PREVIEW_KEY, days, userId],
+    queryKey: [...PREVIEW_KEY, 'days', days, userId],
     queryFn: () => votdApi.get<PreviewResponse>('/api/admin/votd/preview', { days }),
     enabled:
       isLoaded && isSignedIn && !!userId && admin.isSuccess && admin.data?.isAdmin === true,
+    staleTime: 30_000,
+  });
+  return { admin, preview };
+}
+
+export function useVotdPreviewMonth(month: string) {
+  const { userId, isLoaded, isSignedIn } = useAuth();
+  const admin = useHarvousAdminCheck();
+  const preview = useQuery({
+    queryKey: [...PREVIEW_KEY, 'month', month, userId],
+    queryFn: () => votdApi.get<PreviewResponse>('/api/admin/votd/preview', { month }),
+    enabled:
+      isLoaded &&
+      isSignedIn &&
+      !!userId &&
+      !!month &&
+      admin.isSuccess &&
+      admin.data?.isAdmin === true,
     staleTime: 30_000,
   });
   return { admin, preview };

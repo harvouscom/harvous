@@ -32,6 +32,7 @@ interface PrototypeInspectorPaneProps {
 export default function PrototypeInspectorPane({ note, spaceId = '' }: PrototypeInspectorPaneProps) {
   const [connectOpen, setConnectOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const deleteAnchorRef = useRef<HTMLElement | null>(null);
   const navigate = useNavigate();
   const { closeInspector, closeDrawer, isMobileSidebar, openStudyThreadPopover } = useProtoShell();
   const deleteNote = useDeleteNote();
@@ -174,7 +175,10 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
             type="button"
             className="proto-inspector-delete-btn"
             disabled={deleteNote.isPending}
-            onClick={() => setDeleteConfirmOpen(true)}
+            onClick={(e) => {
+              deleteAnchorRef.current = e.currentTarget;
+              setDeleteConfirmOpen(true);
+            }}
           >
             <Icon name="trash-can" size={12} aria-hidden />
             Delete note
@@ -184,13 +188,15 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
 
       {deleteConfirmOpen ? (
         <ProtoConfirmDialog
-          placement="main-column-top-right"
+          anchorEl={deleteAnchorRef.current}
+          preferAbove
           confirmLabel="Delete"
           busy={deleteNote.isPending}
           onConfirm={onDeleteConfirm}
           onCancel={() => {
             if (!deleteNote.isPending) {
               setDeleteConfirmOpen(false);
+              deleteAnchorRef.current = null;
             }
           }}
         />
@@ -309,18 +315,17 @@ function InspectorAddedByValue({ addedBy }: { addedBy?: string | null }) {
       title="Account settings"
       onClick={openAccountSettings}
     >
-      <span className="proto-inspector-added-by-chip__avatar" aria-hidden>
-        {showProfilePhoto ? (
-          <img
-            src={avatarImageUrl!}
-            alt=""
-            className="proto-inspector-added-by-chip__photo"
-            onError={() => setPhotoLoadFailed(true)}
-          />
-        ) : (
-          <Icon name="circle-user" size={10} />
-        )}
-      </span>
+      {showProfilePhoto ? (
+        <img
+          src={avatarImageUrl!}
+          alt=""
+          className="proto-inspector-added-by-chip__photo"
+          aria-hidden
+          onError={() => setPhotoLoadFailed(true)}
+        />
+      ) : (
+        <Icon name="circle-user" size={10} aria-hidden />
+      )}
       <span>You</span>
     </button>
   );

@@ -24,6 +24,8 @@ import {
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebarToolbar from '../pages/prototype/PrototypeSidebarToolbar';
 import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
+import PrototypeAdminSidebar from '../pages/prototype/PrototypeAdminSidebar';
+import AdminToolbar from '@/components/react/AdminToolbar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
 import '../styles/prototype-tokens.css';
 import '../styles/prototype-shell.css';
@@ -51,7 +53,9 @@ import {
 import {
   isPrototypeHomePath,
   isPrototypeNotePath,
+  isPrototypeAdminPath,
   isPrototypeShellPath,
+  matchPrototypeNoteId,
   prototypeHomePath,
   prototypeNoteRouteTo,
 } from '@/lib/prototype-path';
@@ -177,6 +181,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const widthRef = useRef(sidebarWidth);
 
   const isNoteRoute = isPrototypeNotePath(pathname);
+  const isAdminRoute = isPrototypeAdminPath(pathname);
   // inspector is rendered inline in PrototypeNotePage (flex-row), no extra grid column needed
   void inspectorOpen;
 
@@ -463,13 +468,15 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const shellStyle = { '--proto-sidebar-w': `${sidebarWidth}px` } as CSSProperties;
 
   const useSplitDesktopToolbar = !hideSidebar && !isMobileSidebar;
+  const useAdminFullWidthToolbar = isAdminRoute && useSplitDesktopToolbar;
   const showSidebarToolbar =
-    useSplitDesktopToolbar && !desktopSidebarCollapsed && !sidebarExiting;
+    useSplitDesktopToolbar && !useAdminFullWidthToolbar && !desktopSidebarCollapsed && !sidebarExiting;
 
   const shellMods = [
     'proto-shell',
     'proto-theme',
     hideSidebar ? 'proto-shell--no-sidebar' : '',
+    isAdminRoute ? 'proto-shell--admin' : '',
     'proto-shell--no-footer',
     isNoteRoute ? 'proto-shell--note-chrome' : '',
     isMobileSidebar && drawerOpen && !hideSidebar ? 'proto-shell--drawer-open' : '',
@@ -494,25 +501,31 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         <PrototypePinPanels />
         <ReferralCreditInit userId={userId} />
 
-        {useSplitDesktopToolbar ? (
+        {useAdminFullWidthToolbar ? (
+          <header className="proto-shell__toolbar-cell">
+            <div className="proto-shell__toolbar-stack">
+              <AdminToolbar variant="split" />
+            </div>
+          </header>
+        ) : useSplitDesktopToolbar ? (
           <>
             {showSidebarToolbar ? (
               <header className="proto-shell__sidebar-toolbar-cell">
                 <div className="proto-shell__toolbar-stack">
-                  <PrototypeSidebarToolbar />
+                  <PrototypeSidebarToolbar admin={isAdminRoute} />
                 </div>
               </header>
             ) : null}
             <header className="proto-shell__detail-toolbar-cell">
               <div className="proto-shell__toolbar-stack">
-                <NativeToolbar variant="detail" />
+                {isAdminRoute ? <AdminToolbar variant="detail" /> : <NativeToolbar variant="detail" />}
               </div>
             </header>
           </>
         ) : (
           <header className="proto-shell__toolbar-cell">
             <div className="proto-shell__toolbar-stack">
-              <NativeToolbar variant="unified" />
+              {isAdminRoute ? <AdminToolbar variant="unified" /> : <NativeToolbar variant="unified" />}
             </div>
           </header>
         )}
@@ -531,7 +544,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
               .filter(Boolean)
               .join(' ')}
           >
-            <PrototypeSidebar />
+            {isAdminRoute ? <PrototypeAdminSidebar /> : <PrototypeSidebar />}
           </aside>
         ) : null}
         {!hideSidebar && !isMobileSidebar && !desktopSidebarCollapsed && !sidebarExiting ? (

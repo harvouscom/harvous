@@ -68,6 +68,22 @@ export async function fetchVotdToday(): Promise<VotdToday | null> {
   return { reference, translation };
 }
 
+export type VotdEngagementAction = 'dismiss' | 'add_note';
+
+/** Fire-and-forget server tracking for prototype Today's Passage dismiss / add-note. */
+export function recordVotdEngagement(action: VotdEngagementAction): void {
+  const tz = browserIanaTimeZone();
+  void fetch(`/api/votd/record-engagement?tz=${encodeURIComponent(tz)}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Votd-Timezone': tz,
+    },
+    body: JSON.stringify({ action, tz }),
+  }).catch(() => {});
+}
+
 function refsEquivalent(a: string, b: string): boolean {
   const na = normalizeScriptureReference(a.trim()) ?? a.trim();
   const nb = normalizeScriptureReference(b.trim()) ?? b.trim();

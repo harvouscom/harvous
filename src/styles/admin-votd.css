@@ -1,167 +1,470 @@
-/* Harvous admin — VOTD editorial schedule (profile panel + /admin/votd) */
+/* Admin — Today's Passage editorial schedule (PDS / prototype design system) */
 
-.admin-votd__intro {
-  font-size: 14px;
-  color: var(--color-deep-grey);
-  line-height: 1.45;
-  margin: 0 0 16px;
-  /* Match .featured-card inner horizontal rhythm (14px) + a little top air below panel header */
-  padding: 8px 14px 0;
-  box-sizing: border-box;
-}
-
-.admin-votd__muted {
-  color: var(--color-pebble-grey);
-  margin: 8px 0;
-}
-
-.admin-votd__error {
-  color: var(--color-error, #b42318);
-  margin: 8px 0;
-}
-
-/* One preview row: matches dashboard .featured-card-shell + VOTD surface */
-.admin-votd-day-shell {
-  margin-bottom: 12px;
-}
-
-.admin-votd-day-shell .featured-card-shell {
-  margin-bottom: 0;
-}
-
-.admin-votd-day__card-solo {
-  margin-bottom: 12px;
+.admin-votd__board {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   width: 100%;
 }
 
-.admin-votd-day-shell--holiday .featured-card,
-.admin-votd-day-shell--holiday.admin-votd-day__card-solo {
-  box-shadow:
-    0 1px 2px rgba(120, 118, 111, 0.12),
-    0 6px 18px rgba(120, 118, 111, 0.07),
-    inset 0 1px 0 0 rgba(196, 184, 168, 0.35);
+.admin-votd__intro {
+  margin: 0;
+  line-height: 1.45;
+  color: var(--pds-text-tertiary, var(--color-pebble-grey));
 }
 
-.admin-votd-day-shell--today .featured-card,
-.admin-votd-day-shell--today.admin-votd-day__card-solo {
-  box-shadow:
-    0 0 0 2px var(--color-deep-grey),
-    0 6px 18px rgba(120, 118, 111, 0.07);
+.admin-votd__muted {
+  color: var(--pds-text-tertiary, var(--color-pebble-grey));
+  margin: 0;
 }
 
-.admin-votd-day-shell--past .featured-card,
-.admin-votd-day-shell--past .featured-card-shell {
+.admin-votd__error {
+  color: var(--pds-destructive, #b42318);
+  margin: 0;
+}
+
+/* Month calendar grid */
+.admin-votd-cal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-votd-cal__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-votd-cal__title {
+  margin: 0;
+  flex: 1 1 auto;
+  text-align: center;
+  color: var(--pds-text-primary, var(--color-deep-grey));
+}
+
+.admin-votd-cal__nav-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0.5px solid var(--pds-border, var(--color-fog-white));
+  border-radius: var(--pds-radius-md, 10px);
+  background: var(--pds-bg-secondary, #fff);
+  color: var(--pds-text-secondary, var(--color-stone-grey));
+  cursor: pointer;
+}
+
+.admin-votd-cal__nav-btn:hover {
+  background: var(--pds-fill-tertiary, var(--color-fog-white));
+  color: var(--pds-text-primary, var(--color-deep-grey));
+}
+
+.admin-votd-cal__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.admin-votd-cal__weekday {
+  text-align: center;
+  color: var(--pds-text-tertiary, var(--color-pebble-grey));
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.admin-votd-cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.admin-votd-cal__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 72px;
+  padding: 6px 5px 5px;
+  border: 0.5px solid var(--pds-border, var(--color-fog-white));
+  border-radius: var(--pds-radius-sm, 8px);
+  background: var(--pds-bg-secondary, #fff);
+  text-align: left;
+  cursor: default;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.admin-votd-cal__cell--pad {
+  border-color: transparent;
+  background: transparent;
+  min-height: 0;
+  padding: 0;
+}
+
+.admin-votd-cal__cell--has-data {
+  cursor: pointer;
+}
+
+.admin-votd-cal__cell--has-data:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 4%, var(--pds-bg-secondary, #fff));
+}
+
+.admin-votd-cal__cell--today {
+  box-shadow: inset 0 0 0 1.5px var(--pds-accent, var(--color-deep-grey));
+}
+
+.admin-votd-cal__cell--selected {
+  box-shadow:
+    inset 0 0 0 2px var(--pds-accent, var(--color-deep-grey)),
+    var(--pds-shadow-subtle, 0 2px 8px rgba(0, 0, 0, 0.06));
+}
+
+.admin-votd-cal__cell--past {
   opacity: 0.72;
 }
 
-/* Date / source row inside white card (above verse row) */
-.admin-votd-day__meta {
+.admin-votd-cal__cell--holiday {
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--pds-accent, #8b7355) 22%, transparent);
+}
+
+.admin-votd-cal__cell--source-calendar {
+  background: color-mix(in srgb, var(--pds-accent, #8b7355) 6%, var(--pds-bg-secondary, #fff));
+}
+
+.admin-votd-cal__cell--source-pool {
+  background: var(--pds-bg-secondary, #fff);
+}
+
+.admin-votd-cal__cell--source-override {
+  background: color-mix(in srgb, #3b82f6 6%, var(--pds-bg-secondary, #fff));
+}
+
+.admin-votd-cal__cell--source-published {
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 4%, var(--pds-bg-secondary, #fff));
+}
+
+.admin-votd-cal__cell-date {
+  font: var(--pds-font-body, inherit);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--pds-text-primary, var(--color-deep-grey));
+}
+
+.admin-votd-cal__cell-ref {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pds-text-secondary, var(--color-stone-grey));
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.admin-votd-cal__cell-badges {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: auto;
+}
+
+.admin-votd-cal__cell-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.admin-votd-cal__cell-dot--holiday,
+.admin-votd-cal__cell-dot--source-calendar {
+  background: var(--pds-accent, #8b7355);
+}
+
+.admin-votd-cal__cell-dot--override {
+  background: #3b82f6;
+}
+
+.admin-votd-cal__cell-dot--published {
+  background: var(--pds-text-tertiary, var(--color-pebble-grey));
+}
+
+.admin-votd-cal__cell-dot--source-pool {
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 52%, transparent);
+}
+
+.admin-votd-cal__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 2px;
+  color: var(--pds-text-tertiary, var(--color-pebble-grey));
+}
+
+.admin-votd-cal__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+@media (max-width: 520px) {
+  .admin-votd-cal__cell {
+    min-height: 58px;
+    padding: 4px 3px 3px;
+  }
+
+  .admin-votd-cal__cell-date {
+    font-size: 12px;
+  }
+
+  .admin-votd-cal__cell-ref {
+    font-size: 9px;
+  }
+}
+
+/* Admin passage dialog — editorial footer inside proto-votd-sheet shell */
+.admin-votd-passage-dialog__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 6px;
+}
+
+.admin-votd-passage-dialog__source {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: var(--pds-text-tertiary, var(--color-pebble-grey));
+}
+
+.admin-votd-passage-dialog__override {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
-  padding: 12px 14px 0;
-  box-sizing: border-box;
+  padding: 14px 20px;
+  flex-shrink: 0;
+}
+
+.admin-votd-passage-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 12px 16px 14px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 3.5%, transparent);
+}
+
+/* Day detail card — mirrors admin-usage board cards + proto-votd verse surface */
+.admin-votd-day {
+  border: 0.5px solid var(--pds-border, var(--color-fog-white));
+  border-radius: var(--pds-radius-menu, 12px);
+  background: var(--pds-bg-secondary, #fff);
+  overflow: hidden;
+}
+
+.admin-votd-day--holiday {
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--pds-accent, #8b7355) 22%, transparent);
+}
+
+.admin-votd-day--today {
+  box-shadow:
+    0 0 0 2px var(--pds-accent, var(--color-deep-grey)),
+    var(--pds-shadow-subtle, 0 2px 8px rgba(0, 0, 0, 0.06));
+}
+
+.admin-votd-day--past {
+  opacity: 0.68;
+}
+
+.admin-votd-day__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+}
+
+.admin-votd-day__header-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+  min-width: 0;
 }
 
 .admin-votd-day__date {
-  font-weight: 700;
-  font-size: 15px;
-  color: var(--color-deep-grey);
-  font-family: var(--font-sans);
+  color: var(--pds-text-primary, var(--color-deep-grey));
 }
 
 .admin-votd-day__dow {
-  color: var(--color-stone-grey);
-  font-size: 13px;
-  font-weight: 400;
-  margin-left: 6px;
+  color: var(--pds-text-secondary, var(--color-stone-grey));
 }
 
 .admin-votd-day__badge {
-  display: inline-block;
-  margin-left: 8px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-deep-grey);
-  background: var(--color-fog-white);
+  display: inline-flex;
+  align-items: center;
   padding: 2px 7px;
-  border-radius: 6px;
-  vertical-align: middle;
+  border-radius: var(--pds-radius-pill, 999px);
+  background: color-mix(in srgb, var(--pds-accent, #8b7355) 14%, transparent);
+  color: var(--pds-accent, var(--color-deep-grey));
+  font: var(--pds-font-body, inherit);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .admin-votd-day__source {
-  font-size: 11px;
-  color: var(--color-pebble-grey);
+  flex-shrink: 0;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  flex-shrink: 0;
   font-weight: 600;
-  font-family: var(--font-sans);
+  color: var(--pds-text-tertiary, var(--color-pebble-grey));
+}
+
+.admin-votd-day__verse-card {
+  margin: 0 16px 12px;
+  padding: 14px 16px;
+  border: 0.5px solid var(--pds-border, var(--color-fog-white));
+  border-radius: var(--pds-radius-md, 10px);
+  background: var(--pds-bg-primary, #fff);
+  box-shadow: var(--pds-shadow-subtle, inset 0 0.5px 0 rgba(255, 255, 255, 0.6));
+}
+
+.admin-votd-day__verse-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.admin-votd-day__verse-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-top: 1px;
+  border-radius: var(--pds-radius-sm, 8px);
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 5%, transparent);
+  color: var(--pds-text-secondary, var(--color-stone-grey));
+}
+
+.admin-votd-day__verse-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  margin: 0;
+  line-height: 1.55;
+  color: var(--pds-text-primary, var(--color-deep-grey));
 }
 
 .admin-votd-day__verse-missing {
-  font-family: var(--font-serif);
-  font-size: 15px;
-  color: var(--color-pebble-grey);
-  line-height: 1.68;
+  color: var(--pds-text-tertiary, var(--color-pebble-grey));
+  font-style: italic;
+}
+
+.admin-votd-day__verse-text .scripture-pill {
+  font-size: calc(1em * var(--pds-scripture-pill-font-scale, 0.9375));
+  vertical-align: baseline;
 }
 
 .admin-votd-day__override-form {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  margin: 0 14px 14px;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 16px 12px;
   padding-top: 12px;
-  border-top: 1px solid var(--color-fog-white);
-  box-sizing: border-box;
+  border-top: 0.5px solid var(--pds-border, var(--color-fog-white));
 }
 
 .admin-votd-day__input {
-  flex: 1;
-  min-width: 160px;
-  padding: 8px 12px;
-  border: 1px solid var(--color-fog-white);
-  border-radius: 10px;
-  font-family: var(--font-sans);
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 0.5px solid var(--pds-border, var(--color-fog-white));
+  border-radius: var(--pds-radius-md, 10px);
+  background: var(--pds-bg-primary, #fff);
+  color: var(--pds-text-primary, var(--color-deep-grey));
+  font: var(--pds-font-body, inherit);
   font-size: 15px;
 }
 
-/* Action dock: same chrome as dashboard VOTD, no entrance animation, no strip item transitions */
-.admin-votd__action-dock .action-strip__item {
-  transition: none;
+.admin-votd-day__input:focus {
+  outline: none;
+  border-color: var(--pds-accent, var(--color-deep-grey));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pds-accent, #8b7355) 20%, transparent);
 }
 
-.admin-votd__btn {
-  padding: 8px 14px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-family: var(--font-sans);
-  font-weight: 600;
-  border: 1px solid var(--color-deep-grey);
-  background: #fff;
-  color: var(--color-deep-grey);
+.admin-votd-day__override-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-votd-day__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 10px 12px 12px;
+  border-top: 0.5px solid var(--pds-border, var(--color-fog-white));
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 3.5%, transparent);
+}
+
+.admin-votd-day__action {
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--pds-radius-pill, 999px);
+  background: transparent;
+  color: var(--pds-text-secondary, var(--color-stone-grey));
+  font: var(--pds-font-body, inherit);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
 }
 
-.admin-votd__btn:hover {
-  background: var(--color-fog-white);
+.admin-votd-day__action:hover:not(:disabled) {
+  background: var(--pds-fill-tertiary, var(--color-fog-white));
+  color: var(--pds-text-primary, var(--color-deep-grey));
 }
 
-.admin-votd__btn--primary {
-  background: var(--color-deep-grey);
-  color: #fff;
-  border-color: var(--color-deep-grey);
+.admin-votd-day__action--emphasis {
+  font-weight: 600;
+  color: var(--pds-text-primary, var(--color-deep-grey));
 }
 
-.admin-votd__btn--primary:hover {
+.admin-votd-day__action--primary {
+  font-weight: 600;
+  color: var(--pds-on-accent, #fff);
+  background: var(--pds-bg-accent-button, var(--color-deep-grey));
+}
+
+.admin-votd-day__action--primary:hover:not(:disabled) {
   filter: brightness(1.05);
+  background: var(--pds-bg-accent-button, var(--color-deep-grey));
+  color: var(--pds-on-accent, #fff);
 }
 
-.admin-votd__btn:disabled {
-  opacity: 0.5;
+.admin-votd-day__action:disabled {
+  opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* Classic profile panel — tighter inset when nested in panel scroll */
+.panel__content-scroll .admin-votd__board {
+  padding: 0 4px;
+}
+
+.panel__content-scroll .admin-votd__intro {
+  padding: 4px 0 0;
 }

@@ -43,6 +43,9 @@ import {
   deriveRecurringPerson,
   pickBareHighlight,
   isHighlightUnannotated,
+  isAnnotatableHighlight,
+  deriveReferenceWordConnections,
+  referenceWordKey,
   findUnannotatedHighlightForRef,
   findUnannotatedHighlightForChapter,
   findHighlightForRef,
@@ -1509,6 +1512,14 @@ describe('pickRecallTrend + recallTrendLine', () => {
     expect(pickRecallTrend(cands)?.id).toBe('passage:John 3');
   });
 
+  it('includes referenceWord as a trend kind', () => {
+    const cands: C[] = [
+      { id: 'ref:grace', kind: 'referenceWord', score: 0.9 },
+      { id: 'passage:John 3', kind: 'passage', score: 0.5 },
+    ];
+    expect(pickRecallTrend(cands)?.id).toBe('ref:grace');
+  });
+
   it('returns undefined when there are no trend candidates', () => {
     expect(pickRecallTrend([{ id: 'n', kind: 'revisitNote' as any, score: 1 }])).toBeUndefined();
   });
@@ -1525,6 +1536,9 @@ describe('pickRecallTrend + recallTrendLine', () => {
     );
     expect(recallTrendLine({ kind: 'crossref', fromRef: 'Romans 3:21', toRef: 'Leviticus 14:4' })).toBe(
       'Romans 3:21 and Leviticus 14:4 keep surfacing together in your notes.',
+    );
+    expect(recallTrendLine({ kind: 'referenceWord', referenceWord: 'Grace' })).toBe(
+      'You keep looking up Grace across your notes.',
     );
   });
 });
@@ -1552,6 +1566,11 @@ describe('recallTrendGreetingParts', () => {
       prefix: ', lately ',
       labels: ['Romans 3:21', 'Leviticus 14:4'],
       suffix: ' keep surfacing together',
+    });
+    expect(recallTrendGreetingParts({ kind: 'referenceWord', referenceWord: 'Grace' })).toEqual({
+      prefix: ', often looking up ',
+      labels: ['Grace'],
+      suffix: '',
     });
   });
 
@@ -1641,15 +1660,76 @@ describe('deriveRecurringPerson', () => {
 describe('pickBareHighlight', () => {
   it('picks the oldest unannotated highlight', () => {
     const out = pickBareHighlight([
-      { id: 'annotated', miniNoteBody: 'a thought', recencyMs: 1 },
-      { id: 'bare-new', miniNoteBody: '', notesBody: '', recencyMs: 100 },
-      { id: 'bare-old', miniNoteBody: null, notesBody: '  ', recencyMs: 50 },
+      { id: 'annotated', entryKind: 'miniNote', miniNoteBody: 'a thought', recencyMs: 1 },
+      { id: 'bare-new', entryKind: 'miniNote', miniNoteBody: '', notesBody: '', recencyMs: 100 },
+      { id: 'bare-old', entryKind: 'scriptureLink', miniNoteBody: null, notesBody: '  ', recencyMs: 50 },
     ]);
     expect(out?.id).toBe('bare-old');
   });
 
   it('returns undefined when every highlight is annotated', () => {
-    expect(pickBareHighlight([{ id: 'x', notesBody: 'reflection' }])).toBeUndefined();
+    expect(pickBareHighlight([{ id: 'x', entryKind: 'miniNote', notesBody: 'reflection' }])).toBeUndefined();
+  });
+
+  it('skips reference, linkedNote, and workspace rows', () => {
+    const out = pickBareHighlight([
+      { id: 'ref', entryKind: 'reference', recencyMs: 1 },
+      { id: 'linked', entryKind: 'linkedNote', recencyMs: 2 },
+      { id: 'workspace', entryKind: 'workspace', recencyMs: 3 },
+      { id: 'mini', entryKind: 'miniNote', recencyMs: 10 },
+    ]);
+    expect(out?.id).toBe('mini');
+  });
+});
+
+describe('isAnnotatableHighlight', () => {
+  it('allows miniNote and scriptureLink only', () => {
+    expect(isAnnotatableHighlight({ id: 'a', entryKind: 'miniNote' })).toBe(true);
+    expect(isAnnotatableHighlight({ id: 'b', entryKind: 'scriptureLink' })).toBe(true);
+    expect(isAnnotatableHighlight({ id: 'c', entryKind: 'reference' })).toBe(false);
+    expect(isAnnotatableHighlight({ id: 'd', entryKind: 'linkedNote' })).toBe(false);
+    expect(isAnnotatableHighlight({ id: 'e', entryKind: 'workspace' })).toBe(false);
+  });
+});
+
+describe('deriveReferenceWordConnections', () => {
+  it('groups the same word across distinct notes', () => {
+    const out = deriveReferenceWordConnections(
+      [
+        { id: 'r1', entryKind: 'reference', sourceSnippet: 'Grace', parentNoteId: 'n1', recencyMs: 100 },
+        { id: 'r2', entryKind: 'reference', sourceSnippet: 'grace', parentNoteId: 'n2', recencyMs: 200 },
+        { id: 'r3', entryKind: 'reference', sourceSnippet: 'Faith', parentNoteId: 'n3', recencyMs: 50 },
+      ],
+      { limit: 3, minNotes: 2 },
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]?.displayWord).toBe('grace');
+    expect(out[0]?.noteCount).toBe(2);
+    expect(out[0]?.latestRowId).toBe('r2');
+  });
+
+  it('returns nothing when a word appears in only one note', () => {
+    const out = deriveReferenceWordConnections(
+      [{ id: 'r1', entryKind: 'reference', sourceSnippet: 'Aaron', parentNoteId: 'n1', recencyMs: 100 }],
+      { limit: 1, minNotes: 2 },
+    );
+    expect(out).toEqual([]);
+  });
+
+  it('dedupes duplicate saves in the same note', () => {
+    const out = deriveReferenceWordConnections(
+      [
+        { id: 'r1', entryKind: 'reference', sourceSnippet: 'Mercy', parentNoteId: 'n1', recencyMs: 100 },
+        { id: 'r2', entryKind: 'reference', sourceSnippet: 'Mercy', parentNoteId: 'n1', recencyMs: 200 },
+        { id: 'r3', entryKind: 'reference', sourceSnippet: 'Mercy', parentNoteId: 'n2', recencyMs: 150 },
+      ],
+      { limit: 1, minNotes: 2 },
+    );
+    expect(out[0]?.noteCount).toBe(2);
+  });
+
+  it('normalizes referenceWordKey case-insensitively', () => {
+    expect(referenceWordKey({ sourceSnippet: '  Grace  ' })).toBe('grace');
   });
 });
 
@@ -1662,10 +1742,11 @@ describe('highlight ref matching for recall', () => {
   it('findUnannotatedHighlightForRef picks oldest matching unannotated row', () => {
     const out = findUnannotatedHighlightForRef(
       [
-        { id: 'annotated', scriptureReference: 'Romans 8:28', miniNoteBody: 'done', recencyMs: 1 },
-        { id: 'newer', scriptureReference: 'Romans 8:28', recencyMs: 200 },
-        { id: 'older', scriptureReference: 'Romans 8:28', recencyMs: 50 },
-        { id: 'other', scriptureReference: 'John 3:16', recencyMs: 10 },
+        { id: 'annotated', entryKind: 'miniNote', scriptureReference: 'Romans 8:28', miniNoteBody: 'done', recencyMs: 1 },
+        { id: 'newer', entryKind: 'miniNote', scriptureReference: 'Romans 8:28', recencyMs: 200 },
+        { id: 'older', entryKind: 'miniNote', scriptureReference: 'Romans 8:28', recencyMs: 50 },
+        { id: 'other', entryKind: 'miniNote', scriptureReference: 'John 3:16', recencyMs: 10 },
+        { id: 'ref', entryKind: 'reference', scriptureReference: 'Romans 8:28', recencyMs: 5 },
       ],
       'Romans 8:28',
     );
@@ -1675,8 +1756,8 @@ describe('highlight ref matching for recall', () => {
   it('findUnannotatedHighlightForChapter matches book and chapter', () => {
     const out = findUnannotatedHighlightForChapter(
       [
-        { id: 'v1', scriptureReference: 'Romans 9:14', recencyMs: 100 },
-        { id: 'v2', scriptureReference: 'Romans 8:1', recencyMs: 50 },
+        { id: 'v1', entryKind: 'scriptureLink', scriptureReference: 'Romans 9:14', recencyMs: 100 },
+        { id: 'v2', entryKind: 'scriptureLink', scriptureReference: 'Romans 8:1', recencyMs: 50 },
       ],
       'Romans',
       9,

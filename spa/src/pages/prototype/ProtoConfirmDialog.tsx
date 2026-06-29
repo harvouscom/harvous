@@ -12,12 +12,14 @@ const CARD_MIN_HEIGHT = 44;
 const Z_INDEX = 6000;
 
 export type ProtoConfirmDialogProps = {
-  /** `main-column-top-right` for inspector flows; default `anchor` for sidebar row menus. */
+  /** `main-column-top-right` for fixed-slot flows; default `anchor` for trigger-anchored confirms. */
   placement?: ProtoAnchoredPopoverStrategy;
   /** Live trigger element — used when placement is `anchor`. */
   anchorEl?: HTMLElement | null;
   /** Static trigger rect fallback when no live element is available. */
   anchorRect?: DOMRect | null;
+  /** When true, positions above the anchor instead of flipping below when space allows. */
+  preferAbove?: boolean;
   title?: string;
   confirmLabel?: string;
   cancelLabel?: string;
@@ -34,6 +36,7 @@ export default function ProtoConfirmDialog({
   placement = 'anchor',
   anchorEl = null,
   anchorRect = null,
+  preferAbove = false,
   title,
   confirmLabel = 'Delete',
   cancelLabel = 'Keep',
@@ -59,12 +62,24 @@ export default function ProtoConfirmDialog({
     const anchor = resolveAnchorRect(anchorElRef.current, anchorRectRef.current);
     if (!anchor) return;
     const { width, height } = el.getBoundingClientRect();
-    setPos(computeAnchoredPopoverPosition(anchor, width || CARD_MIN_WIDTH, height || CARD_MIN_HEIGHT));
-  }, [isFixedMainColumn]);
+    const cardWidth = width || CARD_MIN_WIDTH;
+    const cardHeight = height || CARD_MIN_HEIGHT;
+    const positioned = computeAnchoredPopoverPosition(anchor, cardWidth, cardHeight);
+    if (preferAbove) {
+      const offset = 7;
+      const viewportMargin = 12;
+      setPos({
+        top: Math.max(viewportMargin, anchor.top - cardHeight - offset),
+        left: positioned.left,
+      });
+      return;
+    }
+    setPos(positioned);
+  }, [isFixedMainColumn, preferAbove]);
 
   useLayoutEffect(() => {
     sync();
-  }, [sync, anchorEl, anchorRect, placement]);
+  }, [sync, anchorEl, anchorRect, placement, preferAbove]);
 
   useEffect(() => {
     const el = cardRef.current;

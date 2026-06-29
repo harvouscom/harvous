@@ -16,6 +16,7 @@ import {
   hasDailyPassageNote,
   isVotdPassageCardDismissedToday,
   noteMatchesDailyPassage,
+  recordVotdEngagement,
   setVotdDismissedToday,
   type VotdToday,
 } from '../../lib/votd-today';
@@ -123,6 +124,7 @@ export default function PrototypeDailyPassagePill({
               if (optimistic) openNote(optimistic.id);
               return;
             }
+            recordVotdEngagement('add_note');
             invalidateScriptureIndex();
             const nid = getNoteIdFromCreateResponse(res);
             if (nid) openNote(nid);
@@ -141,6 +143,7 @@ export default function PrototypeDailyPassagePill({
     setVotdDismissedToday();
     setDismissedToday(true);
     setSheetOpen(false);
+    recordVotdEngagement('dismiss');
   }, []);
 
   if (!homeSpaceId || dismissedToday) {

@@ -1,180 +1,290 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import SquareButton from './SquareButton';
-import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import Icon from './Icon';
-import { FeaturedCardActionsDock } from './FeaturedCardActionsDock';
-import { useVotdPreviewForAdmin, useVotdPreviewMutations, type VotdPreviewDay } from '@/hooks/queries/useVotdPreview';
+import AdminVotdPassageDialog from './AdminVotdPassageDialog';
+import {
+  useHarvousAdminCheck,
+  useVotdPreviewMonth,
+  useVotdPreviewMutations,
+  type VotdPreviewDay,
+} from '@/hooks/queries/useVotdPreview';
+import {
+  abbreviateScriptureReference,
+  buildMonthGrid,
+  formatUtcMonthLabel,
+  shiftUtcMonth,
+  utcTodayMonth,
+  utcTodayStr,
+  VOTD_WEEKDAY_LABELS,
+} from '@/utils/admin-votd-calendar';
 import '@/styles/admin-votd.css';
 
-function utcTodayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+type MutationBundle = {
+  overrideMutation: ReturnType<typeof useVotdPreviewMutations>['overrideMutation'];
+  refreshMutation: ReturnType<typeof useVotdPreviewMutations>['refreshMutation'];
+  clearMutation: ReturnType<typeof useVotdPreviewMutations>['clearMutation'];
+};
+
+function votdSourceDotClass(source: VotdPreviewDay['source']): string {
+  switch (source) {
+    case 'calendar':
+      return 'admin-votd-cal__cell-dot--source-calendar';
+    case 'pool':
+      return 'admin-votd-cal__cell-dot--source-pool';
+    case 'override':
+      return 'admin-votd-cal__cell-dot--override';
+    case 'published':
+      return 'admin-votd-cal__cell-dot--published';
+  }
+}
+
+function votdSourceDotTitle(day: VotdPreviewDay): string {
+  if (day.label) return day.label;
+  switch (day.source) {
+    case 'calendar':
+      return 'Calendar';
+    case 'pool':
+      return 'Pool';
+    case 'override':
+      return 'Override';
+    case 'published':
+      return 'Published';
+  }
+}
+
+function AdminVotdCalendarGrid({
+  viewMonth,
+  daysByDate,
+  selectedDate,
+  onSelectDate,
+  onPrevMonth,
+  onNextMonth,
+}: {
+  viewMonth: string;
+  daysByDate: Map<string, VotdPreviewDay>;
+  selectedDate: string | null;
+  onSelectDate: (date: string) => void;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+}) {
+  const today = utcTodayStr();
+  const grid = useMemo(() => buildMonthGrid(viewMonth), [viewMonth]);
+
+  return (
+    <div className="admin-votd-cal">
+      <div className="admin-votd-cal__nav">
+        <button type="button" className="admin-votd-cal__nav-btn" onClick={onPrevMonth} aria-label="Previous month">
+          <Icon name="caret-left" size={16} />
+        </button>
+        <h2 className="admin-votd-cal__title pds-list-title">{formatUtcMonthLabel(viewMonth)}</h2>
+        <button type="button" className="admin-votd-cal__nav-btn" onClick={onNextMonth} aria-label="Next month">
+          <Icon name="caret-right" size={16} />
+        </button>
+      </div>
+
+      <div className="admin-votd-cal__weekdays" aria-hidden="true">
+        {VOTD_WEEKDAY_LABELS.map((label) => (
+          <span key={label} className="admin-votd-cal__weekday pds-caption">
+            {label}
+          </span>
+        ))}
+      </div>
+
+      <div className="admin-votd-cal__grid" role="grid" aria-label={`Passage schedule for ${formatUtcMonthLabel(viewMonth)}`}>
+        {grid.map((cell, index) => {
+          if (!cell.date || !cell.inMonth) {
+            return (
+              <div
+                key={`pad-${index}`}
+                className="admin-votd-cal__cell admin-votd-cal__cell--pad"
+                role="gridcell"
+                aria-hidden="true"
+              />
+            );
+          }
+
+          const day = daysByDate.get(cell.date);
+          const isToday = cell.date === today;
+          const isPast = cell.date < today;
+          const isSelected = cell.date === selectedDate;
+          const source = day?.source;
+          const cellDate = cell.date;
+
+          const cellClass = [
+            'admin-votd-cal__cell',
+            isToday ? 'admin-votd-cal__cell--today' : '',
+            isPast || day?.isPublished ? 'admin-votd-cal__cell--past' : '',
+            day?.isHoliday ? 'admin-votd-cal__cell--holiday' : '',
+            day?.isOverridden ? 'admin-votd-cal__cell--overridden' : '',
+            source ? `admin-votd-cal__cell--source-${source}` : '',
+            isSelected ? 'admin-votd-cal__cell--selected' : '',
+            day ? 'admin-votd-cal__cell--has-data' : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
+
+          const dayNum = parseInt(cellDate.slice(8, 10), 10);
+
+          return (
+            <button
+              key={cellDate}
+              type="button"
+              className={cellClass}
+              role="gridcell"
+              aria-selected={isSelected}
+              aria-label={
+                day
+                  ? `${cellDate}, ${day.reference}${day.label ? `, ${day.label}` : ''}`
+                  : `${cellDate}, no passage loaded`
+              }
+              disabled={!day}
+              onClick={() => day && onSelectDate(cellDate)}
+            >
+              <span className="admin-votd-cal__cell-date">{dayNum}</span>
+              {day ? (
+                <>
+                  <span className="admin-votd-cal__cell-ref pds-caption">
+                    {abbreviateScriptureReference(day.reference)}
+                  </span>
+                  <span className="admin-votd-cal__cell-badges">
+                    <span
+                      className={`admin-votd-cal__cell-dot ${votdSourceDotClass(day.source)}`}
+                      title={votdSourceDotTitle(day)}
+                    />
+                  </span>
+                </>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="admin-votd-cal__legend pds-caption">
+        <span className="admin-votd-cal__legend-item">
+          <span className="admin-votd-cal__cell-dot admin-votd-cal__cell-dot--source-calendar" /> Calendar
+        </span>
+        <span className="admin-votd-cal__legend-item">
+          <span className="admin-votd-cal__cell-dot admin-votd-cal__cell-dot--source-pool" /> Pool
+        </span>
+        <span className="admin-votd-cal__legend-item">
+          <span className="admin-votd-cal__cell-dot admin-votd-cal__cell-dot--override" /> Override
+        </span>
+        <span className="admin-votd-cal__legend-item">
+          <span className="admin-votd-cal__cell-dot admin-votd-cal__cell-dot--published" /> Published
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function AdminVotdScheduleBody({
+  viewMonth,
   days,
   previewLoading,
   previewError,
+  onViewMonthChange,
   overrideMutation,
   refreshMutation,
   clearMutation,
 }: {
+  viewMonth: string;
   days: VotdPreviewDay[] | undefined;
   previewLoading: boolean;
   previewError: boolean;
-  overrideMutation: ReturnType<typeof useVotdPreviewMutations>['overrideMutation'];
-  refreshMutation: ReturnType<typeof useVotdPreviewMutations>['refreshMutation'];
-  clearMutation: ReturnType<typeof useVotdPreviewMutations>['clearMutation'];
+  onViewMonthChange: (month: string) => void;
+  overrideMutation: MutationBundle['overrideMutation'];
+  refreshMutation: MutationBundle['refreshMutation'];
+  clearMutation: MutationBundle['clearMutation'];
 }) {
-  const today = utcTodayStr();
+  const [activeDate, setActiveDate] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [overrideForDate, setOverrideForDate] = useState<string | null>(null);
   const [overrideRefInput, setOverrideRefInput] = useState('');
 
+  const daysByDate = useMemo(() => new Map((days ?? []).map((d) => [d.date, d])), [days]);
+  const activeDay = activeDate ? daysByDate.get(activeDate) : undefined;
+
+  useEffect(() => {
+    setDialogOpen(false);
+    setActiveDate(null);
+    setOverrideForDate(null);
+    setOverrideRefInput('');
+  }, [viewMonth]);
+
+  useEffect(() => {
+    if (activeDate && !daysByDate.has(activeDate)) {
+      setDialogOpen(false);
+      setActiveDate(null);
+    }
+  }, [activeDate, daysByDate]);
+
+  const handleSelectDate = (date: string) => {
+    setActiveDate(date);
+    setDialogOpen(true);
+    setOverrideForDate(null);
+    setOverrideRefInput('');
+  };
+
+  const handleCloseDialog = () => {
+    setDialogOpen(false);
+    setActiveDate(null);
+    setOverrideForDate(null);
+    setOverrideRefInput('');
+  };
+
+  const handlePrevMonth = () => {
+    const prev = shiftUtcMonth(viewMonth, -1);
+    if (prev) onViewMonthChange(prev);
+  };
+
+  const handleNextMonth = () => {
+    const next = shiftUtcMonth(viewMonth, 1);
+    if (next) onViewMonthChange(next);
+  };
+
   return (
-    <>
-      <p className="admin-votd__intro">
-        Editorial preview (UTC dates). Cron publishes automatically at 11:00 UTC (≈ 5 AM Central) — no approval required. Override or
-        refresh any future day as needed.
+    <div className="admin-votd__board">
+      <p className="admin-votd__intro pds-caption">
+        Editorial preview (UTC dates). Cron publishes automatically at 11:00 UTC (≈ 5 AM Central) — no approval required.
+        Override or refresh any future day as needed.
       </p>
 
-      {previewLoading && <p className="admin-votd__muted">Loading schedule…</p>}
-      {previewError && <p className="admin-votd__error">Could not load preview. Try again.</p>}
+      {previewLoading && <p className="admin-votd__muted pds-body">Loading schedule…</p>}
+      {previewError && <p className="admin-votd__error pds-body">Could not load preview. Try again.</p>}
 
-      {days?.map((day) => {
-        const isToday = day.date === today;
-        const isPast = day.date < today;
-        const canEdit = !day.isPublished && day.date >= today;
-        const translation = day.translation ?? 'NET';
+      <AdminVotdCalendarGrid
+        viewMonth={viewMonth}
+        daysByDate={daysByDate}
+        selectedDate={dialogOpen ? activeDate : null}
+        onSelectDate={handleSelectDate}
+        onPrevMonth={handlePrevMonth}
+        onNextMonth={handleNextMonth}
+      />
 
-        const shellClass = [
-          'admin-votd-day-shell',
-          day.isHoliday ? 'admin-votd-day-shell--holiday' : '',
-          isToday ? 'admin-votd-day-shell--today' : '',
-          isPast || day.isPublished ? 'admin-votd-day-shell--past' : '',
-        ]
-          .filter(Boolean)
-          .join(' ');
+      {!previewLoading && days && days.length === 0 ? (
+        <p className="admin-votd__muted pds-body">No passages scheduled for this month.</p>
+      ) : null}
 
-        const verseBlock = (
-          <div className="featured-card__verse-row">
-            <div className="featured-card__votd-verse-icon" aria-hidden="true">
-              <Icon name="scroll" size={20} />
-            </div>
-            <div className="featured-card__verse-text">
-              {day.versePreview ? (
-                <>
-                  &ldquo;{day.versePreview}&rdquo;{' '}
-                  <span
-                    className="scripture-pill"
-                    data-scripture-reference={day.reference}
-                    data-scripture-translation={translation}
-                    data-scripture-translation-label={getTranslationAbbreviationDisplay(translation)}
-                  >
-                    {day.reference}
-                  </span>
-                </>
-              ) : (
-                <span className="admin-votd-day__verse-missing">Verse text could not be loaded.</span>
-              )}
-            </div>
-          </div>
-        );
-
-        const metaRow = (
-          <div className="admin-votd-day__meta">
-            <div>
-              <span className="admin-votd-day__date">{day.date}</span>
-              <span className="admin-votd-day__dow">{day.dayOfWeek}</span>
-              {day.label ? <span className="admin-votd-day__badge">{day.label}</span> : null}
-            </div>
-            <span className="admin-votd-day__source">{day.source}</span>
-          </div>
-        );
-
-        const overrideForm =
-          overrideForDate === day.date && canEdit ? (
-            <div className="admin-votd-day__override-form">
-              <input
-                type="text"
-                className="admin-votd-day__input"
-                placeholder="e.g. Psalm 23:1-3"
-                value={overrideRefInput}
-                onChange={(e) => setOverrideRefInput(e.target.value)}
-              />
-              <button
-                type="button"
-                className="admin-votd__btn admin-votd__btn--primary"
-                disabled={overrideMutation.isPending || !overrideRefInput.trim()}
-                onClick={() => {
-                  overrideMutation.mutate(
-                    { date: day.date, reference: overrideRefInput.trim() },
-                    {
-                      onSuccess: () => {
-                        setOverrideForDate(null);
-                        setOverrideRefInput('');
-                      },
-                    },
-                  );
-                }}
-              >
-                Save
-              </button>
-              <button type="button" className="admin-votd__btn" onClick={() => setOverrideForDate(null)}>
-                Cancel
-              </button>
-            </div>
-          ) : null;
-
-        const cardBody = (
-          <div className="featured-card featured-card--votd">
-            {metaRow}
-            {verseBlock}
-            {overrideForm}
-          </div>
-        );
-
-        return (
-          <div key={day.date} className={shellClass}>
-            {canEdit ? (
-              <div className="featured-card-shell">
-                {cardBody}
-                <FeaturedCardActionsDock animateEntrance={false} className="admin-votd__action-dock">
-                  <button
-                    type="button"
-                    className="action-strip__item"
-                    disabled={refreshMutation.isPending}
-                    onClick={() => refreshMutation.mutate({ date: day.date })}
-                  >
-                    <span className="action-strip__label">Refresh pick</span>
-                  </button>
-                  {day.isOverridden ? (
-                    <button
-                      type="button"
-                      className="action-strip__item"
-                      disabled={clearMutation.isPending}
-                      onClick={() => clearMutation.mutate(day.date)}
-                    >
-                      <span className="action-strip__label">Clear override</span>
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="action-strip__item featured-card__strip-item--primary"
-                    onClick={() => {
-                      setOverrideForDate(day.date);
-                      setOverrideRefInput('');
-                    }}
-                  >
-                    <span className="action-strip__label">Override…</span>
-                  </button>
-                </FeaturedCardActionsDock>
-              </div>
-            ) : (
-              cardBody
-            )}
-          </div>
-        );
-      })}
-    </>
+      <AdminVotdPassageDialog
+        day={activeDay ?? null}
+        open={dialogOpen && !!activeDay}
+        overrideForDate={overrideForDate}
+        overrideRefInput={overrideRefInput}
+        onOverrideRefInputChange={setOverrideRefInput}
+        onStartOverride={(date) => {
+          setOverrideForDate(date);
+          setOverrideRefInput('');
+        }}
+        onCancelOverride={() => {
+          setOverrideForDate(null);
+          setOverrideRefInput('');
+        }}
+        onClose={handleCloseDialog}
+        overrideMutation={overrideMutation}
+        refreshMutation={refreshMutation}
+        clearMutation={clearMutation}
+      />
+    </div>
   );
 }
 
@@ -190,8 +300,22 @@ export default function AdminVotdPanel({
   inBottomSheet = false,
   variant = 'panel',
 }: AdminVotdPanelProps) {
-  const { admin, preview } = useVotdPreviewForAdmin(30);
+  const [viewMonth, setViewMonth] = useState(utcTodayMonth);
+  const { admin, preview } = useVotdPreviewMonth(viewMonth);
   const mutations = useVotdPreviewMutations();
+
+  const scheduleBody = (
+    <AdminVotdScheduleBody
+      viewMonth={viewMonth}
+      days={preview.data?.days}
+      previewLoading={preview.isLoading}
+      previewError={preview.isError}
+      onViewMonthChange={setViewMonth}
+      overrideMutation={mutations.overrideMutation}
+      refreshMutation={mutations.refreshMutation}
+      clearMutation={mutations.clearMutation}
+    />
+  );
 
   const handleClose = () => {
     onClose?.();
@@ -199,21 +323,12 @@ export default function AdminVotdPanel({
 
   if (variant === 'embed') {
     if (admin.isLoading) {
-      return <p className="admin-votd__muted">Checking access…</p>;
+      return <p className="admin-votd__muted pds-body">Checking access…</p>;
     }
     if (!admin.data?.isAdmin) {
       return null;
     }
-    return (
-      <AdminVotdScheduleBody
-        days={preview.data?.days}
-        previewLoading={preview.isLoading}
-        previewError={preview.isError}
-        overrideMutation={mutations.overrideMutation}
-        refreshMutation={mutations.refreshMutation}
-        clearMutation={mutations.clearMutation}
-      />
-    );
+    return scheduleBody;
   }
 
   if (admin.isLoading) {
@@ -223,13 +338,13 @@ export default function AdminVotdPanel({
           <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
             <div className="panel__header">
               <div className="panel__title">
-                <p>Verse of the Day</p>
+                <p>Today&apos;s Passage</p>
               </div>
             </div>
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
                 <div className="panel__content-scroll">
-                <p className="admin-votd__muted">Checking access…</p>
+                  <p className="admin-votd__muted pds-body">Checking access…</p>
                 </div>
               </div>
             </div>
@@ -249,13 +364,13 @@ export default function AdminVotdPanel({
           <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
             <div className="panel__header">
               <div className="panel__title">
-                <p>Verse of the Day</p>
+                <p>Today&apos;s Passage</p>
               </div>
             </div>
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
                 <div className="panel__content-scroll">
-                <p className="admin-votd__muted">This area is only available to Harvous admins.</p>
+                  <p className="admin-votd__muted pds-body">This area is only available to Harvous admins.</p>
                 </div>
               </div>
             </div>
@@ -274,22 +389,13 @@ export default function AdminVotdPanel({
         <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
           <div className="panel__header">
             <div className="panel__title">
-              <p>Verse of the Day</p>
+              <p>Today&apos;s Passage</p>
             </div>
           </div>
 
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-              <div className="panel__content-scroll">
-              <AdminVotdScheduleBody
-                days={preview.data?.days}
-                previewLoading={preview.isLoading}
-                previewError={preview.isError}
-                overrideMutation={mutations.overrideMutation}
-                refreshMutation={mutations.refreshMutation}
-                clearMutation={mutations.clearMutation}
-              />
-              </div>
+              <div className="panel__content-scroll">{scheduleBody}</div>
             </div>
           </div>
         </div>

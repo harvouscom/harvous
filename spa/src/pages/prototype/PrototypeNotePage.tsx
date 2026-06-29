@@ -57,6 +57,7 @@ export default function PrototypeNotePage() {
     studyThread: initialStudyThread,
     highlight: initialHighlightThread,
     dockReq,
+    crossRefTarget: initialCrossRefTargetSearch,
   } = useSearch({ strict: false }) as {
     reference?: string;
     scriptureRef?: string;
@@ -64,6 +65,7 @@ export default function PrototypeNotePage() {
     studyThread?: string;
     highlight?: string;
     dockReq?: string;
+    crossRefTarget?: string;
   };
   // Stable object so CardFullEditable's open-on-load effect doesn't refire each render.
   // `requestKey` (dockReq nonce from sidebar) makes each home tap re-open the dock even when
@@ -79,6 +81,15 @@ export default function PrototypeNotePage() {
         : null,
     [initialScriptureRef, initialScriptureTranslation, initialStudyThread, dockReq],
   );
+
+  const initialCrossRefTarget = useMemo(() => {
+    const ref = initialCrossRefTargetSearch?.trim();
+    if (!ref) return null;
+    return {
+      reference: ref,
+      requestKey: dockReq ?? ref,
+    };
+  }, [initialCrossRefTargetSearch, dockReq]);
 
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const navigate = useNavigate();
@@ -961,6 +972,7 @@ export default function PrototypeNotePage() {
                 initialReferenceWord={initialReferenceWord || null}
                 initialReferenceRequestKey={initialReferenceRequestKey}
                 initialScriptureDock={initialScriptureDock}
+                initialCrossRefTarget={initialCrossRefTarget}
                 initialHighlightDock={initialHighlightDock}
                 onHighlightDeepLinkHandoff={onHighlightDeepLinkHandoff}
                 onScriptureDeepLinkHandoff={onScriptureDeepLinkHandoff}

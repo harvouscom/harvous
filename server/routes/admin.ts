@@ -13,6 +13,9 @@
  *   POST /api/admin/backfill-auto-tags
  *   POST /api/admin/regenerate-note-tags
  *   POST /api/admin/spaces/:spaceId/members  (body: { userId } — Harvous system-owned spaces only)
+ *   GET  /api/admin/usage/overview
+ *   GET  /api/admin/usage/trends
+ *   GET  /api/admin/usage/discovery
  */
 
 import { Hono } from 'hono';
@@ -47,8 +50,49 @@ import {
   getTierLimits,
 } from '../utils/tier-limits';
 import { generateAutoTags, applyAutoTags, regenerateAutoTags, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN } from '../utils/auto-tag-generator';
+import { getUsageOverview, getUsageTrends, getUsageDiscovery } from '../utils/admin-usage-stats';
 
 const app = new Hono();
+
+// ─── GET /api/admin/usage/* ─────────────────────────────────────────
+
+app.get('/api/admin/usage/overview', async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  try {
+    const overview = await getUsageOverview();
+    return c.json(overview);
+  } catch (error: unknown) {
+    console.error('[admin usage overview]', error);
+    return c.json({ error: 'Failed to load usage overview' }, 500);
+  }
+});
+
+app.get('/api/admin/usage/trends', async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  try {
+    const daysParam = parseInt(c.req.query('days') ?? '30', 10);
+    const trends = await getUsageTrends(Number.isFinite(daysParam) ? daysParam : 30);
+    return c.json(trends);
+  } catch (error: unknown) {
+    console.error('[admin usage trends]', error);
+    return c.json({ error: 'Failed to load usage trends' }, 500);
+  }
+});
+
+app.get('/api/admin/usage/discovery', async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  try {
+    const daysParam = parseInt(c.req.query('days') ?? '30', 10);
+    const discovery = await getUsageDiscovery(Number.isFinite(daysParam) ? daysParam : 30);
+    return c.json(discovery);
+  } catch (error: unknown) {
+    console.error('[admin usage discovery]', error);
+    return c.json({ error: 'Failed to load usage discovery' }, 500);
+  }
+});
 
 // ─── POST/GET /api/admin/aggregate-analytics ──────────────────────────
 

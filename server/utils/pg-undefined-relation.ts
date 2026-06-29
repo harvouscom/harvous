@@ -74,6 +74,8 @@ export function isPgUndefinedColumn(error: unknown, columnName: string): boolean
 
     if (needles.some((n) => msg.includes(n))) return true;
     if (code === '42703' && msg.includes(columnName)) return true;
+    // Drizzle wraps Postgres errors as "Failed query: select ... \"columnName\" ..."
+    if (msg.includes('Failed query') && msg.includes(`"${columnName}"`)) return true;
 
     current =
       current instanceof Error && 'cause' in current
@@ -90,5 +92,13 @@ export function isStudyThreadNamingColumnMissing(error: unknown): boolean {
     isPgUndefinedColumn(error, 'studyThreadPinned') ||
     isPgUndefinedColumn(error, 'studyThreadLastAutoSuggestedAt') ||
     isPgUndefinedColumn(error, 'studyThreadTitle')
+  );
+}
+
+export function isPrototypeFolderStatsColumnMissing(error: unknown): boolean {
+  return (
+    isPgUndefinedColumn(error, 'primaryCollection') ||
+    isPgUndefinedColumn(error, 'secondaryCollections') ||
+    isPgUndefinedColumn(error, 'prototypeEmptyFolderLabels')
   );
 }

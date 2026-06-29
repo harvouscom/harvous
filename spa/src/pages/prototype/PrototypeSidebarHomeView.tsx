@@ -23,6 +23,7 @@ import {
   type PrototypeHighlightStudyThreadRow,
 } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { usePrototypeSpaceScriptureConnections } from '../../hooks/queries/usePrototypeSpaceScriptureConnections';
+import { usePrototypeSpaceReferenceWordConnections } from '../../hooks/queries/usePrototypeSpaceReferenceWordConnections';
 import { useProfile } from '../../hooks/queries/useProfile';
 import { useVotdToday } from '../../hooks/queries/useVotdToday';
 import type { PrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase';
@@ -58,6 +59,7 @@ import {
   deriveRecurringPerson,
   pickBareHighlight,
   isHighlightUnannotated,
+  isAnnotatableHighlight,
   findUnannotatedHighlightForRef,
   findUnannotatedHighlightForChapter,
   findHighlightForRef,
@@ -89,6 +91,8 @@ import { activeCooldownIds, recordRecallSnoozed } from './proto-recall-cooldown'
 import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeRecallCarousel';
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
 import { useCrossRefGaps } from '../../hooks/queries/useCrossRefGaps';
+import { findMostRecentNoteForScriptureReference } from '@/utils/scripture-passage-drill';
+import type { CrossRefGap } from '../../hooks/queries/useCrossRefGaps';
 import { useConnectSuggestions } from '../../hooks/queries/useConnectSuggestions';
 import { useConnectNote } from '../../hooks/mutations/useConnectNote';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
@@ -205,7 +209,7 @@ function pickSpotlightHighlight(
   })[0];
 }
 
-type HomeGreetingTrendKind = 'arc' | 'subject' | 'passage' | 'crossref';
+type HomeGreetingTrendKind = 'arc' | 'subject' | 'passage' | 'crossref' | 'referenceWord';
 
 type HomeGreetingTrend = {
   kind: HomeGreetingTrendKind;
@@ -563,6 +567,7 @@ export default function PrototypeSidebarHomeView({
   const threadsQuery = usePrototypeStudyThreads(homeSpaceId);
   const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(homeSpaceId);
   const crossRefConnectionsQuery = usePrototypeSpaceScriptureConnections(homeSpaceId);
+  const referenceWordConnectionsQuery = usePrototypeSpaceReferenceWordConnections(homeSpaceId);
   const votdQuery = useVotdToday({ enabled: Boolean(homeSpaceId) });
 
   const navigate = useNavigate();
@@ -887,6 +892,39 @@ export default function PrototypeSidebarHomeView({
     [homeSpaceId, isMobileSidebar, closeDrawer, createDraftNote, navigate],
   );
 
+  const openCrossRefGap = useCallback(
+    (gap: CrossRefGap) => {
+      if (isMobileSidebar) closeDrawer();
+      const candidates = [
+        gap.fromNoteId?.trim(),
+        findMostRecentNoteForScriptureReference(scriptureBooks, gap.from.displayRef)?.id,
+      ].filter((id): id is string => Boolean(id?.trim()));
+      const noteId =
+        candidates.find((id) => {
+          const row = notes.find((n) => n.id === id);
+          return !row || row.noteType !== 'scripture';
+        }) ?? null;
+      if (!noteId) {
+        void startDraftNote({
+          title: gap.to.displayRef,
+          contentHtml: buildVotdScripturePillHtml(gap.to.displayRef, gap.fromTranslation || 'NET'),
+        });
+        return;
+      }
+      navigate({
+        to: prototypeNoteRouteTo(),
+        params: { noteId: noteParamSlug(noteId) },
+        search: {
+          scriptureRef: gap.from.displayRef,
+          scriptureTranslation: gap.fromTranslation,
+          crossRefTarget: gap.to.displayRef,
+          dockReq: String(Date.now()),
+        },
+      });
+    },
+    [isMobileSidebar, closeDrawer, scriptureBooks, notes, startDraftNote, navigate],
+  );
+
   const continueBookSuggestion = useMemo(() => {
     if (hasMoreNotes) return undefined;
     const input = scriptureBooks.map((b) => ({
@@ -917,6 +955,14 @@ export default function PrototypeSidebarHomeView({
   );
 
   const bareHighlight = useMemo(() => pickBareHighlight(highlightsWithRecency), [highlightsWithRecency]);
+
+  const referenceWordConnection = referenceWordConnectionsQuery.data?.[0];
+
+  const openReferenceWordConnection = useCallback(() => {
+    if (!referenceWordConnection) return;
+    const row = highlightsWithRecency.find((h) => h.id === referenceWordConnection.latestRowId);
+    if (row) onOpenHighlight(row);
+  }, [referenceWordConnection, highlightsWithRecency, onOpenHighlight]);
 
   const reflectionPrompt = useMemo(
     () => deriveReflectionPrompt({ seasonLabel: season?.label, arcTheme: studyArc?.theme }),
@@ -966,7 +1012,7 @@ export default function PrototypeSidebarHomeView({
     if (spotlightHighlight) {
       if (continueNote && spotlightHighlight.parentNoteId === continueNote.id) {
         if (revisitNote) pushRevisitOpportunity(revisitNote);
-      } else if (isHighlightUnannotated(spotlightHighlight)) {
+      } else if (isHighlightUnannotated(spotlightHighlight) && isAnnotatableHighlight(spotlightHighlight)) {
         pushAnnotateHighlightRecallCard(out, spotlightHighlight, onOpenHighlight, usedHighlightIds);
       } else {
         out.push({
@@ -1036,6 +1082,23 @@ export default function PrototypeSidebarHomeView({
         iconName: 'book',
         onOpen: openPassageConnection,
       });
+    }
+
+    if (referenceWordConnection) {
+      const latestRow = highlightsWithRecency.find((h) => h.id === referenceWordConnection.latestRowId);
+      if (latestRow && !usedHighlightIds.has(latestRow.id)) {
+        usedHighlightIds.add(latestRow.id);
+        out.push({
+          id: `referenceWord:${referenceWordConnection.wordKey}`,
+          kind: 'referenceWord',
+          score: Math.min(1, referenceWordConnection.noteCount / 8),
+          eyebrow: 'A word you keep looking up',
+          title: referenceWordConnection.displayWord,
+          meta: `Across ${referenceWordConnection.noteCount} of your notes`,
+          iconName: 'lines-leaning',
+          onOpen: () => onOpenHighlight(latestRow),
+        });
+      }
     }
 
     // ── Generative opportunities ("go make something new") ──
@@ -1135,13 +1198,9 @@ export default function PrototypeSidebarHomeView({
             score: Math.min(0.9, 0.6 + topCrossRefGap.votes / 20),
             eyebrow: 'A link worth making',
             title: topCrossRefGap.to.displayRef,
-            meta: `Referenced from ${topCrossRefGap.from.displayRef} — start here?`,
+            meta: `From your note on ${topCrossRefGap.from.displayRef} → ${topCrossRefGap.to.displayRef}`,
             iconName: 'arrow-right-arrow-left',
-            onOpen: () =>
-              startDraftNote({
-                title: topCrossRefGap.to.displayRef,
-                contentHtml: buildVotdScripturePillHtml(topCrossRefGap.to.displayRef, 'NET'),
-              }),
+            onOpen: () => openCrossRefGap(topCrossRefGap),
           });
         }
       }
@@ -1179,6 +1238,7 @@ export default function PrototypeSidebarHomeView({
     subjectConnection,
     crossRefConnection,
     passageConnection,
+    referenceWordConnection,
     fingerprintsById,
     meaningWeightById,
     handleOpenRevisitNote,
@@ -1197,6 +1257,7 @@ export default function PrototypeSidebarHomeView({
     homeSpaceId,
     connectNote,
     startDraftNote,
+    openCrossRefGap,
   ]);
 
   const recallOpportunities = useMemo(
@@ -1237,6 +1298,14 @@ export default function PrototypeSidebarHomeView({
       if (!parts) return undefined;
       return { kind: 'crossref', parts, onOpen: openCrossRefConnection };
     }
+    if (trend.kind === 'referenceWord' && referenceWordConnection) {
+      const parts = recallTrendGreetingParts({
+        kind: 'referenceWord',
+        referenceWord: referenceWordConnection.displayWord,
+      });
+      if (!parts) return undefined;
+      return { kind: 'referenceWord', parts, onOpen: openReferenceWordConnection };
+    }
     return undefined;
   }, [
     recallCandidates,
@@ -1244,10 +1313,12 @@ export default function PrototypeSidebarHomeView({
     subjectConnection,
     passageConnection,
     crossRefConnection,
+    referenceWordConnection,
     openStudyArc,
     openSubjectConnection,
     openPassageConnection,
     openCrossRefConnection,
+    openReferenceWordConnection,
   ]);
 
   const handleRecallSnooze = useCallback(

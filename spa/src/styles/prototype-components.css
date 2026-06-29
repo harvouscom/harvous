@@ -1935,23 +1935,13 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   vertical-align: baseline;
 }
 
-.proto-inspector-added-by-chip__avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  overflow: hidden;
-  flex-shrink: 0;
-  color: var(--pds-text-secondary);
-}
-
 .proto-inspector-added-by-chip__photo {
-  width: 100%;
-  height: 100%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
   object-fit: cover;
   display: block;
+  flex-shrink: 0;
 }
 
 .proto-inspector-note-id-btn {

@@ -77,6 +77,7 @@ import { isOnboardingSystemNote } from '../utils/purge-onboarding-content';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import { getUserNoteFingerprints } from '../utils/note-fingerprint';
 import { getCrossRefGaps } from '../utils/crossref-gaps';
+import { tryRecordVotdAddNoteFromCreatedNote } from '../utils/votd-record-engagement';
 import { getConnectSuggestions } from '../utils/connect-suggestions';
 import { recordNoteRecallEngaged } from '../utils/note-recall-state';
 import {
@@ -466,6 +467,12 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
     }
 
     broadcastInvalidation(auth.userId, { type: 'note:created', id: newNote.id });
+
+    void tryRecordVotdAddNoteFromCreatedNote(auth.userId, {
+      title: newNote.title,
+      content: newNote.content,
+      createdAt: newNote.createdAt,
+    }).catch(() => {});
 
     return c.json({
       success: 'Note created!',
