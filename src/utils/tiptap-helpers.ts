@@ -5,6 +5,19 @@
 
 import { findTextWithFlexibleMatching } from './scripture-pill-position';
 
+/** True when TipTap's ProseMirror view is mounted and usable. TipTap's `view` getter throws before mount. */
+export function isTiptapViewReady(editorInstance: unknown): boolean {
+  if (!editorInstance || typeof editorInstance !== 'object') return false;
+  const ed = editorInstance as { isDestroyed?: boolean; view?: unknown };
+  if (ed.isDestroyed) return false;
+  try {
+    const view = ed.view as { docView?: unknown } | null | undefined;
+    return !!(view && view.docView);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Find text positions in a Tiptap editor document
  * @param editor - The Tiptap editor instance

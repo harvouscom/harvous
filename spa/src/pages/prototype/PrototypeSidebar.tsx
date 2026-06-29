@@ -1588,6 +1588,7 @@ export default function PrototypeSidebar() {
 
   const onHighlightRow = (r: PrototypeHighlightStudyThreadRow) => {
     if (!homeSpaceId) return;
+    if (!r.parentNoteId) return;
     if (r.parentNoteId) {
       void queryClient.prefetchQuery(getNoteQueryOptions(r.parentNoteId)).catch(() => {});
     }

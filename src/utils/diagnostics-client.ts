@@ -191,6 +191,37 @@ export function reportManualDiagnostic(manualNote: string): void {
   });
 }
 
+const ROUTE_BOUNDARY_DEDUPE_MS = 30_000;
+
+/** Report React route-boundary errors (not caught by window.onerror). Dedupes recent identical messages. */
+export function reportRouteBoundaryError(error: unknown): void {
+  const err = error instanceof Error ? error : new Error(typeof error === 'string' ? error : 'Route error');
+  if (shouldIgnoreError(err)) return;
+
+  const message = err.message || 'Route error';
+  const stack = err.stack ?? null;
+  const recent = getLastCapturedDiagnosticError();
+  if (recent && recent.message === message && Date.now() - recent.capturedAt < ROUTE_BOUNDARY_DEDUPE_MS) {
+    return;
+  }
+
+  rememberError(message, stack);
+  reportDiagnosticEvent({
+    source: 'client_js',
+    message,
+    stack,
+    metadata: { routeErrorBoundary: true },
+  });
+
+  void import('@/utils/posthog')
+    .then(({ captureException }) => {
+      captureException(err, { route_error_boundary: true });
+    })
+    .catch(() => {
+      /* ignore */
+    });
+}
+
 export function initDiagnosticCapture(): void {
   if (typeof window === 'undefined' || captureInitialized) return;
   captureInitialized = true;

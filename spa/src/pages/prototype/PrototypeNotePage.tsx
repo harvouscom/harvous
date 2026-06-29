@@ -17,6 +17,7 @@ import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
 import PrototypeInspectorPane from './PrototypeInspectorPane';
 import PrototypeStudyThreadPopover from './PrototypeStudyThreadPopover';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
+import PrototypePaneEmptyState from './PrototypePaneEmptyState';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
@@ -101,10 +102,11 @@ export default function PrototypeNotePage() {
   const initialHighlightDock = useMemo(() => {
     if (!initialHighlightThread) return null;
     const row = note?.studyThreads?.find((t) => t.id === initialHighlightThread);
+    if (!row) return null;
     return {
       studyThreadEntryId: initialHighlightThread,
       requestKey: dockReq ?? initialHighlightThread,
-      metadata: row ? buildHighlightDockOpenMetadataFromStudyThread(row) : undefined,
+      metadata: buildHighlightDockOpenMetadataFromStudyThread(row),
     };
   }, [initialHighlightThread, note?.studyThreads, dockReq]);
 
@@ -814,7 +816,19 @@ export default function PrototypeNotePage() {
       <>
         {studyThreadPopoverLayer}
         <PrototypeMainPaneShell>
-          <div className="proto-editor-surface proto-editor-error">Note not found.</div>
+          <div className="proto-editor-surface">
+            <PrototypePaneEmptyState
+              icon="circle-exclamation"
+              title="Note not found"
+              description="It may have been deleted or moved."
+              action={{
+                label: 'Go home',
+                onClick: () => {
+                  void navigate({ to: prototypeHomeRouteTo() });
+                },
+              }}
+            />
+          </div>
         </PrototypeMainPaneShell>
       </>
     );

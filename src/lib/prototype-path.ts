@@ -155,6 +155,10 @@ export function prototypeSettingsAccountRouteTo(): '/settings/account' | '/proto
   return isDedicatedPrototypeHost() ? '/settings/account' : '/prototype/settings/account';
 }
 
+export function prototypeSettingsSupportRouteTo(): '/settings/support' | '/prototype/settings/support' {
+  return isDedicatedPrototypeHost() ? '/settings/support' : '/prototype/settings/support';
+}
+
 export function prototypeHomeRouteTo(): '/' | '/prototype/' {
   return isDedicatedPrototypeHost() ? '/' : '/prototype/';
 }

@@ -3839,6 +3839,62 @@ a.proto-copy-row__value:hover {
   color: inherit;
 }
 
+.proto-editor-empty-state__leading {
+  width: min(100%, 360px);
+}
+
+.proto-pane-empty-state__error-card {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  min-width: 0;
+  border-radius: 16px;
+  border: 0.5px solid var(--pds-border-control-soft);
+  background: var(--pds-bg-subtle);
+  text-align: left;
+}
+
+.proto-pane-empty-state__error-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-pane-empty-state__error-detail {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+/* Route error — vertically centered block, nudged up; extra gap below error card */
+.proto-editor-empty-state--route-error {
+  flex: 1;
+  align-self: stretch;
+  width: 100%;
+  min-height: 100%;
+  justify-content: center;
+  padding: 20px 28px 80px;
+  box-sizing: border-box;
+}
+
+.proto-editor-empty-state--route-error .proto-editor-empty-state__leading {
+  margin-bottom: 20px;
+}
+
+html.harvous-prototype-route .proto-editor-empty-state--route-error h2.proto-editor-empty-state__title {
+  margin-top: 0;
+}
+
+.proto-route-error-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 60vh;
+}
+
 /* Mac: HarvousTypography.title — 20pt / 580 / rounded */
 html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-state__title {
   margin: 12px 0 0;
@@ -3891,6 +3947,21 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
 
 .proto-editor-empty-state .proto-kbd__modifier-icon {
   opacity: 1;
+}
+
+.proto-editor-empty-state__footnote {
+  margin: 8px 0 0;
+  max-width: 288px;
+  color: inherit;
+}
+
+.proto-pane-empty-state__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 20px;
+  width: min(100%, 240px);
 }
 
 /* ─── Sidebar list empty state (native HarvousEmptyStateView .compact parity) ─── */

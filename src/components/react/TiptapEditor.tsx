@@ -58,6 +58,7 @@ import {
   type FormatToolbarSelectionRange,
 } from '@/utils/prototype-format-toolbar-selection';
 import { flushCoalescedNoteHtmlOnUnmount } from '@/utils/prototype-note-content-propagation';
+import { isTiptapViewReady } from '@/utils/tiptap-helpers';
 import ScripturePillDeleteConfirm from './ScripturePillDeleteConfirm';
 
 export { isSelectionActionBarEligible } from './selection-action-bar-eligibility';
@@ -3998,16 +3999,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }, PROTOTYPE_FORMAT_BAR_HIDE_MS);
   }, [editorChromeMode]);
   // This prevents errors when editor is destroyed but handlers still fire
-  const isEditorValid = (editorInstance: any): boolean => {
-    if (!editorInstance) return false;
-    // Check if editor is destroyed
-    if (editorInstance.isDestroyed) return false;
-    // Check if view exists and is valid
-    if (!editorInstance.view) return false;
-    // Check if docView exists - this becomes null when editor is destroyed
-    if (!editorInstance.view.docView) return false;
-    return true;
-  };
+  const isEditorValid = (editorInstance: any): boolean => isTiptapViewReady(editorInstance);
 
   /** Doc has text but paragraph nodeViews still show Placeholder empty chrome (contenteditable=false). */
   const proseMirrorViewLooksDesynced = (editorInstance: any): boolean => {
@@ -7214,8 +7206,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   /** Clear format-bar suppress when the user clicks the note body (focus may not re-fire if TipTap stayed focused). */
   useEffect(() => {
-    if (!editor || editorChromeMode !== 'prototypeNative') return;
-    const dom = editor.view.dom;
+    if (!editor || editorChromeMode !== 'prototypeNative' || !isEditorValid(editor)) return;
+    let dom: HTMLElement;
+    try {
+      dom = editor.view.dom as HTMLElement;
+    } catch {
+      return;
+    }
     const onBodyPointerDown = () => {
       if (!suppressFormatBarUntilBodySignalRef.current) return;
       suppressFormatBarUntilBodySignalRef.current = false;

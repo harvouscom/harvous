@@ -17,6 +17,7 @@ import NotePage from './pages/NotePage';
 import SimplifiedPrototypeLayout from './layouts/SimplifiedPrototypeLayout';
 import PrototypeHomePage from './pages/prototype/PrototypeHomePage';
 import PrototypeNotePage from './pages/prototype/PrototypeNotePage';
+import PrototypeRouteErrorState from './pages/prototype/PrototypeRouteErrorState';
 import { noteParamSlug, normalizeNoteIdFromParam } from './pages/prototype/proto-route-slugs';
 
 // Root route — must render Outlet so child routes paint (pathless layouts included).
@@ -407,6 +408,14 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/AdminVotdPage')),
   });
 
+  const prototypeDevRouteErrorPreviewRoute = import.meta.env.DEV
+    ? createRoute({
+        getParentRoute: () => simplifiedPrototypeRoute,
+        path: '__dev/route-error',
+        component: lazyRouteComponent(() => import('./pages/prototype/PrototypeRouteErrorPreviewPage')),
+      })
+    : null;
+
   return simplifiedPrototypeRoute.addChildren([
     prototypeLegacySpaceNoteRedirectRoute,
     prototypeLegacySpaceRedirectRoute,
@@ -421,6 +430,7 @@ function buildPrototypeRouteBranch() {
     prototypeAdminMaintenanceRoute,
     prototypeAdminSupportRoute,
     prototypeAdminVotdRoute,
+    ...(prototypeDevRouteErrorPreviewRoute ? [prototypeDevRouteErrorPreviewRoute] : []),
     prototypeNoteFlatRoute,
     prototypeSettingsRoute.addChildren([
       prototypeSettingsIndexRoute,
@@ -546,7 +556,10 @@ function buildRouteTree() {
   ]);
 }
 
-export const router = createRouter({ routeTree: buildRouteTree() });
+export const router = createRouter({
+  routeTree: buildRouteTree(),
+  defaultErrorComponent: PrototypeRouteErrorState,
+});
 
 declare module '@tanstack/react-router' {
   interface Register {
