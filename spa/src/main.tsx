@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { initDiagnosticCapture } from '@/utils/diagnostics-client';
+import { showPrototypeAppUpdateNotice } from '@/utils/prototype-app-update-notice';
 import {
   REDUCE_MOTION_APP_PREFERENCE_ENABLED,
   REDUCE_MOTION_STORAGE_KEY,
@@ -29,8 +30,17 @@ window.addEventListener('vite:preloadError', () => {
     sessionStorage.setItem(KEY, '1');
     window.location.reload();
   } else {
-    // Second failure — show a simple recovery UI rather than staying blank
+    // Second failure — show recovery UI rather than staying blank
     sessionStorage.removeItem(KEY);
+    const isPrototypeRoute = document.documentElement.classList.contains('harvous-prototype-route');
+    if (isPrototypeRoute) {
+      if (typeof window.__harvousShowAppUpdateNotice === 'function') {
+        window.__harvousShowAppUpdateNotice({ needsReload: true });
+      } else {
+        showPrototypeAppUpdateNotice('reload');
+      }
+      return;
+    }
     const root = document.getElementById('root');
     if (root) {
       root.innerHTML = `

@@ -85,6 +85,24 @@
         p.indexOf('/invitations/') === 0;
     }
 
+    function showPrototypeUpdateNotice(needsReload) {
+      if (typeof window.__harvousShowAppUpdateNotice === 'function') {
+        try {
+          window.__harvousShowAppUpdateNotice({ needsReload: !!needsReload });
+          return;
+        } catch (error) {
+          console.log('Prototype update notice failed:', error);
+        }
+      }
+      if (window.toast && typeof window.toast.info === 'function') {
+        try {
+          window.toast.info('Harvous has been updated');
+        } catch (error) {
+          console.log('Prototype update toast fallback failed:', error);
+        }
+      }
+    }
+
     function isPrototypeShellPage() {
       var el = document.documentElement;
       if (el.classList.contains('harvous-prototype-route')) return true;
@@ -120,6 +138,10 @@
         // App updated silently (iOS killed + relaunch scenario).
         // Don't reload — the page is already running the new code.
         // Just show the "updated" toast so the user knows.
+        if (isPrototypeShellPage()) {
+          showPrototypeUpdateNotice(false);
+          return;
+        }
         if (window.toast && typeof window.toast.info === 'function') {
           window.toast.info('Harvous has been updated');
         }
@@ -157,12 +179,8 @@
       // The page already runs the new worker; notify the user to reload when convenient.
       if (isPrototypeShellPage()) {
         reloadingForUpdate = false;
-        if (!isNoUpdateToastPath() && window.toast && typeof window.toast.info === 'function') {
-          try {
-            window.toast.info('Harvous has been updated');
-          } catch (error) {
-            console.log('Prototype update toast failed:', error);
-          }
+        if (!isNoUpdateToastPath()) {
+          showPrototypeUpdateNotice(false);
         }
         return;
       }

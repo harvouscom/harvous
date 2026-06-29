@@ -79,7 +79,7 @@ export default function AdminToolbar({ variant = 'split' }: { variant?: 'split' 
               : pathname.includes('/admin/reports')
                 ? 'Reports'
                 : pathname.includes('/admin/usage')
-                ? 'Platform usage'
+                ? 'Usage'
                 : 'Admin';
 
   const leftChrome =

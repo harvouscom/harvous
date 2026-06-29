@@ -7002,3 +7002,75 @@ button.proto-appearance-hero__card {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Bottom-center deploy/update notice (prototype shell only). */
+.proto-update-toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom));
+  z-index: 1000021;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 10px 12px 10px 16px;
+  border-radius: 999px;
+  background: var(--pds-bg-popover-solid, var(--pds-surface-elevated, #fff));
+  color: var(--pds-text-primary, #1a1a1a);
+  font-family: var(--pds-font-body, var(--font-sans, system-ui, -apple-system, sans-serif));
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: var(--pds-shadow-popover, 0 1px 2px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.12));
+  border: 1px solid var(--pds-separator, rgba(0, 0, 0, 0.08));
+  pointer-events: auto;
+}
+
+.proto-update-toast__label {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.proto-update-toast__action {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: var(--pds-accent, #3d7de8);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.proto-update-toast__action:hover {
+  filter: brightness(0.95);
+}
+
+.proto-update-toast__action:active {
+  filter: brightness(0.9);
+}
+
+.proto-update-toast__dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: -2px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pds-text-secondary, #555);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.proto-update-toast__dismiss:hover {
+  background: var(--pds-fill-secondary, rgba(0, 0, 0, 0.06));
+}

@@ -4,6 +4,7 @@ import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit
 import KeyboardShortcutsInit from '../../../src/components/react/KeyboardShortcutsInit';
 import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
 import PrototypeSyncChip from '../components/PrototypeSyncChip';
+import PrototypeAppUpdateToast from '../components/PrototypeAppUpdateToast';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { syncPassageKnowledge } from '../lib/passage-knowledge-sync';
 import { useAuth, useUser } from '@clerk/clerk-react';
@@ -496,6 +497,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           <SyncManagerIsland userId={userId} hideOfflineIndicator deferSyncInit />
         ) : null}
         <PrototypeSyncChip userId={userId} />
+        <PrototypeAppUpdateToast />
         <PrototypeShortcutBridge />
         <KeyboardShortcutsInit />
         <PrototypePinPanels />
