@@ -42,6 +42,9 @@ import featured from './routes/featured';
 import votd from './routes/votd';
 import test from './routes/test';
 import dictionary from './routes/dictionary';
+import recall from './routes/recall';
+import support from './routes/support';
+import diagnostics from './routes/diagnostics';
 
 const app = new Hono();
 
@@ -89,5 +92,8 @@ app.route('/', featured);
 app.route('/', votd);
 app.route('/', test);
 app.route('/', dictionary);
+app.route('/', recall);
+app.route('/', support);
+app.route('/', diagnostics);
 
 export default app;

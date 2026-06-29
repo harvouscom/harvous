@@ -1,0 +1,460 @@
+/* Admin Reports — calendar archive on admin-usage layout tokens */
+
+.admin-reports__board {
+  gap: var(--admin-usage-gap-section, 24px);
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.admin-reports__toolbar-card {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.admin-reports__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+
+.admin-reports__year-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-reports__toolbar-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.admin-reports__export-label {
+  font: var(--pds-font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary);
+}
+
+.admin-reports__export-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-reports__export-row--compact .admin-reports__export-btn {
+  min-width: 44px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.admin-reports__export-error {
+  font-size: 12px;
+  color: var(--pds-danger, #c0392b);
+}
+
+/* Empty / error callout */
+.admin-reports__callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 24px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+.admin-reports__callout-icon {
+  flex-shrink: 0;
+  color: var(--pds-text-tertiary);
+  margin-top: 2px;
+}
+
+.admin-reports__callout-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-reports__callout-title {
+  margin: 0;
+  font: var(--pds-font-body);
+  font-size: 17px;
+  font-weight: 620;
+  color: var(--pds-text-primary);
+  max-width: 100%;
+}
+
+.admin-reports__callout-text {
+  margin: 0;
+  font: var(--pds-font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--pds-text-secondary);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* Season cards */
+.admin-reports__season-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-reports__season-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.admin-reports__season-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-reports__year-badge {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-primary, var(--pds-paper-sheet));
+  font: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--pds-text-secondary);
+  line-height: 1;
+}
+
+.admin-reports__season-title {
+  margin: 0;
+  font: var(--pds-font-body);
+  font-size: 18px;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  color: var(--pds-text-primary);
+}
+
+.admin-reports__season-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.admin-reports__season-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.admin-reports__season-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--pds-radius-md, 10px);
+  border: 0.5px solid var(--pds-border);
+  background: var(--pds-bg-primary, var(--pds-paper-sheet));
+  color: var(--pds-text-secondary);
+  flex-shrink: 0;
+}
+
+.admin-reports__season-icon svg,
+.admin-reports__season-icon path {
+  color: currentColor;
+  fill: currentColor;
+}
+
+.admin-reports__season-meta {
+  margin: 4px 0 0;
+  font: var(--pds-font-body);
+  font-size: 13px;
+  color: var(--pds-text-secondary);
+}
+
+.admin-reports__season-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-reports__season-progress {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.admin-reports__season-card[data-season='winter'] .admin-reports__season-progress {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-reports__season-progress-seg {
+  height: 6px;
+  border-radius: var(--pds-radius-pill);
+  background: color-mix(in srgb, var(--pds-border) 80%, transparent);
+  transition: background 0.15s ease;
+}
+
+.admin-reports__season-progress-seg[data-filled='true'] {
+  background: var(--pds-text-tertiary);
+}
+
+.admin-reports__season-summary {
+  padding: 4px 0 2px;
+  border-top: 0.5px solid var(--pds-border);
+}
+
+.admin-reports__partial-note {
+  margin: 0;
+  font: var(--pds-font-body);
+  font-size: 12px;
+  color: var(--pds-text-tertiary);
+}
+
+/* Month tiles */
+.admin-reports__month-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-reports__month-tile {
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-menu);
+  background: var(--pds-bg-primary, var(--pds-paper-sheet));
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-reports__month-tile[data-generated='true'] {
+  background: var(--pds-bg-secondary);
+}
+
+.admin-reports__month-tile[data-expanded='true'] {
+  border-color: color-mix(in srgb, var(--pds-text-tertiary) 35%, var(--pds-border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pds-text-tertiary) 8%, transparent);
+}
+
+.admin-reports__month-tile[data-generated='false'] {
+  opacity: 0.82;
+}
+
+.admin-reports__month-tile-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 12px 12px 10px;
+}
+
+.admin-reports__month-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.admin-reports__month-toggle:disabled {
+  cursor: default;
+}
+
+.admin-reports__month-toggle:not(:disabled):hover .admin-reports__month-label {
+  color: var(--pds-accent);
+}
+
+.admin-reports__month-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--pds-radius-md, 10px);
+  border: 0.5px solid var(--pds-border);
+  background: var(--pds-bg-primary, var(--pds-paper-sheet));
+  color: var(--pds-text-tertiary);
+  flex-shrink: 0;
+}
+
+.admin-reports__month-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.admin-reports__month-label {
+  font: var(--pds-font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+  transition: color 0.12s ease;
+}
+
+.admin-reports__month-badge {
+  font: var(--pds-font-body);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--pds-text-tertiary);
+  line-height: 1.3;
+}
+
+.admin-reports__month-badge--ready {
+  color: var(--pds-text-secondary);
+}
+
+.admin-reports__month-badge--upcoming {
+  color: var(--pds-text-tertiary);
+}
+
+.admin-reports__month-badge--collecting {
+  color: var(--pds-accent, var(--color-deep-grey));
+}
+
+.admin-reports__month-badge--scheduled {
+  color: var(--pds-text-secondary);
+}
+
+.admin-reports__month-badge--missing {
+  color: color-mix(in srgb, var(--pds-highlight-warm-amber, #c17f3a) 88%, var(--pds-text-primary));
+}
+
+.admin-reports__month-chevron {
+  flex-shrink: 0;
+  color: var(--pds-text-tertiary);
+  transition: transform 0.15s ease;
+}
+
+.admin-reports__month-tile[data-expanded='true'] .admin-reports__month-chevron {
+  transform: rotate(180deg);
+}
+
+/* Expanded month detail */
+.admin-reports__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 12px 14px;
+  border-top: 0.5px solid var(--pds-border);
+}
+
+.admin-reports__detail-section {
+  padding: 16px;
+}
+
+.admin-reports__detail .admin-usage__hero {
+  padding-top: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-reports__rank-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.admin-reports__rank-block {
+  min-width: 0;
+  padding: 12px;
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-md, 10px);
+  background: var(--pds-bg-primary, var(--pds-paper-sheet));
+}
+
+.admin-reports__rank-title {
+  margin: 0 0 10px;
+  font: var(--pds-font-body);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary);
+}
+
+.admin-reports__rank-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-reports__rank-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font: var(--pds-font-body);
+  font-size: 13px;
+  color: var(--pds-text-primary);
+}
+
+.admin-reports__rank-list li span:last-child {
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .admin-reports__month-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-reports__detail .admin-usage__hero {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .admin-reports__toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-reports__toolbar-export {
+    justify-content: space-between;
+  }
+
+  .admin-reports__season-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .admin-reports__rank-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-reports__detail .admin-usage__hero {
+    grid-template-columns: 1fr;
+  }
+}

@@ -55,6 +55,17 @@ describe('mergePassageTags', () => {
     const added = out.filter((s) => s.keyword !== 'Faith').map((s) => s.keyword);
     expect(added).toEqual(['Moses']); // Egypt excluded, Aaron dismissed, cap = 1
   });
+
+  it('does not net-add universal passage people like Jesus', () => {
+    const out = mergePassageTags([prose('Faith', 0.7)], [person('Jesus'), person('Moses')]);
+    expect(out.map((s) => s.keyword).sort()).toEqual(['Faith', 'Moses']);
+  });
+
+  it('still corroborates an existing Jesus prose tag from passage person', () => {
+    const out = mergePassageTags([prose('Jesus', 0.85, 'character')], [person('Jesus')]);
+    expect(out.filter((s) => s.keyword === 'Jesus')).toHaveLength(1);
+    expect(out[0].confidence).toBeCloseTo(0.95);
+  });
 });
 
 describe('dominantBook', () => {

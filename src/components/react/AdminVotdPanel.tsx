@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import ProtoStatusChip from './ProtoStatusChip';
 import SquareButton from './SquareButton';
 import Icon from './Icon';
 import AdminVotdPassageDialog from './AdminVotdPassageDialog';
@@ -243,16 +244,11 @@ function AdminVotdScheduleBody({
   };
 
   return (
-    <div className="admin-votd__board">
-      <p className="admin-votd__intro pds-caption">
-        Editorial preview (UTC dates). Cron publishes automatically at 11:00 UTC (≈ 5 AM Central) — no approval required.
-        Override or refresh any future day as needed.
-      </p>
+    <>
+      <div className="admin-votd__board">
+        {previewError && <p className="admin-votd__error pds-body">Could not load preview. Try again.</p>}
 
-      {previewLoading && <p className="admin-votd__muted pds-body">Loading schedule…</p>}
-      {previewError && <p className="admin-votd__error pds-body">Could not load preview. Try again.</p>}
-
-      <AdminVotdCalendarGrid
+        <AdminVotdCalendarGrid
         viewMonth={viewMonth}
         daysByDate={daysByDate}
         selectedDate={dialogOpen ? activeDate : null}
@@ -284,7 +280,9 @@ function AdminVotdScheduleBody({
         refreshMutation={refreshMutation}
         clearMutation={clearMutation}
       />
-    </div>
+      </div>
+      <ProtoStatusChip visible={previewLoading} variant="syncing" label="Loading…" />
+    </>
   );
 }
 
@@ -323,7 +321,7 @@ export default function AdminVotdPanel({
 
   if (variant === 'embed') {
     if (admin.isLoading) {
-      return <p className="admin-votd__muted pds-body">Checking access…</p>;
+      return <ProtoStatusChip visible variant="syncing" label="Loading…" />;
     }
     if (!admin.data?.isAdmin) {
       return null;
@@ -333,27 +331,28 @@ export default function AdminVotdPanel({
 
   if (admin.isLoading) {
     return (
-      <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
-        <div className="flex-fill flex-stack" style={{ position: 'relative', gap: 0 }}>
-          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
-            <div className="panel__header">
-              <div className="panel__title">
-                <p>Today&apos;s Passage</p>
+      <>
+        <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
+          <div className="flex-fill flex-stack" style={{ position: 'relative', gap: 0 }}>
+            <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
+              <div className="panel__header">
+                <div className="panel__title">
+                  <p>Today&apos;s Passage</p>
+                </div>
               </div>
-            </div>
-            <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
-              <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-                <div className="panel__content-scroll">
-                  <p className="admin-votd__muted pds-body">Checking access…</p>
+              <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
+                <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+                  <div className="panel__content-scroll" />
                 </div>
               </div>
             </div>
           </div>
+          <div className="panel__footer--buttons">
+            <SquareButton variant="Back" onClick={handleClose} inBottomSheet={inBottomSheet} />
+          </div>
         </div>
-        <div className="panel__footer--buttons">
-          <SquareButton variant="Back" onClick={handleClose} inBottomSheet={inBottomSheet} />
-        </div>
-      </div>
+        <ProtoStatusChip visible variant="syncing" label="Loading…" />
+      </>
     );
   }
 

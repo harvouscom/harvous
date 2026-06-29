@@ -94,12 +94,41 @@ export function isPrototypeAdminPath(pathname: string): boolean {
   return prototypeLogicalPath(pathname).startsWith('/admin');
 }
 
+export function isPrototypeAdminHomePath(pathname: string): boolean {
+  const logical = prototypeLogicalPath(pathname).replace(/\/+$/, '') || '/';
+  return logical === '/admin';
+}
+
+export function prototypeAdminRouteTo(): '/admin' | '/prototype/admin' {
+  return isDedicatedPrototypeHost() ? '/admin' : '/prototype/admin';
+}
+
 export function prototypeAdminUsageRouteTo(): '/admin/usage' | '/prototype/admin/usage' {
   return isDedicatedPrototypeHost() ? '/admin/usage' : '/prototype/admin/usage';
 }
 
+export function prototypeAdminPulseRouteTo(): '/admin/pulse' | '/prototype/admin/pulse' {
+  return isDedicatedPrototypeHost() ? '/admin/pulse' : '/prototype/admin/pulse';
+}
+
+export function prototypeAdminReportsRouteTo(): '/admin/reports' | '/prototype/admin/reports' {
+  return isDedicatedPrototypeHost() ? '/admin/reports' : '/prototype/admin/reports';
+}
+
 export function prototypeAdminVotdRouteTo(): '/admin/votd' | '/prototype/admin/votd' {
   return isDedicatedPrototypeHost() ? '/admin/votd' : '/prototype/admin/votd';
+}
+
+export function prototypeAdminPublishRouteTo(): '/admin/publish' | '/prototype/admin/publish' {
+  return isDedicatedPrototypeHost() ? '/admin/publish' : '/prototype/admin/publish';
+}
+
+export function prototypeAdminMaintenanceRouteTo(): '/admin/maintenance' | '/prototype/admin/maintenance' {
+  return isDedicatedPrototypeHost() ? '/admin/maintenance' : '/prototype/admin/maintenance';
+}
+
+export function prototypeAdminSupportRouteTo(): '/admin/support' | '/prototype/admin/support' {
+  return isDedicatedPrototypeHost() ? '/admin/support' : '/prototype/admin/support';
 }
 
 export function matchPrototypeNoteId(pathname: string): string | null {

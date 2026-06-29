@@ -16,6 +16,15 @@
  *   GET  /api/admin/usage/overview
  *   GET  /api/admin/usage/trends
  *   GET  /api/admin/usage/discovery
+ *   GET  /api/admin/content/spaces
+ *   GET  /api/admin/content/spaces/:spaceId/threads
+ *   GET  /api/admin/diagnostics/issues
+ *   GET  /api/admin/pulse
+ *   GET  /api/admin/reports/catalog
+ *   GET  /api/admin/reports/:month
+ *   POST /api/admin/reports/generate
+ *   GET  /api/admin/reports/season/:seasonId
+ *   GET  /api/admin/reports/year/:year
  */
 
 import { Hono } from 'hono';
@@ -51,6 +60,38 @@ import {
 } from '../utils/tier-limits';
 import { generateAutoTags, applyAutoTags, regenerateAutoTags, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN } from '../utils/auto-tag-generator';
 import { getUsageOverview, getUsageTrends, getUsageDiscovery } from '../utils/admin-usage-stats';
+import { getAdminPulse } from '../utils/admin-pulse-stats';
+import {
+  generateAdminMonthlyReport,
+  getStoredMonthlyReport,
+  listAdminReportsCatalog,
+  isValidMonthKey,
+} from '../utils/admin-report-generator';
+import { rollupMonthlyReports } from '../utils/admin-report-rollup';
+import {
+  exportPayloadToJson,
+  exportRowsToCsv,
+  reportPayloadToExportRows,
+  reportRollupToExportRows,
+  yearRollupToJson,
+} from '../utils/admin-report-export';
+import { getSeasonDisplayName, getSeasonMonths, listSeasonsForYear, isAdminReportMonthInCatalog } from '@/utils/season-helpers';
+import { cleanupDuplicateNoteThreads, cleanupDuplicateScriptureRefs } from '../utils/admin-cleanup-duplicates';
+import { getAdminContentSpaces, getAdminContentSpaceThreads } from '../utils/admin-content-catalog';
+import {
+  getSupportTicket,
+  listSupportTickets,
+  parseSupportTicketListFilter,
+  patchSupportTicket,
+  validatePatchSupportTicketInput,
+} from '../utils/admin-support-tickets';
+import {
+  countDiagnosticEventsSince,
+  getDiagnosticIssueEvents,
+  getDiagnosticIssues,
+  updateDiagnosticIssueTriage,
+} from '../utils/admin-diagnostics-stats';
+import { isDiagnosticTriageStatus } from '@/utils/diagnostic-sources';
 
 const app = new Hono();
 
@@ -60,7 +101,8 @@ app.get('/api/admin/usage/overview', async (c) => {
   const denied = requireHarvousAdmin(c);
   if (denied) return denied;
   try {
-    const overview = await getUsageOverview();
+    const daysParam = parseInt(c.req.query('days') ?? '30', 10);
+    const overview = await getUsageOverview(Number.isFinite(daysParam) ? daysParam : 30);
     return c.json(overview);
   } catch (error: unknown) {
     console.error('[admin usage overview]', error);
@@ -94,6 +136,171 @@ app.get('/api/admin/usage/discovery', async (c) => {
   }
 });
 
+app.get('/api/admin/pulse', async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  try {
+    const daysParam = parseInt(c.req.query('days') ?? '7', 10);
+    const pulse = await getAdminPulse(Number.isFinite(daysParam) ? daysParam : 7);
+    return c.json(pulse);
+  } catch (error: unknown) {
+    console.error('[admin pulse]', error);
+    return c.json({ error: 'Failed to load pulse' }, 500);
+  }
+});
+
+// ─── GET /api/admin/reports/* ───────────────────────────────────────
+
+app.get('/api/admin/reports/catalog', async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  try {
+    const catalog = await listAdminReportsCatalog();
+    return c.json(catalog);
+  } catch (error) {
+    console.error('[admin reports catalog]', error);
+    return c.json({ error: 'Failed to load reports catalog' }, 500);
+  }
+});
+
+app.post('/api/admin/reports/generate', async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  const month = c.req.query('month');
+  if (!month || !isValidMonthKey(month)) {
+    return c.json({ error: 'Invalid month format. Use YYYY-MM' }, 400);
+  }
+  try {
+    const payload = await generateAdminMonthlyReport(month);
+    if (!payload) {
+      return c.json({ error: 'Reports are not tracked before June 2026' }, 400);
+    }
+    return c.json({ success: true, month, payload });
+  } catch (error) {
+    console.error('[admin reports generate]', error);
+    return c.json({ error: 'Failed to generate report' }, 500);
+  }
+});
+
+app.get('/api/admin/reports/season/:seasonId', async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  const seasonId = c.req.param('seasonId');
+  const format = c.req.query('format') ?? 'json';
+  if (!/^((spring|summer|fall|winter)-\d{4})$/.test(seasonId)) {
+    return c.json({ error: 'Invalid season id' }, 400);
+  }
+  try {
+    const months = getSeasonMonths(seasonId);
+    const payloads = [];
+    for (const month of months) {
+      const stored = await getStoredMonthlyReport(month);
+      if (stored) payloads.push(stored);
+    }
+    if (payloads.length === 0) {
+      return c.json({ error: 'No stored reports for this season' }, 404);
+    }
+    const rollup = rollupMonthlyReports('season', seasonId, getSeasonDisplayName(seasonId), payloads);
+    if (format === 'csv') {
+      const csv = exportRowsToCsv(reportRollupToExportRows(rollup));
+      return new Response(csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="harvous-report-${seasonId}.csv"`,
+        },
+      });
+    }
+    return c.json(rollup);
+  } catch (error) {
+    console.error('[admin reports season]', error);
+    return c.json({ error: 'Failed to load season report' }, 500);
+  }
+});
+
+app.get('/api/admin/reports/year/:year', async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  const yearParam = c.req.param('year');
+  const year = parseInt(yearParam, 10);
+  const format = c.req.query('format') ?? 'json';
+  if (!year || year < 2000 || year > 2100) {
+    return c.json({ error: 'Invalid year' }, 400);
+  }
+  try {
+    const seasonIds = listSeasonsForYear(year);
+    const seasons = [];
+    for (const seasonId of seasonIds) {
+      const months = getSeasonMonths(seasonId);
+      const payloads = [];
+      for (const month of months) {
+        const stored = await getStoredMonthlyReport(month);
+        if (stored) payloads.push(stored);
+      }
+      seasons.push({
+        seasonId,
+        seasonName: getSeasonDisplayName(seasonId),
+        rollup: payloads.length > 0 ? rollupMonthlyReports('season', seasonId, getSeasonDisplayName(seasonId), payloads) : null,
+        months: payloads,
+      });
+    }
+    const hasAny = seasons.some((s) => s.months.length > 0);
+    if (!hasAny) {
+      return c.json({ error: 'No stored reports for this year' }, 404);
+    }
+    if (format === 'csv') {
+      const rows = seasons.flatMap((s) => (s.rollup ? reportRollupToExportRows(s.rollup) : []));
+      const csv = exportRowsToCsv(rows);
+      return new Response(csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="harvous-report-${year}.csv"`,
+        },
+      });
+    }
+    return c.json(JSON.parse(yearRollupToJson(year, seasons)));
+  } catch (error) {
+    console.error('[admin reports year]', error);
+    return c.json({ error: 'Failed to load year report' }, 500);
+  }
+});
+
+app.get('/api/admin/reports/:month', async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  const month = c.req.param('month');
+  const format = c.req.query('format') ?? 'json';
+  if (!isValidMonthKey(month)) {
+    return c.json({ error: 'Invalid month format. Use YYYY-MM' }, 400);
+  }
+  try {
+    const payload = await getStoredMonthlyReport(month);
+    if (!payload) {
+      return c.json({ error: 'Report not found for this month' }, 404);
+    }
+    if (format === 'csv') {
+      const csv = exportRowsToCsv(reportPayloadToExportRows('month', month, payload));
+      return new Response(csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="harvous-report-${month}.csv"`,
+        },
+      });
+    }
+    if (format === 'json' && c.req.query('download') === '1') {
+      return new Response(exportPayloadToJson(payload), {
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Disposition': `attachment; filename="harvous-report-${month}.json"`,
+        },
+      });
+    }
+    return c.json(payload);
+  } catch (error) {
+    console.error('[admin reports month]', error);
+    return c.json({ error: 'Failed to load monthly report' }, 500);
+  }
+});
+
 // ─── POST/GET /api/admin/aggregate-analytics ──────────────────────────
 
 async function handleAggregateAnalytics(c: any) {
@@ -106,6 +313,11 @@ async function handleAggregateAnalytics(c: any) {
 
     if (expectedToken && !hasValidToken && !isAuthenticated) {
       return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    if (!hasValidToken) {
+      const denied = requireHarvousAdmin(c);
+      if (denied) return denied;
     }
 
     const previous = c.req.query('previous') === 'true';
@@ -124,8 +336,16 @@ async function handleAggregateAnalytics(c: any) {
     }
 
     await aggregateMonthlyAnalytics(targetMonth);
+    const report = await generateAdminMonthlyReport(targetMonth);
 
-    return c.json({ success: true, month: targetMonth, message: `Analytics aggregated for ${targetMonth}` });
+    return c.json({
+      success: true,
+      month: targetMonth,
+      reportGenerated: report != null,
+      message: report
+        ? `Analytics and monthly report generated for ${targetMonth}`
+        : `Analytics aggregated for ${targetMonth} (before reports launch; no report snapshot)`,
+    });
   } catch (error) {
     console.error('Error aggregating analytics:', error);
     return c.json({ error: 'Internal server error', details: error instanceof Error ? error.message : String(error) }, 500);
@@ -203,102 +423,38 @@ app.post('/api/admin/backup-exports', async (c) => {
 // ─── GET /api/admin/cleanup-duplicate-note-threads ────────────────────
 
 app.get('/api/admin/cleanup-duplicate-note-threads', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
   try {
-    console.log('Starting cleanup of duplicate NoteThreads entries...');
-
-    const allEntries = await db.select().from(NoteThreads);
-    console.log(`Total NoteThreads entries: ${allEntries.length}`);
-
-    const groupedEntries = new Map<string, typeof allEntries>();
-    for (const entry of allEntries) {
-      const key = `${entry.noteId}::${entry.threadId}`;
-      if (!groupedEntries.has(key)) groupedEntries.set(key, []);
-      groupedEntries.get(key)!.push(entry);
-    }
-
-    const duplicateGroups = Array.from(groupedEntries.entries()).filter(([_, entries]) => entries.length > 1);
-    console.log(`Found ${duplicateGroups.length} groups with duplicates`);
-
-    if (duplicateGroups.length === 0) {
-      return c.json({ success: true, message: 'No duplicates found. Database is clean!', deleted: 0 });
-    }
-
-    let totalDeleted = 0;
-    const report: Array<{ noteId: string; threadId: string; kept: string; deleted: string[] }> = [];
-
-    for (const [_key, entries] of duplicateGroups) {
-      // Sort by createdAt (oldest first) — dates are ISO strings, string comparison works
-      const sorted = entries.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
-      const [kept, ...toDelete] = sorted;
-
-      for (const entry of toDelete) {
-        await db.delete(NoteThreads).where(eq(NoteThreads.id, entry.id));
-        totalDeleted++;
-      }
-
-      report.push({ noteId: kept.noteId, threadId: kept.threadId, kept: kept.id, deleted: toDelete.map((e) => e.id) });
-    }
-
-    return c.json({
-      success: true,
-      message: `Cleanup complete! Deleted ${totalDeleted} duplicate NoteThreads entries.`,
-      deleted: totalDeleted,
-      duplicateGroups: report.length,
-      report,
-    });
-  } catch (error: any) {
+    const dryRun = c.req.query('dryRun') === 'true';
+    const result = await cleanupDuplicateNoteThreads(dryRun);
+    return c.json(result);
+  } catch (error: unknown) {
     console.error('Error during cleanup:', error);
-    return c.json({ success: false, error: error.message || 'Unknown error' }, 500);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      500,
+    );
   }
 });
 
 // ─── GET /api/admin/cleanup-duplicate-scripture-refs ──────────────────
 
 app.get('/api/admin/cleanup-duplicate-scripture-refs', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
   try {
-    console.log('Starting cleanup of duplicate scripture reference entries...');
-
-    const allEntries = await db.select().from(NoteScriptureReferences);
-
-    const groupedEntries = new Map<string, typeof allEntries>();
-    for (const entry of allEntries) {
-      const key = `${entry.noteId}::${entry.scriptureNoteId}`;
-      if (!groupedEntries.has(key)) groupedEntries.set(key, []);
-      groupedEntries.get(key)!.push(entry);
-    }
-
-    const duplicateGroups = Array.from(groupedEntries.entries()).filter(([_, entries]) => entries.length > 1);
-    console.log(`Found ${duplicateGroups.length} groups with duplicates`);
-
-    if (duplicateGroups.length === 0) {
-      return c.json({ success: true, message: 'No duplicates found. Database is clean!', deleted: 0 });
-    }
-
-    let totalDeleted = 0;
-    const report: Array<{ noteId: string; scriptureNoteId: string; kept: string; deleted: string[] }> = [];
-
-    for (const [_key, entries] of duplicateGroups) {
-      const sorted = entries.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
-      const [kept, ...toDelete] = sorted;
-
-      for (const entry of toDelete) {
-        await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.id, entry.id));
-        totalDeleted++;
-      }
-
-      report.push({ noteId: kept.noteId, scriptureNoteId: kept.scriptureNoteId, kept: kept.id, deleted: toDelete.map((e) => e.id) });
-    }
-
-    return c.json({
-      success: true,
-      message: `Cleanup complete! Deleted ${totalDeleted} duplicate entries.`,
-      deleted: totalDeleted,
-      duplicateGroups: report.length,
-      report,
-    });
-  } catch (error: any) {
+    const dryRun = c.req.query('dryRun') === 'true';
+    const result = await cleanupDuplicateScriptureRefs(dryRun);
+    return c.json(result);
+  } catch (error: unknown) {
     console.error('Error during cleanup:', error);
-    return c.json({ success: false, error: error.message || 'Unknown error' }, 500);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      500,
+    );
   }
 });
 
@@ -520,6 +676,42 @@ app.get('/api/admin/list-threads', requireAuth, async (c) => {
   } catch (error: any) {
     console.error('Error listing threads:', error);
     return c.json({ success: false, error: error.message || 'Unknown error' }, 500);
+  }
+});
+
+// ─── Harvous-curated content catalog ───────────────────────────────────────────
+
+app.get('/api/admin/content/spaces', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const origin = new URL(c.req.url).origin;
+    const spaces = await getAdminContentSpaces(systemUserId, origin);
+    return c.json({ success: true, spaces });
+  } catch (error: unknown) {
+    console.error('[admin content spaces]', error);
+    return c.json({ error: 'Failed to load curated spaces' }, 500);
+  }
+});
+
+app.get('/api/admin/content/spaces/:spaceId/threads', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const spaceId = c.req.param('spaceId');
+    if (!spaceId) return c.json({ error: 'Space ID is required' }, 400);
+
+    const threads = await getAdminContentSpaceThreads(systemUserId, spaceId);
+    if (threads === null) return c.json({ error: 'Space not found' }, 404);
+
+    return c.json({ success: true, spaceId, threads });
+  } catch (error: unknown) {
+    console.error('[admin content threads]', error);
+    return c.json({ error: 'Failed to load threads' }, 500);
   }
 });
 
@@ -965,6 +1157,123 @@ app.post('/api/admin/backfill-auto-tags', async (c) => {
       { success: false, error: error instanceof Error ? error.message : String(error) },
       500,
     );
+  }
+});
+
+// ─── GET/PATCH /api/admin/support/tickets ─────────────────────────────────────
+
+app.get('/api/admin/support/tickets', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const status = parseSupportTicketListFilter(c.req.query('status') ?? undefined);
+    const limitParam = parseInt(c.req.query('limit') ?? '50', 10);
+    const offsetParam = parseInt(c.req.query('offset') ?? '0', 10);
+    const limit = Number.isFinite(limitParam) ? limitParam : 50;
+    const offset = Number.isFinite(offsetParam) ? offsetParam : 0;
+    const result = await listSupportTickets(status, limit, offset);
+    return c.json({ success: true, status, ...result });
+  } catch (error: unknown) {
+    console.error('[admin support tickets list]', error);
+    return c.json({ error: 'Failed to load support tickets' }, 500);
+  }
+});
+
+app.get('/api/admin/support/tickets/:id', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const id = c.req.param('id')?.trim() ?? '';
+    if (!id) return c.json({ error: 'id is required' }, 400);
+    const ticket = await getSupportTicket(id);
+    if (!ticket) return c.json({ error: 'Ticket not found' }, 404);
+    return c.json({ success: true, ticket });
+  } catch (error: unknown) {
+    console.error('[admin support ticket detail]', error);
+    return c.json({ error: 'Failed to load support ticket' }, 500);
+  }
+});
+
+app.patch('/api/admin/support/tickets/:id', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const id = c.req.param('id')?.trim() ?? '';
+    if (!id) return c.json({ error: 'id is required' }, 400);
+
+    const body = await c.req.json().catch(() => null);
+    const patch = validatePatchSupportTicketInput(body);
+    if (!patch) return c.json({ error: 'Invalid patch payload' }, 400);
+
+    const ticket = await patchSupportTicket(id, patch);
+    if (!ticket) return c.json({ error: 'Ticket not found' }, 404);
+    return c.json({ success: true, ticket });
+  } catch (error: unknown) {
+    console.error('[admin support ticket patch]', error);
+    return c.json({ error: 'Failed to update support ticket' }, 500);
+  }
+});
+
+// ─── GET/PATCH /api/admin/diagnostics/* ───────────────────────────────────────
+
+app.get('/api/admin/diagnostics/issues', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const daysParam = parseInt(c.req.query('days') ?? '7', 10);
+    const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 1), 90) : 7;
+    const issues = await getDiagnosticIssues(days);
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const eventsLast24h = await countDiagnosticEventsSince(since24h);
+    const openCount = issues.filter((i) => i.status === 'open').length;
+    return c.json({ success: true, days, openCount, eventsLast24h, issues });
+  } catch (error: unknown) {
+    console.error('[admin diagnostics issues]', error);
+    return c.json({ error: 'Failed to load diagnostic issues' }, 500);
+  }
+});
+
+app.get('/api/admin/diagnostics/issues/:signature/events', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const signature = c.req.param('signature')?.trim() ?? '';
+    if (!signature) return c.json({ error: 'signature is required' }, 400);
+    const limitParam = parseInt(c.req.query('limit') ?? '20', 10);
+    const limit = Number.isFinite(limitParam) ? limitParam : 20;
+    const events = await getDiagnosticIssueEvents(signature, limit);
+    return c.json({ success: true, issueSignature: signature, events });
+  } catch (error: unknown) {
+    console.error('[admin diagnostics events]', error);
+    return c.json({ error: 'Failed to load diagnostic events' }, 500);
+  }
+});
+
+app.patch('/api/admin/diagnostics/issues/:signature', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const signature = c.req.param('signature')?.trim() ?? '';
+    if (!signature) return c.json({ error: 'signature is required' }, 400);
+
+    const body = await c.req.json().catch(() => ({} as Record<string, unknown>));
+    const status = typeof body.status === 'string' ? body.status : '';
+    if (!isDiagnosticTriageStatus(status)) {
+      return c.json({ error: 'Invalid status' }, 400);
+    }
+    const adminNotes = typeof body.adminNotes === 'string' ? body.adminNotes : null;
+
+    await updateDiagnosticIssueTriage(signature, status, adminNotes);
+    return c.json({ success: true, issueSignature: signature, status });
+  } catch (error: unknown) {
+    console.error('[admin diagnostics triage]', error);
+    return c.json({ error: 'Failed to update triage' }, 500);
   }
 });
 

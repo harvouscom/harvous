@@ -4,6 +4,7 @@
  */
 
 import { conceptOverlapsAny } from '@/utils/bible-study-concept-overlaps';
+import { shouldSuppressJesusAutoTag } from '@/utils/christ-keyword-context';
 import { stripHtml } from '@/utils/html-stripper';
 import { findKeywordsInTextWithPriority } from '@/utils/bible-study-keywords';
 import { detectPersonTags } from '@/utils/person-tag-detector';
@@ -52,8 +53,19 @@ export function suggestAutoTagsFromNote(
   }
 
   const suggestions: SuggestedAutoTag[] = [];
+  const fullTextLower = fullText.toLowerCase();
+  const titleLower = cleanTitle.toLowerCase();
+  const hasLiteralJesus = /\bjesus\b/i.test(cleanTitle) || /\bjesus\b/i.test(cleanContent);
+
   for (const { keyword, confidence } of foundKeywords) {
     if (keyword.name.toLowerCase() === 'god') continue;
+    if (
+      shouldSuppressJesusAutoTag(keyword.name, confidence, fullTextLower, titleLower, {
+        synonymOnly: !hasLiteralJesus,
+      })
+    ) {
+      continue;
+    }
     if (confidence < confidenceThreshold) continue;
     if (isExcluded(keyword.name)) continue;
     if (suggestions.some((existing) => conceptOverlapsAny(keyword.name, [existing.name]))) continue;

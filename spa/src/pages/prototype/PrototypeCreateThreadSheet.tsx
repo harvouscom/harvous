@@ -18,6 +18,8 @@ export interface PrototypeCreateThreadSheetProps {
   spaceId: string;
   spaceNotes: SpaceNoteRow[];
   onCreated: (repNoteId: string) => void;
+  initialSelectedNoteIds?: string[];
+  initialThreadName?: string;
 }
 
 export default function PrototypeCreateThreadSheet({
@@ -26,6 +28,8 @@ export default function PrototypeCreateThreadSheet({
   spaceId,
   spaceNotes,
   onCreated,
+  initialSelectedNoteIds,
+  initialThreadName,
 }: PrototypeCreateThreadSheetProps) {
   const { isMobileSidebar } = useProtoShell();
   const connectNote = useConnectNote();
@@ -41,8 +45,12 @@ export default function PrototypeCreateThreadSheet({
       setThreadName('');
       setSelectedIds([]);
       setActionError(null);
+      return;
     }
-  }, [open]);
+    setSelectedIds(initialSelectedNoteIds ?? []);
+    setThreadName(initialThreadName ?? '');
+    setActionError(null);
+  }, [open, initialSelectedNoteIds, initialThreadName]);
 
   const isPending = connectNote.isPending || updateTitle.isPending;
   const canSubmit = threadName.trim().length > 0 && selectedIds.length >= MIN_THREAD_NOTES && !isPending;

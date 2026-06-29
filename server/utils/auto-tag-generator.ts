@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { conceptOverlapsAny } from '@/utils/bible-study-concept-overlaps';
+import { shouldSuppressJesusAutoTag } from '@/utils/christ-keyword-context';
 import { findKeywordsInText, findKeywordsInTextWithPriority, BIBLE_STUDY_KEYWORDS, type BibleStudyKeyword } from '@/utils/bible-study-keywords';
 import { db, first, Tags, NoteTags, eq, and, now } from '../db';
 import { getOrCreateTag, noteHasTagWithNormalizedName, clearDismissedAutoTags } from './tag-helpers';
@@ -69,8 +70,19 @@ export async function generateAutoTags(
     const suggestions: AutoTagSuggestion[] = [];
     let highConfidence = 0;
 
+    const fullTextLower = fullText.toLowerCase();
+    const titleLower = cleanTitle.toLowerCase();
+    const hasLiteralJesus = /\bjesus\b/i.test(cleanTitle) || /\bjesus\b/i.test(cleanContent);
+
     for (const { keyword, confidence } of foundKeywords) {
       if (keyword.name.toLowerCase() === 'god') continue;
+      if (
+        shouldSuppressJesusAutoTag(keyword.name, confidence, fullTextLower, titleLower, {
+          synonymOnly: !hasLiteralJesus,
+        })
+      ) {
+        continue;
+      }
       if (isExcluded(keyword.name)) continue;
       if (confidence >= confidenceThreshold) {
         const isOverlapping = suggestions.some(existing => isTagOverlapping(keyword.name, existing.keyword));

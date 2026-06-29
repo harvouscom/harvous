@@ -955,6 +955,10 @@ export default function PrototypeSidebar() {
   const [addNotesSheetOpen, setAddNotesSheetOpen] = useState(false);
   const [createFolderSheetOpen, setCreateFolderSheetOpen] = useState(false);
   const [createThreadSheetOpen, setCreateThreadSheetOpen] = useState(false);
+  const [createThreadPrefill, setCreateThreadPrefill] = useState<{
+    noteIds: string[];
+    threadName?: string;
+  } | null>(null);
   const isHomeLayer = sidebarLayer === 'space';
   const tagFilterActive = Boolean(tagFilter);
   const searchActive = !isHomeLayer && q.trim().length > 0 && !tagFilterActive;
@@ -1826,6 +1830,10 @@ export default function PrototypeSidebar() {
               ensureSidebarExpanded();
             }}
             onOpenHighlight={onHighlightRow}
+            onOpenCreateThreadPrefill={({ noteIds, threadName }) => {
+              setCreateThreadPrefill({ noteIds, threadName });
+              setCreateThreadSheetOpen(true);
+            }}
           />
         ) : sidebarThreadProposal ? (
           <div className="proto-thread-review">
@@ -2200,7 +2208,10 @@ export default function PrototypeSidebar() {
                     <button
                       type="button"
                       className="proto-list-create-empty__btn"
-                      onClick={() => setCreateThreadSheetOpen(true)}
+                      onClick={() => {
+                        setCreateThreadPrefill(null);
+                        setCreateThreadSheetOpen(true);
+                      }}
                     >
                       New thread
                     </button>
@@ -2218,7 +2229,10 @@ export default function PrototypeSidebar() {
                       <button
                         type="button"
                         className="proto-list-create-empty__btn"
-                        onClick={() => setCreateThreadSheetOpen(true)}
+                        onClick={() => {
+                        setCreateThreadPrefill(null);
+                        setCreateThreadSheetOpen(true);
+                      }}
                       >
                         New thread
                       </button>
@@ -2231,7 +2245,10 @@ export default function PrototypeSidebar() {
                         <button
                           type="button"
                           className="proto-collection-grid-actions__btn"
-                          onClick={() => setCreateThreadSheetOpen(true)}
+                          onClick={() => {
+                        setCreateThreadPrefill(null);
+                        setCreateThreadSheetOpen(true);
+                      }}
                         >
                           <Icon name="plus" size={12} aria-hidden />
                           New thread
@@ -2452,9 +2469,14 @@ export default function PrototypeSidebar() {
           />
           <PrototypeCreateThreadSheet
             open={createThreadSheetOpen}
-            onOpenChange={setCreateThreadSheetOpen}
+            onOpenChange={(open) => {
+              setCreateThreadSheetOpen(open);
+              if (!open) setCreateThreadPrefill(null);
+            }}
             spaceId={homeSpaceId}
             spaceNotes={notes}
+            initialSelectedNoteIds={createThreadPrefill?.noteIds}
+            initialThreadName={createThreadPrefill?.threadName}
             onCreated={(repNoteId) => {
               setSidebarListMode('threads');
               setSidebarThreadDrilldownId(threadClusterDrillSlug(repNoteId));

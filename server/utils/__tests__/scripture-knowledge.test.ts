@@ -92,12 +92,32 @@ describe('mergeCrossReferences', () => {
 });
 
 describe('relatedNoteReason', () => {
-  const base: RelatedNote = { noteId: 'n', score: 0, sharedPassages: [], sharedCrossRefs: [], sharedThemes: [] };
+  const base: RelatedNote = {
+    noteId: 'n',
+    score: 0,
+    sharedPassages: [],
+    sharedCrossRefs: [],
+    sharedThemes: [],
+    sameSection: false,
+  };
 
-  it('prioritizes passage > cross-ref > theme', () => {
+  it('prioritizes passage > cross-ref > section > theme', () => {
     expect(relatedNoteReason({ ...base, sharedPassages: ['John|3|16'], sharedThemes: ['t'] })).toBe('Same passage');
     expect(relatedNoteReason({ ...base, sharedCrossRefs: ['Romans|5|8'], sharedThemes: ['t'] })).toBe('Cross-reference');
+    expect(relatedNoteReason({ ...base, sameSection: true, sharedThemes: ['topic_love'] })).toBe('Same section');
     expect(relatedNoteReason({ ...base, sharedThemes: ['topic_love'] })).toBe('Shared theme');
+  });
+});
+
+describe('rankRelatedNotes section boost', () => {
+  it('adds a point when source and note share a canon section', () => {
+    const signals: RelatedSignal[] = [{ noteId: 'b', kind: 'theme', detail: 'topic_grace' }];
+    const ranked = rankRelatedNotes(signals, {
+      sourceSectionId: 'gospels',
+      noteSectionById: { b: 'gospels' },
+    });
+    expect(ranked[0]?.score).toBe(2);
+    expect(ranked[0]?.sameSection).toBe(true);
   });
 });
 

@@ -30,6 +30,10 @@ export {
   ScriptureMetadata,
   NoteScriptureReferences,
   NoteFingerprints,
+  RecallEvents,
+  SupportTickets,
+  DiagnosticEvents,
+  DiagnosticIssueTriage,
   NoteConnections,
   VerseTextCache,
   BibleTranslations,
@@ -50,6 +54,7 @@ export {
   VotdSchedule,
   VotdPublishHistory,
   MonthlyAnalytics,
+  AdminMonthlyReports,
 } from './schema';
 
 // Common Drizzle operators (mirrors what astro:db re-exports)

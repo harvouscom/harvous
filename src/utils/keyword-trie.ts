@@ -4,6 +4,7 @@
  */
 
 import type { BibleStudyKeyword } from './bible-study-keywords';
+import { shouldSkipJesusCharacterNeedleMatch } from './christ-keyword-context';
 import { shouldSkipPersonNameContext } from './person-name-context';
 
 export interface KeywordTrie {
@@ -87,10 +88,11 @@ export function findWordBoundMatches(
         const phraseWords = words.slice(i, i + len);
         const stats = lookupPhrase(root, phraseWords);
         if (!stats) continue;
-        if (!occurrenceIsValidForPersonContext(text, words, i, len, stats[0]!.keyword.category)) {
-          continue;
-        }
+        const phraseText = phraseWords.join(' ');
         for (const { keyword, isSynonym } of stats) {
+          if (!occurrenceIsValidForPersonContext(text, words, i, len, keyword, isSynonym, phraseText)) {
+            continue;
+          }
           const conf = isSynonym ? keyword.confidence * 0.8 : keyword.confidence;
           const existing = result.get(keyword);
           if (!existing) {
@@ -127,8 +129,11 @@ function occurrenceIsValidForPersonContext(
   words: string[],
   wordIndex: number,
   phraseLen: number,
-  category: BibleStudyKeyword['category'],
+  keyword: BibleStudyKeyword,
+  isSynonym: boolean,
+  phraseText: string,
 ): boolean {
+  const category = keyword.category;
   if (category !== 'character' && !(category === 'book' && phraseLen === 1)) {
     return true;
   }
@@ -138,6 +143,7 @@ function occurrenceIsValidForPersonContext(
       ? `\\b${escapeRegexToken(phraseWords[0]!)}\\b`
       : `\\b${phraseWords.map(escapeRegexToken).join('\\s+')}\\b`;
   const re = new RegExp(pattern, 'giu');
+  const textLower = text.toLowerCase();
   let seen = 0;
   for (const m of text.matchAll(re)) {
     const start = m.index ?? 0;
@@ -146,7 +152,11 @@ function occurrenceIsValidForPersonContext(
     if (wordsBefore !== wordIndex) continue;
     seen += 1;
     if (seen > 1) return true;
-    return !shouldSkipPersonNameContext(m[0], text, start, end);
+    if (shouldSkipPersonNameContext(m[0], text, start, end)) return false;
+    if (shouldSkipJesusCharacterNeedleMatch(keyword.name, phraseText, textLower, start, end)) {
+      return false;
+    }
+    return true;
   }
   return false;
 }

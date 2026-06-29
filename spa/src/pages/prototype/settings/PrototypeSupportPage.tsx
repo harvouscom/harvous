@@ -1,12 +1,10 @@
 import '@/styles/scripture-pill-chrome.css';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import Icon from '@/components/react/Icon';
-import {
-  buildFeedbackMailto,
-  buildFounderMailto,
-  FOUNDER_EMAIL,
-  type FeedbackTopic,
-} from '@/utils/support-mailto';
+import { buildFounderMailto, FOUNDER_EMAIL, type FeedbackTopic } from '@/utils/support-mailto';
+import { collectSupportClientContext } from '@/utils/support-client-context';
+import { submitSupportTicket } from '@/utils/support-tickets';
 import { useProfile } from '../../../hooks/queries/useProfile';
 import { SettingsCopyRow, SettingsGroup, SettingsShell } from './SettingsShell';
 
@@ -25,22 +23,31 @@ export default function PrototypeSupportPage() {
   const { data: profile } = useProfile();
   const [topic, setTopic] = useState<FeedbackTopic | undefined>();
   const [message, setMessage] = useState('');
+  const [sent, setSent] = useState(false);
+  const [pending, setPending] = useState(false);
 
   const versionLabel = appVersionLabel();
-  const canSend = message.trim().length > 0;
+  const canSend = message.trim().length > 0 && !pending;
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!canSend) return;
-    const mailto = buildFeedbackMailto({
-      message,
-      topic,
-      profile: profile
-        ? { firstName: profile.firstName, lastName: profile.lastName, email: profile.email }
-        : undefined,
-      version: appVersionRaw(),
-      pageUrl: window.location.href,
-    });
-    window.location.href = mailto;
+    setPending(true);
+    try {
+      await submitSupportTicket({
+        message,
+        topic,
+        appVersion: appVersionRaw(),
+        pageUrl: window.location.href,
+        clientEnvironment: collectSupportClientContext().clientEnvironment,
+      });
+      setMessage('');
+      setTopic(undefined);
+      setSent(true);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not send your note');
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
@@ -70,25 +77,41 @@ export default function PrototypeSupportPage() {
         />
       </SettingsGroup>
 
+      {sent ? (
+        <p className="proto-support-form__sent" role="status">
+          Your note was sent. I&apos;ll get back to you
+          {profile?.email ? ` at ${profile.email}` : ''}.
+        </p>
+      ) : null}
+
       <div className="proto-support-form">
-        <p className="proto-support-form__label pds-inspector-label">Send a note</p>
-        <div className="proto-appearance-segmented proto-support-form__topics" role="group" aria-label="Feedback type">
-          {TOPICS.map((t) => (
-            <button
-              key={t}
-              type="button"
-              className={`proto-appearance-segmented__btn${topic === t ? ' proto-appearance-segmented__btn--active' : ''}`}
-              aria-pressed={topic === t}
-              onClick={() => setTopic((current) => (current === t ? undefined : t))}
-            >
-              {t}
-            </button>
-          ))}
+        <p className="proto-home-greeting proto-support-form__intro">
+          What&apos;s on your mind? Pick a topic below, write your note, and I&apos;ll get back to you.
+        </p>
+        <p className="pds-inspector-label proto-support-form__topic-label">Topic</p>
+        <div className="proto-chip-bar proto-support-form__chip-bar" role="group" aria-label="Feedback type">
+          {TOPICS.map((t) => {
+            const selected = topic === t;
+            return (
+              <button
+                key={t}
+                type="button"
+                className={`proto-chip${selected ? ' proto-chip--selected' : ''}`}
+                aria-pressed={selected}
+                onClick={() => setTopic((current) => (current === t ? undefined : t))}
+              >
+                {t}
+              </button>
+            );
+          })}
         </div>
         <textarea
           className="proto-support-form__textarea"
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) => {
+            setMessage(e.target.value);
+            if (sent) setSent(false);
+          }}
           placeholder="What's on your mind?"
           rows={5}
         />
@@ -96,9 +119,9 @@ export default function PrototypeSupportPage() {
           type="button"
           className="proto-settings-btn"
           disabled={!canSend}
-          onClick={handleSend}
+          onClick={() => void handleSend()}
         >
-          Send
+          {pending ? 'Sending…' : 'Send'}
         </button>
       </div>
 

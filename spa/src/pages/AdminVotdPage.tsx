@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router';
 import CardStack from '../components/CardStack';
 import AdminVotdPanel from '@/components/react/AdminVotdPanel';
 import AdminShell from '@/components/react/AdminShell';
+import ProtoStatusChip from '@/components/react/ProtoStatusChip';
 import { useHarvousAdminCheck } from '@/hooks/queries/useVotdPreview';
 import { isDedicatedPrototypeHost } from '@/lib/prototype-path';
 
@@ -18,9 +19,10 @@ function PrototypeAdminVotdPage() {
 
   if (admin.isLoading) {
     return (
-      <AdminShell title="Today's Passage" subtitle="Checking access…">
-        <p className="admin-votd__muted">Checking access…</p>
-      </AdminShell>
+      <>
+        <AdminShell title="Today's Passage">{null}</AdminShell>
+        <ProtoStatusChip visible variant="syncing" label="Loading…" />
+      </>
     );
   }
 
@@ -29,10 +31,7 @@ function PrototypeAdminVotdPage() {
   }
 
   return (
-    <AdminShell
-      title="Today's Passage"
-      subtitle="Editorial preview and schedule overrides (UTC dates)."
-    >
+    <AdminShell title="Today's Passage">
       <AdminVotdPanel variant="embed" />
     </AdminShell>
   );
@@ -50,13 +49,14 @@ function ClassicAdminVotdPage() {
 
   if (admin.isLoading) {
     return (
-      <div className="page-flex-column">
-        <div className="page-flex-column__main">
-          <CardStack title="Today's Passage" centerTitle>
-            <p className="admin-votd__muted">Checking access…</p>
-          </CardStack>
+      <>
+        <div className="page-flex-column">
+          <div className="page-flex-column__main">
+            <CardStack title="Today's Passage" centerTitle />
+          </div>
         </div>
-      </div>
+        <ProtoStatusChip visible variant="syncing" label="Loading…" />
+      </>
     );
   }
 

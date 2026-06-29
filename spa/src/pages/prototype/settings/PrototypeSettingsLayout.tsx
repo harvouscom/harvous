@@ -7,6 +7,7 @@ import { prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { readSettingsOpenerPath } from '../../../lib/prototype-settings-opener';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { SETTINGS_CATEGORIES } from './settingsCategories';
+import SettingsAdminShortcut from './SettingsAdminShortcut';
 
 function isSettingsIndexPath(pathname: string) {
   const settingsRoot = prototypeSettingsRouteTo();
@@ -47,24 +48,27 @@ export default function PrototypeSettingsLayout() {
 
   const categoryNav = (
     <nav className="proto-settings__nav" aria-label="Settings categories">
-      {SETTINGS_CATEGORIES.map((cat) => {
-        const active = pathname === cat.route;
-        return (
-          <button
-            key={cat.key}
-            type="button"
-            className="proto-settings__nav-item"
-            data-active={active ? 'true' : 'false'}
-            aria-current={active ? 'page' : undefined}
-            onClick={() => navigate({ to: cat.route, replace: true })}
-          >
-            <span className="proto-settings__nav-icon" aria-hidden>
-              <Icon name={cat.icon} size={15} />
-            </span>
-            <span className="proto-settings__nav-title">{cat.title}</span>
-          </button>
-        );
-      })}
+      <div className="proto-settings__nav-list">
+        {SETTINGS_CATEGORIES.map((cat) => {
+          const active = pathname === cat.route;
+          return (
+            <button
+              key={cat.key}
+              type="button"
+              className="proto-settings__nav-item"
+              data-active={active ? 'true' : 'false'}
+              aria-current={active ? 'page' : undefined}
+              onClick={() => navigate({ to: cat.route, replace: true })}
+            >
+              <span className="proto-settings__nav-icon" aria-hidden>
+                <Icon name={cat.icon} size={15} />
+              </span>
+              <span className="proto-settings__nav-title">{cat.title}</span>
+            </button>
+          );
+        })}
+      </div>
+      <SettingsAdminShortcut variant="nav" />
     </nav>
   );
 

@@ -16,6 +16,7 @@
  */
 
 import { conceptOverlaps } from '@/utils/bible-study-concept-overlaps';
+import { isUniversalBibleEntity } from '@/utils/universal-bible-entities';
 import { canonicalBookOrder } from '@/utils/scripture-osis';
 import { db, eq, Notes, now } from '../db';
 import {
@@ -89,6 +90,7 @@ export function mergePassageTags(
     const key = c.keyword.toLowerCase();
     if (present.has(key)) continue;
     if (dismissed.includes(key)) continue;
+    if (isUniversalBibleEntity(c.keyword)) continue;
     if (netNewConfidence < threshold) continue;
     if (out.some((s) => conceptOverlaps(c.keyword, s.keyword))) continue; // overlaps existing → already boosted
     if (excludeLabels.some((l) => conceptOverlaps(c.keyword, l))) continue;

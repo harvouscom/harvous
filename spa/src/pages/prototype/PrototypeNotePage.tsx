@@ -34,6 +34,7 @@ import {
   type PendingComposeUrlReplace,
 } from '@/utils/prototype-compose-url';
 import { isPrototypeDraftNoteSlug, noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
+import { trackSessionNoteOpen } from '@/utils/session-xp-client';
 
 const DRAFT_NOTE_ID = 'note_draft';
 const EMPTY_NOTE_COLLECTIONS: string[] = [];
@@ -256,6 +257,11 @@ export default function PrototypeNotePage() {
     if (isLoading || isFetching || !isError || note) return;
     navigate({ to: prototypeHomeRouteTo(), replace: true });
   }, [isDraft, isLoading, isFetching, isError, note, navigate]);
+
+  useEffect(() => {
+    if (isDraft || isLoading || isError || !note) return;
+    trackSessionNoteOpen(noteId);
+  }, [isDraft, isLoading, isError, note, noteId]);
 
   const resolvedSpaceFromNote =
     typeof note?.spaceId === 'string' && note.spaceId.trim().length > 0 ? note.spaceId : null;

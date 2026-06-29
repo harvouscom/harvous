@@ -1,6 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import type { RecallCandidate } from '@/utils/prototype-home-trends';
+import type { RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
+import { recordRecallOpportunityEvent } from './proto-recall-events';
+import { recordRecallSectionEngaged } from './proto-recall-cooldown';
 
 /**
  * One swipeable carousel of recall opportunities on the prototype Home — a fading meaningful note, a
@@ -14,6 +17,11 @@ export interface RecallOpportunity extends RecallCandidate {
   title: string;
   meta: string;
   iconName: IconName;
+  kind: RecallOpportunityKind;
+  /** Owned note id for spaced-repetition when opening note-backed opportunities. */
+  noteId?: string;
+  /** Dominant canon section for revisit diversity tracking. */
+  canonSection?: string;
   /** Open the underlying note / highlight / passage / thread. */
   onOpen: () => void;
 }
@@ -28,16 +36,33 @@ function clampIndex(index: number, len: number) {
 export default function PrototypeRecallCarousel({
   opportunities,
   onSnooze,
+  onRecallSynced,
+  homeSpaceId,
 }: {
   opportunities: RecallOpportunity[];
   onSnooze: (id: string) => void;
+  /** Called after a note-backed open event syncs (e.g. invalidate fingerprints). */
+  onRecallSynced?: () => void;
+  homeSpaceId?: string | null;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const startXRef = useRef<number | null>(null);
+  const lastImpressionIdRef = useRef<string | null>(null);
 
   const len = opportunities.length;
   const index = clampIndex(activeIndex, len);
   const active = opportunities[index];
+
+  useEffect(() => {
+    if (!active || lastImpressionIdRef.current === active.id) return;
+    lastImpressionIdRef.current = active.id;
+    recordRecallOpportunityEvent({
+      opportunityId: active.id,
+      kind: active.kind,
+      action: 'impression',
+      noteId: active.noteId,
+    });
+  }, [active]);
 
   const goPrev = () => setActiveIndex((i) => clampIndex(i - 1, len));
   const goNext = () => setActiveIndex((i) => clampIndex(i + 1, len));
@@ -88,6 +113,12 @@ export default function PrototypeRecallCarousel({
           className="proto-daily-passage-pill__dismiss"
           aria-label="Not now — remind me later"
           onClick={() => {
+            recordRecallOpportunityEvent({
+              opportunityId: active.id,
+              kind: active.kind,
+              action: 'snooze',
+              noteId: active.noteId,
+            });
             onSnooze(active.id);
             setActiveIndex((i) => clampIndex(i, len - 1));
           }}
@@ -95,7 +126,23 @@ export default function PrototypeRecallCarousel({
           <Icon name="xmark" size={10} aria-hidden />
           <span>Not now</span>
         </button>
-        <button type="button" className="proto-recall-card__main" onClick={active.onOpen}>
+        <button
+          type="button"
+          className="proto-recall-card__main"
+          onClick={() => {
+            recordRecallOpportunityEvent({
+              opportunityId: active.id,
+              kind: active.kind,
+              action: 'open',
+              noteId: active.noteId,
+              onSynced: active.noteId ? onRecallSynced : undefined,
+            });
+            if (active.canonSection) {
+              recordRecallSectionEngaged(homeSpaceId, active.canonSection);
+            }
+            active.onOpen();
+          }}
+        >
           <p className="proto-caption proto-home-card__eyebrow">{active.eyebrow}</p>
           <div className="proto-home-card__body">
             <div className="proto-home-card__title-row">

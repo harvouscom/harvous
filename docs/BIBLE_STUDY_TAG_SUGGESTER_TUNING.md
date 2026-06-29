@@ -102,6 +102,8 @@ Auto **secondary folders** use the same keyword pool but **stricter gates** than
 
 **Folder-only exclusions:** `God`, `Jesus`, and `Holy Spirit` are too broad for auto primary/secondary folder labels (they appear in almost every devotional note). They are filtered out of folder candidate scoring on web (`isAutoFolderExcludedKeyword` in `bible-study-keywords.ts`) and native (`autoFolderExcludedNames` in `BibleStudyTagSuggester`). Tags may still surface Jesus and Holy Spirit; tags already skip God on web.
 
+**Jesus vs Christological essence:** Devotional shorthand (`O Lord`, `in Christ`, `relationship with Christ`) should route to spiritual/biblical themes (`Grace`, `Salvation`, `Gospel`) — not the `Jesus` character tag. Person-focused study (`Jesus calms the storm`, title names Jesus) still gets `Jesus`. Web gates this in `christ-keyword-context.ts` + `keyword-trie.ts`; native in `ChristKeywordContextGate.swift`. Bare `lord` is not a Jesus synonym (conflicts with `God`); multi-word phrases (`lord jesus`, `our lord`) remain. Passage net-new tags skip universal entities (`universal-bible-entities.ts` / `UniversalBibleEntities.swift`); fingerprints filter them in `note-fingerprint.ts`. Study arcs and generative recall already denylist the same set in `prototype-home-trends.ts`.
+
 Web cards mirror this in `src/utils/bible-study-collection-web.ts` (primary over all deduped keywords; secondary eligibility for character/place uses title, rough occurrence count, and the same score floors). Server re-tagging (`server/utils/auto-tag-generator.ts`) receives `excludeLabels` from the note’s stored primary + secondary collections on create/update.
 
 ## Categories and Their Role

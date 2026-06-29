@@ -13,7 +13,7 @@ describe('rankThreadSuggestions', () => {
     const noteIdToThreadIds = new Map([['note_1', ['thread_a']]]);
     const out = rankThreadSuggestions({
       relatedNotes: [
-        { noteId: 'note_1', score: 6, sharedPassages: ['Romans|8|28'], sharedCrossRefs: [], sharedThemes: [] },
+        { noteId: 'note_1', score: 6, sharedPassages: ['Romans|8|28'], sharedCrossRefs: [], sharedThemes: [], sameSection: false },
       ],
       noteIdToThreadIds,
       threadKeywordScores: new Map([['thread_b', 0.8]]),
@@ -80,7 +80,7 @@ describe('rankThreadSuggestions', () => {
     ]);
     const out = rankThreadSuggestions({
       relatedNotes: [
-        { noteId: 'note_1', score: 2, sharedPassages: ['John|3|16'], sharedCrossRefs: [], sharedThemes: [] },
+        { noteId: 'note_1', score: 2, sharedPassages: ['John|3|16'], sharedCrossRefs: [], sharedThemes: [], sameSection: false },
         { noteId: 'note_2', score: 9, sharedPassages: [], sharedCrossRefs: [], sharedThemes: ['topic_love'] },
       ],
       noteIdToThreadIds,

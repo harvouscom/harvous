@@ -3,6 +3,8 @@ import {
   activeCooldownIds,
   recordRecallOpened,
   recordRecallSnoozed,
+  recordRecallSectionEngaged,
+  recentRecallSectionCounts,
   RECALL_COOLDOWN_DAYS,
 } from '../proto-recall-cooldown';
 
@@ -56,5 +58,12 @@ describe('proto-recall-cooldown', () => {
     expect(active.has('passage:John 3:16')).toBe(true);
     // A different theme is a different opportunity — not suppressed by snoozing 'arc:grace'.
     expect(active.has('arc:hope')).toBe(false);
+  });
+
+  it('tracks recent recall section history for diversity', () => {
+    recordRecallSectionEngaged(SPACE, 'paul');
+    recordRecallSectionEngaged(SPACE, 'paul');
+    recordRecallSectionEngaged(SPACE, 'gospels');
+    expect(recentRecallSectionCounts(SPACE)).toEqual({ paul: 2, gospels: 1 });
   });
 });

@@ -7,6 +7,7 @@
 
 import { detectScriptureReferences, parseScriptureReference } from '@/utils/scripture-detector';
 import { conceptOverlapsAny } from '@/utils/bible-study-concept-overlaps';
+import { isUniversalBibleEntity } from '@/utils/universal-bible-entities';
 import { normalizePlaceName } from './bible-place-name';
 import type { PassageKnowledgeMap } from './passage-knowledge-cache';
 
@@ -99,6 +100,7 @@ export function mergePassageTagSuggestions(
     if (added >= maxAdd) break;
     const low = c.keyword.toLowerCase();
     if (present.has(low) || dismissed.includes(low)) continue;
+    if (isUniversalBibleEntity(c.keyword)) continue;
     if (conceptOverlapsAny(c.keyword, excludeLabels)) continue;
     if (out.some((s) => conceptOverlapsAny(c.keyword, [s.name]))) continue;
     out.push({ name: c.keyword, category: c.category, confidence: PASSAGE_TAG_CONFIDENCE });

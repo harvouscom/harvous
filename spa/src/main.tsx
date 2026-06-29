@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { initDiagnosticCapture } from '@/utils/diagnostics-client';
 import {
   REDUCE_MOTION_APP_PREFERENCE_ENABLED,
   REDUCE_MOTION_STORAGE_KEY,
@@ -79,6 +80,7 @@ import '../../src/styles/scripture-pill-accent.css';
 import './styles/prototype-tokens.css';
 
 syncReduceMotionFromStorage();
+initDiagnosticCapture();
 if (REDUCE_MOTION_APP_PREFERENCE_ENABLED) {
   window.addEventListener('storage', (e) => {
     if (e.key === REDUCE_MOTION_STORAGE_KEY) {

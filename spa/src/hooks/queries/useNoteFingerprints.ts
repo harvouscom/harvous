@@ -12,6 +12,10 @@ export interface NoteFingerprint {
   people: string[];
   places: string[];
   passageCount: number;
+  canonSection: string | null;
+  canonSectionLabel: string | null;
+  testament: 'ot' | 'nt' | null;
+  canonSections: string[];
   /** Workstream B: spaced-repetition stability in days after recall re-engagement. */
   recallStabilityDays?: number | null;
   /** Workstream B: ISO timestamp of last recall-card open. */
@@ -71,10 +75,19 @@ export function useNoteFingerprints() {
     return out;
   }, [query.data]);
 
+  const canonSectionById = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const f of query.data ?? []) {
+      if (f.canonSection) out[f.noteId] = f.canonSection;
+    }
+    return out;
+  }, [query.data]);
+
   return {
     ...query,
     fingerprintsById: byId,
     meaningWeightById,
+    canonSectionById,
     recallStabilityById,
     lastRecallEngagedAtById,
   };

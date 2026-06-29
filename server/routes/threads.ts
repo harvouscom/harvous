@@ -31,7 +31,7 @@ import {
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { repairMissingNoteThreadJunctionsForUser } from '../utils/thread-junction-repair';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
-import { awardCreationBonusXP, revokeXPOnDeletion, revokeAllXPForItem, deleteAllXpForRelatedIds } from '../utils/xp-system';
+import { awardCreationBonusXP, awardThreadCreatedXP, revokeXPOnDeletion, revokeAllXPForItem, deleteAllXpForRelatedIds } from '../utils/xp-system';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
 import { getNextUntitledThreadName } from '../utils/untitled-naming';
 import { getThreadColorCSS, getThreadGradientCSS, THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
@@ -232,6 +232,7 @@ route.post('/api/threads/create', requireAuth, rateLimit('write'), async (c) => 
     }
 
     awardCreationBonusXP(auth.userId, 'thread').catch(() => {});
+    awardThreadCreatedXP(auth.userId, newThread.id, capitalizedTitle, null).catch(() => {});
 
     broadcastInvalidation(auth.userId, { type: 'thread:updated', id: newThread.id });
     return c.json({ success: 'Thread created!', thread: newThread });

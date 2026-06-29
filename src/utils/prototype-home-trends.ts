@@ -2,6 +2,8 @@ import { normalizeDate } from './sorting';
 import { noteFolderMembershipLabels, type NoteFolderLabelSource } from './note-folder-display';
 import { stripServerAutoUntitledNoteTitleForDisplay } from './server-auto-untitled-note-display';
 import { normalizeScriptureReference, parseScriptureReference } from './scripture-detector';
+import { CANON_BOOK_GROUPS, canonGroupForBook } from '@/utils/admin-pulse-canon-groups';
+import { UNIVERSAL_BIBLE_ENTITIES } from '@/utils/universal-bible-entities';
 
 /**
  * Pure helpers for the prototype sidebar Home space view: the "continue where
@@ -245,7 +247,45 @@ type PickRevisitNoteOptions = {
   stabilityById?: Record<string, number>;
   lastRecallEngagedAtById?: Record<string, number>;
   baseStabilityDays?: number;
+  canonSectionById?: Record<string, string>;
+  /** User's overall section distribution from fingerprints. */
+  librarySectionCounts?: Record<string, number>;
+  /** Sections surfaced in recent recall opens (local store). */
+  recentRecallSectionCounts?: Record<string, number>;
 };
+
+const RECALL_SECTION_DIVERSITY_MAX_BOOST = 0.1;
+
+/**
+ * Small priority boost for notes in canon sections under-represented in recent recall vs the user's
+ * library. Pure; returns 0 when inputs are missing or recall history is empty (cold start).
+ */
+export function recallSectionDiversityBoost(
+  sectionId: string | null | undefined,
+  libraryCounts: Record<string, number> | undefined,
+  recentCounts: Record<string, number> | undefined,
+): number {
+  if (!sectionId || !libraryCounts || !recentCounts) return 0;
+  const libraryTotal = Object.values(libraryCounts).reduce((sum, c) => sum + c, 0);
+  const recentTotal = Object.values(recentCounts).reduce((sum, c) => sum + c, 0);
+  if (libraryTotal <= 0 || recentTotal <= 0) return 0;
+
+  const libraryShare = (libraryCounts[sectionId] ?? 0) / libraryTotal;
+  const recentShare = (recentCounts[sectionId] ?? 0) / recentTotal;
+  const gap = libraryShare - recentShare;
+  if (gap <= 0) return 0;
+  return Math.min(RECALL_SECTION_DIVERSITY_MAX_BOOST, gap * 0.5);
+}
+
+/** Build section counts from a noteId → sectionId map (one count per note). */
+export function librarySectionCountsFromById(canonSectionById: Record<string, string>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const sectionId of Object.values(canonSectionById)) {
+    if (!sectionId) continue;
+    out[sectionId] = (out[sectionId] ?? 0) + 1;
+  }
+  return out;
+}
 
 function pickRevisitNoteWithMinAge<T extends RevisitNoteInput>(
   notes: T[],
@@ -273,7 +313,17 @@ function pickRevisitNoteWithMinAge<T extends RevisitNoteInput>(
       const mw = id != null && meaningWeightById[id] != null ? meaningWeightById[id] : fallbackMeaningWeight(note);
       const stability = id != null && options.stabilityById?.[id] != null ? options.stabilityById[id]! : baseStability;
       const daysSinceTouch = (nowMs - t) / DAY_MS;
-      return { note, t, priority: forgettingAwarePriority(mw, daysSinceTouch, stability) };
+      const sectionId = id != null ? options.canonSectionById?.[id] : undefined;
+      const diversity = recallSectionDiversityBoost(
+        sectionId,
+        options.librarySectionCounts,
+        options.recentRecallSectionCounts,
+      );
+      return {
+        note,
+        t,
+        priority: forgettingAwarePriority(mw, daysSinceTouch, stability) + diversity,
+      };
     });
     scored.sort(
       (a, b) => b.priority - a.priority || a.t - b.t || (a.note.id ?? '').localeCompare(b.note.id ?? ''),
@@ -761,6 +811,79 @@ export function deriveTopBooks(books: HomeBookTrendInput[], limit: number): Home
     }));
 }
 
+export interface HomeTopCanonSection {
+  sectionId: string;
+  label: string;
+  testament: 'ot' | 'nt';
+  noteCount: number;
+}
+
+export interface CanonSectionFingerprintInput {
+  canonSection: string | null;
+  canonSectionLabel?: string | null;
+  testament?: 'ot' | 'nt' | null;
+}
+
+/** Top canon sections by note count (from fingerprints). */
+export function deriveTopCanonSections(
+  fingerprints: CanonSectionFingerprintInput[],
+  limit = 1,
+): HomeTopCanonSection[] {
+  const counts = new Map<string, { label: string; testament: 'ot' | 'nt'; noteCount: number }>();
+  for (const fp of fingerprints) {
+    const id = fp.canonSection?.trim();
+    if (!id) continue;
+    const group = CANON_BOOK_GROUPS.find((g) => g.id === id);
+    const existing = counts.get(id);
+    if (existing) {
+      existing.noteCount += 1;
+    } else {
+      counts.set(id, {
+        label: fp.canonSectionLabel?.trim() || group?.label || id,
+        testament: fp.testament ?? group?.testament ?? 'ot',
+        noteCount: 1,
+      });
+    }
+  }
+  return [...counts.entries()]
+    .map(([sectionId, row]) => ({ sectionId, ...row }))
+    .sort(
+      (a, b) =>
+        b.noteCount - a.noteCount ||
+        CANON_BOOK_GROUPS.findIndex((g) => g.id === a.sectionId) -
+          CANON_BOOK_GROUPS.findIndex((g) => g.id === b.sectionId),
+    )
+    .slice(0, Math.max(0, limit));
+}
+
+/**
+ * Optional Home lead clause when the user's study skews toward a canon section that isn't already
+ * implied by the lead chip (e.g. skip when the lead is already a book in that section).
+ */
+export function formatHomeCanonSectionSuffix(
+  lead: HomeLeadTheme,
+  topSection: HomeTopCanonSection | undefined,
+): string | null {
+  if (!topSection || topSection.noteCount < 2) return null;
+  if (lead.kind === 'book') {
+    const bookGroup = canonGroupForBook(lead.book.title);
+    if (bookGroup?.id === topSection.sectionId) return null;
+  }
+  return `mostly in ${topSection.label}`;
+}
+
+/** Combine rhythm/weekly/visit suffix with optional canon-section clause. */
+export function formatHomeActivityLeadWithSection(
+  input: HomeActivityLeadInput,
+  lead: HomeLeadTheme,
+  topSection: HomeTopCanonSection | undefined,
+): string | null {
+  const base = formatHomeActivityLeadSuffix(input);
+  const section = formatHomeCanonSectionSuffix(lead, topSection);
+  if (base && section) return `${base}, ${section}`;
+  return base ?? section;
+}
+
 /**
  * "Resurface by shared theme" (knowledge layer, Phase 3). A passage with its curated subjects
  * (from the static chapter-subjects index) and the notes that cite it. The consumer resolves
@@ -1071,8 +1194,10 @@ export interface StudyArcOptions {
   limit?: number;
 }
 
+import { UNIVERSAL_BIBLE_ENTITIES } from '@/utils/universal-bible-entities';
+
 /** Themes too universal to be "a theme God's been teaching you" — they'd match almost everything. */
-const ARC_THEME_DENYLIST = new Set(['god', 'jesus', 'christ', 'holy spirit', 'lord']);
+const ARC_THEME_DENYLIST = UNIVERSAL_BIBLE_ENTITIES;
 
 const ARC_WINDOW_MS = 180 * DAY_MS;
 
@@ -1167,6 +1292,94 @@ export function deriveStudyArcs(notes: StudyArcNoteInput[], options: StudyArcOpt
   return arcs.slice(0, Math.max(0, limit));
 }
 
+// ─── Section study arcs (canon section over time) ────────────────────────────────
+
+export interface SectionArcNoteInput {
+  id: string;
+  createdAt?: Date | string | null;
+  updatedAt?: Date | string | null;
+  canonSection: string | null;
+  canonSectionLabel?: string | null;
+  testament?: 'ot' | 'nt' | null;
+}
+
+export interface SectionArc {
+  sectionId: string;
+  sectionLabel: string;
+  testament: 'ot' | 'nt' | null;
+  noteCount: number;
+  firstMs: number;
+  lastMs: number;
+  spanDays: number;
+  noteIds: string[];
+}
+
+export interface SectionArcOptions {
+  nowMs: number;
+  windowMs?: number;
+  minNotes?: number;
+  minSpanDays?: number;
+  limit?: number;
+}
+
+/**
+ * The strongest recurring canon section over time in a user's recent notes. Groups by fingerprint
+ * `canonSection` with the same window/span thresholds as theme arcs.
+ */
+export function deriveSectionArcs(notes: SectionArcNoteInput[], options: SectionArcOptions): SectionArc[] {
+  const { nowMs, windowMs = ARC_WINDOW_MS, minNotes = 3, minSpanDays = 21, limit = 1 } = options;
+  const windowStart = nowMs - windowMs;
+
+  const bySection = new Map<
+    string,
+    { label: string; testament: 'ot' | 'nt' | null; entries: Array<{ id: string; t: number }> }
+  >();
+
+  for (const note of notes) {
+    const sectionId = note.canonSection?.trim();
+    if (!sectionId) continue;
+    const t = arcNoteTime(note);
+    if (t <= 0 || t < windowStart || t > nowMs) continue;
+
+    let bucket = bySection.get(sectionId);
+    if (!bucket) {
+      bucket = {
+        label: note.canonSectionLabel?.trim() || sectionId,
+        testament: note.testament ?? null,
+        entries: [],
+      };
+      bySection.set(sectionId, bucket);
+    }
+    if (bucket.entries.some((e) => e.id === note.id)) continue;
+    bucket.entries.push({ id: note.id, t });
+  }
+
+  const arcs: SectionArc[] = [];
+  for (const [sectionId, { label, testament, entries }] of bySection) {
+    if (entries.length < minNotes) continue;
+    entries.sort((a, b) => a.t - b.t || a.id.localeCompare(b.id));
+    const firstMs = entries[0]!.t;
+    const lastMs = entries[entries.length - 1]!.t;
+    const spanDays = (lastMs - firstMs) / DAY_MS;
+    if (spanDays < minSpanDays) continue;
+    arcs.push({
+      sectionId,
+      sectionLabel: label,
+      testament,
+      noteCount: entries.length,
+      firstMs,
+      lastMs,
+      spanDays,
+      noteIds: entries.map((e) => e.id),
+    });
+  }
+
+  arcs.sort(
+    (a, b) => b.noteCount - a.noteCount || b.spanDays - a.spanDays || a.sectionLabel.localeCompare(b.sectionLabel),
+  );
+  return arcs.slice(0, Math.max(0, limit));
+}
+
 /** Month name an arc began in, e.g. "January" (same year) or "January 2026" (earlier year). */
 export function studyArcSinceLabel(firstMs: number, nowMs: number): string {
   const start = new Date(firstMs);
@@ -1190,6 +1403,17 @@ export function studyArcToneLabel(tone: string | null): string | null {
   return map[tone] ?? null;
 }
 
+/** Month name a section arc began in — reuses theme arc formatting. */
+export function sectionArcSinceLabel(firstMs: number, nowMs: number): string {
+  return studyArcSinceLabel(firstMs, nowMs);
+}
+
+/** Copy for a section arc card, e.g. "Across 5 notes in the Gospels since January". */
+export function sectionArcCopy(arc: SectionArc, nowMs: number): string {
+  const since = sectionArcSinceLabel(arc.firstMs, nowMs);
+  return `Across ${arc.noteCount} notes in ${arc.sectionLabel} since ${since}`;
+}
+
 // ─── Recall carousel (Home resurfacing redesign) ─────────────────────────────────
 // The Home recall surface is one swipeable carousel of varied, ranked recall opportunities — a
 // fading meaningful note, a highlight, a theme taking shape, a passage you return to, a cross-ref —
@@ -1197,22 +1421,8 @@ export function studyArcToneLabel(tone: string | null): string | null {
 // tier with soft variety in the tail, and rotates the tail daily; the view builds the rich (display +
 // tap) candidates. Snooze reuses proto-recall-cooldown. See docs/future/MEMORY_LAYER_ASSESSMENT.md.
 
-export type RecallOpportunityKind =
-  // Revisit kinds — resurface something you've already written.
-  | 'revisitNote'
-  | 'highlight'
-  | 'arc'
-  | 'passage'
-  | 'crossref'
-  | 'subject'
-  | 'referenceWord'
-  // Generative kinds — prompt you to create/do something new.
-  | 'continueBook'
-  | 'studyPerson'
-  | 'annotateHighlight'
-  | 'reflection'
-  | 'crossrefGap'
-  | 'connectNotes';
+export type { RecallOpportunityKind } from './recall-opportunity-kinds';
+import type { RecallOpportunityKind } from './recall-opportunity-kinds';
 
 /** Kinds that summarize a trend across notes — eligible for the greeting trend line. */
 export const RECALL_TREND_KINDS: readonly RecallOpportunityKind[] = [
@@ -1425,18 +1635,72 @@ export function recallTrendGreetingParts(input: RecallTrendLineInput): RecallTre
   }
 }
 
-/** Recall carousel meta for connect-suggestion cards (API reason → warm copy). */
+/** Recall carousel eyebrow for connect-suggestion cards. */
+export function connectSuggestionRecallEyebrow(): string {
+  return 'Thread these notes';
+}
+
+const CONNECT_SUGGESTION_TITLE_MAX = 72;
+
+function cleanConnectSuggestionNoteTitle(title: string | null | undefined): string {
+  return stripServerAutoUntitledNoteTitleForDisplay(title?.trim() ?? '')?.trim() || 'Untitled note';
+}
+
+/** Recall carousel title for a connect-suggestion pair (natural join, truncated). */
+export function formatConnectSuggestionTitle(noteATitle: string, noteBTitle: string): string {
+  const a = cleanConnectSuggestionNoteTitle(noteATitle);
+  const b = cleanConnectSuggestionNoteTitle(noteBTitle);
+  const joined = `${a} and ${b}`;
+  if (joined.length <= CONNECT_SUGGESTION_TITLE_MAX) return joined;
+  return `${joined.slice(0, CONNECT_SUGGESTION_TITLE_MAX - 1).trimEnd()}…`;
+}
+
+/** Recall carousel meta for connect-suggestion cards (API reason → factual line). */
 export function connectSuggestionRecallMeta(reason: string): string {
   switch (reason) {
     case 'Shared passage':
-      return 'Same passage in both — link them?';
+      return 'Both cite the same passage';
     case 'Cross-reference':
-      return 'Referenced together — link them?';
+      return 'You cross-referenced these';
     case 'Shared theme':
-      return 'Same theme across your notes — link them?';
+      return 'Same theme in both';
     default:
-      return 'These notes seem related — link them?';
+      return 'These notes fit together';
   }
+}
+
+/** Prefill for the New thread sheet name field from a suggested pair. */
+export function suggestConnectThreadName(noteATitle: string, noteBTitle: string, reason: string): string {
+  const a = cleanConnectSuggestionNoteTitle(noteATitle);
+  const b = cleanConnectSuggestionNoteTitle(noteBTitle);
+  const pair = `${a} and ${b}`;
+  if (pair.length <= 80) return pair;
+  switch (reason) {
+    case 'Shared passage':
+      return 'Shared passage';
+    case 'Cross-reference':
+      return 'Cross-reference study';
+    case 'Shared theme':
+      return 'Shared theme';
+    default:
+      return a.length <= 80 ? a : a.slice(0, 79).trimEnd() + '…';
+  }
+}
+
+/** Recall carousel meta for continue-book generative cards. */
+export function continueBookRecallMeta(book: string, chapter: number): string {
+  return `Pick up at ${book} ${chapter}`;
+}
+
+/** Recall carousel meta for recurring-person generative cards. */
+export function recurringPersonRecallMeta(noteCount: number): string {
+  const n = noteCount === 1 ? '1 note' : `${noteCount} notes`;
+  return `Showed up in ${n}`;
+}
+
+/** Recall carousel meta for cross-ref gap generative cards. */
+export function crossRefGapRecallMeta(fromDisplayRef: string, toDisplayRef: string): string {
+  return `From ${fromDisplayRef} · explore ${toDisplayRef}`;
 }
 
 // ─── Generative recall: pure derivations ─────────────────────────────────────────
@@ -1444,7 +1708,7 @@ export function connectSuggestionRecallMeta(reason: string): string {
 // the view turns the result into a RecallOpportunity (display + tap → seed a draft note / annotate).
 
 /** Universal names too broad to suggest "start a note about them". Shared with study arcs. */
-const GENERATIVE_PERSON_DENYLIST = new Set(['god', 'jesus', 'christ', 'holy spirit', 'lord', 'the lord']);
+const GENERATIVE_PERSON_DENYLIST = UNIVERSAL_BIBLE_ENTITIES;
 
 // 1. Continue the book ──────────────────────────────────────────────────────────
 

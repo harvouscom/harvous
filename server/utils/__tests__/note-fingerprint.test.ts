@@ -61,6 +61,7 @@ describe('buildNoteFingerprintData', () => {
       people: ['Moses', 'Moses'],
       places: ['Egypt'],
       passageCount: 2,
+      passageBooks: ['Romans', 'Romans'],
       toneText: 'a note about trusting God',
       signals: baseSignals({ visibleTextLength: 120 }),
     });
@@ -68,6 +69,39 @@ describe('buildNoteFingerprintData', () => {
     expect(fp.people).toEqual(['Moses']);
     expect(fp.places).toEqual(['Egypt']);
     expect(fp.passageCount).toBe(2);
+    expect(fp.canonSection).toBe('paul');
+    expect(fp.testament).toBe('nt');
+  });
+
+  it('filters universal entities from themes and people', () => {
+    const fp = buildNoteFingerprintData({
+      proseTagNames: ['Jesus', 'Grace'],
+      passageThemes: ['Christ'],
+      people: ['Jesus', 'Peter'],
+      places: ['Egypt'],
+      passageCount: 1,
+      passageBooks: ['Matthew'],
+      toneText: 'reflecting on the gospels',
+      signals: baseSignals({ visibleTextLength: 80 }),
+    });
+    expect(fp.themes).toEqual(['Grace']);
+    expect(fp.people).toEqual(['Peter']);
+  });
+
+  it('leaves canon fields empty when there are no passage books', () => {
+    const fp = buildNoteFingerprintData({
+      proseTagNames: [],
+      passageThemes: [],
+      people: [],
+      places: [],
+      passageCount: 0,
+      passageBooks: [],
+      toneText: 'plain note',
+      signals: baseSignals(),
+    });
+    expect(fp.canonSection).toBeNull();
+    expect(fp.testament).toBeNull();
+    expect(fp.canonSections).toEqual([]);
   });
 
   it('captures emotional tone from the assembled text', () => {
@@ -77,6 +111,7 @@ describe('buildNoteFingerprintData', () => {
       people: [],
       places: [],
       passageCount: 0,
+      passageBooks: [],
       toneText: 'I am broken with grief and sorrow, weeping in anguish.',
       signals: baseSignals(),
     });

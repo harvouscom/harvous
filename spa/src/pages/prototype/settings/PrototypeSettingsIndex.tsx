@@ -4,6 +4,7 @@ import { useProfile } from '../../../hooks/queries/useProfile';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { SETTINGS_CATEGORIES } from './settingsCategories';
 import { SettingsShell, SettingsGroup, SettingsRow } from './SettingsShell';
+import SettingsAdminShortcut from './SettingsAdminShortcut';
 
 /**
  * Index for /prototype/settings.
@@ -47,6 +48,9 @@ export default function PrototypeSettingsIndex() {
           />
         ))}
       </SettingsGroup>
+      <div className="proto-settings__admin-row-wrap">
+        <SettingsAdminShortcut variant="row" />
+      </div>
     </SettingsShell>
   );
 }

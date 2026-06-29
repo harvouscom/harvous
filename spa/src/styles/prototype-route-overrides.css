@@ -93,25 +93,30 @@ html.harvous-prototype-route [class*='proto-'] button .proto-footnote {
 }
 
 /* Settings nav icons — explicit colors (never inherit from button) */
-html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon,
-html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon span,
+html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon span:not(.proto-admin-sidebar__badge),
 html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon svg,
 html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon path {
   color: var(--pds-text-secondary) !important;
   fill: currentColor !important;
 }
 
-html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon,
-html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon span,
+html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon span:not(.proto-admin-sidebar__badge),
 html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon svg,
 html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon path {
   color: var(--pds-text-primary) !important;
   fill: currentColor !important;
 }
 
+html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon .proto-admin-sidebar__badge,
+html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon .proto-admin-sidebar__badge {
+  color: #fff !important;
+}
+
 /* On-accent controls — must beat blanket `[class*='proto-'] button` rule above */
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn:not(.proto-settings-btn--secondary),
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn:not(.proto-settings-btn--secondary) *,
+html.harvous-prototype-route a.proto-settings-btn:not(.proto-settings-btn--secondary),
+html.harvous-prototype-route a.proto-settings-btn:not(.proto-settings-btn--secondary) *,
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--destructive,
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--destructive *,
 html.harvous-prototype-route button.proto-votd-sheet__fab,
@@ -123,9 +128,23 @@ html.harvous-prototype-route button.proto-share-popover__primary *,
 html.harvous-prototype-route button.proto-note-action-bar__pill--share-active,
 html.harvous-prototype-route button.proto-note-action-bar__pill--share-active *,
 html.harvous-prototype-route button.proto-thread-review__btn--primary,
-html.harvous-prototype-route button.proto-thread-review__btn--primary * {
+html.harvous-prototype-route button.proto-thread-review__btn--primary *,
+html.harvous-prototype-route button.admin-usage__window-chip--active,
+html.harvous-prototype-route button.admin-usage__window-chip--active:hover,
+html.harvous-prototype-route button.admin-usage__window-chip--active:focus-visible,
+html.harvous-prototype-route button.admin-usage__window-chip--active *,
+html.harvous-prototype-route a.admin-usage__section-nav-pill--active,
+html.harvous-prototype-route a.admin-usage__section-nav-pill--active * {
   color: var(--pds-on-accent) !important;
   fill: var(--pds-on-accent) !important;
+}
+
+html.harvous-prototype-route button.admin-usage__window-chip--active,
+html.harvous-prototype-route button.admin-usage__window-chip--active:hover,
+html.harvous-prototype-route button.admin-usage__window-chip--active:focus-visible {
+  background: var(--pds-bg-accent-button) !important;
+  box-shadow: var(--pds-shadow-accent-button) !important;
+  border-color: transparent !important;
 }
 
 /* Accent check orb inside list rows — white glyph (beats blanket `[class*='proto-'] button *`) */

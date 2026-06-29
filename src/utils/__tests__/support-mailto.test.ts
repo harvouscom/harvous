@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildFeedbackMailto, buildFounderMailto, FOUNDER_EMAIL } from '../support-mailto';
+import { buildFeedbackMailto, buildFounderMailto, buildTicketReplyMailto, FOUNDER_EMAIL } from '../support-mailto';
 
 describe('support-mailto', () => {
   it('exports founder email', () => {
@@ -45,5 +45,36 @@ describe('support-mailto', () => {
 
   it('builds founder mailto with subject only', () => {
     expect(buildFounderMailto()).toBe(`mailto:${FOUNDER_EMAIL}?subject=${encodeURIComponent('Harvous support')}`);
+  });
+
+  it('builds ticket reply mailto for admin', () => {
+    const url = buildTicketReplyMailto({
+      ticketNumber: 42,
+      ticketId: '42',
+      userEmail: 'jane@example.com',
+      topic: 'Bug',
+      originalMessage: 'App crashed on save',
+    });
+
+    expect(url.startsWith('mailto:jane@example.com?')).toBe(true);
+    const query = url.slice('mailto:jane@example.com?'.length);
+    const params = new URLSearchParams(query);
+    expect(params.get('subject')).toBe('Re: Harvous feedback — Bug [#42]');
+    expect(params.get('body')).toContain('App crashed on save');
+    expect(params.get('body')).toContain('Ticket: #42');
+  });
+
+  it('falls back to legacy ticket id in reply mailto', () => {
+    const url = buildTicketReplyMailto({
+      ticketNumber: null,
+      ticketId: 'supportticket_123',
+      userEmail: 'jane@example.com',
+      topic: 'Bug',
+      originalMessage: 'App crashed on save',
+    });
+
+    const query = url.slice('mailto:jane@example.com?'.length);
+    const params = new URLSearchParams(query);
+    expect(params.get('subject')).toBe('Re: Harvous feedback — Bug [#supportticket_123]');
   });
 });

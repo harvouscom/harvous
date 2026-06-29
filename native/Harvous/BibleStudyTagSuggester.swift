@@ -268,6 +268,17 @@ enum BibleStudyTagSuggester {
         }
 
         picked.sort { $0.confidence > $1.confidence }
+        let hasLiteralJesus = titleLower.range(of: #"\bjesus\b"#, options: .regularExpression) != nil
+            || contentLower.range(of: #"\bjesus\b"#, options: .regularExpression) != nil
+        picked = picked.filter { scored in
+            guard scored.name.lowercased() == "jesus" else { return true }
+            return !ChristKeywordContextGate.shouldSuppressJesusTag(
+                confidence: scored.confidence,
+                fullTextLower: textLower,
+                titleLower: titleLower,
+                synonymOnly: !hasLiteralJesus
+            )
+        }
         var top = Array(picked.prefix(12))
         var tagNames = top.map(\.name)
         for personTag in detectPersonTags(in: fullText) {
@@ -770,7 +781,7 @@ enum BibleStudyTagSuggester {
         a("Deborah", .character, 0.9, [])
         a("Hannah", .character, 0.9, [])
         a("Samuel", .character, 0.9, [])
-        a("Jesus", .character, 0.95, ["christ", "messiah"])
+        a("Jesus", .character, 0.95, ["christ", "jesus christ", "lord jesus", "our lord", "savior", "messiah"])
         return r
     }()
 
@@ -802,8 +813,8 @@ enum BibleStudyTagSuggester {
             let titleHits: Int
             let contentHits: Int
             if usePersonGate {
-                titleHits = countPersonAwareNeedleMatches(trimmedPiece, in: title)
-                contentHits = countPersonAwareNeedleMatches(trimmedPiece, in: body)
+                titleHits = countPersonAwareNeedleMatches(trimmedPiece, in: title, keywordName: row.name)
+                contentHits = countPersonAwareNeedleMatches(trimmedPiece, in: body, keywordName: row.name)
             } else if useLifeContextGate {
                 titleHits = countLifeKeywordNeedleMatches(trimmedPiece, keywordName: row.name, in: titleLower)
                 contentHits = countLifeKeywordNeedleMatches(trimmedPiece, keywordName: row.name, in: contentLower)
@@ -898,11 +909,12 @@ enum BibleStudyTagSuggester {
     }
 
     /// Character / ambiguous book hits skip modern person-name mentions (Ps Luke, Luke Smith).
-    private static func countPersonAwareNeedleMatches(_ needleLower: String, in text: String) -> Int {
+    private static func countPersonAwareNeedleMatches(_ needleLower: String, in text: String, keywordName: String? = nil) -> Int {
         let words = needleLower.split(separator: " ").filter { !$0.isEmpty }.map(String.init)
         guard !words.isEmpty else { return 0 }
+        let textLower = text.lowercased()
         if words.count == 1 {
-            return countPersonAwareSingleWordOccurrences(of: words[0], in: text)
+            return countPersonAwareSingleWordOccurrences(of: words[0], in: text, keywordName: keywordName, textLower: textLower)
         }
         let escaped = words.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "\\s+")
         guard let re = try? NSRegularExpression(pattern: "\\b(?:\(escaped))\\b", options: .caseInsensitive) else { return 0 }
@@ -911,12 +923,27 @@ enum BibleStudyTagSuggester {
         re.enumerateMatches(in: text, options: [], range: NSRange(location: 0, length: n)) { match, _, _ in
             guard let match, let swiftRange = Range(match.range, in: text) else { return }
             if PersonNameContextGate.shouldSkip(in: text, wordRange: swiftRange) { return }
+            if let keywordName,
+               ChristKeywordContextGate.shouldSkipJesusNeedle(
+                   keywordName: keywordName,
+                   needle: needleLower,
+                   in: textLower,
+                   matchRange: match.range
+               ) {
+                return
+            }
             count += 1
         }
         return count
     }
 
-    private static func countPersonAwareSingleWordOccurrences(of word: String, in text: String) -> Int {
+    private static func countPersonAwareSingleWordOccurrences(
+        of word: String,
+        in text: String,
+        keywordName: String? = nil,
+        textLower: String? = nil
+    ) -> Int {
+        let lowered = textLower ?? text.lowercased()
         let escaped = NSRegularExpression.escapedPattern(for: word)
         guard let re = try? NSRegularExpression(pattern: "\\b\(escaped)\\b", options: .caseInsensitive) else { return 0 }
         var count = 0
@@ -924,6 +951,15 @@ enum BibleStudyTagSuggester {
         re.enumerateMatches(in: text, options: [], range: NSRange(location: 0, length: n)) { match, _, _ in
             guard let match, let swiftRange = Range(match.range, in: text) else { return }
             if PersonNameContextGate.shouldSkip(in: text, wordRange: swiftRange) { return }
+            if let keywordName,
+               ChristKeywordContextGate.shouldSkipJesusNeedle(
+                   keywordName: keywordName,
+                   needle: word,
+                   in: lowered,
+                   matchRange: match.range
+               ) {
+                return
+            }
             // A name inside a numbered Bible book (e.g. "Peter" in "1 Peter 2:9") is a scripture
             // reference, not the person — don't count it toward the character. The book itself is
             // detected separately via its full multi-word name.

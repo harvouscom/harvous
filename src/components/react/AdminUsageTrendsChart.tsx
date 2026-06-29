@@ -1,146 +1,88 @@
 import { useMemo, useState } from 'react';
 import type { DailyCount } from '@/hooks/queries/useAdminUsage';
+import {
+  PROJECTION_HORIZON_DAYS,
+  addProjectionDates,
+  axisTicks,
+  buildLinePath,
+  formatTrendTick,
+  mergeTrendPoints,
+  panelMaxForSeries,
+  projectLinearTrend,
+  shouldProjectSeries,
+  type TrendPoint,
+  type TrendSeriesKey,
+} from '@/utils/admin-usage-trends-chart';
 
-type TrendPoint = {
-  date: string;
+type PanelSeries = {
+  key: TrendSeriesKey;
   label: string;
-  signups: number;
-  notes: number;
-  activeUsers: number;
-  scripturePills: number;
+  className: string;
 };
 
-type SeriesKey = 'signups' | 'notes' | 'activeUsers' | 'scripturePills';
-
-const LEFT_SERIES: { key: SeriesKey; label: string; className: string }[] = [
+const USERS_SERIES: PanelSeries[] = [
   { key: 'signups', label: 'Signups', className: 'admin-usage__trend-line--signups' },
   { key: 'activeUsers', label: 'Active users', className: 'admin-usage__trend-line--active' },
 ];
 
-const RIGHT_SERIES: { key: SeriesKey; label: string; className: string }[] = [
+const CONTENT_SERIES: PanelSeries[] = [
   { key: 'notes', label: 'Notes created', className: 'admin-usage__trend-line--notes' },
   { key: 'scripturePills', label: 'Scripture pills', className: 'admin-usage__trend-line--scripture' },
-];
-
-const SERIES = [
-  ...LEFT_SERIES.map((series) => ({ ...series, axis: 'left' as const })),
-  ...RIGHT_SERIES.map((series) => ({ ...series, axis: 'right' as const })),
+  { key: 'recallOpens', label: 'Recall opens', className: 'admin-usage__trend-line--recall' },
 ];
 
 const WIDTH = 640;
-const HEIGHT = 240;
-const MARGIN = { top: 14, right: 42, bottom: 30, left: 34 };
+const PANEL_HEIGHT = 200;
+const MARGIN = { top: 12, right: 16, bottom: 28, left: 40 };
 
-function mergeTrendPoints(
-  signups: DailyCount[],
-  notesCreated: DailyCount[],
-  activeUsers: DailyCount[],
-  scripturePillsCreated: DailyCount[],
-  days: number,
-): TrendPoint[] {
-  const recent = signups.slice(-days);
-  const notesByDate = new Map(notesCreated.map((r) => [r.date, r.count]));
-  const activeByDate = new Map(activeUsers.map((r) => [r.date, r.count]));
-  const scriptureByDate = new Map(scripturePillsCreated.map((r) => [r.date, r.count]));
-  return recent.map((row) => ({
-    date: row.date,
-    label: row.date.slice(5),
-    signups: row.count,
-    notes: notesByDate.get(row.date) ?? 0,
-    activeUsers: activeByDate.get(row.date) ?? 0,
-    scripturePills: scriptureByDate.get(row.date) ?? 0,
-  }));
-}
+type PanelId = 'users' | 'content';
 
-function niceMax(value: number): number {
-  if (value <= 0) return 5;
-  if (value <= 5) return 5;
-  if (value <= 10) return 10;
-  const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
-  const normalized = value / magnitude;
-  const nice =
-    normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
-  return nice * magnitude;
-}
+type HoverState = { panel: PanelId; index: number } | null;
 
-function buildLinePath(values: number[], max: number, xAt: (index: number) => number, yAt: (value: number, max: number) => number): string {
-  if (values.length === 0) return '';
-  return values
-    .map((value, index) => `${index === 0 ? 'M' : 'L'} ${xAt(index).toFixed(2)} ${yAt(value, max).toFixed(2)}`)
-    .join(' ');
-}
-
-function axisTicks(max: number, count = 4): number[] {
-  const step = max / count;
-  return Array.from({ length: count + 1 }, (_, i) => Math.round(step * i));
-}
-
-export default function AdminUsageTrendsChart({
-  signups,
-  notesCreated,
-  activeUsers,
-  scripturePillsCreated,
-  days = 14,
+function TrendPanel({
+  panelId,
+  title,
+  series,
+  points,
+  showAllXLabels,
+  hovered,
+  onHover,
 }: {
-  signups: DailyCount[];
-  notesCreated: DailyCount[];
-  activeUsers: DailyCount[];
-  scripturePillsCreated: DailyCount[];
-  days?: number;
+  panelId: PanelId;
+  title: string;
+  series: PanelSeries[];
+  points: TrendPoint[];
+  showAllXLabels: boolean;
+  hovered: HoverState;
+  onHover: (state: HoverState) => void;
 }) {
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const keys = series.map((s) => s.key);
+  const yMax = panelMaxForSeries(points, keys);
+  const plotWidth = WIDTH - MARGIN.left - MARGIN.right;
+  const plotHeight = PANEL_HEIGHT - MARGIN.top - MARGIN.bottom;
+  const actualCount = Math.max(points.length - 1, 1);
+  const projectionCount = PROJECTION_HORIZON_DAYS;
+  const totalCount = actualCount + projectionCount;
+  const hasProjection = series.some((s) => shouldProjectSeries(points.map((p) => p[s.key])));
 
-  const points = useMemo(
-    () => mergeTrendPoints(signups, notesCreated, activeUsers, scripturePillsCreated, days),
-    [signups, notesCreated, activeUsers, scripturePillsCreated, days],
-  );
+  const xAt = (index: number) => MARGIN.left + (index / totalCount) * plotWidth;
+  const yAt = (value: number, max: number) => MARGIN.top + plotHeight - (value / max) * plotHeight;
+  const ticks = axisTicks(yMax);
+  const lastActualIndex = points.length - 1;
+  const projectionStartX = xAt(lastActualIndex);
 
-  const { leftMax, rightMax, plotWidth, plotHeight, xAt, yLeft, yRight } = useMemo(() => {
-    const leftRaw = Math.max(1, ...points.map((p) => Math.max(p.signups, p.activeUsers)));
-    const rightRaw = Math.max(1, ...points.map((p) => Math.max(p.notes, p.scripturePills)));
-    const left = niceMax(leftRaw);
-    const right = niceMax(rightRaw);
-    const plotW = WIDTH - MARGIN.left - MARGIN.right;
-    const plotH = HEIGHT - MARGIN.top - MARGIN.bottom;
-    const count = Math.max(points.length - 1, 1);
-
-    return {
-      leftMax: left,
-      rightMax: right,
-      plotWidth: plotW,
-      plotHeight: plotH,
-      xAt: (index: number) => MARGIN.left + (index / count) * plotW,
-      yLeft: (value: number, max: number) => MARGIN.top + plotH - (value / max) * plotH,
-      yRight: (value: number, max: number) => MARGIN.top + plotH - (value / max) * plotH,
-    };
-  }, [points]);
-
-  const leftTicks = axisTicks(leftMax);
-  const rightTicks = axisTicks(rightMax);
-  const hovered = hoveredIndex != null ? points[hoveredIndex] : null;
-
-  if (points.length === 0) {
-    return <p className="admin-usage__muted admin-usage__empty pds-caption">No trend data yet.</p>;
-  }
+  const panelHovered = hovered?.panel === panelId ? hovered.index : null;
+  const hoveredPoint = panelHovered != null ? points[panelHovered] : null;
 
   return (
-    <div className="admin-usage__trend-chart">
-      <div className="admin-usage__trend-legend" aria-hidden>
-        <div className="admin-usage__trend-legend-group">
-          <span className="admin-usage__trend-legend-axis admin-usage__trend-legend-axis--left">Users</span>
-          {LEFT_SERIES.map((series) => (
-            <span key={series.key} className="admin-usage__trend-legend-item">
-              <span className={`admin-usage__trend-legend-swatch ${series.className}`} />
-              {series.label}
-            </span>
-          ))}
-        </div>
-        <div className="admin-usage__trend-legend-group">
-          <span className="admin-usage__trend-legend-axis admin-usage__trend-legend-axis--right">Content</span>
-          {RIGHT_SERIES.map((series) => (
-            <span key={series.key} className="admin-usage__trend-legend-item">
-              <span className={`admin-usage__trend-legend-swatch ${series.className}`} />
-              {series.label}
+    <div className="admin-usage__trend-panel">
+      <div className="admin-usage__trend-panel-head">
+        <h3 className="admin-usage__trend-panel-title">{title}</h3>
+        <div className="admin-usage__trend-legend" aria-hidden>
+          {series.map((s) => (
+            <span key={s.key} className="admin-usage__trend-legend-item">
+              <span className={`admin-usage__trend-legend-swatch ${s.className}`} />
+              {s.label}
             </span>
           ))}
         </div>
@@ -149,9 +91,9 @@ export default function AdminUsageTrendsChart({
       <div className="admin-usage__trend-chart-wrap">
         <svg
           className="admin-usage__trend-svg"
-          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+          viewBox={`0 0 ${WIDTH} ${PANEL_HEIGHT}`}
           role="img"
-          aria-label="Multi-line trend chart for signups, notes created, active users, and scripture pills"
+          aria-label={`${title} trend chart`}
         >
           <rect
             x={MARGIN.left}
@@ -162,10 +104,21 @@ export default function AdminUsageTrendsChart({
             rx={6}
           />
 
-          {leftTicks.map((tick) => {
-            const y = yLeft(tick, leftMax);
+          {hasProjection ? (
+            <rect
+              x={projectionStartX}
+              y={MARGIN.top}
+              width={WIDTH - MARGIN.right - projectionStartX}
+              height={plotHeight}
+              className="admin-usage__trend-projection-zone"
+              rx={0}
+            />
+          ) : null}
+
+          {ticks.map((tick) => {
+            const y = yAt(tick, yMax);
             return (
-              <g key={`left-${tick}`}>
+              <g key={`tick-${tick}`}>
                 <line
                   x1={MARGIN.left}
                   x2={WIDTH - MARGIN.right}
@@ -173,62 +126,81 @@ export default function AdminUsageTrendsChart({
                   y2={y}
                   className="admin-usage__trend-grid-line"
                 />
-                <text x={MARGIN.left - 8} y={y + 4} className="admin-usage__trend-axis-label admin-usage__trend-axis-label--left">
-                  {tick}
+                <text x={MARGIN.left - 8} y={y + 4} className="admin-usage__trend-axis-label">
+                  {formatTrendTick(tick)}
                 </text>
               </g>
             );
           })}
 
-          {rightTicks.map((tick) => {
-            const y = yRight(tick, rightMax);
+          {series.map((s) => {
+            const values = points.map((p) => p[s.key]);
+            const projected = shouldProjectSeries(values) ? projectLinearTrend(values) : [];
+            const actualPath = buildLinePath(values, yMax, xAt, yAt, 0);
+
             return (
-              <text
-                key={`right-${tick}`}
-                x={WIDTH - MARGIN.right + 8}
-                y={y + 4}
-                className="admin-usage__trend-axis-label admin-usage__trend-axis-label--right"
-              >
-                {tick}
-              </text>
+              <g key={s.key}>
+                {actualPath ? (
+                  <path
+                    d={actualPath}
+                    className={`admin-usage__trend-line ${s.className}`}
+                    fill="none"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : null}
+                {projected.length > 0 ? (
+                  <path
+                    d={buildLinePath(
+                      [values[lastActualIndex], ...projected],
+                      yMax,
+                      xAt,
+                      yAt,
+                      lastActualIndex,
+                    )}
+                    className={`admin-usage__trend-line admin-usage__trend-line--projected ${s.className}`}
+                    fill="none"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : null}
+              </g>
             );
           })}
 
-          {SERIES.map((series) => {
-            const max = series.axis === 'left' ? leftMax : rightMax;
-            const yAt = series.axis === 'left' ? yLeft : yRight;
-            const values = points.map((p) => p[series.key]);
-            return (
-              <path
-                key={series.key}
-                d={buildLinePath(values, max, xAt, yAt)}
-                className={`admin-usage__trend-line ${series.className}`}
-                fill="none"
-                vectorEffect="non-scaling-stroke"
-              />
-            );
-          })}
-
-          {hoveredIndex != null
-            ? SERIES.map((series) => {
-                const point = points[hoveredIndex];
-                const max = series.axis === 'left' ? leftMax : rightMax;
-                const yAt = series.axis === 'left' ? yLeft : yRight;
-                const cx = xAt(hoveredIndex);
-                const cy = yAt(point[series.key], max);
+          {panelHovered != null
+            ? series.map((s) => {
+                const point = points[panelHovered];
+                const cx = xAt(panelHovered);
+                const cy = yAt(point[s.key], yMax);
                 return (
                   <circle
-                    key={`${point.date}-${series.key}`}
+                    key={`${point.date}-${s.key}`}
                     cx={cx}
                     cy={cy}
                     r={4}
-                    className={`admin-usage__trend-point ${series.className}`}
+                    className={`admin-usage__trend-point ${s.className}`}
                     pointerEvents="none"
                     tabIndex={-1}
                   />
                 );
               })
             : null}
+
+          {series.map((s) => {
+            const lastValue = points[lastActualIndex]?.[s.key] ?? 0;
+            const cx = xAt(lastActualIndex);
+            const cy = yAt(lastValue, yMax);
+            return (
+              <circle
+                key={`today-${s.key}`}
+                cx={cx}
+                cy={cy}
+                r={5}
+                className={`admin-usage__trend-point admin-usage__trend-point--today ${s.className}`}
+                pointerEvents="none"
+                tabIndex={-1}
+              />
+            );
+          })}
 
           {points.map((point, index) => {
             const bandWidth = plotWidth / Math.max(points.length - 1, 1);
@@ -240,16 +212,16 @@ export default function AdminUsageTrendsChart({
                 width={bandWidth}
                 height={plotHeight}
                 fill="transparent"
-                onMouseEnter={() => setHoveredIndex(index)}
-                onMouseLeave={() => setHoveredIndex(null)}
+                onMouseEnter={() => onHover({ panel: panelId, index })}
+                onMouseLeave={() => onHover(null)}
               />
             );
           })}
 
-          {hoveredIndex != null ? (
+          {panelHovered != null ? (
             <line
-              x1={xAt(hoveredIndex)}
-              x2={xAt(hoveredIndex)}
+              x1={xAt(panelHovered)}
+              x2={xAt(panelHovered)}
               y1={MARGIN.top}
               y2={MARGIN.top + plotHeight}
               className="admin-usage__trend-hover-line"
@@ -257,12 +229,12 @@ export default function AdminUsageTrendsChart({
           ) : null}
 
           {points.map((point, index) => {
-            if (index % 2 !== 0 && points.length > 10) return null;
+            if (!showAllXLabels && index % 2 !== 0 && points.length > 10) return null;
             return (
               <text
                 key={point.date}
                 x={xAt(index)}
-                y={HEIGHT - 8}
+                y={PANEL_HEIGHT - 8}
                 className="admin-usage__trend-x-label"
                 textAnchor="middle"
               >
@@ -270,22 +242,102 @@ export default function AdminUsageTrendsChart({
               </text>
             );
           })}
+
+          {hasProjection
+            ? addProjectionDates(points[lastActualIndex].date, projectionCount).map((date, i) => (
+                <text
+                  key={date}
+                  x={xAt(lastActualIndex + i + 1)}
+                  y={PANEL_HEIGHT - 8}
+                  className="admin-usage__trend-x-label admin-usage__trend-x-label--projected"
+                  textAnchor="middle"
+                >
+                  {date.slice(5)}
+                </text>
+              ))
+            : null}
         </svg>
 
-        {hovered ? (
+        {hoveredPoint ? (
           <div className="admin-usage__trend-tooltip" role="status">
-            <p className="admin-usage__trend-tooltip-date">{hovered.date}</p>
-            {SERIES.map((series) => (
-              <p key={series.key} className="admin-usage__trend-tooltip-row">
-                <span className={`admin-usage__trend-tooltip-swatch ${series.className}`} aria-hidden />
+            <p className="admin-usage__trend-tooltip-date">{hoveredPoint.date}</p>
+            {series.map((s) => (
+              <p key={s.key} className="admin-usage__trend-tooltip-row">
+                <span className={`admin-usage__trend-tooltip-swatch ${s.className}`} aria-hidden />
                 <span>
-                  {series.label}: {hovered[series.key].toLocaleString()}
+                  {s.label}: {hoveredPoint[s.key].toLocaleString()}
                 </span>
               </p>
             ))}
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+export default function AdminUsageTrendsChart({
+  signups,
+  notesCreated,
+  activeUsers,
+  scripturePillsCreated,
+  recallOpens,
+  days = 7,
+}: {
+  signups: DailyCount[];
+  notesCreated: DailyCount[];
+  activeUsers: DailyCount[];
+  scripturePillsCreated: DailyCount[];
+  recallOpens: DailyCount[];
+  days?: number;
+}) {
+  const [hovered, setHovered] = useState<HoverState>(null);
+
+  const points = useMemo(
+    () => mergeTrendPoints(signups, notesCreated, activeUsers, scripturePillsCreated, recallOpens, days),
+    [signups, notesCreated, activeUsers, scripturePillsCreated, recallOpens, days],
+  );
+
+  const showAllXLabels = days <= 14;
+  const hasAnyProjection = useMemo(
+    () =>
+      [...USERS_SERIES, ...CONTENT_SERIES].some((s) =>
+        shouldProjectSeries(points.map((p) => p[s.key])),
+      ),
+    [points],
+  );
+
+  if (points.length === 0) {
+    return <p className="admin-usage__muted admin-usage__empty pds-caption">No trend data yet.</p>;
+  }
+
+  return (
+    <div className="admin-usage__trend-chart">
+      <div className="admin-usage__trend-panels">
+        <TrendPanel
+          panelId="users"
+          title="Users"
+          series={USERS_SERIES}
+          points={points}
+          showAllXLabels={showAllXLabels}
+          hovered={hovered}
+          onHover={setHovered}
+        />
+        <TrendPanel
+          panelId="content"
+          title="Content"
+          series={CONTENT_SERIES}
+          points={points}
+          showAllXLabels={showAllXLabels}
+          hovered={hovered}
+          onHover={setHovered}
+        />
+      </div>
+      {hasAnyProjection ? (
+        <p className="admin-usage__muted admin-usage__trend-projection-note pds-caption">
+          Dashed lines = simple linear trend (not a forecast guarantee).
+        </p>
+      ) : null}
     </div>
   );
 }

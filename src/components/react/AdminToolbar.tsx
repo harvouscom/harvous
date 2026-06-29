@@ -6,7 +6,7 @@ import SplitColumnToggleIcon from '../../../spa/src/pages/prototype/SplitColumnT
 import { PROTO_TOOLBAR_ORB_ICON_SIZE } from '../../../spa/src/pages/prototype/proto-toolbar-tokens';
 import { usePrototypeShiftHints } from '../../../spa/src/hooks/usePrototypeShiftHints';
 import { useProtoShell } from '../../../spa/src/layouts/proto-shell-context';
-import { isPrototypeAdminPath, prototypeHomeRouteTo } from '@/lib/prototype-path';
+import { isPrototypeAdminHomePath, isPrototypeAdminPath, prototypeHomeRouteTo } from '@/lib/prototype-path';
 import '@/styles/admin-usage.css';
 
 function AdminToolbarNavCluster({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
@@ -62,11 +62,23 @@ export default function AdminToolbar({ variant = 'split' }: { variant?: 'split' 
 
   const sidebarCollapsed = desktopSidebarCollapsed || sidebarExiting;
   const showCollapsedChrome = variant !== 'split' && variant === 'detail' && sidebarCollapsed;
-  const sectionLabel = pathname.includes('/admin/votd')
-    ? "Today's Passage"
-    : pathname.includes('/admin/usage')
-      ? 'Platform usage'
-      : 'Admin';
+  const sectionLabel = isPrototypeAdminHomePath(pathname)
+    ? 'Admin'
+    : pathname.includes('/admin/votd')
+      ? "Today's Passage"
+      : pathname.includes('/admin/maintenance')
+        ? 'Maintenance'
+        : pathname.includes('/admin/support')
+          ? 'Support'
+          : pathname.includes('/admin/publish')
+            ? 'Publish'
+            : pathname.includes('/admin/pulse')
+              ? 'Pulse'
+              : pathname.includes('/admin/reports')
+                ? 'Reports'
+                : pathname.includes('/admin/usage')
+                ? 'Platform usage'
+                : 'Admin';
 
   const leftChrome =
     variant === 'split' || variant === 'unified' ? (

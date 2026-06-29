@@ -15,7 +15,6 @@ const CONCEPT_OVERLAP_PAIRS: [string, string][] = [
   ['eternal life', 'everlasting life'],
   ['holy spirit', 'spirit'],
   ['jesus', 'christ'],
-  ['jesus', 'lord'],
   ['god', 'father'],
   ['god', 'lord'],
   ['prayer', 'intercession'],

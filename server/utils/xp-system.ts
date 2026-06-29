@@ -1,5 +1,6 @@
 import { db, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, UserMetadata, Notes, Threads, eq, and, gte, desc, inArray } from '../db';
 import { getCurrentSeason, getSeasonDisplayName } from '@/utils/season-helpers';
+import { pickRepNoteIdForCluster } from './study-thread-cluster-count';
 
 // XP values for different activities
 export const XP_VALUES = {
@@ -102,7 +103,7 @@ export async function checkRateLimit(
       .where(and(
         eq(UserXP.userId, userId),
         eq(UserXP.activityType, activityType),
-        gte(UserXP.createdAt, oneHourAgo.toISOString())
+        gte(UserXP.createdAt, oneHourAgo)
       ));
 
     // If excluding scripture notes, filter them out
@@ -245,7 +246,7 @@ export async function awardXP(
       relatedId: relatedId || null,
       season,
       metadata: metadata ? JSON.stringify(metadata) : null,
-      createdAt: now.toISOString(),
+      createdAt: now,
     });
 
     // Update seasonal XP aggregate
@@ -280,7 +281,7 @@ async function updateSeasonalXP(
         .set({
           totalXP: existing[0].totalXP + xpAmount,
           sessionCount: existing[0].sessionCount + (xpAmount > 0 && existing[0].sessionCount !== undefined ? 1 : 0),
-          updatedAt: new Date().toISOString(),
+          updatedAt: new Date(),
         })
         .where(eq(UserSeasonalXP.id, existing[0].id));
     } else {
@@ -290,7 +291,7 @@ async function updateSeasonalXP(
         season,
         totalXP: xpAmount,
         sessionCount: 0,
-        createdAt: new Date().toISOString(),
+        createdAt: new Date(),
       });
     }
   } catch (error) {
@@ -315,7 +316,7 @@ async function updateLifetimeXP(
       await db.update(UserLifetimeXP)
         .set({
           totalXP: existing[0].totalXP + xpAmount,
-          lastUpdated: new Date().toISOString(),
+          lastUpdated: new Date(),
         })
         .where(eq(UserLifetimeXP.id, existing[0].id));
     } else {
@@ -323,7 +324,7 @@ async function updateLifetimeXP(
         id: `lifetime_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         userId,
         totalXP: xpAmount,
-        lastUpdated: new Date().toISOString(),
+        lastUpdated: new Date(),
       });
     }
   } catch (error) {
@@ -381,7 +382,7 @@ export async function getLifetimeXP(userId: string): Promise<number> {
       if (lifetime.length > 0) {
         // Update existing record
         await db.update(UserLifetimeXP)
-          .set({ totalXP: totalXP, lastUpdated: new Date().toISOString() })
+          .set({ totalXP: totalXP, lastUpdated: new Date() })
           .where(eq(UserLifetimeXP.userId, userId));
       } else {
         // Create new record
@@ -389,7 +390,7 @@ export async function getLifetimeXP(userId: string): Promise<number> {
           id: `lifetime_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           userId,
           totalXP: totalXP,
-          lastUpdated: new Date().toISOString(),
+          lastUpdated: new Date(),
         });
       }
     }
@@ -503,7 +504,7 @@ export async function awardSessionXP(
       .where(and(
         eq(UserXP.userId, userId),
         eq(UserXP.activityType, ACTIVITY_TYPES.SESSION_COMPLETED),
-        gte(UserXP.createdAt, today.toISOString())
+        gte(UserXP.createdAt, today)
       ));
 
     if (todaySessions.length >= DAILY_CAPS.SESSIONS) {
@@ -542,7 +543,7 @@ export async function awardCreationBonusXP(
       .where(and(
         eq(UserXP.userId, userId),
         eq(UserXP.activityType, ACTIVITY_TYPES.CREATION_BONUS),
-        gte(UserXP.createdAt, today.toISOString())
+        gte(UserXP.createdAt, today)
       ));
 
     const todayTotal = todayCreationXP.reduce((sum, r) => sum + r.xpAmount, 0);
@@ -638,7 +639,7 @@ export async function awardMonthlyAttendanceXP(userId: string): Promise<boolean>
       .where(and(
         eq(UserXP.userId, userId),
         eq(UserXP.activityType, ACTIVITY_TYPES.MONTHLY_ATTENDANCE),
-        gte(UserXP.createdAt, startOfMonth.toISOString())
+        gte(UserXP.createdAt, startOfMonth)
       ))
       .limit(1);
 
@@ -659,7 +660,7 @@ export async function awardMonthlyAttendanceXP(userId: string): Promise<boolean>
 
     // Update UserMetadata.lastMonthlyVisit
     await db.update(UserMetadata)
-      .set({ lastMonthlyVisit: now.toISOString() })
+      .set({ lastMonthlyVisit: now })
       .where(eq(UserMetadata.userId, userId));
 
     return true;
@@ -727,12 +728,11 @@ export async function calculateAndAwardWeeklyStreak(userId: string): Promise<num
     weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
 
     // Check if already calculated for this week
-    const weekStartISO = weekStart.toISOString();
     const existing = await db.select()
       .from(WeeklyStreaks)
       .where(and(
         eq(WeeklyStreaks.userId, userId),
-        eq(WeeklyStreaks.weekStart, weekStartISO)
+        eq(WeeklyStreaks.weekStart, weekStart)
       ))
       .limit(1);
 
@@ -746,7 +746,7 @@ export async function calculateAndAwardWeeklyStreak(userId: string): Promise<num
       .where(and(
         eq(UserXP.userId, userId),
         eq(UserXP.activityType, ACTIVITY_TYPES.SESSION_COMPLETED),
-        gte(UserXP.createdAt, weekStartISO)
+        gte(UserXP.createdAt, weekStart)
       ));
 
     // Group by day
@@ -788,17 +788,17 @@ export async function calculateAndAwardWeeklyStreak(userId: string): Promise<num
         .set({
           daysWithSessions: dayCount,
           xpAwarded: streakXP,
-          updatedAt: new Date().toISOString(),
+          updatedAt: new Date(),
         })
         .where(eq(WeeklyStreaks.id, existing[0].id));
     } else {
       await db.insert(WeeklyStreaks).values({
         id: `streak_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         userId,
-        weekStart: weekStartISO,
+        weekStart,
         daysWithSessions: dayCount,
         xpAwarded: streakXP,
-        createdAt: new Date().toISOString(),
+        createdAt: new Date(),
       });
     }
 
@@ -844,7 +844,8 @@ export async function awardThreadCreatedXP(
   userId: string,
   threadId: string,
   title?: string,
-  subtitle?: string | null
+  subtitle?: string | null,
+  extraMetadata?: Record<string, unknown>,
 ): Promise<void> {
   try {
     // Check if XP has already been awarded for this thread
@@ -872,23 +873,40 @@ export async function awardThreadCreatedXP(
       return;
     }
 
-    // Store metadata
-    const metadata = JSON.stringify({
-      contentLength: title?.length || 0,
-    });
-
-    await db.insert(UserXP).values({
-      id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    await awardXP(
       userId,
-      activityType: ACTIVITY_TYPES.THREAD_CREATED,
-      xpAmount: XP_VALUES.THREAD_CREATED,
-      relatedId: threadId,
-      metadata,
-      createdAt: new Date().toISOString(),
-    });
+      ACTIVITY_TYPES.THREAD_CREATED,
+      XP_VALUES.THREAD_CREATED,
+      threadId,
+      { contentLength: title?.length || 0, ...extraMetadata },
+    );
   } catch (error) {
     console.error('Error awarding thread creation XP:', error);
   }
+}
+
+/** Award thread_created XP for a new prototype study-thread cluster (rep note id as relatedId). */
+export async function maybeAwardStudyThreadClusterCreatedXP(
+  userId: string,
+  repNoteId: string,
+  title?: string,
+): Promise<void> {
+  awardCreationBonusXP(userId, 'thread').catch(() => {});
+  await awardThreadCreatedXP(userId, repNoteId, title, null, { kind: 'study_thread' });
+}
+
+/** When cluster count increased, award XP once for the new cluster. */
+export async function awardStudyThreadClusterCreatedXPIfNew(
+  userId: string,
+  countBefore: number,
+  countAfter: number,
+  seedNoteId: string,
+  title?: string,
+): Promise<void> {
+  if (countAfter <= countBefore) return;
+  const repNoteId = await pickRepNoteIdForCluster(userId, seedNoteId);
+  if (!repNoteId) return;
+  await maybeAwardStudyThreadClusterCreatedXP(userId, repNoteId, title);
 }
 
 /**
@@ -931,61 +949,45 @@ export async function awardNoteCreatedXP(
     // Determine XP amount based on note type
     const xpAmount = isScriptureNote ? XP_VALUES.SCRIPTURE_NOTE_CREATED : XP_VALUES.NOTE_CREATED;
 
-    // Check if this is the first note of the day for bonus XP (only for non-scripture notes)
+    // First note of the day bonus (non-scripture only) — note already exists when this runs
     let isFirstNoteToday = false;
     if (!isScriptureNote) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const todayNotes = await db.select()
+      const todayNotes = await db
+        .select({ id: Notes.id })
         .from(Notes)
-        .where(and(
-          eq(Notes.userId, userId),
-          gte(Notes.createdAt, today.toISOString())
-        ))
-        .limit(1);
+        .where(and(eq(Notes.userId, userId), gte(Notes.createdAt, today)));
 
-      isFirstNoteToday = todayNotes.length === 0;
+      isFirstNoteToday = todayNotes.length === 1 && todayNotes[0]?.id === noteId;
     }
 
-    // Store metadata
-    const metadata = JSON.stringify({
+    await awardXP(userId, ACTIVITY_TYPES.NOTE_CREATED, xpAmount, noteId, {
       isScriptureNote,
       contentLength: content?.length || 0,
     });
 
-    // Award base XP for note creation
-    await db.insert(UserXP).values({
-      id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      userId,
-      activityType: ACTIVITY_TYPES.NOTE_CREATED,
-      xpAmount,
-      relatedId: noteId,
-      metadata,
-      createdAt: new Date().toISOString(),
-    });
-
-    // Award bonus XP if this is the first note of the day (non-scripture only)
     if (isFirstNoteToday) {
-      // Check if bonus XP has already been awarded for this note
-      const existingBonusXP = await db.select()
+      const existingBonusXP = await db
+        .select()
         .from(UserXP)
-        .where(and(
-          eq(UserXP.userId, userId),
-          eq(UserXP.activityType, ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS),
-          eq(UserXP.relatedId, noteId)
-        ))
+        .where(
+          and(
+            eq(UserXP.userId, userId),
+            eq(UserXP.activityType, ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS),
+            eq(UserXP.relatedId, noteId),
+          ),
+        )
         .limit(1);
 
       if (existingBonusXP.length === 0) {
-        await db.insert(UserXP).values({
-          id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_bonus`,
+        await awardXP(
           userId,
-          activityType: ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS,
-          xpAmount: XP_VALUES.FIRST_NOTE_DAILY_BONUS,
-          relatedId: noteId,
-          createdAt: new Date().toISOString(),
-        });
+          ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS,
+          XP_VALUES.FIRST_NOTE_DAILY_BONUS,
+          noteId,
+        );
       }
     }
   } catch (error) {
@@ -1008,7 +1010,7 @@ export async function awardNoteOpenedXP(userId: string, noteId: string): Promise
         eq(UserXP.userId, userId),
         eq(UserXP.activityType, ACTIVITY_TYPES.NOTE_OPENED),
         eq(UserXP.relatedId, noteId),
-        gte(UserXP.createdAt, today.toISOString())
+        gte(UserXP.createdAt, today)
       ))
       .limit(1);
 
@@ -1022,7 +1024,7 @@ export async function awardNoteOpenedXP(userId: string, noteId: string): Promise
       .where(and(
         eq(UserXP.userId, userId),
         eq(UserXP.activityType, ACTIVITY_TYPES.NOTE_OPENED),
-        gte(UserXP.createdAt, today.toISOString())
+        gte(UserXP.createdAt, today)
       ));
 
     const todayXPFromNoteOpened = todayNoteOpenedXP.reduce((sum, record) => sum + record.xpAmount, 0);
@@ -1042,7 +1044,7 @@ export async function awardNoteOpenedXP(userId: string, noteId: string): Promise
         activityType: ACTIVITY_TYPES.NOTE_OPENED,
         xpAmount: xpToAward,
         relatedId: noteId,
-        createdAt: new Date().toISOString(),
+        createdAt: new Date(),
       });
     }
   } catch (error) {

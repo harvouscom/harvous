@@ -139,7 +139,7 @@ export async function getTodaySessionCount(userId: string): Promise<number> {
     .where(and(
       eq(UserXP.userId, userId),
       eq(UserXP.activityType, 'session_completed'),
-      gte(UserXP.createdAt, today.toISOString())
+      gte(UserXP.createdAt, today)
     ));
 
   return todaySessions.length;

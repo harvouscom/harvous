@@ -10,8 +10,8 @@ describe('pickBestUnlinkedPair', () => {
   ]);
 
   const related: RelatedNote[] = [
-    { noteId: 'note_b', score: 6, sharedPassages: ['Romans|8|28'], sharedCrossRefs: [], sharedThemes: [] },
-    { noteId: 'note_c', score: 3, sharedPassages: [], sharedCrossRefs: ['Psalm|73|1'], sharedThemes: [] },
+    { noteId: 'note_b', score: 6, sharedPassages: ['Romans|8|28'], sharedCrossRefs: [], sharedThemes: [], sameSection: false },
+    { noteId: 'note_c', score: 3, sharedPassages: [], sharedCrossRefs: ['Psalm|73|1'], sharedThemes: [], sameSection: false },
   ];
 
   it('picks the strongest unlinked related note', () => {

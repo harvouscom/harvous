@@ -33,6 +33,7 @@ import {
   ScriptureEntityRefs,
 } from '../db';
 import { normalizePlaceName } from '@/utils/bible-place-name';
+import { dominantCanonProfile } from '@/utils/admin-pulse-canon-groups';
 
 export interface VerseKey {
   book: string;
@@ -266,9 +267,11 @@ export interface RelatedNote {
   sharedPassages: string[];
   sharedCrossRefs: string[];
   sharedThemes: string[];
+  sameSection: boolean;
 }
 
 const SIGNAL_WEIGHT: Record<RelatedSignalKind, number> = { passage: 3, crossref: 2, theme: 1 };
+const SECTION_MATCH_BOOST = 1;
 // A note sharing many themes shouldn't drown out a shared passage; cap theme contribution.
 const MAX_THEME_SIGNALS = 5;
 
@@ -277,8 +280,11 @@ const MAX_THEME_SIGNALS = 5;
  * each distinct (kind, detail) counts once per note; theme contribution is capped; ties break
  * on noteId for determinism.
  */
-export function rankRelatedNotes(signals: RelatedSignal[], opts: { limit?: number } = {}): RelatedNote[] {
-  const { limit = 10 } = opts;
+export function rankRelatedNotes(
+  signals: RelatedSignal[],
+  opts: { limit?: number; sourceSectionId?: string | null; noteSectionById?: Record<string, string | null> } = {},
+): RelatedNote[] {
+  const { limit = 10, sourceSectionId, noteSectionById } = opts;
   const byNote = new Map<string, { passages: Set<string>; crossrefs: Set<string>; themes: Set<string> }>();
 
   for (const s of signals) {
@@ -295,10 +301,14 @@ export function rankRelatedNotes(signals: RelatedSignal[], opts: { limit?: numbe
   const ranked: RelatedNote[] = [];
   for (const [noteId, e] of byNote) {
     const themeCount = Math.min(e.themes.size, MAX_THEME_SIGNALS);
+    const sameSection = Boolean(
+      sourceSectionId && noteSectionById?.[noteId] && noteSectionById[noteId] === sourceSectionId,
+    );
     const score =
       e.passages.size * SIGNAL_WEIGHT.passage +
       e.crossrefs.size * SIGNAL_WEIGHT.crossref +
-      themeCount * SIGNAL_WEIGHT.theme;
+      themeCount * SIGNAL_WEIGHT.theme +
+      (sameSection ? SECTION_MATCH_BOOST : 0);
     if (score <= 0) continue;
     ranked.push({
       noteId,
@@ -306,6 +316,7 @@ export function rankRelatedNotes(signals: RelatedSignal[], opts: { limit?: numbe
       sharedPassages: [...e.passages],
       sharedCrossRefs: [...e.crossrefs],
       sharedThemes: [...e.themes],
+      sameSection,
     });
   }
 
@@ -409,7 +420,19 @@ export async function getRelatedNotesForPassages(
     }
   }
 
-  return rankRelatedNotes(signals, { limit });
+  const sourceSectionId = dominantCanonProfile(deduped.map((p) => p.book)).sectionId;
+  const booksByNote = new Map<string, string[]>();
+  for (const c of candidates) {
+    const list = booksByNote.get(c.noteId);
+    if (list) list.push(c.book);
+    else booksByNote.set(c.noteId, [c.book]);
+  }
+  const noteSectionById: Record<string, string | null> = {};
+  for (const [nid, books] of booksByNote) {
+    noteSectionById[nid] = dominantCanonProfile(books).sectionId;
+  }
+
+  return rankRelatedNotes(signals, { limit, sourceSectionId, noteSectionById });
 }
 
 /** The user's other notes that connect to this one via shared passages, cross-refs, or themes. */
@@ -432,7 +455,7 @@ export interface PassageRelatedNote {
   noteId: string;
   title: string;
   /** Why this note connects — derived from the strongest shared signal. */
-  reason: 'Same passage' | 'Cross-reference' | 'Shared theme';
+  reason: 'Same passage' | 'Cross-reference' | 'Same section' | 'Shared theme';
 }
 
 export interface PassageContext {
@@ -455,6 +478,7 @@ export interface PassageContextOptions {
 export function relatedNoteReason(r: RelatedNote): PassageRelatedNote['reason'] {
   if (r.sharedPassages.length) return 'Same passage';
   if (r.sharedCrossRefs.length) return 'Cross-reference';
+  if (r.sameSection) return 'Same section';
   return 'Shared theme';
 }
 

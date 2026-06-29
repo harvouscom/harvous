@@ -36,11 +36,14 @@ import {
   deriveSubjectConnections,
   derivePassageConnections,
   deriveStudyArcs,
+  deriveSectionArcs,
+  sectionArcCopy,
   deriveTopBooks,
   deriveTopFolders,
   deriveTopTags,
   deriveTopThread,
-  formatHomeActivityLeadSuffix,
+  formatHomeActivityLeadWithSection,
+  deriveTopCanonSections,
   formatHomeNoteCount,
   greetingForHour,
   homeContinueCardEyebrow,
@@ -49,6 +52,7 @@ import {
   localDayIndex,
   pickContinueNote,
   pickRevisitNote,
+  librarySectionCountsFromById,
   REVISIT_FALLBACK_MIN_AGE_MS,
   pickSpotlightThread,
   selectHomeLeadTheme,
@@ -66,9 +70,16 @@ import {
   findHighlightForChapter,
   deriveReflectionPrompt,
   connectSuggestionRecallMeta,
+  connectSuggestionRecallEyebrow,
+  formatConnectSuggestionTitle,
+  suggestConnectThreadName,
+  continueBookRecallMeta,
+  recurringPersonRecallMeta,
+  crossRefGapRecallMeta,
   studyArcSinceLabel,
   studyArcToneLabel,
   type HomeLeadTheme,
+  type HomeTopCanonSection,
   type HomeSubjectPassageInput,
   type HomePassageConnectionInput,
   type StudyArcNoteInput,
@@ -86,15 +97,14 @@ import {
   prototypeHighlightSubtitlePreview,
 } from './proto-highlight-subtitle';
 import { loadPinnedHighlightIds } from './proto-pinned-stores';
-import { stabilityById, recordRecallEngaged, mergeStabilityMaps } from './proto-recall-stability';
-import { activeCooldownIds, recordRecallSnoozed } from './proto-recall-cooldown';
+import { stabilityById, mergeStabilityMaps } from './proto-recall-stability';
+import { activeCooldownIds, recordRecallSnoozed, recentRecallSectionCounts } from './proto-recall-cooldown';
 import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeRecallCarousel';
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
 import { useCrossRefGaps } from '../../hooks/queries/useCrossRefGaps';
 import { findMostRecentNoteForScriptureReference } from '@/utils/scripture-passage-drill';
 import type { CrossRefGap } from '../../hooks/queries/useCrossRefGaps';
 import { useConnectSuggestions } from '../../hooks/queries/useConnectSuggestions';
-import { useConnectNote } from '../../hooks/mutations/useConnectNote';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
 import { PROTOTYPE_DRAFT_NOTE_SLUG, noteParamSlug } from './proto-route-slugs';
@@ -133,6 +143,7 @@ function pushAnnotateHighlightRecallCard(
   out.push({
     id: `annotate:${highlight.id}`,
     kind: 'annotateHighlight',
+    noteId: highlight.id,
     score: 0.55,
     eyebrow: 'Add a thought',
     title: prototypeHighlightListTitle(highlight),
@@ -154,6 +165,7 @@ function pushRevisitHighlightRecallCard(
   out.push({
     id: highlight.id,
     kind: 'highlight',
+    noteId: highlight.id,
     score: 0.55,
     eyebrow: 'A highlight to revisit',
     title: prototypeHighlightListTitle(highlight),
@@ -178,6 +190,7 @@ type Props = {
   onOpenScriptureBook: (bookOrder: number) => void;
   onOpenScripturePassage: (bookOrder: number, passageKey: string) => void;
   onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => void;
+  onOpenCreateThreadPrefill: (prefill: { noteIds: [string, string]; threadName: string }) => void;
 };
 
 function ProtoHomeLoading() {
@@ -223,6 +236,7 @@ function HomeGreeting({
   hasMoreForLogic,
   lead,
   trend,
+  topCanonSection,
   onOpenScriptureBook,
 }: {
   notes: SpaceNoteRow[];
@@ -230,6 +244,7 @@ function HomeGreeting({
   hasMoreForLogic: boolean;
   lead: HomeLeadTheme;
   trend?: HomeGreetingTrend;
+  topCanonSection?: HomeTopCanonSection;
   onOpenScriptureBook: (bookOrder: number) => void;
 }) {
   const { user } = useUser();
@@ -255,14 +270,18 @@ function HomeGreeting({
   const hello = `${greetingForHour(new Date().getHours())}${firstName ? `, ${firstName}` : ''}.`;
   const activityTail = useMemo(
     () =>
-      formatHomeActivityLeadSuffix({
-        rhythm,
-        weeklyDays,
-        lastActivityMs,
-        now: new Date(),
-        totalNoteCount: countForLogic,
-      }),
-    [rhythm, weeklyDays, lastActivityMs, countForLogic],
+      formatHomeActivityLeadWithSection(
+        {
+          rhythm,
+          weeklyDays,
+          lastActivityMs,
+          now: new Date(),
+          totalNoteCount: countForLogic,
+        },
+        lead,
+        topCanonSection,
+      ),
+    [rhythm, weeklyDays, lastActivityMs, countForLogic, lead, topCanonSection],
   );
   const activityClause = activityTail ? <>, {activityTail}</> : null;
 
@@ -562,6 +581,7 @@ export default function PrototypeSidebarHomeView({
   onOpenScriptureBook,
   onOpenScripturePassage,
   onOpenHighlight,
+  onOpenCreateThreadPrefill,
 }: Props) {
   const tagsQuery = useTagsList();
   const threadsQuery = usePrototypeStudyThreads(homeSpaceId);
@@ -634,7 +654,7 @@ export default function PrototypeSidebarHomeView({
   // Memory layer Workstream B: forgetting-aware resurfacing. meaningWeight (server fingerprints) +
   // per-note stability (lengthened each time the user re-engages a recall) rank the "Worth another
   // look" pick toward meaningful, fading notes. Degrades to recency logic before fingerprints exist.
-  const { meaningWeightById, fingerprintsById, recallStabilityById, lastRecallEngagedAtById } =
+  const { meaningWeightById, fingerprintsById, canonSectionById, recallStabilityById, lastRecallEngagedAtById } =
     useNoteFingerprints();
   const localRecallStability = useMemo(() => stabilityById(homeSpaceId), [homeSpaceId]);
   const recallStability = useMemo(
@@ -675,8 +695,16 @@ export default function PrototypeSidebarHomeView({
   );
   const canPickRevisitStandard = countForLogic >= REVISIT_MIN_NOTES && !hasMoreNotes;
   const canPickRevisitActiveContinue = continueIsActive && notes.length >= 2;
-  const revisitNote = useMemo(() => {
-    const pickBase = {
+  const librarySectionCounts = useMemo(
+    () => librarySectionCountsFromById(canonSectionById),
+    [canonSectionById],
+  );
+  const recallSectionCounts = useMemo(
+    () => recentRecallSectionCounts(homeSpaceId),
+    [homeSpaceId, recallTick],
+  );
+  const revisitPickBase = useMemo(
+    () => ({
       nowMs: Date.now(),
       minAgeMs: REVISIT_MIN_AGE_MS,
       fallbackMinAgeMs: REVISIT_FALLBACK_MIN_AGE_MS,
@@ -684,11 +712,24 @@ export default function PrototypeSidebarHomeView({
       meaningWeightById,
       stabilityById: recallStability,
       lastRecallEngagedAtById,
-    };
-
+      canonSectionById,
+      librarySectionCounts,
+      recentRecallSectionCounts: recallSectionCounts,
+    }),
+    [
+      recallDayIndex,
+      meaningWeightById,
+      recallStability,
+      lastRecallEngagedAtById,
+      canonSectionById,
+      librarySectionCounts,
+      recallSectionCounts,
+    ],
+  );
+  const revisitNote = useMemo(() => {
     if (continueIsActive && canPickRevisitActiveContinue) {
       return pickRevisitNote(notes, {
-        ...pickBase,
+        ...revisitPickBase,
         excludeIds: activeContinueExcludeIds,
         tertiaryMinAgeMs: 0,
       });
@@ -697,7 +738,7 @@ export default function PrototypeSidebarHomeView({
     if (!canPickRevisitStandard) return undefined;
 
     return pickRevisitNote(notes, {
-      ...pickBase,
+      ...revisitPickBase,
       excludeIds: revisitExcludeIds,
     });
   }, [
@@ -707,23 +748,20 @@ export default function PrototypeSidebarHomeView({
     canPickRevisitStandard,
     activeContinueExcludeIds,
     revisitExcludeIds,
-    recallDayIndex,
-    meaningWeightById,
-    recallStability,
-    lastRecallEngagedAtById,
+    revisitPickBase,
   ]);
   const revisitOnHome = continueIsActive ? revisitNote : undefined;
 
   // Opening the resurfaced note re-engages it: lengthen its forgetting interval before routing.
   const handleOpenRevisitNote = useCallback(
     (row: SpaceNoteRow) => {
-      recordRecallEngaged(homeSpaceId, row.id, {
-        onSynced: () => void queryClient.invalidateQueries({ queryKey: ['note-fingerprints'] }),
-      });
       onOpenNote(row);
     },
-    [homeSpaceId, onOpenNote, queryClient],
+    [onOpenNote],
   );
+  const handleRecallSynced = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['note-fingerprints'] });
+  }, [queryClient]);
   const spotlightThread = useMemo(
     () => pickSpotlightThread(threads, { excludeId: lead.kind === 'thread' ? lead.thread.id : undefined }),
     [threads, lead],
@@ -837,29 +875,67 @@ export default function PrototypeSidebarHomeView({
     return deriveStudyArcs(arcNotes, { nowMs: Date.now(), limit: 1 })[0];
   }, [notes, fingerprintsById, hasMoreNotes]);
 
+  const sectionArc = useMemo(() => {
+    if (hasMoreNotes || studyArc) return undefined;
+    const arcNotes = notes.map((n) => {
+      const fp = fingerprintsById.get(n.id);
+      return {
+        id: n.id,
+        createdAt: n.createdAt,
+        updatedAt: n.updatedAt,
+        canonSection: fp?.canonSection ?? null,
+        canonSectionLabel: fp?.canonSectionLabel ?? null,
+        testament: fp?.testament ?? null,
+      };
+    });
+    return deriveSectionArcs(arcNotes, { nowMs: Date.now(), limit: 1 })[0];
+  }, [notes, fingerprintsById, hasMoreNotes, studyArc]);
+
+  const activeArc = studyArc ?? sectionArc;
+  const activeArcIsSection = !studyArc && Boolean(sectionArc);
+
   const studyArcCopy = useMemo(() => {
-    if (!studyArc) return null;
-    const since = studyArcSinceLabel(studyArc.firstMs, Date.now());
-    const tone = studyArcToneLabel(studyArc.dominantTone);
-    const base = `Across ${studyArc.noteCount} notes since ${since}`;
-    return tone ? `${base} · ${tone}` : base;
-  }, [studyArc]);
+    if (studyArc) {
+      const since = studyArcSinceLabel(studyArc.firstMs, Date.now());
+      const tone = studyArcToneLabel(studyArc.dominantTone);
+      const base = `Across ${studyArc.noteCount} notes since ${since}`;
+      return tone ? `${base} · ${tone}` : base;
+    }
+    if (sectionArc) return sectionArcCopy(sectionArc, Date.now());
+    return null;
+  }, [studyArc, sectionArc]);
 
   const openStudyArc = useCallback(() => {
-    if (!studyArc) return;
-    const proposalNotes = studyArc.noteIds
+    if (!activeArc) return;
+    const noteIds = 'noteIds' in activeArc ? activeArc.noteIds : [];
+    const subject =
+      activeArcIsSection && sectionArc
+        ? sectionArc.sectionLabel
+        : studyArc
+          ? studyArc.theme
+          : '';
+    const proposalNotes = noteIds
       .map((id) => notes.find((n) => n.id === id))
       .filter((n): n is SpaceNoteRow => Boolean(n))
       .map((n) => ({ id: n.id, title: n.title ?? null }));
     if (proposalNotes.length === 0) return;
     setSidebarThreadProposal({
-      subject: studyArc.theme,
+      subject,
       notes: proposalNotes,
       variant: 'arc',
     });
     setSidebarLayer('list');
     ensureSidebarExpanded();
-  }, [studyArc, notes, setSidebarLayer, setSidebarThreadProposal, ensureSidebarExpanded]);
+  }, [
+    activeArc,
+    activeArcIsSection,
+    sectionArc,
+    studyArc,
+    notes,
+    setSidebarLayer,
+    setSidebarThreadProposal,
+    ensureSidebarExpanded,
+  ]);
 
   // ── Generative recall: seed a draft note + derive prompts (Phase 1, client-side) ──
   const season = useMemo(() => currentLiturgicalSeason(new Date()), []);
@@ -965,8 +1041,12 @@ export default function PrototypeSidebarHomeView({
   }, [referenceWordConnection, highlightsWithRecency, onOpenHighlight]);
 
   const reflectionPrompt = useMemo(
-    () => deriveReflectionPrompt({ seasonLabel: season?.label, arcTheme: studyArc?.theme }),
-    [season, studyArc],
+    () =>
+      deriveReflectionPrompt({
+        seasonLabel: season?.label,
+        arcTheme: studyArc?.theme ?? sectionArc?.sectionLabel,
+      }),
+    [season, studyArc, sectionArc],
   );
 
   // ── Generative recall Phase 2 (backend queries) ──
@@ -975,7 +1055,6 @@ export default function PrototypeSidebarHomeView({
 
   const connectSuggestionsQuery = useConnectSuggestions();
   const topConnectSuggestion = connectSuggestionsQuery.data?.[0];
-  const connectNote = useConnectNote();
 
   // ── Recall carousel (Home resurfacing) ──
   // Fold the per-kind recall/trend memos above into one varied, ranked, snoozable carousel. Each
@@ -996,6 +1075,8 @@ export default function PrototypeSidebarHomeView({
       out.push({
         id: note.id,
         kind: 'revisitNote',
+        noteId: note.id,
+        canonSection: fp?.canonSection ?? undefined,
         score: meaningWeightById[note.id] ?? 0.5,
         eyebrow: 'Worth another look',
         title: stripServerAutoUntitledNoteTitleForDisplay(note.title?.trim() ?? '') || 'New Note',
@@ -1018,6 +1099,7 @@ export default function PrototypeSidebarHomeView({
         out.push({
           id: spotlightHighlight.id,
           kind: 'highlight',
+          noteId: spotlightHighlight.id,
           score: 0.55,
           eyebrow: 'A highlight to revisit',
           title: prototypeHighlightListTitle(spotlightHighlight),
@@ -1028,14 +1110,16 @@ export default function PrototypeSidebarHomeView({
       }
     }
 
-    if (studyArc) {
-      const id = `arc:${studyArc.theme.toLowerCase()}`;
+    if (activeArc) {
+      const arcTitle = studyArc?.theme ?? sectionArc?.sectionLabel ?? '';
+      const id = `arc:${arcTitle.toLowerCase()}`;
+      const noteCount = studyArc?.noteCount ?? sectionArc?.noteCount ?? 0;
       out.push({
         id,
         kind: 'arc',
-        score: Math.min(1, studyArc.noteCount / 8),
-        eyebrow: 'Seems to be on your mind',
-        title: studyArc.theme,
+        score: Math.min(1, noteCount / 8),
+        eyebrow: activeArcIsSection ? 'A section on your mind' : 'Seems to be on your mind',
+        title: arcTitle,
         meta: studyArcCopy ?? '',
         iconName: 'arrow-right-arrow-left',
         onOpen: openStudyArc,
@@ -1091,6 +1175,7 @@ export default function PrototypeSidebarHomeView({
         out.push({
           id: `referenceWord:${referenceWordConnection.wordKey}`,
           kind: 'referenceWord',
+          noteId: latestRow.id,
           score: Math.min(1, referenceWordConnection.noteCount / 8),
           eyebrow: 'A word you keep looking up',
           title: referenceWordConnection.displayWord,
@@ -1133,7 +1218,7 @@ export default function PrototypeSidebarHomeView({
             score: Math.min(0.85, 0.5 + continueBookSuggestion.citedCount / 20),
             eyebrow: `Keep going in ${continueBookSuggestion.book}`,
             title: ref,
-            meta: `You've studied ${continueBookSuggestion.citedCount} ${continueBookSuggestion.citedCount === 1 ? 'chapter' : 'chapters'} — start the next?`,
+            meta: continueBookRecallMeta(continueBookSuggestion.book, continueBookSuggestion.nextChapter),
             iconName: 'book',
             onOpen: () => startDraftNote({ title: ref, contentHtml: buildVotdScripturePillHtml(ref, 'NET') }),
           });
@@ -1149,7 +1234,7 @@ export default function PrototypeSidebarHomeView({
         score: Math.min(0.8, 0.45 + recurringPerson.noteCount / 20),
         eyebrow: 'Someone you keep meeting',
         title: recurringPerson.name,
-        meta: `Across ${recurringPerson.noteCount} of your notes — start a study?`,
+        meta: recurringPersonRecallMeta(recurringPerson.noteCount),
         iconName: 'circle-user',
         onOpen: () => startDraftNote({ title: recurringPerson.name }),
       });
@@ -1196,9 +1281,9 @@ export default function PrototypeSidebarHomeView({
             kind: 'crossrefGap',
             isGenerative: true,
             score: Math.min(0.9, 0.6 + topCrossRefGap.votes / 20),
-            eyebrow: 'A link worth making',
+            eyebrow: 'A cross-reference to explore',
             title: topCrossRefGap.to.displayRef,
-            meta: `From your note on ${topCrossRefGap.from.displayRef} → ${topCrossRefGap.to.displayRef}`,
+            meta: crossRefGapRecallMeta(topCrossRefGap.from.displayRef, topCrossRefGap.to.displayRef),
             iconName: 'arrow-right-arrow-left',
             onOpen: () => openCrossRefGap(topCrossRefGap),
           });
@@ -1211,17 +1296,21 @@ export default function PrototypeSidebarHomeView({
       out.push({
         id: `connect:${pairKey}`,
         kind: 'connectNotes',
+        noteId: topConnectSuggestion.noteAId,
         isGenerative: true,
         score: Math.min(0.85, 0.5 + topConnectSuggestion.score / 10),
-        eyebrow: 'Link these notes?',
-        title: `${topConnectSuggestion.noteATitle} & ${topConnectSuggestion.noteBTitle}`,
+        eyebrow: connectSuggestionRecallEyebrow(),
+        title: formatConnectSuggestionTitle(topConnectSuggestion.noteATitle, topConnectSuggestion.noteBTitle),
         meta: connectSuggestionRecallMeta(topConnectSuggestion.reason),
-        iconName: 'link',
+        iconName: 'arrow-right-arrow-left',
         onOpen: () => {
-          connectNote.mutate({
-            parentNoteId: topConnectSuggestion.noteAId,
-            linkedNoteId: topConnectSuggestion.noteBId,
-            spaceId: homeSpaceId,
+          onOpenCreateThreadPrefill({
+            noteIds: [topConnectSuggestion.noteAId, topConnectSuggestion.noteBId],
+            threadName: suggestConnectThreadName(
+              topConnectSuggestion.noteATitle,
+              topConnectSuggestion.noteBTitle,
+              topConnectSuggestion.reason,
+            ),
           });
         },
       });
@@ -1234,6 +1323,9 @@ export default function PrototypeSidebarHomeView({
     revisitOnHome,
     spotlightHighlight,
     studyArc,
+    sectionArc,
+    activeArc,
+    activeArcIsSection,
     studyArcCopy,
     subjectConnection,
     crossRefConnection,
@@ -1255,7 +1347,7 @@ export default function PrototypeSidebarHomeView({
     topCrossRefGap,
     topConnectSuggestion,
     homeSpaceId,
-    connectNote,
+    onOpenCreateThreadPrefill,
     startDraftNote,
     openCrossRefGap,
   ]);
@@ -1270,12 +1362,18 @@ export default function PrototypeSidebarHomeView({
     [recallCandidates, recallSnoozedIds, recallDayIndex],
   );
 
+  const topCanonSection = useMemo(
+    () => deriveTopCanonSections([...fingerprintsById.values()], 1)[0],
+    [fingerprintsById],
+  );
+
   const recallTrendGreeting = useMemo((): HomeGreetingTrend | undefined => {
     const trend = pickRecallTrend(recallCandidates);
     if (!trend) return undefined;
 
-    if (trend.kind === 'arc' && studyArc) {
-      const parts = recallTrendGreetingParts({ kind: 'arc', theme: studyArc.theme });
+    if (trend.kind === 'arc' && activeArc) {
+      const theme = studyArc?.theme ?? sectionArc?.sectionLabel ?? '';
+      const parts = recallTrendGreetingParts({ kind: 'arc', theme });
       if (!parts) return undefined;
       return { kind: 'arc', parts, onOpen: openStudyArc };
     }
@@ -1309,7 +1407,9 @@ export default function PrototypeSidebarHomeView({
     return undefined;
   }, [
     recallCandidates,
+    activeArc,
     studyArc,
+    sectionArc,
     subjectConnection,
     passageConnection,
     crossRefConnection,
@@ -1360,6 +1460,7 @@ export default function PrototypeSidebarHomeView({
           hasMoreForLogic={hasMoreForLogic}
           lead={lead}
           trend={recallTrendGreeting}
+          topCanonSection={topCanonSection}
           onOpenScriptureBook={onOpenScriptureBook}
         />
       </div>
@@ -1484,7 +1585,12 @@ export default function PrototypeSidebarHomeView({
 
       {recallOpportunities.length > 0 ? (
         <div className="proto-home-section">
-          <PrototypeRecallCarousel opportunities={recallOpportunities} onSnooze={handleRecallSnooze} />
+          <PrototypeRecallCarousel
+            opportunities={recallOpportunities}
+            onSnooze={handleRecallSnooze}
+            onRecallSynced={handleRecallSynced}
+            homeSpaceId={homeSpaceId}
+          />
         </div>
       ) : null}
     </div>

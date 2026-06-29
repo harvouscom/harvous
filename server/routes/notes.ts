@@ -56,7 +56,8 @@ import { detectVerseKeysFromNoteText } from '../utils/detect-note-passages';
 import { debug } from '@/utils/logger';
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { getThreadGradientCSS } from '@/utils/colors';
-import { awardCreationBonusXP, revokeXPOnDeletion, revokeAllXPForItem } from '../utils/xp-system';
+import { awardCreationBonusXP, awardNoteCreatedXP, awardStudyThreadClusterCreatedXPIfNew, revokeXPOnDeletion, revokeAllXPForItem } from '../utils/xp-system';
+import { countStudyThreadClustersForUser } from '../utils/study-thread-cluster-count';
 import { generateAutoTags, applyAutoTags, removeAutoTags, regenerateAutoTags } from '../utils/auto-tag-generator';
 import { processScriptureReferences } from '../utils/process-scripture-references';
 import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
@@ -342,8 +343,11 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
         .where(and(eq(Threads.id, finalThreadId), eq(Threads.userId, auth.userId)));
     }
 
-    // Non-critical: XP
-    try { await awardCreationBonusXP(auth.userId, 'note'); } catch {}
+    // Non-critical: XP (creation bonus + note-created; UI may hide XP but stats keep recording)
+    try {
+      await awardCreationBonusXP(auth.userId, 'note');
+    } catch {}
+    awardNoteCreatedXP(auth.userId, newNote.id, isScriptureNote, capitalizedContent || content || '').catch(() => {});
 
     // Reload note
     const finalNote = first(await db.select().from(Notes).where(eq(Notes.id, newNote.id)).limit(1));
@@ -751,6 +755,8 @@ route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c)
       return c.json({ success: false, error: 'Only default notes can be linked.', code: 'INVALID_NOTE_TYPE' }, 400);
     }
 
+    const clusterCountBefore = await countStudyThreadClustersForUser(auth.userId);
+
     // Insert edge — unique constraint handles the "already linked" case.
     const spaceId =
       normalizeOwnedNoteSpaceId(parent.spaceId ?? null) ??
@@ -785,6 +791,14 @@ route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c)
       }
       throw err;
     }
+
+    const clusterCountAfter = await countStudyThreadClustersForUser(auth.userId);
+    awardStudyThreadClusterCreatedXPIfNew(
+      auth.userId,
+      clusterCountBefore,
+      clusterCountAfter,
+      parentNoteId,
+    ).catch(() => {});
 
     broadcastInvalidation(auth.userId, { type: 'note:updated', id: parentNoteId });
     broadcastInvalidation(auth.userId, { type: 'note:updated', id: linkedNoteId });
@@ -985,6 +999,8 @@ route.patch('/api/notes/:id/study-thread-title', requireAuth, rateLimit('write')
         .where(and(inArray(Notes.id, ids), eq(Notes.userId, auth.userId)));
     };
 
+    const clusterCountBefore = await countStudyThreadClustersForUser(auth.userId);
+
     try {
       if (userOverride === false) {
         await applyNamingToCluster(
@@ -1028,6 +1044,16 @@ route.patch('/api/notes/:id/study-thread-title', requireAuth, rateLimit('write')
         await applyNamingToCluster(fallback, clusterIds);
       }
     }
+
+    const clusterCountAfter = await countStudyThreadClustersForUser(auth.userId);
+    const awardTitle = typeof title === 'string' ? title : undefined;
+    awardStudyThreadClusterCreatedXPIfNew(
+      auth.userId,
+      clusterCountBefore,
+      clusterCountAfter,
+      repNoteId,
+      awardTitle,
+    ).catch(() => {});
 
     broadcastInvalidation(auth.userId, { type: 'note:updated', id: repNoteId });
     return c.json({
@@ -1165,6 +1191,10 @@ route.get('/api/notes/fingerprints', requireAuth, async (c) => {
       people: f.people,
       places: f.places,
       passageCount: f.passageCount,
+      canonSection: f.canonSection,
+      canonSectionLabel: f.canonSectionLabel,
+      testament: f.testament,
+      canonSections: f.canonSections,
       recallStabilityDays: f.recallStabilityDays,
       lastRecallEngagedAt: f.lastRecallEngagedAt?.toISOString() ?? null,
     }));

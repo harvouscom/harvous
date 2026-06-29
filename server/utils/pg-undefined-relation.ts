@@ -51,6 +51,22 @@ export function isNoteFingerprintsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'NoteFingerprints');
 }
 
+export function isRecallEventsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'RecallEvents');
+}
+
+export function isSupportTicketsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'SupportTickets');
+}
+
+export function isDiagnosticEventsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'DiagnosticEvents');
+}
+
+export function isDiagnosticIssueTriageTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'DiagnosticIssueTriage');
+}
+
 /** Postgres undefined_column (42703) — schema not pushed yet. */
 export function isPgUndefinedColumn(error: unknown, columnName: string): boolean {
   const needles = [`column "${columnName}" does not exist`, `column ${columnName} does not exist`];

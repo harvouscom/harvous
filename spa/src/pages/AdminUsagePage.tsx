@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import AdminUsagePanel from '@/components/react/AdminUsagePanel';
 import AdminShell from '@/components/react/AdminShell';
+import ProtoStatusChip from '@/components/react/ProtoStatusChip';
 import { useHarvousAdminCheck } from '@/hooks/queries/useVotdPreview';
 import { isDedicatedPrototypeHost } from '@/lib/prototype-path';
 import CardStack from '../components/CardStack';
@@ -19,9 +20,10 @@ function PrototypeAdminUsagePage() {
 
   if (admin.isLoading) {
     return (
-      <AdminShell title="Usage" subtitle="Checking access…">
-        <p className="admin-usage__muted pds-body">Checking access…</p>
-      </AdminShell>
+      <>
+        <AdminShell title="Usage">{null}</AdminShell>
+        <ProtoStatusChip visible variant="syncing" label="Loading…" />
+      </>
     );
   }
 
@@ -32,7 +34,8 @@ function PrototypeAdminUsagePage() {
   return (
     <AdminShell
       title="Usage"
-      subtitle="Platform-wide metrics from Postgres and Clerk. Refreshes every minute."
+      subtitle="Accounts, engagement, recall, and rewards."
+      variant="report"
     >
       <AdminUsagePanel />
     </AdminShell>
@@ -51,13 +54,14 @@ function ClassicAdminUsagePage() {
 
   if (admin.isLoading) {
     return (
-      <div className="page-flex-column">
-        <div className="page-flex-column__main">
-          <CardStack title="Usage dashboard" centerTitle>
-            <p className="admin-usage__muted pds-body">Checking access…</p>
-          </CardStack>
+      <>
+        <div className="page-flex-column">
+          <div className="page-flex-column__main">
+            <CardStack title="Usage dashboard" centerTitle />
+          </div>
         </div>
-      </div>
+        <ProtoStatusChip visible variant="syncing" label="Loading…" />
+      </>
     );
   }
 

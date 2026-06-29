@@ -7,6 +7,9 @@ import {
   deriveCrossRefConnections,
   derivePassageConnections,
   deriveTopBooks,
+  deriveTopCanonSections,
+  formatHomeCanonSectionSuffix,
+  formatHomeActivityLeadWithSection,
   deriveTopPassages,
   deriveTopFolders,
   deriveTopTags,
@@ -28,9 +31,13 @@ import {
   homeThreadGreetingTone,
   pickContinueNote,
   pickRevisitNote,
+  librarySectionCountsFromById,
+  recallSectionDiversityBoost,
   revisitTouchTimeMs,
   forgettingAwarePriority,
   deriveStudyArcs,
+  deriveSectionArcs,
+  sectionArcCopy,
   studyArcSinceLabel,
   studyArcToneLabel,
   selectRecallOpportunities,
@@ -54,6 +61,12 @@ import {
   highlightMatchesChapter,
   deriveReflectionPrompt,
   connectSuggestionRecallMeta,
+  connectSuggestionRecallEyebrow,
+  formatConnectSuggestionTitle,
+  suggestConnectThreadName,
+  continueBookRecallMeta,
+  recurringPersonRecallMeta,
+  crossRefGapRecallMeta,
   recallTrendGreetingParts,
   pickRevisitHighlight,
   pickSpotlightThread,
@@ -131,6 +144,56 @@ describe('pickContinueNote', () => {
     const previous = { id: 'previous', updatedAt: '2026-06-10T10:00:00Z' };
     expect(pickContinueNote([active, previous], { excludeIds: ['active'] })).toBe(previous);
     expect(pickContinueNote([active, previous], { excludeIds: ['active'] }).id).not.toBe('active');
+  });
+});
+
+describe('deriveTopCanonSections', () => {
+  it('ranks sections by fingerprint note count', () => {
+    const rows = deriveTopCanonSections(
+      [
+        { canonSection: 'paul', canonSectionLabel: "Paul's letters", testament: 'nt' },
+        { canonSection: 'gospels', canonSectionLabel: 'Gospels', testament: 'nt' },
+        { canonSection: 'gospels', canonSectionLabel: 'Gospels', testament: 'nt' },
+      ],
+      2,
+    );
+    expect(rows[0]?.sectionId).toBe('gospels');
+    expect(rows[0]?.noteCount).toBe(2);
+    expect(rows[1]?.sectionId).toBe('paul');
+  });
+});
+
+describe('formatHomeCanonSectionSuffix', () => {
+  it('skips when the lead book already implies the section', () => {
+    const lead = {
+      kind: 'book' as const,
+      book: { bookOrder: 45, title: 'Romans', referenceCount: 3, noteCount: 2 },
+      tone: 'returning' as const,
+    };
+    expect(
+      formatHomeCanonSectionSuffix(lead, {
+        sectionId: 'paul',
+        label: "Paul's letters",
+        testament: 'nt',
+        noteCount: 5,
+      }),
+    ).toBeNull();
+  });
+
+  it('appends for non-book leads', () => {
+    const lead = {
+      kind: 'thread' as const,
+      thread: { id: 'note_1', title: 'Hope', noteCount: 4 },
+      tone: 'returning' as const,
+    };
+    expect(
+      formatHomeCanonSectionSuffix(lead, {
+        sectionId: 'gospels',
+        label: 'Gospels',
+        testament: 'nt',
+        noteCount: 4,
+      }),
+    ).toBe('mostly in Gospels');
   });
 });
 
@@ -1332,8 +1395,6 @@ describe('pickRevisitNote forgetting-aware mode', () => {
   });
 
   it('prefers lastRecallEngagedAt over a more recent edit for fading priority', () => {
-    const DAY = 24 * 60 * 60 * 1000;
-    const now = Date.now();
     const editedRecently = {
       id: 'a',
       content: 'x'.repeat(120),
@@ -1347,6 +1408,39 @@ describe('pickRevisitNote forgetting-aware mode', () => {
       lastRecallEngagedAtById: { a: recallMs },
     });
     expect(pick?.id).toBe('a');
+  });
+
+  it('nudges toward under-recalled canon sections when meaning is comparable', () => {
+    const notes = [
+      note('paul', 30),
+      note('gospels', 30),
+    ];
+    const pick = pickRevisitNote(notes, {
+      nowMs: now,
+      minAgeMs: 14 * DAY,
+      meaningWeightById: { paul: 0.7, gospels: 0.7 },
+      canonSectionById: { paul: 'paul', gospels: 'gospels' },
+      librarySectionCounts: { paul: 8, gospels: 2 },
+      recentRecallSectionCounts: { paul: 6, gospels: 0 },
+      rotationDayIndex: 0,
+    });
+    expect(pick?.id).toBe('gospels');
+  });
+});
+
+describe('recallSectionDiversityBoost', () => {
+  it('returns 0 when recall history is empty', () => {
+    expect(recallSectionDiversityBoost('gospels', { paul: 5, gospels: 2 }, {})).toBe(0);
+  });
+
+  it('boosts under-recalled sections', () => {
+    const boost = recallSectionDiversityBoost(
+      'gospels',
+      { paul: 8, gospels: 2 },
+      { paul: 6, gospels: 0 },
+    );
+    expect(boost).toBeGreaterThan(0);
+    expect(boost).toBeLessThanOrEqual(0.1);
   });
 });
 
@@ -1426,6 +1520,69 @@ describe('deriveStudyArcs', () => {
     const [arc] = deriveStudyArcs(notes, { nowMs: NOW });
     expect(arc.noteCount).toBe(3); // the 400-day-old note is outside the 180-day window
     expect(arc.noteIds).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('deriveSectionArcs', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const NOW = Date.parse('2026-06-30T12:00:00Z');
+  const daysAgo = (n: number) => new Date(NOW - n * DAY).toISOString();
+  const note = (
+    id: string,
+    ageDays: number,
+    canonSection: string | null,
+    canonSectionLabel?: string | null,
+  ) => ({
+    id,
+    createdAt: daysAgo(ageDays),
+    canonSection,
+    canonSectionLabel: canonSectionLabel ?? null,
+    testament: canonSection === 'gospels' ? ('nt' as const) : null,
+  });
+
+  it('returns nothing when a section does not recur enough', () => {
+    const notes = [note('a', 10, 'gospels'), note('b', 40, 'paul')];
+    expect(deriveSectionArcs(notes, { nowMs: NOW })).toEqual([]);
+  });
+
+  it('surfaces a canon section that recurs across notes and time', () => {
+    const notes = [
+      note('a', 150, 'gospels', 'Gospels'),
+      note('b', 90, 'gospels', 'Gospels'),
+      note('c', 20, 'gospels', 'Gospels'),
+    ];
+    const [arc] = deriveSectionArcs(notes, { nowMs: NOW });
+    expect(arc.sectionId).toBe('gospels');
+    expect(arc.sectionLabel).toBe('Gospels');
+    expect(arc.noteCount).toBe(3);
+    expect(arc.noteIds).toEqual(['a', 'b', 'c']);
+    expect(arc.spanDays).toBeGreaterThan(21);
+  });
+
+  it('skips notes without a canon section', () => {
+    const notes = [note('a', 150, null), note('b', 90, 'paul', "Paul's letters"), note('c', 20, 'paul', "Paul's letters")];
+    expect(deriveSectionArcs(notes, { nowMs: NOW })).toEqual([]);
+  });
+});
+
+describe('sectionArcCopy', () => {
+  const NOW = Date.parse('2026-06-30T12:00:00Z');
+
+  it('formats section arc copy', () => {
+    const copy = sectionArcCopy(
+      {
+        sectionId: 'gospels',
+        sectionLabel: 'Gospels',
+        testament: 'nt',
+        noteCount: 5,
+        firstMs: Date.parse('2026-01-15T00:00:00Z'),
+        lastMs: Date.parse('2026-06-01T00:00:00Z'),
+        spanDays: 137,
+        noteIds: ['a', 'b', 'c', 'd', 'e'],
+      },
+      NOW,
+    );
+    expect(copy).toBe('Across 5 notes in Gospels since January');
   });
 });
 
@@ -1581,14 +1738,68 @@ describe('recallTrendGreetingParts', () => {
 });
 
 describe('connectSuggestionRecallMeta', () => {
-  it('maps API connect reasons to warm recall carousel meta', () => {
-    expect(connectSuggestionRecallMeta('Shared passage')).toBe('Same passage in both — link them?');
-    expect(connectSuggestionRecallMeta('Cross-reference')).toBe('Referenced together — link them?');
-    expect(connectSuggestionRecallMeta('Shared theme')).toBe('Same theme across your notes — link them?');
+  it('maps API connect reasons to factual recall carousel meta', () => {
+    expect(connectSuggestionRecallMeta('Shared passage')).toBe('Both cite the same passage');
+    expect(connectSuggestionRecallMeta('Cross-reference')).toBe('You cross-referenced these');
+    expect(connectSuggestionRecallMeta('Shared theme')).toBe('Same theme in both');
   });
 
   it('falls back for unknown reasons', () => {
-    expect(connectSuggestionRecallMeta('Something else')).toBe('These notes seem related — link them?');
+    expect(connectSuggestionRecallMeta('Something else')).toBe('These notes fit together');
+  });
+});
+
+describe('connect suggestion recall copy helpers', () => {
+  it('uses a thread-oriented eyebrow', () => {
+    expect(connectSuggestionRecallEyebrow()).toBe('Thread these notes');
+  });
+
+  it('formats titles with and instead of ampersand', () => {
+    expect(formatConnectSuggestionTitle('Table of Evangelism', 'What Now?')).toBe(
+      'Table of Evangelism and What Now?',
+    );
+  });
+
+  it('truncates very long connect suggestion titles', () => {
+    const longA = 'A'.repeat(50);
+    const longB = 'B'.repeat(50);
+    const out = formatConnectSuggestionTitle(longA, longB);
+    expect(out.length).toBeLessThanOrEqual(72);
+    expect(out.endsWith('…')).toBe(true);
+  });
+
+  it('suggests a thread name from note titles', () => {
+    expect(suggestConnectThreadName('Evangelism', 'What Now?', 'Cross-reference')).toBe(
+      'Evangelism and What Now?',
+    );
+  });
+
+  it('falls back to reason-based thread names when titles are too long', () => {
+    expect(suggestConnectThreadName('A'.repeat(50), 'B'.repeat(50), 'Shared passage')).toBe('Shared passage');
+  });
+});
+
+describe('continueBookRecallMeta', () => {
+  it('names the next chapter plainly', () => {
+    expect(continueBookRecallMeta('Romans', 8)).toBe('Pick up at Romans 8');
+  });
+});
+
+describe('recurringPersonRecallMeta', () => {
+  it('uses singular note count', () => {
+    expect(recurringPersonRecallMeta(1)).toBe('Showed up in 1 note');
+  });
+
+  it('uses plural note count', () => {
+    expect(recurringPersonRecallMeta(3)).toBe('Showed up in 3 notes');
+  });
+});
+
+describe('crossRefGapRecallMeta', () => {
+  it('shortens cross-ref gap meta', () => {
+    expect(crossRefGapRecallMeta('Lamentations 3:22', 'Psalms 86:15')).toBe(
+      'From Lamentations 3:22 · explore Psalms 86:15',
+    );
   });
 });
 

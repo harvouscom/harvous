@@ -78,4 +78,12 @@ describe('mergePassageTagSuggestions', () => {
     const added = out.filter((t) => t.name !== 'Moses').map((t) => t.name);
     expect(added).toEqual(['Sinai']); // Moses dup, Egypt excluded, Aaron dismissed, cap 1
   });
+
+  it('does not net-add universal passage people like Jesus', () => {
+    const out = mergePassageTagSuggestions(
+      [{ name: 'Faith', category: 'spiritual', confidence: 0.75 }],
+      [person('Jesus'), person('Moses')],
+    );
+    expect(out.map((t) => t.name).sort()).toEqual(['Faith', 'Moses']);
+  });
 });

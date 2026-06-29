@@ -7,12 +7,6 @@
   width: 100%;
 }
 
-.admin-votd__intro {
-  margin: 0;
-  line-height: 1.45;
-  color: var(--pds-text-tertiary, var(--color-pebble-grey));
-}
-
 .admin-votd__muted {
   color: var(--pds-text-tertiary, var(--color-pebble-grey));
   margin: 0;
@@ -463,8 +457,4 @@
 /* Classic profile panel — tighter inset when nested in panel scroll */
 .panel__content-scroll .admin-votd__board {
   padding: 0 4px;
-}
-
-.panel__content-scroll .admin-votd__intro {
-  padding: 4px 0 0;
 }

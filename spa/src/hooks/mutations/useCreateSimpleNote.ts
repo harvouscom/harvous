@@ -19,6 +19,7 @@ import { createNoteOffline } from '@/utils/offline-mutations';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getPersistedUserId } from '@/utils/user-id';
 import { isOfflineModeEnabled } from '@/utils/offline-mode';
+import { trackSessionContentCreated } from '@/utils/session-xp-client';
 
 /** Sentinel the mutationFn returns when the create couldn't reach the server and was queued offline. */
 type OfflineQueuedCreate = { offlineQueued: true };
@@ -181,6 +182,7 @@ export function useCreateSimpleNote() {
         } catch {
           /* ignore */
         }
+        trackSessionContentCreated(noteId);
       }
       queryClient.invalidateQueries({ queryKey: ['space', sid, 'bootstrap'] });
       queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });

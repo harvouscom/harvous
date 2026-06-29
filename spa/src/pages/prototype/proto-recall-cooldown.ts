@@ -77,6 +77,62 @@ export function recordRecallSnoozed(
   recordRecallOpened(spaceId, id, todayDayIndex, windowDays);
 }
 
+const SECTION_HISTORY_PREFIX = 'harvous.prototype.recallSections.';
+const RECALL_SECTION_HISTORY_MAX = 8;
+
+type SectionHistory = string[];
+
+function sectionHistoryKey(spaceId: string): string {
+  return `${SECTION_HISTORY_PREFIX}${spaceId}`;
+}
+
+function safeReadSectionHistory(spaceId: string): SectionHistory {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(sectionHistoryKey(spaceId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is string => typeof x === 'string' && x.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+function safeWriteSectionHistory(spaceId: string, history: SectionHistory): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(sectionHistoryKey(spaceId), JSON.stringify(history));
+  } catch {
+    // quota / storage disabled — ignore
+  }
+}
+
+/** Record a canon section when the user opens a recall opportunity tied to that section. */
+export function recordRecallSectionEngaged(
+  spaceId: string | undefined | null,
+  sectionId: string | undefined | null,
+  maxEntries: number = RECALL_SECTION_HISTORY_MAX,
+): void {
+  if (!spaceId || !sectionId) return;
+  const history = safeReadSectionHistory(spaceId);
+  history.push(sectionId);
+  const trimmed = history.slice(-Math.max(1, maxEntries));
+  safeWriteSectionHistory(spaceId, trimmed);
+}
+
+/** Count of each canon section in recent recall opens (for diversity nudge). */
+export function recentRecallSectionCounts(
+  spaceId: string | undefined | null,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!spaceId) return out;
+  for (const sectionId of safeReadSectionHistory(spaceId)) {
+    out[sectionId] = (out[sectionId] ?? 0) + 1;
+  }
+  return out;
+}
+
 /** Ids snoozed within the cooldown window — excluded from recall picks. */
 export function activeCooldownIds(
   spaceId: string | undefined | null,

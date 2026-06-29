@@ -39,6 +39,9 @@ async function main() {
     'InboxItemNotes',
     'UserInboxItems',
     'MonthlyAnalytics',
+    'AdminMonthlyReports',
+    'DiagnosticEvents',
+    'DiagnosticIssueTriage',
   ];
 
   let passed = 0;

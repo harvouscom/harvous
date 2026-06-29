@@ -417,11 +417,87 @@ export const NoteFingerprints = pgTable('NoteFingerprints', {
   recallStabilityDays: real('recallStabilityDays'),
   /** Workstream B: last time the user opened this note via a recall card (ms since epoch in app layer). */
   lastRecallEngagedAt: ts('lastRecallEngagedAt'),
+  /** Dominant Protestant canon section id (gospels, paul, law, …) from cited passages. */
+  canonSection: text('canonSection'),
+  /** ot | nt by passage weight across cited books. */
+  testament: text('testament'),
+  /** JSON string[] of all canon section ids present on cited passages. */
+  canonSections: text('canonSections'),
   computedAt: ts('computedAt').notNull(),
 }, (table) => [
   index('NoteFingerprints_userIdIndex').on(table.userId),
   index('NoteFingerprints_userId_meaningWeightIndex').on(table.userId, table.meaningWeight),
 ]);
+
+// ─── RecallEvents (Home recall carousel analytics — Workstream B Phase 2) ───────
+// Append-only opens/snoozes by opportunity kind. See docs/RECALL_USAGE_METRICS_PHASE2.md.
+
+export const RecallEvents = pgTable('RecallEvents', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  opportunityId: text('opportunityId').notNull(),
+  kind: text('kind').notNull(),
+  action: text('action').notNull(),
+  noteId: text('noteId'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('RecallEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
+  index('RecallEvents_kind_action_createdAtIndex').on(table.kind, table.action, table.createdAt),
+]);
+
+// ─── SupportTickets (user feedback from settings support form) ─────────────────
+
+export const SupportTickets = pgTable('SupportTickets', {
+  id: text('id').primaryKey(),
+  ticketNumber: integer('ticketNumber').unique(),
+  userId: text('userId').notNull(),
+  topic: text('topic'),
+  message: text('message').notNull(),
+  userEmail: text('userEmail'),
+  userName: text('userName'),
+  appVersion: text('appVersion'),
+  pageUrl: text('pageUrl'),
+  clientEnvironment: text('clientEnvironment'),
+  status: text('status').notNull().default('open'),
+  adminNote: text('adminNote'),
+  adminReadAt: ts('adminReadAt'),
+  createdAt: ts('createdAt').notNull(),
+  closedAt: ts('closedAt'),
+}, (table) => [
+  index('SupportTickets_status_createdAtIndex').on(table.status, table.createdAt),
+  index('SupportTickets_userId_createdAtIndex').on(table.userId, table.createdAt),
+  index('SupportTickets_status_adminReadAtIndex').on(table.status, table.adminReadAt),
+]);
+
+// ─── DiagnosticEvents (anonymous client/server issue signals — no userId) ───────
+// See docs/DIAGNOSTICS_ANONYMOUS.md
+
+export const DiagnosticEvents = pgTable('DiagnosticEvents', {
+  id: text('id').primaryKey(),
+  issueSignature: text('issueSignature').notNull(),
+  source: text('source').notNull(),
+  severity: text('severity').notNull(),
+  message: text('message').notNull(),
+  stack: text('stack'),
+  route: text('route'),
+  platform: text('platform').notNull(),
+  appVersion: text('appVersion'),
+  anonymousSessionId: text('anonymousSessionId').notNull(),
+  manualNote: text('manualNote'),
+  metadata: text('metadata'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('DiagnosticEvents_issueSignature_createdAtIndex').on(table.issueSignature, table.createdAt),
+  index('DiagnosticEvents_createdAtIndex').on(table.createdAt),
+  index('DiagnosticEvents_anonymousSessionId_createdAtIndex').on(table.anonymousSessionId, table.createdAt),
+]);
+
+export const DiagnosticIssueTriage = pgTable('DiagnosticIssueTriage', {
+  issueSignature: text('issueSignature').primaryKey(),
+  status: text('status').notNull().default('open'),
+  adminNotes: text('adminNotes'),
+  updatedAt: ts('updatedAt').notNull(),
+});
 
 // ─── NoteConnections (many-to-many note connection graph) ──────────────────────
 // Replaces the single-parent linkedFromNoteId tree with a proper join table.
@@ -726,3 +802,17 @@ export const MonthlyAnalytics = pgTable('MonthlyAnalytics', {
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 });
+
+// ─── AdminMonthlyReports ───────────────────────────────────────────────────────
+
+export const AdminMonthlyReports = pgTable(
+  'AdminMonthlyReports',
+  {
+    id: text('id').primaryKey(),
+    month: text('month').notNull(),
+    seasonId: text('seasonId').notNull(),
+    generatedAt: ts('generatedAt').notNull(),
+    payload: text('payload').notNull(),
+  },
+  (table) => [uniqueIndex('AdminMonthlyReports_month_unique').on(table.month)],
+);

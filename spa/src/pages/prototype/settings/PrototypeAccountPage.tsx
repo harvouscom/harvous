@@ -3,7 +3,9 @@ import { useUser } from '@clerk/clerk-react';
 import Icon from '@/components/react/Icon';
 import { resolveClerkProfileImageUrl } from '../../../lib/clerk-profile-image';
 import { useProfile } from '../../../hooks/queries/useProfile';
+import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { SettingsShell, SettingsGroup, SettingsRow } from './SettingsShell';
+import SettingsAdminShortcut from './SettingsAdminShortcut';
 import AccountEditProfile from './account/AccountEditProfile';
 import AccountEmails from './account/AccountEmails';
 import AccountChangePassword from './account/AccountChangePassword';
@@ -21,6 +23,7 @@ type AccountView = 'hub' | 'profile' | 'emails' | 'password' | 'security';
 export default function PrototypeAccountPage() {
   const { user } = useUser();
   const { data: profile } = useProfile();
+  const { isMobileSidebar } = useProtoShell();
   const [view, setView] = useState<AccountView>('hub');
 
   const avatarUrl = useMemo(
@@ -71,6 +74,12 @@ export default function PrototypeAccountPage() {
           ) : null}
         </div>
       </div>
+
+      {!isMobileSidebar ? (
+        <div style={{ marginBottom: 20 }}>
+          <SettingsAdminShortcut variant="card" />
+        </div>
+      ) : null}
 
       <SettingsGroup>
         <SettingsRow label="Edit profile" sublabel="Name and photo" onClick={() => setView('profile')} />

@@ -207,7 +207,11 @@ export default function ProfileOptionsList() {
       {/* Billing & Data Management */}
       {renderOption('myData', 'My Data', true)}
       {isHarvousAdmin ? renderOption('adminVotd', "Today's Passage", true) : null}
+      {isHarvousAdmin ? renderAdminNavOption('/admin/pulse', 'Pulse', true) : null}
       {isHarvousAdmin ? renderAdminNavOption('/admin/usage', 'Usage dashboard', true) : null}
+      {isHarvousAdmin ? renderAdminNavOption('/admin/publish', 'Publish', true) : null}
+      {isHarvousAdmin ? renderAdminNavOption('/admin/maintenance', 'Maintenance', true) : null}
+      {isHarvousAdmin ? renderAdminNavOption('/admin/support', 'Support', true) : null}
     </div>
   );
 }

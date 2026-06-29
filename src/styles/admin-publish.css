@@ -1,0 +1,200 @@
+.admin-publish__hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.admin-publish__hero-stat {
+  min-width: 100px;
+}
+
+.admin-publish__hero-value {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--pds-text-primary);
+}
+
+.admin-publish__hero-label {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--pds-text-secondary);
+}
+
+.admin-publish__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.admin-publish__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--pds-text-primary) 10%, transparent);
+  background: color-mix(in srgb, var(--pds-paper-sheet) 96%, transparent);
+}
+
+.admin-publish__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-publish__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+}
+
+.admin-publish__input,
+.admin-publish__select,
+.admin-publish__textarea {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--pds-text-primary) 12%, transparent);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--pds-text-primary);
+  background: var(--pds-paper-sheet);
+}
+
+.admin-publish__textarea {
+  min-height: 120px;
+  resize: vertical;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.admin-publish__checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.admin-publish__space-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-publish__space-card {
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--pds-text-primary) 10%, transparent);
+  background: var(--pds-paper-sheet);
+  overflow: hidden;
+}
+
+.admin-publish__space-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+}
+
+.admin-publish__space-title {
+  font-size: 15px;
+  font-weight: 600;
+  flex: 1;
+  min-width: 140px;
+}
+
+.admin-publish__space-meta {
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+}
+
+.admin-publish__badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pds-text-primary) 8%, transparent);
+}
+
+.admin-publish__space-body {
+  padding: 0 16px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--pds-text-primary) 8%, transparent);
+}
+
+.admin-publish__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.admin-publish__link-row {
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+  word-break: break-all;
+  margin-bottom: 12px;
+}
+
+.admin-publish__thread {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--pds-text-primary) 4%, transparent);
+}
+
+.admin-publish__thread-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.admin-publish__inline-form {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-publish__message {
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.admin-publish__message--error {
+  color: var(--color-red, #c0392b);
+}
+
+.admin-publish__message--success {
+  color: var(--color-green, #2d6a4f);
+}
+
+.admin-publish__empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--pds-text-secondary);
+  font-size: 14px;
+}
+
+.admin-publish__paused-notice {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--pds-text-primary) 10%, transparent);
+  background: color-mix(in srgb, var(--pds-text-primary) 4%, var(--pds-paper-sheet));
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--pds-text-secondary);
+}
+
+.admin-publish-shell--paused .admin-publish__paused-content {
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.42;
+  filter: grayscale(0.4);
+}

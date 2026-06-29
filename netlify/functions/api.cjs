@@ -11471,8 +11471,13 @@ var init_relations = __esm({
 function count(expression) {
   return sql`count(${expression || sql.raw("*")})`.mapWith(Number);
 }
+function max(expression) {
+  return sql`max(${expression})`.mapWith(is(expression, Column) ? expression : String);
+}
 var init_aggregate = __esm({
   "node_modules/drizzle-orm/sql/functions/aggregate.js"() {
+    init_column();
+    init_entity();
     init_sql();
   }
 });
@@ -18153,22 +18158,27 @@ var init_postgres_js = __esm({
 // server/db/schema.ts
 var schema_exports = {};
 __export(schema_exports, {
+  AdminMonthlyReports: () => AdminMonthlyReports,
   BiblePeople: () => BiblePeople,
   BiblePlaces: () => BiblePlaces,
   BibleTranslations: () => BibleTranslations,
   BibleVerses: () => BibleVerses,
   ClerkUserMapping: () => ClerkUserMapping,
   Comments: () => Comments,
+  DiagnosticEvents: () => DiagnosticEvents,
+  DiagnosticIssueTriage: () => DiagnosticIssueTriage,
   FeaturedItems: () => FeaturedItems,
   InboxItemNotes: () => InboxItemNotes,
   InboxItems: () => InboxItems,
   Members: () => Members,
   MonthlyAnalytics: () => MonthlyAnalytics,
   NoteConnections: () => NoteConnections,
+  NoteFingerprints: () => NoteFingerprints,
   NoteScriptureReferences: () => NoteScriptureReferences2,
   NoteTags: () => NoteTags,
   NoteThreads: () => NoteThreads,
   Notes: () => Notes,
+  RecallEvents: () => RecallEvents,
   ResourceMetadata: () => ResourceMetadata,
   ScriptureCrossReferences: () => ScriptureCrossReferences,
   ScriptureEntityRefs: () => ScriptureEntityRefs,
@@ -18178,6 +18188,7 @@ __export(schema_exports, {
   SpaceInvitations: () => SpaceInvitations,
   Spaces: () => Spaces,
   StudyThreadEntries: () => StudyThreadEntries,
+  SupportTickets: () => SupportTickets,
   SyncDeletedEntities: () => SyncDeletedEntities,
   Tags: () => Tags,
   Threads: () => Threads,
@@ -18193,7 +18204,7 @@ __export(schema_exports, {
   VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences2, NoteConnections, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics;
+var ts, Spaces, Threads, Notes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences2, NoteFingerprints, RecallEvents, SupportTickets, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -18216,7 +18227,9 @@ var init_schema2 = __esm({
         isActive: boolean("isActive").notNull().default(true),
         order: integer("order").notNull().default(0),
         shareToken: text("shareToken"),
-        shareTokenCreatedAt: ts("shareTokenCreatedAt")
+        shareTokenCreatedAt: ts("shareTokenCreatedAt"),
+        /** JSON string[] — folder labels with zero notes (prototype empty-folder registry). */
+        prototypeEmptyFolderLabels: text("prototypeEmptyFolderLabels")
       },
       (table) => [
         index("Spaces_userIdIndex").on(table.userId),
@@ -18520,6 +18533,96 @@ var init_schema2 = __esm({
     }, (table) => [
       uniqueIndex("NoteScriptureReferences_uniqueNoteScripture").on(table.noteId, table.scriptureNoteId)
     ]);
+    NoteFingerprints = pgTable("NoteFingerprints", {
+      noteId: text("noteId").primaryKey(),
+      userId: text("userId").notNull(),
+      /** JSON array of theme labels (string[]), prose tags + passage themes, deduped. */
+      themes: text("themes"),
+      /** JSON array of people names (string[]) from the note's cited passages. */
+      people: text("people"),
+      /** JSON array of place names (string[]) from the note's cited passages. */
+      places: text("places"),
+      /** Distinct passage count (own + linked scripture notes). */
+      passageCount: integer("passageCount").notNull().default(0),
+      /** Dominant emotional tone slug, or null when no clear signal. */
+      emotionalTone: text("emotionalTone"),
+      /** JSON object of tone slug -> match count (string), for transparency. */
+      toneScores: text("toneScores"),
+      /** Composite meaning score in [0,1] — body depth, passages, highlights, tags, deliberate org. */
+      meaningWeight: real("meaningWeight").notNull().default(0),
+      /** Workstream B: spaced-repetition stability (days) after recall re-engagement; null = default base. */
+      recallStabilityDays: real("recallStabilityDays"),
+      /** Workstream B: last time the user opened this note via a recall card (ms since epoch in app layer). */
+      lastRecallEngagedAt: ts("lastRecallEngagedAt"),
+      /** Dominant Protestant canon section id (gospels, paul, law, …) from cited passages. */
+      canonSection: text("canonSection"),
+      /** ot | nt by passage weight across cited books. */
+      testament: text("testament"),
+      /** JSON string[] of all canon section ids present on cited passages. */
+      canonSections: text("canonSections"),
+      computedAt: ts("computedAt").notNull()
+    }, (table) => [
+      index("NoteFingerprints_userIdIndex").on(table.userId),
+      index("NoteFingerprints_userId_meaningWeightIndex").on(table.userId, table.meaningWeight)
+    ]);
+    RecallEvents = pgTable("RecallEvents", {
+      id: text("id").primaryKey(),
+      userId: text("userId").notNull(),
+      opportunityId: text("opportunityId").notNull(),
+      kind: text("kind").notNull(),
+      action: text("action").notNull(),
+      noteId: text("noteId"),
+      createdAt: ts("createdAt").notNull()
+    }, (table) => [
+      index("RecallEvents_userId_createdAtIndex").on(table.userId, table.createdAt),
+      index("RecallEvents_kind_action_createdAtIndex").on(table.kind, table.action, table.createdAt)
+    ]);
+    SupportTickets = pgTable("SupportTickets", {
+      id: text("id").primaryKey(),
+      ticketNumber: integer("ticketNumber").unique(),
+      userId: text("userId").notNull(),
+      topic: text("topic"),
+      message: text("message").notNull(),
+      userEmail: text("userEmail"),
+      userName: text("userName"),
+      appVersion: text("appVersion"),
+      pageUrl: text("pageUrl"),
+      clientEnvironment: text("clientEnvironment"),
+      status: text("status").notNull().default("open"),
+      adminNote: text("adminNote"),
+      adminReadAt: ts("adminReadAt"),
+      createdAt: ts("createdAt").notNull(),
+      closedAt: ts("closedAt")
+    }, (table) => [
+      index("SupportTickets_status_createdAtIndex").on(table.status, table.createdAt),
+      index("SupportTickets_userId_createdAtIndex").on(table.userId, table.createdAt),
+      index("SupportTickets_status_adminReadAtIndex").on(table.status, table.adminReadAt)
+    ]);
+    DiagnosticEvents = pgTable("DiagnosticEvents", {
+      id: text("id").primaryKey(),
+      issueSignature: text("issueSignature").notNull(),
+      source: text("source").notNull(),
+      severity: text("severity").notNull(),
+      message: text("message").notNull(),
+      stack: text("stack"),
+      route: text("route"),
+      platform: text("platform").notNull(),
+      appVersion: text("appVersion"),
+      anonymousSessionId: text("anonymousSessionId").notNull(),
+      manualNote: text("manualNote"),
+      metadata: text("metadata"),
+      createdAt: ts("createdAt").notNull()
+    }, (table) => [
+      index("DiagnosticEvents_issueSignature_createdAtIndex").on(table.issueSignature, table.createdAt),
+      index("DiagnosticEvents_createdAtIndex").on(table.createdAt),
+      index("DiagnosticEvents_anonymousSessionId_createdAtIndex").on(table.anonymousSessionId, table.createdAt)
+    ]);
+    DiagnosticIssueTriage = pgTable("DiagnosticIssueTriage", {
+      issueSignature: text("issueSignature").primaryKey(),
+      status: text("status").notNull().default("open"),
+      adminNotes: text("adminNotes"),
+      updatedAt: ts("updatedAt").notNull()
+    });
     NoteConnections = pgTable("NoteConnections", {
       id: text("id").primaryKey(),
       fromNoteId: text("fromNoteId").notNull(),
@@ -18782,6 +18885,17 @@ var init_schema2 = __esm({
       createdAt: ts("createdAt").notNull(),
       updatedAt: ts("updatedAt")
     });
+    AdminMonthlyReports = pgTable(
+      "AdminMonthlyReports",
+      {
+        id: text("id").primaryKey(),
+        month: text("month").notNull(),
+        seasonId: text("seasonId").notNull(),
+        generatedAt: ts("generatedAt").notNull(),
+        payload: text("payload").notNull()
+      },
+      (table) => [uniqueIndex("AdminMonthlyReports_month_unique").on(table.month)]
+    );
   }
 });
 
@@ -19225,6 +19339,63 @@ var init_translations = __esm({
   }
 });
 
+// src/utils/christ-keyword-context.ts
+function matchIsInsidePhrase(textLower, matchStart, matchEnd, re2) {
+  for (const m2 of textLower.matchAll(re2)) {
+    const start = m2.index ?? 0;
+    const end = start + m2[0].length;
+    if (matchStart >= start && matchEnd <= end) return true;
+  }
+  return false;
+}
+function isDevotionalChristNeedle(needleRaw) {
+  const needle = needleRaw.toLowerCase().trim();
+  return needle === "christ" || needle === "lord" || needle === "savior" || needle === "messiah";
+}
+function shouldSkipJesusCharacterNeedleMatch(keywordName, needleRaw, textLower, matchStart, matchEnd) {
+  if (keywordName.toLowerCase() !== "jesus") return false;
+  const needle = needleRaw.toLowerCase().trim();
+  if (!isDevotionalChristNeedle(needle)) return false;
+  for (const re2 of DEVOTIONAL_CHRIST_PHRASE_RES) {
+    if (matchIsInsidePhrase(textLower, matchStart, matchEnd, re2)) return true;
+  }
+  return false;
+}
+function shouldSuppressJesusAutoTag(keywordName, confidence, fullTextLower, titleLower, opts = {}) {
+  if (keywordName.toLowerCase() !== "jesus") return false;
+  if (opts.synonymOnly && confidence < JESUS_SYNONYM_ONLY_CONFIDENCE_THRESHOLD) {
+    return true;
+  }
+  const literalJesusInTitle = JESUS_LITERAL_RE.test(titleLower);
+  if (literalJesusInTitle) return false;
+  const literalMatches = [...fullTextLower.matchAll(JESUS_LITERAL_RE)];
+  if (literalMatches.length >= 2) return false;
+  if (literalMatches.length === 1) return false;
+  for (const re2 of DEVOTIONAL_CHRIST_PHRASE_RES) {
+    if (re2.test(fullTextLower)) return true;
+  }
+  return false;
+}
+var DEVOTIONAL_CHRIST_PHRASE_RES, JESUS_LITERAL_RE, JESUS_SYNONYM_ONLY_CONFIDENCE_THRESHOLD;
+var init_christ_keyword_context = __esm({
+  "src/utils/christ-keyword-context.ts"() {
+    "use strict";
+    DEVOTIONAL_CHRIST_PHRASE_RES = [
+      /\bin\s+christ\b/giu,
+      /\bthrough\s+christ\b/giu,
+      /\brelationship\s+with\s+(?:christ|jesus|the\s+lord|lord)\b/giu,
+      /\bo\s+lord\b/giu,
+      /\bdear\s+lord\b/giu,
+      /\blord\s+help\b/giu,
+      /\blord\s+i\b/giu,
+      /\bthank\s+you\s+lord\b/giu,
+      /\bpraise\s+(?:you\s+)?lord\b/giu
+    ];
+    JESUS_LITERAL_RE = /\bjesus\b/giu;
+    JESUS_SYNONYM_ONLY_CONFIDENCE_THRESHOLD = 0.88;
+  }
+});
+
 // src/utils/person-name-context.ts
 function isCapitalizedToken(word) {
   const first2 = word.charAt(0);
@@ -19306,10 +19477,11 @@ function findWordBoundMatches(trie, title, content) {
         const phraseWords = words.slice(i, i + len);
         const stats = lookupPhrase(root, phraseWords);
         if (!stats) continue;
-        if (!occurrenceIsValidForPersonContext(text2, words, i, len, stats[0].keyword.category)) {
-          continue;
-        }
+        const phraseText = phraseWords.join(" ");
         for (const { keyword, isSynonym } of stats) {
+          if (!occurrenceIsValidForPersonContext(text2, words, i, len, keyword, isSynonym, phraseText)) {
+            continue;
+          }
           const conf = isSynonym ? keyword.confidence * 0.8 : keyword.confidence;
           const existing = result.get(keyword);
           if (!existing) {
@@ -19336,13 +19508,15 @@ function findWordBoundMatches(trie, title, content) {
 function escapeRegexToken(s2) {
   return s2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-function occurrenceIsValidForPersonContext(text2, words, wordIndex, phraseLen, category) {
+function occurrenceIsValidForPersonContext(text2, words, wordIndex, phraseLen, keyword, isSynonym, phraseText) {
+  const category = keyword.category;
   if (category !== "character" && !(category === "book" && phraseLen === 1)) {
     return true;
   }
   const phraseWords = words.slice(wordIndex, wordIndex + phraseLen);
   const pattern = phraseWords.length === 1 ? `\\b${escapeRegexToken(phraseWords[0])}\\b` : `\\b${phraseWords.map(escapeRegexToken).join("\\s+")}\\b`;
   const re2 = new RegExp(pattern, "giu");
+  const textLower = text2.toLowerCase();
   let seen = 0;
   for (const m2 of text2.matchAll(re2)) {
     const start = m2.index ?? 0;
@@ -19351,7 +19525,11 @@ function occurrenceIsValidForPersonContext(text2, words, wordIndex, phraseLen, c
     if (wordsBefore !== wordIndex) continue;
     seen += 1;
     if (seen > 1) return true;
-    return !shouldSkipPersonNameContext(m2[0], text2, start, end);
+    if (shouldSkipPersonNameContext(m2[0], text2, start, end)) return false;
+    if (shouldSkipJesusCharacterNeedleMatch(keyword.name, phraseText, textLower, start, end)) {
+      return false;
+    }
+    return true;
   }
   return false;
 }
@@ -19367,6 +19545,7 @@ var MAX_PHRASE_WORDS;
 var init_keyword_trie = __esm({
   "src/utils/keyword-trie.ts"() {
     "use strict";
+    init_christ_keyword_context();
     init_person_name_context();
     MAX_PHRASE_WORDS = 5;
   }
@@ -19627,7 +19806,7 @@ var init_bible_study_keywords = __esm({
       { name: "Jude", category: "book", synonyms: [], confidence: 0.9 },
       { name: "Revelation", category: "book", synonyms: ["rev", "apocalypse"], confidence: 0.9 },
       // Biblical Characters
-      { name: "Jesus", category: "character", synonyms: ["christ", "jesus christ", "lord", "savior", "messiah", "jesus's", "jesus'"], confidence: 0.95 },
+      { name: "Jesus", category: "character", synonyms: ["christ", "jesus christ", "lord jesus", "our lord", "savior", "messiah", "jesus's", "jesus'"], confidence: 0.95 },
       { name: "God", category: "character", synonyms: ["lord", "father", "almighty", "creator", "god's"], confidence: 0.95 },
       { name: "Holy Spirit", category: "character", synonyms: ["spirit", "holy ghost", "comforter"], confidence: 0.9 },
       { name: "Moses", category: "character", synonyms: ["moses'", "moses's"], confidence: 0.9 },
@@ -30265,11 +30444,22 @@ function listPreviewSegmentsFromHtml(html) {
   const fallback = stripHtml(html, { preserveSpacing: true }).trim();
   return fallback ? [fallback] : [];
 }
+function repairTruncatedHtmlForListPreview(html) {
+  if (!html.includes("data-scripture-reference") || !/<[^>]*$/.test(html)) return html;
+  let s2 = html;
+  const partialRef = s2.match(/data-scripture-reference\s*=\s*["']([^"'>]*)/i)?.[1]?.trim();
+  if (partialRef) {
+    s2 = s2.replace(/<span\b[\s\S]*$/i, `${partialRef} `);
+  }
+  s2 = s2.replace(/<[^>]*$/g, "");
+  s2 = s2.replace(/<p\b[^>]*$/gi, "");
+  return s2;
+}
 function stripHtmlForListPreview(html, maxLength = 80) {
   if (!html) return "";
-  let normalized = html;
-  if (typeof document !== "undefined" && html.includes("data-scripture-reference")) {
-    normalized = repairScripturePillTranslationsInHtml(html, getEffectiveDefaultTranslation());
+  let normalized = repairTruncatedHtmlForListPreview(html);
+  if (typeof document !== "undefined" && normalized.includes("data-scripture-reference")) {
+    normalized = repairScripturePillTranslationsInHtml(normalized, getEffectiveDefaultTranslation());
   }
   const segments = listPreviewSegmentsFromHtml(normalized);
   let out = "";
@@ -30453,6 +30643,173 @@ var init_unorganized_thread = __esm({
     init_db2();
     init_dates();
     init_my_pile_thread();
+  }
+});
+
+// server/utils/pg-undefined-relation.ts
+function isPgUndefinedRelation(error, relationName) {
+  const needle = `relation "${relationName}" does not exist`;
+  let current = error;
+  const seen = /* @__PURE__ */ new Set();
+  for (let depth = 0; depth < 12 && current != null; depth++) {
+    if (typeof current === "object" && current !== null) {
+      if (seen.has(current)) break;
+      seen.add(current);
+    }
+    const msg = current instanceof Error ? current.message : typeof current === "string" ? current : "";
+    const code = current !== null && typeof current === "object" && "code" in current && current.code != null ? String(current.code) : "";
+    if (msg.includes(needle)) return true;
+    if (code === "42P01" && msg.includes(relationName)) return true;
+    current = current instanceof Error && "cause" in current ? current.cause : void 0;
+  }
+  return false;
+}
+function isStudyThreadEntriesTableMissing(error) {
+  return isPgUndefinedRelation(error, "StudyThreadEntries");
+}
+function isNoteConnectionsTableMissing(error) {
+  return isPgUndefinedRelation(error, "NoteConnections");
+}
+function isSyncDeletedEntitiesTableMissing(error) {
+  return isPgUndefinedRelation(error, "SyncDeletedEntities");
+}
+function isNoteFingerprintsTableMissing(error) {
+  return isPgUndefinedRelation(error, "NoteFingerprints");
+}
+function isRecallEventsTableMissing(error) {
+  return isPgUndefinedRelation(error, "RecallEvents");
+}
+function isSupportTicketsTableMissing(error) {
+  return isPgUndefinedRelation(error, "SupportTickets");
+}
+function isDiagnosticEventsTableMissing(error) {
+  return isPgUndefinedRelation(error, "DiagnosticEvents");
+}
+function isDiagnosticIssueTriageTableMissing(error) {
+  return isPgUndefinedRelation(error, "DiagnosticIssueTriage");
+}
+function isPgUndefinedColumn(error, columnName) {
+  const needles = [`column "${columnName}" does not exist`, `column ${columnName} does not exist`];
+  let current = error;
+  const seen = /* @__PURE__ */ new Set();
+  for (let depth = 0; depth < 12 && current != null; depth++) {
+    if (typeof current === "object" && current !== null) {
+      if (seen.has(current)) break;
+      seen.add(current);
+    }
+    const msg = current instanceof Error ? current.message : typeof current === "string" ? current : "";
+    const code = current !== null && typeof current === "object" && "code" in current && current.code != null ? String(current.code) : "";
+    if (needles.some((n) => msg.includes(n))) return true;
+    if (code === "42703" && msg.includes(columnName)) return true;
+    if (msg.includes("Failed query") && msg.includes(`"${columnName}"`)) return true;
+    current = current instanceof Error && "cause" in current ? current.cause : void 0;
+  }
+  return false;
+}
+function isStudyThreadNamingColumnMissing(error) {
+  return isPgUndefinedColumn(error, "studyThreadUserOverride") || isPgUndefinedColumn(error, "studyThreadPinned") || isPgUndefinedColumn(error, "studyThreadLastAutoSuggestedAt") || isPgUndefinedColumn(error, "studyThreadTitle");
+}
+function isPrototypeFolderStatsColumnMissing(error) {
+  return isPgUndefinedColumn(error, "primaryCollection") || isPgUndefinedColumn(error, "secondaryCollections") || isPgUndefinedColumn(error, "prototypeEmptyFolderLabels");
+}
+var init_pg_undefined_relation = __esm({
+  "server/utils/pg-undefined-relation.ts"() {
+    "use strict";
+  }
+});
+
+// src/utils/bible-study-concept-overlaps.ts
+var bible_study_concept_overlaps_exports = {};
+__export(bible_study_concept_overlaps_exports, {
+  conceptOverlaps: () => conceptOverlaps,
+  conceptOverlapsAny: () => conceptOverlapsAny,
+  dedupeKeywordRowsByConceptOverlap: () => dedupeKeywordRowsByConceptOverlap,
+  folderLabelsForTagExclusion: () => folderLabelsForTagExclusion
+});
+function conceptOverlaps(a, b3) {
+  const x2 = a.trim().toLowerCase();
+  const y2 = b3.trim().toLowerCase();
+  if (!x2 || !y2) return false;
+  if (x2 === y2) return true;
+  if (x2.includes(y2) || y2.includes(x2)) return true;
+  for (const [p, q2] of CONCEPT_OVERLAP_PAIRS) {
+    if (x2 === p && y2 === q2 || x2 === q2 && y2 === p) return true;
+  }
+  return false;
+}
+function conceptOverlapsAny(name, labels) {
+  for (const label of labels) {
+    if (conceptOverlaps(name, label)) return true;
+  }
+  return false;
+}
+function dedupeKeywordRowsByConceptOverlap(rows, getName3, getScore) {
+  const sorted = [...rows].sort((a, b3) => getScore(b3) - getScore(a));
+  const picked = [];
+  for (const row of sorted) {
+    const name = getName3(row);
+    if (picked.some((existing) => conceptOverlaps(name, getName3(existing)))) continue;
+    if (picked.some((existing) => getName3(existing).toLowerCase() === name.toLowerCase())) continue;
+    picked.push(row);
+  }
+  return picked;
+}
+function folderLabelsForTagExclusion(primary, secondaries) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const add2 = (raw2) => {
+    const t = (raw2 ?? "").trim();
+    if (!t.length) return;
+    const low = t.toLowerCase();
+    if (seen.has(low)) return;
+    seen.add(low);
+    out.push(t);
+  };
+  add2(primary);
+  for (const s2 of secondaries ?? []) add2(s2);
+  return out;
+}
+var CONCEPT_OVERLAP_PAIRS;
+var init_bible_study_concept_overlaps = __esm({
+  "src/utils/bible-study-concept-overlaps.ts"() {
+    "use strict";
+    CONCEPT_OVERLAP_PAIRS = [
+      ["goodness", "righteousness"],
+      ["grace", "mercy"],
+      ["love", "mercy"],
+      ["faith", "belief"],
+      ["hope", "faith"],
+      ["peace", "joy"],
+      ["kingdom of god", "heaven"],
+      ["resurrection", "eternal life"],
+      ["eternal life", "everlasting life"],
+      ["holy spirit", "spirit"],
+      ["jesus", "christ"],
+      ["god", "father"],
+      ["god", "lord"],
+      ["prayer", "intercession"],
+      ["thanksgiving", "thankfulness"],
+      ["salvation", "redemption"],
+      ["cross", "atonement"],
+      ["gospel", "mission"],
+      ["mission", "evangelism"],
+      ["discipleship", "spiritual growth"],
+      ["sanctification", "holiness"],
+      ["grief", "lament"],
+      ["fear", "anxiety"],
+      ["healing", "restoration"],
+      ["deliverance", "salvation"],
+      ["reconciliation", "forgiveness"],
+      ["church", "body of christ"],
+      ["second coming", "return of christ"],
+      ["stewardship", "generosity"],
+      ["contentment", "rest"],
+      ["wisdom", "discernment"],
+      ["sin", "temptation"],
+      ["idolatry", "false gods"],
+      ["trust", "faith"],
+      ["justice", "mercy"]
+    ];
   }
 });
 
@@ -52413,102 +52770,6 @@ var init_harvous_admin = __esm({
   }
 });
 
-// src/utils/bible-study-concept-overlaps.ts
-var bible_study_concept_overlaps_exports = {};
-__export(bible_study_concept_overlaps_exports, {
-  conceptOverlaps: () => conceptOverlaps,
-  conceptOverlapsAny: () => conceptOverlapsAny,
-  dedupeKeywordRowsByConceptOverlap: () => dedupeKeywordRowsByConceptOverlap,
-  folderLabelsForTagExclusion: () => folderLabelsForTagExclusion
-});
-function conceptOverlaps(a, b3) {
-  const x2 = a.trim().toLowerCase();
-  const y2 = b3.trim().toLowerCase();
-  if (!x2 || !y2) return false;
-  if (x2 === y2) return true;
-  if (x2.includes(y2) || y2.includes(x2)) return true;
-  for (const [p, q2] of CONCEPT_OVERLAP_PAIRS) {
-    if (x2 === p && y2 === q2 || x2 === q2 && y2 === p) return true;
-  }
-  return false;
-}
-function conceptOverlapsAny(name, labels) {
-  for (const label of labels) {
-    if (conceptOverlaps(name, label)) return true;
-  }
-  return false;
-}
-function dedupeKeywordRowsByConceptOverlap(rows, getName3, getScore) {
-  const sorted = [...rows].sort((a, b3) => getScore(b3) - getScore(a));
-  const picked = [];
-  for (const row of sorted) {
-    const name = getName3(row);
-    if (picked.some((existing) => conceptOverlaps(name, getName3(existing)))) continue;
-    if (picked.some((existing) => getName3(existing).toLowerCase() === name.toLowerCase())) continue;
-    picked.push(row);
-  }
-  return picked;
-}
-function folderLabelsForTagExclusion(primary, secondaries) {
-  const out = [];
-  const seen = /* @__PURE__ */ new Set();
-  const add2 = (raw2) => {
-    const t = (raw2 ?? "").trim();
-    if (!t.length) return;
-    const low = t.toLowerCase();
-    if (seen.has(low)) return;
-    seen.add(low);
-    out.push(t);
-  };
-  add2(primary);
-  for (const s2 of secondaries ?? []) add2(s2);
-  return out;
-}
-var CONCEPT_OVERLAP_PAIRS;
-var init_bible_study_concept_overlaps = __esm({
-  "src/utils/bible-study-concept-overlaps.ts"() {
-    "use strict";
-    CONCEPT_OVERLAP_PAIRS = [
-      ["goodness", "righteousness"],
-      ["grace", "mercy"],
-      ["love", "mercy"],
-      ["faith", "belief"],
-      ["hope", "faith"],
-      ["peace", "joy"],
-      ["kingdom of god", "heaven"],
-      ["resurrection", "eternal life"],
-      ["eternal life", "everlasting life"],
-      ["holy spirit", "spirit"],
-      ["jesus", "christ"],
-      ["jesus", "lord"],
-      ["god", "father"],
-      ["god", "lord"],
-      ["prayer", "intercession"],
-      ["thanksgiving", "thankfulness"],
-      ["salvation", "redemption"],
-      ["cross", "atonement"],
-      ["gospel", "mission"],
-      ["mission", "evangelism"],
-      ["discipleship", "spiritual growth"],
-      ["sanctification", "holiness"],
-      ["grief", "lament"],
-      ["fear", "anxiety"],
-      ["healing", "restoration"],
-      ["deliverance", "salvation"],
-      ["reconciliation", "forgiveness"],
-      ["church", "body of christ"],
-      ["second coming", "return of christ"],
-      ["stewardship", "generosity"],
-      ["contentment", "rest"],
-      ["wisdom", "discernment"],
-      ["sin", "temptation"],
-      ["idolatry", "false gods"],
-      ["trust", "faith"],
-      ["justice", "mercy"]
-    ];
-  }
-});
-
 // src/utils/bible-place-name.ts
 function normalizePlaceName(name) {
   return name.replace(/\s+\d+$/, "").trim();
@@ -52516,6 +52777,129 @@ function normalizePlaceName(name) {
 var init_bible_place_name = __esm({
   "src/utils/bible-place-name.ts"() {
     "use strict";
+  }
+});
+
+// src/utils/scripture-osis.ts
+function canonicalBookOrder(book) {
+  return bookOrder.get(book) ?? Number.POSITIVE_INFINITY;
+}
+function bookByOrder(order) {
+  return orderToBook.get(order) ?? null;
+}
+var chapterEndVerse, bookOrder, orderToBook;
+var init_scripture_osis = __esm({
+  "src/utils/scripture-osis.ts"() {
+    "use strict";
+    init_bible_chapters();
+    chapterEndVerse = /* @__PURE__ */ new Map();
+    bookOrder = /* @__PURE__ */ new Map();
+    for (const row of bible_chapters_default) {
+      if (!chapterEndVerse.has(row.book)) chapterEndVerse.set(row.book, /* @__PURE__ */ new Map());
+      chapterEndVerse.get(row.book).set(row.chapter, row.endVerse);
+      if (!bookOrder.has(row.book)) bookOrder.set(row.book, row.bookOrder);
+    }
+    orderToBook = /* @__PURE__ */ new Map();
+    for (const [book, order] of bookOrder) orderToBook.set(order, book);
+  }
+});
+
+// src/utils/admin-pulse-canon-groups.ts
+function canonGroupForBookOrder(order) {
+  if (!Number.isFinite(order) || order < 1) return null;
+  return CANON_BOOK_GROUPS.find((group) => order >= group.orderStart && order <= group.orderEnd) ?? null;
+}
+function canonGroupForBook(book) {
+  const order = canonicalBookOrder(book);
+  if (!Number.isFinite(order)) return null;
+  return canonGroupForBookOrder(order);
+}
+function dominantCanonProfile(books) {
+  const empty = {
+    sectionId: null,
+    sectionLabel: null,
+    testament: null,
+    sectionIds: []
+  };
+  if (books.length === 0) return empty;
+  const sectionCounts = /* @__PURE__ */ new Map();
+  const testamentCounts = { ot: 0, nt: 0 };
+  const sectionOrder = /* @__PURE__ */ new Map();
+  for (const book of books) {
+    const group = canonGroupForBook(book);
+    if (!group) continue;
+    sectionCounts.set(group.id, (sectionCounts.get(group.id) ?? 0) + 1);
+    testamentCounts[group.testament] += 1;
+    const order = canonicalBookOrder(book);
+    if (Number.isFinite(order)) {
+      const prev = sectionOrder.get(group.id);
+      if (prev == null || order < prev) sectionOrder.set(group.id, order);
+    }
+  }
+  if (sectionCounts.size === 0) return empty;
+  const sectionIds = CANON_BOOK_GROUPS.filter((g2) => sectionCounts.has(g2.id)).map((g2) => g2.id);
+  let bestId = null;
+  let bestCount = 0;
+  let bestOrder = Infinity;
+  for (const [id, count3] of sectionCounts) {
+    const order = sectionOrder.get(id) ?? Infinity;
+    if (count3 > bestCount || count3 === bestCount && order < bestOrder) {
+      bestId = id;
+      bestCount = count3;
+      bestOrder = order;
+    }
+  }
+  const dominant = bestId ? CANON_BOOK_GROUPS.find((g2) => g2.id === bestId) ?? null : null;
+  let testament = null;
+  if (testamentCounts.ot > testamentCounts.nt) testament = "ot";
+  else if (testamentCounts.nt > testamentCounts.ot) testament = "nt";
+  else testament = dominant?.testament ?? null;
+  return {
+    sectionId: dominant?.id ?? null,
+    sectionLabel: dominant?.label ?? null,
+    testament,
+    sectionIds
+  };
+}
+function aggregateCanonGroupCounts(bookCounts) {
+  const orderToCount = /* @__PURE__ */ new Map();
+  for (const row of bookCounts) {
+    const order = canonicalBookOrder(row.name);
+    if (!Number.isFinite(order)) continue;
+    orderToCount.set(order, (orderToCount.get(order) ?? 0) + row.count);
+  }
+  const total = [...orderToCount.values()].reduce((sum2, count3) => sum2 + count3, 0);
+  return CANON_BOOK_GROUPS.map((group) => {
+    let count3 = 0;
+    for (let order = group.orderStart; order <= group.orderEnd; order += 1) {
+      count3 += orderToCount.get(order) ?? 0;
+    }
+    return {
+      id: group.id,
+      label: group.label,
+      testament: group.testament,
+      count: count3,
+      sharePct: total > 0 ? Math.round(count3 / total * 1e3) / 10 : 0
+    };
+  });
+}
+var CANON_BOOK_GROUPS;
+var init_admin_pulse_canon_groups = __esm({
+  "src/utils/admin-pulse-canon-groups.ts"() {
+    "use strict";
+    init_scripture_osis();
+    CANON_BOOK_GROUPS = [
+      { id: "law", label: "Law", orderStart: 1, orderEnd: 5, testament: "ot" },
+      { id: "history", label: "History", orderStart: 6, orderEnd: 17, testament: "ot" },
+      { id: "wisdom", label: "Wisdom", orderStart: 18, orderEnd: 22, testament: "ot" },
+      { id: "major-prophets", label: "Major prophets", orderStart: 23, orderEnd: 27, testament: "ot" },
+      { id: "minor-prophets", label: "Minor prophets", orderStart: 28, orderEnd: 39, testament: "ot" },
+      { id: "gospels", label: "Gospels", orderStart: 40, orderEnd: 43, testament: "nt" },
+      { id: "acts", label: "Acts", orderStart: 44, orderEnd: 44, testament: "nt" },
+      { id: "paul", label: "Paul's letters", orderStart: 45, orderEnd: 57, testament: "nt" },
+      { id: "general-epistles", label: "General letters", orderStart: 58, orderEnd: 65, testament: "nt" },
+      { id: "revelation", label: "Revelation", orderStart: 66, orderEnd: 66, testament: "nt" }
+    ];
   }
 });
 
@@ -52628,7 +53012,7 @@ async function getKnowledgeForPassages(passages, opts = {}) {
   };
 }
 function rankRelatedNotes(signals, opts = {}) {
-  const { limit = 10 } = opts;
+  const { limit = 10, sourceSectionId, noteSectionById } = opts;
   const byNote = /* @__PURE__ */ new Map();
   for (const s2 of signals) {
     let entry = byNote.get(s2.noteId);
@@ -52643,14 +53027,18 @@ function rankRelatedNotes(signals, opts = {}) {
   const ranked = [];
   for (const [noteId, e] of byNote) {
     const themeCount = Math.min(e.themes.size, MAX_THEME_SIGNALS);
-    const score = e.passages.size * SIGNAL_WEIGHT.passage + e.crossrefs.size * SIGNAL_WEIGHT.crossref + themeCount * SIGNAL_WEIGHT.theme;
+    const sameSection = Boolean(
+      sourceSectionId && noteSectionById?.[noteId] && noteSectionById[noteId] === sourceSectionId
+    );
+    const score = e.passages.size * SIGNAL_WEIGHT.passage + e.crossrefs.size * SIGNAL_WEIGHT.crossref + themeCount * SIGNAL_WEIGHT.theme + (sameSection ? SECTION_MATCH_BOOST : 0);
     if (score <= 0) continue;
     ranked.push({
       noteId,
       score,
       sharedPassages: [...e.passages],
       sharedCrossRefs: [...e.crossrefs],
-      sharedThemes: [...e.themes]
+      sharedThemes: [...e.themes],
+      sameSection
     });
   }
   ranked.sort((a, b3) => b3.score - a.score || a.noteId.localeCompare(b3.noteId));
@@ -52701,7 +53089,18 @@ async function getRelatedNotesForPassages(userId, sourcePassages, opts = {}) {
       for (const nid of notes) signals.push({ noteId: nid, kind: "theme", detail: hit.topicId });
     }
   }
-  return rankRelatedNotes(signals, { limit });
+  const sourceSectionId = dominantCanonProfile(deduped.map((p) => p.book)).sectionId;
+  const booksByNote = /* @__PURE__ */ new Map();
+  for (const c of candidates) {
+    const list = booksByNote.get(c.noteId);
+    if (list) list.push(c.book);
+    else booksByNote.set(c.noteId, [c.book]);
+  }
+  const noteSectionById = {};
+  for (const [nid, books] of booksByNote) {
+    noteSectionById[nid] = dominantCanonProfile(books).sectionId;
+  }
+  return rankRelatedNotes(signals, { limit, sourceSectionId, noteSectionById });
 }
 async function getRelatedNotesForNote(noteId, opts = {}) {
   const note = (await db.select({ id: Notes.id, userId: Notes.userId }).from(Notes).where(eq(Notes.id, noteId)).limit(1))[0];
@@ -52713,6 +53112,7 @@ async function getRelatedNotesForNote(noteId, opts = {}) {
 function relatedNoteReason(r) {
   if (r.sharedPassages.length) return "Same passage";
   if (r.sharedCrossRefs.length) return "Cross-reference";
+  if (r.sameSection) return "Same section";
   return "Shared theme";
 }
 function mergeCrossReferences(rows, limit) {
@@ -52808,15 +53208,17 @@ async function getUserPassageKnowledge(userId, opts = {}) {
   }
   return out;
 }
-var verseKey, MIN_THEME_CORROBORATION_RELEVANCE, SIGNAL_WEIGHT, MAX_THEME_SIGNALS;
+var verseKey, MIN_THEME_CORROBORATION_RELEVANCE, SIGNAL_WEIGHT, SECTION_MATCH_BOOST, MAX_THEME_SIGNALS;
 var init_scripture_knowledge = __esm({
   "server/utils/scripture-knowledge.ts"() {
     "use strict";
     init_db2();
     init_bible_place_name();
+    init_admin_pulse_canon_groups();
     verseKey = (v2) => `${v2.book}|${v2.chapter}|${v2.verse}`;
     MIN_THEME_CORROBORATION_RELEVANCE = 50;
     SIGNAL_WEIGHT = { passage: 3, crossref: 2, theme: 1 };
+    SECTION_MATCH_BOOST = 1;
     MAX_THEME_SIGNALS = 5;
   }
 });
@@ -53069,24 +53471,36 @@ var init_person_tag_detector = __esm({
   }
 });
 
-// src/utils/scripture-osis.ts
-function canonicalBookOrder(book) {
-  return bookOrder.get(book) ?? Number.POSITIVE_INFINITY;
+// src/utils/universal-bible-entities.ts
+function isUniversalBibleEntity(name) {
+  return UNIVERSAL_BIBLE_ENTITIES.has(name.trim().toLowerCase());
 }
-var chapterEndVerse, bookOrder, orderToBook;
-var init_scripture_osis = __esm({
-  "src/utils/scripture-osis.ts"() {
+function filterUniversalBibleEntities(labels) {
+  return labels.filter((raw2) => {
+    const label = raw2.trim();
+    return label.length > 0 && !isUniversalBibleEntity(label);
+  });
+}
+function isCanonicalBookName(name) {
+  return canonicalBookOrder(name.trim()) !== Number.POSITIVE_INFINITY;
+}
+function filterPulseDiscoveryThemes(items, limit = 10) {
+  return items.filter((item) => !isUniversalBibleEntity(item.name) && !isCanonicalBookName(item.name)).slice(0, Math.max(0, limit));
+}
+var UNIVERSAL_BIBLE_ENTITY_NAMES, UNIVERSAL_BIBLE_ENTITIES;
+var init_universal_bible_entities = __esm({
+  "src/utils/universal-bible-entities.ts"() {
     "use strict";
-    init_bible_chapters();
-    chapterEndVerse = /* @__PURE__ */ new Map();
-    bookOrder = /* @__PURE__ */ new Map();
-    for (const row of bible_chapters_default) {
-      if (!chapterEndVerse.has(row.book)) chapterEndVerse.set(row.book, /* @__PURE__ */ new Map());
-      chapterEndVerse.get(row.book).set(row.chapter, row.endVerse);
-      if (!bookOrder.has(row.book)) bookOrder.set(row.book, row.bookOrder);
-    }
-    orderToBook = /* @__PURE__ */ new Map();
-    for (const [book, order] of bookOrder) orderToBook.set(order, book);
+    init_scripture_osis();
+    UNIVERSAL_BIBLE_ENTITY_NAMES = [
+      "god",
+      "jesus",
+      "christ",
+      "holy spirit",
+      "lord",
+      "the lord"
+    ];
+    UNIVERSAL_BIBLE_ENTITIES = new Set(UNIVERSAL_BIBLE_ENTITY_NAMES);
   }
 });
 
@@ -53124,6 +53538,7 @@ function mergePassageTags(prose, candidates, opts = {}) {
     const key2 = c.keyword.toLowerCase();
     if (present.has(key2)) continue;
     if (dismissed.includes(key2)) continue;
+    if (isUniversalBibleEntity(c.keyword)) continue;
     if (netNewConfidence < threshold) continue;
     if (out.some((s2) => conceptOverlaps(c.keyword, s2.keyword))) continue;
     if (excludeLabels.some((l) => conceptOverlaps(c.keyword, l))) continue;
@@ -53201,12 +53616,351 @@ var init_passage_aware_tags = __esm({
   "server/utils/passage-aware-tags.ts"() {
     "use strict";
     init_bible_study_concept_overlaps();
+    init_universal_bible_entities();
     init_scripture_osis();
     init_db2();
     init_scripture_knowledge();
     ENTITY_RELEVANCE = 1e6;
     NET_NEW_CONFIDENCE = 0.8;
     CORROBORATION_BOOST = 0.1;
+  }
+});
+
+// src/utils/bible-study-tone-lexicon.ts
+function tokenize2(text2) {
+  if (!text2 || !text2.trim()) return [];
+  return text2.toLowerCase().replace(/[^\p{L}\p{N}'\s-]/gu, " ").split(/[\s-]+/).filter(Boolean);
+}
+function detectEmotionalTone(text2) {
+  const tokens = tokenize2(text2);
+  if (!tokens.length) return { tone: null, scores: {} };
+  const scores = {};
+  for (const entry of TONE_LEXICON) {
+    let count3 = 0;
+    const wordSet = new Set(entry.words);
+    const stems = entry.stems.filter((s2) => s2.length >= STEM_MIN_LENGTH);
+    for (const token of tokens) {
+      if (wordSet.has(token) || stems.some((s2) => token.startsWith(s2))) count3++;
+    }
+    if (count3 > 0) scores[entry.tone] = count3;
+  }
+  let best = null;
+  let bestCount = 0;
+  let tied = false;
+  for (const entry of TONE_LEXICON) {
+    const c = scores[entry.tone] ?? 0;
+    if (c > bestCount) {
+      best = entry.tone;
+      bestCount = c;
+      tied = false;
+    } else if (c === bestCount && c > 0) {
+      tied = true;
+    }
+  }
+  if (bestCount < MIN_TONE_MATCHES || tied) return { tone: null, scores };
+  return { tone: best, scores };
+}
+var TONE_LEXICON, MIN_TONE_MATCHES, STEM_MIN_LENGTH;
+var init_bible_study_tone_lexicon = __esm({
+  "src/utils/bible-study-tone-lexicon.ts"() {
+    "use strict";
+    TONE_LEXICON = [
+      {
+        tone: "lament",
+        words: ["lament", "grief", "sorrow", "mourning", "despair", "broken", "brokenness", "weep", "wept", "tears", "anguish", "distress", "suffering", "pain", "hurting", "loss", "empty", "darkness", "why"],
+        stems: ["lament", "griev", "mourn", "sorrow", "despair", "suffer", "anguish"]
+      },
+      {
+        tone: "joy",
+        words: ["joy", "joyful", "rejoice", "rejoicing", "glad", "gladness", "delight", "celebrate", "celebration", "happy", "happiness", "cheer", "jubilant", "exult"],
+        stems: ["rejoic", "delight", "celebrat", "exult", "jubil"]
+      },
+      {
+        tone: "fear",
+        words: ["fear", "afraid", "anxious", "anxiety", "worry", "worried", "dread", "terrified", "terror", "scared", "panic", "fearful", "uncertain", "doubt", "doubts"],
+        stems: ["anxio", "anxie", "worri", "terrif", "fright", "doubt"]
+      },
+      {
+        tone: "gratitude",
+        words: ["thank", "thanks", "thankful", "grateful", "gratitude", "thanksgiving", "blessed", "blessing", "blessings", "appreciate", "provision", "provided"],
+        stems: ["thank", "grateful", "gratitud", "apprecia", "bless"]
+      },
+      {
+        tone: "hope",
+        words: ["hope", "hopeful", "hoping", "await", "awaiting", "expectation", "promise", "promises", "future", "anticipate", "longing", "yearning", "wait", "waiting"],
+        stems: ["hope", "anticipat", "expectan", "long", "yearn", "promis"]
+      },
+      {
+        tone: "conviction",
+        words: ["sin", "sinful", "repent", "repentance", "confess", "confession", "guilt", "guilty", "shame", "convicted", "conviction", "rebuke", "wrong", "failed", "failure", "forgive", "forgiveness"],
+        stems: ["repent", "confess", "convict", "rebuk", "forgiv", "guilt"]
+      },
+      {
+        tone: "awe",
+        words: ["awe", "wonder", "glory", "glorious", "majesty", "majestic", "holy", "holiness", "mighty", "sovereign", "sovereignty", "marvel", "marvelous", "reverence", "worship", "magnificent", "splendor"],
+        stems: ["majest", "sovereig", "marvel", "reveren", "magnific", "glori", "wondrous"]
+      },
+      {
+        tone: "peace",
+        words: ["peace", "peaceful", "rest", "calm", "comfort", "comforted", "comforting", "still", "stillness", "assurance", "assured", "secure", "safe", "refuge", "trust", "content", "contentment"],
+        stems: ["comfort", "assur", "refuge", "content", "tranquil"]
+      }
+    ];
+    MIN_TONE_MATCHES = 2;
+    STEM_MIN_LENGTH = 4;
+  }
+});
+
+// server/utils/note-fingerprint.ts
+var note_fingerprint_exports = {};
+__export(note_fingerprint_exports, {
+  buildNoteFingerprintData: () => buildNoteFingerprintData,
+  computeAndStoreNoteFingerprint: () => computeAndStoreNoteFingerprint,
+  computeMeaningWeight: () => computeMeaningWeight,
+  findNotesMissingFingerprint: () => findNotesMissingFingerprint,
+  getNoteFingerprint: () => getNoteFingerprint,
+  getUserNoteFingerprints: () => getUserNoteFingerprints,
+  htmlToVisibleText: () => htmlToVisibleText
+});
+function computeMeaningWeight(s2) {
+  const depth = Math.min(1, s2.visibleTextLength / DEPTH_SATURATION) * 0.25;
+  const passages = Math.min(1, s2.passageCount / 4) * 0.2;
+  const highlights = Math.min(1, s2.highlightCount / 3) * 0.2;
+  const tags = Math.min(1, s2.tagCount / 5) * 0.1;
+  const intentCount = (s2.deliberateOrg ? 1 : 0) + (s2.hasConnections ? 1 : 0) + (s2.isPinned ? 1 : 0);
+  const intent = Math.min(1, intentCount / 2) * 0.25;
+  const score = depth + passages + highlights + tags + intent;
+  return Math.round(Math.min(1, Math.max(0, score)) * 1e4) / 1e4;
+}
+function dedupeLabels(labels, limit) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const raw2 of labels) {
+    const label = raw2.trim();
+    if (!label) continue;
+    const key2 = label.toLowerCase();
+    if (seen.has(key2)) continue;
+    seen.add(key2);
+    out.push(label);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+function buildNoteFingerprintData(input) {
+  const themes = dedupeLabels(
+    filterUniversalBibleEntities([...input.proseTagNames, ...input.passageThemes]),
+    MAX_THEMES
+  );
+  const people = dedupeLabels(filterUniversalBibleEntities(input.people), MAX_ENTITIES);
+  const places = dedupeLabels(input.places, MAX_ENTITIES);
+  const tone = detectEmotionalTone(input.toneText);
+  const canon = dominantCanonProfile(input.passageBooks);
+  return {
+    themes,
+    people,
+    places,
+    passageCount: input.passageCount,
+    emotionalTone: tone.tone,
+    toneScores: tone.scores,
+    meaningWeight: computeMeaningWeight(input.signals),
+    canonSection: canon.sectionId,
+    canonSectionLabel: canon.sectionLabel,
+    testament: canon.testament,
+    canonSections: canon.sectionIds
+  };
+}
+function htmlToVisibleText(html) {
+  if (!html) return "";
+  return html.replace(/<[^>]*>/g, " ").replace(/&[a-z]+;/gi, " ").replace(/\s+/g, " ").trim();
+}
+async function countHighlights(noteId) {
+  try {
+    const row = (await db.select({ c: count() }).from(StudyThreadEntries).where(and(eq(StudyThreadEntries.parentNoteId, noteId), eq(StudyThreadEntries.isArchived, false))))[0];
+    return row?.c ?? 0;
+  } catch (err) {
+    if (isStudyThreadEntriesTableMissing(err)) return 0;
+    throw err;
+  }
+}
+async function hasNoteConnections(noteId) {
+  try {
+    const row = (await db.select({ id: NoteConnections.id }).from(NoteConnections).where(or(eq(NoteConnections.fromNoteId, noteId), eq(NoteConnections.toNoteId, noteId))).limit(1))[0];
+    return !!row;
+  } catch (err) {
+    if (isNoteConnectionsTableMissing(err)) return false;
+    throw err;
+  }
+}
+async function computeAndStoreNoteFingerprint(noteId, userId) {
+  try {
+    const note = (await db.select({
+      content: Notes.content,
+      title: Notes.title,
+      noteType: Notes.noteType,
+      isPinned: Notes.isPinned,
+      collectionUserOverride: Notes.collectionUserOverride,
+      collectionPinned: Notes.collectionPinned,
+      studyThreadPinned: Notes.studyThreadPinned,
+      linkedFromNoteId: Notes.linkedFromNoteId
+    }).from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, userId))).limit(1))[0];
+    if (!note) return null;
+    if (note.noteType === "scripture") return null;
+    const passages = await getNotePassages(noteId);
+    const knowledge = passages.length ? await getKnowledgeForPassages(passages, {
+      minRelevance: MIN_THEME_CORROBORATION_RELEVANCE,
+      themeLimit: MAX_THEMES
+    }) : { themes: [], people: [], places: [] };
+    const tagRows = await db.select({ name: Tags.name }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).where(eq(NoteTags.noteId, noteId));
+    const [highlightCount, hasConnections] = await Promise.all([
+      countHighlights(noteId),
+      note.linkedFromNoteId ? Promise.resolve(true) : hasNoteConnections(noteId)
+    ]);
+    const visibleText = htmlToVisibleText(note.content);
+    const signals = {
+      visibleTextLength: visibleText.length,
+      passageCount: passages.length,
+      highlightCount,
+      tagCount: tagRows.length,
+      isPinned: note.isPinned,
+      deliberateOrg: note.collectionUserOverride || note.collectionPinned || note.studyThreadPinned,
+      hasConnections
+    };
+    const data = buildNoteFingerprintData({
+      proseTagNames: tagRows.map((t) => t.name),
+      passageThemes: knowledge.themes.map((t) => t.label),
+      people: knowledge.people.map((p) => p.name),
+      places: knowledge.places.map((p) => p.name),
+      passageCount: passages.length,
+      passageBooks: passages.map((p) => p.book),
+      // Title + body: the tone of a note lives in both the heading and the reflection.
+      toneText: `${note.title ?? ""} ${visibleText}`.trim(),
+      signals
+    });
+    await persistFingerprint(noteId, userId, data);
+    return data;
+  } catch (err) {
+    console.error(
+      "[computeAndStoreNoteFingerprint] non-critical failure:",
+      err instanceof Error ? err.message : err
+    );
+    return null;
+  }
+}
+async function persistFingerprint(noteId, userId, data) {
+  const row = {
+    noteId,
+    userId,
+    themes: JSON.stringify(data.themes),
+    people: JSON.stringify(data.people),
+    places: JSON.stringify(data.places),
+    passageCount: data.passageCount,
+    emotionalTone: data.emotionalTone,
+    toneScores: JSON.stringify(data.toneScores),
+    meaningWeight: data.meaningWeight,
+    canonSection: data.canonSection,
+    testament: data.testament,
+    canonSections: JSON.stringify(data.canonSections),
+    computedAt: now()
+  };
+  try {
+    await db.insert(NoteFingerprints).values(row).onConflictDoUpdate({
+      target: NoteFingerprints.noteId,
+      set: {
+        themes: row.themes,
+        people: row.people,
+        places: row.places,
+        passageCount: row.passageCount,
+        emotionalTone: row.emotionalTone,
+        toneScores: row.toneScores,
+        meaningWeight: row.meaningWeight,
+        canonSection: row.canonSection,
+        testament: row.testament,
+        canonSections: row.canonSections,
+        computedAt: row.computedAt
+      }
+    });
+  } catch (err) {
+    if (isNoteFingerprintsTableMissing(err)) {
+      console.warn("[note-fingerprint] NoteFingerprints table missing; skipping. Run `npm run db:push`.");
+      return;
+    }
+    throw err;
+  }
+}
+function parseJsonArray(value) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((x2) => typeof x2 === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function deserializeFingerprint(row) {
+  let toneScores = {};
+  if (row.toneScores) {
+    try {
+      toneScores = JSON.parse(row.toneScores);
+    } catch {
+      toneScores = {};
+    }
+  }
+  const canonSection = row.canonSection ?? null;
+  const sectionLabel = canonSection != null ? CANON_BOOK_GROUPS.find((g2) => g2.id === canonSection)?.label ?? null : null;
+  return {
+    noteId: row.noteId,
+    themes: parseJsonArray(row.themes),
+    people: parseJsonArray(row.people),
+    places: parseJsonArray(row.places),
+    passageCount: row.passageCount,
+    emotionalTone: row.emotionalTone ?? null,
+    toneScores,
+    meaningWeight: row.meaningWeight,
+    canonSection,
+    canonSectionLabel: sectionLabel,
+    testament: row.testament === "ot" || row.testament === "nt" ? row.testament : null,
+    canonSections: parseJsonArray(row.canonSections),
+    computedAt: row.computedAt,
+    recallStabilityDays: row.recallStabilityDays ?? null,
+    lastRecallEngagedAt: row.lastRecallEngagedAt ?? null
+  };
+}
+async function getNoteFingerprint(noteId) {
+  try {
+    const row = (await db.select().from(NoteFingerprints).where(eq(NoteFingerprints.noteId, noteId)).limit(1))[0];
+    return row ? deserializeFingerprint(row) : null;
+  } catch (err) {
+    if (isNoteFingerprintsTableMissing(err)) return null;
+    throw err;
+  }
+}
+async function getUserNoteFingerprints(userId) {
+  try {
+    const rows = await db.select().from(NoteFingerprints).where(eq(NoteFingerprints.userId, userId));
+    return rows.map(deserializeFingerprint);
+  } catch (err) {
+    if (isNoteFingerprintsTableMissing(err)) return [];
+    throw err;
+  }
+}
+async function findNotesMissingFingerprint(userId) {
+  const existing = new Set((await getUserNoteFingerprints(userId)).map((f) => f.noteId));
+  const notes = await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.userId, userId), ne(Notes.noteType, "scripture")));
+  return notes.map((n) => n.id).filter((id) => !existing.has(id));
+}
+var DEPTH_SATURATION, MAX_THEMES, MAX_ENTITIES;
+var init_note_fingerprint = __esm({
+  "server/utils/note-fingerprint.ts"() {
+    "use strict";
+    init_db2();
+    init_scripture_knowledge();
+    init_bible_study_tone_lexicon();
+    init_universal_bible_entities();
+    init_admin_pulse_canon_groups();
+    init_pg_undefined_relation();
+    DEPTH_SATURATION = 500;
+    MAX_THEMES = 10;
+    MAX_ENTITIES = 12;
   }
 });
 
@@ -62434,10 +63188,10 @@ var require_parse_srcset = __commonJS({
             url = url.replace(regexTrailingCommas, "");
             parseDescriptors();
           } else {
-            tokenize2();
+            tokenize3();
           }
         }
-        function tokenize2() {
+        function tokenize3() {
           collectCharacters(regexLeadingSpaces);
           currentDescriptor = "";
           state = "in descriptor";
@@ -71435,7 +72189,7 @@ var require_is = __commonJS({
     var number = (val) => typeof val === "number" && !Number.isNaN(val);
     var integer2 = (val) => Number.isInteger(val);
     var inRange = (val, min2, max2) => val >= min2 && val <= max2;
-    var inArray3 = (val, list) => list.includes(val);
+    var inArray4 = (val, list) => list.includes(val);
     var invalidParameterError = (name, expected, actual) => new Error(
       `Expected ${expected} for ${name} but received ${actual} of type ${typeof actual}`
     );
@@ -71456,7 +72210,7 @@ var require_is = __commonJS({
       number,
       integer: integer2,
       inRange,
-      inArray: inArray3,
+      inArray: inArray4,
       invalidParameterError,
       nativeError
     };
@@ -73215,7 +73969,7 @@ var require_package = __commonJS({
 var require_libvips = __commonJS({
   "node_modules/sharp/lib/libvips.js"(exports2, module2) {
     var { spawnSync } = require("node:child_process");
-    var { createHash } = require("node:crypto");
+    var { createHash: createHash2 } = require("node:crypto");
     var semverCoerce = require_coerce();
     var semverGreaterThanOrEqualTo = require_gte();
     var semverSatisfies = require_satisfies();
@@ -73306,7 +74060,7 @@ var require_libvips = __commonJS({
       }
       return false;
     };
-    var sha512 = (s2) => createHash("sha512").update(s2).digest("hex");
+    var sha512 = (s2) => createHash2("sha512").update(s2).digest("hex");
     var yarnLocator = () => {
       try {
         const identHash = sha512(`imgsharp-libvips-${buildPlatformArch()}`);
@@ -76331,7 +77085,7 @@ var require_color = __commonJS({
       fn.conversion = path;
       return fn;
     }
-    function route14(fromModel) {
+    function route17(fromModel) {
       const graph = deriveBFS(fromModel);
       const conversion = {};
       const models2 = Object.keys(graph);
@@ -76345,7 +77099,7 @@ var require_color = __commonJS({
       }
       return conversion;
     }
-    var route_default = route14;
+    var route_default = route17;
     var convert2 = {};
     var models = Object.keys(conversions_default);
     function wrapRaw(fn) {
@@ -95582,10 +96336,10 @@ var require_util2 = __commonJS({
       return typeof arg === "boolean";
     }
     exports2.isBoolean = isBoolean2;
-    function isNull6(arg) {
+    function isNull7(arg) {
       return arg === null;
     }
-    exports2.isNull = isNull6;
+    exports2.isNull = isNull7;
     function isNullOrUndefined(arg) {
       return arg == null;
     }
@@ -138662,7 +139416,7 @@ var HonoRequest = class {
    * ```
    */
   get matchedRoutes() {
-    return this.#matchResult[0].map(([[, route14]]) => route14);
+    return this.#matchResult[0].map(([[, route17]]) => route17);
   }
   /**
    * `routePath()` can retrieve the path registered within the handler
@@ -138681,7 +139435,7 @@ var HonoRequest = class {
    * ```
    */
   get routePath() {
-    return this.#matchResult[0].map(([[, route14]]) => route14)[this.routeIndex].path;
+    return this.#matchResult[0].map(([[, route17]]) => route17)[this.routeIndex].path;
   }
 };
 
@@ -139722,7 +140476,7 @@ function buildMatcherFromPreprocessedRoutes(routes) {
     return nullMatcher;
   }
   const routesWithStaticPathFlag = routes.map(
-    (route14) => [!/\*|\/:/.test(route14[0]), ...route14]
+    (route17) => [!/\*|\/:/.test(route17[0]), ...route17]
   ).sort(
     ([isStaticA, pathA], [isStaticB, pathB]) => isStaticA ? 1 : isStaticB ? -1 : pathA.length - pathB.length
   );
@@ -140264,6 +141018,7 @@ init_client();
 init_db2();
 init_dates();
 init_schema2();
+init_auth();
 
 // server/utils/votd-local-date.ts
 var TZ_SAFE = /^[A-Za-z0-9_+/\-]+$/;
@@ -140295,6 +141050,16 @@ function getLocalCalendarDateString(timeZone, date2) {
   }
 }
 
+// server/utils/votd-user-translation.ts
+init_db2();
+init_schema2();
+async function getUserDefaultTranslation(userId) {
+  const row = first(
+    await db.select({ defaultTranslation: UserMetadata.defaultTranslation }).from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1)
+  );
+  return row?.defaultTranslation?.trim() || "NET";
+}
+
 // server/utils/votd-today-public.ts
 async function votdTodayPublicHandler(c) {
   try {
@@ -140320,8 +141085,16 @@ async function votdTodayPublicHandler(c) {
         row = { reference: fallbackRow.reference, translation: fallbackRow.translation };
       }
     }
-    c.res.headers.set("Cache-Control", "public, max-age=3600, stale-while-revalidate=300");
-    return c.json(row ? { reference: row.reference, translation: row.translation ?? "NET" } : { reference: null });
+    const auth = getAuth(c);
+    let translation = row?.translation?.trim() || "NET";
+    if (auth.userId) {
+      translation = await getUserDefaultTranslation(auth.userId);
+      c.res.headers.set("Cache-Control", "private, max-age=3600, stale-while-revalidate=300");
+      c.res.headers.append("Vary", "Authorization, Cookie");
+    } else {
+      c.res.headers.set("Cache-Control", "public, max-age=3600, stale-while-revalidate=300");
+    }
+    return c.json(row ? { reference: row.reference, translation } : { reference: null });
   } catch {
     c.res.headers.set("Cache-Control", "public, max-age=60");
     return c.json({ reference: null });
@@ -140396,6 +141169,40 @@ function getSeasonDisplayName(season) {
   const capitalized = seasonName.charAt(0).toUpperCase() + seasonName.slice(1);
   return `${capitalized} ${year}`;
 }
+var MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function getSeasonForMonth(monthKey) {
+  const [yearStr, monthStr] = monthKey.split("-");
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  if (month >= 3 && month <= 5) return `spring-${year}`;
+  if (month >= 6 && month <= 8) return `summer-${year}`;
+  if (month >= 9 && month <= 11) return `fall-${year}`;
+  if (month === 12) return `winter-${year}`;
+  return `winter-${year - 1}`;
+}
+function getSeasonMonths(seasonId) {
+  const [seasonName, yearStr] = seasonId.split("-");
+  const year = parseInt(yearStr, 10);
+  if (seasonName === "spring") {
+    return [`${year}-03`, `${year}-04`, `${year}-05`];
+  }
+  if (seasonName === "summer") {
+    return [`${year}-06`, `${year}-07`, `${year}-08`];
+  }
+  if (seasonName === "fall") {
+    return [`${year}-09`, `${year}-10`, `${year}-11`];
+  }
+  return [`${year}-12`, `${year + 1}-01`, `${year + 1}-02`];
+}
+function listSeasonsForYear(year) {
+  return [`spring-${year}`, `summer-${year}`, `fall-${year}`, `winter-${year}`];
+}
+function formatMonthLabel(monthKey) {
+  const [yearStr, monthStr] = monthKey.split("-");
+  const month = parseInt(monthStr, 10);
+  const name = MONTH_NAMES[month - 1] ?? monthStr;
+  return `${name} ${yearStr}`;
+}
 
 // server/utils/user-cache.ts
 var pendingInit = /* @__PURE__ */ new Map();
@@ -140410,7 +141217,8 @@ async function getCachedUserData(userId) {
     const cacheAge = userMetadata?.clerkDataUpdatedAt ? now2.getTime() - new Date(userMetadata.clerkDataUpdatedAt).getTime() : Infinity;
     const isCacheFresh = cacheAge < 15 * 60 * 1e3;
     const isExplicitlyStale = userMetadata?.clerkDataUpdatedAt && new Date(userMetadata.clerkDataUpdatedAt).getTime() < (/* @__PURE__ */ new Date("2023-01-01")).getTime();
-    if (userMetadata && isCacheFresh && !isExplicitlyStale) {
+    const namesMissing = !userMetadata?.firstName?.trim() && !userMetadata?.lastName?.trim();
+    if (userMetadata && isCacheFresh && !isExplicitlyStale && !namesMissing) {
       return {
         firstName: userMetadata.firstName || "",
         lastName: userMetadata.lastName || "",
@@ -141013,6 +141821,33 @@ var NOT_ONBOARDING_THREADS = sql`NOT starts_with(${Threads.id}::text, 'thread_on
 var NOT_ONBOARDING_JUNCTION_THREAD = sql`NOT starts_with(${NoteThreads.threadId}::text, 'thread_onboarding_')`;
 var NOT_ONBOARDING_NOTES_THREAD = sql`NOT starts_with(${Notes.threadId}::text, 'thread_onboarding_')`;
 var NOT_ONBOARDING_SYSTEM_NOTES = sql`${Notes.addedBy} IS DISTINCT FROM 'system'`;
+var ONBOARDING_WELCOME_FOLDER_LABEL = "Welcome to Harvous";
+var NOT_ONBOARDING_WELCOME_FOLDER = sql`(
+  ${Notes.primaryCollection} IS NULL
+  OR trim(${Notes.primaryCollection}) = ''
+  OR lower(trim(${Notes.primaryCollection})) <> lower(${ONBOARDING_WELCOME_FOLDER_LABEL})
+)`;
+function countableUserNotesWhere() {
+  return and(NOT_ONBOARDING_NOTES_THREAD, NOT_ONBOARDING_SYSTEM_NOTES, NOT_ONBOARDING_WELCOME_FOLDER);
+}
+var COUNTABLE_USER_NOTES_SQL = sql`
+  NOT starts_with("threadId"::text, 'thread_onboarding_')
+  AND "addedBy" IS DISTINCT FROM 'system'
+  AND (
+    "primaryCollection" IS NULL
+    OR TRIM("primaryCollection") = ''
+    OR LOWER(TRIM("primaryCollection")) <> LOWER(${ONBOARDING_WELCOME_FOLDER_LABEL})
+  )
+`;
+var COUNTABLE_USER_NOTES_N_SQL = sql`
+  NOT starts_with(n."threadId"::text, 'thread_onboarding_')
+  AND n."addedBy" IS DISTINCT FROM 'system'
+  AND (
+    n."primaryCollection" IS NULL
+    OR TRIM(n."primaryCollection") = ''
+    OR LOWER(TRIM(n."primaryCollection")) <> LOWER(${ONBOARDING_WELCOME_FOLDER_LABEL})
+  )
+`;
 async function collectOnboardingNoteIds(userId) {
   const packNotes = await db.select({ id: Notes.id }).from(Notes).where(
     and(
@@ -144317,6 +145152,562 @@ async function requireSpaceAccess(spaceId, userId, requireOwner = false) {
 
 // server/utils/xp-system.ts
 init_db2();
+
+// server/utils/study-thread-cluster-count.ts
+init_db2();
+init_pg_undefined_relation();
+
+// src/utils/suggest-study-thread-title.ts
+init_html_stripper();
+
+// src/utils/server-auto-untitled-note-display.ts
+var SERVER_AUTO_UNTITLED_NOTE = /^\s*Untitled Note(?: \d+)?\s*$/i;
+function stripServerAutoUntitledNoteTitleForDisplay(title) {
+  if (title == null) return "";
+  const t = title.trim();
+  if (t === "") return "";
+  return SERVER_AUTO_UNTITLED_NOTE.test(t) ? "" : title;
+}
+
+// src/utils/bible-study-collection-web.ts
+init_bible_study_concept_overlaps();
+
+// src/utils/folder-keyword-context.ts
+var RITUAL_DESCRIPTIVE_FOLDER_KEYWORDS = /* @__PURE__ */ new Set([
+  "prayer",
+  "worship",
+  "communion",
+  "praise",
+  "thanksgiving",
+  "baptism",
+  "sabbath"
+]);
+var RITUAL_DESCRIPTIVE_RE = /\b([a-z][a-z\s'-]{0,40})\s+was\s+(?:this|a|just)\b/giu;
+function normalizeThemeToken(token) {
+  return token.trim().toLowerCase();
+}
+function keywordMatchesRitualSubject(keyword, subject) {
+  const sub = normalizeThemeToken(subject);
+  if (!sub) return false;
+  const name = keyword.name.trim().toLowerCase();
+  if (sub === name) return true;
+  return keyword.synonyms.some((syn) => normalizeThemeToken(syn) === sub);
+}
+function isRitualDescriptiveFolderMention(keyword, plainTitle, plainBody) {
+  const key2 = keyword.name.trim().toLowerCase();
+  if (!RITUAL_DESCRIPTIVE_FOLDER_KEYWORDS.has(key2)) return false;
+  const corpus = `${plainTitle} ${plainBody}`.trim();
+  if (!corpus) return false;
+  for (const m2 of corpus.matchAll(RITUAL_DESCRIPTIVE_RE)) {
+    const subject = m2[1] ?? "";
+    if (!keywordMatchesRitualSubject(keyword, subject)) continue;
+    return true;
+  }
+  return false;
+}
+var RITUAL_DESCRIPTIVE_FOLDER_SCORE_PENALTY = 0.18;
+
+// src/utils/bible-study-collection-web.ts
+init_html_stripper();
+init_life_keyword_context();
+init_bible_study_keywords();
+var MIN_BODY_WORDS = 25;
+var SHORT_NOTE_CONFIDENCE_FLOOR = 0.9;
+var PRIMARY_SCORE_AMBIGUITY_EPS = 0.04;
+var OPENING_SEGMENT_MAX_WORDS = 120;
+var OPENING_NARRATIVE_FOLDER_BOOST = 0.1;
+function collectionRank(cat) {
+  if (cat === "spiritual") return 0;
+  if (cat === "biblical" || cat === "theme") return 1;
+  if (cat === "book") return 2;
+  if (cat === "life") return 3;
+  if (cat === "character") return 4;
+  if (cat === "place") return 5;
+  return 10;
+}
+function extractOpeningSegment(plainTitle, plainBody) {
+  const title = (plainTitle || "").trim();
+  const body = (plainBody || "").trim();
+  const firstParagraph = body.split(/\n\s*\n/).filter(Boolean)[0] ?? body;
+  let segment = title ? `${title}
+${firstParagraph}` : firstParagraph;
+  const words = segment.split(/\s+/).filter(Boolean);
+  if (words.length > OPENING_SEGMENT_MAX_WORDS) {
+    segment = words.slice(0, OPENING_SEGMENT_MAX_WORDS).join(" ");
+  }
+  return segment.trim();
+}
+function keywordAppearsInText(keyword, text2) {
+  const lower = text2.toLowerCase();
+  if (!lower) return false;
+  const needles = [keyword.name, ...keyword.synonyms];
+  const seen = /* @__PURE__ */ new Set();
+  for (const raw2 of needles) {
+    const n = raw2.trim().toLowerCase();
+    if (!n || seen.has(n)) continue;
+    seen.add(n);
+    if (n.includes(" ") || n.includes("-")) {
+      if (lower.includes(n)) return true;
+    } else {
+      const re2 = new RegExp(`\\b${escapeRegExp(n)}\\b`, "i");
+      if (re2.test(lower)) return true;
+    }
+  }
+  return false;
+}
+function keywordAppearsInOpening(keyword, plainTitle, plainBody) {
+  return keywordAppearsInText(keyword, extractOpeningSegment(plainTitle, plainBody));
+}
+function folderPrimaryScore(row, plainTitle, plainBody) {
+  let score = Math.min(1, row.confidence);
+  const cat = row.keyword.category;
+  if (["spiritual", "biblical", "character", "book", "theme"].includes(cat)) {
+    score = Math.min(1, score + 0.05);
+  }
+  switch (cat) {
+    case "spiritual":
+    case "biblical":
+    case "life":
+    case "theme": {
+      const occ = countKeywordOccurrences(plainTitle, plainBody, row.keyword);
+      if (occ <= 1) {
+        score += 0.03;
+      } else if (occ >= 3) {
+        score += 0.12;
+      } else {
+        score += 0.08;
+      }
+      break;
+    }
+    case "character":
+    case "place": {
+      const occ = countKeywordOccurrences(plainTitle, plainBody, row.keyword);
+      if (occ <= 1) {
+        score -= 0.12;
+      } else if (occ >= 5) {
+        score += 0.28;
+      } else if (occ >= 3) {
+        score += 0.18;
+      } else {
+        score += 0.06;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  if (keywordAppearsInOpening(row.keyword, plainTitle, plainBody)) {
+    score = Math.min(1.25, score + OPENING_NARRATIVE_FOLDER_BOOST);
+  }
+  if (isRitualDescriptiveFolderMention(row.keyword, plainTitle, plainBody)) {
+    score -= RITUAL_DESCRIPTIVE_FOLDER_SCORE_PENALTY;
+  }
+  return score;
+}
+function escapeRegExp(s2) {
+  return s2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function countKeywordOccurrences(plainTitle, plainBody, keyword) {
+  const titleLower = (plainTitle || "").toLowerCase();
+  const bodyLower = (plainBody || "").toLowerCase();
+  let total = 0;
+  const needles = [keyword.name, ...keyword.synonyms];
+  const seen = /* @__PURE__ */ new Set();
+  for (const raw2 of needles) {
+    const n = raw2.trim().toLowerCase();
+    if (!n || seen.has(n)) continue;
+    seen.add(n);
+    if (keyword.category === "life") {
+      total += countLifeKeywordNeedleInLowerText(titleLower, raw2, keyword.name);
+      total += countLifeKeywordNeedleInLowerText(bodyLower, raw2, keyword.name);
+      continue;
+    }
+    const corpus = `${titleLower} ${bodyLower}`;
+    if (n.includes(" ") || n.includes("-")) {
+      let i = 0;
+      while ((i = corpus.indexOf(n, i)) !== -1) {
+        total++;
+        i += Math.max(1, n.length);
+      }
+    } else {
+      const re2 = new RegExp(`\\b${escapeRegExp(n)}\\b`, "g");
+      total += (corpus.match(re2) || []).length;
+    }
+  }
+  return total;
+}
+function dedupeRowsByKeywordName(rows) {
+  const by = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    if (isAutoFolderExcludedKeyword(r.keyword.name)) continue;
+    const k2 = r.keyword.name.toLowerCase();
+    const prev = by.get(k2);
+    if (!prev || r.confidence > prev.confidence) by.set(k2, r);
+  }
+  return dedupeKeywordRowsByConceptOverlap(
+    [...by.values()],
+    (r) => r.keyword.name,
+    (r) => r.confidence
+  );
+}
+var THEME_PRIMARY_CATEGORIES = /* @__PURE__ */ new Set(["spiritual", "biblical", "life", "theme"]);
+function isThemePrimaryCategory(cat) {
+  return THEME_PRIMARY_CATEGORIES.has(cat);
+}
+function isSpecificCategory(cat) {
+  return cat === "character" || cat === "place";
+}
+function isPrimaryEligibleRow(row, plainTitle, plainBody) {
+  if (!isSpecificCategory(row.keyword.category)) return true;
+  if (candidateAppearsInTitle(plainTitle, row.keyword.name)) return true;
+  return countKeywordOccurrences(plainTitle, plainBody, row.keyword) >= 3;
+}
+function isBookDefining(row, plainTitle, plainBody) {
+  if (row.keyword.category !== "book") return false;
+  if (candidateAppearsInTitle(plainTitle, row.keyword.name)) return true;
+  return countKeywordOccurrences(plainTitle, plainBody, row.keyword) >= 3;
+}
+function betterPrimaryRow(a, b3, plainTitle, plainBody) {
+  const sa = folderPrimaryScore(a, plainTitle, plainBody);
+  const sb = folderPrimaryScore(b3, plainTitle, plainBody);
+  const aCharPlace = a.keyword.category === "character" || a.keyword.category === "place";
+  const bCharPlace = b3.keyword.category === "character" || b3.keyword.category === "place";
+  if (isThemePrimaryCategory(a.keyword.category) && bCharPlace && !candidateAppearsInTitle(plainTitle, b3.keyword.name)) {
+    if (sb - sa < 0.18) return a;
+  }
+  if (isThemePrimaryCategory(b3.keyword.category) && aCharPlace && !candidateAppearsInTitle(plainTitle, a.keyword.name)) {
+    if (sa - sb < 0.18) return b3;
+  }
+  if (isThemePrimaryCategory(a.keyword.category) && b3.keyword.category === "book" && !isBookDefining(b3, plainTitle, plainBody)) {
+    return a;
+  }
+  if (isThemePrimaryCategory(b3.keyword.category) && a.keyword.category === "book" && !isBookDefining(a, plainTitle, plainBody)) {
+    return b3;
+  }
+  if (Math.abs(sa - sb) > PRIMARY_SCORE_AMBIGUITY_EPS) {
+    return sa >= sb ? a : b3;
+  }
+  const aTitle = candidateAppearsInTitle(plainTitle, a.keyword.name);
+  const bTitle = candidateAppearsInTitle(plainTitle, b3.keyword.name);
+  if (aTitle !== bTitle) {
+    return aTitle ? a : b3;
+  }
+  const aOpening = keywordAppearsInOpening(a.keyword, plainTitle, plainBody);
+  const bOpening = keywordAppearsInOpening(b3.keyword, plainTitle, plainBody);
+  if (aOpening !== bOpening) {
+    return aOpening ? a : b3;
+  }
+  const ra = collectionRank(a.keyword.category);
+  const rb = collectionRank(b3.keyword.category);
+  if (ra !== rb) {
+    return ra < rb ? a : b3;
+  }
+  return sa >= sb ? a : b3;
+}
+function pickPrimaryRowFromDeduped(deduped, plainTitle, plainBody) {
+  const eligible = deduped.filter((row) => isPrimaryEligibleRow(row, plainTitle, plainBody));
+  if (!eligible.length) return null;
+  return eligible.reduce((best, cur) => betterPrimaryRow(best, cur, plainTitle, plainBody));
+}
+function buildRowsForCollectionSuggest(title, bodyHtml) {
+  const plainTitle = (title || "").trim();
+  const plainBody = stripHtml(bodyHtml || "", { preserveSpacing: true }).trim();
+  const full = `${plainTitle}
+${plainBody}`.trim();
+  if (!full) return { rows: [], plainTitle, plainBody };
+  const rows = findKeywordsInTextWithPriority(full, plainTitle, plainBody).map((r) => ({
+    keyword: r.keyword,
+    confidence: Math.min(1, r.confidence)
+  }));
+  return { rows, plainTitle, plainBody };
+}
+function pickPrimaryKeyword(rows, plainTitle, plainBody) {
+  const deduped = dedupeRowsByKeywordName(rows);
+  return pickPrimaryRowFromDeduped(deduped, plainTitle, plainBody)?.keyword ?? null;
+}
+function suggestPrimaryCollectionFromNote(title, bodyHtml) {
+  const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
+  if (!rows.length) return null;
+  const primary = pickPrimaryKeyword(rows, plainTitle, plainBody);
+  if (!primary?.name) return null;
+  if (!meetsMinimumContext(plainTitle, plainBody, primary.name, rows)) return null;
+  return primary.name;
+}
+function scoreForName(name, rows, plainTitle, plainBody) {
+  const row = rows.find((r) => r.keyword.name.toLowerCase() === name.toLowerCase());
+  return row ? folderPrimaryScore(row, plainTitle, plainBody) : 0;
+}
+function normalizeTitleToken(token) {
+  return token.replace(/[^a-z0-9]/gi, "").toLowerCase();
+}
+function candidateAppearsInTitle(plainTitle, candidate) {
+  if (!candidate || !plainTitle.trim()) return false;
+  const cNorm = normalizeTitleToken(candidate);
+  if (!cNorm.length) return false;
+  const titleLower = plainTitle.toLowerCase();
+  if (candidate.includes(" ")) {
+    return titleLower.includes(candidate.trim().toLowerCase());
+  }
+  const titleWords = plainTitle.split(/\s+/).filter(Boolean);
+  return titleWords.some((w2) => normalizeTitleToken(w2) === cNorm);
+}
+function meetsMinimumContext(title, plainBody, candidate, rows) {
+  if (!candidate) return false;
+  const words = plainBody.split(/\s+/).filter(Boolean);
+  if (words.length >= MIN_BODY_WORDS) return true;
+  return scoreForName(candidate, rows, title, plainBody) >= SHORT_NOTE_CONFIDENCE_FLOOR;
+}
+
+// src/utils/suggest-study-thread-title.ts
+var CLUSTER_TEXT_CAP = 24e3;
+function nodePlainTitle(node) {
+  if (node.noteType === "resource" && node.resourceTitle?.trim()) {
+    return node.resourceTitle.trim();
+  }
+  return stripServerAutoUntitledNoteTitleForDisplay(node.title) ?? "";
+}
+function nodeBodyHtml(node) {
+  if (node.noteType === "resource" && node.resourceDescription?.trim()) {
+    return node.resourceDescription.trim();
+  }
+  return node.content ?? "";
+}
+function buildAggregateText(nodes) {
+  const titles = [];
+  const bodies = [];
+  for (const n of nodes) {
+    const t = nodePlainTitle(n);
+    const b3 = stripHtml(nodeBodyHtml(n), false);
+    if (t) titles.push(t);
+    if (b3) bodies.push(b3);
+  }
+  const title = titles.join(" \xB7 ").slice(0, 2e3);
+  let bodyHtml = bodies.join("\n\n");
+  if (bodyHtml.length > CLUSTER_TEXT_CAP) {
+    bodyHtml = bodyHtml.slice(0, CLUSTER_TEXT_CAP);
+  }
+  return { title, bodyHtml };
+}
+function displayablePlainTitle(node) {
+  return nodePlainTitle(node).trim();
+}
+function fallbackTitle(nodes, repNoteId) {
+  const rep = repNoteId ? nodes.find((n) => n.id === repNoteId) : void 0;
+  if (rep) {
+    const repTitle = displayablePlainTitle(rep);
+    if (repTitle) return repTitle;
+  }
+  const sorted = [...nodes].sort((a, b3) => {
+    const ta = a.updatedAt ?? "";
+    const tb = b3.updatedAt ?? "";
+    return tb.localeCompare(ta);
+  });
+  for (const n of sorted) {
+    const t = displayablePlainTitle(n);
+    if (t) return t;
+  }
+  return null;
+}
+function pickStudyThreadRepresentativeNoteId(noteIds, degreeById) {
+  const degree = (id) => {
+    if (degreeById instanceof Map) return degreeById.get(id) ?? 0;
+    return degreeById[id] ?? 0;
+  };
+  let best = null;
+  for (const id of noteIds) {
+    if (best == null) {
+      best = id;
+      continue;
+    }
+    const d = degree(id);
+    const bestD = degree(best);
+    if (d > bestD || d === bestD && id.localeCompare(best) < 0) {
+      best = id;
+    }
+  }
+  return best;
+}
+function suggestStudyThreadTitleFromNodes(nodes, repNoteId) {
+  if (!nodes.length) return "Study thread";
+  const { title, bodyHtml } = buildAggregateText(nodes);
+  const keyword = suggestPrimaryCollectionFromNote(title, bodyHtml);
+  if (keyword?.trim()) return keyword.trim();
+  return fallbackTitle(nodes, repNoteId) ?? "Study thread";
+}
+function resolveStudyThreadDisplayTitle(args) {
+  const suggested = args.suggestedTitle.trim() || "Study thread";
+  if (args.studyThreadUserOverride) {
+    const manual = stripServerAutoUntitledNoteTitleForDisplay(args.studyThreadTitle);
+    return manual?.trim() || suggested;
+  }
+  return suggested;
+}
+
+// src/utils/study-thread-cluster-count.ts
+var UnionFind = class {
+  parent = /* @__PURE__ */ new Map();
+  find(id) {
+    const existing = this.parent.get(id);
+    if (!existing) {
+      this.parent.set(id, id);
+      return id;
+    }
+    if (existing !== id) {
+      const root = this.find(existing);
+      this.parent.set(id, root);
+      return root;
+    }
+    return id;
+  }
+  union(a, b3) {
+    const rootA = this.find(a);
+    const rootB = this.find(b3);
+    if (rootA !== rootB) this.parent.set(rootB, rootA);
+  }
+  componentCount() {
+    const roots = /* @__PURE__ */ new Set();
+    for (const id of this.parent.keys()) roots.add(this.find(id));
+    return roots.size;
+  }
+  /** All note ids in the same component as seedNoteId (including seed if present in graph). */
+  componentMembers(seedNoteId) {
+    const root = this.find(seedNoteId);
+    const members = /* @__PURE__ */ new Set();
+    for (const id of this.parent.keys()) {
+      if (this.find(id) === root) members.add(id);
+    }
+    if (members.size === 0 && this.parent.has(seedNoteId)) {
+      members.add(seedNoteId);
+    }
+    return members;
+  }
+};
+function countStudyThreadClustersFromGraph(edges, titledSingletonNoteIds) {
+  const uf = new UnionFind();
+  const connectedNodes = /* @__PURE__ */ new Set();
+  for (const edge of edges) {
+    uf.union(edge.fromNoteId, edge.toNoteId);
+    connectedNodes.add(edge.fromNoteId);
+    connectedNodes.add(edge.toNoteId);
+  }
+  let total = uf.componentCount();
+  for (const noteId of titledSingletonNoteIds) {
+    if (!connectedNodes.has(noteId)) total += 1;
+  }
+  return total;
+}
+function pickRepNoteIdFromGraph(seedNoteId, edges) {
+  const uf = new UnionFind();
+  for (const edge of edges) {
+    uf.union(edge.fromNoteId, edge.toNoteId);
+  }
+  const members = uf.componentMembers(seedNoteId);
+  if (members.size === 0) {
+    return seedNoteId;
+  }
+  const degree = /* @__PURE__ */ new Map();
+  for (const edge of edges) {
+    if (members.has(edge.fromNoteId)) {
+      degree.set(edge.fromNoteId, (degree.get(edge.fromNoteId) ?? 0) + 1);
+    }
+    if (members.has(edge.toNoteId)) {
+      degree.set(edge.toNoteId, (degree.get(edge.toNoteId) ?? 0) + 1);
+    }
+  }
+  for (const id of members) {
+    if (!degree.has(id)) degree.set(id, 0);
+  }
+  return pickStudyThreadRepresentativeNoteId([...members], degree);
+}
+function clusterMemberSetsFromEdges(edges) {
+  const uf = new UnionFind();
+  const nodes = /* @__PURE__ */ new Set();
+  for (const edge of edges) {
+    uf.union(edge.fromNoteId, edge.toNoteId);
+    nodes.add(edge.fromNoteId);
+    nodes.add(edge.toNoteId);
+  }
+  const byRoot = /* @__PURE__ */ new Map();
+  for (const id of nodes) {
+    const root = uf.find(id);
+    const set2 = byRoot.get(root) ?? /* @__PURE__ */ new Set();
+    set2.add(id);
+    byRoot.set(root, set2);
+  }
+  return [...byRoot.values()].filter((set2) => set2.size >= 2);
+}
+function averageMemberCount(sets) {
+  const sizes = [...sets].map((set2) => set2.size);
+  if (sizes.length === 0) return 0;
+  const total = sizes.reduce((sum2, size2) => sum2 + size2, 0);
+  return Math.round(total / sizes.length * 10) / 10;
+}
+function activeThreadClustersInWindow(edges, sinceMs, untilMs) {
+  const uf = new UnionFind();
+  const nodes = /* @__PURE__ */ new Set();
+  const activeRoots = /* @__PURE__ */ new Set();
+  for (const edge of edges) {
+    uf.union(edge.fromNoteId, edge.toNoteId);
+    nodes.add(edge.fromNoteId);
+    nodes.add(edge.toNoteId);
+    const createdMs = edge.createdAt.getTime();
+    if (createdMs >= sinceMs && (untilMs == null || createdMs < untilMs)) {
+      activeRoots.add(uf.find(edge.fromNoteId));
+    }
+  }
+  const membersByRoot = /* @__PURE__ */ new Map();
+  for (const id of nodes) {
+    const root = uf.find(id);
+    const set2 = membersByRoot.get(root) ?? /* @__PURE__ */ new Set();
+    set2.add(id);
+    membersByRoot.set(root, set2);
+  }
+  return [...activeRoots].map((root) => membersByRoot.get(root) ?? /* @__PURE__ */ new Set()).filter((members) => members.size >= 2);
+}
+
+// server/utils/study-thread-cluster-count.ts
+async function fetchUserClusterInputs(userId) {
+  const [edgeRows, singletonRows] = await Promise.all([
+    db.select({ fromNoteId: NoteConnections.fromNoteId, toNoteId: NoteConnections.toNoteId }).from(NoteConnections).where(eq(NoteConnections.userId, userId)),
+    db.select({ id: Notes.id }).from(Notes).where(
+      and(
+        eq(Notes.userId, userId),
+        eq(Notes.studyThreadUserOverride, true),
+        isNotNull(Notes.studyThreadTitle),
+        sql`TRIM(COALESCE(${Notes.studyThreadTitle}, '')) <> ''`,
+        countableUserNotesWhere()
+      )
+    )
+  ]);
+  return {
+    edges: edgeRows,
+    titledSingletonNoteIds: singletonRows.map((r) => r.id)
+  };
+}
+async function countStudyThreadClustersForUser(userId) {
+  try {
+    const { edges, titledSingletonNoteIds } = await fetchUserClusterInputs(userId);
+    return countStudyThreadClustersFromGraph(edges, titledSingletonNoteIds);
+  } catch (error) {
+    if (isNoteConnectionsTableMissing(error) || isStudyThreadNamingColumnMissing(error)) {
+      return 0;
+    }
+    throw error;
+  }
+}
+async function pickRepNoteIdForCluster(userId, seedNoteId) {
+  try {
+    const { edges } = await fetchUserClusterInputs(userId);
+    return pickRepNoteIdFromGraph(seedNoteId, edges);
+  } catch (error) {
+    if (isNoteConnectionsTableMissing(error) || isStudyThreadNamingColumnMissing(error)) {
+      return seedNoteId;
+    }
+    throw error;
+  }
+}
+
+// server/utils/xp-system.ts
 var XP_VALUES = {
   SESSION_BASE: 15,
   SESSION_MAX: 40,
@@ -144392,7 +145783,7 @@ async function checkRateLimit(userId, activityType, excludeScriptureNotes = fals
     const recentXP = await db.select().from(UserXP).where(and(
       eq(UserXP.userId, userId),
       eq(UserXP.activityType, activityType),
-      gte(UserXP.createdAt, oneHourAgo.toISOString())
+      gte(UserXP.createdAt, oneHourAgo)
     ));
     let count3 = recentXP.length;
     if (excludeScriptureNotes && activityType === "note_created") {
@@ -144477,7 +145868,7 @@ async function awardXP(userId, activityType, xpAmount, relatedId, metadata) {
       relatedId: relatedId || null,
       season,
       metadata: metadata ? JSON.stringify(metadata) : null,
-      createdAt: now2.toISOString()
+      createdAt: now2
     });
     await updateSeasonalXP(userId, season, xpAmount);
     await updateLifetimeXP(userId, xpAmount);
@@ -144495,7 +145886,7 @@ async function updateSeasonalXP(userId, season, xpAmount) {
       await db.update(UserSeasonalXP).set({
         totalXP: existing[0].totalXP + xpAmount,
         sessionCount: existing[0].sessionCount + (xpAmount > 0 && existing[0].sessionCount !== void 0 ? 1 : 0),
-        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+        updatedAt: /* @__PURE__ */ new Date()
       }).where(eq(UserSeasonalXP.id, existing[0].id));
     } else {
       await db.insert(UserSeasonalXP).values({
@@ -144504,7 +145895,7 @@ async function updateSeasonalXP(userId, season, xpAmount) {
         season,
         totalXP: xpAmount,
         sessionCount: 0,
-        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        createdAt: /* @__PURE__ */ new Date()
       });
     }
   } catch (error) {
@@ -144517,14 +145908,14 @@ async function updateLifetimeXP(userId, xpAmount) {
     if (existing.length > 0) {
       await db.update(UserLifetimeXP).set({
         totalXP: existing[0].totalXP + xpAmount,
-        lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+        lastUpdated: /* @__PURE__ */ new Date()
       }).where(eq(UserLifetimeXP.id, existing[0].id));
     } else {
       await db.insert(UserLifetimeXP).values({
         id: `lifetime_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         userId,
         totalXP: xpAmount,
-        lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+        lastUpdated: /* @__PURE__ */ new Date()
       });
     }
   } catch (error) {
@@ -144554,13 +145945,13 @@ async function getLifetimeXP(userId) {
     const totalXP = xpRecords.reduce((sum2, record) => sum2 + record.xpAmount, 0);
     if (totalXP > 0 && (lifetime.length === 0 || lifetime[0].totalXP === 0)) {
       if (lifetime.length > 0) {
-        await db.update(UserLifetimeXP).set({ totalXP, lastUpdated: (/* @__PURE__ */ new Date()).toISOString() }).where(eq(UserLifetimeXP.userId, userId));
+        await db.update(UserLifetimeXP).set({ totalXP, lastUpdated: /* @__PURE__ */ new Date() }).where(eq(UserLifetimeXP.userId, userId));
       } else {
         await db.insert(UserLifetimeXP).values({
           id: `lifetime_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           userId,
           totalXP,
-          lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+          lastUpdated: /* @__PURE__ */ new Date()
         });
       }
     }
@@ -144606,7 +145997,7 @@ async function awardSessionXP(userId, sessionXP) {
     const todaySessions = await db.select().from(UserXP).where(and(
       eq(UserXP.userId, userId),
       eq(UserXP.activityType, ACTIVITY_TYPES.SESSION_COMPLETED),
-      gte(UserXP.createdAt, today.toISOString())
+      gte(UserXP.createdAt, today)
     ));
     if (todaySessions.length >= DAILY_CAPS.SESSIONS) {
       return false;
@@ -144631,7 +146022,7 @@ async function awardCreationBonusXP(userId, itemType) {
     const todayCreationXP = await db.select().from(UserXP).where(and(
       eq(UserXP.userId, userId),
       eq(UserXP.activityType, ACTIVITY_TYPES.CREATION_BONUS),
-      gte(UserXP.createdAt, today.toISOString())
+      gte(UserXP.createdAt, today)
     ));
     const todayTotal = todayCreationXP.reduce((sum2, r) => sum2 + r.xpAmount, 0);
     if (todayTotal >= DAILY_CAPS.CREATION_BONUS) {
@@ -144695,7 +146086,7 @@ async function awardMonthlyAttendanceXP(userId) {
     const existing = await db.select().from(UserXP).where(and(
       eq(UserXP.userId, userId),
       eq(UserXP.activityType, ACTIVITY_TYPES.MONTHLY_ATTENDANCE),
-      gte(UserXP.createdAt, startOfMonth.toISOString())
+      gte(UserXP.createdAt, startOfMonth)
     )).limit(1);
     if (existing.length > 0) {
       return false;
@@ -144710,7 +146101,7 @@ async function awardMonthlyAttendanceXP(userId) {
         year: now2.getFullYear()
       }
     );
-    await db.update(UserMetadata).set({ lastMonthlyVisit: now2.toISOString() }).where(eq(UserMetadata.userId, userId));
+    await db.update(UserMetadata).set({ lastMonthlyVisit: now2 }).where(eq(UserMetadata.userId, userId));
     return true;
   } catch (error) {
     console.error("Error awarding monthly attendance XP:", error);
@@ -144758,7 +146149,7 @@ async function checkLifetimeMilestones(userId) {
     return [];
   }
 }
-async function awardThreadCreatedXP(userId, threadId, title, subtitle) {
+async function awardThreadCreatedXP(userId, threadId, title, subtitle, extraMetadata) {
   try {
     const existingXP = await db.select().from(UserXP).where(and(
       eq(UserXP.userId, userId),
@@ -144775,21 +146166,27 @@ async function awardThreadCreatedXP(userId, threadId, title, subtitle) {
     if (!withinRateLimit) {
       return;
     }
-    const metadata = JSON.stringify({
-      contentLength: title?.length || 0
-    });
-    await db.insert(UserXP).values({
-      id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    await awardXP(
       userId,
-      activityType: ACTIVITY_TYPES.THREAD_CREATED,
-      xpAmount: XP_VALUES.THREAD_CREATED,
-      relatedId: threadId,
-      metadata,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
-    });
+      ACTIVITY_TYPES.THREAD_CREATED,
+      XP_VALUES.THREAD_CREATED,
+      threadId,
+      { contentLength: title?.length || 0, ...extraMetadata }
+    );
   } catch (error) {
     console.error("Error awarding thread creation XP:", error);
   }
+}
+async function maybeAwardStudyThreadClusterCreatedXP(userId, repNoteId, title) {
+  awardCreationBonusXP(userId, "thread").catch(() => {
+  });
+  await awardThreadCreatedXP(userId, repNoteId, title, null, { kind: "study_thread" });
+}
+async function awardStudyThreadClusterCreatedXPIfNew(userId, countBefore, countAfter, seedNoteId, title) {
+  if (countAfter <= countBefore) return;
+  const repNoteId = await pickRepNoteIdForCluster(userId, seedNoteId);
+  if (!repNoteId) return;
+  await maybeAwardStudyThreadClusterCreatedXP(userId, repNoteId, title);
 }
 async function awardNoteCreatedXP(userId, noteId, isScriptureNote = false, content) {
   try {
@@ -144815,40 +146212,28 @@ async function awardNoteCreatedXP(userId, noteId, isScriptureNote = false, conte
     if (!isScriptureNote) {
       const today = /* @__PURE__ */ new Date();
       today.setHours(0, 0, 0, 0);
-      const todayNotes = await db.select().from(Notes).where(and(
-        eq(Notes.userId, userId),
-        gte(Notes.createdAt, today.toISOString())
-      )).limit(1);
-      isFirstNoteToday = todayNotes.length === 0;
+      const todayNotes = await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.userId, userId), gte(Notes.createdAt, today)));
+      isFirstNoteToday = todayNotes.length === 1 && todayNotes[0]?.id === noteId;
     }
-    const metadata = JSON.stringify({
+    await awardXP(userId, ACTIVITY_TYPES.NOTE_CREATED, xpAmount, noteId, {
       isScriptureNote,
       contentLength: content?.length || 0
     });
-    await db.insert(UserXP).values({
-      id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      userId,
-      activityType: ACTIVITY_TYPES.NOTE_CREATED,
-      xpAmount,
-      relatedId: noteId,
-      metadata,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
-    });
     if (isFirstNoteToday) {
-      const existingBonusXP = await db.select().from(UserXP).where(and(
-        eq(UserXP.userId, userId),
-        eq(UserXP.activityType, ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS),
-        eq(UserXP.relatedId, noteId)
-      )).limit(1);
+      const existingBonusXP = await db.select().from(UserXP).where(
+        and(
+          eq(UserXP.userId, userId),
+          eq(UserXP.activityType, ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS),
+          eq(UserXP.relatedId, noteId)
+        )
+      ).limit(1);
       if (existingBonusXP.length === 0) {
-        await db.insert(UserXP).values({
-          id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_bonus`,
+        await awardXP(
           userId,
-          activityType: ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS,
-          xpAmount: XP_VALUES.FIRST_NOTE_DAILY_BONUS,
-          relatedId: noteId,
-          createdAt: (/* @__PURE__ */ new Date()).toISOString()
-        });
+          ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS,
+          XP_VALUES.FIRST_NOTE_DAILY_BONUS,
+          noteId
+        );
       }
     }
   } catch (error) {
@@ -145045,25 +146430,6 @@ async function getNextUntitledThreadName(userId) {
       continue;
     }
     const match3 = title.match(/^Untitled Thread (\d+)$/);
-    if (match3) {
-      usedNumbers.push(parseInt(match3[1], 10));
-    }
-  }
-  const highestNumber = usedNumbers.length > 0 ? Math.max(...usedNumbers) : 0;
-  return `${prefix} ${highestNumber + 1}`;
-}
-async function getNextUntitledNoteName(userId) {
-  const prefix = "Untitled Note";
-  const existingNotes = await db.select({ title: Notes.title }).from(Notes).where(eq(Notes.userId, userId));
-  const usedNumbers = [];
-  for (const note of existingNotes) {
-    const title = note.title;
-    if (!title) continue;
-    if (title === prefix) {
-      usedNumbers.push(0);
-      continue;
-    }
-    const match3 = title.match(/^Untitled Note (\d+)$/);
     if (match3) {
       usedNumbers.push(parseInt(match3[1], 10));
     }
@@ -145582,56 +146948,7 @@ init_my_pile_thread();
 // server/utils/sync-deletion-log.ts
 init_db2();
 init_dates();
-
-// server/utils/pg-undefined-relation.ts
-function isPgUndefinedRelation(error, relationName) {
-  const needle = `relation "${relationName}" does not exist`;
-  let current = error;
-  const seen = /* @__PURE__ */ new Set();
-  for (let depth = 0; depth < 12 && current != null; depth++) {
-    if (typeof current === "object" && current !== null) {
-      if (seen.has(current)) break;
-      seen.add(current);
-    }
-    const msg = current instanceof Error ? current.message : typeof current === "string" ? current : "";
-    const code = current !== null && typeof current === "object" && "code" in current && current.code != null ? String(current.code) : "";
-    if (msg.includes(needle)) return true;
-    if (code === "42P01" && msg.includes(relationName)) return true;
-    current = current instanceof Error && "cause" in current ? current.cause : void 0;
-  }
-  return false;
-}
-function isStudyThreadEntriesTableMissing(error) {
-  return isPgUndefinedRelation(error, "StudyThreadEntries");
-}
-function isNoteConnectionsTableMissing(error) {
-  return isPgUndefinedRelation(error, "NoteConnections");
-}
-function isSyncDeletedEntitiesTableMissing(error) {
-  return isPgUndefinedRelation(error, "SyncDeletedEntities");
-}
-function isPgUndefinedColumn(error, columnName) {
-  const needles = [`column "${columnName}" does not exist`, `column ${columnName} does not exist`];
-  let current = error;
-  const seen = /* @__PURE__ */ new Set();
-  for (let depth = 0; depth < 12 && current != null; depth++) {
-    if (typeof current === "object" && current !== null) {
-      if (seen.has(current)) break;
-      seen.add(current);
-    }
-    const msg = current instanceof Error ? current.message : typeof current === "string" ? current : "";
-    const code = current !== null && typeof current === "object" && "code" in current && current.code != null ? String(current.code) : "";
-    if (needles.some((n) => msg.includes(n))) return true;
-    if (code === "42703" && msg.includes(columnName)) return true;
-    current = current instanceof Error && "cause" in current ? current.cause : void 0;
-  }
-  return false;
-}
-function isStudyThreadNamingColumnMissing(error) {
-  return isPgUndefinedColumn(error, "studyThreadUserOverride") || isPgUndefinedColumn(error, "studyThreadPinned") || isPgUndefinedColumn(error, "studyThreadLastAutoSuggestedAt") || isPgUndefinedColumn(error, "studyThreadTitle");
-}
-
-// server/utils/sync-deletion-log.ts
+init_pg_undefined_relation();
 var EVENT_CHUNK = 1e3;
 var EMPTY_FEED = { deletedNoteIds: [], deletedStudyThreadIds: [], deletedThreadIds: [], deletedNoteConnectionIds: [] };
 async function recordDeletedEntities(userId, entityType, entityIds) {
@@ -145659,13 +146976,13 @@ async function recordDeletedEntities(userId, entityType, entityIds) {
     throw error;
   }
 }
-async function loadDeletedEntitiesSince(userId, sinceDate) {
+async function loadDeletedEntitiesSince(userId, sinceDate2) {
   let rows = [];
   try {
     rows = await db.select({
       entityType: SyncDeletedEntities.entityType,
       entityId: SyncDeletedEntities.entityId
-    }).from(SyncDeletedEntities).where(and(eq(SyncDeletedEntities.userId, userId), gt(SyncDeletedEntities.deletedAt, sinceDate)));
+    }).from(SyncDeletedEntities).where(and(eq(SyncDeletedEntities.userId, userId), gt(SyncDeletedEntities.deletedAt, sinceDate2)));
   } catch (error) {
     if (isSyncDeletedEntitiesTableMissing(error)) {
       console.warn(
@@ -145916,6 +147233,8 @@ route9.post("/api/threads/create", requireAuth, rateLimit("write"), async (c) =>
       await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, newThread.id), eq(Threads.userId, auth.userId)));
     }
     awardCreationBonusXP(auth.userId, "thread").catch(() => {
+    });
+    awardThreadCreatedXP(auth.userId, newThread.id, capitalizedTitle, null).catch(() => {
     });
     broadcastInvalidation(auth.userId, { type: "thread:updated", id: newThread.id });
     return c.json({ success: "Thread created!", thread: newThread });
@@ -146317,392 +147636,6 @@ init_db2();
 init_dates();
 init_harvous_admin();
 
-// src/utils/suggest-study-thread-title.ts
-init_html_stripper();
-
-// src/utils/server-auto-untitled-note-display.ts
-var SERVER_AUTO_UNTITLED_NOTE = /^\s*Untitled Note(?: \d+)?\s*$/i;
-function stripServerAutoUntitledNoteTitleForDisplay(title) {
-  if (title == null) return "";
-  const t = title.trim();
-  if (t === "") return "";
-  return SERVER_AUTO_UNTITLED_NOTE.test(t) ? "" : title;
-}
-
-// src/utils/bible-study-collection-web.ts
-init_bible_study_concept_overlaps();
-
-// src/utils/folder-keyword-context.ts
-var RITUAL_DESCRIPTIVE_FOLDER_KEYWORDS = /* @__PURE__ */ new Set([
-  "prayer",
-  "worship",
-  "communion",
-  "praise",
-  "thanksgiving",
-  "baptism",
-  "sabbath"
-]);
-var RITUAL_DESCRIPTIVE_RE = /\b([a-z][a-z\s'-]{0,40})\s+was\s+(?:this|a|just)\b/giu;
-function normalizeThemeToken(token) {
-  return token.trim().toLowerCase();
-}
-function keywordMatchesRitualSubject(keyword, subject) {
-  const sub = normalizeThemeToken(subject);
-  if (!sub) return false;
-  const name = keyword.name.trim().toLowerCase();
-  if (sub === name) return true;
-  return keyword.synonyms.some((syn) => normalizeThemeToken(syn) === sub);
-}
-function isRitualDescriptiveFolderMention(keyword, plainTitle, plainBody) {
-  const key2 = keyword.name.trim().toLowerCase();
-  if (!RITUAL_DESCRIPTIVE_FOLDER_KEYWORDS.has(key2)) return false;
-  const corpus = `${plainTitle} ${plainBody}`.trim();
-  if (!corpus) return false;
-  for (const m2 of corpus.matchAll(RITUAL_DESCRIPTIVE_RE)) {
-    const subject = m2[1] ?? "";
-    if (!keywordMatchesRitualSubject(keyword, subject)) continue;
-    return true;
-  }
-  return false;
-}
-var RITUAL_DESCRIPTIVE_FOLDER_SCORE_PENALTY = 0.18;
-
-// src/utils/bible-study-collection-web.ts
-init_html_stripper();
-init_life_keyword_context();
-init_bible_study_keywords();
-var MIN_BODY_WORDS = 25;
-var SHORT_NOTE_CONFIDENCE_FLOOR = 0.9;
-var PRIMARY_SCORE_AMBIGUITY_EPS = 0.04;
-var OPENING_SEGMENT_MAX_WORDS = 120;
-var OPENING_NARRATIVE_FOLDER_BOOST = 0.1;
-function collectionRank(cat) {
-  if (cat === "spiritual") return 0;
-  if (cat === "biblical" || cat === "theme") return 1;
-  if (cat === "book") return 2;
-  if (cat === "life") return 3;
-  if (cat === "character") return 4;
-  if (cat === "place") return 5;
-  return 10;
-}
-function extractOpeningSegment(plainTitle, plainBody) {
-  const title = (plainTitle || "").trim();
-  const body = (plainBody || "").trim();
-  const firstParagraph = body.split(/\n\s*\n/).filter(Boolean)[0] ?? body;
-  let segment = title ? `${title}
-${firstParagraph}` : firstParagraph;
-  const words = segment.split(/\s+/).filter(Boolean);
-  if (words.length > OPENING_SEGMENT_MAX_WORDS) {
-    segment = words.slice(0, OPENING_SEGMENT_MAX_WORDS).join(" ");
-  }
-  return segment.trim();
-}
-function keywordAppearsInText(keyword, text2) {
-  const lower = text2.toLowerCase();
-  if (!lower) return false;
-  const needles = [keyword.name, ...keyword.synonyms];
-  const seen = /* @__PURE__ */ new Set();
-  for (const raw2 of needles) {
-    const n = raw2.trim().toLowerCase();
-    if (!n || seen.has(n)) continue;
-    seen.add(n);
-    if (n.includes(" ") || n.includes("-")) {
-      if (lower.includes(n)) return true;
-    } else {
-      const re2 = new RegExp(`\\b${escapeRegExp(n)}\\b`, "i");
-      if (re2.test(lower)) return true;
-    }
-  }
-  return false;
-}
-function keywordAppearsInOpening(keyword, plainTitle, plainBody) {
-  return keywordAppearsInText(keyword, extractOpeningSegment(plainTitle, plainBody));
-}
-function folderPrimaryScore(row, plainTitle, plainBody) {
-  let score = Math.min(1, row.confidence);
-  const cat = row.keyword.category;
-  if (["spiritual", "biblical", "character", "book", "theme"].includes(cat)) {
-    score = Math.min(1, score + 0.05);
-  }
-  switch (cat) {
-    case "spiritual":
-    case "biblical":
-    case "life":
-    case "theme": {
-      const occ = countKeywordOccurrences(plainTitle, plainBody, row.keyword);
-      if (occ <= 1) {
-        score += 0.03;
-      } else if (occ >= 3) {
-        score += 0.12;
-      } else {
-        score += 0.08;
-      }
-      break;
-    }
-    case "character":
-    case "place": {
-      const occ = countKeywordOccurrences(plainTitle, plainBody, row.keyword);
-      if (occ <= 1) {
-        score -= 0.12;
-      } else if (occ >= 5) {
-        score += 0.28;
-      } else if (occ >= 3) {
-        score += 0.18;
-      } else {
-        score += 0.06;
-      }
-      break;
-    }
-    default:
-      break;
-  }
-  if (keywordAppearsInOpening(row.keyword, plainTitle, plainBody)) {
-    score = Math.min(1.25, score + OPENING_NARRATIVE_FOLDER_BOOST);
-  }
-  if (isRitualDescriptiveFolderMention(row.keyword, plainTitle, plainBody)) {
-    score -= RITUAL_DESCRIPTIVE_FOLDER_SCORE_PENALTY;
-  }
-  return score;
-}
-function escapeRegExp(s2) {
-  return s2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function countKeywordOccurrences(plainTitle, plainBody, keyword) {
-  const titleLower = (plainTitle || "").toLowerCase();
-  const bodyLower = (plainBody || "").toLowerCase();
-  let total = 0;
-  const needles = [keyword.name, ...keyword.synonyms];
-  const seen = /* @__PURE__ */ new Set();
-  for (const raw2 of needles) {
-    const n = raw2.trim().toLowerCase();
-    if (!n || seen.has(n)) continue;
-    seen.add(n);
-    if (keyword.category === "life") {
-      total += countLifeKeywordNeedleInLowerText(titleLower, raw2, keyword.name);
-      total += countLifeKeywordNeedleInLowerText(bodyLower, raw2, keyword.name);
-      continue;
-    }
-    const corpus = `${titleLower} ${bodyLower}`;
-    if (n.includes(" ") || n.includes("-")) {
-      let i = 0;
-      while ((i = corpus.indexOf(n, i)) !== -1) {
-        total++;
-        i += Math.max(1, n.length);
-      }
-    } else {
-      const re2 = new RegExp(`\\b${escapeRegExp(n)}\\b`, "g");
-      total += (corpus.match(re2) || []).length;
-    }
-  }
-  return total;
-}
-function dedupeRowsByKeywordName(rows) {
-  const by = /* @__PURE__ */ new Map();
-  for (const r of rows) {
-    if (isAutoFolderExcludedKeyword(r.keyword.name)) continue;
-    const k2 = r.keyword.name.toLowerCase();
-    const prev = by.get(k2);
-    if (!prev || r.confidence > prev.confidence) by.set(k2, r);
-  }
-  return dedupeKeywordRowsByConceptOverlap(
-    [...by.values()],
-    (r) => r.keyword.name,
-    (r) => r.confidence
-  );
-}
-var THEME_PRIMARY_CATEGORIES = /* @__PURE__ */ new Set(["spiritual", "biblical", "life", "theme"]);
-function isThemePrimaryCategory(cat) {
-  return THEME_PRIMARY_CATEGORIES.has(cat);
-}
-function isSpecificCategory(cat) {
-  return cat === "character" || cat === "place";
-}
-function isPrimaryEligibleRow(row, plainTitle, plainBody) {
-  if (!isSpecificCategory(row.keyword.category)) return true;
-  if (candidateAppearsInTitle(plainTitle, row.keyword.name)) return true;
-  return countKeywordOccurrences(plainTitle, plainBody, row.keyword) >= 3;
-}
-function isBookDefining(row, plainTitle, plainBody) {
-  if (row.keyword.category !== "book") return false;
-  if (candidateAppearsInTitle(plainTitle, row.keyword.name)) return true;
-  return countKeywordOccurrences(plainTitle, plainBody, row.keyword) >= 3;
-}
-function betterPrimaryRow(a, b3, plainTitle, plainBody) {
-  const sa = folderPrimaryScore(a, plainTitle, plainBody);
-  const sb = folderPrimaryScore(b3, plainTitle, plainBody);
-  const aCharPlace = a.keyword.category === "character" || a.keyword.category === "place";
-  const bCharPlace = b3.keyword.category === "character" || b3.keyword.category === "place";
-  if (isThemePrimaryCategory(a.keyword.category) && bCharPlace && !candidateAppearsInTitle(plainTitle, b3.keyword.name)) {
-    if (sb - sa < 0.18) return a;
-  }
-  if (isThemePrimaryCategory(b3.keyword.category) && aCharPlace && !candidateAppearsInTitle(plainTitle, a.keyword.name)) {
-    if (sa - sb < 0.18) return b3;
-  }
-  if (isThemePrimaryCategory(a.keyword.category) && b3.keyword.category === "book" && !isBookDefining(b3, plainTitle, plainBody)) {
-    return a;
-  }
-  if (isThemePrimaryCategory(b3.keyword.category) && a.keyword.category === "book" && !isBookDefining(a, plainTitle, plainBody)) {
-    return b3;
-  }
-  if (Math.abs(sa - sb) > PRIMARY_SCORE_AMBIGUITY_EPS) {
-    return sa >= sb ? a : b3;
-  }
-  const aTitle = candidateAppearsInTitle(plainTitle, a.keyword.name);
-  const bTitle = candidateAppearsInTitle(plainTitle, b3.keyword.name);
-  if (aTitle !== bTitle) {
-    return aTitle ? a : b3;
-  }
-  const aOpening = keywordAppearsInOpening(a.keyword, plainTitle, plainBody);
-  const bOpening = keywordAppearsInOpening(b3.keyword, plainTitle, plainBody);
-  if (aOpening !== bOpening) {
-    return aOpening ? a : b3;
-  }
-  const ra = collectionRank(a.keyword.category);
-  const rb = collectionRank(b3.keyword.category);
-  if (ra !== rb) {
-    return ra < rb ? a : b3;
-  }
-  return sa >= sb ? a : b3;
-}
-function pickPrimaryRowFromDeduped(deduped, plainTitle, plainBody) {
-  const eligible = deduped.filter((row) => isPrimaryEligibleRow(row, plainTitle, plainBody));
-  if (!eligible.length) return null;
-  return eligible.reduce((best, cur) => betterPrimaryRow(best, cur, plainTitle, plainBody));
-}
-function buildRowsForCollectionSuggest(title, bodyHtml) {
-  const plainTitle = (title || "").trim();
-  const plainBody = stripHtml(bodyHtml || "", { preserveSpacing: true }).trim();
-  const full = `${plainTitle}
-${plainBody}`.trim();
-  if (!full) return { rows: [], plainTitle, plainBody };
-  const rows = findKeywordsInTextWithPriority(full, plainTitle, plainBody).map((r) => ({
-    keyword: r.keyword,
-    confidence: Math.min(1, r.confidence)
-  }));
-  return { rows, plainTitle, plainBody };
-}
-function pickPrimaryKeyword(rows, plainTitle, plainBody) {
-  const deduped = dedupeRowsByKeywordName(rows);
-  return pickPrimaryRowFromDeduped(deduped, plainTitle, plainBody)?.keyword ?? null;
-}
-function suggestPrimaryCollectionFromNote(title, bodyHtml) {
-  const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
-  if (!rows.length) return null;
-  const primary = pickPrimaryKeyword(rows, plainTitle, plainBody);
-  if (!primary?.name) return null;
-  if (!meetsMinimumContext(plainTitle, plainBody, primary.name, rows)) return null;
-  return primary.name;
-}
-function scoreForName(name, rows, plainTitle, plainBody) {
-  const row = rows.find((r) => r.keyword.name.toLowerCase() === name.toLowerCase());
-  return row ? folderPrimaryScore(row, plainTitle, plainBody) : 0;
-}
-function normalizeTitleToken(token) {
-  return token.replace(/[^a-z0-9]/gi, "").toLowerCase();
-}
-function candidateAppearsInTitle(plainTitle, candidate) {
-  if (!candidate || !plainTitle.trim()) return false;
-  const cNorm = normalizeTitleToken(candidate);
-  if (!cNorm.length) return false;
-  const titleLower = plainTitle.toLowerCase();
-  if (candidate.includes(" ")) {
-    return titleLower.includes(candidate.trim().toLowerCase());
-  }
-  const titleWords = plainTitle.split(/\s+/).filter(Boolean);
-  return titleWords.some((w2) => normalizeTitleToken(w2) === cNorm);
-}
-function meetsMinimumContext(title, plainBody, candidate, rows) {
-  if (!candidate) return false;
-  const words = plainBody.split(/\s+/).filter(Boolean);
-  if (words.length >= MIN_BODY_WORDS) return true;
-  return scoreForName(candidate, rows, title, plainBody) >= SHORT_NOTE_CONFIDENCE_FLOOR;
-}
-
-// src/utils/suggest-study-thread-title.ts
-var CLUSTER_TEXT_CAP = 24e3;
-function nodePlainTitle(node) {
-  if (node.noteType === "resource" && node.resourceTitle?.trim()) {
-    return node.resourceTitle.trim();
-  }
-  return stripServerAutoUntitledNoteTitleForDisplay(node.title) ?? "";
-}
-function nodeBodyHtml(node) {
-  if (node.noteType === "resource" && node.resourceDescription?.trim()) {
-    return node.resourceDescription.trim();
-  }
-  return node.content ?? "";
-}
-function buildAggregateText(nodes) {
-  const titles = [];
-  const bodies = [];
-  for (const n of nodes) {
-    const t = nodePlainTitle(n);
-    const b3 = stripHtml(nodeBodyHtml(n), false);
-    if (t) titles.push(t);
-    if (b3) bodies.push(b3);
-  }
-  const title = titles.join(" \xB7 ").slice(0, 2e3);
-  let bodyHtml = bodies.join("\n\n");
-  if (bodyHtml.length > CLUSTER_TEXT_CAP) {
-    bodyHtml = bodyHtml.slice(0, CLUSTER_TEXT_CAP);
-  }
-  return { title, bodyHtml };
-}
-function displayablePlainTitle(node) {
-  return nodePlainTitle(node).trim();
-}
-function fallbackTitle(nodes, repNoteId) {
-  const rep = repNoteId ? nodes.find((n) => n.id === repNoteId) : void 0;
-  if (rep) {
-    const repTitle = displayablePlainTitle(rep);
-    if (repTitle) return repTitle;
-  }
-  const sorted = [...nodes].sort((a, b3) => {
-    const ta = a.updatedAt ?? "";
-    const tb = b3.updatedAt ?? "";
-    return tb.localeCompare(ta);
-  });
-  for (const n of sorted) {
-    const t = displayablePlainTitle(n);
-    if (t) return t;
-  }
-  return null;
-}
-function pickStudyThreadRepresentativeNoteId(noteIds, degreeById) {
-  const degree = (id) => {
-    if (degreeById instanceof Map) return degreeById.get(id) ?? 0;
-    return degreeById[id] ?? 0;
-  };
-  let best = null;
-  for (const id of noteIds) {
-    if (best == null) {
-      best = id;
-      continue;
-    }
-    const d = degree(id);
-    const bestD = degree(best);
-    if (d > bestD || d === bestD && id.localeCompare(best) < 0) {
-      best = id;
-    }
-  }
-  return best;
-}
-function suggestStudyThreadTitleFromNodes(nodes, repNoteId) {
-  if (!nodes.length) return "Study thread";
-  const { title, bodyHtml } = buildAggregateText(nodes);
-  const keyword = suggestPrimaryCollectionFromNote(title, bodyHtml);
-  if (keyword?.trim()) return keyword.trim();
-  return fallbackTitle(nodes, repNoteId) ?? "Study thread";
-}
-function resolveStudyThreadDisplayTitle(args) {
-  const suggested = args.suggestedTitle.trim() || "Study thread";
-  if (args.studyThreadUserOverride) {
-    const manual = stripServerAutoUntitledNoteTitleForDisplay(args.studyThreadTitle);
-    return manual?.trim() || suggested;
-  }
-  return suggested;
-}
-
 // server/utils/normalize-note-id.ts
 function normalizeServerNoteId(id) {
   const trimmed = id.trim();
@@ -146713,6 +147646,7 @@ function normalizeServerNoteId(id) {
 
 // server/utils/study-thread-note-rows.ts
 init_db2();
+init_pg_undefined_relation();
 async function fetchStudyThreadNoteRows(nodeIds, userId) {
   if (nodeIds.length === 0) return [];
   try {
@@ -146794,6 +147728,9 @@ init_db2();
 
 // server/utils/study-thread-graph.ts
 init_db2();
+function studyThreadGraphHasEdgeOnNote(noteId, edges) {
+  return edges.some((e) => e.fromId === noteId || e.toId === noteId);
+}
 async function collectStudyThreadGraph(startNoteId, userId, options) {
   const maxNodes = options?.maxNodes ?? 200;
   const spaceId = options?.spaceId?.trim() || null;
@@ -146811,10 +147748,18 @@ async function collectStudyThreadGraph(startNoteId, userId, options) {
     if (spaceId) {
       edgeConditions.push(eq(NoteConnections.spaceId, spaceId));
     }
-    const edgeRows = await db.select({ fromNoteId: NoteConnections.fromNoteId, toNoteId: NoteConnections.toNoteId }).from(NoteConnections).where(and(...edgeConditions));
+    const edgeRows = await db.select({
+      fromNoteId: NoteConnections.fromNoteId,
+      toNoteId: NoteConnections.toNoteId,
+      createdAt: NoteConnections.createdAt
+    }).from(NoteConnections).where(and(...edgeConditions));
     const next = [];
     for (const edge of edgeRows) {
-      collectedEdges.push({ fromId: edge.fromNoteId, toId: edge.toNoteId });
+      collectedEdges.push({
+        fromId: edge.fromNoteId,
+        toId: edge.toNoteId,
+        createdAt: edge.createdAt.toISOString()
+      });
       for (const neighbor of [edge.fromNoteId, edge.toNoteId]) {
         if (!visited.has(neighbor) && visited.size < maxNodes) {
           visited.add(neighbor);
@@ -146853,6 +147798,25 @@ async function resolveStudyThreadScopeSpaceId(focusNoteId, userId, preferredSpac
   );
   return normalizeScopeSpaceId(focus?.spaceId ?? null);
 }
+async function fetchDirectConnectionsOnNote(focusNoteId, userId) {
+  return db.select({
+    fromNoteId: NoteConnections.fromNoteId,
+    toNoteId: NoteConnections.toNoteId,
+    spaceId: NoteConnections.spaceId
+  }).from(NoteConnections).where(
+    and(
+      eq(NoteConnections.userId, userId),
+      or(
+        eq(NoteConnections.fromNoteId, focusNoteId),
+        eq(NoteConnections.toNoteId, focusNoteId)
+      )
+    )
+  ).limit(50);
+}
+function shouldFallbackToUnscopedStudyThreadGraph(focusNoteId, graph, directConnectionCount) {
+  if (directConnectionCount === 0) return false;
+  return !studyThreadGraphHasEdgeOnNote(focusNoteId, graph.edges);
+}
 async function collectStudyThreadGraphForScope(focusNoteId, userId, options) {
   const maxNodes = options?.maxNodes ?? 200;
   let scopeSpaceId = await resolveStudyThreadScopeSpaceId(
@@ -146864,25 +147828,19 @@ async function collectStudyThreadGraphForScope(focusNoteId, userId, options) {
     spaceId: scopeSpaceId,
     maxNodes
   });
-  if (graph.edges.length === 0) {
-    const touchRows = await db.select({
-      fromNoteId: NoteConnections.fromNoteId,
-      toNoteId: NoteConnections.toNoteId,
-      spaceId: NoteConnections.spaceId
-    }).from(NoteConnections).where(
-      and(
-        eq(NoteConnections.userId, userId),
-        or(
-          eq(NoteConnections.fromNoteId, focusNoteId),
-          eq(NoteConnections.toNoteId, focusNoteId)
-        )
-      )
-    ).limit(20);
+  if (!studyThreadGraphHasEdgeOnNote(focusNoteId, graph.edges)) {
+    const touchRows = await fetchDirectConnectionsOnNote(focusNoteId, userId);
     const inferred = touchRows.map((r) => normalizeScopeSpaceId(r.spaceId)).find((id) => Boolean(id));
     if (inferred && inferred !== scopeSpaceId) {
       scopeSpaceId = inferred;
       graph = await collectStudyThreadGraph(focusNoteId, userId, {
         spaceId: scopeSpaceId,
+        maxNodes
+      });
+    }
+    if (shouldFallbackToUnscopedStudyThreadGraph(focusNoteId, graph, touchRows.length)) {
+      graph = await collectStudyThreadGraph(focusNoteId, userId, {
+        spaceId: null,
         maxNodes
       });
     }
@@ -146894,6 +147852,7 @@ async function collectStudyThreadGraphForScope(focusNoteId, userId, options) {
 init_db2();
 init_dates();
 init_note_secondary_collections();
+init_pg_undefined_relation();
 function isSystemThreadId(threadId) {
   return threadId === "thread_unorganized" || threadId.startsWith("thread_onboarding_");
 }
@@ -147076,17 +148035,44 @@ async function migrateLinkedFromNoteConnectionsForUser(userId) {
   }
   return { migrated, skipped };
 }
+function normalizeConnectionSpaceId(spaceId) {
+  if (!spaceId || !spaceId.trim()) return null;
+  const t = spaceId.trim();
+  return t.startsWith("space_") ? t : `space_${t}`;
+}
+async function backfillNullNoteConnectionSpaceIdsForUser(userId) {
+  const nullEdges = await db.select({
+    id: NoteConnections.id,
+    fromNoteId: NoteConnections.fromNoteId
+  }).from(NoteConnections).where(and(eq(NoteConnections.userId, userId), isNull(NoteConnections.spaceId)));
+  if (nullEdges.length === 0) return 0;
+  const fromIds = [...new Set(nullEdges.map((e) => e.fromNoteId))];
+  const noteRows = await db.select({ id: Notes.id, spaceId: Notes.spaceId }).from(Notes).where(and(eq(Notes.userId, userId), inArray(Notes.id, fromIds)));
+  const spaceByNoteId = new Map(
+    noteRows.map((r) => [r.id, normalizeConnectionSpaceId(r.spaceId)]).filter((entry) => Boolean(entry[1]))
+  );
+  let updated = 0;
+  for (const edge of nullEdges) {
+    const spaceId = spaceByNoteId.get(edge.fromNoteId);
+    if (!spaceId) continue;
+    await db.update(NoteConnections).set({ spaceId }).where(and(eq(NoteConnections.id, edge.id), isNull(NoteConnections.spaceId)));
+    updated += 1;
+  }
+  return updated;
+}
 async function runPrototypeUserMigration(userId) {
   const onboardingPurged = await purgeOnboardingContentForUser(userId);
   const junctionsRepaired = await repairMissingNoteThreadJunctionsForUser(userId);
   const collectionsUpdated = await backfillCollectionsFromThreadsForUser(userId);
   const { migrated, skipped } = await migrateLinkedFromNoteConnectionsForUser(userId);
+  const connectionSpaceIdsBackfilled = await backfillNullNoteConnectionSpaceIdsForUser(userId);
   return {
     onboardingPurged,
     junctionsRepaired,
     collectionsUpdated,
     connectionsMigrated: migrated,
-    connectionsSkipped: skipped
+    connectionsSkipped: skipped,
+    connectionSpaceIdsBackfilled
   };
 }
 async function hasThreadIdBackfillCandidate(userId) {
@@ -147122,6 +148108,7 @@ async function userNeedsCollectionBackfill(userId) {
 }
 
 // server/routes/notes.ts
+init_pg_undefined_relation();
 init_scripture_detector();
 init_bible_study_keywords();
 init_bible_study_concept_overlaps();
@@ -147247,6 +148234,7 @@ function detectVerseKeysFromNoteText(title, content) {
 // server/utils/auto-tag-generator.ts
 var import_crypto3 = require("crypto");
 init_bible_study_concept_overlaps();
+init_christ_keyword_context();
 init_bible_study_keywords();
 init_db2();
 init_tag_helpers();
@@ -147286,8 +148274,16 @@ async function generateAutoTags(noteTitle, noteContent, userId, confidenceThresh
     const existingTagNames = new Set(existingTags.map((tag) => tag.name.toLowerCase()));
     const suggestions = [];
     let highConfidence = 0;
+    const fullTextLower = fullText.toLowerCase();
+    const titleLower = cleanTitle2.toLowerCase();
+    const hasLiteralJesus = /\bjesus\b/i.test(cleanTitle2) || /\bjesus\b/i.test(cleanContent);
     for (const { keyword, confidence } of foundKeywords) {
       if (keyword.name.toLowerCase() === "god") continue;
+      if (shouldSuppressJesusAutoTag(keyword.name, confidence, fullTextLower, titleLower, {
+        synonymOnly: !hasLiteralJesus
+      })) {
+        continue;
+      }
       if (isExcluded(keyword.name)) continue;
       if (confidence >= confidenceThreshold) {
         const isOverlapping = suggestions.some((existing) => isTagOverlapping(keyword.name, existing.keyword));
@@ -147640,11 +148636,12 @@ async function fetchVerseText(reference, translation = "NET") {
       throw cacheReadErr;
     }
   }
-  if (cached?.content && cached.content.length > 0 && cached.content.includes('<sup class="verse-num"')) {
+  const isCrossChapter = parsed.endChapter != null && Array.isArray(parsed.verse);
+  if (cached?.content && cached.content.length > 0 && cached.content.includes('<sup class="verse-num"') && (!isCrossChapter || cached.content.includes("passage-chapter-heading") && cached.content.includes("scripture-pill-chrome__trans-chip"))) {
     return cached.content;
   }
   const verseSpan = (verse, text2) => `<sup class="verse-num" style="font-size:0.55em; line-height:0; vertical-align:super;">${verse}</sup>${text2}`;
-  const chapterDivider = '<hr style="margin: 1rem 0; border: none; border-top: 1px solid var(--color-stone-grey); opacity: 0.3;" />';
+  const chapterDivider = '<hr class="passage-chapter-divider" />';
   const cacheAndReturn = async (content) => {
     try {
       await db.insert(VerseTextCache).values({
@@ -147701,8 +148698,12 @@ async function fetchVerseText(reference, translation = "NET") {
     segments.forEach((seg, index2) => {
       const chapterVerses = segRows.filter((v2) => v2.chapter === seg.chapter).sort((a, b3) => a.verse - b3.verse);
       if (chapterVerses.length === 0) return;
-      parts.push(`<p><strong>Chapter ${seg.chapter}</strong></p>`);
-      parts.push(`<p>${chapterVerses.map((v2) => verseSpan(v2.verse, v2.text)).join(" ")}</p>`);
+      parts.push('<div class="passage-chapter-block">');
+      parts.push(
+        `<p class="passage-chapter-heading"><span class="scripture-pill-chrome__trans-chip" aria-label="Chapter ${seg.chapter}">CH ${seg.chapter}</span></p>`
+      );
+      parts.push(`<p class="passage-chapter-verses">${chapterVerses.map((v2) => verseSpan(v2.verse, v2.text)).join(" ")}</p>`);
+      parts.push("</div>");
       if (index2 < segments.length - 1) parts.push(chapterDivider);
     });
     return cacheAndReturn(parts.join(""));
@@ -147802,6 +148803,37 @@ async function resolveParentThreadIds(noteId, threadId, note) {
   }
   return [...ids];
 }
+function resolvePillNoteIdForProcessing(pillNoteId, parentNoteId, pillsOnly) {
+  if (!pillNoteId || pillNoteId === "pending" || pillNoteId === "null") return null;
+  if (pillsOnly) return parentNoteId;
+  return pillNoteId;
+}
+async function upsertScriptureMetadataForNote(targetNoteId, normalizedReference, effectiveTranslation, verseText) {
+  const parsed = parseScriptureReference(normalizedReference);
+  if (!parsed) return;
+  const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+  const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : void 0;
+  const existing = first(
+    await db.select({ id: ScriptureMetadata.id }).from(ScriptureMetadata).where(and(eq(ScriptureMetadata.noteId, targetNoteId), eq(ScriptureMetadata.reference, normalizedReference))).limit(1)
+  );
+  if (existing) {
+    await db.update(ScriptureMetadata).set({ translation: effectiveTranslation, originalText: verseText }).where(eq(ScriptureMetadata.id, existing.id));
+    return;
+  }
+  await db.insert(ScriptureMetadata).values({
+    id: `scripture_${targetNoteId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    noteId: targetNoteId,
+    reference: normalizedReference,
+    book: parsed.book,
+    chapter: parsed.chapter,
+    verse: verseStart,
+    verseEnd: verseEnd || null,
+    chapterEnd: parsed.endChapter ?? null,
+    translation: effectiveTranslation,
+    originalText: verseText,
+    createdAt: /* @__PURE__ */ new Date()
+  });
+}
 async function addScriptureNoteToParentThreads(scriptureNoteId, parentThreadIds, userId) {
   const filtered = parentThreadIds.filter((t) => t && t !== "thread_unorganized" && !t.startsWith("thread_onboarding_"));
   if (filtered.length === 0) return;
@@ -147849,6 +148881,7 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
   if (!note) {
     throw new Error("Note not found");
   }
+  const pillsOnly = options?.pillsOnly ?? note.noteType === "default";
   let noteContent = contentOverride || note.content;
   const parentThreadIds = await resolveParentThreadIds(noteId, threadId, note);
   const existingReferences = /* @__PURE__ */ new Map();
@@ -147858,19 +148891,21 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
   while ((match3 = pillPattern1.exec(noteContent)) !== null) {
     const reference = match3[1];
     const pillNoteId = match3[2];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const normalizedRef = normalizeScriptureReference(reference);
-      existingReferences.set(normalizedRef, pillNoteId);
+      existingReferences.set(normalizedRef, resolvedNoteId);
     }
   }
   const pillPattern2 = /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
   while ((match3 = pillPattern2.exec(noteContent)) !== null) {
     const pillNoteId = match3[1];
     const reference = match3[2];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const normalizedRef = normalizeScriptureReference(reference);
       if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
+        existingReferences.set(normalizedRef, resolvedNoteId);
       }
     }
   }
@@ -147928,23 +148963,25 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
   while ((match3 = pillPattern3.exec(noteContent)) !== null) {
     const reference = match3[1];
     const pillNoteId = match3[2];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const normalizedRef = normalizeScriptureReference(reference);
       if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
+        existingReferences.set(normalizedRef, resolvedNoteId);
       }
     }
   }
   const noteLinkPattern = /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi;
   while ((match3 = noteLinkPattern.exec(noteContent)) !== null) {
     const pillNoteId = match3[1];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const innerContent = match3[2].replace(/<[^>]*>/g, "").trim();
       const innerRefs = detectScriptureReferences(innerContent);
       if (innerRefs.length > 0) {
         const normalizedRef = normalizeScriptureReference(innerRefs[0].reference);
         if (!existingReferences.has(normalizedRef)) {
-          existingReferences.set(normalizedRef, pillNoteId);
+          existingReferences.set(normalizedRef, resolvedNoteId);
         }
       }
     }
@@ -147952,13 +148989,14 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
   const noteLinkPattern2 = /<span[^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/span>/gi;
   while ((match3 = noteLinkPattern2.exec(noteContent)) !== null) {
     const pillNoteId = match3[1];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const innerContent = match3[2].replace(/<[^>]*>/g, "").trim();
       const innerRefs = detectScriptureReferences(innerContent);
       if (innerRefs.length > 0) {
         const normalizedRef = normalizeScriptureReference(innerRefs[0].reference);
         if (!existingReferences.has(normalizedRef)) {
-          existingReferences.set(normalizedRef, pillNoteId);
+          existingReferences.set(normalizedRef, resolvedNoteId);
         }
       }
     }
@@ -147967,10 +149005,11 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
   while ((match3 = pillPattern6.exec(noteContent)) !== null) {
     const reference = match3[1];
     const pillNoteId = match3[2];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const normalizedRef = normalizeScriptureReference(reference);
       if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
+        existingReferences.set(normalizedRef, resolvedNoteId);
       }
     }
   }
@@ -147978,10 +149017,11 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
   while ((match3 = pillPattern7.exec(noteContent)) !== null) {
     const pillNoteId = match3[1];
     const reference = match3[2];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const normalizedRef = normalizeScriptureReference(reference);
       if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
+        existingReferences.set(normalizedRef, resolvedNoteId);
       }
     }
   }
@@ -147989,10 +149029,11 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
   while ((match3 = pillPattern8.exec(noteContent)) !== null) {
     const reference = match3[1];
     const pillNoteId = match3[2];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const normalizedRef = normalizeScriptureReference(reference);
       if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
+        existingReferences.set(normalizedRef, resolvedNoteId);
       }
     }
   }
@@ -148000,10 +149041,11 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
   while ((match3 = pillPattern9.exec(noteContent)) !== null) {
     const pillNoteId = match3[1];
     const reference = match3[2];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+    const resolvedNoteId = resolvePillNoteIdForProcessing(pillNoteId, noteId, pillsOnly);
+    if (resolvedNoteId) {
       const normalizedRef = normalizeScriptureReference(reference);
       if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
+        existingReferences.set(normalizedRef, resolvedNoteId);
       }
     }
   }
@@ -148098,7 +149140,7 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
     }
   }
   const skipBulkScriptureLoad = pendingPills.size === 0 && detectedReferences.every((d) => existingReferences.has(normalizeScriptureReference(d.reference)));
-  if (!skipBulkScriptureLoad) {
+  if (!skipBulkScriptureLoad && !pillsOnly) {
     await loadScriptureMapFromDb();
   }
   const processedReferences = /* @__PURE__ */ new Set();
@@ -148112,6 +149154,24 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
     if (existingReferences.has(normalizedReference)) {
       const existingNoteId = existingReferences.get(normalizedReference);
       referenceMap.set(reference, existingNoteId);
+      continue;
+    }
+    if (pillsOnly) {
+      try {
+        const pendingPillInfo = pendingPills.get(normalizedReference);
+        const effectiveTranslation = pendingPillInfo?.pillTranslation || translation;
+        const verseText = await fetchVerseText(normalizedReference, effectiveTranslation);
+        await upsertScriptureMetadataForNote(
+          noteId,
+          normalizedReference,
+          effectiveTranslation,
+          verseText || reference
+        );
+        referenceMap.set(reference, noteId);
+        results.push({ action: "skipped", noteId, reference });
+      } catch (error) {
+        console.error(`Error processing pills-only scripture reference ${reference}:`, error);
+      }
       continue;
     }
     try {
@@ -148354,24 +149414,26 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
       const pillInfo = pendingPills.get(normalizedRef);
       referencesForHighlighting.push({ reference: referenceForHighlight, noteId: existingScriptureNoteId, translation: pillInfo?.pillTranslation || existingPillTranslations.get(normalizedRef) || translation, accent: pillInfo?.pillAccent || existingPillAccents.get(normalizedRef) });
     }
-    try {
-      const existingJunction = first(await db.select().from(NoteScriptureReferences2).where(
-        and(
-          eq(NoteScriptureReferences2.noteId, noteId),
-          eq(NoteScriptureReferences2.scriptureNoteId, existingScriptureNoteId)
-        )
-      ).limit(1));
-      if (!existingJunction) {
-        await db.insert(NoteScriptureReferences2).values({
-          id: `note-scripture-${noteId}-${existingScriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-          noteId,
-          scriptureNoteId: existingScriptureNoteId,
-          createdAt: /* @__PURE__ */ new Date()
-        });
-      }
-    } catch (junctionError) {
-      if (!junctionError?.message?.includes("UNIQUE constraint failed")) {
-        console.error(`[processScriptureReferences] Failed to create junction for existing ref (noteId=${noteId}, scriptureNoteId=${existingScriptureNoteId}):`, junctionError?.message ?? junctionError);
+    if (!pillsOnly) {
+      try {
+        const existingJunction = first(await db.select().from(NoteScriptureReferences2).where(
+          and(
+            eq(NoteScriptureReferences2.noteId, noteId),
+            eq(NoteScriptureReferences2.scriptureNoteId, existingScriptureNoteId)
+          )
+        ).limit(1));
+        if (!existingJunction) {
+          await db.insert(NoteScriptureReferences2).values({
+            id: `note-scripture-${noteId}-${existingScriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            noteId,
+            scriptureNoteId: existingScriptureNoteId,
+            createdAt: /* @__PURE__ */ new Date()
+          });
+        }
+      } catch (junctionError) {
+        if (!junctionError?.message?.includes("UNIQUE constraint failed")) {
+          console.error(`[processScriptureReferences] Failed to create junction for existing ref (noteId=${noteId}, scriptureNoteId=${existingScriptureNoteId}):`, junctionError?.message ?? junctionError);
+        }
       }
     }
   }
@@ -148398,6 +149460,28 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
     }
   }
   for (const [scriptureNoteId, reference] of allExistingPills.entries()) {
+    if (pillsOnly) {
+      try {
+        const normalizedRef = normalizeScriptureReference(reference);
+        const pillInfo = pendingPills.get(normalizedRef);
+        const effectiveTranslation = pillInfo?.pillTranslation || existingPillTranslations.get(normalizedRef) || translation;
+        const verseText = await fetchVerseText(normalizedRef, effectiveTranslation);
+        await upsertScriptureMetadataForNote(noteId, normalizedRef, effectiveTranslation, verseText || reference);
+        if (scriptureNoteId !== noteId) {
+          noteContent = noteContent.replace(
+            new RegExp(`data-note-id=["']${scriptureNoteId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`, "g"),
+            `data-note-id="${noteId}"`
+          );
+        }
+        referenceMap.set(reference, noteId);
+      } catch (pillOnlyError) {
+        console.error(
+          `[processScriptureReferences] Failed pills-only pill sync (noteId=${noteId}, reference=${reference}):`,
+          pillOnlyError instanceof Error ? pillOnlyError.message : pillOnlyError
+        );
+      }
+      continue;
+    }
     try {
       const scriptureNote = first(await db.select().from(Notes).where(
         and(
@@ -148580,25 +149664,27 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
       }
     }
   }
-  const presentScriptureNoteIds = /* @__PURE__ */ new Set();
-  for (const noteId2 of referenceMap.values()) {
-    if (noteId2) presentScriptureNoteIds.add(noteId2);
-  }
-  for (const noteId2 of existingReferences.values()) {
-    if (noteId2) presentScriptureNoteIds.add(noteId2);
-  }
-  for (const noteId2 of allExistingPills.keys()) {
-    if (noteId2) presentScriptureNoteIds.add(noteId2);
-  }
-  try {
-    const existingJunctions = await db.select({ id: NoteScriptureReferences2.id, scriptureNoteId: NoteScriptureReferences2.scriptureNoteId }).from(NoteScriptureReferences2).where(eq(NoteScriptureReferences2.noteId, noteId));
-    for (const junction of existingJunctions) {
-      if (!presentScriptureNoteIds.has(junction.scriptureNoteId)) {
-        await db.delete(NoteScriptureReferences2).where(eq(NoteScriptureReferences2.id, junction.id));
-      }
+  if (!pillsOnly) {
+    const presentScriptureNoteIds = /* @__PURE__ */ new Set();
+    for (const mappedNoteId of referenceMap.values()) {
+      if (mappedNoteId) presentScriptureNoteIds.add(mappedNoteId);
     }
-  } catch (pruneError) {
-    console.error("[processScriptureReferences] Failed to prune stale references (non-critical):", pruneError?.message ?? pruneError);
+    for (const mappedNoteId of existingReferences.values()) {
+      if (mappedNoteId) presentScriptureNoteIds.add(mappedNoteId);
+    }
+    for (const mappedNoteId of allExistingPills.keys()) {
+      if (mappedNoteId) presentScriptureNoteIds.add(mappedNoteId);
+    }
+    try {
+      const existingJunctions = await db.select({ id: NoteScriptureReferences2.id, scriptureNoteId: NoteScriptureReferences2.scriptureNoteId }).from(NoteScriptureReferences2).where(eq(NoteScriptureReferences2.noteId, noteId));
+      for (const junction of existingJunctions) {
+        if (!presentScriptureNoteIds.has(junction.scriptureNoteId)) {
+          await db.delete(NoteScriptureReferences2).where(eq(NoteScriptureReferences2.id, junction.id));
+        }
+      }
+    } catch (pruneError) {
+      console.error("[processScriptureReferences] Failed to prune stale references (non-critical):", pruneError?.message ?? pruneError);
+    }
   }
   const updatedContent = canonicalizeNoteHtmlLineBreaks(
     highlightScriptureReferences(noteContent, referencesForHighlighting)
@@ -148649,6 +149735,8 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
         await applyAutoTags(noteId, enrichedSuggestions, userId);
       }
       await enrichCollectionWithPassages2(noteId);
+      const { computeAndStoreNoteFingerprint: computeAndStoreNoteFingerprint2 } = await Promise.resolve().then(() => (init_note_fingerprint(), note_fingerprint_exports));
+      await computeAndStoreNoteFingerprint2(noteId, userId);
     } catch (tagErr) {
       console.error(
         "[processScriptureReferences] Auto-tag parent note failed (non-critical):",
@@ -148660,6 +149748,25 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
     results,
     updatedContent
   };
+}
+
+// src/utils/date-formatting.ts
+var MONTHS_LONG = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December"
+];
+function formatNoteDefaultTitle(date2) {
+  return `${MONTHS_LONG[date2.getMonth()]} ${date2.getDate()}, ${date2.getFullYear()}`;
 }
 
 // server/routes/notes.ts
@@ -159454,6 +160561,556 @@ ${callout.content}
 }
 
 // server/routes/notes.ts
+init_note_fingerprint();
+
+// src/utils/scripture-verse-keys.ts
+init_scripture_detector();
+var verseKeyFromParts = (v2) => `${v2.book}|${v2.chapter}|${v2.verse}`;
+function verseKeysFromScriptureReference(reference) {
+  const normalized = normalizeScriptureReference(reference.trim()) ?? reference.trim();
+  if (!normalized) return [];
+  const parsed = parseScriptureReference(normalized.replace(/,\s+/g, ","));
+  if (!parsed) return [];
+  const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+  const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : verseStart;
+  const keys2 = [];
+  for (let v2 = verseStart; v2 <= verseEnd; v2++) {
+    keys2.push(verseKeyFromParts({ book: parsed.book, chapter: parsed.chapter, verse: v2 }));
+  }
+  return keys2;
+}
+
+// server/utils/crossref-gaps.ts
+init_scripture_detector();
+init_db2();
+var verseKey2 = (v2) => verseKeyFromParts(v2);
+function displayRef(v2) {
+  return `${v2.book} ${v2.chapter}:${v2.verse}`;
+}
+function extractScripturePillsFromHtml(html) {
+  const out = [];
+  const re2 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  let match3;
+  while ((match3 = re2.exec(html)) !== null) {
+    const reference = match3[1]?.trim();
+    if (!reference) continue;
+    const transMatch = match3[0].match(/data-scripture-translation\s*=\s*["']([^"']+)["']/i);
+    const translation = transMatch?.[1]?.trim().toUpperCase() || "NET";
+    out.push({ reference, translation });
+  }
+  return out;
+}
+function buildVerseSourceNoteMapFromPillNotes(notes) {
+  const rows = [];
+  for (const note of notes) {
+    if (!note.content) continue;
+    for (const pill of extractScripturePillsFromHtml(note.content)) {
+      const normalized = normalizeScriptureReference(pill.reference) ?? pill.reference;
+      const parsed = parseScriptureReference(normalized.replace(/,\s+/g, ","));
+      if (!parsed) continue;
+      const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+      const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : verseStart;
+      for (let verse = verseStart; verse <= verseEnd; verse++) {
+        rows.push({
+          book: parsed.book,
+          chapter: parsed.chapter,
+          verse,
+          noteId: note.id,
+          translation: pill.translation,
+          noteUpdatedAt: note.updatedAt
+        });
+      }
+    }
+  }
+  return buildVerseSourceNoteMap(rows);
+}
+function buildVerseSourceNoteMapFromLegacyJunctions(rows) {
+  return buildVerseSourceNoteMap(rows);
+}
+function mergeVerseSourceNoteMaps(primary, fallback) {
+  const out = new Map(primary);
+  for (const [key2, value] of fallback) {
+    if (!out.has(key2)) out.set(key2, value);
+  }
+  return out;
+}
+function verseRefFromKey(key2) {
+  const [book, chapterRaw, verseRaw] = key2.split("|");
+  const chapter = Number(chapterRaw);
+  const verse = Number(verseRaw);
+  if (!book || !Number.isFinite(chapter) || !Number.isFinite(verse)) return null;
+  return { book, chapter, verse };
+}
+function addHighlightRefsToCitedKeys(citedKeys, references) {
+  for (const ref of references) {
+    for (const k2 of verseKeysFromScriptureReference(ref)) {
+      citedKeys.add(k2);
+    }
+  }
+}
+function buildVerseSourceNoteMap(rows) {
+  const out = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    const key2 = verseKey2(row);
+    const updatedAtMs = row.noteUpdatedAt?.getTime() ?? 0;
+    const existing = out.get(key2);
+    if (existing && existing.updatedAtMs >= updatedAtMs) continue;
+    out.set(key2, { noteId: row.noteId, translation: row.translation, updatedAtMs });
+  }
+  const trimmed = /* @__PURE__ */ new Map();
+  for (const [key2, value] of out) {
+    trimmed.set(key2, { noteId: value.noteId, translation: value.translation });
+  }
+  return trimmed;
+}
+function rankCrossRefGaps(crossRefs, citedKeys, verseSourceNotes, opts = {}) {
+  const { limit = 5 } = opts;
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const cr of crossRefs) {
+    const toKey = verseKey2(cr.to);
+    if (citedKeys.has(toKey)) continue;
+    if (seen.has(toKey)) continue;
+    const source = verseSourceNotes.get(verseKey2(cr.from));
+    if (!source) continue;
+    seen.add(toKey);
+    out.push({
+      from: { ...cr.from, displayRef: displayRef(cr.from) },
+      to: { ...cr.to, displayRef: displayRef(cr.to) },
+      votes: cr.votes,
+      fromNoteId: source.noteId,
+      fromTranslation: source.translation
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+async function getCrossRefGaps(userId, opts = {}) {
+  const { limit = 5, minVotes = 1 } = opts;
+  const parentNotes = await db.select({
+    id: Notes.id,
+    content: Notes.content,
+    updatedAt: Notes.updatedAt
+  }).from(Notes).where(
+    and(eq(Notes.userId, userId), eq(Notes.contentEncrypted, false), ne(Notes.noteType, "scripture"))
+  );
+  const pillSourceNotes = buildVerseSourceNoteMapFromPillNotes(parentNotes);
+  const legacyJunctionRows = await db.select({
+    book: ScriptureMetadata.book,
+    chapter: ScriptureMetadata.chapter,
+    verse: ScriptureMetadata.verse,
+    noteId: NoteScriptureReferences2.noteId,
+    translation: ScriptureMetadata.translation,
+    noteUpdatedAt: Notes.updatedAt
+  }).from(NoteScriptureReferences2).innerJoin(Notes, eq(NoteScriptureReferences2.noteId, Notes.id)).innerJoin(ScriptureMetadata, eq(ScriptureMetadata.noteId, NoteScriptureReferences2.scriptureNoteId)).where(and(eq(Notes.userId, userId), ne(Notes.noteType, "scripture")));
+  const verseSourceNotes = mergeVerseSourceNoteMaps(
+    pillSourceNotes,
+    buildVerseSourceNoteMapFromLegacyJunctions(legacyJunctionRows)
+  );
+  const citedKeys = /* @__PURE__ */ new Set();
+  for (const key2 of verseSourceNotes.keys()) {
+    citedKeys.add(key2);
+  }
+  const metadataRows = await db.select({
+    book: ScriptureMetadata.book,
+    chapter: ScriptureMetadata.chapter,
+    verse: ScriptureMetadata.verse,
+    verseEnd: ScriptureMetadata.verseEnd,
+    reference: ScriptureMetadata.reference
+  }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(eq(Notes.userId, userId));
+  for (const row of metadataRows) {
+    const ref = row.reference?.trim() || `${row.book} ${row.chapter}:${row.verse}${row.verseEnd && row.verseEnd !== row.verse ? `-${row.verseEnd}` : ""}`;
+    addHighlightRefsToCitedKeys(citedKeys, [ref]);
+  }
+  const highlighted = await db.select({ scriptureReference: StudyThreadEntries.scriptureReference }).from(StudyThreadEntries).where(
+    and(
+      eq(StudyThreadEntries.userId, userId),
+      eq(StudyThreadEntries.isArchived, false),
+      isNotNull(StudyThreadEntries.scriptureReference)
+    )
+  );
+  addHighlightRefsToCitedKeys(
+    citedKeys,
+    highlighted.map((r) => r.scriptureReference).filter((ref) => Boolean(ref?.trim()))
+  );
+  if (!citedKeys.size) return [];
+  const deduped = [];
+  const seenSource = /* @__PURE__ */ new Set();
+  for (const key2 of citedKeys) {
+    if (seenSource.has(key2)) continue;
+    seenSource.add(key2);
+    const ref = verseRefFromKey(key2);
+    if (ref) deduped.push(ref);
+  }
+  const sourceChunk = deduped.slice(0, 50);
+  if (!sourceChunk.length) return [];
+  const fromAny = or(
+    ...sourceChunk.map(
+      (p) => and(
+        eq(ScriptureCrossReferences.fromBook, p.book),
+        eq(ScriptureCrossReferences.fromChapter, p.chapter),
+        eq(ScriptureCrossReferences.fromVerse, p.verse)
+      )
+    )
+  );
+  const crossRows = await db.select({
+    fromBook: ScriptureCrossReferences.fromBook,
+    fromChapter: ScriptureCrossReferences.fromChapter,
+    fromVerse: ScriptureCrossReferences.fromVerse,
+    toBook: ScriptureCrossReferences.toBook,
+    toChapter: ScriptureCrossReferences.toChapterStart,
+    toVerse: ScriptureCrossReferences.toVerseStart,
+    votes: ScriptureCrossReferences.votes
+  }).from(ScriptureCrossReferences).where(and(fromAny, gte(ScriptureCrossReferences.votes, minVotes))).orderBy(desc(ScriptureCrossReferences.votes)).limit(200);
+  const mapped = crossRows.map((r) => ({
+    from: { book: r.fromBook, chapter: r.fromChapter, verse: r.fromVerse },
+    to: { book: r.toBook, chapter: r.toChapter, verse: r.toVerse },
+    votes: r.votes
+  }));
+  return rankCrossRefGaps(mapped, citedKeys, verseSourceNotes, { limit });
+}
+
+// server/utils/votd-record-engagement.ts
+init_db2();
+init_dates();
+init_schema2();
+init_scripture_detector();
+async function resolveVotdFeaturedItemIdForLocalDate(localCalendarDate) {
+  const exact = first(
+    await db.select({ featuredItemId: VotdPublishHistory.featuredItemId }).from(VotdPublishHistory).where(eq(VotdPublishHistory.publishedDate, localCalendarDate)).limit(1)
+  );
+  if (exact?.featuredItemId) return exact.featuredItemId;
+  const fallback = first(
+    await db.select({ featuredItemId: VotdPublishHistory.featuredItemId }).from(VotdPublishHistory).where(lte(VotdPublishHistory.publishedDate, localCalendarDate)).orderBy(desc(VotdPublishHistory.publishedDate)).limit(1)
+  );
+  return fallback?.featuredItemId ?? null;
+}
+async function markVotdFeaturedItemCompleted(userId, featuredItemId) {
+  const timestamp3 = now();
+  await db.insert(UserFeaturedItems).values({
+    id: crypto.randomUUID(),
+    userId,
+    featuredItemId,
+    status: "completed",
+    dismissedAt: null,
+    completedAt: timestamp3,
+    createdAt: timestamp3
+  }).onConflictDoUpdate({
+    target: [UserFeaturedItems.userId, UserFeaturedItems.featuredItemId],
+    set: {
+      status: "completed",
+      completedAt: timestamp3
+    }
+  });
+}
+async function recordVotdEngagement(userId, action, localCalendarDate) {
+  const featuredItemId = await resolveVotdFeaturedItemIdForLocalDate(localCalendarDate);
+  if (!featuredItemId) {
+    return { ok: false, reason: "not_found" };
+  }
+  const featuredItem = first(
+    await db.select({ contentType: FeaturedItems.contentType }).from(FeaturedItems).where(eq(FeaturedItems.id, featuredItemId)).limit(1)
+  );
+  if (!featuredItem || featuredItem.contentType !== "votd") {
+    return { ok: false, reason: "not_found" };
+  }
+  if (action === "dismiss") {
+    await markVotdFeaturedItemCompleted(userId, featuredItemId);
+    return { ok: true, featuredItemId };
+  }
+  await awardVotdEngagementXP(userId, featuredItemId, "create_note");
+  await markVotdFeaturedItemCompleted(userId, featuredItemId);
+  return { ok: true, featuredItemId };
+}
+function refsEquivalent(a, b3) {
+  const na = normalizeScriptureReference(a.trim()) ?? a.trim();
+  const nb = normalizeScriptureReference(b3.trim()) ?? b3.trim();
+  if (!na || !nb) return false;
+  return na.localeCompare(nb, void 0, { sensitivity: "accent" }) === 0;
+}
+function noteCitesVotdReference(note, reference) {
+  const title = (note.title ?? "").trim();
+  if (title && refsEquivalent(title, reference)) return true;
+  const content = note.content ?? "";
+  const pillRefPattern = /data-scripture-reference\s*=\s*["']([^"']+)["']/gi;
+  let match3;
+  while ((match3 = pillRefPattern.exec(content)) !== null) {
+    const pillRef = (match3[1] ?? "").trim();
+    if (pillRef && refsEquivalent(pillRef, reference)) return true;
+  }
+  return false;
+}
+async function tryRecordVotdAddNoteFromCreatedNote(userId, note) {
+  const createdAtMs = note.createdAt instanceof Date ? note.createdAt.getTime() : Date.parse(String(note.createdAt));
+  if (!Number.isFinite(createdAtMs)) return;
+  const since = new Date(createdAtMs);
+  since.setUTCDate(since.getUTCDate() - 30);
+  const publishDateMin = since.toISOString().slice(0, 10);
+  const publishes = await db.select({
+    reference: VotdPublishHistory.reference,
+    publishedDate: VotdPublishHistory.publishedDate
+  }).from(VotdPublishHistory).where(gte(VotdPublishHistory.publishedDate, publishDateMin)).orderBy(desc(VotdPublishHistory.publishedDate));
+  for (const row of publishes) {
+    if (!noteCitesVotdReference(note, row.reference)) continue;
+    const publishStartMs = Date.parse(`${row.publishedDate}T00:00:00.000Z`);
+    if (!Number.isFinite(publishStartMs) || createdAtMs < publishStartMs) continue;
+    await recordVotdEngagement(userId, "add_note", row.publishedDate);
+    return;
+  }
+}
+
+// server/utils/connect-suggestions.ts
+init_db2();
+init_scripture_knowledge();
+init_pg_undefined_relation();
+function pickBestUnlinkedPair(noteId, noteTitle, related, linkedIds, titleById) {
+  for (const r of related) {
+    if (linkedIds.has(r.noteId)) continue;
+    const reason = r.sharedPassages.length ? "Shared passage" : r.sharedCrossRefs.length ? "Cross-reference" : "Shared theme";
+    return {
+      noteAId: noteId,
+      noteATitle: noteTitle,
+      noteBId: r.noteId,
+      noteBTitle: titleById.get(r.noteId) ?? "Untitled note",
+      reason,
+      score: r.score
+    };
+  }
+  return null;
+}
+async function getConnectSuggestions(userId, opts = {}) {
+  const { limit = 3, candidateLimit = 20 } = opts;
+  const userNotes = await db.select({ id: Notes.id, title: Notes.title }).from(Notes).where(and(eq(Notes.userId, userId), ne(Notes.noteType, "scripture")));
+  if (userNotes.length < 2) return [];
+  const titleById = new Map(userNotes.map((n) => [n.id, n.title?.trim() || "Untitled note"]));
+  const noteIds = userNotes.map((n) => n.id);
+  let existingEdges;
+  try {
+    const edges = await db.select({ from: NoteConnections.fromNoteId, to: NoteConnections.toNoteId }).from(NoteConnections).where(eq(NoteConnections.userId, userId));
+    existingEdges = /* @__PURE__ */ new Set();
+    for (const e of edges) {
+      existingEdges.add(`${e.from}|${e.to}`);
+      existingEdges.add(`${e.to}|${e.from}`);
+    }
+  } catch (err) {
+    if (isNoteConnectionsTableMissing(err)) {
+      existingEdges = /* @__PURE__ */ new Set();
+    } else {
+      throw err;
+    }
+  }
+  const linkedByNote = /* @__PURE__ */ new Map();
+  for (const key2 of existingEdges) {
+    const [a, b3] = key2.split("|");
+    if (!linkedByNote.has(a)) linkedByNote.set(a, /* @__PURE__ */ new Set());
+    linkedByNote.get(a).add(b3);
+  }
+  const out = [];
+  const usedPairs = /* @__PURE__ */ new Set();
+  const candidates = noteIds.slice(0, candidateLimit);
+  for (const noteId of candidates) {
+    if (out.length >= limit) break;
+    const passages = await getNotePassages(noteId);
+    if (!passages.length) continue;
+    const related = await getRelatedNotesForPassages(userId, passages, {
+      excludeNoteId: noteId,
+      limit: 10
+    });
+    const linkedIds = linkedByNote.get(noteId) ?? /* @__PURE__ */ new Set();
+    const best = pickBestUnlinkedPair(
+      noteId,
+      titleById.get(noteId) ?? "Untitled note",
+      related,
+      linkedIds,
+      titleById
+    );
+    if (best) {
+      const pairKey = [best.noteAId, best.noteBId].sort().join("|");
+      if (!usedPairs.has(pairKey)) {
+        usedPairs.add(pairKey);
+        out.push(best);
+      }
+    }
+  }
+  return out;
+}
+
+// server/utils/note-recall-state.ts
+init_db2();
+
+// src/utils/note-folder-display.ts
+init_my_pile_thread();
+function normalizeFolderKey(label) {
+  if (!label) return "";
+  return label.replace(/[‘’ʼ′`´]/g, "'").replace(/[“”″]/g, '"').replace(/\s+/g, " ").trim().toLowerCase();
+}
+function noteFolderMembershipLabels(note) {
+  const out = [];
+  const add2 = (raw2) => {
+    const t = (raw2 ?? "").trim();
+    if (!t || isMyPileDisplayTitle(t)) return;
+    if (!out.includes(t)) out.push(t);
+  };
+  add2(note.primaryFolder ?? note.primaryCollection);
+  for (const s2 of note.secondaryFolders ?? note.secondaryCollections ?? []) {
+    add2(s2);
+  }
+  return out;
+}
+
+// src/utils/prototype-home-trends.ts
+init_scripture_detector();
+init_admin_pulse_canon_groups();
+init_universal_bible_entities();
+var DEFAULT_BASE_STABILITY_DAYS = 10;
+var REVISIT_FALLBACK_MIN_AGE_MS = 24 * 60 * 60 * 1e3;
+var DAY_MS = 24 * 60 * 60 * 1e3;
+function briefTime(note) {
+  return normalizeDate(note.updatedAt)?.getTime() ?? normalizeDate(note.createdAt)?.getTime() ?? 0;
+}
+function canonicalPassagePair(a, b3) {
+  if (a.bookOrder !== b3.bookOrder) return a.bookOrder < b3.bookOrder ? [a, b3] : [b3, a];
+  return a.passageKey <= b3.passageKey ? [a, b3] : [b3, a];
+}
+function deriveCrossRefConnections(passages, edges, options) {
+  const { limit, minNotes = 2, maxNotesPerConnection = 6 } = options;
+  const byKey = new Map(passages.map((p) => [p.passageKey, p]));
+  const pairVotes = /* @__PURE__ */ new Map();
+  for (const edge of edges) {
+    if (edge.fromKey === edge.toKey) continue;
+    const from = byKey.get(edge.fromKey);
+    const to = byKey.get(edge.toKey);
+    if (!from || !to) continue;
+    const sorted = edge.fromKey < edge.toKey ? [edge.fromKey, edge.toKey] : [edge.toKey, edge.fromKey];
+    const pairKey = sorted.join("|");
+    const existing = pairVotes.get(pairKey);
+    if (existing) existing.votes += edge.votes;
+    else pairVotes.set(pairKey, { keys: sorted, votes: edge.votes });
+  }
+  const connections = [];
+  for (const { keys: keys2, votes } of pairVotes.values()) {
+    const passA = byKey.get(keys2[0]);
+    const passB = byKey.get(keys2[1]);
+    const noteMap = /* @__PURE__ */ new Map();
+    for (const note of [...passA.notes, ...passB.notes]) {
+      const t = briefTime(note);
+      const prev = noteMap.get(note.id);
+      if (!prev || t > prev.t) noteMap.set(note.id, { note, t });
+    }
+    if (noteMap.size < minNotes) continue;
+    const ranked = [...noteMap.values()].sort((a, b3) => b3.t - a.t);
+    const [fromPass, toPass] = canonicalPassagePair(passA, passB);
+    connections.push({
+      from: { passageKey: fromPass.passageKey, displayRef: fromPass.displayRef },
+      to: { passageKey: toPass.passageKey, displayRef: toPass.displayRef },
+      votes,
+      noteCount: noteMap.size,
+      latest: ranked[0]?.t ?? 0,
+      notes: ranked.slice(0, maxNotesPerConnection).map(({ note }) => ({ id: note.id, title: note.title ?? null }))
+    });
+  }
+  return connections.sort(
+    (a, b3) => b3.votes - a.votes || b3.noteCount - a.noteCount || b3.latest - a.latest || a.from.passageKey.localeCompare(b3.from.passageKey) || a.to.passageKey.localeCompare(b3.to.passageKey)
+  ).slice(0, Math.max(0, limit)).map(({ from, to, votes, noteCount, notes }) => ({ from, to, votes, noteCount, notes }));
+}
+var ARC_WINDOW_MS = 180 * DAY_MS;
+function referenceWordKey(row) {
+  const raw2 = (row.sourceSnippet ?? row.anchorTextSnapshot ?? row.focusTitle ?? "").trim();
+  if (!raw2) return null;
+  return raw2.toLowerCase();
+}
+function referenceWordDisplay(row) {
+  return (row.sourceSnippet ?? row.anchorTextSnapshot ?? row.focusTitle ?? "").trim();
+}
+function deriveReferenceWordConnections(references, options) {
+  const { limit, minNotes = 2 } = options;
+  const byWord = /* @__PURE__ */ new Map();
+  for (const row of references) {
+    if ((row.entryKind ?? "").trim() !== "reference") continue;
+    const key2 = referenceWordKey(row);
+    if (!key2) continue;
+    const displayWord = referenceWordDisplay(row);
+    if (!displayWord) continue;
+    const recencyMs = row.recencyMs ?? 0;
+    let bucket = byWord.get(key2);
+    if (!bucket) {
+      bucket = {
+        displayWord,
+        noteIds: /* @__PURE__ */ new Set(),
+        latestRowId: row.id,
+        latestParentNoteId: row.parentNoteId,
+        latestRecencyMs: recencyMs
+      };
+      byWord.set(key2, bucket);
+    }
+    bucket.noteIds.add(row.parentNoteId);
+    if (recencyMs >= bucket.latestRecencyMs) {
+      bucket.latestRecencyMs = recencyMs;
+      bucket.latestRowId = row.id;
+      bucket.latestParentNoteId = row.parentNoteId;
+      bucket.displayWord = displayWord;
+    }
+  }
+  return [...byWord.entries()].filter(([, bucket]) => bucket.noteIds.size >= minNotes).map(([wordKey, bucket]) => ({
+    wordKey,
+    displayWord: bucket.displayWord,
+    noteCount: bucket.noteIds.size,
+    latestRowId: bucket.latestRowId,
+    latestParentNoteId: bucket.latestParentNoteId,
+    latestRecencyMs: bucket.latestRecencyMs
+  })).sort(
+    (a, b3) => b3.noteCount - a.noteCount || b3.latestRecencyMs - a.latestRecencyMs || a.displayWord.localeCompare(b3.displayWord)
+  ).slice(0, Math.max(0, limit));
+}
+
+// server/utils/note-recall-state.ts
+init_pg_undefined_relation();
+var STABILITY_GROWTH_FACTOR = 2;
+var MAX_STABILITY_DAYS = 180;
+function nextRecallStabilityDays(current, base = DEFAULT_BASE_STABILITY_DAYS) {
+  const start = current != null && Number.isFinite(current) && current > 0 ? current : base;
+  return Math.min(MAX_STABILITY_DAYS, Math.round(start * STABILITY_GROWTH_FACTOR));
+}
+async function recordNoteRecallEngaged(userId, noteId) {
+  try {
+    const owned = (await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, userId))).limit(1))[0];
+    if (!owned) return null;
+    const existing = (await db.select({
+      recallStabilityDays: NoteFingerprints.recallStabilityDays
+    }).from(NoteFingerprints).where(eq(NoteFingerprints.noteId, noteId)).limit(1))[0];
+    const engagedAt = now();
+    const nextStability = nextRecallStabilityDays(existing?.recallStabilityDays ?? void 0);
+    await db.insert(NoteFingerprints).values({
+      noteId,
+      userId,
+      meaningWeight: 0,
+      passageCount: 0,
+      computedAt: engagedAt,
+      recallStabilityDays: nextStability,
+      lastRecallEngagedAt: engagedAt
+    }).onConflictDoUpdate({
+      target: NoteFingerprints.noteId,
+      set: {
+        recallStabilityDays: nextStability,
+        lastRecallEngagedAt: engagedAt
+      }
+    });
+    return {
+      noteId,
+      recallStabilityDays: nextStability,
+      lastRecallEngagedAt: engagedAt
+    };
+  } catch (err) {
+    if (isNoteFingerprintsTableMissing(err)) {
+      console.warn("[note-recall-state] NoteFingerprints table missing; skipping. Run `npm run db:push`.");
+      return null;
+    }
+    console.error("[recordNoteRecallEngaged]", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+// server/routes/notes.ts
 init_tag_helpers();
 init_bible_study_concept_overlaps();
 init_note_secondary_collections();
@@ -159574,7 +161231,7 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
     const capitalizedContent = normalizedContent && normalizedContent.length > 0 ? normalizedContent.charAt(0).toUpperCase() + normalizedContent.slice(1) : normalizedContent;
     let capitalizedTitle;
     if (!title || !title.trim()) {
-      capitalizedTitle = await getNextUntitledNoteName(auth.userId);
+      capitalizedTitle = truncateAndCapitalizeTitle(formatNoteDefaultTitle(/* @__PURE__ */ new Date()));
     } else {
       capitalizedTitle = truncateAndCapitalizeTitle(title);
     }
@@ -159617,6 +161274,7 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       shareTokenCreatedAt: shouldAutoShare ? now2 : null,
       contentEncrypted,
       createdAt: now2,
+      updatedAt: now2,
       lastVisited: now2,
       linkedFromNoteId: resolvedLinkedFromNoteId
     }).returning());
@@ -159656,6 +161314,8 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       await awardCreationBonusXP(auth.userId, "note");
     } catch {
     }
+    awardNoteCreatedXP(auth.userId, newNote.id, isScriptureNote, capitalizedContent || content || "").catch(() => {
+    });
     const finalNote = first(await db.select().from(Notes).where(eq(Notes.id, newNote.id)).limit(1));
     if (finalNote) Object.assign(newNote, finalNote);
     if (finalNoteType !== "resource" && !contentEncrypted) {
@@ -159767,6 +161427,12 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       }
     }
     broadcastInvalidation(auth.userId, { type: "note:created", id: newNote.id });
+    void tryRecordVotdAddNoteFromCreatedNote(auth.userId, {
+      title: newNote.title,
+      content: newNote.content,
+      createdAt: newNote.createdAt
+    }).catch(() => {
+    });
     return c.json({
       success: "Note created!",
       note: noteJsonWithParsedSecondaries(newNote),
@@ -159803,7 +161469,8 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
       secondaryCollections: secondaryCollectionsRaw,
       collectionPinned: collectionPinnedRaw,
       collectionUserOverride: collectionUserOverrideRaw,
-      dismissedAutoTags: dismissedAutoTagsRaw
+      dismissedAutoTags: dismissedAutoTagsRaw,
+      bumpUpdatedAt: bumpUpdatedAtRaw
     } = body;
     if (!noteId) return c.json({ error: "Note ID is required" }, 400);
     const contentValidation = validateContent(content, true);
@@ -159821,8 +161488,9 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     const contentChanged = capitalizedContent !== existingNote.content;
     const encryptionToggled = typeof contentEncrypted === "boolean" && contentEncrypted !== existingNote.contentEncrypted;
     const contentTouched = titleChanged || contentChanged || encryptionToggled;
+    const shouldBumpUpdatedAt = bumpUpdatedAtRaw === false ? false : contentTouched;
     const updateData = { title: capitalizedTitle, content: capitalizedContent };
-    if (contentTouched) updateData.updatedAt = nowISO();
+    if (shouldBumpUpdatedAt) updateData.updatedAt = nowISO();
     let nextPrimaryForSecondaries = existingNote.primaryCollection ?? null;
     if (primaryCollectionRaw !== void 0) {
       updateData.primaryCollection = typeof primaryCollectionRaw === "string" && primaryCollectionRaw.trim().length > 0 ? primaryCollectionRaw.trim() : null;
@@ -159864,10 +161532,10 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     if (!updatedNote) return c.json({ error: "Failed to update note" }, 500);
     const noteThreads = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, noteId));
     const threadIdsToTouch = noteThreads.map((nt2) => nt2.threadId);
-    if (contentTouched && threadIdsToTouch.length > 0) {
+    if (shouldBumpUpdatedAt && threadIdsToTouch.length > 0) {
       await db.update(Threads).set({ updatedAt: nowISO() }).where(and(inArray(Threads.id, threadIdsToTouch), eq(Threads.userId, auth.userId)));
     }
-    if (!isEncrypted && (titleChanged || contentChanged)) {
+    if (!isEncrypted && shouldBumpUpdatedAt && (titleChanged || contentChanged)) {
       try {
         const tagExcludes = autoTagExcludeOptionsForNote(updatedNote);
         const r = await generateAutoTags(capitalizedTitle || "", capitalizedContent, auth.userId, 0.7, tagExcludes);
@@ -159973,7 +161641,8 @@ route10.post("/api/notes/connect-link", requireAuth, rateLimit("write"), async (
     if ((parent.noteType || "default") !== "default" || (linked.noteType || "default") !== "default") {
       return c.json({ success: false, error: "Only default notes can be linked.", code: "INVALID_NOTE_TYPE" }, 400);
     }
-    const spaceId = normalizeOwnedNoteSpaceId(parent.spaceId ?? null) ?? null;
+    const clusterCountBefore = await countStudyThreadClustersForUser(auth.userId);
+    const spaceId = normalizeOwnedNoteSpaceId(parent.spaceId ?? null) ?? normalizeOwnedNoteSpaceId(linked.spaceId ?? null) ?? null;
     try {
       await db.insert(NoteConnections).values({
         id: generateNoteId(),
@@ -159985,10 +161654,28 @@ route10.post("/api/notes/connect-link", requireAuth, rateLimit("write"), async (
       });
     } catch (err) {
       if (err?.code === "23505" || err?.message?.includes("unique") || err?.message?.includes("duplicate")) {
+        if (spaceId) {
+          await db.update(NoteConnections).set({ spaceId }).where(
+            and(
+              eq(NoteConnections.fromNoteId, parentNoteId),
+              eq(NoteConnections.toNoteId, linkedNoteId),
+              eq(NoteConnections.userId, auth.userId),
+              isNull(NoteConnections.spaceId)
+            )
+          );
+        }
         return c.json({ success: true, alreadyLinked: true });
       }
       throw err;
     }
+    const clusterCountAfter = await countStudyThreadClustersForUser(auth.userId);
+    awardStudyThreadClusterCreatedXPIfNew(
+      auth.userId,
+      clusterCountBefore,
+      clusterCountAfter,
+      parentNoteId
+    ).catch(() => {
+    });
     broadcastInvalidation(auth.userId, { type: "note:updated", id: parentNoteId });
     broadcastInvalidation(auth.userId, { type: "note:updated", id: linkedNoteId });
     return c.json({ success: true });
@@ -160133,6 +161820,7 @@ route10.patch("/api/notes/:id/study-thread-title", requireAuth, rateLimit("write
       if (ids.length === 0) return;
       await db.update(Notes).set(payload).where(and(inArray(Notes.id, ids), eq(Notes.userId, auth.userId)));
     };
+    const clusterCountBefore = await countStudyThreadClustersForUser(auth.userId);
     try {
       if (userOverride === false) {
         await applyNamingToCluster(
@@ -160171,6 +161859,16 @@ route10.patch("/api/notes/:id/study-thread-title", requireAuth, rateLimit("write
         await applyNamingToCluster(fallback, clusterIds);
       }
     }
+    const clusterCountAfter = await countStudyThreadClustersForUser(auth.userId);
+    const awardTitle = typeof title === "string" ? title : void 0;
+    awardStudyThreadClusterCreatedXPIfNew(
+      auth.userId,
+      clusterCountBefore,
+      clusterCountAfter,
+      repNoteId,
+      awardTitle
+    ).catch(() => {
+    });
     broadcastInvalidation(auth.userId, { type: "note:updated", id: repNoteId });
     return c.json({
       success: true,
@@ -160281,6 +161979,73 @@ route10.get("/api/notes/recent", requireAuth, async (c) => {
     return c.json(formattedNotes);
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/notes/recent", action: "get_recent_notes" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route10.get("/api/notes/fingerprints", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const fingerprints = await getUserNoteFingerprints(auth.userId);
+    const compact = fingerprints.map((f) => ({
+      noteId: f.noteId,
+      meaningWeight: f.meaningWeight,
+      emotionalTone: f.emotionalTone,
+      themes: f.themes,
+      people: f.people,
+      places: f.places,
+      passageCount: f.passageCount,
+      canonSection: f.canonSection,
+      canonSectionLabel: f.canonSectionLabel,
+      testament: f.testament,
+      canonSections: f.canonSections,
+      recallStabilityDays: f.recallStabilityDays,
+      lastRecallEngagedAt: f.lastRecallEngagedAt?.toISOString() ?? null
+    }));
+    return c.json({ success: true, fingerprints: compact });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/notes/fingerprints", action: "get_fingerprints" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route10.get("/api/notes/crossref-gaps", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gaps = await getCrossRefGaps(auth.userId, { limit: 5 });
+    return c.json({ success: true, gaps });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/notes/crossref-gaps", action: "get_crossref_gaps" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route10.get("/api/notes/connect-suggestions", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const suggestions = await getConnectSuggestions(auth.userId, { limit: 3 });
+    return c.json({ success: true, suggestions });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/notes/connect-suggestions", action: "get_connect_suggestions" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route10.post("/api/notes/recall-engaged", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const { noteId } = await c.req.json();
+    if (!noteId || typeof noteId !== "string") {
+      return c.json({ error: "Note ID is required" }, 400);
+    }
+    const result = await recordNoteRecallEngaged(auth.userId, noteId.trim());
+    if (!result) {
+      return c.json({ error: "Note not found or recall state unavailable" }, 404);
+    }
+    return c.json({
+      success: true,
+      noteId: result.noteId,
+      recallStabilityDays: result.recallStabilityDays,
+      lastRecallEngagedAt: result.lastRecallEngagedAt?.toISOString() ?? null
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/notes/recall-engaged", action: "recall_engaged" });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
@@ -161326,9 +163091,6 @@ init_db2();
 init_dates();
 init_note_secondary_collections();
 
-// src/utils/note-folder-display.ts
-init_my_pile_thread();
-
 // src/utils/folder-bulk-actions.ts
 function folderLabelsEqual(a, b3) {
   return a.trim().toLowerCase() === b3.trim().toLowerCase();
@@ -161363,6 +163125,64 @@ function computeNoteFolderRemovalPatch(note, folderName) {
     collectionUserOverride: fullyUnlabeled ? false : Boolean(note.collectionUserOverride),
     ...fullyUnlabeled ? { collectionLastAutoUpdatedAt: null } : {}
   };
+}
+
+// server/utils/prototype-empty-folder-labels.ts
+init_my_pile_thread();
+var RESERVED_UNSORTED_KEYS = /* @__PURE__ */ new Set(["unsorted", "no folder"]);
+function isReservedPrototypeFolderLabel(name) {
+  const trimmed = (name ?? "").trim();
+  if (!trimmed) return true;
+  if (isMyPileDisplayTitle(trimmed)) return true;
+  const key2 = normalizeFolderKey(trimmed);
+  return RESERVED_UNSORTED_KEYS.has(key2);
+}
+function parsePrototypeEmptyFolderLabels(raw2) {
+  if (!raw2) return [];
+  try {
+    const parsed = JSON.parse(raw2);
+    if (!Array.isArray(parsed)) return [];
+    const seen = /* @__PURE__ */ new Set();
+    const out = [];
+    for (const item of parsed) {
+      if (typeof item !== "string") continue;
+      const trimmed = item.trim();
+      if (!trimmed || isReservedPrototypeFolderLabel(trimmed)) continue;
+      const key2 = normalizeFolderKey(trimmed);
+      if (seen.has(key2)) continue;
+      seen.add(key2);
+      out.push(trimmed);
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+function serializePrototypeEmptyFolderLabels(labels) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const raw2 of labels) {
+    const trimmed = raw2.trim();
+    if (!trimmed || isReservedPrototypeFolderLabel(trimmed)) continue;
+    const key2 = normalizeFolderKey(trimmed);
+    if (seen.has(key2)) continue;
+    seen.add(key2);
+    out.push(trimmed);
+  }
+  return JSON.stringify(out);
+}
+function folderLabelKeysEqual(a, b3) {
+  return normalizeFolderKey(a) === normalizeFolderKey(b3);
+}
+function removePrototypeEmptyFolderLabel(labels, folderName) {
+  const target = normalizeFolderKey(folderName);
+  return labels.filter((label) => normalizeFolderKey(label) !== target);
+}
+function addPrototypeEmptyFolderLabel(labels, folderName) {
+  const trimmed = folderName.trim();
+  if (!trimmed || isReservedPrototypeFolderLabel(trimmed)) return labels;
+  if (labels.some((l) => folderLabelKeysEqual(l, trimmed))) return labels;
+  return [...labels, trimmed];
 }
 
 // src/utils/thread-cluster-bulk-actions.ts
@@ -161731,64 +163551,11 @@ function buildSpaceScriptureIndex(notes) {
 
 // server/utils/build-space-scripture-connections.ts
 init_db2();
-
-// src/utils/prototype-home-trends.ts
-var DAY_MS = 24 * 60 * 60 * 1e3;
-function briefTime(note) {
-  return normalizeDate(note.updatedAt)?.getTime() ?? normalizeDate(note.createdAt)?.getTime() ?? 0;
-}
-function canonicalPassagePair(a, b3) {
-  if (a.bookOrder !== b3.bookOrder) return a.bookOrder < b3.bookOrder ? [a, b3] : [b3, a];
-  return a.passageKey <= b3.passageKey ? [a, b3] : [b3, a];
-}
-function deriveCrossRefConnections(passages, edges, options) {
-  const { limit, minNotes = 2, maxNotesPerConnection = 6 } = options;
-  const byKey = new Map(passages.map((p) => [p.passageKey, p]));
-  const pairVotes = /* @__PURE__ */ new Map();
-  for (const edge of edges) {
-    if (edge.fromKey === edge.toKey) continue;
-    const from = byKey.get(edge.fromKey);
-    const to = byKey.get(edge.toKey);
-    if (!from || !to) continue;
-    const sorted = edge.fromKey < edge.toKey ? [edge.fromKey, edge.toKey] : [edge.toKey, edge.fromKey];
-    const pairKey = sorted.join("|");
-    const existing = pairVotes.get(pairKey);
-    if (existing) existing.votes += edge.votes;
-    else pairVotes.set(pairKey, { keys: sorted, votes: edge.votes });
-  }
-  const connections = [];
-  for (const { keys: keys2, votes } of pairVotes.values()) {
-    const passA = byKey.get(keys2[0]);
-    const passB = byKey.get(keys2[1]);
-    const noteMap = /* @__PURE__ */ new Map();
-    for (const note of [...passA.notes, ...passB.notes]) {
-      const t = briefTime(note);
-      const prev = noteMap.get(note.id);
-      if (!prev || t > prev.t) noteMap.set(note.id, { note, t });
-    }
-    if (noteMap.size < minNotes) continue;
-    const ranked = [...noteMap.values()].sort((a, b3) => b3.t - a.t);
-    const [fromPass, toPass] = canonicalPassagePair(passA, passB);
-    connections.push({
-      from: { passageKey: fromPass.passageKey, displayRef: fromPass.displayRef },
-      to: { passageKey: toPass.passageKey, displayRef: toPass.displayRef },
-      votes,
-      noteCount: noteMap.size,
-      latest: ranked[0]?.t ?? 0,
-      notes: ranked.slice(0, maxNotesPerConnection).map(({ note }) => ({ id: note.id, title: note.title ?? null }))
-    });
-  }
-  return connections.sort(
-    (a, b3) => b3.votes - a.votes || b3.noteCount - a.noteCount || b3.latest - a.latest || a.from.passageKey.localeCompare(b3.from.passageKey) || a.to.passageKey.localeCompare(b3.to.passageKey)
-  ).slice(0, Math.max(0, limit)).map(({ from, to, votes, noteCount, notes }) => ({ from, to, votes, noteCount, notes }));
-}
-
-// server/utils/build-space-scripture-connections.ts
 var VERSE_SPAN_CAP = 20;
 var CROSS_REF_CHUNK = 120;
 var MIN_VOTES = 1;
 var DEFAULT_LIMIT = 3;
-var verseKey2 = (v2) => `${v2.book}|${v2.chapter}|${v2.verse}`;
+var verseKey3 = (v2) => `${v2.book}|${v2.chapter}|${v2.verse}`;
 function expandPassageVerses(bookTitle, chapter, verseStart, verseEnd) {
   const end = Math.min(verseEnd, verseStart + VERSE_SPAN_CAP - 1);
   const out = [];
@@ -161815,7 +163582,7 @@ function buildPassageInputs(books) {
         }))
       });
       for (const v2 of expandPassageVerses(book.title, passage.chapter, passage.verseStart, passage.verseEnd)) {
-        verseToPassageKey.set(verseKey2(v2), passage.passageKey);
+        verseToPassageKey.set(verseKey3(v2), passage.passageKey);
       }
     }
   }
@@ -161846,10 +163613,10 @@ async function fetchCrossRefEdges(citedVerses, verseToPassageKey) {
       votes: ScriptureCrossReferences.votes
     }).from(ScriptureCrossReferences).where(and(anyOf, gte(ScriptureCrossReferences.votes, MIN_VOTES))).orderBy(desc(ScriptureCrossReferences.votes));
     for (const row of rows) {
-      const fromPassageKey = verseToPassageKey.get(verseKey2(row));
+      const fromPassageKey = verseToPassageKey.get(verseKey3(row));
       if (!fromPassageKey) continue;
       const toPassageKey = verseToPassageKey.get(
-        verseKey2({ book: row.toBook, chapter: row.toChapter, verse: row.toVerse })
+        verseKey3({ book: row.toBook, chapter: row.toChapter, verse: row.toVerse })
       );
       if (!toPassageKey || fromPassageKey === toPassageKey) continue;
       const dedupeKey = `${fromPassageKey}|${toPassageKey}|${row.fromBook}|${row.fromChapter}|${row.fromVerse}|${row.toBook}|${row.toChapter}|${row.toVerse}`;
@@ -161871,6 +163638,60 @@ async function buildSpaceScriptureConnections(books, opts = {}) {
   const edges = await fetchCrossRefEdges(citedVerses, verseToPassageKey);
   const connections = deriveCrossRefConnections(passages, edges, { limit, minNotes });
   return { connections };
+}
+
+// server/utils/build-space-reference-word-connections.ts
+init_db2();
+
+// src/utils/study-thread-highlight-eligibility.ts
+function studyThreadEligibleForHighlightList(entry) {
+  const passageHighlight = entry.entryKindRaw === "scriptureLink" && (entry.scripturePassageExcerpt ?? "").trim() !== "" && (entry.scripturePassageTranslation ?? "").trim() !== "";
+  const anchoredHighlight = ["miniNote", "linkedNote", "scriptureLink", "reference"].includes(entry.entryKindRaw) && entry.anchorLocation != null && entry.anchorLocation >= 0 && entry.anchorLength != null && entry.anchorLength > 0;
+  const proseSnippetMiniNote = entry.entryKindRaw === "miniNote" && ((entry.sourceSnippet ?? "").trim() !== "" || (entry.anchorTextSnapshot ?? "").trim() !== "");
+  const referenceHighlight = entry.entryKindRaw === "reference" && ((entry.scripturePassageExcerpt ?? "").trim() !== "" || (entry.sourceSnippet ?? "").trim() !== "");
+  const linkedNoteHighlight = entry.entryKindRaw === "linkedNote" && (entry.linkedNoteId ?? "").trim() !== "" && ((entry.sourceSnippet ?? "").trim() !== "" || (entry.anchorTextSnapshot ?? "").trim() !== "");
+  return passageHighlight || anchoredHighlight || proseSnippetMiniNote || referenceHighlight || linkedNoteHighlight;
+}
+
+// server/utils/build-space-reference-word-connections.ts
+async function buildSpaceReferenceWordConnections(spaceId, userId, options = {}) {
+  const { limit = 3, minNotes = 2 } = options;
+  const rows = await db.select({
+    id: StudyThreadEntries.id,
+    entryKindRaw: StudyThreadEntries.entryKindRaw,
+    sourceSnippet: StudyThreadEntries.sourceSnippet,
+    anchorTextSnapshot: StudyThreadEntries.anchorTextSnapshot,
+    focusTitle: StudyThreadEntries.focusTitle,
+    scripturePassageExcerpt: StudyThreadEntries.scripturePassageExcerpt,
+    parentNoteId: StudyThreadEntries.parentNoteId,
+    anchorLocation: StudyThreadEntries.anchorLocation,
+    anchorLength: StudyThreadEntries.anchorLength,
+    linkedNoteId: StudyThreadEntries.linkedNoteId,
+    highlightListEditedAt: StudyThreadEntries.highlightListEditedAt,
+    updatedAt: StudyThreadEntries.updatedAt,
+    createdAt: StudyThreadEntries.createdAt
+  }).from(StudyThreadEntries).innerJoin(Notes, eq(StudyThreadEntries.parentNoteId, Notes.id)).where(
+    and(
+      eq(StudyThreadEntries.isArchived, false),
+      eq(StudyThreadEntries.entryKindRaw, "reference"),
+      eq(StudyThreadEntries.userId, userId),
+      eq(Notes.userId, userId),
+      eq(Notes.spaceId, spaceId)
+    )
+  );
+  const eligible = rows.filter((row) => studyThreadEligibleForHighlightList(row));
+  const inputs = eligible.map((row) => ({
+    id: row.id,
+    entryKind: "reference",
+    sourceSnippet: row.sourceSnippet,
+    anchorTextSnapshot: row.anchorTextSnapshot,
+    focusTitle: row.focusTitle,
+    parentNoteId: row.parentNoteId,
+    recencyMs: Date.parse(String(row.highlightListEditedAt ?? row.updatedAt ?? row.createdAt ?? "")) || 0
+  }));
+  return {
+    connections: deriveReferenceWordConnections(inputs, { limit, minNotes })
+  };
 }
 
 // server/utils/build-space-references-index.ts
@@ -161963,17 +163784,9 @@ function buildSpaceReferencesIndex(notes) {
   return { domains: result };
 }
 
-// src/utils/study-thread-highlight-eligibility.ts
-function studyThreadEligibleForHighlightList(entry) {
-  const passageHighlight = entry.entryKindRaw === "scriptureLink" && (entry.scripturePassageExcerpt ?? "").trim() !== "" && (entry.scripturePassageTranslation ?? "").trim() !== "";
-  const anchoredHighlight = ["miniNote", "linkedNote", "scriptureLink", "reference"].includes(entry.entryKindRaw) && entry.anchorLocation != null && entry.anchorLocation >= 0 && entry.anchorLength != null && entry.anchorLength > 0;
-  const proseSnippetMiniNote = entry.entryKindRaw === "miniNote" && ((entry.sourceSnippet ?? "").trim() !== "" || (entry.anchorTextSnapshot ?? "").trim() !== "");
-  const referenceHighlight = entry.entryKindRaw === "reference" && ((entry.scripturePassageExcerpt ?? "").trim() !== "" || (entry.sourceSnippet ?? "").trim() !== "");
-  const linkedNoteHighlight = entry.entryKindRaw === "linkedNote" && (entry.linkedNoteId ?? "").trim() !== "" && ((entry.sourceSnippet ?? "").trim() !== "" || (entry.anchorTextSnapshot ?? "").trim() !== "");
-  return passageHighlight || anchoredHighlight || proseSnippetMiniNote || referenceHighlight || linkedNoteHighlight;
-}
-
 // server/routes/spaces.ts
+init_pg_undefined_relation();
+init_html_stripper();
 var route12 = new Hono2();
 function normalizePrototypeSpaceId(spaceIdRaw) {
   return spaceIdRaw.startsWith("space_") ? spaceIdRaw : `space_${spaceIdRaw}`;
@@ -162228,6 +164041,90 @@ route12.get("/api/spaces/:spaceId/notes", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+route12.get("/api/spaces/:spaceId/folder-registry", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    const row = await db.select({ prototypeEmptyFolderLabels: Spaces.prototypeEmptyFolderLabels }).from(Spaces).where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId))).limit(1);
+    const labels = parsePrototypeEmptyFolderLabels(row[0]?.prototypeEmptyFolderLabels);
+    return c.json({ labels });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/spaces/[spaceId]/folder-registry",
+      action: "get_folder_registry"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route12.post("/api/spaces/:spaceId/folders/create", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    const body = await c.req.json().catch(() => ({}));
+    const folderName = typeof body.folderName === "string" ? body.folderName.trim() : "";
+    if (!folderName) return c.json({ error: "Folder name is required" }, 400);
+    if (isReservedPrototypeFolderLabel(folderName)) {
+      return c.json({ error: "That folder name is reserved" }, 400);
+    }
+    const row = await db.select({ prototypeEmptyFolderLabels: Spaces.prototypeEmptyFolderLabels }).from(Spaces).where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId))).limit(1);
+    if (!row[0]) return c.json({ error: "Space not found" }, 404);
+    const current = parsePrototypeEmptyFolderLabels(row[0].prototypeEmptyFolderLabels);
+    const next = addPrototypeEmptyFolderLabel(current, folderName);
+    await db.update(Spaces).set({
+      prototypeEmptyFolderLabels: serializePrototypeEmptyFolderLabels(next),
+      updatedAt: nowISO()
+    }).where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)));
+    return c.json({ success: true, labels: next });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/spaces/[spaceId]/folders/create",
+      action: "create_folder"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route12.post("/api/spaces/:spaceId/folder-registry/remove-label", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    const body = await c.req.json().catch(() => ({}));
+    const folderName = typeof body.folderName === "string" ? body.folderName.trim() : "";
+    if (!folderName) return c.json({ error: "Folder name is required" }, 400);
+    const row = await db.select({ prototypeEmptyFolderLabels: Spaces.prototypeEmptyFolderLabels }).from(Spaces).where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId))).limit(1);
+    if (!row[0]) return c.json({ error: "Space not found" }, 404);
+    const current = parsePrototypeEmptyFolderLabels(row[0].prototypeEmptyFolderLabels);
+    const next = removePrototypeEmptyFolderLabel(current, folderName);
+    await db.update(Spaces).set({
+      prototypeEmptyFolderLabels: serializePrototypeEmptyFolderLabels(next),
+      updatedAt: nowISO()
+    }).where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)));
+    return c.json({ success: true, labels: next });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/spaces/[spaceId]/folder-registry/remove-label",
+      action: "remove_folder_registry_label"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
 route12.post("/api/spaces/:spaceId/folders/remove", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -162282,6 +164179,17 @@ route12.post("/api/spaces/:spaceId/folders/remove", requireAuth, rateLimit("writ
       }
       await db.update(Notes).set(updateData).where(and(eq(Notes.id, note.id), eq(Notes.userId, auth.userId)));
       updatedCount += 1;
+    }
+    const spaceRow = await db.select({ prototypeEmptyFolderLabels: Spaces.prototypeEmptyFolderLabels }).from(Spaces).where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId))).limit(1);
+    if (spaceRow[0]) {
+      const current = parsePrototypeEmptyFolderLabels(spaceRow[0].prototypeEmptyFolderLabels);
+      const next = removePrototypeEmptyFolderLabel(current, folderName);
+      if (next.length !== current.length) {
+        await db.update(Spaces).set({
+          prototypeEmptyFolderLabels: serializePrototypeEmptyFolderLabels(next),
+          updatedAt: nowISO()
+        }).where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)));
+      }
     }
     return c.json({ success: true, updatedCount });
   } catch (error) {
@@ -162496,6 +164404,28 @@ route12.get("/api/spaces/:spaceId/scripture-connections", requireAuth, async (c)
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+route12.get("/api/spaces/:spaceId/reference-word-connections", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    const limitRaw = Number(c.req.query("limit") ?? "3");
+    const limit = Number.isFinite(limitRaw) ? Math.min(10, Math.max(1, Math.floor(limitRaw))) : 3;
+    const payload = await buildSpaceReferenceWordConnections(spaceIdNorm, auth.userId, { limit, minNotes: 2 });
+    return c.json({ success: true, ...payload });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/spaces/[spaceId]/reference-word-connections",
+      action: "reference_word_connections"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
 route12.get("/api/spaces/:spaceId/references-index", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -162599,9 +164529,6 @@ route12.get("/api/spaces/:spaceId/study-threads", requireAuth, async (c) => {
       throw err;
     }
     const edges = await db.select({ fromNoteId: NoteConnections.fromNoteId, toNoteId: NoteConnections.toNoteId }).from(NoteConnections).where(and(eq(NoteConnections.userId, auth.userId), eq(NoteConnections.spaceId, spaceIdNorm)));
-    if (edges.length === 0) {
-      return c.json({ threads: [] });
-    }
     const adj = /* @__PURE__ */ new Map();
     const degree = /* @__PURE__ */ new Map();
     for (const e of edges) {
@@ -162632,9 +164559,10 @@ route12.get("/api/spaces/:spaceId/study-threads", requireAuth, async (c) => {
       }
       components.push(component);
     }
+    const connectedNodeIds = new Set(components.flat());
     const repIds = components.map((members) => pickStudyThreadRepresentativeNoteId(members, degree));
-    const allMemberIds = [...new Set(components.flat())];
-    const memberRows = await fetchStudyThreadNoteRows(allMemberIds, auth.userId);
+    const allMemberIds = [...connectedNodeIds];
+    const memberRows = allMemberIds.length > 0 ? await fetchStudyThreadNoteRows(allMemberIds, auth.userId) : [];
     const memberMap = new Map(memberRows.map((r) => [r.id, r]));
     const resourceIds = memberRows.filter((n) => n.noteType === "resource").map((n) => n.id);
     let resourceMap = {};
@@ -162664,13 +164592,13 @@ route12.get("/api/spaces/:spaceId/study-threads", requireAuth, async (c) => {
         updatedAt: n.updatedAt ? n.updatedAt.toISOString() : null
       };
     };
-    const threads = sortStudyThreadClustersByTitle(
+    const connectedThreads = sortStudyThreadClustersByTitle(
       components.map((members, i) => {
         const repId = repIds[i];
         const rep = memberMap.get(repId);
-        const memberRows2 = members.map((id) => memberMap.get(id)).filter((row) => row != null);
+        const clusterMemberRows = members.map((id) => memberMap.get(id)).filter((row) => row != null);
         const suggestNodes = members.map(toSuggestNode).filter((n) => n != null);
-        const naming = resolveStudyThreadClusterNaming(memberRows2, suggestNodes, repId);
+        const naming = resolveStudyThreadClusterNaming(clusterMemberRows, suggestNodes, repId);
         return {
           id: repId,
           title: naming.threadTitle,
@@ -162683,6 +164611,37 @@ route12.get("/api/spaces/:spaceId/study-threads", requireAuth, async (c) => {
         };
       })
     );
+    const singletonRows = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      noteType: Notes.noteType,
+      updatedAt: Notes.updatedAt,
+      studyThreadTitle: Notes.studyThreadTitle,
+      studyThreadUserOverride: Notes.studyThreadUserOverride,
+      studyThreadPinned: Notes.studyThreadPinned
+    }).from(Notes).where(
+      and(
+        eq(Notes.userId, auth.userId),
+        eq(Notes.spaceId, spaceIdNorm),
+        eq(Notes.studyThreadUserOverride, true),
+        isNotNull(Notes.studyThreadTitle),
+        sql`TRIM(COALESCE(${Notes.studyThreadTitle}, '')) <> ''`,
+        NOT_ONBOARDING_NOTES_THREAD,
+        NOT_ONBOARDING_SYSTEM_NOTES
+      )
+    );
+    const singletonThreads = singletonRows.filter((row) => !connectedNodeIds.has(row.id)).map((row) => ({
+      id: row.id,
+      title: (row.studyThreadTitle ?? "").trim() || null,
+      suggestedTitle: row.title?.trim() || null,
+      hasCustomTitle: true,
+      studyThreadPinned: Boolean(row.studyThreadPinned),
+      noteCount: 1,
+      updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+      memberIds: [row.id]
+    }));
+    const threads = sortStudyThreadClustersByTitle([...connectedThreads, ...singletonThreads]);
     return c.json({ threads });
   } catch (error) {
     const standardError = handleAPIError(error, {
@@ -162720,7 +164679,7 @@ route12.get("/api/spaces/:spaceId/connect-note-candidates", requireAuth, async (
       noteType: Notes.noteType,
       updatedAt: Notes.updatedAt,
       createdAt: Notes.createdAt,
-      content: sql`LEFT(${Notes.content}, 250)`.as("content")
+      content: Notes.content
     }).from(Notes).where(and(...filters2)).orderBy(desc(Notes.updatedAt)).limit(limit);
     return c.json({
       notes: rows.map((r) => ({
@@ -162729,7 +164688,7 @@ route12.get("/api/spaces/:spaceId/connect-note-candidates", requireAuth, async (
         noteType: r.noteType || "default",
         updatedAt: r.updatedAt ? r.updatedAt.toISOString() : null,
         createdAt: r.createdAt ? r.createdAt.toISOString() : null,
-        content: r.content ?? ""
+        content: r.content ? stripHtmlForListPreview(r.content, 80) : ""
       }))
     });
   } catch (error) {
@@ -163833,14 +165792,14 @@ function resolveYamlNull(data) {
 function constructYamlNull() {
   return null;
 }
-function isNull4(object) {
+function isNull5(object) {
   return object === null;
 }
 var _null = new type("tag:yaml.org,2002:null", {
   kind: "scalar",
   resolve: resolveYamlNull,
   construct: constructYamlNull,
-  predicate: isNull4,
+  predicate: isNull5,
   represent: {
     canonical: function() {
       return "~";
@@ -171403,6 +173362,8 @@ init_unorganized_thread();
 init_my_pile_thread();
 init_tag_helpers();
 init_note_secondary_collections();
+init_pg_undefined_relation();
+init_html_stripper();
 var app = new Hono2();
 app.get("/api/user/achievements", requireAuth, async (c) => {
   try {
@@ -171849,7 +173810,18 @@ app.post("/api/user/update-appearance", requireAuth, rateLimit("write"), async (
       bgLight: bgLight ?? null,
       bgDark: bgDark ?? null
     });
-    await db.update(UserMetadata).set({ appearanceSettings, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
+    const existing = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+    if (existing) {
+      await db.update(UserMetadata).set({ appearanceSettings, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
+    } else {
+      await db.insert(UserMetadata).values({
+        id: crypto.randomUUID(),
+        userId: auth.userId,
+        appearanceSettings,
+        createdAt: nowISO(),
+        updatedAt: nowISO()
+      });
+    }
     broadcastInvalidation(auth.userId, { type: "userMetadata:updated" });
     return c.json({ success: true, appearanceSettings });
   } catch (error) {
@@ -172259,7 +174231,14 @@ app.get("/api/profile/my-sharing", requireAuth, async (c) => {
     const origin = new URL(c.req.url).origin;
     const [threadRows, noteRows] = await Promise.all([
       db.select({ id: Threads.id, title: Threads.title, color: Threads.color, shareToken: Threads.shareToken }).from(Threads).where(and(eq(Threads.userId, auth.userId), isNotNull(Threads.shareToken))).orderBy(desc(Threads.shareTokenCreatedAt)),
-      db.select({ id: Notes.id, title: Notes.title, content: Notes.content, shareToken: Notes.shareToken }).from(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.noteType, "default"), isNotNull(Notes.shareToken))).orderBy(desc(Notes.shareTokenCreatedAt))
+      db.select({
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        shareToken: Notes.shareToken,
+        updatedAt: Notes.updatedAt,
+        createdAt: Notes.createdAt
+      }).from(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.noteType, "default"), isNotNull(Notes.shareToken))).orderBy(desc(Notes.shareTokenCreatedAt))
     ]);
     const threads = threadRows.filter((t) => t.shareToken != null).map((t) => ({
       id: t.id,
@@ -172270,9 +174249,13 @@ app.get("/api/profile/my-sharing", requireAuth, async (c) => {
     }));
     const notes = noteRows.filter((n) => n.shareToken != null).map((n) => {
       const title = n.title?.trim() || (n.content?.split("\n")[0]?.trim().slice(0, 80) || "Untitled note");
+      const preview = n.content ? stripHtmlForListPreview(n.content, 80) : void 0;
       return {
         id: n.id,
         title: title.length > 80 ? title.slice(0, 77) + "..." : title,
+        preview: preview || void 0,
+        updatedAt: n.updatedAt ?? void 0,
+        createdAt: n.createdAt,
         shareToken: n.shareToken,
         shareUrl: `${origin}/shared/note/${n.shareToken}`
       };
@@ -175718,8 +177701,18 @@ init_auth();
 init_db2();
 init_dates();
 init_note_secondary_collections();
+
+// src/utils/prototype-note-empty.ts
+function isTiptapBodyEmpty(html) {
+  if (html == null || html === "") return true;
+  const text2 = html.replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ").replace(/\s+/g, " ").trim();
+  return text2.length === 0;
+}
+
+// server/routes/sync.ts
 init_unorganized_thread();
 init_scripture_detector();
+init_pg_undefined_relation();
 init_tag_helpers();
 var app9 = new Hono2();
 var processedMutations = /* @__PURE__ */ new Map();
@@ -175879,6 +177872,9 @@ async function processNoteMutation(userId, operation, entityId, data, clientMuta
     let noteType = data.noteType || "default";
     let noteTitle = data.title;
     let noteContent = data.content;
+    if (!noteTitle?.trim() && noteContent && !isTiptapBodyEmpty(noteContent)) {
+      noteTitle = formatNoteDefaultTitle(/* @__PURE__ */ new Date());
+    }
     if (noteType === "default" && noteTitle && noteTitle.length >= 5) {
       try {
         const detection = await detectScripture(noteTitle);
@@ -176508,7 +178504,7 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
       sinceTimestamp = parseInt(sinceParam, 10);
       if (isNaN(sinceTimestamp)) return c.json({ error: "Invalid since parameter format", code: "INVALID_PARAMETER" }, 400);
     }
-    const sinceDate = new Date(sinceTimestamp);
+    const sinceDate2 = new Date(sinceTimestamp);
     const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedNoteConnections, changedTags, changedNoteTags, changedStudyThreadEntries, changedUserMetadataRows, deletedFeed] = await Promise.all([
       db.select({
         id: Spaces.id,
@@ -176521,7 +178517,7 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
         order: Spaces.order,
         createdAt: Spaces.createdAt,
         updatedAt: Spaces.updatedAt
-      }).from(Spaces).where(and(eq(Spaces.userId, auth.userId), or(gt(Spaces.updatedAt, sinceDate), gt(Spaces.createdAt, sinceDate)))),
+      }).from(Spaces).where(and(eq(Spaces.userId, auth.userId), or(gt(Spaces.updatedAt, sinceDate2), gt(Spaces.createdAt, sinceDate2)))),
       db.select({
         id: Threads.id,
         title: Threads.title,
@@ -176537,7 +178533,7 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
       }).from(Threads).where(and(
         eq(Threads.userId, auth.userId),
         NOT_ONBOARDING_THREADS,
-        or(gt(Threads.updatedAt, sinceDate), gt(Threads.createdAt, sinceDate), gt(Threads.lastVisited, sinceDate))
+        or(gt(Threads.updatedAt, sinceDate2), gt(Threads.createdAt, sinceDate2), gt(Threads.lastVisited, sinceDate2))
       )),
       db.select({
         id: Notes.id,
@@ -176572,7 +178568,7 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
         ne(Notes.noteType, "scripture"),
         NOT_ONBOARDING_NOTES_THREAD,
         NOT_ONBOARDING_SYSTEM_NOTES,
-        or(gt(Notes.updatedAt, sinceDate), gt(Notes.createdAt, sinceDate), gt(Notes.lastVisited, sinceDate))
+        or(gt(Notes.updatedAt, sinceDate2), gt(Notes.createdAt, sinceDate2), gt(Notes.lastVisited, sinceDate2))
       )).orderBy(asc(sql`coalesce(${Notes.updatedAt}, ${Notes.createdAt})`)).limit(SYNC_NOTE_PAGE_LIMIT + 1),
       db.select({
         id: NoteThreads.id,
@@ -176583,7 +178579,7 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
         eq(Notes.userId, auth.userId),
         NOT_ONBOARDING_NOTES_THREAD,
         NOT_ONBOARDING_JUNCTION_THREAD,
-        gt(NoteThreads.createdAt, sinceDate)
+        gt(NoteThreads.createdAt, sinceDate2)
       )),
       (async () => {
         try {
@@ -176593,7 +178589,7 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
             toNoteId: NoteConnections.toNoteId,
             spaceId: NoteConnections.spaceId,
             createdAt: NoteConnections.createdAt
-          }).from(NoteConnections).where(and(eq(NoteConnections.userId, auth.userId), gt(NoteConnections.createdAt, sinceDate)));
+          }).from(NoteConnections).where(and(eq(NoteConnections.userId, auth.userId), gt(NoteConnections.createdAt, sinceDate2)));
         } catch (e) {
           if (isNoteConnectionsTableMissing(e)) {
             console.warn("[sync/changes] NoteConnections table missing; returning empty connection delta.");
@@ -176610,7 +178606,7 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
         isSystem: Tags.isSystem,
         createdAt: Tags.createdAt,
         updatedAt: Tags.updatedAt
-      }).from(Tags).where(and(eq(Tags.userId, auth.userId), or(gt(Tags.updatedAt, sinceDate), gt(Tags.createdAt, sinceDate)))),
+      }).from(Tags).where(and(eq(Tags.userId, auth.userId), or(gt(Tags.updatedAt, sinceDate2), gt(Tags.createdAt, sinceDate2)))),
       db.select({
         id: NoteTags.id,
         noteId: NoteTags.noteId,
@@ -176618,13 +178614,13 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
         isAutoGenerated: NoteTags.isAutoGenerated,
         confidence: NoteTags.confidence,
         createdAt: NoteTags.createdAt
-      }).from(NoteTags).innerJoin(Notes, eq(Notes.id, NoteTags.noteId)).where(and(eq(Notes.userId, auth.userId), gt(NoteTags.createdAt, sinceDate))),
+      }).from(NoteTags).innerJoin(Notes, eq(Notes.id, NoteTags.noteId)).where(and(eq(Notes.userId, auth.userId), gt(NoteTags.createdAt, sinceDate2))),
       (async () => {
         try {
           return await db.select().from(StudyThreadEntries).where(
             and(
               eq(StudyThreadEntries.userId, auth.userId),
-              or(gt(StudyThreadEntries.updatedAt, sinceDate), gt(StudyThreadEntries.createdAt, sinceDate))
+              or(gt(StudyThreadEntries.updatedAt, sinceDate2), gt(StudyThreadEntries.createdAt, sinceDate2))
             )
           );
         } catch (e) {
@@ -176656,8 +178652,8 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
         updatedAt: UserMetadata.updatedAt,
         lockPinHash: UserMetadata.lockPinHash,
         appearanceSettings: UserMetadata.appearanceSettings
-      }).from(UserMetadata).where(and(eq(UserMetadata.userId, auth.userId), or(gt(UserMetadata.updatedAt, sinceDate), gt(UserMetadata.createdAt, sinceDate)))).limit(1),
-      loadDeletedEntitiesSince(auth.userId, sinceDate)
+      }).from(UserMetadata).where(and(eq(UserMetadata.userId, auth.userId), or(gt(UserMetadata.updatedAt, sinceDate2), gt(UserMetadata.createdAt, sinceDate2)))).limit(1),
+      loadDeletedEntitiesSince(auth.userId, sinceDate2)
     ]);
     const changedUserMetadata = first(changedUserMetadataRows);
     const notesPageTruncated = changedNotes.length > SYNC_NOTE_PAGE_LIMIT;
@@ -177786,7 +179782,2861 @@ function getPreviousMonth() {
 
 // server/routes/admin.ts
 init_harvous_admin();
+
+// server/utils/admin-usage-stats.ts
+init_dist();
+init_db2();
+init_universal_bible_entities();
+
+// src/utils/divine-name-display.ts
+var GODS_POSSESSIVE_RE = /\bgods\s+(love|kingdom|grace|mercy|word|spirit|presence|power|will|plan|promise|people|children|son|sons|daughter|daughters)\b/giu;
+var PREPOSITION_GOD_RE = /\b(in|of|with|to|for|from|and|or)\s+god\b/giu;
+var STANDALONE_GOD_RE = /\bgod\b/giu;
+function formatDivineNamesInLabel(label) {
+  const trimmed = label.trim();
+  if (!trimmed) return trimmed;
+  let out = trimmed.replace(GODS_POSSESSIVE_RE, (_3, tail) => `God's ${tail}`);
+  out = out.replace(PREPOSITION_GOD_RE, (match3, prep) => `${prep} God`);
+  out = out.replace(STANDALONE_GOD_RE, "God");
+  return out;
+}
+function formatPulseThemeLabels(items) {
+  return items.map((item) => ({
+    ...item,
+    name: formatDivineNamesInLabel(item.name)
+  }));
+}
+
+// server/utils/admin-usage-stats.ts
+init_my_pile_thread();
+init_pg_undefined_relation();
+
+// server/utils/admin-votd-passage-metrics.ts
+init_db2();
+function publishDateMinForWindow(since) {
+  return since.toISOString().slice(0, 10);
+}
+async function fetchVotdPassageEngagementMetrics(since) {
+  const sinceIso = since.toISOString();
+  const publishDateMin = publishDateMinForWindow(since);
+  const rows = await db.execute(sql`
+    WITH published AS (
+      SELECT
+        p."reference",
+        p."publishedDate",
+        TRIM(LOWER(REGEXP_REPLACE(p."reference", '\\s+', ' ', 'g'))) AS ref_norm
+      FROM "VotdPublishHistory" p
+      WHERE p."publishedDate" >= ${publishDateMin}
+    ),
+    note_hits AS (
+      SELECT DISTINCT n."id" AS note_id, n."userId" AS user_id
+      FROM "Notes" n
+      INNER JOIN published p ON (
+        n."createdAt" >= (p."publishedDate" || 'T00:00:00.000Z')::timestamptz
+        AND (
+          TRIM(LOWER(REGEXP_REPLACE(COALESCE(n."title", ''), '\\s+', ' ', 'g'))) = p.ref_norm
+          OR POSITION(
+            'data-scripture-reference="' || p."reference" || '"'
+            IN COALESCE(n."content", '')
+          ) > 0
+          OR EXISTS (
+            SELECT 1 FROM "ScriptureMetadata" sm
+            WHERE sm."noteId" = n."id"
+            AND TRIM(LOWER(REGEXP_REPLACE(sm."reference", '\\s+', ' ', 'g'))) = p.ref_norm
+          )
+        )
+      )
+      WHERE n."createdAt" >= ${sinceIso}
+      AND ${COUNTABLE_USER_NOTES_N_SQL}
+    )
+    SELECT
+      (SELECT COUNT(DISTINCT user_id) FROM (
+        SELECT user_id FROM note_hits
+        UNION
+        SELECT "userId" AS user_id FROM "UserXP"
+        WHERE "activityType" = 'votd_engaged' AND "createdAt" >= ${sinceIso}
+      ) combined_users) AS users_who_added_passage,
+      (SELECT COUNT(*)::int FROM note_hits) AS passage_notes_added,
+      (SELECT COUNT(*)::int FROM "UserFeaturedItems" ufi
+        INNER JOIN "FeaturedItems" fi ON fi."id" = ufi."featuredItemId"
+        WHERE fi."contentType" = 'votd' AND ufi."status" = 'completed'
+        AND ufi."completedAt" >= ${sinceIso}) AS dismiss_close_events
+  `);
+  const row = rows[0];
+  return {
+    usersWhoAddedPassage: Number(row?.users_who_added_passage ?? 0),
+    passageNotesAdded: Number(row?.passage_notes_added ?? 0),
+    dismissCloseEvents: Number(row?.dismiss_close_events ?? 0)
+  };
+}
+
+// server/utils/admin-pulse-xp-stats.ts
+init_db2();
+
+// src/utils/admin-pulse-deltas.ts
+function countMap(items) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const item of items) {
+    map2.set(item.name, item.count);
+  }
+  return map2;
+}
+function attachRankDeltasToListedItems(current, previous) {
+  const prevMap = countMap(previous);
+  return current.map((item) => {
+    const prev = prevMap.get(item.name) ?? 0;
+    const delta = item.count - prev;
+    return {
+      name: item.name,
+      count: item.count,
+      previous: prev,
+      delta,
+      deltaPct: prev > 0 ? Math.round(delta / prev * 100) : null
+    };
+  });
+}
+function computeRisingDeltas(current, previous, limit = 5) {
+  const prevMap = countMap(previous);
+  const deltas = [];
+  for (const item of current) {
+    const prev = prevMap.get(item.name) ?? 0;
+    const delta = item.count - prev;
+    if (delta <= 0) continue;
+    deltas.push({
+      name: item.name,
+      current: item.count,
+      previous: prev,
+      delta,
+      deltaPct: prev > 0 ? Math.round(delta / prev * 100) : null
+    });
+  }
+  return deltas.sort((a, b3) => b3.delta - a.delta || b3.current - a.current || a.name.localeCompare(b3.name)).slice(0, limit);
+}
+function computeCoolingDeltas(current, previous, limit = 5) {
+  const currMap = countMap(current);
+  const deltas = [];
+  for (const item of previous) {
+    const curr = currMap.get(item.name) ?? 0;
+    const delta = curr - item.count;
+    if (delta >= 0 || item.count === 0) continue;
+    deltas.push({
+      name: item.name,
+      current: curr,
+      previous: item.count,
+      delta,
+      deltaPct: item.count > 0 ? Math.round(delta / item.count * 100) : null
+    });
+  }
+  return deltas.sort((a, b3) => a.delta - b3.delta || b3.previous - a.previous || a.name.localeCompare(b3.name)).slice(0, limit);
+}
+
+// src/utils/admin-xp-activity-labels.ts
+var XP_ACTIVITY_LABELS = {
+  session_completed: "Study sessions",
+  creation_bonus: "Creation bonuses",
+  church_added: "Church added",
+  monthly_attendance: "Monthly attendance",
+  new_season: "New season return",
+  weekly_streak: "Weekly streaks",
+  referral_credited: "Referrals",
+  thread_created: "Threads created",
+  note_created: "Notes created",
+  note_opened: "Notes opened",
+  first_note_daily: "First note of day",
+  votd_engaged: "Verse of the Day"
+};
+function xpActivityLabel(activityType) {
+  return XP_ACTIVITY_LABELS[activityType] ?? activityType.replace(/_/g, " ");
+}
+
+// server/utils/admin-pulse-xp-stats.ts
+function xpWindowFilter(since, until) {
+  const filters2 = [gte(UserXP.createdAt, since)];
+  if (until) filters2.push(lt(UserXP.createdAt, until));
+  return and(...filters2);
+}
+function xpStudyThreadScopeFilter() {
+  return or(
+    sql`${UserXP.activityType} <> ${ACTIVITY_TYPES.THREAD_CREATED}`,
+    sql`${UserXP.relatedId} LIKE 'note_%'`,
+    sql`${UserXP.metadata} LIKE '%"kind":"study_thread"%'`
+  );
+}
+function xpScopedWhere(since, until) {
+  return and(xpWindowFilter(since, until), xpStudyThreadScopeFilter());
+}
+async function fetchXpHeadline(since, until) {
+  const rows = await db.select({
+    totalXp: sql`coalesce(sum(${UserXP.xpAmount}), 0)`.mapWith(Number),
+    eventCount: sql`count(*)`.mapWith(Number),
+    users: sql`count(distinct ${UserXP.userId})`.mapWith(Number)
+  }).from(UserXP).where(xpScopedWhere(since, until));
+  const row = rows[0];
+  return {
+    totalXp: row?.totalXp ?? 0,
+    eventCount: row?.eventCount ?? 0,
+    users: row?.users ?? 0
+  };
+}
+async function fetchXpByActivity(since, until) {
+  const rows = await db.select({
+    activityType: UserXP.activityType,
+    totalXp: sql`coalesce(sum(${UserXP.xpAmount}), 0)`.mapWith(Number),
+    eventCount: sql`count(*)`.mapWith(Number),
+    users: sql`count(distinct ${UserXP.userId})`.mapWith(Number)
+  }).from(UserXP).where(xpScopedWhere(since, until)).groupBy(UserXP.activityType).orderBy(desc(sql`sum(${UserXP.xpAmount})`), UserXP.activityType);
+  return rows.map((row) => ({
+    activityType: row.activityType,
+    label: xpActivityLabel(row.activityType),
+    totalXp: row.totalXp,
+    eventCount: row.eventCount,
+    users: row.users
+  }));
+}
+function getPulseXpRates() {
+  return [
+    {
+      label: "Study session",
+      value: `${XP_VALUES.SESSION_BASE}\u2013${XP_VALUES.SESSION_MAX} XP`,
+      detail: `Up to ${DAILY_CAPS.SESSIONS} completed/day`
+    },
+    { label: "Creation bonus", value: `${XP_VALUES.CREATION_BONUS} XP`, detail: `Up to ${DAILY_CAPS.CREATION_BONUS} XP/day` },
+    { label: "Note created", value: `${XP_VALUES.NOTE_CREATED} XP` },
+    { label: "Thread created", value: `${XP_VALUES.THREAD_CREATED} XP` },
+    { label: "First note of day", value: `+${XP_VALUES.FIRST_NOTE_DAILY_BONUS} XP bonus` },
+    {
+      label: "Note opened",
+      value: `${XP_VALUES.NOTE_OPENED} XP`,
+      detail: `Up to ${DAILY_CAPS.NOTE_OPENED} XP/day`
+    },
+    { label: "Verse of the Day", value: `${XP_VALUES.VOTD_ENGAGED} XP` },
+    { label: "Weekly streak (3\u20134 days)", value: `${XP_VALUES.WEEKLY_STREAK_3_4_DAYS} XP` },
+    { label: "Weekly streak (5\u20136 days)", value: `${XP_VALUES.WEEKLY_STREAK_5_6_DAYS} XP` },
+    { label: "Weekly streak (7 days)", value: `${XP_VALUES.WEEKLY_STREAK_7_DAYS} XP` },
+    { label: "New season return", value: `${XP_VALUES.NEW_SEASON_BONUS} XP` },
+    { label: "Church added", value: `${XP_VALUES.CHURCH_ADDED} XP` },
+    { label: "Monthly attendance", value: `${XP_VALUES.MONTHLY_ATTENDANCE} XP` },
+    { label: "Referral (1st friend)", value: "100 XP", detail: "Then 75, 50, 25\u2026" }
+  ];
+}
+function emptyPulseXpSummary(days = 0) {
+  return {
+    days,
+    totalXp: 0,
+    eventCount: 0,
+    users: 0,
+    avgXpPerUser: 0,
+    byActivity: [],
+    rising: [],
+    rates: getPulseXpRates()
+  };
+}
+function toRankItems(activities) {
+  return activities.map((row) => ({ name: row.label, count: row.totalXp }));
+}
+async function getAdminPulseXp(daysParam, currentSince, previousSince, previousUntil) {
+  const days = Math.min(Math.max(daysParam, 1), 90);
+  try {
+    const [currentActivities, headline] = await Promise.all([
+      fetchXpByActivity(currentSince),
+      fetchXpHeadline(currentSince)
+    ]);
+    const previousActivities = await fetchXpByActivity(previousSince, previousUntil);
+    const { totalXp, eventCount, users } = headline;
+    const avgXpPerUser = users > 0 ? Math.round(totalXp / users) : 0;
+    const rising = computeRisingDeltas(toRankItems(currentActivities), toRankItems(previousActivities), 5);
+    return {
+      days,
+      totalXp,
+      eventCount,
+      users,
+      avgXpPerUser,
+      byActivity: currentActivities,
+      rising,
+      rates: getPulseXpRates()
+    };
+  } catch (error) {
+    console.error("[admin pulse xp]", error);
+    return emptyPulseXpSummary(days);
+  }
+}
+async function getAdminPulseXpForRange(since, until) {
+  try {
+    const [byActivity, headline] = await Promise.all([
+      fetchXpByActivity(since, until),
+      fetchXpHeadline(since, until)
+    ]);
+    const { totalXp, eventCount, users } = headline;
+    const avgXpPerUser = users > 0 ? Math.round(totalXp / users) : 0;
+    return { totalXp, eventCount, users, avgXpPerUser, byActivity };
+  } catch (error) {
+    console.error("[admin pulse xp range]", error);
+    return { totalXp: 0, eventCount: 0, users: 0, avgXpPerUser: 0, byActivity: [] };
+  }
+}
+
+// server/utils/admin-time-window.ts
+function clampAdminDays(daysParam) {
+  return Math.min(Math.max(daysParam, 1), 90);
+}
+function adminWindowSince(daysParam) {
+  const days = clampAdminDays(daysParam);
+  const d = /* @__PURE__ */ new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - (days - 1));
+  return d;
+}
+function adminWindowPreviousRange(daysParam) {
+  const days = clampAdminDays(daysParam);
+  const until = adminWindowSince(days);
+  const since = new Date(until);
+  since.setUTCDate(since.getUTCDate() - days);
+  return { since, until };
+}
+
+// src/utils/recall-opportunity-kinds.ts
+var RECALL_OPPORTUNITY_KINDS = [
+  "revisitNote",
+  "highlight",
+  "arc",
+  "passage",
+  "crossref",
+  "subject",
+  "referenceWord",
+  "continueBook",
+  "studyPerson",
+  "annotateHighlight",
+  "reflection",
+  "crossrefGap",
+  "connectNotes"
+];
+var RECALL_EVENT_ACTIONS = ["open", "snooze", "impression"];
+function isRecallOpportunityKind(value) {
+  return RECALL_OPPORTUNITY_KINDS.includes(value);
+}
+function isRecallEventAction(value) {
+  return RECALL_EVENT_ACTIONS.includes(value);
+}
+var RECALL_KIND_LABELS = {
+  revisitNote: "Revisit note",
+  highlight: "Highlight",
+  arc: "Study arc",
+  passage: "Passage",
+  crossref: "Cross-reference",
+  subject: "Theme",
+  referenceWord: "Dictionary word",
+  continueBook: "Continue book",
+  studyPerson: "Study person",
+  annotateHighlight: "Annotate highlight",
+  reflection: "Reflection prompt",
+  crossrefGap: "Cross-ref gap",
+  connectNotes: "Connect notes"
+};
+function recallKindDisplayLabel(kind) {
+  if (isRecallOpportunityKind(kind)) return RECALL_KIND_LABELS[kind];
+  return kind;
+}
+
+// server/utils/admin-usage-stats.ts
+async function getClerkTotalUserCount() {
+  const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+  if (!clerkSecretKey) return null;
+  const clerkClient = createClerkClient({ secretKey: clerkSecretKey });
+  const { totalCount } = await clerkClient.users.getUserList({ limit: 1, offset: 0 });
+  return totalCount ?? 0;
+}
+function utcDateString(d) {
+  return d.toISOString().slice(0, 10);
+}
+function noteActivityAt() {
+  return sql`COALESCE(${Notes.updatedAt}, ${Notes.createdAt})`;
+}
+function noteActivityDayExpr() {
+  return sql`TO_CHAR(${noteActivityAt()}::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD')`.as("date");
+}
+function scriptureCreatedDayExpr() {
+  return sql`TO_CHAR(${ScriptureMetadata.createdAt}::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD')`.as("date");
+}
+function fillDailyBuckets(days, rows) {
+  const map2 = new Map(rows.map((r) => [r.date, Number(r.count)]));
+  const result = [];
+  const start = /* @__PURE__ */ new Date();
+  start.setUTCHours(0, 0, 0, 0);
+  start.setUTCDate(start.getUTCDate() - (days - 1));
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start);
+    d.setUTCDate(start.getUTCDate() + i);
+    const key2 = utcDateString(d);
+    result.push({ date: key2, count: map2.get(key2) ?? 0 });
+  }
+  return result;
+}
+function parseSecondaries(raw2) {
+  if (!raw2) return [];
+  try {
+    const parsed = JSON.parse(raw2);
+    if (Array.isArray(parsed)) return parsed.filter((item) => typeof item === "string");
+  } catch {
+  }
+  return [];
+}
+function folderKeyForLabel(label) {
+  const trimmed = (label ?? "").trim();
+  if (!trimmed || isMyPileDisplayTitle(trimmed)) return null;
+  const key2 = normalizeFolderKey(trimmed);
+  return key2 || null;
+}
+function noteActivityMs(updatedAt, createdAt) {
+  const raw2 = updatedAt ?? createdAt;
+  if (raw2 instanceof Date) return raw2.getTime();
+  const ms = Date.parse(raw2);
+  return Number.isFinite(ms) ? ms : 0;
+}
+function rankTrendingFolders(noteRows, since, limit, autoOnly = false) {
+  const sinceMs = since.getTime();
+  const countsByKey = /* @__PURE__ */ new Map();
+  const labelsByKey = /* @__PURE__ */ new Map();
+  for (const row of noteRows) {
+    if (autoOnly && row.collectionUserOverride) continue;
+    if (noteActivityMs(row.updatedAt, row.createdAt) < sinceMs) continue;
+    if (autoOnly) {
+      const primary = (row.primaryCollection ?? "").trim();
+      if (!primary) continue;
+      const threadTitle = (row.threadTitle ?? "").trim();
+      if (threadTitle && folderKeyForLabel(primary) === folderKeyForLabel(threadTitle)) continue;
+      const key2 = folderKeyForLabel(primary);
+      if (!key2) continue;
+      countsByKey.set(key2, (countsByKey.get(key2) ?? 0) + 1);
+      const labelCounts = labelsByKey.get(key2) ?? /* @__PURE__ */ new Map();
+      labelCounts.set(primary, (labelCounts.get(primary) ?? 0) + 1);
+      labelsByKey.set(key2, labelCounts);
+      continue;
+    }
+    for (const label of noteFolderMembershipLabels({
+      primaryCollection: row.primaryCollection,
+      secondaryCollections: parseSecondaries(row.secondaryCollections ?? null)
+    })) {
+      const key2 = folderKeyForLabel(label);
+      if (!key2) continue;
+      countsByKey.set(key2, (countsByKey.get(key2) ?? 0) + 1);
+      const labelCounts = labelsByKey.get(key2) ?? /* @__PURE__ */ new Map();
+      labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+      labelsByKey.set(key2, labelCounts);
+    }
+  }
+  const pickDisplayLabel = (key2) => {
+    const labelCounts = labelsByKey.get(key2);
+    if (!labelCounts || labelCounts.size === 0) return key2;
+    return [...labelCounts.entries()].sort((a, b3) => b3[1] - a[1] || a[0].localeCompare(b3[0]))[0][0];
+  };
+  return [...countsByKey.entries()].sort((a, b3) => b3[1] - a[1] || a[0].localeCompare(b3[0])).slice(0, limit).map(([key2, count3]) => ({ name: pickDisplayLabel(key2), count: count3 }));
+}
+async function fetchStudyBehaviorMetrics(since) {
+  const sinceIso = since.toISOString();
+  try {
+    const rows = await db.execute(sql`
+      SELECT
+        (SELECT COUNT(DISTINCT note_id) FROM (
+          SELECT nc."fromNoteId" AS note_id FROM "NoteConnections" nc
+          INNER JOIN "Notes" n ON n."id" = nc."fromNoteId"
+          WHERE nc."createdAt" >= ${sinceIso} AND ${COUNTABLE_USER_NOTES_N_SQL}
+          UNION
+          SELECT nc."toNoteId" AS note_id FROM "NoteConnections" nc
+          INNER JOIN "Notes" n ON n."id" = nc."toNoteId"
+          WHERE nc."createdAt" >= ${sinceIso} AND ${COUNTABLE_USER_NOTES_N_SQL}
+        ) linked) AS notes_linked_in_threads,
+        (SELECT COUNT(*) FROM "Notes" WHERE "linkedFromNoteId" IS NOT NULL AND "createdAt" >= ${sinceIso} AND ${COUNTABLE_USER_NOTES_SQL}) AS highlights_spawned,
+        (SELECT COUNT(*) FROM "Notes" WHERE "isPinned" = true AND ${COUNTABLE_USER_NOTES_SQL}) AS pinned_notes,
+        (SELECT COUNT(DISTINCT sm."noteId") FROM "ScriptureMetadata" sm
+          INNER JOIN "Notes" n ON n."id" = sm."noteId"
+          WHERE sm."createdAt" >= ${sinceIso} AND ${COUNTABLE_USER_NOTES_N_SQL}) AS notes_with_passages
+    `);
+    const row = rows[0];
+    return {
+      notesLinkedInThreads: Number(row?.notes_linked_in_threads ?? 0),
+      highlightsSpawned: Number(row?.highlights_spawned ?? 0),
+      pinnedNotes: Number(row?.pinned_notes ?? 0),
+      notesWithPassages: Number(row?.notes_with_passages ?? 0)
+    };
+  } catch (error) {
+    if (isNoteConnectionsTableMissing(error)) {
+      const rows = await db.execute(sql`
+        SELECT
+          (SELECT COUNT(*) FROM "Notes" WHERE "linkedFromNoteId" IS NOT NULL AND "createdAt" >= ${sinceIso} AND ${COUNTABLE_USER_NOTES_SQL}) AS highlights_spawned,
+          (SELECT COUNT(*) FROM "Notes" WHERE "isPinned" = true AND ${COUNTABLE_USER_NOTES_SQL}) AS pinned_notes,
+          (SELECT COUNT(DISTINCT sm."noteId") FROM "ScriptureMetadata" sm
+            INNER JOIN "Notes" n ON n."id" = sm."noteId"
+            WHERE sm."createdAt" >= ${sinceIso} AND ${COUNTABLE_USER_NOTES_N_SQL}) AS notes_with_passages
+      `);
+      const row = rows[0];
+      return {
+        notesLinkedInThreads: 0,
+        highlightsSpawned: Number(row?.highlights_spawned ?? 0),
+        pinnedNotes: Number(row?.pinned_notes ?? 0),
+        notesWithPassages: Number(row?.notes_with_passages ?? 0)
+      };
+    }
+    throw error;
+  }
+}
+async function countActiveStudyThreadEntries(since) {
+  try {
+    const rows = await db.execute(sql`
+      SELECT COUNT(*) AS count FROM "StudyThreadEntries"
+      WHERE "isArchived" = false
+        AND COALESCE("updatedAt", "createdAt") >= ${since.toISOString()}
+    `);
+    return Number(rows[0]?.count ?? 0);
+  } catch (error) {
+    if (isStudyThreadEntriesTableMissing(error)) return 0;
+    throw error;
+  }
+}
+async function countNoteConnectionsSince(since) {
+  try {
+    const rows = await db.execute(sql`
+      SELECT COUNT(*)::int AS count FROM "NoteConnections"
+      WHERE "createdAt" >= ${since.toISOString()}
+    `);
+    return Number(rows[0]?.count ?? 0);
+  } catch (error) {
+    if (isNoteConnectionsTableMissing(error)) return 0;
+    throw error;
+  }
+}
+async function countFoldersActiveSince(since) {
+  const noteRows = await fetchNotesForTrendingAutoFolders(since);
+  const keys2 = /* @__PURE__ */ new Set();
+  for (const row of noteRows) {
+    for (const label of noteFolderMembershipLabels({
+      primaryCollection: row.primaryCollection,
+      secondaryCollections: parseSecondaries(row.secondaryCollections ?? null)
+    })) {
+      const key2 = folderKeyForLabel(label);
+      if (key2) keys2.add(key2);
+    }
+  }
+  return keys2.size;
+}
+async function countScripturePillsSince(since) {
+  const rows = await db.select({ count: sql`COUNT(*)`.as("count") }).from(ScriptureMetadata).where(gte(ScriptureMetadata.createdAt, since));
+  return Number(rows[0]?.count ?? 0);
+}
+async function fetchNotesForTrendingAutoFolders(since, until) {
+  const activityFilter2 = until ? and(
+    sql`${noteActivityAt()} >= ${since.toISOString()}`,
+    sql`${noteActivityAt()} < ${until.toISOString()}`
+  ) : sql`${noteActivityAt()} >= ${since.toISOString()}`;
+  try {
+    return await db.select({
+      primaryCollection: Notes.primaryCollection,
+      secondaryCollections: Notes.secondaryCollections,
+      updatedAt: Notes.updatedAt,
+      createdAt: Notes.createdAt,
+      collectionUserOverride: Notes.collectionUserOverride,
+      threadTitle: Threads.title
+    }).from(Notes).leftJoin(Threads, eq(Notes.threadId, Threads.id)).where(
+      and(
+        activityFilter2,
+        countableUserNotesWhere(),
+        eq(Notes.collectionUserOverride, false),
+        or(
+          and(isNotNull(Notes.primaryCollection), sql`trim(${Notes.primaryCollection}) <> ''`),
+          and(
+            isNotNull(Notes.secondaryCollections),
+            sql`trim(${Notes.secondaryCollections}) <> ''`,
+            sql`trim(${Notes.secondaryCollections}) <> '[]'`
+          )
+        ),
+        // Classic thread backfill copies pile title → primary with collectionPinned=true.
+        // Prototype auto-assign uses unpinned labels that differ from the legacy thread title.
+        or(eq(Notes.collectionPinned, false), isNotNull(Notes.collectionLastAutoUpdatedAt)),
+        or(
+          eq(Notes.threadId, "thread_unorganized"),
+          isNull(Threads.title),
+          sql`trim(${Threads.title}) = ''`,
+          isNull(Notes.primaryCollection),
+          sql`trim(${Notes.primaryCollection}) = ''`,
+          sql`trim(${Notes.primaryCollection}) <> trim(${Threads.title})`
+        )
+      )
+    );
+  } catch (error) {
+    if (isPrototypeFolderStatsColumnMissing(error) || isPgUndefinedColumn(error, "collectionUserOverride") || isPgUndefinedColumn(error, "collectionLastAutoUpdatedAt") || isPgUndefinedColumn(error, "collectionPinned") || isPgUndefinedColumn(error, "secondaryCollections")) {
+      return [];
+    }
+    throw error;
+  }
+}
+async function getTrendingAutoFolders(since, limit = 10, until) {
+  const noteRows = await fetchNotesForTrendingAutoFolders(since, until);
+  return rankTrendingFolders(noteRows, since, limit, false);
+}
+async function fetchDictionaryLookups(since) {
+  try {
+    const rows = await db.execute(sql`
+      SELECT
+        TRIM(COALESCE(
+          NULLIF(TRIM("sourceSnippet"), ''),
+          NULLIF(TRIM("anchorTextSnapshot"), ''),
+          NULLIF(TRIM("focusTitle"), '')
+        )) AS name,
+        COUNT(DISTINCT "parentNoteId")::int AS count
+      FROM "StudyThreadEntries"
+      WHERE "entryKindRaw" = 'reference'
+        AND "isArchived" = false
+        AND COALESCE("updatedAt", "createdAt") >= ${since.toISOString()}
+        AND TRIM(COALESCE(
+          NULLIF(TRIM("sourceSnippet"), ''),
+          NULLIF(TRIM("anchorTextSnapshot"), ''),
+          NULLIF(TRIM("focusTitle"), '')
+        )) <> ''
+      GROUP BY 1
+      ORDER BY count DESC, name ASC
+      LIMIT 10
+    `);
+    return rows.map((row) => ({ name: row.name, count: Number(row.count) }));
+  } catch (error) {
+    if (isStudyThreadEntriesTableMissing(error)) return [];
+    throw error;
+  }
+}
+function recallSnoozeRatePct(opens, snoozes) {
+  return opens > 0 ? Math.round(snoozes / opens * 100) : 0;
+}
+function recallAvgStabilityDays(avgStabilityRaw) {
+  return avgStabilityRaw != null && Number.isFinite(avgStabilityRaw) ? Math.round(avgStabilityRaw * 10) / 10 : 0;
+}
+function pickRecallOpenTrendSource(eventRows, legacyRows) {
+  const eventTotal = eventRows.reduce((sum2, row) => sum2 + Number(row.count), 0);
+  return eventTotal > 0 ? eventRows : legacyRows;
+}
+function recallEngagedDayExpr() {
+  return sql`TO_CHAR(${NoteFingerprints.lastRecallEngagedAt}::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD')`.as(
+    "date"
+  );
+}
+function clampOverviewDays(daysParam) {
+  return clampAdminDays(daysParam);
+}
+async function fetchRecallStabilityMetrics(since) {
+  try {
+    const rows = await db.execute(sql`
+      SELECT AVG(nf."recallStabilityDays")::float AS avg_stability
+      FROM "NoteFingerprints" nf
+      INNER JOIN "Notes" n ON n."id" = nf."noteId"
+      WHERE ${COUNTABLE_USER_NOTES_N_SQL}
+        AND nf."lastRecallEngagedAt" IS NOT NULL
+        AND nf."lastRecallEngagedAt" >= ${since.toISOString()}
+    `);
+    return recallAvgStabilityDays(rows[0]?.avg_stability ?? null);
+  } catch (error) {
+    if (isNoteFingerprintsTableMissing(error) || isPgUndefinedColumn(error, "lastRecallEngagedAt")) {
+      return 0;
+    }
+    throw error;
+  }
+}
+async function fetchRecallEventMetrics(since) {
+  try {
+    const sinceIso = since.toISOString();
+    const [summaryRows, kindRows] = await Promise.all([
+      db.execute(sql`
+        SELECT
+          (SELECT COUNT(*)::int FROM "RecallEvents"
+            WHERE "action" = 'open' AND "createdAt" >= ${sinceIso}) AS opens,
+          (SELECT COUNT(*)::int FROM "RecallEvents"
+            WHERE "action" = 'snooze' AND "createdAt" >= ${sinceIso}) AS snoozes,
+          (SELECT COUNT(DISTINCT "userId")::int FROM "RecallEvents"
+            WHERE "createdAt" >= ${sinceIso}) AS users_active
+      `),
+      db.execute(sql`
+        SELECT "kind", COUNT(*)::int AS count
+        FROM "RecallEvents"
+        WHERE "action" = 'open' AND "createdAt" >= ${sinceIso}
+        GROUP BY "kind"
+        ORDER BY count DESC, "kind" ASC
+        LIMIT 8
+      `)
+    ]);
+    const row = summaryRows[0];
+    const opens = Number(row?.opens ?? 0);
+    const snoozes = Number(row?.snoozes ?? 0);
+    const eventMetrics = {
+      opens,
+      snoozes,
+      snoozeRatePct: recallSnoozeRatePct(opens, snoozes),
+      usersActive: Number(row?.users_active ?? 0),
+      opensByKind: kindRows.map((r) => ({
+        name: recallKindDisplayLabel(r.kind),
+        count: Number(r.count)
+      }))
+    };
+    if (eventMetrics.opens > 0) return eventMetrics;
+    return { ...await fetchRecallLegacyEngagementCounts(since), opensByKind: [] };
+  } catch (error) {
+    if (isRecallEventsTableMissing(error)) {
+      return { ...await fetchRecallLegacyEngagementCounts(since), opensByKind: [] };
+    }
+    throw error;
+  }
+}
+async function fetchRecallLegacyEngagementCounts(since) {
+  try {
+    const sinceIso = since.toISOString();
+    const rows = await db.execute(sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM "NoteFingerprints" nf
+          INNER JOIN "Notes" n ON n."id" = nf."noteId"
+          WHERE ${COUNTABLE_USER_NOTES_N_SQL}
+            AND nf."lastRecallEngagedAt" IS NOT NULL
+            AND nf."lastRecallEngagedAt" >= ${sinceIso}) AS opens,
+        (SELECT COUNT(DISTINCT n."userId")::int FROM "NoteFingerprints" nf
+          INNER JOIN "Notes" n ON n."id" = nf."noteId"
+          WHERE ${COUNTABLE_USER_NOTES_N_SQL}
+            AND nf."lastRecallEngagedAt" IS NOT NULL
+            AND nf."lastRecallEngagedAt" >= ${sinceIso}) AS users_active
+    `);
+    const row = rows[0];
+    return {
+      opens: Number(row?.opens ?? 0),
+      snoozes: 0,
+      snoozeRatePct: 0,
+      usersActive: Number(row?.users_active ?? 0)
+    };
+  } catch (error) {
+    if (isNoteFingerprintsTableMissing(error) || isPgUndefinedColumn(error, "lastRecallEngagedAt")) {
+      return {
+        opens: 0,
+        snoozes: 0,
+        snoozeRatePct: 0,
+        usersActive: 0
+      };
+    }
+    throw error;
+  }
+}
+async function fetchRecallMetrics(since) {
+  const [eventMetrics, avgStabilityDays] = await Promise.all([
+    fetchRecallEventMetrics(since),
+    fetchRecallStabilityMetrics(since)
+  ]);
+  return { ...eventMetrics, avgStabilityDays };
+}
+function recallOpenDayExpr() {
+  return sql`TO_CHAR(${RecallEvents.createdAt}::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD')`.as("date");
+}
+async function fetchRecallEngagedAtTrend(since) {
+  try {
+    return await db.select({ date: recallEngagedDayExpr(), count: sql`COUNT(*)`.as("count") }).from(NoteFingerprints).innerJoin(Notes, eq(NoteFingerprints.noteId, Notes.id)).where(
+      and(
+        isNotNull(NoteFingerprints.lastRecallEngagedAt),
+        gte(NoteFingerprints.lastRecallEngagedAt, since),
+        countableUserNotesWhere()
+      )
+    ).groupBy(
+      sql`TO_CHAR(${NoteFingerprints.lastRecallEngagedAt}::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD')`
+    );
+  } catch (error) {
+    if (isNoteFingerprintsTableMissing(error) || isPgUndefinedColumn(error, "lastRecallEngagedAt")) {
+      return [];
+    }
+    throw error;
+  }
+}
+async function fetchRecallOpenTrend(since) {
+  let eventRows = [];
+  try {
+    eventRows = await db.select({ date: recallOpenDayExpr(), count: sql`COUNT(*)`.as("count") }).from(RecallEvents).where(and(eq(RecallEvents.action, "open"), gte(RecallEvents.createdAt, since))).groupBy(sql`TO_CHAR(${RecallEvents.createdAt}::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD')`);
+  } catch (error) {
+    if (!isRecallEventsTableMissing(error)) throw error;
+  }
+  const legacyRows = await fetchRecallEngagedAtTrend(since);
+  return pickRecallOpenTrendSource(eventRows, legacyRows);
+}
+async function fetchFingerprintDiscovery(since) {
+  try {
+    const [themeRows, toneRows] = await Promise.all([
+      db.execute(sql`
+        SELECT theme AS name, COUNT(*)::int AS count
+        FROM (
+          SELECT jsonb_array_elements_text("themes"::jsonb) AS theme
+          FROM "NoteFingerprints"
+          WHERE "themes" IS NOT NULL
+            AND "themes" <> '[]'
+            AND "computedAt" >= ${since.toISOString()}
+        ) t
+        WHERE theme <> ''
+        GROUP BY theme
+        ORDER BY count DESC, theme ASC
+        LIMIT 50
+      `),
+      db.execute(sql`
+        SELECT "emotionalTone" AS name, COUNT(*)::int AS count
+        FROM "NoteFingerprints"
+        WHERE "emotionalTone" IS NOT NULL
+          AND TRIM("emotionalTone") <> ''
+          AND "computedAt" >= ${since.toISOString()}
+        GROUP BY "emotionalTone"
+        ORDER BY count DESC, name ASC
+        LIMIT 10
+      `)
+    ]);
+    return {
+      themes: formatPulseThemeLabels(
+        filterPulseDiscoveryThemes(
+          themeRows.map((r) => ({ name: r.name, count: Number(r.count) })),
+          10
+        )
+      ),
+      tones: toneRows.map((r) => ({ name: r.name, count: Number(r.count) }))
+    };
+  } catch (error) {
+    if (isNoteFingerprintsTableMissing(error)) return { themes: [], tones: [] };
+    throw error;
+  }
+}
+async function getUsageOverview(daysParam) {
+  const days = clampOverviewDays(daysParam);
+  const since = adminWindowSince(days);
+  const sinceIso = since.toISOString();
+  const { since: previousSince, until: previousUntil } = adminWindowPreviousRange(days);
+  const [
+    clerkTotal,
+    contentRows,
+    tierRows,
+    noteTypeRows,
+    threadLinksCreated,
+    foldersActive,
+    studyDepthRows,
+    passageMetrics,
+    scripturePillsCreated,
+    translationRows,
+    studyThreadEntries,
+    recallMetrics
+  ] = await Promise.all([
+    getClerkTotalUserCount(),
+    db.execute(sql`
+    SELECT
+      (SELECT COUNT(*) FROM "UserMetadata") AS total_accounts,
+      (SELECT COUNT(DISTINCT "userId") FROM "Notes" WHERE ${COUNTABLE_USER_NOTES_SQL}) AS users_with_content,
+      (SELECT COUNT(*) FROM "Notes" WHERE ${COUNTABLE_USER_NOTES_SQL}) AS notes,
+      (SELECT COUNT(*) FROM "Notes" WHERE "createdAt" >= ${sinceIso} AND ${COUNTABLE_USER_NOTES_SQL}) AS notes_created,
+      (SELECT COUNT(*) FROM "UserMetadata" WHERE "createdAt" >= ${sinceIso}) AS signups,
+      (SELECT COUNT(DISTINCT "userId") FROM "Notes" WHERE COALESCE("updatedAt", "createdAt") >= ${sinceIso} AND ${COUNTABLE_USER_NOTES_SQL}) AS active_users,
+      (SELECT COUNT(*) FROM "Notes" WHERE "updatedAt" >= ${sinceIso} AND "updatedAt" > "createdAt" AND ${COUNTABLE_USER_NOTES_SQL}) AS notes_edited
+  `),
+    db.select({ tier: UserMetadata.tier, count: sql`COUNT(*)`.as("count") }).from(UserMetadata).groupBy(UserMetadata.tier),
+    db.select({ noteType: Notes.noteType, count: sql`COUNT(*)`.as("count") }).from(Notes).where(and(gte(Notes.createdAt, since), countableUserNotesWhere())).groupBy(Notes.noteType),
+    countNoteConnectionsSince(since),
+    countFoldersActiveSince(since),
+    fetchStudyBehaviorMetrics(since),
+    fetchVotdPassageEngagementMetrics(since),
+    countScripturePillsSince(since),
+    db.select({ translation: UserMetadata.defaultTranslation, count: sql`COUNT(*)`.as("count") }).from(UserMetadata).groupBy(UserMetadata.defaultTranslation).orderBy(sql`COUNT(*) DESC`).limit(5),
+    countActiveStudyThreadEntries(since),
+    fetchRecallMetrics(since)
+  ]);
+  const xp = await getAdminPulseXp(days, since, previousSince, previousUntil);
+  const row = contentRows[0];
+  const studyBehavior = studyDepthRows;
+  const passage = passageMetrics;
+  const notesByType = { default: 0, scripture: 0, resource: 0 };
+  for (const typeRow of noteTypeRows) {
+    const t = typeRow.noteType;
+    if (t in notesByType) notesByType[t] = Number(typeRow.count);
+  }
+  let freeTier = 0;
+  let unlimitedTier = 0;
+  for (const tierRow of tierRows) {
+    if (tierRow.tier === "unlimited") unlimitedTier = Number(tierRow.count);
+    else freeTier += Number(tierRow.count);
+  }
+  const totalAccounts = Number(row?.total_accounts ?? 0);
+  const usersWithContent = Number(row?.users_with_content ?? 0);
+  const totalNotes = Number(row?.notes ?? 0);
+  const notesCreatedInWindow = Number(row?.notes_created ?? 0);
+  const activeUsers = Number(row?.active_users ?? 0);
+  const signups = Number(row?.signups ?? 0);
+  const activationRate = totalAccounts > 0 ? Math.round(usersWithContent / totalAccounts * 100) : 0;
+  const activeRatePct = totalAccounts > 0 ? Math.round(activeUsers / totalAccounts * 100) : 0;
+  const avgNotesPerUserWithContent = activeUsers > 0 ? Math.round(notesCreatedInWindow / activeUsers * 10) / 10 : 0;
+  const scriptureNoteShare = notesCreatedInWindow > 0 ? Math.round(notesByType.scripture / notesCreatedInWindow * 100) : 0;
+  const notesLinkedInThreads = studyBehavior.notesLinkedInThreads;
+  const highlightsSpawned = studyBehavior.highlightsSpawned;
+  const notesWithPassages = studyBehavior.notesWithPassages;
+  const linkRatePct = notesCreatedInWindow > 0 ? Math.round(notesLinkedInThreads / notesCreatedInWindow * 100) : 0;
+  const highlightRatePct = notesCreatedInWindow > 0 ? Math.round(highlightsSpawned / notesCreatedInWindow * 100) : 0;
+  const passageRatePct = notesCreatedInWindow > 0 ? Math.round(notesWithPassages / notesCreatedInWindow * 100) : 0;
+  return {
+    days,
+    users: {
+      total: totalAccounts,
+      clerkAccounts: clerkTotal,
+      withContent: usersWithContent,
+      freeTier,
+      unlimitedTier,
+      activationRate,
+      signups,
+      activeRatePct
+    },
+    content: {
+      notes: totalNotes,
+      folders: foldersActive,
+      threads: threadLinksCreated,
+      notesCreated: notesCreatedInWindow,
+      notesByType
+    },
+    engagement: {
+      activeUsers,
+      notesEdited: Number(row?.notes_edited ?? 0)
+    },
+    study: {
+      avgNotesPerUserWithContent,
+      notesLinkedInThreads,
+      linkRatePct,
+      highlightsSpawned,
+      highlightRatePct,
+      notesWithPassages,
+      passageRatePct,
+      pinnedNotes: studyBehavior.pinnedNotes,
+      studyThreadEntries
+    },
+    passage: {
+      usersWhoAddedPassage: passage.usersWhoAddedPassage,
+      dismissCloseEvents: passage.dismissCloseEvents,
+      createNoteEvents: passage.passageNotesAdded
+    },
+    scripture: {
+      totalPills: scripturePillsCreated,
+      scriptureNoteShare,
+      topTranslations: translationRows.map((r) => ({
+        name: r.translation ?? "NET",
+        count: Number(r.count)
+      }))
+    },
+    recall: recallMetrics,
+    xp
+  };
+}
+async function getUsageTrends(daysParam) {
+  const days = clampAdminDays(daysParam);
+  const since = adminWindowSince(days);
+  const dayExpr = (col) => sql`TO_CHAR(${col}::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD')`.as("date");
+  const [signupRows, noteRows, activeRows, scriptureRows, recallRows] = await Promise.all([
+    db.select({ date: dayExpr(UserMetadata.createdAt), count: sql`COUNT(*)`.as("count") }).from(UserMetadata).where(gte(UserMetadata.createdAt, since)).groupBy(sql`TO_CHAR(${UserMetadata.createdAt}::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD')`),
+    db.select({ date: dayExpr(Notes.createdAt), count: sql`COUNT(*)`.as("count") }).from(Notes).where(and(gte(Notes.createdAt, since), countableUserNotesWhere())).groupBy(sql`TO_CHAR(${Notes.createdAt}::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD')`),
+    db.select({
+      date: noteActivityDayExpr(),
+      count: sql`COUNT(DISTINCT ${Notes.userId})`.as("count")
+    }).from(Notes).where(and(sql`${noteActivityAt()} >= ${since.toISOString()}`, countableUserNotesWhere())).groupBy(
+      sql`TO_CHAR(COALESCE(${Notes.updatedAt}, ${Notes.createdAt})::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD')`
+    ),
+    db.select({ date: scriptureCreatedDayExpr(), count: sql`COUNT(*)`.as("count") }).from(ScriptureMetadata).where(gte(ScriptureMetadata.createdAt, since)).groupBy(sql`TO_CHAR(${ScriptureMetadata.createdAt}::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD')`),
+    fetchRecallOpenTrend(since)
+  ]);
+  return {
+    days,
+    signups: fillDailyBuckets(days, signupRows),
+    notesCreated: fillDailyBuckets(days, noteRows),
+    activeUsers: fillDailyBuckets(days, activeRows),
+    scripturePillsCreated: fillDailyBuckets(days, scriptureRows),
+    recallOpens: fillDailyBuckets(days, recallRows)
+  };
+}
+async function getUsageDiscovery(daysParam) {
+  const days = clampAdminDays(daysParam);
+  const since = adminWindowSince(days);
+  const activityFilter2 = sql`${noteActivityAt()} >= ${since.toISOString()}`;
+  const [passageRows, bookRows, tagRows, dictionaryWords, fingerprintDiscovery] = await Promise.all([
+    db.select({
+      reference: ScriptureMetadata.reference,
+      count: sql`COUNT(DISTINCT ${ScriptureMetadata.noteId})`.as("count")
+    }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(and(activityFilter2, countableUserNotesWhere())).groupBy(ScriptureMetadata.reference).orderBy(sql`COUNT(DISTINCT ${ScriptureMetadata.noteId}) DESC`, ScriptureMetadata.reference).limit(10),
+    db.select({
+      book: ScriptureMetadata.book,
+      count: sql`COUNT(DISTINCT ${ScriptureMetadata.noteId})`.as("count")
+    }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(and(activityFilter2, isNotNull(ScriptureMetadata.book), countableUserNotesWhere())).groupBy(ScriptureMetadata.book).orderBy(sql`COUNT(DISTINCT ${ScriptureMetadata.noteId}) DESC`, ScriptureMetadata.book).limit(10),
+    db.select({
+      tagName: Tags.name,
+      count: sql`COUNT(DISTINCT ${NoteTags.noteId})`.as("count")
+    }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).innerJoin(Notes, eq(NoteTags.noteId, Notes.id)).where(and(activityFilter2, or(eq(NoteTags.isAutoGenerated, true), eq(Tags.isSystem, true)), countableUserNotesWhere())).groupBy(Tags.name).orderBy(sql`COUNT(DISTINCT ${NoteTags.noteId}) DESC`, Tags.name).limit(10),
+    fetchDictionaryLookups(since),
+    fetchFingerprintDiscovery(since)
+  ]);
+  const folders = await getTrendingAutoFolders(since, 10);
+  return {
+    days,
+    passages: passageRows.map((r) => ({ name: r.reference, count: Number(r.count) })),
+    books: bookRows.filter((r) => r.book).map((r) => ({ name: r.book, count: Number(r.count) })),
+    dictionaryWords,
+    tags: tagRows.filter((r) => r.tagName).map((r) => ({ name: r.tagName, count: Number(r.count) })),
+    folders,
+    themes: fingerprintDiscovery.themes,
+    tones: fingerprintDiscovery.tones
+  };
+}
+async function getUsageOverviewForRange(since, until) {
+  const sinceIso = since.toISOString();
+  const untilIso = until.toISOString();
+  const [contentRows, noteTypeRows, studyBehavior, passageMetrics, scripturePills, studyThreadEntries, recallMetrics] = await Promise.all([
+    db.execute(sql`
+        SELECT
+          (SELECT COUNT(*) FROM "Notes" WHERE "createdAt" >= ${sinceIso} AND "createdAt" < ${untilIso} AND ${COUNTABLE_USER_NOTES_SQL}) AS notes_created,
+          (SELECT COUNT(*) FROM "UserMetadata" WHERE "createdAt" >= ${sinceIso} AND "createdAt" < ${untilIso}) AS signups,
+          (SELECT COUNT(DISTINCT "userId") FROM "Notes" WHERE COALESCE("updatedAt", "createdAt") >= ${sinceIso} AND COALESCE("updatedAt", "createdAt") < ${untilIso} AND ${COUNTABLE_USER_NOTES_SQL}) AS active_users,
+          (SELECT COUNT(*) FROM "Notes" WHERE "updatedAt" >= ${sinceIso} AND "updatedAt" < ${untilIso} AND "updatedAt" > "createdAt" AND ${COUNTABLE_USER_NOTES_SQL}) AS notes_edited
+      `),
+    db.select({ noteType: Notes.noteType, count: sql`COUNT(*)`.as("count") }).from(Notes).where(and(gte(Notes.createdAt, since), lt(Notes.createdAt, until), countableUserNotesWhere())).groupBy(Notes.noteType),
+    fetchStudyBehaviorMetricsForRange(since, until),
+    fetchVotdPassageEngagementMetricsForRange(since, until),
+    db.select({ count: sql`COUNT(*)`.as("count") }).from(ScriptureMetadata).where(and(gte(ScriptureMetadata.createdAt, since), lt(ScriptureMetadata.createdAt, until))),
+    countActiveStudyThreadEntriesForRange(since, until),
+    fetchRecallMetricsForRange(since, until)
+  ]);
+  const row = contentRows[0];
+  const notesCreated = Number(row?.notes_created ?? 0);
+  const activeUsers = Number(row?.active_users ?? 0);
+  const notesByType = { default: 0, scripture: 0, resource: 0 };
+  for (const typeRow of noteTypeRows) {
+    const t = typeRow.noteType;
+    if (t in notesByType) notesByType[t] = Number(typeRow.count);
+  }
+  const notesLinkedInThreads = studyBehavior.notesLinkedInThreads;
+  const highlightsSpawned = studyBehavior.highlightsSpawned;
+  const notesWithPassages = studyBehavior.notesWithPassages;
+  const linkRatePct = notesCreated > 0 ? Math.round(notesLinkedInThreads / notesCreated * 100) : 0;
+  const highlightRatePct = notesCreated > 0 ? Math.round(highlightsSpawned / notesCreated * 100) : 0;
+  const passageRatePct = notesCreated > 0 ? Math.round(notesWithPassages / notesCreated * 100) : 0;
+  return {
+    signups: Number(row?.signups ?? 0),
+    activeUsers,
+    notesCreated,
+    notesEdited: Number(row?.notes_edited ?? 0),
+    notesByType,
+    scripturePills: Number(scripturePills[0]?.count ?? 0),
+    study: {
+      notesLinkedInThreads,
+      linkRatePct,
+      notesWithPassages,
+      passageRatePct,
+      highlightsSpawned,
+      highlightRatePct,
+      studyThreadEntries,
+      pinnedNotes: studyBehavior.pinnedNotes
+    },
+    recall: {
+      opens: recallMetrics.opens,
+      snoozes: recallMetrics.snoozes,
+      snoozeRatePct: recallMetrics.snoozeRatePct,
+      usersActive: recallMetrics.usersActive
+    },
+    passage: {
+      usersWhoAddedPassage: passageMetrics.usersWhoAddedPassage,
+      dismissCloseEvents: passageMetrics.dismissCloseEvents,
+      createNoteEvents: passageMetrics.passageNotesAdded
+    }
+  };
+}
+async function fetchStudyBehaviorMetricsForRange(since, until) {
+  const sinceIso = since.toISOString();
+  const untilIso = until.toISOString();
+  try {
+    const rows = await db.execute(sql`
+      SELECT
+        (SELECT COUNT(DISTINCT note_id) FROM (
+          SELECT nc."fromNoteId" AS note_id FROM "NoteConnections" nc
+          INNER JOIN "Notes" n ON n."id" = nc."fromNoteId"
+          WHERE nc."createdAt" >= ${sinceIso} AND nc."createdAt" < ${untilIso} AND ${COUNTABLE_USER_NOTES_N_SQL}
+          UNION
+          SELECT nc."toNoteId" AS note_id FROM "NoteConnections" nc
+          INNER JOIN "Notes" n ON n."id" = nc."toNoteId"
+          WHERE nc."createdAt" >= ${sinceIso} AND nc."createdAt" < ${untilIso} AND ${COUNTABLE_USER_NOTES_N_SQL}
+        ) linked) AS notes_linked_in_threads,
+        (SELECT COUNT(*) FROM "Notes" WHERE "linkedFromNoteId" IS NOT NULL AND "createdAt" >= ${sinceIso} AND "createdAt" < ${untilIso} AND ${COUNTABLE_USER_NOTES_SQL}) AS highlights_spawned,
+        (SELECT COUNT(*) FROM "Notes" WHERE "isPinned" = true AND "createdAt" >= ${sinceIso} AND "createdAt" < ${untilIso} AND ${COUNTABLE_USER_NOTES_SQL}) AS pinned_notes,
+        (SELECT COUNT(DISTINCT sm."noteId") FROM "ScriptureMetadata" sm
+          INNER JOIN "Notes" n ON n."id" = sm."noteId"
+          WHERE sm."createdAt" >= ${sinceIso} AND sm."createdAt" < ${untilIso} AND ${COUNTABLE_USER_NOTES_N_SQL}) AS notes_with_passages
+    `);
+    const row = rows[0];
+    return {
+      notesLinkedInThreads: Number(row?.notes_linked_in_threads ?? 0),
+      highlightsSpawned: Number(row?.highlights_spawned ?? 0),
+      pinnedNotes: Number(row?.pinned_notes ?? 0),
+      notesWithPassages: Number(row?.notes_with_passages ?? 0)
+    };
+  } catch (error) {
+    if (isNoteConnectionsTableMissing(error)) {
+      return { notesLinkedInThreads: 0, highlightsSpawned: 0, pinnedNotes: 0, notesWithPassages: 0 };
+    }
+    throw error;
+  }
+}
+async function countActiveStudyThreadEntriesForRange(since, until) {
+  try {
+    const rows = await db.execute(sql`
+      SELECT COUNT(*) AS count FROM "StudyThreadEntries"
+      WHERE "isArchived" = false
+        AND COALESCE("updatedAt", "createdAt") >= ${since.toISOString()}
+        AND COALESCE("updatedAt", "createdAt") < ${until.toISOString()}
+    `);
+    return Number(rows[0]?.count ?? 0);
+  } catch (error) {
+    if (isStudyThreadEntriesTableMissing(error)) return 0;
+    throw error;
+  }
+}
+async function fetchRecallMetricsForRange(since, until) {
+  try {
+    const sinceIso = since.toISOString();
+    const untilIso = until.toISOString();
+    const rows = await db.execute(sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM "RecallEvents"
+          WHERE "action" = 'open' AND "createdAt" >= ${sinceIso} AND "createdAt" < ${untilIso}) AS opens,
+        (SELECT COUNT(*)::int FROM "RecallEvents"
+          WHERE "action" = 'snooze' AND "createdAt" >= ${sinceIso} AND "createdAt" < ${untilIso}) AS snoozes,
+        (SELECT COUNT(DISTINCT "userId")::int FROM "RecallEvents"
+          WHERE "createdAt" >= ${sinceIso} AND "createdAt" < ${untilIso}) AS users_active
+    `);
+    const row = rows[0];
+    const opens = Number(row?.opens ?? 0);
+    const snoozes = Number(row?.snoozes ?? 0);
+    return {
+      opens,
+      snoozes,
+      snoozeRatePct: recallSnoozeRatePct(opens, snoozes),
+      usersActive: Number(row?.users_active ?? 0)
+    };
+  } catch (error) {
+    if (isRecallEventsTableMissing(error)) {
+      return { opens: 0, snoozes: 0, snoozeRatePct: 0, usersActive: 0 };
+    }
+    throw error;
+  }
+}
+async function fetchVotdPassageEngagementMetricsForRange(since, until) {
+  const sinceIso = since.toISOString();
+  const untilIso = until.toISOString();
+  const publishDateMin = since.toISOString().slice(0, 10);
+  const publishDateMax = until.toISOString().slice(0, 10);
+  const rows = await db.execute(sql`
+    WITH published AS (
+      SELECT
+        p."reference",
+        p."publishedDate",
+        TRIM(LOWER(REGEXP_REPLACE(p."reference", '\\s+', ' ', 'g'))) AS ref_norm
+      FROM "VotdPublishHistory" p
+      WHERE p."publishedDate" >= ${publishDateMin} AND p."publishedDate" < ${publishDateMax}
+    ),
+    note_hits AS (
+      SELECT DISTINCT n."id" AS note_id, n."userId" AS user_id
+      FROM "Notes" n
+      INNER JOIN published p ON (
+        n."createdAt" >= (p."publishedDate" || 'T00:00:00.000Z')::timestamptz
+        AND n."createdAt" < ${untilIso}
+        AND (
+          TRIM(LOWER(REGEXP_REPLACE(COALESCE(n."title", ''), '\\s+', ' ', 'g'))) = p.ref_norm
+          OR POSITION('data-scripture-reference="' || p."reference" || '"' IN COALESCE(n."content", '')) > 0
+          OR EXISTS (
+            SELECT 1 FROM "ScriptureMetadata" sm
+            WHERE sm."noteId" = n."id"
+            AND TRIM(LOWER(REGEXP_REPLACE(sm."reference", '\\s+', ' ', 'g'))) = p.ref_norm
+          )
+        )
+      )
+      WHERE n."createdAt" >= ${sinceIso} AND n."createdAt" < ${untilIso}
+      AND ${COUNTABLE_USER_NOTES_N_SQL}
+    )
+    SELECT
+      (SELECT COUNT(DISTINCT user_id) FROM (
+        SELECT user_id FROM note_hits
+        UNION
+        SELECT "userId" AS user_id FROM "UserXP"
+        WHERE "activityType" = 'votd_engaged' AND "createdAt" >= ${sinceIso} AND "createdAt" < ${untilIso}
+      ) combined_users) AS users_who_added_passage,
+      (SELECT COUNT(*)::int FROM note_hits) AS passage_notes_added,
+      (SELECT COUNT(*)::int FROM "UserFeaturedItems" ufi
+        INNER JOIN "FeaturedItems" fi ON fi."id" = ufi."featuredItemId"
+        WHERE fi."contentType" = 'votd' AND ufi."status" = 'completed'
+        AND ufi."completedAt" >= ${sinceIso} AND ufi."completedAt" < ${untilIso}) AS dismiss_close_events
+  `);
+  const row = rows[0];
+  return {
+    usersWhoAddedPassage: Number(row?.users_who_added_passage ?? 0),
+    passageNotesAdded: Number(row?.passage_notes_added ?? 0),
+    dismissCloseEvents: Number(row?.dismiss_close_events ?? 0)
+  };
+}
+
+// server/utils/admin-pulse-stats.ts
+init_db2();
+
+// src/utils/admin-pulse-heatmap.ts
+init_scripture_osis();
+function buildCanonBookGrid(counts) {
+  const countByBook = /* @__PURE__ */ new Map();
+  for (const row of counts) {
+    countByBook.set(row.name, row.count);
+  }
+  const cells = [];
+  for (let order = 1; order <= 66; order += 1) {
+    const name = bookByOrder(order);
+    if (!name) continue;
+    cells.push({
+      name,
+      order,
+      count: countByBook.get(name) ?? 0,
+      sharePct: 0,
+      heatLevel: 0
+    });
+  }
+  return applyHeatLevels(cells);
+}
+function applyHeatLevels(cells) {
+  const total = cells.reduce((sum2, cell) => sum2 + cell.count, 0);
+  const max2 = cells.reduce((m2, cell) => Math.max(m2, cell.count), 0);
+  return cells.map((cell) => ({
+    ...cell,
+    sharePct: total > 0 ? Math.round(cell.count / total * 1e3) / 10 : 0,
+    heatLevel: max2 > 0 ? cell.count / max2 : 0
+  }));
+}
+
+// server/utils/admin-pulse-stats.ts
+init_admin_pulse_canon_groups();
+
+// server/utils/admin-pulse-threads-stats.ts
+init_db2();
+init_pg_undefined_relation();
+init_universal_bible_entities();
+var THREAD_RECALL_KINDS = ["connectNotes", "arc", "subject", "crossref", "crossrefGap"];
+async function fetchPlatformThreadSnapshot() {
+  const empty = { totalThreads: 0, avgNotesPerThread: 0, threadNoteIds: [] };
+  try {
+    const [edgeRows, singletonRows] = await Promise.all([
+      db.select({
+        userId: NoteConnections.userId,
+        fromNoteId: NoteConnections.fromNoteId,
+        toNoteId: NoteConnections.toNoteId
+      }).from(NoteConnections),
+      db.select({ userId: Notes.userId, id: Notes.id }).from(Notes).where(
+        and(
+          eq(Notes.studyThreadUserOverride, true),
+          isNotNull(Notes.studyThreadTitle),
+          sql`TRIM(COALESCE(${Notes.studyThreadTitle}, '')) <> ''`,
+          countableUserNotesWhere()
+        )
+      )
+    ]);
+    const edgesByUser = /* @__PURE__ */ new Map();
+    for (const row of edgeRows) {
+      const list = edgesByUser.get(row.userId) ?? [];
+      list.push({ fromNoteId: row.fromNoteId, toNoteId: row.toNoteId });
+      edgesByUser.set(row.userId, list);
+    }
+    const singletonsByUser = /* @__PURE__ */ new Map();
+    for (const row of singletonRows) {
+      const list = singletonsByUser.get(row.userId) ?? [];
+      list.push(row.id);
+      singletonsByUser.set(row.userId, list);
+    }
+    const userIds = /* @__PURE__ */ new Set([...edgesByUser.keys(), ...singletonsByUser.keys()]);
+    let totalThreads = 0;
+    const multiNoteClusters = [];
+    for (const userId of userIds) {
+      const edges = edgesByUser.get(userId) ?? [];
+      const singletons = singletonsByUser.get(userId) ?? [];
+      totalThreads += countStudyThreadClustersFromGraph(edges, singletons);
+      multiNoteClusters.push(...clusterMemberSetsFromEdges(edges));
+    }
+    const threadNoteIds = [...new Set(multiNoteClusters.flatMap((cluster) => [...cluster]))];
+    return {
+      totalThreads,
+      avgNotesPerThread: averageMemberCount(multiNoteClusters),
+      threadNoteIds
+    };
+  } catch (error) {
+    if (isNoteConnectionsTableMissing(error) || isStudyThreadNamingColumnMissing(error)) {
+      return empty;
+    }
+    throw error;
+  }
+}
+async function fetchWindowLinkActivity(since, until) {
+  const sinceIso = since.toISOString();
+  const untilClause = until ? sql`AND "createdAt" < ${until.toISOString()}` : sql``;
+  try {
+    const linkRows = await db.execute(sql`
+      SELECT COUNT(*)::int AS count FROM "NoteConnections"
+      WHERE "createdAt" >= ${sinceIso} ${untilClause}
+    `);
+    const linksCreated = Number(linkRows[0]?.count ?? 0);
+    if (linksCreated === 0) {
+      return { linksCreated: 0, threadsLinkedInWindow: 0 };
+    }
+    const edgeRows = await db.select({
+      userId: NoteConnections.userId,
+      fromNoteId: NoteConnections.fromNoteId,
+      toNoteId: NoteConnections.toNoteId,
+      createdAt: NoteConnections.createdAt
+    }).from(NoteConnections).where(
+      sql`${NoteConnections.userId} IN (
+          SELECT DISTINCT "userId" FROM "NoteConnections"
+          WHERE "createdAt" >= ${sinceIso} ${untilClause}
+        )`
+    );
+    const sinceMs = since.getTime();
+    const untilMs = until?.getTime();
+    const edgesByUser = /* @__PURE__ */ new Map();
+    for (const row of edgeRows) {
+      const list = edgesByUser.get(row.userId) ?? [];
+      list.push({
+        fromNoteId: row.fromNoteId,
+        toNoteId: row.toNoteId,
+        createdAt: row.createdAt
+      });
+      edgesByUser.set(row.userId, list);
+    }
+    let threadsLinkedInWindow = 0;
+    for (const edges of edgesByUser.values()) {
+      threadsLinkedInWindow += activeThreadClustersInWindow(edges, sinceMs, untilMs).length;
+    }
+    return { linksCreated, threadsLinkedInWindow };
+  } catch (error) {
+    if (isNoteConnectionsTableMissing(error)) {
+      return { linksCreated: 0, threadsLinkedInWindow: 0 };
+    }
+    throw error;
+  }
+}
+async function fetchThreadThemes(threadNoteIds, limit = 8) {
+  if (threadNoteIds.length === 0) return [];
+  try {
+    const fetchLimit = Math.max(limit * 5, 40);
+    const noteIdList = sql.join(threadNoteIds.map((noteId) => sql`${noteId}`), sql`, `);
+    const rows = await db.execute(sql`
+      SELECT theme AS name, COUNT(DISTINCT "noteId")::int AS count
+      FROM (
+        SELECT nf."noteId", jsonb_array_elements_text(nf."themes"::jsonb) AS theme
+        FROM "NoteFingerprints" nf
+        INNER JOIN "Notes" n ON n."id" = nf."noteId"
+        WHERE nf."noteId" IN (${noteIdList})
+          AND ${COUNTABLE_USER_NOTES_N_SQL}
+          AND nf."themes" IS NOT NULL
+          AND nf."themes" <> '[]'
+      ) expanded
+      WHERE theme <> ''
+      GROUP BY theme
+      ORDER BY count DESC, theme ASC
+      LIMIT ${fetchLimit}
+    `);
+    return formatPulseThemeLabels(
+      filterPulseDiscoveryThemes(rows.map((row) => ({ name: row.name, count: Number(row.count) })))
+    ).slice(0, limit);
+  } catch (error) {
+    if (isNoteConnectionsTableMissing(error) || isNoteFingerprintsTableMissing(error)) {
+      return [];
+    }
+    throw error;
+  }
+}
+async function fetchThreadRecallMetrics(since, until) {
+  const sinceIso = since.toISOString();
+  const untilClause = until ? sql`AND "createdAt" < ${until.toISOString()}` : sql``;
+  const kindList = sql.join(THREAD_RECALL_KINDS.map((kind) => sql`${kind}`), sql`, `);
+  const empty = {
+    impressions: 0,
+    opens: 0,
+    snoozes: 0,
+    snoozeRatePct: 0,
+    impressionsByKind: [],
+    opensByKind: []
+  };
+  try {
+    const [summaryRows, impressionKindRows, openKindRows] = await Promise.all([
+      db.execute(sql`
+        SELECT
+          (SELECT COUNT(*)::int FROM "RecallEvents"
+            WHERE "action" = 'impression' AND "createdAt" >= ${sinceIso} ${untilClause}
+              AND "kind" IN (${kindList})) AS impressions,
+          (SELECT COUNT(*)::int FROM "RecallEvents"
+            WHERE "action" = 'open' AND "createdAt" >= ${sinceIso} ${untilClause}
+              AND "kind" IN (${kindList})) AS opens,
+          (SELECT COUNT(*)::int FROM "RecallEvents"
+            WHERE "action" = 'snooze' AND "createdAt" >= ${sinceIso} ${untilClause}
+              AND "kind" IN (${kindList})) AS snoozes
+      `),
+      db.execute(sql`
+        SELECT "kind", COUNT(*)::int AS count
+        FROM "RecallEvents"
+        WHERE "action" = 'impression' AND "createdAt" >= ${sinceIso} ${untilClause}
+          AND "kind" IN (${kindList})
+        GROUP BY "kind"
+        ORDER BY count DESC, "kind" ASC
+        LIMIT 6
+      `),
+      db.execute(sql`
+        SELECT "kind", COUNT(*)::int AS count
+        FROM "RecallEvents"
+        WHERE "action" = 'open' AND "createdAt" >= ${sinceIso} ${untilClause}
+          AND "kind" IN (${kindList})
+        GROUP BY "kind"
+        ORDER BY count DESC, "kind" ASC
+        LIMIT 6
+      `)
+    ]);
+    const impressions = Number(summaryRows[0]?.impressions ?? 0);
+    const opens = Number(summaryRows[0]?.opens ?? 0);
+    const snoozes = Number(summaryRows[0]?.snoozes ?? 0);
+    return {
+      impressions,
+      opens,
+      snoozes,
+      snoozeRatePct: recallSnoozeRatePct(opens, snoozes),
+      impressionsByKind: impressionKindRows.map((row) => ({
+        name: recallKindDisplayLabel(row.kind),
+        count: Number(row.count)
+      })),
+      opensByKind: openKindRows.map((row) => ({
+        name: recallKindDisplayLabel(row.kind),
+        count: Number(row.count)
+      }))
+    };
+  } catch (error) {
+    if (isRecallEventsTableMissing(error)) {
+      return empty;
+    }
+    throw error;
+  }
+}
+async function getAdminPulseThreadsStats(since, until) {
+  const [snapshot, windowActivity, recall] = await Promise.all([
+    fetchPlatformThreadSnapshot(),
+    fetchWindowLinkActivity(since, until),
+    fetchThreadRecallMetrics(since, until)
+  ]);
+  const themes = await fetchThreadThemes(snapshot.threadNoteIds);
+  return {
+    summary: {
+      totalThreads: snapshot.totalThreads,
+      avgNotesPerThread: snapshot.avgNotesPerThread,
+      linksCreated: windowActivity.linksCreated,
+      threadsLinkedInWindow: windowActivity.threadsLinkedInWindow,
+      notesInThreads: snapshot.threadNoteIds.length
+    },
+    themes,
+    recall
+  };
+}
+
+// server/utils/admin-pulse-stats.ts
+init_universal_bible_entities();
+function clampPulseDays(daysParam) {
+  return clampAdminDays(daysParam);
+}
+var CURIOSITY_PREV_LIMIT = 50;
+function noteActivityAt2() {
+  return sql`COALESCE(${Notes.updatedAt}, ${Notes.createdAt})`;
+}
+function activityFilter(since, until) {
+  if (until) {
+    return and(
+      sql`${noteActivityAt2()} >= ${since.toISOString()}`,
+      sql`${noteActivityAt2()} < ${until.toISOString()}`
+    );
+  }
+  return sql`${noteActivityAt2()} >= ${since.toISOString()}`;
+}
+async function fetchPassages(since, until, limit = 10) {
+  const rows = await db.select({
+    reference: ScriptureMetadata.reference,
+    count: sql`COUNT(DISTINCT ${ScriptureMetadata.noteId})`.as("count")
+  }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(and(activityFilter(since, until), countableUserNotesWhere())).groupBy(ScriptureMetadata.reference).orderBy(sql`COUNT(DISTINCT ${ScriptureMetadata.noteId}) DESC`, ScriptureMetadata.reference).limit(limit);
+  return rows.map((r) => ({ name: r.reference, count: Number(r.count) }));
+}
+async function fetchUniquePassageCount(since, until) {
+  const rows = await db.select({
+    count: sql`COUNT(DISTINCT ${ScriptureMetadata.reference})`.as("count")
+  }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(and(activityFilter(since, until), countableUserNotesWhere()));
+  return Number(rows[0]?.count ?? 0);
+}
+async function fetchBooks(since, until, limit) {
+  const base = db.select({
+    book: ScriptureMetadata.book,
+    count: sql`COUNT(DISTINCT ${ScriptureMetadata.noteId})`.as("count")
+  }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(and(activityFilter(since, until), isNotNull(ScriptureMetadata.book), countableUserNotesWhere())).groupBy(ScriptureMetadata.book).orderBy(sql`COUNT(DISTINCT ${ScriptureMetadata.noteId}) DESC`, ScriptureMetadata.book);
+  const rows = limit != null ? await base.limit(limit) : await base;
+  return rows.filter((r) => r.book).map((r) => ({ name: r.book, count: Number(r.count) }));
+}
+async function fetchThemes(since, until, limit = 10) {
+  try {
+    const untilClause = until ? sql`AND "computedAt" < ${until.toISOString()}` : sql``;
+    const fetchLimit = Math.max(limit * 5, 50);
+    const rows = await db.execute(sql`
+      SELECT theme AS name, COUNT(*)::int AS count
+      FROM (
+        SELECT jsonb_array_elements_text("themes"::jsonb) AS theme
+        FROM "NoteFingerprints"
+        WHERE "themes" IS NOT NULL
+          AND "themes" <> '[]'
+          AND "computedAt" >= ${since.toISOString()}
+          ${untilClause}
+      ) t
+      WHERE theme <> ''
+      GROUP BY theme
+      ORDER BY count DESC, theme ASC
+      LIMIT ${fetchLimit}
+    `);
+    return formatPulseThemeLabels(
+      filterPulseDiscoveryThemes(
+        rows.map((r) => ({ name: r.name, count: Number(r.count) })),
+        limit
+      )
+    );
+  } catch {
+    return [];
+  }
+}
+async function fetchTones(since, until, limit = 10) {
+  try {
+    const untilClause = until ? sql`AND "computedAt" < ${until.toISOString()}` : sql``;
+    const rows = await db.execute(sql`
+      SELECT "emotionalTone" AS name, COUNT(*)::int AS count
+      FROM "NoteFingerprints"
+      WHERE "emotionalTone" IS NOT NULL
+        AND TRIM("emotionalTone") <> ''
+        AND "computedAt" >= ${since.toISOString()}
+        ${untilClause}
+      GROUP BY "emotionalTone"
+      ORDER BY count DESC, name ASC
+      LIMIT ${limit}
+    `);
+    return rows.map((r) => ({ name: r.name, count: Number(r.count) }));
+  } catch {
+    return [];
+  }
+}
+async function fetchTags(since, until, limit = 10) {
+  const rows = await db.select({
+    tagName: Tags.name,
+    count: sql`COUNT(DISTINCT ${NoteTags.noteId})`.as("count")
+  }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).innerJoin(Notes, eq(NoteTags.noteId, Notes.id)).where(
+    and(
+      activityFilter(since, until),
+      or(eq(NoteTags.isAutoGenerated, true), eq(Tags.isSystem, true)),
+      countableUserNotesWhere()
+    )
+  ).groupBy(Tags.name).orderBy(sql`COUNT(DISTINCT ${NoteTags.noteId}) DESC`, Tags.name).limit(limit);
+  return rows.filter((r) => r.tagName).map((r) => ({ name: r.tagName, count: Number(r.count) }));
+}
+async function fetchTranslations(since, until) {
+  const scriptureSince = until ? and(gte(ScriptureMetadata.createdAt, since), lt(ScriptureMetadata.createdAt, until)) : gte(ScriptureMetadata.createdAt, since);
+  const rows = await db.select({
+    translation: ScriptureMetadata.translation,
+    count: sql`COUNT(*)`.as("count")
+  }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(and(scriptureSince, countableUserNotesWhere())).groupBy(ScriptureMetadata.translation).orderBy(sql`COUNT(*) DESC`, ScriptureMetadata.translation).limit(8);
+  return rows.filter((r) => r.translation).map((r) => ({ name: r.translation, count: Number(r.count) }));
+}
+async function fetchDictionaryWords(since, until, limit = 10) {
+  try {
+    const untilClause = until ? sql`AND COALESCE("updatedAt", "createdAt") < ${until.toISOString()}` : sql``;
+    const rows = await db.execute(sql`
+    SELECT
+      TRIM(COALESCE(
+        NULLIF(TRIM("sourceSnippet"), ''),
+        NULLIF(TRIM("anchorTextSnapshot"), ''),
+        NULLIF(TRIM("focusTitle"), '')
+      )) AS name,
+      COUNT(DISTINCT "parentNoteId")::int AS count
+    FROM "StudyThreadEntries"
+    WHERE "entryKindRaw" = 'reference'
+      AND "isArchived" = false
+      AND COALESCE("updatedAt", "createdAt") >= ${since.toISOString()}
+      ${untilClause}
+      AND TRIM(COALESCE(
+        NULLIF(TRIM("sourceSnippet"), ''),
+        NULLIF(TRIM("anchorTextSnapshot"), ''),
+        NULLIF(TRIM("focusTitle"), '')
+      )) <> ''
+    GROUP BY 1
+    ORDER BY count DESC, name ASC
+    LIMIT ${limit}
+  `);
+    return rows.map((row) => ({ name: row.name, count: Number(row.count) }));
+  } catch {
+    return [];
+  }
+}
+async function fetchPulseHistory(months) {
+  const now2 = /* @__PURE__ */ new Date();
+  const monthKeys = [];
+  for (let i = months - 1; i >= 0; i -= 1) {
+    const d = new Date(Date.UTC(now2.getUTCFullYear(), now2.getUTCMonth() - i, 1));
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+    monthKeys.push(`${year}-${month}`);
+  }
+  const rows = await db.select({
+    month: MonthlyAnalytics.month,
+    bookName: MonthlyAnalytics.bookName,
+    count: MonthlyAnalytics.count
+  }).from(MonthlyAnalytics).where(and(eq(MonthlyAnalytics.category, "book"), inArray(MonthlyAnalytics.month, monthKeys))).orderBy(MonthlyAnalytics.month, sql`${MonthlyAnalytics.count} DESC`);
+  const byMonth = /* @__PURE__ */ new Map();
+  for (const key2 of monthKeys) byMonth.set(key2, []);
+  for (const row of rows) {
+    if (!row.bookName) continue;
+    const list = byMonth.get(row.month) ?? [];
+    if (list.length >= 3) continue;
+    list.push({ name: row.bookName, count: Number(row.count) });
+    byMonth.set(row.month, list);
+  }
+  return monthKeys.map((month) => ({ month, books: byMonth.get(month) ?? [] }));
+}
+async function getAdminPulse(daysParam) {
+  const days = clampPulseDays(daysParam);
+  const currentSince = adminWindowSince(days);
+  const { since: previousSince, until: previousUntil } = adminWindowPreviousRange(days);
+  const [
+    uniquePassages,
+    currentPassages,
+    previousPassages,
+    currentBooks,
+    previousBooks,
+    previousAllBooks,
+    allBookCounts,
+    currentThemes,
+    previousThemes,
+    tones,
+    tags,
+    dictionaryWords,
+    folders,
+    translations,
+    history,
+    previousPassagesWide,
+    previousTags,
+    previousDictionaryWords,
+    previousFolders,
+    threads
+  ] = await Promise.all([
+    fetchUniquePassageCount(currentSince),
+    fetchPassages(currentSince, void 0, 10),
+    fetchPassages(previousSince, previousUntil, 10),
+    fetchBooks(currentSince, void 0, 10),
+    fetchBooks(previousSince, previousUntil, 10),
+    fetchBooks(previousSince, previousUntil),
+    fetchBooks(currentSince, void 0),
+    fetchThemes(currentSince, void 0, 10),
+    fetchThemes(previousSince, previousUntil, 10),
+    fetchTones(currentSince, void 0, 10),
+    fetchTags(currentSince, void 0),
+    fetchDictionaryWords(currentSince, void 0),
+    getTrendingAutoFolders(currentSince, 10),
+    fetchTranslations(currentSince, void 0),
+    fetchPulseHistory(6),
+    fetchPassages(previousSince, previousUntil, CURIOSITY_PREV_LIMIT),
+    fetchTags(previousSince, previousUntil, CURIOSITY_PREV_LIMIT),
+    fetchDictionaryWords(previousSince, previousUntil, CURIOSITY_PREV_LIMIT),
+    getTrendingAutoFolders(previousSince, CURIOSITY_PREV_LIMIT, previousUntil),
+    getAdminPulseThreadsStats(currentSince)
+  ]);
+  const risingBooks = computeRisingDeltas(currentBooks, previousBooks, 5);
+  const risingPassages = computeRisingDeltas(currentPassages, previousPassages, 5);
+  const risingThemes = computeRisingDeltas(currentThemes, previousThemes, 5);
+  const xp = await getAdminPulseXp(days, currentSince, previousSince, previousUntil);
+  const canonGroupCurrent = aggregateCanonGroupCounts(allBookCounts);
+  const canonGroupPrevious = aggregateCanonGroupCounts(previousAllBooks);
+  const canonGroupItems = canonGroupCurrent.map((group) => ({ name: group.label, count: group.count }));
+  const canonGroupPreviousItems = canonGroupPrevious.map((group) => ({ name: group.label, count: group.count }));
+  return {
+    days,
+    uniquePassages,
+    books: buildCanonBookGrid(allBookCounts),
+    rising: {
+      books: risingBooks,
+      passages: risingPassages,
+      themes: risingThemes
+    },
+    cooling: {
+      books: computeCoolingDeltas(currentBooks, previousBooks, 5),
+      passages: computeCoolingDeltas(currentPassages, previousPassages, 5),
+      themes: computeCoolingDeltas(currentThemes, previousThemes, 5)
+    },
+    curiosity: {
+      passages: attachRankDeltasToListedItems(currentPassages, previousPassagesWide),
+      dictionaryWords: attachRankDeltasToListedItems(dictionaryWords, previousDictionaryWords),
+      folders: attachRankDeltasToListedItems(folders, previousFolders),
+      tags: attachRankDeltasToListedItems(tags, previousTags),
+      themes: currentThemes,
+      tones,
+      translations
+    },
+    threads,
+    history,
+    xp,
+    canonGroups: {
+      groups: canonGroupCurrent,
+      rising: computeRisingDeltas(canonGroupItems, canonGroupPreviousItems, 5),
+      cooling: computeCoolingDeltas(canonGroupItems, canonGroupPreviousItems, 5)
+    }
+  };
+}
+async function getPulseReportMetrics(since, until) {
+  const [uniquePassages, books, themes, passages, tags, translations, threads] = await Promise.all([
+    fetchUniquePassageCount(since, until),
+    fetchBooks(since, until, 10),
+    fetchThemes(since, until, 10),
+    fetchPassages(since, until, 10),
+    fetchTags(since, until, 10),
+    fetchTranslations(since, until),
+    getAdminPulseThreadsStats(since, until)
+  ]);
+  return { uniquePassages, books, themes, passages, tags, translations: translations.slice(0, 5), threads };
+}
+async function fetchMonthlyAnalyticsRank(monthKey, category, limit) {
+  const nameCol = category === "book" ? MonthlyAnalytics.bookName : MonthlyAnalytics.tagName;
+  const rows = await db.select({ name: nameCol, count: MonthlyAnalytics.count }).from(MonthlyAnalytics).where(and(eq(MonthlyAnalytics.month, monthKey), eq(MonthlyAnalytics.category, category))).orderBy(sql`${MonthlyAnalytics.count} DESC`).limit(limit);
+  return rows.filter((r) => r.name).map((r) => ({ name: r.name, count: Number(r.count) }));
+}
+async function getMonthlyAnalyticsForReport(monthKey) {
+  const [books, tags] = await Promise.all([
+    fetchMonthlyAnalyticsRank(monthKey, "book", 10),
+    fetchMonthlyAnalyticsRank(monthKey, "tag", 10)
+  ]);
+  return { books, tags };
+}
+
+// server/utils/admin-report-generator.ts
+init_db2();
+init_dates();
+
+// server/utils/admin-calendar-range.ts
+function parseMonthKey(monthKey) {
+  const [yearStr, monthStr] = monthKey.split("-");
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  if (!year || month < 1 || month > 12) {
+    throw new Error(`Invalid month key: ${monthKey}`);
+  }
+  return { year, month };
+}
+function adminCalendarMonthRange(monthKey) {
+  const { year, month } = parseMonthKey(monthKey);
+  const since = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  const until = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+  return { since, until };
+}
+
+// server/utils/admin-report-generator.ts
+var MONTH_KEY_RE = /^\d{4}-\d{2}$/;
+function isValidMonthKey(month) {
+  return MONTH_KEY_RE.test(month);
+}
+async function buildMonthlyReportPayload(month) {
+  if (!isValidMonthKey(month)) {
+    throw new Error(`Invalid month key: ${month}`);
+  }
+  const { since, until } = adminCalendarMonthRange(month);
+  const seasonId = getSeasonForMonth(month);
+  const generatedAt = (/* @__PURE__ */ new Date()).toISOString();
+  const [usage, pulseRaw, xpRaw, monthlyAnalytics] = await Promise.all([
+    getUsageOverviewForRange(since, until),
+    getPulseReportMetrics(since, until),
+    getAdminPulseXpForRange(since, until),
+    getMonthlyAnalyticsForReport(month)
+  ]);
+  return {
+    month,
+    seasonId,
+    seasonName: getSeasonDisplayName(seasonId),
+    generatedAt,
+    usage,
+    pulse: {
+      uniquePassages: pulseRaw.uniquePassages,
+      books: pulseRaw.books,
+      themes: pulseRaw.themes,
+      passages: pulseRaw.passages,
+      tags: pulseRaw.tags,
+      translations: pulseRaw.translations,
+      monthlyAnalytics,
+      threads: {
+        totalThreads: pulseRaw.threads.summary.totalThreads,
+        avgNotesPerThread: pulseRaw.threads.summary.avgNotesPerThread,
+        linksCreated: pulseRaw.threads.summary.linksCreated
+      },
+      xp: {
+        totalXp: xpRaw.totalXp,
+        eventCount: xpRaw.eventCount,
+        users: xpRaw.users,
+        avgXpPerUser: xpRaw.avgXpPerUser,
+        byActivity: xpRaw.byActivity.map((row) => ({
+          label: row.label,
+          totalXp: row.totalXp,
+          eventCount: row.eventCount,
+          users: row.users
+        }))
+      }
+    }
+  };
+}
+async function generateAdminMonthlyReport(month) {
+  const payload = await buildMonthlyReportPayload(month);
+  const seasonId = getSeasonForMonth(month);
+  const existing = await db.select().from(AdminMonthlyReports).where(eq(AdminMonthlyReports.month, month)).limit(1);
+  const row = {
+    id: existing[0]?.id ?? `admin_report_${month}_${Date.now()}`,
+    month,
+    seasonId,
+    generatedAt: nowISO(),
+    payload: JSON.stringify(payload)
+  };
+  if (existing[0]) {
+    await db.update(AdminMonthlyReports).set(row).where(eq(AdminMonthlyReports.id, existing[0].id));
+  } else {
+    await db.insert(AdminMonthlyReports).values(row);
+  }
+  return payload;
+}
+function parseReportPayload(raw2) {
+  return JSON.parse(raw2);
+}
+async function getStoredMonthlyReport(month) {
+  const rows = await db.select().from(AdminMonthlyReports).where(eq(AdminMonthlyReports.month, month)).limit(1);
+  if (!rows[0]) return null;
+  return parseReportPayload(rows[0].payload);
+}
+function buildCatalogMonth(month, generatedAt) {
+  return { month, label: formatMonthLabel(month), generatedAt };
+}
+function yearsFromStoredRows(storedByMonth, minYear, maxYear) {
+  const years = [];
+  for (let year = maxYear; year >= minYear; year -= 1) {
+    const seasons = listSeasonsForYear(year).map((seasonId) => {
+      const months = getSeasonMonths(seasonId).map((month) => {
+        const stored = storedByMonth.get(month);
+        return buildCatalogMonth(month, stored ? stored.generatedAt.toISOString() : null);
+      });
+      return {
+        seasonId,
+        seasonName: getSeasonDisplayName(seasonId),
+        months
+      };
+    });
+    years.push({ year, seasons });
+  }
+  return years;
+}
+async function listAdminReportsCatalog() {
+  const rows = await db.select().from(AdminMonthlyReports).orderBy(desc(AdminMonthlyReports.month));
+  const storedByMonth = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    storedByMonth.set(row.month, { generatedAt: row.generatedAt });
+  }
+  const now2 = /* @__PURE__ */ new Date();
+  const currentYear = now2.getFullYear();
+  let minYear = currentYear - 2;
+  for (const row of rows) {
+    const year = parseInt(row.month.split("-")[0], 10);
+    if (year < minYear) minYear = year;
+  }
+  return { years: yearsFromStoredRows(storedByMonth, minYear, currentYear) };
+}
+
+// server/utils/admin-report-rollup.ts
+function mergeRankedLists(lists, limit) {
+  const totals = /* @__PURE__ */ new Map();
+  for (const list of lists) {
+    for (const item of list) {
+      totals.set(item.name, (totals.get(item.name) ?? 0) + item.count);
+    }
+  }
+  return [...totals.entries()].sort((a, b3) => b3[1] - a[1] || a[0].localeCompare(b3[0])).slice(0, limit).map(([name, count3]) => ({ name, count: count3 }));
+}
+function mergeXpActivities(payloads) {
+  const byLabel = /* @__PURE__ */ new Map();
+  for (const payload of payloads) {
+    for (const row of payload.pulse.xp.byActivity) {
+      const existing = byLabel.get(row.label) ?? { totalXp: 0, eventCount: 0, users: 0 };
+      byLabel.set(row.label, {
+        totalXp: existing.totalXp + row.totalXp,
+        eventCount: existing.eventCount + row.eventCount,
+        users: existing.users + row.users
+      });
+    }
+  }
+  return [...byLabel.entries()].sort((a, b3) => b3[1].totalXp - a[1].totalXp).map(([label, stats]) => ({ label, ...stats }));
+}
+function sumUsage(payloads) {
+  const base = {
+    signups: 0,
+    activeUsers: 0,
+    notesCreated: 0,
+    notesEdited: 0,
+    notesByType: { default: 0, scripture: 0, resource: 0 },
+    scripturePills: 0,
+    study: {
+      notesLinkedInThreads: 0,
+      linkRatePct: 0,
+      notesWithPassages: 0,
+      passageRatePct: 0,
+      highlightsSpawned: 0,
+      highlightRatePct: 0,
+      studyThreadEntries: 0,
+      pinnedNotes: 0
+    },
+    recall: { opens: 0, snoozes: 0, snoozeRatePct: 0, usersActive: 0 }
+  };
+  for (const p of payloads) {
+    base.signups += p.usage.signups;
+    base.activeUsers += p.usage.activeUsers;
+    base.notesCreated += p.usage.notesCreated;
+    base.notesEdited += p.usage.notesEdited;
+    base.notesByType.default += p.usage.notesByType.default;
+    base.notesByType.scripture += p.usage.notesByType.scripture;
+    base.notesByType.resource += p.usage.notesByType.resource;
+    base.scripturePills += p.usage.scripturePills;
+    base.study.notesLinkedInThreads += p.usage.study.notesLinkedInThreads;
+    base.study.notesWithPassages += p.usage.study.notesWithPassages;
+    base.study.highlightsSpawned += p.usage.study.highlightsSpawned;
+    base.study.studyThreadEntries += p.usage.study.studyThreadEntries;
+    base.study.pinnedNotes += p.usage.study.pinnedNotes;
+    base.recall.opens += p.usage.recall.opens;
+    base.recall.snoozes += p.usage.recall.snoozes;
+    base.recall.usersActive += p.usage.recall.usersActive;
+  }
+  const notesCreated = base.notesCreated;
+  base.study.linkRatePct = notesCreated > 0 ? Math.round(base.study.notesLinkedInThreads / notesCreated * 100) : 0;
+  base.study.passageRatePct = notesCreated > 0 ? Math.round(base.study.notesWithPassages / notesCreated * 100) : 0;
+  base.study.highlightRatePct = notesCreated > 0 ? Math.round(base.study.highlightsSpawned / notesCreated * 100) : 0;
+  base.recall.snoozeRatePct = base.recall.opens > 0 ? Math.round(base.recall.snoozes / base.recall.opens * 100) : 0;
+  return base;
+}
+function sumPulse(payloads) {
+  let totalXp = 0;
+  let eventCount = 0;
+  let xpUsers = 0;
+  let uniquePassages = 0;
+  let totalThreads = 0;
+  let linksCreated = 0;
+  let avgNotesSum = 0;
+  for (const p of payloads) {
+    totalXp += p.pulse.xp.totalXp;
+    eventCount += p.pulse.xp.eventCount;
+    xpUsers += p.pulse.xp.users;
+    uniquePassages += p.pulse.uniquePassages;
+    totalThreads = Math.max(totalThreads, p.pulse.threads.totalThreads);
+    linksCreated += p.pulse.threads.linksCreated;
+    avgNotesSum += p.pulse.threads.avgNotesPerThread;
+  }
+  const count3 = payloads.length;
+  const byActivity = mergeXpActivities(payloads);
+  return {
+    uniquePassages,
+    books: mergeRankedLists(
+      payloads.map((p) => p.pulse.books),
+      10
+    ),
+    themes: mergeRankedLists(
+      payloads.map((p) => p.pulse.themes),
+      10
+    ),
+    passages: mergeRankedLists(
+      payloads.map((p) => p.pulse.passages),
+      10
+    ),
+    tags: mergeRankedLists(
+      payloads.map((p) => p.pulse.tags),
+      10
+    ),
+    translations: mergeRankedLists(
+      payloads.map((p) => p.pulse.translations),
+      5
+    ),
+    monthlyAnalytics: {
+      books: mergeRankedLists(
+        payloads.map((p) => p.pulse.monthlyAnalytics.books),
+        10
+      ),
+      tags: mergeRankedLists(
+        payloads.map((p) => p.pulse.monthlyAnalytics.tags),
+        10
+      )
+    },
+    threads: {
+      totalThreads,
+      linksCreated,
+      avgNotesPerThread: count3 > 0 ? Math.round(avgNotesSum / count3 * 10) / 10 : 0
+    },
+    xp: {
+      totalXp,
+      eventCount,
+      users: xpUsers,
+      avgXpPerUser: xpUsers > 0 ? Math.round(totalXp / xpUsers) : 0,
+      byActivity
+    }
+  };
+}
+function buildTotals(payloads) {
+  const usage = sumUsage(payloads);
+  const pulse = sumPulse(payloads);
+  return {
+    monthCount: payloads.length,
+    signups: usage.signups,
+    activeUsers: usage.activeUsers,
+    notesCreated: usage.notesCreated,
+    notesEdited: usage.notesEdited,
+    scripturePills: usage.scripturePills,
+    recallOpens: usage.recall.opens,
+    recallSnoozes: usage.recall.snoozes,
+    totalXp: pulse.xp.totalXp,
+    uniquePassages: pulse.uniquePassages,
+    threadLinksCreated: pulse.threads.linksCreated
+  };
+}
+function rollupMonthlyReports(scope, scopeId, scopeName, payloads) {
+  const months = payloads.map((p) => p.month).sort();
+  const usage = sumUsage(payloads);
+  const pulse = sumPulse(payloads);
+  return {
+    scope,
+    scopeId,
+    scopeName,
+    months,
+    totals: buildTotals(payloads),
+    usage,
+    pulse
+  };
+}
+
+// server/utils/admin-report-export.ts
+function pushMetric(rows, scope, scopeId, section, metric, value) {
+  rows.push({ scope, scopeId, section, metric, value });
+}
+function payloadToRows(scope, scopeId, payload) {
+  const rows = [];
+  const { usage, pulse } = payload;
+  pushMetric(rows, scope, scopeId, "usage", "signups", usage.signups);
+  pushMetric(rows, scope, scopeId, "usage", "activeUsers", usage.activeUsers);
+  pushMetric(rows, scope, scopeId, "usage", "notesCreated", usage.notesCreated);
+  pushMetric(rows, scope, scopeId, "usage", "notesEdited", usage.notesEdited);
+  pushMetric(rows, scope, scopeId, "usage", "scripturePills", usage.scripturePills);
+  pushMetric(rows, scope, scopeId, "recall", "opens", usage.recall.opens);
+  pushMetric(rows, scope, scopeId, "recall", "snoozes", usage.recall.snoozes);
+  pushMetric(rows, scope, scopeId, "pulse", "uniquePassages", pulse.uniquePassages);
+  pushMetric(rows, scope, scopeId, "xp", "totalXp", pulse.xp.totalXp);
+  pushMetric(rows, scope, scopeId, "xp", "users", pulse.xp.users);
+  pushMetric(rows, scope, scopeId, "threads", "linksCreated", pulse.threads.linksCreated);
+  for (const book of pulse.books) {
+    pushMetric(rows, scope, scopeId, "books", book.name, book.count);
+  }
+  for (const theme of pulse.themes) {
+    pushMetric(rows, scope, scopeId, "themes", theme.name, theme.count);
+  }
+  for (const activity of pulse.xp.byActivity) {
+    pushMetric(rows, scope, scopeId, "xpActivity", activity.label, activity.totalXp);
+  }
+  return rows;
+}
+function rollupToRows(rollup) {
+  const fakePayload = {
+    month: rollup.months.join(","),
+    seasonId: rollup.scopeId,
+    seasonName: rollup.scopeName,
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    usage: rollup.usage,
+    pulse: rollup.pulse
+  };
+  return payloadToRows(rollup.scope, rollup.scopeId, fakePayload);
+}
+function reportPayloadToExportRows(scope, scopeId, payload) {
+  return payloadToRows(scope, scopeId, payload);
+}
+function reportRollupToExportRows(rollup) {
+  return rollupToRows(rollup);
+}
+function escapeCsvCell(value) {
+  const str2 = String(value);
+  if (str2.includes(",") || str2.includes('"') || str2.includes("\n")) {
+    return `"${str2.replace(/"/g, '""')}"`;
+  }
+  return str2;
+}
+function exportRowsToCsv(rows) {
+  const header = "scope,scopeId,section,metric,value";
+  const lines = rows.map(
+    (row) => `${escapeCsvCell(row.scope)},${escapeCsvCell(row.scopeId)},${escapeCsvCell(row.section)},${escapeCsvCell(row.metric)},${escapeCsvCell(row.value)}`
+  );
+  return [header, ...lines].join("\n");
+}
+function exportPayloadToJson(payload) {
+  return JSON.stringify(payload, null, 2);
+}
+function yearRollupToJson(year, seasons) {
+  return JSON.stringify({ year, seasons }, null, 2);
+}
+
+// server/utils/admin-cleanup-duplicates.ts
+init_db2();
+function groupKeyNoteThread(entry) {
+  return `${entry.noteId}::${entry.threadId}`;
+}
+function groupKeyScriptureRef(entry) {
+  return `${entry.noteId}::${entry.scriptureNoteId}`;
+}
+function planDuplicateDeletions(entries2, keyFn) {
+  const grouped = /* @__PURE__ */ new Map();
+  for (const entry of entries2) {
+    const key2 = keyFn(entry);
+    if (!grouped.has(key2)) grouped.set(key2, []);
+    grouped.get(key2).push(entry);
+  }
+  const duplicateGroups = Array.from(grouped.values()).filter((group) => group.length > 1);
+  const report = [];
+  for (const group of duplicateGroups) {
+    const sorted = [...group].sort((a, b3) => (a.createdAt || "").localeCompare(b3.createdAt || ""));
+    const [kept, ...toDelete] = sorted;
+    report.push({ kept, toDelete });
+  }
+  return { groups: report.length, report };
+}
+async function cleanupDuplicateNoteThreads(dryRun) {
+  const allEntries = await db.select().from(NoteThreads);
+  const { groups, report: planned } = planDuplicateDeletions(allEntries, (e) => groupKeyNoteThread(e));
+  if (groups === 0) {
+    return {
+      success: true,
+      dryRun,
+      message: "No duplicates found. Database is clean!",
+      deleted: 0,
+      duplicateGroups: 0,
+      report: []
+    };
+  }
+  let totalDeleted = 0;
+  const report = [];
+  for (const { kept, toDelete } of planned) {
+    if (!dryRun) {
+      for (const entry of toDelete) {
+        await db.delete(NoteThreads).where(eq(NoteThreads.id, entry.id));
+        totalDeleted++;
+      }
+    }
+    report.push({
+      noteId: kept.noteId,
+      threadId: kept.threadId,
+      kept: kept.id,
+      deleted: toDelete.map((e) => e.id)
+    });
+  }
+  const wouldDelete = planned.reduce((sum2, { toDelete }) => sum2 + toDelete.length, 0);
+  return {
+    success: true,
+    dryRun,
+    message: dryRun ? `Preview: would delete ${wouldDelete} duplicate NoteThreads entries across ${groups} groups.` : `Cleanup complete! Deleted ${totalDeleted} duplicate NoteThreads entries.`,
+    deleted: dryRun ? 0 : totalDeleted,
+    duplicateGroups: groups,
+    report
+  };
+}
+async function cleanupDuplicateScriptureRefs(dryRun) {
+  const allEntries = await db.select().from(NoteScriptureReferences2);
+  const { groups, report: planned } = planDuplicateDeletions(
+    allEntries,
+    (e) => groupKeyScriptureRef(e)
+  );
+  if (groups === 0) {
+    return {
+      success: true,
+      dryRun,
+      message: "No duplicates found. Database is clean!",
+      deleted: 0,
+      duplicateGroups: 0,
+      report: []
+    };
+  }
+  let totalDeleted = 0;
+  const report = [];
+  for (const { kept, toDelete } of planned) {
+    if (!dryRun) {
+      for (const entry of toDelete) {
+        await db.delete(NoteScriptureReferences2).where(eq(NoteScriptureReferences2.id, entry.id));
+        totalDeleted++;
+      }
+    }
+    report.push({
+      noteId: kept.noteId,
+      scriptureNoteId: kept.scriptureNoteId,
+      kept: kept.id,
+      deleted: toDelete.map((e) => e.id)
+    });
+  }
+  const wouldDelete = planned.reduce((sum2, { toDelete }) => sum2 + toDelete.length, 0);
+  return {
+    success: true,
+    dryRun,
+    message: dryRun ? `Preview: would delete ${wouldDelete} duplicate scripture reference entries across ${groups} groups.` : `Cleanup complete! Deleted ${totalDeleted} duplicate entries.`,
+    deleted: dryRun ? 0 : totalDeleted,
+    duplicateGroups: groups,
+    report
+  };
+}
+
+// server/utils/admin-content-catalog.ts
+init_db2();
+function buildJoinUrl(origin, shareToken) {
+  if (!shareToken) return null;
+  const base = origin.replace(/\/$/, "");
+  return `${base}/spaces/join/${shareToken}`;
+}
+function countMap2(rows) {
+  return new Map(rows.map((r) => [r.key, r.cnt]));
+}
+async function getAdminContentSpaces(systemUserId, origin) {
+  const spaceRows = await db.select({
+    id: Spaces.id,
+    title: Spaces.title,
+    description: Spaces.description,
+    color: Spaces.color,
+    isFeatured: Spaces.isFeatured,
+    shareToken: Spaces.shareToken,
+    createdAt: Spaces.createdAt
+  }).from(Spaces).where(eq(Spaces.userId, systemUserId)).orderBy(Spaces.createdAt);
+  if (spaceRows.length === 0) return [];
+  const spaceIds = spaceRows.map((s2) => s2.id);
+  const [memberCounts, threadCounts, noteCounts] = await Promise.all([
+    db.select({ key: Members.spaceId, cnt: count() }).from(Members).where(inArray(Members.spaceId, spaceIds)).groupBy(Members.spaceId),
+    db.select({ key: Threads.spaceId, cnt: count() }).from(Threads).where(and(isNotNull(Threads.spaceId), inArray(Threads.spaceId, spaceIds))).groupBy(Threads.spaceId),
+    db.select({ key: Notes.spaceId, cnt: count() }).from(Notes).where(and(isNotNull(Notes.spaceId), inArray(Notes.spaceId, spaceIds))).groupBy(Notes.spaceId)
+  ]);
+  const memberMap = countMap2(memberCounts);
+  const threadMap = countMap2(threadCounts.map((r) => ({ key: r.key, cnt: r.cnt })));
+  const noteMap = countMap2(noteCounts.map((r) => ({ key: r.key, cnt: r.cnt })));
+  return spaceRows.map((space) => ({
+    id: space.id,
+    title: space.title,
+    description: space.description,
+    color: space.color,
+    isFeatured: space.isFeatured ?? false,
+    shareToken: space.shareToken,
+    joinUrl: buildJoinUrl(origin, space.shareToken),
+    threadCount: threadMap.get(space.id) ?? 0,
+    noteCount: noteMap.get(space.id) ?? 0,
+    memberCount: memberMap.get(space.id) ?? 0,
+    createdAt: space.createdAt
+  }));
+}
+async function getAdminContentSpaceThreads(systemUserId, spaceId) {
+  const space = first(
+    await db.select({ id: Spaces.id }).from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, systemUserId))).limit(1)
+  );
+  if (!space) return null;
+  const threadRows = await db.select({
+    id: Threads.id,
+    title: Threads.title,
+    subtitle: Threads.subtitle,
+    color: Threads.color,
+    createdAt: Threads.createdAt
+  }).from(Threads).where(eq(Threads.spaceId, spaceId)).orderBy(Threads.createdAt);
+  if (threadRows.length === 0) return [];
+  const threadIds = threadRows.map((t) => t.id);
+  const noteCounts = await db.select({ key: NoteThreads.threadId, cnt: count() }).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(inArray(NoteThreads.threadId, threadIds)).groupBy(NoteThreads.threadId);
+  const directNoteCounts = await db.select({ key: Notes.threadId, cnt: count() }).from(Notes).where(and(eq(Notes.spaceId, spaceId), inArray(Notes.threadId, threadIds))).groupBy(Notes.threadId);
+  const noteMap = /* @__PURE__ */ new Map();
+  for (const row of noteCounts) {
+    if (row.key) noteMap.set(row.key, (noteMap.get(row.key) ?? 0) + row.cnt);
+  }
+  for (const row of directNoteCounts) {
+    if (row.key) noteMap.set(row.key, (noteMap.get(row.key) ?? 0) + row.cnt);
+  }
+  return threadRows.map((thread) => ({
+    id: thread.id,
+    title: thread.title,
+    subtitle: thread.subtitle,
+    color: thread.color,
+    noteCount: noteMap.get(thread.id) ?? 0,
+    createdAt: thread.createdAt
+  }));
+}
+
+// server/utils/admin-support-tickets.ts
+init_db2();
+init_dates();
+
+// server/utils/support-ticket.ts
+init_db2();
+init_dates();
+
+// src/utils/support-mailto.ts
+var FEEDBACK_TOPICS = ["Bug", "Idea", "Question"];
+function isFeedbackTopic(value) {
+  return FEEDBACK_TOPICS.includes(value);
+}
+
+// src/utils/support-tickets.ts
+var import_meta3 = {};
+var API_BASE = typeof import_meta3 !== "undefined" && import_meta3.env?.VITE_API_BASE_URL ? String(import_meta3.env.VITE_API_BASE_URL) : "";
+
+// server/utils/support-ticket.ts
+init_pg_undefined_relation();
+var MAX_MESSAGE_LENGTH = 5e3;
+var MAX_CLIENT_ENV_LENGTH = 200;
+function isSupportTicketStatus(value) {
+  return value === "open" || value === "closed";
+}
+function validateCreateSupportTicketInput(body) {
+  if (!body || typeof body !== "object") return null;
+  const { topic, message, appVersion, pageUrl, clientEnvironment } = body;
+  if (typeof message !== "string") return null;
+  const trimmedMessage = message.trim();
+  if (!trimmedMessage || trimmedMessage.length > MAX_MESSAGE_LENGTH) return null;
+  if (topic != null && topic !== "") {
+    if (typeof topic !== "string" || !isFeedbackTopic(topic)) return null;
+  }
+  const trimmedVersion = typeof appVersion === "string" ? appVersion.trim() : "";
+  const trimmedPageUrl = typeof pageUrl === "string" ? pageUrl.trim() : "";
+  const trimmedClientEnv = typeof clientEnvironment === "string" ? clientEnvironment.trim().slice(0, MAX_CLIENT_ENV_LENGTH) : "";
+  return {
+    topic: typeof topic === "string" && isFeedbackTopic(topic) ? topic : null,
+    message: trimmedMessage,
+    appVersion: trimmedVersion || null,
+    pageUrl: trimmedPageUrl || null,
+    clientEnvironment: trimmedClientEnv || null
+  };
+}
+function formatUserName(firstName, lastName) {
+  const first2 = firstName?.trim() ?? "";
+  const last = lastName?.trim() ?? "";
+  const full = `${first2} ${last}`.trim();
+  return full || null;
+}
+async function allocateNextTicketNumber() {
+  const result = await db.select({ value: max(SupportTickets.ticketNumber) }).from(SupportTickets);
+  return Number(result[0]?.value ?? 0) + 1;
+}
+async function createSupportTicket(userId, input) {
+  try {
+    const meta = first(
+      await db.select({
+        firstName: UserMetadata.firstName,
+        lastName: UserMetadata.lastName,
+        email: UserMetadata.email
+      }).from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1)
+    );
+    const createdAt = nowISO();
+    const ticketNumber = await allocateNextTicketNumber();
+    const id = String(ticketNumber);
+    await db.insert(SupportTickets).values({
+      id,
+      ticketNumber,
+      userId,
+      topic: input.topic ?? null,
+      message: input.message,
+      userEmail: meta?.email?.trim() || null,
+      userName: formatUserName(meta?.firstName, meta?.lastName),
+      appVersion: input.appVersion ?? null,
+      pageUrl: input.pageUrl ?? null,
+      clientEnvironment: input.clientEnvironment ?? null,
+      status: "open",
+      adminNote: null,
+      createdAt,
+      closedAt: null
+    });
+    return { id, ticketNumber, createdAt };
+  } catch (error) {
+    if (isSupportTicketsTableMissing(error)) {
+      console.warn("[createSupportTicket] SupportTickets table missing; skipping. Run `npm run db:push`.");
+      return null;
+    }
+    throw error;
+  }
+}
+
+// server/utils/admin-support-tickets.ts
+function rowToIso(value) {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
+}
+function mapListRow(row) {
+  return {
+    id: row.id,
+    ticketNumber: row.ticketNumber,
+    topic: row.topic,
+    message: row.message,
+    userName: row.userName,
+    userEmail: row.userEmail,
+    status: row.status,
+    unread: row.adminReadAt == null,
+    createdAt: rowToIso(row.createdAt) ?? ""
+  };
+}
+function mapDetailRow(row) {
+  return {
+    ...mapListRow(row),
+    userId: row.userId,
+    appVersion: row.appVersion,
+    pageUrl: row.pageUrl,
+    clientEnvironment: row.clientEnvironment,
+    adminNote: row.adminNote,
+    adminReadAt: rowToIso(row.adminReadAt),
+    closedAt: rowToIso(row.closedAt)
+  };
+}
+async function countOpenSupportTickets() {
+  const result = await db.select({ value: count() }).from(SupportTickets).where(eq(SupportTickets.status, "open"));
+  return Number(result[0]?.value ?? 0);
+}
+async function countUnreadSupportTickets() {
+  const result = await db.select({ value: count() }).from(SupportTickets).where(isNull(SupportTickets.adminReadAt));
+  return Number(result[0]?.value ?? 0);
+}
+async function listSupportTickets(filter2, limit = 50, offset = 0) {
+  const safeLimit = Math.min(Math.max(limit, 1), 100);
+  const safeOffset = Math.max(offset, 0);
+  const where = filter2 === "all" ? void 0 : filter2 === "closed" ? eq(SupportTickets.status, "closed") : eq(SupportTickets.status, "open");
+  const rows = await db.select().from(SupportTickets).where(where).orderBy(desc(SupportTickets.createdAt)).limit(safeLimit).offset(safeOffset);
+  const [openCount, unreadCount] = await Promise.all([countOpenSupportTickets(), countUnreadSupportTickets()]);
+  return {
+    tickets: rows.map(mapListRow),
+    openCount,
+    unreadCount
+  };
+}
+async function resolveSupportTicketId(idOrNumber) {
+  const trimmed = idOrNumber.trim();
+  if (!trimmed) return null;
+  if (/^\d+$/.test(trimmed)) {
+    const ticketNumber = parseInt(trimmed, 10);
+    const rows = await db.select({ id: SupportTickets.id }).from(SupportTickets).where(or(eq(SupportTickets.ticketNumber, ticketNumber), eq(SupportTickets.id, trimmed))).limit(1);
+    return rows[0]?.id ?? null;
+  }
+  return trimmed;
+}
+async function getSupportTicket(id, options) {
+  const resolvedId = await resolveSupportTicketId(id);
+  if (!resolvedId) return null;
+  const rows = await db.select().from(SupportTickets).where(eq(SupportTickets.id, resolvedId)).limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  if (options?.markRead && row.adminReadAt == null) {
+    const readAt = nowISO();
+    await db.update(SupportTickets).set({ adminReadAt: readAt }).where(eq(SupportTickets.id, resolvedId));
+    return mapDetailRow({ ...row, adminReadAt: readAt });
+  }
+  return mapDetailRow(row);
+}
+function validatePatchSupportTicketInput(body) {
+  if (!body || typeof body !== "object") return null;
+  const { status, adminNote, read } = body;
+  const patch = {};
+  if (status !== void 0) {
+    if (typeof status !== "string" || !isSupportTicketStatus(status)) return null;
+    patch.status = status;
+  }
+  if (adminNote !== void 0) {
+    if (adminNote !== null && typeof adminNote !== "string") return null;
+    patch.adminNote = typeof adminNote === "string" ? adminNote : null;
+  }
+  if (read !== void 0) {
+    if (typeof read !== "boolean") return null;
+    patch.read = read;
+  }
+  if (patch.status === void 0 && patch.adminNote === void 0 && patch.read === void 0) return null;
+  return patch;
+}
+async function patchSupportTicket(id, patch) {
+  const resolvedId = await resolveSupportTicketId(id);
+  if (!resolvedId) return null;
+  const existing = await getSupportTicket(resolvedId);
+  if (!existing) return null;
+  const updates = {};
+  if (patch.status !== void 0) {
+    updates.status = patch.status;
+    updates.closedAt = patch.status === "closed" ? nowISO() : null;
+  }
+  if (patch.adminNote !== void 0) {
+    updates.adminNote = patch.adminNote;
+  }
+  if (patch.read !== void 0) {
+    updates.adminReadAt = patch.read ? nowISO() : null;
+  }
+  if (Object.keys(updates).length === 0) return existing;
+  await db.update(SupportTickets).set(updates).where(eq(SupportTickets.id, resolvedId));
+  return getSupportTicket(resolvedId);
+}
+function parseSupportTicketListFilter(value) {
+  if (value === "closed" || value === "all") return value;
+  return "open";
+}
+
+// server/utils/admin-diagnostics-stats.ts
+init_db2();
+init_dates();
+
+// src/utils/diagnostic-sources.ts
+var DIAGNOSTIC_SOURCES = ["client_js", "client_api", "client_manual", "server_api"];
+var DIAGNOSTIC_SEVERITIES = ["error", "warning"];
+var DIAGNOSTIC_TRIAGE_STATUSES = ["open", "resolved", "ignored"];
+var DIAGNOSTIC_PLATFORMS = ["web", "ios", "unknown"];
+function isDiagnosticSource(value) {
+  return DIAGNOSTIC_SOURCES.includes(value);
+}
+function isDiagnosticSeverity(value) {
+  return DIAGNOSTIC_SEVERITIES.includes(value);
+}
+function isDiagnosticTriageStatus(value) {
+  return DIAGNOSTIC_TRIAGE_STATUSES.includes(value);
+}
+function isDiagnosticPlatform(value) {
+  return DIAGNOSTIC_PLATFORMS.includes(value);
+}
+
+// server/utils/admin-diagnostics-stats.ts
+init_pg_undefined_relation();
+var MAX_EVENTS_SCAN = 1e4;
+function sinceDate(days) {
+  const d = /* @__PURE__ */ new Date();
+  d.setDate(d.getDate() - days);
+  return d;
+}
+function eventTime(value) {
+  return value instanceof Date ? value.getTime() : new Date(value).getTime();
+}
+function aggregateEvents(rows) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    let acc = map2.get(row.issueSignature);
+    if (!acc) {
+      acc = {
+        issueSignature: row.issueSignature,
+        count: 0,
+        lastSeen: row.createdAt,
+        message: row.message,
+        routeCounts: /* @__PURE__ */ new Map(),
+        sources: /* @__PURE__ */ new Set()
+      };
+      map2.set(row.issueSignature, acc);
+    }
+    acc.count++;
+    acc.sources.add(row.source);
+    if (eventTime(row.createdAt) > eventTime(acc.lastSeen)) {
+      acc.lastSeen = row.createdAt;
+      acc.message = row.message;
+    }
+    if (row.route) {
+      acc.routeCounts.set(row.route, (acc.routeCounts.get(row.route) ?? 0) + 1);
+    }
+  }
+  return Array.from(map2.values()).sort((a, b3) => b3.count - a.count);
+}
+function topRoute(acc) {
+  let best = null;
+  let bestCount = 0;
+  for (const [route17, cnt] of acc.routeCounts) {
+    if (cnt > bestCount) {
+      best = route17;
+      bestCount = cnt;
+    }
+  }
+  return best;
+}
+async function getDiagnosticIssues(days) {
+  const since = sinceDate(days);
+  try {
+    const rows = await db.select({
+      issueSignature: DiagnosticEvents.issueSignature,
+      message: DiagnosticEvents.message,
+      route: DiagnosticEvents.route,
+      source: DiagnosticEvents.source,
+      createdAt: DiagnosticEvents.createdAt
+    }).from(DiagnosticEvents).where(gte(DiagnosticEvents.createdAt, since)).orderBy(desc(DiagnosticEvents.createdAt)).limit(MAX_EVENTS_SCAN);
+    if (rows.length === 0) return [];
+    const grouped = aggregateEvents(rows);
+    const signatures = grouped.map((g2) => g2.issueSignature);
+    let triageRows = [];
+    if (signatures.length > 0) {
+      try {
+        triageRows = await db.select({
+          issueSignature: DiagnosticIssueTriage.issueSignature,
+          status: DiagnosticIssueTriage.status,
+          adminNotes: DiagnosticIssueTriage.adminNotes
+        }).from(DiagnosticIssueTriage).where(inArray(DiagnosticIssueTriage.issueSignature, signatures));
+      } catch (error) {
+        if (!isDiagnosticEventsTableMissing(error) && !isDiagnosticIssueTriageTableMissing(error)) {
+          throw error;
+        }
+      }
+    }
+    const triageMap = new Map(triageRows.map((t) => [t.issueSignature, t]));
+    return grouped.map((g2) => {
+      const triage = triageMap.get(g2.issueSignature);
+      const status = triage?.status && isDiagnosticTriageStatus(triage.status) ? triage.status : "open";
+      return {
+        issueSignature: g2.issueSignature,
+        message: g2.message,
+        count: g2.count,
+        lastSeen: g2.lastSeen instanceof Date ? g2.lastSeen.toISOString() : String(g2.lastSeen),
+        topRoute: topRoute(g2),
+        sources: Array.from(g2.sources),
+        status,
+        adminNotes: triage?.adminNotes ?? null
+      };
+    });
+  } catch (error) {
+    if (isDiagnosticEventsTableMissing(error)) return [];
+    throw error;
+  }
+}
+async function countDiagnosticEventsSince(since) {
+  try {
+    const rows = await db.select({ id: DiagnosticEvents.id }).from(DiagnosticEvents).where(gte(DiagnosticEvents.createdAt, since)).limit(MAX_EVENTS_SCAN + 1);
+    return rows.length > MAX_EVENTS_SCAN ? MAX_EVENTS_SCAN : rows.length;
+  } catch (error) {
+    if (isDiagnosticEventsTableMissing(error)) return 0;
+    throw error;
+  }
+}
+async function getDiagnosticIssueEvents(issueSignature, limit) {
+  const capped = Math.min(Math.max(limit, 1), 50);
+  try {
+    return await db.select({
+      id: DiagnosticEvents.id,
+      source: DiagnosticEvents.source,
+      severity: DiagnosticEvents.severity,
+      message: DiagnosticEvents.message,
+      stack: DiagnosticEvents.stack,
+      route: DiagnosticEvents.route,
+      platform: DiagnosticEvents.platform,
+      appVersion: DiagnosticEvents.appVersion,
+      manualNote: DiagnosticEvents.manualNote,
+      metadata: DiagnosticEvents.metadata,
+      createdAt: DiagnosticEvents.createdAt
+    }).from(DiagnosticEvents).where(eq(DiagnosticEvents.issueSignature, issueSignature)).orderBy(desc(DiagnosticEvents.createdAt)).limit(capped);
+  } catch (error) {
+    if (isDiagnosticEventsTableMissing(error)) return [];
+    throw error;
+  }
+}
+async function updateDiagnosticIssueTriage(issueSignature, status, adminNotes) {
+  const now2 = nowISO();
+  try {
+    const existing = await db.select({ issueSignature: DiagnosticIssueTriage.issueSignature }).from(DiagnosticIssueTriage).where(eq(DiagnosticIssueTriage.issueSignature, issueSignature)).limit(1);
+    if (existing.length > 0) {
+      await db.update(DiagnosticIssueTriage).set({
+        status,
+        adminNotes: adminNotes ?? null,
+        updatedAt: now2
+      }).where(eq(DiagnosticIssueTriage.issueSignature, issueSignature));
+      return;
+    }
+    await db.insert(DiagnosticIssueTriage).values({
+      issueSignature,
+      status,
+      adminNotes: adminNotes ?? null,
+      updatedAt: now2
+    });
+  } catch (error) {
+    if (isDiagnosticIssueTriageTableMissing(error)) {
+      console.warn("[updateDiagnosticIssueTriage] DiagnosticIssueTriage table missing; run `npm run db:push`.");
+      return;
+    }
+    throw error;
+  }
+}
+
+// server/routes/admin.ts
 var app11 = new Hono2();
+app11.get("/api/admin/usage/overview", async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  try {
+    const daysParam = parseInt(c.req.query("days") ?? "30", 10);
+    const overview = await getUsageOverview(Number.isFinite(daysParam) ? daysParam : 30);
+    return c.json(overview);
+  } catch (error) {
+    console.error("[admin usage overview]", error);
+    return c.json({ error: "Failed to load usage overview" }, 500);
+  }
+});
+app11.get("/api/admin/usage/trends", async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  try {
+    const daysParam = parseInt(c.req.query("days") ?? "30", 10);
+    const trends = await getUsageTrends(Number.isFinite(daysParam) ? daysParam : 30);
+    return c.json(trends);
+  } catch (error) {
+    console.error("[admin usage trends]", error);
+    return c.json({ error: "Failed to load usage trends" }, 500);
+  }
+});
+app11.get("/api/admin/usage/discovery", async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  try {
+    const daysParam = parseInt(c.req.query("days") ?? "30", 10);
+    const discovery = await getUsageDiscovery(Number.isFinite(daysParam) ? daysParam : 30);
+    return c.json(discovery);
+  } catch (error) {
+    console.error("[admin usage discovery]", error);
+    return c.json({ error: "Failed to load usage discovery" }, 500);
+  }
+});
+app11.get("/api/admin/pulse", async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  try {
+    const daysParam = parseInt(c.req.query("days") ?? "7", 10);
+    const pulse = await getAdminPulse(Number.isFinite(daysParam) ? daysParam : 7);
+    return c.json(pulse);
+  } catch (error) {
+    console.error("[admin pulse]", error);
+    return c.json({ error: "Failed to load pulse" }, 500);
+  }
+});
+app11.get("/api/admin/reports/catalog", async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  try {
+    const catalog = await listAdminReportsCatalog();
+    return c.json(catalog);
+  } catch (error) {
+    console.error("[admin reports catalog]", error);
+    return c.json({ error: "Failed to load reports catalog" }, 500);
+  }
+});
+app11.post("/api/admin/reports/generate", async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  const month = c.req.query("month");
+  if (!month || !isValidMonthKey(month)) {
+    return c.json({ error: "Invalid month format. Use YYYY-MM" }, 400);
+  }
+  try {
+    const payload = await generateAdminMonthlyReport(month);
+    return c.json({ success: true, month, payload });
+  } catch (error) {
+    console.error("[admin reports generate]", error);
+    return c.json({ error: "Failed to generate report" }, 500);
+  }
+});
+app11.get("/api/admin/reports/season/:seasonId", async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  const seasonId = c.req.param("seasonId");
+  const format = c.req.query("format") ?? "json";
+  if (!/^((spring|summer|fall|winter)-\d{4})$/.test(seasonId)) {
+    return c.json({ error: "Invalid season id" }, 400);
+  }
+  try {
+    const months = getSeasonMonths(seasonId);
+    const payloads = [];
+    for (const month of months) {
+      const stored = await getStoredMonthlyReport(month);
+      if (stored) payloads.push(stored);
+    }
+    if (payloads.length === 0) {
+      return c.json({ error: "No stored reports for this season" }, 404);
+    }
+    const rollup = rollupMonthlyReports("season", seasonId, getSeasonDisplayName(seasonId), payloads);
+    if (format === "csv") {
+      const csv = exportRowsToCsv(reportRollupToExportRows(rollup));
+      return new Response(csv, {
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="harvous-report-${seasonId}.csv"`
+        }
+      });
+    }
+    return c.json(rollup);
+  } catch (error) {
+    console.error("[admin reports season]", error);
+    return c.json({ error: "Failed to load season report" }, 500);
+  }
+});
+app11.get("/api/admin/reports/year/:year", async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  const yearParam = c.req.param("year");
+  const year = parseInt(yearParam, 10);
+  const format = c.req.query("format") ?? "json";
+  if (!year || year < 2e3 || year > 2100) {
+    return c.json({ error: "Invalid year" }, 400);
+  }
+  try {
+    const seasonIds = listSeasonsForYear(year);
+    const seasons = [];
+    for (const seasonId of seasonIds) {
+      const months = getSeasonMonths(seasonId);
+      const payloads = [];
+      for (const month of months) {
+        const stored = await getStoredMonthlyReport(month);
+        if (stored) payloads.push(stored);
+      }
+      seasons.push({
+        seasonId,
+        seasonName: getSeasonDisplayName(seasonId),
+        rollup: payloads.length > 0 ? rollupMonthlyReports("season", seasonId, getSeasonDisplayName(seasonId), payloads) : null,
+        months: payloads
+      });
+    }
+    const hasAny = seasons.some((s2) => s2.months.length > 0);
+    if (!hasAny) {
+      return c.json({ error: "No stored reports for this year" }, 404);
+    }
+    if (format === "csv") {
+      const rows = seasons.flatMap((s2) => s2.rollup ? reportRollupToExportRows(s2.rollup) : []);
+      const csv = exportRowsToCsv(rows);
+      return new Response(csv, {
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="harvous-report-${year}.csv"`
+        }
+      });
+    }
+    return c.json(JSON.parse(yearRollupToJson(year, seasons)));
+  } catch (error) {
+    console.error("[admin reports year]", error);
+    return c.json({ error: "Failed to load year report" }, 500);
+  }
+});
+app11.get("/api/admin/reports/:month", async (c) => {
+  const denied = requireHarvousAdmin(c);
+  if (denied) return denied;
+  const month = c.req.param("month");
+  const format = c.req.query("format") ?? "json";
+  if (!isValidMonthKey(month)) {
+    return c.json({ error: "Invalid month format. Use YYYY-MM" }, 400);
+  }
+  try {
+    const payload = await getStoredMonthlyReport(month);
+    if (!payload) {
+      return c.json({ error: "Report not found for this month" }, 404);
+    }
+    if (format === "csv") {
+      const csv = exportRowsToCsv(reportPayloadToExportRows("month", month, payload));
+      return new Response(csv, {
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="harvous-report-${month}.csv"`
+        }
+      });
+    }
+    if (format === "json" && c.req.query("download") === "1") {
+      return new Response(exportPayloadToJson(payload), {
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Disposition": `attachment; filename="harvous-report-${month}.json"`
+        }
+      });
+    }
+    return c.json(payload);
+  } catch (error) {
+    console.error("[admin reports month]", error);
+    return c.json({ error: "Failed to load monthly report" }, 500);
+  }
+});
 async function handleAggregateAnalytics(c) {
   try {
     const auth = getAuth(c);
@@ -177796,6 +182646,10 @@ async function handleAggregateAnalytics(c) {
     const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
     if (expectedToken && !hasValidToken && !isAuthenticated) {
       return c.json({ error: "Unauthorized" }, 401);
+    }
+    if (!hasValidToken) {
+      const denied = requireHarvousAdmin(c);
+      if (denied) return denied;
     }
     const previous = c.req.query("previous") === "true";
     const monthParam = c.req.query("month");
@@ -177811,7 +182665,12 @@ async function handleAggregateAnalytics(c) {
       targetMonth = getCurrentMonth();
     }
     await aggregateMonthlyAnalytics(targetMonth);
-    return c.json({ success: true, month: targetMonth, message: `Analytics aggregated for ${targetMonth}` });
+    await generateAdminMonthlyReport(targetMonth);
+    return c.json({
+      success: true,
+      month: targetMonth,
+      message: `Analytics and monthly report generated for ${targetMonth}`
+    });
   } catch (error) {
     console.error("Error aggregating analytics:", error);
     return c.json({ error: "Internal server error", details: error instanceof Error ? error.message : String(error) }, 500);
@@ -177874,80 +182733,33 @@ app11.post("/api/admin/backup-exports", async (c) => {
   }
 });
 app11.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
   try {
-    console.log("Starting cleanup of duplicate NoteThreads entries...");
-    const allEntries = await db.select().from(NoteThreads);
-    console.log(`Total NoteThreads entries: ${allEntries.length}`);
-    const groupedEntries = /* @__PURE__ */ new Map();
-    for (const entry of allEntries) {
-      const key2 = `${entry.noteId}::${entry.threadId}`;
-      if (!groupedEntries.has(key2)) groupedEntries.set(key2, []);
-      groupedEntries.get(key2).push(entry);
-    }
-    const duplicateGroups = Array.from(groupedEntries.entries()).filter(([_3, entries2]) => entries2.length > 1);
-    console.log(`Found ${duplicateGroups.length} groups with duplicates`);
-    if (duplicateGroups.length === 0) {
-      return c.json({ success: true, message: "No duplicates found. Database is clean!", deleted: 0 });
-    }
-    let totalDeleted = 0;
-    const report = [];
-    for (const [_key, entries2] of duplicateGroups) {
-      const sorted = entries2.sort((a, b3) => (a.createdAt || "").localeCompare(b3.createdAt || ""));
-      const [kept, ...toDelete] = sorted;
-      for (const entry of toDelete) {
-        await db.delete(NoteThreads).where(eq(NoteThreads.id, entry.id));
-        totalDeleted++;
-      }
-      report.push({ noteId: kept.noteId, threadId: kept.threadId, kept: kept.id, deleted: toDelete.map((e) => e.id) });
-    }
-    return c.json({
-      success: true,
-      message: `Cleanup complete! Deleted ${totalDeleted} duplicate NoteThreads entries.`,
-      deleted: totalDeleted,
-      duplicateGroups: report.length,
-      report
-    });
+    const dryRun = c.req.query("dryRun") === "true";
+    const result = await cleanupDuplicateNoteThreads(dryRun);
+    return c.json(result);
   } catch (error) {
     console.error("Error during cleanup:", error);
-    return c.json({ success: false, error: error.message || "Unknown error" }, 500);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : "Unknown error" },
+      500
+    );
   }
 });
 app11.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
   try {
-    console.log("Starting cleanup of duplicate scripture reference entries...");
-    const allEntries = await db.select().from(NoteScriptureReferences2);
-    const groupedEntries = /* @__PURE__ */ new Map();
-    for (const entry of allEntries) {
-      const key2 = `${entry.noteId}::${entry.scriptureNoteId}`;
-      if (!groupedEntries.has(key2)) groupedEntries.set(key2, []);
-      groupedEntries.get(key2).push(entry);
-    }
-    const duplicateGroups = Array.from(groupedEntries.entries()).filter(([_3, entries2]) => entries2.length > 1);
-    console.log(`Found ${duplicateGroups.length} groups with duplicates`);
-    if (duplicateGroups.length === 0) {
-      return c.json({ success: true, message: "No duplicates found. Database is clean!", deleted: 0 });
-    }
-    let totalDeleted = 0;
-    const report = [];
-    for (const [_key, entries2] of duplicateGroups) {
-      const sorted = entries2.sort((a, b3) => (a.createdAt || "").localeCompare(b3.createdAt || ""));
-      const [kept, ...toDelete] = sorted;
-      for (const entry of toDelete) {
-        await db.delete(NoteScriptureReferences2).where(eq(NoteScriptureReferences2.id, entry.id));
-        totalDeleted++;
-      }
-      report.push({ noteId: kept.noteId, scriptureNoteId: kept.scriptureNoteId, kept: kept.id, deleted: toDelete.map((e) => e.id) });
-    }
-    return c.json({
-      success: true,
-      message: `Cleanup complete! Deleted ${totalDeleted} duplicate entries.`,
-      deleted: totalDeleted,
-      duplicateGroups: report.length,
-      report
-    });
+    const dryRun = c.req.query("dryRun") === "true";
+    const result = await cleanupDuplicateScriptureRefs(dryRun);
+    return c.json(result);
   } catch (error) {
     console.error("Error during cleanup:", error);
-    return c.json({ success: false, error: error.message || "Unknown error" }, 500);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : "Unknown error" },
+      500
+    );
   }
 });
 app11.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
@@ -178106,6 +182918,34 @@ app11.get("/api/admin/list-threads", requireAuth, async (c) => {
   } catch (error) {
     console.error("Error listing threads:", error);
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
+  }
+});
+app11.get("/api/admin/content/spaces", async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const origin = new URL(c.req.url).origin;
+    const spaces = await getAdminContentSpaces(systemUserId, origin);
+    return c.json({ success: true, spaces });
+  } catch (error) {
+    console.error("[admin content spaces]", error);
+    return c.json({ error: "Failed to load curated spaces" }, 500);
+  }
+});
+app11.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const spaceId = c.req.param("spaceId");
+    if (!spaceId) return c.json({ error: "Space ID is required" }, 400);
+    const threads = await getAdminContentSpaceThreads(systemUserId, spaceId);
+    if (threads === null) return c.json({ error: "Space not found" }, 404);
+    return c.json({ success: true, spaceId, threads });
+  } catch (error) {
+    console.error("[admin content threads]", error);
+    return c.json({ error: "Failed to load threads" }, 500);
   }
 });
 app11.post("/api/admin/spaces", async (c) => {
@@ -178437,6 +183277,103 @@ app11.post("/api/admin/backfill-auto-tags", async (c) => {
     );
   }
 });
+app11.get("/api/admin/support/tickets", async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const status = parseSupportTicketListFilter(c.req.query("status") ?? void 0);
+    const limitParam = parseInt(c.req.query("limit") ?? "50", 10);
+    const offsetParam = parseInt(c.req.query("offset") ?? "0", 10);
+    const limit = Number.isFinite(limitParam) ? limitParam : 50;
+    const offset = Number.isFinite(offsetParam) ? offsetParam : 0;
+    const result = await listSupportTickets(status, limit, offset);
+    return c.json({ success: true, status, ...result });
+  } catch (error) {
+    console.error("[admin support tickets list]", error);
+    return c.json({ error: "Failed to load support tickets" }, 500);
+  }
+});
+app11.get("/api/admin/support/tickets/:id", async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const id = c.req.param("id")?.trim() ?? "";
+    if (!id) return c.json({ error: "id is required" }, 400);
+    const ticket = await getSupportTicket(id);
+    if (!ticket) return c.json({ error: "Ticket not found" }, 404);
+    return c.json({ success: true, ticket });
+  } catch (error) {
+    console.error("[admin support ticket detail]", error);
+    return c.json({ error: "Failed to load support ticket" }, 500);
+  }
+});
+app11.patch("/api/admin/support/tickets/:id", async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const id = c.req.param("id")?.trim() ?? "";
+    if (!id) return c.json({ error: "id is required" }, 400);
+    const body = await c.req.json().catch(() => null);
+    const patch = validatePatchSupportTicketInput(body);
+    if (!patch) return c.json({ error: "Invalid patch payload" }, 400);
+    const ticket = await patchSupportTicket(id, patch);
+    if (!ticket) return c.json({ error: "Ticket not found" }, 404);
+    return c.json({ success: true, ticket });
+  } catch (error) {
+    console.error("[admin support ticket patch]", error);
+    return c.json({ error: "Failed to update support ticket" }, 500);
+  }
+});
+app11.get("/api/admin/diagnostics/issues", async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const daysParam = parseInt(c.req.query("days") ?? "7", 10);
+    const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 1), 90) : 7;
+    const issues = await getDiagnosticIssues(days);
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1e3);
+    const eventsLast24h = await countDiagnosticEventsSince(since24h);
+    const openCount = issues.filter((i) => i.status === "open").length;
+    return c.json({ success: true, days, openCount, eventsLast24h, issues });
+  } catch (error) {
+    console.error("[admin diagnostics issues]", error);
+    return c.json({ error: "Failed to load diagnostic issues" }, 500);
+  }
+});
+app11.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const signature = c.req.param("signature")?.trim() ?? "";
+    if (!signature) return c.json({ error: "signature is required" }, 400);
+    const limitParam = parseInt(c.req.query("limit") ?? "20", 10);
+    const limit = Number.isFinite(limitParam) ? limitParam : 20;
+    const events = await getDiagnosticIssueEvents(signature, limit);
+    return c.json({ success: true, issueSignature: signature, events });
+  } catch (error) {
+    console.error("[admin diagnostics events]", error);
+    return c.json({ error: "Failed to load diagnostic events" }, 500);
+  }
+});
+app11.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const signature = c.req.param("signature")?.trim() ?? "";
+    if (!signature) return c.json({ error: "signature is required" }, 400);
+    const body = await c.req.json().catch(() => ({}));
+    const status = typeof body.status === "string" ? body.status : "";
+    if (!isDiagnosticTriageStatus(status)) {
+      return c.json({ error: "Invalid status" }, 400);
+    }
+    const adminNotes = typeof body.adminNotes === "string" ? body.adminNotes : null;
+    await updateDiagnosticIssueTriage(signature, status, adminNotes);
+    return c.json({ success: true, issueSignature: signature, status });
+  } catch (error) {
+    console.error("[admin diagnostics triage]", error);
+    return c.json({ error: "Failed to update triage" }, 500);
+  }
+});
 var admin_default = app11;
 
 // server/routes/featured.ts
@@ -178665,10 +183602,7 @@ app12.get("/api/featured/items", async (c) => {
         }
       }
     }
-    const userMetaRow = first(
-      await db.select({ defaultTranslation: UserMetadata.defaultTranslation }).from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1)
-    );
-    const preferredTranslation = userMetaRow?.defaultTranslation?.trim() || "NET";
+    const preferredTranslation = await getUserDefaultTranslation(auth.userId);
     for (let idx = 0; idx < items.length; idx++) {
       const row = items[idx];
       if (row.contentType !== "votd" || !row.metadata) continue;
@@ -179063,6 +183997,7 @@ var featured_default = app12;
 // server/routes/votd.ts
 init_db2();
 init_dates();
+init_auth();
 init_harvous_admin();
 init_schema2();
 init_scripture_detector();
@@ -180103,15 +185038,58 @@ app13.post("/api/admin/votd/publish-daily", async (c) => {
     source: result.source
   });
 });
+var VOTD_PREVIEW_MONTH_WINDOW = 24;
+function utcMonthFirstDay(year, month1) {
+  return new Date(Date.UTC(year, month1 - 1, 1, 12, 0, 0));
+}
+function utcMonthLastDay(year, month1) {
+  return new Date(Date.UTC(year, month1, 0, 12, 0, 0));
+}
+function isUtcMonthWithinPreviewWindow(monthStr) {
+  const m2 = monthStr.match(/^(\d{4})-(\d{2})$/);
+  if (!m2) return false;
+  const year = parseInt(m2[1], 10);
+  const month1 = parseInt(m2[2], 10);
+  if (month1 < 1 || month1 > 12) return false;
+  const today = /* @__PURE__ */ new Date();
+  today.setUTCHours(12, 0, 0, 0);
+  const minMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - VOTD_PREVIEW_MONTH_WINDOW, 1, 12, 0, 0));
+  const maxMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + VOTD_PREVIEW_MONTH_WINDOW, 1, 12, 0, 0));
+  const requested = utcMonthFirstDay(year, month1);
+  return requested >= minMonth && requested <= maxMonth;
+}
+function daysBetweenUtcInclusive(start, end) {
+  const msPerDay = 24 * 60 * 60 * 1e3;
+  return Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
+}
 app13.get("/api/admin/votd/preview", async (c) => {
   const unauthorized = requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
-  const daysRaw = c.req.query("days");
-  const days = Math.min(90, Math.max(1, parseInt(daysRaw || "30", 10) || 30));
-  const start = /* @__PURE__ */ new Date();
-  start.setUTCHours(12, 0, 0, 0);
-  const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + days - 1);
+  const monthParam = c.req.query("month")?.trim();
+  let start;
+  let end;
+  let dayCount;
+  if (monthParam) {
+    if (!/^\d{4}-\d{2}$/.test(monthParam)) {
+      return c.json({ error: "month must be YYYY-MM" }, 400);
+    }
+    if (!isUtcMonthWithinPreviewWindow(monthParam)) {
+      return c.json({ error: `month must be within \xB1${VOTD_PREVIEW_MONTH_WINDOW} months of today (UTC)` }, 400);
+    }
+    const [yearStr, monthStr] = monthParam.split("-");
+    const year = parseInt(yearStr, 10);
+    const month1 = parseInt(monthStr, 10);
+    start = utcMonthFirstDay(year, month1);
+    end = utcMonthLastDay(year, month1);
+    dayCount = daysBetweenUtcInclusive(start, end);
+  } else {
+    const daysRaw = c.req.query("days");
+    dayCount = Math.min(90, Math.max(1, parseInt(daysRaw || "30", 10) || 30));
+    start = /* @__PURE__ */ new Date();
+    start.setUTCHours(12, 0, 0, 0);
+    end = new Date(start);
+    end.setUTCDate(start.getUTCDate() + dayCount - 1);
+  }
   const dateMin = utcDateStr(start);
   const dateMax = utcDateStr(end);
   const histInRange = await db.select().from(VotdPublishHistory).where(
@@ -180135,7 +185113,7 @@ app13.get("/api/admin/votd/preview", async (c) => {
     if (sd && !pinByDate.has(sd)) pinByDate.set(sd, p);
   }
   const yearsInRange = /* @__PURE__ */ new Set();
-  for (let i = 0; i < days; i++) {
+  for (let i = 0; i < dayCount; i++) {
     const d = new Date(start);
     d.setUTCDate(start.getUTCDate() + i);
     yearsInRange.add(d.getUTCFullYear());
@@ -180150,7 +185128,7 @@ app13.get("/api/admin/votd/preview", async (c) => {
   const out = [];
   const dow = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   let previousDayBook = await getPublishedBookOnDate(utcPreviousCalendarDay(dateMin));
-  for (let i = 0; i < days; i++) {
+  for (let i = 0; i < dayCount; i++) {
     const d = new Date(start);
     d.setUTCDate(start.getUTCDate() + i);
     const dateStr = utcDateStr(d);
@@ -180361,6 +185339,22 @@ app13.delete("/api/admin/votd/override/:date", async (c) => {
   }
   await db.delete(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, dateStr), eq(VotdSchedule.isPublished, false)));
   return c.json({ success: true });
+});
+app13.post("/api/votd/record-engagement", requireAuth, async (c) => {
+  const auth = getAuthenticatedAuth(c);
+  const body = await c.req.json().catch(() => ({}));
+  const action = body.action?.trim();
+  if (action !== "dismiss" && action !== "add_note") {
+    return c.json({ error: "action must be dismiss or add_note" }, 400);
+  }
+  const tzHeader = (body.tz ?? c.req.query("tz") ?? c.req.header("X-Votd-Timezone") ?? "").trim();
+  const timeZone = isValidIanaTimeZone(tzHeader) ? tzHeader : "UTC";
+  const localCalendarDate = getLocalCalendarDateString(timeZone, now());
+  const result = await recordVotdEngagement(auth.userId, action, localCalendarDate);
+  if (!result.ok) {
+    return c.json({ error: "No published passage for this day" }, 404);
+  }
+  return c.json({ success: true, featuredItemId: result.featuredItemId });
 });
 var votd_default = app13;
 
@@ -228321,6 +233315,269 @@ route13.get("/api/dictionary/eastons/:slug", async (c) => {
 });
 var dictionary_default = route13;
 
+// server/routes/recall.ts
+init_auth();
+
+// server/utils/record-recall-event.ts
+init_db2();
+init_dates();
+init_pg_undefined_relation();
+function validateRecallEventInput(body) {
+  if (!body || typeof body !== "object") return null;
+  const { opportunityId, kind, action, noteId } = body;
+  if (typeof opportunityId !== "string" || !opportunityId.trim()) return null;
+  if (typeof kind !== "string" || !isRecallOpportunityKind(kind)) return null;
+  if (typeof action !== "string" || !isRecallEventAction(action)) return null;
+  if (noteId != null && typeof noteId !== "string") return null;
+  const trimmedNoteId = typeof noteId === "string" ? noteId.trim() : "";
+  return {
+    opportunityId: opportunityId.trim(),
+    kind,
+    action,
+    noteId: trimmedNoteId || null
+  };
+}
+async function recordRecallEvent(userId, input) {
+  try {
+    await db.insert(RecallEvents).values({
+      id: generateTimestampId("recallevent"),
+      userId,
+      opportunityId: input.opportunityId,
+      kind: input.kind,
+      action: input.action,
+      noteId: input.noteId ?? null,
+      createdAt: nowISO()
+    });
+    if (input.action === "open" && input.noteId) {
+      await recordNoteRecallEngaged(userId, input.noteId);
+    }
+    return true;
+  } catch (error) {
+    if (isRecallEventsTableMissing(error)) {
+      console.warn("[recordRecallEvent] RecallEvents table missing; skipping. Run `npm run db:push`.");
+      return false;
+    }
+    console.error("[recordRecallEvent]", error instanceof Error ? error.message : error);
+    return false;
+  }
+}
+
+// server/routes/recall.ts
+var route14 = new Hono2();
+route14.post("/api/recall/event", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json();
+    const input = validateRecallEventInput(body);
+    if (!input) {
+      return c.json({ error: "Invalid recall event payload" }, 400);
+    }
+    await recordRecallEvent(auth.userId, input);
+    return c.json({ success: true });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/recall/event", action: "recall_event" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var recall_default = route14;
+
+// server/routes/support.ts
+init_auth();
+var route15 = new Hono2();
+route15.post("/api/support/tickets", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json();
+    const input = validateCreateSupportTicketInput(body);
+    if (!input) {
+      return c.json({ error: "Invalid support ticket payload" }, 400);
+    }
+    const result = await createSupportTicket(auth.userId, input);
+    if (!result) {
+      return c.json({ error: "Support is temporarily unavailable" }, 503);
+    }
+    return c.json({ success: true, id: result.id, ticketNumber: result.ticketNumber, createdAt: result.createdAt });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/support/tickets", action: "support_ticket" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var support_default = route15;
+
+// server/utils/record-diagnostic-event.ts
+init_db2();
+init_dates();
+init_pg_undefined_relation();
+
+// server/utils/diagnostics-sanitize.ts
+var import_crypto5 = require("crypto");
+
+// src/utils/diagnostics-route.ts
+var NOTE_ID_RE = /\bnote_[a-zA-Z0-9_-]+\b/gi;
+var THREAD_ID_RE = /\bthread_[a-zA-Z0-9_-]+\b/gi;
+var SPACE_ID_RE = /\bspace_[a-zA-Z0-9_-]+\b/gi;
+function redactDiagnosticRoute(path) {
+  const withoutQuery = path.split("?")[0]?.split("#")[0] ?? path;
+  const segments = withoutQuery.split("/").filter(Boolean);
+  const redacted = segments.map((seg) => {
+    if (/^user_[a-zA-Z0-9]+$/.test(seg)) return ":id";
+    if (/^(note|thread|space)_[a-zA-Z0-9_-]+$/i.test(seg)) return ":id";
+    if (/^[a-f0-9]{20,}$/i.test(seg)) return ":token";
+    if (/^\d+$/.test(seg)) return ":id";
+    if (seg.length > 40) return ":id";
+    return seg;
+  });
+  return "/" + redacted.join("/");
+}
+function scrubDiagnosticText(text2) {
+  return text2.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "[email]").replace(/\buser_[a-zA-Z0-9]+\b/g, "[user]").replace(NOTE_ID_RE, "[note]").replace(THREAD_ID_RE, "[thread]").replace(SPACE_ID_RE, "[space]").replace(/\b[0-9a-f]{24,}\b/gi, "[token]").trim();
+}
+
+// server/utils/diagnostics-sanitize.ts
+var MAX_MESSAGE = 500;
+var MAX_STACK = 2e3;
+var MAX_MANUAL_NOTE = 500;
+var MAX_ROUTE = 300;
+var MAX_SESSION_ID = 64;
+var MAX_APP_VERSION = 40;
+var MAX_METADATA_JSON = 2e3;
+function truncate2(value, max2) {
+  if (value.length <= max2) return value;
+  return value.slice(0, max2);
+}
+function topStackFrame(stack) {
+  if (!stack) return "";
+  const lines = stack.split("\n").map((l) => l.trim()).filter(Boolean);
+  const frame = lines.find((l) => l.startsWith("at ")) ?? lines[1] ?? lines[0] ?? "";
+  return scrubDiagnosticText(truncate2(frame, 200));
+}
+function computeIssueSignature(message, route17, stack) {
+  const normalized = [
+    scrubDiagnosticText(message).toLowerCase(),
+    route17 ?? "",
+    topStackFrame(stack)
+  ].join("::");
+  return (0, import_crypto5.createHash)("sha256").update(normalized).digest("hex").slice(0, 32);
+}
+function sanitizeMetadata(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw2 = value;
+  const out = {};
+  if (typeof raw2.statusCode === "number" && Number.isFinite(raw2.statusCode)) {
+    out.statusCode = Math.round(raw2.statusCode);
+  }
+  if (typeof raw2.apiPath === "string" && raw2.apiPath.trim()) {
+    out.apiPath = redactDiagnosticRoute(raw2.apiPath.trim());
+  }
+  if (typeof raw2.userAgentFamily === "string" && raw2.userAgentFamily.trim()) {
+    out.userAgentFamily = truncate2(scrubDiagnosticText(raw2.userAgentFamily.trim()), 80);
+  }
+  if (Object.keys(out).length === 0) return null;
+  const json3 = JSON.stringify(out);
+  if (json3.length > MAX_METADATA_JSON) return null;
+  return out;
+}
+function sanitizeDiagnosticPayload(body) {
+  if (!body || typeof body !== "object") return null;
+  const raw2 = body;
+  const source = typeof raw2.source === "string" ? raw2.source : "";
+  const severity = typeof raw2.severity === "string" ? raw2.severity : "error";
+  if (!isDiagnosticSource(source)) return null;
+  if (!isDiagnosticSeverity(severity)) return null;
+  const messageRaw = typeof raw2.message === "string" ? raw2.message.trim() : "";
+  if (!messageRaw) return null;
+  const anonymousSessionId = typeof raw2.anonymousSessionId === "string" ? raw2.anonymousSessionId.trim() : "";
+  if (!anonymousSessionId || anonymousSessionId.length > MAX_SESSION_ID) return null;
+  const platform = typeof raw2.platform === "string" ? raw2.platform : "unknown";
+  if (!isDiagnosticPlatform(platform)) return null;
+  const stackRaw = typeof raw2.stack === "string" ? raw2.stack : null;
+  const routeRaw = typeof raw2.route === "string" ? raw2.route : null;
+  const appVersionRaw = typeof raw2.appVersion === "string" ? raw2.appVersion.trim() : null;
+  const manualNoteRaw = typeof raw2.manualNote === "string" ? raw2.manualNote.trim() : null;
+  const message = truncate2(scrubDiagnosticText(messageRaw), MAX_MESSAGE);
+  const stack = stackRaw ? truncate2(scrubDiagnosticText(stackRaw), MAX_STACK) : null;
+  const route17 = routeRaw ? truncate2(redactDiagnosticRoute(routeRaw), MAX_ROUTE) : null;
+  const appVersion = appVersionRaw ? truncate2(scrubDiagnosticText(appVersionRaw), MAX_APP_VERSION) : null;
+  const manualNote = source === "client_manual" && manualNoteRaw ? truncate2(scrubDiagnosticText(manualNoteRaw), MAX_MANUAL_NOTE) : null;
+  const metadata = sanitizeMetadata(raw2.metadata);
+  const issueSignature = computeIssueSignature(message, route17, stack);
+  return {
+    source,
+    severity,
+    message,
+    stack,
+    route: route17,
+    platform,
+    appVersion,
+    anonymousSessionId,
+    manualNote,
+    metadata,
+    issueSignature
+  };
+}
+
+// server/utils/record-diagnostic-event.ts
+var MAX_EVENTS_PER_SESSION_PER_HOUR = 60;
+function validateDiagnosticEventInput(body) {
+  return sanitizeDiagnosticPayload(body);
+}
+async function isRateLimited(anonymousSessionId) {
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1e3);
+  const row = await db.select({ cnt: count() }).from(DiagnosticEvents).where(
+    and(
+      eq(DiagnosticEvents.anonymousSessionId, anonymousSessionId),
+      gte(DiagnosticEvents.createdAt, oneHourAgo)
+    )
+  ).limit(1);
+  return (row[0]?.cnt ?? 0) >= MAX_EVENTS_PER_SESSION_PER_HOUR;
+}
+async function recordDiagnosticEvent(input) {
+  try {
+    if (await isRateLimited(input.anonymousSessionId)) {
+      return false;
+    }
+    await db.insert(DiagnosticEvents).values({
+      id: generateTimestampId("diag"),
+      issueSignature: input.issueSignature,
+      source: input.source,
+      severity: input.severity,
+      message: input.message,
+      stack: input.stack,
+      route: input.route,
+      platform: input.platform,
+      appVersion: input.appVersion,
+      anonymousSessionId: input.anonymousSessionId,
+      manualNote: input.manualNote,
+      metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+      createdAt: nowISO()
+    });
+    return true;
+  } catch (error) {
+    if (isDiagnosticEventsTableMissing(error)) {
+      console.warn("[recordDiagnosticEvent] DiagnosticEvents table missing; skipping. Run `npm run db:push`.");
+      return false;
+    }
+    console.error("[recordDiagnosticEvent]", error instanceof Error ? error.message : error);
+    return false;
+  }
+}
+
+// server/routes/diagnostics.ts
+var route16 = new Hono2();
+route16.post("/api/diagnostics/event", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => null);
+    const input = validateDiagnosticEventInput(body);
+    if (input) {
+      await recordDiagnosticEvent(input);
+    }
+    return c.json({ success: true });
+  } catch {
+    return c.json({ success: true });
+  }
+});
+var diagnostics_default = route16;
+
 // server/app.ts
 var app15 = new Hono2();
 app15.use("/api/*", requestId());
@@ -228359,6 +233616,9 @@ app15.route("/", featured_default);
 app15.route("/", votd_default);
 app15.route("/", test_default);
 app15.route("/", dictionary_default);
+app15.route("/", recall_default);
+app15.route("/", support_default);
+app15.route("/", diagnostics_default);
 var app_default = app15;
 
 // server/netlify.ts

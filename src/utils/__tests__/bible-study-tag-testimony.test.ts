@@ -38,6 +38,7 @@ describe('Lutheran salvation testimony — tag precision', () => {
     const names = tags.map((t) => t.name.toLowerCase());
     expect(names).not.toContain('marriage');
     expect(names).not.toContain('friendship');
+    expect(names).not.toContain('jesus');
   });
 
   it('still surfaces on-topic scripture and theme tags', () => {

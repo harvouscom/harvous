@@ -1,6 +1,11 @@
 export const FOUNDER_EMAIL = 'derek@harvous.com';
 
-export type FeedbackTopic = 'Bug' | 'Idea' | 'Question';
+export const FEEDBACK_TOPICS = ['Bug', 'Idea', 'Question'] as const;
+export type FeedbackTopic = (typeof FEEDBACK_TOPICS)[number];
+
+export function isFeedbackTopic(value: string): value is FeedbackTopic {
+  return (FEEDBACK_TOPICS as readonly string[]).includes(value);
+}
 
 export interface FeedbackMailtoProfile {
   firstName?: string | null;
@@ -63,4 +68,35 @@ export function buildFeedbackMailto(options: BuildFeedbackMailtoOptions): string
 /** mailto link with subject only (no body). */
 export function buildFounderMailto(subject = 'Harvous support'): string {
   return `mailto:${FOUNDER_EMAIL}?subject=${encodeURIComponent(subject)}`;
+}
+
+export interface BuildTicketReplyMailtoOptions {
+  ticketNumber: number | null;
+  ticketId: string;
+  userEmail: string;
+  topic?: FeedbackTopic | null;
+  originalMessage: string;
+}
+
+function ticketReplySubject(topic: FeedbackTopic | null | undefined, ticketRef: string): string {
+  const base = topic ? `Harvous feedback — ${topic}` : 'Harvous feedback';
+  const ref = ticketRef ? ` [#${ticketRef}]` : '';
+  return `Re: ${base}${ref}`;
+}
+
+/** Build a mailto URL for admin to reply to a support ticket submitter. */
+export function buildTicketReplyMailto(options: BuildTicketReplyMailtoOptions): string {
+  const { ticketNumber, ticketId, userEmail, topic, originalMessage } = options;
+  const ticketRef = ticketNumber != null ? String(ticketNumber) : ticketId;
+  const subject = ticketReplySubject(topic, ticketRef);
+  const body = [
+    '',
+    '---',
+    'Original message:',
+    originalMessage.trim(),
+    '',
+    `Ticket: #${ticketRef}`,
+  ].join('\n');
+  const params = new URLSearchParams({ subject, body });
+  return `mailto:${userEmail}?${params.toString()}`;
 }

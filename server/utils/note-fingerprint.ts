@@ -35,6 +35,8 @@ import {
   MIN_THEME_CORROBORATION_RELEVANCE,
 } from './scripture-knowledge';
 import { detectEmotionalTone, type EmotionalTone } from '@/utils/bible-study-tone-lexicon';
+import { filterUniversalBibleEntities } from '@/utils/universal-bible-entities';
+import { dominantCanonProfile, CANON_BOOK_GROUPS } from '@/utils/admin-pulse-canon-groups';
 import {
   isNoteFingerprintsTableMissing,
   isStudyThreadEntriesTableMissing,
@@ -93,6 +95,10 @@ export interface NoteFingerprintData {
   emotionalTone: EmotionalTone | null;
   toneScores: Partial<Record<EmotionalTone, number>>;
   meaningWeight: number;
+  canonSection: string | null;
+  canonSectionLabel: string | null;
+  testament: 'ot' | 'nt' | null;
+  canonSections: string[];
 }
 
 const MAX_THEMES = 10;
@@ -125,13 +131,18 @@ export function buildNoteFingerprintData(input: {
   people: string[];
   places: string[];
   passageCount: number;
+  passageBooks: string[];
   toneText: string;
   signals: MeaningSignals;
 }): NoteFingerprintData {
-  const themes = dedupeLabels([...input.proseTagNames, ...input.passageThemes], MAX_THEMES);
-  const people = dedupeLabels(input.people, MAX_ENTITIES);
+  const themes = dedupeLabels(
+    filterUniversalBibleEntities([...input.proseTagNames, ...input.passageThemes]),
+    MAX_THEMES,
+  );
+  const people = dedupeLabels(filterUniversalBibleEntities(input.people), MAX_ENTITIES);
   const places = dedupeLabels(input.places, MAX_ENTITIES);
   const tone = detectEmotionalTone(input.toneText);
+  const canon = dominantCanonProfile(input.passageBooks);
 
   return {
     themes,
@@ -141,6 +152,10 @@ export function buildNoteFingerprintData(input: {
     emotionalTone: tone.tone,
     toneScores: tone.scores,
     meaningWeight: computeMeaningWeight(input.signals),
+    canonSection: canon.sectionId,
+    canonSectionLabel: canon.sectionLabel,
+    testament: canon.testament,
+    canonSections: canon.sectionIds,
   };
 }
 
@@ -255,6 +270,7 @@ export async function computeAndStoreNoteFingerprint(
       people: knowledge.people.map((p) => p.name),
       places: knowledge.places.map((p) => p.name),
       passageCount: passages.length,
+      passageBooks: passages.map((p) => p.book),
       // Title + body: the tone of a note lives in both the heading and the reflection.
       toneText: `${note.title ?? ''} ${visibleText}`.trim(),
       signals,
@@ -283,6 +299,9 @@ async function persistFingerprint(noteId: string, userId: string, data: NoteFing
     emotionalTone: data.emotionalTone,
     toneScores: JSON.stringify(data.toneScores),
     meaningWeight: data.meaningWeight,
+    canonSection: data.canonSection,
+    testament: data.testament,
+    canonSections: JSON.stringify(data.canonSections),
     computedAt: now(),
   };
   try {
@@ -299,6 +318,9 @@ async function persistFingerprint(noteId: string, userId: string, data: NoteFing
           emotionalTone: row.emotionalTone,
           toneScores: row.toneScores,
           meaningWeight: row.meaningWeight,
+          canonSection: row.canonSection,
+          testament: row.testament,
+          canonSections: row.canonSections,
           computedAt: row.computedAt,
         },
       });
@@ -339,6 +361,9 @@ function deserializeFingerprint(row: typeof NoteFingerprints.$inferSelect): Stor
       toneScores = {};
     }
   }
+  const canonSection = row.canonSection ?? null;
+  const sectionLabel =
+    canonSection != null ? CANON_BOOK_GROUPS.find((g) => g.id === canonSection)?.label ?? null : null;
   return {
     noteId: row.noteId,
     themes: parseJsonArray(row.themes),
@@ -348,6 +373,10 @@ function deserializeFingerprint(row: typeof NoteFingerprints.$inferSelect): Stor
     emotionalTone: (row.emotionalTone as EmotionalTone | null) ?? null,
     toneScores,
     meaningWeight: row.meaningWeight,
+    canonSection,
+    canonSectionLabel: sectionLabel,
+    testament: row.testament === 'ot' || row.testament === 'nt' ? row.testament : null,
+    canonSections: parseJsonArray(row.canonSections),
     computedAt: row.computedAt,
     recallStabilityDays: row.recallStabilityDays ?? null,
     lastRecallEngagedAt: row.lastRecallEngagedAt ?? null,

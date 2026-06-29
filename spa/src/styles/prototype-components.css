@@ -3220,13 +3220,112 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 .proto-settings__nav {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   padding: 12px 10px;
   border-right: 0.5px solid var(--pds-border);
   background: var(--pds-bg-page);
   min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.proto-settings__nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.proto-settings__nav-footer {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--pds-border);
+}
+
+.proto-settings__admin-shortcut {
+  align-items: flex-start;
+}
+
+.proto-settings__admin-shortcut-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.proto-settings__admin-shortcut-sub {
+  font-family: var(--pds-font-body);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: var(--pds-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proto-settings__admin-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 14px 14px;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--pds-radius-card);
+  transition: background 0.08s;
+}
+
+.proto-settings__admin-card:hover {
+  background: var(--pds-bg-row-hover);
+}
+
+.proto-settings__admin-card-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--pds-bg-input);
+  color: var(--pds-text-secondary);
+}
+
+.proto-settings__admin-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.proto-settings__admin-card-title {
+  display: block;
+  margin: 0;
+}
+
+.proto-settings__admin-card-preview {
+  display: block;
+  margin: 0;
+}
+
+.proto-settings__admin-card-chevron {
+  flex-shrink: 0;
+  display: flex;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-settings__admin-row-wrap {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 0.5px solid var(--pds-border);
 }
 
 .proto-settings__nav-item {
@@ -6751,6 +6850,18 @@ button.proto-appearance-hero__card {
 
 .proto-support-form {
   margin-top: 4px;
+}
+
+.proto-support-form__intro {
+  margin-bottom: 14px;
+}
+
+.proto-support-form__topic-label {
+  margin: 0 0 6px;
+}
+
+.proto-support-form__chip-bar {
+  margin: 0 0 12px;
 }
 
 .proto-support-form__label {

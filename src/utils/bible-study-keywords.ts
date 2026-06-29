@@ -88,7 +88,7 @@ export const BIBLE_STUDY_KEYWORDS: BibleStudyKeyword[] = [
   { name: 'Revelation', category: 'book', synonyms: ['rev', 'apocalypse'], confidence: 0.9 },
 
   // Biblical Characters
-  { name: 'Jesus', category: 'character', synonyms: ['christ', 'jesus christ', 'lord', 'savior', 'messiah', "jesus's", "jesus'"], confidence: 0.95 },
+  { name: 'Jesus', category: 'character', synonyms: ['christ', 'jesus christ', 'lord jesus', 'our lord', 'savior', 'messiah', "jesus's", "jesus'"], confidence: 0.95 },
   { name: 'God', category: 'character', synonyms: ['lord', 'father', 'almighty', 'creator', "god's"], confidence: 0.95 },
   { name: 'Holy Spirit', category: 'character', synonyms: ['spirit', 'holy ghost', 'comforter'], confidence: 0.9 },
   { name: 'Moses', category: 'character', synonyms: ["moses'", "moses's"], confidence: 0.9 },

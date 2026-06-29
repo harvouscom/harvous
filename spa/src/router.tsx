@@ -142,6 +142,12 @@ const noteRoute = createRoute({
   }),
 });
 
+const adminHomeRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/admin',
+  component: lazyRouteComponent(() => import('./pages/AdminHomePage')),
+});
+
 const adminVotdRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/admin/votd',
@@ -152,6 +158,36 @@ const adminUsageRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/admin/usage',
   component: lazyRouteComponent(() => import('./pages/AdminUsagePage')),
+});
+
+const adminPulseRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/admin/pulse',
+  component: lazyRouteComponent(() => import('./pages/AdminPulsePage')),
+});
+
+const adminReportsRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/admin/reports',
+  component: lazyRouteComponent(() => import('./pages/AdminReportsPage')),
+});
+
+const adminPublishRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/admin/publish',
+  component: lazyRouteComponent(() => import('./pages/AdminPublishPage')),
+});
+
+const adminMaintenanceRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/admin/maintenance',
+  component: lazyRouteComponent(() => import('./pages/AdminMaintenancePage')),
+});
+
+const adminSupportRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/admin/support',
+  component: lazyRouteComponent(() => import('./pages/AdminSupportPage')),
 });
 
 const joinSpaceRoute = createRoute({
@@ -323,10 +359,46 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeKeyboardShortcutsPage')),
   });
 
+  const prototypeAdminHomeRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'admin',
+    component: lazyRouteComponent(() => import('./pages/AdminHomePage')),
+  });
+
   const prototypeAdminUsageRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'admin/usage',
     component: lazyRouteComponent(() => import('./pages/AdminUsagePage')),
+  });
+
+  const prototypeAdminPulseRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'admin/pulse',
+    component: lazyRouteComponent(() => import('./pages/AdminPulsePage')),
+  });
+
+  const prototypeAdminReportsRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'admin/reports',
+    component: lazyRouteComponent(() => import('./pages/AdminReportsPage')),
+  });
+
+  const prototypeAdminPublishRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'admin/publish',
+    component: lazyRouteComponent(() => import('./pages/AdminPublishPage')),
+  });
+
+  const prototypeAdminMaintenanceRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'admin/maintenance',
+    component: lazyRouteComponent(() => import('./pages/AdminMaintenancePage')),
+  });
+
+  const prototypeAdminSupportRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'admin/support',
+    component: lazyRouteComponent(() => import('./pages/AdminSupportPage')),
   });
 
   const prototypeAdminVotdRoute = createRoute({
@@ -341,7 +413,13 @@ function buildPrototypeRouteBranch() {
     prototypeLegacyFlatNoteRedirectRoute,
     prototypeHomeRoute,
     prototypeSearchRedirectRoute,
+    prototypeAdminHomeRoute,
     prototypeAdminUsageRoute,
+    prototypeAdminPulseRoute,
+    prototypeAdminReportsRoute,
+    prototypeAdminPublishRoute,
+    prototypeAdminMaintenanceRoute,
+    prototypeAdminSupportRoute,
     prototypeAdminVotdRoute,
     prototypeNoteFlatRoute,
     prototypeSettingsRoute.addChildren([
@@ -439,8 +517,14 @@ const classicAppRoutes = appLayoutRoute.addChildren([
   spaceRoute,
   threadRoute,
   noteRoute,
+  adminHomeRoute,
   adminVotdRoute,
   adminUsageRoute,
+  adminPulseRoute,
+  adminReportsRoute,
+  adminPublishRoute,
+  adminMaintenanceRoute,
+  adminSupportRoute,
 ]);
 
 function buildRouteTree() {

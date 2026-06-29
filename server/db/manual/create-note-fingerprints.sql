@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS "NoteFingerprints" (
   "meaningWeight" real DEFAULT 0 NOT NULL,
   "recallStabilityDays" real,
   "lastRecallEngagedAt" timestamp with time zone,
+  "canonSection" text,
+  "testament" text,
+  "canonSections" text,
   "computedAt" timestamp with time zone NOT NULL
 );
 

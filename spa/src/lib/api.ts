@@ -7,6 +7,8 @@
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
+import { reportApiDiagnostic } from '@/utils/diagnostics-client';
+
 export class APIError extends Error {
   constructor(
     public status: number,
@@ -39,7 +41,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new APIError(res.status, body.error || `HTTP ${res.status}`);
+    const errMessage = body.error || `HTTP ${res.status}`;
+    reportApiDiagnostic(path, res.status, errMessage);
+    throw new APIError(res.status, errMessage);
   }
 
   return res.json() as Promise<T>;

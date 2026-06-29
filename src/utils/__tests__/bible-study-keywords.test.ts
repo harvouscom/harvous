@@ -62,6 +62,20 @@ describe('bible study keyword boundaries (Hell vs Hello)', () => {
   });
 });
 
+describe('Jesus character context gate', () => {
+  it('does not match Jesus from devotional O Lord or in Christ', () => {
+    const body = 'O Lord, thank you for grace today. We walk in Christ and trust your mercy.';
+    const rows = findKeywordsInTextWithPriority(body, '', body);
+    expect(rows.some((r) => r.keyword.name === 'Jesus')).toBe(false);
+  });
+
+  it('matches Jesus for narrative person-focused study', () => {
+    const body = 'Jesus calms the storm and teaches the disciples about faith.';
+    const rows = findKeywordsInTextWithPriority(body, '', body);
+    expect(rows.some((r) => r.keyword.name === 'Jesus')).toBe(true);
+  });
+});
+
 describe('auto folder exclusions (God / Jesus / Holy Spirit)', () => {
   const devotionalBody =
     'We trust in the Lord Jesus Christ and the Holy Spirit guides us. God is faithful and good. '.repeat(
