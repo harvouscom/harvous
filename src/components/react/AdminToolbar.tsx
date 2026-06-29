@@ -36,10 +36,11 @@ function AdminToolbarNavCluster({ sidebarCollapsed }: { sidebarCollapsed: boolea
       <button
         type="button"
         className="proto-admin-toolbar__back"
+        aria-label="Back to Harvous"
         onClick={() => navigate({ to: prototypeHomeRouteTo() })}
       >
         <Icon name="caret-left" size={14} aria-hidden />
-        <span>Back to Harvous</span>
+        <span className="proto-admin-toolbar__back-label">Back to Harvous</span>
       </button>
       <PrototypeToolbarShortcutItem shortcut="S" showShortcut={showShiftHints}>
         <button
@@ -61,6 +62,7 @@ export default function AdminToolbar({ variant = 'split' }: { variant?: 'split' 
   const { desktopSidebarCollapsed, sidebarExiting } = useProtoShell();
 
   const sidebarCollapsed = desktopSidebarCollapsed || sidebarExiting;
+  const isAdminHome = isPrototypeAdminHomePath(pathname);
   const showCollapsedChrome = variant !== 'split' && variant === 'detail' && sidebarCollapsed;
   const sectionLabel = isPrototypeAdminHomePath(pathname)
     ? 'Admin'
@@ -88,11 +90,14 @@ export default function AdminToolbar({ variant = 'split' }: { variant?: 'split' 
     ) : null;
 
   return (
-    <header className="proto-admin-toolbar" aria-label="Harvous admin">
+    <header
+      className={`proto-admin-toolbar${isAdminHome ? ' proto-admin-toolbar--home' : ''}`}
+      aria-label="Harvous admin"
+    >
       <div className="proto-admin-toolbar__left">{leftChrome}</div>
       <div className="proto-admin-toolbar__center">
         <span className="proto-admin-toolbar__badge">Admin</span>
-        {isPrototypeAdminPath(pathname) ? (
+        {isPrototypeAdminPath(pathname) && !isAdminHome ? (
           <span className="proto-admin-toolbar__title pds-list-title">{sectionLabel}</span>
         ) : null}
       </div>

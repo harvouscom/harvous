@@ -46,10 +46,11 @@ export default function PrototypeSidebarToolbar({
         <button
           type="button"
           className="proto-admin-toolbar__back proto-sidebar-toolbar__back"
+          aria-label="Back to Harvous"
           onClick={() => navigate({ to: prototypeHomeRouteTo() })}
         >
           <Icon name="caret-left" size={14} aria-hidden />
-          <span>Back to Harvous</span>
+          <span className="proto-admin-toolbar__back-label">Back to Harvous</span>
         </button>
       ) : null}
       <div className="proto-sidebar-toolbar__cluster">

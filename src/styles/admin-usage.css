@@ -125,6 +125,29 @@
   color: var(--pds-text-primary);
 }
 
+@media (max-width: 899px) {
+  .proto-admin-toolbar__back-label {
+    display: none;
+  }
+
+  .proto-admin-toolbar__back {
+    padding: 6px 8px;
+  }
+
+  .proto-admin-toolbar__left {
+    flex: 0 0 auto;
+    max-width: 38%;
+  }
+
+  .proto-admin-toolbar__center {
+    max-width: min(44vw, 220px);
+  }
+}
+
+.proto-admin-toolbar--home .proto-admin-toolbar__title {
+  display: none;
+}
+
 .proto-admin-toolbar__badge {
   display: inline-flex;
   align-items: center;
