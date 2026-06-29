@@ -43,7 +43,7 @@ import { bookFromReference } from '../utils/votd-reference-bounds';
 
 const app = new Hono();
 
-function requireVotdAuth(c: Parameters<typeof requireHarvousAdmin>[0]) {
+async function requireVotdAuth(c: Parameters<typeof requireHarvousAdmin>[0]) {
   if (c.get('cronAuthed')) return null;
 
   const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
@@ -52,7 +52,7 @@ function requireVotdAuth(c: Parameters<typeof requireHarvousAdmin>[0]) {
   const provided = m?.[1]?.trim();
 
   if (expectedSecret && provided && provided === expectedSecret) return null;
-  return requireHarvousAdmin(c);
+  return await requireHarvousAdmin(c);
 }
 
 function utcDateStr(d: Date): string {
@@ -167,7 +167,7 @@ async function publishVotdCore(params: {
 
 // ─── POST /api/admin/votd/schedule ───────────────────────────────────────────
 app.post('/api/admin/votd/schedule', async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
 
   const body = (await c.req.json().catch(() => ({}))) as {
@@ -225,7 +225,7 @@ app.post('/api/admin/votd/schedule', async (c) => {
 
 // ─── GET /api/admin/votd/schedule ────────────────────────────────────────────
 app.get('/api/admin/votd/schedule', async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
 
   const rows = await db.select().from(VotdSchedule).orderBy(desc(VotdSchedule.createdAt));
@@ -234,7 +234,7 @@ app.get('/api/admin/votd/schedule', async (c) => {
 
 // ─── DELETE /api/admin/votd/schedule/:id ─────────────────────────────────────
 app.delete('/api/admin/votd/schedule/:id', async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
 
   const id = c.req.param('id')?.trim() ?? '';
@@ -332,7 +332,7 @@ async function publishForDate(dateStr: string): Promise<{
 }
 
 app.post('/api/admin/votd/publish-daily', async (c) => {
-  const unauthorized = requireVotdAuth(c);
+  const unauthorized = await requireVotdAuth(c);
   if (unauthorized) return unauthorized;
 
   const target = c.req.query('target');
@@ -409,7 +409,7 @@ function daysBetweenUtcInclusive(start: Date, end: Date): number {
 
 // ─── GET /api/admin/votd/preview ───────────────────────────────────────────
 app.get('/api/admin/votd/preview', async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
 
   const monthParam = c.req.query('month')?.trim();
@@ -613,7 +613,7 @@ app.get('/api/admin/votd/preview', async (c) => {
 
 // ─── POST /api/admin/votd/override ─────────────────────────────────────────
 app.post('/api/admin/votd/override', async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
 
   const body = (await c.req.json().catch(() => ({}))) as { date?: string; reference?: string };
@@ -671,7 +671,7 @@ app.post('/api/admin/votd/override', async (c) => {
 
 // ─── POST /api/admin/votd/refresh ──────────────────────────────────────────
 app.post('/api/admin/votd/refresh', async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
 
   const body = (await c.req.json().catch(() => ({}))) as { date?: string };
@@ -757,7 +757,7 @@ app.post('/api/admin/votd/refresh', async (c) => {
 
 // ─── DELETE /api/admin/votd/override/:date ───────────────────────────────────
 app.delete('/api/admin/votd/override/:date', async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
 
   const dateStr = c.req.param('date')?.trim() ?? '';

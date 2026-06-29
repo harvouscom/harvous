@@ -420,14 +420,14 @@ app.get('/api/featured/dismissed', requireAuth, async (c) => {
 
 // Admin: lightweight check so the SPA can conditionally render admin UI.
 app.get('/api/admin/check', async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   return c.json({ isAdmin: true });
 });
 
 // Admin: get the currently-active featured item for a space share token.
 app.get('/api/admin/featured/by-space/:shareToken', async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
 
   const shareToken = c.req.param('shareToken')?.trim() ?? '';
@@ -447,7 +447,7 @@ app.get('/api/admin/featured/by-space/:shareToken', async (c) => {
 
 // Admin: get the currently-active featured item for a thread share token.
 app.get('/api/admin/featured/by-thread/:shareToken', async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
 
   const shareToken = c.req.param('shareToken')?.trim() ?? '';
@@ -467,7 +467,7 @@ app.get('/api/admin/featured/by-thread/:shareToken', async (c) => {
 
 // Admin: create a featured item.
 app.post('/api/admin/featured', async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
 
   const body = (await c.req.json().catch(() => ({}))) as {
@@ -538,7 +538,7 @@ app.post('/api/admin/featured', async (c) => {
 
 // Admin: update a featured item (used for deactivating + editing description/color).
 app.patch('/api/admin/featured/:id', async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
 
   const id = c.req.param('id')?.trim() ?? '';

@@ -98,7 +98,7 @@ const app = new Hono();
 // ─── GET /api/admin/usage/* ─────────────────────────────────────────
 
 app.get('/api/admin/usage/overview', async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
     const daysParam = parseInt(c.req.query('days') ?? '30', 10);
@@ -111,7 +111,7 @@ app.get('/api/admin/usage/overview', async (c) => {
 });
 
 app.get('/api/admin/usage/trends', async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
     const daysParam = parseInt(c.req.query('days') ?? '30', 10);
@@ -124,7 +124,7 @@ app.get('/api/admin/usage/trends', async (c) => {
 });
 
 app.get('/api/admin/usage/discovery', async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
     const daysParam = parseInt(c.req.query('days') ?? '30', 10);
@@ -137,7 +137,7 @@ app.get('/api/admin/usage/discovery', async (c) => {
 });
 
 app.get('/api/admin/pulse', async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
     const daysParam = parseInt(c.req.query('days') ?? '7', 10);
@@ -152,7 +152,7 @@ app.get('/api/admin/pulse', async (c) => {
 // ─── GET /api/admin/reports/* ───────────────────────────────────────
 
 app.get('/api/admin/reports/catalog', async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
     const catalog = await listAdminReportsCatalog();
@@ -164,7 +164,7 @@ app.get('/api/admin/reports/catalog', async (c) => {
 });
 
 app.post('/api/admin/reports/generate', async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const month = c.req.query('month');
   if (!month || !isValidMonthKey(month)) {
@@ -183,7 +183,7 @@ app.post('/api/admin/reports/generate', async (c) => {
 });
 
 app.get('/api/admin/reports/season/:seasonId', async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const seasonId = c.req.param('seasonId');
   const format = c.req.query('format') ?? 'json';
@@ -218,7 +218,7 @@ app.get('/api/admin/reports/season/:seasonId', async (c) => {
 });
 
 app.get('/api/admin/reports/year/:year', async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const yearParam = c.req.param('year');
   const year = parseInt(yearParam, 10);
@@ -265,7 +265,7 @@ app.get('/api/admin/reports/year/:year', async (c) => {
 });
 
 app.get('/api/admin/reports/:month', async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const month = c.req.param('month');
   const format = c.req.query('format') ?? 'json';
@@ -316,7 +316,7 @@ async function handleAggregateAnalytics(c: any) {
     }
 
     if (!hasValidToken) {
-      const denied = requireHarvousAdmin(c);
+      const denied = await requireHarvousAdmin(c);
       if (denied) return denied;
     }
 
@@ -423,7 +423,7 @@ app.post('/api/admin/backup-exports', async (c) => {
 // ─── GET /api/admin/cleanup-duplicate-note-threads ────────────────────
 
 app.get('/api/admin/cleanup-duplicate-note-threads', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -442,7 +442,7 @@ app.get('/api/admin/cleanup-duplicate-note-threads', async (c) => {
 // ─── GET /api/admin/cleanup-duplicate-scripture-refs ──────────────────
 
 app.get('/api/admin/cleanup-duplicate-scripture-refs', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -682,7 +682,7 @@ app.get('/api/admin/list-threads', requireAuth, async (c) => {
 // ─── Harvous-curated content catalog ───────────────────────────────────────────
 
 app.get('/api/admin/content/spaces', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -697,7 +697,7 @@ app.get('/api/admin/content/spaces', async (c) => {
 });
 
 app.get('/api/admin/content/spaces/:spaceId/threads', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -718,7 +718,7 @@ app.get('/api/admin/content/spaces/:spaceId/threads', async (c) => {
 // ─── Harvous-curated content admin endpoints ───────────────────────────────────
 
 app.post('/api/admin/spaces', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -773,7 +773,7 @@ app.post('/api/admin/spaces', async (c) => {
 });
 
 app.post('/api/admin/spaces/:spaceId/threads', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -830,7 +830,7 @@ app.post('/api/admin/spaces/:spaceId/threads', async (c) => {
 
 /** Add a Clerk user as member of a Harvous system-owned space (curated / Easter, etc.). */
 app.post('/api/admin/spaces/:spaceId/members', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -915,7 +915,7 @@ app.post('/api/admin/spaces/:spaceId/members', async (c) => {
 });
 
 app.post('/api/admin/threads/:threadId/notes', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -991,7 +991,7 @@ app.post('/api/admin/threads/:threadId/notes', async (c) => {
 // Re-apply keyword auto-tags for one Harvous-owned note (server-loaded content).
 
 app.post('/api/admin/regenerate-note-tags', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -1050,7 +1050,7 @@ app.post('/api/admin/regenerate-note-tags', async (c) => {
 // older notes). Harvous Admin only.
 
 app.post('/api/admin/backfill-auto-tags', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -1163,7 +1163,7 @@ app.post('/api/admin/backfill-auto-tags', async (c) => {
 // ─── GET/PATCH /api/admin/support/tickets ─────────────────────────────────────
 
 app.get('/api/admin/support/tickets', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -1181,7 +1181,7 @@ app.get('/api/admin/support/tickets', async (c) => {
 });
 
 app.get('/api/admin/support/tickets/:id', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -1197,7 +1197,7 @@ app.get('/api/admin/support/tickets/:id', async (c) => {
 });
 
 app.patch('/api/admin/support/tickets/:id', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -1220,7 +1220,7 @@ app.patch('/api/admin/support/tickets/:id', async (c) => {
 // ─── GET/PATCH /api/admin/diagnostics/* ───────────────────────────────────────
 
 app.get('/api/admin/diagnostics/issues', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -1238,7 +1238,7 @@ app.get('/api/admin/diagnostics/issues', async (c) => {
 });
 
 app.get('/api/admin/diagnostics/issues/:signature/events', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
@@ -1255,7 +1255,7 @@ app.get('/api/admin/diagnostics/issues/:signature/events', async (c) => {
 });
 
 app.patch('/api/admin/diagnostics/issues/:signature', async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
 
   try {
