@@ -3843,6 +3843,7 @@ a.proto-copy-row__value:hover {
   width: min(100%, 360px);
 }
 
+.proto-detail-card,
 .proto-pane-empty-state__error-card {
   display: flex;
   flex-direction: row;
@@ -3856,12 +3857,14 @@ a.proto-copy-row__value:hover {
   text-align: left;
 }
 
+.proto-detail-card__icon,
 .proto-pane-empty-state__error-icon {
   flex-shrink: 0;
   margin-top: 1px;
   color: var(--pds-text-secondary);
 }
 
+.proto-detail-card__text,
 .proto-pane-empty-state__error-detail {
   margin: 0;
   flex: 1;
@@ -5247,37 +5250,12 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
 }
 
 .proto-migration-sheet__disclaimer {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
   margin-top: 16px;
-  padding: 12px 14px;
-  min-width: 0;
-  border-radius: var(--pds-radius-button);
-  border: 0.5px solid var(--pds-border-control-soft);
-  background: var(--pds-bg-subtle);
 }
 
-.proto-migration-sheet__disclaimer-icon {
-  flex-shrink: 0;
-  display: inline-flex;
-  margin-top: 1px;
-  color: var(--pds-text-secondary);
-}
-
-.proto-migration-sheet__disclaimer-icon svg,
-.proto-migration-sheet__disclaimer-icon svg * {
+.proto-detail-card__icon svg,
+.proto-detail-card__icon svg * {
   color: inherit !important;
-}
-
-.proto-migration-sheet__disclaimer-text {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  font-family: var(--pds-font-body);
-  font-size: 14px;
-  line-height: 1.45;
-  color: var(--pds-text-primary);
 }
 
 .proto-migration-sheet__chip {

@@ -80,11 +80,9 @@ export default function PrototypeMigrationSheet({ open, onClose }: Props) {
             <MigrationSidebarChip icon="arrow-right-arrow-left" label="Threads" /> links related notes so you can
             follow your study from note to note.
           </p>
-          <div className="proto-migration-sheet__disclaimer" role="note">
-            <span className="proto-migration-sheet__disclaimer-icon" aria-hidden>
-              <Icon name="circle-info" size={14} />
-            </span>
-            <p className="proto-migration-sheet__disclaimer-text">
+          <div className="proto-detail-card proto-migration-sheet__disclaimer" role="note">
+            <Icon name="circle-info" size={18} className="proto-detail-card__icon" aria-hidden />
+            <p className="pds-list-preview proto-detail-card__text">
               Every previous thread is now a locked primary folder. Your notes are unchanged, and you can edit those
               folders anytime.
             </p>

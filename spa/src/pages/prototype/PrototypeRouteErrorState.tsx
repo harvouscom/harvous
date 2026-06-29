@@ -37,9 +37,9 @@ export default function PrototypeRouteErrorState({ error, reset }: Props) {
         className="proto-editor-empty-state--route-error"
         role="alert"
         leading={
-          <div className="proto-pane-empty-state__error-card">
-            <Icon name="circle-exclamation" size={22} className="proto-pane-empty-state__error-icon" aria-hidden />
-            <p className="pds-list-preview proto-pane-empty-state__error-detail">{detail}</p>
+          <div className="proto-detail-card proto-pane-empty-state__error-card">
+            <Icon name="circle-exclamation" size={18} className="proto-detail-card__icon" aria-hidden />
+            <p className="pds-list-preview proto-detail-card__text">{detail}</p>
           </div>
         }
         title="Whoops..."
