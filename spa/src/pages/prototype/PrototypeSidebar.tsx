@@ -149,7 +149,7 @@ type PrototypeSidebarNoteRowProps = {
   threadRemoval?: { memberIds: string[] };
   /** Named folder drilldown — show remove-from-folder. */
   folderRemoval?: { folderName: string };
-  /** Vertical trail dots + spine (folder drilldown). */
+  /** Vertical trail dots + spine (thread drilldown). */
   trailLayout?: boolean;
 };
 
@@ -1982,7 +1982,7 @@ export default function PrototypeSidebar() {
                     ) : null}
                   </div>
                 ) : (
-                  <ul className="proto-note-list proto-thread-trail__spine proto-folder-note-trail" role="list">
+                  <ul className="proto-note-list" role="list">
                     {notesForMode.map((row) => (
                       <PrototypeSidebarNoteRow
                         key={row.id}
@@ -1991,7 +1991,6 @@ export default function PrototypeSidebar() {
                         homeSpaceId={homeSpaceId}
                         activeNoteFullId={activeNoteFullId}
                         prefetchNote={prefetchNote}
-                        trailLayout
                         folderRemoval={
                           typeof activeFolderKey === 'string' ? { folderName: activeFolderKey } : undefined
                         }
@@ -2167,7 +2166,7 @@ export default function PrototypeSidebar() {
                     </button>
                   </div>
                 ) : (
-                  <ul className="proto-note-list">
+                  <ul className="proto-note-list proto-thread-trail__spine proto-sidebar-thread-trail" role="list">
                     {threadDrillNodesSorted.map((node) => {
                       const row = resolveDrillNoteRow({
                         id: node.id,
@@ -2181,6 +2180,7 @@ export default function PrototypeSidebar() {
                           homeSpaceId={homeSpaceId}
                           activeNoteFullId={activeNoteFullId}
                           prefetchNote={prefetchNote}
+                          trailLayout
                           threadRemoval={{ memberIds: threadDrillMemberIds }}
                           onOpenNote={(r) => {
                             onNoteRow(r);

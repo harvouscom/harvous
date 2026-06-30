@@ -6035,8 +6035,8 @@ button.proto-appearance-hero__card {
   background: var(--pds-bg-row-hover);
 }
 
-/* Folder drilldown — same trail spine + dots as thread panel */
-.proto-folder-note-trail {
+/* Thread drilldown — same trail spine + dots as thread panel */
+.proto-sidebar-thread-trail {
   list-style: none;
   margin: 0 8px;
   padding: 0;
@@ -6044,32 +6044,32 @@ button.proto-appearance-hero__card {
   --proto-trail-dot-surface: color-mix(in oklch, var(--pds-bg-page) 97.5%, black 2.5%);
 }
 
-:root[data-color-scheme='dark'] .proto-folder-note-trail {
+:root[data-color-scheme='dark'] .proto-sidebar-thread-trail {
   --proto-trail-dot-surface: color-mix(in oklch, var(--pds-bg-page) 96%, white 4%);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-color-scheme='light']) .proto-folder-note-trail {
+  :root:not([data-color-scheme='light']) .proto-sidebar-thread-trail {
     --proto-trail-dot-surface: color-mix(in oklch, var(--pds-bg-page) 96%, white 4%);
   }
 }
 
-.proto-folder-note-trail > .proto-thread-trail__step[data-keyboard-focus='true'] .proto-thread-trail__step-body {
+.proto-sidebar-thread-trail > .proto-thread-trail__step[data-keyboard-focus='true'] .proto-thread-trail__step-body {
   background: var(--pds-bg-row-hover);
   box-shadow: inset 0 0 0 1.5px var(--pds-border-control-strong);
 }
 
-.proto-folder-note-trail > .proto-thread-trail__step--focus[data-keyboard-focus='true'] .proto-thread-trail__step-body {
+.proto-sidebar-thread-trail > .proto-thread-trail__step--focus[data-keyboard-focus='true'] .proto-thread-trail__step-body {
   box-shadow: inset 0 0 0 1.5px var(--pds-border-control-strong);
 }
 
-.proto-folder-note-trail .proto-thread-trail__step:hover .proto-note-row__menu-trigger,
-.proto-folder-note-trail .proto-thread-trail__step:focus-within .proto-note-row__menu-trigger,
-.proto-folder-note-trail .proto-thread-trail__step:has(.proto-note-row__menu--open) .proto-note-row__menu-trigger {
+.proto-sidebar-thread-trail .proto-thread-trail__step:hover .proto-note-row__menu-trigger,
+.proto-sidebar-thread-trail .proto-thread-trail__step:focus-within .proto-note-row__menu-trigger,
+.proto-sidebar-thread-trail .proto-thread-trail__step:has(.proto-note-row__menu--open) .proto-note-row__menu-trigger {
   opacity: 1;
 }
 
-.proto-folder-note-trail .proto-thread-trail__step:has(.proto-note-row__menu--open) {
+.proto-sidebar-thread-trail .proto-thread-trail__step:has(.proto-note-row__menu--open) {
   z-index: 80;
 }
 
