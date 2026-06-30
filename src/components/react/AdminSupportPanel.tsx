@@ -291,16 +291,6 @@ function TicketDetail({ ticketId, onClose }: { ticketId: string; onClose?: () =>
             <dd>{ticket.appVersion}</dd>
           </>
         ) : null}
-        {ticket.pageUrl ? (
-          <>
-            <dt>Previous page</dt>
-            <dd>
-              <a href={ticket.pageUrl} target="_blank" rel="noopener noreferrer">
-                {ticket.pageUrl}
-              </a>
-            </dd>
-          </>
-        ) : null}
         {ticket.userTier ? (
           <>
             <dt>Plan</dt>

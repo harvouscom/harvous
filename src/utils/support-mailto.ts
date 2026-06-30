@@ -26,6 +26,13 @@ function feedbackSubject(topic?: FeedbackTopic): string {
   return `Harvous feedback — ${topic}`;
 }
 
+/** Encode mailto query params with %20 spaces — URLSearchParams uses + which many mail clients leave literal. */
+function buildMailtoQuery(params: Record<string, string>): string {
+  return Object.entries(params)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+}
+
 function formatUserName(profile?: FeedbackMailtoProfile): string | null {
   if (!profile) return null;
   const first = profile.firstName?.trim() ?? '';
@@ -58,11 +65,7 @@ export function buildFeedbackMailto(options: BuildFeedbackMailtoOptions): string
   const { message, topic, profile, version, pageUrl } = options;
   const subject = feedbackSubject(topic);
   const body = buildFeedbackBody(message, profile, version, pageUrl);
-  const params = new URLSearchParams({
-    subject,
-    body,
-  });
-  return `mailto:${FOUNDER_EMAIL}?${params.toString()}`;
+  return `mailto:${FOUNDER_EMAIL}?${buildMailtoQuery({ subject, body })}`;
 }
 
 /** mailto link with subject only (no body). */
@@ -97,6 +100,5 @@ export function buildTicketReplyMailto(options: BuildTicketReplyMailtoOptions): 
     '',
     `Ticket: #${ticketRef}`,
   ].join('\n');
-  const params = new URLSearchParams({ subject, body });
-  return `mailto:${userEmail}?${params.toString()}`;
+  return `mailto:${userEmail}?${buildMailtoQuery({ subject, body })}`;
 }

@@ -57,6 +57,8 @@ describe('support-mailto', () => {
     });
 
     expect(url.startsWith('mailto:jane@example.com?')).toBe(true);
+    expect(url).not.toContain('+Harvous');
+    expect(url).toContain('%20');
     const query = url.slice('mailto:jane@example.com?'.length);
     const params = new URLSearchParams(query);
     expect(params.get('subject')).toBe('Re: Harvous feedback — Bug [#42]');
