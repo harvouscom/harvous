@@ -85,24 +85,6 @@
         p.indexOf('/invitations/') === 0;
     }
 
-    function showPrototypeUpdateNotice(needsReload) {
-      if (typeof window.__harvousShowAppUpdateNotice === 'function') {
-        try {
-          window.__harvousShowAppUpdateNotice({ needsReload: !!needsReload });
-          return;
-        } catch (error) {
-          console.log('Prototype update notice failed:', error);
-        }
-      }
-      if (window.toast && typeof window.toast.info === 'function') {
-        try {
-          window.toast.info('Harvous has been updated');
-        } catch (error) {
-          console.log('Prototype update toast fallback failed:', error);
-        }
-      }
-    }
-
     function isPrototypeShellPage() {
       var el = document.documentElement;
       if (el.classList.contains('harvous-prototype-route')) return true;
@@ -130,22 +112,8 @@
     async function checkSilentUpdate() {
       const currentVersion = await getCurrentCacheVersion();
       if (!currentVersion) return;
-      const lastVersion = localStorage.getItem(SW_VERSION_KEY);
-      // Always persist the current version for next comparison
+      // Persist the current version for next comparison (e.g. iOS PWA silent relaunch).
       localStorage.setItem(SW_VERSION_KEY, currentVersion);
-      if (lastVersion && lastVersion !== currentVersion) {
-        if (isNoUpdateToastPath()) return;
-        // App updated silently (iOS killed + relaunch scenario).
-        // Don't reload — the page is already running the new code.
-        // Just show the "updated" toast so the user knows.
-        if (isPrototypeShellPage()) {
-          showPrototypeUpdateNotice(false);
-          return;
-        }
-        if (window.toast && typeof window.toast.info === 'function') {
-          window.toast.info('Harvous has been updated');
-        }
-      }
     }
 
     // Set up controller change listener once
@@ -176,12 +144,9 @@
       }
 
       // Prototype shell: avoid cache-clear + reload loops on iOS PWA (WebKit process kill).
-      // The page already runs the new worker; notify the user to reload when convenient.
+      // The page already runs the new worker.
       if (isPrototypeShellPage()) {
         reloadingForUpdate = false;
-        if (!isNoUpdateToastPath()) {
-          showPrototypeUpdateNotice(false);
-        }
         return;
       }
 

@@ -17,6 +17,7 @@
  *   GET  /api/notes/:id/tags
  *   GET  /api/notes/:id/details
  *   GET  /api/notes/:id/thread
+ *   PATCH /api/notes/:id/thread/member-order
  *   POST /api/notes/:id/update-content
  *   POST /api/notes/:id/add-thread
  *   POST /api/notes/:id/remove-thread
@@ -30,7 +31,7 @@ import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Notes, Threads, NoteThreads, StudyThreadEntries, Comments, Tags, NoteTags,
-  UserMetadata, ScriptureMetadata, NoteScriptureReferences, NoteConnections, ResourceMetadata,
+  UserMetadata, ScriptureMetadata, NoteScriptureReferences, NoteConnections, StudyThreadMemberOrders, ResourceMetadata,
   eq, and, or, ne, desc, asc, count, like, not, isNull, isNotNull, inArray, sql,
   first,
 } from '../db';
@@ -44,6 +45,12 @@ import { normalizeServerNoteId } from '../utils/normalize-note-id';
 import { fetchStudyThreadNoteRows } from '../utils/study-thread-note-rows';
 import { resolveStudyThreadClusterNaming } from '../utils/study-thread-cluster-naming';
 import { collectStudyThreadGraphForScope } from '../utils/study-thread-space';
+import {
+  fetchStudyThreadMemberOrder,
+  upsertStudyThreadMemberOrder,
+  appendStudyThreadMemberOrderOnConnect,
+  removeStudyThreadMemberOrderOnDisconnect,
+} from '../utils/study-thread-member-order';
 import { migrateLinkedFromNoteConnectionsForUser } from '../utils/prototype-user-migration';
 import { isStudyThreadNamingColumnMissing } from '../utils/pg-undefined-relation';
 import { rateLimit, rateLimitNoteCreate } from '@/utils/rate-limit';
@@ -800,6 +807,23 @@ route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c)
       parentNoteId,
     ).catch(() => {});
 
+    try {
+      const { graph } = await collectStudyThreadGraphForScope(parentNoteId, auth.userId, {
+        preferredSpaceId: spaceId ?? undefined,
+        maxNodes: 200,
+      });
+      const repNoteId =
+        pickStudyThreadRepresentativeNoteId(graph.degreeMap.keys(), graph.degreeMap) ?? parentNoteId;
+      await appendStudyThreadMemberOrderOnConnect(
+        repNoteId,
+        auth.userId,
+        [linkedNoteId],
+        graph.nodeIds,
+      );
+    } catch {
+      /* member order is best-effort */
+    }
+
     broadcastInvalidation(auth.userId, { type: 'note:updated', id: parentNoteId });
     broadcastInvalidation(auth.userId, { type: 'note:updated', id: linkedNoteId });
     return c.json({ success: true });
@@ -842,6 +866,21 @@ route.delete('/api/notes/connect-link', requireAuth, rateLimit('write'), async (
 
     if (existing) {
       await recordDeletedEntities(auth.userId, 'noteConnection', [existing.id]);
+    }
+
+    try {
+      const { graph } = await collectStudyThreadGraphForScope(fromNoteId, auth.userId, { maxNodes: 200 });
+      const repNoteId =
+        pickStudyThreadRepresentativeNoteId(graph.degreeMap.keys(), graph.degreeMap) ?? fromNoteId;
+      const memberSet = new Set(graph.nodeIds);
+      if (!memberSet.has(fromNoteId)) {
+        await removeStudyThreadMemberOrderOnDisconnect(repNoteId, auth.userId, fromNoteId);
+      }
+      if (!memberSet.has(toNoteId)) {
+        await removeStudyThreadMemberOrderOnDisconnect(repNoteId, auth.userId, toNoteId);
+      }
+    } catch {
+      /* member order is best-effort */
     }
 
     broadcastInvalidation(auth.userId, { type: 'note:updated', id: fromNoteId });
@@ -936,6 +975,7 @@ route.get('/api/notes/:id/thread', requireAuth, async (c) => {
       };
     });
     const naming = resolveStudyThreadClusterNaming(noteRows, suggestNodes, repNoteId);
+    const memberOrder = await fetchStudyThreadMemberOrder(naming.repNoteId, auth.userId);
 
     return c.json({
       success: true,
@@ -945,12 +985,76 @@ route.get('/api/notes/:id/thread', requireAuth, async (c) => {
       suggestedTitle: naming.suggestedTitle,
       studyThreadUserOverride: naming.studyThreadUserOverride,
       studyThreadPinned: naming.studyThreadPinned,
+      memberOrder,
       nodes,
       edges: uniqueEdges,
       nodeCount: nodes.length,
     });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/[id]/thread', action: 'get_note_thread' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── PATCH /api/notes/:id/thread/member-order ────────────────────────────────
+// Persists user-defined note order for a study-thread cluster.
+route.patch('/api/notes/:id/thread/member-order', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const focusNoteId = normalizeServerNoteId(requireParam(c, 'id'));
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    const orderedNoteIds = Array.isArray(body.orderedNoteIds)
+      ? body.orderedNoteIds.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+      : null;
+    if (!orderedNoteIds || orderedNoteIds.length === 0) {
+      return c.json({ success: false, error: 'orderedNoteIds is required', code: 'INVALID_BODY' }, 400);
+    }
+
+    const focus = first(
+      await db
+        .select({ id: Notes.id })
+        .from(Notes)
+        .where(and(eq(Notes.id, focusNoteId), eq(Notes.userId, auth.userId)))
+        .limit(1),
+    );
+    if (!focus) return c.json({ success: false, error: 'Note not found' }, 404);
+
+    const preferredSpaceId =
+      typeof c.req.query('spaceId') === 'string' ? c.req.query('spaceId') : undefined;
+    const { graph } = await collectStudyThreadGraphForScope(focusNoteId, auth.userId, {
+      preferredSpaceId,
+      maxNodes: 200,
+    });
+    const repNoteId =
+      pickStudyThreadRepresentativeNoteId(graph.degreeMap.keys(), graph.degreeMap) ?? focusNoteId;
+    const memberSet = new Set(graph.nodeIds);
+
+    const uniqueIds: string[] = [];
+    const seen = new Set<string>();
+    for (const id of orderedNoteIds) {
+      if (!memberSet.has(id) || seen.has(id)) continue;
+      uniqueIds.push(id);
+      seen.add(id);
+    }
+    if (uniqueIds.length !== graph.nodeIds.length) {
+      return c.json(
+        {
+          success: false,
+          error: 'orderedNoteIds must include every note in the thread exactly once',
+          code: 'INVALID_ORDER',
+        },
+        400,
+      );
+    }
+
+    await upsertStudyThreadMemberOrder(repNoteId, auth.userId, uniqueIds);
+    broadcastInvalidation(auth.userId, { type: 'note:updated', id: repNoteId });
+    return c.json({ success: true, repNoteId, memberOrder: uniqueIds });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/notes/[id]/thread/member-order',
+      action: 'update_thread_member_order',
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
@@ -1803,13 +1907,15 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     if (!isMemberView && note.userId === auth.userId) {
       try {
         const [incomingEdges, outgoingEdges] = await Promise.all([
-          db.select({ fromNoteId: NoteConnections.fromNoteId })
+          db.select({ fromNoteId: NoteConnections.fromNoteId, createdAt: NoteConnections.createdAt })
             .from(NoteConnections)
             .where(and(eq(NoteConnections.toNoteId, noteId), eq(NoteConnections.userId, auth.userId)))
+            .orderBy(asc(NoteConnections.createdAt))
             .limit(100),
-          db.select({ toNoteId: NoteConnections.toNoteId })
+          db.select({ toNoteId: NoteConnections.toNoteId, createdAt: NoteConnections.createdAt })
             .from(NoteConnections)
             .where(and(eq(NoteConnections.fromNoteId, noteId), eq(NoteConnections.userId, auth.userId)))
+            .orderBy(asc(NoteConnections.createdAt))
             .limit(100),
         ]);
 

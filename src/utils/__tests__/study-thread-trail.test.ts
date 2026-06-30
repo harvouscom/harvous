@@ -2,9 +2,14 @@ import { describe, it, expect } from 'vitest';
 import {
   buildStudyThreadTrail,
   studyThreadTrailHasConnectionOrder,
+  sortStudyThreadMembersByJoinOrder,
+  resolveStudyThreadMemberOrder,
+  orderStudyThreadNodesByIds,
+  appendStudyThreadMemberOrder,
+  removeStudyThreadMemberFromOrder,
 } from '../study-thread-trail';
 
-type Node = { id: string; updatedAt: string | null };
+type Node = { id: string; updatedAt: string | null; simpleNoteId?: number | null };
 
 function node(id: string, updatedAt: string): Node {
   return { id, updatedAt };
@@ -92,5 +97,95 @@ describe('studyThreadTrailHasConnectionOrder', () => {
         alsoConnected: [],
       }),
     ).toBe(true);
+  });
+});
+
+describe('sortStudyThreadMembersByJoinOrder', () => {
+  it('places rep note first and orders others by connection createdAt', () => {
+    const nodes = [
+      node('hub', '2026-01-04'),
+      node('b', '2026-01-01'),
+      node('c', '2026-01-02'),
+      node('d', '2026-01-03'),
+    ];
+    const edges = [
+      edge('hub', 'b', '2026-01-02'),
+      edge('hub', 'c', '2026-01-03'),
+      edge('hub', 'd', '2026-01-04'),
+    ];
+
+    expect(sortStudyThreadMembersByJoinOrder(nodes, edges, 'hub').map((n) => n.id)).toEqual([
+      'hub',
+      'b',
+      'c',
+      'd',
+    ]);
+  });
+
+  it('does not reorder by updatedAt when pin would have floated a note', () => {
+    const nodes = [
+      { ...node('hub', '2026-01-01'), simpleNoteId: 1 },
+      { ...node('old', '2026-01-05'), simpleNoteId: 2, isPinned: true } as Node & { isPinned?: boolean },
+      { ...node('new', '2026-01-02'), simpleNoteId: 3 },
+    ];
+    const edges = [edge('hub', 'old', '2026-01-02'), edge('hub', 'new', '2026-01-04')];
+
+    expect(sortStudyThreadMembersByJoinOrder(nodes, edges, 'hub').map((n) => n.id)).toEqual([
+      'hub',
+      'old',
+      'new',
+    ]);
+  });
+});
+
+describe('resolveStudyThreadMemberOrder', () => {
+  it('uses manual order and appends new members by join order', () => {
+    const nodes = [node('hub', '2026-01-01'), node('b', '2026-01-02'), node('c', '2026-01-03')];
+    const edges = [edge('hub', 'b', '2026-01-02'), edge('hub', 'c', '2026-01-03')];
+
+    expect(
+      resolveStudyThreadMemberOrder(nodes, edges, 'hub', ['c', 'hub', 'b']).map((n) => n.id),
+    ).toEqual(['c', 'hub', 'b']);
+  });
+
+  it('falls back to join order when manual order is absent', () => {
+    const nodes = [node('hub', '2026-01-01'), node('b', '2026-01-02')];
+    const edges = [edge('hub', 'b', '2026-01-02')];
+
+    expect(resolveStudyThreadMemberOrder(nodes, edges, 'hub', null).map((n) => n.id)).toEqual([
+      'hub',
+      'b',
+    ]);
+  });
+});
+
+describe('orderStudyThreadNodesByIds', () => {
+  it('reorders nodes to match live id list', () => {
+    const nodes = [node('hub', '2026-01-01'), node('b', '2026-01-02'), node('c', '2026-01-03')];
+    expect(orderStudyThreadNodesByIds(nodes, ['c', 'hub', 'b']).map((n) => n.id)).toEqual([
+      'c',
+      'hub',
+      'b',
+    ]);
+  });
+});
+
+describe('appendStudyThreadMemberOrder', () => {
+  it('returns null when no manual order exists', () => {
+    expect(appendStudyThreadMemberOrder(null, ['b'], new Set(['hub', 'b']))).toBeNull();
+  });
+
+  it('appends new ids to manual order', () => {
+    expect(appendStudyThreadMemberOrder(['hub', 'b'], ['c'], new Set(['hub', 'b', 'c']))).toEqual([
+      'hub',
+      'b',
+      'c',
+    ]);
+  });
+});
+
+describe('removeStudyThreadMemberFromOrder', () => {
+  it('drops removed id from manual order', () => {
+    expect(removeStudyThreadMemberFromOrder(['hub', 'b', 'c'], 'b')).toEqual(['hub', 'c']);
   });
 });

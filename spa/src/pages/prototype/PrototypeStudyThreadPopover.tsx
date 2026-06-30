@@ -226,8 +226,11 @@ export default function PrototypeStudyThreadPopover({
               </div>
               <PrototypeStudyThreadTrail
                 focusNoteId={noteId}
+                repNoteId={repNoteId}
+                spaceId={effectiveSpaceId ?? ''}
                 nodes={thread.nodes}
                 edges={thread.edges}
+                memberOrder={thread.memberOrder ?? null}
                 onOpen={openNote}
               />
             </section>

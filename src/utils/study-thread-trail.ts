@@ -184,3 +184,156 @@ export function studyThreadTrailHasConnectionOrder(trail: StudyThreadTrail<Study
 
 /** @deprecated Use studyThreadTrailHasConnectionOrder */
 export const studyThreadTrailHasReadingOrder = studyThreadTrailHasConnectionOrder;
+
+export interface StudyThreadMemberNode extends StudyThreadTrailNode {
+  simpleNoteId?: number | null;
+}
+
+/** Earliest cluster edge timestamp for when a note joined the thread. */
+export function memberJoinOrderMs(
+  nodeId: string,
+  memberIds: Set<string>,
+  edges: StudyThreadTrailEdge[],
+): number {
+  const related = edges
+    .filter(
+      (e) =>
+        (e.fromId === nodeId || e.toId === nodeId) &&
+        memberIds.has(e.fromId) &&
+        memberIds.has(e.toId),
+    )
+    .sort(compareEdgesByCreatedAtAsc);
+  return related[0] ? timestampMs(related[0].createdAt) : Number.MAX_SAFE_INTEGER;
+}
+
+function compareMembersByJoinOrder<T extends StudyThreadMemberNode>(
+  a: T,
+  b: T,
+  repNoteId: string,
+  memberIds: Set<string>,
+  edges: StudyThreadTrailEdge[],
+): number {
+  if (a.id === repNoteId) return -1;
+  if (b.id === repNoteId) return 1;
+  const orderDiff = memberJoinOrderMs(a.id, memberIds, edges) - memberJoinOrderMs(b.id, memberIds, edges);
+  if (orderDiff !== 0) return orderDiff;
+  const aSimple = a.simpleNoteId ?? 0;
+  const bSimple = b.simpleNoteId ?? 0;
+  if (aSimple !== bSimple) return aSimple - bSimple;
+  return a.id.localeCompare(b.id);
+}
+
+/** Default thread member order: rep note first, then join time (connection createdAt). */
+export function sortStudyThreadMembersByJoinOrder<T extends StudyThreadMemberNode>(
+  nodes: T[],
+  edges: StudyThreadTrailEdge[],
+  repNoteId: string,
+): T[] {
+  if (nodes.length === 0) return [];
+  const memberIds = new Set(nodes.map((n) => n.id));
+  return [...nodes].sort((a, b) => compareMembersByJoinOrder(a, b, repNoteId, memberIds, edges));
+}
+
+/**
+ * Resolves display order: manual override when present (stale ids dropped, new members appended
+ * by join order), otherwise join order.
+ */
+export function resolveStudyThreadMemberOrder<T extends StudyThreadMemberNode>(
+  nodes: T[],
+  edges: StudyThreadTrailEdge[],
+  repNoteId: string,
+  manualOrder?: string[] | null,
+): T[] {
+  const joinOrder = sortStudyThreadMembersByJoinOrder(nodes, edges, repNoteId);
+  if (!manualOrder || manualOrder.length === 0) return joinOrder;
+
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  const memberSet = new Set(nodes.map((n) => n.id));
+  const result: T[] = [];
+  const seen = new Set<string>();
+
+  for (const id of manualOrder) {
+    if (!memberSet.has(id) || seen.has(id)) continue;
+    const node = nodeById.get(id);
+    if (node) {
+      result.push(node);
+      seen.add(id);
+    }
+  }
+
+  for (const node of joinOrder) {
+    if (!seen.has(node.id)) {
+      result.push(node);
+      seen.add(node.id);
+    }
+  }
+
+  return result;
+}
+
+/** Re-sort resolved members to match a live id list (drag preview / optimistic UI). */
+export function orderStudyThreadNodesByIds<T extends StudyThreadMemberNode>(
+  nodes: T[],
+  orderedIds: string[],
+): T[] {
+  if (nodes.length === 0 || orderedIds.length === 0) return nodes;
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  const result: T[] = [];
+  const seen = new Set<string>();
+  for (const id of orderedIds) {
+    const node = nodeById.get(id);
+    if (node && !seen.has(id)) {
+      result.push(node);
+      seen.add(id);
+    }
+  }
+  for (const node of nodes) {
+    if (!seen.has(node.id)) result.push(node);
+  }
+  return result;
+}
+
+export function buildStudyThreadFlatTrail<T extends StudyThreadMemberNode>(
+  focusNoteId: string,
+  nodes: T[],
+  edges: StudyThreadTrailEdge[],
+  repNoteId: string,
+  manualOrder?: string[] | null,
+): { members: T[]; focusNoteId: string } {
+  return {
+    members: resolveStudyThreadMemberOrder(nodes, edges, repNoteId, manualOrder),
+    focusNoteId,
+  };
+}
+
+/** Append new members to a stored manual order; returns null when no manual order exists. */
+export function appendStudyThreadMemberOrder(
+  manualOrder: string[] | null | undefined,
+  newNoteIds: string[],
+  memberIds: Set<string>,
+): string[] | null {
+  if (!manualOrder || manualOrder.length === 0) return null;
+  const result = manualOrder.filter((id) => memberIds.has(id));
+  const seen = new Set(result);
+  for (const id of newNoteIds) {
+    if (memberIds.has(id) && !seen.has(id)) {
+      result.push(id);
+      seen.add(id);
+    }
+  }
+  return result;
+}
+
+export function removeStudyThreadMemberFromOrder(
+  manualOrder: string[] | null | undefined,
+  removedNoteId: string,
+): string[] | null {
+  if (!manualOrder || manualOrder.length === 0) return null;
+  const filtered = manualOrder.filter((id) => id !== removedNoteId);
+  return filtered.length === 0 ? null : filtered;
+}
+
+/** True when the thread has more than one connected note. */
+export function studyThreadTrailHasMembers(members: StudyThreadTrailNode[]): boolean {
+  return members.length > 1;
+}

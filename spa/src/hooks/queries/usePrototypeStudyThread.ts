@@ -34,6 +34,8 @@ export interface StudyThreadResponse {
   suggestedTitle: string | null;
   studyThreadUserOverride: boolean;
   studyThreadPinned: boolean;
+  /** User-defined member order; null uses join-order default. */
+  memberOrder: string[] | null;
   nodes: StudyThreadNodeFlat[];
   edges: StudyThreadEdge[];
   nodeCount: number;

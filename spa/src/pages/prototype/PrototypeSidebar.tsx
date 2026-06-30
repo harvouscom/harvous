@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
@@ -17,6 +17,8 @@ import { useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
 import { countNotesInFolderBucket, noteBelongsToFolderBucket, noteFolderMembershipLabels } from '@/utils/note-folder-display';
 import { sortDrillNoteBriefsByLastUpdated, sortNotesByLastUpdated } from '@/utils/sorting';
+import { orderStudyThreadNodesByIds, resolveStudyThreadMemberOrder } from '@/utils/study-thread-trail';
+import { useStudyThreadMemberDragReorder } from '../../hooks/useStudyThreadMemberDragReorder';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
 import { computePrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase';
@@ -36,6 +38,7 @@ import { protoRelativeCaptionAbbrev } from './proto-time';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoThreadTrailOrb from './ProtoThreadTrailOrb';
+import ProtoThreadTrailReorderDivider from './ProtoThreadTrailReorderDivider';
 import PrototypeSidebarRowMenuPopover from './PrototypeSidebarRowMenuPopover';
 import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { usePrototypeSpaceStudyThreadHighlights } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
@@ -773,7 +776,7 @@ function PrototypeSidebarNoteRow({
         <ProtoThreadTrailOrb active={active} />
         <div className="proto-thread-trail__step-body">
           {mainButton}
-          {menuBlock ? <div className="proto-thread-trail__step-actions">{menuBlock}</div> : null}
+          {menuBlock}
         </div>
         {deleteDialog}
       </li>
@@ -1358,11 +1361,43 @@ export default function PrototypeSidebar() {
     return sortDrillNoteBriefsByLastUpdated(filtered, notesById);
   }, [scriptureBooks, scriptureDrill, q, notesById]);
 
+  const threadDrillRepNoteId =
+    threadDrillQuery.data?.repNoteId ??
+    (sidebarThreadDrilldownId ? normalizeNoteIdFromParam(sidebarThreadDrilldownId) : '');
+
   const threadDrillNodesSorted = useMemo(() => {
     const nodes = threadDrillQuery.data?.nodes ?? [];
+    const edges = threadDrillQuery.data?.edges ?? [];
     if (nodes.length === 0) return nodes;
-    return sortDrillNoteBriefsByLastUpdated(nodes, notesById);
-  }, [threadDrillQuery.data?.nodes, notesById]);
+    return resolveStudyThreadMemberOrder(
+      nodes,
+      edges,
+      threadDrillRepNoteId,
+      threadDrillQuery.data?.memberOrder ?? null,
+    );
+  }, [
+    threadDrillQuery.data?.nodes,
+    threadDrillQuery.data?.edges,
+    threadDrillQuery.data?.memberOrder,
+    threadDrillRepNoteId,
+  ]);
+
+  const threadDrillOrderedIds = useMemo(
+    () => threadDrillNodesSorted.map((node) => node.id),
+    [threadDrillNodesSorted],
+  );
+
+  const threadDrillDrag = useStudyThreadMemberDragReorder({
+    anchorNoteId: sidebarThreadDrilldownId ? normalizeNoteIdFromParam(sidebarThreadDrilldownId) : '',
+    spaceId: homeSpaceId,
+    orderedNoteIds: threadDrillOrderedIds,
+    enabled: Boolean(sidebarThreadDrilldownId && homeSpaceId && threadDrillOrderedIds.length > 1),
+  });
+
+  const threadDrillDisplayNodes = useMemo(
+    () => orderStudyThreadNodesByIds(threadDrillNodesSorted, threadDrillDrag.displayOrderedIds),
+    [threadDrillNodesSorted, threadDrillDrag.displayOrderedIds],
+  );
 
   const scriptureNotesPassageTitle =
     scriptureDrill.level === 'notes'
@@ -1759,12 +1794,12 @@ export default function PrototypeSidebar() {
           {showFolderAddNotes || showThreadAddNotes ? (
             <button
               type="button"
-              className="proto-sidebar-back-row__add"
+              className="proto-collection-grid-actions__btn"
               onClick={() => setAddNotesSheetOpen(true)}
               aria-label="Add notes"
               title="Add notes"
             >
-              <Icon name="plus" size={13} aria-hidden />
+              <Icon name="plus" size={12} aria-hidden />
               <span>Add notes</span>
             </button>
           ) : null}
@@ -2166,26 +2201,60 @@ export default function PrototypeSidebar() {
                     </button>
                   </div>
                 ) : (
-                  <ul className="proto-note-list proto-thread-trail__spine proto-sidebar-thread-trail" role="list">
-                    {threadDrillNodesSorted.map((node) => {
+                  <ul
+                    className={`proto-note-list proto-thread-trail__spine proto-sidebar-thread-trail${threadDrillDrag.draggingId ? ' proto-thread-trail__spine--dragging' : ''}`}
+                    role="list"
+                  >
+                    {threadDrillDrag.showDragHandle ? (
+                      <li className="proto-thread-trail__reorder-divider-item" role="presentation">
+                        <ProtoThreadTrailReorderDivider
+                          insertBeforeIndex={0}
+                          dragNoteId=""
+                          dragNoteTitle=""
+                          dropOnly
+                          onDragStart={threadDrillDrag.handleDragStart}
+                          onDragEnd={threadDrillDrag.handleDragEnd}
+                          onDragOver={threadDrillDrag.handleDragOver}
+                          onDrop={threadDrillDrag.handleDrop}
+                        />
+                      </li>
+                    ) : null}
+                    {threadDrillDisplayNodes.map((node, index) => {
                       const row = resolveDrillNoteRow({
                         id: node.id,
                         title: node.title || node.resourceTitle || null,
                       });
+                      const rowTitle =
+                        stripServerAutoUntitledNoteTitleForDisplay(row.title?.trim() ?? '') || 'New Note';
                       return (
-                        <PrototypeSidebarNoteRow
-                          key={node.id}
-                          row={row}
-                          active={!!(activeNoteFullId && node.id === activeNoteFullId)}
-                          homeSpaceId={homeSpaceId}
-                          activeNoteFullId={activeNoteFullId}
-                          prefetchNote={prefetchNote}
-                          trailLayout
-                          threadRemoval={{ memberIds: threadDrillMemberIds }}
-                          onOpenNote={(r) => {
-                            onNoteRow(r);
-                          }}
-                        />
+                        <Fragment key={node.id}>
+                          <PrototypeSidebarNoteRow
+                            row={row}
+                            active={!!(activeNoteFullId && node.id === activeNoteFullId)}
+                            homeSpaceId={homeSpaceId}
+                            activeNoteFullId={activeNoteFullId}
+                            prefetchNote={prefetchNote}
+                            trailLayout
+                            threadRemoval={{ memberIds: threadDrillMemberIds }}
+                            onOpenNote={(r) => {
+                              onNoteRow(r);
+                            }}
+                          />
+                          {threadDrillDrag.showDragHandle ? (
+                            <li className="proto-thread-trail__reorder-divider-item" role="presentation">
+                              <ProtoThreadTrailReorderDivider
+                                insertBeforeIndex={index + 1}
+                                dragNoteId={node.id}
+                                dragNoteTitle={rowTitle}
+                                isDragging={threadDrillDrag.draggingId === node.id}
+                                onDragStart={threadDrillDrag.handleDragStart}
+                                onDragEnd={threadDrillDrag.handleDragEnd}
+                                onDragOver={threadDrillDrag.handleDragOver}
+                                onDrop={threadDrillDrag.handleDrop}
+                              />
+                            </li>
+                          ) : null}
+                        </Fragment>
                       );
                     })}
                   </ul>

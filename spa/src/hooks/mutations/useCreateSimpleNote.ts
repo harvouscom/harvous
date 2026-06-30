@@ -189,6 +189,14 @@ export function useCreateSimpleNote() {
       invalidatePrototypeSpaceDerivedQueries(queryClient, sid);
       if (variables.linkedFromNoteId) {
         queryClient.invalidateQueries({ queryKey: ['note', variables.linkedFromNoteId] });
+        queryClient.invalidateQueries({
+          predicate: (query) =>
+            Array.isArray(query.queryKey) &&
+            query.queryKey[0] === 'prototype' &&
+            query.queryKey[1] === 'note' &&
+            query.queryKey[3] === 'thread',
+        });
+        queryClient.invalidateQueries({ queryKey: ['prototype', 'space', sid, 'study-threads'] });
       }
     },
     onError: (_err, _variables, context) => {

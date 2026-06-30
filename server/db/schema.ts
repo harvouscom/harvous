@@ -518,6 +518,19 @@ export const NoteConnections = pgTable('NoteConnections', {
   index('NoteConnections_userIdIndex').on(table.userId),
 ]);
 
+/** User-defined note order within a study-thread cluster (keyed by rep note id). */
+export const StudyThreadMemberOrders = pgTable(
+  'StudyThreadMemberOrders',
+  {
+    repNoteId: text('repNoteId').primaryKey(),
+    userId: text('userId').notNull(),
+    /** JSON string[] of note ids in display order. */
+    orderedNoteIds: text('orderedNoteIds').notNull(),
+    updatedAt: ts('updatedAt').notNull(),
+  },
+  (table) => [index('StudyThreadMemberOrders_userIdIndex').on(table.userId)],
+);
+
 // ─── VerseTextCache (verse text cache, keyed by normalized reference + translation) ─
 
 export const VerseTextCache = pgTable('VerseTextCache', {

@@ -35,6 +35,7 @@ export {
   DiagnosticEvents,
   DiagnosticIssueTriage,
   NoteConnections,
+  StudyThreadMemberOrders,
   VerseTextCache,
   BibleTranslations,
   BibleVerses,
