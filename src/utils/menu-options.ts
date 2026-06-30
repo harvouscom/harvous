@@ -1,12 +1,3 @@
-import { isClassicAppSurface } from '@/lib/prototype-path';
-
-const CLASSIC_DISABLED_MENU_ACTIONS = new Set(['shareThread', 'shareSpace']);
-
-function filterMenuOptionsForSurface<T extends { action: string }>(options: T[]): T[] {
-  if (!isClassicAppSurface()) return options;
-  return options.filter((o) => !CLASSIC_DISABLED_MENU_ACTIONS.has(o.action));
-}
-
 /**
  * Determines if a "More" button should be shown based on content type
  * @param contentType The type of content being displayed
@@ -108,12 +99,12 @@ export function getMenuOptions(
           { action: "eraseThreadAndNotes", label: "Erase Thread and Notes" },
         ];
       }
-      return filterMenuOptionsForSurface([
+      return [
         { action: "editThread", label: "Edit Thread" },
         { action: "shareThread", label: "Share" },
         { action: "eraseThread", label: "Erase Thread" },
         { action: "eraseThreadAndNotes", label: "Erase Thread and Notes" },
-      ]);
+      ];
     case "note": {
       // Welcome thread only contains pack notes; thread id is enough (addedBy may be missing from seeded cache).
       const isOnboardingPackNote = !!noteThreadId?.startsWith('thread_onboarding_');
@@ -166,10 +157,10 @@ export function getMenuOptions(
         memberOptions.push({ action: "leaveSpace", label: "Leave Space" });
         return memberOptions;
       }
-      const spaceOptions = filterMenuOptionsForSurface([
+      const spaceOptions = [
         { action: "editSpace", label: "Edit Space" },
         { action: "shareSpace", label: "Share" },
-      ]);
+      ];
       if (spaceIsShared) {
         spaceOptions.push({ action: "openEditSpacePanelPeople", label: "People" });
       }

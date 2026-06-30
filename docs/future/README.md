@@ -30,6 +30,11 @@ These were designed here and are now live. The stub files in this folder point t
   - Future core features: space sharing and groups, then learning (challenges, recall/quizzes, live events)
   - Phase sequence and anti-patterns (not a dumping ground, not fragmented)
 
+- **`TECH_STACK_SCALING_ASSESSMENT.md`** - Stack fit for scaling and future vision
+  - Verdict on current stack vs alternatives (Next, Firebase, Capacitor, etc.)
+  - Scaling bottlenecks: Netlify function, cross-client sync, realtime collab
+  - Recommended evolution paths (not rewrites)
+
 ### Scripture Intelligence
 
 - **`SCRIPTURE_KNOWLEDGE_LAYER.md`** - Shared canonical knowledge layer (themes, people, places, cross-references) over Scripture, sourced from open datasets (TSK, OpenBible.info, Easton's)

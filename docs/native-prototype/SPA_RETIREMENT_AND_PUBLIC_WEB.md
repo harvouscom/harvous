@@ -1,6 +1,8 @@
 # SPA retirement and retained public web (native-prototype)
 
-This document describes how to migrate away from the full authenticated **SPA** while keeping a **small HTTPS surface** for share links, space joins, invitations, and future public content (for example, challenges or curated featured items). It was written for the **`native-prototype`** branch and aligns with the current **Hono API** and **Netlify** hosting model.
+**Update (June 2026):** Authenticated Classic SPA (`AppLayout`, dashboard/thread/space routes) has been **removed**. Production web is the prototype shell plus public routes (share, join, invite, auth, upgrade). This document remains useful for public URL contracts and future slim-web decisions.
+
+This document describes how to migrate away from the full authenticated **Classic SPA** while keeping a **small HTTPS surface** for share links, space joins, invitations, and future public content (for example, challenges or curated featured items). It was written for the **`native-prototype`** branch and aligns with the current **Hono API** and **Netlify** hosting model.
 
 For packaging the existing web app in native shells (Capacitor) or JWT dual-mode auth, see [CAPACITOR_IMPLEMENTATION_GUIDE.md](../CAPACITOR_IMPLEMENTATION_GUIDE.md) and [future/CAPACITOR_STRATEGIC_ANALYSIS.md](../future/CAPACITOR_STRATEGIC_ANALYSIS.md). This guide focuses on **retiring the SPA as the main product** while **preserving URLs and API contracts** that users and systems already depend on.
 
@@ -10,9 +12,9 @@ For packaging the existing web app in native shells (Capacitor) or JWT dual-mode
 
 ### Full SPA retirement (primary surface)
 
-The production client today is the Vite SPA under `spa/`, routed with TanStack Router in [spa/src/router.tsx](../../spa/src/router.tsx). The authenticated experience uses [spa/src/layouts/AppLayout.tsx](../../spa/src/layouts/AppLayout.tsx) and pages for dashboard, space, thread, and note routes, plus sign-in and sign-up under Clerk.
+The production client today is the Vite SPA under `spa/`, routed with TanStack Router in [spa/src/router.tsx](../../spa/src/router.tsx). The authenticated experience uses [spa/src/layouts/SimplifiedPrototypeLayout.tsx](../../spa/src/layouts/SimplifiedPrototypeLayout.tsx) and prototype pages; public routes use [spa/src/pages/public/](../../spa/src/pages/public/). Classic `AppLayout` was removed June 2026.
 
-**Retiring the SPA** means that shell and those routes are no longer the main way people use Harvous. The **native** app (or another non-browser primary client) owns day-to-day study workflows.
+**Retiring the Classic SPA** (complete) removed the dashboard/thread/space shell. The **native** app remains the primary client for day-to-day study on Apple platforms; web serves non-Apple users and public flows.
 
 ### Retained "web" surface (secondary)
 

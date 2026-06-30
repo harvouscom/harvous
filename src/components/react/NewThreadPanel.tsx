@@ -18,7 +18,6 @@ import { invalidateNoteDetailsCache } from '@/utils/note-details-cache';
 import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 import { isNetworkError } from '@/utils/network';
 import { useNewThreadPanelContext } from './contexts/NewThreadPanelContext';
-import { isClassicAppSurface } from '@/lib/prototype-path';
 import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
 
 interface Note {
@@ -255,7 +254,7 @@ export default function NewThreadPanel({
       formData.append('color', selectedColor);
       formData.append(
         'isPublic',
-        !isClassicAppSurface() && selectedType === 'Shared' ? 'true' : 'false',
+        selectedType === 'Shared' ? 'true' : 'false',
       );
 
       if (isEditMode) {
@@ -329,7 +328,7 @@ export default function NewThreadPanel({
               title: title.trim(),
               color: selectedColor,
               spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
-              isPublic: !isClassicAppSurface() && selectedType === 'Shared',
+              isPublic: selectedType === 'Shared',
             });
 
             if (window.toast) {
@@ -390,7 +389,7 @@ export default function NewThreadPanel({
                 title: title.trim(),
                 color: selectedColor,
                 spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
-                isPublic: !isClassicAppSurface() && selectedType === 'Shared',
+                isPublic: selectedType === 'Shared',
               });
 
               if (window.toast) {
@@ -804,18 +803,15 @@ export default function NewThreadPanel({
                   </div>
                 )}
                 
-                {/* Thread visibility dropdown — disabled on classic app (app.harvous.com) */}
-                {!isClassicAppSurface() ? (
-                  <ThreadVisibilityDropdown
-                    isShared={selectedType === 'Shared'}
-                    shareUrl={null}
-                    onToggle={async (enabled) => {
-                      setSelectedType(enabled ? 'Shared' : 'Private');
-                    }}
-                    isLoading={isSubmitting}
-                    isEditMode={false}
-                  />
-                ) : null}
+                <ThreadVisibilityDropdown
+                  isShared={selectedType === 'Shared'}
+                  shareUrl={null}
+                  onToggle={async (enabled) => {
+                    setSelectedType(enabled ? 'Shared' : 'Private');
+                  }}
+                  isLoading={isSubmitting}
+                  isEditMode={false}
+                />
 
                 {/* Selected Notes - displayed above AddToSpaceSection (create mode only) */}
                 {!isEditMode && selectedItems.length > 0 && !isLoadingItems && (

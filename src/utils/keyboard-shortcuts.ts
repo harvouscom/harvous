@@ -11,7 +11,6 @@ import { detectEntityTypeFromPath, extractIdFromPath, idToUrl } from './url-help
 import { decodeNoteSlug } from './ids';
 import {
   isPrototypeNotePath,
-  isClassicAppSurface,
   isPrototypeShellPath,
   matchPrototypeNoteId,
   prototypeHomePath,
@@ -651,11 +650,11 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
       window.dispatchEvent(
         new CustomEvent('openNoteSharePanel', { detail: { contentId: id, contentType: 'note' } }),
       );
-    } else if (!isClassicAppSurface() && entity === 'thread' && id?.startsWith('thread_')) {
+    } else if (entity === 'thread' && id?.startsWith('thread_')) {
       window.dispatchEvent(
         new CustomEvent('openNoteSharePanel', { detail: { contentId: id, contentType: 'thread' } }),
       );
-    } else if (!isClassicAppSurface() && entity === 'space' && id?.startsWith('space_')) {
+    } else if (entity === 'space' && id?.startsWith('space_')) {
       window.dispatchEvent(
         new CustomEvent('openNoteSharePanel', { detail: { contentId: id, contentType: 'space' } }),
       );

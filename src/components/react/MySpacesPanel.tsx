@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import SquareButton from './SquareButton';
 import TabNav from './TabNav';
 import { getThreadColorCSS, getThreadGradientCSS, getThreadIconOnAccentCSS } from '@/utils/colors';
-import { isClassicAppSurface } from '@/lib/prototype-path';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl } from '@/utils/url-helpers';
 import { formatBadgeCount } from '@/utils/badge-count';
@@ -597,17 +596,15 @@ export default function MySpacesPanel({
           onClick={handleClose}
           inBottomSheet={inBottomSheet}
         />
-        {!isClassicAppSurface() ? (
-          <button
-            type="button"
-            data-outer-shadow
-            className="btn-cta flex-1 group"
-            onClick={() => safeNavigate('/new-space', { history: 'push' })}
-          >
-            <span className="btn-cta__content">New space</span>
-            <div className="btn-cta__shadow" />
-          </button>
-        ) : null}
+        <button
+          type="button"
+          data-outer-shadow
+          className="btn-cta flex-1 group"
+          onClick={() => safeNavigate('/new-space', { history: 'push' })}
+        >
+          <span className="btn-cta__content">New space</span>
+          <div className="btn-cta__shadow" />
+        </button>
       </div>
     </div>
   );

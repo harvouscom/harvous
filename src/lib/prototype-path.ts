@@ -163,11 +163,3 @@ export function prototypeHomeRouteTo(): '/' | '/prototype/' {
   return isDedicatedPrototypeHost() ? '/' : '/prototype/';
 }
 
-/**
- * Classic SPA (app.harvous.com threads/spaces/notes). False on new.harvous.com and on /prototype.
- */
-export function isClassicAppSurface(): boolean {
-  if (typeof window === 'undefined') return false;
-  if (isDedicatedPrototypeHost()) return false;
-  return !isPrototypeShellPath(window.location.pathname);
-}
