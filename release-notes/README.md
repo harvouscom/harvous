@@ -28,6 +28,10 @@ When creating a new release:
 3. Use the existing files as templates for tone and structure
 4. Focus on benefits and user experience, not implementation details
 
+## Public changelog (harvous.com)
+
+The marketing site lives in [harvouscom/harvous.com](https://github.com/harvouscom/harvous.com) and deploys separately. Public release notes at [harvous.com/release-notes/](https://harvous.com/release-notes/) are built from that repo’s `data/webflow-changelog.csv`. Use this folder for in-repo drafts and `/marketing-agent` copy; publish to the marketing repo when ready.
+
 ## For Users
 
 These release notes help you understand:

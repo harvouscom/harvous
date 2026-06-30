@@ -29,6 +29,7 @@ npm run native:xcodegen           # Optional: force XcodeGen; usually runs via p
 **Harvous** is a Bible study notes app. Three-level hierarchy: Spaces → Threads → Notes. Data: Supabase Postgres (Drizzle ORM), schema in `server/db/schema.ts`.
 
 - **Production frontend**: React SPA in `spa/src/`, built with Vite. Uses TanStack Router, React Query, Clerk React. Deployed as static `index.html` + hashed JS/CSS. This is what users see in production and in the PWA.
+- **Marketing site**: [harvous.com](https://harvous.com) — separate repo [harvouscom/harvous.com](https://github.com/harvouscom/harvous.com) (Astro). Not in this monorepo.
 - **API backend**: Hono server in `server/` bundled as a single Netlify Function (`netlify/functions/api.cjs`). All `/api/*` requests are routed there by `public/_redirects`.
 - **Shared React components**: `src/components/react/` are imported by the SPA. UI changes that must ship to production should be made in `spa/src/` or these shared components.
 - **Auth**: Clerk. In the SPA, `@clerk/clerk-react`; env var `VITE_CLERK_PUBLISHABLE_KEY`.

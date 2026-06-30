@@ -1,5 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { PROTO_PANEL_EXIT_MS } from './proto-motion';
+import {
+  readPersistedSidebarNav,
+  writePersistedSidebarNav,
+} from '../pages/prototype/proto-sidebar-nav-store';
+import type { ScriptureDrillState } from '../pages/prototype/sidebar-universal-search';
 
 /** Breakpoint sync with prototype-shell.css (899px drawer). */
 const MOBILE_MQ = '(max-width: 899px)';
@@ -126,7 +131,7 @@ type ProtoShellContextValue = {
   persistSidebarWidth: (width?: number) => void;
   sidebarWidthMin: number;
   sidebarWidthMax: number;
-  /** Sidebar layer — 'space' shows the Home space view, 'list' shows the list views. Not persisted: fresh loads land on Home. */
+  /** Sidebar layer — 'space' shows the Home space view, 'list' shows the list views. Persisted across refresh. */
   sidebarLayer: SidebarLayer;
   setSidebarLayer: (layer: SidebarLayer) => void;
   /** Notes / folders / highlights / scripture sidebar list mode. */
@@ -137,6 +142,9 @@ type ProtoShellContextValue = {
   /** Representative note ID of the drilled thread cluster; undefined = showing cluster list. */
   sidebarThreadDrilldownId: string | undefined;
   setSidebarThreadDrilldownId: (id: string | undefined) => void;
+  /** Scripture index drill — books, passages, or notes within a passage. Persisted across refresh. */
+  scriptureDrill: ScriptureDrillState;
+  setScriptureDrill: (value: ScriptureDrillState) => void;
   /** Proposed thread under review (from a Home theme card); undefined = no review open. Not persisted. */
   sidebarThreadProposal: ThreadProposal | undefined;
   setSidebarThreadProposal: (proposal: ThreadProposal | undefined) => void;
@@ -216,10 +224,15 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [sidebarExiting, setSidebarExiting] = useState(false);
   const sidebarExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>(readStoredSidebarListMode);
-  /** Intentionally not persisted — every fresh load lands on the Home space layer. */
-  const [sidebarLayer, setSidebarLayer] = useState<SidebarLayer>('space');
-  const [sidebarFolderDrilldown, setSidebarFolderDrilldown] = useState<SidebarFolderDrilldown>(undefined);
-  const [sidebarThreadDrilldownId, setSidebarThreadDrilldownId] = useState<string | undefined>(undefined);
+  const persistedNav = readPersistedSidebarNav();
+  const [sidebarLayer, setSidebarLayerState] = useState<SidebarLayer>(persistedNav.layer);
+  const [sidebarFolderDrilldown, setSidebarFolderDrilldownState] = useState<SidebarFolderDrilldown>(
+    persistedNav.folderDrill,
+  );
+  const [sidebarThreadDrilldownId, setSidebarThreadDrilldownIdState] = useState<string | undefined>(
+    persistedNav.threadDrillId,
+  );
+  const [scriptureDrill, setScriptureDrillState] = useState<ScriptureDrillState>(persistedNav.scriptureDrill);
   /** Transient — a Home theme card's proposed thread awaiting review. Never persisted. */
   const [sidebarThreadProposal, setSidebarThreadProposal] = useState<ThreadProposal | undefined>(undefined);
   const [sidebarTagSearchIntent, setSidebarTagSearchIntent] = useState<SidebarTagSearchIntent | null>(null);
@@ -307,14 +320,45 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
   }, [sidebarWidth]);
-  const setSidebarListMode = useCallback((mode: SidebarListMode) => {
-    setSidebarListModeState(mode);
-    // Picking a list mode always lands on the list layer (flips out of Home).
-    setSidebarLayer('list');
-    try { localStorage.setItem(SIDEBAR_LIST_MODE_STORAGE_KEY, mode); } catch { /* ignore */ }
-    if (mode !== 'folders') setSidebarFolderDrilldown(undefined);
-    if (mode !== 'threads') setSidebarThreadDrilldownId(undefined);
+  const setSidebarLayer = useCallback((layer: SidebarLayer) => {
+    setSidebarLayerState(layer);
+    writePersistedSidebarNav({ layer });
   }, []);
+  const setSidebarFolderDrilldown = useCallback((value: SidebarFolderDrilldown) => {
+    setSidebarFolderDrilldownState(value);
+    writePersistedSidebarNav({ folderDrill: value });
+  }, []);
+  const setSidebarThreadDrilldownId = useCallback((id: string | undefined) => {
+    setSidebarThreadDrilldownIdState(id);
+    if (id) {
+      writePersistedSidebarNav({ threadDrillId: id });
+    } else {
+      writePersistedSidebarNav({ clearThreadDrill: true });
+    }
+  }, []);
+  const setScriptureDrill = useCallback((value: ScriptureDrillState) => {
+    setScriptureDrillState(value);
+    writePersistedSidebarNav({ scriptureDrill: value });
+  }, []);
+  const setSidebarListMode = useCallback(
+    (mode: SidebarListMode) => {
+      setSidebarListModeState(mode);
+      // Picking a list mode always lands on the list layer (flips out of Home).
+      setSidebarLayer('list');
+      try {
+        localStorage.setItem(SIDEBAR_LIST_MODE_STORAGE_KEY, mode);
+      } catch {
+        /* ignore */
+      }
+      if (mode !== 'folders') setSidebarFolderDrilldown(undefined);
+      if (mode !== 'threads') setSidebarThreadDrilldownId(undefined);
+      if (mode !== 'scripture') {
+        setScriptureDrillState({ level: 'books' });
+        writePersistedSidebarNav({ clearScriptureDrill: true });
+      }
+    },
+    [setSidebarFolderDrilldown, setSidebarLayer, setSidebarThreadDrilldownId],
+  );
   const clearSidebarTagSearchIntent = useCallback(() => {
     setSidebarTagSearchIntent(null);
   }, []);
@@ -558,6 +602,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarFolderDrilldown,
       sidebarThreadDrilldownId,
       setSidebarThreadDrilldownId,
+      scriptureDrill,
+      setScriptureDrill,
       sidebarThreadProposal,
       setSidebarThreadProposal,
       ensureSidebarExpanded,
@@ -609,11 +655,15 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarWidth,
       persistSidebarWidth,
       sidebarLayer,
+      setSidebarLayer,
       sidebarListMode,
       setSidebarListMode,
       sidebarFolderDrilldown,
       setSidebarFolderDrilldown,
       sidebarThreadDrilldownId,
+      setSidebarThreadDrilldownId,
+      scriptureDrill,
+      setScriptureDrill,
       sidebarThreadProposal,
       ensureSidebarExpanded,
       sidebarTagSearchIntent,

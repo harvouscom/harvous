@@ -211,7 +211,7 @@ export default function PrototypeStudyThreadPopover({
             </section>
 
             {/* Connected notes section */}
-            <section className="proto-inspector-section">
+            <section className="proto-inspector-section proto-inspector-section--thread-trail">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <p className="proto-inspector-section-title" style={{ marginBottom: 0 }}>
                   {nodeCount > 0 ? `${nodeCount} ${nodeCount === 1 ? 'note' : 'notes'}` : 'Connected notes'}

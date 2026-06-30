@@ -18188,6 +18188,7 @@ __export(schema_exports, {
   SpaceInvitations: () => SpaceInvitations,
   Spaces: () => Spaces,
   StudyThreadEntries: () => StudyThreadEntries,
+  StudyThreadMemberOrders: () => StudyThreadMemberOrders,
   SupportTickets: () => SupportTickets,
   SyncDeletedEntities: () => SyncDeletedEntities,
   Tags: () => Tags,
@@ -18204,7 +18205,7 @@ __export(schema_exports, {
   VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences2, NoteFingerprints, RecallEvents, SupportTickets, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports;
+var ts, Spaces, Threads, Notes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences2, NoteFingerprints, RecallEvents, SupportTickets, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -18636,6 +18637,17 @@ var init_schema2 = __esm({
       index("NoteConnections_toNoteIdIndex").on(table.toNoteId),
       index("NoteConnections_userIdIndex").on(table.userId)
     ]);
+    StudyThreadMemberOrders = pgTable(
+      "StudyThreadMemberOrders",
+      {
+        repNoteId: text("repNoteId").primaryKey(),
+        userId: text("userId").notNull(),
+        /** JSON string[] of note ids in display order. */
+        orderedNoteIds: text("orderedNoteIds").notNull(),
+        updatedAt: ts("updatedAt").notNull()
+      },
+      (table) => [index("StudyThreadMemberOrders_userIdIndex").on(table.userId)]
+    );
     VerseTextCache = pgTable("VerseTextCache", {
       reference: text("reference").notNull(),
       translation: text("translation").notNull().default("NET"),
@@ -52738,6 +52750,8 @@ var harvous_admin_exports = {};
 __export(harvous_admin_exports, {
   getHarvousSystemUserId: () => getHarvousSystemUserId,
   isHarvousAdmin: () => isHarvousAdmin,
+  parseHarvousAdminEmails: () => parseHarvousAdminEmails,
+  parseHarvousAdminUserIds: () => parseHarvousAdminUserIds,
   requireHarvousAdmin: () => requireHarvousAdmin
 });
 function getHarvousSystemUserId() {
@@ -52745,11 +52759,19 @@ function getHarvousSystemUserId() {
   if (!id) throw new Error("Missing env HARVOUS_SYSTEM_USER_ID");
   return id;
 }
-function isHarvousAdmin(c) {
-  const auth = getAuth(c);
-  const userId = auth?.userId ?? null;
-  const systemUserId = process.env.HARVOUS_SYSTEM_USER_ID;
-  if (userId && systemUserId && userId === systemUserId) return true;
+function parseHarvousAdminEmails(raw2) {
+  return new Set(
+    (raw2 ?? "").split(",").map((entry) => entry.trim().toLowerCase()).filter(Boolean)
+  );
+}
+function parseHarvousAdminUserIds(raw2, systemUserId) {
+  const ids = (raw2 ?? "").split(",").map((entry) => entry.trim()).filter(Boolean);
+  const set2 = new Set(ids);
+  const systemId = systemUserId?.trim();
+  if (systemId) set2.add(systemId);
+  return set2;
+}
+function isHarvousAdminSecret(c) {
   const expectedSecret = process.env.HARVOUS_ADMIN_SECRET?.trim();
   if (!expectedSecret) return false;
   const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
@@ -52757,16 +52779,53 @@ function isHarvousAdmin(c) {
   const provided = m2?.[1]?.trim();
   return provided === expectedSecret;
 }
-function requireHarvousAdmin(c) {
-  if (!isHarvousAdmin(c)) {
+async function clerkPrimaryEmail(userId) {
+  if (adminEmailByUserId.has(userId)) {
+    return adminEmailByUserId.get(userId) ?? null;
+  }
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (!secretKey) {
+    adminEmailByUserId.set(userId, null);
+    return null;
+  }
+  try {
+    const clerk = createClerkClient({ secretKey });
+    const user = await clerk.users.getUser(userId);
+    const primary = user.emailAddresses?.find((entry) => entry.id === user.primaryEmailAddressId);
+    const email = primary?.emailAddress?.trim().toLowerCase() ?? null;
+    adminEmailByUserId.set(userId, email);
+    return email;
+  } catch {
+    adminEmailByUserId.set(userId, null);
+    return null;
+  }
+}
+async function isHarvousAdmin(c) {
+  if (isHarvousAdminSecret(c)) return true;
+  const auth = getAuth(c);
+  const userId = auth?.userId ?? null;
+  if (!userId) return false;
+  const systemUserId = process.env.HARVOUS_SYSTEM_USER_ID?.trim();
+  const adminUserIds = parseHarvousAdminUserIds(process.env.HARVOUS_ADMIN_USER_IDS, systemUserId);
+  if (adminUserIds.has(userId)) return true;
+  const adminEmails = parseHarvousAdminEmails(process.env.HARVOUS_ADMIN_EMAILS);
+  if (adminEmails.size === 0) return false;
+  const email = await clerkPrimaryEmail(userId);
+  return email != null && adminEmails.has(email);
+}
+async function requireHarvousAdmin(c) {
+  if (!await isHarvousAdmin(c)) {
     return c.json({ error: "Unauthorized" }, 401);
   }
   return null;
 }
+var adminEmailByUserId;
 var init_harvous_admin = __esm({
   "server/utils/harvous-admin.ts"() {
     "use strict";
+    init_dist();
     init_auth();
+    adminEmailByUserId = /* @__PURE__ */ new Map();
   }
 });
 
@@ -141203,6 +141262,21 @@ function formatMonthLabel(monthKey) {
   const name = MONTH_NAMES[month - 1] ?? monthStr;
   return `${name} ${yearStr}`;
 }
+function getCalendarYearFromMonth(monthKey) {
+  return parseInt(monthKey.split("-")[0], 10);
+}
+var ADMIN_REPORTS_FIRST_MONTH = "2026-06";
+function compareMonthKeys(a, b3) {
+  return a.localeCompare(b3);
+}
+function isAdminReportMonthInCatalog(monthKey) {
+  return compareMonthKeys(monthKey, ADMIN_REPORTS_FIRST_MONTH) >= 0;
+}
+function listReportCatalogSeasonsForYear(year) {
+  return listSeasonsForYear(year).filter(
+    (seasonId) => getSeasonMonths(seasonId).some(isAdminReportMonthInCatalog)
+  );
+}
 
 // server/utils/user-cache.ts
 var pendingInit = /* @__PURE__ */ new Map();
@@ -147846,6 +147920,85 @@ async function collectStudyThreadGraphForScope(focusNoteId, userId, options) {
     }
   }
   return { graph, scopeSpaceId };
+}
+
+// server/utils/study-thread-member-order.ts
+init_db2();
+init_dates();
+
+// src/utils/study-thread-trail.ts
+function appendStudyThreadMemberOrder(manualOrder, newNoteIds, memberIds) {
+  if (!manualOrder || manualOrder.length === 0) return null;
+  const result = manualOrder.filter((id) => memberIds.has(id));
+  const seen = new Set(result);
+  for (const id of newNoteIds) {
+    if (memberIds.has(id) && !seen.has(id)) {
+      result.push(id);
+      seen.add(id);
+    }
+  }
+  return result;
+}
+function removeStudyThreadMemberFromOrder(manualOrder, removedNoteId) {
+  if (!manualOrder || manualOrder.length === 0) return null;
+  const filtered = manualOrder.filter((id) => id !== removedNoteId);
+  return filtered.length === 0 ? null : filtered;
+}
+
+// server/utils/study-thread-member-order.ts
+function parseStudyThreadMemberOrder(raw2) {
+  if (!raw2 || !raw2.trim()) return null;
+  try {
+    const parsed = JSON.parse(raw2);
+    if (!Array.isArray(parsed)) return null;
+    const ids = parsed.filter((x2) => typeof x2 === "string" && x2.length > 0);
+    return ids.length > 0 ? ids : null;
+  } catch {
+    return null;
+  }
+}
+function serializeStudyThreadMemberOrder(ids) {
+  return JSON.stringify(ids);
+}
+async function fetchStudyThreadMemberOrder(repNoteId, userId) {
+  const row = await db.select({ orderedNoteIds: StudyThreadMemberOrders.orderedNoteIds }).from(StudyThreadMemberOrders).where(and(eq(StudyThreadMemberOrders.repNoteId, repNoteId), eq(StudyThreadMemberOrders.userId, userId))).limit(1).then((rows) => rows[0]);
+  return row ? parseStudyThreadMemberOrder(row.orderedNoteIds) : null;
+}
+async function upsertStudyThreadMemberOrder(repNoteId, userId, orderedNoteIds) {
+  const payload = {
+    orderedNoteIds: serializeStudyThreadMemberOrder(orderedNoteIds),
+    updatedAt: nowISO()
+  };
+  const existing = await db.select({ repNoteId: StudyThreadMemberOrders.repNoteId }).from(StudyThreadMemberOrders).where(and(eq(StudyThreadMemberOrders.repNoteId, repNoteId), eq(StudyThreadMemberOrders.userId, userId))).limit(1).then((rows) => rows[0]);
+  if (existing) {
+    await db.update(StudyThreadMemberOrders).set(payload).where(and(eq(StudyThreadMemberOrders.repNoteId, repNoteId), eq(StudyThreadMemberOrders.userId, userId)));
+    return;
+  }
+  await db.insert(StudyThreadMemberOrders).values({
+    repNoteId,
+    userId,
+    ...payload
+  });
+}
+async function deleteStudyThreadMemberOrder(repNoteId, userId) {
+  await db.delete(StudyThreadMemberOrders).where(and(eq(StudyThreadMemberOrders.repNoteId, repNoteId), eq(StudyThreadMemberOrders.userId, userId)));
+}
+async function appendStudyThreadMemberOrderOnConnect(repNoteId, userId, newNoteIds, memberIds) {
+  const memberSet = new Set(memberIds);
+  const current = await fetchStudyThreadMemberOrder(repNoteId, userId);
+  const next = appendStudyThreadMemberOrder(current, newNoteIds, memberSet);
+  if (!next) return;
+  await upsertStudyThreadMemberOrder(repNoteId, userId, next);
+}
+async function removeStudyThreadMemberOrderOnDisconnect(repNoteId, userId, removedNoteId) {
+  const current = await fetchStudyThreadMemberOrder(repNoteId, userId);
+  const next = removeStudyThreadMemberFromOrder(current, removedNoteId);
+  if (!current) return;
+  if (!next) {
+    await deleteStudyThreadMemberOrder(repNoteId, userId);
+    return;
+  }
+  await upsertStudyThreadMemberOrder(repNoteId, userId, next);
 }
 
 // server/utils/prototype-user-migration.ts
@@ -161676,6 +161829,20 @@ route10.post("/api/notes/connect-link", requireAuth, rateLimit("write"), async (
       parentNoteId
     ).catch(() => {
     });
+    try {
+      const { graph } = await collectStudyThreadGraphForScope(parentNoteId, auth.userId, {
+        preferredSpaceId: spaceId ?? void 0,
+        maxNodes: 200
+      });
+      const repNoteId = pickStudyThreadRepresentativeNoteId(graph.degreeMap.keys(), graph.degreeMap) ?? parentNoteId;
+      await appendStudyThreadMemberOrderOnConnect(
+        repNoteId,
+        auth.userId,
+        [linkedNoteId],
+        graph.nodeIds
+      );
+    } catch {
+    }
     broadcastInvalidation(auth.userId, { type: "note:updated", id: parentNoteId });
     broadcastInvalidation(auth.userId, { type: "note:updated", id: linkedNoteId });
     return c.json({ success: true });
@@ -161707,6 +161874,18 @@ route10.delete("/api/notes/connect-link", requireAuth, rateLimit("write"), async
     ));
     if (existing) {
       await recordDeletedEntities(auth.userId, "noteConnection", [existing.id]);
+    }
+    try {
+      const { graph } = await collectStudyThreadGraphForScope(fromNoteId, auth.userId, { maxNodes: 200 });
+      const repNoteId = pickStudyThreadRepresentativeNoteId(graph.degreeMap.keys(), graph.degreeMap) ?? fromNoteId;
+      const memberSet = new Set(graph.nodeIds);
+      if (!memberSet.has(fromNoteId)) {
+        await removeStudyThreadMemberOrderOnDisconnect(repNoteId, auth.userId, fromNoteId);
+      }
+      if (!memberSet.has(toNoteId)) {
+        await removeStudyThreadMemberOrderOnDisconnect(repNoteId, auth.userId, toNoteId);
+      }
+    } catch {
     }
     broadcastInvalidation(auth.userId, { type: "note:updated", id: fromNoteId });
     broadcastInvalidation(auth.userId, { type: "note:updated", id: toNoteId });
@@ -161779,6 +161958,7 @@ route10.get("/api/notes/:id/thread", requireAuth, async (c) => {
       };
     });
     const naming = resolveStudyThreadClusterNaming(noteRows, suggestNodes, repNoteId);
+    const memberOrder = await fetchStudyThreadMemberOrder(naming.repNoteId, auth.userId);
     return c.json({
       success: true,
       focusNoteId,
@@ -161787,12 +161967,61 @@ route10.get("/api/notes/:id/thread", requireAuth, async (c) => {
       suggestedTitle: naming.suggestedTitle,
       studyThreadUserOverride: naming.studyThreadUserOverride,
       studyThreadPinned: naming.studyThreadPinned,
+      memberOrder,
       nodes,
       edges: uniqueEdges,
       nodeCount: nodes.length
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/notes/[id]/thread", action: "get_note_thread" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route10.patch("/api/notes/:id/thread/member-order", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const focusNoteId = normalizeServerNoteId(requireParam(c, "id"));
+    const body = await c.req.json().catch(() => ({}));
+    const orderedNoteIds = Array.isArray(body.orderedNoteIds) ? body.orderedNoteIds.filter((x2) => typeof x2 === "string" && x2.trim().length > 0) : null;
+    if (!orderedNoteIds || orderedNoteIds.length === 0) {
+      return c.json({ success: false, error: "orderedNoteIds is required", code: "INVALID_BODY" }, 400);
+    }
+    const focus = first(
+      await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.id, focusNoteId), eq(Notes.userId, auth.userId))).limit(1)
+    );
+    if (!focus) return c.json({ success: false, error: "Note not found" }, 404);
+    const preferredSpaceId = typeof c.req.query("spaceId") === "string" ? c.req.query("spaceId") : void 0;
+    const { graph } = await collectStudyThreadGraphForScope(focusNoteId, auth.userId, {
+      preferredSpaceId,
+      maxNodes: 200
+    });
+    const repNoteId = pickStudyThreadRepresentativeNoteId(graph.degreeMap.keys(), graph.degreeMap) ?? focusNoteId;
+    const memberSet = new Set(graph.nodeIds);
+    const uniqueIds = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const id of orderedNoteIds) {
+      if (!memberSet.has(id) || seen.has(id)) continue;
+      uniqueIds.push(id);
+      seen.add(id);
+    }
+    if (uniqueIds.length !== graph.nodeIds.length) {
+      return c.json(
+        {
+          success: false,
+          error: "orderedNoteIds must include every note in the thread exactly once",
+          code: "INVALID_ORDER"
+        },
+        400
+      );
+    }
+    await upsertStudyThreadMemberOrder(repNoteId, auth.userId, uniqueIds);
+    broadcastInvalidation(auth.userId, { type: "note:updated", id: repNoteId });
+    return c.json({ success: true, repNoteId, memberOrder: uniqueIds });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/notes/[id]/thread/member-order",
+      action: "update_thread_member_order"
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
@@ -162447,8 +162676,8 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
     if (!isMemberView && note.userId === auth.userId) {
       try {
         const [incomingEdges, outgoingEdges] = await Promise.all([
-          db.select({ fromNoteId: NoteConnections.fromNoteId }).from(NoteConnections).where(and(eq(NoteConnections.toNoteId, noteId), eq(NoteConnections.userId, auth.userId))).limit(100),
-          db.select({ toNoteId: NoteConnections.toNoteId }).from(NoteConnections).where(and(eq(NoteConnections.fromNoteId, noteId), eq(NoteConnections.userId, auth.userId))).limit(100)
+          db.select({ fromNoteId: NoteConnections.fromNoteId, createdAt: NoteConnections.createdAt }).from(NoteConnections).where(and(eq(NoteConnections.toNoteId, noteId), eq(NoteConnections.userId, auth.userId))).orderBy(asc(NoteConnections.createdAt)).limit(100),
+          db.select({ toNoteId: NoteConnections.toNoteId, createdAt: NoteConnections.createdAt }).from(NoteConnections).where(and(eq(NoteConnections.fromNoteId, noteId), eq(NoteConnections.userId, auth.userId))).orderBy(asc(NoteConnections.createdAt)).limit(100)
         ]);
         const allConnectedIds = [
           ...incomingEdges.map((e) => e.fromNoteId),
@@ -181581,6 +181810,9 @@ async function buildMonthlyReportPayload(month) {
   };
 }
 async function generateAdminMonthlyReport(month) {
+  if (!isAdminReportMonthInCatalog(month)) {
+    return null;
+  }
   const payload = await buildMonthlyReportPayload(month);
   const seasonId = getSeasonForMonth(month);
   const existing = await db.select().from(AdminMonthlyReports).where(eq(AdminMonthlyReports.month, month)).limit(1);
@@ -181612,8 +181844,8 @@ function buildCatalogMonth(month, generatedAt) {
 function yearsFromStoredRows(storedByMonth, minYear, maxYear) {
   const years = [];
   for (let year = maxYear; year >= minYear; year -= 1) {
-    const seasons = listSeasonsForYear(year).map((seasonId) => {
-      const months = getSeasonMonths(seasonId).map((month) => {
+    const seasons = listReportCatalogSeasonsForYear(year).map((seasonId) => {
+      const months = getSeasonMonths(seasonId).filter(isAdminReportMonthInCatalog).map((month) => {
         const stored = storedByMonth.get(month);
         return buildCatalogMonth(month, stored ? stored.generatedAt.toISOString() : null);
       });
@@ -181622,8 +181854,10 @@ function yearsFromStoredRows(storedByMonth, minYear, maxYear) {
         seasonName: getSeasonDisplayName(seasonId),
         months
       };
-    });
-    years.push({ year, seasons });
+    }).filter((season) => season.months.length > 0);
+    if (seasons.length > 0) {
+      years.push({ year, seasons });
+    }
   }
   return years;
 }
@@ -181635,9 +181869,11 @@ async function listAdminReportsCatalog() {
   }
   const now2 = /* @__PURE__ */ new Date();
   const currentYear = now2.getFullYear();
-  let minYear = currentYear - 2;
+  const firstReportYear = getCalendarYearFromMonth(ADMIN_REPORTS_FIRST_MONTH);
+  let minYear = firstReportYear;
   for (const row of rows) {
-    const year = parseInt(row.month.split("-")[0], 10);
+    if (!isAdminReportMonthInCatalog(row.month)) continue;
+    const year = getCalendarYearFromMonth(row.month);
     if (year < minYear) minYear = year;
   }
   return { years: yearsFromStoredRows(storedByMonth, minYear, currentYear) };
@@ -182080,7 +182316,7 @@ var API_BASE = typeof import_meta3 !== "undefined" && import_meta3.env?.VITE_API
 // server/utils/support-ticket.ts
 init_pg_undefined_relation();
 var MAX_MESSAGE_LENGTH = 5e3;
-var MAX_CLIENT_ENV_LENGTH = 200;
+var MAX_CLIENT_ENV_LENGTH = 400;
 function isSupportTicketStatus(value) {
   return value === "open" || value === "closed";
 }
@@ -182171,7 +182407,7 @@ function mapListRow(row) {
     createdAt: rowToIso(row.createdAt) ?? ""
   };
 }
-function mapDetailRow(row) {
+function mapDetailRow(row, userMeta) {
   return {
     ...mapListRow(row),
     userId: row.userId,
@@ -182180,7 +182416,9 @@ function mapDetailRow(row) {
     clientEnvironment: row.clientEnvironment,
     adminNote: row.adminNote,
     adminReadAt: rowToIso(row.adminReadAt),
-    closedAt: rowToIso(row.closedAt)
+    closedAt: rowToIso(row.closedAt),
+    userTier: userMeta?.tier ?? null,
+    userAccountCreatedAt: rowToIso(userMeta?.createdAt ?? null)
   };
 }
 async function countOpenSupportTickets() {
@@ -182216,15 +182454,25 @@ async function resolveSupportTicketId(idOrNumber) {
 async function getSupportTicket(id, options) {
   const resolvedId = await resolveSupportTicketId(id);
   if (!resolvedId) return null;
-  const rows = await db.select().from(SupportTickets).where(eq(SupportTickets.id, resolvedId)).limit(1);
+  const rows = await db.select({
+    ticket: SupportTickets,
+    userTier: UserMetadata.tier,
+    userAccountCreatedAt: UserMetadata.createdAt
+  }).from(SupportTickets).leftJoin(UserMetadata, eq(SupportTickets.userId, UserMetadata.userId)).where(eq(SupportTickets.id, resolvedId)).limit(1);
   const row = rows[0];
   if (!row) return null;
-  if (options?.markRead && row.adminReadAt == null) {
+  if (options?.markRead && row.ticket.adminReadAt == null) {
     const readAt = nowISO();
     await db.update(SupportTickets).set({ adminReadAt: readAt }).where(eq(SupportTickets.id, resolvedId));
-    return mapDetailRow({ ...row, adminReadAt: readAt });
+    return mapDetailRow({ ...row.ticket, adminReadAt: readAt }, {
+      tier: row.userTier,
+      createdAt: row.userAccountCreatedAt
+    });
   }
-  return mapDetailRow(row);
+  return mapDetailRow(row.ticket, {
+    tier: row.userTier,
+    createdAt: row.userAccountCreatedAt
+  });
 }
 function validatePatchSupportTicketInput(body) {
   if (!body || typeof body !== "object") return null;
@@ -182448,7 +182696,7 @@ async function updateDiagnosticIssueTriage(issueSignature, status, adminNotes) {
 // server/routes/admin.ts
 var app11 = new Hono2();
 app11.get("/api/admin/usage/overview", async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
     const daysParam = parseInt(c.req.query("days") ?? "30", 10);
@@ -182460,7 +182708,7 @@ app11.get("/api/admin/usage/overview", async (c) => {
   }
 });
 app11.get("/api/admin/usage/trends", async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
     const daysParam = parseInt(c.req.query("days") ?? "30", 10);
@@ -182472,7 +182720,7 @@ app11.get("/api/admin/usage/trends", async (c) => {
   }
 });
 app11.get("/api/admin/usage/discovery", async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
     const daysParam = parseInt(c.req.query("days") ?? "30", 10);
@@ -182484,7 +182732,7 @@ app11.get("/api/admin/usage/discovery", async (c) => {
   }
 });
 app11.get("/api/admin/pulse", async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
     const daysParam = parseInt(c.req.query("days") ?? "7", 10);
@@ -182496,7 +182744,7 @@ app11.get("/api/admin/pulse", async (c) => {
   }
 });
 app11.get("/api/admin/reports/catalog", async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
     const catalog = await listAdminReportsCatalog();
@@ -182507,7 +182755,7 @@ app11.get("/api/admin/reports/catalog", async (c) => {
   }
 });
 app11.post("/api/admin/reports/generate", async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const month = c.req.query("month");
   if (!month || !isValidMonthKey(month)) {
@@ -182515,6 +182763,9 @@ app11.post("/api/admin/reports/generate", async (c) => {
   }
   try {
     const payload = await generateAdminMonthlyReport(month);
+    if (!payload) {
+      return c.json({ error: "Reports are not tracked before June 2026" }, 400);
+    }
     return c.json({ success: true, month, payload });
   } catch (error) {
     console.error("[admin reports generate]", error);
@@ -182522,7 +182773,7 @@ app11.post("/api/admin/reports/generate", async (c) => {
   }
 });
 app11.get("/api/admin/reports/season/:seasonId", async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const seasonId = c.req.param("seasonId");
   const format = c.req.query("format") ?? "json";
@@ -182556,7 +182807,7 @@ app11.get("/api/admin/reports/season/:seasonId", async (c) => {
   }
 });
 app11.get("/api/admin/reports/year/:year", async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const yearParam = c.req.param("year");
   const year = parseInt(yearParam, 10);
@@ -182602,7 +182853,7 @@ app11.get("/api/admin/reports/year/:year", async (c) => {
   }
 });
 app11.get("/api/admin/reports/:month", async (c) => {
-  const denied = requireHarvousAdmin(c);
+  const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const month = c.req.param("month");
   const format = c.req.query("format") ?? "json";
@@ -182648,7 +182899,7 @@ async function handleAggregateAnalytics(c) {
       return c.json({ error: "Unauthorized" }, 401);
     }
     if (!hasValidToken) {
-      const denied = requireHarvousAdmin(c);
+      const denied = await requireHarvousAdmin(c);
       if (denied) return denied;
     }
     const previous = c.req.query("previous") === "true";
@@ -182665,11 +182916,12 @@ async function handleAggregateAnalytics(c) {
       targetMonth = getCurrentMonth();
     }
     await aggregateMonthlyAnalytics(targetMonth);
-    await generateAdminMonthlyReport(targetMonth);
+    const report = await generateAdminMonthlyReport(targetMonth);
     return c.json({
       success: true,
       month: targetMonth,
-      message: `Analytics and monthly report generated for ${targetMonth}`
+      reportGenerated: report != null,
+      message: report ? `Analytics and monthly report generated for ${targetMonth}` : `Analytics aggregated for ${targetMonth} (before reports launch; no report snapshot)`
     });
   } catch (error) {
     console.error("Error aggregating analytics:", error);
@@ -182733,7 +182985,7 @@ app11.post("/api/admin/backup-exports", async (c) => {
   }
 });
 app11.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const dryRun = c.req.query("dryRun") === "true";
@@ -182748,7 +183000,7 @@ app11.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
   }
 });
 app11.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const dryRun = c.req.query("dryRun") === "true";
@@ -182921,7 +183173,7 @@ app11.get("/api/admin/list-threads", requireAuth, async (c) => {
   }
 });
 app11.get("/api/admin/content/spaces", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const systemUserId = getHarvousSystemUserId();
@@ -182934,7 +183186,7 @@ app11.get("/api/admin/content/spaces", async (c) => {
   }
 });
 app11.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const systemUserId = getHarvousSystemUserId();
@@ -182949,7 +183201,7 @@ app11.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
   }
 });
 app11.post("/api/admin/spaces", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const systemUserId = getHarvousSystemUserId();
@@ -182994,7 +183246,7 @@ app11.post("/api/admin/spaces", async (c) => {
   }
 });
 app11.post("/api/admin/spaces/:spaceId/threads", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const systemUserId = getHarvousSystemUserId();
@@ -183035,7 +183287,7 @@ app11.post("/api/admin/spaces/:spaceId/threads", async (c) => {
   }
 });
 app11.post("/api/admin/spaces/:spaceId/members", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const systemUserId = getHarvousSystemUserId();
@@ -183098,7 +183350,7 @@ app11.post("/api/admin/spaces/:spaceId/members", async (c) => {
   }
 });
 app11.post("/api/admin/threads/:threadId/notes", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const systemUserId = getHarvousSystemUserId();
@@ -183151,7 +183403,7 @@ app11.post("/api/admin/threads/:threadId/notes", async (c) => {
   }
 });
 app11.post("/api/admin/regenerate-note-tags", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const systemUserId = getHarvousSystemUserId();
@@ -183197,7 +183449,7 @@ app11.post("/api/admin/regenerate-note-tags", async (c) => {
   }
 });
 app11.post("/api/admin/backfill-auto-tags", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const systemUserId = getHarvousSystemUserId();
@@ -183278,7 +183530,7 @@ app11.post("/api/admin/backfill-auto-tags", async (c) => {
   }
 });
 app11.get("/api/admin/support/tickets", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const status = parseSupportTicketListFilter(c.req.query("status") ?? void 0);
@@ -183294,7 +183546,7 @@ app11.get("/api/admin/support/tickets", async (c) => {
   }
 });
 app11.get("/api/admin/support/tickets/:id", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const id = c.req.param("id")?.trim() ?? "";
@@ -183308,7 +183560,7 @@ app11.get("/api/admin/support/tickets/:id", async (c) => {
   }
 });
 app11.patch("/api/admin/support/tickets/:id", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const id = c.req.param("id")?.trim() ?? "";
@@ -183325,7 +183577,7 @@ app11.patch("/api/admin/support/tickets/:id", async (c) => {
   }
 });
 app11.get("/api/admin/diagnostics/issues", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const daysParam = parseInt(c.req.query("days") ?? "7", 10);
@@ -183341,7 +183593,7 @@ app11.get("/api/admin/diagnostics/issues", async (c) => {
   }
 });
 app11.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const signature = c.req.param("signature")?.trim() ?? "";
@@ -183356,7 +183608,7 @@ app11.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
   }
 });
 app11.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
-  const gate = requireHarvousAdmin(c);
+  const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const signature = c.req.param("signature")?.trim() ?? "";
@@ -183747,12 +183999,12 @@ app12.get("/api/featured/dismissed", requireAuth, async (c) => {
   );
 });
 app12.get("/api/admin/check", async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   return c.json({ isAdmin: true });
 });
 app12.get("/api/admin/featured/by-space/:shareToken", async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const shareToken = c.req.param("shareToken")?.trim() ?? "";
   if (!shareToken) return c.json({ error: "shareToken is required" }, 400);
@@ -183762,7 +184014,7 @@ app12.get("/api/admin/featured/by-space/:shareToken", async (c) => {
   return c.json(item ?? null);
 });
 app12.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const shareToken = c.req.param("shareToken")?.trim() ?? "";
   if (!shareToken) return c.json({ error: "shareToken is required" }, 400);
@@ -183772,7 +184024,7 @@ app12.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
   return c.json(item ?? null);
 });
 app12.post("/api/admin/featured", async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
   const contentType = body.contentType?.trim() ?? "";
@@ -183816,7 +184068,7 @@ app12.post("/api/admin/featured", async (c) => {
   return c.json(inserted ?? { success: true });
 });
 app12.patch("/api/admin/featured/:id", async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
   if (!id) return c.json({ error: "id is required" }, 400);
@@ -184791,14 +185043,14 @@ function pickPoolVerseForPreview(dateStr, usedRefs, avoidBook) {
 
 // server/routes/votd.ts
 var app13 = new Hono2();
-function requireVotdAuth(c) {
+async function requireVotdAuth(c) {
   if (c.get("cronAuthed")) return null;
   const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
   const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
   const m2 = authHeader.match(/^Bearer\s+(.+)$/i);
   const provided = m2?.[1]?.trim();
   if (expectedSecret && provided && provided === expectedSecret) return null;
-  return requireHarvousAdmin(c);
+  return await requireHarvousAdmin(c);
 }
 function utcDateStr(d) {
   return d.toISOString().slice(0, 10);
@@ -184883,7 +185135,7 @@ async function publishVotdCore(params) {
   return { featuredItemId };
 }
 app13.post("/api/admin/votd/schedule", async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
   const reference = body.reference?.trim() ?? "";
@@ -184923,13 +185175,13 @@ app13.post("/api/admin/votd/schedule", async (c) => {
   return c.json(inserted ?? { success: true }, 201);
 });
 app13.get("/api/admin/votd/schedule", async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const rows = await db.select().from(VotdSchedule).orderBy(desc(VotdSchedule.createdAt));
   return c.json(rows);
 });
 app13.delete("/api/admin/votd/schedule/:id", async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
   if (!id) return c.json({ error: "id is required" }, 400);
@@ -185000,7 +185252,7 @@ async function publishForDate(dateStr) {
   return { alreadyPublished: false, featuredItemId: result.featuredItemId, reference: pick.reference, source: pick.source };
 }
 app13.post("/api/admin/votd/publish-daily", async (c) => {
-  const unauthorized = requireVotdAuth(c);
+  const unauthorized = await requireVotdAuth(c);
   if (unauthorized) return unauthorized;
   const target = c.req.query("target");
   let todayStr;
@@ -185063,7 +185315,7 @@ function daysBetweenUtcInclusive(start, end) {
   return Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
 }
 app13.get("/api/admin/votd/preview", async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const monthParam = c.req.query("month")?.trim();
   let start;
@@ -185222,7 +185474,7 @@ app13.get("/api/admin/votd/preview", async (c) => {
   return c.json({ days: out });
 });
 app13.post("/api/admin/votd/override", async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
   const dateStr = body.date?.trim() ?? "";
@@ -185266,7 +185518,7 @@ app13.post("/api/admin/votd/override", async (c) => {
   return c.json(inserted ?? { success: true });
 });
 app13.post("/api/admin/votd/refresh", async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
   const dateStr = body.date?.trim() ?? "";
@@ -185331,7 +185583,7 @@ app13.post("/api/admin/votd/refresh", async (c) => {
   return c.json({ success: true, reference: normalizedRef, row: inserted });
 });
 app13.delete("/api/admin/votd/override/:date", async (c) => {
-  const unauthorized = requireHarvousAdmin(c);
+  const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const dateStr = c.req.param("date")?.trim() ?? "";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {

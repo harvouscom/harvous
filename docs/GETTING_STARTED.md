@@ -127,11 +127,7 @@ Runs the Hono API on port 3001 and the SPA on port 4322. Open `http://localhost:
    - `fix:` → patch bump (0.10.0 → 0.10.1)
    - `BREAKING CHANGE` → major bump (0.10.0 → 1.0.0)
 
-   **Changelog sync to Webflow CMS** (automatic starting at v1.0.0):
-   - After each commit, if version >= 1.0.0, creates a changelog entry in Webflow CMS
-   - Extracts version, date, commit message, and category automatically
-   - Skips version bump commits automatically
-   - Requires `WEBFLOW_CHANGELOG_API_TOKEN` environment variable (with cms:write scope)
+   Public changelog: [harvous.com/release-notes/](https://harvous.com/release-notes/) — marketing site in [harvouscom/harvous.com](https://github.com/harvouscom/harvous.com); draft copy in `release-notes/` here.
 
 5. **Push and deploy**
    ```bash

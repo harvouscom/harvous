@@ -141,8 +141,6 @@ interface ImportMetaEnv {
   
   // Webflow CMS API token for syncing inbox items (inbox/webhook operations)
   readonly WEBFLOW_INBOX_API_TOKEN?: string;
-  // Webflow CMS API token for changelog sync (requires cms:write scope)
-  readonly WEBFLOW_CHANGELOG_API_TOKEN?: string;
   // Webflow webhook secret for verifying webhook signatures
   readonly WEBFLOW_WEBHOOK_SECRET?: string;
   // Auto-archive secret token for securing the auto-archive endpoint

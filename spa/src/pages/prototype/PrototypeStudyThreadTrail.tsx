@@ -9,28 +9,16 @@ import {
 } from '../../hooks/queries/usePrototypeStudyThread';
 import { useDisconnectNote } from '../../hooks/mutations/useDisconnectNote';
 import { useStudyThreadMemberDragReorder } from '../../hooks/useStudyThreadMemberDragReorder';
-import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
-import { stripHtmlForCard } from '@/utils/html-stripper';
-import { protoRelativeCaptionAbbrev } from './proto-time';
 import { resolveStudyThreadMemberOrder, orderStudyThreadNodesByIds } from '@/utils/study-thread-trail';
+import { protoRelativeCaptionAbbrev } from './proto-time';
+import {
+  ProtoThreadTrailRecencyLine,
+  threadTrailRowPreview,
+  threadTrailRowTitle,
+  threadTrailRowUpdatedAt,
+} from './proto-thread-trail-row';
 import ProtoThreadTrailOrb from './ProtoThreadTrailOrb';
 import ProtoThreadTrailReorderDivider from './ProtoThreadTrailReorderDivider';
-
-function nodeDisplayTitle(node: StudyThreadNodeFlat): string {
-  return (
-    (node.noteType === 'resource' && node.resourceTitle ? node.resourceTitle : null) ??
-    stripServerAutoUntitledNoteTitleForDisplay(node.title) ??
-    `Note N${node.simpleNoteId?.toString().padStart(3, '0') ?? ''}`
-  );
-}
-
-function nodePreview(node: StudyThreadNodeFlat): string {
-  const raw =
-    node.noteType === 'resource' && node.resourceDescription
-      ? node.resourceDescription
-      : node.content ?? '';
-  return stripHtmlForCard(raw, false).slice(0, 120);
-}
 
 function findEdge(aId: string, bId: string, edges: StudyThreadEdge[]): StudyThreadEdge | undefined {
   return edges.find(
@@ -62,9 +50,9 @@ function ThreadTrailStep({
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const edge = showDisconnect ? findEdge(focusNoteId, node.id, edges) : undefined;
-  const title = nodeDisplayTitle(node);
-  const preview = nodePreview(node);
-  const rel = protoRelativeCaptionAbbrev(node.updatedAt);
+  const title = threadTrailRowTitle(node);
+  const preview = threadTrailRowPreview(node);
+  const rel = protoRelativeCaptionAbbrev(threadTrailRowUpdatedAt(node));
 
   const handleDisconnect = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -93,17 +81,11 @@ function ThreadTrailStep({
           onClick={() => onOpen(node.id)}
           aria-label={`Open ${title}`}
         >
-          <div className="proto-thread-trail__title-line">
-            <span className="pds-list-title proto-thread-trail__title">{title}</span>
+          <div className="proto-thread-trail__title-line proto-note-row__title-line">
+            <span className="pds-list-title proto-note-row__title-text">{title}</span>
             {isFocus ? <span className="proto-side-panel__current-badge">Current</span> : null}
           </div>
-          {rel || preview ? (
-            <div className="pds-list-preview proto-thread-trail__preview">
-              {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
-              {rel && preview ? '  ' : null}
-              {preview ? <span>{preview}</span> : null}
-            </div>
-          ) : null}
+          <ProtoThreadTrailRecencyLine rel={rel} preview={preview} />
         </button>
 
         {edge ? (
@@ -175,7 +157,7 @@ export default function PrototypeStudyThreadTrail({
   return (
     <div className="proto-thread-trail">
       <div
-        className={`proto-thread-trail__spine${drag.draggingId ? ' proto-thread-trail__spine--dragging' : ''}`}
+        className={`proto-thread-trail__spine proto-thread-trail__spine--fill${drag.draggingId ? ' proto-thread-trail__spine--dragging' : ''}`}
         role="list"
         aria-label="Connected notes trail"
       >
@@ -192,14 +174,13 @@ export default function PrototypeStudyThreadTrail({
           />
         ) : null}
         {displayMembers.map((node, index) => {
-          const isFocus = node.id === focusNoteId;
-          const title = nodeDisplayTitle(node);
+          const title = threadTrailRowTitle(node);
           return (
             <Fragment key={node.id}>
               <ThreadTrailStep
                 node={node}
-                isFocus={isFocus}
-                showDisconnect={!isFocus}
+                isFocus={node.id === focusNoteId}
+                showDisconnect={node.id !== focusNoteId}
                 focusNoteId={focusNoteId}
                 edges={edges}
                 onOpen={onOpen}

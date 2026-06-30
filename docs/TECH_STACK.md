@@ -211,7 +211,6 @@ Output: Hono (server/)- Single serverless function for all /api/*
 
 - `BIBLE_API_KEY` - Bible.org API key for scripture fetching
 - `WEBFLOW_INBOX_API_TOKEN` - Webflow CMS integration (for inbox/webhook operations)
-- `WEBFLOW_CHANGELOG_API_TOKEN` - Webflow CMS integration (for changelog sync, requires cms:write scope)
 
 ## Version Management
 
@@ -224,6 +223,7 @@ Output: Hono (server/)- Single serverless function for all /api/*
 ## Related Documentation
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Overall system architecture
+- [future/TECH_STACK_SCALING_ASSESSMENT.md](./future/TECH_STACK_SCALING_ASSESSMENT.md) - Scaling assessment and alternatives
 - [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md) - Project organization
 - [README.md](../README.md) - Quick start and setup
 

@@ -178,10 +178,12 @@ Edit the `generateFeatureBenefit`, `generateFixBenefit`, and `generateImprovemen
 
 4. **Keep it simple:** Focus on benefits, not implementation. Users care about "what it does for me," not "how it works."
 
-## Other Scripts
+## Git hooks
 
-- `db-sync.js` - Database schema synchronization
-- `seed-database.js` - Prints how to get a clean new user (no seed: sign up fresh or use POST /api/test/reset-to-new-user and refresh)
-- Various Webflow sync scripts for changelog publishing
+Install the post-commit hook (not tracked in git):
 
-For questions or improvements, update this README!
+```bash
+cp scripts/git-hooks/post-commit .git/hooks/post-commit && chmod +x .git/hooks/post-commit
+```
+
+This runs `bump-version.js` after each commit. Public changelog pages deploy from [harvouscom/harvous.com](https://github.com/harvouscom/harvous.com) — not synced to Webflow from this repo.

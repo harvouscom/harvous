@@ -1,5 +1,5 @@
 /**
- * Founder letter — paper-stack layout. Keep body copy in sync with site/src/components/FounderLetter.astro.
+ * Founder letter — paper-stack layout. Keep body copy in sync with harvouscom/harvous.com (FounderLetter.astro).
  * Greeting is personalized in-app when firstName is provided.
  */
 export type FounderLetterPaperPhase = 'stacked' | 'fanned';

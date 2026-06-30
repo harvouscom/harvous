@@ -1,5 +1,7 @@
 # Syncing Release Notes to Webflow
 
+> **Retired (2026):** Changelog publishing moved to the Astro marketing site ([harvouscom/harvous.com](https://github.com/harvouscom/harvous.com), `data/webflow-changelog.csv`). Webflow changelog sync scripts and the post-commit hook integration were removed. This doc is kept for historical context only.
+
 ## Overview
 
 This document outlines the plan to sync user-friendly release notes from `release-notes/` to Webflow CMS, complementing the existing commit-level changelog sync.

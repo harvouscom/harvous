@@ -221,7 +221,7 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
               </div>
             </section>
 
-            <section className="proto-inspector-section">
+            <section className="proto-inspector-section proto-inspector-section--thread-trail">
               <div className="proto-side-panel__section-header">
                 <p className="proto-inspector-section-title">
                   {nodeCount > 0 ? `${nodeCount} ${nodeCount === 1 ? 'note' : 'notes'}` : 'Connected notes'}

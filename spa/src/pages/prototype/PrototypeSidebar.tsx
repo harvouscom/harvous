@@ -96,20 +96,11 @@ import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
 import { noteParamSlug, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 
+import { ProtoThreadTrailRecencyLine as ProtoListRecencyLine } from './proto-thread-trail-row';
+
 function stripHtmlPreview(html: string | null | undefined, max = 80) {
   if (!html) return '';
   return stripHtmlForListPreview(html, max);
-}
-
-function ProtoListRecencyLine({ rel, preview }: { rel?: string; preview?: string }) {
-  if (!rel && !preview) return null;
-  return (
-    <div className="pds-list-preview proto-note-row__preview">
-      {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
-      {rel && preview ? '  ' : null}
-      {preview ? <span>{preview}</span> : null}
-    </div>
-  );
 }
 
 function describeQueryFailure(err: unknown): string {
@@ -638,13 +629,7 @@ function PrototypeSidebarNoteRow({
         ) : null}
       </div>
       {trailLayout ? (
-        rel || preview ? (
-          <div className="pds-list-preview proto-thread-trail__preview">
-            {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
-            {rel && preview ? '  ' : null}
-            {preview ? <span>{preview}</span> : null}
-          </div>
-        ) : null
+        <ProtoListRecencyLine rel={rel} preview={preview} />
       ) : (
         <ProtoListRecencyLine rel={rel} preview={preview} />
       )}
@@ -792,11 +777,6 @@ function PrototypeSidebarNoteRow({
   );
 }
 
-type ScriptureDrill =
-  | { level: 'books' }
-  | { level: 'passages'; bookOrder: number }
-  | { level: 'notes'; bookOrder: number; passageKey: string };
-
 type HighlightKindFilter = 'all' | 'notes' | 'connected' | 'scripture' | 'references';
 
 const HIGHLIGHT_KIND_OPTIONS: { id: HighlightKindFilter; label: string; iconName?: string }[] = [
@@ -908,6 +888,8 @@ export default function PrototypeSidebar() {
     clearSidebarTagSearchIntent,
     ensureSidebarExpanded,
     composePersistedNoteId,
+    scriptureDrill,
+    setScriptureDrill,
   } = useProtoShell();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -1012,7 +994,6 @@ export default function PrototypeSidebar() {
     [threadDrillQuery.data?.nodes],
   );
 
-  const [scriptureDrill, setScriptureDrill] = useState<ScriptureDrill>({ level: 'books' });
   const [highlightKindFilter, setHighlightKindFilter] = useState<HighlightKindFilter>('all');
   const [pinnedHighlightIds, setPinnedHighlightIds] = useState<string[]>([]);
   const [pinnedFolderIds, setPinnedFolderIds] = useState<string[]>([]);
@@ -1061,10 +1042,6 @@ export default function PrototypeSidebar() {
     },
     [homeSpaceId],
   );
-
-  useEffect(() => {
-    if (mode !== 'scripture') setScriptureDrill({ level: 'books' });
-  }, [mode]);
 
   const notes = useMemo(() => {
     if (!pages?.pages) return [];
@@ -1116,13 +1093,30 @@ export default function PrototypeSidebar() {
   // same PrototypeSidebarNoteRow as the Notes/Folders lists. Resolve the full loaded note so
   // the row shows the same title + date + excerpt + menu; fall back to the brief when unloaded.
   const resolveDrillNoteRow = useCallback(
-    (brief: { id: string; title: string | null; updatedAt?: string | null; createdAt?: string | null }): SpaceNoteRow => {
+    (brief: {
+      id: string;
+      title: string | null;
+      content?: string | null;
+      updatedAt?: string | null;
+      createdAt?: string | null;
+    }): SpaceNoteRow => {
       const full = notesById.get(brief.id);
-      if (full) return full;
+      const briefContent = brief.content?.trim() ?? '';
+      if (full) {
+        if (!briefContent) return full;
+        if (!full.content?.trim()) {
+          return {
+            ...full,
+            content: briefContent,
+            updatedAt: brief.updatedAt ?? full.updatedAt,
+          };
+        }
+        return full;
+      }
       return {
         id: brief.id,
         title: brief.title,
-        content: '',
+        content: briefContent,
         updatedAt: brief.updatedAt ?? null,
         createdAt: brief.createdAt ?? null,
         noteType: 'default',
@@ -2202,7 +2196,7 @@ export default function PrototypeSidebar() {
                   </div>
                 ) : (
                   <ul
-                    className={`proto-note-list proto-thread-trail__spine proto-sidebar-thread-trail${threadDrillDrag.draggingId ? ' proto-thread-trail__spine--dragging' : ''}`}
+                    className={`proto-note-list proto-thread-trail__spine proto-thread-trail__spine--fill proto-sidebar-thread-trail${threadDrillDrag.draggingId ? ' proto-thread-trail__spine--dragging' : ''}`}
                     role="list"
                   >
                     {threadDrillDrag.showDragHandle ? (
@@ -2223,6 +2217,8 @@ export default function PrototypeSidebar() {
                       const row = resolveDrillNoteRow({
                         id: node.id,
                         title: node.title || node.resourceTitle || null,
+                        content: node.content ?? node.resourceDescription ?? '',
+                        updatedAt: node.updatedAt,
                       });
                       const rowTitle =
                         stripServerAutoUntitledNoteTitleForDisplay(row.title?.trim() ?? '') || 'New Note';
