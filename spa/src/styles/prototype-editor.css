@@ -479,11 +479,15 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
   margin-bottom: 0.2em;
 }
 
-.proto-editor-surface .ProseMirror blockquote {
+.proto-editor-surface .ProseMirror blockquote:not([data-scripture-quote-accent]) {
   border-left: 2.5px solid var(--pds-accent);
   margin: 0 0 0.75em;
   padding-left: 1em;
   color: var(--pds-text-secondary);
+}
+
+.proto-editor-surface .ProseMirror blockquote + p .scripture-pill {
+  margin-top: 0.15em;
 }
 
 .proto-editor-surface .ProseMirror hr {
@@ -1393,7 +1397,7 @@ html.harvous-prototype-route .proto-editor-surface .tiptap-content .ProseMirror 
   font-family: var(--pds-font-body) !important;
 }
 
-html.harvous-prototype-route .proto-editor-surface .tiptap-content .ProseMirror blockquote {
+html.harvous-prototype-route .proto-editor-surface .tiptap-content .ProseMirror blockquote:not([data-scripture-quote-accent]) {
   color: var(--pds-text-secondary) !important;
 }
 

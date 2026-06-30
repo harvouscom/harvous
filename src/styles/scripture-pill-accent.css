@@ -94,3 +94,72 @@
     color-mix(in srgb, var(--scripture-pill-accent-tint) var(--scripture-pill-gradient-bottom-mix), transparent)
   );
 }
+
+/* ─── Scripture passage quotes — accent border + deeper accent text ─────────── */
+
+.proto-editor-surface .ProseMirror blockquote[data-scripture-quote-accent],
+.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent],
+#shared-note-content .card-full-editable__content-html blockquote[data-scripture-quote-accent],
+#shared-thread-content .card-full-editable__content-html blockquote[data-scripture-quote-accent],
+.shared-page__card-container .card-full-editable__content-html blockquote[data-scripture-quote-accent],
+.public-note-card .card-full-editable__content-html blockquote[data-scripture-quote-accent] {
+  --scripture-quote-accent: var(--study-dock-scripture-pill-neutral);
+  border-left: 2.5px solid var(--scripture-quote-accent);
+  margin: 0 0 0.75em;
+  padding-left: 1em;
+  color: color-mix(in srgb, var(--scripture-quote-accent) 58%, var(--pds-text-primary));
+}
+
+.proto-editor-surface .ProseMirror blockquote[data-scripture-quote-accent="neutral"],
+.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="neutral"],
+#shared-note-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="neutral"],
+#shared-thread-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="neutral"],
+.shared-page__card-container .card-full-editable__content-html blockquote[data-scripture-quote-accent="neutral"],
+.public-note-card .card-full-editable__content-html blockquote[data-scripture-quote-accent="neutral"] {
+  --scripture-quote-accent: var(--study-dock-scripture-pill-neutral);
+}
+
+.proto-editor-surface .ProseMirror blockquote[data-scripture-quote-accent="warmAmber"],
+.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="warmAmber"],
+#shared-note-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="warmAmber"],
+#shared-thread-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="warmAmber"],
+.shared-page__card-container .card-full-editable__content-html blockquote[data-scripture-quote-accent="warmAmber"],
+.public-note-card .card-full-editable__content-html blockquote[data-scripture-quote-accent="warmAmber"] {
+  --scripture-quote-accent: var(--study-dock-accent-warmAmber);
+}
+
+.proto-editor-surface .ProseMirror blockquote[data-scripture-quote-accent="skyBlue"],
+.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="skyBlue"],
+#shared-note-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="skyBlue"],
+#shared-thread-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="skyBlue"],
+.shared-page__card-container .card-full-editable__content-html blockquote[data-scripture-quote-accent="skyBlue"],
+.public-note-card .card-full-editable__content-html blockquote[data-scripture-quote-accent="skyBlue"] {
+  --scripture-quote-accent: var(--study-dock-accent-skyBlue);
+}
+
+.proto-editor-surface .ProseMirror blockquote[data-scripture-quote-accent="violet"],
+.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="violet"],
+#shared-note-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="violet"],
+#shared-thread-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="violet"],
+.shared-page__card-container .card-full-editable__content-html blockquote[data-scripture-quote-accent="violet"],
+.public-note-card .card-full-editable__content-html blockquote[data-scripture-quote-accent="violet"] {
+  --scripture-quote-accent: var(--study-dock-accent-violet);
+}
+
+.proto-editor-surface .ProseMirror blockquote[data-scripture-quote-accent="mintGreen"],
+.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="mintGreen"],
+#shared-note-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="mintGreen"],
+#shared-thread-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="mintGreen"],
+.shared-page__card-container .card-full-editable__content-html blockquote[data-scripture-quote-accent="mintGreen"],
+.public-note-card .card-full-editable__content-html blockquote[data-scripture-quote-accent="mintGreen"] {
+  --scripture-quote-accent: var(--study-dock-accent-mintGreen);
+}
+
+.proto-editor-surface .ProseMirror blockquote[data-scripture-quote-accent="coralRose"],
+.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="coralRose"],
+#shared-note-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="coralRose"],
+#shared-thread-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="coralRose"],
+.shared-page__card-container .card-full-editable__content-html blockquote[data-scripture-quote-accent="coralRose"],
+.public-note-card .card-full-editable__content-html blockquote[data-scripture-quote-accent="coralRose"] {
+  --scripture-quote-accent: var(--study-dock-accent-coralRose);
+}

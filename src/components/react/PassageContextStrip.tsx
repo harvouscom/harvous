@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import '@/styles/passage-context-strip.css';
+import '@/styles/scripture-pill-chrome.css';
 
 interface ThemeRef {
   topicId: string;
@@ -93,7 +94,9 @@ function NavRow({
       <Icon name={icon} size={13} className="passage-context-strip__row-icon" aria-hidden />
       <span className="passage-context-strip__row-text">
         <span className="passage-context-strip__row-label">{label}</span>
-        {secondary ? <span className="passage-context-strip__row-secondary">{secondary}</span> : null}
+        {secondary ? (
+          <span className="scripture-pill-chrome__trans-chip">{secondary}</span>
+        ) : null}
       </span>
       <Icon name="caret-right" size={11} className="passage-context-strip__row-chevron" aria-hidden />
     </button>

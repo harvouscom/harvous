@@ -37,6 +37,16 @@
   line-height: 1.2;
 }
 
+/* Inside clickable rows — beat global `button *` primary/deep-grey on descendants */
+button .scripture-pill-chrome__trans-chip {
+  color: var(--pds-text-secondary, #888) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+  line-height: 1.2 !important;
+}
+
 .scripture-pill-chrome .study-dock-card__header-title {
   justify-content: flex-start;
 }
@@ -436,24 +446,10 @@
   margin-top: -2px;
 }
 
-/* ─── Passage text selection → highlight action bar ─────────────────────── */
+/* ─── Passage text selection → floating action bar ──────────────────────── */
 
-/* Portal-rendered to document.body so it escapes the passage scroll clip. */
+/* Positioning wrapper only — visual chrome from `.pds-native-selection-bar`. */
 .scripture-pill-chrome__passage-action-bar {
-  position: fixed;
-  z-index: 9999;
-  display: inline-flex;
-  align-items: center;
-  padding: 3px;
-  border-radius: 999px;
-  background: var(--pds-bg-glass-medium, rgba(255, 255, 255, 0.92));
-  border: 0.5px solid var(--pds-border-control, rgba(0, 0, 0, 0.12));
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.12),
-    0 1px 3px rgba(0, 0, 0, 0.07);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  pointer-events: auto;
   user-select: none;
 }
 

@@ -29,6 +29,7 @@ import {
   type ReferenceProvider,
 } from '@/components/react/TiptapReferenceSuggestion';
 import { useEastonsSlugIndex } from '../../../spa/src/hooks/useEastonsSlugIndex';
+import { deriveReferenceFromPassageSelection } from '@/utils/derive-passage-selection-reference';
 import '@/styles/harvous-menu-pill.css';
 import '@/styles/study-dock-card.css';
 import '@/styles/scripture-pill-chrome.css';
@@ -98,6 +99,8 @@ export interface ScripturePillChromeWebProps {
   /** Called after the user selects passage text and taps the floating highlight button.
    *  Caller (TiptapEditor) should open a HighlightDockWeb card for the new thread. */
   onPassageHighlightCreated?: (excerpt: string, threadId: string, accent?: StudyHighlightAccentKey) => void;
+  /** Selected passage text → blockquote insert in the parent note body. */
+  onPassageQuoteToNote?: (payload: { excerpt: string; reference: string; translation: string }) => void;
   /** Gate passage reference suggestions to the prototype/native chrome surface. */
   editorChromeMode?: 'default' | 'prototypeNative';
   /** Tap a passage suggestion or saved mark — caller opens the reference dock (or, for
@@ -136,6 +139,7 @@ export default function ScripturePillChromeWeb({
   interactionActive = true,
   animateEnter = true,
   onPassageHighlightCreated,
+  onPassageQuoteToNote,
   editorChromeMode = 'default',
   onOpenPassageReference,
   onNavigateNote,
@@ -187,6 +191,7 @@ export default function ScripturePillChromeWeb({
   const passageScrollRef = useRef<HTMLDivElement>(null);
   const [passageSelection, setPassageSelection] = useState<{ text: string; rect: DOMRect } | null>(null);
   const [creatingHighlight, setCreatingHighlight] = useState(false);
+  const [addingQuote, setAddingQuote] = useState(false);
 
   const onApplyRef = useRef(onApply);
   useEffect(() => {
@@ -589,6 +594,31 @@ export default function ScripturePillChromeWeb({
     window.getSelection()?.removeAllRanges();
     setCreatingHighlight(false);
   }, [passageSelection, sourceNoteId, creatingHighlight, displayRefString, trans, onPassageHighlightCreated, initialPillAccent]);
+
+  const handleAddPassageToNote = useCallback(() => {
+    if (!passageSelection || !sourceNoteId || addingQuote || !onPassageQuoteToNote) return;
+    setAddingQuote(true);
+    try {
+      const sel = window.getSelection();
+      const domRange = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null;
+      const passageHtmlEl = passageScrollRef.current?.querySelector(
+        '.scripture-pill-chrome__passage-html',
+      ) as HTMLElement | null;
+      let quoteReference = displayRefString;
+      if (domRange && passageHtmlEl) {
+        quoteReference = deriveReferenceFromPassageSelection(passageHtmlEl, domRange, displayRefString);
+      }
+      onPassageQuoteToNote({
+        excerpt: passageSelection.text,
+        reference: quoteReference,
+        translation: trans,
+      });
+    } finally {
+      setPassageSelection(null);
+      window.getSelection()?.removeAllRanges();
+      setAddingQuote(false);
+    }
+  }, [passageSelection, sourceNoteId, addingQuote, onPassageQuoteToNote, displayRefString, trans]);
   // ──────────────────────────────────────────────────────────────────────────
 
   const selectedSwatchKey: StudyHighlightAccentKey =
@@ -624,6 +654,18 @@ export default function ScripturePillChromeWeb({
 
   const translationInfo = TRANSLATIONS[trans];
   const transLabel = (translationInfo?.abbreviation ?? trans).toUpperCase();
+
+  const passageActionBarPos = useMemo(() => {
+    if (!passageSelection) return null;
+    const gap = 8;
+    const top = passageSelection.rect.bottom + gap;
+    let centerX = passageSelection.rect.left + passageSelection.rect.width / 2;
+    const barW = onPassageQuoteToNote ? 88 : 48;
+    const inset = 8;
+    const vw = typeof window !== 'undefined' ? window.innerWidth : centerX + barW;
+    centerX = Math.min(Math.max(centerX, inset + barW / 2), vw - inset - barW / 2);
+    return { top, centerX };
+  }, [passageSelection, onPassageQuoteToNote]);
 
   return (
     <>
@@ -734,46 +776,67 @@ export default function ScripturePillChromeWeb({
         </div>
       </div>
     </StudyDockCardShell>
-    {/* Floating passage highlight action bar — portal to document.body to escape scroll clip */}
-    {passageSelection && sourceNoteId && passageHtml && !readOnly && typeof document !== 'undefined'
+    {passageSelection && passageActionBarPos && sourceNoteId && passageHtml && !readOnly && typeof document !== 'undefined'
       ? createPortal(
           <div
-            className="scripture-pill-chrome__passage-action-bar"
+            data-harvous-bottom-sheet-floating=""
+            className="selection-action-bar scripture-pill-chrome__passage-action-bar"
             style={{
-              top: Math.max(8, passageSelection.rect.top - 40),
-              left: Math.max(
-                8,
-                Math.min(
-                  passageSelection.rect.left + passageSelection.rect.width / 2 - 18,
-                  (typeof window !== 'undefined' ? window.innerWidth : 800) - 44,
-                ),
-              ),
+              position: 'fixed',
+              top: passageActionBarPos.top,
+              left: passageActionBarPos.centerX,
+              transform: 'translateX(-50%)',
+              zIndex: 99999,
+              pointerEvents: 'auto',
             }}
-            // Prevent mousedown from clearing the selection before click fires
-            onMouseDown={(e) => e.preventDefault()}
           >
-            <button
-              type="button"
-              className="study-dock-card__header-btn"
-              // Run on mousedown (StudyDockCardShell pattern): a re-render between mouseup and
-              // click re-applies the Icon's inner SVG, detaching the press target so the browser
-              // never dispatches click. preventDefault also keeps the text selection alive.
-              onMouseDown={(e) => {
-                if (e.button !== 0) return;
-                e.preventDefault();
-                e.stopPropagation();
-                void handleCreatePassageHighlight();
-              }}
-              onClick={(e) => {
-                /* Keyboard activation only — mouse runs on mousedown (detail 0 = key). */
-                if (e.detail === 0) void handleCreatePassageHighlight();
-              }}
-              disabled={creatingHighlight}
-              aria-label="Highlight selected passage text"
-              title="Highlight"
+            <div
+              className="pds-native-selection-bar floating-picker-enter"
+              onMouseDown={(e) => e.preventDefault()}
+              onPointerDown={(e) => e.preventDefault()}
             >
-              <Icon name="highlighter" size={12} />
-            </button>
+              <button
+                type="button"
+                className="pds-native-selection-bar__btn"
+                onMouseDown={(e) => {
+                  if (e.button !== 0) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void handleCreatePassageHighlight();
+                }}
+                onClick={(e) => {
+                  if (e.detail === 0) void handleCreatePassageHighlight();
+                }}
+                disabled={creatingHighlight}
+                aria-label="Highlight selected passage text"
+                title="Highlight"
+              >
+                <Icon name="highlighter" size={14} />
+              </button>
+              {onPassageQuoteToNote ? (
+                <>
+                  <span className="pds-native-selection-bar__rule" aria-hidden />
+                  <button
+                    type="button"
+                    className="pds-native-selection-bar__btn"
+                    onPointerDownCapture={(e: React.PointerEvent) => {
+                      if (e.button !== 0) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleAddPassageToNote();
+                    }}
+                    onClick={(e) => {
+                      if (e.detail === 0) handleAddPassageToNote();
+                    }}
+                    disabled={addingQuote}
+                    aria-label="Add selected passage to note"
+                    title="Add to note"
+                  >
+                    <Icon name="quote-left" size={14} />
+                  </button>
+                </>
+              ) : null}
+            </div>
           </div>,
           document.body,
         )

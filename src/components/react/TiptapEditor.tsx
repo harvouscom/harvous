@@ -40,6 +40,7 @@ import {
   SCRIPTURE_DRAFT_CONFIRMED_EVENT,
 } from './TiptapScriptureDraft';
 import { BoldCustom } from './TiptapBoldCustom';
+import { isScriptureQuoteBlockquoteNode, ScriptureQuoteBlockquote } from './TiptapScriptureQuoteBlockquote';
 import { HighlightCustom } from './TiptapHighlightCustom';
 import { ParagraphCustom } from './TiptapParagraphCustom';
 import { isSelectionActionBarEligible } from './selection-action-bar-eligibility';
@@ -104,6 +105,15 @@ import {
   shouldSchedulePassiveScriptureDetection,
 } from '@/utils/scripture-pill-position';
 import { sanitizeScripturePillHtml } from '@/utils/scripture-pill-display';
+import {
+  findScripturePillBoundariesInDoc,
+  insertScriptureQuoteAt,
+  resolveSourcePillBoundaries,
+} from '@/utils/insert-scripture-quote';
+import {
+  syncAdjacentScriptureQuoteAccents,
+  syncAdjacentScriptureQuotesForPillApply,
+} from '@/utils/sync-scripture-quotes-for-pill';
 import { isStudyHighlightAccentKey, type StudyHighlightAccentKey, STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL, STUDY_HIGHLIGHT_ACCENT_LABELS, studyDockAccentCssVar } from '@/utils/study-highlight-accents';
 import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
 import { getCachedProfileData, getEffectiveDefaultTranslation } from '@/utils/profile-cache';
@@ -3746,7 +3756,17 @@ function tryDeleteAdjacentAtomicBlock(editor: any, view: any, event: KeyboardEve
     if ($from.parentOffset !== 0) return false;
     const cutPos = $from.before();
     const nodeBefore = view.state.doc.resolve(cutPos).nodeBefore;
-    if (!nodeBefore || !ONE_SHOT_ATOMIC_BLOCK_TYPES.has(nodeBefore.type.name)) return false;
+    if (!nodeBefore) return false;
+    if (isScriptureQuoteBlockquoteNode(nodeBefore)) {
+      event.preventDefault();
+      editor
+        .chain()
+        .focus()
+        .deleteRange({ from: cutPos - nodeBefore.nodeSize, to: cutPos })
+        .run();
+      return true;
+    }
+    if (!ONE_SHOT_ATOMIC_BLOCK_TYPES.has(nodeBefore.type.name)) return false;
     event.preventDefault();
     editor.chain().focus().deleteRange({ from: cutPos - nodeBefore.nodeSize, to: cutPos }).run();
     return true;
@@ -3755,7 +3775,13 @@ function tryDeleteAdjacentAtomicBlock(editor: any, view: any, event: KeyboardEve
   if ($from.parentOffset !== $from.parent.content.size) return false;
   const cutPos = $from.after();
   const nodeAfter = view.state.doc.resolve(cutPos).nodeAfter;
-  if (!nodeAfter || !ONE_SHOT_ATOMIC_BLOCK_TYPES.has(nodeAfter.type.name)) return false;
+  if (!nodeAfter) return false;
+  if (isScriptureQuoteBlockquoteNode(nodeAfter)) {
+    event.preventDefault();
+    editor.chain().focus().deleteRange({ from: cutPos, to: cutPos + nodeAfter.nodeSize }).run();
+    return true;
+  }
+  if (!ONE_SHOT_ATOMIC_BLOCK_TYPES.has(nodeAfter.type.name)) return false;
   event.preventDefault();
   editor.chain().focus().deleteRange({ from: cutPos, to: cutPos + nodeAfter.nodeSize }).run();
   return true;
@@ -3947,6 +3973,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const studyDockStackRef = useRef(studyDockStack);
   studyDockStackRef.current = studyDockStack;
   const studyDockRehydratedForNoteRef = useRef<string | null>(null);
+  /** Last editor selection/caret — used for smart scripture quote insert placement. */
+  const lastEditorSelectionForQuoteRef = useRef<{ from: number; to: number; at: number } | null>(null);
   const studyDockPortalTarget =
     studyDockCarouselPortalTarget ?? scriptureChromePortalTarget ?? highlightChromePortalTarget;
 
@@ -4082,11 +4110,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         bold: false,
         // Custom paragraph keeps blank lines as `<p><br></p>` in getHTML output
         paragraph: false,
+        // Scripture passage quotes carry pill accent on the blockquote element
+        blockquote: false,
         // Disable StarterKit's bundled Link extension — we use our own UrlLink mark which
         // renders a <span data-url-link> instead of <a>. Without this, StarterKit wraps
         // bare URLs in <a> tags, causing a double underline (browser <a> default + .url-link).
         link: false,
       }),
+      ScriptureQuoteBlockquote,
       ParagraphCustom,
       Heading.configure({
         levels: [2, 3], // H1 reserved for note titles
@@ -5464,6 +5495,100 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
   }, [editor, id, onEditorInstanceReady]);
+
+  const handlePassageQuoteToNote = useCallback(
+    (payload: { excerpt: string; reference: string; translation: string }, session: ScripturePillDockSession) => {
+      if (!editor || !isEditorValid(editor) || !sourceNoteId || session.readOnly) return;
+
+      let boundaries = session.boundaries;
+      if (boundaries) {
+        boundaries = resolveSourcePillBoundaries(editor, boundaries);
+      } else {
+        boundaries = findScripturePillBoundariesInDoc(editor, session.reference);
+      }
+
+      let sourcePillReference = session.reference;
+      let sourcePillTranslation = session.translation;
+      let pillAccent: string | null = session.pillAccent ?? null;
+
+      if (boundaries) {
+        editor.state.doc.nodesBetween(boundaries.from, boundaries.to, (node: any) => {
+          const mark = node.marks?.find((m: any) => m.type?.name === 'scripturePill');
+          if (mark) {
+            sourcePillReference = mark.attrs.reference ?? sourcePillReference;
+            sourcePillTranslation = mark.attrs.translation ?? sourcePillTranslation;
+            pillAccent = mark.attrs.pillAccent ?? pillAccent;
+          }
+        });
+      }
+
+      sawUserContentInputRef.current = true;
+      pendingEmitUserEditRef.current = true;
+      if (contentPropagateRafRef.current != null) {
+        cancelAnimationFrame(contentPropagateRafRef.current);
+        contentPropagateRafRef.current = null;
+      }
+
+      const caretAfter = insertScriptureQuoteAt(editor, {
+        excerpt: payload.excerpt,
+        reference: payload.reference,
+        translation: payload.translation,
+        sourceNoteId,
+        sourcePillBoundaries: boundaries,
+        sourcePillReference,
+        sourcePillTranslation,
+        attributionPillAccent: pillAccent,
+        lastEditorSelection: lastEditorSelectionForQuoteRef.current,
+      });
+
+      if (caretAfter == null) return;
+
+      lastEditorSelectionForQuoteRef.current = { from: caretAfter, to: caretAfter, at: Date.now() };
+      const html = noteHtmlFromEditor(editor, true);
+      if (hiddenInputRef.current) {
+        hiddenInputRef.current.value = html;
+      }
+      latestNoteHtmlRef.current = html;
+      // User-initiated passage quote — propagate like onApply (not programmatic normalization).
+      onContentChange?.(html);
+
+      setStudyDockStack((s) => collapseActiveScriptureIfActive(s));
+
+      try {
+        editor.commands.focus();
+      } catch {
+        /* ignore */
+      }
+
+      requestAnimationFrame(() => {
+        try {
+          const root = editor.view.dom as HTMLElement;
+          const blockquotes = root.querySelectorAll('blockquote[data-scripture-quote-accent]');
+          const last = blockquotes[blockquotes.length - 1];
+          last?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch {
+          /* ignore */
+        }
+      });
+    },
+    [editor, sourceNoteId, onContentChange],
+  );
+
+  useEffect(() => {
+    if (!editor) return;
+    const trackSelectionForQuote = () => {
+      if (!isEditorValid(editor)) return;
+      const { from, to } = editor.state.selection;
+      lastEditorSelectionForQuoteRef.current = { from, to, at: Date.now() };
+    };
+    editor.on('selectionUpdate', trackSelectionForQuote);
+    trackSelectionForQuote();
+    return () => {
+      if (editor && !editor.isDestroyed) {
+        editor.off('selectionUpdate', trackSelectionForQuote);
+      }
+    };
+  }, [editor]);
 
   // Store editor reference on DOM for fallback event injection (backup method)
   useEffect(() => {
@@ -8777,6 +8902,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         tr.setMeta('addToHistory', false);
                         editor.view.dispatch(tr);
                         syncScripturePillAccentDom(editor, from, to, persistedAccent);
+                        syncAdjacentScriptureQuoteAccents(editor, from, to, persistedAccent);
                         const html = noteHtmlFromEditor(editor, true);
                         if (hiddenInputRef.current) {
                           hiddenInputRef.current.value = html;
@@ -8860,6 +8986,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           suppressScriptureDockDismiss();
                           editor.view.dispatch(tr);
 
+                          const resolved = resolveScripturePillMarkRangeFromBoundaries(editor, { from, to });
+                          await syncAdjacentScriptureQuotesForPillApply(
+                            editor,
+                            resolved.from,
+                            resolved.to,
+                            normRef,
+                            nextTranslation,
+                            pillAccent,
+                          );
+
                           const html = noteHtmlFromEditor(editor, true);
                           if (hiddenInputRef.current) {
                             hiddenInputRef.current.value = html;
@@ -8889,7 +9025,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             window.dispatchEvent(new CustomEvent('noteUpdated', { detail: { noteId: noteIdForApi } }));
                           }
 
-                          const resolved = resolveScripturePillMarkRangeFromBoundaries(editor, { from, to });
                           setStudyDockStack((s) =>
                             updateDockEntry(s, entry.id, (e) =>
                               e.kind === 'scripture'
@@ -8932,6 +9067,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           ),
                         );
                       }}
+                      onPassageQuoteToNote={
+                        entry.session.readOnly
+                          ? undefined
+                          : (payload) => handlePassageQuoteToNote(payload, entry.session)
+                      }
                       editorChromeMode={editorChromeMode}
                       onOpenPassageReference={(word, opts) => {
                         if (!sourceNoteId) return;

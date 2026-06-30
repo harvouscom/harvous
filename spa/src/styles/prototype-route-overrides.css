@@ -92,6 +92,16 @@ html.harvous-prototype-route [class*='proto-'] button .proto-footnote {
   color: var(--pds-text-secondary) !important;
 }
 
+/* Translation chip inside passage-context rows — beat blanket `button *` primary above */
+html.harvous-prototype-route [class*='proto-'] button .scripture-pill-chrome__trans-chip,
+html.harvous-prototype-route .passage-context-strip__row .scripture-pill-chrome__trans-chip {
+  color: var(--pds-text-secondary) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+}
+
 /* Settings nav icons — explicit colors (never inherit from button) */
 html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon span:not(.proto-admin-sidebar__badge),
 html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon svg,
