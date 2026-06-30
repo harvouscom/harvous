@@ -5,8 +5,8 @@ import { prototypeAdminRouteTo } from '@/lib/prototype-path';
 import { SettingsRow } from './SettingsShell';
 
 type Props = {
-  /** Pinned footer in the wide settings nav column. */
-  variant: 'nav' | 'row' | 'card';
+  /** Account card on the settings account page, or mobile settings list row. */
+  variant: 'row' | 'card';
 };
 
 export default function SettingsAdminShortcut({ variant }: Props) {
@@ -18,26 +18,6 @@ export default function SettingsAdminShortcut({ variant }: Props) {
   }
 
   const goAdmin = () => navigate({ to: prototypeAdminRouteTo() });
-
-  if (variant === 'nav') {
-    return (
-      <div className="proto-settings__nav-footer">
-        <button
-          type="button"
-          className="proto-settings__nav-item proto-settings__admin-shortcut"
-          onClick={goAdmin}
-        >
-          <span className="proto-settings__nav-icon" aria-hidden>
-            <Icon name="user-shield" size={15} />
-          </span>
-          <span className="proto-settings__admin-shortcut-text">
-            <span className="proto-settings__nav-title">Harvous Admin</span>
-            <span className="proto-settings__admin-shortcut-sub">Usage, pulse & more</span>
-          </span>
-        </button>
-      </div>
-    );
-  }
 
   if (variant === 'row') {
     return (

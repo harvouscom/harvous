@@ -2,7 +2,7 @@
  * Admin queries for SupportTickets inbox.
  */
 
-import { db, SupportTickets, eq, desc, count, and, isNull, or } from '../db';
+import { db, SupportTickets, UserMetadata, eq, desc, count, and, isNull, or } from '../db';
 import { nowISO } from '../db/dates';
 import { isSupportTicketStatus, type SupportTicketStatus } from './support-ticket';
 
@@ -26,6 +26,8 @@ export type SupportTicketDetail = SupportTicketListItem & {
   adminNote: string | null;
   adminReadAt: string | null;
   closedAt: string | null;
+  userTier: string | null;
+  userAccountCreatedAt: string | null;
 };
 
 export type SupportTicketListFilter = 'open' | 'closed' | 'all';
@@ -50,7 +52,10 @@ function mapListRow(row: typeof SupportTickets.$inferSelect): SupportTicketListI
   };
 }
 
-function mapDetailRow(row: typeof SupportTickets.$inferSelect): SupportTicketDetail {
+function mapDetailRow(
+  row: typeof SupportTickets.$inferSelect,
+  userMeta?: { tier: string | null; createdAt: Date | string | null } | null,
+): SupportTicketDetail {
   return {
     ...mapListRow(row),
     userId: row.userId,
@@ -60,6 +65,8 @@ function mapDetailRow(row: typeof SupportTickets.$inferSelect): SupportTicketDet
     adminNote: row.adminNote,
     adminReadAt: rowToIso(row.adminReadAt),
     closedAt: rowToIso(row.closedAt),
+    userTier: userMeta?.tier ?? null,
+    userAccountCreatedAt: rowToIso(userMeta?.createdAt ?? null),
   };
 }
 
@@ -134,17 +141,32 @@ export async function getSupportTicket(
   const resolvedId = await resolveSupportTicketId(id);
   if (!resolvedId) return null;
 
-  const rows = await db.select().from(SupportTickets).where(eq(SupportTickets.id, resolvedId)).limit(1);
+  const rows = await db
+    .select({
+      ticket: SupportTickets,
+      userTier: UserMetadata.tier,
+      userAccountCreatedAt: UserMetadata.createdAt,
+    })
+    .from(SupportTickets)
+    .leftJoin(UserMetadata, eq(SupportTickets.userId, UserMetadata.userId))
+    .where(eq(SupportTickets.id, resolvedId))
+    .limit(1);
   const row = rows[0];
   if (!row) return null;
 
-  if (options?.markRead && row.adminReadAt == null) {
+  if (options?.markRead && row.ticket.adminReadAt == null) {
     const readAt = nowISO();
     await db.update(SupportTickets).set({ adminReadAt: readAt }).where(eq(SupportTickets.id, resolvedId));
-    return mapDetailRow({ ...row, adminReadAt: readAt });
+    return mapDetailRow({ ...row.ticket, adminReadAt: readAt }, {
+      tier: row.userTier,
+      createdAt: row.userAccountCreatedAt,
+    });
   }
 
-  return mapDetailRow(row);
+  return mapDetailRow(row.ticket, {
+    tier: row.userTier,
+    createdAt: row.userAccountCreatedAt,
+  });
 }
 
 export type PatchSupportTicketInput = {

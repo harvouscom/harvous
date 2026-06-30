@@ -7,7 +7,6 @@ import { prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { readSettingsOpenerPath } from '../../../lib/prototype-settings-opener';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { SETTINGS_CATEGORIES } from './settingsCategories';
-import SettingsAdminShortcut from './SettingsAdminShortcut';
 
 function isSettingsIndexPath(pathname: string) {
   const settingsRoot = prototypeSettingsRouteTo();
@@ -68,7 +67,6 @@ export default function PrototypeSettingsLayout() {
           );
         })}
       </div>
-      <SettingsAdminShortcut variant="nav" />
     </nav>
   );
 

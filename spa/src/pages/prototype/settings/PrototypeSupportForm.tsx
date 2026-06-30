@@ -41,7 +41,7 @@ export default function PrototypeSupportForm({ initialTopic }: Props) {
         message,
         topic,
         appVersion: appVersionRaw(),
-        pageUrl: window.location.href,
+        pageUrl: document.referrer || undefined,
         clientEnvironment: collectSupportClientContext().clientEnvironment,
       });
       setMessage('');

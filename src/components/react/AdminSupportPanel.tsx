@@ -123,6 +123,26 @@ function formatWhen(iso: string): string {
   }
 }
 
+function formatTierLabel(tier: string): string {
+  if (tier === 'unlimited') return 'Unlimited';
+  if (tier === 'free') return 'Free';
+  return tier.charAt(0).toUpperCase() + tier.slice(1);
+}
+
+function formatMemberSince(iso: string): string {
+  try {
+    const date = new Date(iso);
+    const dateLabel = date.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    return `${dateLabel} · ${relativeWhen(iso)}`;
+  } catch {
+    return iso;
+  }
+}
+
 function relativeWhen(iso: string): string {
   if (!iso) return '—';
   try {
@@ -273,12 +293,26 @@ function TicketDetail({ ticketId, onClose }: { ticketId: string; onClose?: () =>
         ) : null}
         {ticket.pageUrl ? (
           <>
-            <dt>Page</dt>
+            <dt>Previous page</dt>
             <dd>
               <a href={ticket.pageUrl} target="_blank" rel="noopener noreferrer">
                 {ticket.pageUrl}
               </a>
             </dd>
+          </>
+        ) : null}
+        {ticket.userTier ? (
+          <>
+            <dt>Plan</dt>
+            <dd>
+              <SupportGlassChip>{formatTierLabel(ticket.userTier)}</SupportGlassChip>
+            </dd>
+          </>
+        ) : null}
+        {ticket.userAccountCreatedAt ? (
+          <>
+            <dt>Member since</dt>
+            <dd>{formatMemberSince(ticket.userAccountCreatedAt)}</dd>
           </>
         ) : null}
         {ticket.clientEnvironment ? (

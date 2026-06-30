@@ -9,7 +9,7 @@ import { formatSupportTicketRef } from '@/utils/support-tickets';
 import { isSupportTicketsTableMissing } from './pg-undefined-relation';
 
 const MAX_MESSAGE_LENGTH = 5000;
-const MAX_CLIENT_ENV_LENGTH = 200;
+const MAX_CLIENT_ENV_LENGTH = 400;
 
 export type SupportTicketStatus = 'open' | 'closed';
 

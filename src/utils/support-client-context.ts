@@ -7,7 +7,7 @@ export type SupportClientContext = {
   clientEnvironment: string;
 };
 
-const MAX_ENV_LENGTH = 200;
+const MAX_ENV_LENGTH = 400;
 
 function truncate(value: string, max = MAX_ENV_LENGTH): string {
   return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
@@ -54,6 +54,33 @@ function browserLabel(ua: string): string {
   return 'Unknown browser';
 }
 
+function viewportLabel(): string | null {
+  if (typeof window === 'undefined') return null;
+  return `${window.innerWidth}×${window.innerHeight}`;
+}
+
+function pixelRatioLabel(): string | null {
+  if (typeof window === 'undefined') return null;
+  const dpr = window.devicePixelRatio;
+  if (!Number.isFinite(dpr)) return null;
+  return `${dpr}x`;
+}
+
+function displayModeLabel(): string | null {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return null;
+  return window.matchMedia('(display-mode: standalone)').matches ? 'PWA' : 'Browser';
+}
+
+function onlineLabel(): string | null {
+  if (typeof navigator === 'undefined') return null;
+  return navigator.onLine ? 'Online' : 'Offline';
+}
+
+function localeLabel(): string | null {
+  if (typeof navigator === 'undefined') return null;
+  return navigator.language?.trim() || null;
+}
+
 /** Human-readable device · OS · browser string for admin triage. */
 export function collectSupportClientContext(): SupportClientContext {
   if (typeof navigator === 'undefined') {
@@ -62,9 +89,16 @@ export function collectSupportClientContext(): SupportClientContext {
 
   const ua = navigator.userAgent;
   const platform = navigator.platform ?? '';
-  const clientEnvironment = truncate(
-    [deviceClass(ua), osLabel(ua, platform), browserLabel(ua)].join(' · '),
-  );
+  const parts = [
+    deviceClass(ua),
+    osLabel(ua, platform),
+    browserLabel(ua),
+    viewportLabel(),
+    pixelRatioLabel(),
+    displayModeLabel(),
+    onlineLabel(),
+    localeLabel(),
+  ].filter((part): part is string => Boolean(part));
 
-  return { clientEnvironment };
+  return { clientEnvironment: truncate(parts.join(' · ')) };
 }

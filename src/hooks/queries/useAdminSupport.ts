@@ -53,6 +53,8 @@ export type SupportTicketDetail = SupportTicketListItem & {
   adminNote: string | null;
   adminReadAt: string | null;
   closedAt: string | null;
+  userTier: string | null;
+  userAccountCreatedAt: string | null;
 };
 
 export type SupportTicketsListResponse = {
