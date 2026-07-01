@@ -141070,6 +141070,23 @@ var requestId = ({
 // server/app.ts
 init_auth();
 
+// server/middleware/cors-origins.ts
+var CORS_ALLOWED_ORIGINS = /* @__PURE__ */ new Set([
+  "https://harvous.com",
+  "https://www.harvous.com",
+  "https://app.harvous.com",
+  "https://new.harvous.com",
+  "http://localhost:4321",
+  "http://localhost:4322",
+  "http://127.0.0.1:4321",
+  "http://127.0.0.1:4322",
+  "http://localhost:3001"
+]);
+function resolveCorsOrigin(requestOrigin) {
+  if (!requestOrigin) return null;
+  return CORS_ALLOWED_ORIGINS.has(requestOrigin) ? requestOrigin : null;
+}
+
 // server/routes/health.ts
 init_client();
 
@@ -141178,26 +141195,7 @@ var health_default = route;
 // server/routes/auth.ts
 init_auth();
 var route2 = new Hono2();
-var MARKETING_ORIGINS = /* @__PURE__ */ new Set([
-  "https://harvous.com",
-  "https://www.harvous.com",
-  "http://localhost:4321",
-  "http://127.0.0.1:4321"
-]);
-function setMarketingCors(c) {
-  const origin = c.req.header("Origin");
-  if (origin && MARKETING_ORIGINS.has(origin)) {
-    c.header("Access-Control-Allow-Origin", origin);
-    c.header("Access-Control-Allow-Credentials", "true");
-    c.header("Vary", "Origin");
-  }
-}
-route2.options("/api/auth/status", (c) => {
-  setMarketingCors(c);
-  return c.body(null, 204);
-});
 route2.get("/api/auth/status", (c) => {
-  setMarketingCors(c);
   const auth = getAuth(c);
   return c.json(
     { signedIn: Boolean(auth.userId) },
@@ -233865,7 +233863,13 @@ var diagnostics_default = route17;
 // server/app.ts
 var app15 = new Hono2();
 app15.use("/api/*", requestId());
-app15.use("/api/*", cors());
+app15.use(
+  "/api/*",
+  cors({
+    origin: (origin) => resolveCorsOrigin(origin),
+    credentials: true
+  })
+);
 app15.use("/api/*", clerkAuth);
 app15.use("/api/*", async (c, next) => {
   await next();
