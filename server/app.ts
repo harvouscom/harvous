@@ -16,6 +16,7 @@ import { clerkAuth } from './middleware/auth';
 
 // Routes
 import health from './routes/health';
+import auth from './routes/auth';
 import navigation from './routes/navigation';
 import debug from './routes/debug';
 import about from './routes/about';
@@ -66,6 +67,7 @@ app.use('/api/*', async (c, next) => {
 
 // Register routes
 app.route('/', health);
+app.route('/', auth);
 app.route('/', navigation);
 app.route('/', debug);
 app.route('/', about);

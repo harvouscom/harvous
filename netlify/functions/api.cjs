@@ -77144,7 +77144,7 @@ var require_color = __commonJS({
       fn.conversion = path;
       return fn;
     }
-    function route17(fromModel) {
+    function route18(fromModel) {
       const graph = deriveBFS(fromModel);
       const conversion = {};
       const models2 = Object.keys(graph);
@@ -77158,7 +77158,7 @@ var require_color = __commonJS({
       }
       return conversion;
     }
-    var route_default = route17;
+    var route_default = route18;
     var convert2 = {};
     var models = Object.keys(conversions_default);
     function wrapRaw(fn) {
@@ -139475,7 +139475,7 @@ var HonoRequest = class {
    * ```
    */
   get matchedRoutes() {
-    return this.#matchResult[0].map(([[, route17]]) => route17);
+    return this.#matchResult[0].map(([[, route18]]) => route18);
   }
   /**
    * `routePath()` can retrieve the path registered within the handler
@@ -139494,7 +139494,7 @@ var HonoRequest = class {
    * ```
    */
   get routePath() {
-    return this.#matchResult[0].map(([[, route17]]) => route17)[this.routeIndex].path;
+    return this.#matchResult[0].map(([[, route18]]) => route18)[this.routeIndex].path;
   }
 };
 
@@ -140535,7 +140535,7 @@ function buildMatcherFromPreprocessedRoutes(routes) {
     return nullMatcher;
   }
   const routesWithStaticPathFlag = routes.map(
-    (route17) => [!/\*|\/:/.test(route17[0]), ...route17]
+    (route18) => [!/\*|\/:/.test(route18[0]), ...route18]
   ).sort(
     ([isStaticA, pathA], [isStaticB, pathB]) => isStaticA ? 1 : isStaticB ? -1 : pathA.length - pathB.length
   );
@@ -141174,6 +141174,38 @@ route.get("/api/health", async (c) => {
   );
 });
 var health_default = route;
+
+// server/routes/auth.ts
+init_auth();
+var route2 = new Hono2();
+var MARKETING_ORIGINS = /* @__PURE__ */ new Set([
+  "https://harvous.com",
+  "https://www.harvous.com",
+  "http://localhost:4321",
+  "http://127.0.0.1:4321"
+]);
+function setMarketingCors(c) {
+  const origin = c.req.header("Origin");
+  if (origin && MARKETING_ORIGINS.has(origin)) {
+    c.header("Access-Control-Allow-Origin", origin);
+    c.header("Access-Control-Allow-Credentials", "true");
+    c.header("Vary", "Origin");
+  }
+}
+route2.options("/api/auth/status", (c) => {
+  setMarketingCors(c);
+  return c.body(null, 204);
+});
+route2.get("/api/auth/status", (c) => {
+  setMarketingCors(c);
+  const auth = getAuth(c);
+  return c.json(
+    { signedIn: Boolean(auth.userId) },
+    200,
+    { "Cache-Control": "private, no-store, no-cache, must-revalidate" }
+  );
+});
+var auth_default = route2;
 
 // server/routes/navigation.ts
 init_auth();
@@ -143402,8 +143434,8 @@ async function repairMissingNoteThreadJunctionsForUser(userId) {
 
 // server/routes/navigation.ts
 init_my_pile_thread();
-var route2 = new Hono2();
-route2.get("/api/navigation/data", async (c) => {
+var route3 = new Hono2();
+route3.get("/api/navigation/data", async (c) => {
   try {
     const auth = getAuth(c);
     const { userId } = auth;
@@ -143484,13 +143516,13 @@ route2.get("/api/navigation/data", async (c) => {
     }
   }
 });
-var navigation_default = route2;
+var navigation_default = route3;
 
 // server/routes/debug.ts
 init_auth();
 init_db2();
-var route3 = new Hono2();
-route3.get("/api/debug/request-headers", (c) => {
+var route4 = new Hono2();
+route4.get("/api/debug/request-headers", (c) => {
   if (process.env.NODE_ENV === "production") {
     return c.body(null, 404);
   }
@@ -143509,7 +143541,7 @@ route3.get("/api/debug/request-headers", (c) => {
     { "Cache-Control": "no-store" }
   );
 });
-route3.get("/api/debug/me", async (c) => {
+route4.get("/api/debug/me", async (c) => {
   const auth = getAuth(c);
   if (!auth.userId) {
     return c.json({ hasUserId: false, message: "Not authenticated" }, 200, { "Cache-Control": "no-store" });
@@ -143545,7 +143577,7 @@ route3.get("/api/debug/me", async (c) => {
     return c.json({ hasUserId: true, userIdPrefix: auth.userId.slice(0, 12), error: message }, 500, { "Cache-Control": "no-store" });
   }
 });
-var debug_default = route3;
+var debug_default = route4;
 
 // node_modules/marked/lib/marked.esm.js
 function M() {
@@ -144783,8 +144815,8 @@ var founder_letter_inline_generated_default = "It means a lot that you're here.\
 var founder_letter_inline_default = founder_letter_inline_generated_default;
 
 // server/routes/about.ts
-var route4 = new Hono2();
-route4.get("/api/about/founder-letter", async (c) => {
+var route5 = new Hono2();
+route5.get("/api/about/founder-letter", async (c) => {
   const html = markdownToHtml(founder_letter_inline_default);
   return c.json(
     { html },
@@ -144792,7 +144824,7 @@ route4.get("/api/about/founder-letter", async (c) => {
     { "Cache-Control": "public, max-age=86400" }
   );
 });
-var about_default = route4;
+var about_default = route5;
 
 // server/routes/og.ts
 init_db2();
@@ -144844,11 +144876,11 @@ function renderNotFoundOgHtml(canonicalUrl) {
 }
 
 // server/routes/og.ts
-var route5 = new Hono2();
-route5.get("/api/og/referral/:code", (c) => {
+var route6 = new Hono2();
+route6.get("/api/og/referral/:code", (c) => {
   return c.text("OG image temporarily disabled", 200);
 });
-route5.get("/api/og/share/note/:shareToken", async (c) => {
+route6.get("/api/og/share/note/:shareToken", async (c) => {
   const shareToken = c.req.param("shareToken");
   const origin = new URL(c.req.url).origin;
   const canonicalUrl = `${origin}/shared/note/${shareToken}`;
@@ -144863,7 +144895,7 @@ route5.get("/api/og/share/note/:shareToken", async (c) => {
     canonicalUrl
   }), 200);
 });
-route5.get("/api/og/share/thread/:shareToken", async (c) => {
+route6.get("/api/og/share/thread/:shareToken", async (c) => {
   const shareToken = c.req.param("shareToken");
   const origin = new URL(c.req.url).origin;
   const canonicalUrl = `${origin}/shared/thread/${shareToken}`;
@@ -144878,12 +144910,12 @@ route5.get("/api/og/share/thread/:shareToken", async (c) => {
     canonicalUrl
   }), 200);
 });
-var og_default = route5;
+var og_default = route6;
 
 // server/routes/stats.ts
 init_dist();
-var route6 = new Hono2();
-route6.get("/api/stats/user-count", async (c) => {
+var route7 = new Hono2();
+route7.get("/api/stats/user-count", async (c) => {
   const corsHeaders = {
     "Access-Control-Allow-Origin": "https://www.harvous.com",
     "Access-Control-Allow-Methods": "GET"
@@ -144917,7 +144949,7 @@ route6.get("/api/stats/user-count", async (c) => {
     );
   }
 });
-var stats_default = route6;
+var stats_default = route7;
 
 // server/routes/search.ts
 init_auth();
@@ -144928,8 +144960,8 @@ var MIN_SEARCH_QUERY_LENGTH = 3;
 
 // server/routes/search.ts
 init_note_secondary_collections();
-var route7 = new Hono2();
-route7.get("/api/search", requireAuth, async (c) => {
+var route8 = new Hono2();
+route8.get("/api/search", requireAuth, async (c) => {
   try {
     const { userId } = getAuthenticatedAuth(c);
     const url = new URL(c.req.url);
@@ -145122,12 +145154,12 @@ route7.get("/api/search", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var search_default = route7;
+var search_default = route8;
 
 // server/routes/content.ts
 init_auth();
-var route8 = new Hono2();
-route8.get("/api/content/load-more", async (c) => {
+var route9 = new Hono2();
+route9.get("/api/content/load-more", async (c) => {
   try {
     const auth = getAuth(c);
     if (!auth.userId) {
@@ -145187,7 +145219,7 @@ route8.get("/api/content/load-more", async (c) => {
     }
   }
 });
-var content_default = route8;
+var content_default = route9;
 
 // server/routes/threads.ts
 init_auth();
@@ -147158,7 +147190,7 @@ function invalidationFromMutation(m2) {
 }
 
 // server/routes/threads.ts
-var route9 = new Hono2();
+var route10 = new Hono2();
 var ERASE_NOTE_CHUNK = 2e3;
 function parseSelectedNoteIds(raw2) {
   if (!raw2) return [];
@@ -147221,7 +147253,7 @@ async function addNotesToThread(noteIds, threadId, userId) {
     console.error("Error adding notes to thread:", error);
   }
 }
-route9.get("/api/threads/list", requireAuth, async (c) => {
+route10.get("/api/threads/list", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     await repairMissingNoteThreadJunctionsForUser(auth.userId);
@@ -147258,7 +147290,7 @@ route9.get("/api/threads/list", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.post("/api/threads/create", requireAuth, rateLimit("write"), async (c) => {
+route10.post("/api/threads/create", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const formData = await c.req.formData();
@@ -147317,7 +147349,7 @@ route9.post("/api/threads/create", requireAuth, rateLimit("write"), async (c) =>
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.post("/api/threads/update", requireAuth, rateLimit("write"), async (c) => {
+route10.post("/api/threads/update", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const formData = await c.req.formData();
@@ -147361,7 +147393,7 @@ route9.post("/api/threads/update", requireAuth, rateLimit("write"), async (c) =>
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.delete("/api/threads/delete", requireAuth, rateLimit("write"), async (c) => {
+route10.delete("/api/threads/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const threadId = c.req.query("threadId");
@@ -147402,7 +147434,7 @@ route9.delete("/api/threads/delete", requireAuth, rateLimit("write"), async (c) 
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.post("/api/threads/ensure-unorganized", requireAuth, async (c) => {
+route10.post("/api/threads/ensure-unorganized", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const existingThread = first(await db.select().from(Threads).where(and(eq(Threads.userId, auth.userId), eq(Threads.id, "thread_unorganized"))).limit(1));
@@ -147437,7 +147469,7 @@ route9.post("/api/threads/ensure-unorganized", requireAuth, async (c) => {
     return c.json({ error: "Failed to ensure unorganized thread exists" }, 500);
   }
 });
-route9.delete("/api/threads/erase-with-notes", requireAuth, rateLimit("write"), async (c) => {
+route10.delete("/api/threads/erase-with-notes", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const threadId = c.req.query("threadId");
@@ -147468,7 +147500,7 @@ route9.delete("/api/threads/erase-with-notes", requireAuth, rateLimit("write"), 
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.get("/api/threads/:threadId/prefetch", requireAuth, async (c) => {
+route10.get("/api/threads/:threadId/prefetch", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     let threadId = requireParam(c, "threadId");
@@ -147539,7 +147571,7 @@ route9.get("/api/threads/:threadId/prefetch", requireAuth, async (c) => {
     return c.json({ error: "Failed to fetch thread data", details: error.message }, 500);
   }
 });
-route9.get("/api/threads/:threadId/note-type-counts", requireAuth, async (c) => {
+route10.get("/api/threads/:threadId/note-type-counts", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     let threadId = requireParam(c, "threadId");
@@ -147565,7 +147597,7 @@ route9.get("/api/threads/:threadId/note-type-counts", requireAuth, async (c) => 
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.post("/api/threads/:threadId/visit", requireAuth, async (c) => {
+route10.post("/api/threads/:threadId/visit", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     let threadId = requireParam(c, "threadId");
@@ -147586,7 +147618,7 @@ route9.post("/api/threads/:threadId/visit", requireAuth, async (c) => {
     return c.json({ error: error.message || "Failed to update visit" }, 500);
   }
 });
-route9.get("/api/threads/:threadId/notes", requireAuth, async (c) => {
+route10.get("/api/threads/:threadId/notes", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     let threadId = requireParam(c, "threadId");
@@ -147621,7 +147653,7 @@ route9.get("/api/threads/:threadId/notes", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.get("/api/threads/:threadId/share", requireAuth, async (c) => {
+route10.get("/api/threads/:threadId/share", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const threadId = requireParam(c, "threadId");
@@ -147646,7 +147678,7 @@ route9.get("/api/threads/:threadId/share", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.post("/api/threads/:threadId/share", requireAuth, async (c) => {
+route10.post("/api/threads/:threadId/share", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const threadId = requireParam(c, "threadId");
@@ -147687,7 +147719,7 @@ route9.post("/api/threads/:threadId/share", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.get("/api/threads/:threadId/referenced-scripture-notes", requireAuth, async (c) => {
+route10.get("/api/threads/:threadId/referenced-scripture-notes", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const noteIdsParam = c.req.query("noteIds");
@@ -147702,7 +147734,7 @@ route9.get("/api/threads/:threadId/referenced-scripture-notes", requireAuth, asy
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var threads_default = route9;
+var threads_default = route10;
 
 // server/routes/notes.ts
 init_auth();
@@ -161267,7 +161299,7 @@ async function recordNoteRecallEngaged(userId, noteId) {
 init_tag_helpers();
 init_bible_study_concept_overlaps();
 init_note_secondary_collections();
-var route10 = new Hono2();
+var route11 = new Hono2();
 function noteJsonWithParsedSecondaries(note) {
   const raw2 = note.secondaryCollections;
   return {
@@ -161298,7 +161330,7 @@ var truncateAndCapitalizeTitle = (title) => {
   const truncated = title.slice(0, TITLE_HARD_LIMIT);
   return truncated.charAt(0).toUpperCase() + truncated.slice(1);
 };
-route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) => {
+route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const contentType = c.req.raw.headers.get("content-type") ?? "";
@@ -161606,7 +161638,7 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
     return c.json({ error: error.message || "Failed to create note" }, 500);
   }
 });
-route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
+route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
@@ -161767,7 +161799,7 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     return c.json({ error: error.message || "Failed to update note" }, 500);
   }
 });
-route10.post("/api/notes/connect-link", requireAuth, rateLimit("write"), async (c) => {
+route11.post("/api/notes/connect-link", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -161851,7 +161883,7 @@ route10.post("/api/notes/connect-link", requireAuth, rateLimit("write"), async (
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.delete("/api/notes/connect-link", requireAuth, rateLimit("write"), async (c) => {
+route11.delete("/api/notes/connect-link", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -161895,7 +161927,7 @@ route10.delete("/api/notes/connect-link", requireAuth, rateLimit("write"), async
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.post("/api/notes/migrate-connections", requireAuth, async (c) => {
+route11.post("/api/notes/migrate-connections", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { migrated, skipped } = await migrateLinkedFromNoteConnectionsForUser(auth.userId);
@@ -161905,7 +161937,7 @@ route10.post("/api/notes/migrate-connections", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.get("/api/notes/:id/thread", requireAuth, async (c) => {
+route11.get("/api/notes/:id/thread", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const focusNoteId = normalizeServerNoteId(requireParam(c, "id"));
@@ -161977,7 +162009,7 @@ route10.get("/api/notes/:id/thread", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.patch("/api/notes/:id/thread/member-order", requireAuth, rateLimit("write"), async (c) => {
+route11.patch("/api/notes/:id/thread/member-order", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const focusNoteId = normalizeServerNoteId(requireParam(c, "id"));
@@ -162025,7 +162057,7 @@ route10.patch("/api/notes/:id/thread/member-order", requireAuth, rateLimit("writ
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.patch("/api/notes/:id/study-thread-title", requireAuth, rateLimit("write"), async (c) => {
+route11.patch("/api/notes/:id/study-thread-title", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const noteId = normalizeServerNoteId(requireParam(c, "id"));
@@ -162110,7 +162142,7 @@ route10.patch("/api/notes/:id/study-thread-title", requireAuth, rateLimit("write
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.delete("/api/notes/delete", requireAuth, rateLimit("write"), async (c) => {
+route11.delete("/api/notes/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const noteId = c.req.query("noteId");
@@ -162147,7 +162179,7 @@ route10.delete("/api/notes/delete", requireAuth, rateLimit("write"), async (c) =
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.get("/api/notes/next-id", requireAuth, async (c) => {
+route11.get("/api/notes/next-id", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
@@ -162173,7 +162205,7 @@ route10.get("/api/notes/next-id", requireAuth, async (c) => {
     return c.json({ error: error.message || "Failed to get next note ID" }, 500);
   }
 });
-route10.get("/api/notes/recent", requireAuth, async (c) => {
+route11.get("/api/notes/recent", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const limitParam = c.req.query("limit");
@@ -162211,7 +162243,7 @@ route10.get("/api/notes/recent", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.get("/api/notes/fingerprints", requireAuth, async (c) => {
+route11.get("/api/notes/fingerprints", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const fingerprints = await getUserNoteFingerprints(auth.userId);
@@ -162236,7 +162268,7 @@ route10.get("/api/notes/fingerprints", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.get("/api/notes/crossref-gaps", requireAuth, async (c) => {
+route11.get("/api/notes/crossref-gaps", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gaps = await getCrossRefGaps(auth.userId, { limit: 5 });
@@ -162246,7 +162278,7 @@ route10.get("/api/notes/crossref-gaps", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.get("/api/notes/connect-suggestions", requireAuth, async (c) => {
+route11.get("/api/notes/connect-suggestions", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const suggestions = await getConnectSuggestions(auth.userId, { limit: 3 });
@@ -162256,7 +162288,7 @@ route10.get("/api/notes/connect-suggestions", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.post("/api/notes/recall-engaged", requireAuth, rateLimit("write"), async (c) => {
+route11.post("/api/notes/recall-engaged", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { noteId } = await c.req.json();
@@ -162278,7 +162310,7 @@ route10.post("/api/notes/recall-engaged", requireAuth, rateLimit("write"), async
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.post("/api/notes/auto-tags", requireAuth, rateLimit("write"), async (c) => {
+route11.post("/api/notes/auto-tags", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { noteId, noteTitle, noteContent, action = "generate" } = await c.req.json();
@@ -162317,7 +162349,7 @@ route10.post("/api/notes/auto-tags", requireAuth, rateLimit("write"), async (c) 
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-route10.post("/api/notes/cleanup-upgrade-note", requireAuth, rateLimit("write"), async (c) => {
+route11.post("/api/notes/cleanup-upgrade-note", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { noteId, simpleNoteId } = await c.req.json();
@@ -162350,7 +162382,7 @@ route10.post("/api/notes/cleanup-upgrade-note", requireAuth, rateLimit("write"),
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.delete("/api/notes/delete-all-unorganized", requireAuth, rateLimit("write"), async (c) => {
+route11.delete("/api/notes/delete-all-unorganized", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const unorgNotes = await db.select({ id: Notes.id, createdAt: Notes.createdAt }).from(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.threadId, "thread_unorganized")));
@@ -162377,7 +162409,7 @@ route10.delete("/api/notes/delete-all-unorganized", requireAuth, rateLimit("writ
     return c.json({ error: "Failed to erase notes from unorganized thread" }, 500);
   }
 });
-route10.post("/api/notes/suggest-threads", requireAuth, rateLimit("write"), async (c) => {
+route11.post("/api/notes/suggest-threads", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
@@ -162454,7 +162486,7 @@ route10.post("/api/notes/suggest-threads", requireAuth, rateLimit("write"), asyn
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.get("/api/notes/:id/tags", requireAuth, async (c) => {
+route11.get("/api/notes/:id/tags", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const noteId = requireParam(c, "id");
@@ -162480,7 +162512,7 @@ route10.get("/api/notes/:id/tags", requireAuth, async (c) => {
     return c.json({ error: error.message || "Failed to load note tags" }, 500);
   }
 });
-route10.get("/api/notes/:id/details", requireAuth, async (c) => {
+route11.get("/api/notes/:id/details", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const noteId = requireParam(c, "id");
@@ -162776,7 +162808,7 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.post("/api/notes/:id/update-content", requireAuth, rateLimit("write"), async (c) => {
+route11.post("/api/notes/:id/update-content", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const id = requireParam(c, "id");
@@ -162806,7 +162838,7 @@ route10.post("/api/notes/:id/update-content", requireAuth, rateLimit("write"), a
     return c.json({ success: false, error: "Internal server error" }, 500);
   }
 });
-route10.post("/api/notes/:noteId/inline-image", requireAuth, rateLimit("write"), async (c) => {
+route11.post("/api/notes/:noteId/inline-image", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const noteId = requireParam(c, "noteId");
@@ -162840,7 +162872,7 @@ route10.post("/api/notes/:noteId/inline-image", requireAuth, rateLimit("write"),
     return c.json({ success: false, error: "Internal server error" }, 500);
   }
 });
-route10.post("/api/notes/:id/add-thread", requireAuth, rateLimit("write"), async (c) => {
+route11.post("/api/notes/:id/add-thread", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const id = requireParam(c, "id");
@@ -162875,7 +162907,7 @@ route10.post("/api/notes/:id/add-thread", requireAuth, rateLimit("write"), async
     return c.json({ success: false, error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.post("/api/notes/:id/remove-thread", requireAuth, rateLimit("write"), async (c) => {
+route11.post("/api/notes/:id/remove-thread", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const id = requireParam(c, "id");
@@ -162933,7 +162965,7 @@ route10.post("/api/notes/:id/remove-thread", requireAuth, rateLimit("write"), as
     return c.json({ success: false, error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.post("/api/notes/:id/process-scripture-references", requireAuth, rateLimit("write"), async (c) => {
+route11.post("/api/notes/:id/process-scripture-references", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const noteId = requireParam(c, "id");
@@ -162969,7 +163001,7 @@ route10.post("/api/notes/:id/process-scripture-references", requireAuth, rateLim
     return c.json({ error: error.message || "Error processing scripture references" }, 500);
   }
 });
-route10.post("/api/notes/:noteId/visit", requireAuth, async (c) => {
+route11.post("/api/notes/:noteId/visit", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     let noteId = requireParam(c, "noteId");
@@ -162996,7 +163028,7 @@ route10.post("/api/notes/:noteId/visit", requireAuth, async (c) => {
     return c.json({ error: error.message || "Failed to update visit" }, 500);
   }
 });
-route10.get("/api/notes/:noteId/share", requireAuth, async (c) => {
+route11.get("/api/notes/:noteId/share", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const noteId = requireParam(c, "noteId");
@@ -163041,7 +163073,7 @@ route10.get("/api/notes/:noteId/share", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.post("/api/notes/:noteId/share", requireAuth, rateLimit("write"), async (c) => {
+route11.post("/api/notes/:noteId/share", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const noteId = requireParam(c, "noteId");
@@ -163089,14 +163121,14 @@ route10.post("/api/notes/:noteId/share", requireAuth, rateLimit("write"), async 
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var notes_default = route10;
+var notes_default = route11;
 
 // server/routes/study-threads.ts
 init_auth();
 init_db2();
 init_dates();
 init_scripture_detector();
-var route11 = new Hono2();
+var route12 = new Hono2();
 var ENTRY_KINDS = /* @__PURE__ */ new Set(["workspace", "miniNote", "linkedNote", "scriptureLink", "reference"]);
 async function touchParentNoteEditedAt(parentNoteId, userId) {
   await db.update(Notes).set({ updatedAt: nowISO() }).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, userId)));
@@ -163128,7 +163160,7 @@ function mapStudyRow(row) {
     updatedAt: row.updatedAt
   };
 }
-route11.get("/api/notes/:parentNoteId/study-threads", requireAuth, async (c) => {
+route12.get("/api/notes/:parentNoteId/study-threads", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const parentNoteId = c.req.param("parentNoteId");
@@ -163146,7 +163178,7 @@ route11.get("/api/notes/:parentNoteId/study-threads", requireAuth, async (c) => 
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-route11.get("/api/notes/:parentNoteId/study-threads/by-scripture", requireAuth, async (c) => {
+route12.get("/api/notes/:parentNoteId/study-threads/by-scripture", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const parentNoteId = c.req.param("parentNoteId");
@@ -163175,7 +163207,7 @@ route11.get("/api/notes/:parentNoteId/study-threads/by-scripture", requireAuth, 
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-route11.post("/api/notes/:parentNoteId/study-threads", requireAuth, rateLimit("write"), async (c) => {
+route12.post("/api/notes/:parentNoteId/study-threads", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const parentNoteId = c.req.param("parentNoteId");
@@ -163242,7 +163274,7 @@ route11.post("/api/notes/:parentNoteId/study-threads", requireAuth, rateLimit("w
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-route11.patch("/api/study-threads/:id", requireAuth, rateLimit("write"), async (c) => {
+route12.patch("/api/study-threads/:id", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const id = c.req.param("id");
@@ -163283,7 +163315,7 @@ route11.patch("/api/study-threads/:id", requireAuth, rateLimit("write"), async (
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-route11.delete("/api/study-threads/:id", requireAuth, rateLimit("write"), async (c) => {
+route12.delete("/api/study-threads/:id", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const id = c.req.param("id");
@@ -163311,7 +163343,7 @@ route11.delete("/api/study-threads/:id", requireAuth, rateLimit("write"), async 
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-var study_threads_default = route11;
+var study_threads_default = route12;
 
 // server/routes/spaces.ts
 init_drizzle_orm();
@@ -164016,7 +164048,7 @@ function buildSpaceReferencesIndex(notes) {
 // server/routes/spaces.ts
 init_pg_undefined_relation();
 init_html_stripper();
-var route12 = new Hono2();
+var route13 = new Hono2();
 function normalizePrototypeSpaceId(spaceIdRaw) {
   return spaceIdRaw.startsWith("space_") ? spaceIdRaw : `space_${spaceIdRaw}`;
 }
@@ -164034,7 +164066,7 @@ function parseItemIds(raw2) {
   }
   return trimmed.split(",").filter((id) => id.trim());
 }
-route12.post("/api/spaces/create", requireAuth, rateLimit("write"), async (c) => {
+route13.post("/api/spaces/create", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const formData = await c.req.formData();
@@ -164099,7 +164131,7 @@ route12.post("/api/spaces/create", requireAuth, rateLimit("write"), async (c) =>
     return c.json({ error: error.message || "Error creating space" }, 500);
   }
 });
-route12.delete("/api/spaces/delete", requireAuth, async (c) => {
+route13.delete("/api/spaces/delete", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = c.req.query("spaceId");
@@ -164123,7 +164155,7 @@ route12.delete("/api/spaces/delete", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/items", requireAuth, async (c) => {
+route13.get("/api/spaces/items", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const allNotesRaw = await db.select({
@@ -164217,7 +164249,7 @@ route12.get("/api/spaces/items", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.post("/api/spaces/:spaceId/update", requireAuth, rateLimit("write"), async (c) => {
+route13.post("/api/spaces/:spaceId/update", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -164252,7 +164284,7 @@ route12.post("/api/spaces/:spaceId/update", requireAuth, rateLimit("write"), asy
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/notes", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/notes", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -164270,7 +164302,7 @@ route12.get("/api/spaces/:spaceId/notes", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/folder-registry", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/folder-registry", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
@@ -164291,7 +164323,7 @@ route12.get("/api/spaces/:spaceId/folder-registry", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.post("/api/spaces/:spaceId/folders/create", requireAuth, rateLimit("write"), async (c) => {
+route13.post("/api/spaces/:spaceId/folders/create", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
@@ -164324,7 +164356,7 @@ route12.post("/api/spaces/:spaceId/folders/create", requireAuth, rateLimit("writ
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.post("/api/spaces/:spaceId/folder-registry/remove-label", requireAuth, rateLimit("write"), async (c) => {
+route13.post("/api/spaces/:spaceId/folder-registry/remove-label", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
@@ -164354,7 +164386,7 @@ route12.post("/api/spaces/:spaceId/folder-registry/remove-label", requireAuth, r
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.post("/api/spaces/:spaceId/folders/remove", requireAuth, rateLimit("write"), async (c) => {
+route13.post("/api/spaces/:spaceId/folders/remove", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
@@ -164429,7 +164461,7 @@ route12.post("/api/spaces/:spaceId/folders/remove", requireAuth, rateLimit("writ
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.post("/api/spaces/:spaceId/threads/remove", requireAuth, rateLimit("write"), async (c) => {
+route13.post("/api/spaces/:spaceId/threads/remove", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
@@ -164484,7 +164516,7 @@ route12.post("/api/spaces/:spaceId/threads/remove", requireAuth, rateLimit("writ
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/study-thread-highlights", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/study-thread-highlights", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
@@ -164544,7 +164576,7 @@ route12.get("/api/spaces/:spaceId/study-thread-highlights", requireAuth, async (
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/scripture-index", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/scripture-index", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
@@ -164588,7 +164620,7 @@ route12.get("/api/spaces/:spaceId/scripture-index", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/scripture-connections", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/scripture-connections", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
@@ -164633,7 +164665,7 @@ route12.get("/api/spaces/:spaceId/scripture-connections", requireAuth, async (c)
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/reference-word-connections", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/reference-word-connections", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
@@ -164655,7 +164687,7 @@ route12.get("/api/spaces/:spaceId/reference-word-connections", requireAuth, asyn
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/references-index", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/references-index", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
@@ -164690,7 +164722,7 @@ route12.get("/api/spaces/:spaceId/references-index", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/study-threads/by-scripture", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/study-threads/by-scripture", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
@@ -164746,7 +164778,7 @@ route12.get("/api/spaces/:spaceId/study-threads/by-scripture", requireAuth, asyn
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/study-threads", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/study-threads", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdRaw = requireParam(c, "spaceId");
@@ -164880,7 +164912,7 @@ route12.get("/api/spaces/:spaceId/study-threads", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/connect-note-candidates", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/connect-note-candidates", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdRaw = requireParam(c, "spaceId");
@@ -164928,7 +164960,7 @@ route12.get("/api/spaces/:spaceId/connect-note-candidates", requireAuth, async (
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/items", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/items", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -164957,7 +164989,7 @@ route12.get("/api/spaces/:spaceId/items", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/bootstrap", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/bootstrap", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -164995,7 +165027,7 @@ route12.get("/api/spaces/:spaceId/bootstrap", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/prefetch", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/prefetch", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -165039,7 +165071,7 @@ route12.get("/api/spaces/:spaceId/prefetch", requireAuth, async (c) => {
     return c.json({ error: "Failed to fetch space data" }, 500);
   }
 });
-route12.post("/api/spaces/:spaceId/add-note", requireAuth, rateLimit("write"), async (c) => {
+route13.post("/api/spaces/:spaceId/add-note", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -165061,7 +165093,7 @@ route12.post("/api/spaces/:spaceId/add-note", requireAuth, rateLimit("write"), a
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.post("/api/spaces/:spaceId/add-thread", requireAuth, rateLimit("write"), async (c) => {
+route13.post("/api/spaces/:spaceId/add-thread", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -165085,7 +165117,7 @@ route12.post("/api/spaces/:spaceId/add-thread", requireAuth, rateLimit("write"),
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.post("/api/spaces/:spaceId/add-items", requireAuth, async (c) => {
+route13.post("/api/spaces/:spaceId/add-items", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -165143,7 +165175,7 @@ route12.post("/api/spaces/:spaceId/add-items", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.post("/api/spaces/:spaceId/remove-items", requireAuth, async (c) => {
+route13.post("/api/spaces/:spaceId/remove-items", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -165203,7 +165235,7 @@ route12.post("/api/spaces/:spaceId/remove-items", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.post("/api/spaces/:spaceId/pin-item", requireAuth, async (c) => {
+route13.post("/api/spaces/:spaceId/pin-item", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -165238,7 +165270,7 @@ route12.post("/api/spaces/:spaceId/pin-item", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/share-link", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/share-link", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -165266,7 +165298,7 @@ route12.get("/api/spaces/:spaceId/share-link", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.post("/api/spaces/:spaceId/share-link", requireAuth, rateLimit("write"), async (c) => {
+route13.post("/api/spaces/:spaceId/share-link", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -165283,7 +165315,7 @@ route12.post("/api/spaces/:spaceId/share-link", requireAuth, rateLimit("write"),
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/:spaceId/members", requireAuth, async (c) => {
+route13.get("/api/spaces/:spaceId/members", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -165372,7 +165404,7 @@ route12.get("/api/spaces/:spaceId/members", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.post("/api/spaces/:spaceId/members/invite", requireAuth, rateLimit("write"), async (c) => {
+route13.post("/api/spaces/:spaceId/members/invite", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -165412,7 +165444,7 @@ route12.post("/api/spaces/:spaceId/members/invite", requireAuth, rateLimit("writ
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.delete("/api/spaces/:spaceId/members/:userId", requireAuth, rateLimit("write"), async (c) => {
+route13.delete("/api/spaces/:spaceId/members/:userId", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -165432,7 +165464,7 @@ route12.delete("/api/spaces/:spaceId/members/:userId", requireAuth, rateLimit("w
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.post("/api/spaces/join/:token", requireAuth, rateLimit("write"), async (c) => {
+route13.post("/api/spaces/join/:token", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const token = requireParam(c, "token");
@@ -165461,7 +165493,7 @@ route12.post("/api/spaces/join/:token", requireAuth, rateLimit("write"), async (
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route12.get("/api/spaces/join-preview/:token", async (c) => {
+route13.get("/api/spaces/join-preview/:token", async (c) => {
   try {
     const token = requireParam(c, "token");
     const space = first(await db.select().from(Spaces).where(eq(Spaces.shareToken, token)).limit(1));
@@ -165566,7 +165598,7 @@ route12.get("/api/spaces/join-preview/:token", async (c) => {
     return c.json({ error: "Failed to load space preview" }, 500);
   }
 });
-var spaces_default = route12;
+var spaces_default = route13;
 
 // server/routes/user.ts
 init_auth();
@@ -182581,9 +182613,9 @@ function aggregateEvents(rows) {
 function topRoute(acc) {
   let best = null;
   let bestCount = 0;
-  for (const [route17, cnt] of acc.routeCounts) {
+  for (const [route18, cnt] of acc.routeCounts) {
     if (cnt > bestCount) {
-      best = route17;
+      best = route18;
       bestCount = cnt;
     }
   }
@@ -233540,11 +233572,11 @@ var eastons_default = [
 ];
 
 // server/routes/dictionary.ts
-var route13 = new Hono2();
+var route14 = new Hono2();
 var entryMap = new Map(
   eastons_default.map((e) => [e.slug, e])
 );
-route13.get("/api/dictionary/eastons/index", async (c) => {
+route14.get("/api/dictionary/eastons/index", async (c) => {
   try {
     c.header("Cache-Control", "public, max-age=604800, immutable");
     return c.json({ success: true, entries: eastons_slug_index_default });
@@ -233553,7 +233585,7 @@ route13.get("/api/dictionary/eastons/index", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-route13.get("/api/dictionary/eastons/:slug", async (c) => {
+route14.get("/api/dictionary/eastons/:slug", async (c) => {
   try {
     const slug = c.req.param("slug");
     const entry = entryMap.get(slug);
@@ -233565,7 +233597,7 @@ route13.get("/api/dictionary/eastons/:slug", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-var dictionary_default = route13;
+var dictionary_default = route14;
 
 // server/routes/recall.ts
 init_auth();
@@ -233615,8 +233647,8 @@ async function recordRecallEvent(userId, input) {
 }
 
 // server/routes/recall.ts
-var route14 = new Hono2();
-route14.post("/api/recall/event", requireAuth, rateLimit("write"), async (c) => {
+var route15 = new Hono2();
+route15.post("/api/recall/event", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
@@ -233631,12 +233663,12 @@ route14.post("/api/recall/event", requireAuth, rateLimit("write"), async (c) => 
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var recall_default = route14;
+var recall_default = route15;
 
 // server/routes/support.ts
 init_auth();
-var route15 = new Hono2();
-route15.post("/api/support/tickets", requireAuth, rateLimit("write"), async (c) => {
+var route16 = new Hono2();
+route16.post("/api/support/tickets", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
@@ -233654,7 +233686,7 @@ route15.post("/api/support/tickets", requireAuth, rateLimit("write"), async (c) 
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var support_default = route15;
+var support_default = route16;
 
 // server/utils/record-diagnostic-event.ts
 init_db2();
@@ -233703,10 +233735,10 @@ function topStackFrame(stack) {
   const frame = lines.find((l) => l.startsWith("at ")) ?? lines[1] ?? lines[0] ?? "";
   return scrubDiagnosticText(truncate2(frame, 200));
 }
-function computeIssueSignature(message, route17, stack) {
+function computeIssueSignature(message, route18, stack) {
   const normalized = [
     scrubDiagnosticText(message).toLowerCase(),
-    route17 ?? "",
+    route18 ?? "",
     topStackFrame(stack)
   ].join("::");
   return (0, import_crypto5.createHash)("sha256").update(normalized).digest("hex").slice(0, 32);
@@ -233748,17 +233780,17 @@ function sanitizeDiagnosticPayload(body) {
   const manualNoteRaw = typeof raw2.manualNote === "string" ? raw2.manualNote.trim() : null;
   const message = truncate2(scrubDiagnosticText(messageRaw), MAX_MESSAGE);
   const stack = stackRaw ? truncate2(scrubDiagnosticText(stackRaw), MAX_STACK) : null;
-  const route17 = routeRaw ? truncate2(redactDiagnosticRoute(routeRaw), MAX_ROUTE) : null;
+  const route18 = routeRaw ? truncate2(redactDiagnosticRoute(routeRaw), MAX_ROUTE) : null;
   const appVersion = appVersionRaw ? truncate2(scrubDiagnosticText(appVersionRaw), MAX_APP_VERSION) : null;
   const manualNote = source === "client_manual" && manualNoteRaw ? truncate2(scrubDiagnosticText(manualNoteRaw), MAX_MANUAL_NOTE) : null;
   const metadata = sanitizeMetadata(raw2.metadata);
-  const issueSignature = computeIssueSignature(message, route17, stack);
+  const issueSignature = computeIssueSignature(message, route18, stack);
   return {
     source,
     severity,
     message,
     stack,
-    route: route17,
+    route: route18,
     platform,
     appVersion,
     anonymousSessionId,
@@ -233815,8 +233847,8 @@ async function recordDiagnosticEvent(input) {
 }
 
 // server/routes/diagnostics.ts
-var route16 = new Hono2();
-route16.post("/api/diagnostics/event", async (c) => {
+var route17 = new Hono2();
+route17.post("/api/diagnostics/event", async (c) => {
   try {
     const body = await c.req.json().catch(() => null);
     const input = validateDiagnosticEventInput(body);
@@ -233828,7 +233860,7 @@ route16.post("/api/diagnostics/event", async (c) => {
     return c.json({ success: true });
   }
 });
-var diagnostics_default = route16;
+var diagnostics_default = route17;
 
 // server/app.ts
 var app15 = new Hono2();
@@ -233842,6 +233874,7 @@ app15.use("/api/*", async (c, next) => {
   }
 });
 app15.route("/", health_default);
+app15.route("/", auth_default);
 app15.route("/", navigation_default);
 app15.route("/", debug_default);
 app15.route("/", about_default);
