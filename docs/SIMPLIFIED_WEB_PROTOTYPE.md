@@ -1,8 +1,8 @@
-# Simplified web prototype (`/prototype`)
+# Production web shell
 
-Parallel SPA surface for a Mac/iOS-inspired layout on the web **without thread UI**. Same auth, API, and Postgres data as classic Harvous.
+Native-like web layout for Harvous — the **sole authenticated web client** (Classic 1.0 retired June 2026). Same auth, API, and Postgres data.
 
-**Full architecture (1.0 vs prototype vs native):** [PROTOTYPE_2_0_ARCHITECTURE.md](./PROTOTYPE_2_0_ARCHITECTURE.md)  
+**Full architecture (web vs native):** [PROTOTYPE_2_0_ARCHITECTURE.md](./PROTOTYPE_2_0_ARCHITECTURE.md)  
 **Native menu and surface parity:** [design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md](./design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md)
 
 ## Routes (current)
@@ -11,8 +11,9 @@ Parallel SPA surface for a Mac/iOS-inspired layout on the web **without thread U
 - **`/prototype/n/{noteId}`** — TipTap note editor via shared `CardFullEditable` (same save + scripture processing as production `NotePage`, without `?thread=` in the URL). Optional `?studyThread=` for dock/chrome alignment.
 - **`/prototype/search`** — Pick a space, then FTS **notes only** (`type=notes` + `spaceId`); results link to `/prototype/n/...` (no thread query params).
 - **Legacy bookmarks:** `/prototype/space/{spaceId}` redirects to `/prototype/`; `/prototype/space/{spaceId}/n/{noteId}` redirects to `/prototype/n/{noteId}`.
+- **Legacy Classic URLs:** `/thread/*`, `/note/*`, `/space/*`, `/profile`, `/search`, `/dashboard` redirect to prototype routes (see [`spa/src/router.tsx`](../spa/src/router.tsx)).
 
-Classic app remains at `/` and is unchanged.
+On dedicated hosts (`localhost`, `new.harvous.com`, `app.harvous.com`), routes live at `/` instead of `/prototype`.
 
 ## Scope: My Home in the sidebar
 
