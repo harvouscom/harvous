@@ -1,6 +1,8 @@
-# Classic → new.harvous.com migration
+# Classic → 2.0 web migration
 
-How existing Classic SPA users move to the 2.0 web prototype without export/import.
+**Status:** Complete (June 2026). Classic authenticated SPA routes and `AppLayout` have been removed. Production web is the prototype shell only; legacy Classic URLs redirect to prototype routes.
+
+How existing users moved to the 2.0 web shell without export/import (historical runbook).
 
 **See also:** [native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md](./native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md), [PROTOTYPE_2_0_ARCHITECTURE.md](./PROTOTYPE_2_0_ARCHITECTURE.md)
 
@@ -28,7 +30,7 @@ Prototype **Threads** sidebar (connected-note study chains) remains for intentio
 3. If folders were created from thread titles, a **one-time banner** explains Folders vs Connected Threads.
 4. All notes appear in the **Notes** list immediately; organization appears in **Folders** after backfill.
 
-Classic thread pages remain on `app.harvous.com` (not `/prototype`) until host cutover. Early adopters use `new.harvous.com`.
+Classic thread pages are retired; legacy `/thread/*`, `/note/*`, and `/space/*` URLs redirect to the prototype shell.
 
 ---
 
@@ -126,11 +128,8 @@ Offline IndexedDB (Dexie v4): `noteConnections` table in [src/utils/offline-db.t
 
 ## Rollout checklist
 
-- [ ] `npm run db:push` on production Supabase
-- [ ] Dry-run `npx tsx server/scripts/backfill-collections-from-threads.ts --dry-run` — confirm zero overwrites of existing `primaryCollection`
-- [ ] Optional: batch backfill before host cutover (safe for Classic-only users); `GET /api/admin/check-link-integrity?dryRun=true` for junction repair preview
-- [ ] Deploy API + SPA with layout-mount migration (`ProtoMigrationProvider`)
-- [ ] Smoke-test Classic user on app.harvous.com: thread notes visible; note content unchanged
-- [ ] Smoke-test prototype: folders match thread titles; `collectionPinned` on migrated primaries
-- [ ] Host cutover: set `DEDICATED_PROTOTYPE_HOST` to `app.harvous.com` in [`src/lib/prototype-path.ts`](../src/lib/prototype-path.ts); sunset Classic `/thread` routes
-- [ ] Communicate: thread piles → folders; Threads = connected notes
+- [x] `npm run db:push` on production Supabase
+- [x] Per-user migration via `ProtoMigrationProvider` on layout mount
+- [x] Host cutover: dedicated prototype hosts serve `/` (see [`src/lib/prototype-path.ts`](../src/lib/prototype-path.ts))
+- [x] Classic SPA code removed (`AppLayout`, classic pages); legacy URLs redirect in [`spa/src/router.tsx`](../spa/src/router.tsx)
+- [x] Communicate: thread piles → folders; Threads = connected notes

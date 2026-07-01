@@ -345,7 +345,7 @@ Phases are ordered dependencies. Timelines are yours to set.
 | **3** | Native cloud write | Autosave → `POST /api/sync/push`; conflict policy (`updatedAt` LWW v1) |
 | **4** | Study parity | `StudyThreadEntries` sync; server ids; prototype + native share behavior |
 | **5** | Slim public web | Share/join/invite/OG; Universal Links to native ([SPA_RETIREMENT](./SPA_RETIREMENT_AND_PUBLIC_WEB.md)) |
-| **6** | Classic sunset | Redirect authenticated Classic routes to native store / `/prototype` |
+| **6** | Classic sunset | **Complete (June 2026)** — Classic routes removed; legacy URLs redirect to prototype shell |
 | **7** | Auth cleanup | Remove Clerk (if migrated); drop dual-auth; update e2e |
 
 ```mermaid
@@ -389,7 +389,7 @@ Copy into your issue tracker or mark inline when decided.
 ### Product
 
 - [ ] **Primary client:** Native first (assumed) — confirm Android future (prototype-only vs eventual native).
-- [ ] **Classic sunset:** Hard date or “feature parity” gate?
+- [x] **Classic sunset:** Prototype is production web; Classic code removed; zero Classic users.
 - [ ] **Native v1 without account:** Allowed for how long?
 
 ### Data model

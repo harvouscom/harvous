@@ -10,13 +10,14 @@ This document captures a strategic assessment of Harvous's current technology st
 
 ## Executive summary
 
-**Verdict:** Harvous's stack is appropriate and well-aligned with a rich-text Bible study notes product scaling toward collaboration, learning, and native-first usage. The choices that matter most going forward are **deployment topology** (serverless to always-on for realtime and background jobs), **sync architecture** (web, native, and Postgres as source of truth), and **product surface consolidation** (Classic 1.0 to 2.0 prototype) — not replacing React, Hono, or Supabase.
+**Verdict:** Harvous's stack is appropriate and well-aligned with a rich-text Bible study notes product scaling toward collaboration, learning, and native-first usage. The choices that matter most going forward are **deployment topology** (serverless to always-on for realtime and background jobs) and **sync architecture** (web, native, and Postgres as source of truth) — not replacing React, Hono, or Supabase.
 
 The biggest risks are not "wrong framework picks." They are:
 
-1. **Multi-client sync** — Swift native and web prototype share one API but are not fully connected yet.
+1. **Multi-client sync** — Swift native and web share one API but are not fully connected yet.
 2. **Hosting shape** — a single Netlify serverless function works today but will tighten as WebSockets, background jobs, and cold-start sensitivity grow.
-3. **Transitional dual-surface debt** — Classic and prototype coexist in one SPA during migration.
+
+**Classic SPA retirement (June 2026):** The authenticated Classic 1.0 shell (`AppLayout`, `/thread/*`, dashboard hierarchy) has been removed. Production web is the prototype shell only, plus public routes (share, join, invite) and auth. Legacy Classic URLs redirect to prototype routes.
 
 None of these require a wholesale stack rewrite. They are architecture and execution problems with incremental solutions.
 
@@ -33,7 +34,7 @@ None of these require a wholesale stack rewrite. They are architecture and execu
 | Editor | TipTap (ProseMirror) | [`src/components/react/TiptapEditor.tsx`](../src/components/react/TiptapEditor.tsx) |
 | Native | Swift/SwiftUI + SwiftData (primary client) | [`native/Harvous/`](../native/Harvous/) |
 | Realtime | Supabase Broadcast (partial); more planned | [`server/utils/realtime.ts`](../server/utils/realtime.ts), [REALTIME_SUPABASE_PLAN.md](./REALTIME_SUPABASE_PLAN.md) |
-| Sync | Hono sync routes (web); native cloud sync planned | [`server/routes/sync.ts`](../server/routes/sync.ts) |
+| Sync | Hono sync routes (web + native) | [`server/routes/sync.ts`](../server/routes/sync.ts) |
 
 **Note on Capacitor:** Capacitor packages remain in `package.json` and older docs ([CAPACITOR_STRATEGIC_ANALYSIS.md](./CAPACITOR_STRATEGIC_ANALYSIS.md)) describe a web-wrapper path. **Current product direction is Swift native as primary** and the web prototype as complementary — see [NATIVE_2_0_PLATFORM_STRATEGY.md](../native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md). Capacitor docs are historical context, not the active strategy.
 
@@ -42,9 +43,9 @@ None of these require a wholesale stack rewrite. They are architecture and execu
 ```mermaid
 flowchart TB
   subgraph clients [Clients]
-    protoWeb[PrototypeWeb_2_0]
-    classicWeb[ClassicWeb_1_0_sunset]
+    protoWeb[ProductionWebShell]
     nativeApp[NativeSwift_SwiftData]
+    publicWeb[PublicRoutes_share_join]
   end
   subgraph hosting [Netlify]
     spa[StaticSPA_dist-spa]
@@ -56,14 +57,14 @@ flowchart TB
     storage[Storage_future]
   end
   protoWeb --> spa
-  classicWeb --> spa
+  publicWeb --> spa
   spa --> apiFn
-  nativeApp -->|"future: sync routes"| apiFn
+  nativeApp --> apiFn
   apiFn --> pg
   apiFn --> rt
 ```
 
-On dedicated prototype hosts (`localhost`, `new.harvous.com`, `app.harvous.com`), routes live at `/` rather than `/prototype`. See [`src/lib/prototype-path.ts`](../src/lib/prototype-path.ts).
+On dedicated prototype hosts (`localhost`, `new.harvous.com`, `app.harvous.com`), routes live at `/` rather than `/prototype`. Legacy Classic URLs (`/thread/*`, `/note/*`, etc.) redirect to prototype routes. See [`src/lib/prototype-path.ts`](../src/lib/prototype-path.ts).
 
 ---
 
@@ -97,7 +98,7 @@ Clerk fits a consumer app with billing, subscription management, and planned Org
 
 ### Swift native over Capacitor
 
-Product intent: **native (macOS + iOS) is the primary client**; the web prototype is complementary for non-Apple devices. Swift/SwiftUI delivers the editor UX, offline story, and platform integration Capacitor cannot match without still building a sync engine on top. Postgres remains the long-term source of truth after deliberate cloud sync migration.
+Product intent: **native (macOS + iOS) is the primary client**; the web shell is complementary for non-Apple devices. Swift/SwiftUI delivers the editor UX, offline story, and platform integration Capacitor cannot match without still building a sync engine on top. Postgres remains the long-term source of truth after deliberate cloud sync migration.
 
 ---
 
@@ -108,7 +109,7 @@ North star: [HARVOUS_NORTH_STAR.md](./HARVOUS_NORTH_STAR.md) — "Keep your Bibl
 | Future capability | Stack fit | Authoritative doc |
 |-------------------|-----------|-------------------|
 | Shared spaces v1 | Strong — Postgres + permissions + API | [WHATS_LEFT.md](./WHATS_LEFT.md) |
-| Native-first + web prototype | Strong architecture; sync gap remains | [PROTOTYPE_2_0_ARCHITECTURE.md](../PROTOTYPE_2_0_ARCHITECTURE.md) |
+| Native-first + web | Strong architecture; sync parity gap remains | [PROTOTYPE_2_0_ARCHITECTURE.md](../PROTOTYPE_2_0_ARCHITECTURE.md) |
 | Space sharing and groups (Phase 2) | Strong | [HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md) |
 | Learning / AI quizzes (Phase 3) | Strong — Hono orchestration + Postgres sessions | Same roadmap doc; [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md) |
 | Real-time collaboration | Phases 1–2 fit Supabase; Phase 3 needs WebSocket service | [REALTIME_SUPABASE_PLAN.md](./REALTIME_SUPABASE_PLAN.md) |
@@ -144,15 +145,14 @@ This is an ops/deployment upgrade, not a framework swap.
 
 ### 2. Cross-client sync
 
-**Today:** Web and native share one API and Postgres, but clients are not fully connected:
+**Today:** Web and native share one API and Postgres, but full parity is not complete:
 
-- Web study threads use server-issued string IDs; native uses device UUIDs — web-created highlights do not appear in native and vice versa until migration ([PROTOTYPE_2_0_ARCHITECTURE.md](../PROTOTYPE_2_0_ARCHITECTURE.md) section 5)
-- Native is local-first (SwiftData); cloud bootstrap/push is planned Tier 2 ([NATIVE_2_0_PLATFORM_STRATEGY.md](../native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md))
+- Web study threads use server-issued string IDs; native sync uses `HarvousSyncService` with ongoing ID mapping work
 - Optimistic update and conflict conventions are uneven on web ([ARCHITECTURE_READINESS_AUDIT.md](../design-parity/ARCHITECTURE_READINESS_AUDIT.md) item W8)
 
 **Evolution path:**
 
-- Ship `/api/sync/*` bootstrap, push, and changes routes for native
+- Harden `/api/sync/*` bootstrap, push, and changes for native
 - Server-issued IDs for all study thread entries; no merge without mapping table
 - Optional add-ons when sync becomes the bottleneck: PowerSync, Electric SQL, or custom LWW sync **on top of** existing Postgres — not replacements
 
@@ -163,12 +163,6 @@ See also [native/docs/future/NATIVE_WEB_DATA_MODEL_GAP.md](../../native/docs/fut
 Phase 1 (cross-device invalidation) and Phase 2 (live shared spaces, presence) fit Supabase Realtime well.
 
 Phase 3 (multi-cursor collaborative editing) requires **Hocuspocus + Yjs** — a separate WebSocket service with Supabase Postgres as persistence. This is true regardless of frontend framework. Plan hosting for it before committing to Phase 3. Details in [REALTIME_SUPABASE_PLAN.md](./REALTIME_SUPABASE_PLAN.md).
-
-### 4. Dual surfaces (Classic + prototype)
-
-Classic (`/thread/*`, dashboard hierarchy) and prototype (native-like shell at `/` on dedicated hosts) share one SPA, one React Query cache, and one API. Smart for migration but adds ongoing engineering cost.
-
-**Evolution path:** Finish Classic → 2.0 convergence per [PROTOTYPE_2_0_ARCHITECTURE.md](../PROTOTYPE_2_0_ARCHITECTURE.md) sections 6–7 and [SPA_RETIREMENT_AND_PUBLIC_WEB.md](../native-prototype/SPA_RETIREMENT_AND_PUBLIC_WEB.md). Retire the authenticated Classic shell; keep a slim public web for share links, join/invite, and billing.
 
 ---
 
@@ -193,11 +187,10 @@ No alternative stack magically fixes cross-client sync or collaborative editing.
 
 Ordered by leverage against the product vision:
 
-1. **Ship native cloud sync** — bootstrap/push via `/api/sync/*`, server-issued IDs for study threads. Unlocks "native-first" as real, not aspirational.
+1. **Ship native cloud sync parity** — bootstrap/push via `/api/sync/*`, server-issued IDs for study threads end-to-end. Unlocks "native-first" as real, not aspirational.
 2. **Plan API hosting for WebSockets** — before Phase 3 collab; keep Hono, change where it runs.
-3. **Finish Classic → 2.0 convergence** — one shell, one mental model, less duplicate UI logic in [`spa/src/router.tsx`](../spa/src/router.tsx).
-4. **Standardize optimistic updates and conflict UX on web** — before leaning on Realtime for shared spaces ([ARCHITECTURE_READINESS_AUDIT.md](../design-parity/ARCHITECTURE_READINESS_AUDIT.md) W8).
-5. **Revisit Clerk vs Supabase Auth** — only when native sign-in and RLS policies become blocking, not preemptively.
+3. **Standardize optimistic updates and conflict UX on web** — before leaning on Realtime for shared spaces ([ARCHITECTURE_READINESS_AUDIT.md](../design-parity/ARCHITECTURE_READINESS_AUDIT.md) W8).
+4. **Revisit Clerk vs Supabase Auth** — only when native sign-in and RLS policies become blocking, not preemptively.
 
 Each item is an evolution path. None requires abandoning React, Hono, Drizzle, or Supabase.
 
@@ -207,7 +200,8 @@ Each item is an evolution path. None requires abandoning React, Hono, Drizzle, o
 
 - [TECH_STACK.md](../TECH_STACK.md) — Canonical technology list and versions
 - [WHY_SUPABASE.md](../WHY_SUPABASE.md) — Turso to Supabase migration rationale
-- [PROTOTYPE_2_0_ARCHITECTURE.md](../PROTOTYPE_2_0_ARCHITECTURE.md) — Classic vs prototype vs native
+- [PROTOTYPE_2_0_ARCHITECTURE.md](../PROTOTYPE_2_0_ARCHITECTURE.md) — Production web shell vs native
+- [CLASSIC_TO_2_0_MIGRATION.md](../CLASSIC_TO_2_0_MIGRATION.md) — Migration runbook (complete)
 - [NATIVE_2_0_PLATFORM_STRATEGY.md](../native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md) — Native-first migration and auth options
 - [REALTIME_SUPABASE_PLAN.md](./REALTIME_SUPABASE_PLAN.md) — Realtime phases and Hocuspocus
 - [HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md) — Product roadmap and SDK deferral
@@ -223,3 +217,4 @@ Record stack decisions here as they are made.
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-06 | Keep React + Hono + Supabase + Clerk | Stack fits product shape; evolution paths address scaling without rewrite. See this doc. |
+| 2026-06 | Retire Classic SPA | Prototype is production web; zero Classic users; old threads are primary locked folders. |

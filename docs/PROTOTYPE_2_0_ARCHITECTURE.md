@@ -1,17 +1,19 @@
-# Lay of the land: classic web (1.0), `/prototype` web shell, and native apps
+# Lay of the land: production web shell and native apps
 
-This document describes how the **production SPA** split works today: classic routes versus the **`/prototype` shell**, how data reaches both from the same API, how that compares to **native** SwiftData clients, and what moving toward a unified “2.0” product implies for users and engineering.
+This document describes how the **production SPA** works today: the prototype web shell (sole authenticated surface), how data reaches clients from the same API, how that compares to **native** SwiftData clients, and what native-first parity work remains.
 
-**See also:** [ARCHITECTURE_DIAGRAM.md](./ARCHITECTURE_DIAGRAM.md) (combined Mermaid diagram of clients, API, DB, and folders-vs-threads usage by surface), [SIMPLIFIED_WEB_PROTOTYPE.md](./SIMPLIFIED_WEB_PROTOTYPE.md) (quick entry and file pointers), [CLASSIC_TO_2_0_MIGRATION.md](./CLASSIC_TO_2_0_MIGRATION.md) (Classic user migration runbook), [design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md](./design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md) (menu and surface parity checklist), [native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md](./native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md) (migration, auth, data, and billing options — draft for review).
+**See also:** [ARCHITECTURE_DIAGRAM.md](./ARCHITECTURE_DIAGRAM.md) (combined Mermaid diagram of clients, API, DB, and folders-vs-threads usage by surface), [SIMPLIFIED_WEB_PROTOTYPE.md](./SIMPLIFIED_WEB_PROTOTYPE.md) (quick entry and file pointers), [CLASSIC_TO_2_0_MIGRATION.md](./CLASSIC_TO_2_0_MIGRATION.md) (Classic migration runbook — complete), [design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md](./design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md) (menu and surface parity checklist), [native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md](./native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md) (migration, auth, data, and billing options — draft for review).
 
 ---
 
-## 1. Two surfaces in one SPA
+## 1. Production web surface
 
 | Surface | Route prefix | Role |
 |--------|--------------|------|
-| **Classic (1.0 production)** | `/`, `/note/*`, `/thread/*`, `/space/*`, etc. | Full hierarchy: spaces, threads in UI, `?thread=` on notes, dashboard and management flows. Wired through `spa/src/router.tsx` under `appLayoutRoute`. |
-| **Prototype (2.0-style web)** | `/prototype/*` | Parallel **native-like shell** (toolbar, glass sidebar, inspector, bottom docks). **No thread UI**; same Clerk session, React Query, and `spa/src/lib/api.ts` as classic. |
+| **Prototype (production web)** | `/` on dedicated hosts; `/prototype/*` elsewhere | **Native-like shell** (toolbar, glass sidebar, inspector, bottom docks). Folders replace Classic thread piles; connected-note threads for study chains. Same Clerk session, React Query, and `spa/src/lib/api.ts`. |
+| **Public web** | `/shared/*`, `/spaces/join/*`, `/invitations/*`, auth, `/upgrade` | Share links, join/invite flows, billing — no authenticated Classic shell. |
+
+**Classic 1.0** (`AppLayout`, `/thread/*`, dashboard hierarchy) was **retired June 2026**. Legacy Classic URLs redirect to prototype routes via [`spa/src/router.tsx`](../spa/src/router.tsx) `buildClassicRedirectRoutes()`.
 
 **Entry layout:** `spa/src/layouts/SimplifiedPrototypeLayout.tsx` — auth gate, `ProtoShellProvider`, `SyncManagerIsland`, prototype CSS tokens, `NativeToolbar` + `PrototypeSidebar`.
 

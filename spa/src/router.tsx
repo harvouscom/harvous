@@ -1,19 +1,13 @@
 import { createRouter, createRoute, createRootRoute, redirect, lazyRouteComponent, Outlet } from '@tanstack/react-router';
 import {
-  isClassicAppSurface,
   isDedicatedPrototypeHost,
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
   prototypeSettingsAccountRouteTo,
 } from '@/lib/prototype-path';
-import AppLayout from './layouts/AppLayout';
 import AuthLayout from './layouts/AuthLayout';
-import DashboardPage from './pages/DashboardPage';
 import SignInPage from './pages/SignInPage';
 import SignUpPage from './pages/SignUpPage';
-import SpacePage from './pages/SpacePage';
-import ThreadPage from './pages/ThreadPage';
-import NotePage from './pages/NotePage';
 import SimplifiedPrototypeLayout from './layouts/SimplifiedPrototypeLayout';
 import PrototypeHomePage from './pages/prototype/PrototypeHomePage';
 import PrototypeNotePage from './pages/prototype/PrototypeNotePage';
@@ -66,129 +60,10 @@ const signUpSplatRoute = createRoute({
   component: SignUpPage,
 });
 
-// App routes (authenticated, with nav shell)
-const appLayoutRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  id: 'app',
-  component: AppLayout,
-});
-
-const indexRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/',
-  component: DashboardPage,
-});
-
-// Keep /dashboard working as an alias — redirect to / (same as Astro where / is home)
-const dashboardRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/dashboard',
-  beforeLoad: () => { throw redirect({ to: '/' }); },
-});
-
-const findRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/search',
-  component: lazyRouteComponent(() => import('./pages/FindPage')),
-});
-
-const profileRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/profile',
-  component: lazyRouteComponent(() => import('./pages/ProfilePage')),
-});
-
-const newSpaceRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/new-space',
-  beforeLoad: () => {
-    if (isClassicAppSurface()) {
-      throw redirect({ to: '/', replace: true });
-    }
-  },
-  component: lazyRouteComponent(() => import('./pages/NewSpacePage')),
-});
-
 const upgradeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/upgrade',
   component: lazyRouteComponent(() => import('./pages/UpgradePage')),
-});
-
-// Space / thread / note content routes (eager — core navigation path)
-const spaceRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/space/$spaceId',
-  component: SpacePage,
-});
-
-const threadRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/thread/$threadId',
-  component: ThreadPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    space: typeof search.space === 'string' ? search.space : undefined,
-  }),
-});
-
-const noteRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/note/$noteId',
-  component: NotePage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    space: typeof search.space === 'string' ? search.space : undefined,
-    thread: typeof search.thread === 'string' ? search.thread : undefined,
-    from: typeof search.from === 'string' ? search.from : undefined,
-    collection: typeof search.collection === 'string' ? search.collection : undefined,
-  }),
-});
-
-const adminHomeRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/admin',
-  component: lazyRouteComponent(() => import('./pages/AdminHomePage')),
-});
-
-const adminVotdRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/admin/votd',
-  component: lazyRouteComponent(() => import('./pages/AdminVotdPage')),
-});
-
-const adminUsageRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/admin/usage',
-  component: lazyRouteComponent(() => import('./pages/AdminUsagePage')),
-});
-
-const adminPulseRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/admin/pulse',
-  component: lazyRouteComponent(() => import('./pages/AdminPulsePage')),
-});
-
-const adminReportsRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/admin/reports',
-  component: lazyRouteComponent(() => import('./pages/AdminReportsPage')),
-});
-
-const adminPublishRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/admin/publish',
-  component: lazyRouteComponent(() => import('./pages/AdminPublishPage')),
-});
-
-const adminMaintenanceRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/admin/maintenance',
-  component: lazyRouteComponent(() => import('./pages/AdminMaintenancePage')),
-});
-
-const adminSupportRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: '/admin/support',
-  component: lazyRouteComponent(() => import('./pages/AdminSupportPage')),
 });
 
 const joinSpaceRoute = createRoute({
@@ -215,7 +90,7 @@ const invitationRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/public/PublicInvitationPage')),
 });
 
-/** Prototype branch — pathless layout on new.harvous.com (/), /prototype on app.harvous.com. */
+/** Prototype branch — pathless layout on dedicated hosts (/), /prototype elsewhere. */
 function buildPrototypeRouteBranch() {
   const onDedicatedHost = isDedicatedPrototypeHost();
 
@@ -447,16 +322,26 @@ function buildPrototypeRouteBranch() {
   ]);
 }
 
-const dedicatedDashboardRedirectRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/dashboard',
-  beforeLoad: () => {
-    throw redirect({ to: '/', replace: true });
-  },
-});
-
-/** Redirect routes for classic URLs when the dedicated prototype host is active. */
+/** Redirect legacy Classic URLs to the prototype shell on all hosts. */
 function buildClassicRedirectRoutes() {
+  const classicRootRedirect = !isDedicatedPrototypeHost()
+    ? createRoute({
+        getParentRoute: () => rootRoute,
+        path: '/',
+        beforeLoad: () => {
+          throw redirect({ to: '/prototype/', replace: true });
+        },
+      })
+    : null;
+
+  const classicDashboardRedirect = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/dashboard',
+    beforeLoad: () => {
+      throw redirect({ to: prototypeHomeRouteTo(), replace: true });
+    },
+  });
+
   const classicNoteRedirect = createRoute({
     getParentRoute: () => rootRoute,
     path: '/note/$noteId',
@@ -473,7 +358,7 @@ function buildClassicRedirectRoutes() {
     getParentRoute: () => rootRoute,
     path: '/thread/$threadId',
     beforeLoad: () => {
-      throw redirect({ to: '/', replace: true });
+      throw redirect({ to: prototypeHomeRouteTo(), replace: true });
     },
   });
 
@@ -481,7 +366,7 @@ function buildClassicRedirectRoutes() {
     getParentRoute: () => rootRoute,
     path: '/space/$spaceId',
     beforeLoad: () => {
-      throw redirect({ to: '/', replace: true });
+      throw redirect({ to: prototypeHomeRouteTo(), replace: true });
     },
   });
 
@@ -497,17 +382,27 @@ function buildClassicRedirectRoutes() {
     getParentRoute: () => rootRoute,
     path: '/search',
     beforeLoad: () => {
-      throw redirect({ to: '/', replace: true });
+      throw redirect({ to: prototypeHomeRouteTo(), replace: true });
+    },
+  });
+
+  const classicNewSpaceRedirect = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/new-space',
+    beforeLoad: () => {
+      throw redirect({ to: prototypeHomeRouteTo(), replace: true });
     },
   });
 
   return [
-    dedicatedDashboardRedirectRoute,
+    ...(classicRootRedirect ? [classicRootRedirect] : []),
+    classicDashboardRedirect,
     classicNoteRedirect,
     classicThreadRedirect,
     classicSpaceRedirect,
     classicProfileRedirect,
     classicSearchRedirect,
+    classicNewSpaceRedirect,
   ];
 }
 
@@ -518,34 +413,13 @@ const notFoundRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/NotFoundPage')),
 });
 
-const classicAppRoutes = appLayoutRoute.addChildren([
-  indexRoute,
-  dashboardRoute,
-  findRoute,
-  profileRoute,
-  newSpaceRoute,
-  spaceRoute,
-  threadRoute,
-  noteRoute,
-  adminHomeRoute,
-  adminVotdRoute,
-  adminUsageRoute,
-  adminPulseRoute,
-  adminReportsRoute,
-  adminPublishRoute,
-  adminMaintenanceRoute,
-  adminSupportRoute,
-]);
-
 function buildRouteTree() {
-  const onDedicatedHost = isDedicatedPrototypeHost();
-
   return rootRoute.addChildren([
     authLayoutRoute.addChildren([
       signInRoute.addChildren([signInSplatRoute]),
       signUpRoute.addChildren([signUpSplatRoute]),
     ]),
-    ...(onDedicatedHost ? buildClassicRedirectRoutes() : [classicAppRoutes]),
+    ...buildClassicRedirectRoutes(),
     upgradeRoute,
     joinSpaceRoute,
     sharedNoteRoute,
