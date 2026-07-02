@@ -12,6 +12,10 @@ export type DiagnosticTriageStatus = (typeof DIAGNOSTIC_TRIAGE_STATUSES)[number]
 export const DIAGNOSTIC_PLATFORMS = ['web', 'ios', 'unknown'] as const;
 export type DiagnosticPlatform = (typeof DIAGNOSTIC_PLATFORMS)[number];
 
+/** 'dev' = served from a local Vite dev server (localhost/testing); 'prod' = any built/deployed bundle (prototype web or native iOS). */
+export const DIAGNOSTIC_SOURCE_ENVS = ['dev', 'prod'] as const;
+export type DiagnosticSourceEnv = (typeof DIAGNOSTIC_SOURCE_ENVS)[number];
+
 export function isDiagnosticSource(value: string): value is DiagnosticSource {
   return (DIAGNOSTIC_SOURCES as readonly string[]).includes(value);
 }
@@ -26,4 +30,8 @@ export function isDiagnosticTriageStatus(value: string): value is DiagnosticTria
 
 export function isDiagnosticPlatform(value: string): value is DiagnosticPlatform {
   return (DIAGNOSTIC_PLATFORMS as readonly string[]).includes(value);
+}
+
+export function isDiagnosticSourceEnv(value: string): value is DiagnosticSourceEnv {
+  return (DIAGNOSTIC_SOURCE_ENVS as readonly string[]).includes(value);
 }

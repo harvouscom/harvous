@@ -485,6 +485,7 @@ export const DiagnosticEvents = pgTable('DiagnosticEvents', {
   anonymousSessionId: text('anonymousSessionId').notNull(),
   manualNote: text('manualNote'),
   metadata: text('metadata'),
+  sourceEnv: text('sourceEnv'),
   createdAt: ts('createdAt').notNull(),
 }, (table) => [
   index('DiagnosticEvents_issueSignature_createdAtIndex').on(table.issueSignature, table.createdAt),

@@ -1,4 +1,9 @@
-import type { DiagnosticPlatform, DiagnosticSeverity, DiagnosticSource } from '@/utils/diagnostic-sources';
+import type {
+  DiagnosticPlatform,
+  DiagnosticSeverity,
+  DiagnosticSource,
+  DiagnosticSourceEnv,
+} from '@/utils/diagnostic-sources';
 import { redactDiagnosticRoute } from '@/utils/diagnostics-route';
 
 const SESSION_STORAGE_KEY = 'harvous_diag_session';
@@ -19,6 +24,7 @@ export type DiagnosticReportPayload = {
   appVersion?: string | null;
   manualNote?: string | null;
   metadata?: Record<string, unknown> | null;
+  sourceEnv?: DiagnosticSourceEnv;
 };
 
 type StoredSession = {
@@ -92,6 +98,10 @@ function detectPlatform(): DiagnosticPlatform {
   return 'web';
 }
 
+function detectSourceEnv(): DiagnosticSourceEnv {
+  return import.meta.env?.DEV ? 'dev' : 'prod';
+}
+
 function appVersion(): string | null {
   if (typeof window === 'undefined') return null;
   const v = (window as unknown as { __APP_VERSION__?: string }).__APP_VERSION__;
@@ -145,6 +155,7 @@ export function reportDiagnosticEvent(payload: DiagnosticReportPayload): void {
     appVersion: payload.appVersion ?? appVersion(),
     anonymousSessionId: getAnonymousSessionId(),
     manualNote: payload.manualNote ?? null,
+    sourceEnv: payload.sourceEnv ?? detectSourceEnv(),
     metadata: {
       ...(payload.metadata ?? {}),
       userAgentFamily: userAgentFamily(),

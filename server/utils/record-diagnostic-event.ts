@@ -46,6 +46,7 @@ export async function recordDiagnosticEvent(input: DiagnosticEventInput): Promis
       anonymousSessionId: input.anonymousSessionId,
       manualNote: input.manualNote,
       metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+      sourceEnv: input.sourceEnv,
       createdAt: nowISO(),
     });
 

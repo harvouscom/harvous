@@ -3,9 +3,11 @@ import {
   isDiagnosticPlatform,
   isDiagnosticSeverity,
   isDiagnosticSource,
+  isDiagnosticSourceEnv,
   type DiagnosticPlatform,
   type DiagnosticSeverity,
   type DiagnosticSource,
+  type DiagnosticSourceEnv,
 } from '@/utils/diagnostic-sources';
 import { redactDiagnosticRoute, scrubDiagnosticText } from '@/utils/diagnostics-route';
 
@@ -29,6 +31,7 @@ export type SanitizedDiagnosticInput = {
   manualNote: string | null;
   metadata: Record<string, unknown> | null;
   issueSignature: string;
+  sourceEnv: DiagnosticSourceEnv;
 };
 
 function truncate(value: string, max: number): string {
@@ -107,6 +110,9 @@ export function sanitizeDiagnosticPayload(body: unknown): SanitizedDiagnosticInp
   const metadata = sanitizeMetadata(raw.metadata);
   const issueSignature = computeIssueSignature(message, route, stack);
 
+  const sourceEnvRaw = typeof raw.sourceEnv === 'string' ? raw.sourceEnv : '';
+  const sourceEnv: DiagnosticSourceEnv = isDiagnosticSourceEnv(sourceEnvRaw) ? sourceEnvRaw : 'prod';
+
   return {
     source,
     severity,
@@ -119,6 +125,7 @@ export function sanitizeDiagnosticPayload(body: unknown): SanitizedDiagnosticInp
     manualNote,
     metadata,
     issueSignature,
+    sourceEnv,
   };
 }
 

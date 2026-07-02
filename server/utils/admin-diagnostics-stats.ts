@@ -6,9 +6,14 @@ import {
   gte,
   desc,
   inArray,
+  and,
 } from '../db';
 import { nowISO } from '../db/dates';
-import { isDiagnosticTriageStatus, type DiagnosticTriageStatus } from '@/utils/diagnostic-sources';
+import {
+  isDiagnosticTriageStatus,
+  type DiagnosticSourceEnv,
+  type DiagnosticTriageStatus,
+} from '@/utils/diagnostic-sources';
 import { isDiagnosticEventsTableMissing, isDiagnosticIssueTriageTableMissing } from './pg-undefined-relation';
 
 export type DiagnosticIssueSummary = {
@@ -107,8 +112,14 @@ function topRoute(acc: GroupAcc): string | null {
   return best;
 }
 
-export async function getDiagnosticIssues(days: number): Promise<DiagnosticIssueSummary[]> {
+export async function getDiagnosticIssues(
+  days: number,
+  sourceEnv?: DiagnosticSourceEnv,
+): Promise<DiagnosticIssueSummary[]> {
   const since = sinceDate(days);
+  const where = sourceEnv
+    ? and(gte(DiagnosticEvents.createdAt, since), eq(DiagnosticEvents.sourceEnv, sourceEnv))
+    : gte(DiagnosticEvents.createdAt, since);
 
   try {
     const rows = await db
@@ -120,7 +131,7 @@ export async function getDiagnosticIssues(days: number): Promise<DiagnosticIssue
         createdAt: DiagnosticEvents.createdAt,
       })
       .from(DiagnosticEvents)
-      .where(gte(DiagnosticEvents.createdAt, since))
+      .where(where)
       .orderBy(desc(DiagnosticEvents.createdAt))
       .limit(MAX_EVENTS_SCAN);
 
@@ -174,12 +185,19 @@ export async function getDiagnosticIssues(days: number): Promise<DiagnosticIssue
   }
 }
 
-export async function countDiagnosticEventsSince(since: Date): Promise<number> {
+export async function countDiagnosticEventsSince(
+  since: Date,
+  sourceEnv?: DiagnosticSourceEnv,
+): Promise<number> {
+  const where = sourceEnv
+    ? and(gte(DiagnosticEvents.createdAt, since), eq(DiagnosticEvents.sourceEnv, sourceEnv))
+    : gte(DiagnosticEvents.createdAt, since);
+
   try {
     const rows = await db
       .select({ id: DiagnosticEvents.id })
       .from(DiagnosticEvents)
-      .where(gte(DiagnosticEvents.createdAt, since))
+      .where(where)
       .limit(MAX_EVENTS_SCAN + 1);
     return rows.length > MAX_EVENTS_SCAN ? MAX_EVENTS_SCAN : rows.length;
   } catch (error) {

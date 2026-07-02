@@ -56,6 +56,36 @@ describe('sanitizeDiagnosticPayload', () => {
     expect(result?.issueSignature).toHaveLength(32);
   });
 
+  it('passes through a valid sourceEnv', () => {
+    const result = sanitizeDiagnosticPayload({
+      source: 'client_js',
+      message: 'Something broke',
+      anonymousSessionId: 'sess-123',
+      platform: 'web',
+      sourceEnv: 'dev',
+    });
+    expect(result?.sourceEnv).toBe('dev');
+  });
+
+  it('defaults sourceEnv to prod when missing or invalid', () => {
+    const missing = sanitizeDiagnosticPayload({
+      source: 'client_js',
+      message: 'Something broke',
+      anonymousSessionId: 'sess-123',
+      platform: 'web',
+    });
+    expect(missing?.sourceEnv).toBe('prod');
+
+    const invalid = sanitizeDiagnosticPayload({
+      source: 'client_js',
+      message: 'Something broke',
+      anonymousSessionId: 'sess-123',
+      platform: 'web',
+      sourceEnv: 'staging',
+    });
+    expect(invalid?.sourceEnv).toBe('prod');
+  });
+
   it('rejects oversize session id', () => {
     const result = sanitizeDiagnosticPayload({
       source: 'client_js',

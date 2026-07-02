@@ -1226,9 +1226,11 @@ app.get('/api/admin/diagnostics/issues', async (c) => {
   try {
     const daysParam = parseInt(c.req.query('days') ?? '7', 10);
     const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 1), 90) : 7;
-    const issues = await getDiagnosticIssues(days);
+    const includeDev = c.req.query('includeDev') === '1';
+    const sourceEnv = includeDev ? undefined : 'prod';
+    const issues = await getDiagnosticIssues(days, sourceEnv);
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const eventsLast24h = await countDiagnosticEventsSince(since24h);
+    const eventsLast24h = await countDiagnosticEventsSince(since24h, sourceEnv);
     const openCount = issues.filter((i) => i.status === 'open').length;
     return c.json({ success: true, days, openCount, eventsLast24h, issues });
   } catch (error: unknown) {
