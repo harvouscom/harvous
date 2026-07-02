@@ -1,6 +1,6 @@
 # Space modes — product rules
 
-**Status:** Canonical product reference for how additional spaces behave relative to **My Home**, aligned with [redesign-exploration.md](./redesign-exploration.md) (Concept 2 — Spaces as modes, not folder-style stacks). **Data model is unchanged:** one `Spaces` table, membership for collaboration, `isPublic` / share tokens as today.
+**Status:** Canonical product reference for how additional spaces behave relative to **My Home**, aligned with [redesign-exploration.md](./redesign-exploration.md) (Concept 2 — Spaces as modes, not folder-style stacks). **Data model (July 2026 clean break):** one `Spaces` table with a `type` discriminator (`personal` | `shared` | `public`), membership via `SpaceMemberships` (owner included as a role), invites via `SpaceInvites`. The legacy `isPublic` / `shareToken` columns and `Members` / `SpaceInvitations` tables are retired — see [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md).
 
 **Implementation:** Tier enforcement lives in [server/utils/tier-limits.ts](../../server/utils/tier-limits.ts). Shared-space visibility and permissions: [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md).
 
@@ -11,11 +11,11 @@
 | Term | Meaning |
 |------|--------|
 | **My Home** | The default **aggregate** study surface: dashboard route (`/`), not a dedicated `Spaces` row. In the space switcher it is the synthetic **“home”** item. Threads and notes can appear here without belonging to a named space. |
-| **Named private space** | A `Spaces` row you own, **not** treated as “shared” for limits: no active share link and **no** `Members` rows (other than the implicit owner via `Spaces.userId`). Organizes threads/notes under a chosen title and color. |
-| **Shared space** | A space that is **collaborative**: has a share link (`shareToken`) and/or at least one **Member** (see [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md)). Counts toward **owned shared space** limits for the owner. |
-| **Owner** | `Spaces.userId` — full control (edit, delete, share link, remove others’ items from the space, etc.). |
-| **Member** | Row in `Members` for that `spaceId` — can contribute and manage own items; cannot delete the space or change space-level sharing. |
-| **Public space** *(future)* | Product concept: read-heavy / discovery context. **Not a separate table today** — would still be a `Spaces` row with appropriate flags and UX. Rules TBD when scoped. |
+| **Named private space** | A `Spaces` row you own with `type='personal'` — organizes threads/notes under a chosen title and color; no `SpaceMemberships` rows besides your own future-role placeholder (none created today for personal spaces). |
+| **Shared space** | A `Spaces` row with `type='shared'` — collaborative from creation (no personal→shared conversion). Owning one requires the Shared Spaces paid add-on; joining is free. See [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md). |
+| **Owner** | `Spaces.userId` (creator/billing anchor) **and** the `SpaceMemberships` row with `role='owner'` — full control (edit, delete, manage invites, remove others’ items from the space, etc.). |
+| **Member** | Row in `SpaceMemberships` with `role='member'` for that `spaceId` — can contribute and manage own items; cannot delete the space or manage invites. |
+| **Public space** *(future)* | `Spaces` row with `type='public'` — reserved, not yet implemented. Harvous-hosted broadcast: owner/leader author, members follow + copy into their own space. See [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md#public-spaces-future-not-implemented). |
 
 ### “Mode” vs “Space” (user-facing language)
 
@@ -32,18 +32,18 @@
 
 Canonical business rules below match [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md) and [server/utils/tier-limits.ts](../../server/utils/tier-limits.ts).
 
-| Dimension | Free (`unlimited_notes` absent) | Paid / unlimited tier (`unlimited_notes` present) |
+| Dimension | Free (no Shared Spaces add-on) | Shared Spaces add-on |
 |-----------|----------------------------------|-----------------------------------------------------|
 | **Named private spaces** | No dedicated cap in product rules (subject to reasonable abuse safeguards later if needed). | Same |
-| **Owned shared spaces** | **3** max (spaces you own that count as “shared” per `getSharedSpacesOwnedCount`) | **Unlimited** |
-| **Spaces you can join** | **Unlimited** memberships | **Unlimited** |
+| **Owned shared spaces** | **0** — owning any shared space requires the add-on | **Unlimited** |
+| **Spaces you can join** | **Unlimited** memberships, always free | **Unlimited** |
 | **Members per owned space** | **150** (soft UX; not marketed as a headline number) | **150** |
 
-**Definition — “owned shared space”:** A space where `Spaces.userId` is you **and** (share token is set **or** there is at least one member). See `getSharedSpacesOwnedCount` in [server/utils/tier-limits.ts](../../server/utils/tier-limits.ts).
+**Definition — “owned shared space”:** A space where `Spaces.userId` is you and `Spaces.type === 'shared'`. See `getSharedSpacesOwnedCount` in [server/utils/tier-limits.ts](../../server/utils/tier-limits.ts).
 
-**Grandfathering:** Users who already exceed a new cap keep existing data; enforcement blocks *new* actions that would violate limits (create shared space, first share/member where applicable).
+**No grandfathering (July 2026 clean break):** the prior 3-shared-space free allotment and the `unlimited` tier are retired outright — zero users were grandfathered in because the legacy `Members`/`SpaceInvitations` model was retired wholesale, not migrated. See [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md#the-clean-break).
 
-**Customer-facing names (billing):** Code today uses `UserMetadata.tier` `'free' | 'unlimited'`. The paid tier is marketed as **Group Sharing** ($6/mo · $48/yr). **Review** (personal AI) is a separate subscription — no bundle SKU. See [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md). **Group Leader** (leader pays to host; members join spaces free; Review stays individual) is a future SKU distinct from Group Sharing.
+**Customer-facing names (billing):** `UserMetadata.sharedSpacesAddOn` (boolean) is the source of truth — see [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md#entitlement--the-shared-spaces-add-on). The add-on is marketed as **Shared Spaces** ($6/mo · $48/yr), superseding the retired **Group Sharing** SKU (same price point). **Review** (personal AI) is a separate subscription — no bundle SKU. See [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md). **Group Leader** (leader pays to host; members join spaces free; Review stays individual) is a future SKU distinct from Shared Spaces.
 
 ---
 
@@ -51,10 +51,10 @@ Canonical business rules below match [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPAC
 
 ### Invariants (all modes / all spaces)
 
-- Same **APIs** and **Postgres** model: `Spaces`, `Threads`, `Notes`, `Members`, junction tables.
+- Same **APIs** and **Postgres** model: `Spaces`, `Threads`, `Notes`, `SpaceMemberships`, junction tables.
 - **Thread/note graph** and scripture processing behave the same; no second content pipeline per mode.
 - **Item-level share links** remain independent of space-level visibility (see two-layer visibility in shared spaces doc).
-- **Locked notes** (`contentEncrypted`): never shown to non-owners in shared contexts; owner still sees their own locked notes in their space (see shared spaces doc).
+- **Locked notes** (`contentEncrypted`): never shown in shared contexts, for any viewer — including the note's own author (see shared spaces doc).
 
 ### May differ by mode (UX / presentation — target state from redesign)
 

@@ -20,7 +20,7 @@ own if they want it.
 | **Remember** | Passive resurfacing — nudges, home trend cards, On This Day | Free (deterministic; no runtime AI) |
 | **Review** | Active personal practice — AI quizzes from *your* notes, your pace | **Always paid; individual subscription** |
 | **Compete** | Themed seasons, study guides, leaderboards | Current season **free track**; **Season Pass** for full guide + archive |
-| **Group Sharing** | Unlimited owned shared spaces (collaboration) | Paid (live today as Premium / `unlimited` tier) |
+| **Shared Spaces** | Unlimited owned shared spaces (collaboration) | Paid add-on (`UserMetadata.sharedSpacesAddOn`) — supersedes the retired Group Sharing / `unlimited` tier |
 | **Group Leader** | Host/admin for small groups — spaces, roster, cohort Compete | Paid (future SKU); does **not** include member Review |
 | **Church org** | Curriculum distribution, multiple leaders, admin | Future; pricing TBD — see Section 7 |
 
@@ -34,11 +34,11 @@ separate pillar — communal program, not personal memory.
 | SKU | Monthly | Yearly | Buyer |
 |---|---|---|---|
 | **Review** | $4 | $36 | Individual |
-| **Group Sharing** | $6 | $48 | Individual (matches live [UpgradePage](../../spa/src/pages/UpgradePage.tsx)) |
+| **Shared Spaces** | $6 | $48 | Individual (matches live [UpgradePage](../../spa/src/pages/UpgradePage.tsx)) |
 | **Season Pass** | — | $5–8 one-time | Individual (or leader bulk codes later) |
 | **Group Leader** | ~$15–19 | TBD | Small-group / ministry leader |
 
-Review and Group Sharing are **separate subscriptions** — no bundle SKU. Users who want both pay for each product independently ($10/mo à la carte).
+Review and Shared Spaces are **separate subscriptions** — no bundle SKU. Users who want both pay for each product independently ($10/mo à la carte).
 
 ### Free tier
 
@@ -58,10 +58,14 @@ Review and Group Sharing are **separate subscriptions** — no bundle SKU. Users
 - Web-first runtime: **Mistral Small** on server ([SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md))
 - Each subscriber's Review is tied to **their account only** — not shareable via Group Leader or church org
 
-### Group Sharing (paid)
+### Shared Spaces (paid add-on)
 
-- Unlimited owned shared spaces (today: `UserMetadata.tier === 'unlimited'`)
-- 150 members per space cap (invisible, both tiers)
+- Unlimited owned shared spaces (`UserMetadata.sharedSpacesAddOn === true`); joining a shared space is
+  always free, on every plan.
+- 150 members per space cap (invisible, every plan).
+- **Retired July 2026:** the old `Group Sharing` name and the `UserMetadata.tier === 'unlimited'`
+  mechanism. Zero subscribers at retirement — no grandfathering. See
+  [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md).
 
 ---
 
@@ -89,7 +93,7 @@ Leaders may bulk-buy Season Pass codes for their group later; that does not incl
 
 **What they get:**
 
-- Group Sharing–class hosting (unlimited or high-cap owned shared spaces)
+- Shared Spaces–class hosting (unlimited or high-cap owned shared spaces)
 - Member invites — **join the leader's spaces at no extra sharing cost**
 - Leader admin: roster, optional private cohort view on active Compete season
 - Optional bulk Season Pass codes (future)
@@ -127,20 +131,21 @@ Implementation flagged future; rewards should be **access to study**, not cash.
 
 ## 6. Technical entitlements (conceptual — not implemented)
 
-Today: `UserMetadata.tier` is `'free' | 'unlimited'` ([tier-limits.ts](../../server/utils/tier-limits.ts));
-`unlimited` maps to **Group Sharing** only.
+Today: `UserMetadata.sharedSpacesAddOn` (boolean) gates **Shared Spaces**
+([tier-limits.ts](../../server/utils/tier-limits.ts)). The legacy `UserMetadata.tier` (`'free' | 'unlimited'`)
+column still exists for the retired backfill script but grants nothing as of July 2026.
 
 **Target shape** (schema decision when Review ships):
 
 | Flag / field | Gates |
 |---|---|
 | `hasReview` | AI quiz session generation (`canUseAiFeature`) |
-| `hasGroupSharing` | Unlimited owned shared spaces |
+| `hasGroupSharing` (implemented as `UserMetadata.sharedSpacesAddOn`) | Unlimited owned shared spaces |
 | `hasGroupLeader` | Leader admin + member seat pool |
 | `seasonPassIds[]` | Active Season Pass entitlements |
 | `reviewSponsor` (optional) | Church bulk seat — still activates **individual** Review on claim |
 
-Stripe / Clerk products: separate plan IDs for Review, Group Sharing, Group Leader; Season Pass as
+Stripe / Clerk products: separate plan IDs for Review, Shared Spaces, Group Leader; Season Pass as
 one-time or annual SKU per season.
 
 ---
