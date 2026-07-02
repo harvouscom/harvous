@@ -31,9 +31,9 @@ import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db, first, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata,
-  UserXP, Comments, ScriptureMetadata, Members, NoteScriptureReferences, ResourceMetadata,
+  UserXP, Comments, ScriptureMetadata, Members, SpaceMemberships, SpaceInvites, NoteScriptureReferences, ResourceMetadata,
   StudyThreadEntries, NoteConnections,
-  eq, and, or, desc, asc, isNotNull, isNull, sql, inArray,
+  eq, and, ne, or, desc, asc, isNotNull, isNull, sql, inArray,
 } from '../db';
 import { nowISO } from '../db/dates';
 
@@ -186,8 +186,14 @@ app.delete('/api/user/clear-data', requireAuth, async (c) => {
 
     const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, auth.userId));
     for (const space of userSpaces) {
+      await db.delete(SpaceMemberships).where(eq(SpaceMemberships.spaceId, space.id));
+      await db.delete(SpaceInvites).where(eq(SpaceInvites.spaceId, space.id));
+      // Hygiene deletes on the frozen v1 tables (kept until they are dropped)
       await db.delete(Members).where(eq(Members.spaceId, space.id));
     }
+    // Own membership rows in spaces owned by other people.
+    await db.delete(SpaceMemberships).where(eq(SpaceMemberships.userId, auth.userId));
+    await db.delete(Members).where(eq(Members.userId, auth.userId));
     await db.delete(Spaces).where(eq(Spaces.userId, auth.userId));
     await db.delete(Tags).where(eq(Tags.userId, auth.userId));
 
@@ -212,8 +218,14 @@ app.delete('/api/user/delete-account', requireAuth, async (c) => {
 
     const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, auth.userId));
     for (const space of userSpaces) {
+      await db.delete(SpaceMemberships).where(eq(SpaceMemberships.spaceId, space.id));
+      await db.delete(SpaceInvites).where(eq(SpaceInvites.spaceId, space.id));
+      // Hygiene deletes on the frozen v1 tables (kept until they are dropped)
       await db.delete(Members).where(eq(Members.spaceId, space.id));
     }
+    // Own membership rows in spaces owned by other people.
+    await db.delete(SpaceMemberships).where(eq(SpaceMemberships.userId, auth.userId));
+    await db.delete(Members).where(eq(Members.userId, auth.userId));
     await db.delete(Spaces).where(eq(Spaces.userId, auth.userId));
     await db.delete(Tags).where(eq(Tags.userId, auth.userId));
     await db.delete(UserXP).where(eq(UserXP.userId, auth.userId));
@@ -1152,34 +1164,37 @@ app.get('/api/profile/my-shared-spaces', requireAuth, rateLimit('read'), async (
     const origin = new URL(c.req.url).origin;
 
     const ownedSpacesRows = await db.select({
-      id: Spaces.id, title: Spaces.title, color: Spaces.color, shareToken: Spaces.shareToken
-    }).from(Spaces).where(eq(Spaces.userId, auth.userId))
+      id: Spaces.id, title: Spaces.title, color: Spaces.color,
+    }).from(Spaces).where(and(eq(Spaces.userId, auth.userId), eq(Spaces.type, 'shared')))
       .orderBy(
         asc(sql`CASE WHEN ${Spaces.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Spaces.lastVisited)
       );
 
-    const owned: Array<{ id: string; title: string; color?: string | null; memberCount: number; shareToken?: string | null; shareUrl?: string }> = [];
+    const owned: Array<{ id: string; title: string; color?: string | null; memberCount: number; shareUrl?: string }> = [];
     for (const space of ownedSpacesRows) {
       const memberCount = await getSpaceMemberCount(space.id);
-      const hasShareLink = space.shareToken != null && space.shareToken.length > 0;
-      if (memberCount > 0 || hasShareLink) {
-        owned.push({
-          id: space.id, title: space.title || 'Untitled space', color: space.color ?? undefined,
-          memberCount, shareToken: space.shareToken ?? undefined,
-          shareUrl: space.shareToken ? `${origin}/spaces/join/${space.shareToken}` : undefined
-        });
-      }
+      const activeInvite = first(await db.select({ token: SpaceInvites.token })
+        .from(SpaceInvites)
+        .where(and(eq(SpaceInvites.spaceId, space.id), isNull(SpaceInvites.revokedAt)))
+        .orderBy(desc(SpaceInvites.createdAt))
+        .limit(1));
+      owned.push({
+        id: space.id, title: space.title || 'Untitled space', color: space.color ?? undefined,
+        memberCount,
+        shareUrl: activeInvite ? `${origin}/spaces/join/${activeInvite.token}` : undefined,
+      });
     }
 
-    const memberships = await db.select({ spaceId: Members.spaceId }).from(Members).where(eq(Members.userId, auth.userId));
+    const memberRows = await db.select({ spaceId: SpaceMemberships.spaceId })
+      .from(SpaceMemberships).where(eq(SpaceMemberships.userId, auth.userId));
     const ownedSpaceIds = new Set(ownedSpacesRows.map(s => s.id));
     const memberOf: Array<{ id: string; title: string; color?: string | null; memberCount: number }> = [];
 
-    for (const m of memberships) {
+    for (const m of memberRows) {
       if (ownedSpaceIds.has(m.spaceId)) continue;
       const spaceRow = first(await db.select({ id: Spaces.id, title: Spaces.title, color: Spaces.color })
-        .from(Spaces).where(eq(Spaces.id, m.spaceId)).limit(1));
+        .from(Spaces).where(and(eq(Spaces.id, m.spaceId), ne(Spaces.type, 'personal'))).limit(1));
       if (spaceRow) {
         const memberCount = await getSpaceMemberCount(spaceRow.id);
         memberOf.push({ id: spaceRow.id, title: spaceRow.title || 'Untitled space', color: spaceRow.color ?? undefined, memberCount });

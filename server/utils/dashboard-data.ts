@@ -11,7 +11,7 @@
  */
 
 import {
-  db, first, Threads, Notes, Spaces, Members, NoteThreads, SpaceMemberships, UserMetadata,
+  db, first, Threads, Notes, Spaces, NoteThreads, SpaceMemberships, UserMetadata,
   NoteScriptureReferences, ScriptureMetadata, ResourceMetadata,
   eq, and, desc, asc, count, ne, isNull, isNotNull, inArray, sql,
 } from '../db';
@@ -115,18 +115,6 @@ async function findUnorganizedThread(userId: string) {
     console.error("Error finding/creating unorganized thread:", error);
     return null;
   }
-}
-
-/**
- * Get the member count for a space (inlined from tier-limits.ts).
- */
-async function getSpaceMemberCount(spaceId: string): Promise<number> {
-  const row = first(
-    await db.select({ cnt: count() })
-      .from(Members)
-      .where(eq(Members.spaceId, spaceId)),
-  );
-  return row?.cnt ?? 0;
 }
 
 // ─── Exported functions ─────────────────────────────────────────────────────────
@@ -271,7 +259,7 @@ export async function getSpacesWithCounts(userId: string) {
       db.select({
         id: Spaces.id, title: Spaces.title, description: Spaces.description,
         color: Spaces.color, backgroundGradient: Spaces.backgroundGradient,
-        isPublic: Spaces.isPublic, isActive: Spaces.isActive,
+        isPublic: Spaces.isPublic, isActive: Spaces.isActive, type: Spaces.type,
         createdAt: Spaces.createdAt, updatedAt: Spaces.updatedAt,
         lastVisited: Spaces.lastVisited,
         threadCount: count(Threads.id),
@@ -322,7 +310,7 @@ export async function getSpacesWithCounts(userId: string) {
     return spacesWithThreadCounts.map(space => ({
       id: space.id, title: space.title, description: space.description,
       color: space.color, backgroundGradient: space.backgroundGradient,
-      isPublic: space.isPublic, isActive: space.isActive,
+      isPublic: space.isPublic, isActive: space.isActive, type: space.type,
       createdAt: space.createdAt, updatedAt: space.updatedAt,
       lastVisited: space.lastVisited,
       threadCount: space.threadCount || 0,
@@ -337,14 +325,14 @@ export async function getSpacesWithCounts(userId: string) {
   }
 }
 
-export async function getMemberOfSpaces(userId: string): Promise<Array<{ id: string; title: string | null; color: string | null; memberCount: number; totalItemCount: number }>> {
+export async function getMemberOfSpaces(userId: string): Promise<Array<{ id: string; title: string | null; color: string | null; type: string; role: string; memberCount: number; totalItemCount: number }>> {
   try {
-    // Single JOIN to get all spaces the user is a member of (but does not own)
+    // Single JOIN to get all shared/public spaces the user belongs to but does not own.
     const spaceRows = await db
-      .select({ id: Spaces.id, title: Spaces.title, color: Spaces.color })
-      .from(Members)
-      .innerJoin(Spaces, eq(Members.spaceId, Spaces.id))
-      .where(and(eq(Members.userId, userId), ne(Spaces.userId, userId)));
+      .select({ id: Spaces.id, title: Spaces.title, color: Spaces.color, type: Spaces.type, role: SpaceMemberships.role })
+      .from(SpaceMemberships)
+      .innerJoin(Spaces, eq(SpaceMemberships.spaceId, Spaces.id))
+      .where(and(eq(SpaceMemberships.userId, userId), ne(Spaces.userId, userId)));
 
     if (spaceRows.length === 0) return [];
 
@@ -352,10 +340,10 @@ export async function getMemberOfSpaces(userId: string): Promise<Array<{ id: str
 
     // Three aggregation queries instead of 2N individual queries
     const [memberCounts, threadCounts, noteCounts] = await Promise.all([
-      db.select({ spaceId: Members.spaceId, cnt: count() })
-        .from(Members)
-        .where(inArray(Members.spaceId, spaceIds))
-        .groupBy(Members.spaceId),
+      db.select({ spaceId: SpaceMemberships.spaceId, cnt: count() })
+        .from(SpaceMemberships)
+        .where(inArray(SpaceMemberships.spaceId, spaceIds))
+        .groupBy(SpaceMemberships.spaceId),
       db.select({ spaceId: Threads.spaceId, cnt: count() })
         .from(Threads)
         .where(and(isNotNull(Threads.spaceId), inArray(Threads.spaceId, spaceIds)))
@@ -374,6 +362,8 @@ export async function getMemberOfSpaces(userId: string): Promise<Array<{ id: str
       id: space.id,
       title: space.title,
       color: space.color,
+      type: space.type,
+      role: space.role,
       memberCount: memberCountMap.get(space.id) || 0,
       totalItemCount: (threadCountMap.get(space.id) || 0) + (noteCountMap.get(space.id) || 0),
     }));

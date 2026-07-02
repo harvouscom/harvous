@@ -5,8 +5,9 @@ import {
   Threads,
   Notes,
   NoteThreads,
-  Members,
+  SpaceMemberships,
   eq,
+  ne,
   and,
   count,
   inArray,
@@ -70,10 +71,10 @@ export async function getAdminContentSpaces(
 
   const [memberCounts, threadCounts, noteCounts] = await Promise.all([
     db
-      .select({ key: Members.spaceId, cnt: count() })
-      .from(Members)
-      .where(inArray(Members.spaceId, spaceIds))
-      .groupBy(Members.spaceId),
+      .select({ key: SpaceMemberships.spaceId, cnt: count() })
+      .from(SpaceMemberships)
+      .where(and(inArray(SpaceMemberships.spaceId, spaceIds), ne(SpaceMemberships.role, 'owner')))
+      .groupBy(SpaceMemberships.spaceId),
     db
       .select({ key: Threads.spaceId, cnt: count() })
       .from(Threads)

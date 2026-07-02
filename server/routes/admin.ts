@@ -41,7 +41,7 @@ import {
   NoteScriptureReferences,
   ScriptureMetadata,
   Threads,
-  Members,
+  SpaceMemberships,
   eq,
   and,
 } from '../db';
@@ -846,6 +846,9 @@ app.post('/api/admin/spaces/:spaceId/members', async (c) => {
     if (!space) {
       return c.json({ error: 'Space not found or not owned by Harvous system user' }, 404);
     }
+    if (space.type === 'personal') {
+      return c.json({ error: 'Personal spaces cannot have members', code: 'NOT_SHARED_SPACE' }, 400);
+    }
 
     if (space.userId === userId) {
       return c.json({ error: 'User is already the space owner' }, 400);
@@ -854,8 +857,8 @@ app.post('/api/admin/spaces/:spaceId/members', async (c) => {
     const existing = first(
       await db
         .select()
-        .from(Members)
-        .where(and(eq(Members.spaceId, spaceId), eq(Members.userId, userId)))
+        .from(SpaceMemberships)
+        .where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, userId)))
         .limit(1),
     );
     if (existing) {
@@ -870,9 +873,9 @@ app.post('/api/admin/spaces/:spaceId/members', async (c) => {
     const now = nowISO();
     const member = first(
       await db
-        .insert(Members)
+        .insert(SpaceMemberships)
         .values({
-          id: `member_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+          id: `smem_${crypto.randomUUID()}`,
           spaceId,
           userId,
           role: 'member',

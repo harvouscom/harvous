@@ -16,7 +16,7 @@
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
-  db, Threads, Notes, NoteThreads, Spaces, Members,
+  db, Threads, Notes, NoteThreads, Spaces,
   eq, and, or, inArray, isNull,
   first,
 } from '../db';
@@ -617,11 +617,7 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
           const { space } = await requireSpaceAccess(thread.spaceId, auth.userId);
           memberNotesResult = await getNotesForThreadForMember(threadId, space.userId, limit, offset);
         } catch {
-          const spaceRow = first(await db.select().from(Spaces).where(eq(Spaces.id, thread.spaceId)).limit(1));
-          const memberRow = first(await db.select().from(Members).where(and(eq(Members.spaceId, thread.spaceId), eq(Members.userId, auth.userId))).limit(1));
-          if (spaceRow && memberRow) {
-            memberNotesResult = await getNotesForThreadForMember(threadId, spaceRow.userId, limit, offset);
-          }
+          // No access to the thread's space — leave the empty owner-path result.
         }
         if (memberNotesResult) result = memberNotesResult;
       }

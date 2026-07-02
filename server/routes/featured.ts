@@ -5,7 +5,7 @@ import { getAuth, getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { getHarvousSystemUserId, requireHarvousAdmin } from '../utils/harvous-admin';
 import {
   FeaturedItems,
-  Members,
+  SpaceMemberships,
   Notes,
   ScriptureMetadata,
   Spaces,
@@ -192,9 +192,9 @@ app.get('/api/featured/items', async (c) => {
 
         const memberships = spaceIds.length > 0
           ? await db
-              .select({ spaceId: Members.spaceId })
-              .from(Members)
-              .where(and(eq(Members.userId, auth.userId), inArray(Members.spaceId, spaceIds)))
+              .select({ spaceId: SpaceMemberships.spaceId })
+              .from(SpaceMemberships)
+              .where(and(eq(SpaceMemberships.userId, auth.userId), inArray(SpaceMemberships.spaceId, spaceIds)))
           : [];
         const memberIds = new Set(memberships.map((m) => m.spaceId));
 
