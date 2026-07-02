@@ -30,7 +30,7 @@ import {
 } from '../utils/dashboard-data';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { repairMissingNoteThreadJunctionsForUser } from '../utils/thread-junction-repair';
-import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
+import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
 import { awardCreationBonusXP, awardThreadCreatedXP, revokeXPOnDeletion, revokeAllXPForItem, deleteAllXpForRelatedIds } from '../utils/xp-system';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
 import { getNextUntitledThreadName } from '../utils/untitled-naming';

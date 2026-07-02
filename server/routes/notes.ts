@@ -74,7 +74,7 @@ import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
 import { healScriptureNoteThreadsFromParents } from '../utils/heal-scripture-note-threads';
 import { removeScriptureNotesFromThread } from '../utils/remove-scripture-notes-from-thread';
-import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
+import { requireSpaceAccess, SpaceAccessError, canAuthorInSpace } from '../utils/space-access';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { extractArticleContent } from '@/utils/content-extractor';
 import { sortByLastVisited } from '@/utils/sorting';
@@ -280,8 +280,23 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
 
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
     const nextSimpleNoteId = effectiveHighest + 1;
-    let finalSpaceId = null;
-    if (spaceId && spaceId.trim() && spaceId !== 'default_space') finalSpaceId = spaceId;
+    let finalSpaceId: string | null = null;
+    if (spaceId && spaceId.trim() && spaceId !== 'default_space') {
+      finalSpaceId = spaceId.trim().startsWith('space_') ? spaceId.trim() : `space_${spaceId.trim()}`;
+      let targetSpace;
+      try {
+        targetSpace = await requireSpaceAccess(finalSpaceId, auth.userId);
+      } catch (err) {
+        if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+        throw err;
+      }
+      if (!canAuthorInSpace(targetSpace.space, targetSpace.role)) {
+        return c.json({ error: 'You cannot add notes to this space', code: 'FORBIDDEN' }, 403);
+      }
+      if (contentEncrypted && targetSpace.space.type !== 'personal') {
+        return c.json({ error: "Locked notes can't be created in shared spaces", code: 'LOCKED_NOTE_IN_SHARED_SPACE' }, 400);
+      }
+    }
 
     const now = nowISO();
     const isScriptureNote = finalNoteType === 'scripture';

@@ -14,7 +14,7 @@
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, NoteThreads, Threads, VerseTextCache, eq, and, count, isNotNull } from '../db';
-import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
+import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
 import {

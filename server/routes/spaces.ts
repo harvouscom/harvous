@@ -65,7 +65,7 @@ import {
   getThreadsForSpaceBySpaceId,
   getThreadColorsForNotesBatch,
 } from '../utils/dashboard-data';
-import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
+import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
 import { awardCreationBonusXP } from '../utils/xp-system';
 import {
   canCreateSharedSpace,
@@ -1720,7 +1720,7 @@ route.post('/api/spaces/:spaceId/members/invite', requireAuth, rateLimit('write'
 
     const spaceId = requireParam(c, 'spaceId');
 
-    try { await requireSpaceAccess(spaceId, auth.userId, true); } catch (err) {
+    try { await requireSpaceAccess(spaceId, auth.userId, { minRole: 'owner' }); } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
