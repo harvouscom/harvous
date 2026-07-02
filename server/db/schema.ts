@@ -541,12 +541,25 @@ export const SupportTickets = pgTable('SupportTickets', {
   status: text('status').notNull().default('open'),
   adminNote: text('adminNote'),
   adminReadAt: ts('adminReadAt'),
+  repliedAt: ts('repliedAt'),
+  notifiedAt: ts('notifiedAt'),
   createdAt: ts('createdAt').notNull(),
   closedAt: ts('closedAt'),
 }, (table) => [
   index('SupportTickets_status_createdAtIndex').on(table.status, table.createdAt),
   index('SupportTickets_userId_createdAtIndex').on(table.userId, table.createdAt),
   index('SupportTickets_status_adminReadAtIndex').on(table.status, table.adminReadAt),
+]);
+
+// ─── SupportTicketNotes (running list of admin triage notes per ticket) ────────
+
+export const SupportTicketNotes = pgTable('SupportTicketNotes', {
+  id: text('id').primaryKey(),
+  ticketId: text('ticketId').notNull(),
+  note: text('note').notNull(),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('SupportTicketNotes_ticketId_createdAtIndex').on(table.ticketId, table.createdAt),
 ]);
 
 // ─── DiagnosticEvents (anonymous client/server issue signals — no userId) ───────

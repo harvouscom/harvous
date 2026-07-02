@@ -5,6 +5,30 @@ import {
 } from '@/utils/scripture-detector';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 
+// The injected pill's own reference (e.g. "Proverbs 23") is often just a prefix/substring of the
+// quote's full reference (e.g. "Proverbs 23:1-35") — so the corruption can leave literal text
+// before AND/OR after the injected <span>...</span> before the attribute's real closing quote.
+const CORRUPTED_QUOTE_REF_RE = /data-scripture-quote-reference="([^<]*)<span\b[^]*?>([^<]*)<\/span>([^"]*)"/g;
+
+/**
+ * Repairs scripture-quote blockquotes corrupted by an earlier buggy highlighter pass: when a
+ * quote's `data-scripture-quote-reference="..."` attribute value matched another scripture
+ * reference elsewhere in the same note (e.g. the attribution pill), the highlighter injected a
+ * pill `<span>` *inside the attribute value*, breaking out of its quotes and corrupting the
+ * blockquote tag. This must run on the raw string BEFORE any DOM parsing — once a browser parses
+ * the corrupted markup, the original tag structure is unrecoverable. Idempotent.
+ */
+export function repairCorruptedScriptureQuoteAttributes(html: string): string {
+  if (!html || !html.includes('data-scripture-quote-reference="') || !html.includes('<span')) return html;
+  let result = html;
+  let previous: string;
+  do {
+    previous = result;
+    result = previous.replace(CORRUPTED_QUOTE_REF_RE, 'data-scripture-quote-reference="$1$2$3"');
+  } while (result !== previous);
+  return result;
+}
+
 /**
  * Repairs notes corrupted by an earlier buggy pill create-path. Two symptoms:
  *  (A) raw pill-attribute markup leaked into the document as literal TEXT

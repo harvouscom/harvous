@@ -11,7 +11,7 @@ import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
 import { getTranslation, getTranslationAbbreviationDisplay } from '@/data/translations';
-import { withScripturePillDisplayLabels, repairScripturePillTranslationsInHtml, sanitizeScripturePillHtml } from '@/utils/scripture-pill-display';
+import { withScripturePillDisplayLabels, repairScripturePillTranslationsInHtml, sanitizeScripturePillHtml, repairCorruptedScriptureQuoteAttributes } from '@/utils/scripture-pill-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { isNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
@@ -105,7 +105,10 @@ import { shouldSkipPrototypeUnloadSave } from '@/utils/prototype-note-save-guard
 function repairHtmlForEditor(html: string): string {
   return normalizeEmptyBodyHtmlForEditor(
     sanitizeScripturePillHtml(
-      repairScripturePillTranslationsInHtml(html ?? '', getEffectiveDefaultTranslation()),
+      repairScripturePillTranslationsInHtml(
+        repairCorruptedScriptureQuoteAttributes(html ?? ''),
+        getEffectiveDefaultTranslation(),
+      ),
     ),
   );
 }
@@ -113,7 +116,9 @@ function repairHtmlForEditor(html: string): string {
 /** Read-only note body HTML — canonicalize blank lines before pill labels / highlight strip. */
 function prepareReadOnlyNoteBodyHtml(html: string): string {
   return stripStudyHighlightMarkInlineBackground(
-    withScripturePillDisplayLabels(canonicalizeNoteHtmlLineBreaks(html)),
+    withScripturePillDisplayLabels(
+      canonicalizeNoteHtmlLineBreaks(repairCorruptedScriptureQuoteAttributes(html)),
+    ),
   );
 }
 

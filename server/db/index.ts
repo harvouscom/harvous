@@ -34,6 +34,7 @@ export {
   NoteFingerprints,
   RecallEvents,
   SupportTickets,
+  SupportTicketNotes,
   DiagnosticEvents,
   DiagnosticIssueTriage,
   NoteConnections,

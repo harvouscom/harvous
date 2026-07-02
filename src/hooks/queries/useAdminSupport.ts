@@ -30,6 +30,20 @@ async function adminApiPatch<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function adminApiPost<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 export type SupportTicketStatus = 'open' | 'closed';
 export type SupportTicketListFilter = 'open' | 'closed' | 'all';
 
@@ -45,6 +59,12 @@ export type SupportTicketListItem = {
   createdAt: string;
 };
 
+export type SupportTicketNote = {
+  id: string;
+  note: string;
+  createdAt: string;
+};
+
 export type SupportTicketDetail = SupportTicketListItem & {
   userId: string;
   appVersion: string | null;
@@ -52,9 +72,11 @@ export type SupportTicketDetail = SupportTicketListItem & {
   clientEnvironment: string | null;
   adminNote: string | null;
   adminReadAt: string | null;
+  repliedAt: string | null;
   closedAt: string | null;
   userTier: string | null;
   userAccountCreatedAt: string | null;
+  notes: SupportTicketNote[];
 };
 
 export type SupportTicketsListResponse = {
@@ -114,14 +136,29 @@ export function useUpdateSupportTicket() {
       status?: SupportTicketStatus;
       adminNote?: string | null;
       read?: boolean;
+      replied?: boolean;
     }) =>
       adminApiPatch<SupportTicketDetailResponse>(`/api/admin/support/tickets/${params.id}`, {
         status: params.status,
         adminNote: params.adminNote,
         read: params.read,
+        replied: params.replied,
       }),
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['admin', 'support'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'support', 'ticket', variables.id] });
+    },
+  });
+}
+
+export function useAddSupportTicketNote() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { id: string; note: string }) =>
+      adminApiPost<SupportTicketDetailResponse>(`/api/admin/support/tickets/${params.id}/notes`, {
+        note: params.note,
+      }),
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['admin', 'support', 'ticket', variables.id] });
     },
   });

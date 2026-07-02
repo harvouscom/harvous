@@ -79,6 +79,7 @@ export interface BuildTicketReplyMailtoOptions {
   userEmail: string;
   topic?: FeedbackTopic | null;
   originalMessage: string;
+  userName?: string | null;
 }
 
 function ticketReplySubject(topic: FeedbackTopic | null | undefined, ticketRef: string): string {
@@ -89,11 +90,13 @@ function ticketReplySubject(topic: FeedbackTopic | null | undefined, ticketRef: 
 
 /** Build a mailto URL for admin to reply to a support ticket submitter. */
 export function buildTicketReplyMailto(options: BuildTicketReplyMailtoOptions): string {
-  const { ticketNumber, ticketId, userEmail, topic, originalMessage } = options;
+  const { ticketNumber, ticketId, userEmail, topic, originalMessage, userName } = options;
   const ticketRef = ticketNumber != null ? String(ticketNumber) : ticketId;
   const subject = ticketReplySubject(topic, ticketRef);
+  const firstName = userName?.trim().split(/\s+/)[0];
+  const greeting = firstName ? [`Hey ${firstName},`, ''] : [''];
   const body = [
-    '',
+    ...greeting,
     '---',
     'Original message:',
     originalMessage.trim(),
