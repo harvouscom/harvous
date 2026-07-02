@@ -6,16 +6,16 @@
  *   GET  /api/shared/thread/:shareToken
  *   POST /api/shared/add-note-to-harvous
  *   POST /api/shared/add-to-harvous
- *   GET  /api/invitations/:token
- *   POST /api/invitations/:token/accept
- *   POST /api/invitations/:token/decline
+ *   GET  /api/invitations/:token          (410 — retired v1 invitations)
+ *   POST /api/invitations/:token/accept   (410 — retired v1 invitations)
+ *   POST /api/invitations/:token/decline  (410 — retired v1 invitations)
  */
 
 import { Hono } from 'hono';
 import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Notes, Threads, NoteThreads, UserMetadata, ScriptureMetadata, ResourceMetadata,
-  NoteScriptureReferences, SpaceInvitations, Spaces, Members,
+  NoteScriptureReferences, Spaces,
   eq, and, desc, asc, isNotNull, count, sql, inArray, lt,
   first,
 } from '../db';
@@ -625,139 +625,12 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
 
 // ─── Invitations ────────────────────────────────────────────────────
 
-/** GET /api/invitations/:token */
-app.get('/api/invitations/:token', async (c) => {
-  try {
-    const token = requireParam(c, 'token');
-
-    const invitation = first(await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).limit(1));
-    if (!invitation) return c.json({ error: 'Invitation not found', code: 'NOT_FOUND' }, 404);
-
-    const isExpired = invitation.expiresAt && new Date() > new Date(invitation.expiresAt);
-
-    if (invitation.status !== 'pending') {
-      return c.json({ error: `This invitation has been ${invitation.status}`, code: 'INVITATION_NOT_PENDING' }, 410);
-    }
-
-    const space = first(await db.select().from(Spaces).where(eq(Spaces.id, invitation.spaceId)).limit(1));
-    if (!space) return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
-
-    const inviter = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, invitation.invitedBy)).limit(1));
-    const inviterFirst = inviter?.firstName || '';
-    const inviterLastInitial = inviter?.lastName ? inviter.lastName.charAt(0).toUpperCase() : '';
-    const inviterDisplayName = inviterFirst
-      ? (inviterLastInitial ? `${inviterFirst} ${inviterLastInitial}.` : inviterFirst)
-      : 'A Harvous User';
-
-    const auth = getAuth(c);
-    let alreadyMember = false;
-    let canAccept = !isExpired;
-
-    if (auth.userId) {
-      if (space.userId === auth.userId) {
-        alreadyMember = true;
-        canAccept = false;
-      } else {
-        const existingMember = first(await db.select().from(Members).where(and(eq(Members.spaceId, invitation.spaceId), eq(Members.userId, auth.userId))).limit(1));
-        if (existingMember) { alreadyMember = true; canAccept = false; }
-      }
-    }
-
-    return c.json({
-      success: true,
-      data: {
-        invitation: {
-          spaceTitle: space.title, spaceColor: space.color || 'paper',
-          invitedBy: { displayName: inviterDisplayName },
-          message: invitation.message, expiresAt: invitation.expiresAt, isExpired, status: invitation.status,
-        },
-        canAccept, alreadyMember, requiresAuth: !auth.userId,
-      },
-    });
-  } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: '/api/invitations/[token]', action: 'view_invitation' });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
-
-/** POST /api/invitations/:token/accept */
-app.post('/api/invitations/:token/accept', requireAuth, rateLimit('write'), async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-
-    const token = requireParam(c, 'token');
-
-    // Passively drain expired invitations older than 30 days on each accept attempt
-    await db.delete(SpaceInvitations).where(
-      and(
-        eq(SpaceInvitations.status, 'expired'),
-        lt(SpaceInvitations.expiresAt, sql`datetime('now', '-30 days')`)
-      )
-    );
-
-    const invitation = first(await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).limit(1));
-    if (!invitation) return c.json({ error: 'Invitation not found', code: 'NOT_FOUND' }, 404);
-
-    if (invitation.status !== 'pending') {
-      return c.json({ error: `This invitation has already been ${invitation.status}`, code: 'INVITATION_NOT_PENDING' }, 410);
-    }
-
-    if (invitation.expiresAt && new Date() > new Date(invitation.expiresAt)) {
-      // Delete instead of marking expired — no value in keeping expired rows
-      await db.delete(SpaceInvitations).where(eq(SpaceInvitations.id, invitation.id));
-      return c.json({ error: 'This invitation has expired', code: 'INVITATION_EXPIRED' }, 410);
-    }
-
-    const space = first(await db.select().from(Spaces).where(eq(Spaces.id, invitation.spaceId)).limit(1));
-    if (!space) return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
-
-    if (space.userId === auth.userId) {
-      return c.json({ error: 'You are already the owner of this space', code: 'ALREADY_OWNER' }, 400);
-    }
-
-    const existingMember = first(await db.select().from(Members).where(and(eq(Members.spaceId, invitation.spaceId), eq(Members.userId, auth.userId))).limit(1));
-    if (existingMember) {
-      await db.update(SpaceInvitations).set({ status: 'accepted', acceptedAt: nowISO() }).where(eq(SpaceInvitations.id, invitation.id));
-      return c.json({ error: 'You are already a member of this space', code: 'ALREADY_MEMBER' }, 400);
-    }
-
-    const member = first(await db.insert(Members).values({
-      id: `member_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-      userId: auth.userId, spaceId: invitation.spaceId,
-      role: invitation.role || 'member', createdAt: nowISO(),
-    }).returning())!;
-
-    await db.update(SpaceInvitations).set({ status: 'accepted', acceptedAt: nowISO() }).where(eq(SpaceInvitations.id, invitation.id));
-
-    return c.json({
-      success: true,
-      data: { success: true, space: { id: space.id, title: space.title, color: space.color }, redirectUrl: idToUrl(space.id), member },
-    });
-  } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: '/api/invitations/[token]/accept', action: 'accept_invitation' });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
-
-/** POST /api/invitations/:token/decline */
-app.post('/api/invitations/:token/decline', async (c) => {
-  try {
-    const token = requireParam(c, 'token');
-
-    const invitation = first(await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).limit(1));
-    if (!invitation) return c.json({ error: 'Invitation not found', code: 'NOT_FOUND' }, 404);
-
-    if (invitation.status !== 'pending') {
-      return c.json({ error: `This invitation has already been ${invitation.status}`, code: 'INVITATION_NOT_PENDING' }, 410);
-    }
-
-    await db.update(SpaceInvitations).set({ status: 'declined' }).where(eq(SpaceInvitations.id, invitation.id));
-
-    return c.json({ success: true, data: { success: true, message: 'Invitation declined' } });
-  } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: '/api/invitations/[token]/decline', action: 'decline_invitation' });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
+// ─── Legacy v1 email-invitation routes (SpaceInvitations) — retired ─────────
+// Superseded by GET /api/spaces/invite-preview/:token + POST /api/spaces/invites/:token/redeem.
+const invitationGone = (c: any) =>
+  c.json({ error: 'This invitation link is no longer active. Ask the space owner for a new one.', code: 'GONE' }, 410);
+app.get('/api/invitations/:token', invitationGone);
+app.post('/api/invitations/:token/accept', invitationGone);
+app.post('/api/invitations/:token/decline', invitationGone);
 
 export default app;

@@ -36,7 +36,7 @@ import { Hono } from 'hono';
 import { getTableColumns } from 'drizzle-orm';
 import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
-  db, Spaces, Notes, Threads, NoteThreads, Members, SpaceInvitations, UserMetadata, ResourceMetadata, ScriptureMetadata,
+  db, Spaces, Notes, Threads, NoteThreads, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, UserMetadata, ResourceMetadata, ScriptureMetadata,
   StudyThreadEntries, NoteConnections,
   eq, and, ne, count, inArray, desc, asc, sql, isNull, isNotNull, gt, or,
   first,
@@ -135,7 +135,6 @@ route.post('/api/spaces/create', requireAuth, rateLimit('write'), async (c) => {
     const formData = await c.req.formData();
     const title = formData.get('title') as string;
     const color = (formData.get('color') as string) || 'paper';
-    const isPublic = formData.get('isPublic') === 'true';
     const selectedNoteIds = parseItemIds(formData.get('selectedNoteIds') as string | null);
     const selectedThreadIds = parseItemIds(formData.get('selectedThreadIds') as string | null);
 
@@ -146,17 +145,7 @@ route.post('/api/spaces/create', requireAuth, rateLimit('write'), async (c) => {
 
     const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
 
-    if (isPublic) {
-      const canCreate = await canCreateSharedSpace(auth.userId, auth);
-      if (!canCreate.allowed) {
-        return c.json({
-          error: canCreate.reason || "You've used all your shared spaces. Upgrade for unlimited.",
-          code: 'SHARED_SPACE_LIMIT_EXCEEDED', currentCount: canCreate.currentCount,
-          limit: canCreate.limit, upgradeUrl: '/upgrade',
-        }, 403);
-      }
-    }
-
+    // Personal spaces only — shared spaces are created via /api/spaces/create-shared.
     const backgroundGradient = getThreadGradientCSS(color);
     const now = nowISO();
 
@@ -167,7 +156,8 @@ route.post('/api/spaces/create', requireAuth, rateLimit('write'), async (c) => {
       color,
       backgroundGradient,
       userId: auth.userId,
-      isPublic,
+      type: 'personal',
+      isPublic: false,
       isActive: true,
       order: 0,
       createdAt: now,
@@ -197,6 +187,75 @@ route.post('/api/spaces/create', requireAuth, rateLimit('write'), async (c) => {
   }
 });
 
+// ─── POST /api/spaces/create-shared ─────────────────────────────────────────
+/**
+ * Creates a shared space (type='shared') with the creator's owner membership.
+ * The Shared Spaces add-on gate lives here — shared spaces are only ever
+ * created as shared (no personal→shared conversion).
+ */
+route.post('/api/spaces/create-shared', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    const body = await c.req.json().catch(() => ({})) as { title?: string; color?: string; description?: string };
+    const title = (body.title ?? '').trim();
+    const color = (body.color ?? 'paper').trim() || 'paper';
+
+    const titleValidation = validateTitle(title, true);
+    if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
+    const colorValidation = validateColor(color);
+    if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
+
+    const canCreate = await canCreateSharedSpace(auth.userId, auth);
+    if (!canCreate.allowed) {
+      return c.json({
+        error: canCreate.reason,
+        code: 'SHARED_SPACE_LIMIT_EXCEEDED',
+        currentCount: canCreate.currentCount,
+        limit: canCreate.limit,
+        upgradeUrl: canCreate.upgradeUrl,
+      }, 403);
+    }
+
+    const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
+    const now = nowISO();
+
+    const newSpace = await db.transaction(async (tx) => {
+      const space = first(await tx.insert(Spaces).values({
+        id: generateSpaceId(),
+        title: capitalizedTitle,
+        description: body.description?.trim() || null,
+        color,
+        backgroundGradient: getThreadGradientCSS(color),
+        userId: auth.userId,
+        type: 'shared',
+        isPublic: false,
+        isActive: true,
+        order: 0,
+        createdAt: now,
+      }).returning())!;
+
+      await tx.insert(SpaceMemberships).values({
+        id: `smem_${crypto.randomUUID()}`,
+        spaceId: space.id,
+        userId: auth.userId,
+        role: 'owner',
+        joinedAt: now,
+        createdAt: now,
+      });
+
+      return space;
+    });
+
+    awardCreationBonusXP(auth.userId, 'space').catch(() => {});
+
+    return c.json({ success: 'Shared space created!', space: newSpace });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/spaces/create-shared', action: 'create_shared_space' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── DELETE /api/spaces/delete ──────────────────────────────────────────────
 route.delete('/api/spaces/delete', requireAuth, async (c) => {
   try {
@@ -208,6 +267,9 @@ route.delete('/api/spaces/delete', requireAuth, async (c) => {
     const space = first(await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).limit(1));
     if (!space) return c.json({ error: 'Space not found or access denied' }, 404);
 
+    await db.delete(SpaceMemberships).where(eq(SpaceMemberships.spaceId, spaceId));
+    await db.delete(SpaceInvites).where(eq(SpaceInvites.spaceId, spaceId));
+    // Hygiene deletes on the frozen v1 tables (kept until they are dropped)
     await db.delete(Members).where(eq(Members.spaceId, spaceId));
     await db.delete(SpaceInvitations).where(eq(SpaceInvitations.spaceId, spaceId));
 
@@ -339,7 +401,7 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
     const formData = await c.req.formData();
     const title = formData.get('title') as string;
     const color = formData.get('color') as string;
-    const isPublic = formData.get('isPublic') === 'true';
+    // `isPublic` is no longer accepted — sharing is governed by Spaces.type + SpaceInvites.
 
     const space = first(await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).limit(1));
     if (!space) return c.json({ error: 'Space not found or access denied' }, 404);
@@ -349,19 +411,11 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
     const colorValidation = validateColor(color);
     if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
 
-    // Tier check when toggling public
-    if (isPublic && !space.isPublic) {
-      const canCreate = await canCreateSharedSpace(auth.userId, auth);
-      if (!canCreate.allowed) {
-        return c.json({ error: canCreate.reason, code: 'SHARED_SPACE_LIMIT_EXCEEDED', currentCount: canCreate.currentCount, limit: canCreate.limit, upgradeUrl: '/upgrade' }, 403);
-      }
-    }
-
     const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
     const backgroundGradient = getThreadGradientCSS(color);
 
     const updatedSpace = first(await db.update(Spaces).set({
-      title: capitalizedTitle, color, backgroundGradient, isPublic, updatedAt: nowISO(),
+      title: capitalizedTitle, color, backgroundGradient, updatedAt: nowISO(),
     }).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).returning())!;
 
     return c.json({ success: 'Space updated!', space: updatedSpace });
@@ -1551,62 +1605,335 @@ route.post('/api/spaces/:spaceId/pin-item', requireAuth, async (c) => {
   }
 });
 
-// ─── GET /api/spaces/:spaceId/share-link ────────────────────────────────────
-route.get('/api/spaces/:spaceId/share-link', requireAuth, async (c) => {
+// ─── Invites (SpaceInvites — expiring join links) ────────────────────────────
+
+const DEFAULT_INVITE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+type InviteRow = typeof SpaceInvites.$inferSelect;
+
+/** Why an invite can't be redeemed right now, or null if it's live. */
+function inviteDeadReason(invite: InviteRow): string | null {
+  if (invite.revokedAt) return 'This invite link has been turned off';
+  if (invite.expiresAt && new Date() > invite.expiresAt) return 'This invite link has expired';
+  if (invite.maxUses != null && invite.useCount >= invite.maxUses) return 'This invite link has reached its limit';
+  return null;
+}
+
+// ─── POST /api/spaces/:spaceId/invites ──────────────────────────────────────
+route.post('/api/spaces/:spaceId/invites', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
     const spaceId = requireParam(c, 'spaceId');
-    try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
+    try { access = await requireSpaceAccess(spaceId, auth.userId, { minRole: 'owner' }); } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
-    const space = first(await db.select({ id: Spaces.id, isPublic: Spaces.isPublic, shareToken: Spaces.shareToken, userId: Spaces.userId })
-      .from(Spaces).where(eq(Spaces.id, spaceId)).limit(1));
-    if (!space) return c.json({ error: 'Space not found' }, 404);
-
-    if (!space.isPublic) return c.json({ isPublic: false, shareToken: null, shareUrl: null });
-
-    let effectiveShareToken = space.shareToken;
-    if (!effectiveShareToken && space.userId === auth.userId) {
-      // Auto-generate token for owner
-      const tierCheck = await canCreateSharedSpace(auth.userId, auth);
-      if (!tierCheck.allowed) return c.json({ error: tierCheck.reason, code: 'SHARED_SPACE_LIMIT_EXCEEDED' }, 403);
-      effectiveShareToken = generateShareToken();
-      await db.update(Spaces).set({ shareToken: effectiveShareToken, updatedAt: nowISO() }).where(eq(Spaces.id, spaceId));
+    if (access.space.type !== 'shared') {
+      return c.json({ error: 'Only shared spaces can have invite links', code: 'NOT_SHARED_SPACE' }, 400);
     }
 
-    const origin = new URL(c.req.url).origin;
-    const shareUrl = effectiveShareToken ? `${origin}/spaces/join/${effectiveShareToken}` : null;
+    // The paid gate: creating invites requires the owner to hold the add-on.
+    if (!(await hasSharedSpacesAddOn(auth))) {
+      return c.json({
+        error: 'Owning shared spaces requires the Shared Spaces add-on. Joining spaces is always free.',
+        code: 'SHARED_SPACE_LIMIT_EXCEEDED',
+        upgradeUrl: '/upgrade',
+      }, 403);
+    }
 
-    return c.json({ isPublic: true, shareToken: effectiveShareToken, shareUrl });
+    const body = await c.req.json().catch(() => ({})) as { expiresAt?: string | null; maxUses?: number | null };
+    let expiresAt: Date | null = new Date(Date.now() + DEFAULT_INVITE_TTL_MS);
+    if (body.expiresAt === null) {
+      expiresAt = null;
+    } else if (typeof body.expiresAt === 'string') {
+      const parsed = new Date(body.expiresAt);
+      if (isNaN(parsed.getTime()) || parsed <= new Date()) {
+        return c.json({ error: 'expiresAt must be a future date', code: 'BAD_REQUEST' }, 400);
+      }
+      expiresAt = parsed;
+    }
+    const maxUses = typeof body.maxUses === 'number' && body.maxUses > 0 ? Math.floor(body.maxUses) : null;
+
+    const token = generateShareToken();
+    const now = nowISO();
+    const invite = first(await db.insert(SpaceInvites).values({
+      id: `sinv_${crypto.randomUUID()}`,
+      spaceId,
+      token,
+      kind: 'link',
+      role: 'member',
+      createdBy: auth.userId,
+      expiresAt,
+      maxUses,
+      createdAt: now,
+    }).returning())!;
+
+    const origin = new URL(c.req.url).origin;
+    return c.json({
+      success: true,
+      inviteId: invite.id,
+      inviteUrl: `${origin}/spaces/join/${token}`,
+      token,
+      expiresAt: invite.expiresAt,
+      maxUses: invite.maxUses,
+    });
   } catch (error: any) {
-    const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/share-link', action: 'get_share_link' });
+    const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/invites', action: 'create_invite' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
 
-// ─── POST /api/spaces/:spaceId/share-link ───────────────────────────────────
-route.post('/api/spaces/:spaceId/share-link', requireAuth, rateLimit('write'), async (c) => {
+// ─── GET /api/spaces/:spaceId/invites ───────────────────────────────────────
+route.get('/api/spaces/:spaceId/invites', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
     const spaceId = requireParam(c, 'spaceId');
+    try { await requireSpaceAccess(spaceId, auth.userId, { minRole: 'owner' }); } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
 
-    const space = first(await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).limit(1));
-    if (!space) return c.json({ error: 'Space not found or access denied' }, 404);
-
-    const { action } = await c.req.json();
-    if (action !== 'refresh') return c.json({ error: 'Invalid action' }, 400);
-
-    const newShareToken = generateShareToken();
-    await db.update(Spaces).set({ shareToken: newShareToken, updatedAt: nowISO() }).where(eq(Spaces.id, spaceId));
+    const rows = await db.select().from(SpaceInvites)
+      .where(and(eq(SpaceInvites.spaceId, spaceId), isNull(SpaceInvites.revokedAt)))
+      .orderBy(desc(SpaceInvites.createdAt));
 
     const origin = new URL(c.req.url).origin;
-    return c.json({ success: true, shareToken: newShareToken, shareUrl: `${origin}/spaces/join/${newShareToken}` });
+    const invites = rows
+      .filter((inv) => inviteDeadReason(inv) === null)
+      .map((inv) => ({
+        id: inv.id,
+        inviteUrl: `${origin}/spaces/join/${inv.token}`,
+        kind: inv.kind,
+        role: inv.role,
+        expiresAt: inv.expiresAt,
+        maxUses: inv.maxUses,
+        useCount: inv.useCount,
+        createdAt: inv.createdAt,
+      }));
+
+    return c.json({ invites });
   } catch (error: any) {
-    const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/share-link', action: 'refresh_share_link' });
+    const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/invites', action: 'list_invites' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── DELETE /api/spaces/:spaceId/invites/:inviteId ──────────────────────────
+route.delete('/api/spaces/:spaceId/invites/:inviteId', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    const spaceId = requireParam(c, 'spaceId');
+    const inviteId = requireParam(c, 'inviteId');
+    try { await requireSpaceAccess(spaceId, auth.userId, { minRole: 'owner' }); } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    const updated = first(await db.update(SpaceInvites)
+      .set({ revokedAt: nowISO() })
+      .where(and(eq(SpaceInvites.id, inviteId), eq(SpaceInvites.spaceId, spaceId), isNull(SpaceInvites.revokedAt)))
+      .returning());
+    if (!updated) return c.json({ error: 'Invite not found', code: 'NOT_FOUND' }, 404);
+
+    return c.json({ success: true });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/invites/[inviteId]', action: 'revoke_invite' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/spaces/invite-preview/:token ──────────────────────────────────
+/** Public preview for an invite link (no auth). Validates the invite live. */
+route.get('/api/spaces/invite-preview/:token', async (c) => {
+  try {
+    const token = requireParam(c, 'token');
+
+    const invite = first(await db.select().from(SpaceInvites).where(eq(SpaceInvites.token, token)).limit(1));
+    if (!invite) return c.json({ error: 'Invite not found', code: 'NOT_FOUND' }, 404);
+
+    const deadReason = inviteDeadReason(invite);
+    if (deadReason) return c.json({ error: deadReason, code: 'INVITE_NOT_ACTIVE' }, 410);
+
+    const space = first(await db.select().from(Spaces).where(eq(Spaces.id, invite.spaceId)).limit(1));
+    if (!space || space.type === 'personal') return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
+
+    // Owner info (first name + last initial only; never full last name)
+    let isHarvousOwned = false;
+    try {
+      isHarvousOwned = space.userId === getHarvousSystemUserId();
+    } catch { /* env var not set in this environment — treat as normal user */ }
+
+    const ownerMeta = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, space.userId)).limit(1));
+    const ownerFirst = ownerMeta?.firstName || '';
+    const ownerLastInitial = ownerMeta?.lastName ? ownerMeta.lastName.charAt(0).toUpperCase() : '';
+    const ownerDisplayName = isHarvousOwned
+      ? 'Harvous'
+      : (ownerFirst
+        ? (ownerLastInitial ? `${ownerFirst} ${ownerLastInitial}.` : ownerFirst)
+        : 'Anonymous');
+
+    const memberCount = await getSpaceMemberCount(space.id);
+    const totalMembers = memberCount + 1; // +1 for owner
+
+    // Thread preview (up to 5), all authors
+    const threads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color })
+      .from(Threads).where(eq(Threads.spaceId, space.id))
+      .orderBy(desc(Threads.updatedAt)).limit(5);
+
+    const threadIds = threads.map(t => t.id);
+    let noteCountsMap = new Map<string, number>();
+    if (threadIds.length > 0) {
+      const noteCounts = await db.select({ threadId: NoteThreads.threadId, count: count() })
+        .from(NoteThreads).where(inArray(NoteThreads.threadId, threadIds))
+        .groupBy(NoteThreads.threadId);
+      noteCountsMap = new Map(noteCounts.map(item => [item.threadId, item.count]));
+    }
+
+    const threadPreviews = threads.map(t => ({
+      id: t.id, title: t.title, color: t.color, noteCount: noteCountsMap.get(t.id) || 0,
+    }));
+
+    // Note preview (up to 10, unencrypted only, all authors)
+    const notes = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      noteType: Notes.noteType,
+      content: Notes.content,
+      createdAt: Notes.createdAt,
+    }).from(Notes)
+      .where(and(eq(Notes.spaceId, space.id), eq(Notes.contentEncrypted, false)))
+      .orderBy(
+        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+        desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt)
+      ).limit(10);
+
+    const SCRIPTURE_TRANSLATION_ATTR_RE = /data-scripture-translation\s*=\s*["']([^"']+)["']/i;
+    const extractScriptureTranslation = (content: string | null | undefined) => {
+      const m = content?.match(SCRIPTURE_TRANSLATION_ATTR_RE);
+      const v = m?.[1]?.trim();
+      return v ? v.toUpperCase() : undefined;
+    };
+
+    const scriptureNoteIds = notes
+      .filter(n => n.noteType === 'scripture')
+      .map(n => n.id)
+      .filter(Boolean);
+
+    let scriptureVersionMap: Record<string, string> = {};
+    if (scriptureNoteIds.length > 0) {
+      try {
+        const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
+          .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
+        scriptureVersionMap = rows.reduce((acc, row) => {
+          if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+          return acc;
+        }, {} as Record<string, string>);
+      } catch (_) { /* ignore */ }
+    }
+
+    const notePreviews = notes.map(n => {
+      if (n.noteType !== 'scripture') {
+        return { id: n.id, title: n.title, noteType: n.noteType, createdAt: n.createdAt };
+      }
+      const scriptureTranslation = scriptureVersionMap[n.id] ?? extractScriptureTranslation(n.content) ?? 'NET';
+      return { id: n.id, title: n.title, noteType: n.noteType, createdAt: n.createdAt, version: scriptureTranslation, scriptureTranslation };
+    });
+
+    // Viewer state (optional auth)
+    const auth = getAuth(c);
+    let isAlreadyMember = false;
+    let isViewerOwner = false;
+    if (auth.userId) {
+      isViewerOwner = space.userId === auth.userId;
+      if (isViewerOwner) {
+        isAlreadyMember = true;
+      } else {
+        const membership = first(await db.select({ id: SpaceMemberships.id }).from(SpaceMemberships)
+          .where(and(eq(SpaceMemberships.spaceId, space.id), eq(SpaceMemberships.userId, auth.userId))).limit(1));
+        isAlreadyMember = !!membership;
+      }
+    }
+
+    return c.json({
+      space: {
+        id: space.id, title: space.title, color: space.color,
+        backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'),
+        description: space.description,
+        type: space.type,
+      },
+      owner: { displayName: ownerDisplayName, isHarvousOwned, profileImageUrl: ownerMeta?.profileImageUrl || null },
+      memberCount: totalMembers,
+      threadPreviews,
+      notePreviews,
+      isAlreadyMember,
+      expiresAt: invite.expiresAt,
+      viewer: { requiresAuth: !auth.userId, isOwner: isViewerOwner, canJoin: !!auth.userId && !isAlreadyMember },
+    });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/spaces/invite-preview/[token]', action: 'invite_preview' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/spaces/invites/:token/redeem ─────────────────────────────────
+route.post('/api/spaces/invites/:token/redeem', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    const token = requireParam(c, 'token');
+
+    const invite = first(await db.select().from(SpaceInvites).where(eq(SpaceInvites.token, token)).limit(1));
+    if (!invite) return c.json({ error: 'Invite not found', code: 'NOT_FOUND' }, 404);
+
+    const deadReason = inviteDeadReason(invite);
+    if (deadReason) return c.json({ error: deadReason, code: 'INVITE_NOT_ACTIVE' }, 410);
+
+    const space = first(await db.select().from(Spaces).where(eq(Spaces.id, invite.spaceId)).limit(1));
+    if (!space || space.type === 'personal') return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
+
+    if (space.userId === auth.userId) {
+      return c.json({ error: 'You are the owner of this space', code: 'ALREADY_OWNER' }, 400);
+    }
+
+    const existing = first(await db.select({ id: SpaceMemberships.id }).from(SpaceMemberships)
+      .where(and(eq(SpaceMemberships.spaceId, space.id), eq(SpaceMemberships.userId, auth.userId))).limit(1));
+    if (existing) {
+      return c.json({ success: true, alreadyMember: true, spaceId: space.id, spaceName: space.title });
+    }
+
+    // Invisible people cap — joining is otherwise free and uncapped for the joiner.
+    const memberCheck = await canAddMemberToSpace(space.id);
+    if (!memberCheck.allowed) return c.json({ error: memberCheck.reason, code: 'MEMBER_LIMIT_EXCEEDED' }, 403);
+
+    const now = nowISO();
+    try {
+      await db.insert(SpaceMemberships).values({
+        id: `smem_${crypto.randomUUID()}`,
+        spaceId: space.id,
+        userId: auth.userId,
+        role: invite.role === 'leader' ? 'leader' : 'member',
+        invitedBy: invite.createdBy,
+        inviteId: invite.id,
+        joinedAt: now,
+        createdAt: now,
+      });
+    } catch (err: any) {
+      // Unique (spaceId, userId) guard — a concurrent double-join is fine.
+      if (!String(err?.message ?? '').includes('SpaceMemberships_space_user_unique')) throw err;
+    }
+
+    await db.update(SpaceInvites)
+      .set({ useCount: sql`${SpaceInvites.useCount} + 1` })
+      .where(eq(SpaceInvites.id, invite.id));
+
+    return c.json({ success: true, spaceId: space.id, spaceName: space.title, redirectUrl: '/' });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/spaces/invites/[token]/redeem', action: 'redeem_invite' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
@@ -1626,8 +1953,9 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
     const isOwner = accessInfo.role === 'owner';
     const space = accessInfo.space;
 
-    // Get members
-    const members = await db.select().from(Members).where(eq(Members.spaceId, spaceId));
+    // Non-owner memberships (the owner entry is built from Spaces.userId below)
+    const members = (await db.select().from(SpaceMemberships).where(eq(SpaceMemberships.spaceId, spaceId)))
+      .filter(m => m.userId !== space.userId);
     const memberUserIds = members.map(m => m.userId);
     const allUserIds = [space.userId, ...memberUserIds];
 
@@ -1670,7 +1998,7 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
       ...members.map(m => {
         const meta = userMetadataMap[m.userId] || {};
         return {
-          userId: m.userId, role: 'member', joinedAt: m.joinedAt || m.createdAt,
+          userId: m.userId, role: m.role, joinedAt: m.joinedAt || m.createdAt,
           firstName: meta.firstName || null,
           lastName: meta.lastName || null,
           displayName: toDisplayName(meta.firstName ?? null, meta.lastName ?? null, meta.email || 'Unknown User'),
@@ -1680,21 +2008,10 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
       }),
     ];
 
-    // Pending invitations (owner only)
-    let pendingInvitations: any[] = [];
-    if (isOwner) {
-      const invitations = await db.select().from(SpaceInvitations)
-        .where(and(eq(SpaceInvitations.spaceId, spaceId), eq(SpaceInvitations.status, 'pending')));
-      pendingInvitations = invitations.map(inv => ({
-        id: inv.id, email: inv.invitedEmail, createdAt: inv.createdAt, expiresAt: inv.expiresAt,
-      }));
-    }
-
     const ownerHasAddOn = isOwner ? await hasSharedSpacesAddOn(auth) : false;
 
     return c.json({
       members: memberList,
-      pendingInvitations: isOwner ? pendingInvitations : undefined,
       memberCount: memberList.length,
       isOwner,
       limits: isOwner ? {
@@ -1713,43 +2030,9 @@ route.post('/api/spaces/:spaceId/members/invite', requireAuth, rateLimit('write'
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const spaceId = requireParam(c, 'spaceId');
-
-    try { await requireSpaceAccess(spaceId, auth.userId, { minRole: 'owner' }); } catch (err) {
-      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
-      throw err;
-    }
-
-    const { email, method = 'link' } = await c.req.json();
-
-    // People cap (the paid gate runs at share-enable, not here)
-    const memberCheck = await canAddMemberToSpace(spaceId);
-    if (!memberCheck.allowed) return c.json({ error: memberCheck.reason, code: 'MEMBER_LIMIT_EXCEEDED' }, 403);
-
-    if (method === 'email' && email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) return c.json({ error: 'Invalid email address' }, 400);
-    }
-
-    const inviteToken = generateShareToken();
-    const now = nowISO();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-    await db.insert(SpaceInvitations).values({
-      id: `invite_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      spaceId,
-      invitedBy: auth.userId,
-      invitedEmail: email || null,
-      inviteToken,
-      status: 'pending',
-      expiresAt,
-      createdAt: now,
-    });
-
-    const origin = new URL(c.req.url).origin;
-    const inviteUrl = `${origin}/spaces/join/${inviteToken}`;
-
-    return c.json({ success: true, inviteUrl, inviteToken, expiresAt });
+    // Legacy v1 invite endpoint (SpaceInvitations) — superseded by POST /api/spaces/:spaceId/invites.
+    void auth;
+    return c.json({ error: 'This endpoint has been retired. Use POST /api/spaces/:spaceId/invites.', code: 'GONE' }, 410);
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/members/invite', action: 'invite_member' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -1776,10 +2059,11 @@ route.delete('/api/spaces/:spaceId/members/:userId', requireAuth, rateLimit('wri
     // Members can only remove themselves
     if (!isOwner && !isSelf) return c.json({ error: 'Only the space owner can remove other members' }, 403);
 
-    const member = first(await db.select().from(Members).where(and(eq(Members.spaceId, spaceId), eq(Members.userId, targetUserId))).limit(1));
-    if (!member) return c.json({ error: 'User is not a member of this space' }, 404);
+    const membership = first(await db.select().from(SpaceMemberships)
+      .where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, targetUserId))).limit(1));
+    if (!membership) return c.json({ error: 'User is not a member of this space' }, 404);
 
-    await db.delete(Members).where(and(eq(Members.spaceId, spaceId), eq(Members.userId, targetUserId)));
+    await db.delete(SpaceMemberships).where(eq(SpaceMemberships.id, membership.id));
 
     return c.json({ success: true, message: isSelf ? 'You have left the space' : 'Member removed from space' });
   } catch (error: any) {
@@ -1788,173 +2072,14 @@ route.delete('/api/spaces/:spaceId/members/:userId', requireAuth, rateLimit('wri
   }
 });
 
-// ─── POST /api/spaces/join/:token ───────────────────────────────────────────
+// ─── POST /api/spaces/join/:token (legacy v1 shareToken links — retired) ─────
 route.post('/api/spaces/join/:token', requireAuth, rateLimit('write'), async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-
-    const token = requireParam(c, 'token');
-
-    const space = first(await db.select().from(Spaces).where(eq(Spaces.shareToken, token)).limit(1));
-    if (!space) return c.json({ error: 'Invalid or expired invite link' }, 404);
-    if (!space.isPublic) return c.json({ error: 'This space is no longer accepting new members' }, 403);
-
-    if (space.userId === auth.userId) return c.json({ error: 'You are the owner of this space' }, 400);
-
-    const existingMember = first(await db.select().from(Members).where(and(eq(Members.spaceId, space.id), eq(Members.userId, auth.userId))).limit(1));
-    if (existingMember) return c.json({ error: 'You are already a member of this space' }, 400);
-
-    // People cap (joins are free and uncapped for the joiner)
-    const memberCheck = await canAddMemberToSpace(space.id);
-    if (!memberCheck.allowed) return c.json({ error: memberCheck.reason, code: 'MEMBER_LIMIT_EXCEEDED' }, 403);
-
-    const now = nowISO();
-    await db.insert(Members).values({
-      id: `member_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      spaceId: space.id,
-      userId: auth.userId,
-      role: 'member',
-      joinedAt: now,
-      createdAt: now,
-    });
-
-    return c.json({ success: true, spaceId: space.id, spaceName: space.title, redirectUrl: idToUrl(space.id) });
-  } catch (error: any) {
-    const standardError = handleAPIError(error, { endpoint: '/api/spaces/join/[token]', action: 'join_space' });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
+  return c.json({ error: 'This invite link is no longer active. Ask the space owner for a new one.', code: 'GONE' }, 410);
 });
 
-// ─── GET /api/spaces/join-preview/:token ────────────────────────────────────
+// ─── GET /api/spaces/join-preview/:token (legacy v1 shareToken links — retired) ─
 route.get('/api/spaces/join-preview/:token', async (c) => {
-  try {
-    const token = requireParam(c, 'token');
-
-    const space = first(await db.select().from(Spaces).where(eq(Spaces.shareToken, token)).limit(1));
-    if (!space) return c.json({ error: 'Space not found or link expired' }, 404);
-    if (!space.isPublic) return c.json({ error: 'This space is no longer public' }, 403);
-
-    // Owner info (first name + last initial only; never full last name)
-    let isHarvousOwned = false;
-    try {
-      isHarvousOwned = space.userId === getHarvousSystemUserId();
-    } catch { /* env var not set in this environment — treat as normal user */ }
-
-    const ownerMeta = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, space.userId)).limit(1));
-    const ownerFirst = ownerMeta?.firstName || '';
-    const ownerLastInitial = ownerMeta?.lastName ? ownerMeta.lastName.charAt(0).toUpperCase() : '';
-    const ownerDisplayName = isHarvousOwned
-      ? 'Harvous'
-      : (ownerFirst
-        ? (ownerLastInitial ? `${ownerFirst} ${ownerLastInitial}.` : ownerFirst)
-        : 'Anonymous');
-
-    // Member count
-    const memberCount = await getSpaceMemberCount(space.id);
-    const totalMembers = memberCount + 1; // +1 for owner
-
-    // Thread preview (up to 5)
-    const threads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color })
-      .from(Threads).where(eq(Threads.spaceId, space.id))
-      .orderBy(desc(Threads.updatedAt)).limit(5);
-
-    const threadIds = threads.map(t => t.id);
-    let noteCountsMap = new Map<string, number>();
-    if (threadIds.length > 0) {
-      const noteCounts = await db.select({ threadId: NoteThreads.threadId, count: count() })
-        .from(NoteThreads).where(inArray(NoteThreads.threadId, threadIds))
-        .groupBy(NoteThreads.threadId);
-      noteCountsMap = new Map(noteCounts.map(item => [item.threadId, item.count]));
-    }
-
-    const threadPreviews = threads.map(t => ({
-      id: t.id, title: t.title, color: t.color, noteCount: noteCountsMap.get(t.id) || 0,
-    }));
-
-    // Note preview (up to 10, unencrypted only)
-    const notes = await db.select({
-      id: Notes.id,
-      title: Notes.title,
-      noteType: Notes.noteType,
-      content: Notes.content,
-      createdAt: Notes.createdAt,
-    }).from(Notes)
-      .where(and(eq(Notes.spaceId, space.id), eq(Notes.contentEncrypted, false)))
-      .orderBy(
-        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-        desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt)
-      ).limit(10);
-
-    const SCRIPTURE_TRANSLATION_ATTR_RE = /data-scripture-translation\s*=\s*["']([^"']+)["']/i;
-    const extractScriptureTranslation = (content: string | null | undefined) => {
-      const m = content?.match(SCRIPTURE_TRANSLATION_ATTR_RE);
-      const v = m?.[1]?.trim();
-      return v ? v.toUpperCase() : undefined;
-    };
-
-    // Enrich scripture note previews with translation abbreviation for CondensedNoteItem.
-    const scriptureNoteIds = notes
-      .filter(n => n.noteType === 'scripture')
-      .map(n => n.id)
-      .filter(Boolean);
-
-    let scriptureVersionMap: Record<string, string> = {};
-    if (scriptureNoteIds.length > 0) {
-      try {
-        const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
-          .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
-        scriptureVersionMap = rows.reduce((acc, row) => {
-          if (row.noteId && row.translation) acc[row.noteId] = row.translation;
-          return acc;
-        }, {} as Record<string, string>);
-      } catch (_) { /* ignore */ }
-    }
-
-    const notePreviews = notes.map(n => {
-      if (n.noteType !== 'scripture') {
-        return { id: n.id, title: n.title, noteType: n.noteType, createdAt: n.createdAt };
-      }
-
-      const scriptureTranslation = scriptureVersionMap[n.id] ?? extractScriptureTranslation(n.content) ?? 'NET';
-      return {
-        id: n.id,
-        title: n.title,
-        noteType: n.noteType,
-        createdAt: n.createdAt,
-        version: scriptureTranslation,
-        scriptureTranslation,
-      };
-    });
-
-    // Check if auth user is already a member
-    let isAlreadyMember = false;
-    try {
-      const auth = getAuth(c);
-      if (auth.userId) {
-        if (space.userId === auth.userId) isAlreadyMember = true;
-        else {
-          const member = first(await db.select().from(Members).where(and(eq(Members.spaceId, space.id), eq(Members.userId, auth.userId))).limit(1));
-          if (member) isAlreadyMember = true;
-        }
-      }
-    } catch {}
-
-    return c.json({
-      space: {
-        id: space.id, title: space.title, color: space.color,
-        backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'),
-        description: space.description,
-      },
-      owner: { displayName: ownerDisplayName, isHarvousOwned, profileImageUrl: ownerMeta?.profileImageUrl || null },
-      memberCount: totalMembers,
-      threadPreviews,
-      notePreviews,
-      isAlreadyMember,
-    });
-  } catch (error: any) {
-    console.error('Error fetching space preview:', error);
-    return c.json({ error: 'Failed to load space preview' }, 500);
-  }
+  return c.json({ error: 'This invite link is no longer active. Ask the space owner for a new one.', code: 'GONE' }, 410);
 });
 
 export default route;
