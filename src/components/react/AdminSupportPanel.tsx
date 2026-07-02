@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  useAddSupportTicketNote,
   useAdminSupportTicket,
   useAdminSupportTickets,
   useUpdateSupportTicket,
@@ -206,16 +207,10 @@ function TicketListRow({
 function TicketDetail({ ticketId, onClose }: { ticketId: string; onClose?: () => void }) {
   const detail = useAdminSupportTicket(ticketId);
   const update = useUpdateSupportTicket();
-  const [adminNote, setAdminNote] = useState('');
-  const [noteDirty, setNoteDirty] = useState(false);
+  const addNote = useAddSupportTicketNote();
+  const [noteDraft, setNoteDraft] = useState('');
 
   const ticket = detail.data?.ticket;
-
-  useEffect(() => {
-    if (ticket && !noteDirty) {
-      setAdminNote(ticket.adminNote ?? '');
-    }
-  }, [ticket, noteDirty]);
 
   if (detail.isLoading) {
     return <p className="admin-support__muted">Loading ticket…</p>;
@@ -233,14 +228,13 @@ function TicketDetail({ ticketId, onClose }: { ticketId: string; onClose?: () =>
     update.mutate({ id: ticket.id, status });
   };
 
-  const saveNote = () => {
-    update.mutate(
-      { id: ticket.id, adminNote },
+  const addTriageNote = () => {
+    const note = noteDraft.trim();
+    if (!note) return;
+    addNote.mutate(
+      { id: ticket.id, note },
       {
-        onSuccess: () => {
-          setNoteDirty(false);
-          window.toast?.success('Note saved');
-        },
+        onSuccess: () => setNoteDraft(''),
         onError: (err) => window.toast?.error(err.message),
       },
     );
@@ -256,6 +250,7 @@ function TicketDetail({ ticketId, onClose }: { ticketId: string; onClose?: () =>
       userEmail: ticket.userEmail,
       topic: ticket.topic as 'Bug' | 'Idea' | 'Question' | null,
       originalMessage: ticket.message,
+      userName: ticket.userName,
     });
 
   return (
@@ -273,6 +268,19 @@ function TicketDetail({ ticketId, onClose }: { ticketId: string; onClose?: () =>
             {ticket.status === 'open' ? 'Open' : 'Closed'}
           </SupportGlassChip>
           {ticket.unread ? <SupportGlassChip>Unread</SupportGlassChip> : null}
+          {ticket.repliedAt ? (
+            <SupportGlassChip muted>
+              Replied {relativeWhen(ticket.repliedAt)}{' '}
+              <button
+                type="button"
+                className="admin-support__undo-replied"
+                onClick={() => update.mutate({ id: ticket.id, replied: false })}
+                disabled={update.isPending}
+              >
+                Undo
+              </button>
+            </SupportGlassChip>
+          ) : null}
         </div>
         <h2 className="admin-support__detail-user">{ticket.userName || 'Unknown user'}</h2>
         {ticket.userEmail ? <p className="admin-support__detail-email">{ticket.userEmail}</p> : null}
@@ -316,33 +324,44 @@ function TicketDetail({ ticketId, onClose }: { ticketId: string; onClose?: () =>
       </dl>
 
       <div className="admin-support__note">
-        <label className="admin-support__note-label" htmlFor={`admin-note-${ticket.id}`}>
-          Internal note
-        </label>
+        <p className="admin-support__note-label">Triage notes</p>
+        {ticket.notes.length > 0 ? (
+          <ul className="admin-support__note-list">
+            {ticket.notes.map((entry) => (
+              <li key={entry.id} className="admin-support__note-entry">
+                <p className="admin-support__note-entry-when">{formatWhen(entry.createdAt)}</p>
+                <p className="admin-support__note-entry-text">{entry.note}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="admin-support__muted">No triage notes yet.</p>
+        )}
         <textarea
           id={`admin-note-${ticket.id}`}
           className="admin-support__note-input"
-          value={adminNote}
-          onChange={(e) => {
-            setAdminNote(e.target.value);
-            setNoteDirty(true);
-          }}
+          value={noteDraft}
+          onChange={(e) => setNoteDraft(e.target.value)}
           rows={3}
-          placeholder="Private notes for triage…"
+          placeholder="Add a triage note…"
         />
         <button
           type="button"
           className="admin-action-btn"
-          onClick={saveNote}
-          disabled={!noteDirty || update.isPending}
+          onClick={addTriageNote}
+          disabled={!noteDraft.trim() || addNote.isPending}
         >
-          {update.isPending ? 'Saving…' : 'Save note'}
+          {addNote.isPending ? 'Adding…' : 'Add note'}
         </button>
       </div>
 
       <div className="admin-support__actions">
         {replyHref ? (
-          <a className="proto-settings-btn admin-support__reply-link" href={replyHref}>
+          <a
+            className="proto-settings-btn admin-support__reply-link"
+            href={replyHref}
+            onClick={() => update.mutate({ id: ticket.id, replied: true })}
+          >
             Reply via email
           </a>
         ) : (

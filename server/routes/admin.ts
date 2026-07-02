@@ -79,12 +79,14 @@ import { getSeasonDisplayName, getSeasonMonths, listSeasonsForYear, isAdminRepor
 import { cleanupDuplicateNoteThreads, cleanupDuplicateScriptureRefs } from '../utils/admin-cleanup-duplicates';
 import { getAdminContentSpaces, getAdminContentSpaceThreads } from '../utils/admin-content-catalog';
 import {
+  addSupportTicketNote,
   getSupportTicket,
   listSupportTickets,
   parseSupportTicketListFilter,
   patchSupportTicket,
   validatePatchSupportTicketInput,
 } from '../utils/admin-support-tickets';
+import { checkAndNotifySupportTickets } from '../utils/support-notify';
 import {
   countDiagnosticEventsSince,
   getDiagnosticIssueEvents,
@@ -1216,6 +1218,60 @@ app.patch('/api/admin/support/tickets/:id', async (c) => {
     return c.json({ error: 'Failed to update support ticket' }, 500);
   }
 });
+
+const MAX_SUPPORT_NOTE_LENGTH = 2000;
+
+app.post('/api/admin/support/tickets/:id/notes', async (c) => {
+  const gate = await requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const id = c.req.param('id')?.trim() ?? '';
+    if (!id) return c.json({ error: 'id is required' }, 400);
+
+    const body = await c.req.json().catch(() => null);
+    const note = typeof (body as { note?: unknown })?.note === 'string' ? (body as { note: string }).note.trim() : '';
+    if (!note || note.length > MAX_SUPPORT_NOTE_LENGTH) {
+      return c.json({ error: 'Invalid note' }, 400);
+    }
+
+    const ticket = await addSupportTicketNote(id, note);
+    if (!ticket) return c.json({ error: 'Ticket not found' }, 404);
+    return c.json({ success: true, ticket });
+  } catch (error: unknown) {
+    console.error('[admin support ticket add note]', error);
+    return c.json({ error: 'Failed to add note' }, 500);
+  }
+});
+
+// ─── POST/GET /api/admin/support/notify-check (cron: hourly Slack ping) ───────
+
+async function handleSupportNotifyCheck(c: any) {
+  const authHeader = c.req.header('authorization');
+  const expectedToken = process.env.SUPPORT_NOTIFY_SECRET_TOKEN;
+  const auth = getAuth(c);
+  const isAuthenticated = !!auth?.userId;
+  const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
+
+  if (expectedToken && !hasValidToken && !isAuthenticated) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  if (!expectedToken) {
+    const gate = await requireHarvousAdmin(c);
+    if (gate) return gate;
+  }
+
+  try {
+    const result = await checkAndNotifySupportTickets();
+    return c.json({ success: true, ...result });
+  } catch (error: unknown) {
+    console.error('[admin support notify-check]', error);
+    return c.json({ error: 'Failed to run notify-check' }, 500);
+  }
+}
+
+app.post('/api/admin/support/notify-check', handleSupportNotifyCheck);
+app.get('/api/admin/support/notify-check', handleSupportNotifyCheck);
 
 // ─── GET/PATCH /api/admin/diagnostics/* ───────────────────────────────────────
 

@@ -2,8 +2,9 @@
  * Admin queries for SupportTickets inbox.
  */
 
-import { db, SupportTickets, UserMetadata, eq, desc, count, and, isNull, or } from '../db';
+import { db, SupportTickets, SupportTicketNotes, UserMetadata, eq, desc, count, and, isNull, or } from '../db';
 import { nowISO } from '../db/dates';
+import { generateTimestampId } from '@/utils/ids';
 import { isSupportTicketStatus, type SupportTicketStatus } from './support-ticket';
 
 export type SupportTicketListItem = {
@@ -18,6 +19,12 @@ export type SupportTicketListItem = {
   createdAt: string;
 };
 
+export type SupportTicketNote = {
+  id: string;
+  note: string;
+  createdAt: string;
+};
+
 export type SupportTicketDetail = SupportTicketListItem & {
   userId: string;
   appVersion: string | null;
@@ -25,9 +32,11 @@ export type SupportTicketDetail = SupportTicketListItem & {
   clientEnvironment: string | null;
   adminNote: string | null;
   adminReadAt: string | null;
+  repliedAt: string | null;
   closedAt: string | null;
   userTier: string | null;
   userAccountCreatedAt: string | null;
+  notes: SupportTicketNote[];
 };
 
 export type SupportTicketListFilter = 'open' | 'closed' | 'all';
@@ -55,6 +64,7 @@ function mapListRow(row: typeof SupportTickets.$inferSelect): SupportTicketListI
 function mapDetailRow(
   row: typeof SupportTickets.$inferSelect,
   userMeta?: { tier: string | null; createdAt: Date | string | null } | null,
+  notes: SupportTicketNote[] = [],
 ): SupportTicketDetail {
   return {
     ...mapListRow(row),
@@ -64,10 +74,39 @@ function mapDetailRow(
     clientEnvironment: row.clientEnvironment,
     adminNote: row.adminNote,
     adminReadAt: rowToIso(row.adminReadAt),
+    repliedAt: rowToIso(row.repliedAt),
     closedAt: rowToIso(row.closedAt),
     userTier: userMeta?.tier ?? null,
     userAccountCreatedAt: rowToIso(userMeta?.createdAt ?? null),
+    notes,
   };
+}
+
+async function listSupportTicketNotes(ticketId: string): Promise<SupportTicketNote[]> {
+  const rows = await db
+    .select({
+      id: SupportTicketNotes.id,
+      note: SupportTicketNotes.note,
+      createdAt: SupportTicketNotes.createdAt,
+    })
+    .from(SupportTicketNotes)
+    .where(eq(SupportTicketNotes.ticketId, ticketId))
+    .orderBy(desc(SupportTicketNotes.createdAt));
+  return rows.map((r) => ({ id: r.id, note: r.note, createdAt: rowToIso(r.createdAt) ?? '' }));
+}
+
+export async function addSupportTicketNote(ticketId: string, note: string): Promise<SupportTicketDetail | null> {
+  const resolvedId = await resolveSupportTicketId(ticketId);
+  if (!resolvedId) return null;
+
+  await db.insert(SupportTicketNotes).values({
+    id: generateTimestampId('supnote'),
+    ticketId: resolvedId,
+    note,
+    createdAt: nowISO(),
+  });
+
+  return getSupportTicket(resolvedId);
 }
 
 export async function countOpenSupportTickets(): Promise<number> {
@@ -154,30 +193,33 @@ export async function getSupportTicket(
   const row = rows[0];
   if (!row) return null;
 
+  const notes = await listSupportTicketNotes(resolvedId);
+
   if (options?.markRead && row.ticket.adminReadAt == null) {
     const readAt = nowISO();
     await db.update(SupportTickets).set({ adminReadAt: readAt }).where(eq(SupportTickets.id, resolvedId));
     return mapDetailRow({ ...row.ticket, adminReadAt: readAt }, {
       tier: row.userTier,
       createdAt: row.userAccountCreatedAt,
-    });
+    }, notes);
   }
 
   return mapDetailRow(row.ticket, {
     tier: row.userTier,
     createdAt: row.userAccountCreatedAt,
-  });
+  }, notes);
 }
 
 export type PatchSupportTicketInput = {
   status?: SupportTicketStatus;
   adminNote?: string | null;
   read?: boolean;
+  replied?: boolean;
 };
 
 export function validatePatchSupportTicketInput(body: unknown): PatchSupportTicketInput | null {
   if (!body || typeof body !== 'object') return null;
-  const { status, adminNote, read } = body as Record<string, unknown>;
+  const { status, adminNote, read, replied } = body as Record<string, unknown>;
   const patch: PatchSupportTicketInput = {};
 
   if (status !== undefined) {
@@ -195,7 +237,19 @@ export function validatePatchSupportTicketInput(body: unknown): PatchSupportTick
     patch.read = read;
   }
 
-  if (patch.status === undefined && patch.adminNote === undefined && patch.read === undefined) return null;
+  if (replied !== undefined) {
+    if (typeof replied !== 'boolean') return null;
+    patch.replied = replied;
+  }
+
+  if (
+    patch.status === undefined &&
+    patch.adminNote === undefined &&
+    patch.read === undefined &&
+    patch.replied === undefined
+  ) {
+    return null;
+  }
   return patch;
 }
 
@@ -222,6 +276,10 @@ export async function patchSupportTicket(
 
   if (patch.read !== undefined) {
     updates.adminReadAt = patch.read ? nowISO() : null;
+  }
+
+  if (patch.replied !== undefined) {
+    updates.repliedAt = patch.replied ? nowISO() : null;
   }
 
   if (Object.keys(updates).length === 0) return existing;
