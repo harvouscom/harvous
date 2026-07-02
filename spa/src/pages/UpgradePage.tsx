@@ -5,7 +5,7 @@ import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { api } from '../lib/api';
 
 interface UpgradeData {
-  hasUnlimited: boolean;
+  hasSharedSpaces: boolean;
   limitsInfo: LimitsInfo | null;
 }
 
@@ -22,11 +22,11 @@ export default function UpgradePage() {
   useEffect(() => {
     sonnerToast.dismiss();
     Promise.all([
-      api.get<{ hasUnlimited: boolean }>('/api/subscription/status'),
+      api.get<{ hasSharedSpaces: boolean }>('/api/subscription/status'),
       api.get<LimitsInfo>('/api/user/limits'),
     ])
       .then(([sub, limits]) => setData({
-        hasUnlimited: sub.hasUnlimited,
+        hasSharedSpaces: sub.hasSharedSpaces,
         limitsInfo: limits,
       }))
       .catch(() => setData(null))
@@ -56,10 +56,10 @@ export default function UpgradePage() {
               ) : (
                 <SubtleContentMount>
                   <UpgradePageContent
-                    initialHasUnlimited={data?.hasUnlimited ?? false}
+                    initialHasSharedSpaces={data?.hasSharedSpaces ?? false}
                     limitsInfo={data?.limitsInfo ?? null}
                     publishableKey={null}
-                    unlimitedPlanId={import.meta.env.VITE_CLERK_UNLIMITED_PLAN_ID ?? ''}
+                    sharedSpacesPlanId={import.meta.env.VITE_CLERK_SHARED_SPACES_PLAN_ID ?? ''}
                   />
                 </SubtleContentMount>
               )}

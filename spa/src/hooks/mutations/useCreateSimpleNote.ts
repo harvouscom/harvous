@@ -45,6 +45,8 @@ interface CreateSimpleNoteBody {
   content?: string;
   noteType?: 'default' | 'scripture' | 'resource';
   linkedFromNoteId?: string;
+  /** Shared spaces require connectivity in the foundation — pass `false` to fail loudly instead of queueing offline. */
+  allowOffline?: boolean;
 }
 
 interface CreateNoteResponse {
@@ -87,7 +89,7 @@ export function useCreateSimpleNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ spaceId, title = '', content = '<p></p>', noteType = 'default', linkedFromNoteId }: CreateSimpleNoteBody): Promise<CreateResult> => {
+    mutationFn: async ({ spaceId, title = '', content = '<p></p>', noteType = 'default', linkedFromNoteId, allowOffline = true }: CreateSimpleNoteBody): Promise<CreateResult> => {
       const sid = normalizedSpaceIdForApi(spaceId);
       try {
         return await api.post<CreateNoteResponse>('/api/notes/create', {
@@ -102,7 +104,8 @@ export function useCreateSimpleNote() {
       } catch (err) {
         // Offline: don't fail the mutation. onSuccess persists it to the durable queue
         // (keyed to the optimistic id) so it syncs on reconnect; the optimistic row stays.
-        if (isOfflineError(err)) return { offlineQueued: true };
+        // Shared spaces require connectivity in the foundation — fail loudly instead.
+        if (isOfflineError(err) && allowOffline) return { offlineQueued: true };
         throw err;
       }
     },

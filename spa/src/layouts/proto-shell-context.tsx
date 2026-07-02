@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { PROTO_PANEL_EXIT_MS } from './proto-motion';
 import {
+  clearPersistedDrilldowns,
   readPersistedSidebarNav,
   writePersistedSidebarNav,
 } from '../pages/prototype/proto-sidebar-nav-store';
@@ -131,9 +132,13 @@ type ProtoShellContextValue = {
   persistSidebarWidth: (width?: number) => void;
   sidebarWidthMin: number;
   sidebarWidthMax: number;
-  /** Sidebar layer — 'space' shows the Home space view, 'list' shows the list views. Persisted across refresh. */
+  /** Sidebar layer — 'space' shows the Home/space view, 'list' shows the list views. Persisted across refresh. */
   sidebarLayer: SidebarLayer;
   setSidebarLayer: (layer: SidebarLayer) => void;
+  /** Selected shared/public space (`space_...`); null = personal My Home. Persisted across refresh. */
+  activeSpaceId: string | null;
+  /** Switch the active space. Clears drill-down state and lands on the space layer. */
+  setActiveSpaceId: (spaceId: string | null) => void;
   /** Notes / folders / highlights / scripture sidebar list mode. */
   sidebarListMode: SidebarListMode;
   setSidebarListMode: (mode: SidebarListMode) => void;
@@ -226,6 +231,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>(readStoredSidebarListMode);
   const persistedNav = readPersistedSidebarNav();
   const [sidebarLayer, setSidebarLayerState] = useState<SidebarLayer>(persistedNav.layer);
+  const [activeSpaceId, setActiveSpaceIdState] = useState<string | null>(persistedNav.activeSpaceId ?? null);
   const [sidebarFolderDrilldown, setSidebarFolderDrilldownState] = useState<SidebarFolderDrilldown>(
     persistedNav.folderDrill,
   );
@@ -323,6 +329,22 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const setSidebarLayer = useCallback((layer: SidebarLayer) => {
     setSidebarLayerState(layer);
     writePersistedSidebarNav({ layer });
+  }, []);
+  const setActiveSpaceId = useCallback((spaceId: string | null) => {
+    setActiveSpaceIdState((prev) => (prev === spaceId ? prev : spaceId));
+    if (spaceId) {
+      writePersistedSidebarNav({ activeSpaceId: spaceId });
+    } else {
+      writePersistedSidebarNav({ clearActiveSpaceId: true });
+    }
+    // Switching spaces invalidates any in-progress drill-down and always lands
+    // on the space's top-level view (mirrors native "switch context resets scope").
+    clearPersistedDrilldowns();
+    setSidebarFolderDrilldownState(undefined);
+    setSidebarThreadDrilldownIdState(undefined);
+    setScriptureDrillState({ level: 'books' });
+    setSidebarLayerState('space');
+    writePersistedSidebarNav({ layer: 'space' });
   }, []);
   const setSidebarFolderDrilldown = useCallback((value: SidebarFolderDrilldown) => {
     setSidebarFolderDrilldownState(value);
@@ -596,6 +618,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       sidebarWidthMax: PROTO_SIDEBAR_WIDTH_MAX,
       sidebarLayer,
       setSidebarLayer,
+      activeSpaceId,
+      setActiveSpaceId,
       sidebarListMode,
       setSidebarListMode,
       sidebarFolderDrilldown,
@@ -656,6 +680,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       persistSidebarWidth,
       sidebarLayer,
       setSidebarLayer,
+      activeSpaceId,
+      setActiveSpaceId,
       sidebarListMode,
       setSidebarListMode,
       sidebarFolderDrilldown,

@@ -7,9 +7,10 @@ import CondensedNoteItem from '@/components/react/CondensedNoteItem';
 import { api } from '../../lib/api';
 import { useJoinSpace } from '../../hooks/mutations/useJoinSpace';
 import { navigationQueryKeyPrefix } from '../../hooks/queries/useNavigation';
-import { idToUrl } from '@/utils/url-helpers';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { PublicTopBar, PublicErrorState } from './public-shared';
+import { writePersistedSidebarNav } from '../prototype/proto-sidebar-nav-store';
+import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 
 interface SpacePreview {
   id: string;
@@ -48,7 +49,7 @@ export default function PublicJoinSpacePage() {
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    api.get<JoinPreviewResponse>(`/api/spaces/join-preview/${token}`)
+    api.get<JoinPreviewResponse>(`/api/spaces/invite-preview/${token}`)
       .then((res) => {
         setSpace({
           ...res.space,
@@ -88,14 +89,17 @@ export default function PublicJoinSpacePage() {
           detail: {
             space: {
               id: result.spaceId,
-              title: space?.title ?? '',
+              title: space?.title ?? result.spaceName ?? '',
               backgroundGradient: space?.backgroundGradient ?? 'var(--color-paper)',
               isShared: true,
             },
           },
         }));
+        // Land in the shell with the joined space already active.
+        const normalizedId = result.spaceId.startsWith('space_') ? result.spaceId : `space_${result.spaceId}`;
+        writePersistedSidebarNav({ activeSpaceId: normalizedId, layer: 'space', clearFolderDrill: true, clearThreadDrill: true, clearScriptureDrill: true });
         await queryClient.refetchQueries({ queryKey: navigationQueryKeyPrefix });
-        navigate({ to: (result.redirectUrl || idToUrl(result.spaceId)) as any });
+        navigate({ to: prototypeHomeRouteTo() as any });
       }
     } catch (err: any) {
       showToast(err?.message || 'Failed to join space. Please try again.', 'error');
@@ -104,7 +108,6 @@ export default function PublicJoinSpacePage() {
 
   const spaceColor = space?.color || 'paper';
   const colorVar = `var(--color-${spaceColor})`;
-  const spaceUrl = space ? idToUrl(space.id) : '';
 
   return (
     <>
@@ -192,7 +195,14 @@ export default function PublicJoinSpacePage() {
                           Join this space on Harvous
                         </a>
                       ) : space.isAlreadyMember ? (
-                        <button className="public-cta-btn" onClick={() => navigate({ to: spaceUrl as any })}>
+                        <button
+                          className="public-cta-btn"
+                          onClick={() => {
+                            const normalizedId = space.id.startsWith('space_') ? space.id : `space_${space.id}`;
+                            writePersistedSidebarNav({ activeSpaceId: normalizedId, layer: 'space', clearFolderDrill: true, clearThreadDrill: true, clearScriptureDrill: true });
+                            navigate({ to: prototypeHomeRouteTo() as any });
+                          }}
+                        >
                           Go to Space
                         </button>
                       ) : (

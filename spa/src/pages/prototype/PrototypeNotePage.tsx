@@ -18,7 +18,7 @@ import PrototypeInspectorPane from './PrototypeInspectorPane';
 import PrototypeStudyThreadPopover from './PrototypeStudyThreadPopover';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypePaneEmptyState from './PrototypePaneEmptyState';
-import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { buildHighlightDockOpenMetadataFromStudyThread } from '@/utils/study-dock-stack';
@@ -93,7 +93,12 @@ export default function PrototypeNotePage() {
     };
   }, [initialCrossRefTargetSearch, dockReq]);
 
-  const { homeSpaceId } = usePrototypeHomeSpaceId();
+  // activeSpaceId falls back to the personal My Home space when no shared
+  // space is selected — new notes composed while a shared space is active
+  // land in that space, not always My Home. personalHomeSpaceId is kept
+  // separately to detect when a compose target is actually shared (for the
+  // offline guard: shared spaces require connectivity in the foundation).
+  const { activeSpaceId: homeSpaceId, homeSpaceId: personalHomeSpaceId } = useActiveSpace();
   const navigate = useNavigate();
 
   const { data: note, isLoading, isError, isFetching } = useNote(isDraft ? '' : noteId);
@@ -299,6 +304,7 @@ export default function PrototypeNotePage() {
           title,
           content: content || '<p></p>',
           linkedFromNoteId,
+          allowOffline: spaceId === personalHomeSpaceId,
         });
         const createdId = getNoteIdFromCreateResponse(res);
         if (createdId) {
@@ -314,7 +320,7 @@ export default function PrototypeNotePage() {
 
     window.addEventListener('openNewNotePanel', handler);
     return () => window.removeEventListener('openNewNotePanel', handler);
-  }, [homeSpaceId, navigate]);
+  }, [homeSpaceId, personalHomeSpaceId, navigate]);
 
   const isEditable = true;
 
@@ -639,6 +645,7 @@ export default function PrototypeNotePage() {
           spaceId,
           title: newTitle,
           content: newContent,
+          allowOffline: spaceId === personalHomeSpaceId,
         });
           const createdId = getNoteIdFromCreateResponse(res);
           if (!createdId) {
@@ -682,7 +689,7 @@ export default function PrototypeNotePage() {
 
       return draftPersistPromiseRef.current;
     },
-    [homeSpaceId, scheduleComposeUrlIdleReplace, setComposePersistedNoteId, setPrototypeFolderChip],
+    [homeSpaceId, personalHomeSpaceId, scheduleComposeUrlIdleReplace, setComposePersistedNoteId, setPrototypeFolderChip],
   );
 
   const handleNoteSave = useCallback(

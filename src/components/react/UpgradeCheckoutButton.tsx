@@ -5,20 +5,33 @@ import { ClerkProvider, SignedIn, useAuth } from '@clerk/clerk-react';
 interface UpgradeCheckoutButtonProps {
   className?: string;
   publishableKey?: string | null;
+  /** Clerk plan id to check out. */
+  planId?: string;
+  /** @deprecated alias for planId — the Unlimited plan is retired; kept for callers not yet migrated. */
   unlimitedPlanId?: string;
+  /** Button + skeleton copy (defaults preserve current Unlimited wording). */
+  ctaLabel?: string;
+  priceMonthlyLabel?: string;
+  priceAnnualLabel?: string;
 }
 
 /**
  * Inner component that uses Clerk hooks - must be inside ClerkProvider
  */
-function UpgradeCheckoutButtonInner({ 
-  className, 
-  unlimitedPlanId,
-  remountKey
-}: { 
-  className: string; 
-  unlimitedPlanId: string;
+function UpgradeCheckoutButtonInner({
+  className,
+  planId,
+  remountKey,
+  ctaLabel,
+  priceMonthlyLabel,
+  priceAnnualLabel,
+}: {
+  className: string;
+  planId: string;
   remountKey: number;
+  ctaLabel: string;
+  priceMonthlyLabel: string;
+  priceAnnualLabel: string;
 }) {
   const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('month');
   const { isLoaded, isSignedIn } = useAuth();
@@ -112,7 +125,7 @@ function UpgradeCheckoutButtonInner({
                   display: 'block'
                 }}
               >
-                $6 per month
+                {priceMonthlyLabel}
               </span>
             </button>
             <button
@@ -141,7 +154,7 @@ function UpgradeCheckoutButtonInner({
                   display: 'block'
                 }}
               >
-                $48 per year
+                {priceAnnualLabel}
               </span>
             </button>
           </div>
@@ -211,7 +224,7 @@ function UpgradeCheckoutButtonInner({
                   display: 'block'
                 }}
               >
-                $6 per month
+                {priceMonthlyLabel}
               </span>
             </button>
             <button
@@ -255,7 +268,7 @@ function UpgradeCheckoutButtonInner({
                   display: 'block'
                 }}
               >
-                $48 per year
+                {priceAnnualLabel}
               </span>
             </button>
           </div>
@@ -325,7 +338,7 @@ function UpgradeCheckoutButtonInner({
                     display: 'block'
                   }}
                 >
-                  $6 per month
+                  {priceMonthlyLabel}
                 </span>
               </button>
               
@@ -371,32 +384,32 @@ function UpgradeCheckoutButtonInner({
                     display: 'block'
                   }}
                 >
-                  $48 per year
+                  {priceAnnualLabel}
                 </span>
               </button>
             </div>
           </div>
 
           {/* CheckoutButton with planPeriod prop - Clerk docs confirm this is supported */}
-          <CheckoutButton 
+          <CheckoutButton
             key={`checkout-${selectedInterval}-${remountKey}-${checkoutKey}`}
-            planId={unlimitedPlanId}
+            planId={planId}
             planPeriod={selectedInterval === 'year' ? 'annual' : 'month'}
           >
             <button
               type="button"
               data-outer-shadow
               className="btn-cta flex-1 group"
-              style={{ 
-                width: '100%', 
+              style={{
+                width: '100%',
                 marginTop: '1.5rem',
                 cursor: 'pointer'
               }}
               tabIndex={3}
               onClick={(e) => {
                 // Debug: Log when button is clicked
-                console.log('[UpgradeCheckoutButton] Upgrade to Unlimited clicked', {
-                  planId: unlimitedPlanId,
+                console.log(`[UpgradeCheckoutButton] ${ctaLabel} clicked`, {
+                  planId,
                   planPeriod: selectedInterval === 'year' ? 'annual' : 'month',
                   pathname,
                   isLoaded,
@@ -404,7 +417,7 @@ function UpgradeCheckoutButtonInner({
                 });
               }}
             >
-              <span className="btn-cta__content">Upgrade to Unlimited</span>
+              <span className="btn-cta__content">{ctaLabel}</span>
               <div className="btn-cta__shadow" />
             </button>
           </CheckoutButton>
@@ -440,8 +453,13 @@ function UpgradeCheckoutButtonInner({
 export default function UpgradeCheckoutButton({
   className = '',
   publishableKey = null,
-  unlimitedPlanId = ''
+  planId,
+  unlimitedPlanId = '',
+  ctaLabel = 'Upgrade to Unlimited',
+  priceMonthlyLabel = '$6 per month',
+  priceAnnualLabel = '$48 per year',
 }: UpgradeCheckoutButtonProps) {
+  const effectivePlanId = planId || unlimitedPlanId;
   const [effectiveKey, setEffectiveKey] = useState<string | null>(publishableKey);
 
   // Get publishableKey from props or window global (for View Transitions compatibility)
@@ -469,7 +487,7 @@ export default function UpgradeCheckoutButton({
   // (The actual SPA render happens further below after the hooks.)
 
   // If no plan ID configured, don't expose checkout (plan ID must come from env)
-  if (!unlimitedPlanId) {
+  if (!effectivePlanId) {
     return (
       <div className={className}>
         <button
@@ -599,10 +617,10 @@ export default function UpgradeCheckoutButton({
         afterSignInUrl: clerkConfig.afterSignInUrl,
         afterSignUpUrl: clerkConfig.afterSignUpUrl,
         pathname,
-        planId: unlimitedPlanId
+        planId: effectivePlanId
       });
     }
-  }, [effectiveKey, clerkConfig, pathname, unlimitedPlanId]);
+  }, [effectiveKey, clerkConfig, pathname, effectivePlanId]);
 
   // In the SPA, ClerkProvider is already provided by App.tsx — skip creating a nested one.
   if (publishableKey === null) {
@@ -612,8 +630,11 @@ export default function UpgradeCheckoutButton({
           <UpgradeCheckoutButtonInner
             key={`checkout-inner-${remountKey}`}
             className={className}
-            unlimitedPlanId={unlimitedPlanId}
+            planId={effectivePlanId}
             remountKey={remountKey}
+            ctaLabel={ctaLabel}
+            priceMonthlyLabel={priceMonthlyLabel}
+            priceAnnualLabel={priceAnnualLabel}
           />
         </SignedIn>
       </div>
@@ -634,8 +655,11 @@ export default function UpgradeCheckoutButton({
           <UpgradeCheckoutButtonInner
             key={`checkout-inner-${remountKey}`}
             className={className}
-            unlimitedPlanId={unlimitedPlanId}
+            planId={effectivePlanId}
             remountKey={remountKey}
+            ctaLabel={ctaLabel}
+            priceMonthlyLabel={priceMonthlyLabel}
+            priceAnnualLabel={priceAnnualLabel}
           />
         </SignedIn>
       </ClerkProvider>

@@ -11,8 +11,10 @@ import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
+import { useCopyNotesToSpace } from '../../hooks/mutations/useCopyNotesToSpace';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { usePopoverDismiss } from '../../hooks/usePopoverDismiss';
+import { useNavigation } from '../../hooks/queries/useNavigation';
 import { PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -65,11 +67,19 @@ export default function PrototypeNoteMoreMenu({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteAnchorRect, setDeleteAnchorRect] = useState<DOMRect | null>(null);
   const [pinOverride, setPinOverride] = useState<boolean | null>(null);
+  const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { closeDrawer, isMobileSidebar } = useProtoShell();
   const pinNote = usePinSpaceNote();
   const deleteNote = useDeleteNote();
+  const copyToSpace = useCopyNotesToSpace();
+  const { data: nav } = useNavigation();
+
+  const sharedSpaceTargets = useMemo(
+    () => [...(nav?.spaces ?? []).filter((s) => s.type === 'shared'), ...(nav?.memberOfSpaces ?? [])],
+    [nav?.spaces, nav?.memberOfSpaces],
+  );
 
   const pinnedFromCache = useMemo(
     () => readNotePinnedFromCache(queryClient, spaceId, noteId),
@@ -80,6 +90,29 @@ export default function PrototypeNoteMoreMenu({
   useEffect(() => {
     setPinOverride(null);
   }, [noteId]);
+
+  useEffect(() => {
+    if (!open) setCopyMenuOpen(false);
+  }, [open]);
+
+  const onCopyToSpace = (targetSpaceId: string) => {
+    setOpen(false);
+    setCopyMenuOpen(false);
+    copyToSpace.mutate(
+      { targetSpaceId, noteIds: [noteId] },
+      {
+        onSuccess: (data) => {
+          if (data.errors?.length) toast.error(data.errors[0]);
+          else toast.success('Copied to space');
+        },
+        onError: (err) => {
+          const msg =
+            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not copy note';
+          toast.error(msg);
+        },
+      },
+    );
+  };
 
   const onPin = () => {
     setOpen(false);
@@ -181,6 +214,59 @@ export default function PrototypeNoteMoreMenu({
                 </span>
                 <span className="proto-menu-item__label">{pinned ? 'Unpin note' : 'Pin note'}</span>
               </button>
+              {sharedSpaceTargets.length > 0 ? (
+                copyMenuOpen ? (
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="proto-menu-item"
+                      onClick={() => setCopyMenuOpen(false)}
+                    >
+                      <span className="proto-menu-item__icon" aria-hidden>
+                        <Icon name="caret-left" size={iconSize} />
+                      </span>
+                      <span className="proto-menu-item__label">Copy to…</span>
+                    </button>
+                    {sharedSpaceTargets.map((space) => (
+                      <button
+                        key={space.id}
+                        type="button"
+                        role="menuitem"
+                        className="proto-menu-item"
+                        disabled={copyToSpace.isPending}
+                        onClick={() => onCopyToSpace(space.id)}
+                      >
+                        <span className="proto-menu-item__icon" aria-hidden>
+                          <span
+                            aria-hidden
+                            style={{
+                              display: 'inline-block',
+                              width: 10,
+                              height: 10,
+                              borderRadius: '50%',
+                              background: `var(--color-${space.color || 'paper'})`,
+                            }}
+                          />
+                        </span>
+                        <span className="proto-menu-item__label">{space.title}</span>
+                      </button>
+                    ))}
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="proto-menu-item"
+                    onClick={() => setCopyMenuOpen(true)}
+                  >
+                    <span className="proto-menu-item__icon" aria-hidden>
+                      <Icon name="copy" size={iconSize} />
+                    </span>
+                    <span className="proto-menu-item__label">Copy to shared space…</span>
+                  </button>
+                )
+              ) : null}
               <button
                 type="button"
                 role="menuitem"

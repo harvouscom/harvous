@@ -18,6 +18,7 @@ type PersistedSidebarNavRaw = {
   folderDrill?: unknown;
   threadDrillId?: unknown;
   scriptureDrill?: unknown;
+  activeSpaceId?: unknown;
 };
 
 export type PersistedSidebarNav = {
@@ -25,6 +26,8 @@ export type PersistedSidebarNav = {
   folderDrill: SidebarFolderDrilldown;
   threadDrillId: string | undefined;
   scriptureDrill: ScriptureDrillState;
+  /** Selected shared/public space id (`space_...`); undefined = personal My Home. */
+  activeSpaceId: string | undefined;
 };
 
 const DEFAULT_SCRIPTURE_DRILL: ScriptureDrillState = { level: 'books' };
@@ -73,6 +76,11 @@ function parseThreadDrillId(value: unknown): string | undefined {
   return value;
 }
 
+function parseActiveSpaceId(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.length === 0) return undefined;
+  return value;
+}
+
 function parseScriptureDrill(value: unknown): ScriptureDrillState {
   if (!value || typeof value !== 'object') return DEFAULT_SCRIPTURE_DRILL;
   const drill = value as Record<string, unknown>;
@@ -105,6 +113,7 @@ export function readPersistedSidebarNav(): PersistedSidebarNav {
     folderDrill: decodeFolderDrill(raw.folderDrill),
     threadDrillId: parseThreadDrillId(raw.threadDrillId),
     scriptureDrill: parseScriptureDrill(raw.scriptureDrill),
+    activeSpaceId: parseActiveSpaceId(raw.activeSpaceId),
   };
 }
 
@@ -113,12 +122,15 @@ export type SidebarNavPatch = {
   folderDrill?: SidebarFolderDrilldown;
   threadDrillId?: string | undefined;
   scriptureDrill?: ScriptureDrillState;
+  activeSpaceId?: string | undefined;
   /** When true, omit folderDrill from storage (cleared). */
   clearFolderDrill?: boolean;
   /** When true, omit threadDrillId from storage (cleared). */
   clearThreadDrill?: boolean;
   /** When true, omit scriptureDrill from storage (cleared). */
   clearScriptureDrill?: boolean;
+  /** When true, omit activeSpaceId from storage (back to personal My Home). */
+  clearActiveSpaceId?: boolean;
 };
 
 export function writePersistedSidebarNav(patch: SidebarNavPatch): void {
@@ -149,6 +161,12 @@ export function writePersistedSidebarNav(patch: SidebarNavPatch): void {
     delete next.scriptureDrill;
   } else if (patch.scriptureDrill !== undefined) {
     next.scriptureDrill = patch.scriptureDrill;
+  }
+
+  if (patch.clearActiveSpaceId) {
+    delete next.activeSpaceId;
+  } else if (patch.activeSpaceId !== undefined) {
+    next.activeSpaceId = patch.activeSpaceId;
   }
 
   safeWriteRaw(next);

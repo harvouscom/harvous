@@ -24,6 +24,10 @@ export interface NavSpace {
   memberCount: number;
   isPublic?: boolean;
   createdAt?: string;
+  /** 'personal' | 'shared' | 'public' — absent on some legacy cached snapshots, treat as 'personal'. */
+  type?: 'personal' | 'shared' | 'public';
+  /** Present on memberOfSpaces entries only. */
+  role?: 'owner' | 'leader' | 'member';
 }
 
 export interface NavigationData {

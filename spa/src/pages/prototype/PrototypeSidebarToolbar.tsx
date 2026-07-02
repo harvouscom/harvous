@@ -7,6 +7,7 @@ import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { PROTO_SIDEBAR_TOOLBAR_SUPPRESS_BELOW, useProtoShell } from '../../layouts/proto-shell-context';
 import SpaceSwitcherMenu from './SpaceSwitcherMenu';
 import ListViewMenu from './ListViewMenu';
@@ -25,6 +26,7 @@ export default function PrototypeSidebarToolbar({
 }) {
   const navigate = useNavigate();
   const { homeSpaceId, authReady } = usePrototypeHomeSpaceId();
+  const { isSharedSpace } = useActiveSpace();
   const { sidebarWidth, toggleDesktopSidebar, desktopSidebarCollapsed, sidebarExiting } = useProtoShell();
   const showShiftHints = usePrototypeShiftHints();
 
@@ -57,7 +59,7 @@ export default function PrototypeSidebarToolbar({
         {showClusterChrome ? (
           <>
             <SpaceSwitcherMenu homeSpaceId={homeSpaceId} authReady={authReady} />
-            <ListViewMenu disabled={!homeSpaceId} variant="icon-only" />
+            <ListViewMenu disabled={!homeSpaceId || isSharedSpace} variant="icon-only" />
           </>
         ) : null}
         {!isDrawer ? (

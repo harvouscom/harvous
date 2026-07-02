@@ -25,6 +25,7 @@ import {
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebarToolbar from '../pages/prototype/PrototypeSidebarToolbar';
 import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
+import PrototypeSidebarSharedSpaceView from '../pages/prototype/PrototypeSidebarSharedSpaceView';
 import PrototypeAdminSidebar from '../pages/prototype/PrototypeAdminSidebar';
 import AdminToolbar from '@/components/react/AdminToolbar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
@@ -35,6 +36,7 @@ import '../styles/prototype-editor.css';
 import '../styles/prototype-route-overrides.css';
 import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
+import { useActiveSpace } from '../hooks/useActiveSpace';
 import { updateStudyDockExpandedMaxHeight } from '@/utils/study-dock-layout';
 import { noteParamSlug, PROTOTYPE_DRAFT_NOTE_SLUG } from '../pages/prototype/proto-route-slugs';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
@@ -160,6 +162,7 @@ export default function SimplifiedPrototypeLayout() {
 function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const queryClient = useQueryClient();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
+  const { isSharedSpace } = useActiveSpace();
   useRealtimeSync(userId, { homeSpaceId });
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const {
@@ -546,7 +549,13 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
               .filter(Boolean)
               .join(' ')}
           >
-            {isAdminRoute ? <PrototypeAdminSidebar /> : <PrototypeSidebar />}
+            {isAdminRoute ? (
+              <PrototypeAdminSidebar />
+            ) : isSharedSpace ? (
+              <PrototypeSidebarSharedSpaceView />
+            ) : (
+              <PrototypeSidebar />
+            )}
           </aside>
         ) : null}
         {!hideSidebar && !isMobileSidebar && !desktopSidebarCollapsed && !sidebarExiting ? (

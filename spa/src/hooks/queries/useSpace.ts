@@ -83,6 +83,8 @@ export interface SpaceDetail {
   ownerId: string;
   memberCount: number;
   isPublic: boolean;
+  type?: 'personal' | 'shared' | 'public';
+  isOwner?: boolean;
 }
 
 export interface SpaceItem {
@@ -137,6 +139,11 @@ export interface SpaceNoteRow {
   collectionPinned?: boolean;
   collectionUserOverride?: boolean;
   version?: string;
+  /** Present on shared/public space merged-author queries only. */
+  authorUserId?: string;
+  authorDisplayName?: string;
+  authorColor?: string;
+  isOwnNote?: boolean;
 }
 
 /** Paginated notes-only list from `GET /api/spaces/:spaceId/notes` */
@@ -188,7 +195,7 @@ export function useSpace(spaceId: string) {
   });
 }
 
-export function useSpaceNotes(spaceId: string, limit = 20) {
+export function useSpaceNotes(spaceId: string, limit = 20, options?: { pollWhileActive?: boolean }) {
   const authReady = useAuthReady();
   const trimmed = (spaceId ?? '').trim();
   const id = trimmed.startsWith('space_') ? trimmed : trimmed ? `space_${trimmed}` : '';
@@ -215,6 +222,10 @@ export function useSpaceNotes(spaceId: string, limit = 20) {
     initialPageParam: 0,
     enabled: authReady && !!id,
     staleTime: 30_000,
+    // Shared spaces have no realtime sync yet (fast-follow) — poll so other
+    // members' contributions show up without a manual refresh.
+    refetchInterval: options?.pollWhileActive ? 45_000 : undefined,
+    refetchIntervalInBackground: false,
     initialData,
     initialDataUpdatedAt: initialData ? 0 : undefined,
     retry: (failureCount, error) => {
@@ -238,12 +249,51 @@ export function useSpaceNotes(spaceId: string, limit = 20) {
   return query;
 }
 
+export interface SpaceMemberRow {
+  userId: string;
+  role: 'owner' | 'leader' | 'member';
+  joinedAt: string;
+  firstName: string | null;
+  lastName: string | null;
+  displayName: string;
+  email: string | null;
+  profileImageUrl: string | null;
+  userColor: string;
+}
+
+export interface SpaceMembersResponse {
+  members: SpaceMemberRow[];
+  memberCount: number;
+  isOwner: boolean;
+  limits?: { membersPerSpace: number; ownedSharedSpaces: number | null };
+}
+
 export function useSpaceMembers(spaceId: string) {
   return useQuery({
     queryKey: ['space', spaceId, 'members'],
-    queryFn: () => api.get<{ members: unknown[] }>(`/api/spaces/${spaceId}/members`),
+    queryFn: () => api.get<SpaceMembersResponse>(`/api/spaces/${spaceId}/members`),
     enabled: !!spaceId,
     staleTime: 30_000,
+  });
+}
+
+export interface SpaceInviteRow {
+  id: string;
+  inviteUrl: string;
+  kind: 'link' | 'email';
+  role: 'leader' | 'member';
+  expiresAt: string | null;
+  maxUses: number | null;
+  useCount: number;
+  createdAt: string;
+}
+
+export function useSpaceInvites(spaceId: string, isOwner: boolean) {
+  return useQuery({
+    queryKey: ['space', spaceId, 'invites'],
+    queryFn: () => api.get<{ invites: SpaceInviteRow[] }>(`/api/spaces/${spaceId}/invites`),
+    enabled: !!spaceId && isOwner,
+    staleTime: 15_000,
   });
 }
 

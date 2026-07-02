@@ -1387,6 +1387,7 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
     const ownerSpaces = await getSpacesWithCounts(auth.userId);
     const ownerSpace = ownerSpaces.find((s: any) => s.id === spaceId);
     if (ownerSpace) {
+      const memberCount = ownerSpace.type === 'personal' ? 0 : await getSpaceMemberCount(ownerSpace.id);
       return c.json({
         space: {
           id: ownerSpace.id,
@@ -1395,8 +1396,10 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
           backgroundGradient: ownerSpace.backgroundGradient,
           totalItemCount: ownerSpace.totalItemCount,
           isPublic: ownerSpace.isPublic,
+          type: ownerSpace.type,
           ownerId: auth.userId,
-          memberCount: 0,
+          isOwner: true,
+          memberCount,
         },
       }, 200, { 'Cache-Control': 'private, no-cache' });
     }
@@ -1412,6 +1415,7 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
     const noteCountResult = first(await db.select({ count: count() }).from(Notes).where(eq(Notes.spaceId, spaceId)).limit(1));
     const threadCountResult = first(await db.select({ count: count() }).from(Threads).where(eq(Threads.spaceId, spaceId)).limit(1));
     const totalItemCount = (noteCountResult?.count || 0) + (threadCountResult?.count || 0);
+    const memberCount = await getSpaceMemberCount(space.id);
 
     return c.json({
       space: {
@@ -1421,8 +1425,10 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
         backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'),
         totalItemCount,
         isPublic: space.isPublic,
+        type: space.type,
         ownerId: space.userId,
-        memberCount: 0,
+        isOwner: false,
+        memberCount,
       },
     }, 200, { 'Cache-Control': 'private, no-cache' });
   } catch (error: any) {
