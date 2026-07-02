@@ -19,6 +19,8 @@ export {
   Comments,
   Members,
   SpaceInvitations,
+  SpaceMemberships,
+  SpaceInvites,
   UserMetadata,
   ClerkUserMapping,
   UserXP,

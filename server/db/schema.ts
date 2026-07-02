@@ -24,11 +24,24 @@ export const Spaces = pgTable(
     updatedAt: ts('updatedAt'),
     lastVisited: ts('lastVisited'),
     userId: text('userId').notNull(),
+    /**
+     * 'personal' | 'shared' | 'public' — space kind discriminator.
+     * 'shared' = collaborative space on the SpaceMemberships/SpaceInvites rails
+     * (owning one requires the Shared Spaces add-on; joining is free).
+     * 'public' = reserved for Harvous-hosted broadcast spaces (members follow +
+     * copy, only owner/leader author). Org-owned spaces come later via orgId.
+     */
+    type: text('type').notNull().default('personal'),
+    /** Clerk organization id — future church-org ownership/sponsorship. Null today. */
+    orgId: text('orgId'),
+    /** @deprecated v1 sharing — frozen with shareToken/shareTokenCreatedAt; new code keys off `type`. */
     isPublic: boolean('isPublic').notNull().default(false),
     isFeatured: boolean('isFeatured').notNull().default(false),
     isActive: boolean('isActive').notNull().default(true),
     order: integer('order').notNull().default(0),
+    /** @deprecated v1 sharing — legacy join links are no longer honored; invites live in SpaceInvites. */
     shareToken: text('shareToken'),
+    /** @deprecated v1 sharing. */
     shareTokenCreatedAt: ts('shareTokenCreatedAt'),
     /** JSON string[] — folder labels with zero notes (prototype empty-folder registry). */
     prototypeEmptyFolderLabels: text('prototypeEmptyFolderLabels'),
@@ -36,6 +49,7 @@ export const Spaces = pgTable(
   (table) => [
     index('Spaces_userIdIndex').on(table.userId),
     index('Spaces_userId_updatedAtIndex').on(table.userId, table.updatedAt),
+    index('Spaces_userId_typeIndex').on(table.userId, table.type),
   ],
 );
 
@@ -194,6 +208,11 @@ export const Comments = pgTable('Comments', {
 
 // ─── Members ───────────────────────────────────────────────────────────────────
 
+/**
+ * @deprecated v1 sharing (Classic era) — frozen July 2026, superseded by
+ * SpaceMemberships. No reads or new writes; only hygiene deletes (account
+ * deletion / merge / reset / space deletion) remain until the table is dropped.
+ */
 export const Members = pgTable('Members', {
   id: text('id').primaryKey(),
   userId: text('userId').notNull(),
@@ -208,6 +227,10 @@ export const Members = pgTable('Members', {
 
 // ─── SpaceInvitations ──────────────────────────────────────────────────────────
 
+/**
+ * @deprecated v1 sharing (Classic era) — frozen July 2026, superseded by
+ * SpaceInvites. No reads or new writes; only hygiene deletes remain until drop.
+ */
 export const SpaceInvitations = pgTable('SpaceInvitations', {
   id: text('id').primaryKey(),
   spaceId: text('spaceId').notNull(),
@@ -225,6 +248,56 @@ export const SpaceInvitations = pgTable('SpaceInvitations', {
   uniqueIndex('SpaceInvitations_tokenIndex').on(table.inviteToken),
   index('SpaceInvitations_spaceStatusIndex').on(table.spaceId, table.status),
   index('SpaceInvitations_emailIndex').on(table.invitedEmail),
+]);
+
+// ─── SpaceMemberships (shared/public space membership — supersedes Members) ─────
+
+export const SpaceMemberships = pgTable('SpaceMemberships', {
+  id: text('id').primaryKey(),
+  spaceId: text('spaceId').notNull(),
+  userId: text('userId').notNull(),
+  /**
+   * 'owner' | 'leader' | 'member'. The owner has a membership row too (the v1
+   * model derived owner solely from Spaces.userId, which stays the
+   * creator/billing anchor). 'leader' is schema-ready but dormant in the
+   * foundation UI; it activates with Group Leader / church org.
+   */
+  role: text('role').notNull().default('member'),
+  /** userId of the inviter; null on the owner row. */
+  invitedBy: text('invitedBy'),
+  /** SpaceInvites.id that was redeemed to create this membership; null on the owner row. */
+  inviteId: text('inviteId'),
+  joinedAt: ts('joinedAt').notNull(),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('SpaceMemberships_space_user_unique').on(table.spaceId, table.userId),
+  index('SpaceMemberships_userIdIndex').on(table.userId),
+  index('SpaceMemberships_spaceId_roleIndex').on(table.spaceId, table.role),
+]);
+
+// ─── SpaceInvites (expiring join links — supersedes SpaceInvitations) ───────────
+
+export const SpaceInvites = pgTable('SpaceInvites', {
+  id: text('id').primaryKey(),
+  spaceId: text('spaceId').notNull(),
+  token: text('token').notNull(),
+  /** 'link' | 'email' — email invites are a fast-follow; only 'link' is created today. */
+  kind: text('kind').notNull().default('link'),
+  /** Role granted on redeem ('member' today; 'leader' later). */
+  role: text('role').notNull().default('member'),
+  invitedEmail: text('invitedEmail'),
+  createdBy: text('createdBy').notNull(),
+  /** Validated at preview AND redeem. Null = no expiry; default flow issues now+30d. */
+  expiresAt: ts('expiresAt'),
+  /** Null = unlimited uses. */
+  maxUses: integer('maxUses'),
+  useCount: integer('useCount').notNull().default(0),
+  revokedAt: ts('revokedAt'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  uniqueIndex('SpaceInvites_token_unique').on(table.token),
+  index('SpaceInvites_spaceIdIndex').on(table.spaceId),
 ]);
 
 // ─── UserMetadata ──────────────────────────────────────────────────────────────
@@ -267,6 +340,13 @@ export const UserMetadata = pgTable('UserMetadata', {
    * See docs/native-prototype/PHASE_0_DATA_MODEL_ADR.md and tier-limits.ts.
    */
   tier: text('tier').notNull().default('free'),
+  /**
+   * Shared Spaces paid add-on (owner-pays). DB source of truth; the Clerk JWT
+   * `shared_spaces` feature is a fallback for freshly-purchased sessions until
+   * the billing webhook lands. The retired 'unlimited' tier grants nothing.
+   */
+  sharedSpacesAddOn: boolean('sharedSpacesAddOn').notNull().default(false),
+  sharedSpacesAddOnUpdatedAt: ts('sharedSpacesAddOnUpdatedAt'),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 });

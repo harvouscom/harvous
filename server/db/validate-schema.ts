@@ -25,6 +25,8 @@ async function main() {
     'Comments',
     'Members',
     'SpaceInvitations',
+    'SpaceMemberships',
+    'SpaceInvites',
     'UserMetadata',
     'UserXP',
     'UserSeasonalXP',
