@@ -159,7 +159,14 @@ export function highlightScriptureReferences(
       
       const beforeMatch = updatedContent.substring(0, index);
       const matchEnd = index + matchText.length;
-      
+
+      // Skip matches that fall inside an HTML tag (e.g. an attribute value like
+      // data-scripture-quote-reference="..."), not real text content. Otherwise the
+      // injected <span> pill breaks out of the attribute's quotes and corrupts the tag.
+      if (beforeMatch.lastIndexOf('<') > beforeMatch.lastIndexOf('>')) {
+        continue;
+      }
+
       // Check if this match is inside a COMPLETE scripture pill (has BOTH required attributes)
       // Look backwards from the match to find the most recent unclosed span
       let searchPos = index;

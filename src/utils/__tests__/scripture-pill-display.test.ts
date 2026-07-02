@@ -1,5 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { repairScripturePillTranslationsInHtml, sanitizeScripturePillHtml } from '../scripture-pill-display';
+import {
+  repairScripturePillTranslationsInHtml,
+  sanitizeScripturePillHtml,
+  repairCorruptedScriptureQuoteAttributes,
+} from '../scripture-pill-display';
+
+describe('repairCorruptedScriptureQuoteAttributes', () => {
+  it('unwraps a pill span injected inside data-scripture-quote-reference and restores the clean attribute', () => {
+    const corrupted =
+      '<blockquote data-scripture-quote-accent="neutral" data-scripture-quote-reference="<span data-scripture-reference="Proverbs 23:1-35" data-note-id="note_1" data-scripture-translation="BSB" data-scripture-translation-label="BSB" class="scripture-pill scripture-pill-clickable">Proverbs 23:1-35</span>" data-scripture-quote-translation="BSB"><p>Do not let your heart envy sinners</p></blockquote>';
+    const repaired = repairCorruptedScriptureQuoteAttributes(corrupted);
+    expect(repaired).toBe(
+      '<blockquote data-scripture-quote-accent="neutral" data-scripture-quote-reference="Proverbs 23:1-35" data-scripture-quote-translation="BSB"><p>Do not let your heart envy sinners</p></blockquote>',
+    );
+  });
+
+  it('repairs multiple corrupted quote blocks in the same note', () => {
+    const one =
+      'data-scripture-quote-reference="<span data-scripture-reference="Proverbs 23:1-35" data-note-id="note_1" class="scripture-pill">Proverbs 23:1-35</span>"';
+    const corrupted = `<blockquote ${one}></blockquote><p>gap</p><blockquote ${one}></blockquote>`;
+    const repaired = repairCorruptedScriptureQuoteAttributes(corrupted);
+    expect(repaired).toBe(
+      '<blockquote data-scripture-quote-reference="Proverbs 23:1-35"></blockquote><p>gap</p><blockquote data-scripture-quote-reference="Proverbs 23:1-35"></blockquote>',
+    );
+  });
+
+  it('returns clean html unchanged', () => {
+    const html = '<blockquote data-scripture-quote-reference="Proverbs 23:1-35"><p>text</p></blockquote>';
+    expect(repairCorruptedScriptureQuoteAttributes(html)).toBe(html);
+  });
+});
 
 describe('repairScripturePillTranslationsInHtml', () => {
   it('absorbs orphan NLT after NET pill and sets translation on the span', () => {
