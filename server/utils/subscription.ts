@@ -8,8 +8,12 @@
 
 import { db, first, UserMetadata, Notes, eq, and, isNotNull, desc } from '../db';
 import type { Auth } from '../middleware/types';
-import { getTierForAuth } from './tier-limits';
+import { getTierForAuth, hasSharedSpacesAddOn } from './tier-limits';
 
+/** Clerk Billing plan for the Shared Spaces add-on (feature slug `shared_spaces`). */
+export const SHARED_SPACES_PLAN_ID = process.env.CLERK_SHARED_SPACES_PLAN_ID || '';
+
+/** @deprecated The Unlimited plan is retired (zero subscribers, archived in Clerk). */
 export const UNLIMITED_PLAN_ID = process.env.CLERK_UNLIMITED_PLAN_ID || 'cplan_37aJweoipC2wY2Pa94o7zMdoIyw';
 
 export async function getUserNoteCount(userId: string): Promise<number> {
@@ -51,7 +55,7 @@ export async function getReferralBonusNotes(userId: string): Promise<number> {
   }
 }
 
-/** DB-backed tier check (transitional Clerk fallback lives in getTierForAuth). */
+/** @deprecated Retired tier — inert; notes are unlimited on every plan. */
 export async function hasUnlimitedNotes(auth: Auth): Promise<boolean> {
   return (await getTierForAuth(auth)) === 'unlimited';
 }
@@ -71,14 +75,17 @@ export async function canCreateNote(
 }
 
 export async function getSubscriptionInfo(userId: string, auth: Auth) {
-  const hasUnlimited = await hasUnlimitedNotes(auth);
-  const [currentCount, referralBonusNotes] = await Promise.all([
+  const [hasUnlimited, hasSharedSpaces, currentCount, referralBonusNotes] = await Promise.all([
+    hasUnlimitedNotes(auth),
+    hasSharedSpacesAddOn(auth),
     getUserNoteCount(userId),
     getReferralBonusNotes(userId),
   ]);
 
   return {
+    /** @deprecated inert — the Unlimited plan is retired. */
     hasUnlimited,
+    hasSharedSpaces,
     currentCount,
     limit: null as number | null,
     referralBonusNotes,

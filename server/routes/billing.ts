@@ -14,7 +14,7 @@ import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { db, first, UserMetadata, UserXP, eq, and, count } from '../db';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
-import { UNLIMITED_PLAN_ID, getSubscriptionInfo } from '../utils/subscription';
+import { SHARED_SPACES_PLAN_ID, getSubscriptionInfo } from '../utils/subscription';
 import { resolveRefToUserId, generateReferralCode } from '../utils/referral-code';
 import { ACTIVITY_TYPES, awardXP, getReferralCreditXpForOrdinal } from '../utils/xp-system';
 import { getCookie, deleteCookie } from 'hono/cookie';
@@ -30,7 +30,8 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
 
     const { planId, billingInterval } = await c.req.json();
 
-    if (!planId || planId !== UNLIMITED_PLAN_ID) {
+    // Only the Shared Spaces add-on is purchasable (the Unlimited plan is retired).
+    if (!planId || !SHARED_SPACES_PLAN_ID || planId !== SHARED_SPACES_PLAN_ID) {
       return c.json({ error: 'Invalid plan ID' }, 400);
     }
 
@@ -42,7 +43,7 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
     const origin = new URL(c.req.url).origin;
 
     const checkoutPayload: any = {
-      plan_id: UNLIMITED_PLAN_ID,
+      plan_id: planId,
       return_url: `${origin}/upgrade?success=true`,
       cancel_url: `${origin}/upgrade?canceled=true`,
     };
@@ -63,7 +64,7 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${clerkSecretKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          plan_id: UNLIMITED_PLAN_ID,
+          plan_id: planId,
           ...(billingInterval === 'annual' || billingInterval === 'year' ? { billing_interval: 'year' } : {}),
         }),
       });
@@ -168,6 +169,7 @@ app.get('/api/subscription/status', requireAuth, async (c) => {
     return c.json(
       {
         hasUnlimited: subscriptionInfo.hasUnlimited,
+        hasSharedSpaces: subscriptionInfo.hasSharedSpaces,
         currentCount: subscriptionInfo.currentCount,
         limit: subscriptionInfo.limit,
       },

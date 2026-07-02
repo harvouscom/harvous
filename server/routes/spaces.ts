@@ -69,13 +69,10 @@ import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
 import { awardCreationBonusXP } from '../utils/xp-system';
 import {
   canCreateSharedSpace,
-  canOwnerAddOneMoreSharedSpace,
   canAddMemberToSpace,
-  canAddMemberToSpaceByOwnerId,
-  getTierForAuth,
-  getTierLimits,
-  getSharedSpacesOwnedCount,
   getSpaceMemberCount,
+  hasSharedSpacesAddOn,
+  MEMBERS_PER_SPACE_CAP,
 } from '../utils/tier-limits';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
@@ -1693,9 +1690,7 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
       }));
     }
 
-    // Tier limits
-    const tier = await getTierForAuth(auth);
-    const limits = getTierLimits(tier);
+    const ownerHasAddOn = isOwner ? await hasSharedSpacesAddOn(auth) : false;
 
     return c.json({
       members: memberList,
@@ -1703,8 +1698,8 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
       memberCount: memberList.length,
       isOwner,
       limits: isOwner ? {
-        membersPerSpace: limits.membersPerSpace,
-        ownedSharedSpaces: limits.ownedSharedSpaces,
+        membersPerSpace: MEMBERS_PER_SPACE_CAP,
+        ownedSharedSpaces: ownerHasAddOn ? null : 0,
       } : undefined,
     });
   } catch (error: any) {
@@ -1727,12 +1722,9 @@ route.post('/api/spaces/:spaceId/members/invite', requireAuth, rateLimit('write'
 
     const { email, method = 'link' } = await c.req.json();
 
-    // Check tier limits
-    const memberCheck = await canAddMemberToSpace(spaceId, auth.userId, auth);
+    // People cap (the paid gate runs at share-enable, not here)
+    const memberCheck = await canAddMemberToSpace(spaceId);
     if (!memberCheck.allowed) return c.json({ error: memberCheck.reason, code: 'MEMBER_LIMIT_EXCEEDED' }, 403);
-
-    const sharedCheck = await canOwnerAddOneMoreSharedSpace(auth.userId, spaceId, auth);
-    if (!sharedCheck.allowed) return c.json({ error: sharedCheck.reason, code: 'SHARED_SPACE_LIMIT_EXCEEDED' }, 403);
 
     if (method === 'email' && email) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1812,12 +1804,9 @@ route.post('/api/spaces/join/:token', requireAuth, rateLimit('write'), async (c)
     const existingMember = first(await db.select().from(Members).where(and(eq(Members.spaceId, space.id), eq(Members.userId, auth.userId))).limit(1));
     if (existingMember) return c.json({ error: 'You are already a member of this space' }, 400);
 
-    // Tier checks (owner's limits)
-    const memberCheck = await canAddMemberToSpaceByOwnerId(space.id, space.userId);
+    // People cap (joins are free and uncapped for the joiner)
+    const memberCheck = await canAddMemberToSpace(space.id);
     if (!memberCheck.allowed) return c.json({ error: memberCheck.reason, code: 'MEMBER_LIMIT_EXCEEDED' }, 403);
-
-    const sharedCheck = await canOwnerAddOneMoreSharedSpace(space.userId, space.id);
-    if (!sharedCheck.allowed) return c.json({ error: sharedCheck.reason, code: 'SHARED_SPACE_LIMIT_EXCEEDED' }, 403);
 
     const now = nowISO();
     await db.insert(Members).values({

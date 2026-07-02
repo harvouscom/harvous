@@ -25,7 +25,6 @@ import { generateNoteId, generateThreadId, isValidShareToken } from '@/utils/ids
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNoteCreatedXP, awardThreadCreatedXP } from '../utils/xp-system';
 import { processScriptureReferences } from '../utils/process-scripture-references';
-import { canJoinSpace, canOwnerAddOneMoreSharedSpace } from '../utils/tier-limits';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { rateLimit } from '@/utils/rate-limit';
 import { getThreadGradientCSS } from '@/utils/colors';
@@ -720,16 +719,6 @@ app.post('/api/invitations/:token/accept', requireAuth, rateLimit('write'), asyn
     if (existingMember) {
       await db.update(SpaceInvitations).set({ status: 'accepted', acceptedAt: nowISO() }).where(eq(SpaceInvitations.id, invitation.id));
       return c.json({ error: 'You are already a member of this space', code: 'ALREADY_MEMBER' }, 400);
-    }
-
-    const canJoin = await canJoinSpace(auth.userId, auth);
-    if (!canJoin.allowed) {
-      return c.json({ error: canJoin.reason || 'Cannot join more spaces', code: 'FORBIDDEN' }, 403);
-    }
-
-    const canAddShared = await canOwnerAddOneMoreSharedSpace(space.userId, invitation.spaceId);
-    if (!canAddShared.allowed) {
-      return c.json({ error: canAddShared.reason || "You've used all your shared spaces. Upgrade for unlimited.", code: 'FORBIDDEN' }, 403);
     }
 
     const member = first(await db.insert(Members).values({

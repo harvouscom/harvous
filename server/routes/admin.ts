@@ -51,13 +51,7 @@ import { generateUserExport } from '../utils/export-user-data';
 import { validateColor, validateContent, validateTitle } from '@/utils/validation';
 import { generateNoteId, generateShareToken, generateSpaceId, generateThreadId, generateTimestampId } from '@/utils/ids';
 import { getHarvousSystemUserId, requireHarvousAdmin } from '../utils/harvous-admin';
-import {
-  canAddMemberToSpaceByOwnerId,
-  canOwnerAddOneMoreSharedSpace,
-  getSpaceMembershipCount,
-  getTierForUserId,
-  getTierLimits,
-} from '../utils/tier-limits';
+import { canAddMemberToSpace } from '../utils/tier-limits';
 import { generateAutoTags, applyAutoTags, regenerateAutoTags, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN } from '../utils/auto-tag-generator';
 import { getUsageOverview, getUsageTrends, getUsageDiscovery } from '../utils/admin-usage-stats';
 import { getAdminPulse } from '../utils/admin-pulse-stats';
@@ -868,29 +862,9 @@ app.post('/api/admin/spaces/:spaceId/members', async (c) => {
       return c.json({ success: true, alreadyMember: true, spaceId, userId });
     }
 
-    const memberCheck = await canAddMemberToSpaceByOwnerId(spaceId, systemUserId);
+    const memberCheck = await canAddMemberToSpace(spaceId);
     if (!memberCheck.allowed) {
       return c.json({ error: memberCheck.reason, code: 'MEMBER_LIMIT_EXCEEDED' }, 403);
-    }
-
-    const sharedCheck = await canOwnerAddOneMoreSharedSpace(systemUserId, spaceId);
-    if (!sharedCheck.allowed) {
-      return c.json({ error: sharedCheck.reason, code: 'SHARED_SPACE_LIMIT_EXCEEDED' }, 403);
-    }
-
-    const granteeTier = await getTierForUserId(userId);
-    const granteeLimits = getTierLimits(granteeTier);
-    if (granteeLimits.joinableSpaces !== Infinity) {
-      const membershipCount = await getSpaceMembershipCount(userId);
-      if (membershipCount >= granteeLimits.joinableSpaces) {
-        return c.json(
-          {
-            error: `That user is at their limit of ${granteeLimits.joinableSpaces} joined spaces for their plan.`,
-            code: 'JOIN_LIMIT_EXCEEDED',
-          },
-          403,
-        );
-      }
     }
 
     const now = nowISO();

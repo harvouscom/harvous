@@ -45,7 +45,7 @@ import {
   calculateTotalXP, getXPBreakdown, backfillUserXP,
 } from '../utils/xp-system';
 import { calculateSessionXP, type SessionData } from '../utils/session-tracker';
-import { canCreateSharedSpace, canJoinSpace, getUserLimitsInfo, getSpaceMemberCount } from '../utils/tier-limits';
+import { canCreateSharedSpace, getUserLimitsInfo, getSpaceMemberCount } from '../utils/tier-limits';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 
 // Pure @/utils (no astro:db)
@@ -776,10 +776,10 @@ app.get('/api/user/can-create-space', requireAuth, rateLimit('read'), async (c) 
 
 app.get('/api/user/can-join-space', requireAuth, rateLimit('read'), async (c) => {
   try {
-    const auth = getAuthenticatedAuth(c);
+    getAuthenticatedAuth(c);
 
-    const canJoin = await canJoinSpace(auth.userId, auth);
-    return c.json(canJoin);
+    // Joining shared spaces is free and uncapped on every plan.
+    return c.json({ allowed: true, limit: null });
   } catch (error: any) {
     const e = handleAPIError(error, { endpoint: '/api/user/can-join-space', action: 'check_can_join_space' });
     return c.json({ error: e.message, code: e.code }, 500);
