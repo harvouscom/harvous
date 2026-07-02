@@ -60,12 +60,13 @@ import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import {
   getSpacesWithCounts,
   getNotesForSpace,
-  getNotesForSpaceForMember,
+  getNotesForSharedSpace,
   getThreadsForSpace,
   getThreadsForSpaceBySpaceId,
   getThreadColorsForNotesBatch,
 } from '../utils/dashboard-data';
-import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
+import { requireSpaceAccess, SpaceAccessError, canAuthorInSpace } from '../utils/space-access';
+import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { awardCreationBonusXP } from '../utils/xp-system';
 import {
   canCreateSharedSpace,
@@ -78,7 +79,7 @@ import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle, validateColor } from '@/utils/validation';
 import { rateLimit } from '@/utils/rate-limit';
-import { generateSpaceId, generateShareToken } from '@/utils/ids';
+import { generateSpaceId, generateShareToken, generateNoteId } from '@/utils/ids';
 import { idToUrl } from '@/utils/url-helpers';
 import { getHarvousSystemUserId } from '../utils/harvous-admin';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
@@ -431,16 +432,26 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
 
     const spaceId = requireParam(c, 'spaceId');
+    let accessInfo: Awaited<ReturnType<typeof requireSpaceAccess>>;
+    try { accessInfo = await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
     const offset = parseInt(c.req.query('offset') || '0', 10);
     const limit = parseInt(c.req.query('limit') || '20', 10);
     const excludeLegacyScripture =
       c.req.query('excludeLegacyScripture') === '1' || c.req.query('excludeLegacyScripture') === 'true';
     const sortByLastUpdated = c.req.query('sortBy') === 'updated';
 
-    const result = await getNotesForSpace(spaceId, auth.userId, limit, offset, {
+    const queryOptions = {
       excludeLegacyScriptureNotes: excludeLegacyScripture,
       sortByLastUpdated,
-    });
+    };
+    // Shared/public spaces get the merged-author view (owner included);
+    // personal spaces keep the owner-scoped path untouched.
+    const result = accessInfo.space.type === 'personal'
+      ? await getNotesForSpace(spaceId, auth.userId, limit, offset, queryOptions)
+      : await getNotesForSharedSpace(spaceId, auth.userId, limit, offset, queryOptions);
     return c.json({ notes: result.notes, hasMore: result.hasMore, total: result.total, offset, limit });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/notes', action: 'get_space_notes' });
@@ -454,19 +465,15 @@ route.get('/api/spaces/:spaceId/folder-registry', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
     try {
-      await requireSpaceAccess(spaceIdNorm, auth.userId);
+      access = await requireSpaceAccess(spaceIdNorm, auth.userId);
     } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
-    const row = await db
-      .select({ prototypeEmptyFolderLabels: Spaces.prototypeEmptyFolderLabels })
-      .from(Spaces)
-      .where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)))
-      .limit(1);
-    const labels = parsePrototypeEmptyFolderLabels(row[0]?.prototypeEmptyFolderLabels);
+    const labels = parsePrototypeEmptyFolderLabels(access.space.prototypeEmptyFolderLabels);
     return c.json({ labels });
   } catch (error: any) {
     const standardError = handleAPIError(error, {
@@ -500,7 +507,7 @@ route.post('/api/spaces/:spaceId/folders/create', requireAuth, rateLimit('write'
     const row = await db
       .select({ prototypeEmptyFolderLabels: Spaces.prototypeEmptyFolderLabels })
       .from(Spaces)
-      .where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)))
+      .where(eq(Spaces.id, spaceIdNorm))
       .limit(1);
     if (!row[0]) return c.json({ error: 'Space not found' }, 404);
 
@@ -512,7 +519,7 @@ route.post('/api/spaces/:spaceId/folders/create', requireAuth, rateLimit('write'
         prototypeEmptyFolderLabels: serializePrototypeEmptyFolderLabels(next),
         updatedAt: nowISO(),
       })
-      .where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)));
+      .where(eq(Spaces.id, spaceIdNorm));
 
     return c.json({ success: true, labels: next });
   } catch (error: any) {
@@ -544,7 +551,7 @@ route.post('/api/spaces/:spaceId/folder-registry/remove-label', requireAuth, rat
     const row = await db
       .select({ prototypeEmptyFolderLabels: Spaces.prototypeEmptyFolderLabels })
       .from(Spaces)
-      .where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)))
+      .where(eq(Spaces.id, spaceIdNorm))
       .limit(1);
     if (!row[0]) return c.json({ error: 'Space not found' }, 404);
 
@@ -556,7 +563,7 @@ route.post('/api/spaces/:spaceId/folder-registry/remove-label', requireAuth, rat
         prototypeEmptyFolderLabels: serializePrototypeEmptyFolderLabels(next),
         updatedAt: nowISO(),
       })
-      .where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)));
+      .where(eq(Spaces.id, spaceIdNorm));
 
     return c.json({ success: true, labels: next });
   } catch (error: any) {
@@ -575,7 +582,12 @@ route.post('/api/spaces/:spaceId/folders/remove', requireAuth, rateLimit('write'
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
     try {
-      await requireSpaceAccess(spaceIdNorm, auth.userId);
+      const access = await requireSpaceAccess(spaceIdNorm, auth.userId);
+      // Space-wide folder removal is owner-only in shared spaces (it strips the
+      // registry label for everyone); members manage labels via their own notes.
+      if (access.space.type !== 'personal' && access.role !== 'owner') {
+        return c.json({ error: 'Only the space owner can remove folders in a shared space', code: 'FORBIDDEN' }, 403);
+      }
     } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
@@ -638,7 +650,7 @@ route.post('/api/spaces/:spaceId/folders/remove', requireAuth, rateLimit('write'
     const spaceRow = await db
       .select({ prototypeEmptyFolderLabels: Spaces.prototypeEmptyFolderLabels })
       .from(Spaces)
-      .where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)))
+      .where(eq(Spaces.id, spaceIdNorm))
       .limit(1);
     if (spaceRow[0]) {
       const current = parsePrototypeEmptyFolderLabels(spaceRow[0].prototypeEmptyFolderLabels);
@@ -650,7 +662,7 @@ route.post('/api/spaces/:spaceId/folders/remove', requireAuth, rateLimit('write'
             prototypeEmptyFolderLabels: serializePrototypeEmptyFolderLabels(next),
             updatedAt: nowISO(),
           })
-          .where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)));
+          .where(eq(Spaces.id, spaceIdNorm));
       }
     }
 
@@ -1297,7 +1309,7 @@ route.get('/api/spaces/:spaceId/items', requireAuth, async (c) => {
       throw err;
     }
 
-    if (accessInfo.role === 'owner') {
+    if (accessInfo.space.type === 'personal') {
       const [notesResult, threads] = await Promise.all([
         getNotesForSpace(spaceId, auth.userId),
         getThreadsForSpace(spaceId, auth.userId),
@@ -1305,7 +1317,7 @@ route.get('/api/spaces/:spaceId/items', requireAuth, async (c) => {
       return c.json({ notes: notesResult.notes, threads });
     } else {
       const [notesResult, threads] = await Promise.all([
-        getNotesForSpaceForMember(spaceId, accessInfo.space.userId),
+        getNotesForSharedSpace(spaceId, auth.userId, 100),
         getThreadsForSpaceBySpaceId(spaceId),
       ]);
       return c.json({ notes: notesResult.notes, threads });
@@ -1343,13 +1355,13 @@ route.get('/api/spaces/:spaceId/bootstrap', requireAuth, async (c) => {
     };
 
     const [notesResult, threads] =
-      accessInfo.role === 'owner'
+      spaceRow.type === 'personal'
         ? await Promise.all([
             getNotesForSpace(spaceId, auth.userId),
             getThreadsForSpace(spaceId, auth.userId),
           ])
         : await Promise.all([
-            getNotesForSpaceForMember(spaceId, spaceRow.userId),
+            getNotesForSharedSpace(spaceId, auth.userId, 100),
             getThreadsForSpaceBySpaceId(spaceId),
           ]);
 
@@ -1393,8 +1405,9 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
     const space = first(await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).limit(1));
     if (!space) return c.json({ error: 'Space not found' }, 404);
 
-    const member = first(await db.select().from(Members).where(and(eq(Members.spaceId, spaceId), eq(Members.userId, auth.userId))).limit(1));
-    if (!member) return c.json({ error: 'Access denied' }, 403);
+    const membership = first(await db.select({ id: SpaceMemberships.id }).from(SpaceMemberships)
+      .where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, auth.userId))).limit(1));
+    if (!membership) return c.json({ error: 'Access denied' }, 403);
 
     const noteCountResult = first(await db.select({ count: count() }).from(Notes).where(eq(Notes.spaceId, spaceId)).limit(1));
     const threadCountResult = first(await db.select({ count: count() }).from(Threads).where(eq(Threads.spaceId, spaceId)).limit(1));
@@ -1561,6 +1574,121 @@ route.post('/api/spaces/:spaceId/remove-items', requireAuth, async (c) => {
     return c.json({ success: true, removedNotes, removedThreads, errors: errors.length > 0 ? errors : undefined });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/remove-items', action: 'remove_items_from_space' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/spaces/:spaceId/copy-notes ───────────────────────────────────
+/**
+ * Copies notes into a space as NEW independent rows (the source notes are
+ * untouched — no shared history). The caller must be able to author in the
+ * target space and read each source note: their own notes always qualify;
+ * other authors' notes qualify when they live in a space the caller can read
+ * (unencrypted only). This is the personal→shared copy-in today and the
+ * public→personal "save a copy" path later.
+ */
+route.post('/api/spaces/:spaceId/copy-notes', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    const targetSpaceId = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    let targetAccess: Awaited<ReturnType<typeof requireSpaceAccess>>;
+    try { targetAccess = await requireSpaceAccess(targetSpaceId, auth.userId); } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    if (!canAuthorInSpace(targetAccess.space, targetAccess.role)) {
+      return c.json({ error: 'You cannot add notes to this space', code: 'FORBIDDEN' }, 403);
+    }
+
+    const body = await c.req.json().catch(() => ({})) as { noteIds?: unknown };
+    const noteIds = Array.isArray(body.noteIds) ? body.noteIds.filter((x): x is string => typeof x === 'string').slice(0, 50) : [];
+    if (noteIds.length === 0) return c.json({ error: 'noteIds is required', code: 'BAD_REQUEST' }, 400);
+
+    const errors: string[] = [];
+    const created: Array<{ sourceNoteId: string; noteId: string }> = [];
+    const readableSpaceIds = new Set<string>();
+
+    let nextSimpleNoteId = (await getEffectiveHighestSimpleNoteId(auth.userId)) + 1;
+
+    for (const sourceNoteId of noteIds) {
+      try {
+        const source = first(await db.select().from(Notes).where(eq(Notes.id, sourceNoteId)).limit(1));
+        if (!source) { errors.push(`Note ${sourceNoteId}: not found`); continue; }
+        if (source.contentEncrypted) { errors.push(`Note ${sourceNoteId}: locked notes can't be copied into spaces`); continue; }
+        if (source.addedBy === 'system') { errors.push(`Note ${sourceNoteId}: system notes can't be copied`); continue; }
+
+        if (source.userId !== auth.userId) {
+          // Not the caller's note — allowed only when it lives in a space the caller can read.
+          if (!source.spaceId) { errors.push(`Note ${sourceNoteId}: no permission`); continue; }
+          if (!readableSpaceIds.has(source.spaceId)) {
+            try {
+              await requireSpaceAccess(source.spaceId, auth.userId);
+              readableSpaceIds.add(source.spaceId);
+            } catch {
+              errors.push(`Note ${sourceNoteId}: no permission`);
+              continue;
+            }
+          }
+        }
+
+        const now = nowISO();
+        const newNote = first(await db.insert(Notes).values({
+          id: generateNoteId(),
+          title: source.title,
+          content: source.content,
+          threadId: 'thread_unorganized',
+          spaceId: targetSpaceId,
+          simpleNoteId: nextSimpleNoteId,
+          noteType: source.noteType,
+          addedBy: 'user',
+          userId: auth.userId,
+          isPublic: false,
+          shareToken: null,
+          contentEncrypted: false,
+          primaryCollection: source.primaryCollection,
+          secondaryCollections: source.secondaryCollections,
+          createdAt: now,
+          updatedAt: now,
+          lastVisited: now,
+        }).returning())!;
+        nextSimpleNoteId += 1;
+
+        // Carry scripture/resource metadata so pills and previews keep working.
+        const scriptureMeta = first(await db.select().from(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, sourceNoteId)).limit(1));
+        if (scriptureMeta) {
+          await db.insert(ScriptureMetadata).values({
+            ...scriptureMeta,
+            id: `scripture_${crypto.randomUUID()}`,
+            noteId: newNote.id,
+            createdAt: now,
+          });
+        }
+        const resourceMeta = first(await db.select().from(ResourceMetadata).where(eq(ResourceMetadata.noteId, sourceNoteId)).limit(1));
+        if (resourceMeta) {
+          await db.insert(ResourceMetadata).values({
+            ...resourceMeta,
+            id: `resource_${crypto.randomUUID()}`,
+            noteId: newNote.id,
+            createdAt: now,
+          });
+        }
+
+        created.push({ sourceNoteId, noteId: newNote.id });
+      } catch (e: any) {
+        errors.push(`Note ${sourceNoteId}: ${e.message}`);
+      }
+    }
+
+    if (created.length > 0) {
+      await db.update(UserMetadata)
+        .set({ highestSimpleNoteId: nextSimpleNoteId - 1, updatedAt: nowISO() })
+        .where(eq(UserMetadata.userId, auth.userId));
+    }
+
+    return c.json({ success: true, created, errors: errors.length > 0 ? errors : undefined });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/copy-notes', action: 'copy_notes_to_space' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
