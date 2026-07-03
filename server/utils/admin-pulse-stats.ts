@@ -30,7 +30,7 @@ import {
 import { buildCanonBookGrid, type CanonBookCell } from '@/utils/admin-pulse-heatmap';
 import { aggregateCanonGroupCounts, type CanonGroupStat } from '@/utils/admin-pulse-canon-groups';
 import { getAdminPulseXp, type PulseXpSummary } from './admin-pulse-xp-stats';
-import { getAdminPulseThreadsStats, type PulseThreadsStats } from './admin-pulse-threads-stats';
+import { getAdminPulseThreadsStats, getAdminPulseThreadsSummaryForReport, type PulseThreadsStats } from './admin-pulse-threads-stats';
 import { adminWindowSince, adminWindowPreviousRange, clampAdminDays } from './admin-time-window';
 import { filterPulseDiscoveryThemes } from '@/utils/universal-bible-entities';
 import { formatPulseThemeLabels } from '@/utils/divine-name-display';
@@ -406,16 +406,32 @@ export type PulseReportMetrics = {
 
 /** Fixed calendar range snapshot for monthly admin reports. */
 export async function getPulseReportMetrics(since: Date, until: Date): Promise<PulseReportMetrics> {
-  const [uniquePassages, books, themes, passages, tags, translations, threads] = await Promise.all([
+  const emptyRecall: PulseThreadsStats['recall'] = {
+    impressions: 0,
+    opens: 0,
+    snoozes: 0,
+    snoozeRatePct: 0,
+    impressionsByKind: [],
+    opensByKind: [],
+  };
+  const [uniquePassages, books, themes, passages, tags, translations, threadSummary] = await Promise.all([
     fetchUniquePassageCount(since, until),
     fetchBooks(since, until, 10),
     fetchThemes(since, until, 10),
     fetchPassages(since, until, 10),
     fetchTags(since, until, 10),
     fetchTranslations(since, until),
-    getAdminPulseThreadsStats(since, until),
+    getAdminPulseThreadsSummaryForReport(since, until),
   ]);
-  return { uniquePassages, books, themes, passages, tags, translations: translations.slice(0, 5), threads };
+  return {
+    uniquePassages,
+    books,
+    themes,
+    passages,
+    tags,
+    translations: translations.slice(0, 5),
+    threads: { summary: threadSummary, themes: [], recall: emptyRecall },
+  };
 }
 
 async function fetchMonthlyAnalyticsRank(

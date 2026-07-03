@@ -6,11 +6,16 @@ const API_BASE =
     ? String(import.meta.env.VITE_API_BASE_URL)
     : '';
 
+function formatAdminApiError(body: { error?: string; details?: string }, status: number): string {
+  const base = body.error || `HTTP ${status}`;
+  return body.details ? `${base}: ${body.details}` : base;
+}
+
 async function adminApiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { credentials: 'include' });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error || `HTTP ${res.status}`);
+    throw new Error(formatAdminApiError(body as { error?: string; details?: string }, res.status));
   }
   return res.json() as Promise<T>;
 }
@@ -24,7 +29,7 @@ async function adminApiPost<T>(path: string, body?: unknown): Promise<T> {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
+    throw new Error(formatAdminApiError(data as { error?: string; details?: string }, res.status));
   }
   return res.json() as Promise<T>;
 }
@@ -66,8 +71,11 @@ export type LinkIntegrityResult = {
 export type AggregateAnalyticsResult = {
   success: boolean;
   month: string;
+  aggregated?: boolean;
+  reportGenerated?: boolean;
   message: string;
   error?: string;
+  details?: string;
 };
 
 export function useAggregateAnalytics() {
@@ -78,7 +86,7 @@ export function useAggregateAnalytics() {
       if (params.month) qs.set('month', params.month);
       if (params.previous) qs.set('previous', 'true');
       const query = qs.toString();
-      return adminApiGet<AggregateAnalyticsResult>(
+      return adminApiPost<AggregateAnalyticsResult>(
         `/api/admin/aggregate-analytics${query ? `?${query}` : ''}`,
       );
     },

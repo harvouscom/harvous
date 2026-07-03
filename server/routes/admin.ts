@@ -306,52 +306,84 @@ app.get('/api/admin/reports/:month', async (c) => {
 // ─── POST/GET /api/admin/aggregate-analytics ──────────────────────────
 
 async function handleAggregateAnalytics(c: any) {
-  try {
-    const auth = getAuth(c);
-    const authHeader = c.req.header('authorization')?.split(',')[0]?.trim();
-    const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
-    const isAuthenticated = !!auth?.userId;
-    const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
+  const auth = getAuth(c);
+  const authHeader = c.req.header('authorization')?.split(',')[0]?.trim();
+  const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
+  const isAuthenticated = !!auth?.userId;
+  const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
 
-    if (expectedToken && !hasValidToken && !isAuthenticated) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    if (!hasValidToken) {
-      const denied = await requireHarvousAdmin(c);
-      if (denied) return denied;
-    }
-
-    const previous = c.req.query('previous') === 'true';
-    const monthParam = c.req.query('month');
-
-    let targetMonth: string;
-    if (monthParam) {
-      if (!/^\d{4}-\d{2}$/.test(monthParam)) {
-        return c.json({ error: 'Invalid month format. Use YYYY-MM' }, 400);
-      }
-      targetMonth = monthParam;
-    } else if (previous) {
-      targetMonth = getPreviousMonth();
-    } else {
-      targetMonth = getCurrentMonth();
-    }
-
-    await aggregateMonthlyAnalytics(targetMonth);
-    const report = await generateAdminMonthlyReport(targetMonth);
-
-    return c.json({
-      success: true,
-      month: targetMonth,
-      reportGenerated: report != null,
-      message: report
-        ? `Analytics and monthly report generated for ${targetMonth}`
-        : `Analytics aggregated for ${targetMonth} (before reports launch; no report snapshot)`,
-    });
-  } catch (error) {
-    console.error('Error aggregating analytics:', error);
-    return c.json({ error: 'Internal server error', details: error instanceof Error ? error.message : String(error) }, 500);
+  if (expectedToken && !hasValidToken && !isAuthenticated) {
+    return c.json({ error: 'Unauthorized' }, 401);
   }
+
+  if (!hasValidToken) {
+    const denied = await requireHarvousAdmin(c);
+    if (denied) return denied;
+  }
+
+  const previous = c.req.query('previous') === 'true';
+  const monthParam = c.req.query('month');
+
+  let targetMonth: string;
+  if (monthParam) {
+    if (!/^\d{4}-\d{2}$/.test(monthParam)) {
+      return c.json({ error: 'Invalid month format. Use YYYY-MM' }, 400);
+    }
+    targetMonth = monthParam;
+  } else if (previous) {
+    targetMonth = getPreviousMonth();
+  } else {
+    targetMonth = getCurrentMonth();
+  }
+
+  try {
+    await aggregateMonthlyAnalytics(targetMonth);
+  } catch (error) {
+    const details = error instanceof Error ? error.message : String(error);
+    console.error('Error aggregating analytics:', error);
+    return c.json(
+      {
+        success: false,
+        month: targetMonth,
+        aggregated: false,
+        reportGenerated: false,
+        error: 'Aggregation failed',
+        details,
+      },
+      500,
+    );
+  }
+
+  let reportGenerated = false;
+  try {
+    const report = await generateAdminMonthlyReport(targetMonth);
+    reportGenerated = report != null;
+  } catch (error) {
+    const details = error instanceof Error ? error.message : String(error);
+    console.error('Error generating monthly report:', error);
+    return c.json(
+      {
+        success: false,
+        month: targetMonth,
+        aggregated: true,
+        reportGenerated: false,
+        error: 'Monthly report snapshot failed',
+        details,
+        message: `Analytics aggregated for ${targetMonth}, but report snapshot failed`,
+      },
+      500,
+    );
+  }
+
+  return c.json({
+    success: true,
+    month: targetMonth,
+    aggregated: true,
+    reportGenerated,
+    message: reportGenerated
+      ? `Analytics and monthly report generated for ${targetMonth}`
+      : `Analytics aggregated for ${targetMonth} (before reports launch; no report snapshot)`,
+  });
 }
 
 app.post('/api/admin/aggregate-analytics', handleAggregateAnalytics);

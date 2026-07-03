@@ -181,8 +181,12 @@ async function fetchWindowLinkActivity(since: Date, until?: Date): Promise<Windo
   }
 }
 
+/** Max note IDs passed to thread theme SQL — avoids oversized IN clauses. */
+const MAX_THREAD_THEME_NOTE_IDS = 500;
+
 async function fetchThreadThemes(threadNoteIds: string[], limit = 8): Promise<DiscoveryRankItem[]> {
   if (threadNoteIds.length === 0) return [];
+  if (threadNoteIds.length > MAX_THREAD_THEME_NOTE_IDS) return [];
 
   try {
     const fetchLimit = Math.max(limit * 5, 40);
@@ -301,6 +305,24 @@ export async function getAdminPulseThreadsStats(since: Date, until?: Date): Prom
     },
     themes,
     recall,
+  };
+}
+
+/** Monthly report thread block — summary only; skips theme/recall expansion. */
+export async function getAdminPulseThreadsSummaryForReport(
+  since: Date,
+  until: Date,
+): Promise<PulseThreadsSummary> {
+  const [snapshot, windowActivity] = await Promise.all([
+    fetchPlatformThreadSnapshot(),
+    fetchWindowLinkActivity(since, until),
+  ]);
+  return {
+    totalThreads: snapshot.totalThreads,
+    avgNotesPerThread: snapshot.avgNotesPerThread,
+    linksCreated: windowActivity.linksCreated,
+    threadsLinkedInWindow: windowActivity.threadsLinkedInWindow,
+    notesInThreads: snapshot.threadNoteIds.length,
   };
 }
 

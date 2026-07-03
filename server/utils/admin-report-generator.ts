@@ -138,6 +138,10 @@ export async function getStoredMonthlyReports(months: string[]): Promise<Map<str
   return map;
 }
 
+function catalogGeneratedAt(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+
 function buildCatalogMonth(month: string, generatedAt: string | null): AdminReportCatalogMonth {
   return { month, label: formatMonthLabel(month), generatedAt };
 }
@@ -156,7 +160,7 @@ function yearsFromStoredRows(
           .filter(isAdminReportMonthInCatalog)
           .map((month) => {
             const stored = storedByMonth.get(month);
-            return buildCatalogMonth(month, stored ? stored.generatedAt.toISOString() : null);
+            return buildCatalogMonth(month, stored ? catalogGeneratedAt(stored.generatedAt) : null);
           });
         return {
           seasonId,
