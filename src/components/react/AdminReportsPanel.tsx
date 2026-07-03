@@ -11,7 +11,6 @@ import {
 import ProtoStatusChip from '@/components/react/ProtoStatusChip';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { getAdminReportMonthStatus } from '@/utils/season-helpers';
-import { getModalOverlayBaseStyle, useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 import '@/styles/admin-usage.css';
 import '@/styles/admin-reports.css';
 
@@ -129,6 +128,22 @@ function MonthDetail({ payload }: { payload: AdminMonthlyReportPayload }) {
   );
 }
 
+function useAdminReportsDialogPortal(): { portalTarget: HTMLElement; scopedToDetailPane: boolean } {
+  const [portal, setPortal] = useState<{ portalTarget: HTMLElement; scopedToDetailPane: boolean }>(() => ({
+    portalTarget: typeof document !== 'undefined' ? document.body : (null as unknown as HTMLElement),
+    scopedToDetailPane: false,
+  }));
+
+  useEffect(() => {
+    const detailPane = document.querySelector('.proto-shell__main-inner');
+    if (detailPane instanceof HTMLElement) {
+      setPortal({ portalTarget: detailPane, scopedToDetailPane: true });
+    }
+  }, []);
+
+  return portal;
+}
+
 function ReportMonthDialog({
   month,
   label,
@@ -142,7 +157,7 @@ function ReportMonthDialog({
   report: ReturnType<typeof useAdminMonthlyReport>;
   onClose: () => void;
 }) {
-  const { portalTarget, overlayUsesMainColumn } = useDesktopMainModalPortal();
+  const { portalTarget, scopedToDetailPane } = useAdminReportsDialogPortal();
   const generatedLabel = new Date(generatedAt).toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
@@ -153,34 +168,38 @@ function ReportMonthDialog({
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    document.body.style.overflow = 'hidden';
+    const scrollHost =
+      scopedToDetailPane && portalTarget !== document.body ? portalTarget : document.body;
+    const previousOverflow = scrollHost.style.overflow;
+    scrollHost.style.overflow = 'hidden';
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => {
-      document.body.style.overflow = '';
+      scrollHost.style.overflow = previousOverflow;
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [onClose]);
+  }, [onClose, portalTarget, scopedToDetailPane]);
 
   if (typeof document === 'undefined') return null;
 
   return createPortal(
     <div
-      className="modal-overlay modal-overlay-enter modal-overlay--centered"
+      className={[
+        'admin-reports__dialog-overlay',
+        scopedToDetailPane ? '' : 'admin-reports__dialog-overlay--viewport',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       role="dialog"
       aria-modal="true"
       aria-labelledby={`admin-report-dialog-title-${month}`}
-      style={getModalOverlayBaseStyle(overlayUsesMainColumn)}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div
-        className="modal-dialog modal-dialog--lg admin-reports__dialog modal-content-enter"
-        onClick={(event) => event.stopPropagation()}
-      >
+      <div className="admin-reports__dialog" onClick={(event) => event.stopPropagation()}>
         <header className="admin-reports__dialog-header">
           <div className="admin-reports__dialog-heading">
             <span className="admin-reports__dialog-icon" aria-hidden>

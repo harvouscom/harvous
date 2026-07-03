@@ -353,13 +353,40 @@
 }
 
 /* Month report dialog */
-.modal-overlay-enter > .admin-reports__dialog {
-  max-width: min(56rem, calc(100% - 24px)) !important;
-  width: 100%;
+.admin-reports__dialog-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(12px, 16px);
+  padding-top: max(12px, 16px, env(safe-area-inset-top));
+  padding-bottom: max(12px, 16px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  background: var(--pds-overlay-heavy, oklch(0% 0 0 / 0.35));
+}
+
+.admin-reports__dialog-overlay--viewport {
+  position: fixed;
+  z-index: 1000025;
 }
 
 .admin-reports__dialog {
-  background: var(--pds-bg-secondary);
+  display: flex;
+  flex-direction: column;
+  width: min(56rem, 100%);
+  max-height: min(90vh, 900px);
+  border-radius: var(--pds-radius-menu, 12px);
+  border: 0.5px solid var(--pds-border-modal-highlight, var(--pds-border));
+  background: var(--pds-bg-modal, var(--pds-paper-sheet, #fff));
+  box-shadow: var(--pds-shadow-sheet, var(--dialog-elevation-shadow));
+  overflow: hidden;
+}
+
+.admin-reports__dialog .admin-usage__board-card,
+.admin-reports__dialog .admin-reports__rank-block {
+  background: var(--pds-paper-sheet, #fff);
 }
 
 .admin-reports__dialog-header {
