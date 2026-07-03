@@ -33,6 +33,11 @@ describe('aggregate-analytics GitHub workflow', () => {
     expect(workflowSrc).toContain('http_code');
     expect(workflowSrc).toContain('exit 1');
   });
+
+  it('runs aggregation and report generation as separate API calls', () => {
+    expect(workflowSrc).toContain('skipReport=1');
+    expect(workflowSrc).toContain('/api/admin/reports/generate');
+  });
 });
 
 describe('Maintenance aggregate analytics client', () => {
@@ -41,6 +46,11 @@ describe('Maintenance aggregate analytics client', () => {
   it('uses POST for aggregate analytics', () => {
     expect(hookSrc).toContain('adminApiPost<AggregateAnalyticsResult>');
     expect(hookSrc).toContain('/api/admin/aggregate-analytics');
+  });
+
+  it('runs aggregation and report generation as separate requests', () => {
+    expect(hookSrc).toContain('skipReport');
+    expect(hookSrc).toContain('/api/admin/reports/generate');
   });
 
   it('surfaces server details in admin API errors', () => {

@@ -48,6 +48,16 @@ describe('aggregateMonthlyAnalytics implementation', () => {
   });
 });
 
+describe('admin pulse threads report summary', () => {
+  const src = readFileSync(join(__dirname, '../admin-pulse-threads-stats.ts'), 'utf8');
+
+  it('uses window-scoped SQL counts for monthly reports', () => {
+    const reportFn = src.slice(src.indexOf('getAdminPulseThreadsSummaryForReport'));
+    expect(reportFn).toContain('users_with_links');
+    expect(reportFn).not.toMatch(/fetchPlatformThreadSnapshot\(\)/);
+  });
+});
+
 describe('adminCalendarMonthRange alignment', () => {
   it('matches June 2026 UTC half-open interval', () => {
     const { since, until } = adminCalendarMonthRange('2026-06');

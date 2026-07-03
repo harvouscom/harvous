@@ -308,22 +308,43 @@ export async function getAdminPulseThreadsStats(since: Date, until?: Date): Prom
   };
 }
 
-/** Monthly report thread block — summary only; skips theme/recall expansion. */
+/** Monthly report thread summary — window-scoped SQL counts only (avoids full-platform graph scan). */
 export async function getAdminPulseThreadsSummaryForReport(
   since: Date,
   until: Date,
 ): Promise<PulseThreadsSummary> {
-  const [snapshot, windowActivity] = await Promise.all([
-    fetchPlatformThreadSnapshot(),
-    fetchWindowLinkActivity(since, until),
-  ]);
-  return {
-    totalThreads: snapshot.totalThreads,
-    avgNotesPerThread: snapshot.avgNotesPerThread,
-    linksCreated: windowActivity.linksCreated,
-    threadsLinkedInWindow: windowActivity.threadsLinkedInWindow,
-    notesInThreads: snapshot.threadNoteIds.length,
+  const empty: PulseThreadsSummary = {
+    totalThreads: 0,
+    avgNotesPerThread: 0,
+    linksCreated: 0,
+    threadsLinkedInWindow: 0,
+    notesInThreads: 0,
   };
+  try {
+    const sinceIso = since.toISOString();
+    const untilIso = until.toISOString();
+    const rows = await db.execute<{ links_created: number; users_with_links: number }>(sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM "NoteConnections"
+          WHERE "createdAt" >= ${sinceIso} AND "createdAt" < ${untilIso}) AS links_created,
+        (SELECT COUNT(DISTINCT "userId")::int FROM "NoteConnections"
+          WHERE "createdAt" >= ${sinceIso} AND "createdAt" < ${untilIso}) AS users_with_links
+    `);
+    const linksCreated = Number(rows[0]?.links_created ?? 0);
+    const usersWithLinks = Number(rows[0]?.users_with_links ?? 0);
+    return {
+      totalThreads: usersWithLinks,
+      avgNotesPerThread: 0,
+      linksCreated,
+      threadsLinkedInWindow: usersWithLinks,
+      notesInThreads: 0,
+    };
+  } catch (error) {
+    if (isNoteConnectionsTableMissing(error)) {
+      return empty;
+    }
+    throw error;
+  }
 }
 
 /** @internal test helper — clusters touched by new links in window. */

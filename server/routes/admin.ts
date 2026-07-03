@@ -180,7 +180,8 @@ app.post('/api/admin/reports/generate', async (c) => {
     return c.json({ success: true, month, payload });
   } catch (error) {
     console.error('[admin reports generate]', error);
-    return c.json({ error: 'Failed to generate report' }, 500);
+    const details = error instanceof Error ? error.message : String(error);
+    return c.json({ error: 'Failed to generate report', details }, 500);
   }
 });
 
@@ -323,6 +324,7 @@ async function handleAggregateAnalytics(c: any) {
 
   const previous = c.req.query('previous') === 'true';
   const monthParam = c.req.query('month');
+  const skipReport = c.req.query('skipReport') === '1' || c.req.query('skipReport') === 'true';
 
   let targetMonth: string;
   if (monthParam) {
@@ -352,6 +354,16 @@ async function handleAggregateAnalytics(c: any) {
       },
       500,
     );
+  }
+
+  if (skipReport) {
+    return c.json({
+      success: true,
+      month: targetMonth,
+      aggregated: true,
+      reportGenerated: false,
+      message: `Analytics aggregated for ${targetMonth} (report skipped)`,
+    });
   }
 
   let reportGenerated = false;

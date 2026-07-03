@@ -7,6 +7,9 @@ const API_BASE =
     : '';
 
 function formatAdminApiError(body: { error?: string; details?: string }, status: number): string {
+  if (status === 502 || status === 504) {
+    return `Request timed out (HTTP ${status}). Try again — aggregation and report now run as separate steps.`;
+  }
   const base = body.error || `HTTP ${status}`;
   return body.details ? `${base}: ${body.details}` : base;
 }
@@ -81,14 +84,32 @@ export type AggregateAnalyticsResult = {
 export function useAggregateAnalytics() {
   const admin = useHarvousAdminCheck();
   return useMutation({
-    mutationFn: (params: { month?: string; previous?: boolean }) => {
+    mutationFn: async (params: { month?: string; previous?: boolean }) => {
       const qs = new URLSearchParams();
       if (params.month) qs.set('month', params.month);
       if (params.previous) qs.set('previous', 'true');
+      qs.set('skipReport', '1');
       const query = qs.toString();
-      return adminApiPost<AggregateAnalyticsResult>(
-        `/api/admin/aggregate-analytics${query ? `?${query}` : ''}`,
+
+      const agg = await adminApiPost<AggregateAnalyticsResult>(
+        `/api/admin/aggregate-analytics?${query}`,
       );
+
+      const month = agg.month;
+      try {
+        await adminApiPost<{ success: boolean; month: string }>(
+          `/api/admin/reports/generate?month=${encodeURIComponent(month)}`,
+        );
+        return {
+          ...agg,
+          success: true,
+          reportGenerated: true,
+          message: `Analytics and monthly report generated for ${month}`,
+        };
+      } catch (error) {
+        const reportError = error instanceof Error ? error.message : String(error);
+        throw new Error(`Analytics aggregated for ${month}, but report snapshot failed: ${reportError}`);
+      }
     },
     meta: { requiresAdmin: admin.data?.isAdmin },
   });
