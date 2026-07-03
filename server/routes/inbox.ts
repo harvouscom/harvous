@@ -431,7 +431,8 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
 
 async function handleAutoArchive(c: any) {
   try {
-    const authHeader = c.req.header('authorization');
+    // Netlify's proxy can duplicate the Authorization header → "Bearer <tok>, Bearer <tok>"
+    const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '').split(',')[0].trim();
     const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
     const auth = getAuth(c);
     const isAuthenticated = !!auth?.userId;
@@ -494,7 +495,8 @@ app.get('/api/inbox/auto-archive', handleAutoArchive);
 
 async function handleAutoDelete(c: any) {
   try {
-    const authHeader = c.req.header('authorization');
+    // Netlify's proxy can duplicate the Authorization header → "Bearer <tok>, Bearer <tok>"
+    const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '').split(',')[0].trim();
     const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
     const auth = getAuth(c);
     const isAuthenticated = !!auth?.userId;
@@ -634,7 +636,8 @@ app.post('/api/inbox/assign-to-users', requireAuth, async (c) => {
 
 app.post('/api/inbox/reset-all-users', async (c) => {
   try {
-    const authHeader = c.req.header('authorization');
+    // Netlify's proxy can duplicate the Authorization header → "Bearer <tok>, Bearer <tok>"
+    const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '').split(',')[0].trim();
     const expectedToken = process.env.INBOX_RESET_SECRET_TOKEN;
 
     if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
