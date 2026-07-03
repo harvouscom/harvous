@@ -53,6 +53,37 @@ type ClerkWebhookEvent = ClerkUserWebhookEvent | ClerkEmailWebhookEvent;
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
+const SVIX_HEADER_NAMES = ['svix-id', 'svix-timestamp', 'svix-signature'] as const;
+
+/**
+ * Netlify's proxy can duplicate individual headers, which Fetch's Headers.get()
+ * then joins with ", " (e.g. "msg_abc, msg_abc"). Same class of bug already
+ * worked around for Authorization in middleware/auth.ts — here it corrupts the
+ * exact string Clerk's webhook library hashes (id.timestamp.body), so every
+ * signature check fails with "No matching signature found" even with the
+ * correct secret. Rebuild the request with de-duplicated svix-* headers before
+ * verifying. Safe to split on ", " (not bare ","): svix-signature's own format
+ * uses "v1,<sig>" (no space) with a plain space between multiple signatures,
+ * so a genuine header value never legitimately contains ", ".
+ */
+async function dedupeSvixHeaders(req: Request): Promise<Request> {
+  const headers = new Headers(req.headers);
+  let sawDuplicate = false;
+
+  for (const name of SVIX_HEADER_NAMES) {
+    const value = headers.get(name);
+    if (value?.includes(', ')) {
+      sawDuplicate = true;
+      headers.set(name, value.split(', ')[0]);
+    }
+  }
+
+  if (!sawDuplicate) return req;
+
+  const body = await req.clone().arrayBuffer();
+  return new Request(req.url, { method: req.method, headers, body });
+}
+
 function getPrimaryEmail(event: ClerkUserWebhookEvent): string | null {
   const { data } = event;
   if (!data.email_addresses || data.email_addresses.length === 0) return null;
@@ -203,10 +234,11 @@ app.post('/api/webhooks/clerk', async (c) => {
       console.warn('[Webhook] AUDIENCEFUL_API_KEY not configured');
     }
 
-    // Verify the webhook signature
+    // Verify the webhook signature (after stripping Netlify's occasional header duplication)
     let event: ClerkWebhookEvent;
     try {
-      event = (await verifyWebhook(c.req.raw, { signingSecret: webhookSecret })) as ClerkWebhookEvent;
+      const cleanedRequest = await dedupeSvixHeaders(c.req.raw);
+      event = (await verifyWebhook(cleanedRequest, { signingSecret: webhookSecret })) as ClerkWebhookEvent;
       console.log('[Webhook] Signature verification successful:', { eventType: event.type });
     } catch (error: any) {
       console.error('[Webhook] Signature verification failed:', error.message);
