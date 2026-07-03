@@ -10,11 +10,6 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "none"
-  # Monthly admin report generation can run several parallel DB queries.
-  timeout = 26
-
-[functions.api]
-  timeout = 26
 
 [build.environment]
   NODE_VERSION = "22"
