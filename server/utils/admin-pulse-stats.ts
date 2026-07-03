@@ -404,6 +404,34 @@ export type PulseReportMetrics = {
   threads: PulseThreadsStats;
 };
 
+/** Fixed calendar range snapshot for monthly admin reports (skips heavy theme/translation scans). */
+export async function getPulseReportMetricsForSnapshot(since: Date, until: Date): Promise<PulseReportMetrics> {
+  const emptyRecall: PulseThreadsStats['recall'] = {
+    impressions: 0,
+    opens: 0,
+    snoozes: 0,
+    snoozeRatePct: 0,
+    impressionsByKind: [],
+    opensByKind: [],
+  };
+  const [uniquePassages, books, passages, tags, threadSummary] = await Promise.all([
+    fetchUniquePassageCount(since, until),
+    fetchBooks(since, until, 10),
+    fetchPassages(since, until, 10),
+    fetchTags(since, until, 10),
+    getAdminPulseThreadsSummaryForReport(since, until),
+  ]);
+  return {
+    uniquePassages,
+    books,
+    themes: [],
+    passages,
+    tags,
+    translations: [],
+    threads: { summary: threadSummary, themes: [], recall: emptyRecall },
+  };
+}
+
 /** Fixed calendar range snapshot for monthly admin reports. */
 export async function getPulseReportMetrics(since: Date, until: Date): Promise<PulseReportMetrics> {
   const emptyRecall: PulseThreadsStats['recall'] = {

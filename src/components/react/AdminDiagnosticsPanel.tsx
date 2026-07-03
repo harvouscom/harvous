@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   useAdminDiagnosticIssueEvents,
   useAdminDiagnosticIssues,
+  useBulkUpdateDiagnosticTriage,
   useUpdateDiagnosticTriage,
   type DiagnosticIssueSummary,
 } from '@/hooks/queries/useAdminDiagnostics';
@@ -54,6 +55,19 @@ function IssueRow({ issue }: { issue: DiagnosticIssueSummary }) {
         <span className="admin-diagnostics__issue-meta">
           {issue.count}× · {formatWhen(issue.lastSeen)}
         </span>
+        {issue.status === 'open' ? (
+          <button
+            type="button"
+            className="admin-action-btn admin-action-btn--emphasis admin-diagnostics__issue-close"
+            onClick={(e) => {
+              e.stopPropagation();
+              setStatus('resolved');
+            }}
+            disabled={triage.isPending}
+          >
+            Resolve
+          </button>
+        ) : null}
       </div>
 
       {expanded ? (
@@ -103,10 +117,17 @@ function IssueRow({ issue }: { issue: DiagnosticIssueSummary }) {
   );
 }
 
+type IssueListFilter = 'open' | 'all';
+
 export default function AdminDiagnosticsPanel() {
   const [days, setDays] = useState(7);
+  const [listFilter, setListFilter] = useState<IssueListFilter>('open');
   const issues = useAdminDiagnosticIssues(days);
+  const bulkTriage = useBulkUpdateDiagnosticTriage();
   const showLoadingChip = issues.isLoading || issues.isFetching;
+  const allIssues = issues.data?.issues ?? [];
+  const openIssues = useMemo(() => allIssues.filter((issue) => issue.status === 'open'), [allIssues]);
+  const list = listFilter === 'open' ? openIssues : allIssues;
 
   const sectionHeader = (
     <>
@@ -139,7 +160,14 @@ export default function AdminDiagnosticsPanel() {
   }
 
   const data = issues.data;
-  const list = data?.issues ?? [];
+
+  const resolveAllOpen = () => {
+    if (openIssues.length === 0) return;
+    bulkTriage.mutate({
+      signatures: openIssues.map((issue) => issue.issueSignature),
+      status: 'resolved',
+    });
+  };
 
   return (
     <section className="admin-diagnostics" id="maintenance-diagnostics">
@@ -172,10 +200,43 @@ export default function AdminDiagnosticsPanel() {
         >
           30 days
         </button>
+        <span className="admin-diagnostics__filter-divider" aria-hidden="true" />
+        <button
+          type="button"
+          className={`admin-action-btn${listFilter === 'open' ? ' admin-action-btn--emphasis' : ''}`}
+          onClick={() => setListFilter('open')}
+        >
+          Open
+        </button>
+        <button
+          type="button"
+          className={`admin-action-btn${listFilter === 'all' ? ' admin-action-btn--emphasis' : ''}`}
+          onClick={() => setListFilter('all')}
+        >
+          All
+        </button>
+        {openIssues.length > 0 ? (
+          <button
+            type="button"
+            className="admin-action-btn admin-action-btn--emphasis admin-diagnostics__bulk-resolve"
+            onClick={resolveAllOpen}
+            disabled={bulkTriage.isPending}
+          >
+            {bulkTriage.isPending ? 'Resolving…' : `Resolve all open (${openIssues.length})`}
+          </button>
+        ) : null}
       </div>
 
+      {bulkTriage.isError ? (
+        <p className="admin-diagnostics__error">
+          {bulkTriage.error instanceof Error ? bulkTriage.error.message : 'Bulk resolve failed.'}
+        </p>
+      ) : null}
+
       {list.length === 0 ? (
-        <p className="admin-diagnostics__muted">No diagnostic events in this window.</p>
+        <p className="admin-diagnostics__muted">
+          {listFilter === 'open' ? 'No open issues in this window.' : 'No diagnostic events in this window.'}
+        </p>
       ) : (
         <div className="admin-diagnostics__list">
           {list.map((issue) => (

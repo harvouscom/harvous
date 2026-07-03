@@ -7,7 +7,7 @@ import { nowISO } from '../db/dates';
 import { adminCalendarMonthRange } from './admin-calendar-range';
 import { getUsageOverviewForRange } from './admin-usage-stats';
 import { getAdminPulseXpForRange } from './admin-pulse-xp-stats';
-import { getPulseReportMetrics, getMonthlyAnalyticsForReport } from './admin-pulse-stats';
+import { getPulseReportMetricsForSnapshot, getMonthlyAnalyticsForReport } from './admin-pulse-stats';
 import type {
   AdminMonthlyReportPayload,
   AdminReportCatalog,
@@ -42,8 +42,8 @@ export async function buildMonthlyReportPayload(month: string): Promise<AdminMon
   const generatedAt = new Date().toISOString();
 
   const [usage, pulseRaw, xpRaw, monthlyAnalytics] = await Promise.all([
-    getUsageOverviewForRange(since, until),
-    getPulseReportMetrics(since, until),
+    getUsageOverviewForRange(since, until, { omitPassageEngagement: true }),
+    getPulseReportMetricsForSnapshot(since, until),
     getAdminPulseXpForRange(since, until),
     getMonthlyAnalyticsForReport(month),
   ]);

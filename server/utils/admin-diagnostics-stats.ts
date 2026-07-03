@@ -276,3 +276,16 @@ export async function updateDiagnosticIssueTriage(
     throw error;
   }
 }
+
+export async function bulkUpdateDiagnosticIssueTriage(
+  issueSignatures: string[],
+  status: DiagnosticTriageStatus,
+  adminNotes?: string | null,
+): Promise<number> {
+  const unique = [...new Set(issueSignatures.map((s) => s.trim()).filter(Boolean))];
+  if (unique.length === 0) return 0;
+  for (const issueSignature of unique) {
+    await updateDiagnosticIssueTriage(issueSignature, status, adminNotes);
+  }
+  return unique.length;
+}

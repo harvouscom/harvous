@@ -43,8 +43,8 @@ describe('aggregateMonthlyAnalytics implementation', () => {
   });
 
   it('deletes stale MonthlyAnalytics rows on re-run', () => {
-    expect(src).toContain('seenBookNames');
     expect(src).toContain('delete(MonthlyAnalytics)');
+    expect(src).toContain('insert(MonthlyAnalytics)');
   });
 });
 

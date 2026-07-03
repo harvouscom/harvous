@@ -92,6 +92,7 @@ import {
   getDiagnosticIssueEvents,
   getDiagnosticIssues,
   updateDiagnosticIssueTriage,
+  bulkUpdateDiagnosticIssueTriage,
 } from '../utils/admin-diagnostics-stats';
 import { isDiagnosticTriageStatus } from '@/utils/diagnostic-sources';
 
@@ -324,7 +325,8 @@ async function handleAggregateAnalytics(c: any) {
 
   const previous = c.req.query('previous') === 'true';
   const monthParam = c.req.query('month');
-  const skipReport = c.req.query('skipReport') === '1' || c.req.query('skipReport') === 'true';
+  // Default: aggregation only (fast). Pass report=1 for legacy single-call full snapshot.
+  const includeReport = c.req.query('report') === '1' || c.req.query('report') === 'true';
 
   let targetMonth: string;
   if (monthParam) {
@@ -356,13 +358,13 @@ async function handleAggregateAnalytics(c: any) {
     );
   }
 
-  if (skipReport) {
+  if (!includeReport) {
     return c.json({
       success: true,
       month: targetMonth,
       aggregated: true,
       reportGenerated: false,
-      message: `Analytics aggregated for ${targetMonth} (report skipped)`,
+      message: `Analytics aggregated for ${targetMonth}. Run report generate for snapshot.`,
     });
   }
 
@@ -1354,6 +1356,32 @@ app.get('/api/admin/diagnostics/issues/:signature/events', async (c) => {
   } catch (error: unknown) {
     console.error('[admin diagnostics events]', error);
     return c.json({ error: 'Failed to load diagnostic events' }, 500);
+  }
+});
+
+app.patch('/api/admin/diagnostics/issues/bulk', async (c) => {
+  const gate = await requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const body = await c.req.json().catch(() => ({} as Record<string, unknown>));
+    const status = typeof body.status === 'string' ? body.status : '';
+    if (!isDiagnosticTriageStatus(status)) {
+      return c.json({ error: 'Invalid status' }, 400);
+    }
+    const raw = body.signatures;
+    const signatures = Array.isArray(raw)
+      ? raw.filter((entry): entry is string => typeof entry === 'string').map((s) => s.trim()).filter(Boolean)
+      : [];
+    if (signatures.length === 0) {
+      return c.json({ error: 'signatures array is required' }, 400);
+    }
+    const adminNotes = typeof body.adminNotes === 'string' ? body.adminNotes : null;
+    const updated = await bulkUpdateDiagnosticIssueTriage(signatures, status, adminNotes);
+    return c.json({ success: true, updated, status });
+  } catch (error: unknown) {
+    console.error('[admin diagnostics bulk triage]', error);
+    return c.json({ error: 'Failed to update triage' }, 500);
   }
 });
 

@@ -12,10 +12,9 @@ describe('handleAggregateAnalytics route', () => {
     expect(adminSrc).toContain('Aggregation failed');
   });
 
-  it('returns partial success when report fails after aggregation', () => {
-    expect(adminSrc).toMatch(
-      /aggregated: true,\s*\n\s*reportGenerated: false,\s*\n\s*error: 'Monthly report snapshot failed'/,
-    );
+  it('defaults to aggregation-only unless report=1', () => {
+    expect(adminSrc).toContain('includeReport');
+    expect(adminSrc).toContain("c.req.query('report') === '1'");
   });
 });
 

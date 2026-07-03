@@ -1062,9 +1062,18 @@ export async function getUsageDiscovery(daysParam: number): Promise<UsageDiscove
 }
 
 /** Fixed calendar month usage metrics for admin monthly reports. */
-export async function getUsageOverviewForRange(since: Date, until: Date): Promise<AdminMonthlyReportUsage> {
+export async function getUsageOverviewForRange(
+  since: Date,
+  until: Date,
+  options?: { omitPassageEngagement?: boolean },
+): Promise<AdminMonthlyReportUsage> {
   const sinceIso = since.toISOString();
   const untilIso = until.toISOString();
+  const emptyPassage: VotdPassageEngagementMetrics = {
+    usersWhoAddedPassage: 0,
+    passageNotesAdded: 0,
+    dismissCloseEvents: 0,
+  };
 
   const [contentRows, noteTypeRows, studyBehavior, passageMetrics, scripturePills, studyThreadEntries, recallMetrics] =
     await Promise.all([
@@ -1086,7 +1095,9 @@ export async function getUsageOverviewForRange(since: Date, until: Date): Promis
         .where(and(gte(Notes.createdAt, since), lt(Notes.createdAt, until), countableUserNotesWhere()))
         .groupBy(Notes.noteType),
       fetchStudyBehaviorMetricsForRange(since, until),
-      fetchVotdPassageEngagementMetricsForRange(since, until),
+      options?.omitPassageEngagement
+        ? Promise.resolve(emptyPassage)
+        : fetchVotdPassageEngagementMetricsForRange(since, until),
       db
         .select({ count: sql<number>`COUNT(*)`.as('count') })
         .from(ScriptureMetadata)
