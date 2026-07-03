@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { toast as sonnerToast } from 'sonner';
 import UpgradePageContent, { type LimitsInfo } from '../../../src/components/react/UpgradePageContent';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
+import DevModeBadge from '../components/DevModeBadge';
+import { isSiteInspiredAuthHost } from '@/lib/prototype-path';
+import { useAuthHeroImage } from '../hooks/useAuthHeroImage';
 import { api } from '../lib/api';
 
 interface UpgradeData {
@@ -18,6 +21,8 @@ const HarvousLogo = () => (
 export default function UpgradePage() {
   const [data, setData] = useState<UpgradeData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const siteInspired = isSiteInspiredAuthHost();
+  const { heroImage, isReady: isHeroReady } = useAuthHeroImage();
 
   useEffect(() => {
     sonnerToast.dismiss();
@@ -32,6 +37,70 @@ export default function UpgradePage() {
       .catch(() => setData(null))
       .finally(() => setIsLoading(false));
   }, []);
+
+  const upgradeContent = isLoading ? (
+    <div className="page-loading" />
+  ) : (
+    <SubtleContentMount>
+      <UpgradePageContent
+        initialHasSharedSpaces={data?.hasSharedSpaces ?? false}
+        limitsInfo={data?.limitsInfo ?? null}
+        publishableKey={null}
+        sharedSpacesPlanId={import.meta.env.VITE_CLERK_SHARED_SPACES_PLAN_ID ?? ''}
+      />
+    </SubtleContentMount>
+  );
+
+  if (siteInspired) {
+    return (
+      <>
+        <title>Upgrade | Harvous</title>
+        <div className="auth-page auth-page--site">
+          <DevModeBadge />
+          <div className="auth-page__container">
+            <div className="auth-page__video-section">
+              <div
+                className={`auth-page__hero-bg${isHeroReady ? ' auth-page__hero-bg--ready' : ''}`}
+                style={isHeroReady ? { backgroundImage: `url(${heroImage})` } : undefined}
+                aria-hidden
+              />
+              <div className="auth-page__video-overlay">
+                <a href="https://harvous.com" className="auth-page__logo-container">
+                  <img
+                    src="/images/harvous-2-icon.png"
+                    alt="Harvous"
+                    className="auth-page__logo"
+                    width={64}
+                    height={64}
+                  />
+                </a>
+              </div>
+            </div>
+
+            <div className="auth-page__form-section">
+              <div className="auth-letter-stack">
+                <div className="auth-letter-stack__leaf auth-letter-stack__leaf--back" aria-hidden />
+                <div className="auth-letter-stack__leaf auth-letter-stack__leaf--mid" aria-hidden />
+                <div className="auth-letter">
+                  <h1 className="auth-page__headline">
+                    Study <span className="auth-page__headline-mark">together</span>.
+                  </h1>
+                  <div className="auth-page__form-wrapper">{upgradeContent}</div>
+                </div>
+              </div>
+
+              <div className="auth-page__footer">
+                <p className="auth-page__footer-switch">
+                  Not right now?<a href="/">Back to my Harvous →</a>
+                </p>
+                <p className="auth-page__secured-by">Secured by Clerk</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -50,20 +119,7 @@ export default function UpgradePage() {
         {/* Right Column: Upgrade Content */}
         <div className="auth-page__form-section">
           <div className="auth-page__form-wrapper">
-            <div className="clerk-form-card">
-              {isLoading ? (
-                <div className="page-loading" />
-              ) : (
-                <SubtleContentMount>
-                  <UpgradePageContent
-                    initialHasSharedSpaces={data?.hasSharedSpaces ?? false}
-                    limitsInfo={data?.limitsInfo ?? null}
-                    publishableKey={null}
-                    sharedSpacesPlanId={import.meta.env.VITE_CLERK_SHARED_SPACES_PLAN_ID ?? ''}
-                  />
-                </SubtleContentMount>
-              )}
-            </div>
+            <div className="clerk-form-card">{upgradeContent}</div>
           </div>
         </div>
       </div>
