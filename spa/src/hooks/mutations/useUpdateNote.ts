@@ -73,21 +73,22 @@ export function useUpdateNote() {
       // edit coalesces into a pending create for offline-authored notes. Scripture pills are
       // not processed offline; they resolve on sync.
       const cached = queryClient.getQueryData<NoteDetail>(['note', noteId]);
+      const offlineUpdates: Parameters<typeof updateNoteOffline>[2] = { title, content };
+      if (primaryCollection !== undefined) offlineUpdates.primaryCollection = primaryCollection;
+      if (secondaryCollections !== undefined) offlineUpdates.secondaryCollections = secondaryCollections;
+      if (collectionPinned !== undefined) offlineUpdates.collectionPinned = collectionPinned;
+      if (collectionUserOverride !== undefined) offlineUpdates.collectionUserOverride = collectionUserOverride;
+
       return runOfflineFirst({
         online: () => api.put<UpdateNoteResponse>('/api/notes/update', body as any),
         offline: (userId) =>
-          updateNoteOffline(
-            userId,
-            noteId,
-            { title, content },
-            {
-              content,
-              title,
-              spaceId: cached?.spaceId ?? null,
-              threadId: cached?.threads?.[0]?.id,
-              noteType: (cached?.noteType as 'default' | 'scripture' | 'resource' | undefined) ?? 'default',
-            },
-          ).then(() => undefined),
+          updateNoteOffline(userId, noteId, offlineUpdates, {
+            content,
+            title,
+            spaceId: cached?.spaceId ?? null,
+            threadId: cached?.threads?.[0]?.id,
+            noteType: (cached?.noteType as 'default' | 'scripture' | 'resource' | undefined) ?? 'default',
+          }).then(() => undefined),
       });
     },
     onSuccess: (outcome, variables) => {

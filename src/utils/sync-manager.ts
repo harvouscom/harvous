@@ -1003,7 +1003,16 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
     // Sort mutations by dependency order to ensure dependencies are processed first
     const sortedOps = pendingCandidates
       .sort((a, b) => {
-        const order: Record<string, number> = { space: 1, thread: 2, note: 3, noteThread: 4, tag: 5, noteTag: 6 };
+        const order: Record<string, number> = {
+          space: 1,
+          thread: 2,
+          note: 3,
+          noteThread: 4,
+          noteConnection: 5,
+          studyThreadEntry: 6,
+          tag: 7,
+          noteTag: 8,
+        };
         return (order[a.entityType] || 99) - (order[b.entityType] || 99);
       })
       .slice(0, MAX_NOTE_CREATES_PER_SYNC_PUSH);
@@ -1162,6 +1171,49 @@ async function updateEntityId(entityType: string, oldId: string, newId: string, 
             data: { ...op.data, noteId: newId }
           });
         }
+
+        const noteConnectionOps = await offlineDB.syncQueue
+          .where('userId')
+          .equals(userId)
+          .filter(op =>
+            op.entityType === 'noteConnection' &&
+            (op.data?.fromNoteId === oldId || op.data?.toNoteId === oldId) &&
+            op.retryCount < 5
+          )
+          .toArray();
+
+        for (const op of noteConnectionOps) {
+          const patch: Record<string, unknown> = { ...op.data };
+          if (op.data?.fromNoteId === oldId) patch.fromNoteId = newId;
+          if (op.data?.toNoteId === oldId) patch.toNoteId = newId;
+          await offlineDB.syncQueue.update(op.id!, { data: patch });
+        }
+
+        await offlineDB.noteConnections
+          .where('userId')
+          .equals(userId)
+          .filter((row) => row.fromNoteId === oldId || row.toNoteId === oldId)
+          .modify((row) => {
+            if (row.fromNoteId === oldId) row.fromNoteId = newId;
+            if (row.toNoteId === oldId) row.toNoteId = newId;
+          });
+
+        const studyThreadEntryOps = await offlineDB.syncQueue
+          .where('userId')
+          .equals(userId)
+          .filter(
+            (op) =>
+              op.entityType === 'studyThreadEntry' &&
+              op.data?.parentNoteId === oldId &&
+              op.retryCount < 5,
+          )
+          .toArray();
+
+        for (const op of studyThreadEntryOps) {
+          await offlineDB.syncQueue.update(op.id!, {
+            data: { ...op.data, parentNoteId: newId },
+          });
+        }
         break;
       case 'noteThread':
         await offlineDB.noteThreads.where('[userId+id]').equals([userId, oldId]).modify({ id: newId });
@@ -1189,6 +1241,9 @@ async function updateEntityId(entityType: string, oldId: string, newId: string, 
         break;
       case 'noteTag':
         await offlineDB.noteTags.where('[userId+id]').equals([userId, oldId]).modify({ id: newId });
+        break;
+      case 'noteConnection':
+        await offlineDB.noteConnections.where('[userId+id]').equals([userId, oldId]).modify({ id: newId });
         break;
     }
     
@@ -1341,6 +1396,9 @@ async function markEntitySynced(entityType: string, entityId: string, userId: st
       case 'noteTag':
         await offlineDB.noteTags.where('[userId+id]').equals([userId, entityId]).modify(updateData);
         break;
+      case 'noteConnection':
+        await offlineDB.noteConnections.where('[userId+id]').equals([userId, entityId]).modify(updateData);
+        break;
     }
   } catch (error) {
     console.error('Error marking entity as synced:', error);
@@ -1376,6 +1434,9 @@ async function removeEntityLocally(entityType: string, entityId: string, userId:
       break;
     case 'noteTag':
       await offlineDB.noteTags.where('[userId+id]').equals([userId, entityId]).delete();
+      break;
+    case 'noteConnection':
+      await offlineDB.noteConnections.where('[userId+id]').equals([userId, entityId]).delete();
       break;
   }
 }

@@ -449,6 +449,37 @@ describe('offline-mutations', () => {
         updateNoteOffline(testUserId, 'non-existent', { title: 'Test' })
       ).rejects.toThrow('Note not found');
     });
+
+    it('should merge collection fields into pending create queue data', async () => {
+      const noteId = await createNoteOffline(testUserId, {
+        title: 'Folder note',
+        content: '<p>x</p>',
+      });
+
+      await offlineDB.syncQueue.add({
+        id: `test-create-${noteId}`,
+        userId: testUserId,
+        operation: 'create',
+        entityType: 'note',
+        entityId: noteId,
+        data: { title: 'Folder note', content: '<p>x</p>' },
+        timestamp: Date.now(),
+        retryCount: 0,
+        clientMutationId: `test-create-${noteId}`,
+      });
+
+      await updateNoteOffline(testUserId, noteId, {
+        primaryCollection: 'Sermons',
+        secondaryCollections: ['2026'],
+        collectionUserOverride: true,
+      });
+
+      const op = await offlineDB.syncQueue.where('userId').equals(testUserId).first();
+      const data = (op?.data ?? {}) as Record<string, unknown>;
+      expect(data.primaryCollection).toBe('Sermons');
+      expect(data.secondaryCollections).toEqual(['2026']);
+      expect(data.collectionUserOverride).toBe(true);
+    });
   });
 
   describe('updateNoteOfflineIfPresent', () => {
@@ -483,6 +514,36 @@ describe('offline-mutations', () => {
 
       const note = await offlineDB.notes.where('[userId+id]').equals([testUserId, noteId]).first();
       expect(note?.syncStatus).toBe('deleted');
+    });
+
+    it('should cancel pending noteThread queue ops when deleting before sync', async () => {
+      const threadId = await createThreadOffline(testUserId, { title: 'Thread' });
+      const noteId = await createNoteOffline(testUserId, {
+        title: 'Note',
+        content: 'Content',
+        threadId,
+      });
+
+      // enqueueMutation is mocked in this file — seed the pending create so deleteNoteOffline
+      // takes the cancel-before-sync branch (same as a real offline create).
+      await offlineDB.syncQueue.add({
+        id: `test-create-${noteId}`,
+        userId: testUserId,
+        operation: 'create',
+        entityType: 'note',
+        entityId: noteId,
+        data: { title: 'Note', content: 'Content', threadId },
+        timestamp: Date.now(),
+        retryCount: 0,
+        clientMutationId: `test-create-${noteId}`,
+      });
+
+      await deleteNoteOffline(testUserId, noteId);
+
+      const queued = await offlineDB.syncQueue.where('userId').equals(testUserId).toArray();
+      expect(queued.filter((op) => op.entityType === 'note')).toHaveLength(0);
+      expect(queued.filter((op) => op.entityType === 'noteThread')).toHaveLength(0);
+      expect(await offlineDB.noteThreads.where('[userId+noteId]').equals([testUserId, noteId]).count()).toBe(0);
     });
   });
 
@@ -561,6 +622,23 @@ describe('offline-mutations', () => {
       // Synced items are marked as deleted, not removed
       expect(noteThreads).toHaveLength(1);
       expect(noteThreads[0].syncStatus).toBe('deleted');
+    });
+
+    it('should cancel pending noteThread create when unlinking before sync', async () => {
+      const threadId = await createThreadOffline(testUserId, { title: 'Thread' });
+      const noteId = await createNoteOffline(testUserId, {
+        title: 'Note',
+        content: 'Content',
+      });
+      const linkId = await linkNoteToThreadOffline(testUserId, noteId, threadId);
+
+      await unlinkNoteFromThreadOffline(testUserId, noteId, threadId);
+
+      const queued = await offlineDB.syncQueue.where('userId').equals(testUserId).toArray();
+      expect(queued.filter((op) => op.entityType === 'noteThread' && op.entityId === linkId)).toHaveLength(0);
+      expect(
+        await offlineDB.noteThreads.where('[userId+noteId+threadId]').equals([testUserId, noteId, threadId]).count(),
+      ).toBe(0);
     });
   });
 

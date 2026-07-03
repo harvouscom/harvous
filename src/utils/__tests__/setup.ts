@@ -33,6 +33,22 @@ Object.defineProperty(window, 'posthog', {
   },
 });
 
+// jsdom doesn't implement matchMedia; stub a non-matching MediaQueryList so code that
+// probes display-mode / color-scheme (e.g. PWA / reduced-motion detection) doesn't throw.
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
 // Mock localStorage
 const localStorageMock = (() => {
   let store: Record<string, string> = {};

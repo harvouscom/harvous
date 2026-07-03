@@ -45,6 +45,7 @@ import { formatNoteDefaultTitle } from '@/utils/date-formatting';
 import { isTiptapBodyEmpty } from '@/utils/prototype-note-empty';
 import { tryConsumeNoteCreates, MAX_NOTE_CREATES_PER_SYNC_PUSH, getClientIP } from '@/utils/rate-limit';
 import { generateNoteId, generateThreadId, generateSpaceId, generateStudyThreadEntryId } from '@/utils/ids';
+import { isUniqueViolationError } from '../utils/db-errors';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { detectScripture, getPrimaryReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { processScriptureReferences } from '../utils/process-scripture-references';
@@ -385,14 +386,14 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     }
 
     const updatePayload: Record<string, unknown> = {
-      title: data.title,
-      content: data.content,
-      spaceId: data.spaceId,
-      isPublic: data.isPublic,
-      isFeatured: data.isFeatured,
-      order: data.order,
       updatedAt: nowISO(),
     };
+    if (data.title !== undefined) updatePayload.title = data.title;
+    if (data.content !== undefined) updatePayload.content = data.content;
+    if (data.spaceId !== undefined) updatePayload.spaceId = data.spaceId;
+    if (data.isPublic !== undefined) updatePayload.isPublic = data.isPublic;
+    if (data.isFeatured !== undefined) updatePayload.isFeatured = data.isFeatured;
+    if (data.order !== undefined) updatePayload.order = data.order;
     if (data.lastVisited) {
       updatePayload.lastVisited = new Date(data.lastVisited);
     }
@@ -449,6 +450,9 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
         data.studyThreadLastAutoSuggestedAt == null || data.studyThreadLastAutoSuggestedAt === ''
           ? null
           : new Date(data.studyThreadLastAutoSuggestedAt);
+    }
+    if (typeof data.isPinned === 'boolean') {
+      updatePayload.isPinned = data.isPinned;
     }
 
     await db.update(Notes).set(updatePayload as any).where(eq(Notes.id, entityId));
@@ -584,6 +588,105 @@ async function processNoteTagMutation(userId: string, operation: string, entityI
 
     return { success: true, entityId, serverId: entityId };
   }
+  return { success: false, error: `Unknown operation: ${operation}` };
+}
+
+async function processNoteConnectionMutation(userId: string, operation: string, entityId: string, data: any) {
+  const fromNoteId = typeof data?.fromNoteId === 'string' ? data.fromNoteId.trim() : '';
+  const toNoteId = typeof data?.toNoteId === 'string' ? data.toNoteId.trim() : '';
+  if (!fromNoteId || !toNoteId) {
+    return { success: false, error: 'fromNoteId and toNoteId are required' };
+  }
+
+  if (operation === 'create') {
+    const parent = first(
+      await db.select().from(Notes).where(and(eq(Notes.id, fromNoteId), eq(Notes.userId, userId))).limit(1),
+    );
+    const linked = first(
+      await db.select().from(Notes).where(and(eq(Notes.id, toNoteId), eq(Notes.userId, userId))).limit(1),
+    );
+    if (!parent || !linked) return { success: false, error: 'Note not found' };
+
+    const existing = first(
+      await db
+        .select({ id: NoteConnections.id })
+        .from(NoteConnections)
+        .where(
+          and(
+            eq(NoteConnections.fromNoteId, fromNoteId),
+            eq(NoteConnections.toNoteId, toNoteId),
+            eq(NoteConnections.userId, userId),
+          ),
+        )
+        .limit(1),
+    );
+    if (existing) return { success: true, entityId, serverId: existing.id };
+
+    const spaceId =
+      typeof data.spaceId === 'string' && data.spaceId.trim()
+        ? data.spaceId.trim()
+        : parent.spaceId ?? linked.spaceId ?? null;
+    const newId = entityId.startsWith('local_') ? generateNoteId() : entityId;
+    try {
+      await db.insert(NoteConnections).values({
+        id: newId,
+        fromNoteId,
+        toNoteId,
+        userId,
+        spaceId,
+        createdAt: nowISO(),
+      });
+    } catch (err: unknown) {
+      if (isUniqueViolationError(err)) {
+        const dup = first(
+          await db
+            .select({ id: NoteConnections.id })
+            .from(NoteConnections)
+            .where(
+              and(
+                eq(NoteConnections.fromNoteId, fromNoteId),
+                eq(NoteConnections.toNoteId, toNoteId),
+                eq(NoteConnections.userId, userId),
+              ),
+            )
+            .limit(1),
+        );
+        if (dup) return { success: true, entityId, serverId: dup.id };
+      }
+      throw err;
+    }
+    return { success: true, entityId, serverId: newId };
+  }
+
+  if (operation === 'delete') {
+    const existing = first(
+      await db
+        .select({ id: NoteConnections.id })
+        .from(NoteConnections)
+        .where(
+          and(
+            eq(NoteConnections.fromNoteId, fromNoteId),
+            eq(NoteConnections.toNoteId, toNoteId),
+            eq(NoteConnections.userId, userId),
+          ),
+        )
+        .limit(1),
+    );
+    await db
+      .delete(NoteConnections)
+      .where(
+        and(
+          eq(NoteConnections.fromNoteId, fromNoteId),
+          eq(NoteConnections.toNoteId, toNoteId),
+          eq(NoteConnections.userId, userId),
+        ),
+      );
+    if (existing) {
+      await recordDeletedEntities(userId, 'noteConnection', [existing.id]);
+    }
+    return { success: true, entityId, serverId: existing?.id ?? entityId };
+  }
+
   return { success: false, error: `Unknown operation: ${operation}` };
 }
 
@@ -729,6 +832,7 @@ app.post('/api/sync/push', requireAuth, async (c) => {
           case 'thread': result = await processThreadMutation(auth.userId, operation, entityId, data, clientMutationId); break;
           case 'note': result = await processNoteMutation(auth.userId, operation, entityId, data, clientMutationId); break;
           case 'noteThread': result = await processNoteThreadMutation(auth.userId, operation, entityId, data); break;
+          case 'noteConnection': result = await processNoteConnectionMutation(auth.userId, operation, entityId, data); break;
           case 'tag': result = await processTagMutation(auth.userId, operation, entityId, data); break;
           case 'noteTag': result = await processNoteTagMutation(auth.userId, operation, entityId, data); break;
           case 'studyThreadEntry': result = await processStudyThreadEntryMutation(auth.userId, operation, entityId, data); break;

@@ -18,7 +18,9 @@ describe('prototype note content propagation', () => {
     });
 
     expect(cancel).toHaveBeenCalledWith(rafId);
-    expect(onContentChange).toHaveBeenCalledWith('<p>final keystroke</p>');
+    // Unmount flushes without an explicit `wasUserEdit: true` are programmatic (not a live
+    // keystroke), so a `{ programmatic: true }` meta accompanies the flushed HTML.
+    expect(onContentChange).toHaveBeenCalledWith('<p>final keystroke</p>', { programmatic: true });
   });
 
   it('flushCoalescedNoteHtmlOnUnmount skips onContentChange when latest HTML is empty', () => {

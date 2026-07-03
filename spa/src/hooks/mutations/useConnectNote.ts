@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, APIError } from '../../lib/api';
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
+import { runOfflineFirst } from './withOfflineQueue';
+import { connectNotesOffline } from '@/utils/offline-mutations';
 
 export interface ConnectNoteVariables {
   parentNoteId: string;
@@ -15,18 +17,38 @@ interface ConnectNoteResponse {
   code?: string;
 }
 
+function normalizeSpaceId(spaceId: string): string {
+  const t = (spaceId ?? '').trim();
+  return t.startsWith('space_') ? t : t ? `space_${t}` : '';
+}
+
 /** Persists `/prototype` strip edge: picked note becomes child of parent (`linkedFromNoteId`). */
 export function useConnectNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (vars: ConnectNoteVariables) =>
-      api.post<ConnectNoteResponse>('/api/notes/connect-link', {
-        parentNoteId: vars.parentNoteId,
-        linkedNoteId: vars.linkedNoteId,
-      }),
+    mutationFn: async (vars: ConnectNoteVariables) => {
+      const sid = normalizeSpaceId(vars.spaceId);
+      const outcome = await runOfflineFirst({
+        online: () =>
+          api.post<ConnectNoteResponse>('/api/notes/connect-link', {
+            parentNoteId: vars.parentNoteId,
+            linkedNoteId: vars.linkedNoteId,
+          }),
+        offline: (userId) =>
+          connectNotesOffline(userId, {
+            fromNoteId: vars.parentNoteId,
+            toNoteId: vars.linkedNoteId,
+            spaceId: sid || null,
+          }),
+      });
+      if (outcome.queued) {
+        return { success: true } satisfies ConnectNoteResponse;
+      }
+      return outcome.online!;
+    },
     onSuccess: (_data, vars) => {
-      const sid = vars.spaceId.startsWith('space_') ? vars.spaceId : `space_${vars.spaceId}`;
+      const sid = normalizeSpaceId(vars.spaceId);
       queryClient.invalidateQueries({ queryKey: ['note', vars.parentNoteId] });
       queryClient.invalidateQueries({ queryKey: ['note', vars.linkedNoteId] });
       // Study thread tree can be re-rooted from either endpoint of the new edge.

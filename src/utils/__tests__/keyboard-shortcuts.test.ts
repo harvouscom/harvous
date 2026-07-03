@@ -13,6 +13,26 @@ import {
   cleanupKeyboardShortcuts,
 } from '../keyboard-shortcuts';
 
+// jsdom's default test hostname is `localhost`, one of `DEDICATED_PROTOTYPE_HOSTS`
+// (see `src/lib/prototype-path.ts`), so real dedicated-host behavior is exercised by
+// default below. The "classic app shortcuts" / browser-shadowing-passthrough suites
+// intentionally exercise the legacy non-dedicated-host code path (pre-`/prototype`-shell
+// behavior, still live for non-dedicated deploys); `mockClassicHost` flips that on for
+// just those tests. (Variable must be prefixed `mock*` — Vitest only hoists references
+// with that prefix into `vi.mock` factories.)
+let mockClassicHost = false;
+vi.mock('@/lib/prototype-path', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/prototype-path')>();
+  return {
+    ...actual,
+    isPrototypeShellPath: (pathname: string) =>
+      mockClassicHost ? pathname.startsWith('/prototype') : actual.isPrototypeShellPath(pathname),
+    prototypeHomePath: () => (mockClassicHost ? '/prototype' : actual.prototypeHomePath()),
+    prototypeSettingsRouteTo: () =>
+      mockClassicHost ? '/prototype/settings' : actual.prototypeSettingsRouteTo(),
+  };
+});
+
 type KeyInit = {
   key?: string;
   code?: string;
@@ -116,8 +136,10 @@ describe('prototype shell shortcuts (Shift + key)', () => {
   });
 
   it('Shift+, → settings', () => {
+    // On a dedicated prototype host (jsdom's default test hostname is `localhost`), settings
+    // always live at the bare `/settings` route, regardless of the current path.
     press({ key: ',', code: 'Comma', shift: true });
-    expect(appNavigate).toHaveBeenCalledWith('/prototype/settings');
+    expect(appNavigate).toHaveBeenCalledWith('/settings');
   });
 
   it('Shift+S → toggle sidebar', () => {
@@ -231,12 +253,20 @@ describe('prototype note shortcuts (Shift + key, on a note route)', () => {
   });
 
   it('Mod+ArrowLeft on a note route → home', () => {
+    // Dedicated-host home is the bare root, not `/prototype`.
     press({ key: 'ArrowLeft', code: 'ArrowLeft', meta: true });
-    expect(appNavigate).toHaveBeenCalledWith('/prototype');
+    expect(appNavigate).toHaveBeenCalledWith('/');
   });
 });
 
 describe('classic app shortcuts', () => {
+  beforeEach(() => {
+    mockClassicHost = true;
+  });
+  afterEach(() => {
+    mockClassicHost = false;
+  });
+
   it('Mod+K → spotlight search', () => {
     setPath('/');
     expectEvent('openSpotlightSearch', () => press({ key: 'k', code: 'KeyK', meta: true }));
@@ -318,6 +348,13 @@ describe('classic app shortcuts', () => {
 });
 
 describe('browser-shadowing passthrough', () => {
+  beforeEach(() => {
+    mockClassicHost = true;
+  });
+  afterEach(() => {
+    mockClassicHost = false;
+  });
+
   it('second identical Mod+K within the window passes through (no app event)', () => {
     setPath('/');
     // First press is intercepted by the app.
