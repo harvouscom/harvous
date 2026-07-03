@@ -9,7 +9,6 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { requestId } from 'hono/request-id';
 import { clerkAuth } from './middleware/auth';
-import { resolveCorsOrigin } from './middleware/cors-origins';
 // CSRF middleware disabled — Clerk session auth is the primary security layer.
 // Origin-based CSRF was causing false 403s in production (Netlify proxy headers).
 // Re-enable once root cause is identified via Netlify function logs.
@@ -17,7 +16,6 @@ import { resolveCorsOrigin } from './middleware/cors-origins';
 
 // Routes
 import health from './routes/health';
-import auth from './routes/auth';
 import navigation from './routes/navigation';
 import debug from './routes/debug';
 import about from './routes/about';
@@ -52,13 +50,7 @@ const app = new Hono();
 
 // Global middleware
 app.use('/api/*', requestId());
-app.use(
-  '/api/*',
-  cors({
-    origin: (origin) => resolveCorsOrigin(origin),
-    credentials: true,
-  })
-);
+app.use('/api/*', cors());
 // app.use('/api/*', csrfProtection);  // Disabled — see import comment above
 app.use('/api/*', clerkAuth);
 
@@ -74,7 +66,6 @@ app.use('/api/*', async (c, next) => {
 
 // Register routes
 app.route('/', health);
-app.route('/', auth);
 app.route('/', navigation);
 app.route('/', debug);
 app.route('/', about);

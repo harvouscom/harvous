@@ -3,7 +3,6 @@ import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 import { extractIdFromPath } from '@/utils/url-helpers';
 import { ClerkProvider, useAuth, useUser } from '@clerk/clerk-react';
 import { hasClerkSessionCookieHint } from './hooks/queries/useProfile';
-import { syncMarketingSessionHint } from './utils/marketing-session-hint';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { clearUserClientCaches } from '@/utils/clear-user-client-caches';
 import { RouterProvider } from '@tanstack/react-router';
@@ -238,16 +237,6 @@ function AuthSignedOutCacheCleanup() {
     if (!isLoaded || isSignedIn) return;
     clearUserClientCaches(queryClient);
   }, [isLoaded, isSignedIn, queryClient]);
-  return null;
-}
-
-/** Parent-domain cookie so harvous.com can show Open app without a credentialed cross-origin fetch. */
-function MarketingSiteSessionHint() {
-  const { isLoaded, isSignedIn } = useAuth();
-  useEffect(() => {
-    if (!isLoaded) return;
-    syncMarketingSessionHint(Boolean(isSignedIn));
-  }, [isLoaded, isSignedIn]);
   return null;
 }
 
@@ -722,7 +711,6 @@ export default function App() {
     <HarvousClerkProvider>
       <QueryClientProvider client={queryClient}>
         <AuthSignedOutCacheCleanup />
-        <MarketingSiteSessionHint />
         <QueryClient401Redirect />
         <IosPwaSheetOverlayInset />
         <WebHapticsSetup />
