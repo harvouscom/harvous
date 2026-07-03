@@ -3,7 +3,7 @@
  * See .github/workflows/support-notify-check.yml.
  */
 
-import { db, SupportTickets, isNull, asc, inArray } from '../db';
+import { db, SupportTickets, isNull, asc, inArray, and, eq } from '../db';
 import { nowISO } from '../db/dates';
 import { formatSupportTicketRef } from '@/utils/support-tickets';
 
@@ -37,7 +37,13 @@ export async function checkAndNotifySupportTickets(): Promise<{ notified: number
   const tickets = await db
     .select()
     .from(SupportTickets)
-    .where(isNull(SupportTickets.notifiedAt))
+    .where(
+      and(
+        isNull(SupportTickets.notifiedAt),
+        eq(SupportTickets.status, 'open'),
+        isNull(SupportTickets.adminReadAt),
+      ),
+    )
     .orderBy(asc(SupportTickets.createdAt));
 
   if (tickets.length === 0) return { notified: 0 };
