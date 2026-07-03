@@ -5,7 +5,6 @@ import Icon from '@/components/react/Icon';
 import { buildFounderMailto, FOUNDER_EMAIL, type FeedbackTopic } from '@/utils/support-mailto';
 import { collectSupportClientContext } from '@/utils/support-client-context';
 import { submitSupportTicket } from '@/utils/support-tickets';
-import { useProfile } from '../../../hooks/queries/useProfile';
 import { SettingsCopyRow, SettingsGroup } from './SettingsShell';
 
 const TOPICS: FeedbackTopic[] = ['Bug', 'Idea', 'Question'];
@@ -24,7 +23,6 @@ type Props = {
 };
 
 export default function PrototypeSupportForm({ initialTopic }: Props) {
-  const { data: profile } = useProfile();
   const [topic, setTopic] = useState<FeedbackTopic | undefined>(initialTopic);
   const [message, setMessage] = useState('');
   const [sent, setSent] = useState(false);
@@ -78,8 +76,7 @@ export default function PrototypeSupportForm({ initialTopic }: Props) {
 
       {sent ? (
         <p className="proto-support-form__sent" role="status">
-          Your note was sent. I&apos;ll get back to you
-          {profile?.email ? ` at ${profile.email}` : ''}.
+          Your note was sent. I&apos;ll get back to you at {FOUNDER_EMAIL}.
         </p>
       ) : null}
 
