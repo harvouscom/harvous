@@ -806,9 +806,33 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 .proto-menu-item__check {
   /* Match the icon column width so checked + unchecked rows align cleanly. */
   width: 16px;
-  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--pds-accent);
   flex-shrink: 0;
+}
+
+/* Trailing pill (e.g. "Add-on") flagging a paid feature — never a checkmark
+   substitute; keep `.proto-menu-item__check` reserved for selection state. */
+.proto-menu-item__badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  margin-left: auto;
+  padding: 0 7px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-control);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--pds-text-tertiary);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.proto-menu-item:hover .proto-menu-item__badge {
+  background: var(--pds-bg-control-hover);
 }
 
 .proto-menu-item__icon {
@@ -3363,10 +3387,58 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   box-shadow: none;
 }
 
+.proto-settings__content .proto-note-row--disabled,
+.proto-settings__content .proto-note-row--disabled:hover,
+.proto-settings__content .proto-note-row--disabled:focus-visible {
+  cursor: default;
+  background: transparent;
+  opacity: 0.72;
+}
+
+.proto-settings__content .proto-note-row--disabled .pds-list-title,
+.proto-settings__content .proto-note-row--disabled .pds-list-preview {
+  color: var(--pds-text-secondary);
+}
+
 .proto-settings-list-row__main {
   min-width: 0;
   flex: 1 1 0;
   text-align: left;
+}
+
+/* Leading icon tile — pricing-style block (harvous.com/pricing add-on cards):
+   neutral rounded swatch matching settings icon swatches (`--pds-bg-input` /
+   `--pds-border`), with a per-add-on accent glyph passed via inline color. */
+.proto-settings-list-row__leading {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--pds-bg-input);
+  border: 0.5px solid var(--pds-border);
+  color: var(--pds-text-secondary);
+}
+
+.proto-settings-billing-link {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  font: inherit;
+  font-size: inherit;
+  color: var(--pds-accent-gradient-end) !important;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.proto-settings-billing-link:hover:not(:disabled) {
+  filter: brightness(1.08);
 }
 
 .proto-settings-list-row__trailing {
@@ -6771,6 +6843,20 @@ button.proto-appearance-hero__card {
 .proto-thread-review__dismiss:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Destructive outline variant (e.g. "Stop sharing") — red text + red-tinted
+   border/hover, keeping the same subtle pill shape rather than a heavy solid
+   fill. Text color is forced in prototype-route-overrides.css to beat the
+   blanket `button` primary-color reset. */
+.proto-thread-review__dismiss--danger {
+  border-color: color-mix(in oklab, var(--pds-destructive) 40%, var(--pds-border-control));
+  color: var(--pds-destructive);
+}
+
+.proto-thread-review__dismiss--danger:not(:disabled):hover {
+  background: var(--pds-destructive-bg);
+  border-color: color-mix(in oklab, var(--pds-destructive) 55%, var(--pds-border-control));
 }
 
 /* ─── Founder letter — paper stack + dialog ─────────────────────────────── */

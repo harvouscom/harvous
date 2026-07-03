@@ -1,6 +1,43 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CheckoutButton } from '@clerk/clerk-react/experimental';
 import { ClerkProvider, SignedIn, useAuth } from '@clerk/clerk-react';
+import type { Theme } from '@clerk/types';
+
+/** Same font stack + blue gradient pill as `.upgrade-primary-btn` (upgrade-page.css). */
+const CHECKOUT_FONT_STACK =
+  '"Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
+
+/**
+ * The checkout drawer is portaled to `document.body`, above `.public-page`'s
+ * whole React tree — so it renders with `z-index: auto` while the sticky
+ * `.public-toolbar` above it sets `z-index: 100`, letting the toolbar paint
+ * over the drawer. Force the drawer above every page's chrome, and match its
+ * title + primary button to the "Add Shared Spaces" button beside it instead
+ * of Clerk's default flat-blue, small-radius look.
+ */
+const CHECKOUT_DRAWER_APPEARANCE: Theme = {
+  elements: {
+    drawerBackdrop: { zIndex: 300 },
+    drawerRoot: { zIndex: 300 },
+    drawerContent: { zIndex: 300 },
+    drawerTitle: {
+      fontFamily: CHECKOUT_FONT_STACK,
+      fontWeight: 600,
+    },
+    drawerBody: { fontFamily: CHECKOUT_FONT_STACK },
+    formButtonPrimary: {
+      fontFamily: CHECKOUT_FONT_STACK,
+      fontWeight: 600,
+      color: '#ffffff',
+      background: 'linear-gradient(171deg, #2bb5ff 7%, #006eff 93%)',
+      borderRadius: '999px',
+      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 10px 24px -10px rgba(0, 110, 255, 0.6)',
+      '&:hover': { filter: 'brightness(1.05)', color: '#ffffff' },
+      '&:active': { filter: 'brightness(0.97)', color: '#ffffff' },
+      '&:focus': { color: '#ffffff' },
+    },
+  },
+};
 
 interface UpgradeCheckoutButtonProps {
   className?: string;
@@ -9,10 +46,48 @@ interface UpgradeCheckoutButtonProps {
   planId?: string;
   /** @deprecated alias for planId — the Unlimited plan is retired; kept for callers not yet migrated. */
   unlimitedPlanId?: string;
-  /** Button + skeleton copy (defaults preserve current Unlimited wording). */
+  /** Button + skeleton copy. */
   ctaLabel?: string;
   priceMonthlyLabel?: string;
   priceAnnualLabel?: string;
+}
+
+/** Monthly / annual segmented pill — styled to match the sign-in page's form inputs. */
+function IntervalToggle({
+  selectedInterval,
+  onSelect,
+  priceMonthlyLabel,
+  priceAnnualLabel,
+  disabled = false,
+}: {
+  selectedInterval: 'month' | 'year';
+  onSelect: (interval: 'month' | 'year') => void;
+  priceMonthlyLabel: string;
+  priceAnnualLabel: string;
+  disabled?: boolean;
+}) {
+  const options: Array<['month' | 'year', string]> = [
+    ['month', priceMonthlyLabel],
+    ['year', priceAnnualLabel],
+  ];
+
+  return (
+    <div className="upgrade-toggle" role="radiogroup" aria-label="Billing interval">
+      {options.map(([interval, label]) => (
+        <button
+          key={interval}
+          type="button"
+          role="radio"
+          aria-checked={selectedInterval === interval}
+          disabled={disabled}
+          onClick={() => onSelect(interval)}
+          className={`upgrade-toggle__btn${selectedInterval === interval ? ' upgrade-toggle__btn--active' : ''}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -36,256 +111,64 @@ function UpgradeCheckoutButtonInner({
   const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('month');
   const { isLoaded, isSignedIn } = useAuth();
   const [isClient, setIsClient] = useState(false);
-  const [pathname, setPathname] = useState<string>('');
   const [checkoutKey, setCheckoutKey] = useState<number>(Date.now());
 
   // Ensure we're on the client before rendering Clerk components
   useEffect(() => {
     setIsClient(true);
-    if (typeof window !== 'undefined') {
-      setPathname(window.location.pathname);
-    }
   }, []);
 
-  // Update pathname and checkoutKey on View Transitions to force remount
+  // Force CheckoutButton remount on View Transitions navigation
   useEffect(() => {
-    const handleViewTransition = () => {
-      if (typeof window !== 'undefined') {
-        setPathname(window.location.pathname);
-        // Force CheckoutButton remount by updating key
-        setCheckoutKey(Date.now());
-      }
-    };
-
+    const handleViewTransition = () => setCheckoutKey(Date.now());
     document.addEventListener('app:route-change', handleViewTransition);
-    return () => {
-      document.removeEventListener('app:route-change', handleViewTransition);
-    };
+    return () => document.removeEventListener('app:route-change', handleViewTransition);
   }, []);
 
   // Update Clerk checkout drawer title when it opens
   useEffect(() => {
     const updateCheckoutDrawerTitle = () => {
-      // Update checkout drawer title
       const checkoutTitle = document.querySelector('.cl-drawerTitle[data-localization-key="billing.checkout.title"]');
       if (checkoutTitle && checkoutTitle.textContent !== 'Upgrade') {
         checkoutTitle.textContent = 'Upgrade';
       }
     };
 
-    // Watch for drawer opening using MutationObserver
-    const observer = new MutationObserver(() => {
-      updateCheckoutDrawerTitle();
-    });
-
-    // Observe the document body for changes
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-
-    // Also try immediately in case drawer is already open
+    const observer = new MutationObserver(updateCheckoutDrawerTitle);
+    observer.observe(document.body, { childList: true, subtree: true });
     updateCheckoutDrawerTitle();
 
-    return () => {
-      observer.disconnect();
-    };
+    return () => observer.disconnect();
   }, []);
 
-  // Show loading state while Clerk initializes
   if (!isClient || !isLoaded) {
     return (
       <div className={className}>
-        {/* Button group skeleton - matches the actual layout */}
-        <div className="button-group">
-          <div className="button-group__container">
-            <button
-              type="button"
-              disabled
-              className="space-button button-group__button button-group__button--left h-[64px] bg-transparent"
-              style={{ 
-                paddingLeft: '1.5rem',
-                paddingRight: '1.5rem',
-                paddingTop: 0,
-                paddingBottom: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textAlign: 'center',
-                cursor: 'wait'
-              }}
-            >
-              <span 
-                className="font-sans text-[18px] font-semibold whitespace-nowrap"
-                style={{
-                  color: 'var(--color-pebble-grey)',
-                  opacity: 0.6,
-                  textAlign: 'center',
-                  width: '100%',
-                  display: 'block'
-                }}
-              >
-                {priceMonthlyLabel}
-              </span>
-            </button>
-            <button
-              type="button"
-              disabled
-              className="space-button button-group__button button-group__button--right h-[64px] bg-transparent"
-              style={{ 
-                paddingLeft: '1.5rem',
-                paddingRight: '1.5rem',
-                paddingTop: 0,
-                paddingBottom: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textAlign: 'center',
-                cursor: 'wait'
-              }}
-            >
-              <span 
-                className="font-sans text-[18px] font-semibold whitespace-nowrap"
-                style={{
-                  color: 'var(--color-pebble-grey)',
-                  opacity: 0.6,
-                  textAlign: 'center',
-                  width: '100%',
-                  display: 'block'
-                }}
-              >
-                {priceAnnualLabel}
-              </span>
-            </button>
-          </div>
-        </div>
-        <button
-          type="button"
+        <IntervalToggle
+          selectedInterval={selectedInterval}
+          onSelect={setSelectedInterval}
+          priceMonthlyLabel={priceMonthlyLabel}
+          priceAnnualLabel={priceAnnualLabel}
           disabled
-          className="btn-cta flex-1 group"
-          style={{ 
-            width: '100%', 
-            marginTop: '1.5rem',
-            opacity: 0.5,
-            cursor: 'wait'
-          }}
-        >
-          <span className="btn-cta__content">Loading...</span>
-          <div className="btn-cta__shadow" />
+        />
+        <button type="button" disabled className="upgrade-primary-btn upgrade-primary-btn--disabled">
+          Loading…
         </button>
       </div>
     );
   }
 
-  // Only render checkout button if signed in
   if (!isSignedIn) {
     return (
       <div className={className}>
-        <div className="button-group">
-          <div className="button-group__container">
-            <button
-              type="button"
-              onClick={() => setSelectedInterval('month')}
-              className={`space-button button-group__button button-group__button--left h-[64px] ${
-                selectedInterval === 'month' 
-                  ? '' 
-                  : 'bg-transparent'
-              }`}
-              style={selectedInterval === 'month' ? { 
-                backgroundImage: 'var(--color-gradient-gray)',
-                paddingLeft: '1.5rem',
-                paddingRight: '1.5rem',
-                paddingTop: 0,
-                paddingBottom: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textAlign: 'center'
-              } : {
-                paddingLeft: '1.5rem',
-                paddingRight: '1.5rem',
-                paddingTop: 0,
-                paddingBottom: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textAlign: 'center'
-              }}
-            >
-              <span 
-                className="font-sans text-[18px] font-semibold whitespace-nowrap"
-                style={{
-                  color: selectedInterval === 'month' 
-                    ? 'var(--color-deep-grey)' 
-                    : 'var(--color-pebble-grey)',
-                  opacity: selectedInterval === 'month' ? 1 : 0.6,
-                  textAlign: 'center',
-                  width: '100%',
-                  display: 'block'
-                }}
-              >
-                {priceMonthlyLabel}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedInterval('year')}
-              className={`space-button button-group__button button-group__button--right h-[64px] ${
-                selectedInterval === 'year' 
-                  ? '' 
-                  : 'bg-transparent'
-              }`}
-              style={selectedInterval === 'year' ? { 
-                backgroundImage: 'var(--color-gradient-gray)',
-                paddingLeft: '1.5rem',
-                paddingRight: '1.5rem',
-                paddingTop: 0,
-                paddingBottom: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textAlign: 'center'
-              } : {
-                paddingLeft: '1.5rem',
-                paddingRight: '1.5rem',
-                paddingTop: 0,
-                paddingBottom: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textAlign: 'center'
-              }}
-            >
-              <span 
-                className="font-sans text-[18px] font-semibold whitespace-nowrap"
-                style={{
-                  color: selectedInterval === 'year' 
-                    ? 'var(--color-deep-grey)' 
-                    : 'var(--color-pebble-grey)',
-                  opacity: selectedInterval === 'year' ? 1 : 0.6,
-                  textAlign: 'center',
-                  width: '100%',
-                  display: 'block'
-                }}
-              >
-                {priceAnnualLabel}
-              </span>
-            </button>
-          </div>
-        </div>
-        <button
-          type="button"
-          disabled
-          className="btn-cta flex-1 group"
-          style={{ 
-            width: '100%', 
-            marginTop: '1.5rem',
-            opacity: 0.5,
-            cursor: 'not-allowed'
-          }}
-        >
-          <span className="btn-cta__content">Please sign in to continue</span>
-          <div className="btn-cta__shadow" />
+        <IntervalToggle
+          selectedInterval={selectedInterval}
+          onSelect={setSelectedInterval}
+          priceMonthlyLabel={priceMonthlyLabel}
+          priceAnnualLabel={priceAnnualLabel}
+        />
+        <button type="button" disabled className="upgrade-primary-btn upgrade-primary-btn--disabled">
+          Sign in first
         </button>
       </div>
     );
@@ -293,154 +176,23 @@ function UpgradeCheckoutButtonInner({
 
   return (
     <div className={className}>
-          {/* Button group for billing interval - Monthly first, Annual second */}
-          <div className="button-group">
-            <div className="button-group__container">
-              {/* Monthly button - First/Left */}
-              <button
-                type="button"
-                onClick={() => setSelectedInterval('month')}
-                className={`space-button button-group__button button-group__button--left h-[64px] ${
-                  selectedInterval === 'month' 
-                    ? '' 
-                    : 'bg-transparent'
-                }`}
-                style={selectedInterval === 'month' ? { 
-                  backgroundImage: 'var(--color-gradient-gray)',
-                  paddingLeft: '1.5rem',
-                  paddingRight: '1.5rem',
-                  paddingTop: 0,
-                  paddingBottom: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textAlign: 'center'
-                } : {
-                  paddingLeft: '1.5rem',
-                  paddingRight: '1.5rem',
-                  paddingTop: 0,
-                  paddingBottom: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textAlign: 'center'
-                }}
-              >
-                <span 
-                  className="font-sans text-[18px] font-semibold whitespace-nowrap"
-                  style={{
-                    color: selectedInterval === 'month' 
-                      ? 'var(--color-deep-grey)' 
-                      : 'var(--color-pebble-grey)',
-                    opacity: selectedInterval === 'month' ? 1 : 0.6,
-                    textAlign: 'center',
-                    width: '100%',
-                    display: 'block'
-                  }}
-                >
-                  {priceMonthlyLabel}
-                </span>
-              </button>
-              
-              {/* Annual button - Second/Right */}
-              <button
-                type="button"
-                onClick={() => setSelectedInterval('year')}
-                className={`space-button button-group__button button-group__button--right h-[64px] ${
-                  selectedInterval === 'year' 
-                    ? '' 
-                    : 'bg-transparent'
-                }`}
-                style={selectedInterval === 'year' ? { 
-                  backgroundImage: 'var(--color-gradient-gray)',
-                  paddingLeft: '1.5rem',
-                  paddingRight: '1.5rem',
-                  paddingTop: 0,
-                  paddingBottom: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textAlign: 'center'
-                } : {
-                  paddingLeft: '1.5rem',
-                  paddingRight: '1.5rem',
-                  paddingTop: 0,
-                  paddingBottom: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textAlign: 'center'
-                }}
-              >
-                <span 
-                  className="font-sans text-[18px] font-semibold whitespace-nowrap"
-                  style={{
-                    color: selectedInterval === 'year' 
-                      ? 'var(--color-deep-grey)' 
-                      : 'var(--color-pebble-grey)',
-                    opacity: selectedInterval === 'year' ? 1 : 0.6,
-                    textAlign: 'center',
-                    width: '100%',
-                    display: 'block'
-                  }}
-                >
-                  {priceAnnualLabel}
-                </span>
-              </button>
-            </div>
-          </div>
+      <IntervalToggle
+        selectedInterval={selectedInterval}
+        onSelect={setSelectedInterval}
+        priceMonthlyLabel={priceMonthlyLabel}
+        priceAnnualLabel={priceAnnualLabel}
+      />
 
-          {/* CheckoutButton with planPeriod prop - Clerk docs confirm this is supported */}
-          <CheckoutButton
-            key={`checkout-${selectedInterval}-${remountKey}-${checkoutKey}`}
-            planId={planId}
-            planPeriod={selectedInterval === 'year' ? 'annual' : 'month'}
-          >
-            <button
-              type="button"
-              data-outer-shadow
-              className="btn-cta flex-1 group"
-              style={{
-                width: '100%',
-                marginTop: '1.5rem',
-                cursor: 'pointer'
-              }}
-              tabIndex={3}
-              onClick={(e) => {
-                // Debug: Log when button is clicked
-                console.log(`[UpgradeCheckoutButton] ${ctaLabel} clicked`, {
-                  planId,
-                  planPeriod: selectedInterval === 'year' ? 'annual' : 'month',
-                  pathname,
-                  isLoaded,
-                  isSignedIn
-                });
-              }}
-            >
-              <span className="btn-cta__content">{ctaLabel}</span>
-              <div className="btn-cta__shadow" />
-            </button>
-          </CheckoutButton>
-
-      {/* Go back to my Harvous button - secondary variant */}
-      <a
-        href="/"
-        className="btn-cta btn--secondary flex-1 group"
-        style={{ 
-          width: '100%', 
-          marginTop: '1rem',
-          display: 'flex',
-          textDecoration: 'none',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-        tabIndex={4}
+      <CheckoutButton
+        key={`checkout-${selectedInterval}-${remountKey}-${checkoutKey}`}
+        planId={planId}
+        planPeriod={selectedInterval === 'year' ? 'annual' : 'month'}
+        checkoutProps={{ appearance: CHECKOUT_DRAWER_APPEARANCE }}
       >
-        <span className="btn-cta__content">
-          Go back to my Harvous
-        </span>
-        <div className="btn-cta__shadow" />
-      </a>
+        <button type="button" className="upgrade-primary-btn">
+          {ctaLabel}
+        </button>
+      </CheckoutButton>
     </div>
   );
 }
@@ -455,7 +207,7 @@ export default function UpgradeCheckoutButton({
   publishableKey = null,
   planId,
   unlimitedPlanId = '',
-  ctaLabel = 'Upgrade to Unlimited',
+  ctaLabel = 'Upgrade',
   priceMonthlyLabel = '$6 per month',
   priceAnnualLabel = '$48 per year',
 }: UpgradeCheckoutButtonProps) {
@@ -464,7 +216,6 @@ export default function UpgradeCheckoutButton({
 
   // Get publishableKey from props or window global (for View Transitions compatibility)
   useEffect(() => {
-    // Use prop if available, otherwise try window global
     const key = publishableKey || (typeof window !== 'undefined' ? (window as any).CLERK_PUBLISHABLE_KEY : null);
     setEffectiveKey(key);
   }, [publishableKey]);
@@ -477,32 +228,15 @@ export default function UpgradeCheckoutButton({
     };
 
     document.addEventListener('app:route-change', handlePageLoad);
-    return () => {
-      document.removeEventListener('app:route-change', handlePageLoad);
-    };
+    return () => document.removeEventListener('app:route-change', handlePageLoad);
   }, [publishableKey]);
-
-  // In the SPA, ClerkProvider is already provided by App.tsx — publishableKey === null
-  // is the sentinel for SPA mode. Skip the effectiveKey check entirely.
-  // (The actual SPA render happens further below after the hooks.)
 
   // If no plan ID configured, don't expose checkout (plan ID must come from env)
   if (!effectivePlanId) {
     return (
       <div className={className}>
-        <button
-          type="button"
-          disabled
-          className="btn-cta flex-1 group"
-          style={{
-            width: '100%',
-            marginTop: '1.5rem',
-            opacity: 0.5,
-            cursor: 'not-allowed'
-          }}
-        >
-          <span className="btn-cta__content">Billing Unavailable</span>
-          <div className="btn-cta__shadow" />
+        <button type="button" disabled className="upgrade-primary-btn upgrade-primary-btn--disabled">
+          Billing unavailable
         </button>
       </div>
     );
@@ -512,19 +246,8 @@ export default function UpgradeCheckoutButton({
   if (!effectiveKey && publishableKey !== null) {
     return (
       <div className={className}>
-        <button
-          type="button"
-          disabled
-          className="btn-cta flex-1 group"
-          style={{
-            width: '100%',
-            marginTop: '1.5rem',
-            opacity: 0.5,
-            cursor: 'not-allowed'
-          }}
-        >
-          <span className="btn-cta__content">Billing Unavailable</span>
-          <div className="btn-cta__shadow" />
+        <button type="button" disabled className="upgrade-primary-btn upgrade-primary-btn--disabled">
+          Billing unavailable
         </button>
       </div>
     );
@@ -537,7 +260,7 @@ export default function UpgradeCheckoutButton({
         publishableKey: effectiveKey,
         domain: undefined,
         afterSignInUrl: undefined,
-        afterSignUpUrl: undefined
+        afterSignUpUrl: undefined,
       };
     }
 
@@ -545,7 +268,7 @@ export default function UpgradeCheckoutButton({
       publishableKey: effectiveKey,
       domain: window.location.hostname,
       afterSignInUrl: window.location.origin,
-      afterSignUpUrl: window.location.origin
+      afterSignUpUrl: window.location.origin,
     };
   };
 
@@ -559,22 +282,18 @@ export default function UpgradeCheckoutButton({
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setPathname(window.location.pathname);
-      // Update remount key on initial load
       setRemountKey(Date.now());
     }
 
     const handlePageLoad = () => {
       if (typeof window !== 'undefined') {
         setPathname(window.location.pathname);
-        // Force remount by updating key with new timestamp on each page load
         setRemountKey(Date.now());
       }
     };
 
     document.addEventListener('app:route-change', handlePageLoad);
-    return () => {
-      document.removeEventListener('app:route-change', handlePageLoad);
-    };
+    return () => document.removeEventListener('app:route-change', handlePageLoad);
   }, []);
 
   // Visibility detection using IntersectionObserver to force remount when component becomes visible
@@ -586,41 +305,20 @@ export default function UpgradeCheckoutButton({
         entries.forEach((entry) => {
           const wasVisible = isVisible;
           const nowVisible = entry.isIntersecting;
-          
-          // If component becomes visible after being hidden, force remount
+
           if (!wasVisible && nowVisible) {
             setRemountKey(Date.now());
           }
-          
+
           setIsVisible(nowVisible);
         });
       },
-      {
-        threshold: 0.1, // Trigger when at least 10% visible
-        rootMargin: '0px'
-      }
+      { threshold: 0.1, rootMargin: '0px' }
     );
 
     observer.observe(containerRef.current);
-
-    return () => {
-      observer.disconnect();
-    };
+    return () => observer.disconnect();
   }, [isVisible]);
-
-  // Debug: Log ClerkProvider configuration
-  useEffect(() => {
-    if (effectiveKey) {
-      console.log('[UpgradeCheckoutButton] ClerkProvider config:', {
-        hasPublishableKey: !!clerkConfig.publishableKey,
-        domain: clerkConfig.domain,
-        afterSignInUrl: clerkConfig.afterSignInUrl,
-        afterSignUpUrl: clerkConfig.afterSignUpUrl,
-        pathname,
-        planId: effectivePlanId
-      });
-    }
-  }, [effectiveKey, clerkConfig, pathname, effectivePlanId]);
 
   // In the SPA, ClerkProvider is already provided by App.tsx — skip creating a nested one.
   if (publishableKey === null) {
@@ -666,4 +364,3 @@ export default function UpgradeCheckoutButton({
     </div>
   );
 }
-

@@ -57,6 +57,13 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     footnote: 'See what you have shared and stop sharing.',
   },
   {
+    key: 'addons',
+    title: 'Add-ons',
+    route: prototypeHref('settings/addons'),
+    icon: 'layer-group',
+    footnote: 'Shared Spaces, Review, Challenges.',
+  },
+  {
     key: 'data',
     title: 'My Data',
     route: prototypeHref('settings/data'),

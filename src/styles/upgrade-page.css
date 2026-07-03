@@ -1,0 +1,409 @@
+/* ==========================================================================
+   /upgrade — Shared Spaces single-purpose upgrade page.
+   Shell is `.public-page` (top nav + scroll body, see `public-pages.css`),
+   but the letter card, type, and buttons are styled to match the sign-in /
+   sign-up "auth-letter" card (`auth-page-site.css`) rather than the tilted
+   shared-note card — this is a form-like page, so the card stays upright.
+   ========================================================================== */
+
+.public-content--upgrade {
+  position: relative;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
+  padding-bottom: 48px;
+}
+
+/* Auth hero bleed — same structure + fade recipe as `.auth-page__video-section`
+   / `.auth-page__hero-bg` on sign-in/up (rounded top corners, image clipped
+   to its own section, a short fade strip only at the very bottom rather than
+   a gradient washing out the whole image). Lives inside the scroll container
+   so it moves with the card exactly like the single-scroll auth page. */
+.upgrade-hero-section {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 260px;
+  min-height: 220px;
+  border-radius: 0.75rem 0.75rem 0 0;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.upgrade-hero-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+.upgrade-hero-bg--ready {
+  opacity: 1;
+}
+
+/* Fade strip only at the bottom edge — the rest of the hero stays vivid,
+   matching the soft blend on sign-in/up instead of a hard-edged rectangle. */
+.upgrade-hero-section::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 96px;
+  background: linear-gradient(to bottom, transparent, var(--site-paper));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upgrade-hero-bg {
+    transition: none;
+  }
+}
+
+/* Keeps the closing footer above the hero bleed's stacking context on very
+   short viewports where the two could otherwise overlap. */
+.public-content--upgrade .public-footer--rich {
+  position: relative;
+  z-index: 1;
+}
+
+/* Narrower + shorter than a full shared note — matches `.auth-letter-stack`'s
+   460px form width and centers the letter card vertically. */
+.public-paper-stack.public-paper-stack--upgrade {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: 460px;
+  margin: auto auto;
+}
+
+/* A touch more fan than the shared-note leaves so the stack still reads
+   behind this shorter, upright card — mirrors `.auth-letter-stack__leaf`. */
+.public-paper-stack--upgrade .public-paper-stack__leaf--back {
+  transform: rotate(2.6deg) translate(5px, -4px);
+}
+.public-paper-stack--upgrade .public-paper-stack__leaf--mid {
+  transform: rotate(-2.9deg) translate(-5px, 4px);
+}
+
+/* Front sheet — same paper recipe as `.auth-letter` (dot grain, folded
+   corner, layered shadow). Upright, not tilted: this card holds an
+   interactive toggle + button, and a tilted form reads as broken. */
+.public-addon-letter {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-height: 380px;
+  padding: 40px 32px 32px;
+  box-sizing: border-box;
+  background-color: var(--site-card);
+  background-image:
+    radial-gradient(rgba(20, 18, 12, 0.025) 1px, transparent 1px),
+    radial-gradient(rgba(20, 18, 12, 0.018) 1px, transparent 1px);
+  background-size: 28px 28px, 17px 17px;
+  background-position: 0 0, 9px 9px;
+  border-radius: 0;
+  border: 0.5px solid var(--site-rule);
+  box-shadow:
+    0 2px 6px rgba(20, 18, 12, 0.04),
+    0 20px 50px -20px rgba(20, 18, 12, 0.16);
+}
+
+.public-addon-letter::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(
+    225deg,
+    rgba(20, 18, 12, 0.07) 0%,
+    rgba(20, 18, 12, 0.02) 40%,
+    transparent 60%
+  );
+  pointer-events: none;
+  z-index: 5;
+}
+
+.public-addon-letter__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+}
+
+/* Badge matches the settings icon swatch shape/fill (`--pds-bg-input` /
+   `--pds-border`), but the glyph uses the coral-rose pink harvous.com uses
+   for the "Group study" pillar (`--study-dock-accent-coralRose`, aliased as
+   `--pds-highlight-coral-rose`) so Shared Spaces reads as its own accent
+   rather than a neutral settings icon. */
+.public-addon-letter__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.75rem;
+  background: var(--pds-bg-input);
+  border: 0.5px solid var(--pds-border);
+  color: var(--pds-highlight-coral-rose);
+}
+
+/* Display headline — same family + weight as `.auth-page__headline`,
+   sized down slightly to fit the card (the sign-in headline runs the full
+   960px hero, this one lives inside a 460px card). `!important` beats
+   global.css's `h1 { font-family: var(--font-sans) !important }` reset —
+   same trick `.auth-page__headline` uses to actually render Google Sans
+   Flex instead of falling back to Reddit Sans. */
+.public-addon-letter__title {
+  margin: 0;
+  font-family:
+    "Google Sans Flex", "Google Sans", ui-sans-serif, system-ui, -apple-system,
+    sans-serif !important;
+  font-weight: 600 !important;
+  font-size: clamp(1.75rem, 1.35rem + 1.4vw, 2.25rem);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--site-ink);
+}
+
+.public-addon-letter__tagline {
+  margin: 0;
+  max-width: 380px;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--site-ink-soft);
+}
+
+.public-addon-letter__features {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+}
+
+.public-addon-letter__features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.public-addon-letter__feature-text {
+  flex: 1;
+  min-width: 0;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--pds-text-secondary);
+}
+
+/* Blue gradient check orb — same recipe as `.proto-accent-check-orb` /
+   scripture-pill confirm / info-panel apply buttons. */
+.public-addon-letter__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 0.125rem;
+  border-radius: 50%;
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent) !important;
+  box-shadow: var(--pds-shadow-accent-button);
+  line-height: 0;
+}
+
+.public-addon-letter__check svg {
+  flex-shrink: 0;
+  display: block;
+}
+
+.public-addon-letter__check svg,
+.public-addon-letter__check svg path {
+  color: var(--pds-on-accent) !important;
+  fill: var(--pds-on-accent) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme='light']) .public-addon-letter__check {
+    background: var(--pds-selection-bg);
+    box-shadow: none;
+  }
+}
+
+:root[data-color-scheme='dark'] .public-addon-letter__check {
+  background: var(--pds-selection-bg);
+  box-shadow: none;
+}
+
+.public-addon-letter__cta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: auto;
+}
+
+.public-addon-letter__active {
+  margin: 0;
+  text-align: center;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #2a5a25;
+}
+
+/* ─── Billing interval toggle + primary CTA ───────────────────────────────
+   Matches `.harvous-auth-form__input` / `.harvous-auth-form__primary` from
+   the sign-in page: pill shapes, same font stack, same cyan-blue gradient. */
+
+.upgrade-checkout {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Neutral grey track + border — matches the settings icon swatch/input
+   fill (`--pds-bg-input` / `--pds-border`) rather than the warm site cream. */
+.upgrade-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background-color: var(--pds-bg-input);
+  border: 0.5px solid var(--pds-border);
+  border-radius: 999px;
+}
+
+/* `!important` on color/font-family beats global.css's `button { color:
+   var(--color-deep-grey) !important; font-family: var(--font-sans)
+   !important }` reset, which otherwise overrides these plain-text buttons. */
+.upgrade-toggle__btn {
+  flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  padding: 10px 12px;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--site-ink-faint) !important;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.upgrade-toggle__btn:disabled {
+  cursor: wait;
+}
+
+.upgrade-toggle__btn--active {
+  background-color: var(--pds-bg-page);
+  color: var(--site-ink) !important;
+  box-shadow:
+    0 1px 2px rgba(20, 18, 12, 0.06),
+    0 4px 12px -6px rgba(20, 18, 12, 0.16);
+}
+
+.upgrade-primary-btn {
+  width: 100%;
+  height: 46px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%);
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 24px -10px rgba(0, 110, 255, 0.6);
+  transition: filter 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none !important;
+}
+
+.upgrade-primary-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.upgrade-primary-btn:disabled,
+.upgrade-primary-btn--disabled {
+  background: linear-gradient(171deg, #8fd8ff 7%, #6aadff 93%);
+  cursor: not-allowed;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff;
+}
+
+.upgrade-secondary-btn {
+  width: 100%;
+  height: 46px;
+  border: 0.5px solid var(--pds-border);
+  border-radius: 999px;
+  background: var(--pds-bg-input);
+  color: var(--site-ink) !important;
+  -webkit-text-fill-color: var(--site-ink);
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none !important;
+}
+
+.upgrade-secondary-btn:hover:not(:disabled) {
+  background: var(--pds-bg-control);
+  border-color: color-mix(in oklab, var(--pds-border) 70%, var(--site-ink));
+}
+
+.upgrade-secondary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Clerk checkout drawer — "Pay" button text ────────────────────────────
+   The `checkoutProps.appearance` on <CheckoutButton> (UpgradeCheckoutButton.tsx)
+   sets the gradient/pill/radius to match `.upgrade-primary-btn` above, but
+   Clerk's own default text-color rule for `.cl-formButtonPrimary` still wins
+   over the appearance API's `color`, leaving the label unreadable on the blue
+   gradient. Force it white here instead. */
+.cl-checkout-root .cl-formButtonPrimary,
+.cl-checkout-root .cl-formButtonPrimary * {
+  color: #ffffff !important;
+}

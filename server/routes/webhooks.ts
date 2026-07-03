@@ -10,6 +10,8 @@ import { verifyWebhook } from '@clerk/backend/webhooks';
 import { tagAsAppUser } from '@/utils/audienceful';
 import { handleAPIError } from '@/utils/error-handling';
 import { invalidateUserCache } from '../utils/user-cache';
+import { SHARED_SPACES_PLAN_ID } from '../utils/subscription';
+import { setSharedSpacesAddOnForUserId } from '../utils/tier-limits';
 
 const app = new Hono();
 
@@ -49,9 +51,57 @@ interface ClerkEmailWebhookEvent {
   timestamp?: number;
 }
 
-type ClerkWebhookEvent = ClerkUserWebhookEvent | ClerkEmailWebhookEvent;
+type ClerkWebhookEvent = ClerkUserWebhookEvent | ClerkEmailWebhookEvent | ClerkSubscriptionItemWebhookEvent;
+
+interface ClerkSubscriptionItemWebhookEvent {
+  type:
+    | 'subscriptionItem.active'
+    | 'subscriptionItem.canceled'
+    | 'subscriptionItem.ended'
+    | 'subscriptionItem.expired';
+  data: {
+    plan?: { id?: string; slug?: string };
+    plan_id?: string | null;
+    payer?: { user_id?: string; organization_id?: string };
+    status?: string;
+    [key: string]: any;
+  };
+  object: 'event';
+  timestamp?: number;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────
+
+const SVIX_HEADER_NAMES = ['svix-id', 'svix-timestamp', 'svix-signature'] as const;
+
+/**
+ * Netlify's proxy can duplicate individual headers, which Fetch's Headers.get()
+ * then joins with ", " (e.g. "msg_abc, msg_abc"). Same class of bug already
+ * worked around for Authorization in middleware/auth.ts — here it corrupts the
+ * exact string Clerk's webhook library hashes (id.timestamp.body), so every
+ * signature check fails with "No matching signature found" even with the
+ * correct secret. Rebuild the request with de-duplicated svix-* headers before
+ * verifying. Safe to split on ", " (not bare ","): svix-signature's own format
+ * uses "v1,<sig>" (no space) with a plain space between multiple signatures,
+ * so a genuine header value never legitimately contains ", ".
+ */
+async function dedupeSvixHeaders(req: Request): Promise<Request> {
+  const headers = new Headers(req.headers);
+  let sawDuplicate = false;
+
+  for (const name of SVIX_HEADER_NAMES) {
+    const value = headers.get(name);
+    if (value?.includes(', ')) {
+      sawDuplicate = true;
+      headers.set(name, value.split(', ')[0]);
+    }
+  }
+
+  if (!sawDuplicate) return req;
+
+  const body = await req.clone().arrayBuffer();
+  return new Request(req.url, { method: req.method, headers, body });
+}
 
 function getPrimaryEmail(event: ClerkUserWebhookEvent): string | null {
   const { data } = event;
@@ -176,6 +226,35 @@ async function handleUserDeleted(event: ClerkUserWebhookEvent): Promise<void> {
   console.log('User deleted in Clerk:', event.data.id);
 }
 
+function getSubscriptionItemPlanId(data: ClerkSubscriptionItemWebhookEvent['data']): string | null {
+  return data.plan?.id ?? data.plan_id ?? null;
+}
+
+/** Sync Shared Spaces add-on entitlement from Clerk billing subscription item events. */
+async function handleSubscriptionItemBilling(
+  event: ClerkSubscriptionItemWebhookEvent,
+  enabled: boolean,
+): Promise<void> {
+  if (!SHARED_SPACES_PLAN_ID) {
+    console.warn('[Webhook] CLERK_SHARED_SPACES_PLAN_ID not configured; skipping subscriptionItem sync');
+    return;
+  }
+
+  const planId = getSubscriptionItemPlanId(event.data);
+  if (planId !== SHARED_SPACES_PLAN_ID) {
+    return;
+  }
+
+  const userId = event.data.payer?.user_id;
+  if (!userId) {
+    console.warn('[Webhook] subscriptionItem event missing payer.user_id:', { type: event.type, planId });
+    return;
+  }
+
+  await setSharedSpacesAddOnForUserId(userId, enabled);
+  console.log('[Webhook] Shared Spaces add-on updated:', { userId, enabled, eventType: event.type });
+}
+
 // ─── POST /api/webhooks/clerk ─────────────────────────────────────────
 
 app.post('/api/webhooks/clerk', async (c) => {
@@ -203,10 +282,11 @@ app.post('/api/webhooks/clerk', async (c) => {
       console.warn('[Webhook] AUDIENCEFUL_API_KEY not configured');
     }
 
-    // Verify the webhook signature
+    // Verify the webhook signature (after stripping Netlify's occasional header duplication)
     let event: ClerkWebhookEvent;
     try {
-      event = (await verifyWebhook(c.req.raw, { signingSecret: webhookSecret })) as ClerkWebhookEvent;
+      const cleanedRequest = await dedupeSvixHeaders(c.req.raw);
+      event = (await verifyWebhook(cleanedRequest, { signingSecret: webhookSecret })) as ClerkWebhookEvent;
       console.log('[Webhook] Signature verification successful:', { eventType: event.type });
     } catch (error: any) {
       console.error('[Webhook] Signature verification failed:', error.message);
@@ -218,6 +298,8 @@ app.post('/api/webhooks/clerk', async (c) => {
     try {
       if (event.type === 'emailAddress.created') {
         userId = (event as ClerkEmailWebhookEvent).data.user_id || '';
+      } else if (event.type.startsWith('subscriptionItem.')) {
+        userId = (event as ClerkSubscriptionItemWebhookEvent).data.payer?.user_id || '';
       } else {
         userId = (event as ClerkUserWebhookEvent).data.id || '';
       }
@@ -243,6 +325,14 @@ app.post('/api/webhooks/clerk', async (c) => {
         case 'user.deleted':
           await handleUserDeleted(event as ClerkUserWebhookEvent);
           break;
+        case 'subscriptionItem.active':
+          await handleSubscriptionItemBilling(event as ClerkSubscriptionItemWebhookEvent, true);
+          break;
+        case 'subscriptionItem.canceled':
+        case 'subscriptionItem.ended':
+        case 'subscriptionItem.expired':
+          await handleSubscriptionItemBilling(event as ClerkSubscriptionItemWebhookEvent, false);
+          break;
         default:
           console.log('[Webhook] Unhandled event type:', (event as any).type);
       }
@@ -256,6 +346,8 @@ app.post('/api/webhooks/clerk', async (c) => {
       try {
         if (event.type === 'emailAddress.created') {
           errorUserId = (event as ClerkEmailWebhookEvent).data?.user_id || 'unknown';
+        } else if (event.type.startsWith('subscriptionItem.')) {
+          errorUserId = (event as ClerkSubscriptionItemWebhookEvent).data?.payer?.user_id || 'unknown';
         } else {
           errorUserId = (event as ClerkUserWebhookEvent).data?.id || 'unknown';
         }

@@ -352,19 +352,6 @@
   padding-bottom: 0.375rem;  /* 6px */
 }
 
-/* Override for upgrade page - remove background and padding */
-.clerk-form-card .upgrade-content .button-group,
-.upgrade-content .button-group {
-  background-color: transparent !important;
-  background: transparent !important;
-  background-image: none !important;
-  border-radius: 0 !important;
-  padding: 0 !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-  margin-top: 1.5rem !important;
-}
-
 .button-group__container {
   display: flex;
   gap: 0;
@@ -613,25 +600,6 @@
 
 .clerk-form-header-subtitle {
   color: var(--color-stone-grey);
-}
-
-/* Center align headers in upgrade content */
-.upgrade-content__header {
-  text-align: center !important;
-  margin-bottom: 1.5rem !important;
-}
-
-.upgrade-content__header .clerk-form-header-title,
-.upgrade-content__header h1.clerk-form-header-title {
-  font-family: var(--font-roundo) !important;
-  font-weight: 600 !important; /* Semi-bold */
-  text-align: center !important;
-  margin-bottom: 8px !important;
-}
-
-.upgrade-content__header .clerk-form-header-subtitle,
-.upgrade-content__header p.clerk-form-header-subtitle {
-  text-align: center !important;
 }
 
 .clerk-form-button-primary {

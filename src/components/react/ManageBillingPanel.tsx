@@ -17,7 +17,7 @@ export default function ManageBillingPanel({
   publishableKey = null
 }: ManageBillingPanelProps) {
   const [subscriptionInfo, setSubscriptionInfo] = useState<{
-    hasUnlimited: boolean;
+    hasSharedSpaces: boolean;
     currentCount: number;
     limit: number | null;
   } | null>(null);
@@ -25,10 +25,10 @@ export default function ManageBillingPanel({
 
   // Load subscription info when component mounts and on View Transitions
   useEffect(() => {
-    const cached = getCachedPanelData<{ hasUnlimited: boolean; currentCount: number; limit: number | null }>(PANEL_CACHE_KEYS.subscription);
+    const cached = getCachedPanelData<{ hasSharedSpaces: boolean; currentCount: number; limit: number | null }>(PANEL_CACHE_KEYS.subscription);
     if (cached) {
       setSubscriptionInfo({
-        hasUnlimited: cached.hasUnlimited,
+        hasSharedSpaces: cached.hasSharedSpaces,
         currentCount: cached.currentCount,
         limit: cached.limit
       });
@@ -161,7 +161,7 @@ export default function ManageBillingPanel({
       if (subRes.ok) {
         const data = await subRes.json();
         const info = {
-          hasUnlimited: data.hasUnlimited,
+          hasSharedSpaces: Boolean(data.hasSharedSpaces),
           currentCount: data.currentCount || 0,
           limit: data.limit || null
         };
@@ -408,7 +408,7 @@ export default function ManageBillingPanel({
                           className="font-sans text-center px-4 pt-3 pb-2"
                           style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance', marginBottom: 12 }}
                         >
-                          {subscriptionInfo.hasUnlimited ? "You're on the Unlimited plan" : "You're on the free plan"}
+                          {subscriptionInfo.hasSharedSpaces ? 'Shared Spaces is active' : "You're on the free plan"}
                         </div>
                         <div className="flex-stack" style={{ gap: 12, marginBottom: 12 }}>
                           <div
@@ -432,8 +432,8 @@ export default function ManageBillingPanel({
                       </div>
                     ) : null}
 
-                    {/* Upgrade to Unlimited Button - Only show for free plan users */}
-                    {subscriptionInfo && !subscriptionInfo.hasUnlimited ? (
+                    {/* Get Shared Spaces — only show for free plan users */}
+                    {subscriptionInfo && !subscriptionInfo.hasSharedSpaces ? (
                       <a
                         href="/upgrade"
                         className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-200 pl-4 w-full"
@@ -442,7 +442,7 @@ export default function ManageBillingPanel({
                         <div className="panel__list-item">
                           <div className="panel__list-item-text">
                             <span className="panel__list-item-label">
-                              Upgrade to Unlimited
+                              Get Shared Spaces
                             </span>
                           </div>
                           <div className="panel__list-item-icon">
@@ -458,8 +458,8 @@ export default function ManageBillingPanel({
                       </a>
                     ) : null}
 
-                    {/* Manage Payment Method & Billing Button - Only show for unlimited plan users */}
-                    {subscriptionInfo && subscriptionInfo.hasUnlimited ? (
+                    {/* Manage Payment Method & Billing — only show for Shared Spaces subscribers */}
+                    {subscriptionInfo && subscriptionInfo.hasSharedSpaces ? (
                       <SafeSubscriptionDetailsButton publishableKey={publishableKey}>
                         <button
                           type="button"

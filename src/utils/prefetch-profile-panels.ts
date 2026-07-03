@@ -18,7 +18,7 @@ export function prefetchProfilePanelData(): void {
       if (!res.ok) return;
       const data = await res.json();
       setCachedPanelData(PANEL_CACHE_KEYS.subscription, {
-        hasUnlimited: data.hasUnlimited,
+        hasSharedSpaces: Boolean(data.hasSharedSpaces),
         currentCount: data.currentCount ?? 0,
         limit: data.limit ?? null
       });

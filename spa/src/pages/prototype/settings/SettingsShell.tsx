@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import Icon from '@/components/react/Icon';
+import Icon, { type IconName } from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
 
 /** One-line intro under the settings nav/sheet header — matches My Church tone and typography. */
@@ -81,25 +81,63 @@ export function SettingsRow({
   label,
   sublabel,
   value,
+  badge,
+  leadingIcon,
+  leadingAccent,
   onClick,
   destructive = false,
+  disabled = false,
   trailing = 'chevron',
 }: {
   label: string;
   sublabel?: string;
   value?: string;
+  /** Pill next to the title (e.g. "Coming soon", "Active"). */
+  badge?: string;
+  /** Optional leading icon tile (pricing-style block), e.g. add-on rows. */
+  leadingIcon?: IconName;
+  /** Glyph color for the leading icon tile (defaults to secondary text). */
+  leadingAccent?: string;
   onClick?: () => void;
   destructive?: boolean;
+  disabled?: boolean;
   trailing?: 'chevron' | 'none';
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={destructive ? 'proto-note-row proto-note-row--destructive' : 'proto-note-row'}
+      disabled={disabled}
+      className={
+        destructive
+          ? 'proto-note-row proto-note-row--destructive'
+          : disabled
+            ? 'proto-note-row proto-note-row--disabled'
+            : 'proto-note-row'
+      }
     >
+      {leadingIcon ? (
+        <span
+          className="proto-settings-list-row__leading"
+          style={leadingAccent ? { color: leadingAccent } : undefined}
+          aria-hidden
+        >
+          <Icon name={leadingIcon} size={20} />
+        </span>
+      ) : null}
       <span className="proto-settings-list-row__main">
-        <span className="pds-list-title" style={{ display: 'block', color: destructive ? 'var(--pds-destructive)' : 'var(--pds-text-primary)' }}>{label}</span>
+        <span
+          className="proto-settings-list-row__title-row"
+          style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+        >
+          <span
+            className="pds-list-title"
+            style={{ color: destructive ? 'var(--pds-destructive)' : 'var(--pds-text-primary)' }}
+          >
+            {label}
+          </span>
+          {badge ? <span className="proto-thread-review__badge">{badge}</span> : null}
+        </span>
         {sublabel ? (
           <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>
             {sublabel}

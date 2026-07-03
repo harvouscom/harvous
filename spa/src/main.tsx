@@ -83,6 +83,7 @@ import '../../src/styles/shared-page.css';
 import '../../src/styles/auth-page-site.css';
 import '../../src/styles/dev-badge.css';
 import './styles/public-pages.css';
+import '../../src/styles/upgrade-page.css';
 /* Study dock accent fills (native parity) — before prototype-tokens aliases. */
 import '../../src/styles/study-highlight-accent-colors.css';
 import '../../src/styles/scripture-pill-accent.css';

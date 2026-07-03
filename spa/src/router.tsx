@@ -217,6 +217,12 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSharingPage')),
   });
 
+  const prototypeSettingsAddonsRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'addons',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeAddonsPage')),
+  });
+
   const prototypeSettingsDataRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: 'data',
@@ -315,6 +321,7 @@ function buildPrototypeRouteBranch() {
       prototypeSettingsChurchRoute,
       prototypeSettingsLockPinRoute,
       prototypeSettingsSharingRoute,
+      prototypeSettingsAddonsRoute,
       prototypeSettingsDataRoute,
       prototypeSettingsSupportRoute,
       prototypeSettingsKeyboardShortcutsRoute,

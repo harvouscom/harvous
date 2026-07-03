@@ -160,7 +160,7 @@ export default function PrototypeSharingPage() {
                 <div className="proto-sharing-card__actions">
                   <button
                     type="button"
-                    className="proto-thread-review__dismiss"
+                    className="proto-thread-review__dismiss proto-thread-review__dismiss--danger"
                     disabled={isRowBusy}
                     onClick={() => handleDisableNote(note)}
                   >
@@ -168,7 +168,7 @@ export default function PrototypeSharingPage() {
                   </button>
                   <button
                     type="button"
-                    className="proto-thread-review__btn proto-thread-review__btn--primary"
+                    className="proto-thread-review__dismiss"
                     disabled={isRowBusy}
                     onClick={() => setConfirmRefreshId(note.id)}
                   >

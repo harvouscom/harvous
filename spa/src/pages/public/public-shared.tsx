@@ -24,8 +24,16 @@ export function HarvousLogoMark({ size = 36 }: { size?: number }) {
  * Floating navbar pill rendered on every public/shared page. Contains the
  * app icon and a CTA pill at the right ("Open app" when signed in,
  * "Sign in" when not — the shared-page equivalent of the site's "Try free").
+ * Pass `signedInCtaLabel` to override the signed-in copy (e.g. "Back to
+ * Harvous" on /upgrade, where the visitor is already inside the app).
  */
-export function PublicTopBar({ isSignedIn }: { isSignedIn: boolean }) {
+export function PublicTopBar({
+  isSignedIn,
+  signedInCtaLabel = 'Open app',
+}: {
+  isSignedIn: boolean;
+  signedInCtaLabel?: string;
+}) {
   const redirectUrl = typeof window !== 'undefined' ? window.location.href : '';
   return (
     <nav className="public-toolbar">
@@ -35,7 +43,7 @@ export function PublicTopBar({ isSignedIn }: { isSignedIn: boolean }) {
         </a>
         {isSignedIn ? (
           <a href={prototypeHomePath()} className="public-toolbar__cta">
-            Open app
+            {signedInCtaLabel}
           </a>
         ) : (
           <a

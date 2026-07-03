@@ -15,7 +15,7 @@ import { useSubscriptionStatus } from '../../hooks/queries/useSubscriptionStatus
 import { useCreateSharedSpace } from '../../hooks/mutations/useCreateSharedSpace';
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import ProtoPopoverShell from './ProtoPopoverShell';
-import { PROTO_TOOLBAR_ORB_ICON_SIZE, PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
+import { PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE, PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
 
 function normalizeSpaceId(id: string): string {
   return id.startsWith('space_') ? id : `space_${id}`;
@@ -148,10 +148,12 @@ export default function SpaceSwitcherMenu({
               onClick={selectHome}
             >
               <span className="proto-menu-item__icon" aria-hidden>
-                <ProtoHouseIcon size={15} />
+                <ProtoHouseIcon size={PROTO_TOOLBAR_ICON_SIZE} />
               </span>
               <span className="proto-menu-item__label">My Home</span>
-              <span className="proto-menu-item__check" aria-hidden>{!isViewingShared ? '✓' : ''}</span>
+              <span className="proto-menu-item__check" aria-hidden>
+                {!isViewingShared ? <Icon name="check" size={12} /> : null}
+              </span>
             </button>
           </div>
 
@@ -183,7 +185,9 @@ export default function SpaceSwitcherMenu({
                     <span className="proto-menu-item__label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {space.title}
                     </span>
-                    <span className="proto-menu-item__check" aria-hidden>{checked ? '✓' : ''}</span>
+                    <span className="proto-menu-item__check" aria-hidden>
+                      {checked ? <Icon name="check" size={12} /> : null}
+                    </span>
                   </button>
                 );
               })}
@@ -251,14 +255,10 @@ export default function SpaceSwitcherMenu({
                 }}
               >
                 <span className="proto-menu-item__icon" aria-hidden>
-                  <Icon name="plus" size={13} />
+                  <Icon name="plus" size={PROTO_TOOLBAR_ICON_SIZE} />
                 </span>
                 <span className="proto-menu-item__label">New shared space</span>
-                {!hasSharedSpaces ? (
-                  <span className="proto-menu-item__check" aria-hidden style={{ width: 'auto', fontSize: 11, opacity: 0.6 }}>
-                    Upgrade
-                  </span>
-                ) : null}
+                {!hasSharedSpaces ? <span className="proto-menu-item__badge">Add-on</span> : null}
               </button>
             )}
           </div>

@@ -5,17 +5,39 @@ import { ClerkProvider, SignedIn } from '@clerk/clerk-react';
 interface SafeSubscriptionDetailsButtonProps {
   children: React.ReactNode;
   publishableKey?: string | null;
+  onSubscriptionCancel?: () => void;
 }
 
+function SubscriptionDetailsInner({
+  children,
+  remountKey,
+  onSubscriptionCancel,
+}: {
+  children: React.ReactNode;
+  remountKey: number;
+  onSubscriptionCancel?: () => void;
+}) {
+  return (
+    <SignedIn>
+      <SubscriptionDetailsButton
+        key={`subscription-details-${remountKey}`}
+        onSubscriptionCancel={onSubscriptionCancel}
+      >
+        {children}
+      </SubscriptionDetailsButton>
+    </SignedIn>
+  );
+}
 
 /**
  * Wrapper component that safely renders SubscriptionDetailsButton.
  * React Islands are isolated and need their own ClerkProvider.
- * This is expected behavior - each React Island has its own React root.
+ * When `publishableKey` is null, uses the SPA's ambient ClerkProvider (App.tsx).
  */
-export default function SafeSubscriptionDetailsButton({ 
+export default function SafeSubscriptionDetailsButton({
   children,
-  publishableKey = null
+  publishableKey = null,
+  onSubscriptionCancel,
 }: SafeSubscriptionDetailsButtonProps) {
   const [effectiveKey, setEffectiveKey] = useState<string | null>(publishableKey);
   const [pathname, setPathname] = useState<string>('');
@@ -25,13 +47,11 @@ export default function SafeSubscriptionDetailsButton({
 
   // Get publishableKey from props or window global (for View Transitions compatibility)
   useEffect(() => {
-    // Use prop if available, otherwise try window global
     const key = publishableKey || (typeof window !== 'undefined' ? (window as any).CLERK_PUBLISHABLE_KEY : null);
     setEffectiveKey(key);
-    
+
     if (typeof window !== 'undefined') {
       setPathname(window.location.pathname);
-      // Update remount key on initial load
       setRemountKey(Date.now());
     }
   }, [publishableKey]);
@@ -45,18 +65,17 @@ export default function SafeSubscriptionDetailsButton({
         entries.forEach((entry) => {
           const wasVisible = isVisible;
           const nowVisible = entry.isIntersecting;
-          
-          // If component becomes visible after being hidden, force remount
+
           if (!wasVisible && nowVisible) {
             setRemountKey(Date.now());
           }
-          
+
           setIsVisible(nowVisible);
         });
       },
       {
-        threshold: 0.1, // Trigger when at least 10% visible
-        rootMargin: '0px'
+        threshold: 0.1,
+        rootMargin: '0px',
       }
     );
 
@@ -72,10 +91,9 @@ export default function SafeSubscriptionDetailsButton({
     const handlePageLoad = () => {
       const key = publishableKey || (typeof window !== 'undefined' ? (window as any).CLERK_PUBLISHABLE_KEY : null);
       setEffectiveKey(key);
-      
+
       if (typeof window !== 'undefined') {
         setPathname(window.location.pathname);
-        // Force remount by updating key with new timestamp on each page load
         setRemountKey(Date.now());
       }
     };
@@ -85,6 +103,17 @@ export default function SafeSubscriptionDetailsButton({
       document.removeEventListener('app:route-change', handlePageLoad);
     };
   }, [publishableKey]);
+
+  // In the SPA, ClerkProvider is already provided by App.tsx — skip creating a nested one.
+  if (publishableKey === null) {
+    return (
+      <div ref={containerRef}>
+        <SubscriptionDetailsInner remountKey={remountKey} onSubscriptionCancel={onSubscriptionCancel}>
+          {children}
+        </SubscriptionDetailsInner>
+      </div>
+    );
+  }
 
   // If no publishable key, render a disabled placeholder
   if (!effectiveKey) {
@@ -100,14 +129,13 @@ export default function SafeSubscriptionDetailsButton({
     );
   }
 
-  // Get domain and URLs for ClerkProvider configuration
   const getClerkConfig = () => {
     if (typeof window === 'undefined') {
       return {
         publishableKey: effectiveKey,
         domain: undefined,
         afterSignInUrl: undefined,
-        afterSignUpUrl: undefined
+        afterSignUpUrl: undefined,
       };
     }
 
@@ -115,14 +143,12 @@ export default function SafeSubscriptionDetailsButton({
       publishableKey: effectiveKey,
       domain: window.location.hostname,
       afterSignInUrl: window.location.origin,
-      afterSignUpUrl: window.location.origin
+      afterSignUpUrl: window.location.origin,
     };
   };
 
   const clerkConfig = getClerkConfig();
 
-  // React Islands are isolated - each needs its own ClerkProvider
-  // This is expected and correct behavior
   return (
     <div ref={containerRef}>
       {/* @ts-expect-error Clerk's ClerkProviderProps discriminated union requires isSatellite/proxyUrl with domain */}
@@ -133,13 +159,10 @@ export default function SafeSubscriptionDetailsButton({
         afterSignInUrl={clerkConfig.afterSignInUrl}
         afterSignUpUrl={clerkConfig.afterSignUpUrl}
       >
-        <SignedIn>
-          <SubscriptionDetailsButton key={`subscription-details-${remountKey}`}>
-            {children}
-          </SubscriptionDetailsButton>
-        </SignedIn>
+        <SubscriptionDetailsInner remountKey={remountKey} onSubscriptionCancel={onSubscriptionCancel}>
+          {children}
+        </SubscriptionDetailsInner>
       </ClerkProvider>
     </div>
   );
 }
-

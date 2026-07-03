@@ -79,7 +79,11 @@ export function useRefreshProfileAfterMutation() {
   const queryClient = useQueryClient();
   return useCallback(
     async (user: UserResource) => {
-      await user.reload();
+      try {
+        await user.reload();
+      } catch (e) {
+        console.error('[useRefreshProfileAfterMutation] user.reload() failed (non-fatal):', e);
+      }
       updateCachedProfile({
         firstName: user.firstName ?? '',
         lastName: user.lastName ?? '',
