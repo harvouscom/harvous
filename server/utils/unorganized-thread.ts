@@ -4,6 +4,7 @@
 
 import { db, first, Threads, Notes, NoteThreads, eq, and, count, isNull } from '../db';
 import { nowISO } from '../db/dates';
+import { isUniqueViolationError } from './db-errors';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 export async function ensureUnorganizedThread(userId: string) {
@@ -46,9 +47,9 @@ export async function ensureUnorganizedThread(userId: string) {
           createdAt: nowISO(),
           updatedAt: nowISO(),
         });
-      } catch (insertError: any) {
+      } catch (insertError: unknown) {
         // Postgres unique violation (23505): row already created by another request; continue
-        if (insertError.code === '23505' || insertError.message?.includes('unique constraint')) {
+        if (isUniqueViolationError(insertError)) {
           // no-op
         } else {
           console.error("Error creating unorganized thread:", insertError);

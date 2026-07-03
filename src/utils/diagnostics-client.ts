@@ -41,29 +41,24 @@ let lastCapturedError: {
 
 let captureInitialized = false;
 
+function isBenignErrorMessage(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('aborterror') ||
+    lower.includes('signal is aborted') ||
+    lower.includes('user aborted a request') ||
+    lower.includes('resizeobserver loop')
+  );
+}
+
 function shouldIgnoreError(error: Error | string): boolean {
   if (typeof error === 'string') {
-    const lower = error.toLowerCase();
-    return (
-      lower.includes('aborterror') ||
-      lower.includes('signal is aborted') ||
-      lower.includes('user aborted a request')
-    );
+    return isBenignErrorMessage(error);
   }
   if (error.name === 'AbortError' || error.name === 'DOMException') {
-    const message = error.message?.toLowerCase() ?? '';
-    return (
-      message.includes('aborterror') ||
-      message.includes('signal is aborted') ||
-      message.includes('user aborted a request')
-    );
+    return isBenignErrorMessage(error.message ?? '');
   }
-  const message = error.message?.toLowerCase() ?? '';
-  return (
-    message.includes('aborterror') ||
-    message.includes('signal is aborted') ||
-    message.includes('user aborted a request')
-  );
+  return isBenignErrorMessage(error.message ?? '');
 }
 
 function randomId(): string {
@@ -182,6 +177,8 @@ export function reportClientError(error: Error | string, source: DiagnosticSourc
 export function reportApiDiagnostic(path: string, status: number, message: string): void {
   if (status === 401 || status === 403) return;
   if (status < 500) return;
+  // Service worker offline fallback (public/sw.js) returns synthetic 503 with this exact message.
+  if (status === 503 && message === 'Network error') return;
   rememberError(message, null);
   reportDiagnosticEvent({
     source: 'client_api',

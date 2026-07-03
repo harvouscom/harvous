@@ -38,6 +38,7 @@ import {
 import { nowISO } from '../db/dates';
 import { generateNoteId, generateShareToken, generateTimestampId } from '@/utils/ids';
 import { getHarvousSystemUserId } from '../utils/harvous-admin';
+import { isUniqueViolationError } from '../utils/db-errors';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateContent, validateNoteType, validateThreadId, validateSpaceId, normalizeUrl, extractDomain, validateResourceUrl } from '@/utils/validation';
 import { pickStudyThreadRepresentativeNoteId, type StudyThreadSuggestNode } from '@/utils/suggest-study-thread-title';
@@ -778,9 +779,9 @@ route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c)
         spaceId,
         createdAt: nowISO(),
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Unique constraint violation = already connected.
-      if (err?.code === '23505' || err?.message?.includes('unique') || err?.message?.includes('duplicate')) {
+      if (isUniqueViolationError(err)) {
         if (spaceId) {
           await db
             .update(NoteConnections)
