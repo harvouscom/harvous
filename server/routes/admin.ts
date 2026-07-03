@@ -1247,7 +1247,8 @@ app.post('/api/admin/support/tickets/:id/notes', async (c) => {
 // ─── POST/GET /api/admin/support/notify-check (cron: hourly Slack ping) ───────
 
 async function handleSupportNotifyCheck(c: any) {
-  const authHeader = c.req.header('authorization');
+  // Netlify's proxy can duplicate the Authorization header → "Bearer <tok>, Bearer <tok>"
+  const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '').split(',')[0].trim();
   const expectedToken = process.env.SUPPORT_NOTIFY_SECRET_TOKEN;
   const auth = getAuth(c);
   const isAuthenticated = !!auth?.userId;
