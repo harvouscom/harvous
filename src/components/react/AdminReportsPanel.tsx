@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   useAdminMonthlyReport,
   useAdminReportsCatalog,
@@ -10,6 +11,7 @@ import {
 import ProtoStatusChip from '@/components/react/ProtoStatusChip';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { getAdminReportMonthStatus } from '@/utils/season-helpers';
+import { getModalOverlayBaseStyle, useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 import '@/styles/admin-usage.css';
 import '@/styles/admin-reports.css';
 
@@ -127,6 +129,92 @@ function MonthDetail({ payload }: { payload: AdminMonthlyReportPayload }) {
   );
 }
 
+function ReportMonthDialog({
+  month,
+  label,
+  generatedAt,
+  report,
+  onClose,
+}: {
+  month: string;
+  label: string;
+  generatedAt: string;
+  report: ReturnType<typeof useAdminMonthlyReport>;
+  onClose: () => void;
+}) {
+  const { portalTarget, overlayUsesMainColumn } = useDesktopMainModalPortal();
+  const generatedLabel = new Date(generatedAt).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = '';
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [onClose]);
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      className="modal-overlay modal-overlay-enter modal-overlay--centered"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={`admin-report-dialog-title-${month}`}
+      style={getModalOverlayBaseStyle(overlayUsesMainColumn)}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="modal-dialog modal-dialog--lg admin-reports__dialog modal-content-enter"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="admin-reports__dialog-header">
+          <div className="admin-reports__dialog-heading">
+            <span className="admin-reports__dialog-icon" aria-hidden>
+              <Icon name="calendar" size={18} />
+            </span>
+            <div className="admin-reports__dialog-copy">
+              <h2 className="admin-reports__dialog-title" id={`admin-report-dialog-title-${month}`}>
+                {label}
+              </h2>
+              <p className="admin-reports__dialog-meta">Generated {generatedLabel}</p>
+            </div>
+          </div>
+          <div className="admin-reports__dialog-actions">
+            <ExportButtons kind="month" id={month} compact />
+            <button type="button" className="admin-reports__dialog-close" onClick={onClose} aria-label="Close report">
+              <Icon name="xmark" size={16} aria-hidden />
+            </button>
+          </div>
+        </header>
+        <div className="admin-reports__dialog-body">
+          {report.isLoading ? <ProtoStatusChip visible variant="syncing" label="Loading month…" /> : null}
+          {report.isError ? (
+            <p className="admin-reports__dialog-error" role="alert">
+              Could not load this month&apos;s report.
+            </p>
+          ) : null}
+          {report.data ? <MonthDetail payload={report.data} /> : null}
+        </div>
+      </div>
+    </div>,
+    portalTarget,
+  );
+}
+
 function ExportButtons({
   kind,
   id,
@@ -181,7 +269,7 @@ export default function AdminReportsPanel() {
   const catalog = useAdminReportsCatalog();
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
+  const [dialogMonth, setDialogMonth] = useState<string | null>(null);
   const [expandedSeason, setExpandedSeason] = useState<string | null>(null);
 
   const years = catalog.data?.years ?? [];
@@ -190,7 +278,16 @@ export default function AdminReportsPanel() {
     [years, selectedYear],
   );
 
-  const monthReport = useAdminMonthlyReport(expandedMonth);
+  const dialogMonthMeta = useMemo(() => {
+    if (!dialogMonth || !yearEntry) return null;
+    for (const season of yearEntry.seasons) {
+      const month = season.months.find((entry) => entry.month === dialogMonth);
+      if (month) return month;
+    }
+    return null;
+  }, [dialogMonth, yearEntry]);
+
+  const monthReport = useAdminMonthlyReport(dialogMonth);
   const seasonReport = useAdminSeasonReport(expandedSeason);
 
   const hasAnyGenerated = useMemo(
@@ -233,7 +330,7 @@ export default function AdminReportsPanel() {
                   aria-pressed={active}
                   onClick={() => {
                     setSelectedYear(y.year);
-                    setExpandedMonth(null);
+                    setDialogMonth(null);
                     setExpandedSeason(null);
                   }}
                 >
@@ -328,7 +425,7 @@ export default function AdminReportsPanel() {
 
             <div className="admin-reports__month-grid">
               {season.months.map((month) => {
-                const isExpanded = expandedMonth === month.month;
+                const isActive = dialogMonth === month.month;
                 const isGenerated = !!month.generatedAt;
                 const status = getAdminReportMonthStatus(month.month, month.generatedAt);
                 return (
@@ -336,17 +433,15 @@ export default function AdminReportsPanel() {
                     key={month.month}
                     className="admin-reports__month-tile"
                     data-generated={isGenerated ? 'true' : 'false'}
-                    data-expanded={isExpanded ? 'true' : 'false'}
+                    data-active={isActive ? 'true' : 'false'}
                   >
                     <div className="admin-reports__month-tile-head">
                       <button
                         type="button"
                         className="admin-reports__month-toggle"
                         disabled={!isGenerated}
-                        aria-expanded={isGenerated ? isExpanded : undefined}
-                        onClick={() =>
-                          setExpandedMonth((prev) => (prev === month.month ? null : month.month))
-                        }
+                        aria-haspopup={isGenerated ? 'dialog' : undefined}
+                        onClick={() => setDialogMonth(month.month)}
                       >
                         <span className="admin-reports__month-icon" aria-hidden>
                           <Icon name="calendar" size={16} />
@@ -364,23 +459,11 @@ export default function AdminReportsPanel() {
                             {status.label}
                           </span>
                         </span>
-                        {isGenerated ? (
-                          <Icon
-                            name="caret-down"
-                            size={12}
-                            className="admin-reports__month-chevron"
-                            aria-hidden
-                          />
-                        ) : null}
                       </button>
                       {isGenerated ? (
                         <ExportButtons kind="month" id={month.month} compact />
                       ) : null}
                     </div>
-                    {isExpanded && monthReport.data ? <MonthDetail payload={monthReport.data} /> : null}
-                    {isExpanded && monthReport.isLoading ? (
-                      <ProtoStatusChip visible variant="syncing" label="Loading month…" />
-                    ) : null}
                   </article>
                 );
               })}
@@ -392,6 +475,16 @@ export default function AdminReportsPanel() {
           </section>
         );
       })}
+
+      {dialogMonth && dialogMonthMeta?.generatedAt ? (
+        <ReportMonthDialog
+          month={dialogMonth}
+          label={dialogMonthMeta.label}
+          generatedAt={dialogMonthMeta.generatedAt}
+          report={monthReport}
+          onClose={() => setDialogMonth(null)}
+        />
+      ) : null}
     </div>
   );
 }
