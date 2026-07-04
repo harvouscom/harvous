@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
+import { useAuth } from '@clerk/clerk-react';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
@@ -18,7 +19,9 @@ import PrototypeInspectorPane from './PrototypeInspectorPane';
 import PrototypeStudyThreadPopover from './PrototypeStudyThreadPopover';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypePaneEmptyState from './PrototypePaneEmptyState';
+import PrototypeSharedNoteReadOnlyBanner from './PrototypeSharedNoteReadOnlyBanner';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
+import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { buildHighlightDockOpenMetadataFromStudyThread } from '@/utils/study-dock-stack';
@@ -99,9 +102,12 @@ export default function PrototypeNotePage() {
   // separately to detect when a compose target is actually shared (for the
   // offline guard: shared spaces require connectivity in the foundation).
   const { activeSpaceId: homeSpaceId, homeSpaceId: personalHomeSpaceId } = useActiveSpace();
+  const { userId: authUserId } = useAuth();
   const navigate = useNavigate();
 
   const { data: note, isLoading, isError, isFetching } = useNote(isDraft ? '' : noteId);
+  const { isForeignSharedNote, effectiveSpaceId: foreignSharedSpaceId } =
+    useForeignSharedNote(isDraft ? null : noteId);
 
   // Deep-link to a highlight's dock (Home "revisit" card → text / mini-note / connected highlight).
   const initialHighlightDock = useMemo(() => {
@@ -275,7 +281,8 @@ export default function PrototypeNotePage() {
   const resolvedSpaceFromThread = (note?.threads?.[0] as { spaceId?: string | null } | undefined)?.spaceId ?? null;
 
   const effectiveSpaceId =
-    (resolvedSpaceFromNote != null ? resolvedSpaceFromNote : resolvedSpaceFromThread) ?? homeSpaceId ?? '';
+    foreignSharedSpaceId ||
+    ((resolvedSpaceFromNote != null ? resolvedSpaceFromNote : resolvedSpaceFromThread) ?? homeSpaceId ?? '');
 
   const effectiveSpaceIdRef = useRef(effectiveSpaceId);
   effectiveSpaceIdRef.current = effectiveSpaceId;
@@ -321,8 +328,6 @@ export default function PrototypeNotePage() {
     window.addEventListener('openNewNotePanel', handler);
     return () => window.removeEventListener('openNewNotePanel', handler);
   }, [homeSpaceId, personalHomeSpaceId, navigate]);
-
-  const isEditable = true;
 
   const liveFolderLabelRef = useRef<string | null>(null);
 
@@ -541,6 +546,9 @@ export default function PrototypeNotePage() {
       (note?.threads?.some((th) => th.id.startsWith('thread_onboarding_')) ?? false),
     [note?.threads, parentThreadId],
   );
+
+  const readOnlyLikeScripture = isOnboardingReadonly || isForeignSharedNote;
+  const isEditable = !readOnlyLikeScripture;
 
   useEffect(() => {
     if (!parentThread?.id || !noteId) return;
@@ -976,6 +984,7 @@ export default function PrototypeNotePage() {
           <SubtleContentMount key={editorSessionKey} variant="fade">
             <div className="proto-editor-content-wrap">
               <div className="proto-editor-paper">
+              {isForeignSharedNote ? <PrototypeSharedNoteReadOnlyBanner /> : null}
               <CardFullEditable
                 title={prototypeDisplayTitle}
                 content={editorNote.content ?? ''}
@@ -991,7 +1000,7 @@ export default function PrototypeNotePage() {
                 isEditable={isEditable}
                 onSave={handleNoteSave}
                 onPrototypeEditorUnmount={handlePrototypeEditorUnmount}
-                readOnlyLikeScripture={isOnboardingReadonly}
+                readOnlyLikeScripture={readOnlyLikeScripture}
                 spaceId={effectiveSpaceId ?? undefined}
                 editorChromeMode="prototypeNative"
                 formatToolbarPortalTarget={formatToolbarHostEl}

@@ -292,9 +292,20 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   white-space: nowrap;
 }
 
+/* Menu row labels — list-title typography (matches note-row .pds-list-title). */
 .proto-menu-item__label {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--pds-font-body);
+  font-size: calc(var(--pds-list-title-size) - 2px);
+  font-weight: 500;
+  font-synthesis: none;
+  font-variation-settings: var(--pds-font-body-variation-list-title);
+  line-height: 1.25;
+  color: var(--pds-text-primary);
 }
 
 .proto-menu-item__check {
@@ -771,8 +782,7 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   box-sizing: border-box;
 }
 
-.proto-menu-item span,
-.proto-menu-item__label {
+.proto-menu-item span:not(.proto-menu-item__label) {
   font-weight: 400;
 }
 
@@ -843,6 +853,18 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.proto-menu-item__icon--space {
+  opacity: 1;
+}
+
+.proto-space-menu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 4px;
 }
 
 .proto-menu-sep {
@@ -3420,25 +3442,6 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   background: var(--pds-bg-input);
   border: 0.5px solid var(--pds-border);
   color: var(--pds-text-secondary);
-}
-
-.proto-settings-billing-link {
-  appearance: none;
-  -webkit-appearance: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  background: transparent;
-  font: inherit;
-  font-size: inherit;
-  color: var(--pds-accent-gradient-end) !important;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-
-.proto-settings-billing-link:hover:not(:disabled) {
-  filter: brightness(1.08);
 }
 
 .proto-settings-list-row__trailing {
@@ -6464,6 +6467,60 @@ button.proto-appearance-hero__card {
   color: var(--pds-text-primary);
 }
 
+/* Stacked header title: primary label ("Manage space") + secondary space name,
+   mirroring the space panel's title/meta block. */
+.proto-study-thread-popover__title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.proto-study-thread-popover__subtitle {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--pds-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Let the stacked title shrink so long space names ellipsize (scoped to the
+   manage sheet so other popovers keep their intrinsic title-row width). */
+.proto-shared-manage-sheet .proto-study-thread-popover__title-row {
+  min-width: 0;
+  flex: 1;
+  /* Wider gap so the space icon tile breathes like the space-panel header. */
+  gap: 10px;
+  /* Match the 44px icon tile so the header keeps one height across the hub and
+     every sub-view (the back arrow is shorter than the icon), i.e. no jump on nav. */
+  min-height: 44px;
+}
+
+/* The manage sheet's header carries a larger 36px icon tile + stacked title, so
+   give it more breathing room than the base thread-popover header. */
+.proto-shared-manage-sheet .proto-study-thread-popover__header {
+  padding: 14px 14px 14px 16px;
+}
+
+/* The hub's settings group carries a trailing 16px margin (inline) that once
+   separated it from the Delete button. That button now lives in Space settings,
+   so the group is the last child — drop the margin and let the scroll's
+   symmetric 12px padding define the bottom gutter. */
+.proto-shared-manage-sheet .proto-settings__content > :last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Delete space lives at the bottom of the Space settings sub-view as a subtle
+   destructive text link (matches the share popover's "Stop sharing"), not a
+   loud filled pill — deletion is deliberate, so it stays quiet. */
+.proto-shared-manage-danger {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
 .proto-study-thread-popover__body {
   flex: 1;
   min-height: 0;
@@ -7435,4 +7492,497 @@ button.proto-appearance-hero__card {
 
 .proto-update-toast__dismiss:hover {
   background: var(--pds-fill-secondary, rgba(0, 0, 0, 0.06));
+}
+
+/* ─── Shared spaces: read-only banner + author chips ─────────────────────── */
+
+/* Compact neutral "view only" chip (auto-width pill) — not a full-bleed band. */
+.proto-shared-readonly-banner {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 10px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  background: var(--pds-bg-chip);
+  border: 0.5px solid var(--pds-border-control);
+  color: var(--pds-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.proto-shared-readonly-banner__icon {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.proto-shared-author-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+  padding: 1px 8px 1px 6px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: 999px;
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary);
+  font-weight: 600;
+  font-size: 11px;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+
+.proto-shared-author-chip svg {
+  display: block;
+  flex-shrink: 0;
+  color: var(--proto-shared-author-color, var(--pds-text-secondary));
+}
+
+.proto-shared-space-header {
+  padding: 12px 14px;
+  border-bottom: 0.5px solid var(--pds-border);
+}
+
+.proto-shared-space-header__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.proto-shared-space-header__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.proto-shared-space-header__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.proto-shared-space-header__people {
+  appearance: none;
+  background: none;
+  border: none;
+  margin: -1px -4px;
+  padding: 1px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  max-width: 100%;
+  color: var(--pds-text-secondary);
+  font-size: 12px;
+  line-height: 1.3;
+  transition: background 0.12s ease;
+}
+
+.proto-shared-space-header__people:hover {
+  background: var(--pds-bg-subtle);
+}
+
+.proto-shared-space-header__people:focus-visible {
+  outline: none;
+  background: var(--pds-bg-chip);
+}
+
+.proto-shared-space-header__dot {
+  opacity: 0.55;
+}
+
+.proto-shared-space-header__invite {
+  color: var(--pds-accent);
+  font-weight: 500;
+}
+
+.proto-shared-space-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--pds-text-secondary);
+  font-size: 13px;
+}
+
+.proto-shared-people-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+}
+
+.proto-shared-people-row__avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.5px solid color-mix(in oklch, currentColor 22%, transparent);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.proto-shared-people-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+/* Owner / You markers — subtle neutral pill (matches our chip language). */
+.proto-shared-people-row__tag {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.proto-shared-people-row__action {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  border-radius: var(--pds-radius-button, 12px);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--pds-text-secondary);
+}
+
+.proto-shared-people-row__action:hover {
+  background: var(--pds-fill-secondary);
+}
+
+.proto-shared-people-row__action--destructive {
+  color: var(--pds-destructive);
+}
+
+/* Manage-space sheet borrows the create-folder chrome, but its scroll is the
+   first content under the header (create-folder has fields above its scroll),
+   so restore a top inset that matches the side/bottom gutters. The create-folder
+   note-list cap (`max-height: 260px`) would clip this settings-style content and
+   swallow the bottom padding, so let it grow within the popover instead. */
+.proto-shared-manage-sheet .proto-connect-note-sheet__scroll {
+  padding: 12px 14px;
+  max-height: none;
+}
+
+/* Section titles reuse the create-folder note-label's 14px side padding, but the
+   manage sheet's scroll already supplies that gutter — drop the label's own
+   horizontal padding so titles line up with the fields/rows beneath them instead
+   of sitting doubly indented. */
+.proto-shared-manage-sheet .proto-create-folder-sheet__notes-label {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* The invite view borrows the add-notes sheet's sticky footer for its "New invite
+   link" button, but here it's just inline content — drop the ghost background and
+   divider, and the extra side inset, so the button aligns with the invite card above. */
+.proto-shared-manage-sheet .proto-add-notes-sheet__footer {
+  background: transparent;
+  border-top: 0;
+  padding: 12px 0 0;
+}
+
+/* The create-folder popover forces a 300px min-height (sized for its note list),
+   but the manage sheet's hub is shorter. Without this override the sheet stretches
+   to 300px and the flex scroll absorbs the slack as dead space below the last row,
+   so let the sheet hug its content and keep the bottom gutter symmetric with the top. */
+.proto-create-folder-popover .proto-shared-manage-sheet {
+  min-height: auto;
+}
+
+.proto-shared-space-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.proto-shared-space-settings__field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pds-text-secondary);
+}
+
+.proto-shared-space-settings__field input[type='text'] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-card, var(--pds-bg-subtle));
+  font: inherit;
+  font-size: 14px;
+  color: var(--pds-text-primary);
+}
+
+.proto-shared-space-settings__field input[type='text']:focus,
+.proto-shared-space-settings__field textarea:focus {
+  outline: none;
+  border-color: var(--pds-accent);
+}
+
+.proto-shared-space-settings__colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.proto-shared-space-settings__color {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--swatch-accent, var(--pds-bg-input));
+}
+
+/* Selected swatch shows a checkmark in the space icon's hue (no outline ring). */
+.proto-shared-space-settings__color--selected svg,
+.proto-shared-space-settings__color--selected path {
+  fill: oklch(from var(--swatch-accent) calc(l * 0.58) min(c * 3.5, 0.2) h);
+}
+
+.proto-space-switcher__footer {
+  padding: 8px 12px 10px;
+  border-top: 0.5px solid var(--pds-border);
+  font-size: 11px;
+  color: var(--pds-text-secondary);
+  text-align: center;
+}
+
+.proto-space-switcher__footer--limit {
+  color: var(--pds-text-primary);
+}
+
+/* Create form — a highlighted inset that previews the space as a list row. */
+.proto-space-switcher__create-form {
+  margin: 4px 6px 6px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--pds-bg-input);
+  border: 0.5px solid var(--pds-border);
+}
+
+/* Live preview row — mirrors the list item (icon tile + title). */
+.proto-space-switcher__preview {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 2px 8px;
+}
+
+.proto-space-switcher__preview-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.proto-space-switcher__create-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--pds-border);
+  background: var(--pds-bg-popover-solid, var(--site-card));
+  font: inherit;
+  font-size: 13px;
+  color: var(--pds-text-primary);
+  outline: none;
+}
+
+.proto-space-switcher__create-input:focus,
+.proto-space-switcher__create-input:focus-visible {
+  outline: none;
+  border-color: var(--pds-accent);
+  box-shadow: inset 0 0 0 1px var(--pds-accent);
+}
+
+.proto-space-switcher__create-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.proto-space-switcher__create-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.proto-space-switcher__create-actions .proto-settings-btn {
+  width: auto;
+  flex: 0 1 auto;
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.proto-space-switcher__empty-hint {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+  text-align: center;
+}
+
+.proto-copy-space-group-label {
+  padding: 6px 12px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pds-text-secondary);
+  opacity: 0.85;
+}
+
+.proto-join-preview-avatars {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.proto-join-preview-avatars__stack {
+  display: flex;
+  align-items: center;
+}
+
+.proto-join-preview-avatars__dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--pds-bg-popover-solid);
+  margin-left: -6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.proto-join-preview-avatars__dot:first-child {
+  margin-left: 0;
+}
+
+/* Invite link block — mirrors the note share popover (URL row + Copy + Revoke). */
+.proto-shared-invite {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 0.5px solid var(--pds-border);
+}
+
+.proto-shared-invite__expiry {
+  font-size: 11px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-shared-space-settings__field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 0.5px solid var(--pds-border-control);
+  font: inherit;
+  font-size: 13px;
+  background: var(--pds-bg-card, var(--pds-bg-subtle));
+  color: var(--pds-text-primary);
+}
+
+/* Shared space cover picker (create form + people sheet settings) */
+.proto-space-cover-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.proto-space-cover-picker--compact .proto-appearance-preview {
+  width: 72px;
+}
+
+.proto-space-cover-picker--compact .proto-appearance-preview__label {
+  font-size: 10px;
+}
+
+.proto-space-cover-picker__cover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.proto-space-cover-picker__mode-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--pds-bg-input);
+  border: 0.5px solid var(--pds-border);
+}
+
+.proto-space-cover-picker__mode-tab {
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.proto-space-cover-picker__mode-tab--active {
+  background: var(--site-card);
+  color: var(--pds-text-primary);
+  box-shadow: 0 1px 2px rgba(20, 18, 12, 0.06);
+}
+
+.proto-space-cover-picker__segmented {
+  margin-bottom: 4px;
+}
+
+.proto-space-cover-picker__carousel {
+  max-width: 100%;
+}
+
+.proto-space-switcher__create-form--cover {
+  width: min(320px, 92vw);
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
 }

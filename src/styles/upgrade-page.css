@@ -154,8 +154,14 @@
   width: 3.25rem;
   height: 3.25rem;
   border-radius: 0.75rem;
-  background: var(--pds-bg-input);
-  border: 0.5px solid var(--pds-border);
+  /* Match the join letter icon treatment (`.public-join-letter__icon` + `.space-icon-tile`):
+     a soft accent-tinted fill, a card-colored 2px ring, and a subtle lift — using the
+     Shared Spaces coral-rose as the accent so the pastel fill reads as its own hue. */
+  background: color-mix(in oklab, var(--pds-highlight-coral-rose) 18%, var(--site-card));
+  border: 2px solid var(--site-card);
+  box-shadow:
+    0 2px 8px rgba(20, 18, 12, 0.12),
+    0 0 0 0.5px rgba(20, 18, 12, 0.06);
   color: var(--pds-highlight-coral-rose);
 }
 
@@ -369,18 +375,17 @@
 .upgrade-secondary-btn {
   width: 100%;
   height: 46px;
-  border: 0.5px solid var(--pds-border);
   border-radius: 999px;
-  background: var(--pds-bg-input);
-  color: var(--site-ink) !important;
-  -webkit-text-fill-color: var(--site-ink);
-  font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif !important;
-  font-size: 15px;
-  font-weight: 600;
+  border: 1px solid var(--pds-border-control);
+  background: var(--pds-bg-sidebar-input);
+  box-shadow: var(--pds-glass-rim);
+  color: var(--pds-text-primary) !important;
+  -webkit-text-fill-color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition: background 0.1s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -388,8 +393,7 @@
 }
 
 .upgrade-secondary-btn:hover:not(:disabled) {
-  background: var(--pds-bg-control);
-  border-color: color-mix(in oklab, var(--pds-border) 70%, var(--site-ink));
+  background: var(--pds-bg-sidebar-input-hover);
 }
 
 .upgrade-secondary-btn:disabled {
@@ -397,13 +401,63 @@
   cursor: not-allowed;
 }
 
-/* ─── Clerk checkout drawer — "Pay" button text ────────────────────────────
+/* ─── Clerk checkout drawer — "Pay" button ─────────────────────────────────
    The `checkoutProps.appearance` on <CheckoutButton> (UpgradeCheckoutButton.tsx)
-   sets the gradient/pill/radius to match `.upgrade-primary-btn` above, but
-   Clerk's own default text-color rule for `.cl-formButtonPrimary` still wins
-   over the appearance API's `color`, leaving the label unreadable on the blue
-   gradient. Force it white here instead. */
+   sets the gradient/pill/radius on `formButtonPrimary` to match
+   `.upgrade-primary-btn` above, but Clerk renders two different internal
+   buttons for the same "Pay" action depending on payment state:
+   - New card (no saved payment method yet): `.cl-formButtonPrimary` — the
+     appearance API's `background`/`borderRadius` land, but its own
+     text-color rule still wins over `color`, so it needs a color override.
+   - Existing card on file ("Pay with saved card"): a generic
+     `.cl-button[data-variant="solid"][data-color="primary"]`
+     (`data-localization-key="billing.pay"`) that the `formButtonPrimary`
+     appearance key does not target at all — needs the full gradient/pill
+     treatment from scratch. */
+.cl-checkout-root .cl-formButtonPrimary,
+.cl-drawerBody .cl-button[data-variant="solid"][data-color="primary"] {
+  height: 46px !important;
+  min-height: 46px !important;
+  padding: 0 20px !important;
+  font-size: 15px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
 .cl-checkout-root .cl-formButtonPrimary,
 .cl-checkout-root .cl-formButtonPrimary * {
   color: #ffffff !important;
+}
+
+.cl-drawerBody .cl-button[data-variant="solid"][data-color="primary"] {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-weight: 600 !important;
+  color: #ffffff !important;
+  background: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 24px -10px rgba(0, 110, 255, 0.6) !important;
+}
+
+.cl-drawerBody .cl-button[data-variant="solid"][data-color="primary"]:hover {
+  filter: brightness(1.05) !important;
+}
+
+.cl-drawerBody .cl-button[data-variant="solid"][data-color="primary"] * {
+  color: #ffffff !important;
+}
+
+/* "Payment Methods" / "Add payment method" segmented control — each tab
+   renders at the full row width (a Clerk sizing bug) instead of splitting
+   evenly, so the second tab overflows off-screen and looks like the first
+   does nothing when clicked. Split them evenly instead. */
+.cl-drawerBody .cl-segmentedControlButton {
+  flex: 1 1 0 !important;
+  width: auto !important;
+  min-width: 0 !important;
 }

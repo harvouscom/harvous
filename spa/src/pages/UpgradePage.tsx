@@ -13,7 +13,7 @@ import { api } from '../lib/api';
 const UPGRADE_HERO_IMAGE = '/images/auth-hero/ai_bg_045.webp';
 
 /**
- * Standalone /upgrade page — single-purpose Shared Spaces upgrade, built on
+ * Standalone /addon page — single-purpose Shared Spaces upgrade, built on
  * the `.public-page` shell (shared note / join-space / sign-in aesthetic),
  * with the same auth hero image bleeding behind the top of the card.
  */
@@ -46,7 +46,7 @@ export default function UpgradePage() {
     <>
       <title>Shared Spaces | Harvous</title>
       <div className="public-page">
-        <PublicTopBar isSignedIn={!!isSignedIn} signedInCtaLabel="Back to Harvous" />
+        <PublicTopBar isSignedIn={!!isSignedIn} signedInCtaLabel="Back to my Harvous" />
 
         <div className="public-body">
           <div className="public-content public-content--upgrade">

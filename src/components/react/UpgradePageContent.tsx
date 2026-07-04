@@ -9,13 +9,17 @@ interface UpgradePageContentProps {
   initialHasSharedSpaces: boolean;
   publishableKey?: string | null;
   sharedSpacesPlanId?: string;
+  /** Dev design gallery — bypasses Clerk for static previews. */
+  designPreview?: { signedIn: boolean };
 }
 
 const FEATURES = [
   'Create shared spaces and invite others to study with you',
-  'Everyone contributes to the same notes, threads, and folders',
+  'Everyone contributes notes to the shared space',
   'Joining a space is always free',
 ];
+
+const PRODUCT_NAME = 'Shared Spaces';
 
 /**
  * Single-purpose Shared Spaces upgrade card — paper-stack letter layout
@@ -26,8 +30,10 @@ export default function UpgradePageContent({
   initialHasSharedSpaces,
   publishableKey,
   sharedSpacesPlanId,
+  designPreview,
 }: UpgradePageContentProps) {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn: clerkSignedIn } = useAuth();
+  const isSignedIn = designPreview?.signedIn ?? clerkSignedIn;
   const [hasSharedSpaces, setHasSharedSpaces] = useState(initialHasSharedSpaces);
 
   const checkStatus = async () => {
@@ -44,13 +50,14 @@ export default function UpgradePageContent({
   };
 
   useEffect(() => {
+    if (designPreview) return;
     checkStatus();
 
     const handleUpgrade = () => checkStatus();
     window.addEventListener('subscriptionUpgraded', handleUpgrade);
 
     const handlePageLoad = () => {
-      if (window.location.pathname === '/upgrade') {
+      if (window.location.pathname === '/addon') {
         checkStatus();
       }
     };
@@ -60,7 +67,7 @@ export default function UpgradePageContent({
       window.removeEventListener('subscriptionUpgraded', handleUpgrade);
       document.removeEventListener('app:route-change', handlePageLoad);
     };
-  }, []);
+  }, [designPreview]);
 
   const handleSubscriptionCancel = () => {
     void checkStatus();
@@ -68,7 +75,7 @@ export default function UpgradePageContent({
   };
 
   const redirectUrl =
-    typeof window !== 'undefined' ? encodeURIComponent(window.location.href) : encodeURIComponent('/upgrade');
+    typeof window !== 'undefined' ? encodeURIComponent(window.location.href) : encodeURIComponent('/addon');
   const signInHref = `/sign-in?redirect_url=${redirectUrl}`;
 
   return (
@@ -81,10 +88,11 @@ export default function UpgradePageContent({
             <span className="public-addon-letter__icon" aria-hidden>
               <Icon name="user-group" size={22} />
             </span>
-            <h1 className="public-addon-letter__title">Shared Spaces</h1>
+            <h1 className="public-addon-letter__title">{PRODUCT_NAME}</h1>
             <p className="public-addon-letter__tagline">
-              Study with others in shared spaces where everyone contributes to the same notes, threads,
-              and folders.
+              {hasSharedSpaces
+                ? `${PRODUCT_NAME} is active on your account. Here's a reminder of what it includes:`
+                : 'Study with others in shared spaces where everyone contributes notes together.'}
             </p>
           </div>
 
@@ -102,16 +110,15 @@ export default function UpgradePageContent({
           <div className="public-addon-letter__cta">
             {hasSharedSpaces ? (
               <>
-                <p className="public-addon-letter__active">Shared Spaces is active on your account.</p>
                 <a href="/" className="upgrade-primary-btn">
-                  Go to Dashboard
+                  Back to My Harvous
                 </a>
                 <SafeSubscriptionDetailsButton
                   publishableKey={publishableKey}
                   onSubscriptionCancel={handleSubscriptionCancel}
                 >
                   <button type="button" className="upgrade-secondary-btn">
-                    Manage or remove
+                    Manage subscription
                   </button>
                 </SafeSubscriptionDetailsButton>
               </>
@@ -120,13 +127,13 @@ export default function UpgradePageContent({
                 className="upgrade-checkout"
                 publishableKey={publishableKey}
                 planId={sharedSpacesPlanId}
-                ctaLabel="Add Shared Spaces"
+                ctaLabel={`Add ${PRODUCT_NAME}`}
                 priceMonthlyLabel="$6 per month"
                 priceAnnualLabel="$48 per year"
               />
             ) : (
               <a href={signInHref} className="upgrade-primary-btn">
-                Sign in to upgrade
+                Sign in to add
               </a>
             )}
           </div>
@@ -135,7 +142,7 @@ export default function UpgradePageContent({
 
       <div className="public-footer public-footer--rich">
         <span className="public-footer__tag">
-          Questions about billing?{' '}
+          Questions?{' '}
           <a href="mailto:derek@harvous.com" className="public-footer__cta">
             derek@harvous.com
           </a>

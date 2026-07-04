@@ -4,19 +4,20 @@ import { useSubscriptionStatus } from '../../../hooks/queries/useSubscriptionSta
 import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
 
 /**
- * Settings > Add-ons — browse paid upgrades. Shared Spaces links to /upgrade;
+ * Settings > Add-ons — browse paid upgrades. Shared Spaces links to /addon;
  * Review and Challenges are coming soon.
  */
 export default function PrototypeAddonsPage() {
   const navigate = useNavigate();
   const { data: subscription, isLoading } = useSubscriptionStatus();
   const hasSharedSpaces = Boolean(subscription?.hasSharedSpaces);
+  const showLoading = isLoading && !subscription;
 
   return (
     <SettingsShell>
       <SettingsIntro>Optional paid upgrades for your Bible study.</SettingsIntro>
 
-      {isLoading ? (
+      {showLoading ? (
         <p className="pds-caption" style={{ marginTop: 4, color: 'var(--pds-text-secondary)' }}>
           Loading…
         </p>
@@ -25,11 +26,11 @@ export default function PrototypeAddonsPage() {
       <SettingsGroup>
         <SettingsRow
           label="Shared Spaces"
-          sublabel="Notes, threads, and folders for group study."
+          sublabel="Shared notes for group study."
           leadingIcon="user-group"
           leadingAccent="var(--pds-highlight-coral-rose)"
           badge={hasSharedSpaces ? 'Active' : undefined}
-          onClick={() => navigate({ to: '/upgrade' })}
+          onClick={() => navigate({ to: '/addon' })}
         />
         <SettingsRow
           label="Review"
@@ -52,13 +53,11 @@ export default function PrototypeAddonsPage() {
       </SettingsGroup>
 
       {hasSharedSpaces ? (
-        <p className="pds-caption" style={{ margin: '4px 12px 0', color: 'var(--pds-text-secondary)' }}>
-          <SafeSubscriptionDetailsButton publishableKey={null}>
-            <button type="button" className="proto-settings-billing-link">
-              Manage billing
-            </button>
-          </SafeSubscriptionDetailsButton>
-        </p>
+        <SafeSubscriptionDetailsButton publishableKey={null}>
+          <button type="button" className="proto-settings-btn proto-settings-btn--secondary">
+            Manage subscription
+          </button>
+        </SafeSubscriptionDetailsButton>
       ) : null}
     </SettingsShell>
   );

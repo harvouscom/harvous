@@ -76,6 +76,14 @@ import {
   MEMBERS_PER_SPACE_CAP,
 } from '../utils/tier-limits';
 import { getThreadGradientCSS } from '@/utils/colors';
+import {
+  serializeSpaceCoverForDb,
+  spaceCoverApiFields,
+  spaceCoverFromThreadColor,
+  appearanceAccentHexFromCoverBg,
+  appearanceAccentForThreadColor,
+  coerceSpaceCoverBgInput,
+} from '@/utils/space-cover';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle, validateColor } from '@/utils/validation';
 import { rateLimit } from '@/utils/rate-limit';
@@ -198,9 +206,15 @@ route.post('/api/spaces/create-shared', requireAuth, rateLimit('write'), async (
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const body = await c.req.json().catch(() => ({})) as { title?: string; color?: string; description?: string };
+    const body = await c.req.json().catch(() => ({})) as {
+      title?: string;
+      color?: string;
+      description?: string;
+    };
     const title = (body.title ?? '').trim();
     const color = (body.color ?? 'paper').trim() || 'paper';
+    const cover = spaceCoverFromThreadColor(color);
+    const { coverBgLight, coverBgDark } = serializeSpaceCoverForDb(cover);
 
     const titleValidation = validateTitle(title, true);
     if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
@@ -228,6 +242,8 @@ route.post('/api/spaces/create-shared', requireAuth, rateLimit('write'), async (
         description: body.description?.trim() || null,
         color,
         backgroundGradient: getThreadGradientCSS(color),
+        coverBgLight,
+        coverBgDark,
         userId: auth.userId,
         type: 'shared',
         isPublic: false,
@@ -402,6 +418,11 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
     const formData = await c.req.formData();
     const title = formData.get('title') as string;
     const color = formData.get('color') as string;
+    const descriptionRaw = formData.get('description');
+    const description =
+      descriptionRaw == null || descriptionRaw === ''
+        ? undefined
+        : String(descriptionRaw).trim().slice(0, 500) || null;
     // `isPublic` is no longer accepted — sharing is governed by Spaces.type + SpaceInvites.
 
     const space = first(await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).limit(1));
@@ -414,9 +435,16 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
 
     const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
     const backgroundGradient = getThreadGradientCSS(color);
+    const { coverBgLight, coverBgDark } = serializeSpaceCoverForDb(spaceCoverFromThreadColor(color));
 
     const updatedSpace = first(await db.update(Spaces).set({
-      title: capitalizedTitle, color, backgroundGradient, updatedAt: nowISO(),
+      title: capitalizedTitle,
+      color,
+      backgroundGradient,
+      coverBgLight,
+      coverBgDark,
+      ...(description !== undefined ? { description } : {}),
+      updatedAt: nowISO(),
     }).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).returning())!;
 
     return c.json({ success: 'Space updated!', space: updatedSpace });
@@ -1344,11 +1372,19 @@ route.get('/api/spaces/:spaceId/bootstrap', requireAuth, async (c) => {
     }
 
     const spaceRow = accessInfo.space;
+    const { coverBgLight, coverBgDark } = spaceCoverApiFields(
+      spaceRow.coverBgLight,
+      spaceRow.coverBgDark,
+      spaceRow.color,
+    );
     const spaceDetail = {
       id: spaceRow.id,
       title: spaceRow.title,
       color: spaceRow.color,
       backgroundGradient: spaceRow.backgroundGradient || getThreadGradientCSS(spaceRow.color || 'paper'),
+      description: spaceRow.description ?? null,
+      coverBgLight,
+      coverBgDark,
       ownerId: spaceRow.userId,
       memberCount: 0,
       isPublic: spaceRow.isPublic,
@@ -1388,12 +1424,20 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
     const ownerSpace = ownerSpaces.find((s: any) => s.id === spaceId);
     if (ownerSpace) {
       const memberCount = ownerSpace.type === 'personal' ? 0 : await getSpaceMemberCount(ownerSpace.id);
+      const { coverBgLight, coverBgDark } = spaceCoverApiFields(
+        ownerSpace.coverBgLight,
+        ownerSpace.coverBgDark,
+        ownerSpace.color,
+      );
       return c.json({
         space: {
           id: ownerSpace.id,
           title: ownerSpace.title,
           color: ownerSpace.color,
           backgroundGradient: ownerSpace.backgroundGradient,
+          description: ownerSpace.description ?? null,
+          coverBgLight,
+          coverBgDark,
           totalItemCount: ownerSpace.totalItemCount,
           isPublic: ownerSpace.isPublic,
           type: ownerSpace.type,
@@ -1417,12 +1461,21 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
     const totalItemCount = (noteCountResult?.count || 0) + (threadCountResult?.count || 0);
     const memberCount = await getSpaceMemberCount(space.id);
 
+    const { coverBgLight, coverBgDark } = spaceCoverApiFields(
+      space.coverBgLight,
+      space.coverBgDark,
+      space.color,
+    );
+
     return c.json({
       space: {
         id: space.id,
         title: space.title,
         color: space.color,
         backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'),
+        description: space.description ?? null,
+        coverBgLight,
+        coverBgDark,
         totalItemCount,
         isPublic: space.isPublic,
         type: space.type,
@@ -1774,7 +1827,7 @@ route.post('/api/spaces/:spaceId/invites', requireAuth, rateLimit('write'), asyn
       return c.json({
         error: 'Owning shared spaces requires the Shared Spaces add-on. Joining spaces is always free.',
         code: 'SHARED_SPACE_LIMIT_EXCEEDED',
-        upgradeUrl: '/upgrade',
+        upgradeUrl: '/addon',
       }, 403);
     }
 
@@ -1914,6 +1967,50 @@ route.get('/api/spaces/invite-preview/:token', async (c) => {
     const memberCount = await getSpaceMemberCount(space.id);
     const totalMembers = memberCount + 1; // +1 for owner
 
+    // Each avatar reflects that person's own Settings › Appearance color (light + dark),
+    // falling back to their personal userColor when appearance is Paper / unset.
+    const resolveAppearanceAccents = (appearanceSettingsRaw: string | null | undefined, userColor: string) => {
+      let bgLight: ReturnType<typeof coerceSpaceCoverBgInput> = null;
+      let bgDark: ReturnType<typeof coerceSpaceCoverBgInput> = null;
+      try {
+        const parsed = appearanceSettingsRaw ? JSON.parse(appearanceSettingsRaw) : null;
+        bgLight = coerceSpaceCoverBgInput(parsed?.bgLight ?? null);
+        bgDark = coerceSpaceCoverBgInput(parsed?.bgDark ?? null);
+      } catch { /* malformed settings — fall back to userColor below */ }
+      return {
+        accentLight: appearanceAccentHexFromCoverBg(bgLight, 'light') ?? appearanceAccentForThreadColor(userColor, 'light'),
+        accentDark: appearanceAccentHexFromCoverBg(bgDark, 'dark') ?? appearanceAccentForThreadColor(userColor, 'dark'),
+      };
+    };
+
+    const ownerAccents = resolveAppearanceAccents(ownerMeta?.appearanceSettings, ownerMeta?.userColor || 'blue');
+
+    // Anonymized member preview (up to 2 real non-owner members) for the avatar stack.
+    // Only an initial + accent colors are exposed — never names/emails — since this endpoint is public.
+    let memberPreviews: { initial: string; accentLight: string | null; accentDark: string | null }[] = [];
+    try {
+      const previewMemberships = (await db
+        .select({ userId: SpaceMemberships.userId, joinedAt: SpaceMemberships.joinedAt })
+        .from(SpaceMemberships)
+        .where(eq(SpaceMemberships.spaceId, space.id)))
+        .filter(m => m.userId !== space.userId)
+        .sort((a, b) => (b.joinedAt || '').localeCompare(a.joinedAt || ''));
+      const previewIds = previewMemberships.slice(0, 2).map(m => m.userId);
+      if (previewIds.length > 0) {
+        const metas = await db
+          .select({ userId: UserMetadata.userId, firstName: UserMetadata.firstName, email: UserMetadata.email, userColor: UserMetadata.userColor, appearanceSettings: UserMetadata.appearanceSettings })
+          .from(UserMetadata)
+          .where(inArray(UserMetadata.userId, previewIds));
+        const metaMap = new Map(metas.map(m => [m.userId, m]));
+        memberPreviews = previewIds.map(id => {
+          const meta = metaMap.get(id);
+          const source = (meta?.firstName || meta?.email || '').trim();
+          const { accentLight, accentDark } = resolveAppearanceAccents(meta?.appearanceSettings, meta?.userColor || 'blue');
+          return { initial: source ? source.charAt(0).toUpperCase() : '?', accentLight, accentDark };
+        });
+      }
+    } catch { /* member preview is best-effort; omit on error */ }
+
     // Thread preview (up to 5), all authors
     const threads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color })
       .from(Threads).where(eq(Threads.spaceId, space.id))
@@ -1993,15 +2090,30 @@ route.get('/api/spaces/invite-preview/:token', async (c) => {
       }
     }
 
+    const { coverBgLight, coverBgDark } = spaceCoverApiFields(
+      space.coverBgLight,
+      space.coverBgDark,
+      space.color,
+    );
+
     return c.json({
       space: {
         id: space.id, title: space.title, color: space.color,
         backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'),
         description: space.description,
         type: space.type,
+        coverBgLight,
+        coverBgDark,
       },
-      owner: { displayName: ownerDisplayName, isHarvousOwned, profileImageUrl: ownerMeta?.profileImageUrl || null },
+      owner: {
+        displayName: ownerDisplayName,
+        isHarvousOwned,
+        profileImageUrl: ownerMeta?.profileImageUrl || null,
+        accentLight: ownerAccents.accentLight,
+        accentDark: ownerAccents.accentDark,
+      },
       memberCount: totalMembers,
+      memberPreviews,
       threadPreviews,
       notePreviews,
       isAlreadyMember,

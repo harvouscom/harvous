@@ -1,0 +1,334 @@
+/**
+ * Shared space cover appearance — same shape as device appearance `ProtoBg`,
+ * stored per mode on Spaces (`coverBgLight` / `coverBgDark` JSON columns).
+ */
+import appearanceImagePresets from '../../shared/appearance-image-presets.json';
+import appearancePresets from '../../shared/appearance-presets.json';
+
+export type SpaceCoverBg =
+  | { kind: 'color'; value: string; presetId?: string }
+  | { kind: 'image-preset'; presetId: string; tint?: string }
+  | null;
+
+export type SpaceCoverAppearance = {
+  light: SpaceCoverBg;
+  dark: SpaceCoverBg;
+};
+
+type AppearanceColorPreset = {
+  id: string;
+  light: string | null;
+  dark?: string | null;
+};
+
+type AppearanceImagePresetRow = {
+  id: string;
+  mode: 'light' | 'dark';
+};
+
+const IMAGE_PRESET_IDS = new Set(
+  (appearanceImagePresets.presets as AppearanceImagePresetRow[]).map((p) => p.id),
+);
+const COLOR_PRESET_IDS = new Set(
+  (appearancePresets.presets as AppearanceColorPreset[]).map((p) => p.id),
+);
+
+/** Non-paper color presets — same carousel order as Settings › Appearance › Colors. */
+const APPEARANCE_COLOR_PRESETS = (appearancePresets.presets as AppearanceColorPreset[]).filter(
+  (p) => p.id !== 'paper',
+);
+
+const APPEARANCE_LIGHT_IMAGE_PRESETS = (appearanceImagePresets.presets as AppearanceImagePresetRow[]).filter(
+  (p) => p.mode === 'light',
+);
+const APPEARANCE_DARK_IMAGE_PRESETS = (appearanceImagePresets.presets as AppearanceImagePresetRow[]).filter(
+  (p) => p.mode === 'dark',
+);
+
+export function emptySpaceCoverAppearance(): SpaceCoverAppearance {
+  return { light: null, dark: null };
+}
+
+export function parseSpaceCoverBg(raw: string | null | undefined): SpaceCoverBg {
+  if (!raw || typeof raw !== 'string') return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return validateSpaceCoverBg(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function serializeSpaceCoverBg(bg: SpaceCoverBg): string | null {
+  if (!bg) return null;
+  return JSON.stringify(bg);
+}
+
+export function validateSpaceCoverBg(value: unknown): value is NonNullable<SpaceCoverBg> {
+  if (!value || typeof value !== 'object') return false;
+  const bg = value as Record<string, unknown>;
+  if (bg.kind === 'color') {
+    return typeof bg.value === 'string' && bg.value.length > 0
+      && (bg.presetId == null || (typeof bg.presetId === 'string' && COLOR_PRESET_IDS.has(bg.presetId)));
+  }
+  if (bg.kind === 'image-preset') {
+    return typeof bg.presetId === 'string' && IMAGE_PRESET_IDS.has(bg.presetId)
+      && (bg.tint == null || typeof bg.tint === 'string');
+  }
+  return false;
+}
+
+export function parseSpaceCoverAppearance(
+  lightRaw: string | null | undefined,
+  darkRaw: string | null | undefined,
+): SpaceCoverAppearance {
+  return {
+    light: parseSpaceCoverBg(lightRaw ?? null),
+    dark: parseSpaceCoverBg(darkRaw ?? null),
+  };
+}
+
+/** Accept JSON object or string from API bodies / FormData. */
+export function coerceSpaceCoverBgInput(raw: unknown): SpaceCoverBg {
+  if (raw == null || raw === '') return null;
+  if (typeof raw === 'string') return parseSpaceCoverBg(raw);
+  if (typeof raw === 'object' && validateSpaceCoverBg(raw)) return raw;
+  return null;
+}
+
+export function coverBgForMode(
+  appearance: SpaceCoverAppearance,
+  mode: 'light' | 'dark',
+): SpaceCoverBg {
+  return mode === 'dark' ? (appearance.dark ?? appearance.light) : (appearance.light ?? appearance.dark);
+}
+
+/**
+ * Thread accent colors offered in the space color picker, in Settings › Appearance order.
+ * Cream (yellow) is intentionally excluded as a space option.
+ */
+export const SPACE_COVER_PICKER_COLORS = [
+  'blue',
+  'purple',
+  'orange',
+  'green',
+  'pink',
+] as const;
+
+export type SpaceCoverPickerColor = (typeof SPACE_COVER_PICKER_COLORS)[number];
+
+/** Appearance color preset ids — index-aligned with image preset arrays below. */
+export const APPEARANCE_COLOR_PRESET_IDS = APPEARANCE_COLOR_PRESETS.map((p) => p.id);
+
+/** Image preset ids — sourced from `shared/appearance-image-presets.json` order. */
+export const SPACE_COVER_LIGHT_IMAGE_IDS = APPEARANCE_LIGHT_IMAGE_PRESETS.map((p) => p.id);
+export const SPACE_COVER_DARK_IMAGE_IDS = APPEARANCE_DARK_IMAGE_PRESETS.map((p) => p.id);
+
+/** Thread accent → appearance color preset id (Settings › Appearance). */
+export const THREAD_TO_APPEARANCE_COLOR_ID: Record<SpaceCoverPickerColor, string> = {
+  blue: 'sky',
+  purple: 'lilac',
+  orange: 'peach',
+  green: 'mint',
+  pink: 'pink',
+};
+
+/**
+ * Appearance color → paired imagery preset id (by preset id, not carousel index).
+ * Note: lilac ↔ aurora and cream ↔ drift are intentionally cross-paired — the
+ * cooler blue-tinted "aurora" sky reads as purple, and the golden "drift" valley
+ * matches yellow better than the index-aligned default would.
+ */
+export const APPEARANCE_COLOR_TO_LIGHT_IMAGE_ID: Record<string, string> = {
+  sky: 'breeze',
+  lilac: 'aurora',
+  peach: 'meadow',
+  mint: 'dawn',
+  pink: 'halo',
+  cream: 'drift',
+};
+
+export const APPEARANCE_COLOR_TO_DARK_IMAGE_ID: Record<string, string> = {
+  sky: 'cinder',
+  lilac: 'caldera',
+  peach: 'depths',
+  mint: 'flare',
+  pink: 'twilight',
+  cream: 'ember',
+};
+
+/** Reverse maps: appearance image preset id → its paired appearance color id (per mode). */
+const LIGHT_IMAGE_TO_APPEARANCE_COLOR_ID: Record<string, string> = Object.fromEntries(
+  Object.entries(APPEARANCE_COLOR_TO_LIGHT_IMAGE_ID).map(([colorId, imageId]) => [imageId, colorId]),
+);
+const DARK_IMAGE_TO_APPEARANCE_COLOR_ID: Record<string, string> = Object.fromEntries(
+  Object.entries(APPEARANCE_COLOR_TO_DARK_IMAGE_ID).map(([colorId, imageId]) => [imageId, colorId]),
+);
+
+/** Canvas hex for an appearance color preset id (`sky`, `mint`, …); null for paper/unknown. */
+export function appearancePresetHex(
+  appearanceId: string | null | undefined,
+  mode: 'light' | 'dark',
+): string | null {
+  if (!appearanceId) return null;
+  const preset = (appearancePresets.presets as AppearanceColorPreset[]).find((p) => p.id === appearanceId);
+  if (!preset) return null;
+  const hex = mode === 'dark' ? (preset.dark ?? preset.light) : preset.light;
+  return hex ?? null;
+}
+
+/**
+ * Resolve a user's appearance background (a `ProtoBg` / `SpaceCoverBg`) to a solid
+ * accent hex for the given mode — the color they picked in Settings › Appearance.
+ * Color presets carry the mode-correct hex directly; image presets map to their
+ * paired color's canvas hex. Paper / unset returns null (caller falls back).
+ */
+export function appearanceAccentHexFromCoverBg(
+  bg: SpaceCoverBg,
+  mode: 'light' | 'dark',
+): string | null {
+  if (!bg) return null;
+  if (bg.kind === 'color') {
+    return bg.value?.startsWith('#') ? bg.value : null;
+  }
+  if (bg.kind === 'image-preset') {
+    const imageToColor = mode === 'dark' ? DARK_IMAGE_TO_APPEARANCE_COLOR_ID : LIGHT_IMAGE_TO_APPEARANCE_COLOR_ID;
+    return appearancePresetHex(imageToColor[bg.presetId], mode);
+  }
+  return null;
+}
+
+/** Legible glyph/initial color for a solid accent hex (dark mode → near-white). */
+export function avatarGlyphColorForAccent(
+  accentHex: string | null | undefined,
+  mode: 'light' | 'dark',
+): string | null {
+  if (mode === 'dark') return 'rgba(255, 255, 255, 0.96)';
+  if (accentHex?.startsWith('#')) {
+    return `oklch(from ${accentHex} calc(l * 0.58) min(c * 3.5, 0.2) h)`;
+  }
+  return accentHex ? `color-mix(in oklch, ${accentHex} 55%, var(--site-ink))` : null;
+}
+
+export function appearanceColorIdForThreadColor(color: string | null | undefined): string | null {
+  const key = (color ?? '').toLowerCase();
+  if (!(SPACE_COVER_PICKER_COLORS as readonly string[]).includes(key)) return null;
+  return THREAD_TO_APPEARANCE_COLOR_ID[key as SpaceCoverPickerColor] ?? null;
+}
+
+export function coverIndexForThreadColor(color: string | null | undefined): number {
+  const appearanceId = appearanceColorIdForThreadColor(color);
+  if (!appearanceId) return -1;
+  return APPEARANCE_COLOR_PRESET_IDS.indexOf(appearanceId);
+}
+
+/** Paired appearance canvas hex for a thread accent (Settings › Appearance colors). */
+export function appearanceAccentForThreadColor(
+  color: string | null | undefined,
+  mode: 'light' | 'dark',
+): string | null {
+  const appearanceId = appearanceColorIdForThreadColor(color);
+  if (!appearanceId) return null;
+  const preset = APPEARANCE_COLOR_PRESETS.find((p) => p.id === appearanceId);
+  if (!preset) return null;
+  if (mode === 'dark') {
+    return preset.dark !== undefined ? preset.dark : preset.light;
+  }
+  return preset.light;
+}
+
+/** Color-picker dot fill — appearance hex when paired, else legacy thread token. */
+export function spacePickerSwatchColor(
+  color: string,
+  mode: 'light' | 'dark' = 'light',
+): string {
+  return appearanceAccentForThreadColor(color, mode) ?? `var(--color-${color})`;
+}
+
+/** Icon glyph on a space-color tile — saturated mid-tone from the tile hue (not near-black dark preset). */
+export function appearanceIconGlyphColor(
+  color: string | null | undefined,
+  mode: 'light' | 'dark',
+): string {
+  if (mode === 'dark') {
+    return 'rgba(255, 255, 255, 0.96)';
+  }
+  const accent = appearanceAccentForThreadColor(color, 'light');
+  if (accent?.startsWith('#')) {
+    return `oklch(from ${accent} calc(l * 0.58) min(c * 3.5, 0.2) h)`;
+  }
+  if (accent) {
+    return `color-mix(in oklch, ${accent} 55%, var(--site-ink))`;
+  }
+  return `var(--color-${color || 'paper'})`;
+}
+
+/** Join letter + menu row — appearance accent hex for the tile background. */
+export function spaceIconAccentHex(
+  color: string | null | undefined,
+  mode: 'light' | 'dark',
+): string {
+  return appearanceAccentForThreadColor(color, mode) ?? `var(--color-${color || 'paper'})`;
+}
+
+/** @deprecated Prefer `spaceIconAccentHex` + `.space-icon-tile` CSS for glyph color. */
+export function spaceIconTileStyles(
+  color: string | null | undefined,
+  mode: 'light' | 'dark',
+): { background: string; color: string } {
+  const accent = spaceIconAccentHex(color, mode);
+  return {
+    background: accent,
+    color: appearanceIconGlyphColor(color, mode),
+  };
+}
+
+function imagePresetCover(id: string): SpaceCoverBg {
+  if (!IMAGE_PRESET_IDS.has(id)) return null;
+  return { kind: 'image-preset', presetId: id };
+}
+
+/** Derive light/dark cover images from a thread accent color (paper → no imagery). */
+export function spaceCoverFromThreadColor(color: string | null | undefined): SpaceCoverAppearance {
+  const key = (color ?? 'paper').toLowerCase();
+  if (key === 'paper') return emptySpaceCoverAppearance();
+  const appearanceId = appearanceColorIdForThreadColor(key);
+  if (!appearanceId) return emptySpaceCoverAppearance();
+  const lightId = APPEARANCE_COLOR_TO_LIGHT_IMAGE_ID[appearanceId];
+  const darkId = APPEARANCE_COLOR_TO_DARK_IMAGE_ID[appearanceId];
+  return {
+    light: lightId ? imagePresetCover(lightId) : null,
+    dark: darkId ? imagePresetCover(darkId) : null,
+  };
+}
+
+/** Always derive from thread color so picker ↔ imagery stays in sync with Appearance. */
+export function effectiveSpaceCover(
+  _stored: SpaceCoverAppearance,
+  threadColor: string | null | undefined,
+): SpaceCoverAppearance {
+  return spaceCoverFromThreadColor(threadColor);
+}
+
+export function serializeSpaceCoverForDb(cover: SpaceCoverAppearance): {
+  coverBgLight: string | null;
+  coverBgDark: string | null;
+} {
+  return {
+    coverBgLight: serializeSpaceCoverBg(cover.light),
+    coverBgDark: serializeSpaceCoverBg(cover.dark),
+  };
+}
+
+/** API payloads — always derive cover from thread color (ignore stale DB rows). */
+export function spaceCoverApiFields(
+  storedLight: string | null | undefined,
+  storedDark: string | null | undefined,
+  threadColor: string | null | undefined,
+): { coverBgLight: SpaceCoverBg; coverBgDark: SpaceCoverBg } {
+  const cover = effectiveSpaceCover(
+    parseSpaceCoverAppearance(storedLight, storedDark),
+    threadColor,
+  );
+  return { coverBgLight: cover.light, coverBgDark: cover.dark };
+}
