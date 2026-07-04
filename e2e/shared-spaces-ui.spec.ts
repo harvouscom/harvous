@@ -194,24 +194,14 @@ test.describe('Shared Spaces UI screenshot tour', () => {
     const page = await userBContext.newPage();
     await waitForAppShell(page);
     await selectSpaceInSwitcher(page, spaceTitle);
-    // Compose via the toolbar "New note" button and capture the editor.
+    // Compose via the toolbar "New note" button. The compose target follows the
+    // persisted space selection (composeTargetSpaceId in PrototypeNotePage), so a
+    // fresh draft lands in the active shared space rather than personal My Home —
+    // this also guards the nav-readiness race that previously misrouted the note.
     const composeBtn = page.getByRole('button', { name: 'New note' }).first();
     await composeBtn.click();
     await typeInNoteBodyAndWaitForSave(page, memberNoteTitle);
     await snap(page, 'member-composing-own-note', { fullPage: false });
-
-    // Pin a member-authored note in the shared space for the author-chip and
-    // editable-own-note assertions below. UI compose targeting reads the active
-    // space via useActiveSpace(), which depends on the navigation query being warm
-    // at draft-persist time — on a freshly opened page that is subject to a race
-    // (the draft can land in My Home). The API create fixes the author (User B)
-    // and the space deterministically without relying on an arbitrary delay.
-    await createNoteInSpaceViaApi(
-      userBContext.request,
-      spaceId,
-      'Member-authored content for author-chip test.',
-      memberNoteTitle,
-    );
 
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');

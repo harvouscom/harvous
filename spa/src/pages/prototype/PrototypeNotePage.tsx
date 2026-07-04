@@ -96,12 +96,13 @@ export default function PrototypeNotePage() {
     };
   }, [initialCrossRefTargetSearch, dockReq]);
 
-  // activeSpaceId falls back to the personal My Home space when no shared
-  // space is selected — new notes composed while a shared space is active
-  // land in that space, not always My Home. personalHomeSpaceId is kept
-  // separately to detect when a compose target is actually shared (for the
-  // offline guard: shared spaces require connectivity in the foundation).
-  const { activeSpaceId: homeSpaceId, homeSpaceId: personalHomeSpaceId } = useActiveSpace();
+  // personalHomeSpaceId is the viewer's My Home; it's used for the offline guard
+  // (shared spaces require connectivity in the foundation) and as the compose
+  // fallback when no shared space is selected. The compose *target* itself comes
+  // from the persisted selection (see composeTargetSpaceId below), not from the
+  // nav-validated activeSpaceId, so a brand-new draft never races the navigation
+  // query and land in My Home while a shared space is active.
+  const { homeSpaceId: personalHomeSpaceId } = useActiveSpace();
   const { userId: authUserId } = useAuth();
   const navigate = useNavigate();
 
@@ -151,6 +152,7 @@ export default function PrototypeNotePage() {
   const [draftPersistRemountTick, setDraftPersistRemountTick] = useState(0);
   const processScriptureMutation = useProcessScriptureRefs();
   const {
+    activeSpaceId: selectedSpaceId,
     inspectorOpen,
     inspectorExiting,
     isMobileSidebar,
@@ -166,6 +168,19 @@ export default function PrototypeNotePage() {
     studyThreadPopoverOpen,
     closeStudyThreadPopover,
   } = useProtoShell();
+
+  // New-note compose target. Trust the persisted space selection directly (it's
+  // set synchronously when the user picks a space and restored from localStorage
+  // on load) rather than the nav-validated activeSpaceId, which briefly falls back
+  // to My Home on a cold page before the navigation query settles. That fallback
+  // could otherwise persist a fresh draft into personal My Home instead of the
+  // shared space the user is composing in. Falls back to My Home when nothing is
+  // selected; a stale selection is cleared by useActiveSpace and the server
+  // rejects a create into a space you no longer belong to.
+  const composeTargetSpaceId = useMemo(() => {
+    if (!selectedSpaceId) return personalHomeSpaceId;
+    return selectedSpaceId.startsWith('space_') ? selectedSpaceId : `space_${selectedSpaceId}`;
+  }, [selectedSpaceId, personalHomeSpaceId]);
   const prevComposeSessionEpochRef = useRef(composeSessionEpoch);
 
   const onHighlightDeepLinkHandoff = useCallback(() => {
@@ -280,9 +295,10 @@ export default function PrototypeNotePage() {
     typeof note?.spaceId === 'string' && note.spaceId.trim().length > 0 ? note.spaceId : null;
   const resolvedSpaceFromThread = (note?.threads?.[0] as { spaceId?: string | null } | undefined)?.spaceId ?? null;
 
-  const effectiveSpaceId =
-    foreignSharedSpaceId ||
-    ((resolvedSpaceFromNote != null ? resolvedSpaceFromNote : resolvedSpaceFromThread) ?? homeSpaceId ?? '');
+  const effectiveSpaceId = isDraft
+    ? composeTargetSpaceId ?? ''
+    : foreignSharedSpaceId ||
+      ((resolvedSpaceFromNote != null ? resolvedSpaceFromNote : resolvedSpaceFromThread) ?? composeTargetSpaceId ?? '');
 
   const effectiveSpaceIdRef = useRef(effectiveSpaceId);
   effectiveSpaceIdRef.current = effectiveSpaceId;
@@ -292,7 +308,7 @@ export default function PrototypeNotePage() {
   // it up here directly.
   useEffect(() => {
     const handler = async () => {
-      const spaceId = effectiveSpaceIdRef.current || homeSpaceId;
+      const spaceId = composeTargetSpaceId || effectiveSpaceIdRef.current;
       if (!spaceId) return;
 
       const title = localStorage.getItem('newNoteTitle') ?? '';
@@ -327,7 +343,7 @@ export default function PrototypeNotePage() {
 
     window.addEventListener('openNewNotePanel', handler);
     return () => window.removeEventListener('openNewNotePanel', handler);
-  }, [homeSpaceId, personalHomeSpaceId, navigate]);
+  }, [composeTargetSpaceId, personalHomeSpaceId, navigate]);
 
   const liveFolderLabelRef = useRef<string | null>(null);
 
@@ -644,7 +660,9 @@ export default function PrototypeNotePage() {
         await updatePersisted(createdId);
         return createdId;
       }
-      const spaceId = effectiveSpaceIdRef.current || homeSpaceId;
+      const spaceId = isDraft
+        ? composeTargetSpaceId || effectiveSpaceIdRef.current
+        : effectiveSpaceIdRef.current || composeTargetSpaceId;
       if (!spaceId) return null;
 
       draftPersistPromiseRef.current = (async () => {
@@ -697,7 +715,7 @@ export default function PrototypeNotePage() {
 
       return draftPersistPromiseRef.current;
     },
-    [homeSpaceId, personalHomeSpaceId, scheduleComposeUrlIdleReplace, setComposePersistedNoteId, setPrototypeFolderChip],
+    [composeTargetSpaceId, isDraft, personalHomeSpaceId, scheduleComposeUrlIdleReplace, setComposePersistedNoteId, setPrototypeFolderChip],
   );
 
   const handleNoteSave = useCallback(
