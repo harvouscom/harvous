@@ -59,8 +59,9 @@ import {
   type FormatToolbarSelectionRange,
 } from '@/utils/prototype-format-toolbar-selection';
 import { flushCoalescedNoteHtmlOnUnmount } from '@/utils/prototype-note-content-propagation';
-import { isTiptapViewReady } from '@/utils/tiptap-helpers';
+import { getTiptapEditorDomId, isTiptapViewReady } from '@/utils/tiptap-helpers';
 import ScripturePillDeleteConfirm from './ScripturePillDeleteConfirm';
+import ScriptureDraftConfirmDockWeb from './ScriptureDraftConfirmDockWeb';
 
 export { isSelectionActionBarEligible } from './selection-action-bar-eligibility';
 
@@ -439,7 +440,7 @@ function resolveScripturePillMarkForAccentChange(
     }
   }
 
-  if (reference && editor.view?.dom) {
+  if (reference && isTiptapViewReady(editor)) {
     try {
       const root = editor.view.dom as HTMLElement;
       const pills = root.querySelectorAll('.scripture-pill[data-scripture-reference]');
@@ -1309,8 +1310,8 @@ function getTextBeforeCursorForScripture(editor: any): string {
  * @returns true if any abbreviation was consumed from the text (so we can skip normal detection)
  */
 function resolvePendingTranslationPill(editor: any): boolean {
-  if (!editor || editor.isDestroyed) return false;
-  const editorId = String(editor.view?.dom?.id || 'default');
+  if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return false;
+  const editorId = getTiptapEditorDomId(editor);
   const entries = Array.from(pendingTranslationPills.entries()).filter(([, v]) => v.editorId === editorId);
   if (entries.length === 0) return false;
 
@@ -1385,8 +1386,8 @@ function resolvePendingTranslationPill(editor: any): boolean {
  * @returns true if an abbreviation was consumed from any pill
  */
 function tryConsumeTranslationAbbrevAfterPill(editor: any): boolean {
-  if (!editor || editor.isDestroyed) return false;
-  const editorId = String(editor.view?.dom?.id || 'default');
+  if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return false;
+  const editorId = getTiptapEditorDomId(editor);
   const entries = Array.from(pendingTranslationPills.entries()).filter(([, v]) => v.editorId === editorId);
   if (entries.length === 0) return false;
 
@@ -1455,7 +1456,7 @@ function schedulePendingTranslationAfterPillCreation(
   references: (ScriptureReference | ScriptureReferenceWithTranslation)[],
 ) {
   if (!references?.length) return;
-  const editorId = String(editor.view?.dom?.id || 'default');
+  const editorId = getTiptapEditorDomId(editor);
 
   // Register every reference in the map so each gets its own detection window
   for (const ref of references) {
@@ -4026,6 +4027,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       formatBarHideTimerRef.current = null;
     }, PROTOTYPE_FORMAT_BAR_HIDE_MS);
   }, [editorChromeMode]);
+
+  const dismissFormatToolbarActivity = useCallback(() => {
+    setShowFormatBarForActivity(false);
+    if (formatBarHideTimerRef.current) {
+      clearTimeout(formatBarHideTimerRef.current);
+      formatBarHideTimerRef.current = null;
+    }
+  }, []);
   // This prevents errors when editor is destroyed but handlers still fire
   const isEditorValid = (editorInstance: any): boolean => isTiptapViewReady(editorInstance);
 
@@ -4233,121 +4242,127 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // intercepting keydown events which breaks iOS double-space-to-period.
       // We gate scheduling on word boundaries (or pending translation) so plain
       // typing does not constantly reset the debounce timer.
-      if (isMobileDevice()) {
-        const { from: mobFrom, to: mobTo } = editor.state.selection;
-        if (mobFrom === mobTo && mobFrom >= 2) {
-          const $mobFrom = editor.state.doc.resolve(mobFrom);
-          const thisEditorId = String(editor.view?.dom?.id || 'default');
-          const draftMode = editorChromeMode === 'prototypeNative';
-          const hasActiveDraft = draftMode && hasActiveScriptureDraft(editor.state);
-          const needsScripturePass =
-            Array.from(pendingTranslationPills.values()).some(e => e.editorId === thisEditorId) ||
-            hasActiveDraft ||
-            (draftMode
-              ? shouldScheduleDraftDetection(
-                  editor.state.doc,
-                  mobFrom,
-                  isScripturePillBoundaryCursor($mobFrom, editor.state.doc),
-                )
-              : shouldSchedulePassiveScriptureDetection(
-                  editor.state.doc,
-                  mobFrom,
-                  isScripturePillBoundaryCursor($mobFrom, editor.state.doc),
-                ));
-          if (!needsScripturePass) {
-            if (mobileScriptureDetectionTimer.current) {
-              clearTimeout(mobileScriptureDetectionTimer.current);
-              mobileScriptureDetectionTimer.current = null;
-            }
+      try {
+        if (isMobileDevice()) {
+          if (!isTiptapViewReady(editor)) {
+            /* view not mounted yet — skip scripture scheduling during editor remount */
           } else {
-            if (mobileScriptureDetectionTimer.current) {
-              clearTimeout(mobileScriptureDetectionTimer.current);
-            }
-            mobileScriptureDetectionTimer.current = setTimeout(() => {
-              if (!editor || editor.isDestroyed) return;
-              if (draftMode) {
-                runScriptureDraftDetectionAtCursor(editor);
-                // Debounced grow: the per-keystroke grow plugin is disabled on mobile (mutating the
-                // draft mark mid-type desyncs iOS contenteditable), so snap a range tail typed as
-                // plain text into the draft now that the user has paused.
-                if (editor.view) unifyScriptureDraftAtCursor(editor.view);
-              } else {
-                runScriptureDetectionAtCursor(editor);
+          const { from: mobFrom, to: mobTo } = editor.state.selection;
+          if (mobFrom === mobTo && mobFrom >= 2) {
+            const $mobFrom = editor.state.doc.resolve(mobFrom);
+            const thisEditorId = getTiptapEditorDomId(editor);
+            const draftMode = editorChromeMode === 'prototypeNative';
+            const hasActiveDraft = draftMode && hasActiveScriptureDraft(editor.state);
+            const needsScripturePass =
+              Array.from(pendingTranslationPills.values()).some(e => e.editorId === thisEditorId) ||
+              hasActiveDraft ||
+              (draftMode
+                ? shouldScheduleDraftDetection(
+                    editor.state.doc,
+                    mobFrom,
+                    isScripturePillBoundaryCursor($mobFrom, editor.state.doc),
+                  )
+                : shouldSchedulePassiveScriptureDetection(
+                    editor.state.doc,
+                    mobFrom,
+                    isScripturePillBoundaryCursor($mobFrom, editor.state.doc),
+                  ));
+            if (!needsScripturePass) {
+              if (mobileScriptureDetectionTimer.current) {
+                clearTimeout(mobileScriptureDetectionTimer.current);
+                mobileScriptureDetectionTimer.current = null;
               }
-              // Live-ish: flip the pill's translation label when an abbreviation is typed after it.
-              tryConsumeTranslationAbbrevAfterPill(editor);
-            }, 250);
-          }
+            } else {
+              if (mobileScriptureDetectionTimer.current) {
+                clearTimeout(mobileScriptureDetectionTimer.current);
+              }
+              mobileScriptureDetectionTimer.current = setTimeout(() => {
+                if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return;
+                if (draftMode) {
+                  runScriptureDraftDetectionAtCursor(editor);
+                  // Debounced grow: the per-keystroke grow plugin is disabled on mobile (mutating the
+                  // draft mark mid-type desyncs iOS contenteditable), so snap a range tail typed as
+                  // plain text into the draft now that the user has paused.
+                  if (isTiptapViewReady(editor)) {
+                    unifyScriptureDraftAtCursor(editor.view);
+                  }
+                } else {
+                  runScriptureDetectionAtCursor(editor);
+                }
+                // Live-ish: flip the pill's translation label when an abbreviation is typed after it.
+                tryConsumeTranslationAbbrevAfterPill(editor);
+              }, 250);
+            }
 
-          if (
-            draftMode &&
-            hasActiveDraft &&
-            editor.view
-          ) {
-            const range = getScriptureDraftRange(editor.state);
-            if (range && hasDraftContinuationTailInDoc(editor.state, range.to)) {
-              scheduleMobileDraftTailCaretSync(editor.view);
+            if (draftMode && hasActiveDraft && isTiptapViewReady(editor)) {
+              const range = getScriptureDraftRange(editor.state);
+              if (range && hasDraftContinuationTailInDoc(editor.state, range.to)) {
+                scheduleMobileDraftTailCaretSync(editor.view);
+              }
             }
           }
-        }
-      } else {
-        const { from: deskFrom, to: deskTo } = editor.state.selection;
-        if (deskFrom === deskTo && deskFrom >= 2) {
-          const $deskFrom = editor.state.doc.resolve(deskFrom);
-          const thisEditorId = String(editor.view?.dom?.id || 'default');
-          const draftMode = editorChromeMode === 'prototypeNative';
-          const needsScripturePass =
-            Array.from(pendingTranslationPills.values()).some((e) => e.editorId === thisEditorId) ||
-            (draftMode
-              ? shouldScheduleDraftDetection(
-                  editor.state.doc,
-                  deskFrom,
-                  isScripturePillBoundaryCursor($deskFrom, editor.state.doc),
-                )
-              : shouldSchedulePassiveScriptureDetection(
-                  editor.state.doc,
-                  deskFrom,
-                  isScripturePillBoundaryCursor($deskFrom, editor.state.doc),
-                ));
-          if (needsScripturePass) {
-            if (desktopScriptureDetectionTimer.current) {
+          }
+        } else if (isTiptapViewReady(editor)) {
+          const { from: deskFrom, to: deskTo } = editor.state.selection;
+          if (deskFrom === deskTo && deskFrom >= 2) {
+            const $deskFrom = editor.state.doc.resolve(deskFrom);
+            const thisEditorId = getTiptapEditorDomId(editor);
+            const draftMode = editorChromeMode === 'prototypeNative';
+            const needsScripturePass =
+              Array.from(pendingTranslationPills.values()).some((e) => e.editorId === thisEditorId) ||
+              (draftMode
+                ? shouldScheduleDraftDetection(
+                    editor.state.doc,
+                    deskFrom,
+                    isScripturePillBoundaryCursor($deskFrom, editor.state.doc),
+                  )
+                : shouldSchedulePassiveScriptureDetection(
+                    editor.state.doc,
+                    deskFrom,
+                    isScripturePillBoundaryCursor($deskFrom, editor.state.doc),
+                  ));
+            if (needsScripturePass) {
+              if (desktopScriptureDetectionTimer.current) {
+                clearTimeout(desktopScriptureDetectionTimer.current);
+              }
+              desktopScriptureDetectionTimer.current = setTimeout(() => {
+                desktopScriptureDetectionTimer.current = null;
+                if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return;
+                if (draftMode) runScriptureDraftDetectionAtCursor(editor);
+                else runScriptureDetectionAtCursor(editor);
+                // Live-ish: flip the pill's translation label when an abbreviation is typed after it.
+                tryConsumeTranslationAbbrevAfterPill(editor);
+              }, 250);
+            } else if (desktopScriptureDetectionTimer.current) {
               clearTimeout(desktopScriptureDetectionTimer.current);
-            }
-            desktopScriptureDetectionTimer.current = setTimeout(() => {
               desktopScriptureDetectionTimer.current = null;
-              if (!editor || editor.isDestroyed) return;
-              if (draftMode) runScriptureDraftDetectionAtCursor(editor);
-              else runScriptureDetectionAtCursor(editor);
-              // Live-ish: flip the pill's translation label when an abbreviation is typed after it.
-              tryConsumeTranslationAbbrevAfterPill(editor);
-            }, 250);
-          } else if (desktopScriptureDetectionTimer.current) {
-            clearTimeout(desktopScriptureDetectionTimer.current);
-            desktopScriptureDetectionTimer.current = null;
+            }
           }
-        }
 
-        // Orphan suffix absorb when verse/range continuation is typed after a pill.
-        // Skipped in the prototype: inline draft mode is the creation/extend path there,
-        // so the fragile adjacent-merge (the source of the stray-space bug) is unused.
-        try {
-          const { from, to } = editor.state.selection;
-          const charBefore = from >= 2 ? editor.state.doc.textBetween(from - 1, from) : '';
-          if (editorChromeMode !== 'prototypeNative' && from === to && /[\d:,\-–—]/.test(charBefore)) {
-            if (desktopOrphanAbsorbTimer.current) clearTimeout(desktopOrphanAbsorbTimer.current);
-            desktopOrphanAbsorbTimer.current = setTimeout(() => {
-              desktopOrphanAbsorbTimer.current = null;
-              if (!editor || editor.isDestroyed) return;
-              try {
-                absorbOrphanSuffixesAfterPills(editor);
-              } catch {
-                /* ignore */
-              }
-            }, 250);
+          // Orphan suffix absorb when verse/range continuation is typed after a pill.
+          // Skipped in the prototype: inline draft mode is the creation/extend path there,
+          // so the fragile adjacent-merge (the source of the stray-space bug) is unused.
+          try {
+            const { from, to } = editor.state.selection;
+            const charBefore = from >= 2 ? editor.state.doc.textBetween(from - 1, from) : '';
+            if (editorChromeMode !== 'prototypeNative' && from === to && /[\d:,\-–—]/.test(charBefore)) {
+              if (desktopOrphanAbsorbTimer.current) clearTimeout(desktopOrphanAbsorbTimer.current);
+              desktopOrphanAbsorbTimer.current = setTimeout(() => {
+                desktopOrphanAbsorbTimer.current = null;
+                if (!editor || editor.isDestroyed) return;
+                try {
+                  absorbOrphanSuffixesAfterPills(editor);
+                } catch {
+                  /* ignore */
+                }
+              }, 250);
+            }
+          } catch {
+            /* ignore */
           }
-        } catch {
-          /* ignore */
         }
+      } catch {
+        /* ignore pre-mount view access during editor remount */
       }
 
       // Scroll cursor into view when content changes
@@ -4971,10 +4986,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (editor.isFocused) return;
       if (!proseMirrorViewLooksDesynced(editor)) return;
       if (import.meta.env.DEV) {
+        let domText = '';
+        try {
+          domText = editor.view.dom?.textContent ?? '';
+        } catch {
+          /* ignore */
+        }
         console.warn('[TiptapEditor] ProseMirror view desynced — recreating editor', {
           sourceNoteId,
           stateText: editor.state?.doc?.textContent,
-          domText: editor.view?.dom?.textContent,
+          domText,
         });
       }
       if (viewRepairAttemptsRef.current >= 3) return;
@@ -5002,17 +5023,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   // Auto-open the reference dock when initialReferenceWord is set (e.g. navigated from sidebar row)
   const initialReferenceWordFiredRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!initialReferenceWord) {
-      initialReferenceWordFiredRef.current = null;
-      return;
-    }
-    if (initialReferenceWordFiredRef.current === (initialReferenceRequestKey ?? initialReferenceWord)) return;
-    if (!editor || !isEditorValid(editor)) return;
-    initialReferenceWordFiredRef.current = initialReferenceRequestKey ?? initialReferenceWord;
-    openReferenceDock({ query: initialReferenceWord });
-    onReferenceDeepLinkHandoff?.();
-  }, [initialReferenceWord, initialReferenceRequestKey, editor, openReferenceDock, onReferenceDeepLinkHandoff]);
 
   useEffect(() => {
     setStudyDockStack(emptyStudyDockStack());
@@ -5031,7 +5041,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         pendingRafId,
         latestHtml: latestNoteHtmlRef.current,
         onContentChange: onContentChangeRef.current,
-        cancelAnimationFrame,
+        cancelAnimationFrame: (id) => window.cancelAnimationFrame(id),
         wasUserEdit: pendingEmitUserEditRef.current,
       });
     };
@@ -5089,7 +5099,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   useEffect(() => {
     if (!editor || editor.isDestroyed || !eastonsIndex) return;
     if (editorChromeModeRef.current !== 'prototypeNative') return;
-    editor.view.dispatch(editor.state.tr.setMeta(REFERENCE_SUGGESTION_REFRESH_META, true));
+    if (!isTiptapViewReady(editor)) return;
+    try {
+      editor.view.dispatch(editor.state.tr.setMeta(REFERENCE_SUGGESTION_REFRESH_META, true));
+    } catch {
+      /* ignore pre-mount view access */
+    }
   }, [editor, eastonsIndex]);
 
   const clearSelectionActionBar = useCallback(() => {
@@ -5174,6 +5189,40 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       /* ignore */
     }
   }, [editor]);
+
+  /** Blur the editor after opening study-dock chrome so iOS keeps the keyboard down. */
+  const dismissEditorFocusForStudyDock = useCallback(() => {
+    requestAnimationFrame(() => {
+      try {
+        window.getSelection()?.removeAllRanges();
+      } catch {
+        /* ignore */
+      }
+      releaseEditorFocusForStudyDock();
+    });
+  }, [releaseEditorFocusForStudyDock]);
+
+  useEffect(() => {
+    if (!initialReferenceWord) {
+      initialReferenceWordFiredRef.current = null;
+      return;
+    }
+    if (initialReferenceWordFiredRef.current === (initialReferenceRequestKey ?? initialReferenceWord)) return;
+    if (!editor || !isEditorValid(editor)) return;
+    initialReferenceWordFiredRef.current = initialReferenceRequestKey ?? initialReferenceWord;
+    openReferenceDock({ query: initialReferenceWord });
+    if (isMobileDevice()) {
+      dismissEditorFocusForStudyDock();
+    }
+    onReferenceDeepLinkHandoff?.();
+  }, [
+    initialReferenceWord,
+    initialReferenceRequestKey,
+    editor,
+    openReferenceDock,
+    onReferenceDeepLinkHandoff,
+    dismissEditorFocusForStudyDock,
+  ]);
 
   const syncStudyThreadList = useCallback(
     (parentNoteId?: string | null) => {
@@ -6403,6 +6452,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }
         setTranslationPicker(null);
         openReferenceDock({ query: word, pendingSuggestion: range });
+        dismissEditorFocusForStudyDock();
         return;
       }
 
@@ -6411,17 +6461,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         e.preventDefault();
         e.stopImmediatePropagation();
         openStudyDockForHighlightMark(markInPm);
-        // Tapping a highlight should show only the dock — not the keyboard. Mirror the
-        // scripture-pill path: clear the native tap-selection and blur the editor,
-        // deferred so it runs after iOS/the browser applies the tap selection.
-        requestAnimationFrame(() => {
-          try {
-            window.getSelection()?.removeAllRanges();
-          } catch {
-            /* ignore */
-          }
-          releaseEditorFocusForStudyDock();
-        });
+        // Tapping a highlight should show only the dock — not the keyboard.
+        dismissEditorFocusForStudyDock();
       }
     };
 
@@ -6629,7 +6670,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   // Inline edit-mode (draft) lifecycle: confirm a draft when the caret leaves it or the
   // editor blurs, and run the translation-abbreviation follow-up after a draft commits.
   useEffect(() => {
-    if (!editor || editorChromeMode !== 'prototypeNative') return;
+    if (!editor || editorChromeMode !== 'prototypeNative' || !isEditorValid(editor)) return;
 
     const resolveDetachedDraft = () => {
       if (!isEditorValid(editor)) return;
@@ -7422,7 +7463,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const { from, to } = editor.state.selection;
         const expanded = from !== to;
         setSelectionExpanded(expanded);
-        if (expanded) bumpFormatToolbarActivity();
+        if (expanded) {
+          bumpFormatToolbarActivity();
+        } else if (isMobileDevice()) {
+          dismissFormatToolbarActivity();
+        }
       } catch {
         /* ignore */
       }
@@ -7467,7 +7512,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         editor.off('update', onDocUpdate);
       }
     };
-  }, [editor, editorChromeMode, bumpFormatToolbarActivity]);
+  }, [editor, editorChromeMode, bumpFormatToolbarActivity, dismissFormatToolbarActivity]);
 
   useEffect(() => () => {
     if (formatBarHideTimerRef.current) {
@@ -7664,6 +7709,33 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   }
 
   // Handle heading cycle: H2 → H3 → Normal → H2 (single control on classic toolbar)
+  const handleMobileScriptureDraftConfirm = useCallback(() => {
+    if (!editor || !isEditorValid(editor)) return;
+    const to = scriptureDraftConfirm?.to ?? getScriptureDraftAnchorPos(editor.state);
+    if (to == null) return;
+    try {
+      const view = editor.view;
+      if (confirmScriptureDraftView(view, to, { focus: true }) == null) {
+        confirmAnyScriptureDraftView(view);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [editor, scriptureDraftConfirm]);
+
+  let scriptureDraftPreview = '';
+  if (scriptureDraftConfirm && isEditorValid(editor)) {
+    try {
+      const range = getScriptureDraftRange(editor.state);
+      const anchor = getScriptureDraftAnchorPos(editor.state);
+      if (range != null && anchor != null) {
+        scriptureDraftPreview = editor.state.doc.textBetween(range.from, anchor);
+      }
+    } catch {
+      scriptureDraftPreview = '';
+    }
+  }
+
   const handleHeadingCycle = () => {
     if (!editor) return;
 
@@ -7739,13 +7811,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       ) {
         lastInBodySelectionRef.current = { ...formatToolbarSelectionRef.current };
       }
+      if (isMobileDevice() && editor.state.selection.from === editor.state.selection.to) {
+        dismissFormatToolbarActivity();
+      }
       try {
         editor.view.focus();
       } catch {
         /* ignore */
       }
     },
-    [editor, onContentChange],
+    [editor, onContentChange, dismissFormatToolbarActivity],
   );
 
   const ToolbarButton = ({ 
@@ -8292,9 +8367,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           />,
           document.body,
         )}
-        {/* Floating ✓ confirm for an inline scripture draft (prototype). Rendered outside the
-            editor so it never blocks iOS text entry the way an inline non-editable widget did. */}
-        {scriptureDraftConfirm && editorChromeMode === 'prototypeNative' && createPortal(
+        {/* Floating ✓ confirm for an inline scripture draft (prototype). Desktop only — mobile uses
+            ScriptureDraftConfirmDockWeb in the study-dock layer. */}
+        {scriptureDraftConfirm &&
+          editorChromeMode === 'prototypeNative' &&
+          !isMobileDevice() &&
+          createPortal(
           <button
             type="button"
             className="scripture-draft-confirm-float"
@@ -8796,6 +8874,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </div>,
           document.body
         )}
+        {editorChromeMode === 'prototypeNative' &&
+          isMobileDevice() &&
+          scriptureDraftConfirm &&
+          studyDockPortalTarget &&
+          createPortal(
+            <ScriptureDraftConfirmDockWeb
+              preview={scriptureDraftPreview}
+              onConfirm={handleMobileScriptureDraftConfirm}
+            />,
+            studyDockPortalTarget,
+          )}
         {editorChromeMode === 'prototypeNative' &&
           studyDockStackHasEntries(studyDockStack) &&
           createPortal(

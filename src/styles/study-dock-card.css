@@ -59,6 +59,57 @@
   padding: 10px 12px;
   width: 100%;
   transition: padding-bottom var(--study-dock-motion-spring);
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.study-dock-card__card-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.study-dock-card__card-main--with-accent-action {
+  padding-left: 2px;
+}
+
+.study-dock-card__accent-primary-action {
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 52px;
+  margin: -10px 8px -10px -12px;
+  padding: 8px 6px;
+  border: none;
+  border-radius: 16px 0 0 16px;
+  background: var(--study-dock-accent);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.study-dock-card__accent-primary-action:active {
+  filter: brightness(0.94);
+}
+
+.study-dock-card__accent-primary-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.study-dock-card__accent-primary-action-label {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.1;
+  text-align: center;
 }
 
 .study-dock-card--enter .study-dock-card__outer {

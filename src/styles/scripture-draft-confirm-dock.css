@@ -1,0 +1,14 @@
+.scripture-draft-confirm-dock .study-dock-card__header-btn[aria-label='Dismiss'],
+.scripture-draft-confirm-dock .study-dock-card__header-btn[aria-label='Collapse'] {
+  display: none;
+}
+
+.scripture-draft-confirm-dock__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scripture-draft-confirm-dock .study-dock-card__outer {
+  padding-bottom: 4px;
+}

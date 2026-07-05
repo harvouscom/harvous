@@ -256,16 +256,56 @@ export default function ScripturePillChromeWeb({
   const passagePointerDownRef = useRef<{ x: number; y: number } | null>(null);
   const PASSAGE_TAP_SLOP_PX = 5;
 
-  const handlePassageMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    passagePointerDownRef.current = { x: e.clientX, y: e.clientY };
-    // Pull DOM focus out of the (always-editing) TipTap editor into the passage container
-    // (tabIndex=-1). While the editor has focus, ProseMirror's selectionchange sync reclaims
-    // the DOM selection on every change — which kills a drag-select in the dock the moment it
-    // starts. Focus here happens before the browser builds the selection, so the drag survives.
+  const focusPassageForTextSelection = useCallback((container: HTMLDivElement) => {
     if (document.activeElement?.closest?.('.ProseMirror')) {
-      e.currentTarget.focus({ preventScroll: true });
+      container.focus({ preventScroll: true });
     }
-    // No preventDefault/stopPropagation anywhere in the passage — browser starts drag-select natively.
+  }, []);
+
+  const handlePassagePointerDown = useCallback(
+    (clientX: number, clientY: number, container: HTMLDivElement) => {
+      passagePointerDownRef.current = { x: clientX, y: clientY };
+      focusPassageForTextSelection(container);
+    },
+    [focusPassageForTextSelection],
+  );
+
+  const handlePassageMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      handlePassagePointerDown(e.clientX, e.clientY, e.currentTarget);
+    },
+    [handlePassagePointerDown],
+  );
+
+  const handlePassageTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      const touch = e.touches[0];
+      if (!touch) return;
+      handlePassagePointerDown(touch.clientX, touch.clientY, e.currentTarget);
+    },
+    [handlePassagePointerDown],
+  );
+
+  const syncPassageSelectionFromDom = useCallback(() => {
+    const scrollEl = passageScrollRef.current;
+    if (!scrollEl) return;
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+      setPassageSelection(null);
+      return;
+    }
+    const range = sel.getRangeAt(0);
+    if (!scrollEl.contains(range.commonAncestorContainer)) {
+      setPassageSelection(null);
+      return;
+    }
+    const text = sel.toString().trim();
+    if (!text) {
+      setPassageSelection(null);
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    setPassageSelection({ text, rect });
   }, []);
 
   const handlePassageClick = useCallback(
@@ -498,18 +538,16 @@ export default function ScripturePillChromeWeb({
     const scrollEl = passageScrollRef.current;
     if (!scrollEl || !isExpanded || !interactionActive) return;
 
-    const handleMouseUp = () => {
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
-      const range = sel.getRangeAt(0);
-      if (!scrollEl.contains(range.commonAncestorContainer)) return;
-      const text = sel.toString().trim();
-      if (!text) return;
-      const rect = range.getBoundingClientRect();
-      setPassageSelection({ text, rect });
+    const handlePointerUp = () => {
+      syncPassageSelectionFromDom();
     };
 
     const handleSelectionChange = () => {
+      const active = typeof document !== 'undefined' ? document.activeElement : null;
+      if (active?.closest?.('.scripture-pill-chrome__passage')) {
+        syncPassageSelectionFromDom();
+        return;
+      }
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) {
         setPassageSelection(null);
@@ -520,30 +558,22 @@ export default function ScripturePillChromeWeb({
         setPassageSelection(null);
         return;
       }
-      if (sel.isCollapsed) {
-        setPassageSelection(null);
-        return;
-      }
-      const text = sel.toString().trim();
-      if (!text) {
-        setPassageSelection(null);
-        return;
-      }
-      const rect = range.getBoundingClientRect();
-      setPassageSelection({ text, rect });
+      syncPassageSelectionFromDom();
     };
 
     const handleScroll = () => setPassageSelection(null);
 
-    scrollEl.addEventListener('mouseup', handleMouseUp);
+    scrollEl.addEventListener('mouseup', handlePointerUp);
+    scrollEl.addEventListener('touchend', handlePointerUp);
     document.addEventListener('selectionchange', handleSelectionChange);
     scrollEl.addEventListener('scroll', handleScroll);
     return () => {
-      scrollEl.removeEventListener('mouseup', handleMouseUp);
+      scrollEl.removeEventListener('mouseup', handlePointerUp);
+      scrollEl.removeEventListener('touchend', handlePointerUp);
       document.removeEventListener('selectionchange', handleSelectionChange);
       scrollEl.removeEventListener('scroll', handleScroll);
     };
-  }, [isExpanded, interactionActive]);
+  }, [isExpanded, interactionActive, syncPassageSelectionFromDom]);
 
   const handleCreatePassageHighlight = useCallback(async () => {
     if (!passageSelection || !sourceNoteId || creatingHighlight) return;
@@ -744,6 +774,7 @@ export default function ScripturePillChromeWeb({
         // doesn't bounce focus back to the editor, allowing text selection.
         tabIndex={-1}
         onMouseDown={handlePassageMouseDown}
+        onTouchStart={handlePassageTouchStart}
         onClick={handlePassageClick}
       >
         <div ref={passageContentRef} className="scripture-pill-chrome__passage-inner">
