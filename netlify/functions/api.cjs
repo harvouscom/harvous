@@ -5247,10 +5247,10 @@ var init_chunk_MYLR5GUC = __esm({
       }
     };
     Instance = class _Instance {
-      constructor(id, environmentType, allowedOrigins) {
+      constructor(id, environmentType, allowedOrigins2) {
         this.id = id;
         this.environmentType = environmentType;
-        this.allowedOrigins = allowedOrigins;
+        this.allowedOrigins = allowedOrigins2;
       }
       static fromJSON(data) {
         return new _Instance(data.id, data.environment_type, data.allowed_origins);
@@ -18189,6 +18189,7 @@ __export(schema_exports, {
   Spaces: () => Spaces,
   StudyThreadEntries: () => StudyThreadEntries,
   StudyThreadMemberOrders: () => StudyThreadMemberOrders,
+  SupportTicketNotes: () => SupportTicketNotes,
   SupportTickets: () => SupportTickets,
   SyncDeletedEntities: () => SyncDeletedEntities,
   Tags: () => Tags,
@@ -18205,7 +18206,7 @@ __export(schema_exports, {
   VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences2, NoteFingerprints, RecallEvents, SupportTickets, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports;
+var ts, Spaces, Threads, Notes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences2, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -18592,12 +18593,22 @@ var init_schema2 = __esm({
       status: text("status").notNull().default("open"),
       adminNote: text("adminNote"),
       adminReadAt: ts("adminReadAt"),
+      repliedAt: ts("repliedAt"),
+      notifiedAt: ts("notifiedAt"),
       createdAt: ts("createdAt").notNull(),
       closedAt: ts("closedAt")
     }, (table) => [
       index("SupportTickets_status_createdAtIndex").on(table.status, table.createdAt),
       index("SupportTickets_userId_createdAtIndex").on(table.userId, table.createdAt),
       index("SupportTickets_status_adminReadAtIndex").on(table.status, table.adminReadAt)
+    ]);
+    SupportTicketNotes = pgTable("SupportTicketNotes", {
+      id: text("id").primaryKey(),
+      ticketId: text("ticketId").notNull(),
+      note: text("note").notNull(),
+      createdAt: ts("createdAt").notNull()
+    }, (table) => [
+      index("SupportTicketNotes_ticketId_createdAtIndex").on(table.ticketId, table.createdAt)
     ]);
     DiagnosticEvents = pgTable("DiagnosticEvents", {
       id: text("id").primaryKey(),
@@ -18612,6 +18623,7 @@ var init_schema2 = __esm({
       anonymousSessionId: text("anonymousSessionId").notNull(),
       manualNote: text("manualNote"),
       metadata: text("metadata"),
+      sourceEnv: text("sourceEnv"),
       createdAt: ts("createdAt").notNull()
     }, (table) => [
       index("DiagnosticEvents_issueSignature_createdAtIndex").on(table.issueSignature, table.createdAt),
@@ -19214,6 +19226,21 @@ var init_auth = __esm({
       has: () => false
     };
     PRODUCTION_AUTHORIZED_PARTIES = ["https://app.harvous.com", "https://new.harvous.com"];
+  }
+});
+
+// server/utils/db-errors.ts
+function isUniqueViolationError(err) {
+  const e = err;
+  if (!e) return false;
+  const code = e.code ?? e.cause?.code;
+  if (code === "23505") return true;
+  const message = `${e.message ?? ""} ${e.cause?.message ?? ""}`.toLowerCase();
+  return message.includes("unique constraint") || message.includes("duplicate key");
+}
+var init_db_errors = __esm({
+  "server/utils/db-errors.ts"() {
+    "use strict";
   }
 });
 
@@ -30619,7 +30646,7 @@ async function ensureUnorganizedThread(userId) {
           updatedAt: nowISO()
         });
       } catch (insertError) {
-        if (insertError.code === "23505" || insertError.message?.includes("unique constraint")) {
+        if (isUniqueViolationError(insertError)) {
         } else {
           console.error("Error creating unorganized thread:", insertError);
           throw insertError;
@@ -30654,6 +30681,7 @@ var init_unorganized_thread = __esm({
     "use strict";
     init_db2();
     init_dates();
+    init_db_errors();
     init_my_pile_thread();
   }
 });
@@ -52777,27 +52805,30 @@ function isHarvousAdminSecret(c) {
   const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
   const m2 = authHeader.match(/^Bearer\s+(.+)$/i);
   const provided = m2?.[1]?.trim();
-  return provided === expectedSecret;
+  if (!provided) return false;
+  const providedBuf = Buffer.from(provided);
+  const expectedBuf = Buffer.from(expectedSecret);
+  if (providedBuf.length !== expectedBuf.length) return false;
+  return (0, import_node_crypto2.timingSafeEqual)(providedBuf, expectedBuf);
 }
 async function clerkPrimaryEmail(userId) {
-  if (adminEmailByUserId.has(userId)) {
-    return adminEmailByUserId.get(userId) ?? null;
+  const cached = adminEmailByUserId.get(userId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.email;
   }
+  const cache2 = (email) => {
+    adminEmailByUserId.set(userId, { email, expiresAt: Date.now() + ADMIN_EMAIL_CACHE_TTL_MS });
+    return email;
+  };
   const secretKey = process.env.CLERK_SECRET_KEY;
-  if (!secretKey) {
-    adminEmailByUserId.set(userId, null);
-    return null;
-  }
+  if (!secretKey) return cache2(null);
   try {
     const clerk = createClerkClient({ secretKey });
     const user = await clerk.users.getUser(userId);
     const primary = user.emailAddresses?.find((entry) => entry.id === user.primaryEmailAddressId);
-    const email = primary?.emailAddress?.trim().toLowerCase() ?? null;
-    adminEmailByUserId.set(userId, email);
-    return email;
+    return cache2(primary?.emailAddress?.trim().toLowerCase() ?? null);
   } catch {
-    adminEmailByUserId.set(userId, null);
-    return null;
+    return cache2(null);
   }
 }
 async function isHarvousAdmin(c) {
@@ -52819,12 +52850,14 @@ async function requireHarvousAdmin(c) {
   }
   return null;
 }
-var adminEmailByUserId;
+var import_node_crypto2, ADMIN_EMAIL_CACHE_TTL_MS, adminEmailByUserId;
 var init_harvous_admin = __esm({
   "server/utils/harvous-admin.ts"() {
     "use strict";
+    import_node_crypto2 = require("node:crypto");
     init_dist();
     init_auth();
+    ADMIN_EMAIL_CACHE_TTL_MS = 60 * 60 * 1e3;
     adminEmailByUserId = /* @__PURE__ */ new Map();
   }
 });
@@ -138121,7 +138154,7 @@ var require_timing_safe_equal = __commonJS({
         throw new Error(msg);
       }
     }
-    function timingSafeEqual(a, b3) {
+    function timingSafeEqual2(a, b3) {
       if (a.byteLength !== b3.byteLength) {
         return false;
       }
@@ -138141,7 +138174,7 @@ var require_timing_safe_equal = __commonJS({
       }
       return out === 0;
     }
-    exports2.timingSafeEqual = timingSafeEqual;
+    exports2.timingSafeEqual = timingSafeEqual2;
   }
 });
 
@@ -141070,6 +141103,116 @@ var requestId = ({
 // server/app.ts
 init_auth();
 
+// server/middleware/csrf.ts
+var CSRF_EXEMPT_PREFIXES = [
+  "/api/webhooks/",
+  "/api/admin/",
+  "/api/migrations/",
+  "/api/webflow/"
+];
+var SAFE_METHODS = /* @__PURE__ */ new Set(["GET", "HEAD", "OPTIONS"]);
+var DEFAULT_ORIGINS = [
+  "https://app.harvous.com",
+  "https://new.harvous.com",
+  "https://harvous.com",
+  "http://localhost:3000",
+  "http://localhost:3001",
+  // Hono API dev server
+  "http://localhost:4321",
+  // Astro dev
+  "http://localhost:4322"
+  // SPA Vite dev
+];
+var allowedOrigins = null;
+function getAllowedOrigins() {
+  if (allowedOrigins) return allowedOrigins;
+  const envOrigins = process.env.ALLOWED_ORIGINS;
+  if (envOrigins && envOrigins.trim()) {
+    const parsed = new Set(
+      envOrigins.split(",").map((o) => o.trim().replace(/\/$/, "")).filter(Boolean)
+    );
+    if (parsed.size > 0) {
+      allowedOrigins = parsed;
+      return allowedOrigins;
+    }
+  }
+  allowedOrigins = new Set(DEFAULT_ORIGINS);
+  return allowedOrigins;
+}
+function firstHeaderValue(value) {
+  const first2 = value?.split(",")[0].trim();
+  return first2 || void 0;
+}
+function isCsrfExempt(path) {
+  return CSRF_EXEMPT_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+function getSelfOrigin(c) {
+  let host = c.req.header("Host") || c.req.header("X-Forwarded-Host");
+  if (!host) return null;
+  host = host.split(",")[0].trim().replace(/:443$/, "").replace(/:80$/, "");
+  const rawProto = c.req.header("X-Forwarded-Proto") || "https";
+  const proto = rawProto.split(",")[0].trim();
+  return `${proto}://${host}`;
+}
+async function csrfProtection(c, next) {
+  if (SAFE_METHODS.has(c.req.method)) {
+    return next();
+  }
+  if (isCsrfExempt(c.req.path)) {
+    return next();
+  }
+  const origin = firstHeaderValue(c.req.header("Origin"));
+  const referer = firstHeaderValue(c.req.header("Referer"));
+  if (origin) {
+    const allowed = getAllowedOrigins();
+    const selfOrigin = getSelfOrigin(c);
+    if (!allowed.has(origin) && origin !== selfOrigin) {
+      console.warn("[csrf] Rejected origin:", {
+        origin,
+        selfOrigin,
+        host: c.req.header("Host"),
+        xfh: c.req.header("X-Forwarded-Host"),
+        xfp: c.req.header("X-Forwarded-Proto"),
+        allowedCount: allowed.size,
+        path: c.req.path
+      });
+      return c.json(
+        { error: "Forbidden: invalid origin", code: "CSRF_REJECTED" },
+        403
+      );
+    }
+    return next();
+  }
+  if (referer) {
+    try {
+      const refererOrigin = new URL(referer).origin;
+      const allowed = getAllowedOrigins();
+      const selfOrigin = getSelfOrigin(c);
+      if (!allowed.has(refererOrigin) && refererOrigin !== selfOrigin) {
+        console.warn("[csrf] Rejected referer:", {
+          refererOrigin,
+          selfOrigin,
+          host: c.req.header("Host"),
+          xfh: c.req.header("X-Forwarded-Host"),
+          xfp: c.req.header("X-Forwarded-Proto"),
+          path: c.req.path
+        });
+        return c.json(
+          { error: "Forbidden: invalid referer", code: "CSRF_REJECTED" },
+          403
+        );
+      }
+      return next();
+    } catch {
+      return c.json(
+        { error: "Forbidden: malformed referer", code: "CSRF_REJECTED" },
+        403
+      );
+    }
+  }
+  return next();
+}
+
 // server/routes/health.ts
 init_client();
 
@@ -141211,6 +141354,9 @@ async function resolveRefToUserId(ref) {
   return row?.userId ?? null;
 }
 
+// server/utils/user-cache.ts
+init_db_errors();
+
 // src/utils/season-helpers.ts
 function getCurrentSeason() {
   const now2 = /* @__PURE__ */ new Date();
@@ -141276,6 +141422,9 @@ function listReportCatalogSeasonsForYear(year) {
   return listSeasonsForYear(year).filter(
     (seasonId) => getSeasonMonths(seasonId).some(isAdminReportMonthInCatalog)
   );
+}
+function getUtcMonthKey(date2) {
+  return `${date2.getUTCFullYear()}-${String(date2.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 // server/utils/user-cache.ts
@@ -141411,8 +141560,7 @@ async function fetchAndCacheUserData(userId, existingMetadata) {
         clerkDataUpdatedAt: nowISO()
       });
     } catch (insertErr) {
-      const isUnique = insertErr?.code === "23505" || insertErr?.message?.includes("unique constraint");
-      if (isUnique) {
+      if (isUniqueViolationError(insertErr)) {
         insertSucceeded = false;
         console.log("[user-cache] UserMetadata already created by concurrent request", { userId });
       } else {
@@ -145194,6 +145342,7 @@ init_auth();
 init_db2();
 init_dates();
 init_unorganized_thread();
+init_db_errors();
 
 // server/utils/space-permissions.ts
 init_db2();
@@ -147426,7 +147575,7 @@ route9.post("/api/threads/ensure-unorganized", requireAuth, async (c) => {
       await db.insert(Threads).values(unorganizedThread);
       return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread created`, thread: unorganizedThread }, 201);
     } catch (insertError) {
-      if (insertError.code === "23505" || insertError.message?.includes("unique constraint")) {
+      if (isUniqueViolationError(insertError)) {
         const createdThread = first(await db.select().from(Threads).where(and(eq(Threads.userId, auth.userId), eq(Threads.id, "thread_unorganized"))).limit(1));
         if (createdThread) return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread already exists`, thread: createdThread });
       }
@@ -147709,6 +147858,7 @@ init_auth();
 init_db2();
 init_dates();
 init_harvous_admin();
+init_db_errors();
 
 // server/utils/normalize-note-id.ts
 function normalizeServerNoteId(id) {
@@ -148684,6 +148834,9 @@ function highlightScriptureReferences(content, references) {
       const { match: matchText, index: index2, cleanText } = matches3[i];
       const beforeMatch = updatedContent.substring(0, index2);
       const matchEnd = index2 + matchText.length;
+      if (beforeMatch.lastIndexOf("<") > beforeMatch.lastIndexOf(">")) {
+        continue;
+      }
       let searchPos = index2;
       let foundCompletePillSpan = false;
       while (searchPos > 0) {
@@ -161806,7 +161959,7 @@ route10.post("/api/notes/connect-link", requireAuth, rateLimit("write"), async (
         createdAt: nowISO()
       });
     } catch (err) {
-      if (err?.code === "23505" || err?.message?.includes("unique") || err?.message?.includes("duplicate")) {
+      if (isUniqueViolationError(err)) {
         if (spaceId) {
           await db.update(NoteConnections).set({ spaceId }).where(
             and(
@@ -165603,7 +165756,7 @@ function calculateSessionXP(session) {
 }
 
 // src/utils/lock-pin-server.ts
-var import_node_crypto2 = __toESM(require("node:crypto"), 1);
+var import_node_crypto3 = __toESM(require("node:crypto"), 1);
 var PBKDF2_ITERATIONS = 1e5;
 var SALT_BYTES = 32;
 var HASH_BYTES = 32;
@@ -165616,7 +165769,7 @@ function validatePinFormat(pin) {
 }
 function hashPin(pin, salt) {
   const normalized = normalizePin(pin);
-  return import_node_crypto2.default.pbkdf2Sync(
+  return import_node_crypto3.default.pbkdf2Sync(
     normalized,
     salt,
     PBKDF2_ITERATIONS,
@@ -165629,7 +165782,7 @@ function hashPinNew(pin) {
   if (!PIN_REGEX.test(normalized)) {
     throw new Error("Invalid PIN: must be exactly 4 digits");
   }
-  const salt = import_node_crypto2.default.randomBytes(SALT_BYTES);
+  const salt = import_node_crypto3.default.randomBytes(SALT_BYTES);
   const hash = hashPin(normalized, salt);
   return {
     salt: salt.toString("base64"),
@@ -165644,7 +165797,7 @@ function verifyPin(pin, saltBase64, hashBase64) {
   const actualHash = hashPin(normalized, salt);
   if (expectedHash.length !== actualHash.length) return false;
   try {
-    return import_node_crypto2.default.timingSafeEqual(expectedHash, actualHash);
+    return import_node_crypto3.default.timingSafeEqual(expectedHash, actualHash);
   } catch {
     return false;
   }
@@ -174167,9 +174320,24 @@ app.get("/api/user/limits", requireAuth, rateLimit("read"), async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
+var MAX_IMPORT_BYTES = 50 * 1024 * 1024;
+function importTooLargeResponse(c) {
+  const contentLength = Number(c.req.header("Content-Length") ?? 0);
+  if (contentLength > MAX_IMPORT_BYTES) {
+    return c.json({ error: "Import too large. Maximum upload size is 50MB." }, 413);
+  }
+  return null;
+}
+function importFilesTooLarge(files) {
+  let total = 0;
+  for (const file of files) total += file.size;
+  return total > MAX_IMPORT_BYTES;
+}
 app.post("/api/user/import/preview", requireAuth, async (c) => {
   try {
     getAuthenticatedAuth(c);
+    const tooLarge = importTooLargeResponse(c);
+    if (tooLarge) return tooLarge;
     const formData = await c.req.formData();
     const format = formData.get("format");
     if (!format || format !== "markdown" && format !== "csv-threads") {
@@ -174183,6 +174351,9 @@ app.post("/api/user/import/preview", requireAuth, async (c) => {
       if (fileEntry) files.push(fileEntry);
     }
     if (files.length === 0) return c.json({ error: "At least one file is required" }, 400);
+    if (importFilesTooLarge(files)) {
+      return c.json({ error: "Import too large. Maximum upload size is 50MB." }, 413);
+    }
     const { rows, warnings, unsupported } = await parseImportFiles(files, format);
     if (rows.length === 0) return c.json({ error: "No notes found in files", warnings, unsupported }, 400);
     return c.json({
@@ -174208,6 +174379,8 @@ app.post("/api/user/import/preview", requireAuth, async (c) => {
 app.post("/api/user/import", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
+    const tooLarge = importTooLargeResponse(c);
+    if (tooLarge) return tooLarge;
     const formData = await c.req.formData();
     const format = formData.get("format");
     if (!format || format !== "markdown" && format !== "csv-threads") {
@@ -174228,6 +174401,9 @@ app.post("/api/user/import", requireAuth, async (c) => {
     if (fileEntry) files.push(fileEntry);
     else if (filesEntry?.length > 0) files.push(...filesEntry);
     else return c.json({ error: "At least one file is required" }, 400);
+    if (importFilesTooLarge(files)) {
+      return c.json({ error: "Import too large. Maximum upload size is 50MB." }, 413);
+    }
     const parsed = await parseImportFiles(files, format);
     let allParsedNotes = parsed.rows;
     if (selectedSet && selectedSet.size > 0) {
@@ -175012,7 +175188,7 @@ async function awardNoteCreatedXPInBatches(userId, items, concurrency) {
     );
   }
 }
-app3.get("/api/shared/note/:shareToken", async (c) => {
+app3.get("/api/shared/note/:shareToken", rateLimit("read"), async (c) => {
   try {
     const shareToken = requireParam(c, "shareToken");
     if (!isValidShareToken(shareToken)) return c.json({ error: "Invalid share token format" }, 400);
@@ -175079,7 +175255,7 @@ app3.get("/api/shared/note/:shareToken", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app3.get("/api/shared/thread/:shareToken", async (c) => {
+app3.get("/api/shared/thread/:shareToken", rateLimit("read"), async (c) => {
   try {
     const shareToken = requireParam(c, "shareToken");
     if (!isValidShareToken(shareToken)) return c.json({ error: "Invalid share token format" }, 400);
@@ -175503,7 +175679,7 @@ app3.post("/api/shared/add-to-harvous", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app3.get("/api/invitations/:token", async (c) => {
+app3.get("/api/invitations/:token", rateLimit("read"), async (c) => {
   try {
     const token = requireParam(c, "token");
     const invitation = first(await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).limit(1));
@@ -176615,7 +176791,7 @@ app6.post("/api/inbox/add-to-harvous", requireAuth, rateLimit("write"), async (c
 });
 async function handleAutoArchive(c) {
   try {
-    const authHeader = c.req.header("authorization");
+    const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
     const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
     const auth = getAuth(c);
     const isAuthenticated = !!auth?.userId;
@@ -176661,7 +176837,7 @@ app6.post("/api/inbox/auto-archive", handleAutoArchive);
 app6.get("/api/inbox/auto-archive", handleAutoArchive);
 async function handleAutoDelete(c) {
   try {
-    const authHeader = c.req.header("authorization");
+    const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
     const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
     const auth = getAuth(c);
     const isAuthenticated = !!auth?.userId;
@@ -176771,7 +176947,7 @@ app6.post("/api/inbox/assign-to-users", requireAuth, async (c) => {
 });
 app6.post("/api/inbox/reset-all-users", async (c) => {
   try {
-    const authHeader = c.req.header("authorization");
+    const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
     const expectedToken = process.env.INBOX_RESET_SECRET_TOKEN;
     if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
       return c.json({ error: "Unauthorized" }, 401);
@@ -177734,6 +177910,21 @@ async function tagAsAppUser(email, clerkUserId, firstName, lastName) {
 
 // server/routes/webhooks.ts
 var app8 = new Hono2();
+var SVIX_HEADER_NAMES = ["svix-id", "svix-timestamp", "svix-signature"];
+async function dedupeSvixHeaders(req) {
+  const headers = new Headers(req.headers);
+  let sawDuplicate = false;
+  for (const name of SVIX_HEADER_NAMES) {
+    const value = headers.get(name);
+    if (value?.includes(", ")) {
+      sawDuplicate = true;
+      headers.set(name, value.split(", ")[0]);
+    }
+  }
+  if (!sawDuplicate) return req;
+  const body = await req.clone().arrayBuffer();
+  return new Request(req.url, { method: req.method, headers, body });
+}
 function getPrimaryEmail(event) {
   const { data } = event;
   if (!data.email_addresses || data.email_addresses.length === 0) return null;
@@ -177859,7 +178050,8 @@ app8.post("/api/webhooks/clerk", async (c) => {
     }
     let event;
     try {
-      event = await verifyWebhook(c.req.raw, { signingSecret: webhookSecret });
+      const cleanedRequest = await dedupeSvixHeaders(c.req.raw);
+      event = await verifyWebhook(cleanedRequest, { signingSecret: webhookSecret });
       console.log("[Webhook] Signature verification successful:", { eventType: event.type });
     } catch (error) {
       console.error("[Webhook] Signature verification failed:", error.message);
@@ -177939,6 +178131,7 @@ function isTiptapBodyEmpty(html) {
 }
 
 // server/routes/sync.ts
+init_db_errors();
 init_unorganized_thread();
 init_scripture_detector();
 init_pg_undefined_relation();
@@ -178205,14 +178398,14 @@ async function processNoteMutation(userId, operation, entityId, data, clientMuta
       nextPrimary = typeof data.primaryCollection === "string" && data.primaryCollection.trim() ? data.primaryCollection.trim() : null;
     }
     const updatePayload = {
-      title: data.title,
-      content: data.content,
-      spaceId: data.spaceId,
-      isPublic: data.isPublic,
-      isFeatured: data.isFeatured,
-      order: data.order,
       updatedAt: nowISO()
     };
+    if (data.title !== void 0) updatePayload.title = data.title;
+    if (data.content !== void 0) updatePayload.content = data.content;
+    if (data.spaceId !== void 0) updatePayload.spaceId = data.spaceId;
+    if (data.isPublic !== void 0) updatePayload.isPublic = data.isPublic;
+    if (data.isFeatured !== void 0) updatePayload.isFeatured = data.isFeatured;
+    if (data.order !== void 0) updatePayload.order = data.order;
     if (data.lastVisited) {
       updatePayload.lastVisited = new Date(data.lastVisited);
     }
@@ -178258,6 +178451,9 @@ async function processNoteMutation(userId, operation, entityId, data, clientMuta
     }
     if (data.studyThreadLastAutoSuggestedAt !== void 0) {
       updatePayload.studyThreadLastAutoSuggestedAt = data.studyThreadLastAutoSuggestedAt == null || data.studyThreadLastAutoSuggestedAt === "" ? null : new Date(data.studyThreadLastAutoSuggestedAt);
+    }
+    if (typeof data.isPinned === "boolean") {
+      updatePayload.isPinned = data.isPinned;
     }
     await db.update(Notes).set(updatePayload).where(eq(Notes.id, entityId));
     const willBeEncrypted = typeof data.contentEncrypted === "boolean" ? data.contentEncrypted : existing.contentEncrypted;
@@ -178369,6 +178565,82 @@ async function processNoteTagMutation(userId, operation, entityId, data) {
       await addDismissedAutoTag(data.noteId, link.name);
     }
     return { success: true, entityId, serverId: entityId };
+  }
+  return { success: false, error: `Unknown operation: ${operation}` };
+}
+async function processNoteConnectionMutation(userId, operation, entityId, data) {
+  const fromNoteId = typeof data?.fromNoteId === "string" ? data.fromNoteId.trim() : "";
+  const toNoteId = typeof data?.toNoteId === "string" ? data.toNoteId.trim() : "";
+  if (!fromNoteId || !toNoteId) {
+    return { success: false, error: "fromNoteId and toNoteId are required" };
+  }
+  if (operation === "create") {
+    const parent = first(
+      await db.select().from(Notes).where(and(eq(Notes.id, fromNoteId), eq(Notes.userId, userId))).limit(1)
+    );
+    const linked = first(
+      await db.select().from(Notes).where(and(eq(Notes.id, toNoteId), eq(Notes.userId, userId))).limit(1)
+    );
+    if (!parent || !linked) return { success: false, error: "Note not found" };
+    const existing = first(
+      await db.select({ id: NoteConnections.id }).from(NoteConnections).where(
+        and(
+          eq(NoteConnections.fromNoteId, fromNoteId),
+          eq(NoteConnections.toNoteId, toNoteId),
+          eq(NoteConnections.userId, userId)
+        )
+      ).limit(1)
+    );
+    if (existing) return { success: true, entityId, serverId: existing.id };
+    const spaceId = typeof data.spaceId === "string" && data.spaceId.trim() ? data.spaceId.trim() : parent.spaceId ?? linked.spaceId ?? null;
+    const newId = entityId.startsWith("local_") ? generateNoteId() : entityId;
+    try {
+      await db.insert(NoteConnections).values({
+        id: newId,
+        fromNoteId,
+        toNoteId,
+        userId,
+        spaceId,
+        createdAt: nowISO()
+      });
+    } catch (err) {
+      if (isUniqueViolationError(err)) {
+        const dup = first(
+          await db.select({ id: NoteConnections.id }).from(NoteConnections).where(
+            and(
+              eq(NoteConnections.fromNoteId, fromNoteId),
+              eq(NoteConnections.toNoteId, toNoteId),
+              eq(NoteConnections.userId, userId)
+            )
+          ).limit(1)
+        );
+        if (dup) return { success: true, entityId, serverId: dup.id };
+      }
+      throw err;
+    }
+    return { success: true, entityId, serverId: newId };
+  }
+  if (operation === "delete") {
+    const existing = first(
+      await db.select({ id: NoteConnections.id }).from(NoteConnections).where(
+        and(
+          eq(NoteConnections.fromNoteId, fromNoteId),
+          eq(NoteConnections.toNoteId, toNoteId),
+          eq(NoteConnections.userId, userId)
+        )
+      ).limit(1)
+    );
+    await db.delete(NoteConnections).where(
+      and(
+        eq(NoteConnections.fromNoteId, fromNoteId),
+        eq(NoteConnections.toNoteId, toNoteId),
+        eq(NoteConnections.userId, userId)
+      )
+    );
+    if (existing) {
+      await recordDeletedEntities(userId, "noteConnection", [existing.id]);
+    }
+    return { success: true, entityId, serverId: existing?.id ?? entityId };
   }
   return { success: false, error: `Unknown operation: ${operation}` };
 }
@@ -178498,6 +178770,9 @@ app9.post("/api/sync/push", requireAuth, async (c) => {
             break;
           case "noteThread":
             result = await processNoteThreadMutation(auth.userId, operation, entityId, data);
+            break;
+          case "noteConnection":
+            result = await processNoteConnectionMutation(auth.userId, operation, entityId, data);
             break;
           case "tag":
             result = await processTagMutation(auth.userId, operation, entityId, data);
@@ -179943,52 +180218,73 @@ init_dates();
 // server/utils/analytics-aggregator.ts
 init_db2();
 init_dates();
+
+// server/utils/admin-calendar-range.ts
+function parseMonthKey(monthKey) {
+  const [yearStr, monthStr] = monthKey.split("-");
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  if (!year || month < 1 || month > 12) {
+    throw new Error(`Invalid month key: ${monthKey}`);
+  }
+  return { year, month };
+}
+function adminCalendarMonthRange(monthKey) {
+  const { year, month } = parseMonthKey(monthKey);
+  const since = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  const until = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+  return { since, until };
+}
+
+// server/utils/analytics-aggregator.ts
+function analyticsRowId(month, category, name, index2) {
+  const slug = name.replace(/\s+/g, "_").replace(/[^\w.-]/g, "");
+  return `analytics_${month}_${category}_${slug}_${index2}`;
+}
 async function aggregateMonthlyAnalytics(month) {
   try {
-    const [year, monthNum] = month.split("-").map(Number);
-    const monthStart = new Date(year, monthNum - 1, 1).toISOString();
-    const monthEnd = new Date(year, monthNum, 1).toISOString();
-    const bookStats = await db.select({
-      book: ScriptureMetadata.book,
-      count: sql`COUNT(*)`.as("count")
-    }).from(ScriptureMetadata).where(and(gte(ScriptureMetadata.createdAt, monthStart), lt(ScriptureMetadata.createdAt, monthEnd))).groupBy(ScriptureMetadata.book);
-    const tagStats = await db.select({
-      tagName: Tags.name,
-      count: sql`COUNT(*)`.as("count")
-    }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).where(and(gte(NoteTags.createdAt, monthStart), lt(NoteTags.createdAt, monthEnd))).groupBy(Tags.name);
+    const { since: monthStart, until: monthEnd } = adminCalendarMonthRange(month);
+    const [bookStats, tagStats] = await Promise.all([
+      db.select({
+        book: ScriptureMetadata.book,
+        count: sql`COUNT(*)`.as("count")
+      }).from(ScriptureMetadata).where(and(gte(ScriptureMetadata.createdAt, monthStart), lt(ScriptureMetadata.createdAt, monthEnd))).groupBy(ScriptureMetadata.book),
+      db.select({
+        tagName: Tags.name,
+        count: sql`COUNT(*)`.as("count")
+      }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).where(and(gte(NoteTags.createdAt, monthStart), lt(NoteTags.createdAt, monthEnd))).groupBy(Tags.name)
+    ]);
+    const createdAt = nowISO();
+    const rows = [];
+    let bookIndex = 0;
     for (const stat of bookStats) {
       if (!stat.book) continue;
-      const existing = first(await db.select().from(MonthlyAnalytics).where(and(eq(MonthlyAnalytics.month, month), eq(MonthlyAnalytics.category, "book"), eq(MonthlyAnalytics.bookName, stat.book))).limit(1));
-      if (existing) {
-        await db.update(MonthlyAnalytics).set({ count: stat.count, updatedAt: nowISO() }).where(eq(MonthlyAnalytics.id, existing.id));
-      } else {
-        await db.insert(MonthlyAnalytics).values({
-          id: `analytics_${month}_book_${stat.book.replace(/\s+/g, "_")}_${Date.now()}`,
-          month,
-          bookName: stat.book,
-          tagName: null,
-          category: "book",
-          count: stat.count,
-          createdAt: nowISO()
-        });
-      }
+      rows.push({
+        id: analyticsRowId(month, "book", stat.book, bookIndex++),
+        month,
+        bookName: stat.book,
+        tagName: null,
+        category: "book",
+        count: stat.count,
+        createdAt
+      });
     }
+    let tagIndex = 0;
     for (const stat of tagStats) {
       if (!stat.tagName) continue;
-      const existing = first(await db.select().from(MonthlyAnalytics).where(and(eq(MonthlyAnalytics.month, month), eq(MonthlyAnalytics.category, "tag"), eq(MonthlyAnalytics.tagName, stat.tagName))).limit(1));
-      if (existing) {
-        await db.update(MonthlyAnalytics).set({ count: stat.count, updatedAt: nowISO() }).where(eq(MonthlyAnalytics.id, existing.id));
-      } else {
-        await db.insert(MonthlyAnalytics).values({
-          id: `analytics_${month}_tag_${stat.tagName.replace(/\s+/g, "_")}_${Date.now()}`,
-          month,
-          bookName: null,
-          tagName: stat.tagName,
-          category: "tag",
-          count: stat.count,
-          createdAt: nowISO()
-        });
-      }
+      rows.push({
+        id: analyticsRowId(month, "tag", stat.tagName, tagIndex++),
+        month,
+        bookName: null,
+        tagName: stat.tagName,
+        category: "tag",
+        count: stat.count,
+        createdAt
+      });
+    }
+    await db.delete(MonthlyAnalytics).where(eq(MonthlyAnalytics.month, month));
+    if (rows.length > 0) {
+      await db.insert(MonthlyAnalytics).values(rows);
     }
   } catch (error) {
     console.error(`Error aggregating analytics for ${month}:`, error);
@@ -179996,17 +180292,11 @@ async function aggregateMonthlyAnalytics(month) {
   }
 }
 function getCurrentMonth() {
-  const now2 = /* @__PURE__ */ new Date();
-  const year = now2.getFullYear();
-  const month = String(now2.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
+  return getUtcMonthKey(/* @__PURE__ */ new Date());
 }
 function getPreviousMonth() {
   const now2 = /* @__PURE__ */ new Date();
-  const prev = new Date(now2.getFullYear(), now2.getMonth() - 1, 1);
-  const year = prev.getFullYear();
-  const month = String(prev.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
+  return getUtcMonthKey(new Date(Date.UTC(now2.getUTCFullYear(), now2.getUTCMonth() - 1, 1)));
 }
 
 // server/routes/admin.ts
@@ -181005,9 +181295,14 @@ async function getUsageDiscovery(daysParam) {
     tones: fingerprintDiscovery.tones
   };
 }
-async function getUsageOverviewForRange(since, until) {
+async function getUsageOverviewForRange(since, until, options) {
   const sinceIso = since.toISOString();
   const untilIso = until.toISOString();
+  const emptyPassage = {
+    usersWhoAddedPassage: 0,
+    passageNotesAdded: 0,
+    dismissCloseEvents: 0
+  };
   const [contentRows, noteTypeRows, studyBehavior, passageMetrics, scripturePills, studyThreadEntries, recallMetrics] = await Promise.all([
     db.execute(sql`
         SELECT
@@ -181018,7 +181313,7 @@ async function getUsageOverviewForRange(since, until) {
       `),
     db.select({ noteType: Notes.noteType, count: sql`COUNT(*)`.as("count") }).from(Notes).where(and(gte(Notes.createdAt, since), lt(Notes.createdAt, until), countableUserNotesWhere())).groupBy(Notes.noteType),
     fetchStudyBehaviorMetricsForRange(since, until),
-    fetchVotdPassageEngagementMetricsForRange(since, until),
+    options?.omitPassageEngagement ? Promise.resolve(emptyPassage) : fetchVotdPassageEngagementMetricsForRange(since, until),
     db.select({ count: sql`COUNT(*)`.as("count") }).from(ScriptureMetadata).where(and(gte(ScriptureMetadata.createdAt, since), lt(ScriptureMetadata.createdAt, until))),
     countActiveStudyThreadEntriesForRange(since, until),
     fetchRecallMetricsForRange(since, until)
@@ -181146,11 +181441,17 @@ async function fetchRecallMetricsForRange(since, until) {
   }
 }
 async function fetchVotdPassageEngagementMetricsForRange(since, until) {
-  const sinceIso = since.toISOString();
-  const untilIso = until.toISOString();
-  const publishDateMin = since.toISOString().slice(0, 10);
-  const publishDateMax = until.toISOString().slice(0, 10);
-  const rows = await db.execute(sql`
+  const empty = {
+    usersWhoAddedPassage: 0,
+    passageNotesAdded: 0,
+    dismissCloseEvents: 0
+  };
+  try {
+    const sinceIso = since.toISOString();
+    const untilIso = until.toISOString();
+    const publishDateMin = since.toISOString().slice(0, 10);
+    const publishDateMax = until.toISOString().slice(0, 10);
+    const rows = await db.execute(sql`
     WITH published AS (
       SELECT
         p."reference",
@@ -181190,13 +181491,19 @@ async function fetchVotdPassageEngagementMetricsForRange(since, until) {
         INNER JOIN "FeaturedItems" fi ON fi."id" = ufi."featuredItemId"
         WHERE fi."contentType" = 'votd' AND ufi."status" = 'completed'
         AND ufi."completedAt" >= ${sinceIso} AND ufi."completedAt" < ${untilIso}) AS dismiss_close_events
-  `);
-  const row = rows[0];
-  return {
-    usersWhoAddedPassage: Number(row?.users_who_added_passage ?? 0),
-    passageNotesAdded: Number(row?.passage_notes_added ?? 0),
-    dismissCloseEvents: Number(row?.dismiss_close_events ?? 0)
-  };
+    `);
+    const row = rows[0];
+    return {
+      usersWhoAddedPassage: Number(row?.users_who_added_passage ?? 0),
+      passageNotesAdded: Number(row?.passage_notes_added ?? 0),
+      dismissCloseEvents: Number(row?.dismiss_close_events ?? 0)
+    };
+  } catch (error) {
+    if (isPgUndefinedRelation(error, "VotdPublishHistory") || isPgUndefinedRelation(error, "UserFeaturedItems") || isPgUndefinedRelation(error, "FeaturedItems")) {
+      return empty;
+    }
+    throw error;
+  }
 }
 
 // server/utils/admin-pulse-stats.ts
@@ -181340,8 +181647,10 @@ async function fetchWindowLinkActivity(since, until) {
     throw error;
   }
 }
+var MAX_THREAD_THEME_NOTE_IDS = 500;
 async function fetchThreadThemes(threadNoteIds, limit = 8) {
   if (threadNoteIds.length === 0) return [];
+  if (threadNoteIds.length > MAX_THREAD_THEME_NOTE_IDS) return [];
   try {
     const fetchLimit = Math.max(limit * 5, 40);
     const noteIdList = sql.join(threadNoteIds.map((noteId) => sql`${noteId}`), sql`, `);
@@ -181458,6 +181767,40 @@ async function getAdminPulseThreadsStats(since, until) {
     themes,
     recall
   };
+}
+async function getAdminPulseThreadsSummaryForReport(since, until) {
+  const empty = {
+    totalThreads: 0,
+    avgNotesPerThread: 0,
+    linksCreated: 0,
+    threadsLinkedInWindow: 0,
+    notesInThreads: 0
+  };
+  try {
+    const sinceIso = since.toISOString();
+    const untilIso = until.toISOString();
+    const rows = await db.execute(sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM "NoteConnections"
+          WHERE "createdAt" >= ${sinceIso} AND "createdAt" < ${untilIso}) AS links_created,
+        (SELECT COUNT(DISTINCT "userId")::int FROM "NoteConnections"
+          WHERE "createdAt" >= ${sinceIso} AND "createdAt" < ${untilIso}) AS users_with_links
+    `);
+    const linksCreated = Number(rows[0]?.links_created ?? 0);
+    const usersWithLinks = Number(rows[0]?.users_with_links ?? 0);
+    return {
+      totalThreads: usersWithLinks,
+      avgNotesPerThread: 0,
+      linksCreated,
+      threadsLinkedInWindow: usersWithLinks,
+      notesInThreads: 0
+    };
+  } catch (error) {
+    if (isNoteConnectionsTableMissing(error)) {
+      return empty;
+    }
+    throw error;
+  }
 }
 
 // server/utils/admin-pulse-stats.ts
@@ -181711,17 +182054,72 @@ async function getAdminPulse(daysParam) {
     }
   };
 }
+function toReportCanonSections(groups) {
+  return groups.map((group) => ({
+    id: group.id,
+    label: group.label,
+    count: group.count,
+    testament: group.testament
+  }));
+}
+function toReportCanonBooks(cells) {
+  return cells.map((cell) => ({
+    name: cell.name,
+    order: cell.order,
+    count: cell.count,
+    sharePct: cell.sharePct,
+    heatLevel: cell.heatLevel
+  }));
+}
 async function getPulseReportMetrics(since, until) {
-  const [uniquePassages, books, themes, passages, tags, translations, threads] = await Promise.all([
+  const emptyRecall = {
+    impressions: 0,
+    opens: 0,
+    snoozes: 0,
+    snoozeRatePct: 0,
+    impressionsByKind: [],
+    opensByKind: []
+  };
+  const [
+    uniquePassages,
+    allBookCounts,
+    themes,
+    passages,
+    tags,
+    translations,
+    tones,
+    folders,
+    dictionaryWords,
+    threadSummary
+  ] = await Promise.all([
     fetchUniquePassageCount(since, until),
-    fetchBooks(since, until, 10),
+    fetchBooks(since, until),
     fetchThemes(since, until, 10),
     fetchPassages(since, until, 10),
     fetchTags(since, until, 10),
     fetchTranslations(since, until),
-    getAdminPulseThreadsStats(since, until)
+    fetchTones(since, until, 10),
+    getTrendingAutoFolders(since, 10, until),
+    fetchDictionaryWords(since, until, 10),
+    getAdminPulseThreadsSummaryForReport(since, until)
   ]);
-  return { uniquePassages, books, themes, passages, tags, translations: translations.slice(0, 5), threads };
+  const books = allBookCounts.slice(0, 10);
+  const canonSections = aggregateCanonGroupCounts(allBookCounts);
+  const canonBooks = buildCanonBookGrid(allBookCounts);
+  return {
+    uniquePassages,
+    books,
+    themes,
+    passages,
+    tags,
+    translations: translations.slice(0, 5),
+    curiosity: { tones, folders, dictionaryWords },
+    canon: {
+      sections: toReportCanonSections(canonSections),
+      books: toReportCanonBooks(canonBooks)
+    },
+    threads: { summary: threadSummary, themes: [], recall: emptyRecall }
+  };
 }
 async function fetchMonthlyAnalyticsRank(monthKey, category, limit) {
   const nameCol = category === "book" ? MonthlyAnalytics.bookName : MonthlyAnalytics.tagName;
@@ -181739,25 +182137,6 @@ async function getMonthlyAnalyticsForReport(monthKey) {
 // server/utils/admin-report-generator.ts
 init_db2();
 init_dates();
-
-// server/utils/admin-calendar-range.ts
-function parseMonthKey(monthKey) {
-  const [yearStr, monthStr] = monthKey.split("-");
-  const year = parseInt(yearStr, 10);
-  const month = parseInt(monthStr, 10);
-  if (!year || month < 1 || month > 12) {
-    throw new Error(`Invalid month key: ${monthKey}`);
-  }
-  return { year, month };
-}
-function adminCalendarMonthRange(monthKey) {
-  const { year, month } = parseMonthKey(monthKey);
-  const since = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
-  const until = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
-  return { since, until };
-}
-
-// server/utils/admin-report-generator.ts
 var MONTH_KEY_RE = /^\d{4}-\d{2}$/;
 function isValidMonthKey(month) {
   return MONTH_KEY_RE.test(month);
@@ -181770,7 +182149,7 @@ async function buildMonthlyReportPayload(month) {
   const seasonId = getSeasonForMonth(month);
   const generatedAt = (/* @__PURE__ */ new Date()).toISOString();
   const [usage, pulseRaw, xpRaw, monthlyAnalytics] = await Promise.all([
-    getUsageOverviewForRange(since, until),
+    getUsageOverviewForRange(since, until, { omitPassageEngagement: true }),
     getPulseReportMetrics(since, until),
     getAdminPulseXpForRange(since, until),
     getMonthlyAnalyticsForReport(month)
@@ -181789,6 +182168,8 @@ async function buildMonthlyReportPayload(month) {
       tags: pulseRaw.tags,
       translations: pulseRaw.translations,
       monthlyAnalytics,
+      curiosity: pulseRaw.curiosity,
+      canon: pulseRaw.canon,
       threads: {
         totalThreads: pulseRaw.threads.summary.totalThreads,
         avgNotesPerThread: pulseRaw.threads.summary.avgNotesPerThread,
@@ -181838,6 +182219,9 @@ async function getStoredMonthlyReport(month) {
   if (!rows[0]) return null;
   return parseReportPayload(rows[0].payload);
 }
+function catalogGeneratedAt(value) {
+  return value instanceof Date ? value.toISOString() : String(value);
+}
 function buildCatalogMonth(month, generatedAt) {
   return { month, label: formatMonthLabel(month), generatedAt };
 }
@@ -181847,7 +182231,7 @@ function yearsFromStoredRows(storedByMonth, minYear, maxYear) {
     const seasons = listReportCatalogSeasonsForYear(year).map((seasonId) => {
       const months = getSeasonMonths(seasonId).filter(isAdminReportMonthInCatalog).map((month) => {
         const stored = storedByMonth.get(month);
-        return buildCatalogMonth(month, stored ? stored.generatedAt.toISOString() : null);
+        return buildCatalogMonth(month, stored ? catalogGeneratedAt(stored.generatedAt) : null);
       });
       return {
         seasonId,
@@ -181880,6 +182264,7 @@ async function listAdminReportsCatalog() {
 }
 
 // server/utils/admin-report-rollup.ts
+init_admin_pulse_canon_groups();
 function mergeRankedLists(lists, limit) {
   const totals = /* @__PURE__ */ new Map();
   for (const list of lists) {
@@ -181888,6 +182273,39 @@ function mergeRankedLists(lists, limit) {
     }
   }
   return [...totals.entries()].sort((a, b3) => b3[1] - a[1] || a[0].localeCompare(b3[0])).slice(0, limit).map(([name, count3]) => ({ name, count: count3 }));
+}
+function emptyCuriosity() {
+  return { tones: [], folders: [], dictionaryWords: [] };
+}
+function pulseThreadTotalThreads(threads) {
+  return threads.totalThreads ?? threads.activeThreads ?? 0;
+}
+function mergeCanonSections(payloads) {
+  const totals = /* @__PURE__ */ new Map();
+  for (const payload of payloads) {
+    const sections = payload.pulse.canon?.sections ?? [];
+    for (const section of sections) {
+      totals.set(section.id, (totals.get(section.id) ?? 0) + section.count);
+    }
+  }
+  return CANON_BOOK_GROUPS.map((group) => ({
+    id: group.id,
+    label: group.label,
+    testament: group.testament,
+    count: totals.get(group.id) ?? 0
+  })).filter((section) => section.count > 0);
+}
+function mergeCanonBooks(payloads) {
+  const totals = /* @__PURE__ */ new Map();
+  for (const payload of payloads) {
+    const books = payload.pulse.canon?.books ?? [];
+    for (const book of books) {
+      if (book.count <= 0) continue;
+      totals.set(book.name, (totals.get(book.name) ?? 0) + book.count);
+    }
+  }
+  const bookCounts = [...totals.entries()].map(([name, count3]) => ({ name, count: count3 }));
+  return buildCanonBookGrid(bookCounts);
 }
 function mergeXpActivities(payloads) {
   const byLabel = /* @__PURE__ */ new Map();
@@ -181961,7 +182379,7 @@ function sumPulse(payloads) {
     eventCount += p.pulse.xp.eventCount;
     xpUsers += p.pulse.xp.users;
     uniquePassages += p.pulse.uniquePassages;
-    totalThreads = Math.max(totalThreads, p.pulse.threads.totalThreads);
+    totalThreads = Math.max(totalThreads, pulseThreadTotalThreads(p.pulse.threads));
     linksCreated += p.pulse.threads.linksCreated;
     avgNotesSum += p.pulse.threads.avgNotesPerThread;
   }
@@ -181998,6 +182416,24 @@ function sumPulse(payloads) {
         payloads.map((p) => p.pulse.monthlyAnalytics.tags),
         10
       )
+    },
+    curiosity: {
+      tones: mergeRankedLists(
+        payloads.map((p) => (p.pulse.curiosity ?? emptyCuriosity()).tones),
+        10
+      ),
+      folders: mergeRankedLists(
+        payloads.map((p) => (p.pulse.curiosity ?? emptyCuriosity()).folders),
+        10
+      ),
+      dictionaryWords: mergeRankedLists(
+        payloads.map((p) => (p.pulse.curiosity ?? emptyCuriosity()).dictionaryWords),
+        10
+      )
+    },
+    canon: {
+      sections: mergeCanonSections(payloads),
+      books: mergeCanonBooks(payloads)
     },
     threads: {
       totalThreads,
@@ -182068,6 +182504,32 @@ function payloadToRows(scope, scopeId, payload) {
   }
   for (const theme of pulse.themes) {
     pushMetric(rows, scope, scopeId, "themes", theme.name, theme.count);
+  }
+  for (const passage of pulse.passages) {
+    pushMetric(rows, scope, scopeId, "passages", passage.name, passage.count);
+  }
+  for (const tag of pulse.tags) {
+    pushMetric(rows, scope, scopeId, "tags", tag.name, tag.count);
+  }
+  for (const translation of pulse.translations) {
+    pushMetric(rows, scope, scopeId, "translations", translation.name, translation.count);
+  }
+  const curiosity = pulse.curiosity ?? { tones: [], folders: [], dictionaryWords: [] };
+  for (const tone of curiosity.tones) {
+    pushMetric(rows, scope, scopeId, "tones", tone.name, tone.count);
+  }
+  for (const folder of curiosity.folders) {
+    pushMetric(rows, scope, scopeId, "folders", folder.name, folder.count);
+  }
+  for (const word of curiosity.dictionaryWords) {
+    pushMetric(rows, scope, scopeId, "dictionaryWords", word.name, word.count);
+  }
+  const canon = pulse.canon ?? { sections: [], books: [] };
+  for (const section of canon.sections) {
+    pushMetric(rows, scope, scopeId, "canonSections", section.label, section.count);
+  }
+  for (const book of canon.books.filter((cell) => cell.count > 0).slice(0, 10)) {
+    pushMetric(rows, scope, scopeId, "canonBooks", book.name, book.count);
   }
   for (const activity of pulse.xp.byActivity) {
     pushMetric(rows, scope, scopeId, "xpActivity", activity.label, activity.totalXp);
@@ -182312,6 +182774,11 @@ function isFeedbackTopic(value) {
 // src/utils/support-tickets.ts
 var import_meta3 = {};
 var API_BASE = typeof import_meta3 !== "undefined" && import_meta3.env?.VITE_API_BASE_URL ? String(import_meta3.env.VITE_API_BASE_URL) : "";
+function formatSupportTicketRef(ticketNumber, id) {
+  if (ticketNumber != null) return String(ticketNumber);
+  if (/^\d+$/.test(id)) return id;
+  return id;
+}
 
 // server/utils/support-ticket.ts
 init_pg_undefined_relation();
@@ -182407,7 +182874,7 @@ function mapListRow(row) {
     createdAt: rowToIso(row.createdAt) ?? ""
   };
 }
-function mapDetailRow(row, userMeta) {
+function mapDetailRow(row, userMeta, notes = []) {
   return {
     ...mapListRow(row),
     userId: row.userId,
@@ -182416,10 +182883,31 @@ function mapDetailRow(row, userMeta) {
     clientEnvironment: row.clientEnvironment,
     adminNote: row.adminNote,
     adminReadAt: rowToIso(row.adminReadAt),
+    repliedAt: rowToIso(row.repliedAt),
     closedAt: rowToIso(row.closedAt),
     userTier: userMeta?.tier ?? null,
-    userAccountCreatedAt: rowToIso(userMeta?.createdAt ?? null)
+    userAccountCreatedAt: rowToIso(userMeta?.createdAt ?? null),
+    notes
   };
+}
+async function listSupportTicketNotes(ticketId) {
+  const rows = await db.select({
+    id: SupportTicketNotes.id,
+    note: SupportTicketNotes.note,
+    createdAt: SupportTicketNotes.createdAt
+  }).from(SupportTicketNotes).where(eq(SupportTicketNotes.ticketId, ticketId)).orderBy(desc(SupportTicketNotes.createdAt));
+  return rows.map((r) => ({ id: r.id, note: r.note, createdAt: rowToIso(r.createdAt) ?? "" }));
+}
+async function addSupportTicketNote(ticketId, note) {
+  const resolvedId = await resolveSupportTicketId(ticketId);
+  if (!resolvedId) return null;
+  await db.insert(SupportTicketNotes).values({
+    id: generateTimestampId("supnote"),
+    ticketId: resolvedId,
+    note,
+    createdAt: nowISO()
+  });
+  return getSupportTicket(resolvedId);
 }
 async function countOpenSupportTickets() {
   const result = await db.select({ value: count() }).from(SupportTickets).where(eq(SupportTickets.status, "open"));
@@ -182461,22 +182949,23 @@ async function getSupportTicket(id, options) {
   }).from(SupportTickets).leftJoin(UserMetadata, eq(SupportTickets.userId, UserMetadata.userId)).where(eq(SupportTickets.id, resolvedId)).limit(1);
   const row = rows[0];
   if (!row) return null;
+  const notes = await listSupportTicketNotes(resolvedId);
   if (options?.markRead && row.ticket.adminReadAt == null) {
     const readAt = nowISO();
     await db.update(SupportTickets).set({ adminReadAt: readAt }).where(eq(SupportTickets.id, resolvedId));
     return mapDetailRow({ ...row.ticket, adminReadAt: readAt }, {
       tier: row.userTier,
       createdAt: row.userAccountCreatedAt
-    });
+    }, notes);
   }
   return mapDetailRow(row.ticket, {
     tier: row.userTier,
     createdAt: row.userAccountCreatedAt
-  });
+  }, notes);
 }
 function validatePatchSupportTicketInput(body) {
   if (!body || typeof body !== "object") return null;
-  const { status, adminNote, read } = body;
+  const { status, adminNote, read, replied } = body;
   const patch = {};
   if (status !== void 0) {
     if (typeof status !== "string" || !isSupportTicketStatus(status)) return null;
@@ -182490,7 +182979,13 @@ function validatePatchSupportTicketInput(body) {
     if (typeof read !== "boolean") return null;
     patch.read = read;
   }
-  if (patch.status === void 0 && patch.adminNote === void 0 && patch.read === void 0) return null;
+  if (replied !== void 0) {
+    if (typeof replied !== "boolean") return null;
+    patch.replied = replied;
+  }
+  if (patch.status === void 0 && patch.adminNote === void 0 && patch.read === void 0 && patch.replied === void 0) {
+    return null;
+  }
   return patch;
 }
 async function patchSupportTicket(id, patch) {
@@ -182509,6 +183004,9 @@ async function patchSupportTicket(id, patch) {
   if (patch.read !== void 0) {
     updates.adminReadAt = patch.read ? nowISO() : null;
   }
+  if (patch.replied !== void 0) {
+    updates.repliedAt = patch.replied ? nowISO() : null;
+  }
   if (Object.keys(updates).length === 0) return existing;
   await db.update(SupportTickets).set(updates).where(eq(SupportTickets.id, resolvedId));
   return getSupportTicket(resolvedId);
@@ -182516,6 +183014,52 @@ async function patchSupportTicket(id, patch) {
 function parseSupportTicketListFilter(value) {
   if (value === "closed" || value === "all") return value;
   return "open";
+}
+
+// server/utils/support-notify.ts
+init_db2();
+init_dates();
+var MAX_PREVIEW_LENGTH = 120;
+function messagePreview(message) {
+  const line2 = message.trim().split("\n")[0] ?? "";
+  return line2.length > MAX_PREVIEW_LENGTH ? `${line2.slice(0, MAX_PREVIEW_LENGTH - 3)}\u2026` : line2;
+}
+function buildSlackText(tickets) {
+  const header = tickets.length === 1 ? "1 new Harvous support ticket" : `${tickets.length} new Harvous support tickets`;
+  const lines = tickets.map((t) => {
+    const ref = formatSupportTicketRef(t.ticketNumber, t.id);
+    const topic = t.topic ? `[${t.topic}] ` : "";
+    const who = t.userName || t.userEmail || "Unknown user";
+    return `#${ref} ${topic}${who} \u2014 ${messagePreview(t.message)}`;
+  });
+  return [header, ...lines].join("\n");
+}
+async function checkAndNotifySupportTickets() {
+  const webhookUrl = process.env.SUPPORT_SLACK_WEBHOOK_URL;
+  if (!webhookUrl) {
+    console.warn("[support-notify] SUPPORT_SLACK_WEBHOOK_URL not set; skipping.");
+    return { notified: 0 };
+  }
+  const tickets = await db.select().from(SupportTickets).where(
+    and(
+      isNull(SupportTickets.notifiedAt),
+      eq(SupportTickets.status, "open"),
+      isNull(SupportTickets.adminReadAt)
+    )
+  ).orderBy(asc(SupportTickets.createdAt));
+  if (tickets.length === 0) return { notified: 0 };
+  const res = await fetch(webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: buildSlackText(tickets) })
+  });
+  if (!res.ok) {
+    console.error("[support-notify] Slack webhook failed", res.status, await res.text().catch(() => ""));
+    return { notified: 0 };
+  }
+  const notifiedAt = nowISO();
+  await db.update(SupportTickets).set({ notifiedAt }).where(inArray(SupportTickets.id, tickets.map((t) => t.id)));
+  return { notified: tickets.length };
 }
 
 // server/utils/admin-diagnostics-stats.ts
@@ -182527,6 +183071,7 @@ var DIAGNOSTIC_SOURCES = ["client_js", "client_api", "client_manual", "server_ap
 var DIAGNOSTIC_SEVERITIES = ["error", "warning"];
 var DIAGNOSTIC_TRIAGE_STATUSES = ["open", "resolved", "ignored"];
 var DIAGNOSTIC_PLATFORMS = ["web", "ios", "unknown"];
+var DIAGNOSTIC_SOURCE_ENVS = ["dev", "prod"];
 function isDiagnosticSource(value) {
   return DIAGNOSTIC_SOURCES.includes(value);
 }
@@ -182538,6 +183083,9 @@ function isDiagnosticTriageStatus(value) {
 }
 function isDiagnosticPlatform(value) {
   return DIAGNOSTIC_PLATFORMS.includes(value);
+}
+function isDiagnosticSourceEnv(value) {
+  return DIAGNOSTIC_SOURCE_ENVS.includes(value);
 }
 
 // server/utils/admin-diagnostics-stats.ts
@@ -182589,8 +183137,9 @@ function topRoute(acc) {
   }
   return best;
 }
-async function getDiagnosticIssues(days) {
+async function getDiagnosticIssues(days, sourceEnv) {
   const since = sinceDate(days);
+  const where = sourceEnv ? and(gte(DiagnosticEvents.createdAt, since), eq(DiagnosticEvents.sourceEnv, sourceEnv)) : gte(DiagnosticEvents.createdAt, since);
   try {
     const rows = await db.select({
       issueSignature: DiagnosticEvents.issueSignature,
@@ -182598,7 +183147,7 @@ async function getDiagnosticIssues(days) {
       route: DiagnosticEvents.route,
       source: DiagnosticEvents.source,
       createdAt: DiagnosticEvents.createdAt
-    }).from(DiagnosticEvents).where(gte(DiagnosticEvents.createdAt, since)).orderBy(desc(DiagnosticEvents.createdAt)).limit(MAX_EVENTS_SCAN);
+    }).from(DiagnosticEvents).where(where).orderBy(desc(DiagnosticEvents.createdAt)).limit(MAX_EVENTS_SCAN);
     if (rows.length === 0) return [];
     const grouped = aggregateEvents(rows);
     const signatures = grouped.map((g2) => g2.issueSignature);
@@ -182636,9 +183185,10 @@ async function getDiagnosticIssues(days) {
     throw error;
   }
 }
-async function countDiagnosticEventsSince(since) {
+async function countDiagnosticEventsSince(since, sourceEnv) {
+  const where = sourceEnv ? and(gte(DiagnosticEvents.createdAt, since), eq(DiagnosticEvents.sourceEnv, sourceEnv)) : gte(DiagnosticEvents.createdAt, since);
   try {
-    const rows = await db.select({ id: DiagnosticEvents.id }).from(DiagnosticEvents).where(gte(DiagnosticEvents.createdAt, since)).limit(MAX_EVENTS_SCAN + 1);
+    const rows = await db.select({ id: DiagnosticEvents.id }).from(DiagnosticEvents).where(where).limit(MAX_EVENTS_SCAN + 1);
     return rows.length > MAX_EVENTS_SCAN ? MAX_EVENTS_SCAN : rows.length;
   } catch (error) {
     if (isDiagnosticEventsTableMissing(error)) return 0;
@@ -182691,6 +183241,14 @@ async function updateDiagnosticIssueTriage(issueSignature, status, adminNotes) {
     }
     throw error;
   }
+}
+async function bulkUpdateDiagnosticIssueTriage(issueSignatures, status, adminNotes) {
+  const unique2 = [...new Set(issueSignatures.map((s2) => s2.trim()).filter(Boolean))];
+  if (unique2.length === 0) return 0;
+  for (const issueSignature of unique2) {
+    await updateDiagnosticIssueTriage(issueSignature, status, adminNotes);
+  }
+  return unique2.length;
 }
 
 // server/routes/admin.ts
@@ -182769,7 +183327,8 @@ app11.post("/api/admin/reports/generate", async (c) => {
     return c.json({ success: true, month, payload });
   } catch (error) {
     console.error("[admin reports generate]", error);
-    return c.json({ error: "Failed to generate report" }, 500);
+    const details = error instanceof Error ? error.message : String(error);
+    return c.json({ error: "Failed to generate report", details }, 500);
   }
 });
 app11.get("/api/admin/reports/season/:seasonId", async (c) => {
@@ -182889,44 +183448,85 @@ app11.get("/api/admin/reports/:month", async (c) => {
   }
 });
 async function handleAggregateAnalytics(c) {
+  const auth = getAuth(c);
+  const authHeader = c.req.header("authorization")?.split(",")[0]?.trim();
+  const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
+  const isAuthenticated = !!auth?.userId;
+  const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
+  if (expectedToken && !hasValidToken && !isAuthenticated) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  if (!hasValidToken) {
+    const denied = await requireHarvousAdmin(c);
+    if (denied) return denied;
+  }
+  const previous = c.req.query("previous") === "true";
+  const monthParam = c.req.query("month");
+  const includeReport = c.req.query("report") === "1" || c.req.query("report") === "true";
+  let targetMonth;
+  if (monthParam) {
+    if (!/^\d{4}-\d{2}$/.test(monthParam)) {
+      return c.json({ error: "Invalid month format. Use YYYY-MM" }, 400);
+    }
+    targetMonth = monthParam;
+  } else if (previous) {
+    targetMonth = getPreviousMonth();
+  } else {
+    targetMonth = getCurrentMonth();
+  }
   try {
-    const auth = getAuth(c);
-    const authHeader = c.req.header("authorization")?.split(",")[0]?.trim();
-    const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
-    const isAuthenticated = !!auth?.userId;
-    const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
-    if (expectedToken && !hasValidToken && !isAuthenticated) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-    if (!hasValidToken) {
-      const denied = await requireHarvousAdmin(c);
-      if (denied) return denied;
-    }
-    const previous = c.req.query("previous") === "true";
-    const monthParam = c.req.query("month");
-    let targetMonth;
-    if (monthParam) {
-      if (!/^\d{4}-\d{2}$/.test(monthParam)) {
-        return c.json({ error: "Invalid month format. Use YYYY-MM" }, 400);
-      }
-      targetMonth = monthParam;
-    } else if (previous) {
-      targetMonth = getPreviousMonth();
-    } else {
-      targetMonth = getCurrentMonth();
-    }
     await aggregateMonthlyAnalytics(targetMonth);
-    const report = await generateAdminMonthlyReport(targetMonth);
+  } catch (error) {
+    const details = error instanceof Error ? error.message : String(error);
+    console.error("Error aggregating analytics:", error);
+    return c.json(
+      {
+        success: false,
+        month: targetMonth,
+        aggregated: false,
+        reportGenerated: false,
+        error: "Aggregation failed",
+        details
+      },
+      500
+    );
+  }
+  if (!includeReport) {
     return c.json({
       success: true,
       month: targetMonth,
-      reportGenerated: report != null,
-      message: report ? `Analytics and monthly report generated for ${targetMonth}` : `Analytics aggregated for ${targetMonth} (before reports launch; no report snapshot)`
+      aggregated: true,
+      reportGenerated: false,
+      message: `Analytics aggregated for ${targetMonth}. Run report generate for snapshot.`
     });
-  } catch (error) {
-    console.error("Error aggregating analytics:", error);
-    return c.json({ error: "Internal server error", details: error instanceof Error ? error.message : String(error) }, 500);
   }
+  let reportGenerated = false;
+  try {
+    const report = await generateAdminMonthlyReport(targetMonth);
+    reportGenerated = report != null;
+  } catch (error) {
+    const details = error instanceof Error ? error.message : String(error);
+    console.error("Error generating monthly report:", error);
+    return c.json(
+      {
+        success: false,
+        month: targetMonth,
+        aggregated: true,
+        reportGenerated: false,
+        error: "Monthly report snapshot failed",
+        details,
+        message: `Analytics aggregated for ${targetMonth}, but report snapshot failed`
+      },
+      500
+    );
+  }
+  return c.json({
+    success: true,
+    month: targetMonth,
+    aggregated: true,
+    reportGenerated,
+    message: reportGenerated ? `Analytics and monthly report generated for ${targetMonth}` : `Analytics aggregated for ${targetMonth} (before reports launch; no report snapshot)`
+  });
 }
 app11.post("/api/admin/aggregate-analytics", handleAggregateAnalytics);
 app11.get("/api/admin/aggregate-analytics", handleAggregateAnalytics);
@@ -183576,15 +184176,60 @@ app11.patch("/api/admin/support/tickets/:id", async (c) => {
     return c.json({ error: "Failed to update support ticket" }, 500);
   }
 });
+var MAX_SUPPORT_NOTE_LENGTH = 2e3;
+app11.post("/api/admin/support/tickets/:id/notes", async (c) => {
+  const gate = await requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const id = c.req.param("id")?.trim() ?? "";
+    if (!id) return c.json({ error: "id is required" }, 400);
+    const body = await c.req.json().catch(() => null);
+    const note = typeof body?.note === "string" ? body.note.trim() : "";
+    if (!note || note.length > MAX_SUPPORT_NOTE_LENGTH) {
+      return c.json({ error: "Invalid note" }, 400);
+    }
+    const ticket = await addSupportTicketNote(id, note);
+    if (!ticket) return c.json({ error: "Ticket not found" }, 404);
+    return c.json({ success: true, ticket });
+  } catch (error) {
+    console.error("[admin support ticket add note]", error);
+    return c.json({ error: "Failed to add note" }, 500);
+  }
+});
+async function handleSupportNotifyCheck(c) {
+  const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
+  const expectedToken = process.env.SUPPORT_NOTIFY_SECRET_TOKEN;
+  const auth = getAuth(c);
+  const isAuthenticated = !!auth?.userId;
+  const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
+  if (expectedToken && !hasValidToken && !isAuthenticated) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  if (!expectedToken) {
+    const gate = await requireHarvousAdmin(c);
+    if (gate) return gate;
+  }
+  try {
+    const result = await checkAndNotifySupportTickets();
+    return c.json({ success: true, ...result });
+  } catch (error) {
+    console.error("[admin support notify-check]", error);
+    return c.json({ error: "Failed to run notify-check" }, 500);
+  }
+}
+app11.post("/api/admin/support/notify-check", handleSupportNotifyCheck);
+app11.get("/api/admin/support/notify-check", handleSupportNotifyCheck);
 app11.get("/api/admin/diagnostics/issues", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
     const daysParam = parseInt(c.req.query("days") ?? "7", 10);
     const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 1), 90) : 7;
-    const issues = await getDiagnosticIssues(days);
+    const includeDev = c.req.query("includeDev") === "1";
+    const sourceEnv = includeDev ? void 0 : "prod";
+    const issues = await getDiagnosticIssues(days, sourceEnv);
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1e3);
-    const eventsLast24h = await countDiagnosticEventsSince(since24h);
+    const eventsLast24h = await countDiagnosticEventsSince(since24h, sourceEnv);
     const openCount = issues.filter((i) => i.status === "open").length;
     return c.json({ success: true, days, openCount, eventsLast24h, issues });
   } catch (error) {
@@ -183605,6 +184250,28 @@ app11.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
   } catch (error) {
     console.error("[admin diagnostics events]", error);
     return c.json({ error: "Failed to load diagnostic events" }, 500);
+  }
+});
+app11.patch("/api/admin/diagnostics/issues/bulk", async (c) => {
+  const gate = await requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const status = typeof body.status === "string" ? body.status : "";
+    if (!isDiagnosticTriageStatus(status)) {
+      return c.json({ error: "Invalid status" }, 400);
+    }
+    const raw2 = body.signatures;
+    const signatures = Array.isArray(raw2) ? raw2.filter((entry) => typeof entry === "string").map((s2) => s2.trim()).filter(Boolean) : [];
+    if (signatures.length === 0) {
+      return c.json({ error: "signatures array is required" }, 400);
+    }
+    const adminNotes = typeof body.adminNotes === "string" ? body.adminNotes : null;
+    const updated = await bulkUpdateDiagnosticIssueTriage(signatures, status, adminNotes);
+    return c.json({ success: true, updated, status });
+  } catch (error) {
+    console.error("[admin diagnostics bulk triage]", error);
+    return c.json({ error: "Failed to update triage" }, 500);
   }
 });
 app11.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
@@ -233753,6 +234420,8 @@ function sanitizeDiagnosticPayload(body) {
   const manualNote = source === "client_manual" && manualNoteRaw ? truncate2(scrubDiagnosticText(manualNoteRaw), MAX_MANUAL_NOTE) : null;
   const metadata = sanitizeMetadata(raw2.metadata);
   const issueSignature = computeIssueSignature(message, route17, stack);
+  const sourceEnvRaw = typeof raw2.sourceEnv === "string" ? raw2.sourceEnv : "";
+  const sourceEnv = isDiagnosticSourceEnv(sourceEnvRaw) ? sourceEnvRaw : "prod";
   return {
     source,
     severity,
@@ -233764,7 +234433,8 @@ function sanitizeDiagnosticPayload(body) {
     anonymousSessionId,
     manualNote,
     metadata,
-    issueSignature
+    issueSignature,
+    sourceEnv
   };
 }
 
@@ -233801,6 +234471,7 @@ async function recordDiagnosticEvent(input) {
       anonymousSessionId: input.anonymousSessionId,
       manualNote: input.manualNote,
       metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+      sourceEnv: input.sourceEnv,
       createdAt: nowISO()
     });
     return true;
@@ -233834,6 +234505,7 @@ var diagnostics_default = route16;
 var app15 = new Hono2();
 app15.use("/api/*", requestId());
 app15.use("/api/*", cors());
+app15.use("/api/*", csrfProtection);
 app15.use("/api/*", clerkAuth);
 app15.use("/api/*", async (c, next) => {
   await next();

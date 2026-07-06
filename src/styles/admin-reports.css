@@ -565,6 +565,16 @@
   color: var(--pds-danger, #c0392b);
 }
 
+.admin-reports__legacy-note {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--pds-accent, #5b7cfa) 10%, transparent);
+  font: var(--pds-font-body);
+  font-size: 13px;
+  color: var(--pds-text-secondary);
+}
+
 @media (max-width: 900px) {
   .admin-reports__month-grid {
     grid-template-columns: 1fr;

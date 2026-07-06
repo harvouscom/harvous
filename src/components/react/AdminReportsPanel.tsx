@@ -59,23 +59,28 @@ function RankList({
   title,
   items,
   formatName,
+  emptyLabel = 'No activity.',
 }: {
   title: string;
   items: AdminReportRankItem[];
   formatName?: (name: string) => string;
+  emptyLabel?: string;
 }) {
-  if (items.length === 0) return null;
   return (
     <div className="admin-reports__rank-block">
       <h4 className="admin-reports__rank-title">{title}</h4>
-      <ol className="admin-reports__rank-list">
-        {items.map((item) => (
-          <li key={item.name}>
-            <span>{formatName ? formatName(item.name) : item.name}</span>
-            <span>{formatCount(item.count)}</span>
-          </li>
-        ))}
-      </ol>
+      {items.length === 0 ? (
+        <p className="admin-usage__muted admin-usage__empty--inline">{emptyLabel}</p>
+      ) : (
+        <ol className="admin-reports__rank-list">
+          {items.map((item) => (
+            <li key={item.name}>
+              <span>{formatName ? formatName(item.name) : item.name}</span>
+              <span>{formatCount(item.count)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }
@@ -93,13 +98,24 @@ function reportThreadTotal(payload: AdminMonthlyReportPayload): number {
   return threads.totalThreads ?? threads.activeThreads ?? 0;
 }
 
+function isLegacyPulseSnapshot(payload: AdminMonthlyReportPayload): boolean {
+  return payload.pulse.curiosity == null && payload.pulse.canon == null;
+}
+
 function MonthDetail({ payload }: { payload: AdminMonthlyReportPayload }) {
   const { usage, pulse } = payload;
   const curiosity = reportCuriosity(payload);
   const canon = reportCanon(payload);
   const canonSections = canon.sections.filter((section) => section.count > 0);
+  const legacySnapshot = isLegacyPulseSnapshot(payload);
   return (
     <div className="admin-reports__detail" id={`month-${payload.month}`}>
+      {legacySnapshot ? (
+        <p className="admin-reports__legacy-note" role="status">
+          This snapshot predates expanded Pulse capture. Use Regenerate to refresh themes, translations, curiosity,
+          and canon metrics.
+        </p>
+      ) : null}
       <div className="admin-usage__hero" aria-label="Month headline metrics">
         <div className="admin-usage__hero-stat">
           <div className="admin-usage__hero-value">{formatCount(usage.notesCreated)}</div>
@@ -153,11 +169,9 @@ function MonthDetail({ payload }: { payload: AdminMonthlyReportPayload }) {
             items={canonSections.map((section) => ({ name: section.label, count: section.count }))}
           />
         </div>
-        {canon.books.some((book) => book.count > 0) ? (
-          <div className="admin-reports__canon-heatmap">
-            <AdminCanonHeatmap books={canon.books} />
-          </div>
-        ) : null}
+        <div className="admin-reports__canon-heatmap">
+          <AdminCanonHeatmap books={canon.books} />
+        </div>
       </section>
 
       {(pulse.monthlyAnalytics.books.length > 0 || pulse.monthlyAnalytics.tags.length > 0) ? (
@@ -230,7 +244,8 @@ function ReportMonthDialog({
   const { portalTarget, scopedToDetailPane } = useAdminReportsDialogPortal();
   const regenerate = useGenerateAdminReport();
   const [regenerateMessage, setRegenerateMessage] = useState<{ text: string; isError: boolean } | null>(null);
-  const generatedLabel = new Date(generatedAt).toLocaleString(undefined, {
+  const displayGeneratedAt = report.data?.generatedAt ?? generatedAt;
+  const generatedLabel = new Date(displayGeneratedAt).toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -257,9 +272,15 @@ function ReportMonthDialog({
   const onRegenerate = async () => {
     setRegenerateMessage(null);
     try {
-      await regenerate.mutateAsync(month);
-      await report.refetch();
-      setRegenerateMessage({ text: 'Report regenerated.', isError: false });
+      const result = await regenerate.mutateAsync(month);
+      if (isLegacyPulseSnapshot(result.payload)) {
+        setRegenerateMessage({
+          text: 'Report saved, but expanded Pulse fields are still missing. The API may not be on the latest deploy yet.',
+          isError: true,
+        });
+        return;
+      }
+      setRegenerateMessage({ text: 'Report regenerated with expanded Pulse metrics.', isError: false });
     } catch (error) {
       setRegenerateMessage({
         text: error instanceof Error ? error.message : 'Regeneration failed.',

@@ -185,7 +185,8 @@ export function useGenerateAdminReport() {
       }
       return res.json() as Promise<{ success: boolean; month: string; payload: AdminMonthlyReportPayload }>;
     },
-    onSuccess: () => {
+    onSuccess: (data, month) => {
+      queryClient.setQueryData([...REPORTS_KEY, 'month', month], data.payload);
       queryClient.invalidateQueries({ queryKey: REPORTS_KEY });
     },
   });
