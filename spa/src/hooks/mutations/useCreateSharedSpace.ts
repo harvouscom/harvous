@@ -1,6 +1,10 @@
+import { useAuth } from '@clerk/clerk-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
-import { navigationQueryKeyPrefix } from '../queries/useNavigation';
+import {
+  appendOwnedSpaceToNavCache,
+  navigationQueryKeyPrefix,
+} from '../queries/useNavigation';
 
 interface CreateSharedSpaceBody {
   title: string;
@@ -15,11 +19,15 @@ interface CreateSharedSpaceResponse {
 /** Creates a new shared space (paid add-on gate enforced server-side). */
 export function useCreateSharedSpace() {
   const queryClient = useQueryClient();
+  const { userId } = useAuth();
 
   return useMutation({
     mutationFn: (body: CreateSharedSpaceBody) =>
       api.post<CreateSharedSpaceResponse>('/api/spaces/create-shared', body),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (userId && data.space) {
+        appendOwnedSpaceToNavCache(queryClient, userId, data.space);
+      }
       queryClient.invalidateQueries({ queryKey: navigationQueryKeyPrefix });
     },
   });

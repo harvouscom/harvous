@@ -20,6 +20,11 @@ import PrototypeSpaceSettingsSection from '../../prototype/PrototypeSpaceSetting
 import { PROTO_TOOLBAR_ICON_SIZE } from '../../prototype/proto-toolbar-tokens';
 import { SPACE_COVER_PICKER_COLORS, spacePickerSwatchColor, spaceIconAccentHex, avatarGlyphColorForAccent } from '@/utils/space-cover';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../../lib/prototype-background';
+import SharedSpaceDashboardFixtureView from './SharedSpaceDashboardFixtureView';
+import {
+  SHARED_SPACE_DASHBOARD_FIXTURE_FULL,
+  SHARED_SPACE_DASHBOARD_FIXTURE_SOCIAL,
+} from './shared-space-dashboard-fixtures';
 import type { SharedSpacesDesignScene } from './sceneRegistry';
 
 const FIXTURE_SPACE = {
@@ -104,7 +109,7 @@ function SettingsAddonsScene({ active }: { active: boolean }) {
       </SettingsGroup>
       {active ? (
         <button type="button" className="proto-settings-btn proto-settings-btn--secondary">
-          Manage subscription
+          Manage Add-On
         </button>
       ) : null}
     </SettingsShell>
@@ -541,6 +546,18 @@ export default function SharedSpacesDesignScenePreview({ scene }: { scene: Share
       return <ConfirmScene label="Leave this space?" />;
     case '17-delete-confirm':
       return <ConfirmScene label="Delete this space?" />;
+    case '18-full-dashboard':
+      return (
+        <ProtoChrome width={360}>
+          <SharedSpaceDashboardFixtureView fixture={SHARED_SPACE_DASHBOARD_FIXTURE_FULL} showFixtureBanner />
+        </ProtoChrome>
+      );
+    case '19-social-dashboard':
+      return (
+        <ProtoChrome width={360}>
+          <SharedSpaceDashboardFixtureView fixture={SHARED_SPACE_DASHBOARD_FIXTURE_SOCIAL} showFixtureBanner />
+        </ProtoChrome>
+      );
     default:
       return null;
   }

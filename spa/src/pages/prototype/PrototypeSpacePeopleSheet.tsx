@@ -34,6 +34,8 @@ export interface PrototypeSpacePeopleSheetProps {
   spaceTitle: string;
   spaceColor?: string | null;
   spaceDescription?: string | null;
+  /** Nav/dashboard hint until members query resolves (keeps owner hub reachable). */
+  viewerIsOwner?: boolean;
 }
 
 function formatExpiry(expiresAt: string | null): string {
@@ -63,6 +65,7 @@ export default function PrototypeSpacePeopleSheet({
   spaceTitle: spaceTitleProp,
   spaceColor,
   spaceDescription,
+  viewerIsOwner = false,
 }: PrototypeSpacePeopleSheetProps) {
   const [spaceTitle, setSpaceTitle] = useState(spaceTitleProp);
   const [view, setView] = useState<PeopleView>('hub');
@@ -87,7 +90,10 @@ export default function PrototypeSpacePeopleSheet({
   const [deleteConfirmAnchor, setDeleteConfirmAnchor] = useState<DOMRect | null>(null);
 
   const membersQuery = useSpaceMembers(spaceId);
-  const isOwner = membersQuery.data?.isOwner ?? false;
+  const ownerFromMembers = membersQuery.data?.members.some(
+    (m) => m.userId === authUserId && m.role === 'owner',
+  );
+  const isOwner = membersQuery.data?.isOwner ?? ownerFromMembers ?? viewerIsOwner;
   const invitesQuery = useSpaceInvites(spaceId, isOwner);
   const createInvite = useCreateSpaceInvite(spaceId);
   const revokeInvite = useRevokeSpaceInvite(spaceId);
@@ -320,7 +326,17 @@ export default function PrototypeSpacePeopleSheet({
           type="button"
           className="proto-share-popover__primary"
           disabled={createInvite.isPending}
-          onClick={() => void createInvite.mutateAsync()}
+          onClick={() => {
+            void createInvite.mutateAsync().catch((err) => {
+              const msg =
+                err instanceof APIError
+                  ? err.message
+                  : err instanceof Error
+                    ? err.message
+                    : 'Could not create invite link';
+              toast.error(msg);
+            });
+          }}
         >
           {createInvite.isPending ? 'Creating…' : 'New invite link'}
         </button>

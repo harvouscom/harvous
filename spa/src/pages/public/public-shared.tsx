@@ -25,7 +25,7 @@ export function HarvousLogoMark({ size = 36 }: { size?: number }) {
  * app icon and a CTA pill at the right ("Open app" when signed in,
  * "Sign in" when not — the shared-page equivalent of the site's "Try free").
  * Pass `signedInCtaLabel` to override the signed-in copy (e.g. "Back to
- * Harvous" on /upgrade, where the visitor is already inside the app).
+ * Harvous" on /addon, where the visitor is already inside the app).
  */
 export function PublicTopBar({
   isSignedIn,

@@ -31,15 +31,17 @@ export interface PublicJoinSpaceLetterSpace {
 
 export interface PublicJoinSpaceLetterProps {
   space: PublicJoinSpaceLetterSpace;
-  isSignedIn: boolean;
+  /** Invite flow (join page) vs read-only about card in shared space dashboard. */
+  variant?: 'invite' | 'about';
+  isSignedIn?: boolean;
   isJoinPending?: boolean;
   toastMessage?: string;
   toastType?: 'success' | 'error';
   toastVisible?: boolean;
-  signInHref: string;
+  signInHref?: string;
   onSignInClick?: () => void;
-  onJoin: () => void;
-  onGoToSpace: () => void;
+  onJoin?: () => void;
+  onGoToSpace?: () => void;
 }
 
 function inviteTagline(space: PublicJoinSpaceLetterSpace): string {
@@ -62,16 +64,18 @@ function ownerInitial(name: string): string {
 
 export default function PublicJoinSpaceLetter({
   space,
-  isSignedIn,
+  variant = 'invite',
+  isSignedIn = false,
   isJoinPending = false,
   toastMessage = '',
   toastType = 'error',
   toastVisible = false,
-  signInHref,
+  signInHref = '/sign-in',
   onSignInClick,
   onJoin,
   onGoToSpace,
 }: PublicJoinSpaceLetterProps) {
+  const isAbout = variant === 'about';
   const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
   const coverDisplay = resolveJoinCoverDisplay(space, colorScheme);
   const accentCss = coverDisplay.accentCss;
@@ -92,8 +96,26 @@ export default function PublicJoinSpaceLetter({
     } as React.CSSProperties;
   };
 
+  if (isAbout) {
+    return (
+      <div className="public-join-letter-about">
+        <div className="public-join-letter-about__header">
+          <span
+            className={`public-join-letter-about__icon space-icon-tile${colorScheme === 'dark' ? ' space-icon-tile--on-dark' : ''}`}
+            aria-hidden
+            style={{ ['--space-icon-accent' as string]: iconAccent }}
+          >
+            <Icon name="user-group" size={22} />
+          </span>
+          <h1 className="public-join-letter-about__title">{space.title}</h1>
+        </div>
+        {description ? <p className="public-join-letter-about__description">{description}</p> : null}
+      </div>
+    );
+  }
+
   return (
-    <div className="public-paper-stack public-paper-stack--upgrade public-paper-stack--join">
+    <div className={`public-paper-stack public-paper-stack--upgrade public-paper-stack--join${isAbout ? ' public-paper-stack--about' : ''}`}>
       <div className="public-paper-stack__leaf public-paper-stack__leaf--back" aria-hidden />
       <div className="public-paper-stack__leaf public-paper-stack__leaf--mid" aria-hidden />
       <article className={`public-addon-letter public-join-letter${coverDisplay.isImage ? ' public-join-letter--hero-cover' : ''}`}>
@@ -113,7 +135,9 @@ export default function PublicJoinSpaceLetter({
           >
             <Icon name="user-group" size={22} />
           </span>
-          <p className="public-addon-letter__tagline public-join-letter__invite">{inviteTagline(space)}</p>
+          {!isAbout ? (
+            <p className="public-addon-letter__tagline public-join-letter__invite">{inviteTagline(space)}</p>
+          ) : null}
           <h1 className="public-addon-letter__title">{space.title}</h1>
         </div>
 
@@ -157,34 +181,36 @@ export default function PublicJoinSpaceLetter({
           </div>
         </div>
 
-        <div className="public-addon-letter__cta public-join-letter__cta">
-          <div className={`public-join-letter__toast public-toast public-toast--${toastType}${toastVisible ? ' public-toast--visible' : ''}`}>
-            {toastMessage}
+        {!isAbout ? (
+          <div className="public-addon-letter__cta public-join-letter__cta">
+            <div className={`public-join-letter__toast public-toast public-toast--${toastType}${toastVisible ? ' public-toast--visible' : ''}`}>
+              {toastMessage}
+            </div>
+            {!isSignedIn ? (
+              <a
+                href={signInHref}
+                className="upgrade-primary-btn"
+                onClick={onSignInClick}
+              >
+                Join this space
+              </a>
+            ) : space.isAlreadyMember ? (
+              <button type="button" className="upgrade-primary-btn" onClick={onGoToSpace}>
+                Go to space
+              </button>
+            ) : (
+              <button
+                id="join-space-btn"
+                type="button"
+                className="upgrade-primary-btn"
+                onClick={onJoin}
+                disabled={isJoinPending}
+              >
+                {isJoinPending ? 'Joining…' : 'Join this space'}
+              </button>
+            )}
           </div>
-          {!isSignedIn ? (
-            <a
-              href={signInHref}
-              className="upgrade-primary-btn"
-              onClick={onSignInClick}
-            >
-              Join this space
-            </a>
-          ) : space.isAlreadyMember ? (
-            <button type="button" className="upgrade-primary-btn" onClick={onGoToSpace}>
-              Go to space
-            </button>
-          ) : (
-            <button
-              id="join-space-btn"
-              type="button"
-              className="upgrade-primary-btn"
-              onClick={onJoin}
-              disabled={isJoinPending}
-            >
-              {isJoinPending ? 'Joining…' : 'Join this space'}
-            </button>
-          )}
-        </div>
+        ) : null}
       </article>
     </div>
   );

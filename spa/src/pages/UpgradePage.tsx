@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { toast as sonnerToast } from 'sonner';
 import UpgradePageContent from '../../../src/components/react/UpgradePageContent';
@@ -23,14 +23,46 @@ export default function UpgradePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isHeroReady, setIsHeroReady] = useState(false);
 
+  const refreshSharedSpacesStatus = useCallback(async (options?: { silent?: boolean }) => {
+    if (!isSignedIn) {
+      setHasSharedSpaces(false);
+      setIsLoading(false);
+      return;
+    }
+
+    if (!options?.silent) {
+      setIsLoading(true);
+    }
+
+    try {
+      const sync = await api.post<{ hasSharedSpaces: boolean }>('/api/billing/sync-shared-spaces', {});
+      setHasSharedSpaces(Boolean(sync.hasSharedSpaces));
+    } catch {
+      try {
+        const sub = await api.get<{ hasSharedSpaces: boolean }>('/api/subscription/status');
+        setHasSharedSpaces(Boolean(sub.hasSharedSpaces));
+      } catch {
+        setHasSharedSpaces(false);
+      }
+    } finally {
+      if (!options?.silent) {
+        setIsLoading(false);
+      }
+    }
+  }, [isSignedIn]);
+
   useEffect(() => {
     sonnerToast.dismiss();
-    api
-      .get<{ hasSharedSpaces: boolean }>('/api/subscription/status')
-      .then((sub) => setHasSharedSpaces(Boolean(sub.hasSharedSpaces)))
-      .catch(() => setHasSharedSpaces(false))
-      .finally(() => setIsLoading(false));
-  }, []);
+    void refreshSharedSpacesStatus();
+  }, [refreshSharedSpacesStatus]);
+
+  useEffect(() => {
+    const handleUpgrade = () => {
+      void refreshSharedSpacesStatus({ silent: true });
+    };
+    window.addEventListener('subscriptionUpgraded', handleUpgrade);
+    return () => window.removeEventListener('subscriptionUpgraded', handleUpgrade);
+  }, [refreshSharedSpacesStatus]);
 
   useEffect(() => {
     let cancelled = false;

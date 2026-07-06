@@ -20,6 +20,10 @@ export const Spaces = pgTable(
     description: text('description'),
     color: text('color'),
     backgroundGradient: text('backgroundGradient'),
+    /** JSON `SpaceCoverBg` — join-page / invite hero for light appearance. */
+    coverBgLight: text('coverBgLight'),
+    /** JSON `SpaceCoverBg` — join-page / invite hero for dark appearance. */
+    coverBgDark: text('coverBgDark'),
     createdAt: ts('createdAt').notNull(),
     updatedAt: ts('updatedAt'),
     lastVisited: ts('lastVisited'),
@@ -268,6 +272,8 @@ export const SpaceMemberships = pgTable('SpaceMemberships', {
   /** SpaceInvites.id that was redeemed to create this membership; null on the owner row. */
   inviteId: text('inviteId'),
   joinedAt: ts('joinedAt').notNull(),
+  /** Last time this member opened the shared space dashboard (new-since watermark). */
+  lastVisitedAt: ts('lastVisitedAt'),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 }, (table) => [

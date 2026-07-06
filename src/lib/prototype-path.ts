@@ -42,7 +42,7 @@ const NON_PROTOTYPE_PREFIXES = [
   '/spaces/join',
   '/shared/',
   '/invitations/',
-  '/upgrade',
+  '/addon',
   '/api/',
 ];
 

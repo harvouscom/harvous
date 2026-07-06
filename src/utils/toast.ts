@@ -1,4 +1,9 @@
+import { isPrototypeShellPath } from '@/lib/prototype-path';
 import { toast as sonnerToast } from 'sonner';
+import {
+  showPrototypeFeedbackToast,
+  type PrototypeFeedbackToastVariant,
+} from '@/utils/prototype-feedback-toast';
 import { shouldSuppressAppToasts } from '@/utils/should-suppress-app-toasts';
 
 // Helper function to strip periods and exclamation marks from toast messages
@@ -21,8 +26,13 @@ function ensurePortalExists(callback: () => void, maxRetries = 10, attempt = 0):
 }
 
 // Helper function to safely call Sonner toast
-function safeToast(callback: () => void, type: string, message: string) {
-  if (shouldSuppressAppToasts()) return;
+function safeToast(callback: () => void, type: PrototypeFeedbackToastVariant, message: string) {
+  if (shouldSuppressAppToasts()) {
+    if (typeof window !== 'undefined' && isPrototypeShellPath(window.location.pathname)) {
+      showPrototypeFeedbackToast(message, type);
+    }
+    return;
+  }
   try {
     ensurePortalExists(callback);
   } catch (error) {
@@ -87,7 +97,7 @@ export const toast = {
 
   // Persistent upgrade prompt: message + Upgrade (primary) and Not now (secondary). Stays open until user acts.
   upgradePrompt: (message: string, upgradeUrl?: string) => {
-    const url = upgradeUrl || '/upgrade';
+    const url = upgradeUrl || '/addon';
     safeToast(() => sonnerToast.error(message, {
       icon: null,
       duration: Infinity,

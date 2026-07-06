@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SubscriptionDetailsButton } from '@clerk/clerk-react/experimental';
 import { ClerkProvider, SignedIn } from '@clerk/clerk-react';
+import { CLERK_BILLING_DRAWER_APPEARANCE } from '@/lib/clerk-billing-drawer-appearance';
+import { useClerkSubscriptionDrawerCopy } from '@/hooks/useClerkSubscriptionDrawerCopy';
 
 interface SafeSubscriptionDetailsButtonProps {
   children: React.ReactNode;
@@ -17,10 +19,13 @@ function SubscriptionDetailsInner({
   remountKey: number;
   onSubscriptionCancel?: () => void;
 }) {
+  useClerkSubscriptionDrawerCopy();
+
   return (
     <SignedIn>
       <SubscriptionDetailsButton
         key={`subscription-details-${remountKey}`}
+        subscriptionDetailsProps={{ appearance: CLERK_BILLING_DRAWER_APPEARANCE }}
         onSubscriptionCancel={onSubscriptionCancel}
       >
         {children}

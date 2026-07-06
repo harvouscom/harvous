@@ -1,0 +1,181 @@
+/* ==========================================================================
+   /spaces/join/:token — shared space invite letter.
+   Shell matches /addon (`.public-content--upgrade`, hero bleed, paper stack).
+   Content rhythm reuses `.public-addon-letter__*` from upgrade-page.css.
+   ========================================================================== */
+
+.public-paper-stack--join.public-paper-stack--upgrade {
+  max-width: 480px;
+}
+
+.public-addon-letter.public-join-letter {
+  min-height: 0;
+  gap: 0.875rem;
+}
+
+.public-join-letter {
+  padding-top: 0;
+  overflow: hidden;
+}
+
+.public-join-letter__color-band {
+  height: 72px;
+  margin: -40px -32px 0;
+  opacity: 0.92;
+}
+
+.public-join-letter__color-band::after {
+  content: "";
+  display: block;
+  height: 100%;
+  background: linear-gradient(to bottom, transparent 40%, var(--site-card));
+}
+
+.public-join-letter__header {
+  position: relative;
+  z-index: 1;
+}
+
+/* Invite line leads; space name follows as the headline. */
+.public-join-letter__invite {
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--pds-text-secondary);
+}
+
+.public-join-letter:not(.public-join-letter--hero-cover) .public-join-letter__header {
+  margin-top: -28px;
+}
+
+.public-join-letter--hero-cover .public-join-letter__header {
+  margin-top: 0;
+}
+
+/* Hero bleed replaces the color band — restore the card’s normal top inset. */
+.public-join-letter--hero-cover {
+  padding-top: 40px;
+}
+
+/* Space accent fills the tile; glyph hue from `.space-icon-tile` (shared with switcher menu). */
+.public-join-letter__icon {
+  border: 2px solid var(--site-card);
+  box-shadow:
+    0 2px 8px rgba(20, 18, 12, 0.12),
+    0 0 0 0.5px rgba(20, 18, 12, 0.06);
+}
+
+/* Shared space icon tile — join letter + prototype switcher menu rows. */
+.space-icon-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--space-icon-accent);
+}
+
+.space-icon-tile:not(.space-icon-tile--on-dark) svg,
+.space-icon-tile:not(.space-icon-tile--on-dark) path {
+  fill: oklch(from var(--space-icon-accent) calc(l * 0.58) min(c * 3.5, 0.2) h);
+}
+
+.space-icon-tile--on-dark svg,
+.space-icon-tile--on-dark path {
+  fill: rgba(255, 255, 255, 0.96);
+}
+
+/* Menu rows live inside `<button>` — force fill so currentColor inheritance cannot flatten the hue. */
+button.proto-menu-item .space-icon-tile:not(.space-icon-tile--on-dark) svg,
+button.proto-menu-item .space-icon-tile:not(.space-icon-tile--on-dark) path {
+  fill: oklch(from var(--space-icon-accent) calc(l * 0.58) min(c * 3.5, 0.2) h);
+}
+
+button.proto-menu-item .space-icon-tile--on-dark svg,
+button.proto-menu-item .space-icon-tile--on-dark path {
+  fill: rgba(255, 255, 255, 0.96);
+}
+
+.public-join-letter__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  text-align: center;
+}
+
+/* Space description — supporting copy, lighter than invite tagline. */
+.public-join-letter__description {
+  margin: 0;
+  max-width: 360px;
+  font-family: var(--pds-font-body);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--pds-text-secondary);
+}
+
+.public-join-letter__social {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 380px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: var(--pds-bg-input);
+  border: 0.5px solid var(--pds-border);
+}
+
+.public-join-letter__avatars {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.public-join-letter__avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--site-card);
+  margin-left: -7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--pds-font-body);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  background: var(--public-join-avatar-bg, var(--pds-bg-input));
+  color: var(--public-join-avatar-color, var(--pds-text-primary));
+}
+
+.public-join-letter__avatar--photo {
+  background-color: transparent;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.public-join-letter__avatar:first-child {
+  margin-left: 0;
+}
+
+.public-join-letter__social-text {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--pds-text-secondary);
+  text-align: left;
+}
+
+.public-join-letter__cta {
+  position: relative;
+  margin-top: 0.625rem;
+}
+
+.public-join-letter__toast {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+}

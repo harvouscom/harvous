@@ -1,43 +1,37 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CheckoutButton } from '@clerk/clerk-react/experimental';
 import { ClerkProvider, SignedIn, useAuth } from '@clerk/clerk-react';
-import type { Theme } from '@clerk/types';
+import {
+  dispatchSharedSpacesEntitlementSynced,
+  syncSharedSpacesBilling,
+} from '@/utils/sync-shared-spaces-billing';
+import { isClerkCheckoutDrawerOpen, whenClerkCheckoutDrawerClosed } from '@/utils/wait-for-clerk-drawer-close';
+import SafeSubscriptionDetailsButton from './SafeSubscriptionDetailsButton';
+import { CLERK_BILLING_DRAWER_APPEARANCE } from '@/lib/clerk-billing-drawer-appearance';
 
-/** Same font stack + blue gradient pill as `.upgrade-primary-btn` (upgrade-page.css). */
-const CHECKOUT_FONT_STACK =
-  '"Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
+const CHECKOUT_SUCCESS_TITLE = "You're all set";
+const CHECKOUT_SUCCESS_DESCRIPTION =
+  'Shared Spaces is on your account — tap Continue to get started.';
+
+const CHECKOUT_SUCCESS_TITLE_KEYS = [
+  'billing.checkout.title__paymentSuccessful',
+  'billing.checkout.title__subscriptionSuccessful',
+  'commerce.checkout.title__paymentSuccessful',
+  'commerce.checkout.title__subscriptionSuccessful',
+];
+
+const CHECKOUT_SUCCESS_DESCRIPTION_KEYS = [
+  'billing.checkout.description__paymentSuccessful',
+  'billing.checkout.description__subscriptionSuccessful',
+  'commerce.checkout.description__paymentSuccessful',
+  'commerce.checkout.description__subscriptionSuccessful',
+];
 
 /**
  * The checkout drawer is portaled to `document.body`, above `.public-page`'s
- * whole React tree — so it renders with `z-index: auto` while the sticky
- * `.public-toolbar` above it sets `z-index: 100`, letting the toolbar paint
- * over the drawer. Force the drawer above every page's chrome, and match its
- * title + primary button to the "Add Shared Spaces" button beside it instead
- * of Clerk's default flat-blue, small-radius look.
+ * whole React tree — see CLERK_BILLING_DRAWER_APPEARANCE.
  */
-const CHECKOUT_DRAWER_APPEARANCE: Theme = {
-  elements: {
-    drawerBackdrop: { zIndex: 300 },
-    drawerRoot: { zIndex: 300 },
-    drawerContent: { zIndex: 300 },
-    drawerTitle: {
-      fontFamily: CHECKOUT_FONT_STACK,
-      fontWeight: 600,
-    },
-    drawerBody: { fontFamily: CHECKOUT_FONT_STACK },
-    formButtonPrimary: {
-      fontFamily: CHECKOUT_FONT_STACK,
-      fontWeight: 600,
-      color: '#ffffff',
-      background: 'linear-gradient(171deg, #2bb5ff 7%, #006eff 93%)',
-      borderRadius: '999px',
-      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 10px 24px -10px rgba(0, 110, 255, 0.6)',
-      '&:hover': { filter: 'brightness(1.05)', color: '#ffffff' },
-      '&:active': { filter: 'brightness(0.97)', color: '#ffffff' },
-      '&:focus': { color: '#ffffff' },
-    },
-  },
-};
+const CHECKOUT_DRAWER_APPEARANCE = CLERK_BILLING_DRAWER_APPEARANCE;
 
 interface UpgradeCheckoutButtonProps {
   className?: string;
@@ -100,6 +94,7 @@ function UpgradeCheckoutButtonInner({
   ctaLabel,
   priceMonthlyLabel,
   priceAnnualLabel,
+  publishableKey,
 }: {
   className: string;
   planId: string;
@@ -107,11 +102,53 @@ function UpgradeCheckoutButtonInner({
   ctaLabel: string;
   priceMonthlyLabel: string;
   priceAnnualLabel: string;
+  publishableKey?: string | null;
 }) {
   const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('month');
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, has } = useAuth();
   const [isClient, setIsClient] = useState(false);
   const [checkoutKey, setCheckoutKey] = useState<number>(Date.now());
+  const [entitlementSyncing, setEntitlementSyncing] = useState(false);
+  const [checkoutDrawerOpen, setCheckoutDrawerOpen] = useState(false);
+  const entitlementSyncStarted = useRef(false);
+
+  const clerkHasSharedSpaces = isLoaded && isSignedIn ? has({ feature: 'shared_spaces' }) : false;
+  const blockCheckout = clerkHasSharedSpaces && !checkoutDrawerOpen;
+
+  const runPostCheckoutSync = useCallback(async () => {
+    entitlementSyncStarted.current = true;
+    try {
+      const result = await syncSharedSpacesBilling();
+      dispatchSharedSpacesEntitlementSynced({
+        hasSharedSpaces: result.hasSharedSpaces,
+        updated: result.updated,
+      });
+    } catch (error) {
+      console.error('[UpgradeCheckoutButton] Shared Spaces billing sync failed:', error);
+    }
+
+    // Keep the success drawer mounted until the user dismisses it — reloading
+    // the session or flipping parent UI mid-drawer crashes Clerk (`Invalid state`).
+    await whenClerkCheckoutDrawerClosed();
+    window.dispatchEvent(new CustomEvent('subscriptionUpgraded'));
+  }, []);
+
+  // Clerk already shows an active subscription on return visits — reconcile DB
+  // before opening checkout again. Skip while a drawer is open (post-payment).
+  useEffect(() => {
+    if (!blockCheckout || entitlementSyncStarted.current) return;
+    entitlementSyncStarted.current = true;
+    setEntitlementSyncing(true);
+    void runPostCheckoutSync().finally(() => setEntitlementSyncing(false));
+  }, [blockCheckout, runPostCheckoutSync]);
+
+  useEffect(() => {
+    const syncCheckoutDrawerOpen = () => setCheckoutDrawerOpen(isClerkCheckoutDrawerOpen());
+    const observer = new MutationObserver(syncCheckoutDrawerOpen);
+    observer.observe(document.body, { childList: true, subtree: true });
+    syncCheckoutDrawerOpen();
+    return () => observer.disconnect();
+  }, []);
 
   // Ensure we're on the client before rendering Clerk components
   useEffect(() => {
@@ -125,21 +162,66 @@ function UpgradeCheckoutButtonInner({
     return () => document.removeEventListener('app:route-change', handleViewTransition);
   }, []);
 
-  // Update Clerk checkout drawer title when it opens
+  // Rename drawer title + success copy when Clerk checkout opens or completes.
   useEffect(() => {
-    const updateCheckoutDrawerTitle = () => {
+    const updateCheckoutDrawerCopy = () => {
       const checkoutTitle = document.querySelector('.cl-drawerTitle[data-localization-key="billing.checkout.title"]');
-      if (checkoutTitle && checkoutTitle.textContent !== 'Upgrade') {
-        checkoutTitle.textContent = 'Upgrade';
+      if (checkoutTitle && checkoutTitle.textContent !== 'Add-on') {
+        checkoutTitle.textContent = 'Add-on';
+      }
+
+      for (const key of CHECKOUT_SUCCESS_TITLE_KEYS) {
+        const title = document.querySelector(`[data-localization-key="${key}"]`);
+        if (title && title.textContent !== CHECKOUT_SUCCESS_TITLE) {
+          title.textContent = CHECKOUT_SUCCESS_TITLE;
+        }
+      }
+
+      for (const key of CHECKOUT_SUCCESS_DESCRIPTION_KEYS) {
+        const description = document.querySelector(`[data-localization-key="${key}"]`);
+        if (description && description.textContent !== CHECKOUT_SUCCESS_DESCRIPTION) {
+          description.textContent = CHECKOUT_SUCCESS_DESCRIPTION;
+        }
+      }
+
+      const titleByClass = document.querySelector('.cl-drawerBody .cl-checkoutSuccessTitle');
+      if (titleByClass && titleByClass.textContent !== CHECKOUT_SUCCESS_TITLE) {
+        titleByClass.textContent = CHECKOUT_SUCCESS_TITLE;
+      }
+
+      const descriptionByClass = document.querySelector('.cl-drawerBody .cl-checkoutSuccessDescription');
+      if (descriptionByClass && descriptionByClass.textContent !== CHECKOUT_SUCCESS_DESCRIPTION) {
+        descriptionByClass.textContent = CHECKOUT_SUCCESS_DESCRIPTION;
       }
     };
 
-    const observer = new MutationObserver(updateCheckoutDrawerTitle);
-    observer.observe(document.body, { childList: true, subtree: true });
-    updateCheckoutDrawerTitle();
+    const observer = new MutationObserver(updateCheckoutDrawerCopy);
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    updateCheckoutDrawerCopy();
 
     return () => observer.disconnect();
   }, []);
+
+  // Clerk drawer "already active" alert — sync entitlement and refresh the page state.
+  useEffect(() => {
+    let handled = false;
+
+    const observer = new MutationObserver(() => {
+      if (handled) return;
+      const alerts = document.querySelectorAll('.cl-alert, [role="alert"]');
+      for (const el of alerts) {
+        const text = el.textContent?.toLowerCase() ?? '';
+        if (text.includes('already active')) {
+          handled = true;
+          void runPostCheckoutSync();
+          break;
+        }
+      }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, [runPostCheckoutSync]);
 
   if (!isClient || !isLoaded) {
     return (
@@ -174,6 +256,35 @@ function UpgradeCheckoutButtonInner({
     );
   }
 
+  if (blockCheckout) {
+    return (
+      <div className={className}>
+        <IntervalToggle
+          selectedInterval={selectedInterval}
+          onSelect={setSelectedInterval}
+          priceMonthlyLabel={priceMonthlyLabel}
+          priceAnnualLabel={priceAnnualLabel}
+          disabled
+        />
+        <button type="button" disabled className="upgrade-primary-btn upgrade-primary-btn--disabled">
+          {entitlementSyncing ? 'Just a moment…' : "You're all set"}
+        </button>
+        {!entitlementSyncing && (
+          <SafeSubscriptionDetailsButton
+            publishableKey={publishableKey}
+            onSubscriptionCancel={() => {
+              window.dispatchEvent(new CustomEvent('subscriptionUpgraded'));
+            }}
+          >
+            <button type="button" className="upgrade-secondary-btn">
+              Manage Add-On
+            </button>
+          </SafeSubscriptionDetailsButton>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={className}>
       <IntervalToggle
@@ -188,6 +299,9 @@ function UpgradeCheckoutButtonInner({
         planId={planId}
         planPeriod={selectedInterval === 'year' ? 'annual' : 'month'}
         checkoutProps={{ appearance: CHECKOUT_DRAWER_APPEARANCE }}
+        onSubscriptionComplete={() => {
+          void runPostCheckoutSync();
+        }}
       >
         <button type="button" className="upgrade-primary-btn">
           {ctaLabel}
@@ -333,6 +447,7 @@ export default function UpgradeCheckoutButton({
             ctaLabel={ctaLabel}
             priceMonthlyLabel={priceMonthlyLabel}
             priceAnnualLabel={priceAnnualLabel}
+            publishableKey={publishableKey}
           />
         </SignedIn>
       </div>
@@ -358,6 +473,7 @@ export default function UpgradeCheckoutButton({
             ctaLabel={ctaLabel}
             priceMonthlyLabel={priceMonthlyLabel}
             priceAnnualLabel={priceAnnualLabel}
+            publishableKey={publishableKey}
           />
         </SignedIn>
       </ClerkProvider>

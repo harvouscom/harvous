@@ -5,6 +5,7 @@ import KeyboardShortcutsInit from '../../../src/components/react/KeyboardShortcu
 import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
 import PrototypeSyncChip from '../components/PrototypeSyncChip';
 import PrototypeAppUpdateToast from '../components/PrototypeAppUpdateToast';
+import PrototypeFeedbackToast from '../components/PrototypeFeedbackToast';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { syncPassageKnowledge } from '../lib/passage-knowledge-sync';
 import { useAuth, useUser } from '@clerk/clerk-react';
@@ -37,6 +38,7 @@ import '../styles/prototype-route-overrides.css';
 import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
 import { useActiveSpace } from '../hooks/useActiveSpace';
+import { resolvePrototypeSidebarVariant } from './resolve-prototype-sidebar-variant';
 import { updateStudyDockExpandedMaxHeight } from '@/utils/study-dock-layout';
 import { noteParamSlug, PROTOTYPE_DRAFT_NOTE_SLUG } from '../pages/prototype/proto-route-slugs';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
@@ -162,7 +164,8 @@ export default function SimplifiedPrototypeLayout() {
 function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const queryClient = useQueryClient();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
-  const { isSharedSpace } = useActiveSpace();
+  const { isSharedSpace, activeSpaceId } = useActiveSpace();
+  const { sidebarLayer } = useProtoShell();
   useRealtimeSync(userId, { homeSpaceId });
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const {
@@ -186,6 +189,12 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
 
   const isNoteRoute = isPrototypeNotePath(pathname);
   const isAdminRoute = isPrototypeAdminPath(pathname);
+  const sidebarVariant = resolvePrototypeSidebarVariant({
+    isAdminRoute,
+    isSharedSpace,
+    sidebarLayer,
+    activeSpaceId,
+  });
   // inspector is rendered inline in PrototypeNotePage (flex-row), no extra grid column needed
   void inspectorOpen;
 
@@ -501,6 +510,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         ) : null}
         <PrototypeSyncChip userId={userId} />
         <PrototypeAppUpdateToast />
+        <PrototypeFeedbackToast />
         <PrototypeShortcutBridge />
         <KeyboardShortcutsInit />
         <PrototypePinPanels />
@@ -549,10 +559,12 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
               .filter(Boolean)
               .join(' ')}
           >
-            {isAdminRoute ? (
+            {sidebarVariant === 'admin' ? (
               <PrototypeAdminSidebar />
-            ) : isSharedSpace ? (
+            ) : sidebarVariant === 'shared-space' ? (
               <PrototypeSidebarSharedSpaceView />
+            ) : sidebarVariant === 'shared-list' ? (
+              <PrototypeSidebar scopedSpaceId={activeSpaceId} />
             ) : (
               <PrototypeSidebar />
             )}

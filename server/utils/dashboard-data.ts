@@ -259,6 +259,7 @@ export async function getSpacesWithCounts(userId: string) {
       db.select({
         id: Spaces.id, title: Spaces.title, description: Spaces.description,
         color: Spaces.color, backgroundGradient: Spaces.backgroundGradient,
+        coverBgLight: Spaces.coverBgLight, coverBgDark: Spaces.coverBgDark,
         isPublic: Spaces.isPublic, isActive: Spaces.isActive, type: Spaces.type,
         createdAt: Spaces.createdAt, updatedAt: Spaces.updatedAt,
         lastVisited: Spaces.lastVisited,

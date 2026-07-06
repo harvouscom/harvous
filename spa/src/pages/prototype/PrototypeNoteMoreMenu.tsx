@@ -18,6 +18,7 @@ import { useNavigation } from '../../hooks/queries/useNavigation';
 import { PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 
 interface CachedSpaceNotesPage {
   notes?: { id: string; isPinned?: boolean }[];
@@ -48,6 +49,8 @@ export interface PrototypeNoteMoreMenuProps {
   /** When true, Find and Share live in this menu (compact toolbar). */
   overflowActions?: boolean;
   isPublic?: boolean;
+  /** Another member's note in a shared space — limit destructive/edit actions. */
+  readOnlyForeign?: boolean;
   onFind?: () => void;
   onShare?: () => void;
   menuButtonRef?: RefObject<HTMLButtonElement | null>;
@@ -59,6 +62,7 @@ export default function PrototypeNoteMoreMenu({
   iconSize = PROTO_TOOLBAR_ICON_SIZE,
   overflowActions = false,
   isPublic = false,
+  readOnlyForeign = false,
   onFind,
   onShare,
   menuButtonRef,
@@ -76,10 +80,29 @@ export default function PrototypeNoteMoreMenu({
   const copyToSpace = useCopyNotesToSpace();
   const { data: nav } = useNavigation();
 
-  const sharedSpaceTargets = useMemo(
-    () => [...(nav?.spaces ?? []).filter((s) => s.type === 'shared'), ...(nav?.memberOfSpaces ?? [])],
-    [nav?.spaces, nav?.memberOfSpaces],
+  const ownedSharedTargets = useMemo(
+    () => (nav?.spaces ?? []).filter((s) => s.type === 'shared'),
+    [nav?.spaces],
   );
+  const joinedSharedTargets = useMemo(() => nav?.memberOfSpaces ?? [], [nav?.memberOfSpaces]);
+  const sharedSpaceTargets = useMemo(
+    () => [...ownedSharedTargets, ...joinedSharedTargets],
+    [ownedSharedTargets, joinedSharedTargets],
+  );
+  const showCopySpaceSearch = sharedSpaceTargets.length > 5;
+  const [copySpaceFilter, setCopySpaceFilter] = useState('');
+
+  const filteredOwnedTargets = useMemo(() => {
+    const q = copySpaceFilter.trim().toLowerCase();
+    if (!q) return ownedSharedTargets;
+    return ownedSharedTargets.filter((s) => s.title.toLowerCase().includes(q));
+  }, [copySpaceFilter, ownedSharedTargets]);
+
+  const filteredJoinedTargets = useMemo(() => {
+    const q = copySpaceFilter.trim().toLowerCase();
+    if (!q) return joinedSharedTargets;
+    return joinedSharedTargets.filter((s) => s.title.toLowerCase().includes(q));
+  }, [copySpaceFilter, joinedSharedTargets]);
 
   const pinnedFromCache = useMemo(
     () => readNotePinnedFromCache(queryClient, spaceId, noteId),
@@ -92,18 +115,22 @@ export default function PrototypeNoteMoreMenu({
   }, [noteId]);
 
   useEffect(() => {
-    if (!open) setCopyMenuOpen(false);
+    if (!open) {
+      setCopyMenuOpen(false);
+      setCopySpaceFilter('');
+    }
   }, [open]);
 
-  const onCopyToSpace = (targetSpaceId: string) => {
+  const onCopyToSpace = (targetSpaceId: string, targetTitle?: string) => {
     setOpen(false);
     setCopyMenuOpen(false);
+    setCopySpaceFilter('');
     copyToSpace.mutate(
       { targetSpaceId, noteIds: [noteId] },
       {
         onSuccess: (data) => {
           if (data.errors?.length) toast.error(data.errors[0]);
-          else toast.success('Copied to space');
+          else toast.success(targetTitle ? `Copied to ${targetTitle}` : 'Copied to space');
         },
         onError: (err) => {
           const msg =
@@ -208,6 +235,8 @@ export default function PrototypeNoteMoreMenu({
                 </button>
               ) : null}
               {overflowActions && (onFind || onShare) ? <div className="proto-menu-sep" role="separator" /> : null}
+              {!readOnlyForeign ? (
+                <>
               <button type="button" role="menuitem" className="proto-menu-item" disabled={pinNote.isPending} onClick={onPin}>
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="thumbtack" size={iconSize} />
@@ -221,37 +250,88 @@ export default function PrototypeNoteMoreMenu({
                       type="button"
                       role="menuitem"
                       className="proto-menu-item"
-                      onClick={() => setCopyMenuOpen(false)}
+                      onClick={() => {
+                        setCopyMenuOpen(false);
+                        setCopySpaceFilter('');
+                      }}
                     >
                       <span className="proto-menu-item__icon" aria-hidden>
                         <Icon name="caret-left" size={iconSize} />
                       </span>
                       <span className="proto-menu-item__label">Copy to…</span>
                     </button>
-                    {sharedSpaceTargets.map((space) => (
-                      <button
-                        key={space.id}
-                        type="button"
-                        role="menuitem"
-                        className="proto-menu-item"
-                        disabled={copyToSpace.isPending}
-                        onClick={() => onCopyToSpace(space.id)}
-                      >
-                        <span className="proto-menu-item__icon" aria-hidden>
-                          <span
-                            aria-hidden
-                            style={{
-                              display: 'inline-block',
-                              width: 10,
-                              height: 10,
-                              borderRadius: '50%',
-                              background: `var(--color-${space.color || 'paper'})`,
-                            }}
-                          />
-                        </span>
-                        <span className="proto-menu-item__label">{space.title}</span>
-                      </button>
-                    ))}
+                    {showCopySpaceSearch ? (
+                      <div style={{ padding: '4px 10px 6px' }}>
+                        <input
+                          type="search"
+                          value={copySpaceFilter}
+                          onChange={(e) => setCopySpaceFilter(e.target.value)}
+                          placeholder="Filter spaces…"
+                          aria-label="Filter spaces"
+                          style={{
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            padding: '6px 8px',
+                            borderRadius: 8,
+                            border: '1px solid var(--pds-border)',
+                            font: 'inherit',
+                            fontSize: 13,
+                          }}
+                        />
+                      </div>
+                    ) : null}
+                    {filteredOwnedTargets.length > 0 ? (
+                      <>
+                        <div className="proto-copy-space-group-label" role="presentation">
+                          Spaces you host
+                        </div>
+                        {filteredOwnedTargets.map((space) => (
+                          <button
+                            key={space.id}
+                            type="button"
+                            role="menuitem"
+                            className="proto-menu-item"
+                            title={space.title}
+                            disabled={copyToSpace.isPending}
+                            onClick={() => onCopyToSpace(space.id, space.title)}
+                          >
+                            <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
+                              <ProtoSpaceMenuIcon color={space.color || 'paper'} />
+                            </span>
+                            <span className="proto-menu-item__label">{space.title}</span>
+                          </button>
+                        ))}
+                      </>
+                    ) : null}
+                    {filteredJoinedTargets.length > 0 ? (
+                      <>
+                        <div className="proto-copy-space-group-label" role="presentation">
+                          Spaces you've joined
+                        </div>
+                        {filteredJoinedTargets.map((space) => (
+                          <button
+                            key={space.id}
+                            type="button"
+                            role="menuitem"
+                            className="proto-menu-item"
+                            title={space.title}
+                            disabled={copyToSpace.isPending}
+                            onClick={() => onCopyToSpace(space.id, space.title)}
+                          >
+                            <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
+                              <ProtoSpaceMenuIcon color={space.color || 'paper'} />
+                            </span>
+                            <span className="proto-menu-item__label">{space.title}</span>
+                          </button>
+                        ))}
+                      </>
+                    ) : null}
+                    {showCopySpaceSearch &&
+                    copySpaceFilter.trim() &&
+                    filteredOwnedTargets.length === 0 &&
+                    filteredJoinedTargets.length === 0 ? (
+                      <p className="proto-space-switcher__empty-hint">No spaces match your search.</p>
+                    ) : null}
                   </>
                 ) : (
                   <button
@@ -266,7 +346,14 @@ export default function PrototypeNoteMoreMenu({
                     <span className="proto-menu-item__label">Copy to shared space…</span>
                   </button>
                 )
-              ) : null}
+              ) : (
+                <button type="button" role="menuitem" className="proto-menu-item" disabled title="Create or join a shared space first">
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name="copy" size={iconSize} />
+                  </span>
+                  <span className="proto-menu-item__label">Copy to shared space…</span>
+                </button>
+              )}
               <button
                 type="button"
                 role="menuitem"
@@ -283,6 +370,8 @@ export default function PrototypeNoteMoreMenu({
                 </span>
                 <span className="proto-menu-item__label">Delete note</span>
               </button>
+                </>
+              ) : null}
             </div>
           </ProtoPopoverShell>
         ) : null}

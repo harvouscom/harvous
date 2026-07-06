@@ -218,6 +218,9 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 .proto-menu__popover--sidebar-toolbar-portal {
   position: fixed;
   z-index: 6000;
+  width: 260px;
+  max-width: min(260px, calc(100vw - 24px));
+  box-sizing: border-box;
 }
 
 /* ─── Sidebar back row (drill-in) ────────────────────────────────────────── */
@@ -414,6 +417,79 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 .proto-toolbar-folder-chip__extra,
 .proto-toolbar-folder-chip__icon {
   font-family: inherit !important;
+}
+
+/* Shared space switcher — user-group icon + title pill (toolbar layer toggle). */
+.proto-toolbar-space-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 148px;
+  box-sizing: border-box;
+  height: var(--pds-toolbar-orb-size);
+  padding: 0 10px 0 5px;
+  border-radius: var(--pds-radius-pill);
+  border: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-glass-medium);
+  -webkit-backdrop-filter: var(--pds-glass-blur-control);
+  backdrop-filter: var(--pds-glass-blur-control);
+  cursor: pointer;
+  color: var(--pds-text-primary) !important;
+  font-family: var(--pds-font-body) !important;
+  line-height: 0;
+  transition: background 0.1s;
+}
+
+.proto-toolbar-space-switcher:hover {
+  background: var(--pds-bg-control);
+}
+
+.proto-toolbar-space-switcher:active {
+  background: var(--pds-bg-control-hover);
+}
+
+.proto-toolbar-space-switcher:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-outline);
+  outline-offset: 1px;
+}
+
+.proto-toolbar-space-switcher[data-active='true'] {
+  background: var(--pds-bg-row-selected);
+  border-color: var(--pds-border-control-medium);
+}
+
+.proto-toolbar-space-switcher[data-active='true']:hover {
+  background: var(--pds-bg-control-pressed);
+  border-color: var(--pds-border-control-strong);
+}
+
+.proto-toolbar-space-switcher__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: calc(var(--pds-toolbar-orb-size) - 8px);
+  height: calc(var(--pds-toolbar-orb-size) - 8px);
+  line-height: 0;
+}
+
+.proto-toolbar-space-switcher__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+  font-size: var(--pds-toolbar-folder-chip-font-size);
+  font-weight: 500;
+  font-variation-settings: var(--pds-font-body-variation-toolbar-chip);
+  color: var(--pds-text-secondary);
+}
+
+.proto-toolbar-space-switcher[data-active='true'] .proto-toolbar-space-switcher__label {
+  color: var(--pds-text-primary);
 }
 
 /* Phones — reclaim horizontal room for the center folder chip so the full folder
@@ -3116,21 +3192,34 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 
 .proto-list-create-empty {
   display: flex;
+  flex: 1 0 auto;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 10px;
+  box-sizing: border-box;
+  padding: 12px 24px;
+}
+
+.proto-list-create-empty .proto-list-empty-state {
+  flex: 0 0 auto;
+  padding: 0;
 }
 
 .proto-list-create-empty__btn {
-  margin-bottom: 8px;
+  margin-bottom: 0;
+  flex-shrink: 0;
 }
 
 .proto-drill-empty {
   display: flex;
+  flex: 1 0 auto;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding-bottom: 12px;
+  box-sizing: border-box;
+  padding: 12px 24px;
 }
 
 /* ── References dock ─────────────────────────────────────────────────────── */
@@ -4030,14 +4119,21 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
 
 .proto-list-empty-state {
   display: flex;
-  flex: 1;
+  flex: 1 0 auto;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 0;
+  box-sizing: border-box;
   padding: 12px 24px;
   text-align: center;
   color: var(--pds-text-secondary);
+}
+
+/* Fill the scroll viewport when the list has no rows — center in the pane below search. */
+.proto-sidebar-scroll > .proto-list-empty-state:only-child,
+.proto-sidebar-scroll > .proto-list-create-empty:only-child,
+.proto-sidebar-scroll > .proto-drill-empty:only-child {
+  min-height: 100%;
 }
 
 .proto-list-empty-state__icon {
@@ -7448,7 +7544,34 @@ button.proto-appearance-hero__card {
 
 .proto-update-toast__label {
   min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* App update pill — single line */
+.proto-update-toast:not(.proto-feedback-toast) .proto-update-toast__label {
   white-space: nowrap;
+}
+
+/* Feedback toasts (copy, migration, shared space) — wrap long copy inside the pill */
+.proto-feedback-toast {
+  border-radius: 14px;
+  align-items: flex-start;
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+
+.proto-feedback-toast .proto-update-toast__label {
+  white-space: normal;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.proto-feedback-toast .proto-update-toast__dismiss {
+  margin-top: -1px;
+}
+
+.proto-feedback-toast--error {
+  border-color: color-mix(in srgb, var(--pds-destructive, #c62828) 22%, var(--pds-separator, rgba(0, 0, 0, 0.08)));
 }
 
 .proto-update-toast__action {
@@ -7605,6 +7728,177 @@ button.proto-appearance-hero__card {
 .proto-shared-space-header__invite {
   color: var(--pds-accent);
   font-weight: 500;
+}
+
+.proto-shared-space-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.proto-shared-space-about {
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(88vh, 640px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--pds-bg-popover-solid);
+  border: 0.5px solid var(--pds-border);
+  box-shadow: var(--proto-popover-shadow, 0 12px 40px rgba(0, 0, 0, 0.18));
+}
+
+.proto-shared-space-about .proto-popover-shell__content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.proto-shared-space-about--sheet {
+  width: 100%;
+  max-height: 92vh;
+  border-radius: 16px 16px 0 0;
+  padding: 0;
+  gap: 0;
+  background: var(--pds-bg-popover-solid);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.proto-shared-space-about__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5999;
+  appearance: none;
+  border: none;
+  margin: 0;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.35);
+  cursor: default;
+}
+
+.proto-shared-space-about__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: var(--pds-bg-popover-solid);
+}
+
+.proto-shared-space-about__hero {
+  height: 140px;
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+  z-index: 0;
+}
+
+.proto-shared-space-about__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  background: var(--pds-bg-glass-medium);
+  border: 0.5px solid var(--pds-border-control);
+  color: var(--pds-text-primary);
+}
+
+.proto-shared-space-about__close:hover {
+  background: var(--pds-bg-glass-light);
+  color: var(--pds-text-primary);
+}
+
+.proto-shared-space-about__hero .upgrade-hero-section {
+  height: 100%;
+  min-height: 0;
+}
+
+.proto-shared-space-about__hero .upgrade-hero-bg {
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+}
+
+.proto-shared-space-about__letter {
+  position: relative;
+  z-index: 1;
+  /* Pull icon up so it sits halfway on the hero (icon is 3.25rem tall). */
+  margin-top: calc(3.25rem / -2);
+  padding: 0 16px 20px;
+}
+
+.public-join-letter-about {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.public-join-letter-about__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.public-join-letter-about__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.75rem;
+  border: 2px solid var(--pds-bg-popover-solid);
+  box-shadow:
+    0 2px 8px rgba(20, 18, 12, 0.12),
+    0 0 0 0.5px rgba(20, 18, 12, 0.06);
+  position: relative;
+  z-index: 2;
+}
+
+.public-join-letter-about__title {
+  margin: 0;
+  font-family: var(--pds-font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--pds-text-primary);
+}
+
+.public-join-letter-about__description {
+  margin: 0;
+  max-width: 300px;
+  font-family: var(--pds-font-body);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--pds-text-secondary);
+}
+
+.proto-shared-space-about__members {
+  margin-top: 22px;
+}
+
+.proto-shared-space-about__members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.proto-shared-people-row--compact {
+  padding: 6px 4px;
+}
+
+.proto-shared-people-row__avatar--photo {
+  background-size: cover;
+  background-position: center;
 }
 
 .proto-shared-space-empty {
@@ -7792,6 +8086,8 @@ button.proto-appearance-hero__card {
   border-radius: 8px;
   background: var(--pds-bg-input);
   border: 0.5px solid var(--pds-border);
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* Live preview row — mirrors the list item (icon tile + title). */
@@ -7846,6 +8142,40 @@ button.proto-appearance-hero__card {
   flex: 0 1 auto;
   padding: 8px 16px;
   font-size: 13px;
+}
+
+.proto-space-switcher__create-error {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-coral, #c0392b);
+  background: color-mix(in srgb, var(--color-coral, #c0392b) 8%, transparent);
+  text-align: left;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.proto-space-switcher__create-error-text {
+  display: block;
+}
+
+.proto-space-switcher__create-error-link {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-bold-blue);
+  cursor: pointer;
+  text-decoration: underline;
+  white-space: nowrap;
 }
 
 .proto-space-switcher__empty-hint {
@@ -7985,4 +8315,71 @@ button.proto-appearance-hero__card {
   width: min(320px, 92vw);
   max-height: min(70vh, 520px);
   overflow-y: auto;
+}
+
+/* ─── Shared space dashboard (space layer) ───────────────────────────────── */
+
+.proto-shared-space-dashboard .proto-sidebar-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.proto-shared-space-presence {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 0 2px;
+  min-height: 20px;
+}
+
+.proto-shared-space-presence__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.proto-shared-space-presence__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--presence-color, var(--pds-accent, #3d7de8));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--presence-color, #3d7de8) 25%, transparent);
+}
+
+.proto-shared-space-presence__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-secondary, #666);
+}
+
+.proto-shared-space-dashboard .proto-home-view {
+  padding-top: 0;
+}
+
+.proto-space-switcher-badge {
+  flex: 0 0 auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--pds-accent, #3d7de8);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.proto-note-row--unseen .proto-note-row__title-line::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: var(--pds-accent, #3d7de8);
+  vertical-align: middle;
+  flex: 0 0 auto;
 }

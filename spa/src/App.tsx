@@ -25,6 +25,7 @@ import {
 import { subscribeSheetOverlayInset } from '@/utils/sheet-overlay-inset';
 import { useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 import { SyncCacheBridge } from './lib/sync-cache-bridge';
+import { SharedSpacesEntitlementBridge } from './lib/SharedSpacesEntitlementBridge';
 
 const PWA_INSTALL_INSTRUCTIONS_EVENT = 'showPwaInstallInstructions';
 
@@ -93,7 +94,7 @@ const windowToast = {
   },
   upgradePrompt: (message: string, upgradeUrl?: string) => {
     showToast(() => {
-      const url = upgradeUrl || '/upgrade';
+      const url = upgradeUrl || '/addon';
       sonnerToast.error(message, {
         icon: null,
         duration: Infinity,
@@ -730,6 +731,7 @@ export default function App() {
         <ToastSetup />
         <UserIdSync />
         <SyncCacheBridge />
+        <SharedSpacesEntitlementBridge />
         <SpaToaster />
         <KeyboardShortcutsInit />
         <SpotlightSearch />

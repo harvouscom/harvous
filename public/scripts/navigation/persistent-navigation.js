@@ -34,9 +34,9 @@ function loadPersistentNavigation(retryCount) {
   const maxRetries = 10;
   const retryDelay = 100;
   
-  // Skip on auth pages and upgrade page - these pages don't have navigation
+  // Skip on auth pages and add-on page - these pages don't have navigation
   const currentPath = window.location.pathname;
-  const skipPages = ['/upgrade', '/sign-in', '/sign-up'];
+  const skipPages = ['/addon', '/sign-in', '/sign-up'];
   if (skipPages.some(page => currentPath === page || currentPath.startsWith(page + '/'))) {
     return;
   }

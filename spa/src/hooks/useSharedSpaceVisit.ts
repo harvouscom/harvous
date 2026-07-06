@@ -1,0 +1,86 @@
+import { useAuth } from '@clerk/clerk-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
+import { api } from '../lib/api';
+import { setNavSpaceNewNoteCount } from '@/lib/shared-space-nav-cache';
+import type { SpaceNoteRow } from './queries/useSpace';
+
+function normalizeSpaceId(spaceId: string): string {
+  return spaceId.startsWith('space_') ? spaceId : `space_${spaceId}`;
+}
+
+const UNSEEN_PREFIX = 'harvous_shared_space_unseen_';
+
+export function getSharedSpaceUnseenSince(spaceId: string): string | null {
+  try {
+    return sessionStorage.getItem(`${UNSEEN_PREFIX}${normalizeSpaceId(spaceId)}`);
+  } catch {
+    return null;
+  }
+}
+
+export function setSharedSpaceUnseenSince(spaceId: string, iso: string | null) {
+  const key = `${UNSEEN_PREFIX}${normalizeSpaceId(spaceId)}`;
+  try {
+    if (iso) sessionStorage.setItem(key, iso);
+    else sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+export interface SharedSpaceActivityPreview {
+  newNoteCount: number;
+  totalNoteCount: number;
+  recentNotes: SpaceNoteRow[];
+}
+
+export interface SharedSpaceVisitResult {
+  previousVisitedAt: string | null;
+  newNoteCount: number;
+  totalNoteCount: number;
+}
+
+export function useSharedSpaceActivityPreview(spaceId: string | null) {
+  const id = spaceId ? normalizeSpaceId(spaceId) : '';
+  return useQuery({
+    queryKey: ['space', id, 'activity-preview'],
+    queryFn: () => api.get<SharedSpaceActivityPreview>(`/api/spaces/${id}/activity-preview`),
+    enabled: !!id,
+    staleTime: 15_000,
+  });
+}
+
+export function useSharedSpaceVisit(spaceId: string | null) {
+  const { userId } = useAuth();
+  const queryClient = useQueryClient();
+  const id = spaceId ? normalizeSpaceId(spaceId) : '';
+  const stampedRef = useRef<string | null>(null);
+
+  const visitMutation = useMutation({
+    mutationFn: () => api.post<SharedSpaceVisitResult>(`/api/spaces/${id}/visit`),
+    onSuccess: (data) => {
+      if (data.previousVisitedAt) {
+        setSharedSpaceUnseenSince(id, data.previousVisitedAt);
+      } else {
+        setSharedSpaceUnseenSince(id, null);
+      }
+      if (userId) setNavSpaceNewNoteCount(queryClient, userId, id, 0);
+      void queryClient.invalidateQueries({ queryKey: ['space', id, 'activity-preview'] });
+    },
+  });
+
+  useEffect(() => {
+    if (!id) return;
+    if (stampedRef.current === id) return;
+    stampedRef.current = id;
+    visitMutation.mutate();
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps -- once per space entry
+
+  return {
+    visitResult: visitMutation.data,
+    isVisiting: visitMutation.isPending,
+    newNoteCount: visitMutation.data?.newNoteCount ?? 0,
+    previousVisitedAt: visitMutation.data?.previousVisitedAt ?? null,
+  };
+}

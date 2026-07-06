@@ -55,7 +55,7 @@ export default function PrototypeAddonsPage() {
       {hasSharedSpaces ? (
         <SafeSubscriptionDetailsButton publishableKey={null}>
           <button type="button" className="proto-settings-btn proto-settings-btn--secondary">
-            Manage subscription
+            Manage Add-On
           </button>
         </SafeSubscriptionDetailsButton>
       ) : null}

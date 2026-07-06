@@ -11,7 +11,7 @@ This document describes how the **production SPA** works today: the prototype we
 | Surface | Route prefix | Role |
 |--------|--------------|------|
 | **Prototype (production web)** | `/` on dedicated hosts; `/prototype/*` elsewhere | **Native-like shell** (toolbar, glass sidebar, inspector, bottom docks). Folders replace Classic thread piles; connected-note threads for study chains. Same Clerk session, React Query, and `spa/src/lib/api.ts`. |
-| **Public web** | `/shared/*`, `/spaces/join/*`, `/invitations/*`, auth, `/upgrade` | Share links, join/invite flows, billing — no authenticated Classic shell. |
+| **Public web** | `/shared/*`, `/spaces/join/*`, `/invitations/*`, auth, `/addon` | Share links, join/invite flows, billing — no authenticated Classic shell. |
 
 **Classic 1.0** (`AppLayout`, `/thread/*`, dashboard hierarchy) was **retired June 2026**. Legacy Classic URLs redirect to prototype routes via [`spa/src/router.tsx`](../spa/src/router.tsx) `buildClassicRedirectRoutes()`.
 

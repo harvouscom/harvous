@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/clerk-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { APIError } from '../../lib/api';
 import { HARVOUS_NAV_CACHE_KEY } from '@/utils/user-cache-keys';
 import { hasClerkSessionCookieHint, readClerkUserIdForProfileCache } from './useProfile';
@@ -28,6 +28,8 @@ export interface NavSpace {
   type?: 'personal' | 'shared' | 'public';
   /** Present on memberOfSpaces entries only. */
   role?: 'owner' | 'leader' | 'member';
+  /** Notes updated since this member last opened the space dashboard. */
+  newNoteCount?: number;
 }
 
 export interface NavigationData {
@@ -56,12 +58,52 @@ function getCachedNav(): NavigationData | undefined {
   }
 }
 
-function setCachedNav(data: NavigationData) {
+function writeCachedNav(data: NavigationData) {
   try {
     sessionStorage.setItem(NAV_SESSION_CACHE_KEY, JSON.stringify(data));
   } catch {
     /* ignore */
   }
+}
+
+/** Append a newly created owned shared space so useActiveSpace resolves before refetch. */
+export function appendOwnedSpaceToNavCache(
+  queryClient: QueryClient,
+  userId: string,
+  space: {
+    id: string;
+    title: string;
+    color: string | null;
+    backgroundGradient: string | null;
+  },
+): void {
+  const key = getNavigationQueryKey(userId);
+  const normalizedId = space.id.startsWith('space_') ? space.id : `space_${space.id}`;
+
+  queryClient.setQueryData<NavigationData>(key, (old) => {
+    const base: NavigationData = old ?? {
+      threads: [],
+      spaces: [],
+      memberOfSpaces: [],
+      inboxCount: 0,
+    };
+    if (base.spaces.some((s) => s.id === normalizedId || s.id === space.id)) {
+      return base;
+    }
+    const row: NavSpace = {
+      id: normalizedId,
+      title: space.title,
+      color: space.color,
+      backgroundGradient: space.backgroundGradient ?? '',
+      ownerId: userId,
+      memberCount: 1,
+      type: 'shared',
+    };
+    return { ...base, spaces: [...base.spaces, row] };
+  });
+
+  const updated = queryClient.getQueryData<NavigationData>(key);
+  if (updated) writeCachedNav(updated);
 }
 
 export function useNavigation(options?: { enabled?: boolean }) {
@@ -82,7 +124,7 @@ export function useNavigation(options?: { enabled?: boolean }) {
         throw new APIError(res.status, (body as { error?: string })?.error ?? `HTTP ${res.status}`);
       }
       const data = await res.json() as NavigationData;
-      setCachedNav(data);
+      writeCachedNav(data);
       return data;
     },
     staleTime: 30_000,

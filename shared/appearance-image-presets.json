@@ -2,7 +2,7 @@
   "basePath": "/images/prototype-backgrounds",
   "presets": [
     { "id": "breeze", "label": "Breeze", "file": "ai_bg_053.webp", "mode": "light" },
-    { "id": "drift", "label": "Drift", "file": "ai_bg_047.webp", "mode": "light" },
+    { "id": "drift", "label": "Drift", "file": "ai_bg_061.webp", "mode": "light" },
     { "id": "meadow", "label": "Meadow", "file": "ai_bg_051.webp", "mode": "light" },
     { "id": "dawn", "label": "Dawn", "file": "ai_bg_045.webp", "mode": "light" },
     { "id": "halo", "label": "Halo", "file": "ai_bg_050.webp", "mode": "light" },

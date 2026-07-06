@@ -21,6 +21,10 @@ const FEATURES = [
 
 const PRODUCT_NAME = 'Shared Spaces';
 
+const ACTIVE_TAGLINE = `${PRODUCT_NAME} is active on your account. Here's a reminder of what it includes:`;
+const PURCHASE_TAGLINE =
+  'Study with others in shared spaces where everyone contributes notes together.';
+
 /**
  * Single-purpose Shared Spaces upgrade card — paper-stack letter layout
  * matching shared-note / sign-in pages. The old multi-add-on list lives in
@@ -32,9 +36,11 @@ export default function UpgradePageContent({
   sharedSpacesPlanId,
   designPreview,
 }: UpgradePageContentProps) {
-  const { isSignedIn: clerkSignedIn } = useAuth();
+  const { isSignedIn: clerkSignedIn, has } = useAuth();
   const isSignedIn = designPreview?.signedIn ?? clerkSignedIn;
   const [hasSharedSpaces, setHasSharedSpaces] = useState(initialHasSharedSpaces);
+  const clerkHasSharedSpaces = isSignedIn ? has({ feature: 'shared_spaces' }) : false;
+  const showActiveCopy = hasSharedSpaces || clerkHasSharedSpaces;
 
   const checkStatus = async () => {
     try {
@@ -90,9 +96,7 @@ export default function UpgradePageContent({
             </span>
             <h1 className="public-addon-letter__title">{PRODUCT_NAME}</h1>
             <p className="public-addon-letter__tagline">
-              {hasSharedSpaces
-                ? `${PRODUCT_NAME} is active on your account. Here's a reminder of what it includes:`
-                : 'Study with others in shared spaces where everyone contributes notes together.'}
+              {showActiveCopy ? ACTIVE_TAGLINE : PURCHASE_TAGLINE}
             </p>
           </div>
 
@@ -118,7 +122,7 @@ export default function UpgradePageContent({
                   onSubscriptionCancel={handleSubscriptionCancel}
                 >
                   <button type="button" className="upgrade-secondary-btn">
-                    Manage subscription
+                    Manage Add-On
                   </button>
                 </SafeSubscriptionDetailsButton>
               </>

@@ -10,6 +10,7 @@ import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useNote } from '../../hooks/queries/useNote';
+import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { PROTOTYPE_DRAFT_NOTE_SLUG, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
 import { useProtoShell, usePrototypeFolderChip } from '../../layouts/proto-shell-context';
 import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
@@ -72,8 +73,10 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   );
 
   const { data: toolbarNote, isLoading: toolbarNoteLoading } = useNote(toolbarNoteId ?? '');
+  const { isForeignSharedNote } = useForeignSharedNote(toolbarNoteId);
 
   const noteSpaceId = toolbarNote?.spaces?.[0]?.id ?? homeSpaceId;
+  const readOnlyForeignNote = isForeignSharedNote;
 
   const isOnNotePage = isPrototypeNotePath(pathname);
 
@@ -205,7 +208,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
       </div>
 
       <div className="proto-toolbar-center">
-        {isOnNotePage && !toolbarNoteLoading && toolbarNote ? (
+        {isOnNotePage && !toolbarNoteLoading && toolbarNote && !readOnlyForeignNote ? (
           <>
             <button
               ref={folderChipRef}
@@ -267,7 +270,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
               />
             ) : null}
 
-            {toolbarNote && toolbarNoteId && !isMobileSidebar ? (
+            {toolbarNote && toolbarNoteId && !isMobileSidebar && !readOnlyForeignNote ? (
               <>
                 <button
                   ref={shareButtonRef}
@@ -303,9 +306,10 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                 spaceId={noteSpaceId}
                 overflowActions={isMobileSidebar}
                 isPublic={!!toolbarNote?.isPublic}
+                readOnlyForeign={readOnlyForeignNote}
                 menuButtonRef={overflowMenuButtonRef}
-                onFind={isMobileSidebar ? openFindPopover : undefined}
-                onShare={isMobileSidebar && toolbarNote ? openSharePopover : undefined}
+                onFind={isMobileSidebar && !readOnlyForeignNote ? openFindPopover : undefined}
+                onShare={isMobileSidebar && toolbarNote && !readOnlyForeignNote ? openSharePopover : undefined}
               />
             ) : null}
           </div>

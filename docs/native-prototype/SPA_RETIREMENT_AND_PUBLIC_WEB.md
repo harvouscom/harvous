@@ -71,7 +71,7 @@ These paths are **user-facing** and/or embedded in `shareUrl` **strings returned
 | `/spaces/join/:token` | Join a space (preview, then sign-in; join uses auth) | [server/routes/spaces.ts](../../server/routes/spaces.ts) |
 | `/invitations/:token` | Space invitation flow | [server/routes/shared.ts](../../server/routes/shared.ts) |
 | `/sign-in`, `/sign-up` | Clerk; needed if any web-based auth remains | Clerk; must preserve return flow for join/invite |
-| `/upgrade` | Billing / upgrade UI ([spa/src/router.tsx](../../spa/src/router.tsx), shared components under `src/components/react/`) | Often Clerk checkout; may need a **web or WebView** even when native is primary |
+| `/addon` | Billing / upgrade UI ([spa/src/router.tsx](../../spa/src/router.tsx), shared components under `src/components/react/`) | Often Clerk checkout; may need a **web or WebView** even when native is primary |
 
 **TanStack route definitions** (for cross-reference when extracting UI): [spa/src/router.tsx](../../spa/src/router.tsx) (`joinSpaceRoute`, `sharedNoteRoute`, `sharedThreadRoute`, `invitationRoute`, auth and upgrade routes).
 

@@ -100,6 +100,7 @@ import { loadPinnedHighlightIds } from './proto-pinned-stores';
 import { stabilityById, mergeStabilityMaps } from './proto-recall-stability';
 import { activeCooldownIds, recordRecallSnoozed, recentRecallSectionCounts } from './proto-recall-cooldown';
 import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeRecallCarousel';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
 import { useCrossRefGaps } from '../../hooks/queries/useCrossRefGaps';
 import { findMostRecentNoteForScriptureReference } from '@/utils/scripture-passage-drill';
@@ -193,19 +194,6 @@ type Props = {
   onOpenCreateThreadPrefill: (prefill: { noteIds: [string, string]; threadName: string }) => void;
 };
 
-function ProtoHomeLoading() {
-  return (
-    <div className="proto-home-loading">
-      <span className="load-more-indicator" aria-label="Loading home">
-        <span className="load-more-indicator__dot" />
-        <span className="load-more-indicator__dot" />
-        <span className="load-more-indicator__dot" />
-      </span>
-    </div>
-  );
-}
-
-/** Pinned first, then most recently edited — the highlight worth resurfacing. */
 function pickSpotlightHighlight(
   rows: PrototypeHighlightStudyThreadRow[],
   spaceId: string,
@@ -1441,7 +1429,7 @@ export default function PrototypeSidebarHomeView({
   }, [beginPrototypeComposeSession, closeDrawer, homeSpaceId, isMobileSidebar, navigate]);
 
   if (!contentReady) {
-    return <ProtoHomeLoading />;
+    return <ProtoSpaceLoading label="Loading home" />;
   }
 
   const openThread = (threadId: string) => {

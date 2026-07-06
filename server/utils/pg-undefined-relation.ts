@@ -43,6 +43,14 @@ export function isNoteConnectionsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'NoteConnections');
 }
 
+export function isSpaceMembershipsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'SpaceMemberships');
+}
+
+export function isSpaceMembershipsLastVisitedColumnMissing(error: unknown): boolean {
+  return isPgUndefinedColumn(error, 'lastVisitedAt');
+}
+
 export function isSyncDeletedEntitiesTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'SyncDeletedEntities');
 }

@@ -55,6 +55,23 @@ html.harvous-prototype-route [class*='proto-'] button path {
   fill: currentColor !important;
 }
 
+/* Space icon tile glyph (switcher rows) — hue-matched, beats blanket currentColor fill above. */
+html.harvous-prototype-route .space-icon-tile:not(.space-icon-tile--on-dark) svg,
+html.harvous-prototype-route .space-icon-tile:not(.space-icon-tile--on-dark) path {
+  fill: oklch(from var(--space-icon-accent) calc(l * 0.58) min(c * 3.5, 0.2) h) !important;
+}
+
+html.harvous-prototype-route .space-icon-tile--on-dark svg,
+html.harvous-prototype-route .space-icon-tile--on-dark path {
+  fill: rgba(255, 255, 255, 0.96) !important;
+}
+
+/* Selected color swatch checkmark — same space-icon hue. */
+html.harvous-prototype-route .proto-shared-space-settings__color--selected svg,
+html.harvous-prototype-route .proto-shared-space-settings__color--selected path {
+  fill: oklch(from var(--swatch-accent) calc(l * 0.58) min(c * 3.5, 0.2) h) !important;
+}
+
 /* List row preview lines inside buttons — beat blanket `button *` primary above.
    Timestamp stays secondary; excerpt body uses list-preview (native secondary / tertiary). */
 html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview,

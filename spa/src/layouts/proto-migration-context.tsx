@@ -19,6 +19,7 @@ import {
   usePrototypeMigration,
   type PrototypeMigrationResult,
 } from '../hooks/mutations/usePrototypeMigration';
+import { APIError } from '../lib/api';
 
 type ProtoMigrationContextValue = {
   migrating: boolean;
@@ -72,10 +73,14 @@ export function ProtoMigrationProvider({ children }: { children: ReactNode }) {
         setShowFoldersBanner(true);
       }
     } catch (error) {
+      if (error instanceof APIError && (error.status === 503 || error.code === 'SCHEMA_NOT_READY')) {
+        return;
+      }
       const raw = error instanceof Error ? error.message : '';
-      const message = raw.includes('NoteConnections') || raw.includes('SCHEMA_NOT_READY')
-        ? 'Folder migration is not ready yet. Please try again later.'
-        : 'Could not finish folder migration. Your notes are safe — we will retry.';
+      const message =
+        raw.includes('NoteConnections') || raw.includes('SCHEMA_NOT_READY')
+          ? 'Folder update is not ready yet — try again soon'
+          : 'Could not finish the folder update — your notes are safe';
       toast.error(message);
     } finally {
       setMigrating(false);

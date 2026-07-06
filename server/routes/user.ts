@@ -73,7 +73,10 @@ import {
   runPrototypeUserMigration,
   userNeedsCollectionBackfill,
 } from '../utils/prototype-user-migration';
-import { isNoteConnectionsTableMissing } from '../utils/pg-undefined-relation';
+import {
+  isNoteConnectionsTableMissing,
+  isPrototypeFolderStatsColumnMissing,
+} from '../utils/pg-undefined-relation';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 
 const app = new Hono();
@@ -167,6 +170,17 @@ app.get('/api/user/migrate-to-prototype/status', requireAuth, async (c) => {
     const needsCollectionBackfill = await userNeedsCollectionBackfill(auth.userId);
     return c.json({ success: true, needsCollectionBackfill });
   } catch (error) {
+    if (isNoteConnectionsTableMissing(error) || isPrototypeFolderStatsColumnMissing(error)) {
+      return c.json(
+        {
+          error: 'Prototype migration schema not ready. Run `npm run db:push` on the target database.',
+          code: 'SCHEMA_NOT_READY',
+          success: false,
+          needsCollectionBackfill: false,
+        },
+        503,
+      );
+    }
     const e = handleAPIError(error, { endpoint: '/api/user/migrate-to-prototype/status', action: 'migrate_to_prototype_status' });
     return c.json({ error: e.message, code: e.code }, 500);
   }

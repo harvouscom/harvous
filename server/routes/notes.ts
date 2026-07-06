@@ -79,6 +79,7 @@ import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id
 import { extractArticleContent } from '@/utils/content-extractor';
 import { sortByLastVisited } from '@/utils/sorting';
 import { broadcastInvalidation } from '../utils/realtime';
+import { broadcastNoteInvalidation } from '../utils/broadcast-shared-space-note';
 import { stripHtml } from '@/utils/html-stripper';
 import { deleteNotesCascadeForUser, deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
 import { isOnboardingSystemNote } from '../utils/purge-onboarding-content';
@@ -492,7 +493,16 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       }
     }
 
-    broadcastInvalidation(auth.userId, { type: 'note:created', id: newNote.id });
+    void broadcastNoteInvalidation(auth.userId, newNote.spaceId, {
+      type: 'note:created',
+      id: newNote.id,
+      note: {
+        spaceId: newNote.spaceId,
+        title: newNote.title,
+        content: newNote.content,
+        updatedAt: newNote.updatedAt ?? newNote.createdAt,
+      },
+    });
 
     void tryRecordVotdAddNoteFromCreatedNote(auth.userId, {
       title: newNote.title,
@@ -678,12 +688,12 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
           // Notify clients so the linked pills + verse text land without a manual refresh.
           // Carry the processed HTML so listeners can patch in place (no refetch).
           const processed = scriptureResult?.updatedContent;
-          broadcastInvalidation(auth.userId, {
+          void broadcastNoteInvalidation(auth.userId, existingNote.spaceId, {
             type: 'note:updated',
             id: noteId,
             ...(typeof processed === 'string' && processed.length > 0
-              ? { note: { content: processed, updatedAt: new Date().toISOString() } }
-              : {}),
+              ? { note: { content: processed, updatedAt: new Date().toISOString(), spaceId: existingNote.spaceId } }
+              : { note: { spaceId: existingNote.spaceId } }),
           });
         } catch (err: any) {
           console.error('[api/notes/update] Background scripture processing failed:', err?.message ?? err);
@@ -712,7 +722,7 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
 
     // Carry the changed fields so other devices patch their caches in place instead
     // of refetching. Scripture-linked HTML follows in the deferred broadcast above.
-    broadcastInvalidation(auth.userId, {
+    void broadcastNoteInvalidation(auth.userId, updatedNote.spaceId, {
       type: 'note:updated',
       id: noteId,
       note: {
@@ -1224,7 +1234,7 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
       } catch {}
     })().catch(() => {});
 
-    broadcastInvalidation(auth.userId, { type: 'note:deleted', id: noteId });
+    void broadcastNoteInvalidation(auth.userId, existingNote.spaceId, { type: 'note:deleted', id: noteId });
 
     return c.json({ success: true, deletedId: noteId, noteId, threadId });
   } catch (error: any) {

@@ -55,7 +55,7 @@ import {
   filterThreadClusterEdgesForRemoval,
   normalizeThreadClusterMemberIds,
 } from '@/utils/thread-cluster-bulk-actions';
-import { broadcastInvalidation } from '../utils/realtime';
+import { broadcastNoteInvalidation } from '../utils/broadcast-shared-space-note';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import {
   getSpacesWithCounts,
@@ -66,6 +66,11 @@ import {
   getThreadColorsForNotesBatch,
 } from '../utils/dashboard-data';
 import { requireSpaceAccess, SpaceAccessError, canAuthorInSpace } from '../utils/space-access';
+import {
+  getSharedSpaceActivityPreview,
+  isNoteNewSinceVisit,
+  recordSharedSpaceVisit,
+} from '../utils/shared-space-visit';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { awardCreationBonusXP } from '../utils/xp-system';
 import {
@@ -73,6 +78,8 @@ import {
   canAddMemberToSpace,
   getSpaceMemberCount,
   hasSharedSpacesAddOn,
+  hasSharedSpacesAddOnForUserId,
+  syncSharedSpacesAddOnFromClerk,
   MEMBERS_PER_SPACE_CAP,
 } from '../utils/tier-limits';
 import { getThreadGradientCSS } from '@/utils/colors';
@@ -100,6 +107,7 @@ import {
   isOnboardingSystemNote,
 } from '../utils/purge-onboarding-content';
 import { buildSpaceReferencesIndex } from '../utils/build-space-references-index';
+import { getPublicAppOrigin } from '../utils/public-app-origin';
 import { mapStudyRow } from './study-threads';
 import { isStudyThreadEntriesTableMissing } from '../utils/pg-undefined-relation';
 import {
@@ -220,6 +228,11 @@ route.post('/api/spaces/create-shared', requireAuth, rateLimit('write'), async (
     if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
     const colorValidation = validateColor(color);
     if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
+
+    // Reconcile-on-write when the DB flag is still false (post-checkout gap before webhook).
+    if (!(await hasSharedSpacesAddOnForUserId(auth.userId))) {
+      await syncSharedSpacesAddOnFromClerk(auth.userId, auth);
+    }
 
     const canCreate = await canCreateSharedSpace(auth.userId, auth);
     if (!canCreate.allowed) {
@@ -470,6 +483,7 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
     const excludeLegacyScripture =
       c.req.query('excludeLegacyScripture') === '1' || c.req.query('excludeLegacyScripture') === 'true';
     const sortByLastUpdated = c.req.query('sortBy') === 'updated';
+    const unseenSince = c.req.query('unseenSince')?.trim() || undefined;
 
     const queryOptions = {
       excludeLegacyScriptureNotes: excludeLegacyScripture,
@@ -480,7 +494,13 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
     const result = accessInfo.space.type === 'personal'
       ? await getNotesForSpace(spaceId, auth.userId, limit, offset, queryOptions)
       : await getNotesForSharedSpace(spaceId, auth.userId, limit, offset, queryOptions);
-    return c.json({ notes: result.notes, hasMore: result.hasMore, total: result.total, offset, limit });
+    const notes = unseenSince && accessInfo.space.type !== 'personal'
+      ? result.notes.map((n) => ({
+          ...n,
+          isNewSinceVisit: isNoteNewSinceVisit(n.updatedAt ?? n.lastUpdated, unseenSince),
+        }))
+      : result.notes;
+    return c.json({ notes, hasMore: result.hasMore, total: result.total, offset, limit });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/notes', action: 'get_space_notes' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -1637,6 +1657,52 @@ route.post('/api/spaces/:spaceId/remove-items', requireAuth, async (c) => {
   }
 });
 
+// ─── GET /api/spaces/:spaceId/activity-preview ──────────────────────────────
+/** Lightweight dashboard payload for the shared space layer (recent notes, new count). */
+route.get('/api/spaces/:spaceId/activity-preview', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    try {
+      await requireSpaceAccess(spaceId, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    const preview = await getSharedSpaceActivityPreview(spaceId, auth.userId);
+    return c.json(preview);
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/activity-preview',
+      action: 'get_space_activity_preview',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/spaces/:spaceId/visit ────────────────────────────────────────
+/** Stamp membership lastVisitedAt and return new-since counts for the prior watermark. */
+route.post('/api/spaces/:spaceId/visit', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    try {
+      await requireSpaceAccess(spaceId, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    const result = await recordSharedSpaceVisit(spaceId, auth.userId);
+    return c.json(result);
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/visit',
+      action: 'record_space_visit',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── POST /api/spaces/:spaceId/copy-notes ───────────────────────────────────
 /**
  * Copies notes into a space as NEW independent rows (the source notes are
@@ -1743,6 +1809,13 @@ route.post('/api/spaces/:spaceId/copy-notes', requireAuth, rateLimit('write'), a
       await db.update(UserMetadata)
         .set({ highestSimpleNoteId: nextSimpleNoteId - 1, updatedAt: nowISO() })
         .where(eq(UserMetadata.userId, auth.userId));
+      for (const { noteId } of created) {
+        void broadcastNoteInvalidation(auth.userId, targetSpaceId, {
+          type: 'note:created',
+          id: noteId,
+          note: { spaceId: targetSpaceId },
+        });
+      }
     }
 
     return c.json({ success: true, created, errors: errors.length > 0 ? errors : undefined });
@@ -1858,7 +1931,7 @@ route.post('/api/spaces/:spaceId/invites', requireAuth, rateLimit('write'), asyn
       createdAt: now,
     }).returning())!;
 
-    const origin = new URL(c.req.url).origin;
+    const origin = getPublicAppOrigin(c);
     return c.json({
       success: true,
       inviteId: invite.id,
@@ -1888,7 +1961,7 @@ route.get('/api/spaces/:spaceId/invites', requireAuth, async (c) => {
       .where(and(eq(SpaceInvites.spaceId, spaceId), isNull(SpaceInvites.revokedAt)))
       .orderBy(desc(SpaceInvites.createdAt));
 
-    const origin = new URL(c.req.url).origin;
+    const origin = getPublicAppOrigin(c);
     const invites = rows
       .filter((inv) => inviteDeadReason(inv) === null)
       .map((inv) => ({

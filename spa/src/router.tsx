@@ -62,8 +62,17 @@ const signUpSplatRoute = createRoute({
 
 const upgradeRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/upgrade',
+  path: '/addon',
   component: lazyRouteComponent(() => import('./pages/UpgradePage')),
+});
+
+// Legacy `/upgrade` links (old slug) → `/addon`, preserving query params (e.g. Clerk return_url).
+const legacyUpgradeRedirectRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/upgrade',
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: '/addon', search, replace: true });
+  },
 });
 
 const joinSpaceRoute = createRoute({
@@ -89,6 +98,17 @@ const invitationRoute = createRoute({
   path: '/invitations/$token',
   component: lazyRouteComponent(() => import('./pages/public/PublicInvitationPage')),
 });
+
+const sharedSpacesDesignGalleryRoute = import.meta.env.DEV
+  ? createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/__dev/shared-spaces-design',
+      validateSearch: (search: Record<string, unknown>) => ({
+        scene: typeof search.scene === 'string' ? search.scene : undefined,
+      }),
+      component: lazyRouteComponent(() => import('./pages/dev/SharedSpacesDesignGalleryPage')),
+    })
+  : null;
 
 /** Prototype branch — pathless layout on dedicated hosts (/), /prototype elsewhere. */
 function buildPrototypeRouteBranch() {
@@ -428,10 +448,12 @@ function buildRouteTree() {
     ]),
     ...buildClassicRedirectRoutes(),
     upgradeRoute,
+    legacyUpgradeRedirectRoute,
     joinSpaceRoute,
     sharedNoteRoute,
     sharedThreadRoute,
     invitationRoute,
+    ...(sharedSpacesDesignGalleryRoute ? [sharedSpacesDesignGalleryRoute] : []),
     buildPrototypeRouteBranch(),
     notFoundRoute,
   ]);

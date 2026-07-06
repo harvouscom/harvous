@@ -27,3 +27,9 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
 export function syncChannelName(userId: string): string {
   return `sync-${userId}`;
 }
+
+/** Presence + live activity channel for a shared/public space. */
+export function spaceChannelName(spaceId: string): string {
+  const id = spaceId.startsWith('space_') ? spaceId : `space_${spaceId}`;
+  return `space-${id}`;
+}

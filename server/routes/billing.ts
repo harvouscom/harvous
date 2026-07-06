@@ -4,6 +4,7 @@
  * Endpoints:
  *   POST /api/billing/checkout
  *   POST /api/billing/downgrade
+ *   POST /api/billing/sync-shared-spaces
  *   GET  /api/subscription/status
  *   POST /api/referral/credit
  *   GET  /api/referral/status
@@ -15,6 +16,7 @@ import { db, first, UserMetadata, UserXP, eq, and, count } from '../db';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
 import { SHARED_SPACES_PLAN_ID, getSubscriptionInfo } from '../utils/subscription';
+import { hasSharedSpacesAddOnForUserId, syncSharedSpacesAddOnFromClerk } from '../utils/tier-limits';
 import { resolveRefToUserId, generateReferralCode } from '../utils/referral-code';
 import { ACTIVITY_TYPES, awardXP, getReferralCreditXpForOrdinal } from '../utils/xp-system';
 import { getCookie, deleteCookie } from 'hono/cookie';
@@ -44,8 +46,8 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
 
     const checkoutPayload: any = {
       plan_id: planId,
-      return_url: `${origin}/upgrade?success=true`,
-      cancel_url: `${origin}/upgrade?canceled=true`,
+      return_url: `${origin}/addon?success=true`,
+      cancel_url: `${origin}/addon?canceled=true`,
     };
 
     if (billingInterval === 'annual' || billingInterval === 'year') {
@@ -157,12 +159,32 @@ app.post('/api/billing/downgrade', requireAuth, async (c) => {
   }
 });
 
+/** POST /api/billing/sync-shared-spaces — idempotent Clerk → DB entitlement reconcile */
+app.post('/api/billing/sync-shared-spaces', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const { hasSharedSpaces, updated } = await syncSharedSpacesAddOnFromClerk(auth.userId, auth);
+    return c.json({ synced: true, updated, hasSharedSpaces });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/billing/sync-shared-spaces',
+      action: 'sync_shared_spaces_addon',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── Subscription ───────────────────────────────────────────────────
 
 /** GET /api/subscription/status — billing tier + note stats; note `limit` is always null (unlimited notes). */
 app.get('/api/subscription/status', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
+
+    // Reconcile-on-read when the DB flag is still false (post-checkout gap before webhook).
+    if (!(await hasSharedSpacesAddOnForUserId(auth.userId))) {
+      await syncSharedSpacesAddOnFromClerk(auth.userId, auth);
+    }
 
     const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
 
@@ -172,6 +194,8 @@ app.get('/api/subscription/status', requireAuth, async (c) => {
         hasSharedSpaces: subscriptionInfo.hasSharedSpaces,
         currentCount: subscriptionInfo.currentCount,
         limit: subscriptionInfo.limit,
+        sharedSpacesOwnedCount: subscriptionInfo.sharedSpacesOwnedCount,
+        sharedSpacesOwnedLimit: subscriptionInfo.sharedSpacesOwnedLimit,
       },
       200,
       { 'Cache-Control': 'private, no-store, max-age=0' }

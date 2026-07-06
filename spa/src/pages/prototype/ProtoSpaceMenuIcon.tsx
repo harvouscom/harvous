@@ -16,6 +16,7 @@ export default function ProtoSpaceMenuIcon({
   size = DEFAULT_SIZE,
   radius,
   glyphSize,
+  variant = 'menu',
 }: {
   color?: string;
   size?: number;
@@ -24,20 +25,23 @@ export default function ProtoSpaceMenuIcon({
   /** Glyph size override (px). Defaults to the menu-tuned 0.625 ratio; pass a
    *  smaller value (e.g. ~0.42 of the tile) to match the join letter proportion. */
   glyphSize?: number;
+  /** `orb` fills the toolbar circle edge-to-edge; `menu` is the compact menu row tile. */
+  variant?: 'menu' | 'orb';
 }) {
   const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
-  const iconSize = glyphSize ?? Math.max(9, Math.round(size * 0.625));
+  const isOrb = variant === 'orb';
+  const tileSize = isOrb ? undefined : size;
+  const iconSize = glyphSize ?? (isOrb ? 13 : Math.max(9, Math.round(size * 0.625)));
   const accent = spaceIconAccentHex(color, colorScheme);
   const onDark = colorScheme === 'dark';
 
   return (
     <span
-      className={`proto-space-menu-icon space-icon-tile${onDark ? ' space-icon-tile--on-dark' : ''}`}
+      className={`proto-space-menu-icon space-icon-tile${onDark ? ' space-icon-tile--on-dark' : ''}${isOrb ? ' proto-space-menu-icon--orb' : ''}`}
       aria-hidden
       style={{
-        width: size,
-        height: size,
-        ...(radius != null ? { borderRadius: radius } : null),
+        ...(tileSize != null ? { width: tileSize, height: tileSize } : null),
+        ...(radius != null && !isOrb ? { borderRadius: radius } : null),
         ['--space-icon-accent' as string]: accent,
       }}
     >

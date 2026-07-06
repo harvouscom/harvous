@@ -1,5 +1,7 @@
 import { useQuery, useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
+import { isSupabaseRealtimeConfigured } from '@/lib/supabase-client';
+import { getSharedSpaceUnseenSince } from '../useSharedSpaceVisit';
 import { useAuthReady } from '../useAuthReady';
 import { api, APIError } from '../../lib/api';
 import { hasClerkSessionCookieHint } from './useProfile';
@@ -80,6 +82,9 @@ export interface SpaceDetail {
   title: string;
   color: string | null;
   backgroundGradient: string;
+  description?: string | null;
+  coverBgLight?: import('@/utils/space-cover').SpaceCoverBg;
+  coverBgDark?: import('@/utils/space-cover').SpaceCoverBg;
   ownerId: string;
   memberCount: number;
   isPublic: boolean;
@@ -144,6 +149,8 @@ export interface SpaceNoteRow {
   authorDisplayName?: string;
   authorColor?: string;
   isOwnNote?: boolean;
+  /** Shared space list: note updated after the member's prior visit watermark. */
+  isNewSinceVisit?: boolean;
 }
 
 /** Paginated notes-only list from `GET /api/spaces/:spaceId/notes` */
@@ -195,10 +202,17 @@ export function useSpace(spaceId: string) {
   });
 }
 
-export function useSpaceNotes(spaceId: string, limit = 20, options?: { pollWhileActive?: boolean }) {
+export function useSpaceNotes(
+  spaceId: string,
+  limit = 20,
+  options?: { pollWhileActive?: boolean; unseenSince?: string | null },
+) {
   const authReady = useAuthReady();
   const trimmed = (spaceId ?? '').trim();
   const id = trimmed.startsWith('space_') ? trimmed : trimmed ? `space_${trimmed}` : '';
+  const unseenSince = options?.unseenSince ?? (id ? getSharedSpaceUnseenSince(id) : null);
+  const usePollFallback =
+    Boolean(options?.pollWhileActive) && !isSupabaseRealtimeConfigured();
   const cachedFirstPage = id ? getCachedSpaceNotesFirstPage(id) : undefined;
   // Hydrate instantly from the cached first page; `initialDataUpdatedAt: 0` marks it
   // stale so React Query revalidates in the background on mount (instant + fresh).
@@ -206,13 +220,14 @@ export function useSpaceNotes(spaceId: string, limit = 20, options?: { pollWhile
     ? { pages: [cachedFirstPage], pageParams: [0] }
     : undefined;
   const query = useInfiniteQuery({
-    queryKey: ['space', id, 'notes', 'no-legacy-scripture', 'updated'],
+    queryKey: ['space', id, 'notes', 'no-legacy-scripture', 'updated', unseenSince ?? ''],
     queryFn: async ({ pageParam = 0 }) => {
       const page = await api.get<SpaceNotesPage>(`/api/spaces/${id}/notes`, {
         offset: pageParam,
         limit,
         excludeLegacyScripture: 1,
         sortBy: 'updated',
+        ...(unseenSince ? { unseenSince } : {}),
       });
       if (pageParam === 0 && id) setCachedSpaceNotesFirstPage(id, page);
       return page;
@@ -222,9 +237,7 @@ export function useSpaceNotes(spaceId: string, limit = 20, options?: { pollWhile
     initialPageParam: 0,
     enabled: authReady && !!id,
     staleTime: 30_000,
-    // Shared spaces have no realtime sync yet (fast-follow) — poll so other
-    // members' contributions show up without a manual refresh.
-    refetchInterval: options?.pollWhileActive ? 45_000 : undefined,
+    refetchInterval: usePollFallback ? 45_000 : undefined,
     refetchIntervalInBackground: false,
     initialData,
     initialDataUpdatedAt: initialData ? 0 : undefined,

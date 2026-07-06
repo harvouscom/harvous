@@ -8,7 +8,7 @@
 
 import { db, first, UserMetadata, Notes, eq, and, isNotNull, desc } from '../db';
 import type { Auth } from '../middleware/types';
-import { getTierForAuth, hasSharedSpacesAddOn } from './tier-limits';
+import { getTierForAuth, getSharedSpacesOwnedCount, hasSharedSpacesAddOn, OWNED_SHARED_SPACES_ADDON_LIMIT, FREE_OWNED_SHARED_SPACES_LIMIT } from './tier-limits';
 
 /** Clerk Billing plan for the Shared Spaces add-on (feature slug `shared_spaces`). */
 export const SHARED_SPACES_PLAN_ID = process.env.CLERK_SHARED_SPACES_PLAN_ID || '';
@@ -75,11 +75,12 @@ export async function canCreateNote(
 }
 
 export async function getSubscriptionInfo(userId: string, auth: Auth) {
-  const [hasUnlimited, hasSharedSpaces, currentCount, referralBonusNotes] = await Promise.all([
+  const [hasUnlimited, hasSharedSpaces, currentCount, referralBonusNotes, sharedSpacesOwnedCount] = await Promise.all([
     hasUnlimitedNotes(auth),
     hasSharedSpacesAddOn(auth),
     getUserNoteCount(userId),
     getReferralBonusNotes(userId),
+    getSharedSpacesOwnedCount(userId),
   ]);
 
   return {
@@ -89,5 +90,7 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
     currentCount,
     limit: null as number | null,
     referralBonusNotes,
+    sharedSpacesOwnedCount,
+    sharedSpacesOwnedLimit: hasSharedSpaces ? OWNED_SHARED_SPACES_ADDON_LIMIT : FREE_OWNED_SHARED_SPACES_LIMIT,
   };
 }

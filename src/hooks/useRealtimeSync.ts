@@ -93,6 +93,16 @@ async function applyInvalidation(
     return;
   }
 
+  if (type === 'note:created' && payload.note?.spaceId && isPrototypeShellRoute()) {
+    const spaceId = payload.note.spaceId;
+    const { bumpNavSpaceNewNoteCount } = await import('@/lib/shared-space-nav-cache');
+    bumpNavSpaceNewNoteCount(queryClient, userId, spaceId, 1);
+    await queryClient.invalidateQueries({ queryKey: ['space', spaceId, 'notes'] });
+    await queryClient.invalidateQueries({ queryKey: ['space', spaceId, 'activity-preview'] });
+    if (id) await queryClient.invalidateQueries({ queryKey: ['note', id] });
+    return;
+  }
+
   if (type === 'userMetadata:updated') {
     if (isPrototypeShellRoute()) {
       const { fetchAndHydrateAppearanceFromProfile } = await import(

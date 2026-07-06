@@ -26,8 +26,8 @@ export default function PrototypeSidebarToolbar({
 }) {
   const navigate = useNavigate();
   const { homeSpaceId, authReady } = usePrototypeHomeSpaceId();
-  const { isSharedSpace } = useActiveSpace();
-  const { sidebarWidth, toggleDesktopSidebar, desktopSidebarCollapsed, sidebarExiting } = useProtoShell();
+  const { isSharedSpace, activeSpaceId } = useActiveSpace();
+  const { sidebarWidth, toggleDesktopSidebar, desktopSidebarCollapsed, sidebarExiting, sidebarListMode } = useProtoShell();
   const showShiftHints = usePrototypeShiftHints();
 
   const isDrawer = variant === 'drawer';
@@ -59,7 +59,7 @@ export default function PrototypeSidebarToolbar({
         {showClusterChrome ? (
           <>
             <SpaceSwitcherMenu homeSpaceId={homeSpaceId} authReady={authReady} />
-            <ListViewMenu disabled={!homeSpaceId || isSharedSpace} variant="icon-only" />
+            <ListViewMenu disabled={!(isSharedSpace ? activeSpaceId : homeSpaceId)} variant="icon-only" />
           </>
         ) : null}
         {!isDrawer ? (

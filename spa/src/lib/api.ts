@@ -13,6 +13,7 @@ export class APIError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
   ) {
     super(message);
     this.name = 'APIError';
@@ -40,10 +41,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = await res.json().catch(() => ({})) as { error?: string; code?: string };
     const errMessage = body.error || `HTTP ${res.status}`;
     reportApiDiagnostic(path, res.status, errMessage);
-    throw new APIError(res.status, errMessage);
+    throw new APIError(res.status, errMessage, body.code);
   }
 
   return res.json() as Promise<T>;

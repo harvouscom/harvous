@@ -61,6 +61,7 @@ import {
   prototypeHighlightRecencyIso,
 } from './proto-highlight-subtitle';
 import PrototypeSidebarHomeView from './PrototypeSidebarHomeView';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeListEmptyState, { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
 import { SIDEBAR_NO_MATCH_COPY } from './sidebar-no-match-copy';
 import PrototypeMigrationBanner from './PrototypeMigrationBanner';
@@ -769,7 +770,13 @@ function PrototypeSidebarNoteRow({
   }
 
   return (
-    <li ref={rowRef} className="proto-note-row-item" data-active={active ? 'true' : 'false'}>
+    <li
+      ref={rowRef}
+      className={['proto-note-row-item', row.isNewSinceVisit ? 'proto-note-row--unseen' : '']
+        .filter(Boolean)
+        .join(' ')}
+      data-active={active ? 'true' : 'false'}
+    >
       {mainButton}
       {menuBlock}
       {deleteDialog}
@@ -805,15 +812,7 @@ function highlightKindMatches(filter: HighlightKindFilter, entryKind: string | n
 }
 
 function ProtoNotesListLoading() {
-  return (
-    <div style={{ padding: '12px 18px', display: 'flex', justifyContent: 'center' }}>
-      <span className="load-more-indicator" aria-label="Loading notes">
-        <span className="load-more-indicator__dot" />
-        <span className="load-more-indicator__dot" />
-        <span className="load-more-indicator__dot" />
-      </span>
-    </div>
-  );
+  return <ProtoSpaceLoading label="Loading notes" />;
 }
 
 function ProtoNotesPaginationFooter({
@@ -866,7 +865,7 @@ function threadProposalSubtitle(proposal: ThreadProposal): string {
   }
 }
 
-export default function PrototypeSidebar() {
+export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: string | null } = {}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const {
     closeDrawer,
@@ -894,7 +893,14 @@ export default function PrototypeSidebar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { homeSpaceId, navReady, authReady } = usePrototypeHomeSpaceId();
+  const { homeSpaceId: personalHomeSpaceId, navReady, authReady } = usePrototypeHomeSpaceId();
+  const homeSpaceId = scopedSpaceId ?? personalHomeSpaceId;
+  const isScopedSharedSpace = Boolean(
+    scopedSpaceId &&
+      personalHomeSpaceId &&
+      (scopedSpaceId.startsWith('space_') ? scopedSpaceId : `space_${scopedSpaceId}`) !==
+        (personalHomeSpaceId.startsWith('space_') ? personalHomeSpaceId : `space_${personalHomeSpaceId}`),
+  );
   usePrototypeStudyThreadListSyncListener(homeSpaceId ?? undefined);
 
   const scrollRootRef = useRef<HTMLDivElement>(null);
@@ -920,7 +926,7 @@ export default function PrototypeSidebar() {
     hasNextPage,
     isFetchingNextPage,
     isFetchNextPageError,
-  } = useSpaceNotes(homeSpaceId ?? '');
+  } = useSpaceNotes(homeSpaceId ?? '', 20, { pollWhileActive: isScopedSharedSpace });
 
   const folderRegistryQuery = usePrototypeFolderRegistry(homeSpaceId ?? undefined);
 
@@ -1837,7 +1843,7 @@ export default function PrototypeSidebar() {
               No My Home yet — finish setup in the classic app
             </p>
           ) : null
-        ) : isHomeLayer ? (
+        ) : isHomeLayer && isScopedSharedSpace ? null : isHomeLayer ? (
           <PrototypeSidebarHomeView
             homeSpaceId={homeSpaceId}
             notes={notes}
@@ -2121,7 +2127,9 @@ export default function PrototypeSidebar() {
                     );
                   })}
                 </div>
-                {highlightsQuery.isLoading ? null : highlightsQuery.isError ? (
+                {highlightsQuery.isLoading ? (
+                  <ProtoSpaceLoading label="Loading highlights" />
+                ) : highlightsQuery.isError ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     Could not load highlights.
                     {describeQueryFailure(highlightsQuery.error) ? (
@@ -2177,7 +2185,9 @@ export default function PrototypeSidebar() {
 
             {mode === 'threads' && sidebarThreadDrilldownId ? (
               <>
-                {threadDrillQuery.isLoading ? null : threadDrillQuery.isError ? (
+                {threadDrillQuery.isLoading ? (
+                  <ProtoSpaceLoading label="Loading thread" />
+                ) : threadDrillQuery.isError ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     Could not load thread.
                   </p>
@@ -2260,7 +2270,9 @@ export default function PrototypeSidebar() {
 
             {mode === 'threads' && !sidebarThreadDrilldownId ? (
               <>
-                {studyThreadsQuery.isLoading ? null : studyThreadsQuery.isError ? (
+                {studyThreadsQuery.isLoading ? (
+                  <ProtoSpaceLoading label="Loading threads" />
+                ) : studyThreadsQuery.isError ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     Could not load threads.
                   </p>
@@ -2350,7 +2362,9 @@ export default function PrototypeSidebar() {
 
             {mode === 'scripture' && scriptureDrill.level === 'books' ? (
               <>
-                {scriptureQuery.isLoading ? null : scriptureQuery.isError ? (
+                {scriptureQuery.isLoading ? (
+                  <ProtoSpaceLoading label="Loading scripture" />
+                ) : scriptureQuery.isError ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     Could not load scripture index.
                     {describeQueryFailure(scriptureQuery.error) ? (

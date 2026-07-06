@@ -381,8 +381,10 @@
   box-shadow: var(--pds-glass-rim);
   color: var(--pds-text-primary) !important;
   -webkit-text-fill-color: var(--pds-text-primary);
-  font-family: var(--pds-font-body);
-  font-size: 13px;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 15px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.1s;
@@ -390,6 +392,21 @@
   align-items: center;
   justify-content: center;
   text-decoration: none !important;
+}
+
+/* Beat global.css `button * { font-family/color !important }` for pill CTAs */
+.upgrade-secondary-btn,
+.upgrade-secondary-btn * {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  color: var(--pds-text-primary) !important;
+  -webkit-text-fill-color: var(--pds-text-primary);
+}
+
+.upgrade-checkout > div,
+.public-addon-letter__cta > div {
+  width: 100%;
 }
 
 .upgrade-secondary-btn:hover:not(:disabled) {
@@ -460,4 +477,444 @@
   flex: 1 1 0 !important;
   width: auto !important;
   min-width: 0 !important;
+}
+
+/* ─── Clerk checkout drawer — payment success screen ───────────────────────
+   After Pay succeeds, Clerk swaps to CheckoutComplete: green badge/rings,
+   generic typography, and a Continue button in `.cl-drawerFooter` (not
+   `.cl-drawerBody`) that misses the Pay-button overrides above. Match the
+   Shared Spaces letter card: blue success orb, site ink type, gradient pill. */
+
+.cl-drawerBody .cl-checkoutSuccessTitle,
+.cl-drawerBody [data-localization-key='billing.checkout.title__paymentSuccessful'],
+.cl-drawerBody [data-localization-key='commerce.checkout.title__paymentSuccessful'] {
+  font-family:
+    "Google Sans Flex", "Google Sans", ui-sans-serif, system-ui, -apple-system,
+    sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 1.25rem !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.2 !important;
+  color: var(--site-ink) !important;
+  text-align: center;
+}
+
+.cl-drawerBody .cl-checkoutSuccessDescription,
+.cl-drawerBody [data-localization-key='billing.checkout.description__paymentSuccessful'],
+.cl-drawerBody [data-localization-key='commerce.checkout.description__paymentSuccessful'] {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 0.9375rem !important;
+  line-height: 1.55 !important;
+  color: var(--site-ink-soft) !important;
+  text-align: center;
+}
+
+/* Success badge — solid blue gradient orb (Clerk draws a stroked ring SVG; replace it) */
+.cl-drawerRoot .cl-checkoutSuccessBadge,
+.cl-drawerContent .cl-checkoutSuccessBadge,
+.cl-drawerBody .cl-checkoutSuccessBadge {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: none !important;
+  width: 56px !important;
+  height: 56px !important;
+  min-width: 56px !important;
+  min-height: 56px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+.cl-drawerRoot .cl-checkoutSuccessBadge::before,
+.cl-drawerContent .cl-checkoutSuccessBadge::before,
+.cl-drawerBody .cl-checkoutSuccessBadge::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: 0 !important;
+  border-radius: 50% !important;
+  background: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 24px -10px rgba(0, 110, 255, 0.6) !important;
+}
+
+.cl-drawerRoot .cl-checkoutSuccessBadge::after,
+.cl-drawerContent .cl-checkoutSuccessBadge::after,
+.cl-drawerBody .cl-checkoutSuccessBadge::after {
+  content: '✓' !important;
+  position: absolute !important;
+  z-index: 2 !important;
+  color: #ffffff !important;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 1.375rem !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+}
+
+/* Clerk renders the success mark as a stroked ring SVG — hide it entirely */
+.cl-drawerRoot .cl-checkoutSuccessBadge svg,
+.cl-drawerContent .cl-checkoutSuccessBadge svg,
+.cl-drawerBody .cl-checkoutSuccessBadge svg {
+  display: none !important;
+}
+
+/* Pulse rings are Clerk's hollow stroke animation — hide; badge ::before is the orb */
+.cl-drawerRoot .cl-checkoutSuccessRings,
+.cl-drawerContent .cl-checkoutSuccessRings,
+.cl-drawerBody .cl-checkoutSuccessRings {
+  display: none !important;
+}
+
+/* Receipt rows (Total paid / Payment method) */
+.cl-drawerBody .cl-lineItemsTitle,
+.cl-drawerBody .cl-lineItemsTitleDescription {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 0.8125rem !important;
+  font-weight: 500 !important;
+  color: var(--site-ink-soft) !important;
+}
+
+.cl-drawerBody .cl-lineItemsDescription,
+.cl-drawerBody .cl-lineItemsDescriptionText {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 0.8125rem !important;
+  font-weight: 600 !important;
+  color: var(--site-ink) !important;
+}
+
+/* Continue — lives in drawer footer on the success step */
+.cl-drawerFooter .cl-formButtonPrimary,
+.cl-drawerFooter .cl-button[data-variant='solid'][data-color='primary'] {
+  width: 100% !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  padding: 0 20px !important;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #ffffff !important;
+  background: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 24px -10px rgba(0, 110, 255, 0.6) !important;
+}
+
+.cl-drawerFooter .cl-formButtonPrimary:hover,
+.cl-drawerFooter .cl-button[data-variant='solid'][data-color='primary']:hover {
+  filter: brightness(1.05) !important;
+}
+
+.cl-drawerFooter .cl-formButtonPrimary *,
+.cl-drawerFooter .cl-button[data-variant='solid'][data-color='primary'] * {
+  color: #ffffff !important;
+}
+
+/* Clerk "already active" alert — match Harvous ink + soft surface */
+.cl-drawerContent .cl-alert,
+.cl-drawerContent [role='alert'] {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 0.875rem !important;
+  line-height: 1.45 !important;
+  color: var(--site-ink) !important;
+  background: rgba(0, 110, 255, 0.08) !important;
+  border: 1px solid rgba(0, 110, 255, 0.18) !important;
+  border-radius: 12px !important;
+}
+
+/* ─── Clerk subscription details drawer (Manage billing) ───────────────────
+   Styles apply globally (upgrade-page.css is in main.tsx) so /addon and
+   Settings both get Harvous typography + pill buttons when the drawer opens. */
+
+.cl-drawerRoot,
+.cl-drawerBackdrop,
+.cl-drawerContent {
+  z-index: 300 !important;
+}
+
+.cl-drawerTitle,
+.cl-drawerTitle[data-localization-key='billing.subscriptionDetails.title'] {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 15px !important;
+  color: var(--site-ink) !important;
+}
+
+.cl-drawerBody {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  color: var(--site-ink) !important;
+}
+
+/* Plan card */
+.cl-drawerBody .cl-subscriptionDetailsCard {
+  border: 1px solid var(--pds-border) !important;
+  border-radius: 16px !important;
+  background: var(--pds-bg-page, #ffffff) !important;
+  box-shadow: none !important;
+}
+
+.cl-drawerBody .cl-subscriptionDetailsCardTitle,
+.cl-drawerBody .cl-subscriptionDetailsPlanName {
+  font-family:
+    "Google Sans Flex", "Google Sans", ui-sans-serif, system-ui, -apple-system,
+    sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+  letter-spacing: -0.01em !important;
+  color: var(--site-ink) !important;
+}
+
+.cl-drawerBody .cl-subscriptionDetailsCardSubtitle,
+.cl-drawerBody .cl-subscriptionDetailsPlanPrice {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  color: var(--site-ink-soft) !important;
+}
+
+.cl-drawerBody .cl-subscriptionDetailsCardItemTitle,
+.cl-drawerBody .cl-subscriptionDetailsCardItemDescription {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 0.8125rem !important;
+  font-weight: 500 !important;
+  color: var(--site-ink-soft) !important;
+}
+
+.cl-drawerBody .cl-subscriptionDetailsCardItemDescription {
+  font-weight: 600 !important;
+  color: var(--site-ink) !important;
+}
+
+/* Active badge — blue pill like checkout success orb */
+.cl-drawerBody .cl-subscriptionDetailsCardBadge {
+  background: #006eff !important;
+  color: #ffffff !important;
+  border-radius: 999px !important;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+
+.cl-drawerBody .cl-subscriptionDetailsCardBadge,
+.cl-drawerBody .cl-subscriptionDetailsCardBadge * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff;
+}
+
+/* Switch to annual — match `.upgrade-secondary-btn` */
+.cl-drawerBody .cl-subscriptionDetailsActionButton {
+  height: 46px !important;
+  min-height: 46px !important;
+  padding: 0 20px !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--pds-border-control) !important;
+  background: var(--pds-bg-sidebar-input) !important;
+  box-shadow: var(--pds-glass-rim) !important;
+  color: var(--pds-text-primary) !important;
+  -webkit-text-fill-color: var(--pds-text-primary);
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+}
+
+.cl-drawerBody .cl-subscriptionDetailsActionButton:hover:not(:disabled) {
+  background: var(--pds-bg-sidebar-input-hover) !important;
+}
+
+.cl-drawerBody .cl-subscriptionDetailsActionButton,
+.cl-drawerBody .cl-subscriptionDetailsActionButton * {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  color: var(--pds-text-primary) !important;
+  -webkit-text-fill-color: var(--pds-text-primary);
+}
+
+/* Cancel — text action, not a chunky red button */
+.cl-drawerBody .cl-subscriptionDetailsCancelButton {
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0.25rem 0.5rem !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--site-ink-soft) !important;
+  -webkit-text-fill-color: var(--site-ink-soft);
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+}
+
+.cl-drawerBody .cl-subscriptionDetailsCancelButton:hover:not(:disabled) {
+  color: var(--site-ink) !important;
+  -webkit-text-fill-color: var(--site-ink);
+  background: transparent !important;
+}
+
+.cl-drawerBody .cl-subscriptionDetailsCancelButton,
+.cl-drawerBody .cl-subscriptionDetailsCancelButton * {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  color: inherit !important;
+  -webkit-text-fill-color: inherit;
+}
+
+/* Footer summary rows + cancel confirmation copy */
+.cl-drawerBody .cl-lineItemsTitle,
+.cl-drawerBody .cl-lineItemsTitleDescription {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 0.8125rem !important;
+  font-weight: 500 !important;
+  color: var(--site-ink-soft) !important;
+}
+
+.cl-drawerBody .cl-lineItemsDescription,
+.cl-drawerBody .cl-lineItemsDescriptionText {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 0.8125rem !important;
+  font-weight: 600 !important;
+  color: var(--site-ink) !important;
+}
+
+.cl-drawerFooter .cl-drawerConfirmationTitle,
+.cl-drawerFooter h2.cl-drawerConfirmationTitle {
+  margin: 0 0 12px !important;
+  padding: 0 !important;
+  font-family:
+    "Google Sans Flex", "Google Sans", ui-sans-serif, system-ui, -apple-system,
+    sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 1.125rem !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.2 !important;
+  color: var(--site-ink) !important;
+}
+
+.cl-drawerFooter .cl-drawerConfirmationDescription,
+.cl-drawerFooter p.cl-drawerConfirmationDescription {
+  margin: 0 !important;
+  padding: 0 !important;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 0.9375rem !important;
+  line-height: 1.55 !important;
+  color: var(--site-ink-soft) !important;
+}
+
+.cl-drawerFooter .cl-drawerConfirmationAction {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+}
+
+/* Footer actions — gradient primary, secondary ghost, danger text */
+.cl-drawerFooter .cl-formButtonPrimary,
+.cl-drawerFooter .cl-button[data-variant='solid'][data-color='primary'] {
+  width: 100% !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  padding: 0 20px !important;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #ffffff !important;
+  background: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 24px -10px rgba(0, 110, 255, 0.6) !important;
+}
+
+.cl-drawerFooter .cl-button[data-variant='ghost'][data-color='primary'] {
+  width: 100% !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  padding: 0 20px !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--pds-border-control) !important;
+  background: var(--pds-bg-sidebar-input) !important;
+  box-shadow: var(--pds-glass-rim) !important;
+  color: var(--pds-text-primary) !important;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+}
+
+.cl-drawerFooter .cl-button[data-variant='solid'][data-color='danger'] {
+  width: 100% !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  padding: 0 20px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(220, 38, 38, 0.35) !important;
+  background: rgba(220, 38, 38, 0.08) !important;
+  box-shadow: none !important;
+  color: #b42318 !important;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+
+.cl-drawerFooter .cl-formButtonPrimary *,
+.cl-drawerFooter .cl-button[data-variant='solid'][data-color='primary'] *,
+.cl-drawerFooter .cl-button[data-variant='ghost'][data-color='primary'] *,
+.cl-drawerFooter .cl-button[data-variant='solid'][data-color='danger'] * {
+  color: inherit !important;
+  -webkit-text-fill-color: inherit;
+  font-family: inherit !important;
 }

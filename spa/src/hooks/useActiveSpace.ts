@@ -1,10 +1,55 @@
 import { useEffect, useMemo } from 'react';
 import { useProtoShell } from '../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from './usePrototypeHomeSpaceId';
-import { useNavigation, type NavSpace } from './queries/useNavigation';
+import { useNavigation, type NavSpace, type NavigationData } from './queries/useNavigation';
+import { getCachedSpaceBootstrap, useSpace } from './queries/useSpace';
 
 function normalizeSpaceId(id: string): string {
   return id.startsWith('space_') ? id : `space_${id}`;
+}
+
+/**
+ * When nav has not matched a persisted shared-space id yet, treat a selection that
+ * differs from personal My Home as shared so the shell does not flash home content.
+ */
+export function resolveOptimisticSharedSpaceSelection(
+  persistedId: string | null | undefined,
+  homeSpaceId: string | null | undefined,
+): { activeSpaceId: string; isSharedSpace: true } | null {
+  if (!persistedId || !homeSpaceId) return null;
+  const normalized = normalizeSpaceId(persistedId);
+  const personalNorm = normalizeSpaceId(homeSpaceId);
+  if (normalized === personalNorm) return null;
+  return { activeSpaceId: normalized, isSharedSpace: true };
+}
+
+/** Best-effort shared space title for toolbar chrome before/without a full nav row. */
+export function resolveSharedSpaceTitle(
+  spaceId: string | null | undefined,
+  options?: {
+    nav?: NavigationData | null;
+    spaceDetailTitle?: string | null;
+    bootstrapTitle?: string | null;
+  },
+): string | null {
+  if (!spaceId) return null;
+  const normalized = normalizeSpaceId(spaceId);
+  const nav = options?.nav;
+
+  if (nav) {
+    const owned = (nav.spaces ?? []).find((s) => normalizeSpaceId(s.id) === normalized && s.type !== 'personal');
+    const memberOf = (nav.memberOfSpaces ?? []).find((s) => normalizeSpaceId(s.id) === normalized);
+    const fromNav = (owned ?? memberOf)?.title?.trim();
+    if (fromNav) return fromNav;
+  }
+
+  const fromDetail = options?.spaceDetailTitle?.trim();
+  if (fromDetail) return fromDetail;
+
+  const fromBootstrap = options?.bootstrapTitle?.trim();
+  if (fromBootstrap) return fromBootstrap;
+
+  return null;
 }
 
 /**
@@ -25,12 +70,19 @@ export function useActiveSpace(): {
   isOwner: boolean;
   /** Nav row for the active space when it's shared/public; null for My Home. */
   space: NavSpace | null;
+  /** Display title for the active shared space; null on My Home or before any source resolves. */
+  spaceTitle: string | null;
   authReady: boolean;
   navReady: boolean;
 } {
   const { activeSpaceId: persistedId, setActiveSpaceId } = useProtoShell();
   const { homeSpaceId, authReady, navReady } = usePrototypeHomeSpaceId();
-  const { data: nav } = useNavigation();
+  const { data: nav, isFetching: navFetching } = useNavigation();
+
+  const optimisticSelection = useMemo(
+    () => resolveOptimisticSharedSpaceSelection(persistedId, homeSpaceId),
+    [persistedId, homeSpaceId],
+  );
 
   const resolved = useMemo(() => {
     if (!persistedId) return null;
@@ -41,15 +93,57 @@ export function useActiveSpace(): {
     return match ? { normalized, match, isOwner: Boolean(owned) } : null;
   }, [persistedId, nav?.spaces, nav?.memberOfSpaces]);
 
+  const sharedSpaceIdForTitle = resolved?.normalized ?? optimisticSelection?.activeSpaceId ?? null;
+  const isSharedSpaceActive = Boolean(resolved || optimisticSelection);
+  const { data: spaceDetail } = useSpace(isSharedSpaceActive && sharedSpaceIdForTitle ? sharedSpaceIdForTitle : '');
+
+  const bootstrapTitle = useMemo(() => {
+    if (!sharedSpaceIdForTitle) return null;
+    return getCachedSpaceBootstrap(sharedSpaceIdForTitle)?.space?.title ?? null;
+  }, [sharedSpaceIdForTitle]);
+
+  const spaceTitle = useMemo(() => {
+    if (!isSharedSpaceActive) return null;
+    return resolveSharedSpaceTitle(sharedSpaceIdForTitle, {
+      nav,
+      spaceDetailTitle: spaceDetail?.title,
+      bootstrapTitle,
+    });
+  }, [isSharedSpaceActive, sharedSpaceIdForTitle, nav, spaceDetail?.title, bootstrapTitle]);
+
   // Stale persisted id (left/removed/deleted) — fall back to My Home once nav has
-  // actually settled, so we don't wipe a valid selection during the loading window.
+  // settled with space rows and the id still does not resolve.
   useEffect(() => {
-    if (persistedId && navReady && !resolved) setActiveSpaceId(null);
-  }, [persistedId, navReady, resolved, setActiveSpaceId]);
+    if (navFetching || !navReady || !persistedId || resolved) return;
+    const navHasSpaces = (nav?.spaces?.length ?? 0) > 0 || (nav?.memberOfSpaces?.length ?? 0) > 0;
+    if (!navHasSpaces) return;
+    setActiveSpaceId(null);
+  }, [persistedId, navReady, resolved, setActiveSpaceId, navFetching, nav?.spaces?.length, nav?.memberOfSpaces?.length]);
 
   return useMemo(() => {
     if (!resolved) {
-      return { activeSpaceId: homeSpaceId, homeSpaceId, isSharedSpace: false, isOwner: true, space: null, authReady, navReady };
+      if (optimisticSelection) {
+        return {
+          activeSpaceId: optimisticSelection.activeSpaceId,
+          homeSpaceId,
+          isSharedSpace: true,
+          isOwner: spaceDetail?.isOwner ?? false,
+          space: null,
+          spaceTitle,
+          authReady,
+          navReady,
+        };
+      }
+      return {
+        activeSpaceId: homeSpaceId,
+        homeSpaceId,
+        isSharedSpace: false,
+        isOwner: true,
+        space: null,
+        spaceTitle: null,
+        authReady,
+        navReady,
+      };
     }
     return {
       activeSpaceId: resolved.normalized,
@@ -57,8 +151,9 @@ export function useActiveSpace(): {
       isSharedSpace: true,
       isOwner: resolved.isOwner,
       space: resolved.match,
+      spaceTitle,
       authReady,
       navReady,
     };
-  }, [resolved, homeSpaceId, authReady, navReady]);
+  }, [resolved, optimisticSelection, homeSpaceId, authReady, navReady, spaceTitle, spaceDetail?.isOwner]);
 }

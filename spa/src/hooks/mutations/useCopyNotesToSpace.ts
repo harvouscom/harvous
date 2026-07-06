@@ -1,6 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
-import { spaceNotesQueryKey } from '../../lib/space-notes-cache';
+import {
+  findSpaceNoteRowInCache,
+  prependSpaceNoteToCache,
+  spaceNoteRowFromCopy,
+  spaceNotesQueryKey,
+} from '../../lib/space-notes-cache';
 import { invalidatePrototypeSpaceDerivedQueries } from '../../lib/prototype-space-query-keys';
 
 function normalizedSpaceIdForApi(spaceId: string): string {
@@ -27,8 +32,21 @@ export function useCopyNotesToSpace() {
       const sid = normalizedSpaceIdForApi(targetSpaceId);
       return api.post<CopyNotesToSpaceResponse>(`/api/spaces/${sid}/copy-notes`, { noteIds });
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
       const sid = normalizedSpaceIdForApi(variables.targetSpaceId);
+      let prepended = false;
+
+      for (const { sourceNoteId, noteId } of data.created) {
+        const source = findSpaceNoteRowInCache(queryClient, sourceNoteId);
+        if (!source) continue;
+        prependSpaceNoteToCache(queryClient, sid, spaceNoteRowFromCopy(source, noteId));
+        prepended = true;
+      }
+
+      if (!prepended && data.created.length > 0) {
+        void queryClient.refetchQueries({ queryKey: spaceNotesQueryKey(sid), type: 'active' });
+      }
+
       queryClient.invalidateQueries({ queryKey: spaceNotesQueryKey(sid) });
       queryClient.invalidateQueries({ queryKey: ['space', sid, 'bootstrap'] });
       invalidatePrototypeSpaceDerivedQueries(queryClient, sid);

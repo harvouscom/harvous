@@ -10,7 +10,7 @@
     '/spaces/join',
     '/shared/',
     '/invitations/',
-    '/upgrade',
+    '/addon',
     '/api/',
   ];
   var RESERVED_SEGMENTS = { settings: 1, space: 1, search: 1 };
