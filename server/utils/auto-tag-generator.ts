@@ -3,6 +3,7 @@ import { conceptOverlapsAny } from '@/utils/bible-study-concept-overlaps';
 import { shouldSuppressJesusAutoTag } from '@/utils/christ-keyword-context';
 import { findKeywordsInText, findKeywordsInTextWithPriority, BIBLE_STUDY_KEYWORDS, type BibleStudyKeyword } from '@/utils/bible-study-keywords';
 import { db, first, Tags, NoteTags, eq, and, now } from '../db';
+import { subjectTagCandidatesFromText } from '@/utils/subject-tag-candidates';
 import { getOrCreateTag, noteHasTagWithNormalizedName, clearDismissedAutoTags } from './tag-helpers';
 
 /** Confidence threshold for Harvous system user / automated note creation and admin regeneration. */
@@ -106,6 +107,31 @@ export async function generateAutoTags(
       }
       return suggestion;
     });
+    enhancedSuggestions.sort((a, b) => b.confidence - a.confidence);
+
+    const existingKeywordNames = enhancedSuggestions.map((s) => s.keyword);
+    const subjectCandidates = subjectTagCandidatesFromText(cleanTitle, cleanContent, {
+      excludeLabels,
+      excludeTagNames,
+      existingTagNames: existingKeywordNames,
+      confidenceThreshold,
+    });
+    for (const sc of subjectCandidates) {
+      if (enhancedSuggestions.some((s) => isTagOverlapping(sc.name, s.keyword))) continue;
+      const isExisting = existingTagNames.has(sc.name.toLowerCase());
+      const existingTag = isExisting
+        ? existingTags
+            .filter((t) => t.name.toLowerCase() === sc.name.toLowerCase())
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+        : undefined;
+      enhancedSuggestions.push({
+        keyword: sc.name,
+        category: sc.category,
+        confidence: sc.confidence,
+        isExisting,
+        tagId: existingTag?.id,
+      });
+    }
     enhancedSuggestions.sort((a, b) => b.confidence - a.confidence);
 
     const { detectPersonTags } = await import('@/utils/person-tag-detector');

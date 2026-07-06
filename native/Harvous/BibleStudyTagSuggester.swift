@@ -279,6 +279,34 @@ enum BibleStudyTagSuggester {
                 synonymOnly: !hasLiteralJesus
             )
         }
+
+        let existingKeywordNames = picked.map(\.name)
+        for sc in SubjectTagCandidates.candidates(
+            title: title,
+            body: cappedBody,
+            existingTagNames: existingKeywordNames
+        ) {
+            if picked.contains(where: { overlaps($0.name, sc.name) }) { continue }
+            let cat: TagCategory
+            switch sc.tagCategory {
+            case "spiritual": cat = .spiritual
+            case "life": cat = .life
+            default: cat = .biblical
+            }
+            let nameLower = sc.name.lowercased()
+            let inTitle = titleLower.contains(nameLower)
+            picked.append(
+                Scored(
+                    name: sc.name,
+                    category: cat,
+                    confidence: sc.confidence,
+                    occurrences: 1,
+                    inTitle: inTitle
+                )
+            )
+        }
+        picked.sort { $0.confidence > $1.confidence }
+
         var top = Array(picked.prefix(12))
         var tagNames = top.map(\.name)
         for personTag in detectPersonTags(in: fullText) {

@@ -25,6 +25,7 @@ import {
 } from '@/utils/bible-study-collection-web';
 import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { dedupeNoteTagsByName } from '@/utils/dedupe-note-tags';
+import type { NoteTagPreview } from '@/utils/bible-study-tag-web';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 
 interface PrototypeFolderTagEditorProps {
@@ -37,6 +38,22 @@ interface PrototypeFolderTagEditorProps {
 
 function trim(s: string | null | undefined): string {
   return (s ?? '').trim();
+}
+
+type TagRow = NoteDetail['tags'][number] & Partial<Pick<NoteTagPreview, 'source' | 'matchedPhrase'>>;
+
+function isGhostSubjectTag(tag: TagRow): boolean {
+  return (
+    tag.id.startsWith('preview:') &&
+    tag.source === 'subject' &&
+    typeof tag.matchedPhrase === 'string' &&
+    tag.matchedPhrase.length > 0
+  );
+}
+
+function ghostTagTooltip(tag: TagRow): string | undefined {
+  if (!isGhostSubjectTag(tag) || !tag.matchedPhrase) return undefined;
+  return `Matched: ${tag.matchedPhrase} → ${tag.name}`;
 }
 
 function dedupeFolders(list: string[], excludePrimary: string | null): string[] {
@@ -226,6 +243,13 @@ export default function PrototypeFolderTagEditor({
     );
   };
 
+  const acceptGhostTag = (tagName: string) => {
+    if (tags.some((t) => t.name.toLowerCase() === tagName.toLowerCase() && !isGhostSubjectTag(t as TagRow))) {
+      return;
+    }
+    addTag.mutate({ noteId: note.id, tagName, existingTags });
+  };
+
   return (
     <div className="proto-folder-tag-editor">
       {showFolder ? (
@@ -408,20 +432,41 @@ export default function PrototypeFolderTagEditor({
         <div className="proto-fte-section proto-fte-section--tags">
           {tags.length > 0 ? (
             <div className="proto-fte-tag-flow">
-              {tags.map((t) => (
-                <span key={t.id} className="proto-fte-tag-chip">
-                  <span className="proto-fte-tag-chip__name">{t.name}</span>
-                  <button
-                    type="button"
-                    className="proto-fte-tag-chip__remove"
-                    onClick={() => removeTag.mutate({ noteId: note.id, tagName: t.name })}
-                    aria-label={`Remove tag ${t.name}`}
-                    title={`Remove ${t.name}`}
+              {tags.map((t) => {
+                const row = t as TagRow;
+                const ghost = isGhostSubjectTag(row);
+                const tooltip = ghostTagTooltip(row);
+                return (
+                  <span
+                    key={t.id}
+                    className={`proto-fte-tag-chip${ghost ? ' proto-fte-tag-chip--ghost' : ''}`}
+                    title={tooltip}
                   >
-                    <Icon name="xmark" size={10} aria-hidden />
-                  </button>
-                </span>
-              ))}
+                    <span className="proto-fte-tag-chip__name">{t.name}</span>
+                    {ghost ? (
+                      <button
+                        type="button"
+                        className="proto-fte-tag-chip__accept"
+                        onClick={() => acceptGhostTag(t.name)}
+                        aria-label={`Confirm tag ${t.name}`}
+                        title={tooltip ?? `Confirm ${t.name}`}
+                      >
+                        <Icon name="check" size={10} aria-hidden />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="proto-fte-tag-chip__remove"
+                        onClick={() => removeTag.mutate({ noteId: note.id, tagName: t.name })}
+                        aria-label={`Remove tag ${t.name}`}
+                        title={`Remove ${t.name}`}
+                      >
+                        <Icon name="xmark" size={10} aria-hidden />
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
             </div>
           ) : (
             <p className="proto-fte-tag-empty">No tags yet.</p>

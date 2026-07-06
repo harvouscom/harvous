@@ -2426,6 +2426,58 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   color: var(--pds-text-primary);
 }
 
+.proto-fte-tag-chip--ghost {
+  background: var(--pds-accent-subtle-bg);
+  border: 1px dashed var(--pds-accent-subtle-border);
+  color: var(--pds-text-primary);
+  /* Match scripture-pill-draft geometry: 1px border vs 0.5px on committed chips. */
+  padding: 4px 7px 4px 11px;
+}
+
+.proto-fte-tag-chip__accept {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+  box-shadow: var(--pds-shadow-accent-button);
+  cursor: pointer;
+  line-height: 0;
+  transition: filter 0.1s;
+}
+
+html.harvous-prototype-route .proto-fte-tag-chip__accept > svg,
+html.harvous-prototype-route .proto-fte-tag-chip__accept svg path {
+  color: var(--pds-on-accent) !important;
+  fill: var(--pds-on-accent) !important;
+}
+
+.proto-fte-tag-chip__accept:hover {
+  filter: brightness(1.06);
+}
+
+.proto-fte-tag-chip__accept:active {
+  filter: brightness(0.95);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme='light']) .proto-fte-tag-chip__accept {
+    background: var(--pds-selection-bg);
+    box-shadow: none;
+  }
+}
+
+:root[data-color-scheme='dark'] .proto-fte-tag-chip__accept {
+  background: var(--pds-selection-bg);
+  box-shadow: none;
+}
+
 .proto-fte-tag-empty {
   font-family: var(--pds-font-body);
   font-size: 12px;

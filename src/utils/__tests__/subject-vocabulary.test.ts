@@ -30,4 +30,10 @@ describe('contentSubjects', () => {
   it('returns nothing for text with no biblical subjects', () => {
     expect(contentSubjects('the quick brown fox jumped').length).toBe(0);
   });
+
+  it('maps informal phrasing via expanded synonyms', () => {
+    const subs = contentSubjects('Been overwhelmed about bills lately').map((s) => s.name);
+    expect(subs).toContain('Fear');
+    expect(subs).toContain('Stewardship');
+  });
 });
