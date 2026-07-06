@@ -1,3 +1,5 @@
+import { isStatusHost } from './status-page-host';
+
 const DEDICATED_PROTOTYPE_HOSTS = new Set(['app.harvous.com', 'new.harvous.com', 'localhost']);
 
 export function isDedicatedPrototypeHost(hostname?: string): boolean {
@@ -43,6 +45,7 @@ const NON_PROTOTYPE_PREFIXES = [
   '/shared/',
   '/invitations/',
   '/upgrade',
+  '/status',
   '/api/',
 ];
 
@@ -69,6 +72,7 @@ function singlePrototypeSegment(pathname: string): string | null {
 }
 
 export function isPrototypeShellPath(pathname: string): boolean {
+  if (isStatusHost()) return false;
   if (pathname.startsWith('/prototype')) return true;
   if (!isDedicatedPrototypeHost()) return false;
   // On the dedicated host every path that isn't an explicit non-prototype app

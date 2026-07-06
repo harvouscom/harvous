@@ -563,6 +563,17 @@ export function clearBackgroundVars(): void {
   root.classList.remove(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS, WALLPAPER_COLOR_CLASS);
 }
 
+/** Remove prototype first-paint boot (wallpaper + shell card) on public routes. */
+export function clearPrototypeRouteBoot(): void {
+  const root = document.documentElement;
+  root.classList.remove(PROTO_ROUTE_CLASS);
+  clearBackgroundVars();
+  root.style.removeProperty('background-color');
+  root.style.removeProperty('background-image');
+  document.body.style.removeProperty('background-color');
+  document.getElementById('root')?.style.removeProperty('background-color');
+}
+
 // ─── Account sync (cross-device) ─────────────────────────────────────────────
 //
 // The account (`UserMetadata.appearanceSettings`) is the source of truth;

@@ -5,6 +5,7 @@ import {
   prototypeNoteRouteTo,
   prototypeSettingsAccountRouteTo,
 } from '@/lib/prototype-path';
+import { isStatusHost } from '@/lib/status-page-host';
 import AuthLayout from './layouts/AuthLayout';
 import SignInPage from './pages/SignInPage';
 import SignUpPage from './pages/SignUpPage';
@@ -89,6 +90,27 @@ const invitationRoute = createRoute({
   path: '/invitations/$token',
   component: lazyRouteComponent(() => import('./pages/public/PublicInvitationPage')),
 });
+
+const publicStatusPageComponent = lazyRouteComponent(() => import('./pages/public/PublicStatusPage'));
+
+const statusRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/status',
+  component: publicStatusPageComponent,
+});
+
+/** status.harvous.com serves the status page at root (no app shell). */
+function buildStatusHostRoutes() {
+  if (!isStatusHost()) return [];
+
+  return [
+    createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/',
+      component: publicStatusPageComponent,
+    }),
+  ];
+}
 
 /** Prototype branch — pathless layout on dedicated hosts (/), /prototype elsewhere. */
 function buildPrototypeRouteBranch() {
@@ -414,6 +436,13 @@ const notFoundRoute = createRoute({
 });
 
 function buildRouteTree() {
+  if (isStatusHost()) {
+    return rootRoute.addChildren([
+      ...buildStatusHostRoutes(),
+      notFoundRoute,
+    ]);
+  }
+
   return rootRoute.addChildren([
     authLayoutRoute.addChildren([
       signInRoute.addChildren([signInSplatRoute]),
@@ -425,6 +454,7 @@ function buildRouteTree() {
     sharedNoteRoute,
     sharedThreadRoute,
     invitationRoute,
+    statusRoute,
     buildPrototypeRouteBranch(),
     notFoundRoute,
   ]);

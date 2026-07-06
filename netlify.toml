@@ -95,5 +95,6 @@
 
 # Branch deploy: staging → new.harvous.com (dev Clerk, production DB).
 # Assign new.harvous.com as branch domain in Netlify dashboard.
+# Status page: add status.harvous.com as domain alias — see docs/STATUS_PAGE_SETUP.md
 [context.staging]
   command = "npm ci && node scripts/inject-sw-cache-version.js && npm run build:api && npm run build:spa"

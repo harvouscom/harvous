@@ -45,6 +45,7 @@ import dictionary from './routes/dictionary';
 import recall from './routes/recall';
 import support from './routes/support';
 import diagnostics from './routes/diagnostics';
+import statusPublic from './routes/status-public';
 
 const app = new Hono();
 
@@ -95,5 +96,6 @@ app.route('/', dictionary);
 app.route('/', recall);
 app.route('/', support);
 app.route('/', diagnostics);
+app.route('/', statusPublic);
 
 export default app;

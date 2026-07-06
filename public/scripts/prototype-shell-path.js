@@ -4,6 +4,7 @@
  */
 (function (global) {
   var DEDICATED_HOSTS = ['app.harvous.com', 'new.harvous.com', 'localhost'];
+  var STATUS_HOST = 'status.harvous.com';
   var NON_PROTOTYPE_PREFIXES = [
     '/sign-in',
     '/sign-up',
@@ -11,9 +12,14 @@
     '/shared/',
     '/invitations/',
     '/upgrade',
+    '/status',
     '/api/',
   ];
   var RESERVED_SEGMENTS = { settings: 1, space: 1, search: 1 };
+
+  function isStatusHost(hostname) {
+    return (hostname || '') === STATUS_HOST;
+  }
 
   function isDedicatedPrototypeHost(hostname) {
     return DEDICATED_HOSTS.indexOf(hostname || '') >= 0;
@@ -44,6 +50,7 @@
   }
 
   function isPrototypeShellPath(pathname, hostname) {
+    if (isStatusHost(hostname)) return false;
     if (pathname.indexOf('/prototype') === 0) return true;
     if (!isDedicatedPrototypeHost(hostname)) return false;
     return !isNonPrototypeAppPath(prototypeLogicalPath(pathname));
