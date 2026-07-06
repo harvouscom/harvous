@@ -20,6 +20,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { generateChangelog } from './generate-changelog.js';
 import { generateReleaseNotes } from './generate-release-notes.js';
+import { exportChangelogToMarketingSite } from './export-changelog-csv.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -276,6 +277,23 @@ try {
       } catch (error) {
         console.warn(`⚠️  Could not generate release notes: ${error.message}`);
         // Don't fail if release notes generation fails
+      }
+
+      try {
+        const { added, csvPath } = exportChangelogToMarketingSite({ version: newVersion, quiet: false });
+        if (added > 0 && csvPath) {
+          try {
+            const repoRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim();
+            const relativePath = csvPath.replace(repoRoot + '/', '');
+            if (!relativePath.startsWith('..')) {
+              execSync(`git add ${relativePath}`, { stdio: 'ignore' });
+            }
+          } catch {
+            console.warn('⚠️  Could not stage marketing CSV. Commit harvous.com manually if needed.');
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️  Could not export changelog CSV: ${error.message}`);
       }
     }
   } catch (error) {

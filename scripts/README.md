@@ -58,6 +58,25 @@ npm run release-notes:generate <version>
 
 **Output:** `release-notes/v<major.minor>-<month-year>.md`
 
+### Marketing Site CSV Export
+
+**Script:** `export-changelog-csv.js`
+
+Exports `Changelog/{version}.md` entries to [harvous.com](https://github.com/harvouscom/harvous.com) `data/webflow-changelog.csv` for public release notes.
+
+```bash
+# Export current package.json version (sibling ../harvous.com checkout)
+npm run changelog:export
+
+# Backfill all versions newer than the CSV
+npm run changelog:export:backfill
+
+# Custom path (used in CI)
+npm run changelog:export:backfill -- --csv harvous.com/data/webflow-changelog.csv
+```
+
+`bump-version.js` runs this automatically after each changelog generation when a sibling `harvous.com` checkout exists. CI uses `.github/workflows/sync-release-notes.yml` to commit CSV updates to the marketing repo (requires `HARVOUS_COM_SYNC_TOKEN`).
+
 **What it does:**
 1. Reads the technical changelog for the version
 2. Categorizes changes by user-facing impact
@@ -91,6 +110,7 @@ User-friendly:
    - Bumps version
    - Generates technical changelog
    - Generates user-friendly release notes ✨
+   - Exports rows to harvous.com `data/webflow-changelog.csv` when a sibling checkout exists
    - Stages all files
 
 3. **Amend or create new commit:**

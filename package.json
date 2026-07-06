@@ -37,6 +37,8 @@
     "version:bump": "node scripts/bump-version.js",
     "version:check": "node -e \"console.log(require('./package.json').version)\"",
     "changelog:generate": "node scripts/generate-changelog.js",
+    "changelog:export": "node scripts/export-changelog-csv.js",
+    "changelog:export:backfill": "node scripts/export-changelog-csv.js --backfill",
     "release-notes:generate": "node scripts/generate-release-notes.js",
     "test": "vitest",
     "test:run": "vitest run",
