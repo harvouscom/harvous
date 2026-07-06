@@ -4,15 +4,20 @@ import {
   useAdminMonthlyReport,
   useAdminReportsCatalog,
   useAdminSeasonReport,
+  useGenerateAdminReport,
   downloadAdminReport,
   adminReportDownloadUrl,
   type AdminMonthlyReportPayload,
+  type AdminReportRankItem,
 } from '@/hooks/queries/useAdminReports';
+import AdminCanonHeatmap from '@/components/react/AdminCanonHeatmap';
+import { formatDivineNamesInLabel } from '@/utils/divine-name-display';
 import ProtoStatusChip from '@/components/react/ProtoStatusChip';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { getAdminReportMonthStatus } from '@/utils/season-helpers';
 import '@/styles/admin-usage.css';
 import '@/styles/admin-reports.css';
+import '@/styles/admin-pulse.css';
 
 function formatCount(n: number): string {
   return n.toLocaleString();
@@ -50,7 +55,15 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-function RankList({ title, items }: { title: string; items: { name: string; count: number }[] }) {
+function RankList({
+  title,
+  items,
+  formatName,
+}: {
+  title: string;
+  items: AdminReportRankItem[];
+  formatName?: (name: string) => string;
+}) {
   if (items.length === 0) return null;
   return (
     <div className="admin-reports__rank-block">
@@ -58,7 +71,7 @@ function RankList({ title, items }: { title: string; items: { name: string; coun
       <ol className="admin-reports__rank-list">
         {items.map((item) => (
           <li key={item.name}>
-            <span>{item.name}</span>
+            <span>{formatName ? formatName(item.name) : item.name}</span>
             <span>{formatCount(item.count)}</span>
           </li>
         ))}
@@ -67,8 +80,24 @@ function RankList({ title, items }: { title: string; items: { name: string; coun
   );
 }
 
+function reportCuriosity(payload: AdminMonthlyReportPayload) {
+  return payload.pulse.curiosity ?? { tones: [], folders: [], dictionaryWords: [] };
+}
+
+function reportCanon(payload: AdminMonthlyReportPayload) {
+  return payload.pulse.canon ?? { sections: [], books: [] };
+}
+
+function reportThreadTotal(payload: AdminMonthlyReportPayload): number {
+  const threads = payload.pulse.threads;
+  return threads.totalThreads ?? threads.activeThreads ?? 0;
+}
+
 function MonthDetail({ payload }: { payload: AdminMonthlyReportPayload }) {
   const { usage, pulse } = payload;
+  const curiosity = reportCuriosity(payload);
+  const canon = reportCanon(payload);
+  const canonSections = canon.sections.filter((section) => section.count > 0);
   return (
     <div className="admin-reports__detail" id={`month-${payload.month}`}>
       <div className="admin-usage__hero" aria-label="Month headline metrics">
@@ -106,9 +135,50 @@ function MonthDetail({ payload }: { payload: AdminMonthlyReportPayload }) {
         <h3 className="admin-usage__board-title">Pulse</h3>
         <div className="admin-reports__rank-grid">
           <RankList title="Top books" items={pulse.books} />
-          <RankList title="Top themes" items={pulse.themes} />
+          <RankList title="Top themes" items={pulse.themes} formatName={formatDivineNamesInLabel} />
           <RankList title="Top passages" items={pulse.passages} />
           <RankList title="Top tags" items={pulse.tags} />
+          <RankList title="Translations" items={pulse.translations} />
+          <RankList title="Tones" items={curiosity.tones} />
+          <RankList title="Folders" items={curiosity.folders} />
+          <RankList title="Words people paused on" items={curiosity.dictionaryWords} />
+        </div>
+      </section>
+
+      <section className="admin-usage__board-card admin-reports__detail-section">
+        <h3 className="admin-usage__board-title">Canon</h3>
+        <div className="admin-reports__rank-grid">
+          <RankList
+            title="Section trends"
+            items={canonSections.map((section) => ({ name: section.label, count: section.count }))}
+          />
+        </div>
+        {canon.books.some((book) => book.count > 0) ? (
+          <div className="admin-reports__canon-heatmap">
+            <AdminCanonHeatmap books={canon.books} />
+          </div>
+        ) : null}
+      </section>
+
+      {(pulse.monthlyAnalytics.books.length > 0 || pulse.monthlyAnalytics.tags.length > 0) ? (
+        <section className="admin-usage__board-card admin-reports__detail-section">
+          <h3 className="admin-usage__board-title">Platform analytics</h3>
+          <p className="admin-usage__muted admin-usage__footnote pds-caption">
+            From the monthly analytics aggregator job, not limited to note activity in this calendar month.
+          </p>
+          <div className="admin-reports__rank-grid">
+            <RankList title="Top books (analytics)" items={pulse.monthlyAnalytics.books} />
+            <RankList title="Top tags (analytics)" items={pulse.monthlyAnalytics.tags} />
+          </div>
+        </section>
+      ) : null}
+
+      <section className="admin-usage__board-card admin-reports__detail-section">
+        <h3 className="admin-usage__board-title">Threads</h3>
+        <div className="admin-usage__cards admin-usage__cards--compact">
+          <StatCard label="Total threads" value={reportThreadTotal(payload)} />
+          <StatCard label="Links created" value={pulse.threads.linksCreated} />
+          <StatCard label="Avg notes / thread" value={pulse.threads.avgNotesPerThread} />
         </div>
       </section>
 
@@ -158,6 +228,8 @@ function ReportMonthDialog({
   onClose: () => void;
 }) {
   const { portalTarget, scopedToDetailPane } = useAdminReportsDialogPortal();
+  const regenerate = useGenerateAdminReport();
+  const [regenerateMessage, setRegenerateMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const generatedLabel = new Date(generatedAt).toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
@@ -181,6 +253,20 @@ function ReportMonthDialog({
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [onClose, portalTarget, scopedToDetailPane]);
+
+  const onRegenerate = async () => {
+    setRegenerateMessage(null);
+    try {
+      await regenerate.mutateAsync(month);
+      await report.refetch();
+      setRegenerateMessage({ text: 'Report regenerated.', isError: false });
+    } catch (error) {
+      setRegenerateMessage({
+        text: error instanceof Error ? error.message : 'Regeneration failed.',
+        isError: true,
+      });
+    }
+  };
 
   if (typeof document === 'undefined') return null;
 
@@ -213,12 +299,30 @@ function ReportMonthDialog({
             </div>
           </div>
           <div className="admin-reports__dialog-actions">
+            <button
+              type="button"
+              className="admin-action-btn"
+              disabled={regenerate.isPending}
+              onClick={() => void onRegenerate()}
+            >
+              {regenerate.isPending ? 'Regenerating…' : 'Regenerate'}
+            </button>
             <ExportButtons kind="month" id={month} compact />
             <button type="button" className="admin-reports__dialog-close" onClick={onClose} aria-label="Close report">
               <Icon name="xmark" size={16} aria-hidden />
             </button>
           </div>
         </header>
+        {regenerateMessage ? (
+          <p
+            className={`admin-reports__regenerate-note${
+              regenerateMessage.isError ? ' admin-reports__regenerate-note--error' : ''
+            }`}
+            role={regenerateMessage.isError ? 'alert' : 'status'}
+          >
+            {regenerateMessage.text}
+          </p>
+        ) : null}
         <div className="admin-reports__dialog-body">
           {report.isLoading ? <ProtoStatusChip visible variant="syncing" label="Loading month…" /> : null}
           {report.isError ? (

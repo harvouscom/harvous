@@ -5,10 +5,9 @@ import {
   useAdminWindowDaysChange,
 } from '@/components/react/AdminBoardNav';
 import AdminRankBarList, { AdminSectionHeading } from '@/components/react/AdminRankBarList';
+import AdminCanonHeatmap from '@/components/react/AdminCanonHeatmap';
 import AdminPulseHistoryChart from '@/components/react/AdminPulseHistoryChart';
 import ProtoStatusChip from '@/components/react/ProtoStatusChip';
-import { abbreviateCanonBook } from '@/utils/admin-pulse-heatmap';
-import { groupCanonBookCells } from '@/utils/admin-pulse-canon-groups';
 import { buildCanonGroupObservations } from '@/utils/admin-pulse-group-insights';
 import { buildPulseRightNowCopy, formatRankDeltaBadge, type PulseRightNowChipKind, type PulseRightNowSegment } from '@/utils/admin-pulse-deltas';
 import { formatDivineNamesInLabel } from '@/utils/divine-name-display';
@@ -143,76 +142,6 @@ function PulseRightNow({ segments }: { segments: PulseRightNowSegment[] }) {
         ),
       )}
     </p>
-  );
-}
-
-function canonHeatBand(level: number): 'none' | 'low' | 'mid' | 'high' {
-  if (level <= 0) return 'none';
-  if (level < 0.34) return 'low';
-  if (level < 0.67) return 'mid';
-  return 'high';
-}
-
-function CanonHeatmapCell({
-  cell,
-}: {
-  cell: { name: string; count: number; sharePct: number; heatLevel: number };
-}) {
-  return (
-    <div
-      role="listitem"
-      className="admin-pulse__canon-cell"
-      data-active={cell.count > 0 ? 'true' : 'false'}
-      data-heat={canonHeatBand(cell.heatLevel)}
-      style={{ '--pulse-heat': String(cell.heatLevel) } as React.CSSProperties}
-      title={`${cell.name}: ${cell.count.toLocaleString()} notes (${cell.sharePct}% of activity)`}
-    >
-      <span className="admin-pulse__canon-abbr">{abbreviateCanonBook(cell.name)}</span>
-    </div>
-  );
-}
-
-function CanonHeatmap({
-  books,
-}: {
-  books: { name: string; order: number; count: number; sharePct: number; heatLevel: number }[];
-}) {
-  const ot = books.filter((b) => b.order <= 39);
-  const nt = books.filter((b) => b.order > 39);
-  const total = books.reduce((sum, b) => sum + b.count, 0);
-
-  if (total === 0) {
-    return <p className="admin-usage__muted admin-usage__empty">No scripture activity in this window.</p>;
-  }
-
-  const renderTestament = (cells: typeof books, label: string, testament: 'ot' | 'nt') => (
-    <div className="admin-pulse__canon-col">
-      <h3 className="admin-usage__subheading admin-usage__subheading--group">{label}</h3>
-      <div className="admin-pulse__canon-groups">
-        {groupCanonBookCells(cells, testament).map(({ group, cells: groupCells }) => (
-          <section
-            key={group.id}
-            className="admin-pulse__canon-group"
-            aria-label={group.label}
-            title={group.label}
-          >
-            <span className="admin-pulse__canon-group-label">{group.label}</span>
-            <div className="admin-pulse__canon-grid" role="list">
-              {groupCells.map((cell) => (
-                <CanonHeatmapCell key={cell.name} cell={cell} />
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="admin-pulse__canon-wrap">
-      {renderTestament(ot, 'Old Testament', 'ot')}
-      {renderTestament(nt, 'New Testament', 'nt')}
-    </div>
   );
 }
 
@@ -673,7 +602,7 @@ export default function AdminPulsePanel() {
       </SectionCard>
 
       <SectionCard id="pulse-canon" title="Scripture by book" icon="book-open" tone="scripture">
-        <CanonHeatmap books={books} />
+        <AdminCanonHeatmap books={books} />
       </SectionCard>
 
       <SectionCard id="pulse-sections" title="Section trends" icon="layer-group" tone="scripture">

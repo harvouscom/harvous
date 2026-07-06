@@ -36,6 +36,21 @@ export type AdminMonthlyReportUsage = {
   };
 };
 
+export type AdminReportCanonSection = {
+  id: string;
+  label: string;
+  count: number;
+  testament: 'ot' | 'nt';
+};
+
+export type AdminReportCanonBook = {
+  name: string;
+  order: number;
+  count: number;
+  sharePct: number;
+  heatLevel: number;
+};
+
 export type AdminMonthlyReportPulse = {
   uniquePassages: number;
   books: AdminReportRankItem[];
@@ -47,8 +62,17 @@ export type AdminMonthlyReportPulse = {
     books: AdminReportRankItem[];
     tags: AdminReportRankItem[];
   };
+  curiosity: {
+    tones: AdminReportRankItem[];
+    folders: AdminReportRankItem[];
+    dictionaryWords: AdminReportRankItem[];
+  };
+  canon: {
+    sections: AdminReportCanonSection[];
+    books: AdminReportCanonBook[];
+  };
   threads: {
-    activeThreads: number;
+    totalThreads: number;
     avgNotesPerThread: number;
     linksCreated: number;
   };

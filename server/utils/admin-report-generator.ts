@@ -7,7 +7,7 @@ import { nowISO } from '../db/dates';
 import { adminCalendarMonthRange } from './admin-calendar-range';
 import { getUsageOverviewForRange } from './admin-usage-stats';
 import { getAdminPulseXpForRange } from './admin-pulse-xp-stats';
-import { getPulseReportMetricsForSnapshot, getMonthlyAnalyticsForReport } from './admin-pulse-stats';
+import { getPulseReportMetrics, getMonthlyAnalyticsForReport } from './admin-pulse-stats';
 import type {
   AdminMonthlyReportPayload,
   AdminReportCatalog,
@@ -43,7 +43,7 @@ export async function buildMonthlyReportPayload(month: string): Promise<AdminMon
 
   const [usage, pulseRaw, xpRaw, monthlyAnalytics] = await Promise.all([
     getUsageOverviewForRange(since, until, { omitPassageEngagement: true }),
-    getPulseReportMetricsForSnapshot(since, until),
+    getPulseReportMetrics(since, until),
     getAdminPulseXpForRange(since, until),
     getMonthlyAnalyticsForReport(month),
   ]);
@@ -62,6 +62,8 @@ export async function buildMonthlyReportPayload(month: string): Promise<AdminMon
       tags: pulseRaw.tags,
       translations: pulseRaw.translations,
       monthlyAnalytics,
+      curiosity: pulseRaw.curiosity,
+      canon: pulseRaw.canon,
       threads: {
         totalThreads: pulseRaw.threads.summary.totalThreads,
         avgNotesPerThread: pulseRaw.threads.summary.avgNotesPerThread,

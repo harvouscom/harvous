@@ -549,6 +549,22 @@
   font-variant-numeric: tabular-nums;
 }
 
+.admin-reports__canon-heatmap {
+  margin-top: 16px;
+  min-width: 0;
+}
+
+.admin-reports__regenerate-note {
+  margin: 0;
+  padding: 8px 20px 0;
+  font-size: 13px;
+  color: var(--pds-text-secondary);
+}
+
+.admin-reports__regenerate-note--error {
+  color: var(--pds-danger, #c0392b);
+}
+
 @media (max-width: 900px) {
   .admin-reports__month-grid {
     grid-template-columns: 1fr;

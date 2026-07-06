@@ -39,7 +39,9 @@ const payload: AdminMonthlyReportPayload = {
     tags: [],
     translations: [],
     monthlyAnalytics: { books: [], tags: [] },
-    threads: { activeThreads: 5, avgNotesPerThread: 2.5, linksCreated: 12 },
+    curiosity: { tones: [], folders: [], dictionaryWords: [] },
+    canon: { sections: [], books: [] },
+    threads: { totalThreads: 5, avgNotesPerThread: 2.5, linksCreated: 12 },
     xp: {
       totalXp: 500,
       eventCount: 50,
@@ -57,6 +59,26 @@ describe('admin-report-export', () => {
     const csv = exportRowsToCsv(rows);
     expect(csv.split('\n')[0]).toBe('scope,scopeId,section,metric,value');
     expect(csv).toContain('month,2026-03,usage,signups,10');
+  });
+
+  it('includes curiosity and canon rows when present', () => {
+    const rows = reportPayloadToExportRows('month', '2026-03', {
+      ...payload,
+      pulse: {
+        ...payload.pulse,
+        curiosity: {
+          tones: [{ name: 'Reflective', count: 3 }],
+          folders: [],
+          dictionaryWords: [],
+        },
+        canon: {
+          sections: [{ id: 'wisdom', label: 'Wisdom', count: 10, testament: 'ot' }],
+          books: [{ name: 'Psalms', order: 19, count: 10, sharePct: 100, heatLevel: 1 }],
+        },
+      },
+    });
+    expect(rows.some((r) => r.section === 'tones' && r.metric === 'Reflective')).toBe(true);
+    expect(rows.some((r) => r.section === 'canonSections' && r.metric === 'Wisdom')).toBe(true);
   });
 
   it('serializes payload to JSON', () => {
