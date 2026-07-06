@@ -7,7 +7,7 @@
  * Copy follows docs/BRAND_VOICE.md — friend-over-coffee, no hype, no em dashes.
  */
 import { useUser } from '@clerk/clerk-react';
-import { useCallback, useMemo, useRef, useState, Fragment } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
@@ -618,10 +618,25 @@ export default function PrototypeSidebarHomeView({
     votdSettled,
   });
 
-  const shouldAnimateRef = useRef(false);
-  if (contentReady && !shouldAnimateRef.current) {
-    shouldAnimateRef.current = true;
-  }
+  const [enterAnim, setEnterAnim] = useState(false);
+  useEffect(() => {
+    if (!contentReady) {
+      setEnterAnim(false);
+      return;
+    }
+    let cancelled = false;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        if (!cancelled) setEnterAnim(true);
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [contentReady]);
 
   const tags = tagsQuery.data?.tags ?? [];
   const threads = threadsQuery.data ?? [];
@@ -1452,7 +1467,7 @@ export default function PrototypeSidebarHomeView({
   };
 
   return (
-    <div className={`proto-home-view${shouldAnimateRef.current ? ' proto-home-view--enter' : ''}`}>
+    <div className={`proto-home-view${enterAnim ? ' proto-home-view--enter' : ''}`}>
       <div className="proto-home-section">
         <HomeGreeting
           notes={notes}

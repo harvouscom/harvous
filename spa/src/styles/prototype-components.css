@@ -4492,8 +4492,9 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
 }
 
 .proto-home-view--enter .proto-home-section {
-  opacity: 0;
-  animation: proto-home-section-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* Avoid a static opacity:0 — if the animation doesn't start (scroll containers / WebKit),
+     sections stay invisible until the user scrolls. Keyframe `from` + backwards handles the fade-in. */
+  animation: proto-home-section-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 .proto-home-view--enter .proto-home-section:nth-child(1) {
