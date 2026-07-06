@@ -1,10 +1,16 @@
 import { useAuth } from '@clerk/clerk-react';
-import { useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { prototypeHref } from '@/lib/prototype-path';
 import { FOUNDER_EMAIL } from '@/utils/support-mailto';
 import { clearPrototypeRouteBoot } from '../../lib/prototype-background';
-import { usePublicStatus, type AggregateState, type ResourceStatus } from '../../hooks/queries/usePublicStatus';
+import {
+  usePublicStatus,
+  type AggregateState,
+  type ResourceStatus,
+  type StatusHistoryDay,
+} from '../../hooks/queries/usePublicStatus';
 import { PublicTopBar, PublicErrorState } from './public-shared';
 
 const AGGREGATE_LABELS: Record<AggregateState, string> = {
@@ -20,6 +26,22 @@ const RESOURCE_LABELS: Record<ResourceStatus, string> = {
   downtime: 'Down',
   maintenance: 'Maintenance',
   not_monitored: 'Not watched',
+};
+
+const HISTORY_LABELS: Record<ResourceStatus, string> = {
+  operational: 'Up',
+  degraded: 'Slow',
+  downtime: 'Down',
+  maintenance: 'Maintenance',
+  not_monitored: 'Not monitored',
+};
+
+const HISTORY_TOOLTIP_LABELS: Record<ResourceStatus, string> = {
+  operational: 'Operational',
+  degraded: 'Degraded',
+  downtime: 'Downtime',
+  maintenance: 'Maintenance',
+  not_monitored: 'Not monitored',
 };
 
 const STATUS_ACCENT: Record<ResourceStatus | AggregateState, string> = {
@@ -66,6 +88,100 @@ function hasResources(sections: { resources: unknown[] }[]): boolean {
 
 function statusBadgeClass(status: ResourceStatus | AggregateState): string {
   return `public-status-badge public-status-badge--${status}`;
+}
+
+function formatHistoryDayLabel(day: string, status: ResourceStatus): string {
+  return `${formatHistoryDate(day)} — ${HISTORY_LABELS[status]}`;
+}
+
+function formatHistoryDate(day: string): string {
+  const date = new Date(`${day}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return day;
+  return date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function historyTipIcon(status: ResourceStatus): string {
+  switch (status) {
+    case 'operational':
+      return '✓';
+    case 'degraded':
+      return '!';
+    case 'downtime':
+      return '×';
+    case 'maintenance':
+      return '◦';
+    default:
+      return '–';
+  }
+}
+
+function StatusHistoryTooltip({
+  entry,
+  x,
+  y,
+}: {
+  entry: StatusHistoryDay;
+  x: number;
+  y: number;
+}) {
+  return createPortal(
+    <div className="public-status-history-tip" style={{ left: x, top: y }} role="tooltip">
+      <div className="public-status-history-tip__status">
+        <span
+          className={`public-status-history-tip__icon public-status-history-tip__icon--${entry.status}`}
+          aria-hidden
+        >
+          {historyTipIcon(entry.status)}
+        </span>
+        <span>{HISTORY_TOOLTIP_LABELS[entry.status]}</span>
+      </div>
+      <div className="public-status-history-tip__rule" aria-hidden />
+      <p className="public-status-history-tip__date">{formatHistoryDate(entry.day)}</p>
+    </div>,
+    document.body,
+  );
+}
+
+function StatusHistoryBar({ history }: { history: StatusHistoryDay[] }) {
+  const [tip, setTip] = useState<{ entry: StatusHistoryDay; x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!tip) return;
+    const hide = () => setTip(null);
+    window.addEventListener('scroll', hide, true);
+    window.addEventListener('resize', hide);
+    return () => {
+      window.removeEventListener('scroll', hide, true);
+      window.removeEventListener('resize', hide);
+    };
+  }, [tip]);
+
+  if (history.length === 0) return null;
+
+  const showTip = (target: HTMLElement, entry: StatusHistoryDay) => {
+    const rect = target.getBoundingClientRect();
+    setTip({ entry, x: rect.left + rect.width / 2, y: rect.top });
+  };
+
+  return (
+    <>
+      <div className="public-status-history" role="group" aria-label={`${history.length}-day uptime history`}>
+        {history.map((entry) => (
+          <button
+            key={entry.day}
+            type="button"
+            className={`public-status-history__day public-status-history__day--${entry.status}`}
+            aria-label={formatHistoryDayLabel(entry.day, entry.status)}
+            onMouseEnter={(e) => showTip(e.currentTarget, entry)}
+            onMouseLeave={() => setTip(null)}
+            onFocus={(e) => showTip(e.currentTarget, entry)}
+            onBlur={() => setTip(null)}
+          />
+        ))}
+      </div>
+      {tip && <StatusHistoryTooltip entry={tip.entry} x={tip.x} y={tip.y} />}
+    </>
+  );
 }
 
 const SUPPORT_MAILTO = `mailto:${FOUNDER_EMAIL}?subject=${encodeURIComponent('Harvous support')}`;
@@ -140,6 +256,9 @@ export default function PublicStatusPage() {
                                       <tr>
                                         <th scope="col">Service</th>
                                         <th scope="col">Uptime</th>
+                                        <th scope="col">
+                                          <span className="sr-only">90-day history</span>
+                                        </th>
                                         <th scope="col">Status</th>
                                       </tr>
                                     </thead>
@@ -156,6 +275,9 @@ export default function PublicStatusPage() {
                                           </td>
                                           <td className="public-status-table__uptime">
                                             {formatUptime(resource.availability)}
+                                          </td>
+                                          <td className="public-status-table__history">
+                                            <StatusHistoryBar history={resource.statusHistory} />
                                           </td>
                                           <td className="public-status-table__status">
                                             <span

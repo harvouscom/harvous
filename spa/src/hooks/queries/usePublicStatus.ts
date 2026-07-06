@@ -3,6 +3,13 @@ import { useQuery } from '@tanstack/react-query';
 export type AggregateState = 'operational' | 'degraded' | 'downtime' | 'maintenance';
 export type ResourceStatus = AggregateState | 'not_monitored';
 
+export interface StatusHistoryDay {
+  day: string;
+  status: ResourceStatus;
+  downtimeDuration: number;
+  maintenanceDuration: number;
+}
+
 export interface PublicStatusResource {
   id: string;
   name: string;
@@ -10,6 +17,7 @@ export interface PublicStatusResource {
   explanation: string | null;
   position: number;
   availability: number | null;
+  statusHistory: StatusHistoryDay[];
 }
 
 export interface PublicStatusSection {

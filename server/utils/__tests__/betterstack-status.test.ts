@@ -28,6 +28,11 @@ const FIXTURE = {
         position: 0,
         availability: 99.9,
         status: 'operational',
+        status_history: [
+          { day: '2026-07-04', status: 'operational', downtime_duration: 0, maintenance_duration: 0 },
+          { day: '2026-07-05', status: 'downtime', downtime_duration: 120, maintenance_duration: 0 },
+          { day: '2026-07-06', status: 'operational', downtime_duration: 0, maintenance_duration: 0 },
+        ],
       },
     },
     {
@@ -83,6 +88,8 @@ describe('parseBetterStackStatus', () => {
     expect(result.announcement).toBe('Scheduled maintenance tonight');
     expect(result.sections).toHaveLength(1);
     expect(result.sections[0].resources[0].name).toBe('API');
+    expect(result.sections[0].resources[0].statusHistory).toHaveLength(3);
+    expect(result.sections[0].resources[0].statusHistory[1].status).toBe('downtime');
     expect(result.incidents[0].title).toBe('API latency');
     expect(result.incidents[0].updates[0].message).toContain('Investigating');
     expect(result.rssUrl).toBe('https://example.betteruptime.com/rss');

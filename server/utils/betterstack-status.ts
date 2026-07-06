@@ -7,6 +7,13 @@ export type AggregateState = 'operational' | 'degraded' | 'downtime' | 'maintena
 
 export type ResourceStatus = AggregateState | 'not_monitored';
 
+export interface StatusHistoryDay {
+  day: string;
+  status: ResourceStatus;
+  downtimeDuration: number;
+  maintenanceDuration: number;
+}
+
 export interface PublicStatusResource {
   id: string;
   name: string;
@@ -14,6 +21,7 @@ export interface PublicStatusResource {
   explanation: string | null;
   position: number;
   availability: number | null;
+  statusHistory: StatusHistoryDay[];
 }
 
 export interface PublicStatusSection {
@@ -73,6 +81,25 @@ function asAggregateState(value: unknown): AggregateState {
 function asResourceStatus(value: unknown): ResourceStatus {
   if (value === 'not_monitored') return 'not_monitored';
   return asAggregateState(value);
+}
+
+function parseStatusHistory(raw: unknown): StatusHistoryDay[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const row = item as Record<string, unknown>;
+      const day = typeof row.day === 'string' ? row.day : '';
+      if (!day) return null;
+      return {
+        day,
+        status: asResourceStatus(row.status),
+        downtimeDuration: typeof row.downtime_duration === 'number' ? row.downtime_duration : 0,
+        maintenanceDuration: typeof row.maintenance_duration === 'number' ? row.maintenance_duration : 0,
+      };
+    })
+    .filter((d): d is StatusHistoryDay => d != null)
+    .sort((a, b) => a.day.localeCompare(b.day));
 }
 
 function includedByType(included: JsonApiResource[], type: string): Map<string, JsonApiResource> {
@@ -145,6 +172,7 @@ export function parseBetterStackStatus(raw: unknown, jsonUrl: string): PublicSta
         explanation: typeof a.explanation === 'string' ? a.explanation : null,
         position: typeof a.position === 'number' ? a.position : 0,
         availability: typeof a.availability === 'number' ? a.availability : null,
+        statusHistory: parseStatusHistory(a.status_history),
         sectionId: String(a.status_page_section_id ?? ''),
       };
     })

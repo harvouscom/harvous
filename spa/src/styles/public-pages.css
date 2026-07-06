@@ -1021,8 +1021,8 @@
 .public-content--status {
   flex: 0 0 auto;
   width: 100%;
-  max-width: 720px;
-  padding: 12px 20px 32px;
+  max-width: 920px;
+  padding: 20px 28px 48px;
   box-sizing: border-box;
   /* Status palette — Harvous mint / sky / amber, softer than generic gray badges */
   --status-operational-fg: #1a6b42;
@@ -1056,13 +1056,13 @@
   min-height: unset;
   align-items: center;
   width: 100%;
-  gap: 24px;
+  gap: 32px;
 }
 
 @media (min-width: 700px) {
   .public-content--status {
-    padding-top: 16px;
-    padding-bottom: 40px;
+    padding-top: 28px;
+    padding-bottom: 56px;
   }
 }
 
@@ -1074,14 +1074,14 @@
   flex: 0 0 auto;
   min-height: 0;
   width: 100%;
-  max-width: 680px;
+  max-width: 880px;
   min-width: min(100%, 320px);
   margin: 0;
-  padding: 8px 16px;
+  padding: 12px 24px;
 }
 
 .public-paper-stack.public-paper-stack--status .public-paper-stack__leaf {
-  inset: 8px 16px;
+  inset: 12px 24px;
 }
 
 .public-status-sheet {
@@ -1091,9 +1091,9 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-height: 420px;
+  min-height: 520px;
   box-sizing: border-box;
-  --status-sheet-inset: 24px;
+  --status-sheet-inset: 32px;
   background-color: #ffffff;
   background-image:
     radial-gradient(rgba(20, 18, 12, 0.025) 1px, transparent 1px),
@@ -1126,14 +1126,14 @@
 }
 
 .public-status-sheet__header {
-  padding: 26px var(--status-sheet-inset) 0;
+  padding: 36px var(--status-sheet-inset) 0;
   text-align: center;
 }
 
 .public-status-sheet__header::after {
   content: "";
   display: block;
-  margin: 16px 0 0;
+  margin: 20px 0 0;
   border-bottom: 0.5px solid var(--site-rule);
 }
 
@@ -1156,7 +1156,7 @@
 
 .public-status-sheet__announcement {
   margin: 0;
-  padding: 14px var(--status-sheet-inset) 0;
+  padding: 18px var(--status-sheet-inset) 0;
   text-align: center;
   font-size: 0.9375rem;
   line-height: 1.55;
@@ -1166,7 +1166,7 @@
 .public-status-sheet__announcement::after {
   content: "";
   display: block;
-  margin: 14px 0 0;
+  margin: 18px 0 0;
   border-bottom: 0.5px solid var(--site-rule);
 }
 
@@ -1174,7 +1174,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 0 0 8px;
+  padding: 0 0 16px;
   min-height: 0;
 }
 
@@ -1187,7 +1187,7 @@
 
 .public-status-sheet__empty {
   margin: 0;
-  padding: 20px var(--status-sheet-inset) 24px;
+  padding: 28px var(--status-sheet-inset) 32px;
   text-align: center;
   font-size: 0.9375rem;
   line-height: 1.5;
@@ -1203,7 +1203,7 @@
 
 .public-status-sheet__section-title {
   margin: 0;
-  padding: 14px var(--status-sheet-inset) 8px;
+  padding: 18px var(--status-sheet-inset) 10px;
   font-size: 0.6875rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -1214,7 +1214,7 @@
 /* Spreadsheet-style service table — inset from paper edges */
 .public-status-table-wrap {
   flex: 1;
-  margin: 16px var(--status-sheet-inset) 24px;
+  margin: 24px var(--status-sheet-inset) 32px;
   border: 0.5px solid var(--site-rule);
   border-radius: 0.75rem;
   overflow: hidden;
@@ -1246,13 +1246,13 @@
 
 .public-status-table {
   width: 100%;
-  min-width: 320px;
+  min-width: 640px;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
 .public-status-table thead th {
-  padding: 10px 16px 8px;
+  padding: 12px 20px 10px;
   font-size: 0.6875rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -1288,20 +1288,24 @@
 }
 
 .public-status-table thead th:nth-child(2),
-.public-status-table thead th:nth-child(3) {
+.public-status-table thead th:nth-child(4) {
   text-align: right;
 }
 
 .public-status-table thead th:nth-child(1) {
-  width: 46%;
+  width: 20%;
 }
 
 .public-status-table thead th:nth-child(2) {
-  width: 22%;
+  width: 11%;
 }
 
 .public-status-table thead th:nth-child(3) {
-  width: 32%;
+  width: 49%;
+}
+
+.public-status-table thead th:nth-child(4) {
+  width: 20%;
 }
 
 .public-status-table tbody tr {
@@ -1333,7 +1337,7 @@
 }
 
 .public-status-table tbody td {
-  padding: 11px 16px;
+  padding: 14px 20px;
   vertical-align: middle;
   font-size: 0.875rem;
   line-height: 1.35;
@@ -1364,6 +1368,154 @@
   font-size: 0.8125rem;
   color: var(--site-ink-soft);
   white-space: nowrap;
+}
+
+.public-status-table__history {
+  padding-left: 14px;
+  padding-right: 14px;
+  vertical-align: middle;
+}
+
+.public-status-history {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+  height: 26px;
+}
+
+.public-status-history__day {
+  flex: 1 1 0;
+  min-width: 2px;
+  border: none;
+  padding: 0;
+  margin: 0;
+  appearance: none;
+  cursor: default;
+  border-radius: 3px;
+  background: var(--status-history-up, #34c759);
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.public-status-history__day:hover,
+.public-status-history__day:focus-visible {
+  transform: scaleY(1.12);
+  box-shadow:
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(255, 255, 255, 0.85);
+  outline: none;
+  z-index: 1;
+}
+
+.public-status-history-tip {
+  position: fixed;
+  z-index: 2000;
+  transform: translate(-50%, calc(-100% - 10px));
+  pointer-events: none;
+  min-width: 128px;
+  max-width: 220px;
+  padding: 8px 10px 9px;
+  background: #ffffff;
+  border: 0.5px solid var(--site-rule);
+  border-radius: 10px;
+  box-shadow:
+    0 4px 12px rgba(20, 18, 12, 0.08),
+    0 16px 40px -12px rgba(20, 18, 12, 0.18);
+  animation: public-status-history-tip-in 0.12s ease;
+}
+
+@keyframes public-status-history-tip-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% - 6px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, calc(-100% - 10px));
+  }
+}
+
+.public-status-history-tip__status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--site-ink);
+  line-height: 1.2;
+}
+
+.public-status-history-tip__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  color: #ffffff;
+}
+
+.public-status-history-tip__icon--operational {
+  background: #34c759;
+}
+
+.public-status-history-tip__icon--degraded {
+  background: #f5a623;
+}
+
+.public-status-history-tip__icon--downtime {
+  background: #e5484d;
+  font-size: 0.8125rem;
+}
+
+.public-status-history-tip__icon--maintenance {
+  background: #4a7fd4;
+}
+
+.public-status-history-tip__icon--not_monitored {
+  background: color-mix(in srgb, var(--site-ink-faint) 55%, #ffffff);
+  color: var(--site-ink-soft);
+}
+
+.public-status-history-tip__rule {
+  height: 0.5px;
+  margin: 6px 0 4px;
+  background: var(--site-rule);
+}
+
+.public-status-history-tip__date {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--site-ink-faint);
+}
+
+.public-status-history__day--operational {
+  background: #34c759;
+}
+
+.public-status-history__day--degraded {
+  background: #f5a623;
+}
+
+.public-status-history__day--downtime {
+  background: #e5484d;
+}
+
+.public-status-history__day--maintenance {
+  background: #4a7fd4;
+}
+
+.public-status-history__day--not_monitored {
+  background: color-mix(in srgb, var(--site-rule) 70%, #ffffff);
+  box-shadow: none;
 }
 
 .public-status-table-wrap--operational .public-status-table__uptime {
@@ -1515,13 +1667,13 @@
 /* Support options — neutral inset cards inside the paper sheet */
 .public-status-sheet__support {
   margin-top: auto;
-  padding: 0 var(--status-sheet-inset) 24px;
+  padding: 0 var(--status-sheet-inset) 32px;
 }
 
 .public-status-sheet__support::before {
   content: "";
   display: block;
-  margin: 16px 0;
+  margin: 24px 0;
   border-top: 0.5px solid var(--site-rule);
 }
 
@@ -1530,7 +1682,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.625rem;
+  gap: 0.75rem;
 }
 
 @media (min-width: 520px) {
@@ -1544,7 +1696,7 @@
   flex-direction: column;
   gap: 0.2rem;
   height: 100%;
-  padding: 0.875rem 1rem;
+  padding: 1rem 1.25rem;
   border: 0.5px solid var(--site-rule);
   border-radius: 0.75rem;
   background: rgba(255, 255, 255, 0.72);
