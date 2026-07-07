@@ -943,6 +943,17 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   border-radius: 4px;
 }
 
+/* Shared space menu tile in collapsed detail toolbar — same glyph as list menu rows. */
+.proto-toolbar-icon-btn .proto-space-menu-icon:not(.space-icon-tile--on-dark) svg,
+.proto-toolbar-icon-btn .proto-space-menu-icon:not(.space-icon-tile--on-dark) path {
+  fill: oklch(from var(--space-icon-accent) calc(l * 0.58) min(c * 3.5, 0.2) h);
+}
+
+.proto-toolbar-icon-btn .proto-space-menu-icon.space-icon-tile--on-dark svg,
+.proto-toolbar-icon-btn .proto-space-menu-icon.space-icon-tile--on-dark path {
+  fill: rgba(255, 255, 255, 0.96);
+}
+
 .proto-menu-sep {
   height: 0.5px;
   margin: 3px 0;

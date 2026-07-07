@@ -42,9 +42,12 @@ const OWNED_SHARED_SPACES_ADDON_LIMIT = 10;
 export default function SpaceSwitcherMenu({
   homeSpaceId,
   authReady,
+  iconOnly = false,
 }: {
   homeSpaceId: string | null;
   authReady: boolean;
+  /** Icon-only orb (detail toolbar when sidebar is collapsed). */
+  iconOnly?: boolean;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -159,12 +162,17 @@ export default function SpaceSwitcherMenu({
     hasHome,
   });
   const triggerIcon = showSharedSpaceToolbar ? (
-    <Icon name="user-group" size={PROTO_TOOLBAR_ORB_ICON_SIZE} aria-hidden />
+    iconOnly ? (
+      <ProtoSpaceMenuIcon color={space?.color || 'paper'} />
+    ) : (
+      <Icon name="user-group" size={PROTO_TOOLBAR_ORB_ICON_SIZE} aria-hidden />
+    )
   ) : hasHome ? (
     <ProtoHouseIcon size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
   ) : (
     <Icon name="table-cells" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
   );
+  const useSpaceSwitcherPill = showSharedSpaceToolbar && !iconOnly;
 
   function selectHome() {
     setOpen(false);
@@ -430,8 +438,8 @@ export default function SpaceSwitcherMenu({
         <button
           ref={triggerRef}
           type="button"
-          className={showSharedSpaceToolbar ? 'proto-toolbar-space-switcher' : 'proto-toolbar-icon-btn'}
-          data-active={sidebarLayer === 'space'}
+          className={useSpaceSwitcherPill ? 'proto-toolbar-space-switcher' : 'proto-toolbar-icon-btn'}
+          data-active={iconOnly ? undefined : sidebarLayer === 'space'}
           title={triggerTitle}
           aria-label={triggerTitle}
           aria-haspopup="menu"
@@ -449,7 +457,7 @@ export default function SpaceSwitcherMenu({
             setOpen((x) => !x);
           }}
         >
-          {showSharedSpaceToolbar ? (
+          {useSpaceSwitcherPill ? (
             <>
               <span className="proto-toolbar-space-switcher__icon" aria-hidden>
                 {triggerIcon}

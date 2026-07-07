@@ -1,7 +1,7 @@
 /**
  * Detail-column toolbar — mirrors macOS Harvous detail toolbar.
  *
- * Desktop detail:  [show sidebar when collapsed] [compose] · folder chip · find/share/more · inspector · account
+ * Desktop detail:  [show sidebar when collapsed] [space orb when collapsed] [compose] · folder chip · find/share/more · inspector · account
  * Mobile unified: [sidebar toggle] [compose] · … (space + mode live in drawer header)
  */
 import { useCallback, useEffect, useRef } from 'react';
@@ -9,6 +9,7 @@ import { useToolbarAnchoredPopover } from '../../hooks/useToolbarAnchoredPopover
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import SpaceSwitcherMenu from './SpaceSwitcherMenu';
 import { useNote } from '../../hooks/queries/useNote';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { PROTOTYPE_DRAFT_NOTE_SLUG, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
@@ -44,7 +45,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   const folderPopover = useToolbarAnchoredPopover();
   const findPopover = useToolbarAnchoredPopover();
   const sharePopover = useToolbarAnchoredPopover();
-  const { homeSpaceId } = usePrototypeHomeSpaceId();
+  const { homeSpaceId, authReady } = usePrototypeHomeSpaceId();
 
   const prototypeFolderChip = usePrototypeFolderChip();
   const {
@@ -197,17 +198,20 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
           </PrototypeToolbarShortcutItem>
         ) : null}
         {showCollapsedSidebarControls ? (
-          <PrototypeToolbarShortcutItem shortcut="S" showShortcut={showShiftHints}>
-            <button
-              type="button"
-              className="proto-toolbar-icon-btn"
-              title="Show sidebar"
-              aria-label="Show sidebar"
-              onClick={onShowSidebar}
-            >
-              <SplitColumnToggleIcon side="left" open={false} size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
-            </button>
-          </PrototypeToolbarShortcutItem>
+          <>
+            <PrototypeToolbarShortcutItem shortcut="S" showShortcut={showShiftHints}>
+              <button
+                type="button"
+                className="proto-toolbar-icon-btn"
+                title="Show sidebar"
+                aria-label="Show sidebar"
+                onClick={onShowSidebar}
+              >
+                <SplitColumnToggleIcon side="left" open={false} size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
+              </button>
+            </PrototypeToolbarShortcutItem>
+            <SpaceSwitcherMenu homeSpaceId={homeSpaceId} authReady={authReady} iconOnly />
+          </>
         ) : null}
         <PrototypeToolbarShortcutItem shortcut="N" showShortcut={showShiftHints}>
           <button
