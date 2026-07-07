@@ -6,7 +6,6 @@
 /* ─── Glass surface recipe (tiered backdrop-filter — see prototype-tokens.css) ─ */
 .proto-glass-surface,
 .proto-daily-passage-pill,
-.proto-migration-pill,
 .proto-collection-card,
 .proto-sidebar-root,
 .proto-inspector-desktop,
@@ -21,7 +20,6 @@
 /* Pseudo-element anchoring — omit mobile inspector (shell.css sets position: fixed <900px). */
 .proto-glass-surface,
 .proto-daily-passage-pill,
-.proto-migration-pill,
 .proto-collection-card,
 .proto-sidebar-root,
 .proto-inspector-desktop {
@@ -30,7 +28,6 @@
 
 .proto-glass-surface::before,
 .proto-daily-passage-pill::before,
-.proto-migration-pill::before,
 .proto-collection-card::before,
 .proto-sidebar-root::before,
 .proto-inspector-desktop::before,
@@ -46,7 +43,6 @@
 
 .proto-glass-surface::after,
 .proto-daily-passage-pill::after,
-.proto-migration-pill::after,
 .proto-collection-card::after,
 .proto-sidebar-root::after,
 .proto-inspector-desktop::after,
@@ -62,7 +58,6 @@
 
 .proto-glass-surface > *,
 .proto-daily-passage-pill > *,
-.proto-migration-pill > *,
 .proto-collection-card > *,
 .proto-sidebar-root > *,
 .proto-inspector-desktop > *,
@@ -4328,27 +4323,6 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   padding: 0 20px 20px;
 }
 
-/* ─── Sidebar floating stack (migration pill + daily passage) ─────────────── */
-/* Horizontal inset matches native `HarvousFeedListLayout.listRowHorizontalInset` (14)
-   and `.proto-sidebar-search` — same as `SidebarPanelView` daily-passage overlay. */
-/* Stack: scroll (1) < floating pills (2). Row ⋯ menus portal to body at z-index 100. */
-.proto-sidebar-floating-stack {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 2;
-  padding: 0 14px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  pointer-events: none;
-}
-
-.proto-sidebar-floating-stack > * {
-  pointer-events: auto;
-}
-
 /* ─── Daily passage pill (sidebar, native DailyPassagePill parity) ───────── */
 /* Interior H: macOS `interiorContentHPadding` 10 · iOS 14 (DailyPassagePill.cardContent). */
 .proto-daily-passage-pill {
@@ -4373,7 +4347,6 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
 /* Glass-surface child rule sets position:relative — restore absolute for dismiss chips. */
 .proto-glass-surface > .proto-daily-passage-pill__dismiss,
 .proto-daily-passage-pill > .proto-daily-passage-pill__dismiss,
-.proto-migration-pill > .proto-daily-passage-pill__dismiss,
 .proto-install-web-app-card > .proto-daily-passage-pill__dismiss {
   position: absolute;
   z-index: 2;

@@ -472,27 +472,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   scroll-padding-bottom: 16px;
 }
 
-/* When floating sidebar pills are present, reserve space at the bottom of the scroll
-   content so the last list items can scroll out from under the stack. Mirrors native's
-   `harvousListDailyPassagePillScrollReserve` (72 card + 12 stack bottom + 4 gap = 88pt per pill). */
-.proto-sidebar-scroll:has(~ .proto-sidebar-floating-stack .proto-migration-pill):has(
-    ~ .proto-sidebar-floating-stack .proto-daily-passage-pill
-  ) {
-  padding-bottom: 176px;
-}
-
-.proto-sidebar-scroll:has(~ .proto-sidebar-floating-stack .proto-migration-pill):not(
-    :has(~ .proto-sidebar-floating-stack .proto-daily-passage-pill)
-  ) {
-  padding-bottom: 88px;
-}
-
-.proto-sidebar-scroll:has(~ .proto-sidebar-floating-stack .proto-daily-passage-pill):not(
-    :has(~ .proto-sidebar-floating-stack .proto-migration-pill)
-  ) {
-  padding-bottom: 88px;
-}
-
 .proto-load-more-sentinel {
   height: 4px;
   flex-shrink: 0;
