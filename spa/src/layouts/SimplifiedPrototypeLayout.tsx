@@ -40,7 +40,10 @@ import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
 import { useActiveSpace } from '../hooks/useActiveSpace';
 import { resolvePrototypeSidebarVariant } from './resolve-prototype-sidebar-variant';
 import { updateStudyDockExpandedMaxHeight } from '@/utils/study-dock-layout';
-import { noteParamSlug, PROTOTYPE_DRAFT_NOTE_SLUG } from '../pages/prototype/proto-route-slugs';
+import { noteParamSlug, PROTOTYPE_DRAFT_NOTE_SLUG, isPrototypeDraftNoteSlug, normalizeNoteIdFromParam } from '../pages/prototype/proto-route-slugs';
+import { prototypeToolbarNoteDetailsAvailable } from '../pages/prototype/prototype-toolbar-note-details';
+import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
+import { useNote } from '../hooks/queries/useNote';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
 import { ProtoMigrationProvider } from './proto-migration-context';
 import { ProtoShellProvider, useProtoShell } from './proto-shell-context';
@@ -621,7 +624,25 @@ function PrototypeShortcutBridge() {
     sidebarListMode,
     setSidebarListMode,
     beginPrototypeComposeSession,
+    composePersistedNoteId,
   } = useProtoShell();
+
+  const noteSlugFromPath = matchPrototypeNoteId(pathname);
+  const isDraftNoteRoute = noteSlugFromPath != null && isPrototypeDraftNoteSlug(noteSlugFromPath);
+  const toolbarNoteId = resolvePrototypeToolbarNoteId(
+    composePersistedNoteId,
+    noteSlugFromPath,
+    isDraftNoteRoute,
+    normalizeNoteIdFromParam,
+  );
+  const { data: toolbarNote, isLoading: toolbarNoteLoading } = useNote(toolbarNoteId ?? '');
+  const showNoteDetailsOrb = prototypeToolbarNoteDetailsAvailable({
+    isOnNotePage: isPrototypeNotePath(pathname),
+    toolbarNoteId,
+    toolbarNoteLoading,
+    hasToolbarNote: !!toolbarNote,
+    isDraftNoteRoute,
+  });
 
   const createPrototypeNote = useCallback(() => {
     if (!homeSpaceId) return;
@@ -689,7 +710,7 @@ function PrototypeShortcutBridge() {
     const onNewNote = () => createPrototypeNote();
     const onToggleSidebar = () => togglePrototypeSidebar();
     const onToggleInspector = () => {
-      if (!isPrototypeNotePath(pathname)) return;
+      if (!showNoteDetailsOrb) return;
       toggleInspector();
     };
     const onFocusList = () => focusPrototypeNoteList();
@@ -727,6 +748,7 @@ function PrototypeShortcutBridge() {
     focusPrototypeNoteList,
     focusPrototypeSidebarSearch,
     pathname,
+    showNoteDetailsOrb,
     showHomeLayer,
     showListLayer,
     toggleInspector,

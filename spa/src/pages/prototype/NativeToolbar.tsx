@@ -29,6 +29,7 @@ import PrototypeNoteMoreMenu from './PrototypeNoteMoreMenu';
 import SplitColumnToggleIcon from './SplitColumnToggleIcon';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import { isPrototypeNotePath, matchPrototypeNoteId, prototypeNoteRouteTo } from '@/lib/prototype-path';
+import { prototypeToolbarNoteDetailsAvailable } from './prototype-toolbar-note-details';
 
 export type NativeToolbarVariant = 'detail' | 'unified';
 
@@ -58,6 +59,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     inspectorOpen,
     inspectorExiting,
     toggleInspector,
+    closeInspector,
     closeDrawer,
     ensureSidebarExpanded,
   } = useProtoShell();
@@ -135,6 +137,20 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   };
 
   const showShiftHints = usePrototypeShiftHints();
+
+  const showNoteDetailsOrb = prototypeToolbarNoteDetailsAvailable({
+    isOnNotePage,
+    toolbarNoteId,
+    toolbarNoteLoading,
+    hasToolbarNote: !!toolbarNote,
+    isDraftNoteRoute,
+  });
+
+  useEffect(() => {
+    if (!showNoteDetailsOrb && (inspectorOpen || inspectorExiting)) {
+      closeInspector();
+    }
+  }, [showNoteDetailsOrb, inspectorOpen, inspectorExiting, closeInspector]);
 
   const openFindPopover = useCallback(() => {
     const anchor = isMobileSidebar ? overflowMenuButtonRef.current : findButtonRef.current;
@@ -316,7 +332,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
         ) : null}
 
         <div className="proto-toolbar-orb-group proto-toolbar-orb-group--trailing" aria-label="Toolbar">
-          {isOnNotePage ? (
+          {showNoteDetailsOrb ? (
             <PrototypeToolbarShortcutItem shortcut="D" showShortcut={showShiftHints}>
               <button
                 type="button"
