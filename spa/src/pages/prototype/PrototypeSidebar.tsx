@@ -13,6 +13,7 @@ import { useRemoveThreadCluster } from '../../hooks/mutations/useRemoveThreadClu
 import { useConnectNote } from '../../hooks/mutations/useConnectNote';
 import { useUpdateStudyThreadTitle } from '../../hooks/mutations/useUpdateStudyThreadTitle';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
+import { removeSpaceNoteFromCache } from '../../lib/space-notes-cache';
 import { useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
 import { countNotesInFolderBucket, noteBelongsToFolderBucket, noteFolderMembershipLabels } from '@/utils/note-folder-display';
@@ -896,6 +897,16 @@ export default function PrototypeSidebar() {
 
   const { homeSpaceId, navReady, authReady } = usePrototypeHomeSpaceId();
   usePrototypeStudyThreadListSyncListener(homeSpaceId ?? undefined);
+
+  useEffect(() => {
+    const onNoteDeleted = (event: Event) => {
+      const noteId = (event as CustomEvent<{ noteId?: string }>).detail?.noteId;
+      if (!noteId || !homeSpaceId) return;
+      removeSpaceNoteFromCache(queryClient, homeSpaceId, noteId);
+    };
+    window.addEventListener('noteDeleted', onNoteDeleted);
+    return () => window.removeEventListener('noteDeleted', onNoteDeleted);
+  }, [queryClient, homeSpaceId]);
 
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);

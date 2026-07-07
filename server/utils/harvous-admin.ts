@@ -1,8 +1,12 @@
+import { timingSafeEqual } from 'node:crypto';
 import type { Context } from 'hono';
 import { createClerkClient } from '@clerk/backend';
 import { getAuth } from '../middleware/auth';
 
-const adminEmailByUserId = new Map<string, string | null>();
+// TTL so admin revocation (email removed from HARVOUS_ADMIN_EMAILS, or email
+// changed in Clerk) takes effect without a server restart.
+const ADMIN_EMAIL_CACHE_TTL_MS = 60 * 60 * 1000;
+const adminEmailByUserId = new Map<string, { email: string | null; expiresAt: number }>();
 
 export function getHarvousSystemUserId(): string {
   const id = process.env.HARVOUS_SYSTEM_USER_ID;
@@ -37,30 +41,34 @@ function isHarvousAdminSecret(c: Context): boolean {
   const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '').split(',')[0].trim();
   const m = authHeader.match(/^Bearer\s+(.+)$/i);
   const provided = m?.[1]?.trim();
-  return provided === expectedSecret;
+  if (!provided) return false;
+  const providedBuf = Buffer.from(provided);
+  const expectedBuf = Buffer.from(expectedSecret);
+  if (providedBuf.length !== expectedBuf.length) return false;
+  return timingSafeEqual(providedBuf, expectedBuf);
 }
 
 async function clerkPrimaryEmail(userId: string): Promise<string | null> {
-  if (adminEmailByUserId.has(userId)) {
-    return adminEmailByUserId.get(userId) ?? null;
+  const cached = adminEmailByUserId.get(userId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.email;
   }
 
+  const cache = (email: string | null) => {
+    adminEmailByUserId.set(userId, { email, expiresAt: Date.now() + ADMIN_EMAIL_CACHE_TTL_MS });
+    return email;
+  };
+
   const secretKey = process.env.CLERK_SECRET_KEY;
-  if (!secretKey) {
-    adminEmailByUserId.set(userId, null);
-    return null;
-  }
+  if (!secretKey) return cache(null);
 
   try {
     const clerk = createClerkClient({ secretKey });
     const user = await clerk.users.getUser(userId);
     const primary = user.emailAddresses?.find((entry) => entry.id === user.primaryEmailAddressId);
-    const email = primary?.emailAddress?.trim().toLowerCase() ?? null;
-    adminEmailByUserId.set(userId, email);
-    return email;
+    return cache(primary?.emailAddress?.trim().toLowerCase() ?? null);
   } catch {
-    adminEmailByUserId.set(userId, null);
-    return null;
+    return cache(null);
   }
 }
 

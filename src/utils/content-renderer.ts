@@ -4,6 +4,19 @@
  * Prevents React error #418: "Objects are not valid as a React child"
  */
 
+import DOMPurify from 'isomorphic-dompurify';
+
+/**
+ * Sanitize note HTML before it reaches dangerouslySetInnerHTML.
+ * DOMPurify defaults keep data-* attributes (scripture pills rely on
+ * data-scripture-reference / data-note-id / data-pill-accent etc.), class,
+ * style, and target, while removing scripts, event handlers, and
+ * javascript: URLs.
+ */
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html);
+}
+
 /**
  * Safely converts any content to a string suitable for dangerouslySetInnerHTML
  * Handles null, undefined, DOM nodes, and other edge cases
@@ -23,8 +36,9 @@ export function safeRenderHtml(content: unknown): string {
     if (content.trim() === '') {
       return '';
     }
+    const sanitized = sanitizeHtml(content);
     // Make links open in new tab (target="_blank" rel="noopener noreferrer")
-    const withExternalLinks = content.replace(/<a\s+([^>]*)>/gi, (match, attrs) => {
+    const withExternalLinks = sanitized.replace(/<a\s+([^>]*)>/gi, (match, attrs) => {
       if (/target\s*=/i.test(attrs)) return match;
       return `<a target="_blank" rel="noopener noreferrer" ${attrs.trim()}>`;
     });
@@ -43,7 +57,7 @@ export function safeRenderHtml(content: unknown): string {
       const element = content as HTMLElement;
       // If it's an element, get its innerHTML
       if (element.nodeType === 1) { // Element node
-        return element.innerHTML || element.textContent || '';
+        return sanitizeHtml(element.innerHTML || element.textContent || '');
       }
       // If it's a text node, get its textContent
       if (element.nodeType === 3) { // Text node
@@ -56,7 +70,7 @@ export function safeRenderHtml(content: unknown): string {
       try {
         const stringified = content.toString();
         if (typeof stringified === 'string') {
-          return stringified;
+          return sanitizeHtml(stringified);
         }
       } catch {
         // Ignore toString errors

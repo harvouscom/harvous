@@ -683,21 +683,29 @@ Your study data belongs to you. Export and open formats aren't just a nice-to-ha
 
 **Harvous as an MCP server:**
 
-Harvous should expose an MCP server so AI agents (Claude, custom GPTs, Shortcuts AI) can read and write study data:
+> **Superseded.** Read/write MCP exploration below is **not** the product plan. The paid **Connector**
+> add-on is **read-only permanently** with a defined v1 tool catalog, guardrails, and hybrid auth.
+> See [CONNECTOR_BOUNDARIES.md](./CONNECTOR_BOUNDARIES.md) and [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) Section 4.
+
+~~Harvous should expose an MCP server so AI agents (Claude, custom GPTs, Shortcuts AI) can read and write study data:~~
 
 ```
-harvous://mcp
+harvous://mcp  (exploration only — not implemented)
   resources:
     - notes (list, read by ID, search)
     - threads (list, read)
     - spaces (list)
   tools:
-    - create_note(title, content, thread_id?, scripture_refs?)
+    - create_note(title, content, thread_id?, scripture_refs?)  # NOT planned
     - search_notes(query)
     - get_related_notes(note_id)
 ```
 
-This makes Harvous a first-class data source for any AI assistant — a user could ask Claude "summarize everything I've written about the Sermon on the Mount" and get a real answer from their actual notes.
+~~This makes Harvous a first-class data source for any AI assistant — a user could ask Claude "summarize everything I've written about the Sermon on the Mount" and get a real answer from their actual notes.~~
+
+**Current direction:** Connector exposes read-only MCP tools (search, get note, list spaces/threads/notes,
+study-thread connections, optional share-token lookup) for subscribed users via Clerk OAuth; CLI uses
+a personal API key. Writes stay in the Harvous app.
 
 ---
 

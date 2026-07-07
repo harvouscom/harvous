@@ -28,6 +28,7 @@
  */
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db, first, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata,
@@ -802,9 +803,28 @@ app.get('/api/user/limits', requireAuth, rateLimit('read'), async (c) => {
 
 // ─── POST /api/user/import/preview ───────────────────────────────────────────
 
+/** Max total upload size for import endpoints — prevents memory exhaustion. */
+const MAX_IMPORT_BYTES = 50 * 1024 * 1024; // 50MB
+
+function importTooLargeResponse(c: Context) {
+  const contentLength = Number(c.req.header('Content-Length') ?? 0);
+  if (contentLength > MAX_IMPORT_BYTES) {
+    return c.json({ error: 'Import too large. Maximum upload size is 50MB.' }, 413);
+  }
+  return null;
+}
+
+function importFilesTooLarge(files: File[]): boolean {
+  let total = 0;
+  for (const file of files) total += file.size;
+  return total > MAX_IMPORT_BYTES;
+}
+
 app.post('/api/user/import/preview', requireAuth, async (c) => {
   try {
     getAuthenticatedAuth(c);
+    const tooLarge = importTooLargeResponse(c);
+    if (tooLarge) return tooLarge;
     const formData = await c.req.formData();
     const format = formData.get('format') as string;
     if (!format || (format !== 'markdown' && format !== 'csv-threads')) {
@@ -818,6 +838,9 @@ app.post('/api/user/import/preview', requireAuth, async (c) => {
       if (fileEntry) files.push(fileEntry);
     }
     if (files.length === 0) return c.json({ error: 'At least one file is required' }, 400);
+    if (importFilesTooLarge(files)) {
+      return c.json({ error: 'Import too large. Maximum upload size is 50MB.' }, 413);
+    }
 
     const { rows, warnings, unsupported } = await parseImportFiles(files, format as 'markdown' | 'csv-threads');
     if (rows.length === 0) return c.json({ error: 'No notes found in files', warnings, unsupported }, 400);
@@ -849,6 +872,8 @@ app.post('/api/user/import', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
+    const tooLarge = importTooLargeResponse(c);
+    if (tooLarge) return tooLarge;
     const formData = await c.req.formData();
     const format = formData.get('format') as string;
     if (!format || (format !== 'markdown' && format !== 'csv-threads')) {
@@ -872,6 +897,9 @@ app.post('/api/user/import', requireAuth, async (c) => {
     if (fileEntry) files.push(fileEntry);
     else if (filesEntry?.length > 0) files.push(...filesEntry);
     else return c.json({ error: 'At least one file is required' }, 400);
+    if (importFilesTooLarge(files)) {
+      return c.json({ error: 'Import too large. Maximum upload size is 50MB.' }, 413);
+    }
 
     const parsed = await parseImportFiles(files, format as 'markdown' | 'csv-threads');
     let allParsedNotes: ParsedImportRow[] = parsed.rows;

@@ -54,7 +54,7 @@ async function awardNoteCreatedXPInBatches(
 // ─── Shared Note / Thread (public GET) ──────────────────────────────
 
 /** GET /api/shared/note/:shareToken */
-app.get('/api/shared/note/:shareToken', async (c) => {
+app.get('/api/shared/note/:shareToken', rateLimit('read'), async (c) => {
   try {
     const shareToken = requireParam(c, 'shareToken');
     if (!isValidShareToken(shareToken)) return c.json({ error: 'Invalid share token format' }, 400);
@@ -132,7 +132,7 @@ app.get('/api/shared/note/:shareToken', async (c) => {
 });
 
 /** GET /api/shared/thread/:shareToken */
-app.get('/api/shared/thread/:shareToken', async (c) => {
+app.get('/api/shared/thread/:shareToken', rateLimit('read'), async (c) => {
   try {
     const shareToken = requireParam(c, 'shareToken');
     if (!isValidShareToken(shareToken)) return c.json({ error: 'Invalid share token format' }, 400);
@@ -627,7 +627,7 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
 // ─── Invitations ────────────────────────────────────────────────────
 
 /** GET /api/invitations/:token */
-app.get('/api/invitations/:token', async (c) => {
+app.get('/api/invitations/:token', rateLimit('read'), async (c) => {
   try {
     const token = requireParam(c, 'token');
 

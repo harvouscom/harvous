@@ -6,6 +6,8 @@ export const AUTH_HERO_IMAGES = [
   '/images/auth-hero/ai_bg_051.webp',
   '/images/auth-hero/ai_bg_053.webp',
   '/images/auth-hero/ai_bg_058.webp',
+  '/images/auth-hero/ai_bg_061.webp',
+  '/images/auth-hero/ai_bg_072.webp',
 ] as const;
 
 const loadedHeroImages = new Set<string>();
