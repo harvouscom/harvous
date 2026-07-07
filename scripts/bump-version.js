@@ -7,10 +7,10 @@
  * conventional commit messages. It reads the most recent commit message
  * and determines the appropriate version bump:
  * 
- * - feat: → minor bump (0.10.0 → 0.11.0)
- * - fix: → patch bump (0.10.0 → 0.10.1)
- * - BREAKING CHANGE or ! → major bump (0.10.0 → 1.0.0)
- * - Default → patch bump
+ * - feat: → minor bump (2.0.0 → 2.1.0)
+ * - fix: → patch bump (2.0.0 → 2.0.1)
+ * - BREAKING CHANGE or ! → major bump (2.0.0 → 3.0.0)
+ * - chore/docs/test/style/refactor/etc. → no bump (intentional releases only)
  */
 
 import { execSync } from 'child_process';
@@ -61,10 +61,10 @@ function hasUncommittedChanges() {
   }
 }
 
-// Determine bump type based on commit message
+// Determine bump type based on commit message. Returns null when no semver bump is warranted.
 function determineBumpType(commitMessage) {
   if (!commitMessage) {
-    return 'patch'; // Default to patch for safety
+    return null;
   }
 
   // Check for breaking changes
@@ -73,17 +73,16 @@ function determineBumpType(commitMessage) {
   }
 
   // Check for feature commits (minor bump)
-  if (commitMessage.match(/^feat:/i)) {
+  if (commitMessage.match(/^feat(\([^)]+\))?!?:/i)) {
     return 'minor';
   }
 
   // Check for fix commits (patch bump)
-  if (commitMessage.match(/^fix:/i)) {
+  if (commitMessage.match(/^fix(\([^)]+\))?!?:/i)) {
     return 'patch';
   }
 
-  // Default to patch for safety
-  return 'patch';
+  return null;
 }
 
 // Bump version based on type
@@ -202,12 +201,14 @@ try {
     
     // Calculate what the version should be based on the last commit
     const bumpType = determineBumpType(commitMessage);
-    const expectedVersion = bumpVersion(parentVersion, bumpType);
-    
-    // If current version matches expected, it was already bumped correctly
-    if (expectedVersion === currentVersion) {
-      console.log('ℹ️  Version already matches expected value from last commit. Skipping.');
-      process.exit(0);
+    if (bumpType) {
+      const expectedVersion = bumpVersion(parentVersion, bumpType);
+
+      // If current version matches expected, it was already bumped correctly
+      if (expectedVersion === currentVersion) {
+        console.log('ℹ️  Version already matches expected value from last commit. Skipping.');
+        process.exit(0);
+      }
     }
   } catch (error) {
     // Can't get parent commit (e.g., first commit or no parent), so continue
@@ -226,6 +227,10 @@ try {
   // Determine bump type
   const bumpType = determineBumpType(commitMessage);
   console.log(`📝 Commit message: ${commitMessage?.substring(0, 50) || 'N/A'}...`);
+  if (!bumpType) {
+    console.log('ℹ️  No feat/fix/breaking commit — skipping version bump.');
+    process.exit(0);
+  }
   console.log(`🎯 Bump type: ${bumpType}`);
 
   // Calculate new version

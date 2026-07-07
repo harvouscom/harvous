@@ -22,6 +22,8 @@ npx tsx server/scripts/backfill-collections-from-threads.ts --dry-run   # Previe
 npm run native:xcodegen           # Optional: force XcodeGen; usually runs via postinstall / precommit
 ```
 
+**Versioning:** Shipped web semver is **2.x** (Harvous 2.0 from July 2026). Pre-commit `bump-version.js` advances only on `feat:` (minor) or `fix:` (patch) commits — not on every `chore:`. User release notes: `release-notes/`; technical log: `Changelog/`.
+
 **Clean new user (manual only):** The automatic dev-reset middleware was removed so production user data is never erased. To get "new user" state locally, call `POST /api/test/reset-to-new-user` (test route) when the API is running.
 
 ## Architecture Overview
