@@ -41,4 +41,6 @@ These release notes help you understand:
 
 Start with the most recent file to see the latest updates!
 
+**July 2026:** [v2.0-july-2026.md](v2.0-july-2026.md) — **Harvous 2.0** (Classic retired; prototype shell is production web). Social copy: [social/v2.0-july-2026-launch.md](social/v2.0-july-2026-launch.md).
+
 **April 2026:** [v1.216-april-2026.md](v1.216-april-2026.md) (v1.216.0 space context and navigation) and [v1.215-april-2026.md](v1.215-april-2026.md) (broader April updates including v1.215.x through 1.216.0).
