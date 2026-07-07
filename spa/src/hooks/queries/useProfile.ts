@@ -71,10 +71,13 @@ function getCachedProfile(): UserProfile | undefined {
   }
 }
 
-/** True when Clerk session cookie suggests a signed-in browser session (before Clerk JS finishes loading). */
+/** True when Clerk session cookies suggest a signed-in browser session (before Clerk JS finishes loading). */
 export function hasClerkSessionCookieHint(): boolean {
   if (typeof document === 'undefined') return false;
-  return /(?:^|;\s*)__client_uat=[1-9]/.test(document.cookie);
+  const cookies = document.cookie;
+  if (/(?:^|;\s*)__client_uat=[1-9]/.test(cookies)) return true;
+  if (/(?:^|;\s*)__session=/.test(cookies)) return true;
+  return false;
 }
 
 /**
