@@ -4370,11 +4370,20 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   }
 }
 
+/* Glass-surface child rule sets position:relative — restore absolute for dismiss chips. */
+.proto-glass-surface > .proto-daily-passage-pill__dismiss,
+.proto-daily-passage-pill > .proto-daily-passage-pill__dismiss,
+.proto-migration-pill > .proto-daily-passage-pill__dismiss,
+.proto-install-web-app-card > .proto-daily-passage-pill__dismiss {
+  position: absolute;
+  z-index: 2;
+}
+
 .proto-daily-passage-pill__dismiss {
   position: absolute;
   top: -10px;
   right: 6px;
-  z-index: 1;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -4390,25 +4399,36 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   font-weight: 500;
   color: var(--pds-text-secondary);
   cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
+  opacity: 1;
+  pointer-events: auto;
   transition: opacity 0.15s ease;
 }
 
-.proto-daily-passage-pill:hover .proto-daily-passage-pill__dismiss,
-.proto-daily-passage-pill:focus-within .proto-daily-passage-pill__dismiss {
-  opacity: 1;
-  pointer-events: auto;
+@media (hover: hover) and (pointer: fine) {
+  .proto-daily-passage-pill__dismiss {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .proto-daily-passage-pill:hover .proto-daily-passage-pill__dismiss,
+  .proto-daily-passage-pill:focus-within .proto-daily-passage-pill__dismiss,
+  .proto-recall-card:hover .proto-daily-passage-pill__dismiss,
+  .proto-recall-card:focus-within .proto-daily-passage-pill__dismiss,
+  .proto-install-web-app-card:hover .proto-daily-passage-pill__dismiss,
+  .proto-install-web-app-card:focus-within .proto-daily-passage-pill__dismiss {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .proto-daily-passage-pill__dismiss:hover {
   color: var(--pds-text-primary);
 }
 
-@media (hover: none) {
+@media (pointer: coarse) {
   .proto-daily-passage-pill__dismiss {
-    opacity: 1;
-    pointer-events: auto;
+    min-height: 44px;
+    padding: 8px 12px;
   }
 }
 
@@ -4489,6 +4509,11 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   flex-direction: column;
   gap: 10px;
   padding: 8px 14px 14px;
+}
+
+/* Room for dismiss chips that sit at top: -10px on cards/pills. */
+.proto-home-section:has(.proto-daily-passage-pill__dismiss) {
+  padding-top: 10px;
 }
 
 .proto-home-view--enter .proto-home-section {
@@ -4658,11 +4683,6 @@ button.proto-home-card--tappable:focus-visible {
   align-self: center;
   padding: 14px 22px 12px;
   text-align: center;
-}
-
-.proto-install-web-app-card .proto-daily-passage-pill__dismiss {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 .proto-install-web-app-card__heading {
@@ -6693,6 +6713,15 @@ button.proto-appearance-hero__card {
   flex: 1;
 }
 
+/* Clear the floating migration pill stack (z-index 2) so footer actions stay tappable. */
+.proto-sidebar-root--thread-review .proto-thread-review__actions {
+  bottom: 88px;
+}
+
+.proto-sidebar-root--thread-review .proto-thread-review__list {
+  padding-bottom: 160px;
+}
+
 .proto-thread-review__header {
   flex-shrink: 0;
   display: flex;
@@ -7242,12 +7271,6 @@ button.proto-appearance-hero__card {
   flex-direction: column;
   gap: 0;
   padding: 0;
-}
-
-.proto-recall-card:hover .proto-daily-passage-pill__dismiss,
-.proto-recall-card:focus-within .proto-daily-passage-pill__dismiss {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 .proto-recall-card__main {

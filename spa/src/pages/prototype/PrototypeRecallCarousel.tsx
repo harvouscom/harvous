@@ -112,7 +112,8 @@ export default function PrototypeRecallCarousel({
           type="button"
           className="proto-daily-passage-pill__dismiss"
           aria-label="Not now — remind me later"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             recordRecallOpportunityEvent({
               opportunityId: active.id,
               kind: active.kind,

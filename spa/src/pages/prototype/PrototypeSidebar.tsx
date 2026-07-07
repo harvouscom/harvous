@@ -1774,7 +1774,9 @@ export default function PrototypeSidebar() {
   })();
 
   return (
-    <div className="proto-sidebar-root">
+    <div
+      className={`proto-sidebar-root${sidebarThreadProposal ? ' proto-sidebar-root--thread-review' : ''}`}
+    >
       {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
       {backTarget && !isHomeLayer ? (
         <div className="proto-sidebar-back-row">
