@@ -27,7 +27,7 @@ describe('shared-spaces-entitlement-bridge', () => {
       'status',
     ]);
     expect(data?.hasSharedSpaces).toBe(true);
-    expect(data?.sharedSpacesOwnedLimit).toBe(30);
+    expect(data?.sharedSpacesOwnedLimit).toBe(10);
   });
 
   it('invalidates panel subscription cache on entitlement sync', () => {

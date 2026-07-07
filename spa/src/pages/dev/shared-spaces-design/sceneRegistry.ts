@@ -113,7 +113,7 @@ export const SHARED_SPACES_DESIGN_SCENES: SharedSpacesDesignScene[] = [
   },
   {
     id: '15-revoke-confirm',
-    title: 'Revoke invite confirm',
+    title: 'Turn off invite confirm',
     phase: 'Confirms',
     editFiles: ['spa/src/pages/prototype/ProtoConfirmDialog.tsx'],
     screenshotSlug: '17-confirm-revoke-invite-dialog',
@@ -155,6 +155,18 @@ export const SHARED_SPACES_DESIGN_SCENES: SharedSpacesDesignScene[] = [
       'spa/src/pages/dev/shared-spaces-design/shared-space-dashboard-fixtures.ts',
     ],
     screenshotSlug: '21-shared-space-dashboard-social',
+  },
+  {
+    id: '20-join-cover-colors',
+    title: 'Join hero — all space cover colors',
+    phase: 'Acquire',
+    editFiles: [
+      'src/utils/space-cover.ts',
+      'spa/src/lib/space-cover-display.ts',
+      'spa/src/pages/public/PublicJoinSpaceHero.tsx',
+      'spa/src/pages/dev/shared-spaces-design/SharedSpacesDesignScenePreview.tsx',
+    ],
+    screenshotSlug: '22-join-cover-colors-all',
   },
 ];
 

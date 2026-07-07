@@ -3,20 +3,29 @@
  * controls (create / copy / revoke); everyone sees the member list.
  * Prototype-native — do not reuse Classic's EditSpacePanel/SpaceMembersList.
  */
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
-import { prototypeHomeRouteTo } from '@/lib/prototype-path';
+import { prototypeHomeRouteTo, prototypeSettingsSupportRouteTo } from '@/lib/prototype-path';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
-import { spaceIconAccentHex, avatarGlyphColorForAccent } from '@/utils/space-cover';
-import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import { APIError } from '../../lib/api';
+import {
+  formatInviteExpiry,
+  resolveInviteExpiresAt,
+  type InviteExpiryPreset,
+} from '../../lib/shared-space-invite-expiry';
+import {
+  getSpaceMembersCapacityCopy,
+  MEMBERS_PER_SPACE_CAP,
+} from '@/lib/shared-spaces-limits';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
+import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useSpaceMembers, useSpaceInvites } from '../../hooks/queries/useSpace';
 import { useCreateSpaceInvite, useRevokeSpaceInvite } from '../../hooks/mutations/useSpaceInviteActions';
@@ -25,6 +34,9 @@ import { useDeleteSharedSpace } from '../../hooks/mutations/useDeleteSharedSpace
 
 import PrototypeSpaceSettingsSection from './PrototypeSpaceSettingsSection';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
+import SharedSpaceMemberAvatar from './SharedSpaceMemberAvatar';
+import SharedSpaceInviteExpiryPicker from './SharedSpaceInviteExpiryPicker';
+import PrototypeListEmptyState from './PrototypeListEmptyState';
 import { SettingsGroup, SettingsRow } from './settings/SettingsShell';
 
 export interface PrototypeSpacePeopleSheetProps {
@@ -36,13 +48,6 @@ export interface PrototypeSpacePeopleSheetProps {
   spaceDescription?: string | null;
   /** Nav/dashboard hint until members query resolves (keeps owner hub reachable). */
   viewerIsOwner?: boolean;
-}
-
-function formatExpiry(expiresAt: string | null): string {
-  if (!expiresAt) return 'No expiry';
-  const d = new Date(expiresAt);
-  if (Number.isNaN(d.getTime())) return 'No expiry';
-  return `Expires ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
 }
 
 type PendingRemoveMember = {
@@ -72,13 +77,7 @@ export default function PrototypeSpacePeopleSheet({
   const navigate = useNavigate();
   const { userId: authUserId } = useAuth();
   const { isMobileSidebar, setActiveSpaceId } = useProtoShell();
-  const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
-
-  // Member avatar tint — pastel appearance accent + darkened initial (matches the join page).
-  const memberAvatarStyle = (color?: string | null): React.CSSProperties => {
-    const bg = spaceIconAccentHex(color || 'blue', colorScheme);
-    return { background: bg, color: avatarGlyphColorForAccent(bg, colorScheme) ?? undefined };
-  };
+  const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
@@ -88,6 +87,9 @@ export default function PrototypeSpacePeopleSheet({
   const [revokeConfirmAnchor, setRevokeConfirmAnchor] = useState<DOMRect | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmAnchor, setDeleteConfirmAnchor] = useState<DOMRect | null>(null);
+  const [inviteExpiryPreset, setInviteExpiryPreset] = useState<InviteExpiryPreset>('30d');
+  const [inviteCustomDate, setInviteCustomDate] = useState('');
+  const [isCreatingInvite, setIsCreatingInvite] = useState(false);
 
   const membersQuery = useSpaceMembers(spaceId);
   const ownerFromMembers = membersQuery.data?.members.some(
@@ -112,17 +114,25 @@ export default function PrototypeSpacePeopleSheet({
       setRemoveConfirmAnchor(null);
       setPendingRevokeInviteId(null);
       setRevokeConfirmAnchor(null);
-      setDeleteConfirmOpen(false);
-      setDeleteConfirmAnchor(null);
+      if (!deleteSpace.isPending) {
+        setDeleteConfirmOpen(false);
+        setDeleteConfirmAnchor(null);
+      }
+      setIsCreatingInvite(false);
     }
-  }, [open]);
+  }, [open, deleteSpace.isPending]);
+
+  useEffect(() => {
+    if (view !== 'invites') setIsCreatingInvite(false);
+  }, [view]);
 
   const shouldUseSheetPresentation =
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
-  const shouldUsePopover = open && !shouldUseSheetPresentation;
+  const usePopoverPresentation = !shouldUseSheetPresentation;
+  const showPopoverPortal = usePopoverPresentation && mounted;
 
   useLayoutEffect(() => {
-    if (!shouldUsePopover) return;
+    if (!showPopoverPortal) return;
     const cardHeight = cardRef.current?.getBoundingClientRect().height ?? 420;
     const cardWidth = cardRef.current?.getBoundingClientRect().width ?? 340;
     const viewportMargin = 12;
@@ -132,9 +142,11 @@ export default function PrototypeSpacePeopleSheet({
       left: Math.max(viewportMargin, (vw - cardWidth) / 2),
       top: Math.max(viewportMargin, Math.min(vh - cardHeight - viewportMargin, vh * 0.12)),
     });
-  }, [shouldUsePopover, membersQuery.data, invitesQuery.data, view]);
+  }, [showPopoverPortal, membersQuery.data, invitesQuery.data, view, isCreatingInvite]);
 
-  useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover);
+  useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation, {
+    ignoreSelector: '.harvous-delete-confirm',
+  });
 
   async function copyInvite(inviteId: string, url: string) {
     try {
@@ -184,7 +196,7 @@ export default function PrototypeSpacePeopleSheet({
       },
       onError: (err) => {
         const msg =
-          err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not revoke invite';
+          err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not turn off link';
         toast.error(msg);
       },
     });
@@ -210,6 +222,11 @@ export default function PrototypeSpacePeopleSheet({
   const members = membersQuery.data?.members ?? [];
   const invites = invitesQuery.data?.invites ?? [];
   const memberCount = members.length;
+  const memberLimit = membersQuery.data?.limits?.membersPerSpace ?? MEMBERS_PER_SPACE_CAP;
+  const ownerCapacityCopy =
+    isOwner && !membersQuery.isLoading
+      ? getSpaceMembersCapacityCopy({ memberCount, memberLimit })
+      : null;
   const activeInvites = invites.length;
   const showBack = isOwner && view !== 'hub';
   // On a sub-view the header title becomes that section's name (the eyebrow label
@@ -228,13 +245,37 @@ export default function PrototypeSpacePeopleSheet({
     <p className="proto-inspector-section-title">Loading…</p>
   ) : (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {ownerCapacityCopy ? (
+        <div className="proto-shared-people-capacity">
+          {ownerCapacityCopy.inviteLine ? <p>{ownerCapacityCopy.inviteLine}</p> : null}
+          <p className="proto-shared-people-capacity__limit">
+            <span>{ownerCapacityCopy.maxLineText}</span>{' '}
+            {ownerCapacityCopy.atLimit ? (
+              <button
+                type="button"
+                className="proto-shared-people-capacity__support-link"
+                onClick={() => {
+                  onOpenChange(false);
+                  void navigate({ to: prototypeSettingsSupportRouteTo() });
+                }}
+              >
+                Contact support
+              </button>
+            ) : null}
+          </p>
+        </div>
+      ) : null}
       {members.map((m) => {
         const rowAction = memberRowAction(m);
         return (
           <div key={m.userId} className="proto-shared-people-row">
-            <span className="proto-shared-people-row__avatar" aria-hidden style={memberAvatarStyle(m.userColor)}>
-              {(m.firstName || m.displayName || '?').charAt(0).toUpperCase()}
-            </span>
+            <SharedSpaceMemberAvatar
+              userId={m.userId}
+              firstName={m.firstName}
+              displayName={m.displayName}
+              userColor={m.userColor}
+              profileImageUrl={m.profileImageUrl}
+            />
             <span className="proto-shared-people-row__name">{m.displayName}</span>
             {m.userId === authUserId ? <span className="proto-shared-people-row__tag">You</span> : null}
             {m.role === 'owner' ? (
@@ -262,6 +303,28 @@ export default function PrototypeSpacePeopleSheet({
       })}
     </div>
   );
+
+  async function submitCreateInvite() {
+    let expiresAt: string | null;
+    try {
+      expiresAt = resolveInviteExpiresAt(inviteExpiryPreset, inviteCustomDate);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Pick a valid expiration');
+      return;
+    }
+    try {
+      await createInvite.mutateAsync({ expiresAt });
+      setIsCreatingInvite(false);
+    } catch (err) {
+      const msg =
+        err instanceof APIError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Could not create invite link';
+      toast.error(msg);
+    }
+  }
 
   const invitesView = (
     <>
@@ -300,7 +363,7 @@ export default function PrototypeSpacePeopleSheet({
                 </button>
               </div>
               <div className="proto-share-popover__actions">
-                <span className="proto-shared-invite__expiry">{formatExpiry(invite.expiresAt)}</span>
+                <span className="proto-shared-invite__expiry">{formatInviteExpiry(invite.expiresAt)}</span>
                 <button
                   type="button"
                   className="proto-share-popover__link-action proto-share-popover__link-action--danger"
@@ -310,37 +373,64 @@ export default function PrototypeSpacePeopleSheet({
                     setPendingRevokeInviteId(invite.id);
                   }}
                 >
-                  Revoke link
+                  Turn off link
                 </button>
               </div>
             </div>
           );
         })}
-        {invites.length === 0 && !invitesQuery.isLoading ? (
-          <p style={{ fontSize: 12, opacity: 0.6, margin: 0 }}>No active invite links yet.</p>
+        {invitesQuery.isLoading ? (
+          <p className="proto-inspector-muted proto-connect-note-sheet__status">Loading…</p>
+        ) : invites.length === 0 ? (
+          <div className="proto-shared-invite-empty">
+            <PrototypeListEmptyState
+              iconName="link"
+              title="No invite links yet"
+              description="Create a link to share this space with others."
+            />
+          </div>
         ) : null}
       </div>
 
-      <div className="proto-add-notes-sheet__footer">
-        <button
-          type="button"
-          className="proto-share-popover__primary"
-          disabled={createInvite.isPending}
-          onClick={() => {
-            void createInvite.mutateAsync().catch((err) => {
-              const msg =
-                err instanceof APIError
-                  ? err.message
-                  : err instanceof Error
-                    ? err.message
-                    : 'Could not create invite link';
-              toast.error(msg);
-            });
-          }}
-        >
-          {createInvite.isPending ? 'Creating…' : 'New invite link'}
-        </button>
-      </div>
+      {isCreatingInvite ? (
+        <div className="proto-shared-invite-create">
+          <SharedSpaceInviteExpiryPicker
+            preset={inviteExpiryPreset}
+            customDate={inviteCustomDate}
+            onPresetChange={setInviteExpiryPreset}
+            onCustomDateChange={setInviteCustomDate}
+            idPrefix={`invite-expiry-${spaceId}`}
+          />
+          <div className="proto-space-switcher__create-actions">
+            <button
+              type="button"
+              className="proto-settings-btn proto-settings-btn--secondary"
+              disabled={createInvite.isPending}
+              onClick={() => setIsCreatingInvite(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="proto-settings-btn"
+              disabled={createInvite.isPending}
+              onClick={() => void submitCreateInvite()}
+            >
+              {createInvite.isPending ? 'Creating…' : 'Create link'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="proto-add-notes-sheet__footer">
+          <button
+            type="button"
+            className="proto-share-popover__primary"
+            onClick={() => setIsCreatingInvite(true)}
+          >
+            New invite link
+          </button>
+        </div>
+      )}
     </>
   );
 
@@ -467,8 +557,8 @@ export default function PrototypeSpacePeopleSheet({
       {pendingRevokeInviteId && revokeConfirmAnchor ? (
         <ProtoConfirmDialog
           anchorRect={revokeConfirmAnchor}
-          title="Revoke this invite link? Anyone with the link will no longer be able to join."
-          confirmLabel="Revoke"
+          title="Turn off invite link? It will stop working."
+          confirmLabel="Turn off"
           cancelLabel="Keep"
           busy={revokeInvite.isPending}
           onConfirm={handleConfirmRevokeInvite}
@@ -483,7 +573,7 @@ export default function PrototypeSpacePeopleSheet({
       {deleteConfirmOpen && deleteConfirmAnchor ? (
         <ProtoConfirmDialog
           anchorRect={deleteConfirmAnchor}
-          title={`Delete "${spaceTitle}"? This removes it for everyone and can't be undone.`}
+          title={`Delete "${spaceTitle}"? Permanent for everyone.`}
           confirmLabel="Delete"
           cancelLabel="Keep"
           busy={deleteSpace.isPending}
@@ -499,30 +589,44 @@ export default function PrototypeSpacePeopleSheet({
     </>
   );
 
-  if (!open) {
+  if (!open && !mounted) {
     return confirmDialogs;
   }
 
-  if (shouldUsePopover && typeof document !== 'undefined') {
+  if (showPopoverPortal && typeof document !== 'undefined') {
     return (
       <>
         {createPortal(
-          <ProtoPopoverShell
-            ref={cardRef}
-            role="dialog"
-            aria-label={`People in ${spaceTitle}`}
-            className="proto-connect-note-popover proto-create-folder-popover"
-            style={{ position: 'fixed', top: position?.top ?? -9999, left: position?.left ?? -9999, zIndex: 6000 }}
-          >
-            <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-create-folder-sheet proto-shared-manage-sheet">
-              {content}
-            </div>
-          </ProtoPopoverShell>,
+          <>
+            <ProtoDialogBackdrop
+              exiting={exiting}
+              onDismiss={() => onOpenChange(false)}
+              aria-label="Close manage space dialog"
+            />
+            <ProtoPopoverShell
+              ref={cardRef}
+              role="dialog"
+              aria-label={`People in ${spaceTitle}`}
+              className={portaledDialogShellClassName(
+                'proto-connect-note-popover proto-create-folder-popover',
+                exiting,
+              )}
+              style={{ position: 'fixed', top: position?.top ?? -9999, left: position?.left ?? -9999, zIndex: 6000 }}
+            >
+              <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-create-folder-sheet proto-shared-manage-sheet">
+                {content}
+              </div>
+            </ProtoPopoverShell>
+          </>,
           document.body,
         )}
         {confirmDialogs}
       </>
     );
+  }
+
+  if (!open) {
+    return confirmDialogs;
   }
 
   return (

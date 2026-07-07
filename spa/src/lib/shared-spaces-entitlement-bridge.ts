@@ -4,8 +4,8 @@ import {
   type SharedSpacesEntitlementSyncedDetail,
 } from '@/utils/sync-shared-spaces-billing';
 import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
+import { OWNED_SHARED_SPACES_ADDON_LIMIT } from '@/lib/shared-spaces-limits';
 
-const OWNED_SHARED_SPACES_ADDON_LIMIT = 30;
 const FREE_OWNED_SHARED_SPACES_LIMIT = 0;
 
 type SubscriptionStatusResponse = {

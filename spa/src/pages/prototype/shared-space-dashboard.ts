@@ -205,6 +205,6 @@ export function buildSharedSpaceNoteCardSlots(input: {
 
 /** Header people row — solo owner space vs multi-member. */
 export function sharedSpacePeopleHeaderLabel(peopleCount: number): string {
-  if (peopleCount === 1) return 'Just you right now';
+  if (peopleCount === 1) return 'Just you';
   return `${peopleCount} people`;
 }

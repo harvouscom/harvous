@@ -42,6 +42,16 @@
   transition: opacity 0.22s ease;
 }
 
+.upgrade-hero-bg--placeholder {
+  opacity: 1;
+  z-index: 0;
+  transition: none;
+}
+
+.upgrade-hero-bg--image {
+  z-index: 1;
+}
+
 .upgrade-hero-bg--ready {
   opacity: 1;
 }

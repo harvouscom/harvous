@@ -291,16 +291,28 @@ test.describe('Shared Spaces UI screenshot tour', () => {
     await pageA.getByRole('button', { name: 'Cancel' }).click();
   });
 
-  test('20 — Delete space confirm dialog (User A)', async ({ userAContext }) => {
+  test('20 — Delete space redirects to My Home (User A)', async ({ userAContext }) => {
     const page = await userAContext.newPage();
     await waitForAppShell(page);
     await selectSpaceInSwitcher(page, spaceTitle);
     await openPeopleSheet(page);
     await openManageSubView(page, 'Space settings');
     await page.getByRole('button', { name: 'Delete space' }).click();
-    await expect(page.getByRole('dialog', { name: /delete/i })).toBeVisible();
+    const confirmDialog = page.getByRole('dialog', { name: /delete/i });
+    await expect(confirmDialog).toBeVisible();
     await snap(page, 'confirm-delete-space-dialog', { fullPage: false });
-    await page.getByRole('button', { name: 'Keep' }).click();
+    const deleteResponse = page.waitForResponse(
+      (r) => r.url().includes('/api/spaces/delete') && r.ok(),
+      { timeout: 15_000 },
+    );
+    await confirmDialog.getByRole('button', { name: 'Delete' }).click();
+    await deleteResponse;
+    await page.waitForURL((url) => url.pathname === '/', { timeout: 15_000 });
+    await expect(page.getByRole('dialog', { name: /people in/i })).toBeHidden({ timeout: 5_000 });
+    await openSpaceSwitcherMenu(page);
+    await expect(page.getByRole('menuitemradio', { name: spaceTitle })).toHaveCount(0);
+    await expect(page.getByRole('menuitemradio', { name: 'My Home' })).toBeVisible();
+    spaceId = '';
   });
 
   test('21 — Cleanup test space (User A)', async ({ userAContext, userBContext }) => {

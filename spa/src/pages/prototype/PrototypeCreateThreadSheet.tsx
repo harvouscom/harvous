@@ -5,7 +5,9 @@ import { useConnectNote } from '../../hooks/mutations/useConnectNote';
 import { useUpdateStudyThreadTitle } from '../../hooks/mutations/useUpdateStudyThreadTitle';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
+import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { PrototypeAddNotesPicker } from './PrototypeAddNotesSheet';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -32,6 +34,7 @@ export default function PrototypeCreateThreadSheet({
   initialThreadName,
 }: PrototypeCreateThreadSheetProps) {
   const { isMobileSidebar } = useProtoShell();
+  const { mounted, exiting } = useProtoOverlayMotion(open);
   const connectNote = useConnectNote();
   const updateTitle = useUpdateStudyThreadTitle();
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -57,7 +60,8 @@ export default function PrototypeCreateThreadSheet({
 
   const shouldUseSheetPresentation =
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
-  const shouldUsePopover = open && !shouldUseSheetPresentation;
+  const usePopoverPresentation = !shouldUseSheetPresentation;
+  const showPopoverPortal = usePopoverPresentation && mounted;
 
   const handleSubmit = async () => {
     const title = threadName.trim();
@@ -88,7 +92,7 @@ export default function PrototypeCreateThreadSheet({
   };
 
   useLayoutEffect(() => {
-    if (!shouldUsePopover) return;
+    if (!showPopoverPortal) return;
     const cardHeight = cardRef.current?.getBoundingClientRect().height ?? 480;
     const cardWidth = cardRef.current?.getBoundingClientRect().width ?? 360;
     const viewportMargin = 12;
@@ -98,9 +102,9 @@ export default function PrototypeCreateThreadSheet({
       left: Math.max(viewportMargin, (vw - cardWidth) / 2),
       top: Math.max(viewportMargin, Math.min(vh - cardHeight - viewportMargin, vh * 0.12)),
     });
-  }, [shouldUsePopover, selectedIds.length, threadName]);
+  }, [showPopoverPortal, selectedIds.length, threadName]);
 
-  useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover);
+  useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation);
 
   const content = (
     <>
@@ -171,27 +175,37 @@ export default function PrototypeCreateThreadSheet({
     </>
   );
 
-  if (!open) return null;
-
-  if (shouldUsePopover && typeof document !== 'undefined') {
+  if (showPopoverPortal && typeof document !== 'undefined') {
     return createPortal(
-      <ProtoPopoverShell
-        ref={cardRef}
-        role="dialog"
-        aria-label="New thread"
-        className="proto-connect-note-popover proto-create-thread-popover"
-        style={{
-          position: 'fixed',
-          top: position?.top ?? -9999,
-          left: position?.left ?? -9999,
-          zIndex: 6000,
-        }}
-      >
-        <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-create-thread-sheet">{content}</div>
-      </ProtoPopoverShell>,
+      <>
+        <ProtoDialogBackdrop
+          exiting={exiting}
+          onDismiss={() => onOpenChange(false)}
+          aria-label="Close new thread dialog"
+        />
+        <ProtoPopoverShell
+          ref={cardRef}
+          role="dialog"
+          aria-label="New thread"
+          className={portaledDialogShellClassName(
+            'proto-connect-note-popover proto-create-thread-popover',
+            exiting,
+          )}
+          style={{
+            position: 'fixed',
+            top: position?.top ?? -9999,
+            left: position?.left ?? -9999,
+            zIndex: 6000,
+          }}
+        >
+          <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-create-thread-sheet">{content}</div>
+        </ProtoPopoverShell>
+      </>,
       document.body,
     );
   }
+
+  if (!open) return null;
 
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange}>

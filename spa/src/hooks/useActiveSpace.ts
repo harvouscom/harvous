@@ -52,6 +52,29 @@ export function resolveSharedSpaceTitle(
   return null;
 }
 
+/** Toolbar chrome only after nav confirms a shared space — avoids stale optimistic flash. */
+export function resolveSpaceSwitcherToolbarState(options: {
+  space: NavSpace | null;
+  spaceTitle: string | null;
+  hasHome: boolean;
+}): {
+  showSharedSpaceToolbar: boolean;
+  label: string | null;
+  triggerTitle: string;
+} {
+  const showSharedSpaceToolbar = Boolean(options.space);
+  const label = showSharedSpaceToolbar
+    ? options.spaceTitle?.trim() || options.space?.title?.trim() || null
+    : null;
+  const triggerTitle =
+    showSharedSpaceToolbar && label
+      ? label
+      : options.hasHome
+        ? 'My Home'
+        : 'No My Home yet — finish setup in the classic app';
+  return { showSharedSpaceToolbar, label, triggerTitle };
+}
+
 /**
  * The space the prototype shell is currently showing: the selected shared/public
  * space if one is active and still valid, otherwise the personal My Home space.

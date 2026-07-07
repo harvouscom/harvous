@@ -112,7 +112,7 @@ export default function SharedSpaceSocialGreeting({
   } else if (intro.ownRecentCount >= 2) {
     body = (
       <>
-        You&apos;ve been adding to {notesChip} here lately.
+        You&apos;ve been adding {notesChip} here lately.
       </>
     );
   } else if (intro.totalNoteCount > 0) {

@@ -107,7 +107,7 @@ export default function PublicJoinSpaceLetter({
           >
             <Icon name="user-group" size={22} />
           </span>
-          <h1 className="public-join-letter-about__title">{space.title}</h1>
+          <h1 className="public-addon-letter__title">{space.title}</h1>
         </div>
         {description ? <p className="public-join-letter-about__description">{description}</p> : null}
       </div>

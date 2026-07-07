@@ -5,7 +5,9 @@ import { useCreateFolderRegistryLabel } from '../../hooks/mutations/usePrototype
 import { useAddNotesToFolder } from '../../hooks/mutations/useAddNotesToFolder';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
+import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { PrototypeAddNotesPicker, resolveSelectedNoteRows } from './PrototypeAddNotesSheet';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -28,6 +30,7 @@ export default function PrototypeCreateFolderSheet({
   onCreated,
 }: PrototypeCreateFolderSheetProps) {
   const { isMobileSidebar } = useProtoShell();
+  const { mounted, exiting } = useProtoOverlayMotion(open);
   const createFolder = useCreateFolderRegistryLabel();
   const addNotes = useAddNotesToFolder();
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -49,7 +52,8 @@ export default function PrototypeCreateFolderSheet({
 
   const shouldUseSheetPresentation =
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
-  const shouldUsePopover = open && !shouldUseSheetPresentation;
+  const usePopoverPresentation = !shouldUseSheetPresentation;
+  const showPopoverPortal = usePopoverPresentation && mounted;
 
   const handleSubmit = async () => {
     const name = folderName.trim();
@@ -76,7 +80,7 @@ export default function PrototypeCreateFolderSheet({
   };
 
   useLayoutEffect(() => {
-    if (!shouldUsePopover) return;
+    if (!showPopoverPortal) return;
     const cardHeight = cardRef.current?.getBoundingClientRect().height ?? 480;
     const cardWidth = cardRef.current?.getBoundingClientRect().width ?? 360;
     const viewportMargin = 12;
@@ -86,9 +90,9 @@ export default function PrototypeCreateFolderSheet({
       left: Math.max(viewportMargin, (vw - cardWidth) / 2),
       top: Math.max(viewportMargin, Math.min(vh - cardHeight - viewportMargin, vh * 0.12)),
     });
-  }, [shouldUsePopover, selectedIds.length, folderName]);
+  }, [showPopoverPortal, selectedIds.length, folderName]);
 
-  useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover);
+  useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation);
 
   const content = (
     <>
@@ -157,27 +161,37 @@ export default function PrototypeCreateFolderSheet({
     </>
   );
 
-  if (!open) return null;
-
-  if (shouldUsePopover && typeof document !== 'undefined') {
+  if (showPopoverPortal && typeof document !== 'undefined') {
     return createPortal(
-      <ProtoPopoverShell
-        ref={cardRef}
-        role="dialog"
-        aria-label="New folder"
-        className="proto-connect-note-popover proto-create-folder-popover"
-        style={{
-          position: 'fixed',
-          top: position?.top ?? -9999,
-          left: position?.left ?? -9999,
-          zIndex: 6000,
-        }}
-      >
-        <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-create-folder-sheet">{content}</div>
-      </ProtoPopoverShell>,
+      <>
+        <ProtoDialogBackdrop
+          exiting={exiting}
+          onDismiss={() => onOpenChange(false)}
+          aria-label="Close new folder dialog"
+        />
+        <ProtoPopoverShell
+          ref={cardRef}
+          role="dialog"
+          aria-label="New folder"
+          className={portaledDialogShellClassName(
+            'proto-connect-note-popover proto-create-folder-popover',
+            exiting,
+          )}
+          style={{
+            position: 'fixed',
+            top: position?.top ?? -9999,
+            left: position?.left ?? -9999,
+            zIndex: 6000,
+          }}
+        >
+          <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-create-folder-sheet">{content}</div>
+        </ProtoPopoverShell>
+      </>,
       document.body,
     );
   }
+
+  if (!open) return null;
 
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange}>

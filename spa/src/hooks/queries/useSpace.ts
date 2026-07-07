@@ -278,7 +278,7 @@ export interface SpaceMembersResponse {
   members: SpaceMemberRow[];
   memberCount: number;
   isOwner: boolean;
-  limits?: { membersPerSpace: number; ownedSharedSpaces: number | null };
+  limits?: { membersPerSpace: number; ownedSharedSpaces: number };
 }
 
 export function useSpaceMembers(spaceId: string) {

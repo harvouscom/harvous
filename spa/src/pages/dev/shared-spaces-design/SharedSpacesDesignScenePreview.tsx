@@ -17,8 +17,11 @@ import ProtoHouseIcon from '../../prototype/ProtoHouseIcon';
 import ProtoSpaceMenuIcon from '../../prototype/ProtoSpaceMenuIcon';
 import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from '../../prototype/settings/SettingsShell';
 import PrototypeSpaceSettingsSection from '../../prototype/PrototypeSpaceSettingsSection';
+import SharedSpaceInviteExpiryPicker from '../../prototype/SharedSpaceInviteExpiryPicker';
+import type { InviteExpiryPreset } from '../../../lib/shared-space-invite-expiry';
 import { PROTO_TOOLBAR_ICON_SIZE } from '../../prototype/proto-toolbar-tokens';
-import { SPACE_COVER_PICKER_COLORS, spacePickerSwatchColor, spaceIconAccentHex, avatarGlyphColorForAccent } from '@/utils/space-cover';
+import { SPACE_COVER_PICKER_COLORS, spacePickerSwatchColor, spaceIconAccentHex, avatarGlyphColorForAccent, spaceCoverFromThreadColor } from '@/utils/space-cover';
+import { imagePresetById, imagePresetUrl } from '../../../lib/prototype-background';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../../lib/prototype-background';
 import SharedSpaceDashboardFixtureView from './SharedSpaceDashboardFixtureView';
 import {
@@ -91,10 +94,10 @@ function SettingsAddonsScene({ active }: { active: boolean }) {
       <SettingsGroup>
         <SettingsRow
           label="Shared Spaces"
-          sublabel="Shared notes for group study."
+          sublabel="Host spaces for group study. Free to join."
           leadingIcon="user-group"
           leadingAccent="var(--pds-highlight-coral-rose)"
-          badge={active ? 'Active' : undefined}
+          badge={active ? 'Active' : 'In 1 space'}
           onClick={() => {}}
         />
         <SettingsRow
@@ -257,6 +260,9 @@ function PeopleSheetScene() {
   const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
   // Interactive so the gallery exercises the real hub → sub-view navigation.
   const [view, setView] = useState<'hub' | 'people' | 'invites' | 'details'>('hub');
+  const [inviteExpiryPreset, setInviteExpiryPreset] = useState<InviteExpiryPreset>('30d');
+  const [inviteCustomDate, setInviteCustomDate] = useState('');
+  const [isCreatingInvite, setIsCreatingInvite] = useState(false);
   const memberAvatarStyle = (color?: string | null): React.CSSProperties => {
     const bg = spaceIconAccentHex(color || 'blue', colorScheme);
     return { background: bg, color: avatarGlyphColorForAccent(bg, colorScheme) ?? undefined };
@@ -372,15 +378,42 @@ function PeopleSheetScene() {
                   <div className="proto-share-popover__actions">
                     <span className="proto-shared-invite__expiry">Expires Aug 12</span>
                     <button type="button" className="proto-share-popover__link-action proto-share-popover__link-action--danger">
-                      Revoke link
+                      Turn off link
                     </button>
                   </div>
                 </div>
-                <div className="proto-add-notes-sheet__footer">
-                  <button type="button" className="proto-share-popover__primary">
-                    New invite link
-                  </button>
-                </div>
+                {isCreatingInvite ? (
+                  <div className="proto-shared-invite-create">
+                    <SharedSpaceInviteExpiryPicker
+                      preset={inviteExpiryPreset}
+                      customDate={inviteCustomDate}
+                      onPresetChange={setInviteExpiryPreset}
+                      onCustomDateChange={setInviteCustomDate}
+                    />
+                    <div className="proto-space-switcher__create-actions">
+                      <button
+                        type="button"
+                        className="proto-settings-btn proto-settings-btn--secondary"
+                        onClick={() => setIsCreatingInvite(false)}
+                      >
+                        Cancel
+                      </button>
+                      <button type="button" className="proto-settings-btn">
+                        Create link
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="proto-add-notes-sheet__footer">
+                    <button
+                      type="button"
+                      className="proto-share-popover__primary"
+                      onClick={() => setIsCreatingInvite(true)}
+                    >
+                      New invite link
+                    </button>
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -421,6 +454,74 @@ const JOIN_FIXTURE_SPACE = {
   ],
   notes: [{ id: 'note_fixture', title: 'Romans 8 — Spirit vs flesh', noteType: 'note' as const }],
 };
+
+function JoinCoverColorsScene() {
+  const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
+
+  return (
+    <div className="public-page" style={{ minHeight: 'auto', padding: '24px 16px' }}>
+      <p className="pds-caption" style={{ marginBottom: 16, textAlign: 'center', color: 'var(--pds-text-secondary)' }}>
+        Join hero backgrounds for each space picker color ({colorScheme} mode)
+      </p>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 16,
+          maxWidth: 1100,
+          margin: '0 auto',
+        }}
+      >
+        {SPACE_COVER_PICKER_COLORS.map((color) => {
+          const cover = spaceCoverFromThreadColor(color);
+          const modeCover = colorScheme === 'dark' ? cover.dark : cover.light;
+          const presetId = modeCover?.kind === 'image-preset' ? modeCover.presetId : null;
+          const preset = presetId ? imagePresetById(presetId) : null;
+          const imageUrl = preset ? imagePresetUrl(preset) : null;
+          const swatch = spacePickerSwatchColor(color, colorScheme);
+
+          return (
+            <div
+              key={color}
+              style={{
+                borderRadius: 12,
+                overflow: 'hidden',
+                border: '0.5px solid var(--pds-border)',
+                background: 'var(--site-paper)',
+              }}
+            >
+              <div
+                style={{
+                  position: 'relative',
+                  height: 120,
+                  background: swatch,
+                  backgroundImage: imageUrl ? `url("${imageUrl}")` : undefined,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px' }}>
+                <span
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 6,
+                    background: spaceIconAccentHex(color, colorScheme),
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>{color}</span>
+                {presetId ? (
+                  <span style={{ fontSize: 11, opacity: 0.55, marginLeft: 'auto' }}>{presetId}</span>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function JoinPageScene({ signedIn, alreadyMember }: { signedIn?: boolean; alreadyMember?: boolean }) {
   const fixtureSpace = {
@@ -496,7 +597,7 @@ function ConfirmScene({ label }: { label: string }) {
       {rect ? (
         <ProtoConfirmDialog
           anchorRect={rect}
-          confirmLabel={label.includes('Delete') ? 'Delete' : label.includes('Leave') ? 'Leave' : 'Revoke'}
+          confirmLabel={label.includes('Delete') ? 'Delete' : label.includes('Leave') ? 'Leave' : 'Turn off'}
           onConfirm={() => {}}
           onCancel={() => {}}
         />
@@ -541,7 +642,7 @@ export default function SharedSpacesDesignScenePreview({ scene }: { scene: Share
     case '14-copy-menu':
       return <CopyMenuScene />;
     case '15-revoke-confirm':
-      return <ConfirmScene label="Revoke invite link?" />;
+      return <ConfirmScene label="Turn off invite link?" />;
     case '16-leave-confirm':
       return <ConfirmScene label="Leave this space?" />;
     case '17-delete-confirm':
@@ -558,6 +659,8 @@ export default function SharedSpacesDesignScenePreview({ scene }: { scene: Share
           <SharedSpaceDashboardFixtureView fixture={SHARED_SPACE_DASHBOARD_FIXTURE_SOCIAL} showFixtureBanner />
         </ProtoChrome>
       );
+    case '20-join-cover-colors':
+      return <JoinCoverColorsScene />;
     default:
       return null;
   }

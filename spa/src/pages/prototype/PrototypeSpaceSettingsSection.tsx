@@ -83,7 +83,7 @@ export default function PrototypeSpaceSettingsSection({
           value={description}
           maxLength={500}
           rows={2}
-          placeholder="Optional — shown on the join page"
+          placeholder="Optional — what this space is about"
           onChange={(e) => setDescription(e.target.value)}
           style={{ resize: 'vertical', minHeight: 52 }}
         />

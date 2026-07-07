@@ -35,9 +35,9 @@ Canonical business rules below match [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPAC
 | Dimension | Free (no Shared Spaces add-on) | Shared Spaces add-on |
 |-----------|----------------------------------|-----------------------------------------------------|
 | **Named private spaces** | No dedicated cap in product rules (subject to reasonable abuse safeguards later if needed). | Same |
-| **Owned shared spaces** | **0** — owning any shared space requires the add-on | **Unlimited** |
+| **Owned shared spaces** | **0** — owning any shared space requires the add-on | **10** |
 | **Spaces you can join** | **Unlimited** memberships, always free | **Unlimited** |
-| **Members per owned space** | **150** (soft UX; not marketed as a headline number) | **150** |
+| **Members per owned space** | **30** (soft UX; not marketed as a headline number) | **30** |
 
 **Definition — “owned shared space”:** A space where `Spaces.userId` is you and `Spaces.type === 'shared'`. See `getSharedSpacesOwnedCount` in [server/utils/tier-limits.ts](../../server/utils/tier-limits.ts).
 

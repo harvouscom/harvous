@@ -1,14 +1,12 @@
 /**
  * Read-only join-letter card + named member roster for the shared space about dialog.
  */
-import { useSyncExternalStore } from 'react';
 import { useAuth } from '@clerk/clerk-react';
-import { spaceIconAccentHex, avatarGlyphColorForAccent } from '@/utils/space-cover';
-import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import type { SpaceMemberRow } from '../../hooks/queries/useSpace';
 import type { PublicJoinSpaceLetterSpace } from '../public/PublicJoinSpaceLetter';
 import PublicJoinSpaceLetter from '../public/PublicJoinSpaceLetter';
 import { sortMembersForAboutRoster } from '../../lib/shared-space-about';
+import SharedSpaceMemberAvatar from './SharedSpaceMemberAvatar';
 
 export interface SharedSpaceAboutLetterProps {
   space: PublicJoinSpaceLetterSpace;
@@ -17,13 +15,7 @@ export interface SharedSpaceAboutLetterProps {
 
 export default function SharedSpaceAboutLetter({ space, members }: SharedSpaceAboutLetterProps) {
   const { userId: authUserId } = useAuth();
-  const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
   const roster = sortMembersForAboutRoster(members);
-
-  const memberAvatarStyle = (color?: string | null): React.CSSProperties => {
-    const bg = spaceIconAccentHex(color || 'blue', colorScheme);
-    return { background: bg, color: avatarGlyphColorForAccent(bg, colorScheme) ?? undefined };
-  };
 
   return (
     <div className="proto-shared-space-about__letter">
@@ -33,17 +25,13 @@ export default function SharedSpaceAboutLetter({ space, members }: SharedSpaceAb
           <div className="proto-shared-space-about__members-list">
             {roster.map((member) => (
               <div key={member.userId} className="proto-shared-people-row proto-shared-people-row--compact">
-                {member.profileImageUrl ? (
-                  <span
-                    className="proto-shared-people-row__avatar proto-shared-people-row__avatar--photo"
-                    aria-hidden
-                    style={{ backgroundImage: `url(${member.profileImageUrl})` }}
-                  />
-                ) : (
-                  <span className="proto-shared-people-row__avatar" aria-hidden style={memberAvatarStyle(member.userColor)}>
-                    {(member.firstName || member.displayName || '?').charAt(0).toUpperCase()}
-                  </span>
-                )}
+                <SharedSpaceMemberAvatar
+                  userId={member.userId}
+                  firstName={member.firstName}
+                  displayName={member.displayName}
+                  userColor={member.userColor}
+                  profileImageUrl={member.profileImageUrl}
+                />
                 <span className="proto-shared-people-row__name">{member.displayName}</span>
                 {member.userId === authUserId ? <span className="proto-shared-people-row__tag">You</span> : null}
                 {member.role === 'owner' ? (

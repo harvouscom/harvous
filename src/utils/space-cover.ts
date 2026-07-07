@@ -134,26 +134,25 @@ export const THREAD_TO_APPEARANCE_COLOR_ID: Record<SpaceCoverPickerColor, string
 };
 
 /**
- * Appearance color → paired imagery preset id (by preset id, not carousel index).
- * Note: lilac ↔ aurora and cream ↔ drift are intentionally cross-paired — the
- * cooler blue-tinted "aurora" sky reads as purple, and the golden "drift" valley
- * matches yellow better than the index-aligned default would.
+ * Appearance color → paired imagery preset id.
+ * Dark presets are index-aligned with light presets in appearance-image-presets.json
+ * (breeze↔cinder, drift↔caldera, meadow↔depths, dawn↔flare, halo↔twilight, aurora↔ember).
  */
 export const APPEARANCE_COLOR_TO_LIGHT_IMAGE_ID: Record<string, string> = {
   sky: 'breeze',
   lilac: 'aurora',
-  peach: 'meadow',
-  mint: 'dawn',
-  pink: 'halo',
+  peach: 'drift',
+  mint: 'meadow',
+  pink: 'dawn',
   cream: 'drift',
 };
 
 export const APPEARANCE_COLOR_TO_DARK_IMAGE_ID: Record<string, string> = {
   sky: 'cinder',
-  lilac: 'caldera',
-  peach: 'depths',
-  mint: 'flare',
-  pink: 'twilight',
+  lilac: 'ember',
+  peach: 'caldera',
+  mint: 'depths',
+  pink: 'flare',
   cream: 'ember',
 };
 

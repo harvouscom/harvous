@@ -134,9 +134,17 @@
       'html.' +
       PROTO_ROUTE_CLASS +
       '.' +
+      WALLPAPER_COLOR_CLASS +
+      ' #root::before,html.' +
+      PROTO_ROUTE_CLASS +
+      '.' +
       WALLPAPER_IMAGE_CLASS +
       ' #root::before{display:none}' +
       'html.' +
+      PROTO_ROUTE_CLASS +
+      '.' +
+      WALLPAPER_COLOR_CLASS +
+      ' #root,html.' +
       PROTO_ROUTE_CLASS +
       '.' +
       WALLPAPER_IMAGE_CLASS +
@@ -197,11 +205,23 @@
     }
   }
 
+  function hasPerModeBackgroundStorage() {
+    try {
+      return (
+        localStorage.getItem(PROTO_BG_LIGHT_KEY) !== null ||
+        localStorage.getItem(PROTO_BG_DARK_KEY) !== null
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
   function readBackground() {
     try {
       var modeKey = isDarkAppearance() ? PROTO_BG_DARK_KEY : PROTO_BG_LIGHT_KEY;
       var raw = localStorage.getItem(modeKey);
       if (raw !== null) return parseBg(raw);
+      if (hasPerModeBackgroundStorage()) return null;
       return parseBg(localStorage.getItem(PROTO_BG_KEY));
     } catch (e) {
       return null;

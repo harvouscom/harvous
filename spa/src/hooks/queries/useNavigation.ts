@@ -106,6 +106,26 @@ export function appendOwnedSpaceToNavCache(
   if (updated) writeCachedNav(updated);
 }
 
+/** Remove a deleted owned space from navigation cache before refetch completes. */
+export function removeOwnedSpaceFromNavCache(
+  queryClient: QueryClient,
+  userId: string,
+  spaceId: string,
+): void {
+  const key = getNavigationQueryKey(userId);
+  const normalizedId = spaceId.startsWith('space_') ? spaceId : `space_${spaceId}`;
+
+  queryClient.setQueryData<NavigationData>(key, (old) => {
+    if (!old) return old;
+    const spaces = old.spaces.filter((s) => s.id !== normalizedId && s.id !== spaceId);
+    if (spaces.length === old.spaces.length) return old;
+    return { ...old, spaces };
+  });
+
+  const updated = queryClient.getQueryData<NavigationData>(key);
+  if (updated) writeCachedNav(updated);
+}
+
 export function useNavigation(options?: { enabled?: boolean }) {
   const { userId, isLoaded, isSignedIn } = useAuth();
   const sessionHint = hasClerkSessionCookieHint();

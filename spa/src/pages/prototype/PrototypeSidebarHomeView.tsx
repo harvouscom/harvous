@@ -7,7 +7,7 @@
  * Copy follows docs/BRAND_VOICE.md — friend-over-coffee, no hype, no em dashes.
  */
 import { useUser } from '@clerk/clerk-react';
-import { useCallback, useMemo, useRef, useState, Fragment } from 'react';
+import { useCallback, useMemo, useState, Fragment } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
@@ -101,6 +101,7 @@ import { stabilityById, mergeStabilityMaps } from './proto-recall-stability';
 import { activeCooldownIds, recordRecallSnoozed, recentRecallSectionCounts } from './proto-recall-cooldown';
 import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeRecallCarousel';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
 import { useCrossRefGaps } from '../../hooks/queries/useCrossRefGaps';
 import { findMostRecentNoteForScriptureReference } from '@/utils/scripture-passage-drill';
@@ -606,10 +607,7 @@ export default function PrototypeSidebarHomeView({
     votdSettled,
   });
 
-  const shouldAnimateRef = useRef(false);
-  if (contentReady && !shouldAnimateRef.current) {
-    shouldAnimateRef.current = true;
-  }
+  const homeViewClassName = useProtoHomeViewClassName(contentReady);
 
   const tags = tagsQuery.data?.tags ?? [];
   const threads = threadsQuery.data ?? [];
@@ -1440,7 +1438,7 @@ export default function PrototypeSidebarHomeView({
   };
 
   return (
-    <div className={`proto-home-view${shouldAnimateRef.current ? ' proto-home-view--enter' : ''}`}>
+    <div className={homeViewClassName}>
       <div className="proto-home-section">
         <HomeGreeting
           notes={notes}

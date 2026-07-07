@@ -1,10 +1,8 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
-import { resolveJoinHeroBackground, resolveJoinHeroImageUrl } from '../../lib/space-cover-display';
+import { resolveJoinHeroImageUrl, resolveJoinHeroPlaceholder } from '../../lib/space-cover-display';
 import { loadAuthHeroImage } from '../../utils/random-hero-image';
 import type { SpaceCoverAppearance } from '@/utils/space-cover';
-
-const JOIN_HERO_FALLBACK = '/images/auth-hero/ai_bg_045.webp';
 
 export type PublicJoinSpaceHeroSpace = {
   color?: string;
@@ -14,33 +12,52 @@ export type PublicJoinSpaceHeroSpace = {
 
 export default function PublicJoinSpaceHero({ space }: { space: PublicJoinSpaceHeroSpace | null }) {
   const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
-  const [isReady, setIsReady] = useState(false);
+  const [readyUrl, setReadyUrl] = useState<string | null>(null);
 
   const heroImageUrl = space ? resolveJoinHeroImageUrl(space, colorScheme) : null;
-  const heroStyle = space ? resolveJoinHeroBackground(space, colorScheme) : { backgroundImage: `url("${JOIN_HERO_FALLBACK}")` };
+  const placeholderStyle = resolveJoinHeroPlaceholder(space, colorScheme);
+  const imageReady = heroImageUrl !== null && readyUrl === heroImageUrl;
 
   useEffect(() => {
-    let cancelled = false;
-    setIsReady(false);
-    const preloadUrl = heroImageUrl ?? (space ? null : JOIN_HERO_FALLBACK);
-    if (!preloadUrl) {
-      setIsReady(true);
+    if (!heroImageUrl) {
+      setReadyUrl(null);
       return undefined;
     }
-    loadAuthHeroImage(preloadUrl)
-      .then(() => !cancelled && setIsReady(true))
-      .catch(() => !cancelled && setIsReady(true));
+
+    let cancelled = false;
+    setReadyUrl(null);
+    loadAuthHeroImage(heroImageUrl)
+      .then(() => {
+        if (!cancelled) setReadyUrl(heroImageUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setReadyUrl(heroImageUrl);
+      });
+
     return () => {
       cancelled = true;
     };
-  }, [heroImageUrl, space, colorScheme]);
+  }, [heroImageUrl, colorScheme]);
+
+  const imageStyle: CSSProperties | undefined = imageReady
+    ? {
+        backgroundImage: `url("${heroImageUrl}")`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }
+    : undefined;
 
   return (
     <div className="upgrade-hero-section" aria-hidden>
-      <div
-        className={`upgrade-hero-bg${isReady ? ' upgrade-hero-bg--ready' : ''}`}
-        style={isReady ? heroStyle : undefined}
-      />
+      <div className="upgrade-hero-bg upgrade-hero-bg--placeholder" style={placeholderStyle} />
+      {heroImageUrl ? (
+        <div
+          key={heroImageUrl}
+          className={`upgrade-hero-bg upgrade-hero-bg--image${imageReady ? ' upgrade-hero-bg--ready' : ''}`}
+          style={imageStyle}
+        />
+      ) : null}
     </div>
   );
 }

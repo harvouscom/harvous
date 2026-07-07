@@ -20,7 +20,7 @@ own if they want it.
 | **Remember** | Passive resurfacing — nudges, home trend cards, On This Day | Free (deterministic; no runtime AI) |
 | **Review** | Active personal practice — AI quizzes from *your* notes, your pace | **Always paid; individual subscription** |
 | **Compete** | Themed seasons, study guides, leaderboards | Current season **free track**; **Season Pass** for full guide + archive |
-| **Shared Spaces** | Unlimited owned shared spaces (collaboration) | Paid add-on (`UserMetadata.sharedSpacesAddOn`) — supersedes the retired Group Sharing / `unlimited` tier |
+| **Shared Spaces** | Up to **10** owned shared spaces (collaboration) | Paid add-on (`UserMetadata.sharedSpacesAddOn`) — supersedes the retired Group Sharing / `unlimited` tier |
 | **Group Leader** | Host/admin for small groups — spaces, roster, cohort Compete | Paid (future SKU); does **not** include member Review |
 | **Church org** | Curriculum distribution, multiple leaders, admin | Future; pricing TBD — see Section 7 |
 
@@ -45,7 +45,7 @@ Review and Shared Spaces are **separate subscriptions** — no bundle SKU. Users
 - Unlimited notes
 - Remember surfaces (themes, cross-refs, passages on Home, etc.)
 - Join shared spaces (no cap on memberships)
-- **3 owned shared spaces** (enforced in [server/utils/tier-limits.ts](../../server/utils/tier-limits.ts))
+- **0 owned shared spaces** (enforced in [server/utils/tier-limits.ts](../../server/utils/tier-limits.ts))
 - Current Compete season — **free track** (play, basic access)
 - Deterministic practice (connection MCQ, etc. from knowledge layer — no LLM)
 - **No free AI Review** (no monthly AI credits). Optional **one-time trial** on signup flagged as open
@@ -60,9 +60,9 @@ Review and Shared Spaces are **separate subscriptions** — no bundle SKU. Users
 
 ### Shared Spaces (paid add-on)
 
-- Unlimited owned shared spaces (`UserMetadata.sharedSpacesAddOn === true`); joining a shared space is
+- Up to **10** owned shared spaces (`UserMetadata.sharedSpacesAddOn === true`); joining a shared space is
   always free, on every plan.
-- 150 members per space cap (invisible, every plan).
+- **30** people per space cap (invisible, every plan).
 - **Retired July 2026:** the old `Group Sharing` name and the `UserMetadata.tier === 'unlimited'`
   mechanism. Zero subscribers at retirement — no grandfathering. See
   [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md).

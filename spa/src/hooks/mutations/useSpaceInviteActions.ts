@@ -2,6 +2,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import type { SpaceInviteRow } from '../queries/useSpace';
 
+interface CreateInviteBody {
+  expiresAt: string | null;
+}
+
 interface CreateInviteResponse {
   success: boolean;
   inviteId: string;
@@ -16,7 +20,8 @@ export function useCreateSpaceInvite(spaceId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => api.post<CreateInviteResponse>(`/api/spaces/${spaceId}/invites`, {}),
+    mutationFn: (body: CreateInviteBody) =>
+      api.post<CreateInviteResponse>(`/api/spaces/${spaceId}/invites`, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['space', spaceId, 'invites'] });
     },

@@ -81,6 +81,8 @@ import {
   hasSharedSpacesAddOnForUserId,
   syncSharedSpacesAddOnFromClerk,
   MEMBERS_PER_SPACE_CAP,
+  OWNED_SHARED_SPACES_ADDON_LIMIT,
+  FREE_OWNED_SHARED_SPACES_LIMIT,
 } from '../utils/tier-limits';
 import { getThreadGradientCSS } from '@/utils/colors';
 import {
@@ -2038,7 +2040,7 @@ route.get('/api/spaces/invite-preview/:token', async (c) => {
         : 'Anonymous');
 
     const memberCount = await getSpaceMemberCount(space.id);
-    const totalMembers = memberCount + 1; // +1 for owner
+    const totalMembers = memberCount;
 
     // Each avatar reflects that person's own Settings › Appearance color (light + dark),
     // falling back to their personal userColor when appearance is Paper / unset.
@@ -2335,7 +2337,7 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
       isOwner,
       limits: isOwner ? {
         membersPerSpace: MEMBERS_PER_SPACE_CAP,
-        ownedSharedSpaces: ownerHasAddOn ? null : 0,
+        ownedSharedSpaces: ownerHasAddOn ? OWNED_SHARED_SPACES_ADDON_LIMIT : FREE_OWNED_SHARED_SPACES_LIMIT,
       } : undefined,
     });
   } catch (error: any) {

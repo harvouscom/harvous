@@ -1,7 +1,20 @@
 import { useNavigate } from '@tanstack/react-router';
 import SafeSubscriptionDetailsButton from '@/components/react/SafeSubscriptionDetailsButton';
+import { useNavigation } from '../../../hooks/queries/useNavigation';
 import { useSubscriptionStatus } from '../../../hooks/queries/useSubscriptionStatus';
 import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
+
+const SHARED_SPACES_SUBLABEL = 'Host spaces for group study. Free to join.';
+
+/** Badge for Settings > Add-ons Shared Spaces row — host add-on vs. free member. */
+export function resolveSharedSpacesAddonBadge(options: {
+  hasSharedSpaces: boolean;
+  memberOfCount: number;
+}): string | undefined {
+  if (options.hasSharedSpaces) return 'Active';
+  if (options.memberOfCount <= 0) return undefined;
+  return options.memberOfCount === 1 ? 'In 1 space' : `In ${options.memberOfCount} spaces`;
+}
 
 /**
  * Settings > Add-ons — browse paid upgrades. Shared Spaces links to /addon;
@@ -9,8 +22,11 @@ import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './Sett
  */
 export default function PrototypeAddonsPage() {
   const navigate = useNavigate();
+  const { data: nav } = useNavigation();
   const { data: subscription, isLoading } = useSubscriptionStatus();
   const hasSharedSpaces = Boolean(subscription?.hasSharedSpaces);
+  const memberOfCount = nav?.memberOfSpaces?.length ?? 0;
+  const sharedSpacesBadge = resolveSharedSpacesAddonBadge({ hasSharedSpaces, memberOfCount });
   const showLoading = isLoading && !subscription;
 
   return (
@@ -26,10 +42,10 @@ export default function PrototypeAddonsPage() {
       <SettingsGroup>
         <SettingsRow
           label="Shared Spaces"
-          sublabel="Shared notes for group study."
+          sublabel={SHARED_SPACES_SUBLABEL}
           leadingIcon="user-group"
           leadingAccent="var(--pds-highlight-coral-rose)"
-          badge={hasSharedSpaces ? 'Active' : undefined}
+          badge={sharedSpacesBadge}
           onClick={() => navigate({ to: '/addon' })}
         />
         <SettingsRow

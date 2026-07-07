@@ -1,4 +1,5 @@
 import { appearanceAccentForThreadColor } from '@/utils/space-cover';
+import { resolveSpaceMemberProfileImageUrl } from './clerk-profile-image';
 import type { SpaceDetail, SpaceMemberRow } from '../hooks/queries/useSpace';
 import type { PublicJoinSpaceLetterSpace } from '../pages/public/PublicJoinSpaceLetter';
 
@@ -40,7 +41,7 @@ export function mapSpaceToAboutLetterSpace(
     },
     description: space.description ?? undefined,
     ownerDisplayName: owner?.displayName ?? 'Space owner',
-    ownerProfileImageUrl: owner?.profileImageUrl ?? null,
+    ownerProfileImageUrl: resolveSpaceMemberProfileImageUrl(owner?.profileImageUrl),
     ownerAccentLight: ownerAccent.accentLight,
     ownerAccentDark: ownerAccent.accentDark,
     isHarvousOwned: false,

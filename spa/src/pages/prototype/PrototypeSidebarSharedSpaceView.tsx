@@ -29,6 +29,7 @@ import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import PrototypeSpacePeopleSheet from './PrototypeSpacePeopleSheet';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
 import {
   buildSharedSpaceNoteCardSlots,
   buildSharedSpaceSocialIntro,
@@ -277,6 +278,8 @@ function PrototypeSidebarSharedSpaceViewLive() {
     threadsSettled &&
     scriptureSettled;
 
+  const homeViewClassName = useProtoHomeViewClassName(contentReady, activeSpaceId);
+
   if (!contentReady) {
     return (
       <div className="proto-sidebar-root proto-shared-space-dashboard">
@@ -336,7 +339,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
       </div>
 
       <div className="proto-sidebar-scroll">
-        <div className="proto-home-view">
+        <div className={homeViewClassName}>
           {bannerNewCount > 0 ? (
             <div className="proto-home-section">
               <p className="proto-home-greeting">

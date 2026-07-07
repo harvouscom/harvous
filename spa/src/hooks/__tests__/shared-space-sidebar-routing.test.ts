@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { resolveOptimisticSharedSpaceSelection, resolveSharedSpaceTitle } from '../useActiveSpace';
+import {
+  resolveOptimisticSharedSpaceSelection,
+  resolveSharedSpaceTitle,
+  resolveSpaceSwitcherToolbarState,
+} from '../useActiveSpace';
 import { resolvePrototypeSidebarVariant } from '../../layouts/resolve-prototype-sidebar-variant';
 
 describe('resolveOptimisticSharedSpaceSelection', () => {
@@ -64,6 +68,62 @@ describe('resolveSharedSpaceTitle', () => {
         bootstrapTitle: 'Cached title',
       }),
     ).toBe('Cached title');
+  });
+});
+
+describe('resolveSpaceSwitcherToolbarState', () => {
+  it('shows My Home toolbar chrome for optimistic-only shared selection', () => {
+    expect(
+      resolveSpaceSwitcherToolbarState({
+        space: null,
+        spaceTitle: null,
+        hasHome: true,
+      }),
+    ).toEqual({
+      showSharedSpaceToolbar: false,
+      label: null,
+      triggerTitle: 'My Home',
+    });
+  });
+
+  it('shows shared toolbar once nav confirms the space', () => {
+    expect(
+      resolveSpaceSwitcherToolbarState({
+        space: {
+          id: 'space_team',
+          title: 'Team Study',
+          color: null,
+          backgroundGradient: '',
+          ownerId: 'u1',
+          memberCount: 2,
+          type: 'shared',
+        },
+        spaceTitle: 'Team Study',
+        hasHome: true,
+      }),
+    ).toEqual({
+      showSharedSpaceToolbar: true,
+      label: 'Team Study',
+      triggerTitle: 'Team Study',
+    });
+  });
+
+  it('never uses a generic Shared space fallback label', () => {
+    expect(
+      resolveSpaceSwitcherToolbarState({
+        space: {
+          id: 'space_team',
+          title: 'Team Study',
+          color: null,
+          backgroundGradient: '',
+          ownerId: 'u1',
+          memberCount: 2,
+          type: 'shared',
+        },
+        spaceTitle: null,
+        hasHome: true,
+      }).label,
+    ).toBe('Team Study');
   });
 });
 

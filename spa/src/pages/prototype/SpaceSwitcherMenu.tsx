@@ -12,7 +12,7 @@ import Icon from '@/components/react/Icon';
 import ProtoHouseIcon from './ProtoHouseIcon';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { useProtoShell } from '../../layouts/proto-shell-context';
-import { useActiveSpace } from '../../hooks/useActiveSpace';
+import { resolveSpaceSwitcherToolbarState, useActiveSpace } from '../../hooks/useActiveSpace';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import { useNavigation, getNavigationQueryKey } from '../../hooks/queries/useNavigation';
 import { useSubscriptionStatus } from '../../hooks/queries/useSubscriptionStatus';
@@ -37,7 +37,7 @@ function sortSpaces<T extends { title: string }>(spaces: T[]): T[] {
 }
 
 /** Mirror server OWNED_SHARED_SPACES_ADDON_LIMIT — used when API cache is stale (limit still 0). */
-const OWNED_SHARED_SPACES_ADDON_LIMIT = 30;
+const OWNED_SHARED_SPACES_ADDON_LIMIT = 10;
 
 export default function SpaceSwitcherMenu({
   homeSpaceId,
@@ -50,7 +50,7 @@ export default function SpaceSwitcherMenu({
   const queryClient = useQueryClient();
   const { isLoaded, isSignedIn, has, userId } = useAuth();
   const { sidebarLayer, setSidebarLayer, activeSpaceId, setActiveSpaceId, ensureSidebarExpanded } = useProtoShell();
-  const { isSharedSpace, spaceTitle } = useActiveSpace();
+  const { isSharedSpace, space, spaceTitle } = useActiveSpace();
   const showShiftHints = usePrototypeShiftHints();
   const [open, setOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -153,13 +153,12 @@ export default function SpaceSwitcherMenu({
   }
 
   const hasHome = Boolean(normalizedActive);
-  const sharedSpaceLabel = spaceTitle ?? 'Shared space';
-  const triggerTitle = isSharedSpace
-    ? sharedSpaceLabel
-    : hasHome
-      ? 'My Home'
-      : 'No My Home yet — finish setup in the classic app';
-  const triggerIcon = isSharedSpace ? (
+  const { showSharedSpaceToolbar, label: sharedSpaceLabel, triggerTitle } = resolveSpaceSwitcherToolbarState({
+    space,
+    spaceTitle,
+    hasHome,
+  });
+  const triggerIcon = showSharedSpaceToolbar ? (
     <Icon name="user-group" size={PROTO_TOOLBAR_ORB_ICON_SIZE} aria-hidden />
   ) : hasHome ? (
     <ProtoHouseIcon size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
@@ -431,7 +430,7 @@ export default function SpaceSwitcherMenu({
         <button
           ref={triggerRef}
           type="button"
-          className={isSharedSpace ? 'proto-toolbar-space-switcher' : 'proto-toolbar-icon-btn'}
+          className={showSharedSpaceToolbar ? 'proto-toolbar-space-switcher' : 'proto-toolbar-icon-btn'}
           data-active={sidebarLayer === 'space'}
           title={triggerTitle}
           aria-label={triggerTitle}
@@ -450,12 +449,14 @@ export default function SpaceSwitcherMenu({
             setOpen((x) => !x);
           }}
         >
-          {isSharedSpace ? (
+          {showSharedSpaceToolbar ? (
             <>
               <span className="proto-toolbar-space-switcher__icon" aria-hidden>
                 {triggerIcon}
               </span>
-              <span className="proto-toolbar-space-switcher__label">{sharedSpaceLabel}</span>
+              {sharedSpaceLabel ? (
+                <span className="proto-toolbar-space-switcher__label">{sharedSpaceLabel}</span>
+              ) : null}
             </>
           ) : (
             triggerIcon

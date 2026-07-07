@@ -3,6 +3,7 @@ import { toast as sonnerToast } from 'sonner';
 import {
   showPrototypeFeedbackToast,
   type PrototypeFeedbackToastVariant,
+  type ShowPrototypeFeedbackToastOptions,
 } from '@/utils/prototype-feedback-toast';
 import { shouldSuppressAppToasts } from '@/utils/should-suppress-app-toasts';
 
@@ -26,10 +27,15 @@ function ensurePortalExists(callback: () => void, maxRetries = 10, attempt = 0):
 }
 
 // Helper function to safely call Sonner toast
-function safeToast(callback: () => void, type: PrototypeFeedbackToastVariant, message: string) {
+function safeToast(
+  callback: () => void,
+  type: PrototypeFeedbackToastVariant,
+  message: string,
+  prototypeOptions?: ShowPrototypeFeedbackToastOptions,
+) {
   if (shouldSuppressAppToasts()) {
     if (typeof window !== 'undefined' && isPrototypeShellPath(window.location.pathname)) {
-      showPrototypeFeedbackToast(message, type);
+      showPrototypeFeedbackToast(message, type, prototypeOptions);
     }
     return;
   }
@@ -41,6 +47,18 @@ function safeToast(callback: () => void, type: PrototypeFeedbackToastVariant, me
   }
 }
 
+const ERROR_TOAST_PROTOTYPE_OPTIONS: ShowPrototypeFeedbackToastOptions = {
+  persistent: true,
+  action: { label: 'Support' },
+};
+
+function openSupportSettings() {
+  try {
+    sessionStorage.setItem('harvousSkipBeforeUnload', 'support');
+  } catch (_) {}
+  window.location.href = '/settings/support';
+}
+
 // Toast utility functions that can be used from anywhere
 export const toast = {
   success: (message: string) => {
@@ -50,7 +68,21 @@ export const toast = {
   
   error: (message: string) => {
     const cleanedMessage = stripPunctuation(message);
-    safeToast(() => sonnerToast.error(cleanedMessage, { icon: null, duration: 4000 }), 'error', cleanedMessage);
+    safeToast(
+      () =>
+        sonnerToast.error(cleanedMessage, {
+          icon: null,
+          duration: Infinity,
+          className: 'harvous-error-toast',
+          action: {
+            label: 'Support',
+            onClick: openSupportSettings,
+          },
+        }),
+      'error',
+      cleanedMessage,
+      ERROR_TOAST_PROTOTYPE_OPTIONS,
+    );
   },
   
   info: (message: string) => {
@@ -71,7 +103,21 @@ export const toast = {
         safeToast(() => sonnerToast.success(cleanedMessage, { icon: null, duration: 4000 }), 'success', cleanedMessage);
         break;
       case 'error':
-        safeToast(() => sonnerToast.error(cleanedMessage, { icon: null, duration: 4000 }), 'error', cleanedMessage);
+        safeToast(
+          () =>
+            sonnerToast.error(cleanedMessage, {
+              icon: null,
+              duration: Infinity,
+              className: 'harvous-error-toast',
+              action: {
+                label: 'Support',
+                onClick: openSupportSettings,
+              },
+            }),
+          'error',
+          cleanedMessage,
+          ERROR_TOAST_PROTOTYPE_OPTIONS,
+        );
         break;
       case 'info':
         safeToast(() => sonnerToast.info(cleanedMessage, { icon: null, duration: 4000 }), 'info', cleanedMessage);

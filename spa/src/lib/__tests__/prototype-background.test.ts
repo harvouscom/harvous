@@ -192,14 +192,16 @@ describe('per-mode background storage', () => {
   });
 
   it('readActiveBackground returns the correct mode bg', () => {
-    writeBackgroundForMode('light', { kind: 'color', value: '#c2dcf8' });
-    writeBackgroundForMode('dark', { kind: 'color', value: '#152536' });
+    // Use hex values outside `LEGACY_COLOR_HEX_TO_PRESET_ID` so this only exercises mode
+    // selection, not the separate legacy-hex → preset-id normalization on read.
+    writeBackgroundForMode('light', { kind: 'color', value: '#123456' });
+    writeBackgroundForMode('dark', { kind: 'color', value: '#654321' });
 
     applyColorSchemePreference('light');
-    expect(readActiveBackground()).toEqual({ kind: 'color', value: '#c2dcf8' });
+    expect(readActiveBackground()).toEqual({ kind: 'color', value: '#123456' });
 
     applyColorSchemePreference('dark');
-    expect(readActiveBackground()).toEqual({ kind: 'color', value: '#152536' });
+    expect(readActiveBackground()).toEqual({ kind: 'color', value: '#654321' });
   });
 
   it('migrates legacy single-key color to per-mode on read', () => {
@@ -213,6 +215,17 @@ describe('per-mode background storage', () => {
     writeBackgroundForMode('light', null);
     expect(localStorage.getItem(PROTO_BG_LIGHT_KEY)).toBeNull();
     expect(readBackgroundForMode('light')).toBeNull();
+  });
+
+  it('Paper (null light) does not fall back to legacy single-key cream', () => {
+    localStorage.setItem(PROTO_BG_KEY, JSON.stringify({ kind: 'color', value: '#f6ecd6' }));
+    writeBackgroundForMode('dark', imagePresetApplyValue(imagePresetById('night-sky')!));
+    writeBackgroundForMode('light', null);
+
+    expect(localStorage.getItem(PROTO_BG_KEY)).toBeNull();
+    expect(readBackgroundForMode('light')).toBeNull();
+    applyColorSchemePreference('light');
+    expect(readActiveBackground()).toBeNull();
   });
 });
 

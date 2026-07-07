@@ -246,6 +246,12 @@ html.harvous-prototype-route button.proto-thread-review__dismiss--danger * {
   fill: currentColor !important;
 }
 
+html.harvous-prototype-route button.proto-shared-people-row__action--destructive,
+html.harvous-prototype-route button.proto-shared-people-row__action--destructive * {
+  color: var(--pds-destructive) !important;
+  fill: currentColor !important;
+}
+
 /* Delete confirm bar — destructive trash icon stays red */
 html.harvous-prototype-route button.harvous-delete-confirm__icon-btn--destructive,
 html.harvous-prototype-route button.harvous-delete-confirm__icon-btn--destructive *,

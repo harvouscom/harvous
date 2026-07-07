@@ -12,17 +12,17 @@
  * inert `hasUnlimited` field on /api/subscription/status.
  */
 
-import { db, Spaces, SpaceMemberships, UserMetadata, eq, and, ne, count, first } from '../db';
+import { db, Spaces, SpaceMemberships, UserMetadata, eq, and, count, first } from '../db';
 import type { Auth } from '../middleware/types';
 
-/** Invisible people-per-space cap (both entitlements), enforced at invite redeem. */
-export const MEMBERS_PER_SPACE_CAP = 150;
+/** Total people in a space (including owner), enforced at invite redeem. */
+export const MEMBERS_PER_SPACE_CAP = 30;
 
 /** Owned shared spaces without the add-on. */
 export const FREE_OWNED_SHARED_SPACES_LIMIT = 0;
 
 /** Max owned shared spaces with the Shared Spaces add-on. */
-export const OWNED_SHARED_SPACES_ADDON_LIMIT = 30;
+export const OWNED_SHARED_SPACES_ADDON_LIMIT = 10;
 
 const TIER_DB_ONLY = process.env.BILLING_TIER_DB_ONLY === 'true';
 
@@ -176,12 +176,12 @@ export async function getSharedSpacesOwnedCount(userId: string): Promise<number>
   return Number(row?.cnt ?? 0);
 }
 
-/** People in a space (owner row excluded — the cap is about invited members). */
+/** Total people in a space (all SpaceMemberships rows, including owner). */
 export async function getSpaceMemberCount(spaceId: string): Promise<number> {
   const row = first(await db
     .select({ cnt: count() })
     .from(SpaceMemberships)
-    .where(and(eq(SpaceMemberships.spaceId, spaceId), ne(SpaceMemberships.role, 'owner'))));
+    .where(eq(SpaceMemberships.spaceId, spaceId)));
   return Number(row?.cnt ?? 0);
 }
 

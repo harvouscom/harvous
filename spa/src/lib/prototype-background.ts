@@ -356,11 +356,30 @@ function modeKey(mode: 'light' | 'dark'): string {
   return mode === 'dark' ? PROTO_BG_DARK_KEY : PROTO_BG_LIGHT_KEY;
 }
 
+/** True once either per-mode wallpaper key has been written (missing key = Paper). */
+function hasPerModeBackgroundStorage(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    return (
+      localStorage.getItem(PROTO_BG_LIGHT_KEY) !== null ||
+      localStorage.getItem(PROTO_BG_DARK_KEY) !== null
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function readBackgroundForMode(mode: 'light' | 'dark'): ProtoBg {
   if (typeof localStorage === 'undefined') return null;
   try {
     const raw = localStorage.getItem(modeKey(mode));
-    const bg = raw !== null ? parseProtoBg(raw) : migrateLegacyToMode(mode);
+    if (raw !== null) {
+      const bg = parseProtoBg(raw);
+      if (bg?.kind === 'color') return resolveColorPreset(bg, mode);
+      return bg;
+    }
+    if (hasPerModeBackgroundStorage()) return null;
+    const bg = migrateLegacyToMode(mode);
     if (bg?.kind === 'color') return resolveColorPreset(bg, mode);
     return bg;
   } catch {
@@ -392,6 +411,8 @@ function stripHeavyBackgroundForMobile(bg: ProtoBg): ProtoBg {
 
 export function writeBackgroundForMode(mode: 'light' | 'dark', bg: ProtoBg): void {
   try {
+    // Per-mode keys supersede the deprecated single-key storage.
+    localStorage.removeItem(PROTO_BG_KEY);
     const key = modeKey(mode);
     if (bg === null) {
       localStorage.removeItem(key);
@@ -561,6 +582,17 @@ export function clearBackgroundVars(): void {
   root.style.removeProperty('--pds-canvas-bg');
   root.style.removeProperty('--pds-canvas-image');
   root.classList.remove(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS, WALLPAPER_COLOR_CLASS);
+}
+
+/** Remove prototype first-paint boot (wallpaper + shell card) on public routes. */
+export function clearPrototypeRouteBoot(): void {
+  const root = document.documentElement;
+  root.classList.remove(PROTO_ROUTE_CLASS);
+  clearBackgroundVars();
+  root.style.removeProperty('background-color');
+  root.style.removeProperty('background-image');
+  document.body.style.removeProperty('background-color');
+  document.getElementById('root')?.style.removeProperty('background-color');
 }
 
 // ─── Account sync (cross-device) ─────────────────────────────────────────────

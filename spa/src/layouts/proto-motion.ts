@@ -22,6 +22,9 @@ export const PROTO_POPOVER_MOTION_MS = 120;
  * Centered VOTD / migration modals play a scale+fade exit before unmount.
  * The overlay hook keeps each sheet mounted for exactly this long — MUST stay
  * in lockstep with `.proto-votd-sheet--motion` in `prototype-components.css`.
+ *
+ * Desktop portaled dialog scrims (`.proto-dialog-backdrop--motion`) and settings
+ * modal overlay reuse the same 220ms timing.
  */
 export const PROTO_VOTD_SHEET_MOTION_MS = 220;
 

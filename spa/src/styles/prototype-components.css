@@ -3607,6 +3607,10 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   background: var(--pds-overlay-heavy);
 }
 
+.proto-settings-modal-overlay--motion {
+  animation: proto-votd-sheet-overlay-in 220ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+}
+
 .proto-settings-modal {
   position: relative;
   isolation: isolate;
@@ -3620,6 +3624,11 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   background: var(--pds-bg-page);
   box-shadow: var(--pds-shadow-sheet), inset 0 0.5px 0 var(--pds-bg-modal-inset-highlight);
   overflow: hidden;
+}
+
+.proto-settings-modal--motion {
+  transform-origin: center center;
+  animation: proto-votd-sheet-in 220ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
 }
 
 html.harvous-proto-wallpaper-image .proto-settings-modal,
@@ -3846,6 +3855,23 @@ a.proto-copy-row__value:hover {
   gap: 10px;
   padding: 14px 12px;
   min-width: 0;
+}
+
+.proto-sharing-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.proto-sharing-card__header-main {
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+/* Match Settings > Add-ons leading tiles (primary glyph on neutral swatch). */
+.proto-sharing-card .proto-settings-list-row__leading {
+  color: var(--pds-text-primary);
 }
 
 .proto-sharing-card__title {
@@ -5227,7 +5253,13 @@ button.proto-home-greeting__chip--passage {
   .proto-votd-sheet-overlay--motion,
   .proto-votd-sheet-overlay--motion.proto-votd-sheet-overlay--exiting,
   .proto-votd-sheet--motion,
-  .proto-votd-sheet--motion.proto-votd-sheet--exiting {
+  .proto-votd-sheet--motion.proto-votd-sheet--exiting,
+  .proto-dialog-backdrop--motion,
+  .proto-dialog-backdrop--motion.proto-dialog-backdrop--exiting,
+  .proto-portaled-dialog--motion,
+  .proto-portaled-dialog--motion.proto-portaled-dialog--exiting,
+  .proto-settings-modal-overlay--motion,
+  .proto-settings-modal--motion {
     animation: none;
   }
 }
@@ -7555,23 +7587,38 @@ button.proto-appearance-hero__card {
 /* Feedback toasts (copy, migration, shared space) — wrap long copy inside the pill */
 .proto-feedback-toast {
   border-radius: 14px;
-  align-items: flex-start;
+  align-items: center;
   padding-top: 11px;
   padding-bottom: 11px;
+  border: none;
 }
 
 .proto-feedback-toast .proto-update-toast__label {
   white-space: normal;
   line-height: 1.35;
   overflow-wrap: anywhere;
-}
-
-.proto-feedback-toast .proto-update-toast__dismiss {
-  margin-top: -1px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .proto-feedback-toast--error {
-  border-color: color-mix(in srgb, var(--pds-destructive, #c62828) 22%, var(--pds-separator, rgba(0, 0, 0, 0.08)));
+  background: color-mix(in srgb, var(--pds-destructive, #c62828) 6%, var(--pds-bg-popover-solid, #fff));
+  color: var(--pds-destructive, #c62828);
+}
+
+.proto-feedback-toast--error .proto-update-toast__label,
+.proto-feedback-toast--error .proto-feedback-toast__icon {
+  color: var(--pds-destructive, #c62828);
+}
+
+.proto-feedback-toast__icon {
+  flex: 0 0 auto;
+}
+
+.proto-update-toast .proto-side-panel__action-btn {
+  flex: 0 0 auto;
 }
 
 .proto-update-toast__action {
@@ -7598,22 +7645,19 @@ button.proto-appearance-hero__card {
   filter: brightness(0.9);
 }
 
-.proto-update-toast__dismiss {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin-left: -2px;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--pds-text-secondary, #555);
-  cursor: pointer;
-  flex: 0 0 auto;
+.proto-update-toast__action--secondary {
+  background: var(--pds-bg-input);
+  color: var(--pds-text-primary);
+  box-shadow: none;
 }
 
-.proto-update-toast__dismiss:hover {
+.proto-update-toast__action--secondary:hover {
+  filter: none;
+  background: var(--pds-bg-row-hover);
+}
+
+.proto-update-toast__action--secondary:active {
+  filter: none;
   background: var(--pds-fill-secondary, rgba(0, 0, 0, 0.06));
 }
 
@@ -7770,7 +7814,7 @@ button.proto-appearance-hero__card {
   overflow: hidden;
 }
 
-.proto-shared-space-about__backdrop {
+.proto-dialog-backdrop {
   position: fixed;
   inset: 0;
   z-index: 5999;
@@ -7778,8 +7822,26 @@ button.proto-appearance-hero__card {
   border: none;
   margin: 0;
   padding: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--pds-overlay-heavy);
   cursor: default;
+}
+
+/* Desktop portaled dialogs — fade scrim (duration: PROTO_VOTD_SHEET_MOTION_MS). */
+.proto-dialog-backdrop--motion {
+  animation: proto-votd-sheet-overlay-in 220ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+}
+
+.proto-dialog-backdrop--motion.proto-dialog-backdrop--exiting {
+  animation: proto-votd-sheet-overlay-out 220ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+}
+
+.proto-portaled-dialog--motion {
+  transform-origin: center center;
+  animation: proto-votd-sheet-in 220ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+}
+
+.proto-portaled-dialog--motion.proto-portaled-dialog--exiting {
+  animation: proto-votd-sheet-out 220ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
 }
 
 .proto-shared-space-about__scroll {
@@ -7863,13 +7925,9 @@ button.proto-appearance-hero__card {
   z-index: 2;
 }
 
-.public-join-letter-about__title {
-  margin: 0;
-  font-family: var(--pds-font-display);
-  font-size: 1.125rem;
-  font-weight: 600;
-  line-height: 1.25;
+.public-join-letter-about .public-addon-letter__title {
   color: var(--pds-text-primary);
+  text-align: center;
 }
 
 .public-join-letter-about__description {
@@ -7880,6 +7938,8 @@ button.proto-appearance-hero__card {
   font-weight: 400;
   line-height: 1.55;
   color: var(--pds-text-secondary);
+  text-align: center;
+  text-wrap: balance;
 }
 
 .proto-shared-space-about__members {
@@ -7906,6 +7966,42 @@ button.proto-appearance-hero__card {
   text-align: center;
   color: var(--pds-text-secondary);
   font-size: 13px;
+}
+
+.proto-shared-people-capacity {
+  margin: 0 0 10px;
+  color: var(--pds-text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.proto-shared-people-capacity p {
+  margin: 0;
+}
+
+.proto-shared-people-capacity p + p {
+  margin-top: 2px;
+}
+
+.proto-shared-people-capacity__limit {
+  margin: 0;
+}
+
+.proto-shared-people-capacity__support-link {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--pds-accent, #3869e6);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.proto-shared-people-capacity__support-link:hover {
+  text-decoration: underline;
 }
 
 .proto-shared-people-row {
@@ -7953,22 +8049,42 @@ button.proto-appearance-hero__card {
 
 .proto-shared-people-row__action {
   appearance: none;
-  border: none;
-  background: transparent;
-  padding: 4px 8px;
-  border-radius: var(--pds-radius-button, 12px);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--pds-border-control);
+  background: var(--pds-bg-sidebar-input);
+  box-shadow: var(--pds-glass-rim);
+  padding: 3px 10px;
+  min-height: 23px;
+  border-radius: var(--pds-radius-button);
+  font-family: var(--pds-font-body);
   font-size: 12px;
   font-weight: 500;
+  line-height: 1.2;
   cursor: pointer;
-  color: var(--pds-text-secondary);
+  color: var(--pds-text-primary);
+  transition: background 0.1s, border-color 0.1s;
 }
 
-.proto-shared-people-row__action:hover {
-  background: var(--pds-fill-secondary);
+.proto-shared-people-row__action:hover:not(:disabled) {
+  background: var(--pds-bg-sidebar-input-hover);
 }
 
 .proto-shared-people-row__action--destructive {
+  border-color: color-mix(in oklab, var(--pds-destructive) 40%, var(--pds-border-control));
   color: var(--pds-destructive);
+}
+
+.proto-shared-people-row__action--destructive:hover:not(:disabled) {
+  background: var(--pds-destructive-bg);
+  border-color: color-mix(in oklab, var(--pds-destructive) 55%, var(--pds-border-control));
+}
+
+.proto-shared-people-row__action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Manage-space sheet borrows the create-folder chrome, but its scroll is the
@@ -8240,6 +8356,168 @@ button.proto-appearance-hero__card {
   color: var(--pds-text-secondary);
 }
 
+.proto-shared-invite-empty {
+  padding: 4px 0 8px;
+}
+
+.proto-shared-invite-empty .proto-list-empty-state {
+  padding: 16px 12px 12px;
+}
+
+.proto-shared-invite-empty .proto-list-empty-state__icon {
+  opacity: 0.72;
+}
+
+.proto-shared-invite-create {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 0.5px solid var(--pds-border);
+  background: var(--pds-bg-subtle, var(--pds-bg-card));
+}
+
+.proto-shared-invite-create .proto-shared-invite-expiry {
+  margin-top: 0;
+}
+
+.proto-shared-invite-create .proto-space-switcher__create-actions {
+  margin-top: 8px;
+}
+
+.proto-shared-invite-expiry {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.proto-shared-invite-expiry__label {
+  margin: 0;
+}
+
+.proto-shared-invite-expiry__options {
+  margin: 0;
+}
+
+/* Prototype calendar — replaces native type="date" popup in sheets/popovers. */
+.proto-date-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 0.5px solid var(--pds-border);
+  background: var(--pds-bg-card, var(--pds-bg-subtle));
+}
+
+.proto-date-picker__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.proto-date-picker__month {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-date-picker__nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0.5px solid var(--pds-border);
+  border-radius: 8px;
+  background: var(--pds-bg-subtle, transparent);
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.proto-date-picker__nav-btn:hover:not(:disabled) {
+  background: var(--pds-bg-input, var(--pds-bg-chip));
+  color: var(--pds-text-primary);
+}
+
+.proto-date-picker__nav-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.proto-date-picker__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.proto-date-picker__weekday {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pds-text-secondary);
+}
+
+.proto-date-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.proto-date-picker__day {
+  aspect-ratio: 1;
+  min-height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+}
+
+.proto-date-picker__day:hover:not(:disabled):not(.proto-date-picker__day--selected) {
+  background: var(--pds-bg-chip-hover, var(--pds-bg-input));
+}
+
+.proto-date-picker__day--outside {
+  color: var(--pds-text-secondary);
+  opacity: 0.55;
+}
+
+.proto-date-picker__day--selected {
+  background: var(--pds-bg-page);
+  color: var(--pds-text-primary);
+  font-weight: 600;
+  box-shadow: var(--pds-shadow-chip-selected);
+}
+
+.proto-date-picker__day:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+.proto-date-picker__summary {
+  margin: 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--pds-text-secondary);
+}
+
 .proto-shared-space-settings__field textarea {
   width: 100%;
   box-sizing: border-box;
@@ -8352,10 +8630,6 @@ button.proto-appearance-hero__card {
   font-size: 12px;
   font-weight: 600;
   color: var(--pds-text-secondary, #666);
-}
-
-.proto-shared-space-dashboard .proto-home-view {
-  padding-top: 0;
 }
 
 .proto-space-switcher-badge {

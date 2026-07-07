@@ -1,23 +1,29 @@
 // @ts-ignore - React hooks are available, this is a linter cache issue
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import Icon from './Icon';
 import SafeSubscriptionDetailsButton from './SafeSubscriptionDetailsButton';
+import {
+  getSharedSpacesAddonFeatureBullets,
+  OWNED_SHARED_SPACES_ADDON_LIMIT,
+} from '@/lib/shared-spaces-limits';
 import UpgradeCheckoutButton from './UpgradeCheckoutButton';
+
+interface SubscriptionStatusSnapshot {
+  hasSharedSpaces: boolean;
+  sharedSpacesOwnedCount: number;
+  sharedSpacesOwnedLimit: number;
+}
 
 interface UpgradePageContentProps {
   initialHasSharedSpaces: boolean;
+  initialSharedSpacesOwnedCount?: number | null;
+  initialSharedSpacesOwnedLimit?: number | null;
   publishableKey?: string | null;
   sharedSpacesPlanId?: string;
   /** Dev design gallery — bypasses Clerk for static previews. */
-  designPreview?: { signedIn: boolean };
+  designPreview?: { signedIn: boolean; ownedCount?: number; ownedLimit?: number };
 }
-
-const FEATURES = [
-  'Create shared spaces and invite others to study with you',
-  'Everyone contributes notes to the shared space',
-  'Joining a space is always free',
-];
 
 const PRODUCT_NAME = 'Shared Spaces';
 
@@ -32,6 +38,8 @@ const PURCHASE_TAGLINE =
  */
 export default function UpgradePageContent({
   initialHasSharedSpaces,
+  initialSharedSpacesOwnedCount = null,
+  initialSharedSpacesOwnedLimit = null,
   publishableKey,
   sharedSpacesPlanId,
   designPreview,
@@ -39,16 +47,46 @@ export default function UpgradePageContent({
   const { isSignedIn: clerkSignedIn, has } = useAuth();
   const isSignedIn = designPreview?.signedIn ?? clerkSignedIn;
   const [hasSharedSpaces, setHasSharedSpaces] = useState(initialHasSharedSpaces);
+  const [sharedSpacesOwnedCount, setSharedSpacesOwnedCount] = useState<number | null>(
+    designPreview ? (designPreview.ownedCount ?? 0) : initialSharedSpacesOwnedCount,
+  );
+  const [sharedSpacesOwnedLimit, setSharedSpacesOwnedLimit] = useState<number | null>(
+    designPreview
+      ? (designPreview.ownedLimit ?? OWNED_SHARED_SPACES_ADDON_LIMIT)
+      : initialSharedSpacesOwnedLimit,
+  );
   const clerkHasSharedSpaces = isSignedIn ? has({ feature: 'shared_spaces' }) : false;
   const showActiveCopy = hasSharedSpaces || clerkHasSharedSpaces;
+
+  const featureBullets = useMemo(
+    () =>
+      getSharedSpacesAddonFeatureBullets({
+        hasAddOn: showActiveCopy,
+        ownedCount: showActiveCopy ? sharedSpacesOwnedCount : null,
+        ownedLimit: sharedSpacesOwnedLimit ?? OWNED_SHARED_SPACES_ADDON_LIMIT,
+      }),
+    [showActiveCopy, sharedSpacesOwnedCount, sharedSpacesOwnedLimit],
+  );
+
+  const applySubscriptionStatus = (data: Partial<SubscriptionStatusSnapshot>) => {
+    if (typeof data.hasSharedSpaces === 'boolean') {
+      setHasSharedSpaces(data.hasSharedSpaces);
+    }
+    if (typeof data.sharedSpacesOwnedCount === 'number') {
+      setSharedSpacesOwnedCount(data.sharedSpacesOwnedCount);
+    }
+    if (typeof data.sharedSpacesOwnedLimit === 'number') {
+      setSharedSpacesOwnedLimit(data.sharedSpacesOwnedLimit);
+    }
+  };
 
   const checkStatus = async () => {
     try {
       const subRes = await fetch('/api/subscription/status', { credentials: 'include', cache: 'no-store' });
 
       if (subRes.ok) {
-        const data = await subRes.json();
-        setHasSharedSpaces(Boolean(data.hasSharedSpaces));
+        const data = (await subRes.json()) as Partial<SubscriptionStatusSnapshot>;
+        applySubscriptionStatus(data);
       }
     } catch (error) {
       console.error('[UpgradePageContent] Error checking status:', error);
@@ -61,6 +99,7 @@ export default function UpgradePageContent({
 
     const handleUpgrade = () => checkStatus();
     window.addEventListener('subscriptionUpgraded', handleUpgrade);
+    window.addEventListener('spaceCreated', handleUpgrade);
 
     const handlePageLoad = () => {
       if (window.location.pathname === '/addon') {
@@ -71,6 +110,7 @@ export default function UpgradePageContent({
 
     return () => {
       window.removeEventListener('subscriptionUpgraded', handleUpgrade);
+      window.removeEventListener('spaceCreated', handleUpgrade);
       document.removeEventListener('app:route-change', handlePageLoad);
     };
   }, [designPreview]);
@@ -101,7 +141,7 @@ export default function UpgradePageContent({
           </div>
 
           <ul className="public-addon-letter__features" role="list">
-            {FEATURES.map((feature) => (
+            {featureBullets.map((feature) => (
               <li key={feature}>
                 <span className="public-addon-letter__check" aria-hidden="true">
                   <Icon name="check" size={11} />

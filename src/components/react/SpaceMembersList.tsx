@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import ConfirmDialog from './dialogs/ConfirmDialog';
 import { useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
+import { resolveClerkProfileImageUrl, resolveSpaceMemberProfileImageUrl } from '@/utils/clerk-profile-image';
 
 interface Member {
   userId: string;
@@ -41,6 +43,8 @@ export default function SpaceMembersList({
   onMemberRemoved,
 }: SpaceMembersListProps) {
   const { portalTarget } = useDesktopMainModalPortal();
+  const { userId: authUserId } = useAuth();
+  const { user } = useUser();
   const [members, setMembers] = useState<Member[]>([]);
   const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,6 +79,13 @@ export default function SpaceMembersList({
     } finally {
       setLoading(false);
     }
+  };
+
+  const memberPhotoUrl = (member: Member): string | null => {
+    if (member.userId === authUserId) {
+      return resolveClerkProfileImageUrl(user, member.profileImageUrl);
+    }
+    return resolveSpaceMemberProfileImageUrl(member.profileImageUrl);
   };
 
   const handleRemoveMember = (userId: string, memberName: string) => {
@@ -253,6 +264,7 @@ export default function SpaceMembersList({
                     const displayName = getMemberDisplayName(member);
                     const isRemoving = removingUserId === member.userId;
                     const canRemove = isOwner && member.role !== 'owner';
+                    const photoUrl = memberPhotoUrl(member);
 
                     return (
                       <div
@@ -260,9 +272,9 @@ export default function SpaceMembersList({
                         className="flex-between p-3 bg-[var(--color-snow-white)] rounded-xl" style={{ gap: '0.75rem' }}
                       >
                         <div className="flex-row flex-fill" style={{ gap: '0.75rem' }}>
-                          {member.profileImageUrl ? (
+                          {photoUrl ? (
                             <img
-                              src={member.profileImageUrl}
+                              src={photoUrl}
                               alt={displayName}
                               className="w-10 h-10 rounded-full object-cover shrink-0"
                             />

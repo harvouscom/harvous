@@ -12,6 +12,7 @@ import SharedSpaceSocialGreeting from '../../prototype/SharedSpaceSocialGreeting
 import SharedSpaceAboutSheet from '../../prototype/SharedSpaceAboutSheet';
 import PrototypeSpacePeopleSheet from '../../prototype/PrototypeSpacePeopleSheet';
 import ProtoSpaceMenuIcon from '../../prototype/ProtoSpaceMenuIcon';
+import { useProtoHomeViewClassName } from '../../prototype/useProtoHomeViewEnter';
 import { sharedSpacePeopleHeaderLabel, type SharedSpaceNoteCardSlot } from '../../prototype/shared-space-dashboard';
 import type { SharedSpaceDashboardFixture } from './shared-space-dashboard-fixtures';
 import { fixtureToSpaceDetail } from './shared-space-dashboard-fixtures';
@@ -118,6 +119,8 @@ export default function SharedSpaceDashboardFixtureView({
     setPeopleOpen(true);
   };
 
+  const homeViewClassName = useProtoHomeViewClassName(true, spaceId);
+
   return (
     <div className="proto-sidebar-root proto-shared-space-dashboard">
       {showFixtureBanner ? (
@@ -197,7 +200,7 @@ export default function SharedSpaceDashboardFixtureView({
       </div>
 
       <div className="proto-sidebar-scroll">
-        <div className="proto-home-view">
+        <div className={homeViewClassName}>
           {bannerNewCount > 0 ? (
             <div className="proto-home-section">
               <p className="proto-home-greeting">

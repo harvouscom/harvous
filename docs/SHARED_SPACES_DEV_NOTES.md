@@ -125,8 +125,8 @@ $48/yr) is **fully retired** — zero subscribers, no grandfathering logic anywh
 add-on (`UserMetadata.sharedSpacesAddOn`) is the *only* thing that grants owning a shared space.
 
 - **Free tier:** own **0** shared spaces, join unlimited.
-- **Add-on:** own unlimited shared spaces.
-- **Invisible cap (both):** 150 people per space, enforced at invite redeem (`canAddMemberToSpace` in
+- **Add-on:** own up to **10** shared spaces.
+- **Invisible cap (both):** **30** people per space, enforced at invite redeem (`canAddMemberToSpace` in
   `server/utils/tier-limits.ts`) and at the admin add-member endpoint. Not marketed as a headline number.
 
 The gate runs at **space-becomes-shared** time and **invite-creation** time — never at join/redeem. This
@@ -138,7 +138,7 @@ hasSharedSpacesAddOn(auth)   -- DB-first (UserMetadata.sharedSpacesAddOn), Clerk
                                  feature fallback for the purchase→webhook gap (disabled by
                                  BILLING_TIER_DB_ONLY=true)
 canCreateSharedSpace(userId, auth)   -- the paid gate; 403 SHARED_SPACE_LIMIT_EXCEEDED + upgradeUrl
-canAddMemberToSpace(spaceId)         -- 150-person cap only; same for every entitlement
+canAddMemberToSpace(spaceId)         -- 30-person cap only; same for every entitlement
 ```
 
 No billing webhook exists yet (fast-follow) — interim entitlement grants are the Clerk JWT feature
@@ -207,7 +207,7 @@ gap.
    validates revoked/expired/max-uses **live**, returns space card, owner display name, people count, and
    unencrypted note/thread previews.
 4. `POST /api/spaces/invites/:token/redeem` (auth required): re-validates the invite, rejects
-   self/owner-join, guards double-join via the `SpaceMemberships` unique index, enforces the 150-person
+   self/owner-join, guards double-join via the `SpaceMemberships` unique index, enforces the 30-person
    cap, inserts the membership row, increments `useCount`.
 5. **No owner-entitlement check at redeem** — the gate already ran at invite creation. A live invite
    redeems until it expires even if the owner's add-on has since lapsed (the 30-day default bounds this;

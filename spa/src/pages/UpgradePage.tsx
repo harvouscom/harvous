@@ -20,12 +20,16 @@ const UPGRADE_HERO_IMAGE = '/images/auth-hero/ai_bg_045.webp';
 export default function UpgradePage() {
   const { isSignedIn } = useAuth();
   const [hasSharedSpaces, setHasSharedSpaces] = useState(false);
+  const [sharedSpacesOwnedCount, setSharedSpacesOwnedCount] = useState<number | null>(null);
+  const [sharedSpacesOwnedLimit, setSharedSpacesOwnedLimit] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isHeroReady, setIsHeroReady] = useState(false);
 
   const refreshSharedSpacesStatus = useCallback(async (options?: { silent?: boolean }) => {
     if (!isSignedIn) {
       setHasSharedSpaces(false);
+      setSharedSpacesOwnedCount(null);
+      setSharedSpacesOwnedLimit(null);
       setIsLoading(false);
       return;
     }
@@ -37,12 +41,28 @@ export default function UpgradePage() {
     try {
       const sync = await api.post<{ hasSharedSpaces: boolean }>('/api/billing/sync-shared-spaces', {});
       setHasSharedSpaces(Boolean(sync.hasSharedSpaces));
+      const sub = await api.get<{
+        hasSharedSpaces: boolean;
+        sharedSpacesOwnedCount: number;
+        sharedSpacesOwnedLimit: number;
+      }>('/api/subscription/status');
+      setHasSharedSpaces(Boolean(sub.hasSharedSpaces));
+      setSharedSpacesOwnedCount(sub.sharedSpacesOwnedCount);
+      setSharedSpacesOwnedLimit(sub.sharedSpacesOwnedLimit);
     } catch {
       try {
-        const sub = await api.get<{ hasSharedSpaces: boolean }>('/api/subscription/status');
+        const sub = await api.get<{
+          hasSharedSpaces: boolean;
+          sharedSpacesOwnedCount: number;
+          sharedSpacesOwnedLimit: number;
+        }>('/api/subscription/status');
         setHasSharedSpaces(Boolean(sub.hasSharedSpaces));
+        setSharedSpacesOwnedCount(sub.sharedSpacesOwnedCount);
+        setSharedSpacesOwnedLimit(sub.sharedSpacesOwnedLimit);
       } catch {
         setHasSharedSpaces(false);
+        setSharedSpacesOwnedCount(null);
+        setSharedSpacesOwnedLimit(null);
       }
     } finally {
       if (!options?.silent) {
@@ -94,6 +114,8 @@ export default function UpgradePage() {
               <SubtleContentMount variant="fade">
                 <UpgradePageContent
                   initialHasSharedSpaces={hasSharedSpaces}
+                  initialSharedSpacesOwnedCount={sharedSpacesOwnedCount}
+                  initialSharedSpacesOwnedLimit={sharedSpacesOwnedLimit}
                   publishableKey={null}
                   sharedSpacesPlanId={import.meta.env.VITE_CLERK_SHARED_SPACES_PLAN_ID ?? ''}
                 />

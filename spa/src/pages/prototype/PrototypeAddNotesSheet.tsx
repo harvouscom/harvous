@@ -11,7 +11,9 @@ import PrototypeSearchInput from './components/PrototypeSearchInput';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
+import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -413,6 +415,7 @@ export default function PrototypeAddNotesSheet({
   onAdded,
 }: PrototypeAddNotesSheetProps) {
   const { isMobileSidebar } = useProtoShell();
+  const { mounted, exiting } = useProtoOverlayMotion(open);
   const addToFolder = useAddNotesToFolder();
   const addToThread = useAddNotesToThreadCluster();
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -431,7 +434,8 @@ export default function PrototypeAddNotesSheet({
 
   const shouldUseSheetPresentation =
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
-  const shouldUsePopover = open && !shouldUseSheetPresentation;
+  const usePopoverPresentation = !shouldUseSheetPresentation;
+  const showPopoverPortal = usePopoverPresentation && mounted;
 
   const title = mode === 'folder' ? 'Add notes to folder' : 'Add notes to thread';
   const canSubmit = selectedIds.length > 0 && !isPending;
@@ -473,7 +477,7 @@ export default function PrototypeAddNotesSheet({
   };
 
   useLayoutEffect(() => {
-    if (!shouldUsePopover) return;
+    if (!showPopoverPortal) return;
     const cardHeight = cardRef.current?.getBoundingClientRect().height ?? 440;
     const cardWidth = cardRef.current?.getBoundingClientRect().width ?? 340;
     const viewportMargin = 12;
@@ -482,11 +486,9 @@ export default function PrototypeAddNotesSheet({
     const left = Math.max(viewportMargin, (vw - cardWidth) / 2);
     const top = Math.max(viewportMargin, Math.min(vh - cardHeight - viewportMargin, vh * 0.15));
     setPosition({ top, left });
-  }, [shouldUsePopover, selectedIds.length]);
+  }, [showPopoverPortal, selectedIds.length]);
 
-  useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover);
-
-  if (!open) return null;
+  useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation);
 
   const content = (
     <>
@@ -535,25 +537,37 @@ export default function PrototypeAddNotesSheet({
     </>
   );
 
-  if (shouldUsePopover && typeof document !== 'undefined') {
+  if (showPopoverPortal && typeof document !== 'undefined') {
     return createPortal(
-      <ProtoPopoverShell
-        ref={cardRef}
-        role="dialog"
-        aria-label={title}
-        className="proto-connect-note-popover proto-add-notes-popover"
-        style={{
-          position: 'fixed',
-          top: position?.top ?? -9999,
-          left: position?.left ?? -9999,
-          zIndex: 6000,
-        }}
-      >
-        <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-add-notes-sheet">{content}</div>
-      </ProtoPopoverShell>,
+      <>
+        <ProtoDialogBackdrop
+          exiting={exiting}
+          onDismiss={() => onOpenChange(false)}
+          aria-label={`Close ${title} dialog`}
+        />
+        <ProtoPopoverShell
+          ref={cardRef}
+          role="dialog"
+          aria-label={title}
+          className={portaledDialogShellClassName(
+            'proto-connect-note-popover proto-add-notes-popover',
+            exiting,
+          )}
+          style={{
+            position: 'fixed',
+            top: position?.top ?? -9999,
+            left: position?.left ?? -9999,
+            zIndex: 6000,
+          }}
+        >
+          <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-add-notes-sheet">{content}</div>
+        </ProtoPopoverShell>
+      </>,
       document.body,
     );
   }
+
+  if (!open) return null;
 
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange}>

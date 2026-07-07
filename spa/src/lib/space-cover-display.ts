@@ -86,6 +86,26 @@ export function resolveJoinHeroImageUrl(
   return preset ? imagePresetUrl(preset) : null;
 }
 
+/** Solid accent or gradient placeholder shown under the hero image while it preloads. */
+export function resolveJoinHeroPlaceholder(
+  space: {
+    color?: string;
+    backgroundGradient?: string;
+    cover?: SpaceCoverAppearance;
+  } | null,
+  mode: 'light' | 'dark',
+): CSSProperties {
+  if (!space) {
+    return { background: 'var(--site-paper, var(--pds-bg-canvas, #fcfbf7))' };
+  }
+  const { bandStyle, accentCss, isImage } = resolveJoinCoverDisplay(space, mode);
+  if (bandStyle.background) return bandStyle;
+  if (isImage) {
+    return { background: accentCss };
+  }
+  return bandStyle;
+}
+
 /** Full-bleed hero behind the join letter — space cover image or accent gradient. */
 export function resolveJoinHeroBackground(
   space: {
