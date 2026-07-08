@@ -1023,7 +1023,7 @@
   flex: 0 0 auto;
   width: 100%;
   max-width: 920px;
-  padding: 20px 28px 48px;
+  padding: 16px 20px 28px;
   box-sizing: border-box;
   /* Status palette — Harvous mint / sky / amber, softer than generic gray badges */
   --status-operational-fg: #1a6b42;
@@ -1057,13 +1057,16 @@
   min-height: unset;
   align-items: center;
   width: 100%;
-  gap: 32px;
+  gap: 14px;
 }
 
 @media (min-width: 700px) {
   .public-content--status {
-    padding-top: 28px;
-    padding-bottom: 56px;
+    padding: 28px 28px 56px;
+  }
+
+  .public-content--status .public-status-mount > .subtle-content-mount__inner {
+    gap: 32px;
   }
 }
 
@@ -1115,11 +1118,21 @@
   max-width: 880px;
   min-width: min(100%, 320px);
   margin: 0;
-  padding: 12px 24px;
+  padding: 10px 18px;
 }
 
 .public-paper-stack.public-paper-stack--status .public-paper-stack__leaf {
-  inset: 12px 24px;
+  inset: 10px 18px;
+}
+
+@media (min-width: 700px) {
+  .public-paper-stack.public-paper-stack--status {
+    padding: 12px 24px;
+  }
+
+  .public-paper-stack.public-paper-stack--status .public-paper-stack__leaf {
+    inset: 12px 24px;
+  }
 }
 
 .public-status-sheet {
@@ -1129,9 +1142,9 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-height: 520px;
+  min-height: 0;
   box-sizing: border-box;
-  --status-sheet-inset: 32px;
+  --status-sheet-inset: 18px;
   --public-inset-bg: #ffffff;
   background-color: #ffffff;
   background-image:
@@ -1145,6 +1158,13 @@
     0 2px 6px rgba(20, 18, 12, 0.04),
     0 20px 50px -20px rgba(20, 18, 12, 0.16);
   overflow: hidden;
+}
+
+@media (min-width: 700px) {
+  .public-status-sheet {
+    --status-sheet-inset: 32px;
+    min-height: 520px;
+  }
 }
 
 .public-status-sheet::before {
@@ -1165,8 +1185,14 @@
 }
 
 .public-status-sheet__header {
-  padding: 36px var(--status-sheet-inset) 0;
+  padding: 28px var(--status-sheet-inset) 0;
   text-align: center;
+}
+
+@media (min-width: 700px) {
+  .public-status-sheet__header {
+    padding-top: 36px;
+  }
 }
 
 .public-status-sheet__header::after {
@@ -1253,7 +1279,7 @@
 /* Spreadsheet-style service table — inset from paper edges */
 .public-status-table-wrap {
   flex: 1;
-  margin: 24px var(--status-sheet-inset) 32px;
+  margin: 16px var(--status-sheet-inset) 24px;
   border: 0.5px solid var(--site-rule);
   border-radius: 0.75rem;
   overflow: hidden;
@@ -1263,6 +1289,12 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
   container-type: inline-size;
   container-name: status-table;
+}
+
+@media (min-width: 700px) {
+  .public-status-table-wrap {
+    margin: 24px var(--status-sheet-inset) 32px;
+  }
 }
 
 .public-status-table-wrap--operational {
@@ -1646,6 +1678,53 @@
   }
 }
 
+@media (max-width: 699px) {
+  .public-status-table thead th,
+  .public-status-table tbody td {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .public-status-table thead th:nth-child(1),
+  .public-status-table tbody td:first-child {
+    padding-left: 14px;
+  }
+
+  .public-status-table thead th:nth-child(3),
+  .public-status-table tbody td:last-child {
+    padding-right: 14px;
+  }
+
+  .public-status-table__dot {
+    margin-right: 4px;
+  }
+
+  .public-status-track {
+    gap: 6px;
+  }
+
+  .public-status-table__status .public-status-badge {
+    padding: 2px 6px;
+    font-size: 0.625rem;
+    letter-spacing: 0.02em;
+  }
+}
+
+@media (max-width: 479px) {
+  .public-status-table thead th:nth-child(2),
+  .public-status-table tbody td.public-status-table__uptime {
+    display: none;
+  }
+
+  .public-status-table thead th:nth-child(1) {
+    width: 36%;
+  }
+
+  .public-status-table thead th:nth-child(3) {
+    width: auto;
+  }
+}
+
 .public-status-table__status .public-status-badge {
   vertical-align: middle;
 }
@@ -1774,7 +1853,13 @@
 /* Support options — neutral inset cards inside the paper sheet */
 .public-status-sheet__support {
   margin-top: auto;
-  padding: 0 var(--status-sheet-inset) 32px;
+  padding: 0 var(--status-sheet-inset) 24px;
+}
+
+@media (min-width: 700px) {
+  .public-status-sheet__support {
+    padding-bottom: 32px;
+  }
 }
 
 .public-status-sheet__support::before {
