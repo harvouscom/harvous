@@ -30,6 +30,8 @@ export interface ListNoteForSeed {
   secondaryCollections?: string[];
   collectionPinned?: boolean;
   collectionUserOverride?: boolean;
+  /** Shared space list seed — note belongs to the viewer. */
+  isOwnNote?: boolean;
 }
 
 /** Slim linked-note row from GET /api/notes/:id/details (connections strip). */
@@ -45,6 +47,7 @@ export interface LinkedNoteRef {
 /** Study thread entry row from GET /api/notes/:id/details (mirrors `StudyThreadEntries` + native StudyThread fields). */
 export interface StudyThreadEntryDetail {
   id: string;
+  userId?: string;
   parentNoteId: string;
   spaceId: string | null;
   entryKind: string;
@@ -65,6 +68,10 @@ export interface StudyThreadEntryDetail {
   highlightListEditedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Shared space unioned highlights only. */
+  authorDisplayName?: string;
+  authorColor?: string;
+  isOwnHighlight?: boolean;
 }
 
 export interface NoteDetail {
@@ -85,6 +92,8 @@ export interface NoteDetail {
   isPublic: boolean;
   shareToken?: string | null;
   userId?: string;
+  /** Shared space list seed — note belongs to the viewer. */
+  isOwnNote?: boolean;
   createdAt: string;
   updatedAt: string;
   threads: { id: string; title: string; color: string | null; backgroundGradient?: string }[];
@@ -264,6 +273,7 @@ export function listNoteToNoteDetail(
     contentEncrypted: listNote.contentEncrypted ?? false,
     isPublic: false,
     userId: listNote.userId ?? undefined,
+    isOwnNote: listNote.isOwnNote,
     spaceId: listNote.spaceId ?? null,
     simpleNoteId: listNote.simpleNoteId ?? undefined,
     createdAt: listNote.createdAt ?? new Date().toISOString(),

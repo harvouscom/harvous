@@ -181,9 +181,12 @@ a `type='shared'` space and multiple people can author into it.
 - **Folders**: `Notes.primaryCollection`/`secondaryCollections` work unchanged (no schema change needed).
   Any member can read the folder registry and register a new label; space-wide folder removal
   (`folders/remove`, which strips a label from every note in the space) is owner-only in shared spaces.
-- **Study threads, scripture index, highlights**: stay **author-scoped** in the foundation (each member
-  sees their own clusters within the space — `NoteConnections` are per-user). Unioning these into a
-  shared view is a fast-follow.
+- **Study threads, scripture index**: stay **author-scoped** in the foundation (each member sees their
+  own clusters within the space — `NoteConnections` are per-user).
+- **Highlights list**: **unioned** in shared/public spaces — sidebar Highlights shows every member's
+  eligible `StudyThreadEntry` rows on notes in the space, with author chips. Personal / My Home stays
+  author-scoped. Opening a foreign note loads unioned `studyThreads` on details for highlight dock deep
+  links (inline overlay render is Tier 1 follow-on).
 
 ### Locked notes
 
@@ -272,7 +275,8 @@ non-interactive `npm run db:push` when schema drift is possible.
   actions.
 - **Email invites** — `SpaceInvites.kind='email'` is schema-ready; nothing creates one yet.
 - **Leader role activation** — no promotion/demotion UI; Group Leader ships this.
-- **Unioned study-threads/scripture index** — currently author-scoped per member within a shared space.
+- **Unioned study-threads/scripture index** — still author-scoped per member within a shared space
+  (highlights list is unioned; see Content model above).
 - **Billing webhook** — `sharedSpacesAddOn` is set via JWT fallback + admin grant only; a Stripe/Clerk
   webhook that writes it directly is a fast-follow.
 - **Public spaces UI** — see above.

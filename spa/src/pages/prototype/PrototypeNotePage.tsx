@@ -107,7 +107,7 @@ export default function PrototypeNotePage() {
   const navigate = useNavigate();
 
   const { data: note, isLoading, isError, isFetching } = useNote(isDraft ? '' : noteId);
-  const { isForeignSharedNote, effectiveSpaceId: foreignSharedSpaceId } =
+  const { readOnlyInSharedSpace, effectiveSpaceId: foreignSharedSpaceId } =
     useForeignSharedNote(isDraft ? null : noteId);
 
   // Deep-link to a highlight's dock (Home "revisit" card → text / mini-note / connected highlight).
@@ -563,7 +563,7 @@ export default function PrototypeNotePage() {
     [note?.threads, parentThreadId],
   );
 
-  const readOnlyLikeScripture = isOnboardingReadonly || isForeignSharedNote;
+  const readOnlyLikeScripture = isOnboardingReadonly || readOnlyInSharedSpace;
   const isEditable = !readOnlyLikeScripture;
 
   useEffect(() => {
@@ -1002,7 +1002,7 @@ export default function PrototypeNotePage() {
           <SubtleContentMount key={editorSessionKey} variant="fade">
             <div className="proto-editor-content-wrap">
               <div className="proto-editor-paper">
-              {isForeignSharedNote ? <PrototypeSharedNoteReadOnlyBanner /> : null}
+              {readOnlyInSharedSpace ? <PrototypeSharedNoteReadOnlyBanner /> : null}
               <CardFullEditable
                 title={prototypeDisplayTitle}
                 content={editorNote.content ?? ''}

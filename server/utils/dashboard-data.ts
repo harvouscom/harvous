@@ -29,6 +29,45 @@ import {
   NOT_ONBOARDING_THREADS,
 } from './purge-onboarding-content';
 
+export type AuthorAttribution = { displayName: string; userColor: string };
+
+/** Batched UserMetadata lookup for shared-space author chips (notes, highlights). */
+export async function batchAuthorAttribution(
+  userIds: string[],
+): Promise<Record<string, AuthorAttribution>> {
+  const unique = [...new Set(userIds.filter(Boolean))];
+  if (unique.length === 0) return {};
+  try {
+    const rows = await db
+      .select({
+        userId: UserMetadata.userId,
+        firstName: UserMetadata.firstName,
+        lastName: UserMetadata.lastName,
+        userColor: UserMetadata.userColor,
+      })
+      .from(UserMetadata)
+      .where(inArray(UserMetadata.userId, unique));
+    return rows.reduce(
+      (acc, row) => {
+        const firstName = row.firstName || '';
+        const lastInitial = row.lastName ? row.lastName.charAt(0).toUpperCase() : '';
+        acc[row.userId] = {
+          displayName: firstName
+            ? lastInitial
+              ? `${firstName} ${lastInitial}.`
+              : firstName
+            : 'A Harvous User',
+          userColor: row.userColor || 'blue',
+        };
+        return acc;
+      },
+      {} as Record<string, AuthorAttribution>,
+    );
+  } catch {
+    return {};
+  }
+}
+
 // ─── Private helpers ────────────────────────────────────────────────────────────
 
 /** Public/shared spaces list notes and threads oldest-first (curated series). */
@@ -1622,24 +1661,7 @@ export async function getNotesForSharedSpace(
         } catch (_) { return {}; }
       })(),
       getThreadColorsForNotesBatch(noteIds, viewerUserId),
-      (async (): Promise<Record<string, { displayName: string; userColor: string }>> => {
-        if (authorIds.length === 0) return {};
-        try {
-          const rows = await db.select({
-            userId: UserMetadata.userId, firstName: UserMetadata.firstName,
-            lastName: UserMetadata.lastName, userColor: UserMetadata.userColor,
-          }).from(UserMetadata).where(inArray(UserMetadata.userId, authorIds));
-          return rows.reduce((acc, row) => {
-            const firstName = row.firstName || '';
-            const lastInitial = row.lastName ? row.lastName.charAt(0).toUpperCase() : '';
-            acc[row.userId] = {
-              displayName: firstName ? (lastInitial ? `${firstName} ${lastInitial}.` : firstName) : 'A Harvous User',
-              userColor: row.userColor || 'blue',
-            };
-            return acc;
-          }, {} as Record<string, { displayName: string; userColor: string }>);
-        } catch (_) { return {}; }
-      })(),
+      batchAuthorAttribution(authorIds),
     ]);
 
     const notesWithMeta = sortedNotes.map(note => {

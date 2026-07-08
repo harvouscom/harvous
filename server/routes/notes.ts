@@ -31,7 +31,7 @@ import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Notes, Threads, NoteThreads, StudyThreadEntries, Comments, Tags, NoteTags,
-  UserMetadata, ScriptureMetadata, NoteScriptureReferences, NoteConnections, StudyThreadMemberOrders, ResourceMetadata,
+  UserMetadata, ScriptureMetadata, NoteScriptureReferences, NoteConnections, StudyThreadMemberOrders, ResourceMetadata, Spaces,
   eq, and, or, ne, desc, asc, count, like, not, isNull, isNotNull, inArray, sql,
   first,
 } from '../db';
@@ -75,6 +75,8 @@ import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thr
 import { healScriptureNoteThreadsFromParents } from '../utils/heal-scripture-note-threads';
 import { removeScriptureNotesFromThread } from '../utils/remove-scripture-notes-from-thread';
 import { requireSpaceAccess, SpaceAccessError, canAuthorInSpace } from '../utils/space-access';
+import { batchAuthorAttribution } from '../utils/dashboard-data';
+import { mapStudyRow } from './study-threads';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { extractArticleContent } from '@/utils/content-extractor';
 import { sortByLastVisited } from '@/utils/sorting';
@@ -1982,36 +1984,39 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     }
 
     let studyThreads: any[] = [];
-    if (!isMemberView && note.userId === auth.userId) {
+    let loadUnionedStudyThreads = false;
+    if (isMemberView && note.spaceId) {
+      const spaceRow = first(
+        await db.select({ type: Spaces.type }).from(Spaces).where(eq(Spaces.id, note.spaceId)).limit(1),
+      );
+      loadUnionedStudyThreads = spaceRow?.type === 'shared' || spaceRow?.type === 'public';
+    }
+
+    if ((!isMemberView && note.userId === auth.userId) || loadUnionedStudyThreads) {
       try {
         const stRows = await db
           .select()
           .from(StudyThreadEntries)
-          .where(and(eq(StudyThreadEntries.parentNoteId, noteId), eq(StudyThreadEntries.userId, auth.userId)))
+          .where(
+            loadUnionedStudyThreads
+              ? and(eq(StudyThreadEntries.parentNoteId, noteId), eq(StudyThreadEntries.isArchived, false))
+              : and(eq(StudyThreadEntries.parentNoteId, noteId), eq(StudyThreadEntries.userId, auth.userId)),
+          )
           .orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt));
-        studyThreads = stRows.map((row) => ({
-          id: row.id,
-          parentNoteId: row.parentNoteId,
-          spaceId: row.spaceId,
-          entryKind: row.entryKindRaw,
-          highlightAccentRaw: row.highlightAccentRaw,
-          sourceSnippet: row.sourceSnippet,
-          focusTitle: row.focusTitle,
-          notesBody: row.notesBody,
-          miniNoteBody: row.miniNoteBody,
-          linkedNoteId: row.linkedNoteId,
-          linkedNoteTitle: row.linkedNoteTitle,
-          anchorLocation: row.anchorLocation,
-          anchorLength: row.anchorLength,
-          anchorTextSnapshot: row.anchorTextSnapshot,
-          scriptureReference: row.scriptureReference,
-          scripturePassageTranslation: row.scripturePassageTranslation,
-          scripturePassageExcerpt: row.scripturePassageExcerpt,
-          isArchived: row.isArchived,
-          highlightListEditedAt: row.highlightListEditedAt,
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt,
-        }));
+        const authorMap = loadUnionedStudyThreads
+          ? await batchAuthorAttribution(stRows.map((row) => row.userId))
+          : {};
+        studyThreads = stRows.map((row) => {
+          const mapped = mapStudyRow(row);
+          if (!loadUnionedStudyThreads) return mapped;
+          const author = authorMap[row.userId];
+          return {
+            ...mapped,
+            authorDisplayName: author?.displayName ?? 'A Harvous User',
+            authorColor: author?.userColor ?? 'blue',
+            isOwnHighlight: row.userId === auth.userId,
+          };
+        });
       } catch {
         studyThreads = [];
       }

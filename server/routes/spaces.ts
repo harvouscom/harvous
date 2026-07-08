@@ -64,6 +64,7 @@ import {
   getThreadsForSpace,
   getThreadsForSpaceBySpaceId,
   getThreadColorsForNotesBatch,
+  batchAuthorAttribution,
 } from '../utils/dashboard-data';
 import { requireSpaceAccess, SpaceAccessError, canAuthorInSpace } from '../utils/space-access';
 import {
@@ -799,12 +800,15 @@ route.get('/api/spaces/:spaceId/study-thread-highlights', requireAuth, async (c)
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    let accessInfo: Awaited<ReturnType<typeof requireSpaceAccess>>;
     try {
-      await requireSpaceAccess(spaceIdNorm, auth.userId);
+      accessInfo = await requireSpaceAccess(spaceIdNorm, auth.userId);
     } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
+
+    const isPersonalSpace = accessInfo.space.type === 'personal';
 
     // Broad SQL filter (indexed-friendly primitives only); exact eligibility matches native in JS.
     // Avoids raw `trim(coalesce(...))` fragments that have failed against some Postgres/Supabase setups.
@@ -831,9 +835,11 @@ route.get('/api/spaces/:spaceId/study-thread-highlights', requireAuth, async (c)
             eq(StudyThreadEntries.isArchived, false),
             ne(StudyThreadEntries.entryKindRaw, 'workspace'),
             highlightCandidates,
-            eq(StudyThreadEntries.userId, auth.userId),
-            eq(Notes.userId, auth.userId),
             eq(Notes.spaceId, spaceIdNorm),
+            eq(Notes.contentEncrypted, false),
+            ...(isPersonalSpace
+              ? [eq(StudyThreadEntries.userId, auth.userId), eq(Notes.userId, auth.userId)]
+              : []),
           ),
         )
         .orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt));
@@ -848,14 +854,25 @@ route.get('/api/spaces/:spaceId/study-thread-highlights', requireAuth, async (c)
     }
 
     const eligibleRows = rows.filter((row) => studyThreadEligibleForHighlightList(row));
+    const authorMap = isPersonalSpace
+      ? {}
+      : await batchAuthorAttribution(eligibleRows.map((row) => row.userId));
 
     return c.json({
       success: true,
       studyThreads: eligibleRows.map((row) => {
         const { parentNoteTitle, ...entry } = row;
+        const author = authorMap[row.userId];
         return {
           ...mapStudyRow(entry),
           parentNoteTitle: parentNoteTitle ?? '',
+          ...(isPersonalSpace
+            ? {}
+            : {
+                authorDisplayName: author?.displayName ?? 'A Harvous User',
+                authorColor: author?.userColor ?? 'blue',
+                isOwnHighlight: row.userId === auth.userId,
+              }),
         };
       }),
     });

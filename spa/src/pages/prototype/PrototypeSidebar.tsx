@@ -91,6 +91,7 @@ import { usePrototypeFolderRegistry } from '../../hooks/mutations/usePrototypeFo
 import PrototypeAddNotesSheet from './PrototypeAddNotesSheet';
 import PrototypeCreateFolderSheet from './PrototypeCreateFolderSheet';
 import PrototypeCreateThreadSheet from './PrototypeCreateThreadSheet';
+import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 
 
 import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
@@ -138,6 +139,8 @@ type PrototypeSidebarNoteRowProps = {
   activeNoteFullId: string | undefined;
   prefetchNote: (row: SpaceNoteRow, opts?: { seedFromList?: boolean }) => void;
   onOpenNote: (row: SpaceNoteRow) => void;
+  /** Shared space sidebar — show author chips and foreign-note read-only rules. */
+  isScopedSharedSpace?: boolean;
   /** Hide row overflow menu (e.g. thread-proposal review is read-only). */
   hideMenu?: boolean;
   /** Thread drilldown — show remove-from-thread for this cluster. */
@@ -371,6 +374,10 @@ function HighlightRow({
   onTogglePin,
   onDelete,
   isDeleting,
+  isScopedSharedSpace = false,
+  authorDisplayName,
+  authorColor,
+  isOwnHighlight = true,
 }: {
   isActive: boolean;
   isPinned: boolean;
@@ -382,6 +389,10 @@ function HighlightRow({
   onTogglePin: () => void;
   onDelete: (anchorRect: DOMRect) => void;
   isDeleting: boolean;
+  isScopedSharedSpace?: boolean;
+  authorDisplayName?: string;
+  authorColor?: string;
+  isOwnHighlight?: boolean;
 }) {
   const kindIcon = highlightEntryKindIconName(entryKind);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -415,7 +426,18 @@ function HighlightRow({
           </span>
           <span className="pds-list-title proto-note-row__title-text">{title}</span>
         </div>
-        <ProtoListRecencyLine rel={rel} preview={preview} />
+        <div className="pds-list-preview proto-note-row__preview">
+          {isScopedSharedSpace && authorDisplayName ? (
+            <SharedSpaceNoteAuthorChip
+              displayName={authorDisplayName}
+              color={authorColor}
+              isSelf={isOwnHighlight}
+            />
+          ) : null}
+          {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
+          {rel && preview ? '  ' : null}
+          {preview ? <span>{preview}</span> : null}
+        </div>
       </button>
       <div
         className={`proto-menu proto-note-row__menu${menuOpen ? ' proto-note-row__menu--open' : ''}`}
@@ -458,6 +480,7 @@ function HighlightRow({
               </span>
               <span className="proto-menu-item__label">{isPinned ? 'Unpin highlight' : 'Pin highlight'}</span>
             </button>
+            {(!isScopedSharedSpace || isOwnHighlight) ? (
             <button
               type="button"
               role="menuitem"
@@ -474,6 +497,7 @@ function HighlightRow({
               </span>
               <span className="proto-menu-item__label">Delete highlight</span>
             </button>
+            ) : null}
           </div>
         </PrototypeSidebarRowMenuPopover>
       </div>
@@ -488,6 +512,7 @@ function PrototypeSidebarNoteRow({
   activeNoteFullId,
   prefetchNote,
   onOpenNote,
+  isScopedSharedSpace = false,
   hideMenu = false,
   threadRemoval,
   folderRemoval,
@@ -529,6 +554,8 @@ function PrototypeSidebarNoteRow({
   const rowTitle = stripServerAutoUntitledNoteTitleForDisplay(row.title?.trim() ?? '') || 'New Note';
   const title = rowTitle;
   const pinned = row.isPinned === true;
+  const showAuthorChip = isScopedSharedSpace && Boolean(row.authorDisplayName);
+  const rowHideMenu = hideMenu || (isScopedSharedSpace && row.isOwnNote === false);
 
   const onPin = () => {
     setMenuOpen(false);
@@ -630,14 +657,36 @@ function PrototypeSidebarNoteRow({
         ) : null}
       </div>
       {trailLayout ? (
-        <ProtoListRecencyLine rel={rel} preview={preview} />
+        <div className="pds-list-preview proto-note-row__preview">
+          {showAuthorChip ? (
+            <SharedSpaceNoteAuthorChip
+              displayName={row.authorDisplayName ?? 'Member'}
+              color={row.authorColor}
+              isSelf={row.isOwnNote === true}
+            />
+          ) : null}
+          {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
+          {rel && preview ? '  ' : null}
+          {preview ? <span>{preview}</span> : null}
+        </div>
       ) : (
-        <ProtoListRecencyLine rel={rel} preview={preview} />
+        <div className="pds-list-preview proto-note-row__preview">
+          {showAuthorChip ? (
+            <SharedSpaceNoteAuthorChip
+              displayName={row.authorDisplayName ?? 'Member'}
+              color={row.authorColor}
+              isSelf={row.isOwnNote === true}
+            />
+          ) : null}
+          {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
+          {rel && preview ? '  ' : null}
+          {preview ? <span>{preview}</span> : null}
+        </div>
       )}
     </button>
   );
 
-  const menuBlock = hideMenu ? null : (
+  const menuBlock = rowHideMenu ? null : (
       <div
         className={`proto-menu proto-note-row__menu${menuOpen ? ' proto-note-row__menu--open' : ''}`}
         ref={menuRootRef}
@@ -735,7 +784,7 @@ function PrototypeSidebarNoteRow({
   );
 
   const deleteDialog =
-    hideMenu || !deleteConfirmOpen || !deleteAnchorRect ? null : (
+    rowHideMenu || !deleteConfirmOpen || !deleteAnchorRect ? null : (
       <ProtoConfirmDialog
         anchorRect={deleteAnchorRect}
         confirmLabel="Delete"
@@ -1488,7 +1537,8 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
         noteType: (row.noteType as ListNoteForSeed['noteType']) || 'default',
         contentEncrypted: row.contentEncrypted === true,
         resourceTitle: row.resourceTitle ?? null,
-        userId: undefined,
+        userId: row.authorUserId ?? row.userId,
+        isOwnNote: row.isOwnNote,
         threadId: 'thread_unorganized',
         spaceId: homeSpaceId,
         createdAt: row.createdAt ?? undefined,
@@ -1973,6 +2023,7 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
                         active={!!(activeNoteFullId && row.id === activeNoteFullId)}
                         homeSpaceId={homeSpaceId}
                         activeNoteFullId={activeNoteFullId}
+                        isScopedSharedSpace={isScopedSharedSpace}
                         prefetchNote={prefetchNote}
                         onOpenNote={(r) => {
                           onNoteRow(r);
@@ -2025,6 +2076,7 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
                         active={!!(activeNoteFullId && row.id === activeNoteFullId)}
                         homeSpaceId={homeSpaceId}
                         activeNoteFullId={activeNoteFullId}
+                        isScopedSharedSpace={isScopedSharedSpace}
                         prefetchNote={prefetchNote}
                         folderRemoval={
                           typeof activeFolderKey === 'string' ? { folderName: activeFolderKey } : undefined
@@ -2148,7 +2200,11 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
                     <PrototypeListEmptyState
                       iconName="highlighter"
                       title="No Highlights"
-                      description="Selections and passage highlights from your notes appear here."
+                      description={
+                        isScopedSharedSpace
+                          ? 'Selections and passage highlights from notes in this space appear here.'
+                          : 'Selections and passage highlights from your notes appear here.'
+                      }
                     />
                   )
                 ) : (
@@ -2168,6 +2224,10 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
                           title={title}
                           rel={rel}
                           preview={sub}
+                          isScopedSharedSpace={isScopedSharedSpace}
+                          authorDisplayName={r.authorDisplayName}
+                          authorColor={r.authorColor}
+                          isOwnHighlight={r.isOwnHighlight !== false}
                           onOpen={() => onHighlightRow(r)}
                           onTogglePin={() => togglePinnedHighlight(r.id)}
                           onDelete={(anchorRect) => onRequestDeleteHighlight(r, anchorRect)}
@@ -2239,6 +2299,7 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
                             active={!!(activeNoteFullId && node.id === activeNoteFullId)}
                             homeSpaceId={homeSpaceId}
                             activeNoteFullId={activeNoteFullId}
+                            isScopedSharedSpace={isScopedSharedSpace}
                             prefetchNote={prefetchNote}
                             trailLayout
                             threadRemoval={{ memberIds: threadDrillMemberIds }}
@@ -2466,6 +2527,7 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
                           active={!!(activeNoteFullId && n.id === activeNoteFullId)}
                           homeSpaceId={homeSpaceId}
                           activeNoteFullId={activeNoteFullId}
+                          isScopedSharedSpace={isScopedSharedSpace}
                           prefetchNote={prefetchNote}
                           onOpenNote={(r) => {
                             onNoteRow(r);
