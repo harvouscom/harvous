@@ -39,11 +39,11 @@ flowchart LR
     Native --> ReadOnly
   end
   subgraph target [Launch target for small groups]
-    Thread[Shared group thread]
-    Respond[Respond with note]
+    Thread[Group study Threads]
+    Annotate[Shared highlight annotations]
     Activity[Activity since visit]
     Native --> Thread
-    ReadOnly --> Respond
+    ReadOnly --> Annotate
     Thread --> Activity
   end
 ```
@@ -56,54 +56,106 @@ Ship paid Shared Spaces only after the product answers *"How do we study Philipp
 
 ---
 
-## Tier 1 — Ship before paid launch (pick 2)
+## Tier 1 — UX spec (locked)
 
-Highest-leverage features for small groups **without** full collaborative editing (Yjs/Hocuspocus).
-
-### 1. Respond from a shared note (recommended #1)
-
-**Problem:** Reading another member's note is passive. The read-only banner blocks any social loop.
-
-**Shape:**
-
-- On foreign shared notes: **"Respond with a note"** (and optionally keep text selection → new note)
-- Creates a **new note in the same shared space** with existing `linkedFromNoteId` + quoted excerpt block
-- Reuses [SELECTED_TEXT_NOTE_CREATION.md](../SELECTED_TEXT_NOTE_CREATION.md) + `PrototypeNoteActionBar` connection trail
-- Author chip on the response; connection visible in inspector
-
-**Why first:** Async conversation layer for life groups — **Scenario 1** in [COLLABORATIVE_SHARED_SPACES.md](./COLLABORATIVE_SHARED_SPACES.md) — without co-editing one doc.
-
-**Scope guard:** Space-scoped only; no @-mentions yet (cross-space rules pre-decided in foundation dev notes; see mention-pills design on the foundation branch).
+**Principle:** Reuse existing Harvous structures — **highlight dock + `StudyThreadEntries`** for cross-member commentary; **`Threads` + `NoteThreads`** for group study — not new parallel systems.
 
 ---
 
-### 2. Space-native group study thread (recommended #2)
+### 1. Shared highlight annotations (replaces generic "respond with a note")
 
-**Problem:** Threads today don't feel *shared* — each member's study threads stay author-scoped per dev notes.
+**Mental model:** You don't edit Sarah's note. You **highlight a passage on her note and leave an annotation** — the same muscle memory as personal study (accent + mini-note in the highlight dock). The difference: annotations are **visible to everyone in the space** as an overlay on her read-only note.
 
-**Shape:**
+**User flow:**
 
-- From shared-space dashboard or sidebar: **"Start a group study"** → thread created with `spaceId` set
-- All members can attach notes to **the same thread** (unioned thread view in shared space)
-- Dashboard spotlight card surfaces the active group thread + recent contributors
+1. Open Sarah's note in a shared space (view only — her body stays untouched).
+2. Select text → existing **highlight dock** opens (accent picker + mini-note field).
+3. Save → creates a **`StudyThreadEntry`** anchored to Sarah's `parentNoteId`, with **`userId` = you** (not Sarah).
+4. Everyone viewing that note sees **all members' highlights inline** (multiple people can annotate the same paragraph).
+5. Tap a highlight → dock shows annotation + **author** (name/chip).
 
-**Why second:** Answers **Scenario 2** — "we're studying Philippians together for 8 weeks" — the clearest small-group mental model.
+**Why this over "new linked note":** Matches how users already think in Harvous (highlight → annotate). Keeps commentary **in context on the passage** instead of forcing a separate note hop. Stronger for Bible study: the conversation stays on the text.
 
-**Backend touch:** Extend shared-space queries to union thread membership by `spaceId` (called out as fast-follow in dev notes). Start with notes-on-thread in shared space before full scripture-index union.
+**Permissions (decided):**
+
+- **Sarah (note author)** can remove others' annotations on **her** note.
+- **Space owner** can moderate annotations anywhere in the space.
+- Annotators edit/delete **their own** annotations.
+
+**Technical shape (foundation branch):** Extend `StudyThreadEntries` + highlight APIs for `parentNoteId` owned by another member when both notes share a `spaceId` and viewer has membership. Render overlay from entries where `parentNoteId` = focus note; do **not** write marks into Sarah's TipTap document.
+
+**UI:**
+
+- Reuse highlight dock — no new popover pattern for Tier 1.
+- Replace passive **"View only"** banner with affordance that selection/highlight is enabled for annotation (e.g. "Sarah's note · Highlight to respond").
+- Optional later: **"Expand to full note"** from dock (`linkedNoteId`) — not Tier 1 unless needed.
+
+**Out of scope Tier 1:** @-mentions, email when someone annotates your note, co-editing Sarah's body.
 
 ---
 
-### Honorable mention (if you only want one "social" + one "infra")
+### 2. Group study threads (reuse `Threads` + `NoteThreads`)
 
-| Option | Small-group value | Effort |
-|--------|-------------------|--------|
-| **Activity since last visit** (`useSharedSpaceVisit`) | "3 new notes since Tuesday" — pulls people back | Low |
-| **Lightweight notifications** (email digest / in-app) | Closes the async loop when not in app | Medium |
-| **Enable Supabase Realtime** for shared spaces | Faster sync; optional "recently active" without cursors | Medium (infra exists, disabled) |
+**Mental model:** A **group study** is a normal **Thread** with `spaceId` set to the shared space — the container where members **add their own notes together** over a season (Scenario 2 in [COLLABORATIVE_SHARED_SPACES.md](./COLLABORATIVE_SHARED_SPACES.md)). Not a new table or space-level entity.
 
-**Recommendation:** Prefer **Respond + Group thread** over Realtime for launch — Realtime alone doesn't change the *story*; it only makes polling faster.
+**User flow:**
+
+1. **Start group study** on shared-space dashboard → create `Thread` (title, optional passage/subtitle) in this `spaceId`. **Any member** can start one.
+2. **Pin one thread** on dashboard as **current study** spotlight (most recent / owner-pinned).
+3. **New note** in shared space → optional **"Add to study thread"** picker (threads in this space; default none).
+4. Notes linked via existing **`NoteThreads`** junction; merged list shows author chips.
+
+**Why reuse Threads:** Same core structure users already have in My Home; shared space only changes **visibility** (union notes from all members on that thread) and **creation context** (`spaceId`).
+
+**Backend touch:** Union thread list + note membership queries for shared `spaceId` (called out as fast-follow in dev notes). Tier 1 minimum: create thread in space, attach notes via picker, dashboard spotlight for pinned/current thread.
+
+**Deferred Tier 1:** Full sidebar Threads list mode union; scripture-index union across members.
 
 ---
+
+### 3. Activity (honorable mentions — in Tier 1)
+
+| Item | Spec |
+|------|------|
+| **Dashboard unseen** | Polish existing visit tracking: "4 new since your visit" + who ("Sarah added 2 notes") |
+| **Space switcher dot** | Subtle indicator when any joined space has unseen activity |
+| **Email / push** | **Deferred** post-launch |
+
+**Deferred Tier 1:** Dedicated activity sheet; "Mike annotated your note" feed item; Supabase Realtime (polling stays acceptable).
+
+---
+
+## Tier 1 — implementation order
+
+1. **Shared highlight annotations** — foreign-note selection, cross-user `StudyThreadEntry`, overlay render, moderation
+2. **Group study threads** — dashboard create + pin spotlight, compose thread picker, shared-space thread/note union queries
+3. **Activity polish** — dashboard unseen copy + switcher dot
+4. **Billing webhook + Clerk setup** (parallel)
+5. **Docs, release notes, e2e, merge prep**
+6. **Paid launch**
+
+Agents: `/editor-agent` (read-only note selection + dock), `/content-agent` (dashboard, thread picker), `/data-agent` (API + union queries).
+
+---
+
+## Tier 1 — previously considered (superseded)
+
+<details>
+<summary>Generic "respond with a note" (linked note + quote) — replaced by shared highlight annotations</summary>
+
+Earlier draft: banner CTA → new note with `linkedFromNoteId` + optional quote block. **Superseded** by overlay annotation model (decided July 2026) — stronger fit with highlight/annotation UX.
+
+</details>
+
+---
+
+## Honorable mention — not Tier 1
+
+| Option | Notes |
+|--------|--------|
+| **Supabase Realtime** | Faster sync; doesn't change launch story |
+| **Email digest** | Deferred |
+| **Full activity sheet** | After annotation + threads prove the loop |
 
 ## Tier 2 — Operational must-haves (parallel, not optional)
 
@@ -164,7 +216,7 @@ See also: [REALTIME_SUPABASE_PLAN.md](./REALTIME_SUPABASE_PLAN.md), [CHURCH_ORG_
 **Lead with:**
 
 - "Your group studies in one place — each person writes their own notes"
-- "See what others added, respond to their insights, follow a shared study thread"
+- "See what others added, **highlight their notes to respond**, follow a group study thread"
 - "Invite with a link; joining is always free"
 
 Copy-in stays as a **power feature** ("Bring something from My Home into the group"), not the headline.
@@ -173,16 +225,7 @@ Copy-in stays as a **power feature** ("Bring something from My Home into the gro
 
 ## Suggested implementation order
 
-1. **Respond from shared note** — UI on read-only foreign notes + compose in active shared space
-2. **Space-native group thread** — create + unioned thread view on dashboard
-3. **Activity since visit polish** — cheap win on existing visit tracking
-4. **Billing webhook + Clerk setup** — in parallel with UX work
-5. **Docs, release notes, e2e, merge prep**
-6. **Paid launch**
-
-Estimated scope for items 1–2: one focused branch each (~editor-agent + content-agent + data-agent), not a rewrite of the foundation.
-
----
+See **Tier 1 — implementation order** above.
 
 ## What NOT to block launch on
 
