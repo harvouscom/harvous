@@ -1,9 +1,10 @@
+import type { ReactNode } from 'react';
 import Icon from '@/components/react/Icon';
 
 interface PrototypeListEmptyStateProps {
   iconName: string;
   title: string;
-  description?: string;
+  description?: ReactNode;
 }
 
 /** Sidebar list empty state — compact HarvousEmptyStateView (.compact) parity. */
@@ -12,7 +13,7 @@ export default function PrototypeListEmptyState({ iconName, title, description }
     <div className="proto-list-empty-state" role="status">
       <Icon name={iconName} size={28} className="proto-list-empty-state__icon" aria-hidden />
       <h2 className="proto-list-empty-state__title">{title}</h2>
-      {description ? <p className="proto-list-empty-state__description">{description}</p> : null}
+      {description ? <div className="proto-list-empty-state__description">{description}</div> : null}
     </div>
   );
 }

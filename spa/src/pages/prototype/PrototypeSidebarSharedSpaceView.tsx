@@ -29,10 +29,13 @@ import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import PrototypeSpacePeopleSheet from './PrototypeSpacePeopleSheet';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
+import PrototypeHomeCardCarousel from './PrototypeHomeCardCarousel';
 import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
 import {
   buildSharedSpaceNoteCardSlots,
   buildSharedSpaceSocialIntro,
+  groupSharedSpaceNoteCardSlots,
   selectSpotlightThreadForSpace,
   selectTopSharedPassage,
   sharedSpacePeopleHeaderLabel,
@@ -79,12 +82,14 @@ function SharedSpaceNoteCard({
   authorColor,
   isOwn,
   onOpen,
+  showEyebrow = true,
 }: {
   slot: SharedSpaceNoteCardSlot;
   authorName: string;
   authorColor: string;
   isOwn: boolean;
   onOpen: () => void;
+  showEyebrow?: boolean;
 }) {
   const { note, eyebrow } = slot;
   const preview = noteRowPreview(note);
@@ -96,7 +101,7 @@ function SharedSpaceNoteCard({
       className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
       onClick={onOpen}
     >
-      <p className="proto-caption proto-home-card__eyebrow">{eyebrow}</p>
+      {showEyebrow ? <p className="proto-caption proto-home-card__eyebrow">{eyebrow}</p> : null}
       <div className="proto-home-card__body">
         <div className="proto-home-card__title-row">
           <span className="proto-home-card__icon-orb" aria-hidden>
@@ -107,7 +112,9 @@ function SharedSpaceNoteCard({
             <Icon name="caret-right" size={11} />
           </span>
         </div>
-        {preview ? <p className="pds-list-preview proto-home-card__preview">{preview}</p> : null}
+        {preview ? (
+          <p className="pds-list-preview proto-home-card__preview">{preview}</p>
+        ) : null}
         <div className="proto-home-card__meta">
           <SharedSpaceNoteAuthorChip displayName={authorName} color={authorColor} isSelf={isOwn} />
           {rel ? (
@@ -138,6 +145,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
   const { user } = useUser();
   const { activeSpaceId, isOwner, spaceTitle: resolvedSpaceTitle } = useActiveSpace();
   const {
+    isMobileSidebar,
     setSidebarLayer,
     setSidebarListMode,
     setSidebarThreadDrilldownId,
@@ -191,6 +199,8 @@ function PrototypeSidebarSharedSpaceViewLive() {
       }),
     [recentNotes, notesForContinue, unseenSince, authUserId],
   );
+
+  const noteCardGroups = useMemo(() => groupSharedSpaceNoteCardSlots(noteCardSlots), [noteCardSlots]);
 
   const contributorIntro = useMemo(
     () =>
@@ -254,6 +264,20 @@ function PrototypeSidebarSharedSpaceViewLive() {
     return { isOwn, authorName, authorColor };
   };
 
+  const renderNotePreviewCard = (slot: SharedSpaceNoteCardSlot, showEyebrow = true) => {
+    const author = resolveAuthor(slot.note);
+    return (
+      <SharedSpaceNoteCard
+        slot={slot}
+        authorName={author.authorName}
+        authorColor={author.authorColor}
+        isOwn={author.isOwn}
+        showEyebrow={showEyebrow}
+        onOpen={() => openNote(slot.note)}
+      />
+    );
+  };
+
   useEffect(() => {
     if (!activeSpaceId || !spaceTitle) return;
     try {
@@ -283,6 +307,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
   if (!contentReady) {
     return (
       <div className="proto-sidebar-root proto-shared-space-dashboard">
+        {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
         <ProtoSpaceLoading label="Loading space" />
       </div>
     );
@@ -290,6 +315,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
 
   return (
     <div className="proto-sidebar-root proto-shared-space-dashboard">
+      {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
       <div className="proto-shared-space-header">
         <div className="proto-shared-space-header__row">
           <ProtoSpaceMenuIcon color={space?.color || 'paper'} size={30} radius={9} />
@@ -404,7 +430,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
                     </span>
                   </div>
                   <p className="pds-list-preview proto-home-card__preview">
-                    Create the first note in {spaceTitle}...
+                    {`Create the first note in ${spaceTitle}...`}
                   </p>
                 </div>
               </button>
@@ -470,20 +496,22 @@ function PrototypeSidebarSharedSpaceViewLive() {
                 </div>
               ) : null}
 
-              {noteCardSlots.map((slot) => {
-                const { isOwn, authorName, authorColor } = resolveAuthor(slot.note);
-                return (
-                  <div key={slot.note.id} className="proto-home-section">
-                    <SharedSpaceNoteCard
-                      slot={slot}
-                      authorName={authorName}
-                      authorColor={authorColor}
-                      isOwn={isOwn}
-                      onOpen={() => openNote(slot.note)}
-                    />
-                  </div>
-                );
-              })}
+              {noteCardGroups.map((group) => (
+                <div key={`${group.eyebrow}-${group.slots[0].note.id}`} className="proto-home-section">
+                  {group.slots.length === 1 ? (
+                    renderNotePreviewCard(group.slots[0])
+                  ) : (
+                    <>
+                      <p className="proto-caption proto-home-section__eyebrow">{group.eyebrow}</p>
+                      <PrototypeHomeCardCarousel
+                        items={group.slots.map((slot) => ({ ...slot, id: slot.note.id }))}
+                        ariaLabel={group.eyebrow}
+                        renderItem={(slot) => renderNotePreviewCard(slot, false)}
+                      />
+                    </>
+                  )}
+                </div>
+              ))}
 
             </>
           )}

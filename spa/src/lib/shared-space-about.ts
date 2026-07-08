@@ -9,15 +9,25 @@ function memberInitial(name: string): string {
   return trimmed.charAt(0).toUpperCase();
 }
 
+/** Owner row for shared-space roster and empty-state attribution. */
+export function resolveSpaceOwnerMember(
+  members: SpaceMemberRow[],
+  ownerId?: string | null,
+): SpaceMemberRow | null {
+  return (
+    members.find((m) => m.role === 'owner') ??
+    (ownerId ? members.find((m) => m.userId === ownerId) : null) ??
+    members[0] ??
+    null
+  );
+}
+
 /** Map live space + members API data to join-letter shape for the about dialog. */
 export function mapSpaceToAboutLetterSpace(
   space: SpaceDetail,
   members: SpaceMemberRow[],
 ): PublicJoinSpaceLetterSpace {
-  const owner =
-    members.find((m) => m.role === 'owner') ??
-    members.find((m) => m.userId === space.ownerId) ??
-    members[0];
+  const owner = resolveSpaceOwnerMember(members, space.ownerId);
   const nonOwner = members.filter((m) => m.userId !== owner?.userId).slice(0, 2);
 
   const accentForColor = (color: string | null | undefined) => {

@@ -18,7 +18,7 @@ export type SidebarElsewhereTypeFilter =
 
 export type HighlightKindFilter = 'all' | 'notes' | 'connected' | 'scripture' | 'references';
 
-export type SidebarSearchScope = 'active' | 'elsewhere';
+export type SidebarSearchScope = 'active' | 'elsewhere' | 'my-home';
 
 export const SIDEBAR_ELSEWHERE_TYPE_OPTIONS: {
   id: SidebarElsewhereTypeFilter;

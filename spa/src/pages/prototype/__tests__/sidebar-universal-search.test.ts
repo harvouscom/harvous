@@ -5,6 +5,7 @@ import {
   buildElsewhereResults,
   buildFoldersFromNotes,
   elsewhereEmptyStateTitle,
+  myHomeEmptyStateTitle,
   type ActiveSearchContext,
   type UniversalSearchData,
 } from '../sidebar-universal-search';
@@ -151,6 +152,17 @@ describe('sidebar-universal-search', () => {
           'threads',
         ),
       ).toBe('No threads found');
+    });
+  });
+
+  describe('myHomeEmptyStateTitle', () => {
+    it('uses generic copy when type filter is All', () => {
+      expect(myHomeEmptyStateTitle('all')).toBe('Nothing in My Home');
+    });
+
+    it('uses per-type copy when type filter is specific', () => {
+      expect(myHomeEmptyStateTitle('notes')).toBe('No notes found');
+      expect(myHomeEmptyStateTitle('highlights')).toBe('No highlights found');
     });
   });
 

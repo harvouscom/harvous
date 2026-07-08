@@ -4197,6 +4197,32 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   font-weight: 400;
   line-height: 1.45;
   color: inherit;
+  text-wrap: balance;
+}
+
+.proto-list-empty-state__owner-attribution {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+
+.proto-list-empty-state__owner-attribution-lead {
+  display: block;
+}
+
+.proto-list-empty-state__owner-attribution-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.proto-list-empty-state__owner-attribution-row .proto-shared-author-chip {
+  margin-right: 0;
 }
 
 .proto-pin-entry__footer--inline {
@@ -4647,6 +4673,11 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   padding: 8px 14px 14px;
 }
 
+.proto-home-section__eyebrow {
+  margin: 0 0 6px;
+  padding: 0 2px;
+}
+
 .proto-home-view--enter .proto-home-section {
   opacity: 0;
   animation: proto-home-section-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -4766,6 +4797,7 @@ button.proto-home-card--tappable:focus-visible {
 
 .proto-home-card__title {
   margin: 0;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4774,6 +4806,7 @@ button.proto-home-card--tappable:focus-visible {
 .proto-home-card__preview,
 .proto-home-card__excerpt {
   margin: 2px 0 0;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4795,7 +4828,8 @@ button.proto-home-card--tappable:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .proto-home-card__meta-sep {
@@ -7717,7 +7751,7 @@ button.proto-appearance-hero__card {
 .proto-shared-author-chip svg {
   display: block;
   flex-shrink: 0;
-  color: var(--proto-shared-author-color, var(--pds-text-secondary));
+  color: currentColor;
 }
 
 .proto-shared-space-header {

@@ -188,6 +188,24 @@ a `type='shared'` space and multiple people can author into it.
   author-scoped. Opening a foreign note loads unioned `studyThreads` on details for highlight dock deep
   links (inline overlay render is Tier 1 follow-on).
 
+### My Home overlay (shared shell, no space switch)
+
+When a shared space is the active shell context (`activeSpaceId`), members can reach personal My Home
+without switching spaces:
+
+- **List scope chip bar** (`This space` | `My Home`) on the shared-space list sidebar — toggles
+  `sidebarListSpaceScope` in proto shell state (persisted in `proto-sidebar-nav-store`). The layout
+  passes `scopedSpaceId` to `PrototypeSidebar` as either the active shared space or personal My Home;
+  `activeSpaceId`, the space switcher label, and the shared dashboard stay on the shared space.
+- **Search “My Home” tab** — distinct from **Elsewhere** (which only searches outside the current
+  drilldown within the same space). The My Home tab runs FTS + universal search against personal My Home
+  while the list remains scoped to the shared space.
+- **Compose** — default **+** / **N** still creates into the active shared space. **New note in My Home**
+  (space switcher menu; mobile toolbar house button) sets `composeTargetSpaceIdOverride` for one draft
+  session, cleared on first persist or leaving the draft route.
+
+Scope resets to **This space** when `activeSpaceId` changes or the user leaves shared space.
+
 ### Locked notes
 
 Unchanged rule, now enforced uniformly: **locked notes (`contentEncrypted: true`) never appear in shared

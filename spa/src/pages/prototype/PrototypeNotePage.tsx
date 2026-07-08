@@ -160,6 +160,8 @@ export default function PrototypeNotePage() {
     setPrototypeFolderChip,
     setComposePersistedNoteId,
     composeSessionEpoch,
+    composeTargetSpaceIdOverride,
+    clearComposeTargetSpaceIdOverride,
     dismissStandaloneScripturePassage,
     openStandaloneScripturePassage,
     formatToolbarHostEl,
@@ -178,10 +180,17 @@ export default function PrototypeNotePage() {
   // selected; a stale selection is cleared by useActiveSpace and the server
   // rejects a create into a space you no longer belong to.
   const composeTargetSpaceId = useMemo(() => {
+    if (composeTargetSpaceIdOverride) return composeTargetSpaceIdOverride;
     if (!selectedSpaceId) return personalHomeSpaceId;
     return selectedSpaceId.startsWith('space_') ? selectedSpaceId : `space_${selectedSpaceId}`;
-  }, [selectedSpaceId, personalHomeSpaceId]);
+  }, [composeTargetSpaceIdOverride, selectedSpaceId, personalHomeSpaceId]);
   const prevComposeSessionEpochRef = useRef(composeSessionEpoch);
+
+  useEffect(() => {
+    if (!isDraft && composeTargetSpaceIdOverride) {
+      clearComposeTargetSpaceIdOverride();
+    }
+  }, [isDraft, composeTargetSpaceIdOverride, clearComposeTargetSpaceIdOverride]);
 
   const onHighlightDeepLinkHandoff = useCallback(() => {
     if (!initialHighlightThread) return;

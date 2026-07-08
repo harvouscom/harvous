@@ -74,7 +74,9 @@ function FixtureNoteCard({
             <Icon name="caret-right" size={11} />
           </span>
         </div>
-        {preview ? <p className="pds-list-preview proto-home-card__preview">{preview}</p> : null}
+        {preview ? (
+          <p className="pds-list-preview proto-home-card__preview">{preview}</p>
+        ) : null}
         <div className="proto-home-card__meta">
           <SharedSpaceNoteAuthorChip displayName={authorName} color={authorColor} isSelf={isOwn} />
           <span className="proto-home-card__meta-sep" aria-hidden>

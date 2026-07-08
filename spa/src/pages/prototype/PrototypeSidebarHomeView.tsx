@@ -540,7 +540,9 @@ function HomeNoteCard({
             <Icon name="caret-right" size={11} />
           </span>
         </div>
-        {preview ? <p className="pds-list-preview proto-home-card__preview">{preview}</p> : null}
+        {preview ? (
+          <p className="pds-list-preview proto-home-card__preview">{preview}</p>
+        ) : null}
         <div className="proto-home-card__meta">
           {rel ? <span className="proto-home-card__meta-item">{rel}</span> : null}
           {rel && note.primaryCollection ? <span className="proto-home-card__meta-sep">in</span> : null}
@@ -1558,7 +1560,7 @@ export default function PrototypeSidebarHomeView({
                   <Icon name="folder" size={13} />
                 </span>
                 <p className="pds-list-title proto-home-card__title">
-                  {looseCount} notes haven&apos;t found a home yet
+                  {`${looseCount} notes haven't found a home yet`}
                 </p>
                 <span className="proto-home-card__chevron" aria-hidden>
                   <Icon name="caret-right" size={11} />

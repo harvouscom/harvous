@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
@@ -13,7 +14,7 @@ import { useRemoveThreadCluster } from '../../hooks/mutations/useRemoveThreadClu
 import { useConnectNote } from '../../hooks/mutations/useConnectNote';
 import { useUpdateStudyThreadTitle } from '../../hooks/mutations/useUpdateStudyThreadTitle';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
-import { useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
+import { useSpaceNotes, useSpaceMembers, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
 import { countNotesInFolderBucket, noteBelongsToFolderBucket, noteFolderMembershipLabels } from '@/utils/note-folder-display';
 import { sortDrillNoteBriefsByLastUpdated, sortNotesByLastUpdated } from '@/utils/sorting';
@@ -88,10 +89,14 @@ import {
   type ActiveSearchContext,
 } from './sidebar-universal-search';
 import { usePrototypeFolderRegistry } from '../../hooks/mutations/usePrototypeFolderRegistry';
+import { useActiveSpace } from '../../hooks/useActiveSpace';
+import { canCreateSidebarCollections as resolveCanCreateSidebarCollections } from '../../lib/shared-space-capabilities';
 import PrototypeAddNotesSheet from './PrototypeAddNotesSheet';
 import PrototypeCreateFolderSheet from './PrototypeCreateFolderSheet';
 import PrototypeCreateThreadSheet from './PrototypeCreateThreadSheet';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
+import { resolveSpaceOwnerMember } from '../../lib/shared-space-about';
+import SharedSpaceOwnerCollectionEmptyDescription from './SharedSpaceOwnerCollectionEmptyDescription';
 
 
 import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
@@ -914,13 +919,23 @@ function threadProposalSubtitle(proposal: ThreadProposal): string {
   }
 }
 
-export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: string | null } = {}) {
+export default function PrototypeSidebar({
+  scopedSpaceId,
+  showListSpaceScopeBar = false,
+  shellIsSharedSpace = false,
+}: {
+  scopedSpaceId?: string | null;
+  showListSpaceScopeBar?: boolean;
+  shellIsSharedSpace?: boolean;
+} = {}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const {
     closeDrawer,
     isMobileSidebar,
     sidebarLayer,
     sidebarListMode: mode,
+    sidebarListSpaceScope,
+    setSidebarListSpaceScope,
     setSidebarFolderDrilldown: setActiveFolderKey,
     sidebarFolderDrilldown: activeFolderKey,
     sidebarThreadDrilldownId,
@@ -950,6 +965,67 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
       (scopedSpaceId.startsWith('space_') ? scopedSpaceId : `space_${scopedSpaceId}`) !==
         (personalHomeSpaceId.startsWith('space_') ? personalHomeSpaceId : `space_${personalHomeSpaceId}`),
   );
+  const { userId: authUserId } = useAuth();
+  const { isOwner: viewerIsSpaceOwner, space: activeSharedSpace } = useActiveSpace();
+  const sharedSpaceMembersQuery = useSpaceMembers(isScopedSharedSpace && homeSpaceId ? homeSpaceId : '');
+  const sharedSpaceOwnerAttribution = useMemo(() => {
+    const owner = resolveSpaceOwnerMember(
+      sharedSpaceMembersQuery.data?.members ?? [],
+      activeSharedSpace?.ownerId,
+    );
+    return {
+      ownerDisplayName: owner?.displayName ?? 'Space owner',
+      ownerColor: owner?.userColor ?? 'blue',
+      ownerIsSelf: Boolean(authUserId && owner?.userId === authUserId),
+    };
+  }, [sharedSpaceMembersQuery.data?.members, activeSharedSpace?.ownerId, authUserId]);
+  const canCreateSidebarCollections = resolveCanCreateSidebarCollections({
+      inSharedSpaceShell: shellIsSharedSpace,
+      listScope: sidebarListSpaceScope,
+      isScopedSharedSpaceList: isScopedSharedSpace,
+      isOwner: viewerIsSpaceOwner,
+      membershipRole: activeSharedSpace?.role,
+    });
+  const isMyHomeListInSharedShell =
+    shellIsSharedSpace && showListSpaceScopeBar && sidebarListSpaceScope === 'my-home';
+  const foldersEmptyDescription = useMemo(() => {
+    if (canCreateSidebarCollections) {
+      return "Create a folder to organize notes, then add them when you're ready.";
+    }
+    if (isMyHomeListInSharedShell) return 'Folders are managed from This space.';
+    if (isScopedSharedSpace) {
+      return (
+        <SharedSpaceOwnerCollectionEmptyDescription
+          resourceLabel="Folders"
+          {...sharedSpaceOwnerAttribution}
+        />
+      );
+    }
+    return 'Folders in this space are added by the space owner.';
+  }, [
+    canCreateSidebarCollections,
+    isMyHomeListInSharedShell,
+    isScopedSharedSpace,
+    sharedSpaceOwnerAttribution,
+  ]);
+  const threadsEmptyDescription = useMemo(() => {
+    if (canCreateSidebarCollections) return 'Name a thread and pick notes to connect them.';
+    if (isMyHomeListInSharedShell) return 'Threads are managed from This space.';
+    if (isScopedSharedSpace) {
+      return (
+        <SharedSpaceOwnerCollectionEmptyDescription
+          resourceLabel="Threads"
+          {...sharedSpaceOwnerAttribution}
+        />
+      );
+    }
+    return 'Threads in this space are added by the space owner.';
+  }, [
+    canCreateSidebarCollections,
+    isMyHomeListInSharedShell,
+    isScopedSharedSpace,
+    sharedSpaceOwnerAttribution,
+  ]);
   usePrototypeStudyThreadListSyncListener(homeSpaceId ?? undefined);
 
   const scrollRootRef = useRef<HTMLDivElement>(null);
@@ -999,9 +1075,43 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
     noteIds: string[];
     threadName?: string;
   } | null>(null);
+  const openCreateThreadSheet = useCallback(
+    (prefill?: { noteIds: string[]; threadName?: string } | null) => {
+      if (!canCreateSidebarCollections) return;
+      setCreateThreadPrefill(prefill ?? null);
+      setCreateThreadSheetOpen(true);
+    },
+    [canCreateSidebarCollections],
+  );
+  const openCreateFolderSheet = useCallback(() => {
+    if (!canCreateSidebarCollections) return;
+    setCreateFolderSheetOpen(true);
+  }, [canCreateSidebarCollections]);
   const isHomeLayer = sidebarLayer === 'space';
   const tagFilterActive = Boolean(tagFilter);
   const searchActive = !isHomeLayer && q.trim().length > 0 && !tagFilterActive;
+  const myHomeCrossSearchEnabled = Boolean(
+    shellIsSharedSpace && searchActive && isScopedSharedSpace && personalHomeSpaceId,
+  );
+
+  const { data: myHomeNotesPages } = useSpaceNotes(
+    myHomeCrossSearchEnabled ? (personalHomeSpaceId ?? '') : '',
+    20,
+  );
+  const myHomeNotes = useMemo(
+    () => myHomeNotesPages?.pages.flatMap((p) => p.items) ?? [],
+    [myHomeNotesPages?.pages],
+  );
+  const myHomeFolderRegistryQuery = usePrototypeFolderRegistry(
+    myHomeCrossSearchEnabled ? personalHomeSpaceId ?? undefined : undefined,
+  );
+
+  // List scope overlay — drop stale search when switching between shared space and My Home.
+  useEffect(() => {
+    if (!showListSpaceScopeBar) return;
+    setQ('');
+    setTagFilter(null);
+  }, [showListSpaceScopeBar, sidebarListSpaceScope]);
 
   const tagNoteIdsQuery = useTagNoteIds(tagFilter?.tagId, homeSpaceId ?? undefined);
   const tagNoteIdSet = useMemo(
@@ -1034,11 +1144,20 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
   const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(
     searchActive || mode === 'highlights' ? homeSpaceId ?? undefined : undefined,
   );
+  const myHomeHighlightsQuery = usePrototypeSpaceStudyThreadHighlights(
+    myHomeCrossSearchEnabled ? personalHomeSpaceId ?? undefined : undefined,
+  );
   const scriptureQuery = usePrototypeSpaceScriptureIndex(
     searchActive || mode === 'scripture' || isHomeLayer ? homeSpaceId ?? undefined : undefined,
   );
+  const myHomeScriptureQuery = usePrototypeSpaceScriptureIndex(
+    myHomeCrossSearchEnabled ? personalHomeSpaceId ?? undefined : undefined,
+  );
   const studyThreadsQuery = usePrototypeStudyThreads(
     searchActive || mode === 'threads' ? homeSpaceId ?? undefined : undefined,
+  );
+  const myHomeStudyThreadsQuery = usePrototypeStudyThreads(
+    myHomeCrossSearchEnabled ? personalHomeSpaceId ?? undefined : undefined,
   );
   const threadDrillQuery = usePrototypeStudyThread(
     (searchActive || mode === 'threads') && sidebarThreadDrilldownId ? sidebarThreadDrilldownId : undefined,
@@ -1192,7 +1311,7 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
   }, [setSidebarThreadProposal, setSidebarLayer]);
 
   const handleAcceptThreadProposal = useCallback(async () => {
-    if (!homeSpaceId || !sidebarThreadProposal) return;
+    if (!canCreateSidebarCollections || !homeSpaceId || !sidebarThreadProposal) return;
     const [first, ...rest] = sidebarThreadProposal.notes.map((n) => n.id);
     if (!first) return;
     setIsAcceptingProposal(true);
@@ -1220,6 +1339,7 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
       setIsAcceptingProposal(false);
     }
   }, [
+    canCreateSidebarCollections,
     homeSpaceId,
     sidebarThreadProposal,
     connectNoteMutation,
@@ -1514,6 +1634,44 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
       threadDrillNodes: threadDrillQuery.data?.nodes ?? [],
     }),
     [notes, folders, highlightsQuery.data, scriptureBooks, studyThreadsQuery.data, threadDrillQuery.data?.nodes],
+  );
+
+  const myHomeNotesById = useMemo(() => {
+    const map = new Map<string, SpaceNoteRow>();
+    for (const row of myHomeNotes) map.set(row.id, row);
+    return map;
+  }, [myHomeNotes]);
+
+  const myHomeHighlightsById = useMemo(() => {
+    const map = new Map<string, PrototypeHighlightStudyThreadRow>();
+    for (const row of myHomeHighlightsQuery.data ?? []) map.set(row.id, row);
+    return map;
+  }, [myHomeHighlightsQuery.data]);
+
+  const myHomeFolders = useMemo(() => {
+    if (!myHomeCrossSearchEnabled) return [];
+    const fromNotes = buildFoldersFromNotes(myHomeNotes);
+    return mergeFoldersWithRegistry(fromNotes, myHomeFolderRegistryQuery.data ?? []);
+  }, [myHomeCrossSearchEnabled, myHomeNotes, myHomeFolderRegistryQuery.data]);
+
+  const myHomeScriptureBooks = myHomeScriptureQuery.data?.books ?? [];
+
+  const myHomeUniversalSearchData = useMemo(
+    () => ({
+      notes: myHomeNotes,
+      folders: myHomeFolders,
+      highlights: myHomeHighlightsQuery.data ?? [],
+      scriptureBooks: myHomeScriptureBooks,
+      threadClusters: myHomeStudyThreadsQuery.data ?? [],
+      threadDrillNodes: [],
+    }),
+    [
+      myHomeNotes,
+      myHomeFolders,
+      myHomeHighlightsQuery.data,
+      myHomeScriptureBooks,
+      myHomeStudyThreadsQuery.data,
+    ],
   );
 
 
@@ -1855,6 +2013,31 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
           ) : null}
         </div>
       ) : null}
+      {showListSpaceScopeBar && !isHomeLayer ? (
+        <div className="proto-sidebar-list-scope">
+          <div className="proto-chip-bar" role="tablist" aria-label="List scope">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sidebarListSpaceScope === 'space'}
+              className={`proto-chip${sidebarListSpaceScope === 'space' ? ' proto-chip--selected' : ''}`}
+              onClick={() => setSidebarListSpaceScope('space')}
+            >
+              This space
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sidebarListSpaceScope === 'my-home'}
+              className={`proto-chip${sidebarListSpaceScope === 'my-home' ? ' proto-chip--selected' : ''}`}
+              onClick={() => setSidebarListSpaceScope('my-home')}
+            >
+              <Icon name="house" size={11} aria-hidden />
+              My Home
+            </button>
+          </div>
+        </div>
+      ) : null}
       {!isHomeLayer && !sidebarThreadProposal ? (
       <div className="proto-sidebar-search">
         <PrototypeSearchInput
@@ -1917,8 +2100,7 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
             }}
             onOpenHighlight={onHighlightRow}
             onOpenCreateThreadPrefill={({ noteIds, threadName }) => {
-              setCreateThreadPrefill({ noteIds, threadName });
-              setCreateThreadSheetOpen(true);
+              openCreateThreadSheet({ noteIds, threadName });
             }}
           />
         ) : sidebarThreadProposal ? (
@@ -1963,14 +2145,16 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
               >
                 Not now
               </button>
-              <button
-                type="button"
-                className="proto-thread-review__btn proto-thread-review__btn--primary"
-                onClick={handleAcceptThreadProposal}
-                disabled={isAcceptingProposal}
-              >
-                {isAcceptingProposal ? 'Creating…' : 'Create thread'}
-              </button>
+              {canCreateSidebarCollections ? (
+                <button
+                  type="button"
+                  className="proto-thread-review__btn proto-thread-review__btn--primary"
+                  onClick={handleAcceptThreadProposal}
+                  disabled={isAcceptingProposal}
+                >
+                  {isAcceptingProposal ? 'Creating…' : 'Create thread'}
+                </button>
+              ) : null}
             </div>
           </div>
         ) : searchActive ? (
@@ -1987,6 +2171,11 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
             onHighlightKindFilterChange={setHighlightKindFilter}
             onActivateResult={onActivateSearchResult}
             isResultActive={isSearchResultActive}
+            shellIsSharedSpace={shellIsSharedSpace && isScopedSharedSpace}
+            personalHomeSpaceId={personalHomeSpaceId}
+            myHomeData={myHomeUniversalSearchData}
+            myHomeNotesById={myHomeNotesById}
+            myHomeHighlightsById={myHomeHighlightsById}
           />
         ) : (
           <>
@@ -2115,25 +2304,27 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
                     <PrototypeListEmptyState
                       iconName="folder"
                       title="No Folders"
-                      description="Create a folder to organize notes, then add them when you're ready."
+                      description={foldersEmptyDescription}
                     />
-                    <button
-                      type="button"
-                      className="proto-list-create-empty__btn"
-                      onClick={() => setCreateFolderSheetOpen(true)}
-                    >
-                      New folder
-                    </button>
+                    {canCreateSidebarCollections ? (
+                      <button
+                        type="button"
+                        className="proto-list-create-empty__btn"
+                        onClick={openCreateFolderSheet}
+                      >
+                        New folder
+                      </button>
+                    ) : null}
                   </div>
                 )
               ) : (
                 <>
-                  {!q.trim() ? (
+                  {!q.trim() && canCreateSidebarCollections ? (
                     <div className="proto-collection-grid-actions">
                       <button
                         type="button"
                         className="proto-collection-grid-actions__btn"
-                        onClick={() => setCreateFolderSheetOpen(true)}
+                        onClick={openCreateFolderSheet}
                       >
                         <Icon name="plus" size={12} aria-hidden />
                         New folder
@@ -2342,18 +2533,17 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
                     <PrototypeListEmptyState
                       iconName="arrow-right-arrow-left"
                       title="No Threads"
-                      description="Name a thread and pick notes to connect them."
+                      description={threadsEmptyDescription}
                     />
-                    <button
-                      type="button"
-                      className="proto-list-create-empty__btn"
-                      onClick={() => {
-                        setCreateThreadPrefill(null);
-                        setCreateThreadSheetOpen(true);
-                      }}
-                    >
-                      New thread
-                    </button>
+                    {canCreateSidebarCollections ? (
+                      <button
+                        type="button"
+                        className="proto-list-create-empty__btn"
+                        onClick={() => openCreateThreadSheet()}
+                      >
+                        New thread
+                      </button>
+                    ) : null}
                   </div>
                 ) : filteredThreads.length === 0 ? (
                   q.trim() ? (
@@ -2363,31 +2553,27 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
                       <PrototypeListEmptyState
                         iconName="arrow-right-arrow-left"
                         title="No Threads"
-                        description="Name a thread and pick notes to connect them."
+                        description={threadsEmptyDescription}
                       />
-                      <button
-                        type="button"
-                        className="proto-list-create-empty__btn"
-                        onClick={() => {
-                        setCreateThreadPrefill(null);
-                        setCreateThreadSheetOpen(true);
-                      }}
-                      >
-                        New thread
-                      </button>
+                      {canCreateSidebarCollections ? (
+                        <button
+                          type="button"
+                          className="proto-list-create-empty__btn"
+                          onClick={() => openCreateThreadSheet()}
+                        >
+                          New thread
+                        </button>
+                      ) : null}
                     </div>
                   )
                 ) : (
                   <>
-                    {!q.trim() ? (
+                    {!q.trim() && canCreateSidebarCollections ? (
                       <div className="proto-collection-grid-actions">
                         <button
                           type="button"
                           className="proto-collection-grid-actions__btn"
-                          onClick={() => {
-                        setCreateThreadPrefill(null);
-                        setCreateThreadSheetOpen(true);
-                      }}
+                          onClick={() => openCreateThreadSheet()}
                         >
                           <Icon name="plus" size={12} aria-hidden />
                           New thread
@@ -2598,32 +2784,36 @@ export default function PrototypeSidebar({ scopedSpaceId }: { scopedSpaceId?: st
             notesById={notesById}
             spaceNotes={notes}
           />
-          <PrototypeCreateFolderSheet
-            open={createFolderSheetOpen}
-            onOpenChange={setCreateFolderSheetOpen}
-            spaceId={homeSpaceId}
-            spaceNotes={notes}
-            notesById={notesById}
-            onCreated={(folderName) => {
-              setSidebarListMode('folders');
-              setActiveFolderKey(folderName);
-            }}
-          />
-          <PrototypeCreateThreadSheet
-            open={createThreadSheetOpen}
-            onOpenChange={(open) => {
-              setCreateThreadSheetOpen(open);
-              if (!open) setCreateThreadPrefill(null);
-            }}
-            spaceId={homeSpaceId}
-            spaceNotes={notes}
-            initialSelectedNoteIds={createThreadPrefill?.noteIds}
-            initialThreadName={createThreadPrefill?.threadName}
-            onCreated={(repNoteId) => {
-              setSidebarListMode('threads');
-              setSidebarThreadDrilldownId(threadClusterDrillSlug(repNoteId));
-            }}
-          />
+          {canCreateSidebarCollections ? (
+            <PrototypeCreateFolderSheet
+              open={createFolderSheetOpen}
+              onOpenChange={setCreateFolderSheetOpen}
+              spaceId={homeSpaceId}
+              spaceNotes={notes}
+              notesById={notesById}
+              onCreated={(folderName) => {
+                setSidebarListMode('folders');
+                setActiveFolderKey(folderName);
+              }}
+            />
+          ) : null}
+          {canCreateSidebarCollections ? (
+            <PrototypeCreateThreadSheet
+              open={createThreadSheetOpen}
+              onOpenChange={(open) => {
+                setCreateThreadSheetOpen(open);
+                if (!open) setCreateThreadPrefill(null);
+              }}
+              spaceId={homeSpaceId}
+              spaceNotes={notes}
+              initialSelectedNoteIds={createThreadPrefill?.noteIds}
+              initialThreadName={createThreadPrefill?.threadName}
+              onCreated={(repNoteId) => {
+                setSidebarListMode('threads');
+                setSidebarThreadDrilldownId(threadClusterDrillSlug(repNoteId));
+              }}
+            />
+          ) : null}
         </>
       ) : null}
     </div>

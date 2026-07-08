@@ -203,6 +203,25 @@ export function buildSharedSpaceNoteCardSlots(input: {
   return slots;
 }
 
+export interface SharedSpaceNoteCardGroup {
+  eyebrow: string;
+  slots: SharedSpaceNoteCardSlot[];
+}
+
+/** Consecutive cards with the same eyebrow — multi-card groups use a carousel in the UI. */
+export function groupSharedSpaceNoteCardSlots(slots: SharedSpaceNoteCardSlot[]): SharedSpaceNoteCardGroup[] {
+  const groups: SharedSpaceNoteCardGroup[] = [];
+  for (const slot of slots) {
+    const prev = groups[groups.length - 1];
+    if (prev && prev.eyebrow === slot.eyebrow) {
+      prev.slots.push(slot);
+    } else {
+      groups.push({ eyebrow: slot.eyebrow, slots: [slot] });
+    }
+  }
+  return groups;
+}
+
 /** Header people row — solo owner space vs multi-member. */
 export function sharedSpacePeopleHeaderLabel(peopleCount: number): string {
   if (peopleCount === 1) return 'Just you';

@@ -4,6 +4,7 @@ import {
   buildContributorIntro,
   buildSharedSpaceNoteCardSlots,
   buildSharedSpaceSocialIntro,
+  groupSharedSpaceNoteCardSlots,
   isNoteUnseenSinceVisit,
 } from '../shared-space-dashboard';
 
@@ -104,5 +105,17 @@ describe('shared-space-dashboard', () => {
 
     expect(slots.map((s) => s.kind)).toEqual(['new-from-others', 'continue', 'recent']);
     expect(slots.map((s) => s.note.id)).toEqual(['other-new', 'continue', 'mine-recent']);
+  });
+
+  it('groupSharedSpaceNoteCardSlots merges consecutive matching eyebrows', () => {
+    const slots = [
+      { note: note('a'), eyebrow: 'Recently updated', kind: 'recent' as const },
+      { note: note('b'), eyebrow: 'Recently updated', kind: 'recent' as const },
+      { note: note('c'), eyebrow: 'Pick up where you left off', kind: 'continue' as const },
+    ];
+    expect(groupSharedSpaceNoteCardSlots(slots)).toEqual([
+      { eyebrow: 'Recently updated', slots: [slots[0], slots[1]] },
+      { eyebrow: 'Pick up where you left off', slots: [slots[2]] },
+    ]);
   });
 });

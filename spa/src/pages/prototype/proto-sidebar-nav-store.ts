@@ -8,6 +8,9 @@ import type { ScriptureDrillState } from './sidebar-universal-search';
 type SidebarLayer = 'space' | 'list';
 type SidebarFolderDrilldown = string | null | undefined;
 
+/** List sidebar scope when a shared space is active — overlay without switching `activeSpaceId`. */
+export type SidebarListSpaceScope = 'space' | 'my-home';
+
 export const PROTO_SIDEBAR_NAV_STORAGE_KEY = 'harvous-prototype-sidebar-nav';
 
 /** Stored folder drill encoding — avoids JSON undefined ambiguity. */
@@ -19,6 +22,7 @@ type PersistedSidebarNavRaw = {
   threadDrillId?: unknown;
   scriptureDrill?: unknown;
   activeSpaceId?: unknown;
+  sidebarListSpaceScope?: unknown;
 };
 
 export type PersistedSidebarNav = {
@@ -28,6 +32,8 @@ export type PersistedSidebarNav = {
   scriptureDrill: ScriptureDrillState;
   /** Selected shared/public space id (`space_...`); undefined = personal My Home. */
   activeSpaceId: string | undefined;
+  /** When in a shared space list view: browse shared space vs personal My Home. */
+  sidebarListSpaceScope: SidebarListSpaceScope;
 };
 
 const DEFAULT_SCRIPTURE_DRILL: ScriptureDrillState = { level: 'books' };
@@ -81,6 +87,10 @@ function parseActiveSpaceId(value: unknown): string | undefined {
   return value;
 }
 
+function parseSidebarListSpaceScope(value: unknown): SidebarListSpaceScope {
+  return value === 'my-home' ? 'my-home' : 'space';
+}
+
 function parseScriptureDrill(value: unknown): ScriptureDrillState {
   if (!value || typeof value !== 'object') return DEFAULT_SCRIPTURE_DRILL;
   const drill = value as Record<string, unknown>;
@@ -114,6 +124,7 @@ export function readPersistedSidebarNav(): PersistedSidebarNav {
     threadDrillId: parseThreadDrillId(raw.threadDrillId),
     scriptureDrill: parseScriptureDrill(raw.scriptureDrill),
     activeSpaceId: parseActiveSpaceId(raw.activeSpaceId),
+    sidebarListSpaceScope: parseSidebarListSpaceScope(raw.sidebarListSpaceScope),
   };
 }
 
@@ -131,6 +142,9 @@ export type SidebarNavPatch = {
   clearScriptureDrill?: boolean;
   /** When true, omit activeSpaceId from storage (back to personal My Home). */
   clearActiveSpaceId?: boolean;
+  sidebarListSpaceScope?: SidebarListSpaceScope;
+  /** When true, omit sidebarListSpaceScope from storage (defaults to shared space). */
+  clearSidebarListSpaceScope?: boolean;
 };
 
 export function writePersistedSidebarNav(patch: SidebarNavPatch): void {
@@ -167,6 +181,12 @@ export function writePersistedSidebarNav(patch: SidebarNavPatch): void {
     delete next.activeSpaceId;
   } else if (patch.activeSpaceId !== undefined) {
     next.activeSpaceId = patch.activeSpaceId;
+  }
+
+  if (patch.clearSidebarListSpaceScope) {
+    delete next.sidebarListSpaceScope;
+  } else if (patch.sidebarListSpaceScope !== undefined) {
+    next.sidebarListSpaceScope = patch.sidebarListSpaceScope;
   }
 
   safeWriteRaw(next);

@@ -20,6 +20,7 @@ import {
   buildActiveViewResults,
   buildElsewhereResults,
   elsewhereEmptyStateTitle,
+  myHomeEmptyStateTitle,
   type ActiveSearchContext,
   type ScriptureDrillState,
   type UniversalSearchData,
@@ -46,6 +47,12 @@ export type PrototypeSidebarSearchResultsProps = {
   onHighlightKindFilterChange: (filter: HighlightKindFilter) => void;
   onActivateResult: (result: SidebarSearchResult) => void;
   isResultActive: (result: SidebarSearchResult) => boolean;
+  /** When true, adds a My Home tab that searches personal notes without switching spaces. */
+  shellIsSharedSpace?: boolean;
+  personalHomeSpaceId?: string | null;
+  myHomeData?: Omit<UniversalSearchData, 'ftsNotes'>;
+  myHomeNotesById?: Map<string, SpaceNoteRow>;
+  myHomeHighlightsById?: Map<string, PrototypeHighlightStudyThreadRow>;
 };
 
 function SearchFilterChipBar<T extends string>({
@@ -122,15 +129,28 @@ export default function PrototypeSidebarSearchResults({
   onHighlightKindFilterChange,
   onActivateResult,
   isResultActive,
+  shellIsSharedSpace = false,
+  personalHomeSpaceId,
+  myHomeData,
+  myHomeNotesById,
+  myHomeHighlightsById,
 }: PrototypeSidebarSearchResultsProps) {
   const [searchScope, setSearchScope] = useState<SidebarSearchScope>('active');
   const [elsewhereTypeFilter, setElsewhereTypeFilter] = useState<SidebarElsewhereTypeFilter>('all');
   const trimmed = query.trim();
   const debouncedFtsQuery = trimmed.length >= MIN_SEARCH_QUERY_LENGTH ? trimmed : '';
 
+  const showMyHomeTab = Boolean(shellIsSharedSpace && personalHomeSpaceId);
+
   const ftsQuery = useSearch(
     debouncedFtsQuery,
     { spaceId: homeSpaceId, excludeLegacyScriptureNotes: true },
+    'notes',
+  );
+
+  const myHomeFtsQuery = useSearch(
+    showMyHomeTab && searchScope === 'my-home' ? debouncedFtsQuery : '',
+    { spaceId: personalHomeSpaceId ?? '', excludeLegacyScriptureNotes: true },
     'notes',
   );
 
@@ -141,6 +161,14 @@ export default function PrototypeSidebarSearchResults({
     }),
     [data, ftsQuery.data?.results],
   );
+
+  const myHomeSearchData: UniversalSearchData | null = useMemo(() => {
+    if (!showMyHomeTab || !myHomeData) return null;
+    return {
+      ...myHomeData,
+      ftsNotes: myHomeFtsQuery.data?.results,
+    };
+  }, [showMyHomeTab, myHomeData, myHomeFtsQuery.data?.results]);
 
   const activeResults = useMemo(
     () => buildActiveViewResults(activeSearchContext, trimmed, searchData, resolveClusterTitle),
@@ -155,22 +183,51 @@ export default function PrototypeSidebarSearchResults({
     [trimmed, searchData, excludeIds, elsewhereTypeFilter, resolveClusterTitle],
   );
 
+  const myHomeResults = useMemo(() => {
+    if (!myHomeSearchData) return [];
+    return buildElsewhereResults(
+      trimmed,
+      myHomeSearchData,
+      new Set(),
+      elsewhereTypeFilter,
+      resolveClusterTitle,
+    );
+  }, [trimmed, myHomeSearchData, elsewhereTypeFilter, resolveClusterTitle]);
+
   const activeViewLabel = activeSearchSectionHeader(activeSearchContext);
-  const scopeOptions = useMemo(
-    () => [
-      { id: 'active' as const, label: activeViewLabel },
-      { id: 'elsewhere' as const, label: 'Elsewhere' },
-    ],
-    [activeViewLabel],
-  );
+  const scopeOptions = useMemo(() => {
+    const opts: { id: SidebarSearchScope; label: string; iconName?: string }[] = [
+      { id: 'active', label: activeViewLabel },
+      { id: 'elsewhere', label: 'Elsewhere' },
+    ];
+    if (showMyHomeTab) {
+      opts.push({ id: 'my-home', label: 'My Home', iconName: 'house' });
+    }
+    return opts;
+  }, [activeViewLabel, showMyHomeTab]);
 
   const showHighlightKindBar =
     searchScope === 'active' && activeSearchContext.mode === 'highlights';
-  const showElsewhereTypeBar = searchScope === 'elsewhere';
+  const showElsewhereTypeBar = searchScope === 'elsewhere' || searchScope === 'my-home';
 
-  const visibleResults = searchScope === 'active' ? activeResults : elsewhereResults;
-  const bothScopesEmpty =
-    activeResults.length === 0 && elsewhereResults.length === 0 && !ftsQuery.isLoading;
+  const visibleResults =
+    searchScope === 'active'
+      ? activeResults
+      : searchScope === 'my-home'
+        ? myHomeResults
+        : elsewhereResults;
+  const visibleNotesById =
+    searchScope === 'my-home' && myHomeNotesById ? myHomeNotesById : notesById;
+  const visibleHighlightsById =
+    searchScope === 'my-home' && myHomeHighlightsById ? myHomeHighlightsById : highlightsById;
+
+  const myHomeLoading = searchScope === 'my-home' && myHomeFtsQuery.isLoading && debouncedFtsQuery;
+  const allScopesEmpty =
+    activeResults.length === 0 &&
+    elsewhereResults.length === 0 &&
+    myHomeResults.length === 0 &&
+    !ftsQuery.isLoading &&
+    !myHomeLoading;
 
   if (!trimmed) return null;
 
@@ -204,7 +261,7 @@ export default function PrototypeSidebarSearchResults({
       ) : null}
 
       <div className="proto-sidebar-search-results__body">
-        {bothScopesEmpty ? (
+        {allScopesEmpty ? (
           <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noResultsInSpace} />
         ) : searchScope === 'active' && activeResults.length === 0 ? (
           <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noMatchesInView} />
@@ -214,11 +271,15 @@ export default function PrototypeSidebarSearchResults({
           <PrototypeListNoMatchEmptyState
             title={elsewhereEmptyStateTitle(activeSearchContext, elsewhereTypeFilter)}
           />
+        ) : searchScope === 'my-home' && myHomeLoading ? (
+          <p className="proto-caption proto-sidebar-search-section__empty">Searching My Home…</p>
+        ) : searchScope === 'my-home' && myHomeResults.length === 0 ? (
+          <PrototypeListNoMatchEmptyState title={myHomeEmptyStateTitle(elsewhereTypeFilter)} />
         ) : (
           <SearchResultSection
             results={visibleResults}
-            notesById={notesById}
-            highlightsById={highlightsById}
+            notesById={visibleNotesById}
+            highlightsById={visibleHighlightsById}
             isResultActive={isResultActive}
             onActivateResult={onActivateResult}
           />

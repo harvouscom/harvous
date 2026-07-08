@@ -168,7 +168,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const queryClient = useQueryClient();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const { isSharedSpace, activeSpaceId } = useActiveSpace();
-  const { sidebarLayer } = useProtoShell();
+  const { sidebarLayer, sidebarListSpaceScope } = useProtoShell();
   useRealtimeSync(userId, { homeSpaceId });
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const {
@@ -198,6 +198,10 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     sidebarLayer,
     activeSpaceId,
   });
+  const listScopeSpaceId =
+    sidebarVariant === 'shared-list' && sidebarListSpaceScope === 'my-home' && homeSpaceId
+      ? homeSpaceId
+      : activeSpaceId;
   // inspector is rendered inline in PrototypeNotePage (flex-row), no extra grid column needed
   void inspectorOpen;
 
@@ -567,7 +571,11 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
             ) : sidebarVariant === 'shared-space' ? (
               <PrototypeSidebarSharedSpaceView />
             ) : sidebarVariant === 'shared-list' ? (
-              <PrototypeSidebar scopedSpaceId={activeSpaceId} />
+              <PrototypeSidebar
+                scopedSpaceId={listScopeSpaceId}
+                showListSpaceScopeBar
+                shellIsSharedSpace
+              />
             ) : (
               <PrototypeSidebar />
             )}
