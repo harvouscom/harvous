@@ -7716,14 +7716,15 @@ button.proto-appearance-hero__card {
 
 /* ─── Shared spaces: read-only banner + author chips ─────────────────────── */
 
-/* Full-width metadata row above foreign shared notes — subtle divider, no callout tint. */
+/* Full-width metadata row above foreign shared notes — subtle divider, no callout tint.
+ * Horizontal inset matches CardFullEditable title row (px-3 / 12px). */
 .proto-shared-readonly-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  width: 100%;
-  margin: 0 0 12px;
+  width: auto;
+  margin: 0 12px 20px;
   padding: 0 0 10px;
   border-bottom: 0.5px solid var(--pds-border);
 }
@@ -7735,7 +7736,7 @@ button.proto-appearance-hero__card {
   flex-shrink: 0;
   color: var(--pds-text-secondary);
   font-weight: 500;
-  line-height: 1.3;
+  line-height: 1;
 }
 
 .proto-shared-readonly-banner__icon {
@@ -7748,10 +7749,28 @@ button.proto-appearance-hero__card {
   flex-shrink: 1;
   min-width: 0;
   max-width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-weight: 500;
+  font-size: 11px;
+  line-height: 1;
+  gap: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .proto-editor-paper {
   position: relative;
+}
+
+/* Foreign shared notes: allow text selection for highlight-to-respond (global user-select:none). */
+[data-foreign-shared-annotate='true'] .ProseMirror,
+[data-foreign-shared-annotate='true'] .tiptap-content {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .proto-shared-highlight-overlay {
@@ -7768,6 +7787,8 @@ button.proto-appearance-hero__card {
   padding: 0;
   border-radius: 2px;
   cursor: pointer;
+  background-color: color-mix(in srgb, var(--shared-highlight-accent, var(--pds-highlight-warm-amber)) 38%, transparent);
+  box-shadow: inset 0 -3px 0 var(--shared-highlight-accent, var(--pds-highlight-warm-amber));
 }
 
 .proto-shared-author-chip {

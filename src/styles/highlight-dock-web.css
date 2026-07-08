@@ -11,6 +11,11 @@
   padding: 0 2px 8px;
 }
 
+.highlight-dock-web__author {
+  margin: 0 0 6px;
+  color: var(--pds-text-secondary, rgba(0, 0, 0, 0.55));
+}
+
 .highlight-dock-web__title-input {
   flex: 1;
   min-width: 0;

@@ -52,6 +52,10 @@ export type HighlightDockOpenMetadata = {
   linkedNoteId?: string | null;
   scriptureReference?: string | null;
   scripturePassageTranslation?: string | null;
+  authorDisplayName?: string | null;
+  isOwnHighlight?: boolean;
+  anchorLocation?: number | null;
+  anchorLength?: number | null;
 };
 
 /** Minimal study-thread fields needed to build a highlight dock session without a DOM mark. */
@@ -69,6 +73,8 @@ export type HighlightDockStudyThreadSource = {
   scripturePassageExcerpt?: string | null;
   authorDisplayName?: string | null;
   isOwnHighlight?: boolean;
+  anchorLocation?: number | null;
+  anchorLength?: number | null;
 };
 
 function normalizeHighlightDockEntryKind(
@@ -115,6 +121,10 @@ export function buildHighlightDockOpenMetadataFromStudyThread(
     linkedNoteId: row.linkedNoteId ?? null,
     scriptureReference: (row.scriptureReference ?? '').trim() || null,
     scripturePassageTranslation: (row.scripturePassageTranslation ?? '').trim() || null,
+    authorDisplayName: row.authorDisplayName ?? null,
+    isOwnHighlight: row.isOwnHighlight,
+    anchorLocation: row.anchorLocation ?? null,
+    anchorLength: row.anchorLength ?? null,
   };
 }
 
@@ -134,6 +144,8 @@ export function buildHighlightDockSessionForDeepLink(
       entryKind: metadata.entryKind ?? 'miniNote',
       scriptureReference: metadata.scriptureReference ?? null,
       scripturePassageTranslation: metadata.scripturePassageTranslation ?? null,
+      authorDisplayName: metadata.authorDisplayName ?? null,
+      isOwnHighlight: metadata.isOwnHighlight,
     };
   }
   return {

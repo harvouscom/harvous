@@ -25,16 +25,18 @@ export function dispatchStudyThreadListChanged(detail: StudyThreadListChangedDet
 
 export function invalidatePrototypeStudyThreadListQueries(
   queryClient: QueryClient,
-  spaceId: string,
+  spaceId: string | undefined,
   parentNoteId?: string | null,
 ): void {
-  const sid = normalizePrototypeApiSpaceId(spaceId);
-  queryClient.invalidateQueries({
-    queryKey: ['prototype', 'space', sid, 'study-thread-highlights'],
-  });
-  queryClient.invalidateQueries({
-    queryKey: ['prototype', 'space', sid, 'study-threads-by-scripture'],
-  });
+  if (spaceId) {
+    const sid = normalizePrototypeApiSpaceId(spaceId);
+    queryClient.invalidateQueries({
+      queryKey: ['prototype', 'space', sid, 'study-thread-highlights'],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ['prototype', 'space', sid, 'study-threads-by-scripture'],
+    });
+  }
   if (parentNoteId) {
     queryClient.invalidateQueries({ queryKey: ['note', parentNoteId] });
   }
@@ -45,6 +47,9 @@ export function notifyStudyThreadListChanged(
   spaceId: string | null | undefined,
   parentNoteId: string | null | undefined,
 ): void {
-  if (!spaceId || !parentNoteId) return;
-  dispatchStudyThreadListChanged({ spaceId, parentNoteId });
+  if (!spaceId && !parentNoteId) return;
+  dispatchStudyThreadListChanged({
+    spaceId: spaceId ?? '',
+    parentNoteId: parentNoteId ?? '',
+  });
 }

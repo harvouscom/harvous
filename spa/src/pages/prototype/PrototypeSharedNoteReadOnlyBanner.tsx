@@ -4,9 +4,6 @@ import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 export default function PrototypeSharedNoteReadOnlyBanner({
   authorDisplayName,
   authorUserId,
-  authorFirstName,
-  authorProfileImageUrl,
-  authorColor,
 }: {
   authorDisplayName?: string | null;
   authorUserId?: string | null;
@@ -25,10 +22,8 @@ export default function PrototypeSharedNoteReadOnlyBanner({
         <SharedSpaceNoteAuthorChip
           displayName={authorDisplayName!}
           userId={authorUserId!}
-          firstName={authorFirstName}
-          profileImageUrl={authorProfileImageUrl}
-          color={authorColor ?? 'blue'}
           isSelf={false}
+          showAvatar={false}
         />
       ) : null}
     </div>

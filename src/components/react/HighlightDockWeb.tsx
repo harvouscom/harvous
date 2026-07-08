@@ -35,6 +35,9 @@ export interface HighlightDockWebProps {
   onMiniNoteChange?: (body: string) => void;
   /** Loads focusTitle / miniNoteBody when opening an existing thread. */
   sourceNoteId?: string | null;
+  /** Shared-space unioned highlight — annotator display name when not the viewer. */
+  authorDisplayName?: string | null;
+  isOwnHighlight?: boolean;
   /** When false, skips remote thread hydration (inactive carousel card). Default true. */
   interactionActive?: boolean;
   /** Card enter animation — off in carousel (item handles enter). */
@@ -67,6 +70,8 @@ export default function HighlightDockWeb({
   onFocusTitleChange,
   onMiniNoteChange,
   sourceNoteId = null,
+  authorDisplayName = null,
+  isOwnHighlight,
   interactionActive = true,
   animateEnter = true,
 }: HighlightDockWebProps) {
@@ -286,6 +291,7 @@ export default function HighlightDockWeb({
 
   const titlePlaceholder = 'Highlight';
   const headerTitleText = focusTitle.trim() || deriveHighlightFocusTitle(excerpt);
+  const showAuthorAttribution = Boolean(authorDisplayName && isOwnHighlight === false);
 
   return (
     <StudyDockCardShell
@@ -335,6 +341,9 @@ export default function HighlightDockWeb({
       }
     >
       <div className="highlight-dock-web__body">
+        {showAuthorAttribution ? (
+          <p className="highlight-dock-web__author pds-caption">{authorDisplayName}</p>
+        ) : null}
         {entryKind === 'miniNote' || entryKind === 'scriptureLink' ? (
           <textarea
             className="highlight-dock-web__mini-note"

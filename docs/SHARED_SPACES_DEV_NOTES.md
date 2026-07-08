@@ -309,6 +309,11 @@ non-interactive `npm run db:push` when schema drift is possible.
   to avoid touching the ~20 `homeSpaceId` call sites inside the large, heavily-used
   `PrototypeSidebar.tsx` in the same branch that also rewired the backend. A fast-follow can generalize
   those list modes once the foundation has shipped.
+- **Overlapping highlights on the same passage** — when the note author had an in-body highlight
+  before sharing and members add responses on the same span, today the surfaces stay separate (body mark
+  vs overlay). Future: overlay stack badge ("2") opening the dock carousel for all entries on that
+  anchor; optional note-level "show/hide responses" filter. No per-dock "mine vs responses" toggle
+  unless we collapse multiple `StudyThreadEntry` rows into one card.
 
 ## Local dev testing guide
 

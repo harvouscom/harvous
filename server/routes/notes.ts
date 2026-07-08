@@ -77,6 +77,7 @@ import { removeScriptureNotesFromThread } from '../utils/remove-scripture-notes-
 import { requireSpaceAccess, SpaceAccessError, canAuthorInSpace, canManageSpaceStructure } from '../utils/space-access';
 import { batchAuthorAttribution } from '../utils/dashboard-data';
 import { mapStudyRow } from './study-threads';
+import { shouldUnionStudyThreadsForNote } from '../utils/shared-study-thread-access';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { extractArticleContent } from '@/utils/content-extractor';
 import { sortByLastVisited } from '@/utils/sorting';
@@ -2015,15 +2016,9 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     }
 
     let studyThreads: any[] = [];
-    let loadUnionedStudyThreads = false;
-    if (note.spaceId) {
-      const spaceRow = first(
-        await db.select({ type: Spaces.type }).from(Spaces).where(eq(Spaces.id, note.spaceId)).limit(1),
-      );
-      loadUnionedStudyThreads = spaceRow?.type === 'shared' || spaceRow?.type === 'public';
-    }
+    const loadUnionedStudyThreads = await shouldUnionStudyThreadsForNote(noteId, note.spaceId);
 
-    if ((!isMemberView && note.userId === auth.userId) || loadUnionedStudyThreads) {
+    if ((!isMemberView && note.userId === auth.userId) || loadUnionedStudyThreads || isMemberView) {
       try {
         const stRows = await db
           .select()
@@ -2061,6 +2056,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
         contentEncrypted: note.contentEncrypted || false,
         noteType: note.noteType || 'default',
         addedBy: note.addedBy || 'user',
+        isOwnNote: !isMemberView && note.userId === auth.userId,
         version,
         resourceTitle,
         resourceDescription,

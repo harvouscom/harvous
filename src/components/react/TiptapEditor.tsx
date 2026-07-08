@@ -137,6 +137,7 @@ import {
   moveDockEntryToIndex,
   highlightDockStableKey,
   buildReadOnlyScriptureSession,
+  clearStudyDockStackLocalCache,
   openOrFocusHighlight,
   openOrFocusReference,
   openOrFocusScripture,
@@ -155,8 +156,10 @@ import {
   type StudyDockEntry,
   type StudyDockStack,
 } from '@/utils/study-dock-stack';
+import { hasSeenSharedHighlightTip, markSharedHighlightTipSeen } from '@/utils/shared-highlight-tip';
 import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-list-sync';
 import { backfillOrphanHighlights } from '@/utils/orphan-highlight-backfill';
+import { syncStudyHighlightMarksOverlayCovered } from '@/utils/note-html-highlight-marks';
 import { scriptureReferenceContainsReference } from '@/utils/scripture-verse-keys';
 import LinkPreviewCard from './LinkPreviewCard';
 import UrlLinkPromptUI from './UrlLinkPromptUI';
@@ -213,6 +216,8 @@ interface TiptapEditorProps {
   enableCreateNoteFromSelection?: boolean;
   /** Foreign shared note: selection + highlight dock without mutating the read-only body. */
   sharedAnnotationOverlayMode?: boolean;
+  /** Ranges where a shared overlay covers in-body marks — hide underline so only the fill shows. */
+  sharedOverlayPmRanges?: { from: number; to: number }[];
   onSharedAnnotationCreated?: () => void;
   parentThreadId?: string;
   sourceNoteId?: string; // ID of the note this editor is editing (for hyperlink creation)
@@ -284,6 +289,7 @@ interface TiptapEditorProps {
     studyThreadEntryId: string;
     requestKey?: string;
     metadata?: HighlightDockOpenMetadata;
+    range?: { from: number; to: number } | null;
   } | null;
   onPrototypeHighlightOpenRequestConsumed?: () => void;
 }
@@ -538,7 +544,11 @@ function studyDockEntryStillValid(editor: any, entry: StudyDockEntry): boolean {
   // user-dismissed so the prune-on-update effect can't racily remove them.
   if (entry.session.entryKind === 'scriptureLink') return true;
   const sid = entry.session.studyThreadEntryId;
-  if (sid && findHighlightRangeByStudyThreadId(editor, sid)) return true;
+  if (sid) {
+    if (findHighlightRangeByStudyThreadId(editor, sid)) return true;
+    // Anchor-only highlights (shared overlay) have no in-doc mark — keep until user dismisses.
+    return true;
+  }
   const range = entry.session.range;
   if (range) {
     let hasMark = false;
@@ -3804,6 +3814,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   scrollPosition,
   enableCreateNoteFromSelection = false,
   sharedAnnotationOverlayMode = false,
+  sharedOverlayPmRanges = [],
   onSharedAnnotationCreated,
   parentThreadId,
   sourceNoteId,
@@ -3978,6 +3989,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const studyDockStackRef = useRef(studyDockStack);
   studyDockStackRef.current = studyDockStack;
   const studyDockRehydratedForNoteRef = useRef<string | null>(null);
+  const prevSourceNoteIdForDockRef = useRef<string | null | undefined>(sourceNoteId);
   /** Last editor selection/caret — used for smart scripture quote insert placement. */
   const lastEditorSelectionForQuoteRef = useRef<{ from: number; to: number; at: number } | null>(null);
   const studyDockPortalTarget =
@@ -5020,6 +5032,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   }, [initialReferenceWord, initialReferenceRequestKey, editor, openReferenceDock, onReferenceDeepLinkHandoff]);
 
   useEffect(() => {
+    const prev = prevSourceNoteIdForDockRef.current;
+    prevSourceNoteIdForDockRef.current = sourceNoteId;
+    if (prev && prev !== sourceNoteId && isPersistableStudyDockNoteId(prev)) {
+      clearStudyDockStackLocalCache(prev);
+    }
     setStudyDockStack(emptyStudyDockStack());
     studyDockRehydratedForNoteRef.current = null;
     initialReferenceWordFiredRef.current = null;
@@ -5895,6 +5912,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           const nextBar = { top, left: centerX, from, to, snippet };
           selectionBarRangeRef.current = { from, to, snippet };
           setSelectionActionBar(nextBar);
+          if (sharedAnnotationOverlayMode && !hasSeenSharedHighlightTip()) {
+            markSharedHighlightTipSeen();
+            if (typeof window !== 'undefined' && window.toast) {
+              window.toast.info('Highlight to respond');
+            }
+          }
         } catch (_) {
           clearSelectionActionBar();
         }
@@ -5992,6 +6015,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     },
     [],
   );
+
+  useEffect(() => {
+    if (!editor || !isEditorValid(editor) || editorChromeMode !== 'prototypeNative') return;
+    const sync = () => syncStudyHighlightMarksOverlayCovered(editor, sharedOverlayPmRanges);
+    sync();
+    editor.on('update', sync);
+    return () => {
+      editor.off('update', sync);
+    };
+  }, [editor, editorChromeMode, sharedOverlayPmRanges]);
 
   /** When CardFullEditable opens the editor from read-only preview after a scripture pill tap (prototype), open the dock once TipTap has rendered the pill in the doc. */
   useEffect(() => {
@@ -6203,13 +6236,24 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     let rafId = 0;
     const MAX_ATTEMPTS = 120; // ~2s at 60fps — allow prototype body hydrate to finish
     const openFromDeepLink = (range: { from: number; to: number } | null, markEl: HTMLElement | null) => {
-      if (markEl) {
+      if (markEl && !sharedAnnotationOverlayMode) {
         openStudyDockForHighlightMark(markEl);
         return;
       }
       const session = buildHighlightDockSessionForDeepLink(req.studyThreadEntryId, req.metadata, range);
       setStudyDockStack((s) => openOrFocusHighlight(s, session));
     };
+    const skipMarkPoll =
+      sharedAnnotationOverlayMode ||
+      req.range != null ||
+      (req.metadata?.anchorLocation != null && (req.metadata.anchorLength ?? 0) > 0);
+    if (skipMarkPoll) {
+      openFromDeepLink(req.range ?? null, null);
+      onPrototypeHighlightOpenRequestConsumed?.();
+      return () => {
+        cancelled = true;
+      };
+    }
     const run = (attempt: number) => {
       if (cancelled || !isEditorValid(editor)) return;
       const range = findHighlightRangeByStudyThreadId(editor, req.studyThreadEntryId);
@@ -6242,6 +6286,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     prototypeHighlightOpenRequest,
     openStudyDockForHighlightMark,
     onPrototypeHighlightOpenRequestConsumed,
+    sharedAnnotationOverlayMode,
   ]);
 
   // Handle ALL scripture pill clicks via DOM click handler (both edit and read-only).
@@ -8371,6 +8416,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                     if (!range || !editor || !isEditorValid(editor)) return;
                     const { from, to, snippet } = range;
                     const defaultAccent = 'warmAmber';
+                    const anchorLocation = sharedAnnotationOverlayMode
+                      ? editor.state.doc.textBetween(0, from, '\n').length
+                      : from;
+                    const anchorLength = sharedAnnotationOverlayMode
+                      ? snippet.length
+                      : Math.max(0, to - from);
 
                     void (async () => {
                       let studyId: string | null = null;
@@ -8385,22 +8436,27 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                               sourceSnippet: snippet,
                               highlightAccentRaw: defaultAccent,
                               anchorTextSnapshot: snippet,
-                              anchorLocation: from,
-                              anchorLength: Math.max(0, to - from),
+                              anchorLocation,
+                              anchorLength,
                             }),
                           });
                           if (res.ok) {
                             const data = await res.json();
                             studyId = data.studyThread?.id ?? null;
                             if (studyId) syncStudyThreadList(sourceNoteId);
+                          } else if (sharedAnnotationOverlayMode && window.toast) {
+                            window.toast.error('Could not create highlight. Try again.');
                           }
                         } catch {
-                          /* fall through — backfill may recover orphan mark */
+                          if (sharedAnnotationOverlayMode && window.toast) {
+                            window.toast.error('Could not create highlight. Try again.');
+                          }
                         }
                       }
 
                       if (!editor || !isEditorValid(editor)) return;
                       if (sharedAnnotationOverlayMode) {
+                        if (!studyId) return;
                         clearSelectionActionBar();
                         releaseEditorFocusForStudyDock();
                         if (editorChromeMode === 'prototypeNative') {
@@ -8413,6 +8469,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                               entryKind: 'miniNote',
                               focusTitle: deriveHighlightFocusTitle(snippet),
                               miniNoteBody: '',
+                              isOwnHighlight: true,
                             }),
                           );
                         }
@@ -8471,7 +8528,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 >
                   <Icon name="highlighter" size={14} />
                 </button>
-                {sourceNoteId && spaceId ? (
+                {sourceNoteId && spaceId && !sharedAnnotationOverlayMode ? (
                   <>
                     <span className="pds-native-selection-bar__rule" aria-hidden />
                     <button
@@ -9166,6 +9223,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       miniNoteBody={entry.session.miniNoteBody}
                       entryKind={entry.session.entryKind}
                       studyThreadEntryId={entry.session.studyThreadEntryId}
+                      authorDisplayName={entry.session.authorDisplayName}
+                      isOwnHighlight={entry.session.isOwnHighlight}
                       sourceNoteId={sourceNoteId ?? null}
                       interactionActive={isActive}
                       animateEnter={false}
@@ -9244,7 +9303,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         if (!editor || !isEditorValid(editor)) return;
                         const range =
                           entry.session.range ?? (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
-                        if (!range) return;
+                        if (!range && !sharedAnnotationOverlayMode) return;
                         void (async () => {
                           if (sid) {
                             try {
@@ -9255,11 +9314,24 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                                 body: JSON.stringify({ highlightAccentRaw: nextAccent }),
                               });
                               syncStudyThreadList(sourceNoteId);
+                              if (sharedAnnotationOverlayMode) {
+                                onSharedAnnotationCreated?.();
+                              }
                             } catch {
                               /* ignore */
                             }
                           }
-                          if (!editor || !isEditorValid(editor)) return;
+                          if (sharedAnnotationOverlayMode) {
+                            setStudyDockStack((s) =>
+                              updateDockEntry(s, entry.id, (e) =>
+                                e.kind === 'highlight'
+                                  ? { ...e, session: { ...e.session, accent: nextAccent, range: e.session.range ?? range } }
+                                  : e,
+                              ),
+                            );
+                            return;
+                          }
+                          if (!editor || !isEditorValid(editor) || !range) return;
                           const markType = editor.state.schema.marks.highlight;
                           if (!markType) return;
                           const tr = editor.state.tr;
@@ -9327,32 +9399,74 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           return;
                         }
 
+                        if (sharedAnnotationOverlayMode) {
+                          void (async () => {
+                            if (sid) {
+                              try {
+                                const res = await fetch(`/api/study-threads/${sid}`, {
+                                  method: 'DELETE',
+                                  credentials: 'include',
+                                });
+                                if (!res.ok) {
+                                  if (window.toast) {
+                                    window.toast.error('Could not delete highlight. Try again.');
+                                  }
+                                  return;
+                                }
+                                syncStudyThreadList(sourceNoteId);
+                                onSharedAnnotationCreated?.();
+                              } catch {
+                                if (window.toast) {
+                                  window.toast.error('Could not delete highlight. Try again.');
+                                }
+                                return;
+                              }
+                            }
+                            setStudyDockStack((s) => closeDockEntry(s, entry.id));
+                          })();
+                          return;
+                        }
+
                         if (!editor || !isEditorValid(editor)) return;
                         const range =
                           entry.session.range ?? (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
                         void (async () => {
                           if (sid) {
                             try {
-                              await fetch(`/api/study-threads/${sid}`, {
+                              const res = await fetch(`/api/study-threads/${sid}`, {
                                 method: 'DELETE',
                                 credentials: 'include',
                               });
+                              if (!res.ok) {
+                                if (window.toast) {
+                                  window.toast.error('Could not delete highlight. Try again.');
+                                }
+                                return;
+                              }
                               syncStudyThreadList(sourceNoteId);
+                              onSharedAnnotationCreated?.();
                             } catch {
-                              /* ignore */
+                              if (window.toast) {
+                                window.toast.error('Could not delete highlight. Try again.');
+                              }
+                              return;
                             }
                           }
-                          if (editor && isEditorValid(editor) && range) {
-                            editor
-                              .chain()
-                              .focus()
-                              .setTextSelection({ from: range.from, to: range.to })
-                              .unsetHighlight()
-                              .run();
-                            if (hiddenInputRef.current) {
-                              hiddenInputRef.current.value = editor.getHTML();
+                          if (editor && isEditorValid(editor)) {
+                            const resolvedRange =
+                              range ?? (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
+                            if (resolvedRange) {
+                              editor
+                                .chain()
+                                .focus()
+                                .setTextSelection({ from: resolvedRange.from, to: resolvedRange.to })
+                                .unsetHighlight()
+                                .run();
+                              if (hiddenInputRef.current) {
+                                hiddenInputRef.current.value = editor.getHTML();
+                              }
+                              onContentChange?.(editor.getHTML());
                             }
-                            onContentChange?.(editor.getHTML());
                           }
                           setStudyDockStack((s) => closeDockEntry(s, entry.id));
                         })();

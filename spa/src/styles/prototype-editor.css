@@ -561,6 +561,13 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
 .proto-editor-surface .ProseMirror mark[data-color="coralRose"],
 .proto-editor-surface .card-full-editable__content-html mark[data-color="coralRose"] { --mark-accent: var(--pds-highlight-coral-rose); }
 
+/* When a shared overlay covers the same passage, hide the in-body underline so only the fill shows. */
+.proto-editor-surface .ProseMirror mark[data-overlay-covered],
+.proto-editor-surface .card-full-editable__content-html mark[data-overlay-covered] {
+  text-decoration: none !important;
+  text-shadow: none !important;
+}
+
 /* Spotlight: while a highlight (or reference) dock is expanded, only the expanded highlight keeps
  * its color — every other highlight underline dims to neutral gray so the active one stands out.
  * `data-dim-highlights="<studyThreadEntryId>"` is set on the ProseMirror root by TiptapEditor, and a

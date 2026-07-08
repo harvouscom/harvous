@@ -33,6 +33,7 @@ import {
   requireSharedStudyThreadParentAccess,
   resolveViewerSpaceRoleForNote,
   SharedStudyThreadAccessError,
+  isUnionedSharedStudyParent,
 } from '../utils/shared-study-thread-access';
 import { SpaceAccessError } from '../utils/space-access';
 
@@ -50,14 +51,6 @@ async function touchParentNoteEditedAt(parentNoteId: string, parentAuthorUserId:
     .set({ updatedAt: nowISO() })
     .where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, parentAuthorUserId)));
   broadcastInvalidation(parentAuthorUserId, { type: 'note:updated', id: parentNoteId });
-}
-
-function isUnionedSharedParent(parent: Awaited<ReturnType<typeof loadParentNoteContext>>) {
-  return (
-    parent != null &&
-    parent.spaceId != null &&
-    (parent.spaceType === 'shared' || parent.spaceType === 'public')
-  );
 }
 
 export function mapStudyRow(row: typeof StudyThreadEntries.$inferSelect) {
@@ -121,7 +114,7 @@ route.get('/api/notes/:parentNoteId/study-threads', requireAuth, async (c) => {
       return handleStudyThreadAccessError(c, err);
     }
 
-    const unioned = isUnionedSharedParent(parentCtx);
+    const unioned = isUnionedSharedStudyParent(parentCtx);
     const listWhere = unioned
       ? and(eq(StudyThreadEntries.parentNoteId, parentNoteId), eq(StudyThreadEntries.isArchived, false))
       : and(
@@ -164,7 +157,7 @@ route.get('/api/notes/:parentNoteId/study-threads/by-scripture', requireAuth, as
       return handleStudyThreadAccessError(c, err);
     }
 
-    const unioned = isUnionedSharedParent(parentCtx);
+    const unioned = isUnionedSharedStudyParent(parentCtx);
     const byScriptureWhere = unioned
       ? and(
           eq(StudyThreadEntries.parentNoteId, parentNoteId),

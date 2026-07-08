@@ -175,6 +175,10 @@ interface CardFullEditableProps {
   foreignSharedAnnotationMode?: boolean;
   /** Called after shared annotations change (create/delete) — refresh overlay. */
   onSharedAnnotationCreated?: () => void;
+  /** ProseMirror ranges covered by shared highlight overlays — suppress in-body mark underline there. */
+  sharedOverlayPmRanges?: { from: number; to: number }[];
+  /** Fired after a runtime highlight-open request (overlay tap) is consumed. */
+  onHighlightOpenRequestConsumed?: () => void;
   /** Prototype-only: native-like editor chrome (format vs scripture vs note action bar). */
   editorChromeMode?: 'default' | 'prototypeNative';
   /** Shown when prototype bottom mode is `noteActions` (below editor, above save/cancel).
@@ -236,6 +240,7 @@ interface CardFullEditableProps {
     studyThreadEntryId: string;
     requestKey?: string;
     metadata?: HighlightDockOpenMetadata;
+    range?: { from: number; to: number } | null;
   } | null;
   /** Prototype-only: called after a highlight deep-link dock handoff completes (strip URL search keys). */
   onHighlightDeepLinkHandoff?: () => void;
@@ -304,6 +309,8 @@ export default function CardFullEditable({
   readOnlyLikeScripture = false,
   foreignSharedAnnotationMode = false,
   onSharedAnnotationCreated,
+  sharedOverlayPmRanges = [],
+  onHighlightOpenRequestConsumed,
   editorChromeMode = 'default',
   prototypeNoteActionBar,
   formatToolbarPortalTarget,
@@ -607,6 +614,7 @@ export default function CardFullEditable({
       studyThreadEntryId: highlightOpenRequest.studyThreadEntryId,
       requestKey: key,
       metadata: highlightOpenRequest.metadata,
+      range: highlightOpenRequest.range ?? null,
     });
   }, [editorChromeMode, highlightOpenRequest, noteId]);
 
@@ -614,6 +622,8 @@ export default function CardFullEditable({
   useEffect(() => {
     const prev = prevNoteIdForProtoResetRef.current;
     prevNoteIdForProtoResetRef.current = noteId;
+    setPrototypeHighlightOpenRequest(null);
+    initialHighlightDockFiredRef.current = null;
     const isDraftPersistSwap =
       editorChromeMode === 'prototypeNative' &&
       alwaysEditing &&
@@ -648,8 +658,9 @@ export default function CardFullEditable({
 
   const onPrototypeHighlightOpenRequestConsumed = useCallback(() => {
     setPrototypeHighlightOpenRequest(null);
+    onHighlightOpenRequestConsumed?.();
     onHighlightDeepLinkHandoff?.();
-  }, [onHighlightDeepLinkHandoff]);
+  }, [onHighlightDeepLinkHandoff, onHighlightOpenRequestConsumed]);
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative') return;
@@ -2805,6 +2816,7 @@ export default function CardFullEditable({
         className={`card-full-editable ${className}`}
         style={{ maxHeight: '100%' }}
         data-card-full-editable
+        {...(foreignSharedAnnotationMode ? { 'data-foreign-shared-annotate': 'true' } : {})}
         {...((showBodyEditor || showTitleEditor) && { 'data-editing': 'true' })}
       >
         <textarea
@@ -3019,6 +3031,7 @@ export default function CardFullEditable({
                       scrollPosition={scrollPosition}
                       enableCreateNoteFromSelection={isContentEditing || foreignSharedAnnotationMode}
                       sharedAnnotationOverlayMode={foreignSharedAnnotationMode}
+                      sharedOverlayPmRanges={sharedOverlayPmRanges}
                       onSharedAnnotationCreated={onSharedAnnotationCreated}
                       parentThreadId={parentThreadId}
                       sourceNoteId={noteId}
@@ -3223,6 +3236,7 @@ export default function CardFullEditable({
         className={`card-full-editable ${className}`}
         style={{ maxHeight: '100%', gap: 0, display: 'flex', flexDirection: 'column' }}
         data-card-full-editable
+        {...(foreignSharedAnnotationMode ? { 'data-foreign-shared-annotate': 'true' } : {})}
         {...((showBodyEditor || showTitleEditor) && { 'data-editing': 'true' })}
       >
       <textarea
@@ -3423,6 +3437,7 @@ export default function CardFullEditable({
                     scrollPosition={scrollPosition}
                     enableCreateNoteFromSelection={isContentEditing || foreignSharedAnnotationMode}
                     sharedAnnotationOverlayMode={foreignSharedAnnotationMode}
+                    sharedOverlayPmRanges={sharedOverlayPmRanges}
                     onSharedAnnotationCreated={onSharedAnnotationCreated}
                     parentThreadId={parentThreadId}
                     sourceNoteId={noteId}

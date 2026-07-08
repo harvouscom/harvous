@@ -26,7 +26,11 @@ import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { buildHighlightDockOpenMetadataFromStudyThread } from '@/utils/study-dock-stack';
-import { filterOverlayStudyThreads, resolveStudyThreadPmRange } from '../../lib/shared-highlight-overlay';
+import {
+  filterForeignNoteOverlayStudyThreads,
+  filterOverlayStudyThreads,
+  resolveStudyThreadPmRange,
+} from '../../lib/shared-highlight-overlay';
 import { isPrototypeNoteEditorFocused } from '@/utils/prototype-editor-focused';
 import { clearNoteDraft } from '@/utils/note-draft-store';
 import {
@@ -111,7 +115,7 @@ export default function PrototypeNotePage() {
   const navigate = useNavigate();
 
   const { data: note, isLoading, isError, isFetching } = useNote(isDraft ? '' : noteId);
-  const { readOnlyInSharedSpace, effectiveSpaceId: foreignSharedSpaceId, foreignNoteAuthor } =
+  const { readOnlyInSharedSpace, isForeignSharedNote, noteInSharedSpace, effectiveSpaceId: foreignSharedSpaceId, foreignNoteAuthor } =
     useForeignSharedNote(isDraft ? null : noteId);
 
   // Deep-link to a highlight's dock (Home "revisit" card → text / mini-note / connected highlight).
@@ -195,6 +199,14 @@ export default function PrototypeNotePage() {
       clearComposeTargetSpaceIdOverride();
     }
   }, [isDraft, composeTargetSpaceIdOverride, clearComposeTargetSpaceIdOverride]);
+
+  const onHighlightOpenRequestConsumed = useCallback(() => {
+    setHighlightOpenRequest(null);
+  }, []);
+
+  useEffect(() => {
+    setHighlightOpenRequest(null);
+  }, [noteId]);
 
   const onHighlightDeepLinkHandoff = useCallback(() => {
     if (!initialHighlightThread) return;
@@ -577,10 +589,11 @@ export default function PrototypeNotePage() {
   );
 
   const readOnlyLikeScripture = isOnboardingReadonly;
-  const foreignSharedAnnotationMode = readOnlyInSharedSpace && !isOnboardingReadonly;
+  const foreignSharedAnnotationMode = isForeignSharedNote && !isOnboardingReadonly;
   const isEditable = !readOnlyInSharedSpace && !isOnboardingReadonly;
 
   const sharedOverlayPaperRef = useRef<HTMLDivElement>(null);
+  const [sharedOverlayContainerEl, setSharedOverlayContainerEl] = useState<HTMLElement | null>(null);
   const [sharedOverlayEditor, setSharedOverlayEditor] = useState<{
     view?: { coordsAtPos: (pos: number) => DOMRect };
     state: { doc: unknown };
@@ -590,23 +603,44 @@ export default function PrototypeNotePage() {
     void queryClient.invalidateQueries({ queryKey: ['note', noteId] });
   }, [queryClient, noteId, isDraft]);
 
+  const noteAuthorUserId = note?.userId ?? null;
+
   const overlayStudyThreads = useMemo(() => {
     const rows = note?.studyThreads ?? [];
-    if (foreignSharedAnnotationMode) return rows;
-    return rows.filter((t) => t.isOwnHighlight === false);
-  }, [note?.studyThreads, foreignSharedAnnotationMode]);
+    if (foreignSharedAnnotationMode) {
+      return filterForeignNoteOverlayStudyThreads(rows, noteAuthorUserId);
+    }
+    return rows.filter(
+      (t) =>
+        t.isOwnHighlight === false ||
+        (Boolean(t.userId) && Boolean(authUserId) && t.userId !== authUserId),
+    );
+  }, [note?.studyThreads, foreignSharedAnnotationMode, authUserId, noteAuthorUserId]);
+
+  const sharedHighlightLayoutRevision = useMemo(() => {
+    const threadKey = overlayStudyThreads.map((t) => t.id).join(',');
+    const contentLen = note?.content?.length ?? 0;
+    return `${contentLen}:${threadKey}:${note?.updatedAt ?? ''}`;
+  }, [overlayStudyThreads, note?.content, note?.updatedAt]);
 
   const showSharedHighlightOverlay = useMemo(() => {
     if (isDraft || isOnboardingReadonly) return false;
-    if (foreignSharedAnnotationMode) return true;
-    if (!isSharedSpace) return false;
     return filterOverlayStudyThreads(overlayStudyThreads).length > 0;
-  }, [isDraft, isOnboardingReadonly, foreignSharedAnnotationMode, isSharedSpace, overlayStudyThreads]);
+  }, [isDraft, isOnboardingReadonly, overlayStudyThreads]);
+
+  const sharedOverlayPmRanges = useMemo(() => {
+    if (!showSharedHighlightOverlay || !sharedOverlayEditor?.state?.doc) return [];
+    const doc = sharedOverlayEditor.state.doc as Parameters<typeof resolveStudyThreadPmRange>[0];
+    return filterOverlayStudyThreads(overlayStudyThreads)
+      .map((entry) => resolveStudyThreadPmRange(doc, entry))
+      .filter((range): range is { from: number; to: number } => range != null);
+  }, [sharedOverlayEditor, overlayStudyThreads, showSharedHighlightOverlay]);
 
   const [highlightOpenRequest, setHighlightOpenRequest] = useState<{
     studyThreadEntryId: string;
     requestKey: string;
     metadata: ReturnType<typeof buildHighlightDockOpenMetadataFromStudyThread>;
+    range: { from: number; to: number } | null;
   } | null>(null);
 
   const handleOverlaySelectEntry = useCallback(
@@ -624,10 +658,8 @@ export default function PrototypeNotePage() {
         studyThreadEntryId: entryId,
         requestKey: `overlay-${entryId}-${Date.now()}`,
         metadata: buildHighlightDockOpenMetadataFromStudyThread(row),
+        range,
       });
-      if (range) {
-        /* range is resolved inside Tiptap deep-link consumer via metadata + mark poll skip */
-      }
     },
     [note?.studyThreads, sharedOverlayEditor],
   );
@@ -1069,8 +1101,14 @@ export default function PrototypeNotePage() {
         <div className="proto-editor-scroll">
           <SubtleContentMount key={editorSessionKey} variant="fade">
             <div className="proto-editor-content-wrap">
-              <div className="proto-editor-paper" ref={sharedOverlayPaperRef}>
-              {readOnlyInSharedSpace ? (
+              <div
+                className="proto-editor-paper"
+                ref={(el) => {
+                  sharedOverlayPaperRef.current = el;
+                  setSharedOverlayContainerEl(el);
+                }}
+              >
+              {isForeignSharedNote ? (
                 <PrototypeSharedNoteReadOnlyBanner
                   authorDisplayName={foreignNoteAuthor?.displayName}
                   authorUserId={foreignNoteAuthor?.userId}
@@ -1082,8 +1120,9 @@ export default function PrototypeNotePage() {
               {showSharedHighlightOverlay ? (
                 <SharedStudyHighlightOverlay
                   editor={sharedOverlayEditor}
-                  containerEl={sharedOverlayPaperRef.current}
+                  containerEl={sharedOverlayContainerEl}
                   studyThreads={overlayStudyThreads}
+                  layoutRevision={sharedHighlightLayoutRevision}
                   onSelectEntry={handleOverlaySelectEntry}
                 />
               ) : null}
@@ -1107,8 +1146,10 @@ export default function PrototypeNotePage() {
                 onPrototypeEditorUnmount={handlePrototypeEditorUnmount}
                 readOnlyLikeScripture={readOnlyLikeScripture}
                 foreignSharedAnnotationMode={foreignSharedAnnotationMode}
-                onSharedAnnotationCreated={refreshSharedAnnotations}
+                onSharedAnnotationCreated={noteInSharedSpace ? refreshSharedAnnotations : undefined}
                 highlightOpenRequest={highlightOpenRequest}
+                onHighlightOpenRequestConsumed={onHighlightOpenRequestConsumed}
+                sharedOverlayPmRanges={sharedOverlayPmRanges}
                 onEditorInstanceReady={(editor) => {
                   setSharedOverlayEditor(editor as typeof sharedOverlayEditor);
                 }}

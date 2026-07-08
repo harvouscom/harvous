@@ -42,9 +42,10 @@ export function useForeignSharedNote(noteId: string | null | undefined) {
   const membersQuery = useSpaceMembers(noteInSharedSpace && effectiveSpaceId ? effectiveSpaceId : '');
 
   const isOwnNoteConfirmed = useMemo((): boolean | null => {
-    if (!note || !authUserId) return null;
+    if (!note) return null;
     if (note.isOwnNote === true) return true;
     if (note.isOwnNote === false) return false;
+    if (!authUserId) return null;
     if (note.userId) return note.userId === authUserId;
     return null;
   }, [note, authUserId]);
@@ -56,14 +57,14 @@ export function useForeignSharedNote(noteId: string | null | undefined) {
   }, [noteInSharedSpace, noteId, note, isOwnNoteConfirmed]);
 
   const isForeignSharedNote = useMemo(
-    () => readOnlyInSharedSpace && isOwnNoteConfirmed === false,
-    [readOnlyInSharedSpace, isOwnNoteConfirmed],
+    () => noteInSharedSpace && !!note && isOwnNoteConfirmed === false,
+    [noteInSharedSpace, note, isOwnNoteConfirmed],
   );
 
   const foreignNoteAuthor = useMemo(() => {
-    if (!readOnlyInSharedSpace || !note?.userId) return null;
+    if (!isForeignSharedNote || !note?.userId) return null;
     return membersQuery.data?.members.find((m) => m.userId === note.userId) ?? null;
-  }, [readOnlyInSharedSpace, note?.userId, membersQuery.data?.members]);
+  }, [isForeignSharedNote, note?.userId, membersQuery.data?.members]);
 
   return {
     isForeignSharedNote,

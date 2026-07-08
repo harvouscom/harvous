@@ -8,6 +8,7 @@ export default function SharedSpaceNoteAuthorChip({
   profileImageUrl,
   color,
   isSelf = false,
+  showAvatar = true,
 }: {
   displayName: string;
   userId?: string;
@@ -15,19 +16,23 @@ export default function SharedSpaceNoteAuthorChip({
   profileImageUrl?: string | null;
   color?: string | null;
   isSelf?: boolean;
+  /** Banner and other compact surfaces may show name only. */
+  showAvatar?: boolean;
 }) {
   const label = isSelf ? 'You' : displayName;
 
   return (
     <span className="proto-shared-author-chip">
-      <SharedSpaceMemberAvatar
-        userId={userId}
-        firstName={firstName}
-        displayName={displayName}
-        userColor={color}
-        profileImageUrl={profileImageUrl}
-        className="proto-shared-people-row__avatar--chip"
-      />
+      {showAvatar ? (
+        <SharedSpaceMemberAvatar
+          userId={userId}
+          firstName={firstName}
+          displayName={displayName}
+          userColor={color}
+          profileImageUrl={profileImageUrl}
+          className="proto-shared-people-row__avatar--chip"
+        />
+      ) : null}
       {label}
     </span>
   );
