@@ -165,7 +165,12 @@ function StatusHistoryBar({ history }: { history: StatusHistoryDay[] }) {
 
   return (
     <>
-      <div className="public-status-history" role="group" aria-label={`${history.length}-day uptime history`}>
+      <div
+        className="public-status-history"
+        style={{ '--history-days': history.length } as React.CSSProperties}
+        role="group"
+        aria-label={`${history.length}-day uptime history`}
+      >
         {history.map((entry) => (
           <button
             key={entry.day}

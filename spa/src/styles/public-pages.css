@@ -1425,19 +1425,19 @@
 }
 
 .public-status-history {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(var(--history-days, 90), minmax(0, 1fr));
   align-items: stretch;
   gap: 2px;
   flex: 1 1 0;
   min-width: 0;
   width: auto;
   height: 26px;
-  overflow: hidden;
 }
 
 .public-status-history__day {
-  flex: 1 1 0;
-  min-width: 2px;
+  min-width: 0;
+  width: 100%;
   border: none;
   padding: 0;
   margin: 0;
@@ -1636,7 +1636,6 @@
   }
 
   .public-status-history__day {
-    min-width: 1px;
     border-radius: 2px;
   }
 
