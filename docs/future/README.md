@@ -109,6 +109,7 @@ These were designed here and are now live. The stub files in this folder point t
 - **`SHARING_AND_GROUPS_INFRASTRUCTURE.md`** - Infrastructure analysis (implemented)
 - **`SHARING_QUICK_REFERENCE.md`** - Quick comparison of sharing approaches (implemented)
 - **`COLLABORATIVE_SHARED_SPACES.md`** - Collaborative shared spaces (implemented, v1 complete Feb 2026)
+- **`SHARED_SPACES_LAUNCH_STRATEGY.md`** - Pre-launch product strategy for the July 2026 foundation rewrite: small-group differentiators (respond, group thread), operational checklist, messaging, and post-launch roadmap
 
 ### Real-Time Collaboration (Planned)
 
