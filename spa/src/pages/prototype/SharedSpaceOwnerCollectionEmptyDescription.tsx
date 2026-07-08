@@ -4,11 +4,17 @@ import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 export default function SharedSpaceOwnerCollectionEmptyDescription({
   resourceLabel,
   ownerDisplayName = 'Space owner',
+  ownerUserId = '',
+  ownerFirstName,
+  ownerProfileImageUrl,
   ownerColor = 'blue',
   ownerIsSelf = false,
 }: {
   resourceLabel: 'Threads' | 'Folders';
   ownerDisplayName?: string;
+  ownerUserId?: string;
+  ownerFirstName?: string | null;
+  ownerProfileImageUrl?: string | null;
   ownerColor?: string | null;
   ownerIsSelf?: boolean;
 }) {
@@ -19,7 +25,14 @@ export default function SharedSpaceOwnerCollectionEmptyDescription({
       </span>
       <span className="proto-list-empty-state__owner-attribution-row">
         added by{' '}
-        <SharedSpaceNoteAuthorChip displayName={ownerDisplayName} color={ownerColor} isSelf={ownerIsSelf} />
+        <SharedSpaceNoteAuthorChip
+          displayName={ownerDisplayName}
+          userId={ownerUserId}
+          firstName={ownerFirstName}
+          profileImageUrl={ownerProfileImageUrl}
+          color={ownerColor}
+          isSelf={ownerIsSelf}
+        />
       </span>
     </div>
   );

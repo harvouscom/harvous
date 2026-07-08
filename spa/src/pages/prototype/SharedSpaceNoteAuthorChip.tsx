@@ -1,12 +1,18 @@
-import Icon from '@/components/react/Icon';
+import SharedSpaceMemberAvatar from './SharedSpaceMemberAvatar';
 
-/** Author attribution chip for shared-space note list rows — mirrors the inspector "You" chip. */
+/** Author attribution chip for shared-space lists — same avatar treatment as the people roster. */
 export default function SharedSpaceNoteAuthorChip({
   displayName,
+  userId = '',
+  firstName,
+  profileImageUrl,
+  color,
   isSelf = false,
 }: {
   displayName: string;
-  /** Kept for call-site parity with note author metadata; icon uses chip text color. */
+  userId?: string;
+  firstName?: string | null;
+  profileImageUrl?: string | null;
   color?: string | null;
   isSelf?: boolean;
 }) {
@@ -14,7 +20,14 @@ export default function SharedSpaceNoteAuthorChip({
 
   return (
     <span className="proto-shared-author-chip">
-      <Icon name="circle-user" size={11} aria-hidden />
+      <SharedSpaceMemberAvatar
+        userId={userId}
+        firstName={firstName}
+        displayName={displayName}
+        userColor={color}
+        profileImageUrl={profileImageUrl}
+        className="proto-shared-people-row__avatar--chip"
+      />
       {label}
     </span>
   );

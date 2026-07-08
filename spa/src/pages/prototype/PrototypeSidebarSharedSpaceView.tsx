@@ -79,6 +79,9 @@ function noteKindIcon(noteType: string | undefined): IconName {
 function SharedSpaceNoteCard({
   slot,
   authorName,
+  authorUserId,
+  authorFirstName,
+  authorProfileImageUrl,
   authorColor,
   isOwn,
   onOpen,
@@ -86,6 +89,9 @@ function SharedSpaceNoteCard({
 }: {
   slot: SharedSpaceNoteCardSlot;
   authorName: string;
+  authorUserId: string;
+  authorFirstName?: string | null;
+  authorProfileImageUrl?: string | null;
   authorColor: string;
   isOwn: boolean;
   onOpen: () => void;
@@ -116,7 +122,14 @@ function SharedSpaceNoteCard({
           <p className="pds-list-preview proto-home-card__preview">{preview}</p>
         ) : null}
         <div className="proto-home-card__meta">
-          <SharedSpaceNoteAuthorChip displayName={authorName} color={authorColor} isSelf={isOwn} />
+          <SharedSpaceNoteAuthorChip
+            displayName={authorName}
+            userId={authorUserId}
+            firstName={authorFirstName}
+            profileImageUrl={authorProfileImageUrl}
+            color={authorColor}
+            isSelf={isOwn}
+          />
           {rel ? (
             <>
               <span className="proto-home-card__meta-sep" aria-hidden>
@@ -257,11 +270,21 @@ function PrototypeSidebarSharedSpaceViewLive() {
 
   const resolveAuthor = (note: SpaceNoteRow) => {
     const isOwn = note.isOwnNote ?? (note.authorUserId != null && note.authorUserId === authUserId);
-    const authorName = isOwn ? 'You' : (note.authorDisplayName ?? 'Member');
+    const member = members.find(
+      (m) => m.userId === (note.authorUserId ?? (isOwn ? authUserId : undefined)),
+    );
+    const authorName = isOwn ? 'You' : (note.authorDisplayName ?? member?.displayName ?? 'Member');
     const authorColor = isOwn
-      ? (membersQuery.data?.members.find((m) => m.userId === authUserId)?.userColor ?? 'blue')
-      : (note.authorColor ?? 'blue');
-    return { isOwn, authorName, authorColor };
+      ? (member?.userColor ?? 'blue')
+      : (note.authorColor ?? member?.userColor ?? 'blue');
+    return {
+      isOwn,
+      authorName,
+      authorUserId: note.authorUserId ?? member?.userId ?? authUserId ?? '',
+      authorFirstName: member?.firstName,
+      authorProfileImageUrl: member?.profileImageUrl,
+      authorColor,
+    };
   };
 
   const renderNotePreviewCard = (slot: SharedSpaceNoteCardSlot, showEyebrow = true) => {
@@ -270,6 +293,9 @@ function PrototypeSidebarSharedSpaceViewLive() {
       <SharedSpaceNoteCard
         slot={slot}
         authorName={author.authorName}
+        authorUserId={author.authorUserId}
+        authorFirstName={author.authorFirstName}
+        authorProfileImageUrl={author.authorProfileImageUrl}
         authorColor={author.authorColor}
         isOwn={author.isOwn}
         showEyebrow={showEyebrow}

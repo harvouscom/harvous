@@ -2047,18 +2047,26 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   word-break: break-word;
 }
 
-.proto-inspector-added-by-chip {
-  transform: none;
+.proto-inspector-added-by-chip-btn {
+  display: inline-flex;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
   vertical-align: baseline;
 }
 
-.proto-inspector-added-by-chip__photo {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  object-fit: cover;
-  display: block;
-  flex-shrink: 0;
+.proto-inspector-added-by-chip-btn:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-border);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+.proto-inspector-added-by-chip-btn .proto-shared-author-chip {
+  margin-right: 0;
 }
 
 .proto-inspector-note-id-btn {
@@ -7735,9 +7743,9 @@ button.proto-appearance-hero__card {
 .proto-shared-author-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   margin-right: 6px;
-  padding: 1px 8px 1px 6px;
+  padding: 1px 8px 1px 4px;
   border: 0.5px solid var(--pds-border-control);
   border-radius: 999px;
   background: var(--pds-bg-chip);
@@ -7752,6 +7760,15 @@ button.proto-appearance-hero__card {
   display: block;
   flex-shrink: 0;
   color: currentColor;
+}
+
+.proto-shared-author-chip .proto-shared-people-row__avatar {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  font-size: 8px;
+  border: none;
 }
 
 .proto-shared-space-header {

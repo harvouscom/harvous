@@ -14,7 +14,7 @@ import { useRemoveThreadCluster } from '../../hooks/mutations/useRemoveThreadClu
 import { useConnectNote } from '../../hooks/mutations/useConnectNote';
 import { useUpdateStudyThreadTitle } from '../../hooks/mutations/useUpdateStudyThreadTitle';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
-import { useSpaceNotes, useSpaceMembers, type SpaceNoteRow } from '../../hooks/queries/useSpace';
+import { useSpaceNotes, useSpaceMembers, type SpaceMemberRow, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
 import { countNotesInFolderBucket, noteBelongsToFolderBucket, noteFolderMembershipLabels } from '@/utils/note-folder-display';
 import { sortDrillNoteBriefsByLastUpdated, sortNotesByLastUpdated } from '@/utils/sorting';
@@ -110,6 +110,26 @@ function stripHtmlPreview(html: string | null | undefined, max = 80) {
   return stripHtmlForListPreview(html, max);
 }
 
+function sharedSpaceAuthorChipProps(
+  memberByUserId: Map<string, SpaceMemberRow>,
+  options: {
+    userId?: string;
+    displayName: string;
+    color?: string | null;
+    isSelf?: boolean;
+  },
+) {
+  const member = options.userId ? memberByUserId.get(options.userId) : undefined;
+  return {
+    displayName: options.displayName,
+    userId: options.userId ?? '',
+    firstName: member?.firstName,
+    profileImageUrl: member?.profileImageUrl,
+    color: options.color ?? member?.userColor ?? 'blue',
+    isSelf: options.isSelf,
+  };
+}
+
 function describeQueryFailure(err: unknown): string {
   if (err instanceof APIError) return err.message;
   if (err instanceof Error) return err.message;
@@ -154,6 +174,8 @@ type PrototypeSidebarNoteRowProps = {
   folderRemoval?: { folderName: string };
   /** Vertical trail dots + spine (thread drilldown). */
   trailLayout?: boolean;
+  /** Roster lookup for shared-space author avatars on list rows. */
+  sharedSpaceMemberByUserId?: Map<string, SpaceMemberRow>;
 };
 
 function PrototypeSidebarFolderCard({
@@ -382,7 +404,9 @@ function HighlightRow({
   isScopedSharedSpace = false,
   authorDisplayName,
   authorColor,
+  authorUserId,
   isOwnHighlight = true,
+  sharedSpaceMemberByUserId,
 }: {
   isActive: boolean;
   isPinned: boolean;
@@ -397,7 +421,9 @@ function HighlightRow({
   isScopedSharedSpace?: boolean;
   authorDisplayName?: string;
   authorColor?: string;
+  authorUserId?: string;
   isOwnHighlight?: boolean;
+  sharedSpaceMemberByUserId?: Map<string, SpaceMemberRow>;
 }) {
   const kindIcon = highlightEntryKindIconName(entryKind);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -434,9 +460,12 @@ function HighlightRow({
         <div className="pds-list-preview proto-note-row__preview">
           {isScopedSharedSpace && authorDisplayName ? (
             <SharedSpaceNoteAuthorChip
-              displayName={authorDisplayName}
-              color={authorColor}
-              isSelf={isOwnHighlight}
+              {...sharedSpaceAuthorChipProps(sharedSpaceMemberByUserId ?? new Map(), {
+                userId: authorUserId,
+                displayName: authorDisplayName,
+                color: authorColor,
+                isSelf: isOwnHighlight,
+              })}
             />
           ) : null}
           {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
@@ -522,6 +551,7 @@ function PrototypeSidebarNoteRow({
   threadRemoval,
   folderRemoval,
   trailLayout = false,
+  sharedSpaceMemberByUserId,
 }: PrototypeSidebarNoteRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -665,9 +695,12 @@ function PrototypeSidebarNoteRow({
         <div className="pds-list-preview proto-note-row__preview">
           {showAuthorChip ? (
             <SharedSpaceNoteAuthorChip
-              displayName={row.authorDisplayName ?? 'Member'}
-              color={row.authorColor}
-              isSelf={row.isOwnNote === true}
+              {...sharedSpaceAuthorChipProps(sharedSpaceMemberByUserId ?? new Map(), {
+                userId: row.authorUserId,
+                displayName: row.authorDisplayName ?? 'Member',
+                color: row.authorColor,
+                isSelf: row.isOwnNote === true,
+              })}
             />
           ) : null}
           {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
@@ -678,9 +711,12 @@ function PrototypeSidebarNoteRow({
         <div className="pds-list-preview proto-note-row__preview">
           {showAuthorChip ? (
             <SharedSpaceNoteAuthorChip
-              displayName={row.authorDisplayName ?? 'Member'}
-              color={row.authorColor}
-              isSelf={row.isOwnNote === true}
+              {...sharedSpaceAuthorChipProps(sharedSpaceMemberByUserId ?? new Map(), {
+                userId: row.authorUserId,
+                displayName: row.authorDisplayName ?? 'Member',
+                color: row.authorColor,
+                isSelf: row.isOwnNote === true,
+              })}
             />
           ) : null}
           {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
@@ -968,6 +1004,13 @@ export default function PrototypeSidebar({
   const { userId: authUserId } = useAuth();
   const { isOwner: viewerIsSpaceOwner, space: activeSharedSpace } = useActiveSpace();
   const sharedSpaceMembersQuery = useSpaceMembers(isScopedSharedSpace && homeSpaceId ? homeSpaceId : '');
+  const sharedSpaceMemberByUserId = useMemo(() => {
+    const map = new Map<string, SpaceMemberRow>();
+    for (const member of sharedSpaceMembersQuery.data?.members ?? []) {
+      map.set(member.userId, member);
+    }
+    return map;
+  }, [sharedSpaceMembersQuery.data?.members]);
   const sharedSpaceOwnerAttribution = useMemo(() => {
     const owner = resolveSpaceOwnerMember(
       sharedSpaceMembersQuery.data?.members ?? [],
@@ -975,6 +1018,9 @@ export default function PrototypeSidebar({
     );
     return {
       ownerDisplayName: owner?.displayName ?? 'Space owner',
+      ownerUserId: owner?.userId ?? '',
+      ownerFirstName: owner?.firstName,
+      ownerProfileImageUrl: owner?.profileImageUrl,
       ownerColor: owner?.userColor ?? 'blue',
       ownerIsSelf: Boolean(authUserId && owner?.userId === authUserId),
     };
@@ -2213,6 +2259,7 @@ export default function PrototypeSidebar({
                         homeSpaceId={homeSpaceId}
                         activeNoteFullId={activeNoteFullId}
                         isScopedSharedSpace={isScopedSharedSpace}
+                        sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
                         prefetchNote={prefetchNote}
                         onOpenNote={(r) => {
                           onNoteRow(r);
@@ -2266,6 +2313,7 @@ export default function PrototypeSidebar({
                         homeSpaceId={homeSpaceId}
                         activeNoteFullId={activeNoteFullId}
                         isScopedSharedSpace={isScopedSharedSpace}
+                        sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
                         prefetchNote={prefetchNote}
                         folderRemoval={
                           typeof activeFolderKey === 'string' ? { folderName: activeFolderKey } : undefined
@@ -2416,8 +2464,10 @@ export default function PrototypeSidebar({
                           rel={rel}
                           preview={sub}
                           isScopedSharedSpace={isScopedSharedSpace}
+                          sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
                           authorDisplayName={r.authorDisplayName}
                           authorColor={r.authorColor}
+                          authorUserId={r.userId}
                           isOwnHighlight={r.isOwnHighlight !== false}
                           onOpen={() => onHighlightRow(r)}
                           onTogglePin={() => togglePinnedHighlight(r.id)}
@@ -2491,6 +2541,7 @@ export default function PrototypeSidebar({
                             homeSpaceId={homeSpaceId}
                             activeNoteFullId={activeNoteFullId}
                             isScopedSharedSpace={isScopedSharedSpace}
+                            sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
                             prefetchNote={prefetchNote}
                             trailLayout
                             threadRemoval={{ memberIds: threadDrillMemberIds }}
@@ -2714,6 +2765,7 @@ export default function PrototypeSidebar({
                           homeSpaceId={homeSpaceId}
                           activeNoteFullId={activeNoteFullId}
                           isScopedSharedSpace={isScopedSharedSpace}
+                          sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
                           prefetchNote={prefetchNote}
                           onOpenNote={(r) => {
                             onNoteRow(r);

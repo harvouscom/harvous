@@ -4,7 +4,7 @@
  * Standalone — no SPA CSS variables or shared styles.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useUser } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo, prototypeSettingsAccountRouteTo } from '@/lib/prototype-path';
 import type { NoteDetail, LinkedNoteRef } from '../../hooks/queries/useNote';
@@ -12,6 +12,7 @@ import { normalizeNoteAddedBy } from '@/utils/note-added-by-display';
 import { resolveClerkProfileImageUrl } from '../../lib/clerk-profile-image';
 import { storeSettingsOpenerPath } from '../../lib/prototype-settings-opener';
 import { useProfile } from '../../hooks/queries/useProfile';
+import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import Icon from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
@@ -22,6 +23,7 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import PrototypeConnectNoteSheet from './PrototypeConnectNoteSheet';
 import PrototypeFolderTagEditor from './PrototypeFolderTagEditor';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
+import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import { noteParamSlug } from './proto-route-slugs';
 
 interface PrototypeInspectorPaneProps {
@@ -81,7 +83,7 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
             <InspectorSimpleNoteIdRow simpleNoteId={note.simpleNoteId} />
           ) : null}
           <InspectorRow label="Created" value={createdStr} />
-          <InspectorRow label="Added by" value={<InspectorAddedByValue addedBy={note.addedBy} />} />
+          <InspectorRow label="Added by" value={<InspectorAddedByValue note={note} />} />
           <InspectorRow label="Edited" value={updatedStr} />
           <InspectorRow label="Words" value={String(wordCount)} />
           {note.noteType && note.noteType !== 'default' ? (
@@ -279,28 +281,34 @@ function InspectorRow({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function InspectorAddedByValue({ addedBy }: { addedBy?: string | null }) {
+function InspectorAddedByValue({ note }: { note: NoteDetail }) {
   const { user } = useUser();
+  const { userId: authUserId } = useAuth();
   const { data: profile } = useProfile();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.searchStr });
-  const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
+  const { foreignNoteAuthor, readOnlyInSharedSpace } = useForeignSharedNote(note.id);
 
-  const avatarImageUrl = useMemo(
-    () => resolveClerkProfileImageUrl(user, profile?.profileImageUrl),
-    [user, profile?.profileImageUrl],
-  );
-
-  useEffect(() => {
-    setPhotoLoadFailed(false);
-  }, [avatarImageUrl]);
-
-  if (normalizeNoteAddedBy(addedBy) === 'harvous') {
+  if (normalizeNoteAddedBy(note.addedBy) === 'harvous') {
     return 'Harvous';
   }
 
-  const showProfilePhoto = Boolean(avatarImageUrl) && !photoLoadFailed;
+  const isOwnNote =
+    note.isOwnNote === true || Boolean(authUserId && note.userId && note.userId === authUserId);
+
+  if (readOnlyInSharedSpace && foreignNoteAuthor && !isOwnNote) {
+    return (
+      <SharedSpaceNoteAuthorChip
+        displayName={foreignNoteAuthor.displayName}
+        userId={foreignNoteAuthor.userId}
+        firstName={foreignNoteAuthor.firstName}
+        profileImageUrl={foreignNoteAuthor.profileImageUrl}
+        color={foreignNoteAuthor.userColor}
+        isSelf={false}
+      />
+    );
+  }
 
   const openAccountSettings = () => {
     storeSettingsOpenerPath(`${pathname}${searchRaw ?? ''}`);
@@ -310,23 +318,19 @@ function InspectorAddedByValue({ addedBy }: { addedBy?: string | null }) {
   return (
     <button
       type="button"
-      className="proto-glass-surface proto-home-greeting__chip proto-inspector-added-by-chip"
+      className="proto-inspector-added-by-chip-btn"
       aria-label="Open account settings"
       title="Account settings"
       onClick={openAccountSettings}
     >
-      {showProfilePhoto ? (
-        <img
-          src={avatarImageUrl!}
-          alt=""
-          className="proto-inspector-added-by-chip__photo"
-          aria-hidden
-          onError={() => setPhotoLoadFailed(true)}
-        />
-      ) : (
-        <Icon name="circle-user" size={10} aria-hidden />
-      )}
-      <span>You</span>
+      <SharedSpaceNoteAuthorChip
+        displayName={profile?.firstName ?? user?.firstName ?? 'You'}
+        userId={authUserId ?? ''}
+        firstName={user?.firstName ?? profile?.firstName}
+        profileImageUrl={resolveClerkProfileImageUrl(user, profile?.profileImageUrl)}
+        color={profile?.userColor}
+        isSelf
+      />
     </button>
   );
 }
