@@ -103,6 +103,12 @@ These were designed here and are now live. The stub files in this folder point t
   - Product flows, schema, auth/backend, invites/join, edge cases, UI/UX, migration
   - Summary table and pointers to CHURCH_CONNECTION_SYSTEM, CHURCH_ORG_AND_CURRICULUM
 
+- **`CHMS_INTEGRATION_RESEARCH.md`** - ChMS integration research (Planning Center, Breeze, ChurchSoftware.com)
+  - OpenFaith-first strategy with direct-API fallback; entity mapping to shared spaces
+  - Roster sync, curriculum push, bidirectional attendance/progress, youth COPPA
+  - UX spec: `/settings/church` expansion, church admin dashboard, program templates
+  - ChurchSoftware.com partner outreach brief; gap analysis and phased roadmap
+
 ### Sharing & Collaboration (✅ Implemented)
 
 - **`SHARING_SYSTEM_DESIGN.md`** - Original sharing system design (implemented)

@@ -47,6 +47,8 @@ Optional: keep free-text church fields for **discovery** (matching when a church
 
 ## Curriculum Flow (future)
 
+ChMS integration (Planning Center, Breeze, ChurchSoftware.com) provides the **roster and group sync pipe** into this flow — see [CHMS_INTEGRATION_RESEARCH.md](./CHMS_INTEGRATION_RESEARCH.md).
+
 1. **Church has an org account** (Clerk Organization + Harvous church record, e.g. `Churches` table with `orgId`).
 2. **Staff create threads/notes** in an org context (or mark existing content as “church curriculum”). Implementation can use existing note/thread model with an org/church scope or a dedicated curriculum content type.
 3. **Publish to org:** When church publishes a thread or note, create an **InboxItem** (or equivalent) with `sharingType='organization'` and link to the church’s `orgId`.

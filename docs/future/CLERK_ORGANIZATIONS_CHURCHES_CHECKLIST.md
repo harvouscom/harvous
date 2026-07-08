@@ -61,7 +61,9 @@ Clerk’s **free plan for organizations is limited to 20 people**. So for church
 
 ### Planning Center (PCO) integration
 
-Fully native integration with **Planning Center (PCO) Groups** via their OAuth API is the target—pull groups/rosters directly, no middleware. From church/member views, it’s seamless “one-click connect” that feels like PCO built it.
+> **Strategy update (2026-07):** Integration research adopts an **OpenFaith-first** middleware path with **direct PCO OAuth fallback** for Phase 1 if OpenFaith is not production-ready. Canonical research: [CHMS_INTEGRATION_RESEARCH.md](./CHMS_INTEGRATION_RESEARCH.md). The flows below remain valid; implementation may route through OpenFaith CDM or direct PCO API depending on adapter maturity.
+
+Integration with **Planning Center (PCO) Groups** pulls groups/rosters into Harvous shared spaces. Connect entry is **Harvous settings** (`/settings/church`), not ChMS-first.
 
 - **Product reference:** [Planning Center Groups](https://www.planningcenter.com/groups) — community organization, attendance, group chat, events, and Church Center app; Harvous would act as a “Bible Study add-on” to this flow.
 - **API:** The PCO API would need to be researched to implement this integration (OAuth scopes, Groups/People endpoints, token storage/refresh, and any rate limits or webhooks).
