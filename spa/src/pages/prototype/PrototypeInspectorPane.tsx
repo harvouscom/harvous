@@ -25,6 +25,7 @@ import PrototypeFolderTagEditor from './PrototypeFolderTagEditor';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import { noteParamSlug } from './proto-route-slugs';
+import { isConfirmedForeignNote } from './proto-note-ownership';
 
 interface PrototypeInspectorPaneProps {
   note: NoteDetail;
@@ -32,6 +33,7 @@ interface PrototypeInspectorPaneProps {
 }
 
 export default function PrototypeInspectorPane({ note, spaceId = '' }: PrototypeInspectorPaneProps) {
+  const { userId: authUserId } = useAuth();
   const [connectOpen, setConnectOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const deleteAnchorRef = useRef<HTMLElement | null>(null);
@@ -73,9 +75,10 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
     [linkedFromNotes, linkedToNotes],
   );
 
+  const isForeignNote = isConfirmedForeignNote(note, authUserId);
+
   return (
     <div className="proto-inspector">
-      {/* Info section */}
       <section className="proto-inspector-section">
         <p className="proto-inspector-section-title">Info</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -95,6 +98,8 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
         </div>
       </section>
 
+      {!isForeignNote ? (
+        <>
       <section className="proto-inspector-section">
         <p className="proto-inspector-section-title">Tags</p>
         <PrototypeFolderTagEditor note={note} tagsOnly />
@@ -202,6 +207,8 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
             }
           }}
         />
+      ) : null}
+        </>
       ) : null}
     </div>
   );

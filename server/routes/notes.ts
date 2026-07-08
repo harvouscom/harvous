@@ -74,7 +74,7 @@ import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
 import { healScriptureNoteThreadsFromParents } from '../utils/heal-scripture-note-threads';
 import { removeScriptureNotesFromThread } from '../utils/remove-scripture-notes-from-thread';
-import { requireSpaceAccess, SpaceAccessError, canAuthorInSpace } from '../utils/space-access';
+import { requireSpaceAccess, SpaceAccessError, canAuthorInSpace, canManageSpaceStructure } from '../utils/space-access';
 import { batchAuthorAttribution } from '../utils/dashboard-data';
 import { mapStudyRow } from './study-threads';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
@@ -349,13 +349,22 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
 
     if (threadId && threadId.trim() !== '' && threadId !== 'thread_unorganized' && !threadId.startsWith('thread_onboarding_')) {
       try {
-        const targetThread = first(await db.select().from(Threads)
-          .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
-        if (targetThread) {
+        const targetThread = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
+        const canAttachToOwnThread = targetThread?.userId === auth.userId;
+        const canAttachToSpaceThread =
+          Boolean(targetThread?.spaceId && finalSpaceId && targetThread.spaceId === finalSpaceId);
+        if (targetThread && (canAttachToOwnThread || canAttachToSpaceThread)) {
+          if (canAttachToSpaceThread && finalSpaceId) {
+            await requireSpaceAccess(finalSpaceId, auth.userId);
+          }
           const junctionId = `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           await db.insert(NoteThreads).values({ id: junctionId, noteId: newNote.id, threadId, createdAt: nowISO() });
           await db.update(Notes).set({ threadId }).where(eq(Notes.id, newNote.id));
-          await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+          if (canAttachToOwnThread) {
+            await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+          } else {
+            await db.update(Threads).set({ updatedAt: nowISO() }).where(eq(Threads.id, threadId));
+          }
           noteStaysInUnorganized = false;
         }
       } catch (error) {
@@ -796,6 +805,28 @@ route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c)
       normalizeOwnedNoteSpaceId(parent.spaceId ?? null) ??
       normalizeOwnedNoteSpaceId(linked.spaceId ?? null) ??
       null;
+
+    if (spaceId) {
+      try {
+        const linkAccess = await requireSpaceAccess(spaceId, auth.userId);
+        if (
+          linkAccess.space.type !== 'personal' &&
+          !canManageSpaceStructure(linkAccess.space, linkAccess.role)
+        ) {
+          return c.json({
+            success: false,
+            error: 'Only the space owner can create study thread links in a shared space',
+            code: 'FORBIDDEN',
+          }, 403);
+        }
+      } catch (err) {
+        if (err instanceof SpaceAccessError) {
+          return c.json({ success: false, error: err.message, code: err.code }, err.status);
+        }
+        throw err;
+      }
+    }
+
     try {
       await db.insert(NoteConnections).values({
         id: generateNoteId(),
@@ -1985,7 +2016,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
 
     let studyThreads: any[] = [];
     let loadUnionedStudyThreads = false;
-    if (isMemberView && note.spaceId) {
+    if (note.spaceId) {
       const spaceRow = first(
         await db.select({ type: Spaces.type }).from(Spaces).where(eq(Spaces.id, note.spaceId)).limit(1),
       );

@@ -26,17 +26,38 @@ import { rateLimit } from '@/utils/rate-limit';
 import { generateStudyThreadEntryId, generateNoteId } from '@/utils/ids';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { broadcastInvalidation } from '../utils/realtime';
+import { batchAuthorAttribution } from '../utils/dashboard-data';
+import {
+  canModerateStudyThreadEntry,
+  loadParentNoteContext,
+  requireSharedStudyThreadParentAccess,
+  resolveViewerSpaceRoleForNote,
+  SharedStudyThreadAccessError,
+} from '../utils/shared-study-thread-access';
+import { SpaceAccessError } from '../utils/space-access';
 
 const route = new Hono();
 
 const ENTRY_KINDS = new Set(['workspace', 'miniNote', 'linkedNote', 'scriptureLink', 'reference']);
 
-async function touchParentNoteEditedAt(parentNoteId: string, userId: string) {
+async function touchParentNoteEditedAt(parentNoteId: string, parentAuthorUserId: string, actorUserId: string) {
+  if (parentAuthorUserId !== actorUserId) {
+    broadcastInvalidation(parentAuthorUserId, { type: 'note:updated', id: parentNoteId });
+    return;
+  }
   await db
     .update(Notes)
     .set({ updatedAt: nowISO() })
-    .where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, userId)));
-  broadcastInvalidation(userId, { type: 'note:updated', id: parentNoteId });
+    .where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, parentAuthorUserId)));
+  broadcastInvalidation(parentAuthorUserId, { type: 'note:updated', id: parentNoteId });
+}
+
+function isUnionedSharedParent(parent: Awaited<ReturnType<typeof loadParentNoteContext>>) {
+  return (
+    parent != null &&
+    parent.spaceId != null &&
+    (parent.spaceType === 'shared' || parent.spaceType === 'public')
+  );
 }
 
 export function mapStudyRow(row: typeof StudyThreadEntries.$inferSelect) {
@@ -66,25 +87,59 @@ export function mapStudyRow(row: typeof StudyThreadEntries.$inferSelect) {
   };
 }
 
+async function mapUnionedRows(rows: typeof StudyThreadEntries.$inferSelect[], viewerUserId: string) {
+  const authorMap = await batchAuthorAttribution(rows.map((row) => row.userId));
+  return rows.map((row) => {
+    const mapped = mapStudyRow(row);
+    const author = authorMap[row.userId];
+    return {
+      ...mapped,
+      authorDisplayName: author?.displayName ?? 'A Harvous User',
+      authorColor: author?.userColor ?? 'blue',
+      isOwnHighlight: row.userId === viewerUserId,
+    };
+  });
+}
+
+function handleStudyThreadAccessError(c: any, err: unknown) {
+  if (err instanceof SharedStudyThreadAccessError || err instanceof SpaceAccessError) {
+    return c.json({ error: err.message, code: err.code }, err.status);
+  }
+  throw err;
+}
+
 // ─── GET /api/notes/:parentNoteId/study-threads ───────────────────────────────
 route.get('/api/notes/:parentNoteId/study-threads', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const parentNoteId = c.req.param('parentNoteId');
-    const parent = first(
-      await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1),
-    );
-    if (!parent) return c.json({ error: 'Note not found' }, 404);
 
+    let parentCtx;
+    try {
+      ({ parent: parentCtx } = await requireSharedStudyThreadParentAccess(parentNoteId, auth.userId));
+    } catch (err) {
+      return handleStudyThreadAccessError(c, err);
+    }
+
+    const unioned = isUnionedSharedParent(parentCtx);
+    const listWhere = unioned
+      ? and(eq(StudyThreadEntries.parentNoteId, parentNoteId), eq(StudyThreadEntries.isArchived, false))
+      : and(
+          eq(StudyThreadEntries.parentNoteId, parentNoteId),
+          eq(StudyThreadEntries.userId, auth.userId),
+          eq(StudyThreadEntries.isArchived, false),
+        );
     const rows = await db
       .select()
       .from(StudyThreadEntries)
-      .where(and(eq(StudyThreadEntries.parentNoteId, parentNoteId), eq(StudyThreadEntries.userId, auth.userId)))
+      .where(listWhere)
       .orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt));
+
+    const studyThreads = unioned ? await mapUnionedRows(rows, auth.userId) : rows.map(mapStudyRow);
 
     return c.json({
       success: true,
-      studyThreads: rows.map(mapStudyRow),
+      studyThreads,
     });
   } catch (error: any) {
     const e = handleAPIError(error, { endpoint: '/api/notes/[parentNoteId]/study-threads', action: 'list_study_threads' });
@@ -102,27 +157,37 @@ route.get('/api/notes/:parentNoteId/study-threads/by-scripture', requireAuth, as
     const norm = normalizeScriptureReference(refRaw.trim()) ?? refRaw.trim();
     if (!norm) return c.json({ error: 'reference query required' }, 400);
 
-    const parent = first(
-      await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1),
-    );
-    if (!parent) return c.json({ error: 'Note not found' }, 404);
+    let parentCtx;
+    try {
+      ({ parent: parentCtx } = await requireSharedStudyThreadParentAccess(parentNoteId, auth.userId));
+    } catch (err) {
+      return handleStudyThreadAccessError(c, err);
+    }
 
-    const rows = await db
-      .select()
-      .from(StudyThreadEntries)
-      .where(
-        and(
+    const unioned = isUnionedSharedParent(parentCtx);
+    const byScriptureWhere = unioned
+      ? and(
+          eq(StudyThreadEntries.parentNoteId, parentNoteId),
+          eq(StudyThreadEntries.scriptureReference, norm),
+          eq(StudyThreadEntries.scripturePassageTranslation, translation),
+        )
+      : and(
           eq(StudyThreadEntries.parentNoteId, parentNoteId),
           eq(StudyThreadEntries.userId, auth.userId),
           eq(StudyThreadEntries.scriptureReference, norm),
           eq(StudyThreadEntries.scripturePassageTranslation, translation),
-        ),
-      )
+        );
+    const rows = await db
+      .select()
+      .from(StudyThreadEntries)
+      .where(byScriptureWhere)
       .orderBy(desc(StudyThreadEntries.createdAt));
+
+    const studyThreads = unioned ? await mapUnionedRows(rows, auth.userId) : rows.map(mapStudyRow);
 
     return c.json({
       success: true,
-      studyThreads: rows.map(mapStudyRow),
+      studyThreads,
     });
   } catch (error: any) {
     const e = handleAPIError(error, { endpoint: '/api/notes/[parentNoteId]/study-threads/by-scripture', action: 'by_scripture' });
@@ -135,10 +200,13 @@ route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('wri
   try {
     const auth = getAuthenticatedAuth(c);
     const parentNoteId = c.req.param('parentNoteId');
-    const parent = first(
-      await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1),
-    );
-    if (!parent) return c.json({ error: 'Note not found' }, 404);
+
+    let parentCtx;
+    try {
+      ({ parent: parentCtx } = await requireSharedStudyThreadParentAccess(parentNoteId, auth.userId));
+    } catch (err) {
+      return handleStudyThreadAccessError(c, err);
+    }
 
     const body = await c.req.json();
     const entryKind = typeof body.entryKind === 'string' ? body.entryKind : 'miniNote';
@@ -158,7 +226,7 @@ route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('wri
 
     const id = generateStudyThreadEntryId();
     const now = nowISO();
-    const spaceId = typeof parent.spaceId === 'string' && parent.spaceId ? parent.spaceId : null;
+    const spaceId = parentCtx.spaceId;
 
     await db.insert(StudyThreadEntries).values({
       id,
@@ -187,8 +255,6 @@ route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('wri
       updatedAt: now,
     });
 
-    // Mirror linkedNote entries into NoteConnections so the web prototype inspector
-    // shows native-created connections (it reads NoteConnections, not StudyThreadEntries).
     const resolvedLinkedNoteId = typeof body.linkedNoteId === 'string' ? body.linkedNoteId : null;
     if (entryKind === 'linkedNote' && resolvedLinkedNoteId && resolvedLinkedNoteId !== parentNoteId) {
       try {
@@ -201,14 +267,29 @@ route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('wri
           createdAt: now,
         });
       } catch {
-        // Unique constraint — already connected, safe to ignore.
+        /* already connected */
       }
     }
 
-    await touchParentNoteEditedAt(parentNoteId, auth.userId);
+    await touchParentNoteEditedAt(parentNoteId, parentCtx.userId, auth.userId);
+    broadcastInvalidation(auth.userId, { type: 'note:updated', id: parentNoteId });
 
     const row = first(await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.id, id)).limit(1));
-    return c.json({ success: true, studyThread: row ? mapStudyRow(row) : null });
+    const mapped = row ? mapStudyRow(row) : null;
+    if (mapped && parentCtx.userId !== auth.userId) {
+      const authorMap = await batchAuthorAttribution([auth.userId]);
+      const author = authorMap[auth.userId];
+      return c.json({
+        success: true,
+        studyThread: {
+          ...mapped,
+          authorDisplayName: author?.displayName ?? 'A Harvous User',
+          authorColor: author?.userColor ?? 'blue',
+          isOwnHighlight: true,
+        },
+      });
+    }
+    return c.json({ success: true, studyThread: mapped });
   } catch (error: any) {
     const e = handleAPIError(error, { endpoint: '/api/notes/[parentNoteId]/study-threads', action: 'create_study_thread' });
     return c.json({ error: e.message, code: e.code }, 500);
@@ -221,14 +302,29 @@ route.patch('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c)
     const auth = getAuthenticatedAuth(c);
     const id = c.req.param('id');
     const existing = first(
-      await db
-        .select()
-        .from(StudyThreadEntries)
-        .where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId)))
-        .limit(1),
+      await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.id, id)).limit(1),
     );
     if (!existing) return c.json({ error: 'Study thread not found' }, 404);
 
+    const parent = await loadParentNoteContext(existing.parentNoteId);
+    if (!parent) return c.json({ error: 'Study thread not found' }, 404);
+
+    const viewerRole =
+      (await resolveViewerSpaceRoleForNote(parent.spaceId, auth.userId)) ??
+      (parent.userId === auth.userId ? 'owner' : null);
+    if (
+      !viewerRole ||
+      !canModerateStudyThreadEntry({
+        annotatorUserId: existing.userId,
+        parentAuthorUserId: parent.userId,
+        viewerUserId: auth.userId,
+        viewerSpaceRole: viewerRole,
+      })
+    ) {
+      return c.json({ error: 'You cannot edit this annotation', code: 'FORBIDDEN' }, 403);
+    }
+
+    const isAnnotator = existing.userId === auth.userId;
     const body = await c.req.json();
     const patch: Record<string, unknown> = { updatedAt: nowISO() };
 
@@ -240,27 +336,27 @@ route.patch('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c)
     if (typeof body.focusTitle === 'string') patch.focusTitle = body.focusTitle;
     if (typeof body.notesBody === 'string') patch.notesBody = body.notesBody;
     if (typeof body.miniNoteBody === 'string') patch.miniNoteBody = body.miniNoteBody;
-    if (typeof body.linkedNoteId === 'string' || body.linkedNoteId === null) patch.linkedNoteId = body.linkedNoteId;
-    if (typeof body.linkedNoteTitle === 'string') patch.linkedNoteTitle = body.linkedNoteTitle;
-    if (typeof body.anchorLocation === 'number' || body.anchorLocation === null) patch.anchorLocation = body.anchorLocation;
-    if (typeof body.anchorLength === 'number' || body.anchorLength === null) patch.anchorLength = body.anchorLength;
-    if (typeof body.anchorTextSnapshot === 'string' || body.anchorTextSnapshot === null) {
-      patch.anchorTextSnapshot = body.anchorTextSnapshot;
+    if (isAnnotator) {
+      if (typeof body.linkedNoteId === 'string' || body.linkedNoteId === null) patch.linkedNoteId = body.linkedNoteId;
+      if (typeof body.linkedNoteTitle === 'string') patch.linkedNoteTitle = body.linkedNoteTitle;
+      if (typeof body.anchorLocation === 'number' || body.anchorLocation === null) patch.anchorLocation = body.anchorLocation;
+      if (typeof body.anchorLength === 'number' || body.anchorLength === null) patch.anchorLength = body.anchorLength;
+      if (typeof body.anchorTextSnapshot === 'string' || body.anchorTextSnapshot === null) {
+        patch.anchorTextSnapshot = body.anchorTextSnapshot;
+      }
+      if (typeof body.scriptureReference === 'string') {
+        patch.scriptureReference = normalizeScriptureReference(body.scriptureReference.trim()) ?? body.scriptureReference;
+      }
+      if (typeof body.scripturePassageTranslation === 'string') patch.scripturePassageTranslation = body.scripturePassageTranslation;
+      if (typeof body.scripturePassageExcerpt === 'string') patch.scripturePassageExcerpt = body.scripturePassageExcerpt;
+      if (typeof body.isArchived === 'boolean') patch.isArchived = body.isArchived;
+      if (typeof body.entryKind === 'string' && ENTRY_KINDS.has(body.entryKind)) patch.entryKindRaw = body.entryKind;
     }
-    if (typeof body.scriptureReference === 'string') {
-      patch.scriptureReference = normalizeScriptureReference(body.scriptureReference.trim()) ?? body.scriptureReference;
-    }
-    if (typeof body.scripturePassageTranslation === 'string') patch.scripturePassageTranslation = body.scripturePassageTranslation;
-    if (typeof body.scripturePassageExcerpt === 'string') patch.scripturePassageExcerpt = body.scripturePassageExcerpt;
-    if (typeof body.isArchived === 'boolean') patch.isArchived = body.isArchived;
-    if (typeof body.entryKind === 'string' && ENTRY_KINDS.has(body.entryKind)) patch.entryKindRaw = body.entryKind;
 
-    await db
-      .update(StudyThreadEntries)
-      .set(patch as any)
-      .where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId)));
+    await db.update(StudyThreadEntries).set(patch as any).where(eq(StudyThreadEntries.id, id));
 
-    await touchParentNoteEditedAt(existing.parentNoteId, auth.userId);
+    await touchParentNoteEditedAt(existing.parentNoteId, parent.userId, auth.userId);
+    broadcastInvalidation(existing.userId, { type: 'note:updated', id: existing.parentNoteId });
 
     const row = first(await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.id, id)).limit(1));
     return c.json({ success: true, studyThread: row ? mapStudyRow(row) : null });
@@ -276,30 +372,44 @@ route.delete('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c
     const auth = getAuthenticatedAuth(c);
     const id = c.req.param('id');
     const existing = first(
-      await db
-        .select()
-        .from(StudyThreadEntries)
-        .where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId)))
-        .limit(1),
+      await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.id, id)).limit(1),
     );
     if (!existing) return c.json({ error: 'Study thread not found' }, 404);
 
-    await db.delete(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId)));
+    const parent = await loadParentNoteContext(existing.parentNoteId);
+    if (!parent) return c.json({ error: 'Study thread not found' }, 404);
 
-    await touchParentNoteEditedAt(existing.parentNoteId, auth.userId);
+    const viewerRole =
+      (await resolveViewerSpaceRoleForNote(parent.spaceId, auth.userId)) ??
+      (parent.userId === auth.userId ? 'owner' : null);
+    if (
+      !viewerRole ||
+      !canModerateStudyThreadEntry({
+        annotatorUserId: existing.userId,
+        parentAuthorUserId: parent.userId,
+        viewerUserId: auth.userId,
+        viewerSpaceRole: viewerRole,
+      })
+    ) {
+      return c.json({ error: 'You cannot delete this annotation', code: 'FORBIDDEN' }, 403);
+    }
 
-    // If this was a linkedNote entry, also remove the mirrored NoteConnections edge.
+    await db.delete(StudyThreadEntries).where(eq(StudyThreadEntries.id, id));
+
+    await touchParentNoteEditedAt(existing.parentNoteId, parent.userId, auth.userId);
+    broadcastInvalidation(existing.userId, { type: 'note:updated', id: existing.parentNoteId });
+
     if (existing.entryKindRaw === 'linkedNote' && existing.linkedNoteId) {
       try {
         await db.delete(NoteConnections).where(
           and(
             eq(NoteConnections.fromNoteId, existing.parentNoteId),
             eq(NoteConnections.toNoteId, existing.linkedNoteId),
-            eq(NoteConnections.userId, auth.userId),
+            eq(NoteConnections.userId, existing.userId),
           ),
         );
       } catch {
-        // Best-effort — don't fail the delete if the edge is already gone.
+        /* best-effort */
       }
     }
 

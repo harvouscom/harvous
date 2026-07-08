@@ -635,7 +635,11 @@ export default function SharedSpacesDesignScenePreview({ scene }: { scene: Share
     case '13-readonly-banner':
       return (
         <div className="proto-theme" style={{ maxWidth: 720, margin: '0 auto' }}>
-          <PrototypeSharedNoteReadOnlyBanner />
+          <PrototypeSharedNoteReadOnlyBanner
+            authorDisplayName="Sarah"
+            authorUserId="user_sarah"
+            authorColor="rose"
+          />
           <div style={{ padding: 24, color: 'var(--pds-text-secondary)', fontSize: 14 }}>Note editor preview area</div>
         </div>
       );

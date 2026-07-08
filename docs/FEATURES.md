@@ -100,13 +100,14 @@ N004: Prayer Request - Healing for Sarah
 - Perfect for personal Bible reading, prayer journaling, and individual reflection
 - Only visible to you - your private spiritual journey
 
-### Shared Spaces ✅ **v1 COMPLETE**
-- **Collaborative environments** where multiple people can contribute
-- Perfect for church small groups, Bible study groups, book clubs, and family devotions
-- All members can create threads and notes within the shared space
-- **Invitations:** Shareable invite link (link-based joining); owner copies link from Space details; join page and accept flow
-- **Member management:** Owner can invite (via link), remove members; members can leave; tier limits (free: 3 shared spaces; paid: unlimited)
-- **Visibility:** Join page, member view (same route as owner), shared space indicator; locked notes never shown in shared contexts
+### Shared Spaces (Harvous 2.0 foundation)
+- **Collaborative environments** where members compose notes in a shared space (join always free; hosting requires the Shared Spaces add-on)
+- **Owner sets structure:** folders, study thread links, and group study threads are created by the space owner; members compose and attach notes
+- **Shared highlight annotations:** highlight text on another member's note to respond in context without editing their note
+- **Group study threads:** owner starts a pinned study thread; members optionally attach new notes to it
+- **Invitations:** Expiring SpaceInvites join links (replaces legacy shareToken spaces)
+- **Member management:** Owner invites, removes members; members can leave; up to 30 people per space
+- **Visibility:** Merged notes list with author chips; locked notes never shown in shared contexts
 
 ### Example Use Cases:
 ```

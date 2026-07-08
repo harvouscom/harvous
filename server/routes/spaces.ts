@@ -66,12 +66,13 @@ import {
   getThreadColorsForNotesBatch,
   batchAuthorAttribution,
 } from '../utils/dashboard-data';
-import { requireSpaceAccess, SpaceAccessError, canAuthorInSpace } from '../utils/space-access';
+import { requireSpaceAccess, SpaceAccessError, canAuthorInSpace, canManageSpaceStructure } from '../utils/space-access';
 import {
   getSharedSpaceActivityPreview,
   isNoteNewSinceVisit,
   recordSharedSpaceVisit,
 } from '../utils/shared-space-visit';
+import { listGroupStudyThreadsForSpace } from '../utils/shared-space-group-threads';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { awardCreationBonusXP } from '../utils/xp-system';
 import {
@@ -541,11 +542,15 @@ route.post('/api/spaces/:spaceId/folders/create', requireAuth, rateLimit('write'
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
     try {
-      await requireSpaceAccess(spaceIdNorm, auth.userId);
+      access = await requireSpaceAccess(spaceIdNorm, auth.userId);
     } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
+    }
+    if (access.space.type !== 'personal' && !canManageSpaceStructure(access.space, access.role)) {
+      return c.json({ error: 'Only the space owner can create folders in a shared space', code: 'FORBIDDEN' }, 403);
     }
 
     const body = await c.req.json().catch(() => ({}));
@@ -632,8 +637,9 @@ route.post('/api/spaces/:spaceId/folders/remove', requireAuth, rateLimit('write'
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
     try {
-      const access = await requireSpaceAccess(spaceIdNorm, auth.userId);
+      access = await requireSpaceAccess(spaceIdNorm, auth.userId);
       // Space-wide folder removal is owner-only in shared spaces (it strips the
       // registry label for everyone); members manage labels via their own notes.
       if (access.space.type !== 'personal' && access.role !== 'owner') {
@@ -648,9 +654,12 @@ route.post('/api/spaces/:spaceId/folders/remove', requireAuth, rateLimit('write'
     const folderName = typeof body.folderName === 'string' ? body.folderName.trim() : '';
     if (!folderName) return c.json({ error: 'Folder name is required' }, 400);
 
+    const stripAllMembers = access.space.type !== 'personal' && access.role === 'owner';
+
     const noteRows = await db
       .select({
         id: Notes.id,
+        userId: Notes.userId,
         threadId: Notes.threadId,
         addedBy: Notes.addedBy,
         primaryCollection: Notes.primaryCollection,
@@ -662,13 +671,14 @@ route.post('/api/spaces/:spaceId/folders/remove', requireAuth, rateLimit('write'
       .where(
         and(
           eq(Notes.spaceId, spaceIdNorm),
-          eq(Notes.userId, auth.userId),
+          ...(stripAllMembers ? [] : [eq(Notes.userId, auth.userId)]),
           NOT_ONBOARDING_NOTES_THREAD,
           NOT_ONBOARDING_SYSTEM_NOTES,
         ),
       );
 
     let updatedCount = 0;
+    const touchedNotesByUser = new Map<string, string[]>();
     for (const note of noteRows) {
       if (isOnboardingSystemNote(note)) continue;
 
@@ -694,17 +704,26 @@ route.post('/api/spaces/:spaceId/folders/remove', requireAuth, rateLimit('write'
         updateData.collectionLastAutoUpdatedAt = null;
       }
 
-      await db.update(Notes).set(updateData).where(and(eq(Notes.id, note.id), eq(Notes.userId, auth.userId)));
+      await db.update(Notes).set(updateData).where(eq(Notes.id, note.id));
+      const list = touchedNotesByUser.get(note.userId) ?? [];
+      list.push(note.id);
+      touchedNotesByUser.set(note.userId, list);
       updatedCount += 1;
     }
 
-    const spaceRow = await db
+    for (const [userId, noteIds] of touchedNotesByUser) {
+      for (const noteId of noteIds) {
+        broadcastInvalidation(userId, { type: 'note:updated', id: noteId });
+      }
+    }
+
+    const registryRow = await db
       .select({ prototypeEmptyFolderLabels: Spaces.prototypeEmptyFolderLabels })
       .from(Spaces)
       .where(eq(Spaces.id, spaceIdNorm))
       .limit(1);
-    if (spaceRow[0]) {
-      const current = parsePrototypeEmptyFolderLabels(spaceRow[0].prototypeEmptyFolderLabels);
+    if (registryRow[0]) {
+      const current = parsePrototypeEmptyFolderLabels(registryRow[0].prototypeEmptyFolderLabels);
       const next = removePrototypeEmptyFolderLabel(current, folderName);
       if (next.length !== current.length) {
         await db
@@ -1672,6 +1691,29 @@ route.post('/api/spaces/:spaceId/remove-items', requireAuth, async (c) => {
     return c.json({ success: true, removedNotes, removedThreads, errors: errors.length > 0 ? errors : undefined });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/remove-items', action: 'remove_items_from_space' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/spaces/:spaceId/group-threads ─────────────────────────────────
+/** Union group study threads (`Threads` with `spaceId`) and note counts for all members. */
+route.get('/api/spaces/:spaceId/group-threads', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    try {
+      await requireSpaceAccess(spaceId, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    const threads = await listGroupStudyThreadsForSpace(spaceId, auth.userId);
+    return c.json({ success: true, threads });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/group-threads',
+      action: 'list_group_study_threads',
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

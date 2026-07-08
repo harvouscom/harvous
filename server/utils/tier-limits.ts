@@ -3,9 +3,8 @@
  *
  * Owning shared spaces is gated by the "Shared Spaces" add-on (owner pays;
  * joining is always free). The entitlement source of truth is
- * `UserMetadata.sharedSpacesAddOn`; until the billing webhook lands, a
- * freshly-purchased session is also honored via the Clerk JWT `shared_spaces`
- * feature (disabled by `BILLING_TIER_DB_ONLY=true`).
+ * `UserMetadata.sharedSpacesAddOn`; Clerk billing webhooks + reconcile-on-read cover the purchase gap.
+ * The Clerk JWT `shared_spaces` feature remains a fallback when `BILLING_TIER_DB_ONLY=true`.
  *
  * The legacy 'free' | 'unlimited' tier is retired (zero subscribers) and
  * grants nothing; its plumbing is kept only for the backfill script and the

@@ -12,6 +12,7 @@ import { isQuerySettled } from '@/utils/prototype-home-ready';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { useSpace, useSpaceMembers, useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { usePrototypeStudyThreads } from '../../hooks/queries/usePrototypeStudyThreads';
+import { useSpaceGroupThreads } from '../../hooks/queries/useSpaceGroupThreads';
 import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import {
   getSharedSpaceUnseenSince,
@@ -39,6 +40,7 @@ import {
   selectSpotlightThreadForSpace,
   selectTopSharedPassage,
   sharedSpacePeopleHeaderLabel,
+  formatSharedSpaceActivityWho,
   type SharedSpaceNoteCardSlot,
 } from './shared-space-dashboard';
 import SharedSpaceSocialGreeting from './SharedSpaceSocialGreeting';
@@ -172,6 +174,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
   const membersQuery = useSpaceMembers(activeSpaceId ?? '');
   const activityQuery = useSharedSpaceActivityPreview(activeSpaceId);
   const notesQuery = useSpaceNotes(activeSpaceId ?? '', 20);
+  const groupThreadsQuery = useSpaceGroupThreads(activeSpaceId ?? undefined);
   const threadsQuery = usePrototypeStudyThreads(activeSpaceId ?? undefined);
   const scriptureQuery = usePrototypeSpaceScriptureIndex(activeSpaceId ?? undefined);
   const { newNoteCount: visitNewCount } = useSharedSpaceVisit(activeSpaceId);
@@ -195,6 +198,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
   const recentNotes = activityQuery.data?.recentNotes ?? [];
   const totalNoteCount = activityQuery.data?.totalNoteCount ?? recentNotes.length;
   const bannerNewCount = visitNewCount || activityQuery.data?.newNoteCount || 0;
+  const activityWhoLine = formatSharedSpaceActivityWho(activityQuery.data?.newContributors);
   const unseenSince = activeSpaceId ? getSharedSpaceUnseenSince(activeSpaceId) : null;
 
   const notesForContinue = useMemo(
@@ -226,10 +230,22 @@ function PrototypeSidebarSharedSpaceViewLive() {
     [notesForContinue, authUserId, totalNoteCount],
   );
 
-  const spotlightThread = useMemo(
-    () => selectSpotlightThreadForSpace(threadsQuery.data ?? []),
-    [threadsQuery.data],
+  const groupStudyThreads = groupThreadsQuery.data ?? [];
+  const pinnedGroupThread = useMemo(
+    () => groupStudyThreads.find((t) => t.isPinned) ?? groupStudyThreads[0] ?? null,
+    [groupStudyThreads],
   );
+
+  const spotlightThread = useMemo(() => {
+    if (pinnedGroupThread) {
+      return {
+        id: pinnedGroupThread.id,
+        title: pinnedGroupThread.title,
+        noteCount: pinnedGroupThread.noteCount,
+      };
+    }
+    return selectSpotlightThreadForSpace(threadsQuery.data ?? []);
+  }, [pinnedGroupThread, threadsQuery.data]);
 
   const topPassage = useMemo(
     () => selectTopSharedPassage(scriptureQuery.data ?? []),
@@ -237,6 +253,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
   );
 
   const threadsSettled = isQuerySettled(threadsQuery.isPending, threadsQuery.data != null);
+  const groupThreadsSettled = isQuerySettled(groupThreadsQuery.isPending, groupThreadsQuery.data != null);
   const scriptureSettled = isQuerySettled(scriptureQuery.isPending, scriptureQuery.data != null);
   const notesSettled = isQuerySettled(notesQuery.isPending, notesQuery.data != null);
 
@@ -326,6 +343,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
     !activityQuery.isLoading &&
     notesSettled &&
     threadsSettled &&
+    groupThreadsSettled &&
     scriptureSettled;
 
   const homeViewClassName = useProtoHomeViewClassName(contentReady, activeSpaceId);
@@ -407,6 +425,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
                       <span>1 new note</span>
                     </button>{' '}
                     to catch up on.
+                    {activityWhoLine ? <> {activityWhoLine}.</> : null}
                   </>
                 ) : (
                   <>
@@ -420,6 +439,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
                       <span>{bannerNewCount} new notes</span>
                     </button>{' '}
                     to catch up on.
+                    {activityWhoLine ? <> {activityWhoLine}.</> : null}
                   </>
                 )}
               </p>
@@ -471,7 +491,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
                     onClick={() => openThread(spotlightThread.id)}
                   >
                     <p className="proto-caption proto-home-card__eyebrow">
-                      {homeSpotlightThreadEyebrow(spotlightThread.noteCount)}
+                      {pinnedGroupThread ? 'Current group study' : homeSpotlightThreadEyebrow(spotlightThread.noteCount)}
                     </p>
                     <div className="proto-home-card__body">
                       <div className="proto-home-card__title-row">

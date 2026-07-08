@@ -45,6 +45,7 @@ interface CreateSimpleNoteBody {
   content?: string;
   noteType?: 'default' | 'scripture' | 'resource';
   linkedFromNoteId?: string;
+  threadId?: string;
   /** Shared spaces require connectivity in the foundation — pass `false` to fail loudly instead of queueing offline. */
   allowOffline?: boolean;
 }
@@ -89,7 +90,7 @@ export function useCreateSimpleNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ spaceId, title = '', content = '<p></p>', noteType = 'default', linkedFromNoteId, allowOffline = true }: CreateSimpleNoteBody): Promise<CreateResult> => {
+    mutationFn: async ({ spaceId, title = '', content = '<p></p>', noteType = 'default', linkedFromNoteId, threadId, allowOffline = true }: CreateSimpleNoteBody): Promise<CreateResult> => {
       const sid = normalizedSpaceIdForApi(spaceId);
       try {
         return await api.post<CreateNoteResponse>('/api/notes/create', {
@@ -97,7 +98,7 @@ export function useCreateSimpleNote() {
           title,
           content,
           noteType,
-          threadId: '',
+          threadId: threadId ?? '',
           scriptureVersion: getEffectiveDefaultTranslation(),
           ...(linkedFromNoteId ? { linkedFromNoteId } : {}),
         });

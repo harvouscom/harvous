@@ -30,7 +30,7 @@ import {
 } from '../utils/dashboard-data';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { repairMissingNoteThreadJunctionsForUser } from '../utils/thread-junction-repair';
-import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
+import { requireSpaceAccess, SpaceAccessError, canManageSpaceStructure } from '../utils/space-access';
 import { awardCreationBonusXP, awardThreadCreatedXP, revokeXPOnDeletion, revokeAllXPForItem, deleteAllXpForRelatedIds } from '../utils/xp-system';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
 import { getNextUntitledThreadName } from '../utils/untitled-naming';
@@ -204,6 +204,24 @@ route.post('/api/threads/create', requireAuth, rateLimit('write'), async (c) => 
     if (!spaceIdValidation.isValid) return c.json({ error: spaceIdValidation.error, code: spaceIdValidation.code }, 400);
     let finalSpaceId = null;
     if (spaceId && spaceId.trim() && spaceId !== 'default_space') finalSpaceId = spaceId;
+
+    if (finalSpaceId) {
+      try {
+        const access = await requireSpaceAccess(finalSpaceId, auth.userId);
+        if (
+          access.space.type !== 'personal' &&
+          !canManageSpaceStructure(access.space, access.role)
+        ) {
+          return c.json({
+            error: 'Only the space owner can create threads in a shared space',
+            code: 'FORBIDDEN',
+          }, 403);
+        }
+      } catch (err) {
+        if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+        throw err;
+      }
+    }
 
     const capitalizedTitle = finalTitle.charAt(0).toUpperCase() + finalTitle.slice(1);
     const shareToken = isPublic ? generateShareToken() : null;

@@ -33,6 +33,7 @@ export interface SharedSpaceActivityPreview {
   newNoteCount: number;
   totalNoteCount: number;
   recentNotes: SpaceNoteRow[];
+  newContributors?: Array<{ displayName: string; noteCount: number }>;
 }
 
 export interface SharedSpaceVisitResult {

@@ -37,6 +37,9 @@ export type HighlightDockSession = {
   /** Passage context for `scriptureLink` highlights (no editor mark — painted inline in scripture dock). */
   scriptureReference?: string | null;
   scripturePassageTranslation?: string | null;
+  /** Shared-space unioned highlights — who wrote this annotation. */
+  authorDisplayName?: string | null;
+  isOwnHighlight?: boolean;
 };
 
 /** Snapshot passed through deep-link navigation when the editor mark may not be ready yet. */
@@ -64,6 +67,8 @@ export type HighlightDockStudyThreadSource = {
   scriptureReference?: string | null;
   scripturePassageTranslation?: string | null;
   scripturePassageExcerpt?: string | null;
+  authorDisplayName?: string | null;
+  isOwnHighlight?: boolean;
 };
 
 function normalizeHighlightDockEntryKind(
@@ -145,7 +150,12 @@ export function buildHighlightDockSessionFromStudyThread(
   range?: { from: number; to: number } | null,
 ): HighlightDockSession {
   const metadata = buildHighlightDockOpenMetadataFromStudyThread(row);
-  return buildHighlightDockSessionForDeepLink(row.id, metadata, range ?? null);
+  const session = buildHighlightDockSessionForDeepLink(row.id, metadata, range ?? null);
+  return {
+    ...session,
+    authorDisplayName: row.authorDisplayName ?? null,
+    isOwnHighlight: row.isOwnHighlight,
+  };
 }
 
 export type ScriptureLinkPassageContext = {

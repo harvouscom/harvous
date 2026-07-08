@@ -148,6 +148,20 @@ export function buildSharedSpaceSocialIntro(input: {
   };
 }
 
+export function formatSharedSpaceActivityWho(
+  contributors: Array<{ displayName: string; noteCount: number }> | undefined,
+): string | null {
+  if (!contributors?.length) return null;
+  const [first, second] = contributors;
+  if (contributors.length === 1) {
+    return `${first.displayName} added ${first.noteCount === 1 ? 'a note' : `${first.noteCount} notes`}`;
+  }
+  if (contributors.length === 2) {
+    return `${first.displayName} and ${second.displayName} added notes`;
+  }
+  return `${first.displayName}, ${second.displayName}, and others added notes`;
+}
+
 export function buildSharedSpaceNoteCardSlots(input: {
   recentNotes: SpaceNoteRow[];
   notesForContinue: SpaceNoteRow[];

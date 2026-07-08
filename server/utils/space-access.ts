@@ -54,6 +54,12 @@ export function canAuthorInSpace(space: Pick<SpaceRow, 'type'>, role: SpaceRole)
   }
 }
 
+/** Owner/leader creates folders, threads, and connect-link clusters; members compose and attach. */
+export function canManageSpaceStructure(space: Pick<SpaceRow, 'type'>, role: SpaceRole): boolean {
+  if (space.type === 'personal') return role === 'owner';
+  return ROLE_RANK[role] >= ROLE_RANK.leader;
+}
+
 export async function requireSpaceAccess(
   spaceId: string,
   userId: string,

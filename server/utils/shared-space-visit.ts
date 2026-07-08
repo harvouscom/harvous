@@ -94,10 +94,32 @@ export async function getSharedSpaceActivityPreview(spaceId: string, userId: str
     excludeLegacyScriptureNotes: true,
   });
 
+  let newContributors: Array<{ displayName: string; noteCount: number }> = [];
+  if (watermark && newNoteCount > 0) {
+    const { notes: sampleForActivity } = await getNotesForSharedSpace(spaceId, userId, 24, 0, {
+      sortByLastUpdated: true,
+      excludeLegacyScriptureNotes: true,
+    });
+    const byAuthor = new Map<string, { displayName: string; noteCount: number }>();
+    for (const note of sampleForActivity) {
+      const updated = note.lastUpdated ?? note.updatedAt;
+      if (!updated || updated <= watermark) continue;
+      const key = note.authorUserId ?? note.authorDisplayName ?? 'member';
+      const displayName = note.authorDisplayName ?? 'Someone';
+      const row = byAuthor.get(key);
+      if (row) row.noteCount += 1;
+      else byAuthor.set(key, { displayName, noteCount: 1 });
+    }
+    newContributors = [...byAuthor.values()]
+      .sort((a, b) => b.noteCount - a.noteCount || a.displayName.localeCompare(b.displayName))
+      .slice(0, 3);
+  }
+
   return {
     newNoteCount,
     totalNoteCount: total ?? notes.length,
     recentNotes: notes.slice(0, 3),
+    newContributors,
   };
 }
 

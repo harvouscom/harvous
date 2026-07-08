@@ -234,8 +234,9 @@ export default function SpaceSwitcherMenu({
 
   function renderSpaceRow(space: { id: string; title: string; color?: string | null; newNoteCount?: number }) {
     const checked = activeSpaceId === normalizeSpaceId(space.id);
+    const hasUnseen = !checked && Boolean(space.newNoteCount && space.newNoteCount > 0);
     const badge =
-      space.newNoteCount && space.newNoteCount > 0
+      checked && space.newNoteCount && space.newNoteCount > 0
         ? space.newNoteCount > 9
           ? '9+'
           : String(space.newNoteCount)
@@ -252,6 +253,7 @@ export default function SpaceSwitcherMenu({
       >
         <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
           <ProtoSpaceMenuIcon color={space.color || 'paper'} />
+          {hasUnseen ? <span className="proto-space-switcher-dot" aria-hidden /> : null}
         </span>
         <span className="proto-menu-item__label">{space.title}</span>
         {badge ? (

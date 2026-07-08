@@ -179,14 +179,15 @@ a `type='shared'` space and multiple people can author into it.
   existing `ensurePersonalHomeSpace` null-`spaceId` backfill on their next nav load. Members can only
   remove their own items.
 - **Folders**: `Notes.primaryCollection`/`secondaryCollections` work unchanged (no schema change needed).
-  Any member can read the folder registry and register a new label; space-wide folder removal
+  Any member can read the folder registry; **registering a new folder label** (`folders/create`) is
+  owner-only in shared/public spaces (leaders when that role ships). Space-wide folder removal
   (`folders/remove`, which strips a label from every note in the space) is owner-only in shared spaces.
 - **Study threads, scripture index**: stay **author-scoped** in the foundation (each member sees their
   own clusters within the space — `NoteConnections` are per-user).
 - **Highlights list**: **unioned** in shared/public spaces — sidebar Highlights shows every member's
   eligible `StudyThreadEntry` rows on notes in the space, with author chips. Personal / My Home stays
   author-scoped. Opening a foreign note loads unioned `studyThreads` on details for highlight dock deep
-  links (inline overlay render is Tier 1 follow-on).
+  links; inline overlay render shows cross-member annotations without writing into the author's TipTap body.
 
 ### My Home overlay (shared shell, no space switch)
 

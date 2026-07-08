@@ -5,6 +5,7 @@
  * Mobile unified: [sidebar toggle] [space orb] [compose] · … (list mode stays in drawer header)
  */
 import { useCallback, useEffect, useRef } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import { useToolbarAnchoredPopover } from '../../hooks/useToolbarAnchoredPopover';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
@@ -31,11 +32,13 @@ import SplitColumnToggleIcon from './SplitColumnToggleIcon';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import { isPrototypeNotePath, matchPrototypeNoteId, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { prototypeToolbarNoteDetailsAvailable } from './prototype-toolbar-note-details';
+import { isConfirmedForeignNote } from './proto-note-ownership';
 
 export type NativeToolbarVariant = 'detail' | 'unified';
 
 export default function NativeToolbar({ variant = 'detail' }: { variant?: NativeToolbarVariant }) {
   const navigate = useNavigate();
+  const { userId: authUserId } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   const findButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -80,6 +83,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
 
   const noteSpaceId = toolbarNote?.spaces?.[0]?.id ?? homeSpaceId;
   const readOnlyForeignNote = readOnlyInSharedSpace;
+  const isForeignNote = isConfirmedForeignNote(toolbarNote, authUserId);
 
   const isOnNotePage = isPrototypeNotePath(pathname);
 
@@ -321,7 +325,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
               />
             ) : null}
 
-            {noteSpaceId ? (
+            {noteSpaceId && !isForeignNote ? (
               <PrototypeNoteMoreMenu
                 noteId={toolbarNoteId}
                 spaceId={noteSpaceId}

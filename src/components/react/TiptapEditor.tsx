@@ -211,6 +211,9 @@ interface TiptapEditorProps {
   onLiveBodyHtmlChange?: (content: string) => void;
   scrollPosition?: number;
   enableCreateNoteFromSelection?: boolean;
+  /** Foreign shared note: selection + highlight dock without mutating the read-only body. */
+  sharedAnnotationOverlayMode?: boolean;
+  onSharedAnnotationCreated?: () => void;
   parentThreadId?: string;
   sourceNoteId?: string; // ID of the note this editor is editing (for hyperlink creation)
   spaceId?: string;
@@ -3800,6 +3803,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   onLiveBodyHtmlChange,
   scrollPosition,
   enableCreateNoteFromSelection = false,
+  sharedAnnotationOverlayMode = false,
+  onSharedAnnotationCreated,
   parentThreadId,
   sourceNoteId,
   spaceId,
@@ -4376,7 +4381,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }
       });
     },
-    editable: true,
+    editable: !sharedAnnotationOverlayMode,
     editorProps: {
       clipboardTextSerializer: (slice) => noteClipboardPlainTextFromFragment(slice.content),
       attributes: {
@@ -8395,6 +8400,25 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       }
 
                       if (!editor || !isEditorValid(editor)) return;
+                      if (sharedAnnotationOverlayMode) {
+                        clearSelectionActionBar();
+                        releaseEditorFocusForStudyDock();
+                        if (editorChromeMode === 'prototypeNative') {
+                          setStudyDockStack((s) =>
+                            openOrFocusHighlight(s, {
+                              studyThreadEntryId: studyId,
+                              accent: defaultAccent,
+                              excerpt: snippet,
+                              range: { from, to },
+                              entryKind: 'miniNote',
+                              focusTitle: deriveHighlightFocusTitle(snippet),
+                              miniNoteBody: '',
+                            }),
+                          );
+                        }
+                        onSharedAnnotationCreated?.();
+                        return;
+                      }
                       const applied = applyHighlightMark(
                         { from, to },
                         {

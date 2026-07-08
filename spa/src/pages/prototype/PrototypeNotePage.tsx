@@ -20,11 +20,13 @@ import PrototypeStudyThreadPopover from './PrototypeStudyThreadPopover';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypePaneEmptyState from './PrototypePaneEmptyState';
 import PrototypeSharedNoteReadOnlyBanner from './PrototypeSharedNoteReadOnlyBanner';
+import SharedStudyHighlightOverlay from './SharedStudyHighlightOverlay';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { buildHighlightDockOpenMetadataFromStudyThread } from '@/utils/study-dock-stack';
+import { filterOverlayStudyThreads, resolveStudyThreadPmRange } from '../../lib/shared-highlight-overlay';
 import { isPrototypeNoteEditorFocused } from '@/utils/prototype-editor-focused';
 import { clearNoteDraft } from '@/utils/note-draft-store';
 import {
@@ -38,6 +40,8 @@ import {
   type PendingComposeUrlReplace,
 } from '@/utils/prototype-compose-url';
 import { isPrototypeDraftNoteSlug, noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
+import { getComposeGroupThreadId, setComposeGroupThreadId } from '../../lib/compose-group-thread';
+import PrototypeGroupStudyThreadPicker from './PrototypeGroupStudyThreadPicker';
 import { trackSessionNoteOpen } from '@/utils/session-xp-client';
 
 const DRAFT_NOTE_ID = 'note_draft';
@@ -102,12 +106,12 @@ export default function PrototypeNotePage() {
   // from the persisted selection (see composeTargetSpaceId below), not from the
   // nav-validated activeSpaceId, so a brand-new draft never races the navigation
   // query and land in My Home while a shared space is active.
-  const { homeSpaceId: personalHomeSpaceId } = useActiveSpace();
+  const { homeSpaceId: personalHomeSpaceId, isSharedSpace, activeSpaceId } = useActiveSpace();
   const { userId: authUserId } = useAuth();
   const navigate = useNavigate();
 
   const { data: note, isLoading, isError, isFetching } = useNote(isDraft ? '' : noteId);
-  const { readOnlyInSharedSpace, effectiveSpaceId: foreignSharedSpaceId } =
+  const { readOnlyInSharedSpace, effectiveSpaceId: foreignSharedSpaceId, foreignNoteAuthor } =
     useForeignSharedNote(isDraft ? null : noteId);
 
   // Deep-link to a highlight's dock (Home "revisit" card → text / mini-note / connected highlight).
@@ -572,8 +576,61 @@ export default function PrototypeNotePage() {
     [note?.threads, parentThreadId],
   );
 
-  const readOnlyLikeScripture = isOnboardingReadonly || readOnlyInSharedSpace;
-  const isEditable = !readOnlyLikeScripture;
+  const readOnlyLikeScripture = isOnboardingReadonly;
+  const foreignSharedAnnotationMode = readOnlyInSharedSpace && !isOnboardingReadonly;
+  const isEditable = !readOnlyInSharedSpace && !isOnboardingReadonly;
+
+  const sharedOverlayPaperRef = useRef<HTMLDivElement>(null);
+  const [sharedOverlayEditor, setSharedOverlayEditor] = useState<{
+    view?: { coordsAtPos: (pos: number) => DOMRect };
+    state: { doc: unknown };
+  } | null>(null);
+  const refreshSharedAnnotations = useCallback(() => {
+    if (!noteId || isDraft) return;
+    void queryClient.invalidateQueries({ queryKey: ['note', noteId] });
+  }, [queryClient, noteId, isDraft]);
+
+  const overlayStudyThreads = useMemo(() => {
+    const rows = note?.studyThreads ?? [];
+    if (foreignSharedAnnotationMode) return rows;
+    return rows.filter((t) => t.isOwnHighlight === false);
+  }, [note?.studyThreads, foreignSharedAnnotationMode]);
+
+  const showSharedHighlightOverlay = useMemo(() => {
+    if (isDraft || isOnboardingReadonly) return false;
+    if (foreignSharedAnnotationMode) return true;
+    if (!isSharedSpace) return false;
+    return filterOverlayStudyThreads(overlayStudyThreads).length > 0;
+  }, [isDraft, isOnboardingReadonly, foreignSharedAnnotationMode, isSharedSpace, overlayStudyThreads]);
+
+  const [highlightOpenRequest, setHighlightOpenRequest] = useState<{
+    studyThreadEntryId: string;
+    requestKey: string;
+    metadata: ReturnType<typeof buildHighlightDockOpenMetadataFromStudyThread>;
+  } | null>(null);
+
+  const handleOverlaySelectEntry = useCallback(
+    (entryId: string) => {
+      const row = note?.studyThreads?.find((t) => t.id === entryId);
+      if (!row) return;
+      let range: { from: number; to: number } | null = null;
+      if (sharedOverlayEditor?.state?.doc) {
+        range = resolveStudyThreadPmRange(
+          sharedOverlayEditor.state.doc as Parameters<typeof resolveStudyThreadPmRange>[0],
+          row,
+        );
+      }
+      setHighlightOpenRequest({
+        studyThreadEntryId: entryId,
+        requestKey: `overlay-${entryId}-${Date.now()}`,
+        metadata: buildHighlightDockOpenMetadataFromStudyThread(row),
+      });
+      if (range) {
+        /* range is resolved inside Tiptap deep-link consumer via metadata + mark poll skip */
+      }
+    },
+    [note?.studyThreads, sharedOverlayEditor],
+  );
 
   useEffect(() => {
     if (!parentThread?.id || !noteId) return;
@@ -680,12 +737,14 @@ export default function PrototypeNotePage() {
           spaceId,
           title: newTitle,
           content: newContent,
+          threadId: getComposeGroupThreadId() ?? undefined,
           allowOffline: spaceId === personalHomeSpaceId,
         });
           const createdId = getNoteIdFromCreateResponse(res);
           if (!createdId) {
             throw new Error('Create succeeded but response had no note id');
           }
+          setComposeGroupThreadId(null);
           persistedDraftIdRef.current = createdId;
           adoptedComposeIdRef.current = createdId;
           setAdoptedComposeId(createdId);
@@ -1010,8 +1069,27 @@ export default function PrototypeNotePage() {
         <div className="proto-editor-scroll">
           <SubtleContentMount key={editorSessionKey} variant="fade">
             <div className="proto-editor-content-wrap">
-              <div className="proto-editor-paper">
-              {readOnlyInSharedSpace ? <PrototypeSharedNoteReadOnlyBanner /> : null}
+              <div className="proto-editor-paper" ref={sharedOverlayPaperRef}>
+              {readOnlyInSharedSpace ? (
+                <PrototypeSharedNoteReadOnlyBanner
+                  authorDisplayName={foreignNoteAuthor?.displayName}
+                  authorUserId={foreignNoteAuthor?.userId}
+                  authorFirstName={foreignNoteAuthor?.firstName}
+                  authorProfileImageUrl={foreignNoteAuthor?.profileImageUrl}
+                  authorColor={foreignNoteAuthor?.userColor}
+                />
+              ) : null}
+              {showSharedHighlightOverlay ? (
+                <SharedStudyHighlightOverlay
+                  editor={sharedOverlayEditor}
+                  containerEl={sharedOverlayPaperRef.current}
+                  studyThreads={overlayStudyThreads}
+                  onSelectEntry={handleOverlaySelectEntry}
+                />
+              ) : null}
+              {isDraft && isSharedSpace && activeSpaceId ? (
+                <PrototypeGroupStudyThreadPicker spaceId={activeSpaceId} />
+              ) : null}
               <CardFullEditable
                 title={prototypeDisplayTitle}
                 content={editorNote.content ?? ''}
@@ -1028,6 +1106,12 @@ export default function PrototypeNotePage() {
                 onSave={handleNoteSave}
                 onPrototypeEditorUnmount={handlePrototypeEditorUnmount}
                 readOnlyLikeScripture={readOnlyLikeScripture}
+                foreignSharedAnnotationMode={foreignSharedAnnotationMode}
+                onSharedAnnotationCreated={refreshSharedAnnotations}
+                highlightOpenRequest={highlightOpenRequest}
+                onEditorInstanceReady={(editor) => {
+                  setSharedOverlayEditor(editor as typeof sharedOverlayEditor);
+                }}
                 spaceId={effectiveSpaceId ?? undefined}
                 editorChromeMode="prototypeNative"
                 formatToolbarPortalTarget={formatToolbarHostEl}

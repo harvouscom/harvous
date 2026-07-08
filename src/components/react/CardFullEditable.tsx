@@ -171,6 +171,10 @@ interface CardFullEditableProps {
   inBottomSheet?: boolean;
   /** Welcome-thread pack notes (system): same as scripture — no title/body editing in the card. */
   readOnlyLikeScripture?: boolean;
+  /** Shared-space foreign note: body read-only but text selection + highlight annotations enabled. */
+  foreignSharedAnnotationMode?: boolean;
+  /** Called after shared annotations change (create/delete) — refresh overlay. */
+  onSharedAnnotationCreated?: () => void;
   /** Prototype-only: native-like editor chrome (format vs scripture vs note action bar). */
   editorChromeMode?: 'default' | 'prototypeNative';
   /** Shown when prototype bottom mode is `noteActions` (below editor, above save/cancel).
@@ -224,6 +228,15 @@ interface CardFullEditableProps {
     /** Study-thread snapshot for opening the dock when the note mark is not ready yet. */
     metadata?: HighlightDockOpenMetadata;
   } | null;
+  /**
+   * Prototype-only: open highlight dock at runtime (e.g. tapping a shared overlay mark).
+   * Fires whenever `requestKey` changes.
+   */
+  highlightOpenRequest?: {
+    studyThreadEntryId: string;
+    requestKey?: string;
+    metadata?: HighlightDockOpenMetadata;
+  } | null;
   /** Prototype-only: called after a highlight deep-link dock handoff completes (strip URL search keys). */
   onHighlightDeepLinkHandoff?: () => void;
   /** Prototype-only: called after a scripture deep-link dock handoff completes (strip URL search keys). */
@@ -252,6 +265,7 @@ interface CardFullEditableProps {
   alwaysEditing?: boolean;
   /** Prototype-only: fired on editor unmount with live title/body so the parent can discard empty notes. */
   onPrototypeEditorUnmount?: (snapshot: { noteId: string; title: string; content: string }) => void;
+  onEditorInstanceReady?: (editor: unknown) => void;
   /**
    * Prototype-only: stable identity for the body editor across the /n/new → /n/<id>
    * draft→persist swap. The parent keeps this constant for one compose session so the
@@ -288,6 +302,8 @@ export default function CardFullEditable({
   isAuthenticated,
   inBottomSheet = false,
   readOnlyLikeScripture = false,
+  foreignSharedAnnotationMode = false,
+  onSharedAnnotationCreated,
   editorChromeMode = 'default',
   prototypeNoteActionBar,
   formatToolbarPortalTarget,
@@ -308,6 +324,7 @@ export default function CardFullEditable({
   initialScriptureDock = null,
   initialCrossRefTarget = null,
   initialHighlightDock = null,
+  highlightOpenRequest = null,
   onHighlightDeepLinkHandoff,
   onScriptureDeepLinkHandoff,
   onReferenceDeepLinkHandoff,
@@ -315,6 +332,7 @@ export default function CardFullEditable({
   collectionNavContext = DEFAULT_COLLECTION_NAV_CONTEXT,
   alwaysEditing = false,
   onPrototypeEditorUnmount,
+  onEditorInstanceReady,
   prototypeBodyMountId = null,
   prototypeDraftPersistRemount = null,
   prototypeDraftPersistRemountTick = 0,
@@ -331,7 +349,7 @@ export default function CardFullEditable({
     editorChromeMode === 'prototypeNative' &&
     alwaysEditing &&
     noteType !== 'scripture' &&
-    !readOnlyLikeScripture;
+    (!readOnlyLikeScripture || foreignSharedAnnotationMode);
   // Stable identity for the body TipTap so the same instance survives the draft→persist
   // id swap (parent holds `prototypeBodyMountId` constant for one compose session).
   // Distinct settled notes still get distinct ids and remount normally.
@@ -345,14 +363,18 @@ export default function CardFullEditable({
   // Override isEditable for scripture notes, onboarding pack notes, and offline (create-only mode)
   const isCurrentlyOffline = useIsOffline();
   const effectiveIsEditable =
-    noteType === 'scripture' || readOnlyLikeScripture || isCurrentlyOffline ? false : isEditable;
+    noteType === 'scripture' || readOnlyLikeScripture || isCurrentlyOffline || foreignSharedAnnotationMode
+      ? false
+      : isEditable;
   const effectiveIsEditableRef = useRef(effectiveIsEditable);
   effectiveIsEditableRef.current = effectiveIsEditable;
   const resolvedScriptureVersion = noteType === 'scripture'
     ? (version || getCachedProfileData()?.defaultTranslation || 'NET')
     : undefined;
   
-  const [isTitleEditing, setIsTitleEditing] = useState(() => prototypeAlwaysEditing);
+  const [isTitleEditing, setIsTitleEditing] = useState(
+    () => prototypeAlwaysEditing && !foreignSharedAnnotationMode,
+  );
   const [isContentEditing, setIsContentEditing] = useState(() => prototypeAlwaysEditing);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
@@ -574,6 +596,20 @@ export default function CardFullEditable({
     });
   }, [editorChromeMode, initialHighlightDock, noteId]);
 
+  // Runtime highlight open (shared overlay tap, etc.) — fires on each distinct requestKey.
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative') return;
+    if (!highlightOpenRequest) return;
+    const key =
+      highlightOpenRequest.requestKey ??
+      `${noteId}|${highlightOpenRequest.studyThreadEntryId}|runtime`;
+    setPrototypeHighlightOpenRequest({
+      studyThreadEntryId: highlightOpenRequest.studyThreadEntryId,
+      requestKey: key,
+      metadata: highlightOpenRequest.metadata,
+    });
+  }, [editorChromeMode, highlightOpenRequest, noteId]);
+
   // Reset proto save tracking on note switch so first edit always triggers a save
   useEffect(() => {
     const prev = prevNoteIdForProtoResetRef.current;
@@ -760,7 +796,8 @@ export default function CardFullEditable({
   );
   // Prototype alwaysEditing: TipTap + title field on first paint (no click-to-edit gate).
   const showTitleEditor =
-    (prototypeAlwaysEditing && !needsPinUnlock && effectiveIsEditable) || isTitleEditing;
+    (prototypeAlwaysEditing && !needsPinUnlock && effectiveIsEditable) ||
+    (isTitleEditing && !foreignSharedAnnotationMode);
   const showBodyEditor =
     (prototypeAlwaysEditing && !needsPinUnlock && effectiveIsEditable) || isContentEditing;
   const cardRootRef = useRef<HTMLDivElement>(null);
@@ -1005,7 +1042,8 @@ export default function CardFullEditable({
   // Prototype route: start in title+body edit (native parity) on note open / unlock — do not depend on title/content
   // props after mount or edits reset on every server refresh. useLayoutEffect seeds before TipTap's first paint.
   useLayoutEffect(() => {
-    if (editorChromeMode !== 'prototypeNative' || !alwaysEditing || !effectiveIsEditable) return;
+    if (editorChromeMode !== 'prototypeNative' || !alwaysEditing) return;
+    if (!effectiveIsEditable && !foreignSharedAnnotationMode) return;
     if (readOnlyLikeScripture || noteType === 'scripture') return;
     if (needsPinUnlock) return;
     if (seededEditorForNoteRef.current === noteId) return;
@@ -1065,12 +1103,27 @@ export default function CardFullEditable({
     editorChromeMode,
     alwaysEditing,
     effectiveIsEditable,
+    foreignSharedAnnotationMode,
     noteType,
     readOnlyLikeScripture,
     needsPinUnlock,
     resourceTitle,
     resourceDescription,
   ]);
+
+  // Foreign shared notes: body loads async after open — keep TipTap in sync with fetched content.
+  useEffect(() => {
+    if (!foreignSharedAnnotationMode || userEditedSinceOpenRef.current) return;
+    const initialTitle =
+      noteType === 'resource'
+        ? (title || resourceTitle || '')
+        : stripServerAutoUntitledNoteTitleForDisplay(title);
+    setDisplayTitle(initialTitle ?? '');
+    setEditTitle(initialTitle ?? '');
+    const repaired = repairHtmlForEditor(content ?? '');
+    setDisplayContent(repaired);
+    setEditContent(repaired);
+  }, [foreignSharedAnnotationMode, title, content, noteId, noteType, resourceTitle]);
 
   // Reset lock state overrides when contentEncrypted prop changes (e.g. from server)
   useEffect(() => {
@@ -1686,6 +1739,7 @@ export default function CardFullEditable({
     if (!editor) return;
     
     editorInstanceRef.current = editor;
+    onEditorInstanceReady?.(editor);
     // Focus and set cursor at click position when switching from view to edit
     if (shouldFocusEditorRef.current) {
       shouldFocusEditorRef.current = false;
@@ -2963,7 +3017,9 @@ export default function CardFullEditable({
                         editorChromeMode === 'prototypeNative' ? handleLiveBodyHtmlChange : undefined
                       }
                       scrollPosition={scrollPosition}
-                      enableCreateNoteFromSelection={isContentEditing}
+                      enableCreateNoteFromSelection={isContentEditing || foreignSharedAnnotationMode}
+                      sharedAnnotationOverlayMode={foreignSharedAnnotationMode}
+                      onSharedAnnotationCreated={onSharedAnnotationCreated}
                       parentThreadId={parentThreadId}
                       sourceNoteId={noteId}
                       spaceId={spaceId}
@@ -3365,7 +3421,9 @@ export default function CardFullEditable({
                       editorChromeMode === 'prototypeNative' ? handleLiveBodyHtmlChange : undefined
                     }
                     scrollPosition={scrollPosition}
-                    enableCreateNoteFromSelection={isContentEditing}
+                    enableCreateNoteFromSelection={isContentEditing || foreignSharedAnnotationMode}
+                    sharedAnnotationOverlayMode={foreignSharedAnnotationMode}
+                    onSharedAnnotationCreated={onSharedAnnotationCreated}
                     parentThreadId={parentThreadId}
                     sourceNoteId={noteId}
                     spaceId={spaceId}
