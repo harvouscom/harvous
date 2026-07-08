@@ -100,10 +100,16 @@ Ship paid Shared Spaces only after the product answers *"How do we study Philipp
 
 **User flow:**
 
-1. **Start group study** on shared-space dashboard → create `Thread` (title, optional passage/subtitle) in this `spaceId`. **Any member** can start one.
-2. **Pin one thread** on dashboard as **current study** spotlight (most recent / owner-pinned).
-3. **New note** in shared space → optional **"Add to study thread"** picker (threads in this space; default none).
+1. **Start group study** on shared-space dashboard → create `Thread` (title, optional passage/subtitle) in this `spaceId`. **Space owner only** in Tier 1 (host sets the study arc; members join by adding notes).
+2. **Pin one thread** on dashboard as **current study** spotlight (owner-pinned).
+3. **New note** in shared space → optional **"Add to study thread"** picker (threads in this space; default none). **Any member** can attach their own notes to an existing group study thread.
 4. Notes linked via existing **`NoteThreads`** junction; merged list shows author chips.
+
+**Permissions (decided):**
+
+- **Owner** creates group study threads and pins the current study on the dashboard.
+- **Members** compose notes in the space and optionally attach them to threads the owner created.
+- **`leader` role** (future): same create/pin privileges as owner without billing ownership — see Group Leader / church org lane in post-launch docs.
 
 **Why reuse Threads:** Same core structure users already have in My Home; shared space only changes **visibility** (union notes from all members on that thread) and **creation context** (`spaceId`).
 
