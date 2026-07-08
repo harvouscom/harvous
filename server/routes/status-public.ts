@@ -48,6 +48,11 @@ function upstreamError(c: { json: (body: unknown, status: number) => Response },
   return c.json({ error: message }, 502);
 }
 
+/** Better Stack `updated_at` is page metadata, not last monitor check — use our fetch time. */
+function withDataRefreshedAt(data: PublicStatusResponse, fetchedAt: number): PublicStatusResponse {
+  return { ...data, updatedAt: new Date(fetchedAt).toISOString() };
+}
+
 route.get('/api/status/public', async (c) => {
   const upstream = resolveUpstreamUrl();
   if (!upstream) {
@@ -56,7 +61,7 @@ route.get('/api/status/public', async (c) => {
 
   const now = Date.now();
   if (cached && now - cached.fetchedAt < CACHE_MS) {
-    return c.json(cached.data, 200, {
+    return c.json(withDataRefreshedAt(cached.data, cached.fetchedAt), 200, {
       'Cache-Control': 'public, max-age=30, stale-while-revalidate=60',
     });
   }
@@ -75,7 +80,7 @@ route.get('/api/status/public', async (c) => {
     if (!res.ok) {
       console.error('[api/status/public] upstream failed', res.status, upstream, res.url);
       if (cached) {
-        return c.json(cached.data, 200, {
+        return c.json(withDataRefreshedAt(cached.data, cached.fetchedAt), 200, {
           'Cache-Control': 'public, max-age=15, stale-while-revalidate=30',
           'X-Status-Stale': '1',
         });
@@ -89,7 +94,7 @@ route.get('/api/status/public', async (c) => {
     if (!looksLikeJson) {
       console.error('[api/status/public] upstream returned non-JSON', upstream, 'final', res.url);
       if (cached) {
-        return c.json(cached.data, 200, {
+        return c.json(withDataRefreshedAt(cached.data, cached.fetchedAt), 200, {
           'Cache-Control': 'public, max-age=15, stale-while-revalidate=30',
           'X-Status-Stale': '1',
         });
@@ -111,13 +116,13 @@ route.get('/api/status/public', async (c) => {
     const data = parseBetterStackStatus(raw, upstream);
     cached = { data, fetchedAt: now };
 
-    return c.json(data, 200, {
+    return c.json(withDataRefreshedAt(data, now), 200, {
       'Cache-Control': 'public, max-age=30, stale-while-revalidate=60',
     });
   } catch (err) {
     console.error('[api/status/public] fetch error', upstream, err);
     if (cached) {
-      return c.json(cached.data, 200, {
+      return c.json(withDataRefreshedAt(cached.data, cached.fetchedAt), 200, {
         'Cache-Control': 'public, max-age=15, stale-while-revalidate=30',
         'X-Status-Stale': '1',
       });

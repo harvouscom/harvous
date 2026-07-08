@@ -256,9 +256,6 @@ export default function PublicStatusPage() {
                                       <tr>
                                         <th scope="col">Service</th>
                                         <th scope="col">Uptime</th>
-                                        <th scope="col">
-                                          <span className="sr-only">90-day history</span>
-                                        </th>
                                         <th scope="col">Status</th>
                                       </tr>
                                     </thead>
@@ -276,18 +273,20 @@ export default function PublicStatusPage() {
                                           <td className="public-status-table__uptime">
                                             {formatUptime(resource.availability)}
                                           </td>
-                                          <td className="public-status-table__history">
-                                            <StatusHistoryBar history={resource.statusHistory} />
-                                          </td>
-                                          <td className="public-status-table__status">
-                                            <span
-                                              className="public-status-table__dot"
-                                              style={{ background: STATUS_ACCENT[resource.status] }}
-                                              aria-hidden
-                                            />
-                                            <span className={statusBadgeClass(resource.status)}>
-                                              {RESOURCE_LABELS[resource.status]}
-                                            </span>
+                                          <td className="public-status-table__track">
+                                            <div className="public-status-track">
+                                              <StatusHistoryBar history={resource.statusHistory} />
+                                              <div className="public-status-table__status">
+                                                <span
+                                                  className="public-status-table__dot"
+                                                  style={{ background: STATUS_ACCENT[resource.status] }}
+                                                  aria-hidden
+                                                />
+                                                <span className={statusBadgeClass(resource.status)}>
+                                                  {RESOURCE_LABELS[resource.status]}
+                                                </span>
+                                              </div>
+                                            </div>
                                           </td>
                                         </tr>
                                       ))}
@@ -392,6 +391,25 @@ export default function PublicStatusPage() {
                       )}
                     </span>
                   </div>
+
+                  <p className="public-status-powered">
+                    <span className="public-status-powered__label">Powered by</span>
+                    <a
+                      href="https://betterstack.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="public-status-powered__link"
+                      aria-label="Better Stack"
+                    >
+                      <img
+                        src="/images/brand/better-stack-wordmark.svg"
+                        alt=""
+                        width={100}
+                        height={24}
+                        className="public-status-powered__logo"
+                      />
+                    </a>
+                  </p>
                 </>
               </SubtleContentMount>
             )}

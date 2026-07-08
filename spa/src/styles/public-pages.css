@@ -20,6 +20,7 @@
   --site-accent-soft: #e8eefc;
   --site-warm: #f1ede2;
   --site-highlight: #ffe8a8;
+  --public-inset-bg: var(--site-paper);
 }
 
 /* ─── Root ─────────────────────────────────────────────────────────────── */
@@ -1070,6 +1071,43 @@
   padding: 0;
 }
 
+.public-status-powered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin: 0;
+  padding: 6px 0 2px;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--site-ink-faint);
+  letter-spacing: -0.01em;
+}
+
+.public-status-powered__label {
+  line-height: 1;
+}
+
+.public-status-powered__link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  opacity: 0.72;
+  transition: opacity 0.15s ease;
+}
+
+.public-status-powered__link:hover {
+  opacity: 1;
+}
+
+.public-status-powered__logo {
+  display: block;
+  width: auto;
+  height: 2em;
+}
+
 .public-paper-stack.public-paper-stack--status {
   flex: 0 0 auto;
   min-height: 0;
@@ -1094,6 +1132,7 @@
   min-height: 520px;
   box-sizing: border-box;
   --status-sheet-inset: 32px;
+  --public-inset-bg: #ffffff;
   background-color: #ffffff;
   background-image:
     radial-gradient(rgba(20, 18, 12, 0.025) 1px, transparent 1px),
@@ -1220,8 +1259,10 @@
   overflow: hidden;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--public-inset-bg);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  container-type: inline-size;
+  container-name: status-table;
 }
 
 .public-status-table-wrap--operational {
@@ -1246,13 +1287,13 @@
 
 .public-status-table {
   width: 100%;
-  min-width: 640px;
+  min-width: 520px;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
 .public-status-table thead th {
-  padding: 12px 20px 10px;
+  padding: 12px 24px 10px;
   font-size: 0.6875rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -1287,25 +1328,18 @@
   border-bottom-color: color-mix(in srgb, var(--status-maintenance-border) 45%, var(--site-rule));
 }
 
-.public-status-table thead th:nth-child(2),
-.public-status-table thead th:nth-child(4) {
-  text-align: right;
-}
-
 .public-status-table thead th:nth-child(1) {
-  width: 20%;
+  width: 28%;
+  padding-left: 28px;
 }
 
 .public-status-table thead th:nth-child(2) {
-  width: 11%;
+  width: 14%;
 }
 
 .public-status-table thead th:nth-child(3) {
-  width: 49%;
-}
-
-.public-status-table thead th:nth-child(4) {
-  width: 20%;
+  width: auto;
+  padding-right: 28px;
 }
 
 .public-status-table tbody tr {
@@ -1337,11 +1371,19 @@
 }
 
 .public-status-table tbody td {
-  padding: 14px 20px;
+  padding: 14px 24px;
   vertical-align: middle;
   font-size: 0.875rem;
   line-height: 1.35;
   color: var(--site-ink);
+}
+
+.public-status-table tbody td:first-child {
+  padding-left: 28px;
+}
+
+.public-status-table tbody td:last-child {
+  padding-right: 28px;
 }
 
 .public-status-table__service {
@@ -1363,25 +1405,34 @@
 }
 
 .public-status-table__uptime {
-  text-align: right;
+  text-align: left;
   font-variant-numeric: tabular-nums;
   font-size: 0.8125rem;
   color: var(--site-ink-soft);
   white-space: nowrap;
 }
 
-.public-status-table__history {
-  padding-left: 14px;
-  padding-right: 14px;
+.public-status-table__track {
   vertical-align: middle;
+}
+
+.public-status-track {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
 }
 
 .public-status-history {
   display: flex;
   align-items: stretch;
   gap: 2px;
-  width: 100%;
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
   height: 26px;
+  overflow: hidden;
 }
 
 .public-status-history__day {
@@ -1535,8 +1586,65 @@
 }
 
 .public-status-table__status {
-  text-align: right;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  text-align: left;
   white-space: nowrap;
+  padding: 0;
+}
+
+@container status-table (max-width: 680px) {
+  .public-status-table {
+    min-width: 0;
+  }
+
+  .public-status-table thead th:nth-child(1) {
+    width: 30%;
+    padding-left: 20px;
+  }
+
+  .public-status-table thead th:nth-child(2) {
+    width: 16%;
+  }
+
+  .public-status-table thead th:nth-child(3) {
+    padding-right: 20px;
+  }
+
+  .public-status-table thead th,
+  .public-status-table tbody td {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .public-status-table tbody td:first-child {
+    padding-left: 20px;
+  }
+
+  .public-status-table tbody td:last-child {
+    padding-right: 20px;
+  }
+
+  .public-status-track {
+    gap: 8px;
+  }
+
+  .public-status-history {
+    height: 22px;
+    gap: 1px;
+  }
+
+  .public-status-history__day {
+    min-width: 1px;
+    border-radius: 2px;
+  }
+
+  .public-status-table__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .public-status-table__status .public-status-badge {
@@ -1605,7 +1713,7 @@
   border: 0.5px solid var(--site-rule);
   border-radius: 0.75rem;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--public-inset-bg);
 }
 
 .public-status-incident {
@@ -1673,7 +1781,7 @@
 .public-status-sheet__support::before {
   content: "";
   display: block;
-  margin: 24px 0;
+  margin: 0 0 16px;
   border-top: 0.5px solid var(--site-rule);
 }
 
@@ -1699,7 +1807,7 @@
   padding: 1rem 1.25rem;
   border: 0.5px solid var(--site-rule);
   border-radius: 0.75rem;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--public-inset-bg);
   text-decoration: none;
   color: inherit;
   box-sizing: border-box;
