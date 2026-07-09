@@ -171,6 +171,13 @@ export function useUpdateNote() {
             : {}),
         });
       }
+      // The detail cache can miss spaceId (note opened before details loaded);
+      // the update response carries the authoritative note, so prefer that over
+      // falling back to invalidating every space's queries.
+      if (!affectedSpaceId) {
+        const serverSpaceId = (data?.note as { spaceId?: string | null } | undefined)?.spaceId;
+        if (typeof serverSpaceId === 'string' && serverSpaceId.length > 0) affectedSpaceId = serverSpaceId;
+      }
       // Skip background refetches when the edit was only queued offline — the network is down,
       // so they would just fail; the optimistic cache patches above already reflect the edit.
       if (!queuedOffline) {

@@ -56,8 +56,19 @@ export function useShareNote() {
         },
       );
       queryClient.invalidateQueries({ queryKey: ['note', variables.noteId] });
-      // Lists may render a "Public" badge — keep them in sync.
-      queryClient.invalidateQueries({ queryKey: ['space'] });
+      // Lists may render a "Public" badge — keep them in sync. Scope to the
+      // note's space when the detail cache knows it; a bare ['space'] key
+      // matches every space's queries and stampedes refetches.
+      const cachedSpaceId = (
+        queryClient.getQueryData<Record<string, unknown> | undefined>(['note', variables.noteId]) as
+          | { spaceId?: string | null }
+          | undefined
+      )?.spaceId;
+      if (typeof cachedSpaceId === 'string' && cachedSpaceId.length > 0) {
+        queryClient.invalidateQueries({ queryKey: ['space', cachedSpaceId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['space'] });
+      }
       queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
       queryClient.invalidateQueries({ queryKey: ['thread'] });
       queryClient.invalidateQueries({ queryKey: mySharingQueryKey });

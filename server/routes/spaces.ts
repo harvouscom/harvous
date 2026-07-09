@@ -130,6 +130,9 @@ function normalizePrototypeSpaceId(spaceIdRaw: string): string {
   return spaceIdRaw.startsWith('space_') ? spaceIdRaw : `space_${spaceIdRaw}`;
 }
 
+/** Upper bound on rows the unioned shared-space highlights list returns. */
+const SHARED_HIGHLIGHT_LIST_MAX_ROWS = 500;
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
@@ -895,7 +898,12 @@ route.get('/api/spaces/:spaceId/study-thread-highlights', requireAuth, async (c)
               : []),
           ),
         )
-        .orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt));
+        .orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt))
+        // Bound the worst case: a 30-member space with hundreds of annotated
+        // notes could otherwise return thousands of wide rows unpaginated. The
+        // list is recency-ordered, so the cap keeps the newest highlights and
+        // is well above what the sidebar realistically shows.
+        .limit(SHARED_HIGHLIGHT_LIST_MAX_ROWS);
     } catch (e) {
       if (isStudyThreadEntriesTableMissing(e)) {
         console.warn(
@@ -1826,84 +1834,100 @@ route.post('/api/spaces/:spaceId/copy-notes', requireAuth, rateLimit('write'), a
     if (noteIds.length === 0) return c.json({ error: 'noteIds is required', code: 'BAD_REQUEST' }, 400);
 
     const errors: string[] = [];
-    const created: Array<{ sourceNoteId: string; noteId: string }> = [];
+
+    // Batch-fetch sources + both metadata tables up front (3 queries total)
+    // instead of ~5 per note in a loop.
+    const sources = await db.select().from(Notes).where(inArray(Notes.id, noteIds));
+    const sourceById = new Map(sources.map((s) => [s.id, s]));
+    const scriptureMetaByNote = new Map(
+      (await db.select().from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, noteIds)))
+        .map((m) => [m.noteId, m]),
+    );
+    const resourceMetaByNote = new Map(
+      (await db.select().from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, noteIds)))
+        .map((m) => [m.noteId, m]),
+    );
+
+    // Resolve read permission for foreign sources once per distinct space.
     const readableSpaceIds = new Set<string>();
-
-    let nextSimpleNoteId = (await getEffectiveHighestSimpleNoteId(auth.userId)) + 1;
-
+    const eligible: Array<typeof sources[number]> = [];
     for (const sourceNoteId of noteIds) {
-      try {
-        const source = first(await db.select().from(Notes).where(eq(Notes.id, sourceNoteId)).limit(1));
-        if (!source) { errors.push(`Note ${sourceNoteId}: not found`); continue; }
-        if (source.contentEncrypted) { errors.push(`Note ${sourceNoteId}: locked notes can't be copied into spaces`); continue; }
-        if (source.addedBy === 'system') { errors.push(`Note ${sourceNoteId}: system notes can't be copied`); continue; }
-
-        if (source.userId !== auth.userId) {
-          // Not the caller's note — allowed only when it lives in a space the caller can read.
-          if (!source.spaceId) { errors.push(`Note ${sourceNoteId}: no permission`); continue; }
-          if (!readableSpaceIds.has(source.spaceId)) {
-            try {
-              await requireSpaceAccess(source.spaceId, auth.userId);
-              readableSpaceIds.add(source.spaceId);
-            } catch {
-              errors.push(`Note ${sourceNoteId}: no permission`);
-              continue;
-            }
+      const source = sourceById.get(sourceNoteId);
+      if (!source) { errors.push(`Note ${sourceNoteId}: not found`); continue; }
+      if (source.contentEncrypted) { errors.push(`Note ${sourceNoteId}: locked notes can't be copied into spaces`); continue; }
+      if (source.addedBy === 'system') { errors.push(`Note ${sourceNoteId}: system notes can't be copied`); continue; }
+      if (source.userId !== auth.userId) {
+        // Not the caller's note — allowed only when it lives in a space the caller can read.
+        if (!source.spaceId) { errors.push(`Note ${sourceNoteId}: no permission`); continue; }
+        if (!readableSpaceIds.has(source.spaceId)) {
+          try {
+            await requireSpaceAccess(source.spaceId, auth.userId);
+            readableSpaceIds.add(source.spaceId);
+          } catch {
+            errors.push(`Note ${sourceNoteId}: no permission`);
+            continue;
           }
         }
-
-        const now = nowISO();
-        const newNote = first(await db.insert(Notes).values({
-          id: generateNoteId(),
-          title: source.title,
-          content: source.content,
-          threadId: 'thread_unorganized',
-          spaceId: targetSpaceId,
-          simpleNoteId: nextSimpleNoteId,
-          noteType: source.noteType,
-          addedBy: 'user',
-          userId: auth.userId,
-          isPublic: false,
-          shareToken: null,
-          contentEncrypted: false,
-          primaryCollection: source.primaryCollection,
-          secondaryCollections: source.secondaryCollections,
-          createdAt: now,
-          updatedAt: now,
-          lastVisited: now,
-        }).returning())!;
-        nextSimpleNoteId += 1;
-
-        // Carry scripture/resource metadata so pills and previews keep working.
-        const scriptureMeta = first(await db.select().from(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, sourceNoteId)).limit(1));
-        if (scriptureMeta) {
-          await db.insert(ScriptureMetadata).values({
-            ...scriptureMeta,
-            id: `scripture_${crypto.randomUUID()}`,
-            noteId: newNote.id,
-            createdAt: now,
-          });
-        }
-        const resourceMeta = first(await db.select().from(ResourceMetadata).where(eq(ResourceMetadata.noteId, sourceNoteId)).limit(1));
-        if (resourceMeta) {
-          await db.insert(ResourceMetadata).values({
-            ...resourceMeta,
-            id: `resource_${crypto.randomUUID()}`,
-            noteId: newNote.id,
-            createdAt: now,
-          });
-        }
-
-        created.push({ sourceNoteId, noteId: newNote.id });
-      } catch (e: any) {
-        errors.push(`Note ${sourceNoteId}: ${e.message}`);
       }
+      eligible.push(source);
     }
 
-    if (created.length > 0) {
-      await db.update(UserMetadata)
-        .set({ highestSimpleNoteId: nextSimpleNoteId - 1, updatedAt: nowISO() })
-        .where(eq(UserMetadata.userId, auth.userId));
+    // Insert every copy (note + metadata) and bump the simpleNoteId watermark in
+    // one transaction — a mid-batch failure no longer leaves orphaned notes
+    // without their metadata or a stale watermark.
+    const created: Array<{ sourceNoteId: string; noteId: string }> = [];
+    if (eligible.length > 0) {
+      await db.transaction(async (tx) => {
+        let nextSimpleNoteId = (await getEffectiveHighestSimpleNoteId(auth.userId)) + 1;
+        for (const source of eligible) {
+          const now = nowISO();
+          const newNote = first(await tx.insert(Notes).values({
+            id: generateNoteId(),
+            title: source.title,
+            content: source.content,
+            threadId: 'thread_unorganized',
+            spaceId: targetSpaceId,
+            simpleNoteId: nextSimpleNoteId,
+            noteType: source.noteType,
+            addedBy: 'user',
+            userId: auth.userId,
+            isPublic: false,
+            shareToken: null,
+            contentEncrypted: false,
+            primaryCollection: source.primaryCollection,
+            secondaryCollections: source.secondaryCollections,
+            createdAt: now,
+            updatedAt: now,
+            lastVisited: now,
+          }).returning())!;
+          nextSimpleNoteId += 1;
+
+          // Carry scripture/resource metadata so pills and previews keep working.
+          const scriptureMeta = scriptureMetaByNote.get(source.id);
+          if (scriptureMeta) {
+            await tx.insert(ScriptureMetadata).values({
+              ...scriptureMeta,
+              id: `scripture_${crypto.randomUUID()}`,
+              noteId: newNote.id,
+              createdAt: now,
+            });
+          }
+          const resourceMeta = resourceMetaByNote.get(source.id);
+          if (resourceMeta) {
+            await tx.insert(ResourceMetadata).values({
+              ...resourceMeta,
+              id: `resource_${crypto.randomUUID()}`,
+              noteId: newNote.id,
+              createdAt: now,
+            });
+          }
+          created.push({ sourceNoteId: source.id, noteId: newNote.id });
+        }
+        await tx.update(UserMetadata)
+          .set({ highestSimpleNoteId: nextSimpleNoteId - 1, updatedAt: nowISO() })
+          .where(eq(UserMetadata.userId, auth.userId));
+      });
+
       for (const { noteId } of created) {
         void broadcastNoteInvalidation(auth.userId, targetSpaceId, {
           type: 'note:created',
@@ -2104,7 +2128,10 @@ route.delete('/api/spaces/:spaceId/invites/:inviteId', requireAuth, rateLimit('w
 
 // ─── GET /api/spaces/invite-preview/:token ──────────────────────────────────
 /** Public preview for an invite link (no auth). Validates the invite live. */
-route.get('/api/spaces/invite-preview/:token', async (c) => {
+// Rate-limited (IP-based for this unauthenticated route) — each call fans out
+// to ~8 DB queries, so an amplification limiter keeps a leaked token from being
+// a cheap DoS lever.
+route.get('/api/spaces/invite-preview/:token', rateLimit('read'), async (c) => {
   try {
     const token = requireParam(c, 'token');
 
@@ -2197,12 +2224,14 @@ route.get('/api/spaces/invite-preview/:token', async (c) => {
       id: t.id, title: t.title, color: t.color, noteCount: noteCountsMap.get(t.id) || 0,
     }));
 
-    // Note preview (up to 10, unencrypted only, all authors)
+    // Note preview (up to 10, unencrypted only, all authors). Content is never
+    // returned — only scanned for a scripture-translation attribute — so cap it
+    // rather than pulling up to 10 full note bodies on this public path.
     const notes = await db.select({
       id: Notes.id,
       title: Notes.title,
       noteType: Notes.noteType,
-      content: Notes.content,
+      content: sql<string>`left(${Notes.content}, 4000)`,
       createdAt: Notes.createdAt,
     }).from(Notes)
       .where(and(eq(Notes.spaceId, space.id), eq(Notes.contentEncrypted, false)))

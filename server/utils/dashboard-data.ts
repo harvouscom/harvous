@@ -719,13 +719,16 @@ const NOTE_SELECT_COLUMNS = {
 
 /**
  * Max characters of note HTML returned in *list* responses (thread/space note
- * lists, sidebar). List/preview surfaces only render a short stripped preview;
- * the full note body is loaded on open via GET /api/notes/:id/details. Capping
- * content here keeps list payloads small for long notes. The cap is generous so
- * that typical-length notes are still returned in full. Offline reads are served
- * from IndexedDB (sync bootstrap), so this truncation does not affect them.
+ * lists, sidebar). List/preview surfaces only render a short stripped preview,
+ * and the client always flags list content as a preview (useNote.ts
+ * __contentIsPreview) and loads the full body on open via GET
+ * /api/notes/:id/details — so this truncation is never user-visible as
+ * "missing" content. Kept generous enough to cover a card preview strip while
+ * keeping list payloads small: at limit=100 a 20k cap meant up to ~2 MB of HTML
+ * per bootstrap response, dominated by content the list never renders. Offline
+ * reads are served from IndexedDB (sync bootstrap), unaffected by this cap.
  */
-const NOTE_LIST_CONTENT_MAX_CHARS = 20000;
+const NOTE_LIST_CONTENT_MAX_CHARS = 2000;
 
 /** List-payload column set: same as NOTE_SELECT_COLUMNS but content is truncated. */
 const NOTE_LIST_SELECT = {
