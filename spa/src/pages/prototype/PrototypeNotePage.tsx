@@ -1115,6 +1115,7 @@ export default function PrototypeNotePage() {
                   authorFirstName={foreignNoteAuthor?.firstName}
                   authorProfileImageUrl={foreignNoteAuthor?.profileImageUrl}
                   authorColor={foreignNoteAuthor?.userColor}
+                  showResponseLegend={showSharedHighlightOverlay}
                 />
               ) : null}
               {showSharedHighlightOverlay ? (

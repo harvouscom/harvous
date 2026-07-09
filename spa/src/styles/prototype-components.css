@@ -7744,6 +7744,44 @@ button.proto-appearance-hero__card {
   opacity: 0.55;
 }
 
+/* Legend clarifying the two paint languages on a foreign note: the author's
+ * in-body underline marks vs member response fills. Shown only once responses
+ * exist on the note (see PrototypeSharedNoteReadOnlyBanner). */
+.proto-shared-readonly-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: -12px 12px 18px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-shared-readonly-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1;
+}
+
+.proto-shared-readonly-legend__swatch {
+  display: inline-block;
+  width: 16px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.proto-shared-readonly-legend__swatch--underline {
+  border-bottom: 2px dashed var(--pds-text-secondary);
+  border-radius: 0;
+  height: 10px;
+}
+
+.proto-shared-readonly-legend__swatch--fill {
+  background-color: color-mix(in srgb, var(--pds-highlight-warm-amber) 38%, transparent);
+  box-shadow: inset 0 -3px 0 var(--pds-highlight-warm-amber);
+}
+
 .proto-shared-readonly-banner .proto-shared-author-chip {
   margin-right: 0;
   flex-shrink: 1;
@@ -7789,6 +7827,26 @@ button.proto-appearance-hero__card {
   cursor: pointer;
   background-color: color-mix(in srgb, var(--shared-highlight-accent, var(--pds-highlight-warm-amber)) 38%, transparent);
   box-shadow: inset 0 -3px 0 var(--shared-highlight-accent, var(--pds-highlight-warm-amber));
+}
+
+/* Count badge for a span carrying multiple members' responses. */
+.proto-shared-highlight-overlay__badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--pds-text-primary);
+  color: var(--pds-bg-primary);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .proto-shared-author-chip {

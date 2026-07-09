@@ -639,6 +639,7 @@ export default function SharedSpacesDesignScenePreview({ scene }: { scene: Share
             authorDisplayName="Sarah"
             authorUserId="user_sarah"
             authorColor="rose"
+            showResponseLegend
           />
           <div style={{ padding: 24, color: 'var(--pds-text-secondary)', fontSize: 14 }}>Note editor preview area</div>
         </div>

@@ -568,6 +568,18 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
   text-shadow: none !important;
 }
 
+/* On a foreign shared note these in-body marks are the AUTHOR's own highlights,
+ * not editable and not responses. Render them as a dashed underline so they read
+ * as read-only reference context, visually distinct from the solid response
+ * fills members add (mirrored by the read-only banner legend). The
+ * data-foreign-shared-annotate flag sits on the .card-full-editable root, so the
+ * marks and static-HTML content are its descendants. */
+[data-foreign-shared-annotate='true'] .ProseMirror mark,
+[data-foreign-shared-annotate='true'] .card-full-editable__content-html mark {
+  text-decoration-style: dashed;
+  opacity: 0.85;
+}
+
 /* Spotlight: while a highlight (or reference) dock is expanded, only the expanded highlight keeps
  * its color — every other highlight underline dims to neutral gray so the active one stands out.
  * `data-dim-highlights="<studyThreadEntryId>"` is set on the ProseMirror root by TiptapEditor, and a
