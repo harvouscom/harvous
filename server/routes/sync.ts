@@ -53,6 +53,7 @@ import { isStudyThreadEntriesTableMissing, isNoteConnectionsTableMissing } from 
 import { deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
 import { loadDeletedEntitiesSince, recordDeletedEntities } from '../utils/sync-deletion-log';
 import { broadcastInvalidationForSyncPush } from '../utils/realtime';
+import { requireSpaceAccess, canAuthorInSpace, canManageSpaceStructure, SpaceAccessError } from '../utils/space-access';
 import { getOrCreateTag, noteHasTagWithNormalizedName, addDismissedAutoTag, parseDismissedAutoTags, serializeDismissedAutoTags } from '../utils/tag-helpers';
 import {
   NOT_ONBOARDING_NOTES_THREAD,
@@ -93,6 +94,44 @@ function secondaryCollectionsFromSyncPayload(raw: unknown, primary: string | nul
     );
   }
   return null;
+}
+
+// ─── Space authoring gate for sync clients ─────────────────────────────
+//
+// Sync push is a second full write surface for notes/threads, so a
+// client-supplied spaceId must pass the same gates as the direct create
+// endpoints (/api/notes/create, /api/threads/create) — otherwise any
+// authenticated user could author into a shared space they were never
+// invited to. Failures are per-mutation errors, never thrown.
+
+type SyncSpaceGate = { ok: true; spaceId: string | null } | { ok: false; error: string };
+
+async function gateSyncSpaceId(
+  userId: string,
+  rawSpaceId: unknown,
+  opts: { structure?: boolean; contentEncrypted?: boolean } = {},
+): Promise<SyncSpaceGate> {
+  if (typeof rawSpaceId !== 'string' || !rawSpaceId.trim() || rawSpaceId === 'default_space') {
+    return { ok: true, spaceId: null };
+  }
+  const spaceId = rawSpaceId.trim();
+  try {
+    const { space, role } = await requireSpaceAccess(spaceId, userId);
+    if (opts.structure) {
+      if (space.type !== 'personal' && !canManageSpaceStructure(space, role)) {
+        return { ok: false, error: 'Only the space owner can create threads in a shared space' };
+      }
+    } else if (!canAuthorInSpace(space, role)) {
+      return { ok: false, error: 'You cannot add notes to this space' };
+    }
+    if (opts.contentEncrypted && space.type !== 'personal') {
+      return { ok: false, error: "Locked notes can't be created in shared spaces" };
+    }
+    return { ok: true, spaceId };
+  } catch (err) {
+    if (err instanceof SpaceAccessError) return { ok: false, error: err.message };
+    throw err;
+  }
 }
 
 // ─── Mutation helpers for push endpoint ───────────────────────────────
@@ -144,12 +183,15 @@ async function processThreadMutation(userId: string, operation: string, entityId
       }
     }
 
+    const spaceGate = await gateSyncSpaceId(userId, data.spaceId, { structure: true });
+    if (!spaceGate.ok) return { success: false, error: spaceGate.error };
+
     const now = nowISO();
     const newThread = first(await db.insert(Threads).values({
       id: entityId.startsWith('local_') ? generateThreadId() : entityId,
       title: data.title,
       subtitle: data.subtitle || null,
-      spaceId: data.spaceId || null,
+      spaceId: spaceGate.spaceId,
       color: data.color || null,
       isPublic: data.isPublic || false,
       isPinned: data.isPinned || false,
@@ -169,10 +211,16 @@ async function processThreadMutation(userId: string, operation: string, entityId
   } else if (operation === 'update') {
     const existing = first(await db.select().from(Threads).where(and(eq(Threads.id, entityId), eq(Threads.userId, userId))).limit(1));
     if (!existing) return { success: false, error: 'Thread not found' };
+    let nextThreadSpaceId: string | null | undefined = data.spaceId;
+    if (data.spaceId !== undefined && (data.spaceId ?? null) !== (existing.spaceId ?? null)) {
+      const spaceGate = await gateSyncSpaceId(userId, data.spaceId, { structure: true });
+      if (!spaceGate.ok) return { success: false, error: spaceGate.error };
+      nextThreadSpaceId = spaceGate.spaceId;
+    }
     await db.update(Threads).set({
       title: data.title,
       subtitle: data.subtitle,
-      spaceId: data.spaceId,
+      spaceId: nextThreadSpaceId,
       color: data.color,
       isPublic: data.isPublic,
       isPinned: data.isPinned,
@@ -303,12 +351,17 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       if (!Number.isNaN(d.getTime())) collectionLastAutoCreate = d;
     }
 
+    const spaceGate = await gateSyncSpaceId(userId, data.spaceId, {
+      contentEncrypted: Boolean(data.contentEncrypted),
+    });
+    if (!spaceGate.ok) return { success: false, error: spaceGate.error };
+
     const newNote = first(await db.insert(Notes).values({
       id: entityId.startsWith('local_') ? generateNoteId() : entityId,
       title: noteTitle || null,
       content: noteContent,
       threadId,
-      spaceId: data.spaceId || null,
+      spaceId: spaceGate.spaceId,
       simpleNoteId: assignedSimpleNoteId,
       noteType,
       addedBy: data.addedBy || 'user',
@@ -346,7 +399,7 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
           fromNoteId: resolvedLinkedFromNoteId,
           toNoteId: newNote.id,
           userId,
-          spaceId: data.spaceId || null,
+          spaceId: spaceGate.spaceId,
           createdAt: nowISO(),
         });
       } catch {
@@ -384,10 +437,21 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
           : null;
     }
 
+    const willBeEncrypted =
+      typeof data.contentEncrypted === 'boolean' ? data.contentEncrypted : existing.contentEncrypted;
+    let nextSpaceId: string | null | undefined = data.spaceId;
+    if (data.spaceId !== undefined && (data.spaceId ?? null) !== (existing.spaceId ?? null)) {
+      const spaceGate = await gateSyncSpaceId(userId, data.spaceId, {
+        contentEncrypted: Boolean(willBeEncrypted),
+      });
+      if (!spaceGate.ok) return { success: false, error: spaceGate.error };
+      nextSpaceId = spaceGate.spaceId;
+    }
+
     const updatePayload: Record<string, unknown> = {
       title: data.title,
       content: data.content,
-      spaceId: data.spaceId,
+      spaceId: nextSpaceId,
       isPublic: data.isPublic,
       isFeatured: data.isFeatured,
       order: data.order,
@@ -456,7 +520,6 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     // Reprocess scripture pills on the updated body (parity with /api/notes/update). Skip when
     // the note is/became encrypted or no content was sent. Omit threadId so every NoteThreads
     // row for this note is resolved (multi-thread), matching the direct update path.
-    const willBeEncrypted = typeof data.contentEncrypted === 'boolean' ? data.contentEncrypted : existing.contentEncrypted;
     if (!willBeEncrypted && typeof data.content === 'string' && data.content.trim().length > 0) {
       try {
         await processScriptureReferences(entityId, userId, undefined, data.content, 'NET');

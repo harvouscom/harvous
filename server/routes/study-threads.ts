@@ -302,22 +302,13 @@ route.patch('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c)
     const parent = await loadParentNoteContext(existing.parentNoteId);
     if (!parent) return c.json({ error: 'Study thread not found' }, 404);
 
-    const viewerRole =
-      (await resolveViewerSpaceRoleForNote(parent.spaceId, auth.userId)) ??
-      (parent.userId === auth.userId ? 'owner' : null);
-    if (
-      !viewerRole ||
-      !canModerateStudyThreadEntry({
-        annotatorUserId: existing.userId,
-        parentAuthorUserId: parent.userId,
-        viewerUserId: auth.userId,
-        viewerSpaceRole: viewerRole,
-      })
-    ) {
-      return c.json({ error: 'You cannot edit this annotation', code: 'FORBIDDEN' }, 403);
+    // Edits are annotator-only. Moderation (note author / space owner) is
+    // remove-only via DELETE — a moderator must never rewrite another member's
+    // annotation content while it keeps that member's attribution.
+    if (existing.userId !== auth.userId) {
+      return c.json({ error: 'Only the annotation author can edit it', code: 'FORBIDDEN' }, 403);
     }
 
-    const isAnnotator = existing.userId === auth.userId;
     const body = await c.req.json();
     const patch: Record<string, unknown> = { updatedAt: nowISO() };
 
@@ -329,22 +320,20 @@ route.patch('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c)
     if (typeof body.focusTitle === 'string') patch.focusTitle = body.focusTitle;
     if (typeof body.notesBody === 'string') patch.notesBody = body.notesBody;
     if (typeof body.miniNoteBody === 'string') patch.miniNoteBody = body.miniNoteBody;
-    if (isAnnotator) {
-      if (typeof body.linkedNoteId === 'string' || body.linkedNoteId === null) patch.linkedNoteId = body.linkedNoteId;
-      if (typeof body.linkedNoteTitle === 'string') patch.linkedNoteTitle = body.linkedNoteTitle;
-      if (typeof body.anchorLocation === 'number' || body.anchorLocation === null) patch.anchorLocation = body.anchorLocation;
-      if (typeof body.anchorLength === 'number' || body.anchorLength === null) patch.anchorLength = body.anchorLength;
-      if (typeof body.anchorTextSnapshot === 'string' || body.anchorTextSnapshot === null) {
-        patch.anchorTextSnapshot = body.anchorTextSnapshot;
-      }
-      if (typeof body.scriptureReference === 'string') {
-        patch.scriptureReference = normalizeScriptureReference(body.scriptureReference.trim()) ?? body.scriptureReference;
-      }
-      if (typeof body.scripturePassageTranslation === 'string') patch.scripturePassageTranslation = body.scripturePassageTranslation;
-      if (typeof body.scripturePassageExcerpt === 'string') patch.scripturePassageExcerpt = body.scripturePassageExcerpt;
-      if (typeof body.isArchived === 'boolean') patch.isArchived = body.isArchived;
-      if (typeof body.entryKind === 'string' && ENTRY_KINDS.has(body.entryKind)) patch.entryKindRaw = body.entryKind;
+    if (typeof body.linkedNoteId === 'string' || body.linkedNoteId === null) patch.linkedNoteId = body.linkedNoteId;
+    if (typeof body.linkedNoteTitle === 'string') patch.linkedNoteTitle = body.linkedNoteTitle;
+    if (typeof body.anchorLocation === 'number' || body.anchorLocation === null) patch.anchorLocation = body.anchorLocation;
+    if (typeof body.anchorLength === 'number' || body.anchorLength === null) patch.anchorLength = body.anchorLength;
+    if (typeof body.anchorTextSnapshot === 'string' || body.anchorTextSnapshot === null) {
+      patch.anchorTextSnapshot = body.anchorTextSnapshot;
     }
+    if (typeof body.scriptureReference === 'string') {
+      patch.scriptureReference = normalizeScriptureReference(body.scriptureReference.trim()) ?? body.scriptureReference;
+    }
+    if (typeof body.scripturePassageTranslation === 'string') patch.scripturePassageTranslation = body.scripturePassageTranslation;
+    if (typeof body.scripturePassageExcerpt === 'string') patch.scripturePassageExcerpt = body.scripturePassageExcerpt;
+    if (typeof body.isArchived === 'boolean') patch.isArchived = body.isArchived;
+    if (typeof body.entryKind === 'string' && ENTRY_KINDS.has(body.entryKind)) patch.entryKindRaw = body.entryKind;
 
     await db.update(StudyThreadEntries).set(patch as any).where(eq(StudyThreadEntries.id, id));
 

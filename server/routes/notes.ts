@@ -1709,6 +1709,9 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
         if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
         throw err;
       }
+      // Locked notes never appear in shared contexts — membership doesn't grant
+      // even title/metadata reads on another member's encrypted note.
+      if (noteById.contentEncrypted) return c.json({ error: 'Note not found or access denied' }, 404);
       note = noteById;
       isMemberView = true;
     }

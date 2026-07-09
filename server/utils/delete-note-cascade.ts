@@ -19,6 +19,7 @@ import {
 } from '../db';
 import { nowISO } from '../db/dates';
 import { stripNoteLinksToNoteId } from '@/utils/tiptap-helpers';
+import { recordDeletedEntities } from './sync-deletion-log';
 
 const DELETE_CHUNK = 2000;
 
@@ -66,18 +67,31 @@ export async function deleteNotesCascadeForUser(userId: string, noteIds: string[
     );
   }
 
+  // Entries anchored to a deleted note die with it for EVERY author — other
+  // members' highlight responses on a shared note become unreachable orphans
+  // otherwise. Entries merely *linking* to the note are only removed for the
+  // deleter (another member's entry lives on their own note).
   const deletedStudyThreadIds: string[] = [];
+  const foreignStudyThreadIdsByUser = new Map<string, string[]>();
   for (const chunk of chunkIds(deletedNoteIds)) {
     const studyRows = await db
-      .select({ id: StudyThreadEntries.id })
+      .select({ id: StudyThreadEntries.id, userId: StudyThreadEntries.userId })
       .from(StudyThreadEntries)
       .where(
-        and(
-          eq(StudyThreadEntries.userId, userId),
-          or(inArray(StudyThreadEntries.parentNoteId, chunk), inArray(StudyThreadEntries.linkedNoteId, chunk)),
+        or(
+          inArray(StudyThreadEntries.parentNoteId, chunk),
+          and(eq(StudyThreadEntries.userId, userId), inArray(StudyThreadEntries.linkedNoteId, chunk)),
         ),
       );
-    deletedStudyThreadIds.push(...studyRows.map((row) => row.id));
+    for (const row of studyRows) {
+      if (row.userId === userId) {
+        deletedStudyThreadIds.push(row.id);
+      } else {
+        const list = foreignStudyThreadIdsByUser.get(row.userId) ?? [];
+        list.push(row.id);
+        foreignStudyThreadIdsByUser.set(row.userId, list);
+      }
+    }
   }
 
   for (const chunk of chunkIds(deletedNoteIds)) {
@@ -92,11 +106,17 @@ export async function deleteNotesCascadeForUser(userId: string, noteIds: string[
     await db
       .delete(StudyThreadEntries)
       .where(
-        and(
-          eq(StudyThreadEntries.userId, userId),
-          or(inArray(StudyThreadEntries.parentNoteId, chunk), inArray(StudyThreadEntries.linkedNoteId, chunk)),
+        or(
+          inArray(StudyThreadEntries.parentNoteId, chunk),
+          and(eq(StudyThreadEntries.userId, userId), inArray(StudyThreadEntries.linkedNoteId, chunk)),
         ),
       );
+  }
+
+  // Sync tombstones for other members' deleted responses (the deleter's own
+  // ids are returned and recorded by the caller).
+  for (const [annotatorUserId, ids] of foreignStudyThreadIdsByUser) {
+    await recordDeletedEntities(annotatorUserId, 'studyThread', ids);
   }
 
   for (const chunk of chunkIds(deletedNoteIds)) {

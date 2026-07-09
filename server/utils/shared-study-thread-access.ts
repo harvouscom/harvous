@@ -11,6 +11,7 @@ export type ParentNoteContext = {
   userId: string;
   spaceId: string | null;
   spaceType: 'personal' | 'shared' | 'public' | null;
+  contentEncrypted: boolean;
 };
 
 async function spaceTypeForSpaceId(spaceId: string | null): Promise<ParentNoteContext['spaceType']> {
@@ -61,7 +62,12 @@ export async function shouldUnionStudyThreadsForNote(
 export async function loadParentNoteContext(parentNoteId: string): Promise<ParentNoteContext | null> {
   const note = first(
     await db
-      .select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId })
+      .select({
+        id: Notes.id,
+        userId: Notes.userId,
+        spaceId: Notes.spaceId,
+        contentEncrypted: Notes.contentEncrypted,
+      })
       .from(Notes)
       .where(eq(Notes.id, parentNoteId))
       .limit(1),
@@ -83,6 +89,7 @@ export async function loadParentNoteContext(parentNoteId: string): Promise<Paren
     userId: note.userId,
     spaceId,
     spaceType,
+    contentEncrypted: Boolean(note.contentEncrypted),
   };
 }
 
@@ -101,6 +108,12 @@ export async function requireSharedStudyThreadParentAccess(
   }
 
   if (!parent.spaceId || (parent.spaceType !== 'shared' && parent.spaceType !== 'public')) {
+    throw new SharedStudyThreadAccessError(404, 'Note not found');
+  }
+
+  // Locked notes never appear in shared contexts — membership doesn't grant
+  // reading or annotating another member's encrypted note.
+  if (parent.contentEncrypted) {
     throw new SharedStudyThreadAccessError(404, 'Note not found');
   }
 

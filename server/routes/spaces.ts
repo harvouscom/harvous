@@ -77,7 +77,6 @@ import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id
 import { awardCreationBonusXP } from '../utils/xp-system';
 import {
   canCreateSharedSpace,
-  canAddMemberToSpace,
   getSpaceMemberCount,
   hasSharedSpacesAddOn,
   hasSharedSpacesAddOnForUserId,
@@ -132,6 +131,40 @@ function normalizePrototypeSpaceId(spaceIdRaw: string): string {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Delete highlight responses (StudyThreadEntries authored by someone other than
+ * the note's author) on notes leaving a shared space. Responses belong to the
+ * space conversation — once the note re-homes to a personal space they would
+ * surface as foreign rows in personal views. Writes per-annotator sync
+ * tombstones so offline clients drop them too.
+ */
+async function deleteHighlightResponsesOnNotes(noteIds: string[]): Promise<void> {
+  if (noteIds.length === 0) return;
+  const rows = await db
+    .select({
+      id: StudyThreadEntries.id,
+      entryUserId: StudyThreadEntries.userId,
+      noteUserId: Notes.userId,
+    })
+    .from(StudyThreadEntries)
+    .innerJoin(Notes, eq(StudyThreadEntries.parentNoteId, Notes.id))
+    .where(inArray(StudyThreadEntries.parentNoteId, noteIds));
+  const foreign = rows.filter((r) => r.entryUserId !== r.noteUserId);
+  if (foreign.length === 0) return;
+
+  await db.delete(StudyThreadEntries).where(inArray(StudyThreadEntries.id, foreign.map((r) => r.id)));
+
+  const byUser = new Map<string, string[]>();
+  for (const r of foreign) {
+    const list = byUser.get(r.entryUserId) ?? [];
+    list.push(r.id);
+    byUser.set(r.entryUserId, list);
+  }
+  for (const [userId, ids] of byUser) {
+    await recordDeletedEntities(userId, 'studyThread', ids);
+  }
+}
 
 function parseItemIds(raw: string | null): string[] {
   if (!raw) return [];
@@ -307,15 +340,16 @@ route.delete('/api/spaces/delete', requireAuth, async (c) => {
     await db.delete(Members).where(eq(Members.spaceId, spaceId));
     await db.delete(SpaceInvitations).where(eq(SpaceInvitations.spaceId, spaceId));
 
-    // Detach threads and notes (preserve content)
-    const spaceThreads = await db.select({ id: Threads.id }).from(Threads).where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, auth.userId)));
-    for (const t of spaceThreads) {
-      await db.update(Threads).set({ spaceId: null }).where(eq(Threads.id, t.id));
-    }
-    const spaceNotes = await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, auth.userId)));
-    for (const n of spaceNotes) {
-      await db.update(Notes).set({ spaceId: null }).where(eq(Notes.id, n.id));
-    }
+    // Detach EVERY member's threads and notes (preserve content) — not just the
+    // owner's. Anything left pointing at the deleted space would be unreachable:
+    // requireSpaceAccess 404s, and the My Home backfill only rehomes null spaceIds.
+    const spaceNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.spaceId, spaceId));
+    await db.update(Threads).set({ spaceId: null }).where(eq(Threads.spaceId, spaceId));
+    await db.update(Notes).set({ spaceId: null }).where(eq(Notes.spaceId, spaceId));
+    await db.update(NoteConnections).set({ spaceId: null }).where(eq(NoteConnections.spaceId, spaceId));
+
+    // Cross-member highlight responses die with the space conversation.
+    await deleteHighlightResponsesOnNotes(spaceNotes.map((n) => n.id));
 
     await db.delete(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId)));
 
@@ -713,7 +747,7 @@ route.post('/api/spaces/:spaceId/folders/remove', requireAuth, rateLimit('write'
 
     for (const [userId, noteIds] of touchedNotesByUser) {
       for (const noteId of noteIds) {
-        broadcastInvalidation(userId, { type: 'note:updated', id: noteId });
+        void broadcastNoteInvalidation(userId, spaceIdNorm, { type: 'note:updated', id: noteId });
       }
     }
 
@@ -801,7 +835,7 @@ route.post('/api/spaces/:spaceId/threads/remove', requireAuth, rateLimit('write'
       touchedNoteIds.add(edge.toNoteId);
     }
     for (const noteId of touchedNoteIds) {
-      broadcastInvalidation(auth.userId, { type: 'note:updated', id: noteId });
+      void broadcastNoteInvalidation(auth.userId, spaceIdNorm, { type: 'note:updated', id: noteId });
     }
 
     return c.json({ success: true, removedEdgeCount: edges.length });
@@ -2286,30 +2320,66 @@ route.post('/api/spaces/invites/:token/redeem', requireAuth, rateLimit('write'),
       return c.json({ success: true, alreadyMember: true, spaceId: space.id, spaceName: space.title });
     }
 
-    // Invisible people cap — joining is otherwise free and uncapped for the joiner.
-    const memberCheck = await canAddMemberToSpace(space.id);
-    if (!memberCheck.allowed) return c.json({ error: memberCheck.reason, code: 'MEMBER_LIMIT_EXCEEDED' }, 403);
-
+    // Claim a use, check the cap, and insert the membership atomically.
+    // inviteDeadReason above is advisory only — the guarded UPDATE re-checks
+    // revoked/maxUses inside the transaction, so two concurrent redeems of a
+    // maxUses=1 link can't both get in (validate-then-insert TOCTOU).
     const now = nowISO();
+    // Thrown inside the transaction to roll back the useCount claim on abort
+    // paths (cap reached / concurrent double-join) — a plain return would commit it.
+    class RedeemAbort extends Error {
+      constructor(public abortOutcome: 'full' | 'already-member') { super('redeem-abort'); }
+    }
+    let outcome: 'dead' | 'full' | 'already-member' | 'joined';
     try {
-      await db.insert(SpaceMemberships).values({
-        id: `smem_${crypto.randomUUID()}`,
-        spaceId: space.id,
-        userId: auth.userId,
-        role: invite.role === 'leader' ? 'leader' : 'member',
-        invitedBy: invite.createdBy,
-        inviteId: invite.id,
-        joinedAt: now,
-        createdAt: now,
+      outcome = await db.transaction(async (tx) => {
+        const claimed = await tx.update(SpaceInvites)
+          .set({ useCount: sql`${SpaceInvites.useCount} + 1` })
+          .where(and(
+            eq(SpaceInvites.id, invite.id),
+            isNull(SpaceInvites.revokedAt),
+            or(isNull(SpaceInvites.maxUses), sql`${SpaceInvites.useCount} < ${SpaceInvites.maxUses}`),
+          ))
+          .returning({ id: SpaceInvites.id });
+        if (claimed.length === 0) return 'dead' as const;
+
+        // Invisible people cap — joining is otherwise free and uncapped for the joiner.
+        const [{ value: memberCount }] = await tx.select({ value: count() }).from(SpaceMemberships)
+          .where(eq(SpaceMemberships.spaceId, space.id));
+        if (memberCount >= MEMBERS_PER_SPACE_CAP) throw new RedeemAbort('full');
+
+        try {
+          await tx.insert(SpaceMemberships).values({
+            id: `smem_${crypto.randomUUID()}`,
+            spaceId: space.id,
+            userId: auth.userId,
+            role: invite.role === 'leader' ? 'leader' : 'member',
+            invitedBy: invite.createdBy,
+            inviteId: invite.id,
+            joinedAt: now,
+            createdAt: now,
+          });
+        } catch (err: any) {
+          // Unique (spaceId, userId) guard — a concurrent double-join by the same user.
+          if (!String(err?.message ?? '').includes('SpaceMemberships_space_user_unique')) throw err;
+          throw new RedeemAbort('already-member');
+        }
+        return 'joined' as const;
       });
-    } catch (err: any) {
-      // Unique (spaceId, userId) guard — a concurrent double-join is fine.
-      if (!String(err?.message ?? '').includes('SpaceMemberships_space_user_unique')) throw err;
+    } catch (err) {
+      if (!(err instanceof RedeemAbort)) throw err;
+      outcome = err.abortOutcome;
     }
 
-    await db.update(SpaceInvites)
-      .set({ useCount: sql`${SpaceInvites.useCount} + 1` })
-      .where(eq(SpaceInvites.id, invite.id));
+    if (outcome === 'dead') {
+      return c.json({ error: 'This invite link is no longer active.', code: 'INVITE_NOT_ACTIVE' }, 410);
+    }
+    if (outcome === 'full') {
+      return c.json({ error: 'This space has reached its people limit.', code: 'MEMBER_LIMIT_EXCEEDED' }, 403);
+    }
+    if (outcome === 'already-member') {
+      return c.json({ success: true, alreadyMember: true, spaceId: space.id, spaceName: space.title });
+    }
 
     return c.json({ success: true, spaceId: space.id, spaceName: space.title, redirectUrl: '/' });
   } catch (error: any) {
@@ -2444,6 +2514,24 @@ route.delete('/api/spaces/:spaceId/members/:userId', requireAuth, rateLimit('wri
     if (!membership) return c.json({ error: 'User is not a member of this space' }, 404);
 
     await db.delete(SpaceMemberships).where(eq(SpaceMemberships.id, membership.id));
+
+    // Re-home the departed member's content. Their notes/threads keep a shared
+    // spaceId they can no longer access (requireSpaceAccess now 403s them), so
+    // detach to null — the ensurePersonalHomeSpace backfill re-homes null-spaceId
+    // rows to their My Home on next load. Mirrors remove-items moderation.
+    const departedNotes = await db
+      .select({ id: Notes.id })
+      .from(Notes)
+      .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, targetUserId)));
+    await db.update(Notes).set({ spaceId: null })
+      .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, targetUserId)));
+    await db.update(Threads).set({ spaceId: null })
+      .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, targetUserId)));
+    await db.update(NoteConnections).set({ spaceId: null })
+      .where(and(eq(NoteConnections.spaceId, spaceId), eq(NoteConnections.userId, targetUserId)));
+
+    // Other members' highlight responses live on notes that just left the space.
+    await deleteHighlightResponsesOnNotes(departedNotes.map((n) => n.id));
 
     return c.json({ success: true, message: isSelf ? 'You have left the space' : 'Member removed from space' });
   } catch (error: any) {

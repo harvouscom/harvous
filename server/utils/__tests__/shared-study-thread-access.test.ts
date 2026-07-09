@@ -9,6 +9,7 @@ describe('isUnionedSharedStudyParent', () => {
         userId: 'user_a',
         spaceId: 'space_1',
         spaceType: 'shared',
+        contentEncrypted: false,
       }),
     ).toBe(true);
     expect(
@@ -17,6 +18,7 @@ describe('isUnionedSharedStudyParent', () => {
         userId: 'user_a',
         spaceId: 'space_1',
         spaceType: 'public',
+        contentEncrypted: false,
       }),
     ).toBe(true);
   });
@@ -28,6 +30,7 @@ describe('isUnionedSharedStudyParent', () => {
         userId: 'user_a',
         spaceId: 'space_1',
         spaceType: 'personal',
+        contentEncrypted: false,
       }),
     ).toBe(false);
     expect(isUnionedSharedStudyParent(null)).toBe(false);
@@ -37,6 +40,7 @@ describe('isUnionedSharedStudyParent', () => {
         userId: 'user_a',
         spaceId: null,
         spaceType: null,
+        contentEncrypted: false,
       }),
     ).toBe(false);
   });

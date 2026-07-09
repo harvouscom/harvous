@@ -19,6 +19,7 @@ import { handleAPIError } from '@/utils/error-handling';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { getThreadColorsForNotesBatch } from '../utils/dashboard-data';
 import { parseNoteSecondaryCollections } from '../utils/note-secondary-collections';
+import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
 
 const route = new Hono();
 
@@ -43,6 +44,18 @@ route.get('/api/search', requireAuth, async (c) => {
     const trimmedQuery = query.trim();
     if (trimmedQuery.length < MIN_SEARCH_QUERY_LENGTH) {
       return c.json({ results: [], query, type, total: 0 });
+    }
+
+    // Defensive: every note/thread branch below also filters by userId, so a
+    // foreign spaceId can't leak rows today — but validate it anyway so the
+    // scope param never silently depends on that co-filter.
+    if (spaceIdParam) {
+      try {
+        await requireSpaceAccess(spaceIdParam, userId);
+      } catch (err) {
+        if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+        throw err;
+      }
     }
     const searchNotes = type === 'all' || type === 'notes';
     // Thread-scoped search is notes-only (one thread). If both threadId and spaceId are sent, threadId wins for notes; threads are not searched.
