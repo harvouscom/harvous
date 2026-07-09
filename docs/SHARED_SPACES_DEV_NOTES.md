@@ -314,6 +314,34 @@ non-interactive `npm run db:push` when schema drift is possible.
   vs overlay). Future: overlay stack badge ("2") opening the dock carousel for all entries on that
   anchor; optional note-level "show/hide responses" filter. No per-dock "mine vs responses" toggle
   unless we collapse multiple `StudyThreadEntry` rows into one card.
+- **Owner highlights vs member responses (member POV feels broken)** — v1 uses two paint layers on
+  foreign notes: the **author's** pre-existing highlights live as in-body underline marks in the saved
+  note HTML; **member responses** render as overlay fills (anchor metadata only — nothing is written into
+  the author's TipTap body). That split is technically correct but confusing for members today:
+  - The author may have highlighted a passage *before* sharing; a member opening the note sees those
+    underlines with no clear label that they are the **owner's** highlights, not responses or editable
+    marks.
+  - When a member highlights to respond on text the owner already underlined, the member sees their
+    response overlay stacked on top of the owner's underline — two different visual languages on one
+    span with no explanation of which is which.
+  - The Highlights sidebar list is unioned (everyone's rows, with author chips), but the in-note surface
+    does not yet mirror that clarity — members cannot easily tell "owner study mark" vs "my response" vs
+    "someone else's response" without opening docks.
+  **Follow-up product work (not scoped in foundation):**
+  1. **Visual legend / affordance on foreign notes** — e.g. short copy or icons: owner underline = author's
+     highlight; fill = a member's response. Consider dimming or de-emphasizing owner marks when the viewer
+     is annotating (read-only banner already signals "can't edit").
+  2. **Same-anchor management** — when owner mark and one or more member responses share an anchor,
+     decide whether members should see owner marks at all, see them collapsed behind a stack badge, or
+     see them in a separate "author highlights" layer toggle. Author viewing their own note has the
+     inverse problem (their underline + others' overlays).
+  3. **Existing owner highlights at share time** — no migration today; marks stay in the body as-is. Product
+     should decide if shared notes need a one-time "responses only on foreign view" rule (hide owner marks
+     from members), or if owner marks become read-only context members can still respond beneath.
+  4. **Single carousel entry per anchor** — related to overlap above: one tap opens all study threads on
+     that span (owner + members) with author chips inside the dock, instead of competing surfaces.
+  Until then, treat member confusion on foreign notes with pre-existing owner highlights as a known UX
+  gap, not a bug in the overlay implementation alone.
 
 ## Local dev testing guide
 
