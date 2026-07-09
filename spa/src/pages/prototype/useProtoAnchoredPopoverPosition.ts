@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import {
   computeAnchoredPopoverPosition,
+  computeCenteredPortaledDialogPosition,
   computeMainColumnTopRightPopoverPosition,
+  resolveMainColumnPopoverHost,
   type AnchoredPopoverPositionOptions,
 } from './proto-anchored-popover-position';
 
@@ -20,8 +22,8 @@ export type ProtoAnchoredPopoverAnchor = {
   anchorRect?: DOMRect | null;
 };
 
-/** `anchor` = near trigger; `main-column-top-right` = fixed slot in the main column. */
-export type ProtoAnchoredPopoverStrategy = 'anchor' | 'main-column-top-right';
+/** `anchor` = near trigger; `main-column-top-right` = fixed slot in the main column; `centered` = viewport-centered dialog. */
+export type ProtoAnchoredPopoverStrategy = 'anchor' | 'main-column-top-right' | 'centered';
 
 export function useProtoAnchoredPopoverPosition(
   cardRef: RefObject<HTMLElement | null>,
@@ -29,8 +31,18 @@ export function useProtoAnchoredPopoverPosition(
   options: AnchoredPopoverPositionOptions & { enabled: boolean; strategy?: ProtoAnchoredPopoverStrategy },
   layoutDeps: unknown[] = [],
 ): { position: { top: number; left: number } | null; sync: () => void } {
-  const { enabled, maxHeightPx, vhFraction, strategy = 'anchor' } = options;
+  const {
+    enabled,
+    maxHeightPx,
+    vhFraction,
+    strategy = 'anchor',
+    topVhFraction = 0.12,
+    fallbackWidth,
+    fallbackHeight,
+    viewportMargin,
+  } = options;
   const isFixedMainColumn = strategy === 'main-column-top-right';
+  const isCentered = strategy === 'centered';
   const anchorElRef = useRef(anchor.anchorEl ?? null);
   const anchorRectRef = useRef(anchor.anchorRect ?? null);
   anchorElRef.current = anchor.anchorEl ?? null;
@@ -41,15 +53,32 @@ export function useProtoAnchoredPopoverPosition(
   const sync = useCallback(() => {
     const card = cardRef.current;
     if (!card) return;
-    const next = isFixedMainColumn
-      ? computeMainColumnTopRightPopoverPosition(card)
-      : computeAnchoredPopoverPosition(
-          card,
-          resolveAnchorRect(anchorElRef.current, anchorRectRef.current),
-          { maxHeightPx, vhFraction },
-        );
+    const next = isCentered
+      ? computeCenteredPortaledDialogPosition(card, {
+          topVhFraction,
+          fallbackWidth,
+          fallbackHeight,
+          viewportMargin,
+        })
+      : isFixedMainColumn
+        ? computeMainColumnTopRightPopoverPosition(card, { viewportMargin })
+        : computeAnchoredPopoverPosition(
+            card,
+            resolveAnchorRect(anchorElRef.current, anchorRectRef.current),
+            { maxHeightPx, vhFraction },
+          );
     setPosition(next);
-  }, [cardRef, isFixedMainColumn, maxHeightPx, vhFraction]);
+  }, [
+    cardRef,
+    fallbackHeight,
+    fallbackWidth,
+    isCentered,
+    isFixedMainColumn,
+    maxHeightPx,
+    topVhFraction,
+    vhFraction,
+    viewportMargin,
+  ]);
 
   useLayoutEffect(() => {
     if (!enabled) {
@@ -61,9 +90,10 @@ export function useProtoAnchoredPopoverPosition(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- layoutDeps is intentional
   }, [
     enabled,
+    isCentered,
     isFixedMainColumn,
     sync,
-    ...(isFixedMainColumn ? layoutDeps : [anchor.anchorEl, anchor.anchorRect, ...layoutDeps]),
+    ...(isCentered || isFixedMainColumn ? layoutDeps : [anchor.anchorEl, anchor.anchorRect, ...layoutDeps]),
   ]);
 
   useEffect(() => {
@@ -77,6 +107,14 @@ export function useProtoAnchoredPopoverPosition(
     const ro = new ResizeObserver(() => sync());
     ro.observe(card);
     if (isFixedMainColumn) {
+      const host = resolveMainColumnPopoverHost();
+      if (host) ro.observe(host);
+      return () => {
+        ro.disconnect();
+        window.removeEventListener('resize', onResize);
+      };
+    }
+    if (isCentered) {
       return () => {
         ro.disconnect();
         window.removeEventListener('resize', onResize);
@@ -89,7 +127,7 @@ export function useProtoAnchoredPopoverPosition(
       window.removeEventListener('resize', onResize);
       window.removeEventListener('scroll', onScroll, true);
     };
-  }, [cardRef, enabled, isFixedMainColumn, sync]);
+  }, [cardRef, enabled, isCentered, isFixedMainColumn, sync]);
 
   return { position, sync };
 }

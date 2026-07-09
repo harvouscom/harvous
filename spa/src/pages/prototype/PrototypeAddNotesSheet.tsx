@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -13,6 +13,7 @@ import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { noteBelongsToFolderBucket } from '@/utils/note-folder-display';
@@ -416,7 +417,6 @@ export default function PrototypeAddNotesSheet({
   const addToFolder = useAddNotesToFolder();
   const addToThread = useAddNotesToThreadCluster();
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -432,6 +432,19 @@ export default function PrototypeAddNotesSheet({
   const shouldUseSheetPresentation =
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
   const shouldUsePopover = open && !shouldUseSheetPresentation;
+
+  const { position } = useProtoAnchoredPopoverPosition(
+    cardRef,
+    {},
+    {
+      enabled: shouldUsePopover,
+      strategy: 'centered',
+      topVhFraction: 0.15,
+      fallbackWidth: 340,
+      fallbackHeight: 440,
+    },
+    [selectedIds.length],
+  );
 
   const title = mode === 'folder' ? 'Add notes to folder' : 'Add notes to thread';
   const canSubmit = selectedIds.length > 0 && !isPending;
@@ -471,18 +484,6 @@ export default function PrototypeAddNotesSheet({
       setActionError(err instanceof Error ? err.message : 'Could not add notes.');
     }
   };
-
-  useLayoutEffect(() => {
-    if (!shouldUsePopover) return;
-    const cardHeight = cardRef.current?.getBoundingClientRect().height ?? 440;
-    const cardWidth = cardRef.current?.getBoundingClientRect().width ?? 340;
-    const viewportMargin = 12;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const left = Math.max(viewportMargin, (vw - cardWidth) / 2);
-    const top = Math.max(viewportMargin, Math.min(vh - cardHeight - viewportMargin, vh * 0.15));
-    setPosition({ top, left });
-  }, [shouldUsePopover, selectedIds.length]);
 
   useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover);
 

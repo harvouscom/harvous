@@ -3416,6 +3416,20 @@ html.harvous-prototype-route .proto-fte-tag-chip__accept svg path {
   text-align: left;
 }
 
+/* Leading icon tile — pricing-style block (Settings > Add-ons, Sharing cards). */
+.proto-settings-list-row__leading {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--pds-bg-input);
+  border: 0.5px solid var(--pds-border);
+  color: var(--pds-text-secondary);
+}
+
 .proto-settings-list-row__trailing {
   display: flex;
   align-items: center;
@@ -3729,6 +3743,23 @@ a.proto-copy-row__value:hover {
   gap: 10px;
   padding: 14px 12px;
   min-width: 0;
+}
+
+.proto-sharing-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.proto-sharing-card__header-main {
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+/* Match Settings > Add-ons leading tiles (primary glyph on neutral swatch). */
+.proto-sharing-card .proto-settings-list-row__leading {
+  color: var(--pds-text-primary);
 }
 
 .proto-sharing-card__title {

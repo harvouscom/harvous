@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
+import Icon, { type IconName } from '@/components/react/Icon';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { toast } from '@/utils/toast';
 import { useShareNote } from '../../../hooks/mutations/useShareNote';
@@ -8,6 +9,63 @@ import { useQueryClient } from '@tanstack/react-query';
 import { SettingsCopyRow, SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
 import { protoRelativeCaptionAbbrev } from '../proto-time';
 import { noteParamSlug } from '../proto-route-slugs';
+
+type SharedItemKind = 'note' | 'thread' | 'space';
+
+/** Leading icon tile for shared-item cards — matches Settings > Add-ons rows. */
+export function resolveSharedItemLeadingMeta(kind: SharedItemKind): {
+  icon: IconName;
+  label: string;
+} {
+  switch (kind) {
+    case 'thread':
+      return { icon: 'layer-group', label: 'Thread' };
+    case 'space':
+      return { icon: 'user-group', label: 'Space' };
+    case 'note':
+    default:
+      return { icon: 'note-sticky', label: 'Note' };
+  }
+}
+
+function SharingCardHeader({
+  kind,
+  title,
+  noteId,
+  rel,
+  preview,
+}: {
+  kind: SharedItemKind;
+  title: string;
+  noteId: string;
+  rel?: string;
+  preview?: string;
+}) {
+  const { icon, label } = resolveSharedItemLeadingMeta(kind);
+
+  return (
+    <div className="proto-sharing-card__header">
+      <span
+        className="proto-settings-list-row__leading"
+        aria-label={label}
+        title={label}
+      >
+        <Icon name={icon} size={20} />
+      </span>
+      <div className="proto-sharing-card__header-main">
+        <Link
+          to={prototypeNoteRouteTo()}
+          params={{ noteId: noteParamSlug(noteId) }}
+          search={{}}
+          className="proto-sharing-card__title pds-list-title"
+        >
+          {title}
+        </Link>
+        <SharingNoteRecencyLine rel={rel} preview={preview} />
+      </div>
+    </div>
+  );
+}
 
 function SharingNoteRecencyLine({ rel, preview }: { rel?: string; preview?: string }) {
   if (!rel && !preview) return null;
@@ -108,16 +166,13 @@ export default function PrototypeSharingPage() {
         return (
           <SettingsGroup key={note.id}>
             <div className="proto-sharing-card">
-              <Link
-                to={prototypeNoteRouteTo()}
-                params={{ noteId: noteParamSlug(note.id) }}
-                search={{}}
-                className="proto-sharing-card__title pds-list-title"
-              >
-                {note.title || 'Untitled note'}
-              </Link>
-
-              <SharingNoteRecencyLine rel={rel || undefined} preview={preview} />
+              <SharingCardHeader
+                kind="note"
+                title={note.title || 'Untitled note'}
+                noteId={note.id}
+                rel={rel || undefined}
+                preview={preview}
+              />
 
               <SettingsCopyRow
                 value={truncateShareUrl(note.shareUrl)}

@@ -860,11 +860,13 @@ html.harvous-prototype-route #root {
   background-color: transparent !important;
 }
 
-/* Image wallpaper: drop the solid first-paint shell card so backdrop-filter can sample html. */
+/* Color/image wallpaper: drop the solid first-paint shell card so backdrop-filter can sample html. */
+html.harvous-proto-wallpaper-color #root,
 html.harvous-proto-wallpaper-image #root {
   isolation: auto;
 }
 
+html.harvous-proto-wallpaper-color #root::before,
 html.harvous-proto-wallpaper-image #root::before {
   display: none;
 }

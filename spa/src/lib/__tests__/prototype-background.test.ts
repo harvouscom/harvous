@@ -216,6 +216,17 @@ describe('per-mode background storage', () => {
     expect(localStorage.getItem(PROTO_BG_LIGHT_KEY)).toBeNull();
     expect(readBackgroundForMode('light')).toBeNull();
   });
+
+  it('Paper (null light) does not fall back to legacy single-key cream', () => {
+    localStorage.setItem(PROTO_BG_KEY, JSON.stringify({ kind: 'color', value: '#f6ecd6' }));
+    writeBackgroundForMode('dark', imagePresetApplyValue(imagePresetById('night-sky')!));
+    writeBackgroundForMode('light', null);
+
+    expect(localStorage.getItem(PROTO_BG_KEY)).toBeNull();
+    expect(readBackgroundForMode('light')).toBeNull();
+    applyColorSchemePreference('light');
+    expect(readActiveBackground()).toBeNull();
+  });
 });
 
 describe('sync-appearance-image-presets output', () => {
