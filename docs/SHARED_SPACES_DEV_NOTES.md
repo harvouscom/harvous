@@ -286,6 +286,62 @@ branch (picking up its `server/db/schema.ts` changes) before the next `db:push`*
 `npx drizzle-kit push` (read the diff; don't blindly accept data-loss prompts) rather than the
 non-interactive `npm run db:push` when schema drift is possible.
 
+## Hardening pass (July 2026)
+
+A post-foundation audit found and closed several edge cases in the owner/member/visibility model, plus
+scaling issues in the merged-view queries. Recorded here so the reasoning isn't lost:
+
+**Security / correctness:**
+- **Sync-push spaceId injection (closed).** `POST /api/sync/push` (the offline-sync write path) accepted a
+  client-supplied `spaceId` on note/thread create+update with no access check — a second write surface
+  that bypassed the `requireSpaceAccess` + `canAuthorInSpace` gate the direct create endpoints already had.
+  Any authenticated user could inject content into a shared space they'd never joined. Closed by running
+  the same gate in `processNoteMutation`/`processThreadMutation` (`server/routes/sync.ts`).
+- **Member leave/removal and space delete now re-home content (closed).** Previously only the actor's own
+  notes were detached on `DELETE /api/spaces/:spaceId/members/:userId` and `DELETE /api/spaces/delete` —
+  other members' notes kept pointing at a space they could no longer access (`requireSpaceAccess` 403s)
+  and were never re-homed (the null-`spaceId` My Home backfill only fires on `spaceId IS NULL`). Both
+  paths now null every affected member's `spaceId` on notes/threads/connections (mirrors the existing
+  `remove-items` moderation flow), and delete cross-member highlight responses on notes leaving the space
+  (`deleteHighlightResponsesOnNotes` in `server/routes/spaces.ts`) with per-annotator sync tombstones so
+  offline clients drop them too.
+- **Locked notes fully excluded from shared contexts (closed).** `GET /api/notes/:id/details` on a
+  foreign note now 404s when `contentEncrypted` is true (it previously leaked title/metadata + unioned
+  annotations), and `requireSharedStudyThreadParentAccess` rejects annotating an encrypted parent note.
+- **Invite redeem is now atomic (closed).** `useCount` increment + the 30-person cap check + the
+  membership insert run inside one transaction with a guarded `UPDATE ... WHERE useCount < maxUses`,
+  closing a TOCTOU where concurrent redeems could exceed `maxUses=1` or the people cap.
+- **Moderation is remove-only (closed).** `PATCH /api/study-threads/:id` now requires
+  `auth.userId === entry.userId` — a space owner or note author could previously rewrite another member's
+  annotation content while it kept the original author's attribution. `DELETE` still allows
+  owner/note-author moderation, matching documented policy.
+- **Note-delete cascade cleans up foreign responses (closed).** Deleting a note now removes every member's
+  `StudyThreadEntry` rows anchored to it (previously only the deleter's own), with tombstones for the
+  others.
+
+**Performance / scaling:**
+- List-response note-content cap dropped from 20k to 2k chars (`NOTE_LIST_CONTENT_MAX_CHARS`,
+  `dashboard-data.ts`) — list surfaces only render a stripped preview and always reload the full body on
+  open, so the larger cap was pure unused payload (up to ~2 MB per bootstrap response at `limit=100`).
+- Unioned shared-space highlights list (`GET /api/spaces/:spaceId/study-thread-highlights`) is now capped
+  at 500 recency-ordered rows instead of unbounded.
+- `copy-notes` batches its source/metadata reads and wraps every insert in one transaction instead of
+  ~5 sequential round-trips per note with no atomicity.
+- `useUpdateNote`/`useShareNote` scope their React Query invalidation to the affected space instead of the
+  bare `['space']` key, which previously matched (and refetched) every mounted space on every note edit.
+- Public invite-preview is now rate-limited and no longer selects full note bodies.
+
+**Highlight overlay anchor correctness:**
+- `resolveStudyThreadPmRange` (`spa/src/lib/shared-highlight-overlay.ts`) previously trusted a stale
+  offset when neither stored interpretation (plain-text offset from overlay-mode creates vs. raw
+  ProseMirror position from normal-mode creates — both live in the same `anchorLocation`/`anchorLength`
+  columns) matched the `anchorTextSnapshot`, painting the overlay on the wrong text after the author
+  edited the body above the anchor. It now searches the doc for the snapshot text
+  (`findSnapshotPmRange`) and re-anchors, or drops the overlay (keeping the sidebar row) when the snapshot
+  is gone or ambiguous.
+
+See "Known gaps" below for what's still open (single dock carousel per anchor, author's-own-POV legend).
+
 ## Known gaps / fast-follow (explicit non-goals of this branch)
 
 - **Supabase Realtime + presence** — `src/hooks/useRealtimeSync.ts` is coded and mounted but disabled (no
@@ -309,39 +365,27 @@ non-interactive `npm run db:push` when schema drift is possible.
   to avoid touching the ~20 `homeSpaceId` call sites inside the large, heavily-used
   `PrototypeSidebar.tsx` in the same branch that also rewired the backend. A fast-follow can generalize
   those list modes once the foundation has shipped.
-- **Overlapping highlights on the same passage** — when the note author had an in-body highlight
-  before sharing and members add responses on the same span, today the surfaces stay separate (body mark
-  vs overlay). Future: overlay stack badge ("2") opening the dock carousel for all entries on that
-  anchor; optional note-level "show/hide responses" filter. No per-dock "mine vs responses" toggle
-  unless we collapse multiple `StudyThreadEntry` rows into one card.
-- **Owner highlights vs member responses (member POV feels broken)** — v1 uses two paint layers on
-  foreign notes: the **author's** pre-existing highlights live as in-body underline marks in the saved
-  note HTML; **member responses** render as overlay fills (anchor metadata only — nothing is written into
-  the author's TipTap body). That split is technically correct but confusing for members today:
-  - The author may have highlighted a passage *before* sharing; a member opening the note sees those
-    underlines with no clear label that they are the **owner's** highlights, not responses or editable
-    marks.
-  - When a member highlights to respond on text the owner already underlined, the member sees their
-    response overlay stacked on top of the owner's underline — two different visual languages on one
-    span with no explanation of which is which.
-  - The Highlights sidebar list is unioned (everyone's rows, with author chips), but the in-note surface
-    does not yet mirror that clarity — members cannot easily tell "owner study mark" vs "my response" vs
-    "someone else's response" without opening docks.
-  **Follow-up product work (not scoped in foundation):**
-  1. **Visual legend / affordance on foreign notes** — e.g. short copy or icons: owner underline = author's
-     highlight; fill = a member's response. Consider dimming or de-emphasizing owner marks when the viewer
-     is annotating (read-only banner already signals "can't edit").
-  2. **Same-anchor management** — when owner mark and one or more member responses share an anchor,
-     decide whether members should see owner marks at all, see them collapsed behind a stack badge, or
-     see them in a separate "author highlights" layer toggle. Author viewing their own note has the
-     inverse problem (their underline + others' overlays).
-  3. **Existing owner highlights at share time** — no migration today; marks stay in the body as-is. Product
-     should decide if shared notes need a one-time "responses only on foreign view" rule (hide owner marks
-     from members), or if owner marks become read-only context members can still respond beneath.
-  4. **Single carousel entry per anchor** — related to overlap above: one tap opens all study threads on
-     that span (owner + members) with author chips inside the dock, instead of competing surfaces.
-  Until then, treat member confusion on foreign notes with pre-existing owner highlights as a known UX
-  gap, not a bug in the overlay implementation alone.
+- **Overlapping highlights on the same passage — grouping done, carousel deferred.** Two-or-more member
+  responses on the same span now group onto one overlay anchor with a count badge instead of stacking
+  identical unclickable buttons (`SharedStudyHighlightOverlay.tsx` `computeRects`, grouped via
+  `pmRangesOverlap`). Tapping the badge still opens only the newest response's dock — **one dock per
+  anchor showing all N entries (a mini-carousel inside the card) is not built**. It needs a session-shape
+  change to `HighlightDockSession`/`HighlightDockWeb` (`src/utils/study-dock-stack.ts`,
+  `src/components/react/HighlightDockWeb.tsx`), which are shared with scripture pills and dictionary
+  references app-wide, not scoped to shared spaces — a deliberate scope cut, not an oversight. Grouped
+  entry ids are already threaded through `SharedHighlightOverlayRect.entryIds` and
+  `onSelectEntry(entryId, anchorEntryIds)` for whoever picks this up.
+- **Owner highlights vs member responses (member POV) — partially addressed.** Foreign notes now show a
+  legend in the read-only banner (dashed = author's highlight, filled = a response,
+  `PrototypeSharedNoteReadOnlyBanner.tsx`) once responses exist, and the author's in-body marks render
+  dashed on a foreign note to read as non-editable context (`prototype-editor.css`,
+  `[data-foreign-shared-annotate='true'] mark`). Still open:
+  - **Author's own POV** — viewing your own shared note still shows members' response overlays on top of
+    your editable marks with no reciprocal legend; only the foreign-note direction got the legend.
+  - **Existing owner highlights at share time** — no migration; marks stay in the body as-is, now just
+    styled dashed on the foreign view. Product still owns the decision on whether to hide owner marks from
+    members entirely.
+  - **Single carousel entry per anchor** — see above.
 
 ## Local dev testing guide
 
