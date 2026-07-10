@@ -18,6 +18,7 @@ export default defineConfig({
   build: {
     outDir: '../dist-spa',
     emptyOutDir: true,
+    sourcemap: 'hidden',
     chunkSizeWarningLimit: 2500,
     rollupOptions: {
       output: {

@@ -6,7 +6,7 @@ import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 import { pushNavStack } from '@/utils/nav-stack';
-import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink, stripNoteLinksToNoteId } from '@/utils/tiptap-helpers';
+import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink, stripNoteLinksToNoteId, isTiptapViewReady } from '@/utils/tiptap-helpers';
 import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
@@ -1231,7 +1231,7 @@ export default function CardFullEditable({
             const editor = editorInstanceRef.current;
             
             // Check if editor is still valid (not destroyed)
-            if (editor && !editor.isDestroyed && editor.view && editor.view.docView) {
+            if (editor && !editor.isDestroyed && isTiptapViewReady(editor)) {
               // Helper function to apply noteLink mark at a specific position
               const applyNoteLink = (positionFrom: number, positionTo: number): boolean => {
               try {
@@ -1268,8 +1268,7 @@ export default function CardFullEditable({
             const saveUpdatedContent = () => {
               setTimeout(async () => {
                   // Check again if editor is still valid
-                  if (!editor || editor.isDestroyed) return;
-                  if (!editor.view || !editor.view.docView) return;
+                  if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return;
                   
                   try {
                     const updatedContent = editor.getHTML();
@@ -1694,21 +1693,28 @@ export default function CardFullEditable({
       const savedScroll = scrollPosition;
 
       // Restore scroll first so posAtCoords matches the view the user clicked in
-      const scrollEl = editor.view?.dom?.closest?.('.tiptap-content') as HTMLElement | null;
+      let scrollEl: HTMLElement | null = null;
+      if (isTiptapViewReady(editor)) {
+        try {
+          scrollEl = editor.view.dom.closest('.tiptap-content') as HTMLElement | null;
+        } catch {
+          /* ignore pre-mount view access */
+        }
+      }
       if (scrollEl && savedScroll > 0) {
         scrollEl.scrollTop = savedScroll;
       }
 
       requestAnimationFrame(() => {
         requestAnimationFrame(async () => {
-          if (!editor || editor.isDestroyed || !editor.view?.docView) return;
+          if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return;
           try {
             editor.commands.focus();
             keyboardProxyRef.current?.blur();
             const doc = editor.state.doc;
             const maxPos = doc.content.size;
             try {
-              if (coords && scrollEl && editor.view.posAtCoords) {
+              if (coords && scrollEl) {
                 const rect = scrollEl.getBoundingClientRect();
                 const viewportX = rect.left + coords.contentX - scrollEl.scrollLeft;
                 const viewportY = rect.top + coords.contentY - scrollEl.scrollTop;

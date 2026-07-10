@@ -162,11 +162,10 @@ export default function ReferenceDockWeb({
   const noteAccent: StudyHighlightAccentKey =
     noteHighlightAccent && isStudyHighlightAccentKey(noteHighlightAccent) ? noteHighlightAccent : 'warmAmber';
   const savedReferenceHighlight = !!(noteHighlightRange || passageReferenceSaved);
+  const showPendingSave = (pendingSuggestion || passageReference) && !!onSaveReference;
   const accentColor = showPendingSave
     ? SCRIPTURE_DOCK_ACCENT_COLORS.warmAmber
     : SCRIPTURE_DOCK_ACCENT_COLORS[savedReferenceHighlight ? noteAccent : 'neutral'];
-
-  const showPendingSave = (pendingSuggestion || passageReference) && !!onSaveReference;
 
   const scriptureRefToggle =
     scriptureRefs.length > 0 && onOpenScripturePassage ? (

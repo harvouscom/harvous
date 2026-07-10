@@ -4159,7 +4159,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     content: normalizeEmptyBodyHtmlForEditor(sanitizeScripturePillHtml(content)) || '<p></p>',
     onCreate: ({ editor }) => {
       if (onEditorReady) {
-        onEditorReady(editor);
+        const notifyWhenReady = (attempt = 0) => {
+          if (isTiptapViewReady(editor)) {
+            onEditorReady(editor);
+            return;
+          }
+          if (attempt < 60) {
+            requestAnimationFrame(() => notifyWhenReady(attempt + 1));
+          }
+        };
+        notifyWhenReady();
       }
       queueMicrotask(() => {
         try {
@@ -5641,7 +5650,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   // Store editor reference on DOM for fallback event injection (backup method)
   useEffect(() => {
-    if (!editor || !editor.view || !editor.view.dom) return;
+    if (!editor || !isEditorValid(editor)) return;
 
     const dom = editor.view.dom as HTMLElement;
     const editorId = dom.id;
@@ -6563,7 +6572,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   /** Close scripture dock when the caret/selection leaves the tapped pill (prototype web). */
   useEffect(() => {
-    if (!editor || editorChromeMode !== 'prototypeNative') return;
+    if (!editor || editorChromeMode !== 'prototypeNative' || !isEditorValid(editor)) return;
 
     const isPassageInteractionActive = (): boolean => {
       if (studyDockPointerDownRef.current) return true;
