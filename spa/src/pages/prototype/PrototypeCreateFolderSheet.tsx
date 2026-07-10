@@ -1,14 +1,18 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { useCreateFolderRegistryLabel } from '../../hooks/mutations/usePrototypeFolderRegistry';
-import { useAddNotesToFolder } from '../../hooks/mutations/useAddNotesToFolder';
+import {
+  useAddNotesToFolder,
+  type FolderMutationSpaceKind,
+} from '../../hooks/mutations/useAddNotesToFolder';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import { PrototypeAddNotesPicker, resolveSelectedNoteRows } from './PrototypeAddNotesSheet';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 
@@ -16,6 +20,7 @@ export interface PrototypeCreateFolderSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   spaceId: string;
+  spaceKind: FolderMutationSpaceKind;
   spaceNotes: SpaceNoteRow[];
   notesById: Map<string, SpaceNoteRow>;
   onCreated: (folderName: string) => void;
@@ -25,6 +30,7 @@ export default function PrototypeCreateFolderSheet({
   open,
   onOpenChange,
   spaceId,
+  spaceKind,
   spaceNotes,
   notesById,
   onCreated,
@@ -34,7 +40,6 @@ export default function PrototypeCreateFolderSheet({
   const createFolder = useCreateFolderRegistryLabel();
   const addNotes = useAddNotesToFolder();
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [folderName, setFolderName] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -55,6 +60,19 @@ export default function PrototypeCreateFolderSheet({
   const usePopoverPresentation = !shouldUseSheetPresentation;
   const showPopoverPortal = usePopoverPresentation && mounted;
 
+  const { position } = useProtoAnchoredPopoverPosition(
+    cardRef,
+    {},
+    {
+      enabled: showPopoverPortal,
+      strategy: 'centered',
+      topVhFraction: 0.12,
+      fallbackWidth: 360,
+      fallbackHeight: 480,
+    },
+    [selectedIds.length, folderName],
+  );
+
   const handleSubmit = async () => {
     const name = folderName.trim();
     if (!name) return;
@@ -64,7 +82,12 @@ export default function PrototypeCreateFolderSheet({
       if (selectedIds.length > 0) {
         const rows = resolveSelectedNoteRows(selectedIds, notesById, spaceNotes);
         if (rows.length > 0) {
-          await addNotes.mutateAsync({ rows, folderName: name, spaceId });
+          await addNotes.mutateAsync({
+            rows,
+            folderName: name,
+            spaceId,
+            spaceKind,
+          });
         }
       }
       onOpenChange(false);
@@ -78,19 +101,6 @@ export default function PrototypeCreateFolderSheet({
       setActionError(err instanceof Error ? err.message : 'Could not create folder.');
     }
   };
-
-  useLayoutEffect(() => {
-    if (!showPopoverPortal) return;
-    const cardHeight = cardRef.current?.getBoundingClientRect().height ?? 480;
-    const cardWidth = cardRef.current?.getBoundingClientRect().width ?? 360;
-    const viewportMargin = 12;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    setPosition({
-      left: Math.max(viewportMargin, (vw - cardWidth) / 2),
-      top: Math.max(viewportMargin, Math.min(vh - cardHeight - viewportMargin, vh * 0.12)),
-    });
-  }, [showPopoverPortal, selectedIds.length, folderName]);
 
   useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation);
 

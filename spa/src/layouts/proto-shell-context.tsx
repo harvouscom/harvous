@@ -7,6 +7,7 @@ import {
   type SidebarListSpaceScope,
 } from '../pages/prototype/proto-sidebar-nav-store';
 import type { ScriptureDrillState } from '../pages/prototype/sidebar-universal-search';
+import { setComposeGroupThreadId } from '../lib/compose-group-thread';
 
 /** Breakpoint sync with prototype-shell.css (899px drawer). */
 const MOBILE_MQ = '(max-width: 899px)';
@@ -38,6 +39,45 @@ export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture' |
 
 /** Sidebar layer — Home space dashboard vs the list views. Only 'space' layer content today is My Home. */
 export type SidebarLayer = 'space' | 'list';
+
+export type VisibleComposeTargetInput = {
+  homeSpaceId: string | null | undefined;
+  activeSpaceId: string | null | undefined;
+  sidebarLayer: SidebarLayer;
+  sidebarListSpaceScope: SidebarListSpaceScope;
+};
+
+function normalizeComposeSpaceId(spaceId: string | null | undefined): string | null {
+  const trimmed = spaceId?.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith('space_') ? trimmed : `space_${trimmed}`;
+}
+
+/** Resolve new-note placement from the sidebar scope the user can currently see. */
+export function resolveVisibleComposeTarget({
+  homeSpaceId,
+  activeSpaceId,
+  sidebarLayer,
+  sidebarListSpaceScope,
+}: VisibleComposeTargetInput): string | null {
+  const home = normalizeComposeSpaceId(homeSpaceId);
+  const active = normalizeComposeSpaceId(activeSpaceId);
+  const showingSharedSpace =
+    Boolean(active && active !== home) &&
+    (sidebarLayer === 'space' || sidebarListSpaceScope === 'space');
+  return showingSharedSpace ? active : home;
+}
+
+export function isVisiblePrototypeSharedContext(options: {
+  explicitContextSpaceId?: string | null;
+  visibleTargetSpaceId?: string | null;
+  homeSpaceId?: string | null;
+}): boolean {
+  if (options.explicitContextSpaceId?.trim()) return true;
+  const visible = normalizeComposeSpaceId(options.visibleTargetSpaceId);
+  const home = normalizeComposeSpaceId(options.homeSpaceId);
+  return Boolean(visible && visible !== home);
+}
 
 /** A proposed thread surfaced from a Home theme card, pending user review/accept. */
 export interface ThreadProposal {
@@ -622,6 +662,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const beginPrototypeComposeSession = useCallback((options?: { targetSpaceId?: string }) => {
     setComposePersistedNoteIdState(null);
     const target = options?.targetSpaceId?.trim();
+    setComposeGroupThreadId(null);
     setComposeTargetSpaceIdOverrideState(
       target ? (target.startsWith('space_') ? target : `space_${target}`) : null,
     );

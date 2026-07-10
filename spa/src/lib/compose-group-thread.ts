@@ -16,3 +16,17 @@ export function setComposeGroupThreadId(threadId: string | null) {
     /* ignore */
   }
 }
+
+/**
+ * Start a shared-space compose session and then preselect its real Thread.
+ * `beginCompose` clears stale selection first, so ordering is intentional.
+ */
+export function beginComposeInGroupThread(
+  spaceId: string,
+  threadId: string,
+  beginCompose: (options: { targetSpaceId: string }) => number,
+): number {
+  const epoch = beginCompose({ targetSpaceId: spaceId });
+  setComposeGroupThreadId(threadId);
+  return epoch;
+}

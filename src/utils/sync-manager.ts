@@ -204,6 +204,8 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
       const notes: OfflineNote[] = bootstrapData.notes.map((note: any) =>
         ensureUserPartition<OfflineNote>({
           id: note.id,
+          currentVersion:
+            typeof note.currentVersion === 'number' ? note.currentVersion : undefined,
           title: note.title,
           content: note.content,
           contentEncrypted: note.contentEncrypted === true,
@@ -438,6 +440,10 @@ export async function applyIncrementalChanges(userId: string, changes: any): Pro
         if (!existing || lastModified >= (existing.lastModified || 0)) {
           const offlineNote: OfflineNote = ensureUserPartition<OfflineNote>({
             id: note.id,
+            currentVersion:
+              typeof (note as any).currentVersion === 'number'
+                ? (note as any).currentVersion
+                : existing?.currentVersion,
             title: note.title,
             content: note.content,
             contentEncrypted: (note as any).contentEncrypted === true,

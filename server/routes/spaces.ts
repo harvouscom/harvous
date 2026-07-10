@@ -4,6 +4,7 @@
  * Endpoints:
  *   POST   /api/spaces/create
  *   DELETE /api/spaces/delete
+ *   GET    /api/spaces/deleted
  *   GET    /api/spaces/items
  *   POST   /api/spaces/:spaceId/update
  *   GET    /api/spaces/:spaceId/notes
@@ -36,9 +37,9 @@ import { Hono } from 'hono';
 import { getTableColumns } from 'drizzle-orm';
 import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
-  db, Spaces, Notes, Threads, NoteThreads, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, UserMetadata, ResourceMetadata, ScriptureMetadata,
+  db, Spaces, Notes, Threads, NoteThreads, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, SpaceNotes, UserMetadata, ResourceMetadata, ScriptureMetadata,
   StudyThreadEntries, NoteConnections,
-  eq, and, ne, count, inArray, desc, asc, sql, isNull, isNotNull, gt, or,
+  eq, and, ne, count, inArray, desc, asc, sql, isNull, isNotNull, gt, gte, or,
   first,
 } from '../db';
 import { nowISO } from '../db/dates';
@@ -55,7 +56,11 @@ import {
   filterThreadClusterEdgesForRemoval,
   normalizeThreadClusterMemberIds,
 } from '@/utils/thread-cluster-bulk-actions';
-import { broadcastNoteInvalidation } from '../utils/broadcast-shared-space-note';
+import {
+  broadcastCanonicalNoteInvalidation,
+  broadcastNoteInvalidation,
+} from '../utils/broadcast-shared-space-note';
+import { broadcastInvalidation } from '../utils/realtime';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import {
   getSpacesWithCounts,
@@ -63,10 +68,17 @@ import {
   getNotesForSharedSpace,
   getThreadsForSpace,
   getThreadsForSpaceBySpaceId,
+  visibleSharedThreadsForViewer,
   getThreadColorsForNotesBatch,
   batchAuthorAttribution,
 } from '../utils/dashboard-data';
-import { requireSpaceAccess, SpaceAccessError, canAuthorInSpace, canManageSpaceStructure } from '../utils/space-access';
+import {
+  requireSpaceAccess,
+  SpaceAccessError,
+  canAuthorInSpace,
+  canManageSpaceStructure,
+  isActualSpaceOwner,
+} from '../utils/space-access';
 import {
   getSharedSpaceActivityPreview,
   isNoteNewSinceVisit,
@@ -113,6 +125,23 @@ import { buildSpaceReferencesIndex } from '../utils/build-space-references-index
 import { getPublicAppOrigin } from '../utils/public-app-origin';
 import { mapStudyRow } from './study-threads';
 import { isStudyThreadEntriesTableMissing } from '../utils/pg-undefined-relation';
+import { ensurePersonalHomeSpace } from '../utils/ensure-personal-home-space';
+import { createInitialNoteVersion } from '../utils/note-version-service';
+import { buildIndependentCopyAttribution } from '../utils/note-versioning';
+import {
+  SharedSpaceLifecycleError,
+  archiveNoteFromSpace,
+  associateAuthoredNoteWithSpace,
+  canRestoreDeletedSpace,
+  removeMemberPreservingResponses,
+  serializeSpaceMemberForViewer,
+  serializeInvitePreview,
+  safeMemberDisplayName,
+  runBoundedExpiredSpaceMaintenance,
+  evaluateLockedInviteRedemption,
+  setSingularThreadPin,
+  softDeleteSharedSpaceInTransaction,
+} from '../utils/shared-space-lifecycle';
 import {
   pickStudyThreadRepresentativeNoteId,
   suggestStudyThreadTitleFromNodes,
@@ -123,11 +152,27 @@ import { resolveStudyThreadClusterNaming } from '../utils/study-thread-cluster-n
 import { studyThreadEligibleForHighlightList } from '@/utils/study-thread-highlight-eligibility';
 import { sortStudyThreadClustersByTitle } from '@/utils/sorting';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
+import {
+  hasSharedNoteOrganizationMutation,
+  normalizeSharedNoteOrganizationMutation,
+  serializeSharedNoteOrganization,
+  SharedNoteOrganizationValidationError,
+  SHARED_NOTE_ORGANIZATION_MUTATION_KEYS,
+} from '../utils/shared-note-serializer';
 
 const route = new Hono();
 
 function normalizePrototypeSpaceId(spaceIdRaw: string): string {
   return spaceIdRaw.startsWith('space_') ? spaceIdRaw : `space_${spaceIdRaw}`;
+}
+
+function activeSpaceNotePredicate(spaceId: string) {
+  return sql`EXISTS (
+    SELECT 1 FROM ${SpaceNotes}
+    WHERE ${SpaceNotes.spaceId} = ${spaceId}
+      AND ${SpaceNotes.noteId} = ${Notes.id}
+      AND ${SpaceNotes.removedAt} IS NULL
+  )`;
 }
 
 /** Upper bound on rows the unioned shared-space highlights list returns. */
@@ -327,7 +372,7 @@ route.post('/api/spaces/create-shared', requireAuth, rateLimit('write'), async (
 });
 
 // ─── DELETE /api/spaces/delete ──────────────────────────────────────────────
-route.delete('/api/spaces/delete', requireAuth, async (c) => {
+route.delete('/api/spaces/delete', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
@@ -336,6 +381,33 @@ route.delete('/api/spaces/delete', requireAuth, async (c) => {
 
     const space = first(await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).limit(1));
     if (!space) return c.json({ error: 'Space not found or access denied' }, 404);
+    if (space.deletedAt) {
+      return c.json({ error: 'Space is already deleted', code: 'ALREADY_DELETED' }, 409);
+    }
+
+    if (space.type !== 'personal') {
+      const recipients = await db
+        .select({ userId: SpaceMemberships.userId })
+        .from(SpaceMemberships)
+        .where(eq(SpaceMemberships.spaceId, spaceId));
+      const deleted = await db.transaction((tx) =>
+        softDeleteSharedSpaceInTransaction(tx, {
+          spaceId,
+          ownerId: auth.userId,
+          now: nowISO(),
+        }),
+      );
+      for (const recipientId of new Set(recipients.map((row) => row.userId))) {
+        broadcastInvalidation(recipientId, { type: 'space:updated', id: spaceId });
+      }
+      return c.json({
+        success: 'Space deleted!',
+        spaceId,
+        deletedAt: deleted.deletedAt,
+        recoveryUntil: deleted.recoveryUntil,
+        recoverable: true,
+      });
+    }
 
     await db.delete(SpaceMemberships).where(eq(SpaceMemberships.spaceId, spaceId));
     await db.delete(SpaceInvites).where(eq(SpaceInvites.spaceId, spaceId));
@@ -358,8 +430,96 @@ route.delete('/api/spaces/delete', requireAuth, async (c) => {
 
     return c.json({ success: 'Space deleted!', spaceId });
   } catch (error: any) {
+    if (error instanceof SharedSpaceLifecycleError) {
+      return c.json({ error: error.message, code: error.code }, error.status);
+    }
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/delete', action: 'delete_space' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/spaces/deleted ─────────────────────────────────────────────────
+// Keep this static route above parameterized /api/spaces/:spaceId routes.
+route.get('/api/spaces/deleted', requireAuth, async (c) => {
+  const auth = getAuthenticatedAuth(c);
+  const now = nowISO();
+  await runBoundedExpiredSpaceMaintenance(now);
+
+  const spaces = await db
+    .select({
+      id: Spaces.id,
+      title: Spaces.title,
+      color: Spaces.color,
+      backgroundGradient: Spaces.backgroundGradient,
+      coverBgLight: Spaces.coverBgLight,
+      coverBgDark: Spaces.coverBgDark,
+      deletedAt: Spaces.deletedAt,
+      recoveryUntil: Spaces.recoveryUntil,
+    })
+    .from(Spaces)
+    .where(
+      and(
+        eq(Spaces.userId, auth.userId),
+        ne(Spaces.type, 'personal'),
+        isNotNull(Spaces.deletedAt),
+        isNotNull(Spaces.recoveryUntil),
+        gte(Spaces.recoveryUntil, now),
+        eq(Spaces.isActive, false),
+      ),
+    )
+    .orderBy(asc(Spaces.recoveryUntil), asc(Spaces.title), asc(Spaces.id));
+
+  return c.json({
+    spaces: spaces.map((space) => ({
+      ...space,
+      deletedAt: space.deletedAt?.toISOString() ?? null,
+      recoveryUntil: space.recoveryUntil?.toISOString() ?? null,
+    })),
+  });
+});
+
+route.post('/api/spaces/:spaceId/restore', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, 'spaceId');
+    const restored = await db.transaction(async (tx) => {
+      const space = first(
+        await tx
+          .select()
+          .from(Spaces)
+          .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId)))
+          .for('update')
+          .limit(1),
+      ) as typeof Spaces.$inferSelect | undefined;
+      if (!space) throw new SharedSpaceLifecycleError('Space not found', 'NOT_FOUND', 404);
+      if (!canRestoreDeletedSpace(space, nowISO())) {
+        throw new SharedSpaceLifecycleError(
+          'Space recovery window has expired',
+          'RECOVERY_EXPIRED',
+          409,
+        );
+      }
+      return first(
+        await tx
+          .update(Spaces)
+          .set({ deletedAt: null, recoveryUntil: null, isActive: true, updatedAt: nowISO() })
+          .where(eq(Spaces.id, spaceId))
+          .returning(),
+      );
+    });
+    const recipients = await db
+      .select({ userId: SpaceMemberships.userId })
+      .from(SpaceMemberships)
+      .where(eq(SpaceMemberships.spaceId, spaceId));
+    for (const recipientId of new Set(recipients.map((row) => row.userId))) {
+      broadcastInvalidation(recipientId, { type: 'space:updated', id: spaceId });
+    }
+    return c.json({ success: true, space: restored });
+  } catch (error) {
+    if (error instanceof SharedSpaceLifecycleError) {
+      return c.json({ error: error.message, code: error.code }, error.status);
+    }
+    throw error;
   }
 });
 
@@ -367,6 +527,7 @@ route.delete('/api/spaces/delete', requireAuth, async (c) => {
 route.get('/api/spaces/items', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
+    await runBoundedExpiredSpaceMaintenance();
 
     const allNotesRaw = await db.select({
       id: Notes.id, title: Notes.title, content: Notes.content,
@@ -548,6 +709,139 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
   }
 });
 
+// ─── PATCH /api/spaces/:spaceId/notes/:noteId ───────────────────────────────
+route.patch('/api/spaces/:spaceId/notes/:noteId', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, 'spaceId');
+    const noteId = requireParam(c, 'noteId');
+    let body: Record<string, unknown>;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'Invalid JSON body', code: 'BAD_REQUEST' }, 400);
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return c.json({ error: 'Organization payload is required', code: 'BAD_REQUEST' }, 400);
+    }
+    const unsupportedKeys = Object.keys(body).filter(
+      (key) =>
+        !(SHARED_NOTE_ORGANIZATION_MUTATION_KEYS as readonly string[]).includes(key),
+    );
+    if (unsupportedKeys.length > 0) {
+      return c.json({
+        error: `Unsupported organization fields: ${unsupportedKeys.join(', ')}`,
+        code: 'BAD_REQUEST',
+      }, 400);
+    }
+    if (!hasSharedNoteOrganizationMutation(body)) {
+      return c.json({ error: 'At least one organization field is required', code: 'BAD_REQUEST' }, 400);
+    }
+
+    const organization = await db.transaction(async (tx) => {
+      const space = first(
+        await tx
+          .select()
+          .from(Spaces)
+          .where(eq(Spaces.id, spaceId))
+          .for('update')
+          .limit(1),
+      );
+      if (!space || space.deletedAt || space.type === 'personal') {
+        throw new SharedSpaceLifecycleError('Shared space not found', 'NOT_FOUND', 404);
+      }
+      const membership = first(
+        await tx
+          .select({ id: SpaceMemberships.id })
+          .from(SpaceMemberships)
+          .where(
+            and(
+              eq(SpaceMemberships.spaceId, spaceId),
+              eq(SpaceMemberships.userId, auth.userId),
+            ),
+          )
+          .for('update')
+          .limit(1),
+      );
+      if (!membership) {
+        throw new SharedSpaceLifecycleError('Access denied', 'FORBIDDEN', 403);
+      }
+      const note = first(
+        await tx
+          .select({
+            id: Notes.id,
+            userId: Notes.userId,
+            contentEncrypted: Notes.contentEncrypted,
+          })
+          .from(Notes)
+          .where(eq(Notes.id, noteId))
+          .for('update')
+          .limit(1),
+      );
+      if (!note || note.contentEncrypted) {
+        throw new SharedSpaceLifecycleError('Note not found in space', 'NOT_FOUND', 404);
+      }
+      if (note.userId !== auth.userId && space.userId !== auth.userId) {
+        throw new SharedSpaceLifecycleError(
+          'Only the note author or space owner can organize this note',
+          'FORBIDDEN',
+          403,
+        );
+      }
+      const association = first(
+        await tx
+          .select()
+          .from(SpaceNotes)
+          .where(
+            and(
+              eq(SpaceNotes.spaceId, spaceId),
+              eq(SpaceNotes.noteId, noteId),
+              isNull(SpaceNotes.removedAt),
+            ),
+          )
+          .for('update')
+          .limit(1),
+      );
+      if (!association) {
+        throw new SharedSpaceLifecycleError('Note not found in space', 'NOT_FOUND', 404);
+      }
+      const normalized = normalizeSharedNoteOrganizationMutation(body, association);
+      const updated = first(
+        await tx
+          .update(SpaceNotes)
+          .set({ ...normalized.patch, updatedAt: nowISO() })
+          .where(eq(SpaceNotes.id, association.id))
+          .returning(),
+      );
+      if (!updated) throw new Error('Failed to update space note organization');
+      return serializeSharedNoteOrganization(updated);
+    });
+
+    await broadcastNoteInvalidation(auth.userId, spaceId, {
+      type: 'note:updated',
+      id: noteId,
+    });
+    return c.json({
+      success: true,
+      noteId,
+      contextSpaceId: spaceId,
+      organization,
+    });
+  } catch (error) {
+    if (error instanceof SharedNoteOrganizationValidationError) {
+      return c.json({ error: error.message, code: error.code }, 400);
+    }
+    if (error instanceof SharedSpaceLifecycleError) {
+      return c.json({ error: error.message, code: error.code }, error.status);
+    }
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/notes/[noteId]',
+      action: 'update_space_note_organization',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── GET /api/spaces/:spaceId/folder-registry ───────────────────────────────
 /** Empty-folder labels for prototype sidebar (labels with zero notes). */
 route.get('/api/spaces/:spaceId/folder-registry', requireAuth, async (c) => {
@@ -630,8 +924,9 @@ route.post('/api/spaces/:spaceId/folder-registry/remove-label', requireAuth, rat
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
     try {
-      await requireSpaceAccess(spaceIdNorm, auth.userId);
+      access = await requireSpaceAccess(spaceIdNorm, auth.userId);
     } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
@@ -693,26 +988,60 @@ route.post('/api/spaces/:spaceId/folders/remove', requireAuth, rateLimit('write'
 
     const stripAllMembers = access.space.type !== 'personal' && access.role === 'owner';
 
-    const noteRows = await db
-      .select({
-        id: Notes.id,
-        userId: Notes.userId,
-        threadId: Notes.threadId,
-        addedBy: Notes.addedBy,
-        primaryCollection: Notes.primaryCollection,
-        secondaryCollections: Notes.secondaryCollections,
-        collectionPinned: Notes.collectionPinned,
-        collectionUserOverride: Notes.collectionUserOverride,
-      })
-      .from(Notes)
-      .where(
-        and(
-          eq(Notes.spaceId, spaceIdNorm),
-          ...(stripAllMembers ? [] : [eq(Notes.userId, auth.userId)]),
-          NOT_ONBOARDING_NOTES_THREAD,
-          NOT_ONBOARDING_SYSTEM_NOTES,
-        ),
-      );
+    const noteRows: Array<{
+      id: string;
+      associationId?: string;
+      userId: string;
+      threadId: string;
+      addedBy: string;
+      primaryCollection: string | null;
+      secondaryCollections: string | null;
+      collectionPinned: boolean;
+      collectionUserOverride: boolean;
+    }> = access.space.type === 'personal'
+      ? await db
+          .select({
+            id: Notes.id,
+            userId: Notes.userId,
+            threadId: Notes.threadId,
+            addedBy: Notes.addedBy,
+            primaryCollection: Notes.primaryCollection,
+            secondaryCollections: Notes.secondaryCollections,
+            collectionPinned: Notes.collectionPinned,
+            collectionUserOverride: Notes.collectionUserOverride,
+          })
+          .from(Notes)
+          .where(
+            and(
+              eq(Notes.spaceId, spaceIdNorm),
+              ...(stripAllMembers ? [] : [eq(Notes.userId, auth.userId)]),
+              NOT_ONBOARDING_NOTES_THREAD,
+              NOT_ONBOARDING_SYSTEM_NOTES,
+            ),
+          )
+      : await db
+          .select({
+            id: Notes.id,
+            associationId: SpaceNotes.id,
+            userId: Notes.userId,
+            threadId: Notes.threadId,
+            addedBy: Notes.addedBy,
+            primaryCollection: SpaceNotes.primaryCollection,
+            secondaryCollections: SpaceNotes.secondaryCollections,
+            collectionPinned: SpaceNotes.collectionPinned,
+            collectionUserOverride: SpaceNotes.collectionUserOverride,
+          })
+          .from(SpaceNotes)
+          .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
+          .where(
+            and(
+              eq(SpaceNotes.spaceId, spaceIdNorm),
+              isNull(SpaceNotes.removedAt),
+              ...(stripAllMembers ? [] : [eq(Notes.userId, auth.userId)]),
+              eq(Notes.contentEncrypted, false),
+              NOT_ONBOARDING_SYSTEM_NOTES,
+            ),
+          );
 
     let updatedCount = 0;
     const touchedNotesByUser = new Map<string, string[]>();
@@ -741,7 +1070,12 @@ route.post('/api/spaces/:spaceId/folders/remove', requireAuth, rateLimit('write'
         updateData.collectionLastAutoUpdatedAt = null;
       }
 
-      await db.update(Notes).set(updateData).where(eq(Notes.id, note.id));
+      if (note.associationId) {
+        delete updateData.collectionLastAutoUpdatedAt;
+        await db.update(SpaceNotes).set(updateData).where(eq(SpaceNotes.id, note.associationId));
+      } else {
+        await db.update(Notes).set(updateData).where(eq(Notes.id, note.id));
+      }
       const list = touchedNotesByUser.get(note.userId) ?? [];
       list.push(note.id);
       touchedNotesByUser.set(note.userId, list);
@@ -789,8 +1123,9 @@ route.post('/api/spaces/:spaceId/threads/remove', requireAuth, rateLimit('write'
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
     try {
-      await requireSpaceAccess(spaceIdNorm, auth.userId);
+      access = await requireSpaceAccess(spaceIdNorm, auth.userId);
     } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
@@ -891,7 +1226,12 @@ route.get('/api/spaces/:spaceId/study-thread-highlights', requireAuth, async (c)
             eq(StudyThreadEntries.isArchived, false),
             ne(StudyThreadEntries.entryKindRaw, 'workspace'),
             highlightCandidates,
-            eq(Notes.spaceId, spaceIdNorm),
+            ...(isPersonalSpace
+              ? [eq(Notes.spaceId, spaceIdNorm)]
+              : [
+                  activeSpaceNotePredicate(spaceIdNorm),
+                  eq(StudyThreadEntries.spaceId, spaceIdNorm),
+                ]),
             eq(Notes.contentEncrypted, false),
             ...(isPersonalSpace
               ? [eq(StudyThreadEntries.userId, auth.userId), eq(Notes.userId, auth.userId)]
@@ -951,8 +1291,9 @@ route.get('/api/spaces/:spaceId/scripture-index', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
     try {
-      await requireSpaceAccess(spaceIdNorm, auth.userId);
+      access = await requireSpaceAccess(spaceIdNorm, auth.userId);
     } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
@@ -969,8 +1310,9 @@ route.get('/api/spaces/:spaceId/scripture-index', requireAuth, async (c) => {
       .from(Notes)
       .where(
         and(
-          eq(Notes.spaceId, spaceIdNorm),
-          eq(Notes.userId, auth.userId),
+          ...(access.space.type === 'personal'
+            ? [eq(Notes.spaceId, spaceIdNorm), eq(Notes.userId, auth.userId)]
+            : [activeSpaceNotePredicate(spaceIdNorm)]),
           eq(Notes.contentEncrypted, false),
           ne(Notes.noteType, 'scripture'),
           NOT_ONBOARDING_NOTES_THREAD,
@@ -1003,8 +1345,9 @@ route.get('/api/spaces/:spaceId/scripture-connections', requireAuth, async (c) =
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
     try {
-      await requireSpaceAccess(spaceIdNorm, auth.userId);
+      access = await requireSpaceAccess(spaceIdNorm, auth.userId);
     } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
@@ -1021,8 +1364,9 @@ route.get('/api/spaces/:spaceId/scripture-connections', requireAuth, async (c) =
       .from(Notes)
       .where(
         and(
-          eq(Notes.spaceId, spaceIdNorm),
-          eq(Notes.userId, auth.userId),
+          ...(access.space.type === 'personal'
+            ? [eq(Notes.spaceId, spaceIdNorm), eq(Notes.userId, auth.userId)]
+            : [activeSpaceNotePredicate(spaceIdNorm)]),
           eq(Notes.contentEncrypted, false),
           ne(Notes.noteType, 'scripture'),
           NOT_ONBOARDING_NOTES_THREAD,
@@ -1083,8 +1427,9 @@ route.get('/api/spaces/:spaceId/references-index', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
     try {
-      await requireSpaceAccess(spaceIdNorm, auth.userId);
+      access = await requireSpaceAccess(spaceIdNorm, auth.userId);
     } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
@@ -1099,7 +1444,12 @@ route.get('/api/spaces/:spaceId/references-index', requireAuth, async (c) => {
       })
       .from(Notes)
       .where(
-        and(eq(Notes.spaceId, spaceIdNorm), eq(Notes.userId, auth.userId), eq(Notes.contentEncrypted, false)),
+        and(
+          ...(access.space.type === 'personal'
+            ? [eq(Notes.spaceId, spaceIdNorm), eq(Notes.userId, auth.userId)]
+            : [activeSpaceNotePredicate(spaceIdNorm)]),
+          eq(Notes.contentEncrypted, false),
+        ),
       );
 
     const payload = buildSpaceReferencesIndex(
@@ -1126,8 +1476,9 @@ route.get('/api/spaces/:spaceId/study-threads/by-scripture', requireAuth, async 
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
     try {
-      await requireSpaceAccess(spaceIdNorm, auth.userId);
+      access = await requireSpaceAccess(spaceIdNorm, auth.userId);
     } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
@@ -1149,9 +1500,17 @@ route.get('/api/spaces/:spaceId/study-threads/by-scripture', requireAuth, async 
         .innerJoin(Notes, eq(StudyThreadEntries.parentNoteId, Notes.id))
         .where(
           and(
-            eq(StudyThreadEntries.userId, auth.userId),
-            eq(Notes.userId, auth.userId),
-            eq(Notes.spaceId, spaceIdNorm),
+            ...(access.space.type === 'personal'
+              ? [
+                  eq(StudyThreadEntries.userId, auth.userId),
+                  eq(Notes.userId, auth.userId),
+                  eq(Notes.spaceId, spaceIdNorm),
+                ]
+              : [
+                  eq(StudyThreadEntries.spaceId, spaceIdNorm),
+                  activeSpaceNotePredicate(spaceIdNorm),
+                  eq(Notes.contentEncrypted, false),
+                ]),
             eq(StudyThreadEntries.entryKindRaw, 'scriptureLink'),
             eq(StudyThreadEntries.scriptureReference, norm),
             eq(StudyThreadEntries.scripturePassageTranslation, translation),
@@ -1366,8 +1725,9 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
 
     const spaceIdRaw = requireParam(c, 'spaceId');
     const spaceIdNorm = spaceIdRaw.startsWith('space_') ? spaceIdRaw : `space_${spaceIdRaw}`;
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
     try {
-      await requireSpaceAccess(spaceIdNorm, auth.userId);
+      access = await requireSpaceAccess(spaceIdNorm, auth.userId);
     } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
@@ -1380,8 +1740,9 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
     const limit = Math.min(Number.isFinite(limitParsed) ? limitParsed : 15, 30);
 
     const baseFilters = [
-      eq(Notes.userId, auth.userId),
-      eq(Notes.spaceId, spaceIdNorm),
+      ...(access.space.type === 'personal'
+        ? [eq(Notes.userId, auth.userId), eq(Notes.spaceId, spaceIdNorm)]
+        : [activeSpaceNotePredicate(spaceIdNorm), eq(Notes.contentEncrypted, false)]),
       eq(Notes.noteType, 'default'),
     ];
     if (excludeNoteIdRaw) baseFilters.push(ne(Notes.id, excludeNoteIdRaw));
@@ -1398,6 +1759,7 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
         updatedAt: Notes.updatedAt,
         createdAt: Notes.createdAt,
         content: Notes.content,
+        userId: Notes.userId,
       })
       .from(Notes)
       .where(and(...filters))
@@ -1412,6 +1774,8 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
         updatedAt: r.updatedAt ? r.updatedAt.toISOString() : null,
         createdAt: r.createdAt ? r.createdAt.toISOString() : null,
         content: r.content ? stripHtmlForListPreview(r.content, 80) : '',
+        isOwnNote: r.userId === auth.userId,
+        isAssociatedWithTarget: access.space.type !== 'personal',
       })),
     });
   } catch (error: any) {
@@ -1448,7 +1812,13 @@ route.get('/api/spaces/:spaceId/items', requireAuth, async (c) => {
         getNotesForSharedSpace(spaceId, auth.userId, 100),
         getThreadsForSpaceBySpaceId(spaceId),
       ]);
-      return c.json({ notes: notesResult.notes, threads });
+      return c.json({
+        notes: notesResult.notes,
+        threads: visibleSharedThreadsForViewer(
+          threads,
+          accessInfo.space.userId === auth.userId,
+        ),
+      });
     }
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/items', action: 'get_space_items' });
@@ -1501,8 +1871,12 @@ route.get('/api/spaces/:spaceId/bootstrap', requireAuth, async (c) => {
             getThreadsForSpaceBySpaceId(spaceId),
           ]);
 
+    const visibleThreads =
+      spaceRow.type === 'personal'
+        ? threads
+        : visibleSharedThreadsForViewer(threads, spaceRow.userId === auth.userId);
     return c.json(
-      { space: spaceDetail, items: { threads, notes: notesResult.notes } },
+      { space: spaceDetail, items: { threads: visibleThreads, notes: notesResult.notes } },
       200,
       { 'Cache-Control': 'private, no-cache' },
     );
@@ -1525,8 +1899,8 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
     if (ownerSpace) {
       const memberCount = ownerSpace.type === 'personal' ? 0 : await getSpaceMemberCount(ownerSpace.id);
       const { coverBgLight, coverBgDark } = spaceCoverApiFields(
-        ownerSpace.coverBgLight,
-        ownerSpace.coverBgDark,
+        (ownerSpace as any).coverBgLight,
+        (ownerSpace as any).coverBgDark,
         ownerSpace.color,
       );
       return c.json({
@@ -1550,14 +1924,33 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
 
     // Member path
     const space = first(await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).limit(1));
-    if (!space) return c.json({ error: 'Space not found' }, 404);
+    if (!space || space.deletedAt) return c.json({ error: 'Space not found' }, 404);
 
     const membership = first(await db.select({ id: SpaceMemberships.id }).from(SpaceMemberships)
       .where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, auth.userId))).limit(1));
     if (!membership) return c.json({ error: 'Access denied' }, 403);
 
-    const noteCountResult = first(await db.select({ count: count() }).from(Notes).where(eq(Notes.spaceId, spaceId)).limit(1));
-    const threadCountResult = first(await db.select({ count: count() }).from(Threads).where(eq(Threads.spaceId, spaceId)).limit(1));
+    const noteCountResult = first(
+      await db
+        .select({ count: count() })
+        .from(SpaceNotes)
+        .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
+        .where(
+          and(
+            eq(SpaceNotes.spaceId, spaceId),
+            isNull(SpaceNotes.removedAt),
+            eq(Notes.contentEncrypted, false),
+          ),
+        )
+        .limit(1),
+    );
+    const threadCountResult = first(
+      await db
+        .select({ count: count() })
+        .from(Threads)
+        .where(and(eq(Threads.spaceId, spaceId), eq(Threads.isPinned, true)))
+        .limit(1),
+    );
     const totalItemCount = (noteCountResult?.count || 0) + (threadCountResult?.count || 0);
     const memberCount = await getSpaceMemberCount(space.id);
 
@@ -1597,7 +1990,8 @@ route.post('/api/spaces/:spaceId/add-note', requireAuth, rateLimit('write'), asy
 
     const spaceId = requireParam(c, 'spaceId');
 
-    try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
+    let accessInfo: Awaited<ReturnType<typeof requireSpaceAccess>>;
+    try { accessInfo = await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
@@ -1605,13 +1999,36 @@ route.post('/api/spaces/:spaceId/add-note', requireAuth, rateLimit('write'), asy
     const { noteId } = await c.req.json();
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
-    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
-    if (!note) return c.json({ error: 'Note not found or access denied' }, 404);
-    if (note.addedBy === 'system') return c.json({ error: 'Cannot add onboarding notes to a space' }, 400);
-
-    await db.update(Notes).set({ spaceId }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
-    return c.json({ success: true, message: 'Note added to space' });
+    if (accessInfo.space.type === 'personal') {
+      const note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
+      if (!note) return c.json({ error: 'Note not found or access denied' }, 404);
+      if (note.addedBy === 'system') return c.json({ error: 'Cannot add onboarding notes to a space' }, 400);
+      await db.update(Notes).set({ spaceId }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+      return c.json({ success: true, message: 'Note added to space', noteId });
+    }
+    const result = await db.transaction((tx) =>
+      associateAuthoredNoteWithSpace(tx, {
+        spaceId,
+        noteId,
+        actorId: auth.userId,
+        now: nowISO(),
+      }),
+    );
+    await broadcastCanonicalNoteInvalidation(auth.userId, noteId, {
+      type: 'note:updated',
+      id: noteId,
+    });
+    return c.json({
+      success: true,
+      message: result.reactivated ? 'Note restored to space' : 'Note added to space',
+      noteId,
+      associationId: (result.association as any)?.id,
+      reactivated: result.reactivated,
+    });
   } catch (error: any) {
+    if (error instanceof SharedSpaceLifecycleError) {
+      return c.json({ error: error.message, code: error.code }, error.status);
+    }
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/add-note', action: 'add_note_to_space' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
@@ -1624,7 +2041,8 @@ route.post('/api/spaces/:spaceId/add-thread', requireAuth, rateLimit('write'), a
 
     const spaceId = requireParam(c, 'spaceId');
 
-    try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
+    let accessInfo: Awaited<ReturnType<typeof requireSpaceAccess>>;
+    try { accessInfo = await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
@@ -1636,9 +2054,11 @@ route.post('/api/spaces/:spaceId/add-thread', requireAuth, rateLimit('write'), a
 
     const thread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
     if (!thread) return c.json({ error: 'Thread not found or access denied' }, 404);
+    if (accessInfo.space.type !== 'personal' && accessInfo.role !== 'owner') {
+      return c.json({ error: 'Only the space owner can add threads', code: 'FORBIDDEN' }, 403);
+    }
 
     await db.update(Threads).set({ spaceId }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
-    await db.update(Notes).set({ spaceId }).where(and(eq(Notes.threadId, threadId), eq(Notes.userId, auth.userId)));
     return c.json({ success: true, message: 'Thread added to space' });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/add-thread', action: 'add_thread_to_space' });
@@ -1652,7 +2072,8 @@ route.post('/api/spaces/:spaceId/add-items', requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
 
     const spaceId = requireParam(c, 'spaceId');
-    try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
+    let accessInfo: Awaited<ReturnType<typeof requireSpaceAccess>>;
+    try { accessInfo = await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
@@ -1663,10 +2084,17 @@ route.post('/api/spaces/:spaceId/add-items', requireAuth, async (c) => {
 
     for (const noteId of noteIds) {
       try {
-        const note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
-        if (!note) { errors.push(`Note ${noteId} not found`); continue; }
-        if (note.addedBy === 'system') { errors.push('Cannot add onboarding notes to a space'); continue; }
-        await db.update(Notes).set({ spaceId }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+        if (accessInfo.space.type === 'personal') {
+          const note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
+          if (!note) { errors.push(`Note ${noteId} not found`); continue; }
+          if (note.addedBy === 'system') { errors.push('Cannot add onboarding notes to a space'); continue; }
+          await db.update(Notes).set({ spaceId }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+        } else {
+          await db.transaction((tx) =>
+            associateAuthoredNoteWithSpace(tx, { spaceId, noteId, actorId: auth.userId, now: nowISO() }),
+          );
+          await broadcastNoteInvalidation(auth.userId, spaceId, { type: 'note:updated', id: noteId });
+        }
         updatedNotes++;
       } catch (e: any) { errors.push(`Note ${noteId}: ${e.message}`); }
     }
@@ -1677,8 +2105,11 @@ route.post('/api/spaces/:spaceId/add-items', requireAuth, async (c) => {
         if (threadId.startsWith('thread_onboarding_')) { errors.push('Cannot add onboarding thread'); continue; }
         const thread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
         if (!thread) { errors.push(`Thread ${threadId} not found`); continue; }
+        if (accessInfo.space.type !== 'personal' && accessInfo.role !== 'owner') {
+          errors.push(`Thread ${threadId}: only the space owner can add threads`);
+          continue;
+        }
         await db.update(Threads).set({ spaceId }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
-        await db.update(Notes).set({ spaceId }).where(and(eq(Notes.threadId, threadId), eq(Notes.userId, auth.userId)));
         updatedThreads++;
       } catch (e: any) { errors.push(`Thread ${threadId}: ${e.message}`); }
     }
@@ -1709,10 +2140,23 @@ route.post('/api/spaces/:spaceId/remove-items', requireAuth, async (c) => {
 
     for (const noteId of noteIds) {
       try {
-        const note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.spaceId, spaceId))).limit(1));
-        if (!note) { errors.push(`Note ${noteId} not found in space`); continue; }
-        if (!isOwner && note.userId !== auth.userId) { errors.push(`Note ${noteId}: no permission`); continue; }
-        await db.update(Notes).set({ spaceId: null }).where(eq(Notes.id, noteId));
+        if (accessInfo.space.type === 'personal') {
+          const note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.spaceId, spaceId))).limit(1));
+          if (!note) { errors.push(`Note ${noteId} not found in space`); continue; }
+          if (!isOwner && note.userId !== auth.userId) { errors.push(`Note ${noteId}: no permission`); continue; }
+          await db.update(Notes).set({ spaceId: null }).where(eq(Notes.id, noteId));
+        } else {
+          await db.transaction((tx) =>
+            archiveNoteFromSpace(tx, {
+              spaceId,
+              noteId,
+              actorId: auth.userId,
+              now: nowISO(),
+              ownerMayModerate: isOwner,
+            }),
+          );
+          await broadcastNoteInvalidation(auth.userId, spaceId, { type: 'note:updated', id: noteId });
+        }
         removedNotes++;
       } catch (e: any) { errors.push(`Note ${noteId}: ${e.message}`); }
     }
@@ -1724,8 +2168,9 @@ route.post('/api/spaces/:spaceId/remove-items', requireAuth, async (c) => {
         if (!thread) { errors.push(`Thread ${threadId} not found in space`); continue; }
         if (!isOwner && thread.userId !== auth.userId) { errors.push(`Thread ${threadId}: no permission`); continue; }
         await db.update(Threads).set({ spaceId: null }).where(eq(Threads.id, threadId));
-        // Also null Notes.spaceId for notes in this thread that belong to this space
-        await db.update(Notes).set({ spaceId: null }).where(and(eq(Notes.threadId, threadId), eq(Notes.spaceId, spaceId)));
+        if (accessInfo.space.type === 'personal') {
+          await db.update(Notes).set({ spaceId: null }).where(and(eq(Notes.threadId, threadId), eq(Notes.spaceId, spaceId)));
+        }
         removedThreads++;
       } catch (e: any) { errors.push(`Thread ${threadId}: ${e.message}`); }
     }
@@ -1857,17 +2302,26 @@ route.post('/api/spaces/:spaceId/copy-notes', requireAuth, rateLimit('write'), a
       if (source.contentEncrypted) { errors.push(`Note ${sourceNoteId}: locked notes can't be copied into spaces`); continue; }
       if (source.addedBy === 'system') { errors.push(`Note ${sourceNoteId}: system notes can't be copied`); continue; }
       if (source.userId !== auth.userId) {
-        // Not the caller's note — allowed only when it lives in a space the caller can read.
-        if (!source.spaceId) { errors.push(`Note ${sourceNoteId}: no permission`); continue; }
-        if (!readableSpaceIds.has(source.spaceId)) {
+        const activeAssociations = await db
+          .select({ spaceId: SpaceNotes.spaceId })
+          .from(SpaceNotes)
+          .where(and(eq(SpaceNotes.noteId, source.id), isNull(SpaceNotes.removedAt)));
+        let readable = false;
+        for (const association of activeAssociations) {
+          if (readableSpaceIds.has(association.spaceId)) {
+            readable = true;
+            break;
+          }
           try {
-            await requireSpaceAccess(source.spaceId, auth.userId);
-            readableSpaceIds.add(source.spaceId);
+            await requireSpaceAccess(association.spaceId, auth.userId);
+            readableSpaceIds.add(association.spaceId);
+            readable = true;
+            break;
           } catch {
-            errors.push(`Note ${sourceNoteId}: no permission`);
-            continue;
+            // Try another active shared context.
           }
         }
+        if (!readable) { errors.push(`Note ${sourceNoteId}: no permission`); continue; }
       }
       eligible.push(source);
     }
@@ -1877,16 +2331,75 @@ route.post('/api/spaces/:spaceId/copy-notes', requireAuth, rateLimit('write'), a
     // without their metadata or a stale watermark.
     const created: Array<{ sourceNoteId: string; noteId: string }> = [];
     if (eligible.length > 0) {
+      const foreignAuthorIds = [
+        ...new Set(
+          eligible
+            .filter((note) => note.userId !== auth.userId)
+            .map((note) => note.userId),
+        ),
+      ];
+      const foreignAuthorRows =
+        foreignAuthorIds.length > 0
+          ? await db
+              .select({
+                userId: UserMetadata.userId,
+                firstName: UserMetadata.firstName,
+                lastName: UserMetadata.lastName,
+              })
+              .from(UserMetadata)
+              .where(inArray(UserMetadata.userId, foreignAuthorIds))
+          : [];
+      const foreignAuthorDisplayNames = new Map(
+        foreignAuthorRows.map((author) => [
+          author.userId,
+          safeMemberDisplayName({
+            firstName: author.firstName,
+            lastName: author.lastName,
+          }),
+        ]),
+      );
+      const canonicalCopySpaceId =
+        targetAccess.space.type === 'personal'
+          ? targetSpaceId
+          : await ensurePersonalHomeSpace(auth.userId);
       await db.transaction(async (tx) => {
-        let nextSimpleNoteId = (await getEffectiveHighestSimpleNoteId(auth.userId)) + 1;
+        const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
+        const lockedMetadata = first(
+          await tx
+            .select()
+            .from(UserMetadata)
+            .where(eq(UserMetadata.userId, auth.userId))
+            .for('update')
+            .limit(1),
+        );
+        if (!lockedMetadata) throw new Error('User metadata missing during note copy');
+        let nextSimpleNoteId =
+          Math.max(effectiveHighest, lockedMetadata.highestSimpleNoteId ?? 0) + 1;
         for (const source of eligible) {
           const now = nowISO();
+          if (targetAccess.space.type !== 'personal' && source.userId === auth.userId) {
+            await associateAuthoredNoteWithSpace(tx, {
+              spaceId: targetSpaceId,
+              noteId: source.id,
+              actorId: auth.userId,
+              now,
+            });
+            created.push({ sourceNoteId: source.id, noteId: source.id });
+            continue;
+          }
+          const attribution = buildIndependentCopyAttribution({
+            sourceNoteId: source.id,
+            sourceVersionId: source.currentVersionId,
+            sourceAuthorId: source.userId,
+            sourceAuthorDisplayName:
+              foreignAuthorDisplayNames.get(source.userId) ?? 'Member',
+          });
           const newNote = first(await tx.insert(Notes).values({
             id: generateNoteId(),
             title: source.title,
             content: source.content,
             threadId: 'thread_unorganized',
-            spaceId: targetSpaceId,
+            spaceId: canonicalCopySpaceId,
             simpleNoteId: nextSimpleNoteId,
             noteType: source.noteType,
             addedBy: 'user',
@@ -1894,12 +2407,33 @@ route.post('/api/spaces/:spaceId/copy-notes', requireAuth, rateLimit('write'), a
             isPublic: false,
             shareToken: null,
             contentEncrypted: false,
-            primaryCollection: source.primaryCollection,
-            secondaryCollections: source.secondaryCollections,
+            primaryCollection: null,
+            secondaryCollections: null,
+            isPinned: false,
+            order: 0,
+            collectionPinned: false,
+            collectionUserOverride: false,
+            collectionLastAutoUpdatedAt: null,
+            studyThreadTitle: null,
+            studyThreadUserOverride: false,
+            studyThreadPinned: false,
+            studyThreadLastAutoSuggestedAt: null,
             createdAt: now,
             updatedAt: now,
             lastVisited: now,
+            ...attribution,
           }).returning())!;
+          await createInitialNoteVersion(tx, {
+            noteId: newNote.id,
+            noteAuthorId: auth.userId,
+            content: {
+              title: newNote.title,
+              content: newNote.content,
+              contentEncrypted: newNote.contentEncrypted,
+            },
+            createdAt: now,
+            source: 'copy',
+          });
           nextSimpleNoteId += 1;
 
           // Carry scripture/resource metadata so pills and previews keep working.
@@ -1929,10 +2463,9 @@ route.post('/api/spaces/:spaceId/copy-notes', requireAuth, rateLimit('write'), a
       });
 
       for (const { noteId } of created) {
-        void broadcastNoteInvalidation(auth.userId, targetSpaceId, {
+        await broadcastCanonicalNoteInvalidation(auth.userId, noteId, {
           type: 'note:created',
           id: noteId,
-          note: { spaceId: targetSpaceId },
         });
       }
     }
@@ -1956,7 +2489,7 @@ route.post('/api/spaces/:spaceId/pin-item', requireAuth, async (c) => {
       throw err;
     }
 
-    if (accessInfo.role !== 'owner') {
+    if (!isActualSpaceOwner(accessInfo.space, auth.userId)) {
       return c.json({ error: 'Only the space owner can pin items', code: 'FORBIDDEN' }, 403);
     }
 
@@ -1966,19 +2499,46 @@ route.post('/api/spaces/:spaceId/pin-item', requireAuth, async (c) => {
     }
 
     if (itemType === 'note') {
-      const note = first(await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.id, itemId), eq(Notes.spaceId, spaceId))).limit(1));
-      if (!note) return c.json({ error: 'Note not found in space', code: 'NOT_FOUND' }, 404);
-      await db.update(Notes).set({ isPinned }).where(eq(Notes.id, itemId));
+      const association = first(
+        await db
+          .select({ id: SpaceNotes.id })
+          .from(SpaceNotes)
+          .where(
+            and(
+              eq(SpaceNotes.noteId, itemId),
+              eq(SpaceNotes.spaceId, spaceId),
+              isNull(SpaceNotes.removedAt),
+            ),
+          )
+          .limit(1),
+      );
+      if (!association) return c.json({ error: 'Note not found in space', code: 'NOT_FOUND' }, 404);
+      await db.update(SpaceNotes).set({ isPinned, updatedAt: nowISO() }).where(eq(SpaceNotes.id, association.id));
     } else if (itemType === 'thread') {
-      const thread = first(await db.select({ id: Threads.id }).from(Threads).where(and(eq(Threads.id, itemId), eq(Threads.spaceId, spaceId))).limit(1));
-      if (!thread) return c.json({ error: 'Thread not found in space', code: 'NOT_FOUND' }, 404);
-      await db.update(Threads).set({ isPinned }).where(eq(Threads.id, itemId));
+      await db.transaction((tx) =>
+        setSingularThreadPin(tx, {
+          spaceId,
+          threadId: itemId,
+          isPinned,
+          now: nowISO(),
+        }),
+      );
     } else {
       return c.json({ error: 'itemType must be "note" or "thread"', code: 'BAD_REQUEST' }, 400);
     }
 
+    const recipients = await db
+      .select({ userId: SpaceMemberships.userId })
+      .from(SpaceMemberships)
+      .where(eq(SpaceMemberships.spaceId, spaceId));
+    for (const recipientId of new Set(recipients.map((row) => row.userId))) {
+      broadcastInvalidation(recipientId, { type: 'space:updated', id: spaceId });
+    }
     return c.json({ success: true });
   } catch (error: any) {
+    if (error instanceof SharedSpaceLifecycleError) {
+      return c.json({ error: error.message, code: error.code }, error.status);
+    }
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/pin-item', action: 'pin_space_item' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
@@ -2128,9 +2688,7 @@ route.delete('/api/spaces/:spaceId/invites/:inviteId', requireAuth, rateLimit('w
 
 // ─── GET /api/spaces/invite-preview/:token ──────────────────────────────────
 /** Public preview for an invite link (no auth). Validates the invite live. */
-// Rate-limited (IP-based for this unauthenticated route) — each call fans out
-// to ~8 DB queries, so an amplification limiter keeps a leaked token from being
-// a cheap DoS lever.
+// Rate-limited (IP-based for this unauthenticated route).
 route.get('/api/spaces/invite-preview/:token', rateLimit('read'), async (c) => {
   try {
     const token = requireParam(c, 'token');
@@ -2142,7 +2700,7 @@ route.get('/api/spaces/invite-preview/:token', rateLimit('read'), async (c) => {
     if (deadReason) return c.json({ error: deadReason, code: 'INVITE_NOT_ACTIVE' }, 410);
 
     const space = first(await db.select().from(Spaces).where(eq(Spaces.id, invite.spaceId)).limit(1));
-    if (!space || space.type === 'personal') return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
+    if (!space || space.deletedAt || space.type === 'personal') return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
 
     // Owner info (first name + last initial only; never full last name)
     let isHarvousOwned = false;
@@ -2180,98 +2738,6 @@ route.get('/api/spaces/invite-preview/:token', rateLimit('read'), async (c) => {
 
     const ownerAccents = resolveAppearanceAccents(ownerMeta?.appearanceSettings, ownerMeta?.userColor || 'blue');
 
-    // Anonymized member preview (up to 2 real non-owner members) for the avatar stack.
-    // Only an initial + accent colors are exposed — never names/emails — since this endpoint is public.
-    let memberPreviews: { initial: string; accentLight: string | null; accentDark: string | null }[] = [];
-    try {
-      const previewMemberships = (await db
-        .select({ userId: SpaceMemberships.userId, joinedAt: SpaceMemberships.joinedAt })
-        .from(SpaceMemberships)
-        .where(eq(SpaceMemberships.spaceId, space.id)))
-        .filter(m => m.userId !== space.userId)
-        .sort((a, b) => (b.joinedAt || '').localeCompare(a.joinedAt || ''));
-      const previewIds = previewMemberships.slice(0, 2).map(m => m.userId);
-      if (previewIds.length > 0) {
-        const metas = await db
-          .select({ userId: UserMetadata.userId, firstName: UserMetadata.firstName, email: UserMetadata.email, userColor: UserMetadata.userColor, appearanceSettings: UserMetadata.appearanceSettings })
-          .from(UserMetadata)
-          .where(inArray(UserMetadata.userId, previewIds));
-        const metaMap = new Map(metas.map(m => [m.userId, m]));
-        memberPreviews = previewIds.map(id => {
-          const meta = metaMap.get(id);
-          const source = (meta?.firstName || meta?.email || '').trim();
-          const { accentLight, accentDark } = resolveAppearanceAccents(meta?.appearanceSettings, meta?.userColor || 'blue');
-          return { initial: source ? source.charAt(0).toUpperCase() : '?', accentLight, accentDark };
-        });
-      }
-    } catch { /* member preview is best-effort; omit on error */ }
-
-    // Thread preview (up to 5), all authors
-    const threads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color })
-      .from(Threads).where(eq(Threads.spaceId, space.id))
-      .orderBy(desc(Threads.updatedAt)).limit(5);
-
-    const threadIds = threads.map(t => t.id);
-    let noteCountsMap = new Map<string, number>();
-    if (threadIds.length > 0) {
-      const noteCounts = await db.select({ threadId: NoteThreads.threadId, count: count() })
-        .from(NoteThreads).where(inArray(NoteThreads.threadId, threadIds))
-        .groupBy(NoteThreads.threadId);
-      noteCountsMap = new Map(noteCounts.map(item => [item.threadId, item.count]));
-    }
-
-    const threadPreviews = threads.map(t => ({
-      id: t.id, title: t.title, color: t.color, noteCount: noteCountsMap.get(t.id) || 0,
-    }));
-
-    // Note preview (up to 10, unencrypted only, all authors). Content is never
-    // returned — only scanned for a scripture-translation attribute — so cap it
-    // rather than pulling up to 10 full note bodies on this public path.
-    const notes = await db.select({
-      id: Notes.id,
-      title: Notes.title,
-      noteType: Notes.noteType,
-      content: sql<string>`left(${Notes.content}, 4000)`,
-      createdAt: Notes.createdAt,
-    }).from(Notes)
-      .where(and(eq(Notes.spaceId, space.id), eq(Notes.contentEncrypted, false)))
-      .orderBy(
-        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-        desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt)
-      ).limit(10);
-
-    const SCRIPTURE_TRANSLATION_ATTR_RE = /data-scripture-translation\s*=\s*["']([^"']+)["']/i;
-    const extractScriptureTranslation = (content: string | null | undefined) => {
-      const m = content?.match(SCRIPTURE_TRANSLATION_ATTR_RE);
-      const v = m?.[1]?.trim();
-      return v ? v.toUpperCase() : undefined;
-    };
-
-    const scriptureNoteIds = notes
-      .filter(n => n.noteType === 'scripture')
-      .map(n => n.id)
-      .filter(Boolean);
-
-    let scriptureVersionMap: Record<string, string> = {};
-    if (scriptureNoteIds.length > 0) {
-      try {
-        const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
-          .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
-        scriptureVersionMap = rows.reduce((acc, row) => {
-          if (row.noteId && row.translation) acc[row.noteId] = row.translation;
-          return acc;
-        }, {} as Record<string, string>);
-      } catch (_) { /* ignore */ }
-    }
-
-    const notePreviews = notes.map(n => {
-      if (n.noteType !== 'scripture') {
-        return { id: n.id, title: n.title, noteType: n.noteType, createdAt: n.createdAt };
-      }
-      const scriptureTranslation = scriptureVersionMap[n.id] ?? extractScriptureTranslation(n.content) ?? 'NET';
-      return { id: n.id, title: n.title, noteType: n.noteType, createdAt: n.createdAt, version: scriptureTranslation, scriptureTranslation };
-    });
-
     // Viewer state (optional auth)
     const auth = getAuth(c);
     let isAlreadyMember = false;
@@ -2293,7 +2759,7 @@ route.get('/api/spaces/invite-preview/:token', rateLimit('read'), async (c) => {
       space.color,
     );
 
-    return c.json({
+    return c.json(serializeInvitePreview({
       space: {
         id: space.id, title: space.title, color: space.color,
         backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'),
@@ -2305,18 +2771,14 @@ route.get('/api/spaces/invite-preview/:token', rateLimit('read'), async (c) => {
       owner: {
         displayName: ownerDisplayName,
         isHarvousOwned,
-        profileImageUrl: ownerMeta?.profileImageUrl || null,
         accentLight: ownerAccents.accentLight,
         accentDark: ownerAccents.accentDark,
       },
       memberCount: totalMembers,
-      memberPreviews,
-      threadPreviews,
-      notePreviews,
       isAlreadyMember,
       expiresAt: invite.expiresAt,
       viewer: { requiresAuth: !auth.userId, isOwner: isViewerOwner, canJoin: !!auth.userId && !isAlreadyMember },
-    });
+    }));
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/invite-preview/[token]', action: 'invite_preview' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -2337,7 +2799,7 @@ route.post('/api/spaces/invites/:token/redeem', requireAuth, rateLimit('write'),
     if (deadReason) return c.json({ error: deadReason, code: 'INVITE_NOT_ACTIVE' }, 410);
 
     const space = first(await db.select().from(Spaces).where(eq(Spaces.id, invite.spaceId)).limit(1));
-    if (!space || space.type === 'personal') return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
+    if (!space || space.deletedAt || space.type === 'personal') return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
 
     if (space.userId === auth.userId) {
       return c.json({ error: 'You are the owner of this space', code: 'ALREADY_OWNER' }, 400);
@@ -2362,29 +2824,63 @@ route.post('/api/spaces/invites/:token/redeem', requireAuth, rateLimit('write'),
     let outcome: 'dead' | 'full' | 'already-member' | 'joined';
     try {
       outcome = await db.transaction(async (tx) => {
-        const claimed = await tx.update(SpaceInvites)
-          .set({ useCount: sql`${SpaceInvites.useCount} + 1` })
-          .where(and(
-            eq(SpaceInvites.id, invite.id),
-            isNull(SpaceInvites.revokedAt),
-            or(isNull(SpaceInvites.maxUses), sql`${SpaceInvites.useCount} < ${SpaceInvites.maxUses}`),
-          ))
-          .returning({ id: SpaceInvites.id });
-        if (claimed.length === 0) return 'dead' as const;
+        const lockedInvite = first(
+          await tx
+            .select()
+            .from(SpaceInvites)
+            .where(eq(SpaceInvites.id, invite.id))
+            .for('update')
+            .limit(1),
+        );
+        if (!lockedInvite) return 'dead' as const;
+        const lockedSpace = first(
+          await tx
+            .select()
+            .from(Spaces)
+            .where(eq(Spaces.id, lockedInvite.spaceId))
+            .for('update')
+            .limit(1),
+        );
+        const lockedExisting = first(
+          await tx
+            .select({ id: SpaceMemberships.id })
+            .from(SpaceMemberships)
+            .where(
+              and(
+                eq(SpaceMemberships.spaceId, lockedInvite.spaceId),
+                eq(SpaceMemberships.userId, auth.userId),
+              ),
+            )
+            .limit(1),
+        );
 
         // Invisible people cap — joining is otherwise free and uncapped for the joiner.
         const [{ value: memberCount }] = await tx.select({ value: count() }).from(SpaceMemberships)
-          .where(eq(SpaceMemberships.spaceId, space.id));
-        if (memberCount >= MEMBERS_PER_SPACE_CAP) throw new RedeemAbort('full');
+          .where(eq(SpaceMemberships.spaceId, lockedInvite.spaceId));
+        const lockedOutcome = evaluateLockedInviteRedemption({
+          invite: lockedInvite,
+          space: lockedSpace ?? null,
+          alreadyMember: Boolean(lockedExisting),
+          memberCount,
+          memberCap: MEMBERS_PER_SPACE_CAP,
+          now,
+        });
+        if (lockedOutcome === 'dead') return 'dead' as const;
+        if (lockedOutcome === 'already-member') return 'already-member' as const;
+        if (lockedOutcome === 'full') throw new RedeemAbort('full');
+        await tx
+          .update(SpaceInvites)
+          .set({ useCount: lockedInvite.useCount + 1 })
+          .where(eq(SpaceInvites.id, lockedInvite.id));
 
         try {
           await tx.insert(SpaceMemberships).values({
             id: `smem_${crypto.randomUUID()}`,
-            spaceId: space.id,
+            spaceId: lockedInvite.spaceId,
             userId: auth.userId,
-            role: invite.role === 'leader' ? 'leader' : 'member',
-            invitedBy: invite.createdBy,
-            inviteId: invite.id,
+            role: lockedInvite.role === 'leader' ? 'leader' : 'member',
+            invitedBy: lockedInvite.createdBy,
+            inviteId: lockedInvite.id,
             joinedAt: now,
             createdAt: now,
           });
@@ -2453,17 +2949,14 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
     }
 
     const ownerMeta = userMetadataMap[space.userId] || {};
-    const toDisplayName = (firstName: string | null, lastName: string | null, fallback: string) => {
-      const first = firstName || '';
-      const lastInitial = lastName ? lastName.charAt(0).toUpperCase() : '';
-      return first ? (lastInitial ? `${first} ${lastInitial}.` : first) : fallback;
-    };
-
     const ownerFirstName = isHarvousOwned ? 'Harvous' : (ownerMeta.firstName || null);
     const ownerLastName = isHarvousOwned ? null : (ownerMeta.lastName || null);
     const ownerDisplayName = isHarvousOwned
       ? 'Harvous'
-      : toDisplayName(ownerMeta.firstName ?? null, ownerMeta.lastName ?? null, ownerMeta.email || 'Unknown User');
+      : safeMemberDisplayName({
+          firstName: ownerMeta.firstName ?? null,
+          lastName: ownerMeta.lastName ?? null,
+        });
 
     const memberList = [
       {
@@ -2480,7 +2973,10 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
           userId: m.userId, role: m.role, joinedAt: m.joinedAt || m.createdAt,
           firstName: meta.firstName || null,
           lastName: meta.lastName || null,
-          displayName: toDisplayName(meta.firstName ?? null, meta.lastName ?? null, meta.email || 'Unknown User'),
+          displayName: safeMemberDisplayName({
+            firstName: meta.firstName ?? null,
+            lastName: meta.lastName ?? null,
+          }),
           email: meta.email || null, profileImageUrl: meta.profileImageUrl || null,
           userColor: meta.userColor || 'blue',
         };
@@ -2490,7 +2986,7 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
     const ownerHasAddOn = isOwner ? await hasSharedSpacesAddOn(auth) : false;
 
     return c.json({
-      members: memberList,
+      members: memberList.map((member) => serializeSpaceMemberForViewer(member, isOwner)),
       memberCount: memberList.length,
       isOwner,
       limits: isOwner ? {
@@ -2527,7 +3023,7 @@ route.delete('/api/spaces/:spaceId/members/:userId', requireAuth, rateLimit('wri
     const targetUserId = requireParam(c, 'userId');
 
     const space = first(await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).limit(1));
-    if (!space) return c.json({ error: 'Space not found' }, 404);
+    if (!space || space.deletedAt) return c.json({ error: 'Space not found' }, 404);
 
     const isOwner = space.userId === auth.userId;
     const isSelf = auth.userId === targetUserId;
@@ -2542,25 +3038,26 @@ route.delete('/api/spaces/:spaceId/members/:userId', requireAuth, rateLimit('wri
       .where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, targetUserId))).limit(1));
     if (!membership) return c.json({ error: 'User is not a member of this space' }, 404);
 
-    await db.delete(SpaceMemberships).where(eq(SpaceMemberships.id, membership.id));
-
-    // Re-home the departed member's content. Their notes/threads keep a shared
-    // spaceId they can no longer access (requireSpaceAccess now 403s them), so
-    // detach to null — the ensurePersonalHomeSpace backfill re-homes null-spaceId
-    // rows to their My Home on next load. Mirrors remove-items moderation.
-    const departedNotes = await db
-      .select({ id: Notes.id })
-      .from(Notes)
-      .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, targetUserId)));
-    await db.update(Notes).set({ spaceId: null })
-      .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, targetUserId)));
-    await db.update(Threads).set({ spaceId: null })
-      .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, targetUserId)));
-    await db.update(NoteConnections).set({ spaceId: null })
-      .where(and(eq(NoteConnections.spaceId, spaceId), eq(NoteConnections.userId, targetUserId)));
-
-    // Other members' highlight responses live on notes that just left the space.
-    await deleteHighlightResponsesOnNotes(departedNotes.map((n) => n.id));
+    const targetMeta = first(
+      await db.select().from(UserMetadata).where(eq(UserMetadata.userId, targetUserId)).limit(1),
+    );
+    const snapshot =
+      [targetMeta?.firstName, targetMeta?.lastName].filter(Boolean).join(' ').trim() ||
+      'Former member';
+    const removal = await db.transaction((tx) =>
+      removeMemberPreservingResponses(tx, {
+        spaceId,
+        targetUserId,
+        actorId: auth.userId,
+        now: nowISO(),
+        displayNameSnapshot: snapshot,
+      }),
+    );
+    for (const noteId of removal.archivedNoteIds) {
+      await broadcastNoteInvalidation(auth.userId, spaceId, { type: 'note:updated', id: noteId });
+    }
+    broadcastInvalidation(targetUserId, { type: 'space:updated', id: spaceId });
+    broadcastInvalidation(auth.userId, { type: 'space:updated', id: spaceId });
 
     return c.json({ success: true, message: isSelf ? 'You have left the space' : 'Member removed from space' });
   } catch (error: any) {

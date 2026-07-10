@@ -39,6 +39,43 @@ export interface NavigationData {
   inboxCount: number;
 }
 
+export type NavigationSharedSpaceAccess = {
+  space: NavSpace;
+  role: 'owner' | 'leader' | 'member';
+  isOwner: boolean;
+};
+
+function normalizeNavigationSpaceId(spaceId: string): string {
+  const trimmed = spaceId.trim();
+  return trimmed.startsWith('space_') ? trimmed : trimmed ? `space_${trimmed}` : '';
+}
+
+/** Resolve collaborative-space role for one explicit context. Unknown and personal spaces fail closed. */
+export function resolveNavigationSharedSpaceAccess(
+  navigation: NavigationData | null | undefined,
+  spaceId: string | null | undefined,
+): NavigationSharedSpaceAccess | null {
+  const targetId = normalizeNavigationSpaceId(spaceId ?? '');
+  if (!navigation || !targetId) return null;
+
+  const owned = navigation.spaces.find(
+    (space) =>
+      normalizeNavigationSpaceId(space.id) === targetId &&
+      (space.type === 'shared' || space.type === 'public'),
+  );
+  if (owned) return { space: owned, role: 'owner', isOwner: true };
+
+  const membership = navigation.memberOfSpaces.find(
+    (space) => normalizeNavigationSpaceId(space.id) === targetId,
+  );
+  if (!membership?.role) return null;
+  return {
+    space: membership,
+    role: membership.role,
+    isOwner: membership.role === 'owner',
+  };
+}
+
 /** Prefix for invalidating all per-user navigation queries. */
 export const navigationQueryKeyPrefix = ['navigation'] as const;
 
@@ -48,6 +85,27 @@ export function getNavigationQueryKey(userId: string) {
 
 /** SessionStorage key for nav snapshot (must clear on thread delete / sign-out). */
 export const NAV_SESSION_CACHE_KEY = HARVOUS_NAV_CACHE_KEY;
+
+/** Shared React Query defaults — session cache must never suppress a network refetch. */
+export const NAVIGATION_QUERY_DEFAULTS = {
+  staleTime: 30_000,
+  refetchOnMount: 'always' as const,
+} as const;
+
+/** Browser fetch cache mode for `/api/navigation/data` (auth-scoped; must not reuse HTTP cache). */
+export const NAVIGATION_FETCH_CACHE: RequestCache = 'no-store';
+
+/**
+ * Hydration options for navigation: paint from sessionStorage via placeholder only.
+ * Do not pass `initialData` / synthetic `initialDataUpdatedAt` — that made stale
+ * snapshots look fresh for ~15s and hid shared spaces until a manual refresh.
+ */
+export function getNavigationQueryHydrationOptions(cached: NavigationData | undefined) {
+  return {
+    ...NAVIGATION_QUERY_DEFAULTS,
+    placeholderData: cached,
+  };
+}
 
 function getCachedNav(): NavigationData | undefined {
   try {
@@ -118,8 +176,11 @@ export function removeOwnedSpaceFromNavCache(
   queryClient.setQueryData<NavigationData>(key, (old) => {
     if (!old) return old;
     const spaces = old.spaces.filter((s) => s.id !== normalizedId && s.id !== spaceId);
-    if (spaces.length === old.spaces.length) return old;
-    return { ...old, spaces };
+    const threads = old.threads.filter(
+      (thread) => !thread.spaceId || normalizeNavigationSpaceId(thread.spaceId) !== normalizedId,
+    );
+    if (spaces.length === old.spaces.length && threads.length === old.threads.length) return old;
+    return { ...old, spaces, threads };
   });
 
   const updated = queryClient.getQueryData<NavigationData>(key);
@@ -138,7 +199,10 @@ export function useNavigation(options?: { enabled?: boolean }) {
     queryKey: userId ? getNavigationQueryKey(userId) : ['navigation', effectiveUserId ?? ''],
     enabled: (options?.enabled !== false) && isLoaded && isSignedIn && !!userId,
     queryFn: async () => {
-      const res = await fetch('/api/navigation/data', { credentials: 'include' });
+      const res = await fetch('/api/navigation/data', {
+        credentials: 'include',
+        cache: NAVIGATION_FETCH_CACHE,
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new APIError(res.status, (body as { error?: string })?.error ?? `HTTP ${res.status}`);
@@ -147,10 +211,7 @@ export function useNavigation(options?: { enabled?: boolean }) {
       writeCachedNav(data);
       return data;
     },
-    staleTime: 30_000,
-    placeholderData: cachedForSession,
-    initialData: cachedForSession,
-    initialDataUpdatedAt: cachedForSession ? Date.now() - 15_000 : undefined,
+    ...getNavigationQueryHydrationOptions(cachedForSession),
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
@@ -160,6 +221,17 @@ export function useNavigation(options?: { enabled?: boolean }) {
   return {
     ...query,
     data: query.data ?? cachedForSession,
+  };
+}
+
+/** Navigation-backed access for a route/context space ID; never falls back to the active shell space. */
+export function useNavigationSharedSpaceAccess(spaceId: string | null | undefined) {
+  const query = useNavigation({ enabled: Boolean(spaceId?.trim()) });
+  const access = resolveNavigationSharedSpaceAccess(query.data, spaceId);
+  return {
+    ...query,
+    access,
+    isAccessKnown: access !== null,
   };
 }
 

@@ -3,7 +3,7 @@
  * controls (create / copy / revoke); everyone sees the member list.
  * Prototype-native — do not reuse Classic's EditSpacePanel/SpaceMembersList.
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
@@ -17,20 +17,19 @@ import {
   resolveInviteExpiresAt,
   type InviteExpiryPreset,
 } from '../../lib/shared-space-invite-expiry';
-import {
-  getSpaceMembersCapacityCopy,
-  MEMBERS_PER_SPACE_CAP,
-} from '@/lib/shared-spaces-limits';
+import { getSpaceMembersCapacityCopy, MEMBERS_PER_SPACE_CAP } from '@/lib/shared-spaces-limits';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
+import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
+import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useSpaceMembers, useSpaceInvites } from '../../hooks/queries/useSpace';
 import { useCreateSpaceInvite, useRevokeSpaceInvite } from '../../hooks/mutations/useSpaceInviteActions';
 import { useRemoveSpaceMember } from '../../hooks/mutations/useRemoveSpaceMember';
-import { useDeleteSharedSpace } from '../../hooks/mutations/useDeleteSharedSpace';
+import { isDeletedSpaceUnavailableError, useDeleteSharedSpace } from '../../hooks/mutations/useDeleteSharedSpace';
 
 import PrototypeSpaceSettingsSection from './PrototypeSpaceSettingsSection';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
@@ -50,11 +49,28 @@ export interface PrototypeSpacePeopleSheetProps {
   viewerIsOwner?: boolean;
 }
 
-type PendingRemoveMember = {
+export type PendingRemoveMember = {
   userId: string;
   displayName: string;
   isSelf: boolean;
 };
+
+export function membershipRemovalConfirmationCopy(member: PendingRemoveMember): string {
+  if (member.isSelf) {
+    return 'Leave this space? Your authored note associations and their Thread and folder placements leave this space. Your canonical notes remain in My Home, and your responses on other members’ notes remain attributed to you.';
+  }
+  return `Remove ${member.displayName}? Their authored note associations and Thread and folder placements leave this space. Their canonical notes remain in My Home, and their responses on other members’ notes remain attributed to them.`;
+}
+
+export function resolvePeopleQueryState(input: {
+  isLoading: boolean;
+  isError: boolean;
+  count: number;
+}): 'loading' | 'error' | 'empty' | 'ready' {
+  if (input.isLoading) return 'loading';
+  if (input.isError) return 'error';
+  return input.count === 0 ? 'empty' : 'ready';
+}
 
 /**
  * Owner view is a settings-style hub (mirrors the Account page): a short list of
@@ -79,7 +95,8 @@ export default function PrototypeSpacePeopleSheet({
   const { isMobileSidebar, setActiveSpaceId } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const headingId = useId();
+  const descriptionId = useId();
   const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
   const [pendingRemoveMember, setPendingRemoveMember] = useState<PendingRemoveMember | null>(null);
   const [removeConfirmAnchor, setRemoveConfirmAnchor] = useState<DOMRect | null>(null);
@@ -92,9 +109,7 @@ export default function PrototypeSpacePeopleSheet({
   const [isCreatingInvite, setIsCreatingInvite] = useState(false);
 
   const membersQuery = useSpaceMembers(spaceId);
-  const ownerFromMembers = membersQuery.data?.members.some(
-    (m) => m.userId === authUserId && m.role === 'owner',
-  );
+  const ownerFromMembers = membersQuery.data?.members.some((m) => m.userId === authUserId && m.role === 'owner');
   const isOwner = membersQuery.data?.isOwner ?? ownerFromMembers ?? viewerIsOwner;
   const invitesQuery = useSpaceInvites(spaceId, isOwner);
   const createInvite = useCreateSpaceInvite(spaceId);
@@ -131,21 +146,27 @@ export default function PrototypeSpacePeopleSheet({
   const usePopoverPresentation = !shouldUseSheetPresentation;
   const showPopoverPortal = usePopoverPresentation && mounted;
 
-  useLayoutEffect(() => {
-    if (!showPopoverPortal) return;
-    const cardHeight = cardRef.current?.getBoundingClientRect().height ?? 420;
-    const cardWidth = cardRef.current?.getBoundingClientRect().width ?? 340;
-    const viewportMargin = 12;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    setPosition({
-      left: Math.max(viewportMargin, (vw - cardWidth) / 2),
-      top: Math.max(viewportMargin, Math.min(vh - cardHeight - viewportMargin, vh * 0.12)),
-    });
-  }, [showPopoverPortal, membersQuery.data, invitesQuery.data, view, isCreatingInvite]);
+  const { position } = useProtoAnchoredPopoverPosition(
+    cardRef,
+    {},
+    {
+      enabled: showPopoverPortal,
+      strategy: 'centered',
+      topVhFraction: 0.12,
+      fallbackWidth: 340,
+      fallbackHeight: 420,
+    },
+    [membersQuery.data, invitesQuery.data, view, isCreatingInvite],
+  );
 
   useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation, {
     ignoreSelector: '.harvous-delete-confirm',
+    dismissOnEscape: false,
+  });
+  useProtoDialogFocus({
+    open: open && showPopoverPortal,
+    dialogRef: cardRef,
+    onDismiss: () => onOpenChange(false),
   });
 
   async function copyInvite(inviteId: string, url: string) {
@@ -176,7 +197,7 @@ export default function PrototypeSpacePeopleSheet({
         if (isSelf) {
           setActiveSpaceId(null);
           onOpenChange(false);
-          void navigate({ to: prototypeHomeRouteTo(), replace: true });
+          void navigate({ to: prototypeHomeRouteTo() as any, replace: true });
         }
       },
       onError: (err) => {
@@ -209,9 +230,16 @@ export default function PrototypeSpacePeopleSheet({
         setDeleteConfirmAnchor(null);
         setActiveSpaceId(null);
         onOpenChange(false);
-        void navigate({ to: prototypeHomeRouteTo(), replace: true });
+        void navigate({ to: prototypeHomeRouteTo() as any, replace: true });
       },
       onError: (err) => {
+        if (isDeletedSpaceUnavailableError(err)) {
+          setDeleteConfirmOpen(false);
+          setDeleteConfirmAnchor(null);
+          setActiveSpaceId(null);
+          onOpenChange(false);
+          void navigate({ to: prototypeHomeRouteTo() as any, replace: true });
+        }
         const msg =
           err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete space';
         toast.error(msg);
@@ -224,9 +252,7 @@ export default function PrototypeSpacePeopleSheet({
   const memberCount = members.length;
   const memberLimit = membersQuery.data?.limits?.membersPerSpace ?? MEMBERS_PER_SPACE_CAP;
   const ownerCapacityCopy =
-    isOwner && !membersQuery.isLoading
-      ? getSpaceMembersCapacityCopy({ memberCount, memberLimit })
-      : null;
+    isOwner && !membersQuery.isLoading ? getSpaceMembersCapacityCopy({ memberCount, memberLimit }) : null;
   const activeInvites = invites.length;
   const showBack = isOwner && view !== 'hub';
   // On a sub-view the header title becomes that section's name (the eyebrow label
@@ -241,68 +267,81 @@ export default function PrototypeSpacePeopleSheet({
           ? 'Space settings'
           : 'Manage space';
 
-  const memberList = membersQuery.isLoading ? (
-    <p className="proto-inspector-section-title">Loading…</p>
-  ) : (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {ownerCapacityCopy ? (
-        <div className="proto-shared-people-capacity">
-          {ownerCapacityCopy.inviteLine ? <p>{ownerCapacityCopy.inviteLine}</p> : null}
-          <p className="proto-shared-people-capacity__limit">
-            <span>{ownerCapacityCopy.maxLineText}</span>{' '}
-            {ownerCapacityCopy.atLimit ? (
-              <button
-                type="button"
-                className="proto-shared-people-capacity__support-link"
-                onClick={() => {
-                  onOpenChange(false);
-                  void navigate({ to: prototypeSettingsSupportRouteTo() });
-                }}
-              >
-                Contact support
-              </button>
-            ) : null}
-          </p>
-        </div>
-      ) : null}
-      {members.map((m) => {
-        const rowAction = memberRowAction(m);
-        return (
-          <div key={m.userId} className="proto-shared-people-row">
-            <SharedSpaceMemberAvatar
-              userId={m.userId}
-              firstName={m.firstName}
-              displayName={m.displayName}
-              userColor={m.userColor}
-              profileImageUrl={m.profileImageUrl}
-            />
-            <span className="proto-shared-people-row__name">{m.displayName}</span>
-            {m.userId === authUserId ? <span className="proto-shared-people-row__tag">You</span> : null}
-            {m.role === 'owner' ? (
-              <span className="proto-shared-people-row__tag proto-shared-people-row__tag--owner">Owner</span>
-            ) : null}
-            {rowAction ? (
-              <button
-                type="button"
-                className={`proto-shared-people-row__action${rowAction === 'remove' ? ' proto-shared-people-row__action--destructive' : ''}`}
-                disabled={removeMember.isPending}
-                onClick={(e) => {
-                  setRemoveConfirmAnchor(e.currentTarget.getBoundingClientRect());
-                  setPendingRemoveMember({
-                    userId: m.userId,
-                    displayName: m.displayName,
-                    isSelf: m.userId === authUserId,
-                  });
-                }}
-              >
-                {rowAction === 'leave' ? 'Leave space' : 'Remove'}
-              </button>
-            ) : null}
+  const memberListState = resolvePeopleQueryState({
+    isLoading: membersQuery.isLoading,
+    isError: membersQuery.isError,
+    count: members.length,
+  });
+  const memberList =
+    memberListState === 'loading' ? (
+      <p className="proto-inspector-section-title">Loading…</p>
+    ) : memberListState === 'error' ? (
+      <div className="proto-shared-thread-state" role="alert">
+        <p>Could not load people.</p>
+        <button type="button" className="proto-shared-thread-action" onClick={() => void membersQuery.refetch()}>
+          Retry
+        </button>
+      </div>
+    ) : (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {ownerCapacityCopy ? (
+          <div className="proto-shared-people-capacity">
+            {ownerCapacityCopy.inviteLine ? <p>{ownerCapacityCopy.inviteLine}</p> : null}
+            <p className="proto-shared-people-capacity__limit">
+              <span>{ownerCapacityCopy.maxLineText}</span>{' '}
+              {ownerCapacityCopy.atLimit ? (
+                <button
+                  type="button"
+                  className="proto-shared-people-capacity__support-link"
+                  onClick={() => {
+                    onOpenChange(false);
+                    void navigate({ to: prototypeSettingsSupportRouteTo() as any });
+                  }}
+                >
+                  Contact support
+                </button>
+              ) : null}
+            </p>
           </div>
-        );
-      })}
-    </div>
-  );
+        ) : null}
+        {members.map((m) => {
+          const rowAction = memberRowAction(m);
+          return (
+            <div key={m.userId} className="proto-shared-people-row">
+              <SharedSpaceMemberAvatar
+                userId={m.userId}
+                firstName={m.firstName}
+                displayName={m.displayName}
+                userColor={m.userColor}
+                profileImageUrl={m.profileImageUrl}
+              />
+              <span className="proto-shared-people-row__name">{m.displayName}</span>
+              {m.userId === authUserId ? <span className="proto-shared-people-row__tag">You</span> : null}
+              {m.role === 'owner' ? (
+                <span className="proto-shared-people-row__tag proto-shared-people-row__tag--owner">Owner</span>
+              ) : null}
+              {rowAction ? (
+                <button
+                  type="button"
+                  className={`proto-shared-people-row__action${rowAction === 'remove' ? ' proto-shared-people-row__action--destructive' : ''}`}
+                  disabled={removeMember.isPending}
+                  onClick={(e) => {
+                    setRemoveConfirmAnchor(e.currentTarget.getBoundingClientRect());
+                    setPendingRemoveMember({
+                      userId: m.userId,
+                      displayName: m.displayName,
+                      isSelf: m.userId === authUserId,
+                    });
+                  }}
+                >
+                  {rowAction === 'leave' ? 'Leave space' : 'Remove'}
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    );
 
   async function submitCreateInvite() {
     let expiresAt: string | null;
@@ -317,11 +356,7 @@ export default function PrototypeSpacePeopleSheet({
       setIsCreatingInvite(false);
     } catch (err) {
       const msg =
-        err instanceof APIError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Could not create invite link';
+        err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not create invite link';
       toast.error(msg);
     }
   }
@@ -379,7 +414,14 @@ export default function PrototypeSpacePeopleSheet({
             </div>
           );
         })}
-        {invitesQuery.isLoading ? (
+        {invitesQuery.isError ? (
+          <div className="proto-shared-thread-state" role="alert">
+            <p>Could not load invite links.</p>
+            <button type="button" className="proto-shared-thread-action" onClick={() => void invitesQuery.refetch()}>
+              Retry
+            </button>
+          </div>
+        ) : invitesQuery.isLoading ? (
           <p className="proto-inspector-muted proto-connect-note-sheet__status">Loading…</p>
         ) : invites.length === 0 ? (
           <div className="proto-shared-invite-empty">
@@ -422,11 +464,7 @@ export default function PrototypeSpacePeopleSheet({
         </div>
       ) : (
         <div className="proto-add-notes-sheet__footer">
-          <button
-            type="button"
-            className="proto-share-popover__primary"
-            onClick={() => setIsCreatingInvite(true)}
-          >
+          <button type="button" className="proto-share-popover__primary" onClick={() => setIsCreatingInvite(true)}>
             New invite link
           </button>
         </div>
@@ -460,7 +498,9 @@ export default function PrototypeSpacePeopleSheet({
   );
 
   let body: React.ReactNode;
-  if (!isOwner) {
+  if (membersQuery.isError) {
+    body = memberList;
+  } else if (!isOwner) {
     body = memberList;
   } else if (view === 'people') {
     body = memberList;
@@ -512,11 +552,22 @@ export default function PrototypeSpacePeopleSheet({
           ) : (
             <ProtoSpaceMenuIcon color={spaceColor ?? 'paper'} size={44} radius={13} glyphSize={18} />
           )}
-            <span className="proto-study-thread-popover__title-block">
-              <span className="proto-study-thread-popover__title">{headerPrimary}</span>
-              <span className="proto-study-thread-popover__subtitle">{spaceTitle}</span>
+          <span className="proto-study-thread-popover__title-block">
+            <span
+              id={headingId}
+              className="proto-study-thread-popover__title"
+              role="heading"
+              aria-level={2}
+              tabIndex={-1}
+              data-proto-dialog-heading
+            >
+              {headerPrimary}
             </span>
-          </div>
+            <span id={descriptionId} className="proto-study-thread-popover__subtitle">
+              {spaceTitle}
+            </span>
+          </span>
+        </div>
         <button
           type="button"
           className="proto-side-panel__action-btn"
@@ -537,11 +588,7 @@ export default function PrototypeSpacePeopleSheet({
       {pendingRemoveMember && removeConfirmAnchor ? (
         <ProtoConfirmDialog
           anchorRect={removeConfirmAnchor}
-          title={
-            pendingRemoveMember.isSelf
-              ? 'Leave this space?'
-              : `Remove ${pendingRemoveMember.displayName}?`
-          }
+          title={membershipRemovalConfirmationCopy(pendingRemoveMember)}
           confirmLabel={pendingRemoveMember.isSelf ? 'Leave' : 'Remove'}
           cancelLabel="Cancel"
           busy={removeMember.isPending}
@@ -573,7 +620,7 @@ export default function PrototypeSpacePeopleSheet({
       {deleteConfirmOpen && deleteConfirmAnchor ? (
         <ProtoConfirmDialog
           anchorRect={deleteConfirmAnchor}
-          title={`Delete "${spaceTitle}"? Permanent for everyone.`}
+          title={`Delete "${spaceTitle}"? Access is removed now. As the owner, you can restore the space for 30 days, and each author's notes remain in My Home.`}
           confirmLabel="Delete"
           cancelLabel="Keep"
           busy={deleteSpace.isPending}
@@ -606,7 +653,9 @@ export default function PrototypeSpacePeopleSheet({
             <ProtoPopoverShell
               ref={cardRef}
               role="dialog"
-              aria-label={`People in ${spaceTitle}`}
+              aria-modal="true"
+              aria-labelledby={headingId}
+              aria-describedby={descriptionId}
               className={portaledDialogShellClassName(
                 'proto-connect-note-popover proto-create-folder-popover',
                 exiting,
@@ -636,6 +685,10 @@ export default function PrototypeSpacePeopleSheet({
           onOverlayClick={() => onOpenChange(false)}
           overlayClassName="proto-connect-note-sheet-overlay"
           className="proto-connect-note-sheet proto-create-folder-sheet proto-shared-manage-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={headingId}
+          aria-describedby={descriptionId}
         >
           {content}
         </DrawerContent>

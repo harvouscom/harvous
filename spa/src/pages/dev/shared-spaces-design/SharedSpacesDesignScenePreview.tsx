@@ -11,6 +11,8 @@ import PublicJoinSpaceLetter from '../../public/PublicJoinSpaceLetter';
 import PublicJoinSpaceHero from '../../public/PublicJoinSpaceHero';
 import PrototypeSharedNoteReadOnlyBanner from '../../prototype/PrototypeSharedNoteReadOnlyBanner';
 import SharedSpaceNoteAuthorChip from '../../prototype/SharedSpaceNoteAuthorChip';
+import ProtoInspectorActivityRow from '../../prototype/ProtoInspectorActivityRow';
+import type { NoteActivityItem } from '../../../lib/shared-note-activity-list';
 import ProtoConfirmDialog from '../../prototype/ProtoConfirmDialog';
 import ProtoPopoverShell from '../../prototype/ProtoPopoverShell';
 import ProtoHouseIcon from '../../prototype/ProtoHouseIcon';
@@ -19,6 +21,7 @@ import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from '../../
 import PrototypeSpaceSettingsSection from '../../prototype/PrototypeSpaceSettingsSection';
 import SharedSpaceInviteExpiryPicker from '../../prototype/SharedSpaceInviteExpiryPicker';
 import type { InviteExpiryPreset } from '../../../lib/shared-space-invite-expiry';
+import { ProtoShellProvider } from '../../../layouts/proto-shell-context';
 import { PROTO_TOOLBAR_ICON_SIZE } from '../../prototype/proto-toolbar-tokens';
 import { SPACE_COVER_PICKER_COLORS, spacePickerSwatchColor, spaceIconAccentHex, avatarGlyphColorForAccent, spaceCoverFromThreadColor } from '@/utils/space-cover';
 import { imagePresetById, imagePresetUrl } from '../../../lib/prototype-background';
@@ -27,6 +30,7 @@ import SharedSpaceDashboardFixtureView from './SharedSpaceDashboardFixtureView';
 import {
   SHARED_SPACE_DASHBOARD_FIXTURE_FULL,
   SHARED_SPACE_DASHBOARD_FIXTURE_SOCIAL,
+  SHARED_SPACE_THREAD_FIXTURES,
 } from './shared-space-dashboard-fixtures';
 import type { SharedSpacesDesignScene } from './sceneRegistry';
 
@@ -253,6 +257,108 @@ function SharedSidebarScene({ asMember }: { asMember?: boolean }) {
         </ul>
       </div>
     </ProtoChrome>
+  );
+}
+
+const BASE_ACTIVITY_ITEM: NoteActivityItem = {
+  id: 'activity_response',
+  kind: 'response',
+  entryKind: 'miniNote',
+  actorDisplayName: 'Sarah',
+  actorUserId: 'user_sarah',
+  actorColor: 'green',
+  isSelf: false,
+  timestamp: '2026-07-09T18:00:00.000Z',
+  subject: 'There is now no condemnation',
+  preview: 'I keep coming back to how grace changes the direction of this whole passage.',
+  context: null,
+  statusLabel: null,
+  highlightAccentRaw: 'warmAmber',
+  focusTitle: '',
+  notesBody: '',
+  miniNoteBody: 'I keep coming back to how grace changes the direction of this whole passage.',
+  anchor: {
+    quote: 'There is now no condemnation',
+    prefixContext: '',
+    suffixContext: 'for those who are in Christ Jesus',
+    status: 'resolved',
+    start: 3,
+    end: 38,
+  },
+};
+
+export const ACTIVITY_SCENE_ITEMS = {
+  populated: [
+    BASE_ACTIVITY_ITEM,
+    {
+      ...BASE_ACTIVITY_ITEM,
+      id: 'activity_highlight',
+      kind: 'highlight' as const,
+      entryKind: 'highlight',
+      actorDisplayName: 'James',
+      actorUserId: 'user_james',
+      actorColor: 'teal',
+      subject: 'the law of the Spirit of life',
+      preview: 'This phrase connects the opening of Romans 8 to the argument in chapter 7.',
+      context: 'The author also highlighted this passage',
+    },
+  ],
+  detached: [
+    {
+      ...BASE_ACTIVITY_ITEM,
+      id: 'activity_detached',
+      subject: 'the sufferings of this present time',
+      statusLabel: 'Passage changed',
+      anchor: {
+        ...BASE_ACTIVITY_ITEM.anchor,
+        quote: 'the sufferings of this present time',
+        status: 'detached',
+        start: null,
+        end: null,
+      },
+    },
+  ],
+  empty: [],
+} satisfies Record<'populated' | 'detached' | 'empty', NoteActivityItem[]>;
+
+function ActivityScene({ mode }: { mode: keyof typeof ACTIVITY_SCENE_ITEMS }) {
+  const items = ACTIVITY_SCENE_ITEMS[mode];
+  if (items.length === 0) {
+    return (
+      <div
+        className="proto-theme"
+        data-activity-state="empty"
+        style={{ width: 360, maxWidth: '100%', margin: '0 auto' }}
+      />
+    );
+  }
+  return (
+    <div className="proto-theme" style={{ width: 360, maxWidth: '100%', margin: '0 auto' }}>
+      <div className="proto-glass-surface proto-glass-surface--panel" style={{ padding: 16 }}>
+        <section className="proto-inspector-section proto-inspector-section--activity">
+          <p className="proto-inspector-section-title">Activity</p>
+          {items.length > 0 ? (
+            <div className="proto-inspector-activity__groups">
+              <div className="proto-inspector-activity__group">
+                <p className="proto-inspector-activity__group-label">
+                  <span>{FIXTURE_SPACE.title}</span>
+                </p>
+                <ul className="proto-inspector-activity">
+                  {items.map((item, index) => (
+                    <ProtoInspectorActivityRow
+                      key={item.id}
+                      item={item}
+                      isActive={index === 0}
+                      onSelect={() => {}}
+                    />
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      </div>
+    </div>
   );
 }
 
@@ -639,7 +745,6 @@ export default function SharedSpacesDesignScenePreview({ scene }: { scene: Share
             authorDisplayName="Sarah"
             authorUserId="user_sarah"
             authorColor="rose"
-            showResponseLegend
           />
           <div style={{ padding: 24, color: 'var(--pds-text-secondary)', fontSize: 14 }}>Note editor preview area</div>
         </div>
@@ -666,6 +771,44 @@ export default function SharedSpacesDesignScenePreview({ scene }: { scene: Share
       );
     case '20-join-cover-colors':
       return <JoinCoverColorsScene />;
+    case '21-activity-populated':
+      return <ActivityScene mode="populated" />;
+    case '22-activity-detached':
+      return <ActivityScene mode="detached" />;
+    case '23-activity-empty':
+      return <ActivityScene mode="empty" />;
+    case '24-thread-owner-empty':
+      return (
+        <ProtoShellProvider>
+          <ProtoChrome width={360}>
+            <SharedSpaceDashboardFixtureView fixture={SHARED_SPACE_THREAD_FIXTURES.ownerEmpty} showFixtureBanner />
+          </ProtoChrome>
+        </ProtoShellProvider>
+      );
+    case '25-thread-member-empty':
+      return (
+        <ProtoShellProvider>
+          <ProtoChrome width={360}>
+            <SharedSpaceDashboardFixtureView fixture={SHARED_SPACE_THREAD_FIXTURES.memberEmpty} showFixtureBanner />
+          </ProtoChrome>
+        </ProtoShellProvider>
+      );
+    case '26-thread-owner-current':
+      return (
+        <ProtoShellProvider>
+          <ProtoChrome width={360}>
+            <SharedSpaceDashboardFixtureView fixture={SHARED_SPACE_THREAD_FIXTURES.ownerCurrent} showFixtureBanner />
+          </ProtoChrome>
+        </ProtoShellProvider>
+      );
+    case '27-thread-member-current':
+      return (
+        <ProtoShellProvider>
+          <ProtoChrome width={360}>
+            <SharedSpaceDashboardFixtureView fixture={SHARED_SPACE_THREAD_FIXTURES.memberCurrent} showFixtureBanner />
+          </ProtoChrome>
+        </ProtoShellProvider>
+      );
     default:
       return null;
   }

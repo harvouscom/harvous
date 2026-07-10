@@ -262,17 +262,7 @@
   fill: var(--pds-on-accent) !important;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-color-scheme='light']) .public-addon-letter__check {
-    background: var(--pds-selection-bg);
-    box-shadow: none;
-  }
-}
-
-:root[data-color-scheme='dark'] .public-addon-letter__check {
-  background: var(--pds-selection-bg);
-  box-shadow: none;
-}
+/* Keep blue check orbs on the always-light marketing card (do not follow app dark mode). */
 
 .public-addon-letter__cta {
   display: flex;

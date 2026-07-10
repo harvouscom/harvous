@@ -115,13 +115,12 @@ export function spaceNoteRowFromCopy(source: SpaceNoteRow, newNoteId: string): S
     updatedAt: now,
     isPinned: false,
     isOwnNote: true,
-    contentEncrypted: source.contentEncrypted ?? false,
-    primaryCollection: source.primaryCollection ?? null,
-    secondaryCollections: source.secondaryCollections,
-    collectionPinned: source.collectionPinned,
-    collectionUserOverride: source.collectionUserOverride,
+    contentEncrypted: false,
+    primaryCollection: null,
+    secondaryCollections: [],
+    collectionPinned: false,
+    collectionUserOverride: false,
     resourceTitle: source.resourceTitle ?? null,
-    version: source.version,
   };
 }
 

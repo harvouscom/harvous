@@ -6,7 +6,9 @@ import {
   buildSharedSpaceSocialIntro,
   groupSharedSpaceNoteCardSlots,
   isNoteUnseenSinceVisit,
+  sharedThreadNoteCountPreview,
 } from '../shared-space-dashboard';
+import { sharedSpaceDashboardHasError } from '../PrototypeSidebarSharedSpaceView';
 
 function note(
   id: string,
@@ -21,6 +23,21 @@ function note(
 }
 
 describe('shared-space-dashboard', () => {
+  it('treats every required dashboard query failure as an explicit error', () => {
+    const healthy = {
+      space: false,
+      members: false,
+      activity: false,
+      notes: false,
+      currentThread: false,
+      scriptureIndex: false,
+    };
+    expect(sharedSpaceDashboardHasError(healthy)).toBe(false);
+    for (const key of Object.keys(healthy) as Array<keyof typeof healthy>) {
+      expect(sharedSpaceDashboardHasError({ ...healthy, [key]: true })).toBe(true);
+    }
+  });
+
   it('isNoteUnseenSinceVisit compares against watermark', () => {
     expect(isNoteUnseenSinceVisit(note('a', { updatedAt: '2026-07-05T13:00:00.000Z' }), '2026-07-05T12:00:00.000Z')).toBe(
       true,
@@ -117,5 +134,11 @@ describe('shared-space-dashboard', () => {
       { eyebrow: 'Recently updated', slots: [slots[0], slots[1]] },
       { eyebrow: 'Pick up where you left off', slots: [slots[2]] },
     ]);
+  });
+
+  it('sharedThreadNoteCountPreview uses empty-state copy for zero notes', () => {
+    expect(sharedThreadNoteCountPreview(0)).toBe('No notes yet');
+    expect(sharedThreadNoteCountPreview(1)).toBe('1 note');
+    expect(sharedThreadNoteCountPreview(5)).toBe('5 notes');
   });
 });

@@ -7,6 +7,16 @@ export interface SharedSpacesDesignScene {
   screenshotSlug?: string;
 }
 
+export const SHARED_SPACES_VERIFICATION_SCENE_IDS = [
+  '21-activity-populated',
+  '22-activity-detached',
+  '23-activity-empty',
+  '24-thread-owner-empty',
+  '25-thread-member-empty',
+  '26-thread-owner-current',
+  '27-thread-member-current',
+] as const;
+
 export const SHARED_SPACES_DESIGN_SCENES: SharedSpacesDesignScene[] = [
   {
     id: '01-addon-inactive',
@@ -167,6 +177,60 @@ export const SHARED_SPACES_DESIGN_SCENES: SharedSpacesDesignScene[] = [
       'spa/src/pages/dev/shared-spaces-design/SharedSpacesDesignScenePreview.tsx',
     ],
     screenshotSlug: '22-join-cover-colors-all',
+  },
+  {
+    id: '21-activity-populated',
+    title: 'Activity — populated',
+    phase: 'Collaboration',
+    editFiles: [
+      'spa/src/pages/prototype/ProtoInspectorActivityRow.tsx',
+      'spa/src/pages/prototype/SharedNoteActivityPanel.tsx',
+    ],
+  },
+  {
+    id: '22-activity-detached',
+    title: 'Activity — detached response',
+    phase: 'Collaboration',
+    editFiles: [
+      'spa/src/pages/prototype/ProtoInspectorActivityRow.tsx',
+      'spa/src/lib/shared-note-activity-list.ts',
+    ],
+  },
+  {
+    id: '23-activity-empty',
+    title: 'Activity — empty',
+    phase: 'Collaboration',
+    editFiles: ['spa/src/pages/prototype/SharedNoteActivityPanel.tsx'],
+  },
+  {
+    id: '24-thread-owner-empty',
+    title: 'Current Thread — owner, none started',
+    phase: 'Collaboration',
+    editFiles: ['spa/src/pages/prototype/PrototypeSidebarSharedSpaceView.tsx'],
+  },
+  {
+    id: '25-thread-member-empty',
+    title: 'Current Thread — member, none started',
+    phase: 'Collaboration',
+    editFiles: ['spa/src/pages/prototype/PrototypeSidebarSharedSpaceView.tsx'],
+  },
+  {
+    id: '26-thread-owner-current',
+    title: 'Current Thread — owner',
+    phase: 'Collaboration',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeSidebarSharedSpaceView.tsx',
+      'spa/src/pages/prototype/PrototypeSharedThreadDrilldown.tsx',
+    ],
+  },
+  {
+    id: '27-thread-member-current',
+    title: 'Current Thread — member',
+    phase: 'Collaboration',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeSidebarSharedSpaceView.tsx',
+      'spa/src/pages/prototype/PrototypeSharedThreadDrilldown.tsx',
+    ],
   },
 ];
 

@@ -1,99 +1,99 @@
 # Space modes — product rules
 
-**Status:** Canonical product reference for how additional spaces behave relative to **My Home**, aligned with [redesign-exploration.md](./redesign-exploration.md) (Concept 2 — Spaces as modes, not folder-style stacks). **Data model (July 2026 clean break):** one `Spaces` table with a `type` discriminator (`personal` | `shared` | `public`), membership via `SpaceMemberships` (owner included as a role), invites via `SpaceInvites`. The legacy `isPublic` / `shareToken` columns and `Members` / `SpaceInvitations` tables are retired — see [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md).
+**Status:** Canonical product reference for My Home, shared spaces, and reserved public spaces in the July 2026
+native-like shell. Engineering details live in
+[SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md).
 
-**Implementation:** Tier enforcement lives in [server/utils/tier-limits.ts](../../server/utils/tier-limits.ts). Shared-space visibility and permissions: [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md).
+## Glossary
 
----
+| Term | Product meaning |
+|---|---|
+| **My Home** | The complete private aggregate of every note the signed-in person authors. It is always available and is the canonical ownership context. |
+| **Named private space** | A private organizational context owned by one person. |
+| **Shared space** | A live audience and organization context created as shared. It reuses canonical notes through `SpaceNotes`; it does not own copies of members' notes. |
+| **Owner** | The creator/billing anchor and active membership with full management authority. |
+| **Member** | An active membership that can read the space, associate authored notes, attach authored notes to Threads, and respond. |
+| **Public space** | Reserved future broadcast context where owner/leaders publish and followers read or save attributed copies. No v1 creation path exists. |
 
-## 1. Glossary
+“Mode” describes the experience framing. “Space” is the object users create, join, switch, rename, or delete. UI
+actions should say **space**, not “create a mode.”
 
-| Term | Meaning |
-|------|--------|
-| **My Home** | The default **aggregate** study surface: dashboard route (`/`), not a dedicated `Spaces` row. In the space switcher it is the synthetic **“home”** item. Threads and notes can appear here without belonging to a named space. |
-| **Named private space** | A `Spaces` row you own with `type='personal'` — organizes threads/notes under a chosen title and color; no `SpaceMemberships` rows besides your own future-role placeholder (none created today for personal spaces). |
-| **Shared space** | A `Spaces` row with `type='shared'` — collaborative from creation (no personal→shared conversion). Owning one requires the Shared Spaces paid add-on; joining is free. See [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md). |
-| **Owner** | `Spaces.userId` (creator/billing anchor) **and** the `SpaceMemberships` row with `role='owner'` — full control (edit, delete, manage invites, remove others’ items from the space, etc.). |
-| **Member** | Row in `SpaceMemberships` with `role='member'` for that `spaceId` — can contribute and manage own items; cannot delete the space or manage invites. |
-| **Public space** *(future)* | `Spaces` row with `type='public'` — reserved, not yet implemented. Harvous-hosted broadcast: owner/leader author, members follow + copy into their own space. See [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md#public-spaces-future-not-implemented). |
+## Core invariant: ownership and audience are separate
 
-### “Mode” vs “Space” (user-facing language)
+My Home remains complete regardless of where a note is shared. A person may associate one authored note with
+several spaces. Each shared context can independently organize it with folders, pins, order, and Threads.
+Responses also belong to their space conversation.
 
-| Use **mode** | Use **space** |
-|--------------|----------------|
-| Marketing, onboarding, and high-level redesign copy when emphasizing **study environment** (private vs collaborative vs future public). | Navigation labels, forms, and technical UI: **New Space**, **My Spaces**, **Edit space**, error messages that reference limits or URLs. |
-| Explaining *why* switching contexts feels different (tint, density, presence). | Any action that creates, deletes, or renames a container tied to a `spaceId`. |
+This yields three distinct actions:
 
-**Rule:** *Mode* is the **experience framing**; *space* is the **product object** users create and switch. Avoid replacing every “space” with “mode” in the shell UI — it confuses actions (“create a mode”).
+- Compose in **My Home** → private canonical note.
+- Compose in **This space** → canonical My Home note plus a space association.
+- Existing note → author uses **Add to space**; non-author uses **Save a copy** with attribution.
 
----
+Switching context never migrates ownership.
 
-## 2. Limits matrix (free vs paid)
+## Limits
 
-Canonical business rules below match [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md) and [server/utils/tier-limits.ts](../../server/utils/tier-limits.ts).
+| Dimension | Free | Shared Spaces add-on |
+|---|---:|---:|
+| Owned shared spaces | 0 | Up to 10 |
+| Joined shared spaces | Unlimited | Unlimited |
+| People per shared space | 30 | 30 |
+| Joining | Free | Free |
 
-| Dimension | Free (no Shared Spaces add-on) | Shared Spaces add-on |
-|-----------|----------------------------------|-----------------------------------------------------|
-| **Named private spaces** | No dedicated cap in product rules (subject to reasonable abuse safeguards later if needed). | Same |
-| **Owned shared spaces** | **0** — owning any shared space requires the add-on | **10** |
-| **Spaces you can join** | **Unlimited** memberships, always free | **Unlimited** |
-| **Members per owned space** | **30** (soft UX; not marketed as a headline number) | **30** |
+The owner pays to create/host. Joining is always free. The old free shared-space allotment and “Unlimited/Group
+Sharing” membership model are retired without grandfathering.
 
-**Definition — “owned shared space”:** A space where `Spaces.userId` is you and `Spaces.type === 'shared'`. See `getSharedSpacesOwnedCount` in [server/utils/tier-limits.ts](../../server/utils/tier-limits.ts).
+## Per-context behavior
 
-**No grandfathering (July 2026 clean break):** the prior 3-shared-space free allotment and the `unlimited` tier are retired outright — zero users were grandfathered in because the legacy `Members`/`SpaceInvitations` model was retired wholesale, not migrated. See [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md#the-clean-break).
+| Capability | My Home/private | Shared space | Public space (future) |
+|---|---|---|---|
+| Authored notes visible | Complete private aggregate | Active associated notes | Published associated notes |
+| Canonical owner | Author | Author | Author |
+| Compose | Private note | My Home note + association | Owner/leader only |
+| Organization | Private | Isolated per space | Isolated per space |
+| Threads | Personal | Owner starts/current pin; members view and attach own notes | To be designed |
+| Responses | Personal author tools | Space-scoped passage responses | To be designed |
+| Public note link UI | Available where allowed | Hidden | To be designed |
+| Encrypted notes | Supported privately | Excluded | Excluded |
 
-**Customer-facing names (billing):** `UserMetadata.sharedSpacesAddOn` (boolean) is the source of truth — see [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md#entitlement--the-shared-spaces-add-on). The add-on is marketed as **Shared Spaces** ($6/mo · $48/yr), superseding the retired **Group Sharing** SKU (same price point). **Review** (personal AI) is a separate subscription — no bundle SKU. See [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md). **Group Leader** (leader pays to host; members join spaces free; Review stays individual) is a future SKU distinct from Shared Spaces.
+Internal identifiers such as `StudyThreadEntries` may remain in schema and code for anchored responses. The
+feature name presented to users is **Thread** or **Threads**.
 
----
+## Activity boundaries
 
-## 3. Invariants vs per-mode UX
+Note Activity is a note-level response index. In My Home it groups responses by space; inside a space it shows
+only the relevant space. Persistent overlays appear only in that explicit space context.
 
-### Invariants (all modes / all spaces)
+Space activity is separate. It summarizes new notes and other space events relative to the member's visit
+watermark. Future unread work must preserve this separation.
 
-- Same **APIs** and **Postgres** model: `Spaces`, `Threads`, `Notes`, `SpaceMemberships`, junction tables.
-- **Thread/note graph** and scripture processing behave the same; no second content pipeline per mode.
-- **Item-level share links** remain independent of space-level visibility (see two-layer visibility in shared spaces doc).
-- **Locked notes** (`contentEncrypted`): never shown in shared contexts, for any viewer — including the note's own author (see shared spaces doc).
+## Lifecycle
 
-### May differ by mode (UX / presentation — target state from redesign)
+- Removing a note archives only its space association.
+- Leaving or member removal archives that person's authored associations and preserves responses they left on
+  other people's notes.
+- Re-sharing restores the conversation but not prior folders, pins, order, or Thread attachments.
+- Shared-space deletion hides and revokes immediately, is owner-recoverable for 30 days in Settings, then purges
+  space-level records while preserving canonical notes.
 
-| Aspect | Private study (My Home + named private) | Shared space | Public *(future)* |
-|--------|-------------------------------------------|--------------|-------------------|
-| **Visual treatment** | Warm, minimal; no member presence | Collaborative tint; optional activity / presence | Discovery, read-leaning layout |
-| **Sharing chrome** | Per-item share controls where applicable | Space-level join/link; hide per-item share UI for viewers | TBD |
-| **Navigation emphasis** | Default landing; space switcher lists My Home first | Same routes; context is active `spaceId` | TBD |
+## Privacy
 
-**v1 non-goals for “modes”:** No new tables solely for modes; no change to how notes are stored. Mode is **surfaced intent**, not a duplicate hierarchy.
+- Shared note access always requires an explicit context, active membership, and active association.
+- Invite preview is metadata-only.
+- Non-owner member views omit email.
+- Encrypted notes never enter shared/public contexts.
+- From My Home, a warning precedes public-link creation for a note also associated with shared spaces.
 
----
+## Routing
 
-## 4. Defaults: landing, deep links, creation
+On dedicated native-like hosts, including localhost, the authenticated shell is rooted at `/`; note routes are
+`/n/{id}`. An optional `?space={spaceId}` carries explicit shared context. `/prototype` is legacy-only on
+non-dedicated hosts.
 
-### Default landing
+## Related documents
 
-- After sign-in and for generic entry: **`/` (My Home / dashboard)** unless a redirect URL preserves another destination (e.g. join/invite flows per [AGENTS.md](../../AGENTS.md) Clerk guidance).
-
-### Deep links and `?space=`
-
-- Thread and note links may include **`?space=`** so list context matches the space the user was browsing ([OrganizedContentList](../../src/components/react/OrganizedContentList.tsx), search results).
-- **Selected space** persistence: [selectedSpace.ts](../../src/components/react/navigation/selectedSpace.ts) (`harvous-selected-space-id`; normalized `home` → aggregate).
-
-### Content creation default scope
-
-- **From My Home:** New threads/notes are created in the **default personal context** (not forced into a named space unless the user picks one).
-- **From a named space route** (`/space/{id}` or equivalent): New content is associated with **that space** when the creation entry point is space-scoped (e.g. FAB “add to this space”).
-- **Switching space** updates list scope and link query params; it does not migrate existing notes without an explicit user action.
-
-### Long-term content model (product stance)
-
-- **Allowed:** Notes and threads that live only under **My Home** (no named space), **or** under one or more named spaces, per existing many-to-many patterns.
-- **Not required:** Every item must belong to a named private space. My Home remains the always-available default surface.
-
----
-
-## 5. Related docs
-
-- [redesign-exploration.md](./redesign-exploration.md) — Modes framing and native UX direction.
-- [NAVIGATION_HIERARCHY_REDESIGN.md](./NAVIGATION_HIERARCHY_REDESIGN.md) — Space switcher hierarchy.
-- [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md) — Permissions, visibility, shared-space UI rules.
+- [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md)
+- [SHARED_SPACES_TESTING.md](../SHARED_SPACES_TESTING.md)
+- [SHARED_SPACES_ROADMAP.md](./SHARED_SPACES_ROADMAP.md)
+- [MENTION_PILLS.md](./MENTION_PILLS.md)

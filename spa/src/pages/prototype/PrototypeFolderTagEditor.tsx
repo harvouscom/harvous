@@ -26,13 +26,71 @@ import {
 import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { dedupeNoteTagsByName } from '@/utils/dedupe-note-tags';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import {
+  usePatchSpaceNoteOrganization,
+  type NoteCollectionExtras,
+  type PatchSpaceNoteOrganizationInput,
+} from '../../hooks/mutations/usePatchSpaceNoteOrganization';
+import type { UpdateNoteInput } from '../../hooks/mutations/useUpdateNote';
+import { APIError } from '../../lib/api';
+import { toast } from '@/utils/toast';
 
 interface PrototypeFolderTagEditorProps {
   note: NoteDetail;
+  contextSpaceId?: string | null;
   /** When true, only renders the folder editor (no tag section). Used by the toolbar popover and FOLDER inspector section. */
   folderOnly?: boolean;
   /** When true, only renders the tags section. Used by the TAGS inspector section. */
   tagsOnly?: boolean;
+}
+
+export type FolderTagPersistenceRequest =
+  | { kind: 'shared'; input: PatchSpaceNoteOrganizationInput }
+  | { kind: 'personal'; input: UpdateNoteInput };
+
+export function buildFolderTagPersistenceRequest(
+  note: NoteDetail,
+  patch: NoteCollectionExtras,
+  contextSpaceId?: string | null,
+): FolderTagPersistenceRequest {
+  const context = contextSpaceId?.trim();
+  if (context) {
+    const organization = note.organization ?? {
+      isPinned: false,
+      primaryCollection: note.primaryCollection ?? null,
+      secondaryCollections: note.secondaryCollections ?? [],
+      collectionPinned: note.collectionPinned ?? false,
+      order: 0,
+    };
+    return {
+      kind: 'shared',
+      input: {
+        noteId: note.id,
+        spaceId: context,
+        primaryCollection:
+          patch.primaryCollection !== undefined
+            ? patch.primaryCollection
+            : organization.primaryCollection,
+        secondaryCollections:
+          patch.secondaryCollections !== undefined
+            ? patch.secondaryCollections
+            : organization.secondaryCollections,
+        collectionPinned:
+          patch.collectionPinned !== undefined
+            ? patch.collectionPinned
+            : organization.collectionPinned,
+      },
+    };
+  }
+  return {
+    kind: 'personal',
+    input: {
+      noteId: note.id,
+      title: note.title ?? '',
+      content: note.content ?? '',
+      ...patch,
+    },
+  };
 }
 
 function trim(s: string | null | undefined): string {
@@ -57,24 +115,35 @@ function dedupeFolders(list: string[], excludePrimary: string | null): string[] 
 
 export default function PrototypeFolderTagEditor({
   note,
+  contextSpaceId = null,
   folderOnly = false,
   tagsOnly = false,
 }: PrototypeFolderTagEditorProps) {
   const showFolder = !tagsOnly;
   const showTags = !folderOnly;
   const updateNote = useUpdateNote();
+  const patchSpaceNoteOrganization = usePatchSpaceNoteOrganization();
   const tagsList = useTagsList();
   const addTag = useAddTagToNote();
   const removeTag = useRemoveTagFromNote();
   const { setPrototypeFolderChip } = useProtoShell();
 
-  const serverPrimary = trim(note.primaryCollection ?? '');
+  const contextualOrganization = contextSpaceId?.trim()
+    ? note.organization
+    : null;
+  const serverPrimary = trim(
+    contextualOrganization?.primaryCollection ?? note.primaryCollection ?? '',
+  );
   const serverSecondaries = dedupeFolders(
-    note.secondaryCollections ?? [],
+    contextualOrganization?.secondaryCollections ?? note.secondaryCollections ?? [],
     serverPrimary || null,
   );
-  const isManual = !!note.collectionUserOverride;
-  const isLocked = !!note.collectionPinned;
+  const isManual = contextSpaceId?.trim() ? true : !!note.collectionUserOverride;
+  const isLocked =
+    contextualOrganization?.collectionPinned ?? !!note.collectionPinned;
+  const folderMutationPending = contextSpaceId?.trim()
+    ? patchSpaceNoteOrganization.isPending
+    : updateNote.isPending;
 
   const [primaryDraft, setPrimaryDraft] = useState(serverPrimary);
   const [secondaryDraft, setSecondaryDraft] = useState('');
@@ -112,26 +181,48 @@ export default function PrototypeFolderTagEditor({
       collectionPinned?: boolean;
       collectionUserOverride?: boolean;
     }) => {
-      updateNote.mutate(
-        {
-          noteId: note.id,
-          title: note.title ?? '',
-          content: note.content ?? '',
-          ...patch,
+      const request = buildFolderTagPersistenceRequest(
+        note,
+        patch,
+        contextSpaceId,
+      );
+      const options = {
+        onSuccess: () => {
+          if (
+            patch.primaryCollection !== undefined ||
+            patch.secondaryCollections !== undefined
+          ) {
+            syncToolbarFolderChip(patch);
+          }
         },
+        onError: (error: unknown) => {
+          const message =
+            error instanceof APIError
+              ? error.message
+              : error instanceof Error
+                ? error.message
+                : 'Could not update folders';
+          toast.error(message);
+        },
+      };
+      if (request.kind === 'shared') {
+        patchSpaceNoteOrganization.mutate(request.input, options);
+        return;
+      }
+      updateNote.mutate(
+        request.input,
         {
-          onSuccess: () => {
-            if (
-              patch.primaryCollection !== undefined ||
-              patch.secondaryCollections !== undefined
-            ) {
-              syncToolbarFolderChip(patch);
-            }
-          },
+          ...options,
         },
       );
     },
-    [note.id, note.title, note.content, updateNote, syncToolbarFolderChip],
+    [
+      contextSpaceId,
+      note,
+      patchSpaceNoteOrganization,
+      syncToolbarFolderChip,
+      updateNote,
+    ],
   );
 
   const applyPrimary = () => {
@@ -195,7 +286,7 @@ export default function PrototypeFolderTagEditor({
   };
 
   const useAutoSuggestion = () => {
-    if (updateNote.isPending) return;
+    if (folderMutationPending) return;
     const title = note.title ?? '';
     const content = note.content ?? '';
     const sug = suggestPrimaryCollectionFromNote(title, content);
@@ -241,11 +332,11 @@ export default function PrototypeFolderTagEditor({
             type="button"
             className="proto-fte-source__action"
             onClick={useAutoSuggestion}
-            disabled={updateNote.isPending}
+            disabled={folderMutationPending}
             title="Restore auto-suggested folders"
           >
             <Icon name="rotate-left" size={11} aria-hidden />
-            {updateNote.isPending ? 'Working…' : 'Use auto suggestion'}
+            {folderMutationPending ? 'Working…' : 'Use auto suggestion'}
           </button>
         ) : null}
       </div>

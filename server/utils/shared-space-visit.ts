@@ -1,28 +1,29 @@
 /**
  * Per-membership "new since you were here" helpers for shared/public spaces.
  */
-import { db, first, Notes, SpaceMemberships, Spaces, eq, and, count, gt, inArray, ne } from '../db';
+import { db, first, Notes, SpaceNotes, SpaceMemberships, Spaces, eq, and, count, gt, ne, isNull } from '../db';
 import { nowISO } from '../db/dates';
 import { requireSpaceAccess } from './space-access';
 import { getNotesForSharedSpace } from './dashboard-data';
 
 export interface SharedSpaceVisitResult {
-  previousVisitedAt: string | null;
+  previousVisitedAt: Date | null;
   newNoteCount: number;
   totalNoteCount: number;
 }
 
-function visitWatermark(membership: { lastVisitedAt: string | null; joinedAt: string }): string | null {
+function visitWatermark(membership: { lastVisitedAt: Date | null; joinedAt: Date }): Date | null {
   return membership.lastVisitedAt ?? null;
 }
 
-export async function countNewNotesInSpaceSince(spaceId: string, sinceIso: string): Promise<number> {
+export async function countNewNotesInSpaceSince(spaceId: string, sinceIso: Date): Promise<number> {
   const row = first(
     await db
       .select({ value: count() })
-      .from(Notes)
+      .from(SpaceNotes)
+      .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
       .where(
-        and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false), gt(Notes.updatedAt, sinceIso)),
+        and(eq(SpaceNotes.spaceId, spaceId), isNull(SpaceNotes.removedAt), eq(Notes.contentEncrypted, false), gt(Notes.updatedAt, sinceIso)),
       ),
   );
   return Number(row?.value ?? 0);
@@ -65,8 +66,9 @@ export async function recordSharedSpaceVisit(spaceId: string, userId: string): P
   const totalRow = first(
     await db
       .select({ value: count() })
-      .from(Notes)
-      .where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false))),
+      .from(SpaceNotes)
+      .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
+      .where(and(eq(SpaceNotes.spaceId, spaceId), isNull(SpaceNotes.removedAt), eq(Notes.contentEncrypted, false))),
   );
   const totalNoteCount = Number(totalRow?.value ?? 0);
 
@@ -103,7 +105,7 @@ export async function getSharedSpaceActivityPreview(spaceId: string, userId: str
     const byAuthor = new Map<string, { displayName: string; noteCount: number }>();
     for (const note of sampleForActivity) {
       const updated = note.lastUpdated ?? note.updatedAt;
-      if (!updated || updated <= watermark) continue;
+      if (!updated || new Date(updated).getTime() <= watermark.getTime()) continue;
       const key = note.authorUserId ?? note.authorDisplayName ?? 'member';
       const displayName = note.authorDisplayName ?? 'Someone';
       const row = byAuthor.get(key);
@@ -134,7 +136,7 @@ export async function getNewNoteCountsForUser(userId: string): Promise<Map<strin
     })
     .from(SpaceMemberships)
     .innerJoin(Spaces, eq(SpaceMemberships.spaceId, Spaces.id))
-    .where(and(eq(SpaceMemberships.userId, userId), ne(Spaces.type, 'personal')));
+    .where(and(eq(SpaceMemberships.userId, userId), ne(Spaces.type, 'personal'), isNull(Spaces.deletedAt)));
 
   const result = new Map<string, number>();
   await Promise.all(
@@ -152,17 +154,18 @@ export async function getNewNoteCountsForUser(userId: string): Promise<Map<strin
 }
 
 export function isNoteNewSinceVisit(
-  noteUpdatedAt: string | null | undefined,
-  unseenSince: string | null | undefined,
+  noteUpdatedAt: string | Date | null | undefined,
+  unseenSince: string | Date | null | undefined,
 ): boolean {
   if (!unseenSince || !noteUpdatedAt) return false;
-  return noteUpdatedAt > unseenSince;
+  return new Date(noteUpdatedAt).getTime() > new Date(unseenSince).getTime();
 }
 
 export async function getSpaceMemberUserIds(spaceId: string): Promise<string[]> {
   const rows = await db
     .select({ userId: SpaceMemberships.userId })
     .from(SpaceMemberships)
+    .innerJoin(Spaces, and(eq(Spaces.id, SpaceMemberships.spaceId), isNull(Spaces.deletedAt)))
     .where(eq(SpaceMemberships.spaceId, spaceId));
   return [...new Set(rows.map((r) => r.userId).filter(Boolean))];
 }

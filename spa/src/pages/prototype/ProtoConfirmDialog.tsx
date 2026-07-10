@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import DeleteConfirmBar from '@/components/react/DeleteConfirmBar';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import { computeMainColumnTopRightPopoverPosition } from './proto-anchored-popover-position';
 import { computeAnchoredPopoverPosition } from './proto-popover-position';
 import { resolveAnchorRect, type ProtoAnchoredPopoverStrategy } from './useProtoAnchoredPopoverPosition';
+import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 
 const CARD_MIN_WIDTH = 200;
 const CARD_MAX_WIDTH = 320;
@@ -45,6 +46,7 @@ export default function ProtoConfirmDialog({
   onCancel,
 }: ProtoConfirmDialogProps) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const anchorElRef = useRef(anchorEl);
   const anchorRectRef = useRef(anchorRect);
   anchorElRef.current = anchorEl;
@@ -111,16 +113,19 @@ export default function ProtoConfirmDialog({
         if (!busy) onCancel();
       }
     }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !busy) onCancel();
-    }
     window.addEventListener('pointerdown', onPointerDown, { capture: true });
-    window.addEventListener('keydown', onKeyDown);
     return () => {
       window.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('keydown', onKeyDown);
     };
   }, [busy, onCancel]);
+
+  useProtoDialogFocus({
+    open: true,
+    dialogRef: cardRef,
+    onDismiss: () => {
+      if (!busy) onCancel();
+    },
+  });
 
   if (typeof document === 'undefined') return null;
 
@@ -128,8 +133,9 @@ export default function ProtoConfirmDialog({
     <ProtoPopoverShell
       ref={cardRef}
       role="dialog"
-      aria-modal="false"
-      aria-label={title || 'Confirm delete'}
+      aria-modal="true"
+      aria-labelledby={title ? titleId : undefined}
+      aria-label={title ? undefined : 'Confirm delete'}
       className="harvous-delete-confirm floating-picker-enter"
       style={{
         position: 'fixed',
@@ -143,6 +149,7 @@ export default function ProtoConfirmDialog({
     >
       <DeleteConfirmBar
         title={title}
+        titleId={titleId}
         confirmLabel={confirmLabel}
         cancelLabel={cancelLabel}
         busy={busy}

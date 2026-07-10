@@ -26,6 +26,13 @@ import { subscribeSheetOverlayInset } from '@/utils/sheet-overlay-inset';
 import { useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 import { SyncCacheBridge } from './lib/sync-cache-bridge';
 import { SharedSpacesEntitlementBridge } from './lib/SharedSpacesEntitlementBridge';
+import {
+  clearPendingAuthRedirect,
+  consumePendingAuthRedirect,
+  peekPendingAuthRedirect,
+  pendingAuthRedirectDecision,
+} from './lib/pending-auth-redirect';
+import { syncPublicRouteHtmlClass } from '@/lib/prototype-path';
 
 const PWA_INSTALL_INSTRUCTIONS_EVENT = 'showPwaInstallInstructions';
 
@@ -249,6 +256,71 @@ function MarketingSiteSessionHint() {
     if (!isLoaded) return;
     syncMarketingSessionHint(Boolean(isSignedIn));
   }, [isLoaded, isSignedIn]);
+  return null;
+}
+
+function PublicRouteClassBridge() {
+  useLayoutEffect(() => {
+    const syncPath = (pathname: string) => {
+      syncPublicRouteHtmlClass(pathname);
+    };
+    syncPath(window.location.pathname);
+    const unsubscribeBeforeNavigate = router.subscribe('onBeforeNavigate', (event) => {
+      syncPath(event.toLocation.pathname);
+    });
+    const unsubscribeResolved = router.subscribe('onResolved', (event) => {
+      syncPath(event.toLocation.pathname);
+    });
+    return () => {
+      unsubscribeBeforeNavigate();
+      unsubscribeResolved();
+    };
+  }, []);
+
+  return null;
+}
+
+function PendingAuthRedirectBridge() {
+  const { isLoaded, isSignedIn } = useAuth();
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+
+    const applyPendingRedirect = () => {
+      const currentUrl = window.location.href;
+      const current = new URL(currentUrl);
+      const isAuthPath =
+        current.pathname === '/sign-in' ||
+        current.pathname.startsWith('/sign-in/') ||
+        current.pathname === '/sign-up' ||
+        current.pathname.startsWith('/sign-up/');
+      const hasExplicitRedirect = isAuthPath && current.searchParams.has('redirect_url');
+      const pendingDestination = peekPendingAuthRedirect();
+      const decision = pendingAuthRedirectDecision({
+        isLoaded,
+        isSignedIn: Boolean(isSignedIn),
+        hasExplicitRedirect,
+        currentDestination: currentUrl,
+        pendingDestination,
+        origin: current.origin,
+      });
+
+      if (decision === 'explicit' || decision === 'at-target' || decision === 'none') {
+        clearPendingAuthRedirect();
+        return;
+      }
+      if (decision !== 'navigate') return;
+
+      const destination = consumePendingAuthRedirect();
+      if (destination) {
+        void router.navigate({ to: destination as any, replace: true });
+      }
+    };
+
+    applyPendingRedirect();
+    return router.subscribe('onResolved', applyPendingRedirect);
+  }, [isLoaded, isSignedIn]);
+
   return null;
 }
 
@@ -724,6 +796,8 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <AuthSignedOutCacheCleanup />
         <MarketingSiteSessionHint />
+        <PublicRouteClassBridge />
+        <PendingAuthRedirectBridge />
         <QueryClient401Redirect />
         <IosPwaSheetOverlayInset />
         <WebHapticsSetup />

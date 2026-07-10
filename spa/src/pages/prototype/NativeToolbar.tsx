@@ -5,16 +5,19 @@
  * Mobile unified: [sidebar toggle] [space orb] [compose] · … (list mode stays in drawer header)
  */
 import { useCallback, useEffect, useRef } from 'react';
-import { useAuth } from '@clerk/clerk-react';
 import { useToolbarAnchoredPopover } from '../../hooks/useToolbarAnchoredPopover';
-import { useNavigate, useRouterState } from '@tanstack/react-router';
+import { useNavigate, useRouterState, useSearch } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import SpaceSwitcherMenu from './SpaceSwitcherMenu';
 import { useNote } from '../../hooks/queries/useNote';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { PROTOTYPE_DRAFT_NOTE_SLUG, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
-import { useProtoShell, usePrototypeFolderChip } from '../../layouts/proto-shell-context';
+import {
+  resolveVisibleComposeTarget,
+  useProtoShell,
+  usePrototypeFolderChip,
+} from '../../layouts/proto-shell-context';
 import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
 import {
   effectiveNoteFolderLabel,
@@ -32,14 +35,71 @@ import SplitColumnToggleIcon from './SplitColumnToggleIcon';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import { isPrototypeNotePath, matchPrototypeNoteId, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { prototypeToolbarNoteDetailsAvailable } from './prototype-toolbar-note-details';
-import { isConfirmedForeignNote } from './proto-note-ownership';
+import {
+  canOrganizeSharedSpaceNote,
+  canPinSharedSpaceItem,
+} from '../../lib/shared-space-capabilities';
+import { useNavigationSharedSpaceAccess } from '../../hooks/queries/useNavigation';
 
 export type NativeToolbarVariant = 'detail' | 'unified';
 
+function normalizeToolbarSpaceId(spaceId: string | null | undefined): string | null {
+  const trimmed = spaceId?.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith('space_') ? trimmed : `space_${trimmed}`;
+}
+
+export function resolveNativeToolbarSharedContextId(options: {
+  explicitContextSpaceId?: string | null;
+  visibleTargetSpaceId?: string | null;
+  homeSpaceId?: string | null;
+}): string | null {
+  const explicit = normalizeToolbarSpaceId(options.explicitContextSpaceId);
+  const visible = normalizeToolbarSpaceId(options.visibleTargetSpaceId);
+  const home = normalizeToolbarSpaceId(options.homeSpaceId);
+  if (explicit) return explicit === home ? null : explicit;
+  return visible && visible !== home ? visible : null;
+}
+
+export function resolveNativeToolbarContextCapabilities(options: {
+  hasSharedContext: boolean;
+  contextualAccessKnown: boolean;
+  isOwnNote: boolean;
+  isSpaceOwner: boolean;
+}) {
+  if (!options.hasSharedContext) {
+    return {
+      canOrganize: true,
+      canPin: true,
+      canRemove: false,
+      canShare: true,
+    };
+  }
+  if (!options.contextualAccessKnown) {
+    return {
+      canOrganize: false,
+      canPin: false,
+      canRemove: false,
+      canShare: false,
+    };
+  }
+  return {
+    canOrganize: canOrganizeSharedSpaceNote({
+      isOwnNote: options.isOwnNote,
+      isSpaceOwner: options.isSpaceOwner,
+    }),
+    canPin: canPinSharedSpaceItem({ isSpaceOwner: options.isSpaceOwner }),
+    canRemove: options.isOwnNote || options.isSpaceOwner,
+    canShare: false,
+  };
+}
+
 export default function NativeToolbar({ variant = 'detail' }: { variant?: NativeToolbarVariant }) {
   const navigate = useNavigate();
-  const { userId: authUserId } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { space: contextSpaceId } = useSearch({ strict: false }) as {
+    space?: string;
+  };
 
   const findButtonRef = useRef<HTMLButtonElement | null>(null);
   const overflowMenuButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -66,6 +126,9 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     closeInspector,
     closeDrawer,
     ensureSidebarExpanded,
+    activeSpaceId,
+    sidebarLayer,
+    sidebarListSpaceScope,
   } = useProtoShell();
 
   const isUnified = variant === 'unified';
@@ -78,12 +141,39 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     normalizeNoteIdFromParam,
   );
 
-  const { data: toolbarNote, isLoading: toolbarNoteLoading } = useNote(toolbarNoteId ?? '');
-  const { readOnlyInSharedSpace } = useForeignSharedNote(toolbarNoteId);
+  const { data: toolbarNote, isLoading: toolbarNoteLoading } = useNote(
+    toolbarNoteId ?? '',
+    contextSpaceId,
+  );
+  const { readOnlyInSharedSpace } = useForeignSharedNote(
+    toolbarNoteId,
+    contextSpaceId,
+  );
 
-  const noteSpaceId = toolbarNote?.spaces?.[0]?.id ?? homeSpaceId;
   const readOnlyForeignNote = readOnlyInSharedSpace;
-  const isForeignNote = isConfirmedForeignNote(toolbarNote, authUserId);
+  const visibleComposeTarget = resolveVisibleComposeTarget({
+    homeSpaceId,
+    activeSpaceId,
+    sidebarLayer,
+    sidebarListSpaceScope,
+  });
+  const currentSharedSpaceId = resolveNativeToolbarSharedContextId({
+    explicitContextSpaceId: contextSpaceId,
+    visibleTargetSpaceId: visibleComposeTarget,
+    homeSpaceId,
+  });
+  const { access: contextualSpaceAccess } = useNavigationSharedSpaceAccess(currentSharedSpaceId);
+  const contextualAccessKnown = !currentSharedSpaceId || contextualSpaceAccess !== null;
+  const isContextSpaceOwner = contextualSpaceAccess?.isOwner === true;
+  const isSharedContext = currentSharedSpaceId !== null;
+  const noteSpaceId = currentSharedSpaceId ?? homeSpaceId;
+  const sharedSpaceNames = toolbarNote?.spaces?.map((space) => space.title).filter(Boolean) ?? [];
+  const contextualCapabilities = resolveNativeToolbarContextCapabilities({
+    hasSharedContext: isSharedContext,
+    contextualAccessKnown,
+    isOwnNote: !readOnlyForeignNote,
+    isSpaceOwner: isContextSpaceOwner,
+  });
 
   const isOnNotePage = isPrototypeNotePath(pathname);
 
@@ -123,9 +213,9 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   })();
 
   const onCompose = () => {
-    if (!homeSpaceId) return;
+    if (!visibleComposeTarget) return;
     if (isMobileSidebar) closeDrawer();
-    beginPrototypeComposeSession();
+    beginPrototypeComposeSession({ targetSpaceId: visibleComposeTarget });
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
@@ -166,6 +256,12 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     const anchor = isMobileSidebar ? overflowMenuButtonRef.current : shareButtonRef.current;
     sharePopover.openFrom(anchor);
   }, [isMobileSidebar, sharePopover.openFrom]);
+
+  useEffect(() => {
+    if (!contextualCapabilities.canShare && sharePopover.isOpen) {
+      sharePopover.dismiss();
+    }
+  }, [contextualCapabilities.canShare, sharePopover.dismiss, sharePopover.isOpen]);
 
   useEffect(() => {
     if (!isOnNotePage || !toolbarNoteId) return;
@@ -233,7 +329,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
       </div>
 
       <div className="proto-toolbar-center">
-        {isOnNotePage && !toolbarNoteLoading && toolbarNote && !readOnlyForeignNote ? (
+        {isOnNotePage && !toolbarNoteLoading && toolbarNote && contextualCapabilities.canOrganize ? (
           <>
             <button
               ref={folderChipRef}
@@ -258,6 +354,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
             {folderPopover.isOpen && toolbarNoteId ? (
               <PrototypeFolderPopover
                 note={toolbarNote}
+                contextSpaceId={contextSpaceId}
                 anchorRect={folderPopover.anchorRect}
                 exiting={folderPopover.exiting}
                 onDismiss={folderPopover.dismiss}
@@ -295,7 +392,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
               />
             ) : null}
 
-            {toolbarNote && toolbarNoteId && !isMobileSidebar && !readOnlyForeignNote ? (
+            {toolbarNote && toolbarNoteId && !isMobileSidebar && !readOnlyForeignNote && contextualCapabilities.canShare ? (
               <>
                 <button
                   ref={shareButtonRef}
@@ -314,27 +411,40 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                 </button>
               </>
             ) : null}
-            {sharePopover.isOpen && toolbarNote && toolbarNoteId ? (
+            {sharePopover.isOpen && toolbarNote && toolbarNoteId && contextualCapabilities.canShare ? (
               <PrototypeSharePopover
                 noteId={toolbarNoteId}
                 isPublic={!!toolbarNote.isPublic}
                 shareToken={toolbarNote.shareToken ?? null}
+                sharedSpaceNames={sharedSpaceNames}
                 anchorRect={sharePopover.anchorRect}
                 exiting={sharePopover.exiting}
                 onDismiss={sharePopover.dismiss}
               />
             ) : null}
 
-            {noteSpaceId && !isForeignNote ? (
+            {noteSpaceId ? (
               <PrototypeNoteMoreMenu
                 noteId={toolbarNoteId}
                 spaceId={noteSpaceId}
+                homeSpaceId={homeSpaceId ?? undefined}
+                currentSharedSpaceId={currentSharedSpaceId ?? undefined}
+                currentSharedSpaceTitle={
+                  toolbarNote?.spaces?.find((space) => space.id === currentSharedSpaceId)?.title ??
+                  contextualSpaceAccess?.space.title
+                }
+                canRemoveFromCurrentSpace={contextualCapabilities.canRemove}
+                canPin={contextualCapabilities.canPin}
                 overflowActions={isMobileSidebar}
                 isPublic={!!toolbarNote?.isPublic}
                 readOnlyForeign={readOnlyForeignNote}
                 menuButtonRef={overflowMenuButtonRef}
                 onFind={isMobileSidebar && !readOnlyForeignNote ? openFindPopover : undefined}
-                onShare={isMobileSidebar && toolbarNote && !readOnlyForeignNote ? openSharePopover : undefined}
+                onShare={
+                  isMobileSidebar && toolbarNote && !readOnlyForeignNote && contextualCapabilities.canShare
+                    ? openSharePopover
+                    : undefined
+                }
               />
             ) : null}
           </div>

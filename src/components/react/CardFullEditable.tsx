@@ -179,6 +179,8 @@ interface CardFullEditableProps {
   sharedOverlayPmRanges?: { from: number; to: number }[];
   /** Fired after a runtime highlight-open request (overlay tap) is consumed. */
   onHighlightOpenRequestConsumed?: () => void;
+  /** Active highlight dock entry, or null after close/context reset. */
+  onActiveHighlightEntryChange?: (entryId: string | null) => void;
   /** Prototype-only: native-like editor chrome (format vs scripture vs note action bar). */
   editorChromeMode?: 'default' | 'prototypeNative';
   /** Shown when prototype bottom mode is `noteActions` (below editor, above save/cancel).
@@ -289,6 +291,8 @@ interface CardFullEditableProps {
   mentionSource?: (query: string) => import('./mention-pill-types').MentionPickerItem[] | Promise<import('./mention-pill-types').MentionPickerItem[]>;
   /** Tap/click on a mention pill (editable and read-only content-html views). */
   onMentionPillClick?: (payload: import('./mention-pill-types').MentionPillClickPayload) => void;
+  /** Explicit shared-space read context. My Home remains context-free. */
+  contextSpaceId?: string | null;
 }
 
 export default function CardFullEditable({ 
@@ -315,6 +319,7 @@ export default function CardFullEditable({
   onSharedAnnotationCreated,
   sharedOverlayPmRanges = [],
   onHighlightOpenRequestConsumed,
+  onActiveHighlightEntryChange,
   editorChromeMode = 'default',
   prototypeNoteActionBar,
   formatToolbarPortalTarget,
@@ -351,6 +356,7 @@ export default function CardFullEditable({
   spaceId,
   mentionSource,
   onMentionPillClick,
+  contextSpaceId = null,
 }: CardFullEditableProps) {
   const effectivePrototypeNoteActionsChrome =
     editorChromeMode === 'prototypeNative'
@@ -475,6 +481,7 @@ export default function CardFullEditable({
     studyThreadEntryId: string;
     requestKey?: string;
     metadata?: HighlightDockOpenMetadata;
+    range?: { from: number; to: number } | null;
   } | null>(null);
   const onPrototypeChromeModeChangeRef = useRef(onPrototypeChromeModeChange);
   useEffect(() => {
@@ -623,6 +630,11 @@ export default function CardFullEditable({
       range: highlightOpenRequest.range ?? null,
     });
   }, [editorChromeMode, highlightOpenRequest, noteId]);
+
+  useEffect(() => {
+    setPrototypeHighlightOpenRequest(null);
+    initialHighlightDockFiredRef.current = null;
+  }, [contextSpaceId]);
 
   // Reset proto save tracking on note switch so first edit always triggers a save
   useEffect(() => {
@@ -3064,6 +3076,7 @@ export default function CardFullEditable({
                       spaceId={spaceId}
                       mentionSource={mentionSource}
                       onMentionPillClick={onMentionPillClick}
+                      contextSpaceId={contextSpaceId}
                       onEditorReady={handleEditorReady}
                       editorChromeMode={editorChromeMode}
                       onPrototypeChromeModeChange={
@@ -3100,6 +3113,7 @@ export default function CardFullEditable({
                         editorChromeMode === 'prototypeNative' ? prototypeHighlightOpenRequest : null
                       }
                       onPrototypeHighlightOpenRequestConsumed={onPrototypeHighlightOpenRequestConsumed}
+                      onPrototypeActiveHighlightEntryChange={onActiveHighlightEntryChange}
                       prototypeNoteActionsChrome={effectivePrototypeNoteActionsChrome}
                     />,
                     'min-h-[100px]',
@@ -3472,6 +3486,7 @@ export default function CardFullEditable({
                     spaceId={spaceId}
                     mentionSource={mentionSource}
                     onMentionPillClick={onMentionPillClick}
+                    contextSpaceId={contextSpaceId}
                     onEditorReady={handleEditorReady}
                     editorChromeMode={editorChromeMode}
                     onPrototypeChromeModeChange={
@@ -3508,6 +3523,7 @@ export default function CardFullEditable({
                       editorChromeMode === 'prototypeNative' ? prototypeHighlightOpenRequest : null
                     }
                     onPrototypeHighlightOpenRequestConsumed={onPrototypeHighlightOpenRequestConsumed}
+                    onPrototypeActiveHighlightEntryChange={onActiveHighlightEntryChange}
                     prototypeNoteActionsChrome={effectivePrototypeNoteActionsChrome}
                   />,
                   'min-h-[200px]',

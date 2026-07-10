@@ -68,6 +68,22 @@ export function shouldFallbackToUnscopedStudyThreadGraph(
   return !studyThreadGraphHasEdgeOnNote(focusNoteId, graph.edges);
 }
 
+export function shouldAttemptLegacyStudyThreadFallback(input: {
+  hasExplicitSpaceContext: boolean;
+  focusNoteId: string;
+  graph: StudyThreadGraph;
+  directConnectionCount: number;
+}): boolean {
+  return (
+    !input.hasExplicitSpaceContext &&
+    shouldFallbackToUnscopedStudyThreadGraph(
+      input.focusNoteId,
+      input.graph,
+      input.directConnectionCount,
+    )
+  );
+}
+
 /**
  * Loads the connection cluster for a note in the resolved space scope.
  * If scoped BFS misses edges that exist on the focus note (null/wrong spaceId on rows),
@@ -79,6 +95,7 @@ export async function collectStudyThreadGraphForScope(
   options?: { preferredSpaceId?: string | null; maxNodes?: number },
 ): Promise<{ graph: StudyThreadGraph; scopeSpaceId: string | null }> {
   const maxNodes = options?.maxNodes ?? 200;
+  const hasExplicitScope = normalizeScopeSpaceId(options?.preferredSpaceId) !== null;
   let scopeSpaceId = await resolveStudyThreadScopeSpaceId(
     focusNoteId,
     userId,
@@ -90,7 +107,7 @@ export async function collectStudyThreadGraphForScope(
     maxNodes,
   });
 
-  if (!studyThreadGraphHasEdgeOnNote(focusNoteId, graph.edges)) {
+  if (!hasExplicitScope && !studyThreadGraphHasEdgeOnNote(focusNoteId, graph.edges)) {
     const touchRows = await fetchDirectConnectionsOnNote(focusNoteId, userId);
 
     const inferred = touchRows
@@ -105,7 +122,14 @@ export async function collectStudyThreadGraphForScope(
       });
     }
 
-    if (shouldFallbackToUnscopedStudyThreadGraph(focusNoteId, graph, touchRows.length)) {
+    if (
+      shouldAttemptLegacyStudyThreadFallback({
+        hasExplicitSpaceContext: hasExplicitScope,
+        focusNoteId,
+        graph,
+        directConnectionCount: touchRows.length,
+      })
+    ) {
       graph = await collectStudyThreadGraph(focusNoteId, userId, {
         spaceId: null,
         maxNodes,

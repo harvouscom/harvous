@@ -7,72 +7,120 @@ import { useUpdateNote } from './useUpdateNote';
 import { api } from '../../lib/api';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import { prototypeFolderRegistryQueryKey } from './usePrototypeFolderRegistry';
+import {
+  usePatchSpaceNoteOrganization,
+  type PatchSpaceNoteOrganizationInput,
+} from './usePatchSpaceNoteOrganization';
+import type { UpdateNoteInput } from './useUpdateNote';
 
-interface AddNotesToFolderInput {
+export type FolderMutationSpaceKind = 'personal' | 'shared';
+
+export interface AddNotesToFolderInput {
   rows: SpaceNoteRow[];
   folderName: string;
   spaceId: string;
+  spaceKind: FolderMutationSpaceKind;
+}
+
+export type AddNotesToFolderOperation = {
+  row: SpaceNoteRow;
+  patch: NonNullable<ReturnType<typeof computeNoteFolderAdditionPatch>>;
+  request:
+    | { kind: 'shared'; input: PatchSpaceNoteOrganizationInput }
+    | { kind: 'personal'; input: UpdateNoteInput };
+};
+
+export function buildAddNotesToFolderOperations(
+  input: AddNotesToFolderInput,
+): AddNotesToFolderOperation[] {
+  const bucket = input.folderName.trim();
+  if (!bucket) throw new Error('Folder name is required');
+  const operations: AddNotesToFolderOperation[] = [];
+  for (const row of input.rows) {
+    const patch = computeNoteFolderAdditionPatch(
+      {
+        primaryCollection: row.primaryCollection ?? null,
+        secondaryCollections: row.secondaryCollections ?? [],
+        collectionPinned: row.collectionPinned,
+        collectionUserOverride: row.collectionUserOverride,
+      },
+      bucket,
+    );
+    if (!patch) continue;
+    operations.push({
+      row,
+      patch,
+      request:
+        input.spaceKind === 'shared'
+          ? {
+              kind: 'shared',
+              input: {
+                noteId: row.id,
+                spaceId: input.spaceId,
+                primaryCollection: patch.primaryCollection,
+                secondaryCollections: patch.secondaryCollections,
+              },
+            }
+          : {
+              kind: 'personal',
+              input: {
+                noteId: row.id,
+                title: row.title ?? '',
+                content: row.content ?? '',
+                primaryCollection: patch.primaryCollection,
+                secondaryCollections: patch.secondaryCollections,
+                collectionUserOverride: patch.collectionUserOverride,
+              },
+            },
+    });
+  }
+  return operations;
 }
 
 /** Add folder label to one or more notes (notes are kept; may move from Unsorted). */
 export function useAddNotesToFolder() {
   const updateNote = useUpdateNote();
+  const patchSpaceNoteOrganization = usePatchSpaceNoteOrganization();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ rows, folderName, spaceId }: AddNotesToFolderInput) => {
-      const bucket = folderName.trim();
-      if (!bucket) throw new Error('Folder name is required');
-
-      const toUpdate: { row: SpaceNoteRow; patch: NonNullable<ReturnType<typeof computeNoteFolderAdditionPatch>> }[] =
-        [];
-      for (const row of rows) {
-        const patch = computeNoteFolderAdditionPatch(
-          {
-            primaryCollection: row.primaryCollection ?? null,
-            secondaryCollections: row.secondaryCollections ?? [],
-            collectionPinned: row.collectionPinned,
-            collectionUserOverride: row.collectionUserOverride,
-          },
-          bucket,
-        );
-        if (patch) toUpdate.push({ row, patch });
-      }
-      if (toUpdate.length === 0) {
+    mutationFn: async (input: AddNotesToFolderInput) => {
+      const bucket = input.folderName.trim();
+      const operations = buildAddNotesToFolderOperations(input);
+      if (operations.length === 0) {
         throw new Error('No notes were added to this folder');
       }
 
       await Promise.all(
-        toUpdate.map(({ row, patch }) =>
-          updateNote.mutateAsync({
-            noteId: row.id,
-            title: row.title ?? '',
-            content: row.content ?? '',
-            primaryCollection: patch.primaryCollection,
-            secondaryCollections: patch.secondaryCollections,
-            collectionUserOverride: patch.collectionUserOverride,
-          }),
+        operations.map(({ request }) =>
+          request.kind === 'shared'
+            ? patchSpaceNoteOrganization.mutateAsync(request.input)
+            : updateNote.mutateAsync(request.input),
         ),
       );
 
-      const sid = normalizePrototypeApiSpaceId(spaceId);
-      try {
-        await api.post(`/api/spaces/${encodeURIComponent(sid)}/folder-registry/remove-label`, {
-          folderName: bucket,
-        });
-      } catch {
-        // Non-fatal — notes now carry the label.
+      const sid = normalizePrototypeApiSpaceId(input.spaceId);
+      if (sid) {
+        try {
+          await api.post(`/api/spaces/${encodeURIComponent(sid)}/folder-registry/remove-label`, {
+            folderName: bucket,
+          });
+        } catch {
+          // Non-fatal — notes now carry the label.
+        }
       }
 
-      return { addedCount: toUpdate.length, updates: toUpdate };
+      return { addedCount: operations.length, operations };
     },
     onSuccess: (data, variables) => {
       const bucket = variables.folderName.trim();
-      for (const { row, patch } of data.updates) {
+      for (const { row, patch } of data.operations) {
         updateSpaceNoteInCache(queryClient, variables.spaceId, row.id, {
           primaryCollection: patch.primaryCollection,
           secondaryCollections: patch.secondaryCollections,
-          collectionUserOverride: patch.collectionUserOverride,
+          ...(variables.spaceKind === 'personal'
+            ? { collectionUserOverride: patch.collectionUserOverride }
+            : {}),
         });
       }
       const sid = normalizePrototypeApiSpaceId(variables.spaceId);

@@ -11,11 +11,26 @@ import { useRemoveFolder } from '../../hooks/mutations/useRemoveFolder';
 import { useRemoveNoteFromFolder } from '../../hooks/mutations/useRemoveNoteFromFolder';
 import { useRemoveNoteFromThreadCluster } from '../../hooks/mutations/useRemoveNoteFromThreadCluster';
 import { useRemoveThreadCluster } from '../../hooks/mutations/useRemoveThreadCluster';
+import { useDeleteSharedThread } from '../../hooks/mutations/useDeleteSharedThread';
+import { useSetCurrentSpaceThread } from '../../hooks/mutations/useSetCurrentSpaceThread';
 import { useConnectNote } from '../../hooks/mutations/useConnectNote';
 import { useUpdateStudyThreadTitle } from '../../hooks/mutations/useUpdateStudyThreadTitle';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useSpaceNotes, useSpaceMembers, type SpaceMemberRow, type SpaceNoteRow } from '../../hooks/queries/useSpace';
+import {
+  useSpaceGroupThreads,
+  type SpaceGroupStudyThread,
+} from '../../hooks/queries/useSpaceGroupThreads';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
+import { beginComposeInGroupThread } from '../../lib/compose-group-thread';
+import {
+  filterSharedSpaceThreads,
+  isSharedSpaceThreadDrillId,
+  sharedSpaceThreadsEmptyDescription,
+} from './shared-space-thread-list';
+import PrototypeCreateSharedThreadSheet from './PrototypeCreateSharedThreadSheet';
+import PrototypeSharedThreadDrilldown from './PrototypeSharedThreadDrilldown';
+import { sharedThreadNoteCountPreview } from './shared-space-dashboard';
 import { countNotesInFolderBucket, noteBelongsToFolderBucket, noteFolderMembershipLabels } from '@/utils/note-folder-display';
 import { sortDrillNoteBriefsByLastUpdated, sortNotesByLastUpdated } from '@/utils/sorting';
 import { orderStudyThreadNodesByIds, resolveStudyThreadMemberOrder } from '@/utils/study-thread-trail';
@@ -90,7 +105,11 @@ import {
 } from './sidebar-universal-search';
 import { usePrototypeFolderRegistry } from '../../hooks/mutations/usePrototypeFolderRegistry';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
-import { canCreateSidebarCollections as resolveCanCreateSidebarCollections } from '../../lib/shared-space-capabilities';
+import {
+  canCreateSidebarCollections as resolveCanCreateSidebarCollections,
+  canOrganizeSharedSpaceNote,
+  canPinSharedSpaceItem,
+} from '../../lib/shared-space-capabilities';
 import PrototypeAddNotesSheet from './PrototypeAddNotesSheet';
 import PrototypeCreateFolderSheet from './PrototypeCreateFolderSheet';
 import PrototypeCreateThreadSheet from './PrototypeCreateThreadSheet';
@@ -100,8 +119,11 @@ import SharedSpaceOwnerCollectionEmptyDescription from './SharedSpaceOwnerCollec
 
 
 import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
-import { noteParamSlug, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
-import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
+import { noteParamSlug, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug, PROTOTYPE_DRAFT_NOTE_SLUG } from './proto-route-slugs';
+import {
+  PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+  prototypeNoteListNavigationSearch,
+} from '@/utils/prototype-sidebar-highlight-active';
 
 import { ProtoThreadTrailRecencyLine as ProtoListRecencyLine } from './proto-thread-trail-row';
 
@@ -176,6 +198,8 @@ type PrototypeSidebarNoteRowProps = {
   trailLayout?: boolean;
   /** Roster lookup for shared-space author avatars on list rows. */
   sharedSpaceMemberByUserId?: Map<string, SpaceMemberRow>;
+  /** Actual shared-space owner, not leader/member moderation role. */
+  viewerIsSpaceOwner?: boolean;
 };
 
 function PrototypeSidebarFolderCard({
@@ -185,6 +209,7 @@ function PrototypeSidebarFolderCard({
   onTogglePin,
   onDelete,
   isDeleting,
+  showMenu = true,
 }: {
   folder: FolderBucket;
   isPinned: boolean;
@@ -192,6 +217,7 @@ function PrototypeSidebarFolderCard({
   onTogglePin: () => void;
   onDelete: (anchorRect: DOMRect) => void;
   isDeleting: boolean;
+  showMenu?: boolean;
 }) {
   const isNamed = folder.name !== null;
   const title = folder.name ?? 'Unsorted';
@@ -217,7 +243,7 @@ function PrototypeSidebarFolderCard({
           </div>
         </div>
       </button>
-      {isNamed ? (
+      {isNamed && showMenu ? (
         <div
           className={`proto-menu proto-collection-card__menu${menuOpen ? ' proto-collection-card__menu--open' : ''}`}
           ref={menuRootRef}
@@ -291,6 +317,7 @@ function PrototypeSidebarThreadCard({
   onTogglePin,
   onDelete,
   isDeleting,
+  showMenu = true,
 }: {
   cluster: StudyThreadCluster;
   title: string;
@@ -299,6 +326,7 @@ function PrototypeSidebarThreadCard({
   onTogglePin: () => void;
   onDelete: (anchorRect: DOMRect) => void;
   isDeleting: boolean;
+  showMenu?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const rowRef = useRef<HTMLLIElement>(null);
@@ -326,7 +354,7 @@ function PrototypeSidebarThreadCard({
           <div className="proto-collection-card__count">{preview}</div>
         </div>
       </button>
-      <div
+      {showMenu ? <div
         className={`proto-menu proto-collection-card__menu${menuOpen ? ' proto-collection-card__menu--open' : ''}`}
         ref={menuRootRef}
       >
@@ -365,7 +393,7 @@ function PrototypeSidebarThreadCard({
               <span className="proto-menu-item__icon" aria-hidden>
                 <Icon name="thumbtack" size={PROTO_TOOLBAR_ICON_SIZE} />
               </span>
-              <span className="proto-menu-item__label">{isPinned ? 'Unpin thread' : 'Pin thread'}</span>
+              <span className="proto-menu-item__label">{isPinned ? 'Unpin Thread' : 'Pin Thread'}</span>
             </button>
             <button
               type="button"
@@ -385,7 +413,119 @@ function PrototypeSidebarThreadCard({
             </button>
           </div>
         </PrototypeSidebarRowMenuPopover>
-      </div>
+      </div> : null}
+    </li>
+  );
+}
+
+function PrototypeSidebarSharedThreadCard({
+  thread,
+  onOpen,
+  onSetCurrent,
+  onDelete,
+  isDeleting,
+  setCurrentPending,
+  showMenu = true,
+}: {
+  thread: SpaceGroupStudyThread;
+  onOpen: () => void;
+  onSetCurrent: () => void;
+  onDelete: (anchorRect: DOMRect) => void;
+  isDeleting: boolean;
+  setCurrentPending: boolean;
+  showMenu?: boolean;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rowRef = useRef<HTMLLIElement>(null);
+  const menuRootRef = useRef<HTMLDivElement>(null);
+  const preview = sharedThreadNoteCountPreview(thread.noteCount);
+
+  return (
+    <li ref={rowRef} className="proto-collection-grid-item">
+      <button
+        type="button"
+        className="proto-collection-card"
+        onClick={onOpen}
+        aria-label={`${thread.title}, ${preview}${thread.isPinned ? ', current' : ''}`}
+      >
+        <span className="proto-collection-card__icon">
+          {thread.isPinned ? (
+            <span className="proto-collection-card__pin" aria-hidden>
+              <Icon name="thumbtack" size={11} />
+            </span>
+          ) : null}
+          <Icon name="arrow-right-arrow-left" size={13} aria-hidden />
+        </span>
+        <div className="proto-collection-card__body">
+          <div className="proto-collection-card__title">{thread.title}</div>
+          <div className="proto-collection-card__count">{preview}</div>
+        </div>
+      </button>
+      {showMenu ? (
+        <div
+          className={`proto-menu proto-collection-card__menu${menuOpen ? ' proto-collection-card__menu--open' : ''}`}
+          ref={menuRootRef}
+        >
+          <button
+            type="button"
+            className="proto-collection-card__menu-trigger"
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            aria-label="Thread actions"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMenuOpen((o) => !o);
+            }}
+          >
+            <Icon name="ellipsis-vertical" size={14} />
+          </button>
+          <PrototypeSidebarRowMenuPopover
+            open={menuOpen}
+            rowRef={rowRef}
+            triggerRootRef={menuRootRef}
+            onDismiss={() => setMenuOpen(false)}
+            aria-label="Thread actions"
+          >
+            <div className="proto-menu-section" role="group">
+              {!thread.isPinned ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="proto-menu-item"
+                  disabled={setCurrentPending}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onSetCurrent();
+                  }}
+                >
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name="thumbtack" size={PROTO_TOOLBAR_ICON_SIZE} />
+                  </span>
+                  <span className="proto-menu-item__label">Set current</span>
+                </button>
+              ) : null}
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item proto-menu-item--destructive"
+                disabled={isDeleting}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onDelete(e.currentTarget.getBoundingClientRect());
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="trash-can" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span className="proto-menu-item__label">Delete thread</span>
+              </button>
+            </div>
+          </PrototypeSidebarRowMenuPopover>
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -552,6 +692,7 @@ function PrototypeSidebarNoteRow({
   folderRemoval,
   trailLayout = false,
   sharedSpaceMemberByUserId,
+  viewerIsSpaceOwner = false,
 }: PrototypeSidebarNoteRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -590,7 +731,16 @@ function PrototypeSidebarNoteRow({
   const title = rowTitle;
   const pinned = row.isPinned === true;
   const showAuthorChip = isScopedSharedSpace && Boolean(row.authorDisplayName);
-  const rowHideMenu = hideMenu || (isScopedSharedSpace && row.isOwnNote === false);
+  const mayOrganize = !isScopedSharedSpace || canOrganizeSharedSpaceNote({
+    isOwnNote: row.isOwnNote !== false,
+    isSpaceOwner: viewerIsSpaceOwner,
+  });
+  const mayPin = !isScopedSharedSpace || canPinSharedSpaceItem({ isSpaceOwner: viewerIsSpaceOwner });
+  const mayDelete = !isScopedSharedSpace && row.isOwnNote !== false;
+  const mayManageThread = !isScopedSharedSpace || viewerIsSpaceOwner;
+  const rowHideMenu =
+    hideMenu ||
+    (!mayPin && !mayDelete && !(folderRemoval && mayOrganize) && !(threadRemoval && mayManageThread));
 
   const onPin = () => {
     setMenuOpen(false);
@@ -613,7 +763,7 @@ function PrototypeSidebarNoteRow({
       {
         onError: (err) => {
           const msg =
-            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not remove from thread';
+            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not remove from Thread';
           toast.error(msg);
         },
       },
@@ -624,7 +774,12 @@ function PrototypeSidebarNoteRow({
     if (!folderRemoval) return;
     setMenuOpen(false);
     removeFromFolder.mutate(
-      { row, folderName: folderRemoval.folderName, spaceId: homeSpaceId },
+      {
+        row,
+        folderName: folderRemoval.folderName,
+        spaceId: homeSpaceId,
+        spaceKind: isScopedSharedSpace ? 'shared' : 'personal',
+      },
       {
         onError: (err) => {
           const msg =
@@ -755,7 +910,7 @@ function PrototypeSidebarNoteRow({
           aria-label="Note actions"
         >
           <div className="proto-menu-section" role="group">
-            <button
+            {mayPin ? <button
               type="button"
               role="menuitem"
               className="proto-menu-item"
@@ -769,8 +924,8 @@ function PrototypeSidebarNoteRow({
                 <Icon name="thumbtack" size={PROTO_TOOLBAR_ICON_SIZE} />
               </span>
               <span className="proto-menu-item__label">{pinned ? 'Unpin note' : 'Pin note'}</span>
-            </button>
-            {threadRemoval ? (
+            </button> : null}
+            {threadRemoval && mayManageThread ? (
               <button
                 type="button"
                 role="menuitem"
@@ -784,10 +939,10 @@ function PrototypeSidebarNoteRow({
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="arrow-right-arrow-left" size={PROTO_TOOLBAR_ICON_SIZE} />
                 </span>
-                <span className="proto-menu-item__label">Remove from thread</span>
+                <span className="proto-menu-item__label">Remove from Thread</span>
               </button>
             ) : null}
-            {folderRemoval ? (
+            {folderRemoval && mayOrganize ? (
               <button
                 type="button"
                 role="menuitem"
@@ -804,7 +959,7 @@ function PrototypeSidebarNoteRow({
                 <span className="proto-menu-item__label">Remove from folder</span>
               </button>
             ) : null}
-            <button
+            {mayDelete ? <button
               type="button"
               role="menuitem"
               className="proto-menu-item proto-menu-item--destructive"
@@ -818,7 +973,7 @@ function PrototypeSidebarNoteRow({
                 <Icon name="trash-can" size={PROTO_TOOLBAR_ICON_SIZE} />
               </span>
               <span className="proto-menu-item__label">Delete note</span>
-            </button>
+            </button> : null}
           </div>
         </PrototypeSidebarRowMenuPopover>
       </div>
@@ -987,6 +1142,7 @@ export default function PrototypeSidebar({
     clearSidebarTagSearchIntent,
     ensureSidebarExpanded,
     composePersistedNoteId,
+    beginPrototypeComposeSession,
     scriptureDrill,
     setScriptureDrill,
   } = useProtoShell();
@@ -1055,7 +1211,10 @@ export default function PrototypeSidebar({
     sharedSpaceOwnerAttribution,
   ]);
   const threadsEmptyDescription = useMemo(() => {
-    if (canCreateSidebarCollections) return 'Name a thread and pick notes to connect them.';
+    if (isScopedSharedSpace && !isMyHomeListInSharedShell) {
+      return sharedSpaceThreadsEmptyDescription(canCreateSidebarCollections);
+    }
+    if (canCreateSidebarCollections) return 'Name a Thread and pick notes to connect them.';
     if (isMyHomeListInSharedShell) return 'Threads are managed from This space.';
     if (isScopedSharedSpace) {
       return (
@@ -1200,13 +1359,21 @@ export default function PrototypeSidebar({
     myHomeCrossSearchEnabled ? personalHomeSpaceId ?? undefined : undefined,
   );
   const studyThreadsQuery = usePrototypeStudyThreads(
-    searchActive || mode === 'threads' ? homeSpaceId ?? undefined : undefined,
+    !isScopedSharedSpace && (searchActive || mode === 'threads') ? homeSpaceId ?? undefined : undefined,
+  );
+  const groupThreadsQuery = useSpaceGroupThreads(
+    isScopedSharedSpace && (searchActive || mode === 'threads') ? homeSpaceId ?? undefined : undefined,
   );
   const myHomeStudyThreadsQuery = usePrototypeStudyThreads(
     myHomeCrossSearchEnabled ? personalHomeSpaceId ?? undefined : undefined,
   );
   const threadDrillQuery = usePrototypeStudyThread(
-    (searchActive || mode === 'threads') && sidebarThreadDrilldownId ? sidebarThreadDrilldownId : undefined,
+    !isScopedSharedSpace &&
+      (searchActive || mode === 'threads') &&
+      sidebarThreadDrilldownId &&
+      !isSharedSpaceThreadDrillId(sidebarThreadDrilldownId)
+      ? sidebarThreadDrilldownId
+      : undefined,
     homeSpaceId,
   );
   const threadDrillMemberIds = useMemo(
@@ -1307,7 +1474,10 @@ export default function PrototypeSidebar({
 
   const showFolderAddNotes =
     mode === 'folders' && activeFolderKey !== undefined && typeof activeFolderKey === 'string';
-  const showThreadAddNotes = mode === 'threads' && Boolean(sidebarThreadDrilldownId);
+  const showThreadAddNotes =
+    mode === 'threads' &&
+    Boolean(sidebarThreadDrilldownId) &&
+    !isSharedSpaceThreadDrillId(sidebarThreadDrilldownId);
 
   // Thread/scripture drill rows carry only id+title (±dates), but we render them with the
   // same PrototypeSidebarNoteRow as the Notes/Folders lists. Resolve the full loaded note so
@@ -1379,7 +1549,7 @@ export default function PrototypeSidebar({
       setSidebarListMode('threads'); // flips to the list layer
       setSidebarThreadDrilldownId(threadClusterDrillSlug(first));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not create thread';
+      const msg = err instanceof Error ? err.message : 'Could not create Thread';
       try { window.toast?.error(msg); } catch { /* ignore */ }
     } finally {
       setIsAcceptingProposal(false);
@@ -1507,6 +1677,11 @@ export default function PrototypeSidebar({
         });
     return applyThreadClusterPinOrdering(searched, pinnedThreadClusterIds);
   }, [studyThreadsQuery.data, q, pinnedThreadClusterIds, activeNoteFullId, queryClient, homeSpaceId]);
+
+  const filteredSharedThreads = useMemo(
+    () => filterSharedSpaceThreads(groupThreadsQuery.data ?? [], q),
+    [groupThreadsQuery.data, q],
+  );
 
   const filteredHighlights = useMemo(() => {
     const rows = highlightsQuery.data ?? [];
@@ -1787,7 +1962,10 @@ export default function PrototypeSidebar({
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: noteParamSlug(row.id) },
-      search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+      search: prototypeNoteListNavigationSearch({
+        isScopedSharedSpace,
+        spaceId: homeSpaceId,
+      }),
     });
     afterNav();
   };
@@ -1795,6 +1973,12 @@ export default function PrototypeSidebar({
   const deleteHighlight = useDeleteHighlight();
   const removeFolder = useRemoveFolder();
   const removeThreadCluster = useRemoveThreadCluster();
+  const deleteSharedThread = useDeleteSharedThread();
+  const setCurrentSpaceThread = useSetCurrentSpaceThread();
+  const [sharedThreadDeleteTarget, setSharedThreadDeleteTarget] = useState<{
+    thread: SpaceGroupStudyThread;
+    anchorRect: DOMRect;
+  } | null>(null);
 
   const onRequestDeleteFolder = (folder: FolderBucket, anchorRect: DOMRect) => {
     if (!folder.name) return;
@@ -1847,11 +2031,45 @@ export default function PrototypeSidebar({
         onError: (err) => {
           setThreadDeleteTarget(null);
           const msg =
-            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete thread';
+            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete Thread';
           toast.error(msg);
         },
       },
     );
+  };
+
+  const onConfirmDeleteSharedThread = () => {
+    if (!homeSpaceId || !sharedThreadDeleteTarget) return;
+    const { thread } = sharedThreadDeleteTarget;
+    deleteSharedThread.mutate(
+      { spaceId: homeSpaceId, threadId: thread.id },
+      {
+        onSuccess: () => {
+          setSharedThreadDeleteTarget(null);
+          if (sidebarThreadDrilldownId === thread.id) {
+            setSidebarThreadDrilldownId(undefined);
+            setQ('');
+          }
+          toast.success('Thread deleted');
+        },
+        onError: (err) => {
+          setSharedThreadDeleteTarget(null);
+          const msg =
+            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete Thread';
+          toast.error(msg);
+        },
+      },
+    );
+  };
+
+  const composeInSharedThread = (threadId: string) => {
+    if (!homeSpaceId) return;
+    if (isMobileSidebar) closeDrawer();
+    beginComposeInGroupThread(homeSpaceId, threadId, beginPrototypeComposeSession);
+    navigate({
+      to: prototypeNoteRouteTo(),
+      params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
+    });
   };
 
   const onRequestDeleteHighlight = (r: PrototypeHighlightStudyThreadRow, anchorRect: DOMRect) => {
@@ -2033,6 +2251,70 @@ export default function PrototypeSidebar({
     return null;
   })();
 
+  if (
+    isScopedSharedSpace &&
+    mode === 'threads' &&
+    isSharedSpaceThreadDrillId(sidebarThreadDrilldownId) &&
+    homeSpaceId
+  ) {
+    const drilled =
+      (groupThreadsQuery.data ?? []).find((thread) => thread.id === sidebarThreadDrilldownId) ??
+      ({
+        id: sidebarThreadDrilldownId,
+        title: 'Thread',
+        isPinned: false,
+      } as Pick<SpaceGroupStudyThread, 'id' | 'title' | 'isPinned'>);
+    return (
+      <>
+        <PrototypeSharedThreadDrilldown
+          thread={drilled}
+          spaceId={homeSpaceId}
+          isOwner={viewerIsSpaceOwner}
+          onBack={() => {
+            setSidebarThreadDrilldownId(undefined);
+            setQ('');
+          }}
+          onCompose={() => composeInSharedThread(drilled.id)}
+          onSetCurrent={async (threadId) => {
+            await setCurrentSpaceThread.mutateAsync({ spaceId: homeSpaceId, threadId });
+          }}
+          onRequestDelete={
+            viewerIsSpaceOwner
+              ? (anchorRect) => {
+                  const full =
+                    (groupThreadsQuery.data ?? []).find((thread) => thread.id === drilled.id) ??
+                    ({
+                      id: drilled.id,
+                      title: drilled.title,
+                      subtitle: null,
+                      color: null,
+                      spaceId: homeSpaceId,
+                      isPinned: drilled.isPinned,
+                      createdAt: '',
+                      updatedAt: '',
+                      noteCount: 0,
+                      ownerUserId: '',
+                    } satisfies SpaceGroupStudyThread);
+                  setSharedThreadDeleteTarget({ thread: full, anchorRect });
+                }
+              : undefined
+          }
+        />
+        {sharedThreadDeleteTarget ? (
+          <ProtoConfirmDialog
+            anchorRect={sharedThreadDeleteTarget.anchorRect}
+            confirmLabel="Delete thread"
+            busy={deleteSharedThread.isPending}
+            onConfirm={onConfirmDeleteSharedThread}
+            onCancel={() => {
+              if (!deleteSharedThread.isPending) setSharedThreadDeleteTarget(null);
+            }}
+          />
+        ) : null}
+      </>
+    );
+  }
+
   return (
     <div className="proto-sidebar-root">
       {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
@@ -2198,7 +2480,7 @@ export default function PrototypeSidebar({
                   onClick={handleAcceptThreadProposal}
                   disabled={isAcceptingProposal}
                 >
-                  {isAcceptingProposal ? 'Creating…' : 'Create thread'}
+                  {isAcceptingProposal ? 'Creating…' : 'Create Thread'}
                 </button>
               ) : null}
             </div>
@@ -2260,6 +2542,7 @@ export default function PrototypeSidebar({
                         activeNoteFullId={activeNoteFullId}
                         isScopedSharedSpace={isScopedSharedSpace}
                         sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
+                        viewerIsSpaceOwner={viewerIsSpaceOwner}
                         prefetchNote={prefetchNote}
                         onOpenNote={(r) => {
                           onNoteRow(r);
@@ -2314,6 +2597,7 @@ export default function PrototypeSidebar({
                         activeNoteFullId={activeNoteFullId}
                         isScopedSharedSpace={isScopedSharedSpace}
                         sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
+                        viewerIsSpaceOwner={viewerIsSpaceOwner}
                         prefetchNote={prefetchNote}
                         folderRemoval={
                           typeof activeFolderKey === 'string' ? { folderName: activeFolderKey } : undefined
@@ -2388,6 +2672,7 @@ export default function PrototypeSidebar({
                       onOpen={() => setActiveFolderKey(col.name)}
                       onTogglePin={() => togglePinnedFolder(folderRowId(col.name))}
                       onDelete={(anchorRect) => onRequestDeleteFolder(col, anchorRect)}
+                      showMenu={!isScopedSharedSpace || viewerIsSpaceOwner}
                       isDeleting={
                         removeFolder.isPending && removeFolder.variables?.folderName === col.name
                       }
@@ -2484,10 +2769,10 @@ export default function PrototypeSidebar({
               </>
             ) : null}
 
-            {mode === 'threads' && sidebarThreadDrilldownId ? (
+            {mode === 'threads' && sidebarThreadDrilldownId && !isSharedSpaceThreadDrillId(sidebarThreadDrilldownId) ? (
               <>
                 {threadDrillQuery.isLoading ? (
-                  <ProtoSpaceLoading label="Loading thread" />
+                  <ProtoSpaceLoading label="Loading Thread" />
                 ) : threadDrillQuery.isError ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     Could not load thread.
@@ -2542,6 +2827,7 @@ export default function PrototypeSidebar({
                             activeNoteFullId={activeNoteFullId}
                             isScopedSharedSpace={isScopedSharedSpace}
                             sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
+                            viewerIsSpaceOwner={viewerIsSpaceOwner}
                             prefetchNote={prefetchNote}
                             trailLayout
                             threadRemoval={{ memberIds: threadDrillMemberIds }}
@@ -2572,9 +2858,96 @@ export default function PrototypeSidebar({
             ) : null}
 
             {mode === 'threads' && !sidebarThreadDrilldownId ? (
+              isScopedSharedSpace ? (
+              <>
+                {groupThreadsQuery.isLoading ? (
+                  <ProtoSpaceLoading label="Loading Threads" />
+                ) : groupThreadsQuery.isError ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
+                    Could not load threads.
+                  </p>
+                ) : !groupThreadsQuery.data || groupThreadsQuery.data.length === 0 ? (
+                  <div className="proto-list-create-empty">
+                    <PrototypeListEmptyState
+                      iconName="arrow-right-arrow-left"
+                      title="No Threads"
+                      description={threadsEmptyDescription}
+                    />
+                    {canCreateSidebarCollections ? (
+                      <button
+                        type="button"
+                        className="proto-list-create-empty__btn"
+                        onClick={() => openCreateThreadSheet()}
+                      >
+                        New thread
+                      </button>
+                    ) : null}
+                  </div>
+                ) : filteredSharedThreads.length === 0 ? (
+                  q.trim() ? (
+                    <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noThreadsMatch} />
+                  ) : (
+                    <div className="proto-list-create-empty">
+                      <PrototypeListEmptyState
+                        iconName="arrow-right-arrow-left"
+                        title="No Threads"
+                        description={threadsEmptyDescription}
+                      />
+                      {canCreateSidebarCollections ? (
+                        <button
+                          type="button"
+                          className="proto-list-create-empty__btn"
+                          onClick={() => openCreateThreadSheet()}
+                        >
+                          New thread
+                        </button>
+                      ) : null}
+                    </div>
+                  )
+                ) : (
+                  <>
+                    {!q.trim() && canCreateSidebarCollections ? (
+                      <div className="proto-collection-grid-actions">
+                        <button
+                          type="button"
+                          className="proto-collection-grid-actions__btn"
+                          onClick={() => openCreateThreadSheet()}
+                        >
+                          <Icon name="plus" size={12} aria-hidden />
+                          New thread
+                        </button>
+                      </div>
+                    ) : null}
+                    <ul className="proto-collection-grid">
+                      {filteredSharedThreads.map((thread) => (
+                        <PrototypeSidebarSharedThreadCard
+                          key={thread.id}
+                          thread={thread}
+                          onOpen={() => setSidebarThreadDrilldownId(thread.id)}
+                          onSetCurrent={() => {
+                            if (!homeSpaceId) return;
+                            void setCurrentSpaceThread.mutateAsync({ spaceId: homeSpaceId, threadId: thread.id }).catch((error) => {
+                              toast.error(
+                                error instanceof Error ? error.message : 'Could not set this Thread as current.',
+                              );
+                            });
+                          }}
+                          onDelete={(anchorRect) => setSharedThreadDeleteTarget({ thread, anchorRect })}
+                          showMenu={viewerIsSpaceOwner}
+                          isDeleting={
+                            deleteSharedThread.isPending && sharedThreadDeleteTarget?.thread.id === thread.id
+                          }
+                          setCurrentPending={setCurrentSpaceThread.isPending}
+                        />
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </>
+              ) : (
               <>
                 {studyThreadsQuery.isLoading ? (
-                  <ProtoSpaceLoading label="Loading threads" />
+                  <ProtoSpaceLoading label="Loading Threads" />
                 ) : studyThreadsQuery.isError ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     Could not load threads.
@@ -2648,6 +3021,7 @@ export default function PrototypeSidebar({
                           onOpen={() => setSidebarThreadDrilldownId(threadClusterDrillSlug(cluster.id))}
                           onTogglePin={() => togglePinnedThreadCluster(cluster.id)}
                           onDelete={(anchorRect) => onRequestDeleteThreadCluster(cluster, title, anchorRect)}
+                          showMenu={!isScopedSharedSpace || viewerIsSpaceOwner}
                           isDeleting={removeThreadCluster.isPending && threadDeleteTarget?.cluster.id === cluster.id}
                         />
                       );
@@ -2656,6 +3030,7 @@ export default function PrototypeSidebar({
                   </>
                 )}
               </>
+              )
             ) : null}
 
             {mode === 'scripture' && scriptureDrill.level === 'books' ? (
@@ -2766,6 +3141,7 @@ export default function PrototypeSidebar({
                           activeNoteFullId={activeNoteFullId}
                           isScopedSharedSpace={isScopedSharedSpace}
                           sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
+                          viewerIsSpaceOwner={viewerIsSpaceOwner}
                           prefetchNote={prefetchNote}
                           onOpenNote={(r) => {
                             onNoteRow(r);
@@ -2819,28 +3195,44 @@ export default function PrototypeSidebar({
           }}
         />
       ) : null}
+      {sharedThreadDeleteTarget ? (
+        <ProtoConfirmDialog
+          anchorRect={sharedThreadDeleteTarget.anchorRect}
+          confirmLabel="Delete thread"
+          busy={deleteSharedThread.isPending}
+          onConfirm={onConfirmDeleteSharedThread}
+          onCancel={() => {
+            if (!deleteSharedThread.isPending) setSharedThreadDeleteTarget(null);
+          }}
+        />
+      ) : null}
       {homeSpaceId ? (
         <>
           <PrototypeAddNotesSheet
             open={addNotesSheetOpen}
             onOpenChange={setAddNotesSheetOpen}
             spaceId={homeSpaceId}
+            spaceKind={isScopedSharedSpace ? 'shared' : 'personal'}
             mode={showThreadAddNotes ? 'thread' : 'folder'}
             folderName={typeof activeFolderKey === 'string' ? activeFolderKey : undefined}
             threadRepNoteId={
               threadDrillQuery.data?.repNoteId ??
-              (sidebarThreadDrilldownId ? normalizeNoteIdFromParam(sidebarThreadDrilldownId) : undefined)
+              (sidebarThreadDrilldownId && !isSharedSpaceThreadDrillId(sidebarThreadDrilldownId)
+                ? normalizeNoteIdFromParam(sidebarThreadDrilldownId)
+                : undefined)
             }
             threadMemberIds={threadDrillMemberIds}
             excludeNoteIds={showThreadAddNotes ? threadDrillMemberIds : activeFolderMemberIds}
             notesById={notesById}
             spaceNotes={notes}
+            viewerIsSpaceOwner={viewerIsSpaceOwner}
           />
           {canCreateSidebarCollections ? (
             <PrototypeCreateFolderSheet
               open={createFolderSheetOpen}
               onOpenChange={setCreateFolderSheetOpen}
               spaceId={homeSpaceId}
+              spaceKind={isScopedSharedSpace ? 'shared' : 'personal'}
               spaceNotes={notes}
               notesById={notesById}
               onCreated={(folderName) => {
@@ -2849,7 +3241,24 @@ export default function PrototypeSidebar({
               }}
             />
           ) : null}
-          {canCreateSidebarCollections ? (
+          {canCreateSidebarCollections && isScopedSharedSpace ? (
+            <PrototypeCreateSharedThreadSheet
+              open={createThreadSheetOpen}
+              onOpenChange={(open) => {
+                setCreateThreadSheetOpen(open);
+                if (!open) setCreateThreadPrefill(null);
+              }}
+              spaceId={homeSpaceId}
+              spaceColor={activeSharedSpace?.color}
+              isOwner={viewerIsSpaceOwner}
+              onPinFailure={() => groupThreadsQuery.refetch()}
+              onCreated={(thread) => {
+                setSidebarListMode('threads');
+                setSidebarThreadDrilldownId(thread.id);
+              }}
+            />
+          ) : null}
+          {canCreateSidebarCollections && !isScopedSharedSpace ? (
             <PrototypeCreateThreadSheet
               open={createThreadSheetOpen}
               onOpenChange={(open) => {

@@ -25,3 +25,16 @@ export function canCreateSidebarCollections(options: {
     membershipRole: options.membershipRole,
   });
 }
+
+/** Contextual folder/organization controls mirror the backend note-author/space-owner policy. */
+export function canOrganizeSharedSpaceNote(options: {
+  isOwnNote: boolean;
+  isSpaceOwner: boolean;
+}): boolean {
+  return options.isOwnNote || options.isSpaceOwner;
+}
+
+/** Shared-space pinning is moderation and remains owner-only. */
+export function canPinSharedSpaceItem(options: { isSpaceOwner: boolean }): boolean {
+  return options.isSpaceOwner;
+}

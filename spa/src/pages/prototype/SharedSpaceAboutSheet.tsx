@@ -1,13 +1,14 @@
 /**
  * About dialog for a shared space — join-page hero + letter + named member roster.
  */
-import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useId, useRef, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
+import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import type { SpaceDetail, SpaceMemberRow } from '../../hooks/queries/useSpace';
 import { mapSpaceToAboutLetterSpace } from '../../lib/shared-space-about';
@@ -16,6 +17,7 @@ import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import SharedSpaceAboutLetter from './SharedSpaceAboutLetter';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
+import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 
 export interface SharedSpaceAboutSheetProps {
   open: boolean;
@@ -24,38 +26,40 @@ export interface SharedSpaceAboutSheetProps {
   members: SpaceMemberRow[];
 }
 
-export default function SharedSpaceAboutSheet({
-  open,
-  onOpenChange,
-  space,
-  members,
-}: SharedSpaceAboutSheetProps) {
+export default function SharedSpaceAboutSheet({ open, onOpenChange, space, members }: SharedSpaceAboutSheetProps) {
   const { userId: authUserId } = useAuth();
   const { isMobileSidebar } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const headingId = useId();
 
   const shouldUseSheetPresentation =
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
   const usePopoverPresentation = !shouldUseSheetPresentation;
   const showPopoverPortal = usePopoverPresentation && mounted;
 
-  useLayoutEffect(() => {
-    if (!showPopoverPortal) return;
-    const cardHeight = cardRef.current?.getBoundingClientRect().height ?? 520;
-    const cardWidth = cardRef.current?.getBoundingClientRect().width ?? 360;
-    const viewportMargin = 12;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    setPosition({
-      left: Math.max(viewportMargin, (vw - cardWidth) / 2),
-      top: Math.max(viewportMargin, Math.min(vh - cardHeight - viewportMargin, vh * 0.08)),
-    });
-  }, [showPopoverPortal, space?.id, members.length, colorScheme]);
+  const { position } = useProtoAnchoredPopoverPosition(
+    cardRef,
+    {},
+    {
+      enabled: showPopoverPortal,
+      strategy: 'centered',
+      topVhFraction: 0.08,
+      fallbackWidth: 360,
+      fallbackHeight: 520,
+    },
+    [space?.id, members.length, colorScheme],
+  );
 
-  useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation);
+  useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation, {
+    dismissOnEscape: false,
+  });
+  useProtoDialogFocus({
+    open: open && showPopoverPortal && space !== null,
+    dialogRef: cardRef,
+    onDismiss: () => onOpenChange(false),
+  });
 
   if (!space) return null;
 
@@ -70,43 +74,41 @@ export default function SharedSpaceAboutSheet({
   };
 
   const selfMember = members.find((m) => m.userId === authUserId);
-  const rosterMembers =
-    members.length > 0
-      ? members
-      : selfMember
-        ? [selfMember]
-        : [];
+  const rosterMembers = members.length > 0 ? members : selfMember ? [selfMember] : [];
 
   const content = (
-    <div className="proto-shared-space-about__scroll">
-      <div className="proto-shared-space-about__hero">
-        <PublicJoinSpaceHero space={heroSpace} />
-        <button
-          type="button"
-          className="proto-side-panel__action-btn proto-shared-space-about__close"
-          onClick={() => onOpenChange(false)}
-          aria-label="Close"
-          title="Close"
-        >
-          <Icon name="xmark" size={12} />
-        </button>
+    <>
+      <h2 id={headingId} className="sr-only">
+        About {space.title}
+      </h2>
+      <div className="proto-shared-space-about__scroll">
+        <div className="proto-shared-space-about__hero">
+          <PublicJoinSpaceHero space={heroSpace} />
+          <button
+            type="button"
+            className="proto-side-panel__action-btn proto-shared-space-about__close"
+            onClick={() => onOpenChange(false)}
+            aria-label="Close"
+            title="Close"
+            data-proto-dialog-initial-focus
+          >
+            <Icon name="xmark" size={12} />
+          </button>
+        </div>
+        <SharedSpaceAboutLetter space={letterSpace} members={rosterMembers} />
       </div>
-      <SharedSpaceAboutLetter space={letterSpace} members={rosterMembers} />
-    </div>
+    </>
   );
 
   if (showPopoverPortal && typeof document !== 'undefined') {
     return createPortal(
       <>
-        <ProtoDialogBackdrop
-          exiting={exiting}
-          onDismiss={() => onOpenChange(false)}
-          aria-label="Close about dialog"
-        />
+        <ProtoDialogBackdrop exiting={exiting} onDismiss={() => onOpenChange(false)} aria-label="Close about dialog" />
         <ProtoPopoverShell
           ref={cardRef}
           role="dialog"
-          aria-label={`About ${space.title}`}
+          aria-modal="true"
+          aria-labelledby={headingId}
           className={portaledDialogShellClassName('proto-shared-space-about', exiting)}
           style={{
             position: 'fixed',
@@ -130,6 +132,9 @@ export default function SharedSpaceAboutSheet({
         onOverlayClick={() => onOpenChange(false)}
         overlayClassName="proto-connect-note-sheet-overlay"
         className="proto-connect-note-sheet proto-shared-space-about proto-shared-space-about--sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={headingId}
       >
         {content}
       </DrawerContent>

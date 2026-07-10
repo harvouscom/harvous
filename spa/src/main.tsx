@@ -91,6 +91,9 @@ import '../../src/styles/scripture-pill-accent.css';
 import '../../src/styles/mention-pill.css';
 /* Prototype design tokens on :root — needed before lazy layout paints portaled UI. */
 import './styles/prototype-tokens.css';
+/* Shell + sidebar chrome (shared-space dashboard, lists) — load with entry bundle to avoid first-paint FOUC. */
+import './styles/prototype-shell.css';
+import './styles/prototype-components.css';
 
 syncReduceMotionFromStorage();
 initDiagnosticCapture();

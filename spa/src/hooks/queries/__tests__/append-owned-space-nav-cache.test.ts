@@ -2,10 +2,90 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import {
   appendOwnedSpaceToNavCache,
+  getNavigationQueryHydrationOptions,
   getNavigationQueryKey,
+  NAVIGATION_FETCH_CACHE,
+  NAVIGATION_QUERY_DEFAULTS,
   removeOwnedSpaceFromNavCache,
+  resolveNavigationSharedSpaceAccess,
   type NavigationData,
 } from '../useNavigation';
+
+describe('getNavigationQueryHydrationOptions', () => {
+  it('uses placeholderData only — never initialData that would suppress refetch', () => {
+    const cached: NavigationData = {
+      threads: [],
+      spaces: [
+        {
+          id: 'space_home',
+          title: 'My Home',
+          color: null,
+          backgroundGradient: '',
+          ownerId: 'user_1',
+          memberCount: 1,
+          type: 'personal',
+        },
+      ],
+      memberOfSpaces: [],
+      inboxCount: 0,
+    };
+
+    const options = getNavigationQueryHydrationOptions(cached);
+    expect(options.placeholderData).toBe(cached);
+    expect(options.refetchOnMount).toBe('always');
+    expect(options.staleTime).toBe(NAVIGATION_QUERY_DEFAULTS.staleTime);
+    expect(options).not.toHaveProperty('initialData');
+    expect(options).not.toHaveProperty('initialDataUpdatedAt');
+  });
+
+  it('still schedules mount refetch when there is no session cache', () => {
+    const options = getNavigationQueryHydrationOptions(undefined);
+    expect(options.placeholderData).toBeUndefined();
+    expect(options.refetchOnMount).toBe('always');
+  });
+
+  it('uses no-store for the navigation fetch', () => {
+    expect(NAVIGATION_FETCH_CACHE).toBe('no-store');
+  });
+
+  it('space switcher owned filter requires type shared after fresh data', () => {
+    const nav: NavigationData = {
+      threads: [],
+      spaces: [
+        {
+          id: 'space_home',
+          title: 'My Home',
+          color: null,
+          backgroundGradient: '',
+          ownerId: 'user_1',
+          memberCount: 1,
+          type: 'personal',
+        },
+        {
+          id: 'space_study',
+          title: 'Study Group',
+          color: null,
+          backgroundGradient: '',
+          ownerId: 'user_1',
+          memberCount: 1,
+          type: 'shared',
+        },
+        {
+          id: 'space_legacy',
+          title: 'Legacy row without type',
+          color: null,
+          backgroundGradient: '',
+          ownerId: 'user_1',
+          memberCount: 1,
+        },
+      ],
+      memberOfSpaces: [],
+      inboxCount: 0,
+    };
+    const ownedShared = nav.spaces.filter((s) => s.type === 'shared');
+    expect(ownedShared.map((s) => s.id)).toEqual(['space_study']);
+  });
+});
 
 describe('appendOwnedSpaceToNavCache', () => {
   let queryClient: QueryClient;
@@ -59,6 +139,68 @@ describe('appendOwnedSpaceToNavCache', () => {
     const nav = queryClient.getQueryData<NavigationData>(getNavigationQueryKey(userId));
     expect(nav?.spaces).toHaveLength(1);
     expect(nav?.spaces[0]?.title).toBe('Existing');
+  });
+});
+
+describe('resolveNavigationSharedSpaceAccess', () => {
+  const baseSpace = {
+    color: 'blue',
+    backgroundGradient: '',
+    ownerId: 'owner',
+    memberCount: 2,
+  };
+
+  it('uses explicit context B instead of owned active space A', () => {
+    const nav: NavigationData = {
+      threads: [],
+      spaces: [
+        { ...baseSpace, id: 'space_A', title: 'Active A', type: 'shared' },
+        { ...baseSpace, id: 'space_home', title: 'My Home', type: 'personal' },
+      ],
+      memberOfSpaces: [
+        { ...baseSpace, id: 'space_B', title: 'Context B', type: 'shared', role: 'member' },
+      ],
+      inboxCount: 0,
+    };
+
+    expect(resolveNavigationSharedSpaceAccess(nav, 'space_B')).toMatchObject({
+      role: 'member',
+      isOwner: false,
+      space: { id: 'space_B' },
+    });
+  });
+
+  it('resolves explicit owned context B while the shell may be on Home', () => {
+    const nav: NavigationData = {
+      threads: [],
+      spaces: [
+        { ...baseSpace, id: 'space_home', title: 'My Home', type: 'personal' },
+        { ...baseSpace, id: 'space_B', title: 'Context B', type: 'shared' },
+      ],
+      memberOfSpaces: [],
+      inboxCount: 0,
+    };
+
+    expect(resolveNavigationSharedSpaceAccess(nav, 'B')).toMatchObject({
+      role: 'owner',
+      isOwner: true,
+      space: { id: 'space_B' },
+    });
+  });
+
+  it('fails closed for unknown roles and personal Home context', () => {
+    const nav: NavigationData = {
+      threads: [],
+      spaces: [{ ...baseSpace, id: 'space_home', title: 'My Home', type: 'personal' }],
+      memberOfSpaces: [
+        { ...baseSpace, id: 'space_B', title: 'Context B', type: 'shared' },
+      ],
+      inboxCount: 0,
+    };
+
+    expect(resolveNavigationSharedSpaceAccess(nav, 'space_B')).toBeNull();
+    expect(resolveNavigationSharedSpaceAccess(nav, 'space_home')).toBeNull();
+    expect(resolveNavigationSharedSpaceAccess(undefined, 'space_B')).toBeNull();
   });
 });
 

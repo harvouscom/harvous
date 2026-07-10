@@ -390,7 +390,7 @@ function HomeGreeting({
       <button
         type="button"
         className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--thread"
-        aria-label={`Open study thread ${lead.thread.title}`}
+        aria-label={`Open Thread ${lead.thread.title}`}
         onClick={() => {
           const slug = lead.thread.id.startsWith('note_') ? lead.thread.id.slice('note_'.length) : lead.thread.id;
           setSidebarListMode('threads');
@@ -1420,7 +1420,7 @@ export default function PrototypeSidebarHomeView({
   const onCreateFirstNote = useCallback(() => {
     if (!homeSpaceId) return;
     if (isMobileSidebar) closeDrawer();
-    beginPrototypeComposeSession();
+    beginPrototypeComposeSession({ targetSpaceId: homeSpaceId });
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
@@ -1560,7 +1560,7 @@ export default function PrototypeSidebarHomeView({
                   <Icon name="folder" size={13} />
                 </span>
                 <p className="pds-list-title proto-home-card__title">
-                  {`${looseCount} notes haven't found a home yet`}
+                  {`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a home`}
                 </p>
                 <span className="proto-home-card__chevron" aria-hidden>
                   <Icon name="caret-right" size={11} />

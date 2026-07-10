@@ -6,6 +6,7 @@
  */
 
 import { pgTable, text, integer, real, boolean, timestamp, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 // Helper for date columns — Postgres TIMESTAMPTZ, returned as JS Date objects
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
@@ -43,6 +44,10 @@ export const Spaces = pgTable(
     isFeatured: boolean('isFeatured').notNull().default(false),
     isActive: boolean('isActive').notNull().default(true),
     order: integer('order').notNull().default(0),
+    /** Soft-delete lifecycle for shared/public spaces; canonical notes remain untouched. */
+    deletedAt: ts('deletedAt'),
+    /** Owner recovery deadline (normally deletedAt + 30 days). */
+    recoveryUntil: ts('recoveryUntil'),
     /** @deprecated v1 sharing — legacy join links are no longer honored; invites live in SpaceInvites. */
     shareToken: text('shareToken'),
     /** @deprecated v1 sharing. */
@@ -54,6 +59,7 @@ export const Spaces = pgTable(
     index('Spaces_userIdIndex').on(table.userId),
     index('Spaces_userId_updatedAtIndex').on(table.userId, table.updatedAt),
     index('Spaces_userId_typeIndex').on(table.userId, table.type),
+    index('Spaces_deletedAt_recoveryUntilIndex').on(table.deletedAt, table.recoveryUntil),
   ],
 );
 
@@ -81,6 +87,9 @@ export const Threads = pgTable(
     index('Threads_userIdIndex').on(table.userId),
     index('Threads_userId_updatedAtIndex').on(table.userId, table.updatedAt),
     index('Threads_spaceIdIndex').on(table.spaceId),
+    uniqueIndex('Threads_onePinnedPerSpace')
+      .on(table.spaceId)
+      .where(sql`${table.spaceId} IS NOT NULL AND ${table.isPinned} = true`),
   ],
 );
 
@@ -126,13 +135,74 @@ export const Notes = pgTable(
     studyThreadLastAutoSuggestedAt: ts('studyThreadLastAutoSuggestedAt'),
     /** JSON array of normalized auto-tag names the user dismissed (string[]). */
     dismissedAutoTags: text('dismissedAutoTags'),
+    /** Latest immutable NoteVersions checkpoint for the canonical note. */
+    currentVersionId: text('currentVersionId'),
+    /** Source lineage for an independent copy of another author's note. */
+    copiedFromNoteId: text('copiedFromNoteId'),
+    copiedFromVersionId: text('copiedFromVersionId'),
+    copiedFromAuthorId: text('copiedFromAuthorId'),
+    /** Durable attribution if the source account later becomes unavailable. */
+    copiedFromAuthorDisplayName: text('copiedFromAuthorDisplayName'),
   },
   (table) => [
     index('Notes_userIdIndex').on(table.userId),
     index('Notes_linkedFromNoteIdIndex').on(table.linkedFromNoteId),
+    index('Notes_copiedFromNoteIdIndex').on(table.copiedFromNoteId),
     index('Notes_userId_updatedAtIndex').on(table.userId, table.updatedAt),
     index('Notes_spaceIdIndex').on(table.spaceId),
     index('Notes_threadIdIndex').on(table.threadId),
+  ],
+);
+
+// ─── NoteVersions (immutable author-owned canonical note checkpoints) ──────────
+
+export const NoteVersions = pgTable(
+  'NoteVersions',
+  {
+    id: text('id').primaryKey(),
+    noteId: text('noteId').notNull(),
+    version: integer('version').notNull(),
+    title: text('title'),
+    content: text('content').notNull(),
+    contentEncrypted: boolean('contentEncrypted').notNull().default(false),
+    /** 'save' | 'restore' | 'copy' | 'migration-baseline' (open text for future sources). */
+    source: text('source').notNull().default('save'),
+    /** Permanent note author; only this user may list, inspect, create, or restore versions. */
+    authorId: text('authorId').notNull(),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    uniqueIndex('NoteVersions_note_version_unique').on(table.noteId, table.version),
+    index('NoteVersions_noteId_createdAtIndex').on(table.noteId, table.createdAt),
+    index('NoteVersions_authorId_createdAtIndex').on(table.authorId, table.createdAt),
+  ],
+);
+
+// ─── SpaceNotes (reusable canonical-note associations) ────────────────────────
+
+export const SpaceNotes = pgTable(
+  'SpaceNotes',
+  {
+    id: text('id').primaryKey(),
+    spaceId: text('spaceId').notNull(),
+    noteId: text('noteId').notNull(),
+    addedBy: text('addedBy').notNull(),
+    addedAt: ts('addedAt').notNull(),
+    updatedAt: ts('updatedAt'),
+    removedBy: text('removedBy'),
+    removedAt: ts('removedAt'),
+    isPinned: boolean('isPinned').notNull().default(false),
+    /** Per-space folder metadata; serialized string[] for secondary labels. */
+    primaryCollection: text('primaryCollection'),
+    secondaryCollections: text('secondaryCollections'),
+    collectionPinned: boolean('collectionPinned').notNull().default(false),
+    collectionUserOverride: boolean('collectionUserOverride').notNull().default(false),
+    order: integer('order').notNull().default(0),
+  },
+  (table) => [
+    uniqueIndex('SpaceNotes_space_note_unique').on(table.spaceId, table.noteId),
+    index('SpaceNotes_spaceId_removedAt_orderIndex').on(table.spaceId, table.removedAt, table.order),
+    index('SpaceNotes_noteId_removedAtIndex').on(table.noteId, table.removedAt),
   ],
 );
 
@@ -168,6 +238,21 @@ export const StudyThreadEntries = pgTable(
     anchorLocation: integer('anchorLocation'),
     anchorLength: integer('anchorLength'),
     anchorTextSnapshot: text('anchorTextSnapshot'),
+    /** Durable source checkpoint and quote/context selector; legacy anchor fields remain above. */
+    noteVersionId: text('noteVersionId'),
+    /** Latest canonical version against which this selector was deterministically resolved. */
+    resolvedVersionId: text('resolvedVersionId'),
+    anchorQuote: text('anchorQuote'),
+    anchorPrefixContext: text('anchorPrefixContext'),
+    anchorSuffixContext: text('anchorSuffixContext'),
+    /** 'unresolved' | 'resolved' | 'detached' | 'orphaned'. Migration resolves legacy rows explicitly. */
+    anchorStatus: text('anchorStatus').notNull().default('unresolved'),
+    resolvedAnchorStart: integer('resolvedAnchorStart'),
+    resolvedAnchorEnd: integer('resolvedAnchorEnd'),
+    anchorResolvedAt: ts('anchorResolvedAt'),
+    anchorDetachedAt: ts('anchorDetachedAt'),
+    /** Durable attribution after the actor leaves the space or account is unavailable. */
+    actorDisplayNameSnapshot: text('actorDisplayNameSnapshot'),
     scriptureReference: text('scriptureReference'),
     scripturePassageTranslation: text('scripturePassageTranslation'),
     scripturePassageExcerpt: text('scripturePassageExcerpt'),
@@ -179,6 +264,10 @@ export const StudyThreadEntries = pgTable(
   (table) => [
     index('StudyThreadEntries_parentNoteIdIndex').on(table.parentNoteId),
     index('StudyThreadEntries_userIdIndex').on(table.userId),
+    index('StudyThreadEntries_noteVersionIdIndex').on(table.noteVersionId),
+    index('StudyThreadEntries_resolvedVersionIdIndex').on(table.resolvedVersionId),
+    index('StudyThreadEntries_spaceId_parentNoteIdIndex').on(table.spaceId, table.parentNoteId),
+    index('StudyThreadEntries_anchorStatusIndex').on(table.anchorStatus),
   ],
 );
 

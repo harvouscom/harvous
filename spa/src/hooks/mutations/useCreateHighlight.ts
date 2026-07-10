@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import type { StudyThreadEntryDetail } from '../queries/useNote';
+import { withStudyThreadContext } from '@/utils/study-dock-stack';
 
 export type StudyThreadEntryKind =
   | 'workspace'
@@ -10,9 +11,10 @@ export type StudyThreadEntryKind =
   | 'scriptureLink'
   | 'reference';
 
-interface CreateHighlightInput {
+export interface CreateHighlightInput {
   parentNoteId: string;
   spaceId: string;
+  contextSpaceId?: string | null;
   entryKind?: StudyThreadEntryKind;
   highlightAccentRaw?: string;
   sourceSnippet?: string;
@@ -29,6 +31,17 @@ interface CreateHighlightInput {
   scripturePassageExcerpt?: string | null;
 }
 
+export function buildCreateHighlightRequest(input: CreateHighlightInput): {
+  url: string;
+  body: Record<string, unknown>;
+} {
+  const { parentNoteId, spaceId: _spaceId, contextSpaceId, ...rest } = input;
+  return {
+    url: `/api/notes/${encodeURIComponent(parentNoteId)}/study-threads`,
+    body: withStudyThreadContext({ entryKind: 'miniNote', ...rest }, contextSpaceId),
+  };
+}
+
 interface CreateHighlightResponse {
   success?: boolean;
   studyThread?: StudyThreadEntryDetail | null;
@@ -40,11 +53,8 @@ export function useCreateHighlight() {
 
   return useMutation({
     mutationFn: (input: CreateHighlightInput) => {
-      const { parentNoteId, spaceId: _spaceId, ...rest } = input;
-      return api.post<CreateHighlightResponse>(
-        `/api/notes/${encodeURIComponent(parentNoteId)}/study-threads`,
-        { entryKind: 'miniNote', ...rest },
-      );
+      const request = buildCreateHighlightRequest(input);
+      return api.post<CreateHighlightResponse>(request.url, request.body);
     },
     onSuccess: (_data, variables) => {
       const sid = normalizePrototypeApiSpaceId(variables.spaceId);
@@ -55,6 +65,9 @@ export function useCreateHighlight() {
         queryKey: ['prototype', 'space', sid, 'study-threads-by-scripture'],
       });
       queryClient.invalidateQueries({ queryKey: ['note', variables.parentNoteId] });
+      queryClient.invalidateQueries({
+        queryKey: ['noteActivity', variables.parentNoteId, variables.contextSpaceId?.trim() || null],
+      });
     },
   });
 }

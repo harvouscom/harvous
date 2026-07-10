@@ -8,12 +8,38 @@ export function protoAnchoredPopoverPlacementHeight(
   return Math.max(measuredHeight, Math.min(maxHeightPx, window.innerHeight * vhFraction));
 }
 
-export type AnchoredPopoverPositionOptions = {
+export type CenteredPortaledDialogPositionOptions = {
+  viewportMargin?: number;
+  /** Preferred top offset as a fraction of viewport height (default 0.12). */
+  topVhFraction?: number;
+  fallbackWidth?: number;
+  fallbackHeight?: number;
+};
+
+export type AnchoredPopoverPositionOptions = CenteredPortaledDialogPositionOptions & {
   /** CSS max-height px cap (default 520). */
   maxHeightPx?: number;
   /** CSS max-height vh fraction (default 0.72). */
   vhFraction?: number;
 };
+
+/** Centered desktop portaled sheet dialogs (new folder/thread, add notes, etc.). */
+export function computeCenteredPortaledDialogPosition(
+  cardEl: HTMLElement,
+  options: CenteredPortaledDialogPositionOptions = {},
+): { top: number; left: number } {
+  const viewportMargin = options.viewportMargin ?? 12;
+  const topVhFraction = options.topVhFraction ?? 0.12;
+  const rect = cardEl.getBoundingClientRect();
+  const cardHeight = rect.height || options.fallbackHeight || 440;
+  const cardWidth = rect.width || options.fallbackWidth || 340;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  return {
+    left: Math.max(viewportMargin, (vw - cardWidth) / 2),
+    top: Math.max(viewportMargin, Math.min(vh - cardHeight - viewportMargin, vh * topVhFraction)),
+  };
+}
 
 /** Main-column inset — matches `.proto-inspector-desktop` / `.proto-side-panel`. */
 export const PROTO_MAIN_COLUMN_PANEL_INSET = 8;

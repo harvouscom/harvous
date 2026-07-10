@@ -13,6 +13,8 @@ export {
   Spaces,
   Threads,
   Notes,
+  NoteVersions,
+  SpaceNotes,
   NoteThreads,
   StudyThreadEntries,
   SyncDeletedEntities,

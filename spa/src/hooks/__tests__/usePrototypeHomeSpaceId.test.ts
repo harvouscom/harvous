@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { NavSpace } from '../queries/useNavigation';
+import type { NavigationData, NavSpace } from '../queries/useNavigation';
 import {
   computePrototypeAuthReady,
   resolvePrototypeHomeSpaceId,
+  shouldRepairStaleNavForPersistedSharedSpace,
 } from '../usePrototypeHomeSpaceId';
 
 const myHomeSpace: NavSpace = {
@@ -12,6 +13,24 @@ const myHomeSpace: NavSpace = {
   backgroundGradient: '',
   ownerId: 'user_1',
   memberCount: 1,
+  type: 'personal',
+};
+
+const sharedSpace: NavSpace = {
+  id: 'space_shared',
+  title: 'Study Group',
+  color: null,
+  backgroundGradient: '',
+  ownerId: 'user_1',
+  memberCount: 2,
+  type: 'shared',
+};
+
+const navHomeOnly: NavigationData = {
+  threads: [],
+  spaces: [myHomeSpace],
+  memberOfSpaces: [],
+  inboxCount: 0,
 };
 
 describe('computePrototypeAuthReady', () => {
@@ -45,5 +64,82 @@ describe('resolvePrototypeHomeSpaceId', () => {
 
   it('returns null while auth is pending and nav has no spaces', () => {
     expect(resolvePrototypeHomeSpaceId([], false, 'space_cached', 'space_selected')).toBe(null);
+  });
+});
+
+describe('shouldRepairStaleNavForPersistedSharedSpace', () => {
+  it('repairs when persisted shared id is missing from a non-empty nav snapshot', () => {
+    expect(
+      shouldRepairStaleNavForPersistedSharedSpace({
+        navReady: true,
+        isFetching: false,
+        homeSpaceId: 'space_home',
+        persistedActiveSpaceId: 'space_shared',
+        nav: navHomeOnly,
+      }),
+    ).toBe(true);
+  });
+
+  it('does not repair while a fetch is in flight', () => {
+    expect(
+      shouldRepairStaleNavForPersistedSharedSpace({
+        navReady: true,
+        isFetching: true,
+        homeSpaceId: 'space_home',
+        persistedActiveSpaceId: 'space_shared',
+        nav: navHomeOnly,
+      }),
+    ).toBe(false);
+  });
+
+  it('does not repair when the shared space is already in nav', () => {
+    expect(
+      shouldRepairStaleNavForPersistedSharedSpace({
+        navReady: true,
+        isFetching: false,
+        homeSpaceId: 'space_home',
+        persistedActiveSpaceId: 'space_shared',
+        nav: { ...navHomeOnly, spaces: [myHomeSpace, sharedSpace] },
+      }),
+    ).toBe(false);
+  });
+
+  it('does not repair when persisted id is My Home', () => {
+    expect(
+      shouldRepairStaleNavForPersistedSharedSpace({
+        navReady: true,
+        isFetching: false,
+        homeSpaceId: 'space_home',
+        persistedActiveSpaceId: 'space_home',
+        nav: navHomeOnly,
+      }),
+    ).toBe(false);
+  });
+
+  it('does not repair when nav has no spaces yet', () => {
+    expect(
+      shouldRepairStaleNavForPersistedSharedSpace({
+        navReady: true,
+        isFetching: false,
+        homeSpaceId: 'space_home',
+        persistedActiveSpaceId: 'space_shared',
+        nav: { threads: [], spaces: [], memberOfSpaces: [], inboxCount: 0 },
+      }),
+    ).toBe(false);
+  });
+
+  it('repairs when the space is only missing from owned list but present as memberOf', () => {
+    expect(
+      shouldRepairStaleNavForPersistedSharedSpace({
+        navReady: true,
+        isFetching: false,
+        homeSpaceId: 'space_home',
+        persistedActiveSpaceId: 'space_joined',
+        nav: {
+          ...navHomeOnly,
+          memberOfSpaces: [{ ...sharedSpace, id: 'space_joined', role: 'member' }],
+        },
+      }),
+    ).toBe(false);
   });
 });

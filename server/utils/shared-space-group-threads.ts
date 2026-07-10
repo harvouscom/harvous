@@ -1,5 +1,5 @@
-import { db, Threads, Notes, NoteThreads, eq, and, count, desc, inArray } from '../db';
-import { requireSpaceAccess } from './space-access';
+import { db, Threads, Notes, NoteThreads, SpaceNotes, eq, and, count, desc, inArray, isNull } from '../db';
+import { isActualSpaceOwner, requireSpaceAccess } from './space-access';
 
 export type GroupStudyThreadRow = {
   id: string;
@@ -8,8 +8,8 @@ export type GroupStudyThreadRow = {
   color: string | null;
   spaceId: string | null;
   isPinned: boolean;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date | null;
   noteCount: number;
   ownerUserId: string;
 };
@@ -18,7 +18,7 @@ export async function listGroupStudyThreadsForSpace(
   spaceId: string,
   userId: string,
 ): Promise<GroupStudyThreadRow[]> {
-  await requireSpaceAccess(spaceId, userId);
+  const access = await requireSpaceAccess(spaceId, userId);
 
   const threads = await db
     .select({
@@ -36,7 +36,12 @@ export async function listGroupStudyThreadsForSpace(
     .where(eq(Threads.spaceId, spaceId))
     .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt));
 
-  const filtered = threads.filter((t) => t.id !== 'thread_unorganized' && !t.id.startsWith('thread_onboarding_'));
+  const filtered = threads.filter(
+    (thread) =>
+      thread.id !== 'thread_unorganized' &&
+      !thread.id.startsWith('thread_onboarding_') &&
+      (isActualSpaceOwner(access.space, userId) || thread.isPinned),
+  );
   const threadIds = filtered.map((t) => t.id);
   if (threadIds.length === 0) return [];
 
@@ -44,7 +49,11 @@ export async function listGroupStudyThreadsForSpace(
     .select({ threadId: NoteThreads.threadId, noteCount: count() })
     .from(NoteThreads)
     .innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
-    .where(and(inArray(NoteThreads.threadId, threadIds), eq(Notes.spaceId, spaceId)))
+    .innerJoin(
+      SpaceNotes,
+      and(eq(SpaceNotes.noteId, Notes.id), eq(SpaceNotes.spaceId, spaceId)),
+    )
+    .where(and(inArray(NoteThreads.threadId, threadIds), isNull(SpaceNotes.removedAt), eq(Notes.contentEncrypted, false)))
     .groupBy(NoteThreads.threadId);
 
   const countMap = new Map(countRows.map((r) => [r.threadId, Number(r.noteCount)]));

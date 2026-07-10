@@ -216,7 +216,7 @@ test.describe('Shared Spaces UI screenshot tour', () => {
     await waitForAppShell(page);
     await selectSpaceInSwitcher(page, spaceTitle);
     await page.getByText(ownerNoteTitle).first().click();
-    await expect(page.getByText(/view only/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Editing is off', { exact: true })).toBeVisible({ timeout: 15_000 });
     await snap(page, 'read-only-foreign-note-banner', { fullPage: false });
   });
 
@@ -225,7 +225,7 @@ test.describe('Shared Spaces UI screenshot tour', () => {
     await waitForAppShell(page);
     await selectSpaceInSwitcher(page, spaceTitle);
     await sharedSpaceNoteRow(page, memberNoteTitle).first().click();
-    await expect(page.getByText(/view only/i)).not.toBeVisible();
+    await expect(page.getByText('Editing is off', { exact: true })).not.toBeVisible();
     await expect(page.locator('.tiptap, .ProseMirror, [contenteditable="true"]').first()).toBeVisible();
     await snap(page, 'editable-own-note-no-banner', { fullPage: false });
   });

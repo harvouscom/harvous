@@ -1,12 +1,14 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import { useShareNote } from '../../hooks/mutations/useShareNote';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
+import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
 import { protoPortaledPopoverClassName } from './proto-portaled-popover-classes';
 import { PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
+import { APIError } from '../../lib/api';
 
 /**
  * Floating share popover anchored under the prototype's share pill. Mirrors
@@ -33,6 +35,7 @@ interface PrototypeSharePopoverProps {
   anchorRect: DOMRect | null;
   onDismiss: () => void;
   exiting?: boolean;
+  sharedSpaceNames?: string[];
 }
 
 export default function PrototypeSharePopover({
@@ -42,11 +45,17 @@ export default function PrototypeSharePopover({
   anchorRect,
   onDismiss,
   exiting = false,
+  sharedSpaceNames = [],
 }: PrototypeSharePopoverProps) {
   const shareMutation = useShareNote();
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+  const warningTitleId = useId();
+  const warningDescriptionId = useId();
   const [pos, setPos] = useState<ReturnType<typeof computeRightAnchoredPopoverPosition> | null>(null);
   const [copied, setCopied] = useState(false);
+  const [ackRequired, setAckRequired] = useState(false);
 
   // Build the canonical public URL. The server returns one too, but we
   // construct it client-side so the popover paints instantly on enable
@@ -67,24 +76,61 @@ export default function PrototypeSharePopover({
     if (!anchorRect) return;
     const h = cardRef.current?.getBoundingClientRect().height ?? 180;
     setPos(computeRightAnchoredPopoverPosition(anchorRect, CARD_WIDTH, h, CARD_OFFSET));
-  }, [anchorRect, isPublic]);
+  }, [ackRequired, anchorRect, isPublic]);
 
   // Dismiss on outside-click and Escape.
-  useDismissOnOutside(cardRef, onDismiss);
+  useDismissOnOutside(cardRef, onDismiss, true, { dismissOnEscape: !ackRequired });
+  useProtoDialogFocus({
+    open: ackRequired,
+    dialogRef: cardRef,
+    onDismiss,
+    trapFocus: false,
+    restoreFocus: false,
+  });
 
   if (!anchorRect || typeof document === 'undefined') return null;
 
   const isBusy = shareMutation.isPending;
-  const errorMessage = shareMutation.error instanceof Error ? shareMutation.error.message : null;
+  const shareError = shareMutation.error;
+  const isAcknowledgmentPromptError =
+    shareError instanceof APIError && shareError.code === 'SHARED_NOTE_PUBLIC_ACK_REQUIRED';
+  const errorMessage =
+    shareError instanceof Error && !(ackRequired && isAcknowledgmentPromptError) ? shareError.message : null;
 
   async function handleEnable() {
-    try { await shareMutation.mutateAsync({ noteId, action: 'enable' }); } catch { /* surfaced via shareMutation.error */ }
+    try {
+      await shareMutation.mutateAsync({ noteId, action: 'enable' });
+    } catch (error) {
+      if (error instanceof APIError && error.status === 409 && error.code === 'SHARED_NOTE_PUBLIC_ACK_REQUIRED') {
+        setAckRequired(true);
+      }
+    }
+  }
+  async function handleAcknowledgedEnable() {
+    try {
+      await shareMutation.mutateAsync({
+        noteId,
+        action: 'enable',
+        acknowledgeSharedContext: true,
+      });
+      setAckRequired(false);
+    } catch {
+      /* surfaced inline */
+    }
   }
   async function handleDisable() {
-    try { await shareMutation.mutateAsync({ noteId, action: 'disable' }); } catch { /* ignore */ }
+    try {
+      await shareMutation.mutateAsync({ noteId, action: 'disable' });
+    } catch {
+      /* ignore */
+    }
   }
   async function handleRefresh() {
-    try { await shareMutation.mutateAsync({ noteId, action: 'refresh' }); } catch { /* ignore */ }
+    try {
+      await shareMutation.mutateAsync({ noteId, action: 'refresh' });
+    } catch {
+      /* ignore */
+    }
   }
 
   async function handleCopy() {
@@ -118,8 +164,12 @@ export default function PrototypeSharePopover({
   return createPortal(
     <ProtoPopoverShell
       ref={cardRef}
-      role="dialog"
-      aria-label="Share note"
+      role={ackRequired ? 'alertdialog' : 'dialog'}
+      aria-modal="false"
+      aria-labelledby={ackRequired ? warningTitleId : titleId}
+      aria-describedby={ackRequired ? warningDescriptionId : descriptionId}
+      aria-live={ackRequired ? 'assertive' : undefined}
+      aria-atomic={ackRequired ? 'true' : undefined}
       className={protoPortaledPopoverClassName('proto-share-popover', {
         exiting,
         placement: pos?.placement,
@@ -133,22 +183,61 @@ export default function PrototypeSharePopover({
         zIndex: 6000,
       }}
     >
-      <div className="proto-share-popover__header">
-        <div className="proto-share-popover__title">Share note</div>
-        <div className="proto-share-popover__subtitle">
-          {isPublic
-            ? 'Anyone with the link can view this note.'
-            : 'Only you can see this note. Enable sharing to get a link.'}
+      {!ackRequired ? (
+        <div className="proto-share-popover__header">
+          <div id={titleId} className="proto-share-popover__title">
+            Share note
+          </div>
+          <div id={descriptionId} className="proto-share-popover__subtitle">
+            {isPublic
+              ? 'Anyone with the link can view this note.'
+              : 'Only you can see this note. Enable sharing to get a link.'}
+          </div>
         </div>
-      </div>
+      ) : null}
 
-      {!isPublic ? (
-        <button
-          type="button"
-          className="proto-share-popover__primary"
-          onClick={handleEnable}
-          disabled={isBusy}
-        >
+      {ackRequired && !isPublic ? (
+        <>
+          <div className="proto-share-popover__header">
+            <div
+              id={warningTitleId}
+              className="proto-share-popover__title"
+              role="heading"
+              aria-level={2}
+              tabIndex={-1}
+              data-proto-dialog-heading
+            >
+              Share this live note publicly?
+            </div>
+            <div id={warningDescriptionId} className="proto-share-popover__subtitle">
+              This note is also shared in {sharedSpaceNames.length > 0 ? sharedSpaceNames.join(', ') : 'a shared space'}
+              . Its current contents will be visible outside those spaces to anyone with the link.
+            </div>
+          </div>
+          <div className="proto-share-popover__actions">
+            <button
+              type="button"
+              className="proto-share-popover__link-action"
+              disabled={isBusy}
+              onClick={() => {
+                setAckRequired(false);
+                shareMutation.reset();
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="proto-share-popover__primary"
+              disabled={isBusy}
+              onClick={handleAcknowledgedEnable}
+            >
+              {isBusy ? 'Creating link…' : 'Create public link'}
+            </button>
+          </div>
+        </>
+      ) : !isPublic ? (
+        <button type="button" className="proto-share-popover__primary" onClick={handleEnable} disabled={isBusy}>
           {isBusy ? 'Creating link…' : 'Create share link'}
         </button>
       ) : (
@@ -205,7 +294,9 @@ export default function PrototypeSharePopover({
       )}
 
       {errorMessage ? (
-        <div className="proto-share-popover__error" role="alert">{errorMessage}</div>
+        <div className="proto-share-popover__error" role="alert">
+          {errorMessage}
+        </div>
       ) : null}
     </ProtoPopoverShell>,
     document.body,

@@ -241,3 +241,12 @@ export function sharedSpacePeopleHeaderLabel(peopleCount: number): string {
   if (peopleCount === 1) return 'Just you';
   return `${peopleCount} people`;
 }
+
+/** Sidebar thread card preview line — zero notes uses empty-state copy, not "0 notes". */
+export function sharedThreadNoteCountPreview(noteCount: number): string {
+  if (noteCount <= 0) return 'No notes yet';
+  return `${noteCount} ${noteCount === 1 ? 'note' : 'notes'}`;
+}
+
+export const SHARED_THREAD_DRILLDOWN_ADD_EXISTING_LABEL = 'Add existing';
+export const SHARED_THREAD_DRILLDOWN_COMPOSE_LABEL = 'Compose';

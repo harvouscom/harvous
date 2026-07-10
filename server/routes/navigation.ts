@@ -112,7 +112,7 @@ route.get('/api/navigation/data', async (c) => {
         inboxCount,
       },
       200,
-      { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
+      { 'Cache-Control': 'private, no-store' },
     );
   } catch (error) {
     try {

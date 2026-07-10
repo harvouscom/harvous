@@ -19,6 +19,10 @@ extension Color {
     /// Non-blocking warning / attention states (failed sync awaiting retry, soft
     /// alerts). Backed by the system dynamic orange. Use instead of raw `.orange`.
     static let harvousWarning = Color.orange
+    /// Positive confirmation / success states. Backed by system dynamic green.
+    static let harvousSuccess = Color.green
+    /// Informational callouts (read-only, tips). Backed by system dynamic blue.
+    static let harvousInfo = Color.blue
 
     // MARK: - Thread palette (OKLCH pastels, approximated in sRGB)
     static let threadBlue   = Color(red: 0.76, green: 0.89, blue: 1.00)

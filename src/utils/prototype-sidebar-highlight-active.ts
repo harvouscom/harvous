@@ -40,6 +40,8 @@ export const PROTOTYPE_NOTE_LIST_NAV_SEARCH: {
   scriptureTranslation: string | undefined;
   highlight: string | undefined;
   dockReq: string | undefined;
+  crossRefTarget: string | undefined;
+  space: string | undefined;
 } = {
   studyThread: undefined,
   reference: undefined,
@@ -47,7 +49,26 @@ export const PROTOTYPE_NOTE_LIST_NAV_SEARCH: {
   scriptureTranslation: undefined,
   highlight: undefined,
   dockReq: undefined,
+  crossRefTarget: undefined,
+  space: undefined,
 };
+
+/** Keep note detail reads scoped to the list the row came from. */
+export function prototypeNoteListNavigationSearch(options: {
+  isScopedSharedSpace: boolean;
+  spaceId?: string | null;
+}): typeof PROTOTYPE_NOTE_LIST_NAV_SEARCH {
+  const trimmed = options.spaceId?.trim();
+  return {
+    ...PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+    space:
+      options.isScopedSharedSpace && trimmed
+        ? trimmed.startsWith('space_')
+          ? trimmed
+          : `space_${trimmed}`
+        : undefined,
+  };
+}
 
 /** Parse highlight deep-link ids from TanStack Router search (object or query string). */
 export function parsePrototypeNoteHighlightSearch(search: unknown): {

@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import {
+  computeCenteredPortaledDialogPosition,
   computeMainColumnTopRightPopoverPosition,
   resolveMainColumnPopoverHost,
 } from '../proto-anchored-popover-position';
@@ -59,5 +60,34 @@ describe('computeMainColumnTopRightPopoverPosition', () => {
   it('resolves the right-panel host when present', () => {
     host.className = 'proto-shell__right-panel-host';
     expect(resolveMainColumnPopoverHost()).toBe(host);
+  });
+});
+
+describe('computeCenteredPortaledDialogPosition', () => {
+  it('centers horizontally and clamps top within the viewport', () => {
+    const card = document.createElement('div');
+    card.getBoundingClientRect = () =>
+      ({
+        top: 0,
+        left: 0,
+        right: 360,
+        bottom: 480,
+        width: 360,
+        height: 480,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    const viewportMargin = 12;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const cardWidth = 360;
+    const cardHeight = 480;
+
+    expect(computeCenteredPortaledDialogPosition(card)).toEqual({
+      left: Math.max(viewportMargin, (vw - cardWidth) / 2),
+      top: Math.max(viewportMargin, Math.min(vh - cardHeight - viewportMargin, vh * 0.12)),
+    });
   });
 });

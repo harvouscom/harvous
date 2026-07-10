@@ -9,6 +9,8 @@ import {
   ScriptureMetadata,
   ResourceMetadata,
   StudyThreadEntries,
+  NoteVersions,
+  SpaceNotes,
   and,
   eq,
   inArray,
@@ -20,6 +22,7 @@ import {
 import { nowISO } from '../db/dates';
 import { stripNoteLinksToNoteId } from '@/utils/tiptap-helpers';
 import { recordDeletedEntities } from './sync-deletion-log';
+import { updateCanonicalNoteInTransaction } from './note-version-service';
 
 const DELETE_CHUNK = 2000;
 
@@ -36,6 +39,20 @@ export interface DeleteNotesCascadeResult {
   deletedStudyThreadIds: string[];
 }
 
+export const NOTE_DELETE_CASCADE_TABLES = [
+  'NoteConnections',
+  'NoteThreads',
+  'NoteScriptureReferences',
+  'NoteTags',
+  'Comments',
+  'ScriptureMetadata',
+  'ResourceMetadata',
+  'StudyThreadEntries',
+  'SpaceNotes',
+  'NoteVersions',
+  'Notes',
+] as const;
+
 /**
  * Deletes notes (owned by user) with all related rows needed by note sync flows.
  * Returns the exact ids that were deleted so callers can emit sync tombstones.
@@ -45,82 +62,89 @@ export async function deleteNotesCascadeForUser(userId: string, noteIds: string[
     return { deletedNoteIds: [], deletedStudyThreadIds: [] };
   }
 
-  const deletedNoteIds: string[] = [];
-  for (const chunk of chunkIds(noteIds)) {
-    const owned = await db
-      .select({ id: Notes.id })
-      .from(Notes)
-      .where(and(eq(Notes.userId, userId), inArray(Notes.id, chunk)));
-    deletedNoteIds.push(...owned.map((row) => row.id));
-  }
+  const { deletedNoteIds, deletedStudyThreadIds, foreignStudyThreadIds } = await db.transaction(async (tx) => {
+    const ownedIds: string[] = [];
+    for (const chunk of chunkIds(noteIds)) {
+      const owned = await tx
+        .select({ id: Notes.id })
+        .from(Notes)
+        .where(and(eq(Notes.userId, userId), inArray(Notes.id, chunk)))
+        .for('update');
+      ownedIds.push(...owned.map((row) => row.id));
+    }
+    if (ownedIds.length === 0) {
+      return { deletedNoteIds: [], deletedStudyThreadIds: [], foreignStudyThreadIds: [] };
+    }
+
+    const ownStudyIds: string[] = [];
+    const foreignByUser = new Map<string, string[]>();
+    for (const chunk of chunkIds(ownedIds)) {
+      const studyRows = await tx
+        .select({ id: StudyThreadEntries.id, userId: StudyThreadEntries.userId })
+        .from(StudyThreadEntries)
+        .where(
+          or(
+            inArray(StudyThreadEntries.parentNoteId, chunk),
+            and(eq(StudyThreadEntries.userId, userId), inArray(StudyThreadEntries.linkedNoteId, chunk)),
+          ),
+        );
+      for (const row of studyRows) {
+        if (row.userId === userId) ownStudyIds.push(row.id);
+        else foreignByUser.set(row.userId, [...(foreignByUser.get(row.userId) ?? []), row.id]);
+      }
+    }
+
+    for (const chunk of chunkIds(ownedIds)) {
+      await tx
+        .delete(NoteConnections)
+        .where(
+          or(
+            inArray(NoteConnections.fromNoteId, chunk),
+            inArray(NoteConnections.toNoteId, chunk),
+          ),
+        );
+      await tx.delete(NoteThreads).where(inArray(NoteThreads.noteId, chunk));
+      await tx
+        .delete(NoteScriptureReferences)
+        .where(
+          or(
+            inArray(NoteScriptureReferences.noteId, chunk),
+            inArray(NoteScriptureReferences.scriptureNoteId, chunk),
+          ),
+        );
+      await tx.delete(NoteTags).where(inArray(NoteTags.noteId, chunk));
+      await tx.delete(Comments).where(inArray(Comments.noteId, chunk));
+      await tx.delete(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, chunk));
+      await tx.delete(ResourceMetadata).where(inArray(ResourceMetadata.noteId, chunk));
+      await tx
+        .delete(StudyThreadEntries)
+        .where(
+          or(
+            inArray(StudyThreadEntries.parentNoteId, chunk),
+            and(eq(StudyThreadEntries.userId, userId), inArray(StudyThreadEntries.linkedNoteId, chunk)),
+          ),
+        );
+      await tx.delete(SpaceNotes).where(inArray(SpaceNotes.noteId, chunk));
+      await tx.delete(NoteVersions).where(inArray(NoteVersions.noteId, chunk));
+      await tx
+        .delete(Notes)
+        .where(and(eq(Notes.userId, userId), inArray(Notes.id, chunk)));
+    }
+    return {
+      deletedNoteIds: ownedIds,
+      deletedStudyThreadIds: ownStudyIds,
+      foreignStudyThreadIds: [...foreignByUser.entries()],
+    };
+  });
+
   if (deletedNoteIds.length === 0) {
     return { deletedNoteIds: [], deletedStudyThreadIds: [] };
   }
 
-  // Remove all NoteConnections edges that touch the deleted notes.
-  for (const chunk of chunkIds(deletedNoteIds)) {
-    await db.delete(NoteConnections).where(
-      or(
-        inArray(NoteConnections.fromNoteId, chunk),
-        inArray(NoteConnections.toNoteId, chunk),
-      ),
-    );
-  }
-
-  // Entries anchored to a deleted note die with it for EVERY author — other
-  // members' highlight responses on a shared note become unreachable orphans
-  // otherwise. Entries merely *linking* to the note are only removed for the
-  // deleter (another member's entry lives on their own note).
-  const deletedStudyThreadIds: string[] = [];
-  const foreignStudyThreadIdsByUser = new Map<string, string[]>();
-  for (const chunk of chunkIds(deletedNoteIds)) {
-    const studyRows = await db
-      .select({ id: StudyThreadEntries.id, userId: StudyThreadEntries.userId })
-      .from(StudyThreadEntries)
-      .where(
-        or(
-          inArray(StudyThreadEntries.parentNoteId, chunk),
-          and(eq(StudyThreadEntries.userId, userId), inArray(StudyThreadEntries.linkedNoteId, chunk)),
-        ),
-      );
-    for (const row of studyRows) {
-      if (row.userId === userId) {
-        deletedStudyThreadIds.push(row.id);
-      } else {
-        const list = foreignStudyThreadIdsByUser.get(row.userId) ?? [];
-        list.push(row.id);
-        foreignStudyThreadIdsByUser.set(row.userId, list);
-      }
-    }
-  }
-
-  for (const chunk of chunkIds(deletedNoteIds)) {
-    await db.delete(NoteThreads).where(inArray(NoteThreads.noteId, chunk));
-    await db
-      .delete(NoteScriptureReferences)
-      .where(or(inArray(NoteScriptureReferences.noteId, chunk), inArray(NoteScriptureReferences.scriptureNoteId, chunk)));
-    await db.delete(NoteTags).where(inArray(NoteTags.noteId, chunk));
-    await db.delete(Comments).where(inArray(Comments.noteId, chunk));
-    await db.delete(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, chunk));
-    await db.delete(ResourceMetadata).where(inArray(ResourceMetadata.noteId, chunk));
-    await db
-      .delete(StudyThreadEntries)
-      .where(
-        or(
-          inArray(StudyThreadEntries.parentNoteId, chunk),
-          and(eq(StudyThreadEntries.userId, userId), inArray(StudyThreadEntries.linkedNoteId, chunk)),
-        ),
-      );
-  }
-
-  // Sync tombstones for other members' deleted responses (the deleter's own
-  // ids are returned and recorded by the caller).
-  for (const [annotatorUserId, ids] of foreignStudyThreadIdsByUser) {
+  // Tombstones are an external sync side effect and intentionally happen only
+  // after the relational delete transaction commits.
+  for (const [annotatorUserId, ids] of foreignStudyThreadIds) {
     await recordDeletedEntities(annotatorUserId, 'studyThread', ids);
-  }
-
-  for (const chunk of chunkIds(deletedNoteIds)) {
-    await db.delete(Notes).where(and(eq(Notes.userId, userId), inArray(Notes.id, chunk)));
   }
 
   // Best-effort cleanup: remove inline links to deleted notes in remaining user notes.
@@ -136,7 +160,26 @@ export async function deleteNotesCascadeForUser(userId: string, noteIds: string[
         nextContent = stripNoteLinksToNoteId(nextContent, deletedId);
       }
       if (nextContent !== note.content) {
-        await db.update(Notes).set({ content: nextContent, updatedAt: nowISO() }).where(and(eq(Notes.id, note.id), eq(Notes.userId, userId)));
+        await db.transaction((tx) =>
+          updateCanonicalNoteInTransaction(tx, {
+            noteId: note.id,
+            actorId: userId,
+            patch: { updatedAt: nowISO() },
+            nextContent: (lockedNote) => {
+              let lockedContent = lockedNote.content;
+              for (const deletedId of deletedNoteIds) {
+                lockedContent = stripNoteLinksToNoteId(lockedContent, deletedId);
+              }
+              return {
+                title: lockedNote.title,
+                content: lockedContent,
+                contentEncrypted: lockedNote.contentEncrypted,
+              };
+            },
+            source: 'delete-link-cleanup',
+            now: nowISO(),
+          }),
+        );
       }
     }
   } catch {

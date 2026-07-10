@@ -15,12 +15,15 @@ import {
   Spaces,
   Threads,
   Notes,
+  NoteVersions,
   NoteThreads,
   NoteConnections,
   StudyThreadEntries,
   Tags,
   NoteTags,
   UserMetadata,
+  SpaceNotes,
+  SpaceMemberships,
   eq,
   ne,
   and,
@@ -30,6 +33,7 @@ import {
   asc,
   desc,
   sql,
+  isNull,
 } from '../db';
 import { nowISO } from '../db/dates';
 import { getCurrentSeason } from '@/utils/season-helpers';
@@ -47,13 +51,21 @@ import { tryConsumeNoteCreates, MAX_NOTE_CREATES_PER_SYNC_PUSH, getClientIP } fr
 import { generateNoteId, generateThreadId, generateSpaceId, generateStudyThreadEntryId } from '@/utils/ids';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { detectScripture, getPrimaryReference, normalizeScriptureReference } from '@/utils/scripture-detector';
-import { processScriptureReferences } from '../utils/process-scripture-references';
+import {
+  processScriptureReferences,
+  transformCanonicalScriptureContent,
+} from '../utils/process-scripture-references';
 import { fetchVerseText } from '../utils/fetch-verse-text';
 import { isStudyThreadEntriesTableMissing, isNoteConnectionsTableMissing } from '../utils/pg-undefined-relation';
 import { deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
 import { loadDeletedEntitiesSince, recordDeletedEntities } from '../utils/sync-deletion-log';
 import { broadcastInvalidationForSyncPush } from '../utils/realtime';
-import { requireSpaceAccess, canAuthorInSpace, canManageSpaceStructure, SpaceAccessError } from '../utils/space-access';
+import {
+  requireSpaceAccess,
+  canAuthorInSpace,
+  isActualSpaceOwner,
+  SpaceAccessError,
+} from '../utils/space-access';
 import { getOrCreateTag, noteHasTagWithNormalizedName, addDismissedAutoTag, parseDismissedAutoTags, serializeDismissedAutoTags } from '../utils/tag-helpers';
 import {
   NOT_ONBOARDING_NOTES_THREAD,
@@ -61,6 +73,26 @@ import {
   NOT_ONBOARDING_THREADS,
   NOT_ONBOARDING_JUNCTION_THREAD,
 } from '../utils/purge-onboarding-content';
+import { ensurePersonalHomeSpace } from '../utils/ensure-personal-home-space';
+import {
+  createInitialNoteVersion,
+  noteVersionErrorResponse,
+  resolveLockedEncryptionState,
+  updateCanonicalNoteInTransaction,
+} from '../utils/note-version-service';
+import {
+  associateAuthoredNoteWithSpace,
+  authorizeNoteThreadMutationInTransaction,
+  deleteThreadInTransaction,
+  setSingularThreadPin,
+  softDeleteSharedSpaceInTransaction,
+} from '../utils/shared-space-lifecycle';
+import { broadcastCanonicalNoteInvalidation } from '../utils/broadcast-shared-space-note';
+import {
+  hasSharedNoteOrganizationMutation,
+  normalizeSharedNoteOrganizationMutation,
+} from '../utils/shared-note-serializer';
+import { resolveCreateThreadAttachment } from '../utils/space-note-associations';
 
 const app = new Hono();
 
@@ -104,7 +136,61 @@ function secondaryCollectionsFromSyncPayload(raw: unknown, primary: string | nul
 // authenticated user could author into a shared space they were never
 // invited to. Failures are per-mutation errors, never thrown.
 
-type SyncSpaceGate = { ok: true; spaceId: string | null } | { ok: false; error: string };
+type SyncSpaceGate =
+  | { ok: true; spaceId: string | null; spaceType: string | null }
+  | { ok: false; error: string };
+
+export function resolveSyncCanonicalTarget(
+  spaceType: string | null,
+  requestedSpaceId: string | null,
+  myHomeSpaceId: string | null,
+): { canonicalSpaceId: string | null; associationSpaceId: string | null } {
+  if (spaceType === 'shared' || spaceType === 'public') {
+    if (!myHomeSpaceId) throw new Error('My Home is required for shared sync notes');
+    return { canonicalSpaceId: myHomeSpaceId, associationSpaceId: requestedSpaceId };
+  }
+  return { canonicalSpaceId: requestedSpaceId, associationSpaceId: null };
+}
+
+export function resolveSyncThreadPolicy(
+  spaceType: string | null,
+  requested: { isPublic?: unknown; isPinned?: unknown },
+): { ok: true; isPublic: boolean; singularPin: boolean } | { ok: false; error: string } {
+  const shared = spaceType === 'shared' || spaceType === 'public';
+  if (shared && requested.isPublic === true) {
+    return { ok: false, error: 'Shared-space Threads cannot be public' };
+  }
+  return {
+    ok: true,
+    isPublic: shared ? false : requested.isPublic === true,
+    singularPin: shared && requested.isPinned === true,
+  };
+}
+
+export function syncStudyEntryRequiresHttp(spaceType: string | null | undefined): boolean {
+  return spaceType === 'shared' || spaceType === 'public';
+}
+
+export function syncCanonicalUpdateRequiresExpectedVersion(data: Record<string, unknown>): boolean {
+  return (
+    Object.prototype.hasOwnProperty.call(data, 'title') ||
+    Object.prototype.hasOwnProperty.call(data, 'content') ||
+    Object.prototype.hasOwnProperty.call(data, 'contentEncrypted')
+  );
+}
+
+export function syncSharedSpaceLifecycleUpdateError(
+  spaceType: string,
+  payload: Record<string, unknown>,
+): string | null {
+  if (
+    (spaceType === 'shared' || spaceType === 'public') &&
+    Object.prototype.hasOwnProperty.call(payload, 'isActive')
+  ) {
+    return 'SHARED_SPACE_DELETE_HTTP_REQUIRED: use the dedicated delete mutation';
+  }
+  return null;
+}
 
 async function gateSyncSpaceId(
   userId: string,
@@ -112,13 +198,13 @@ async function gateSyncSpaceId(
   opts: { structure?: boolean; contentEncrypted?: boolean } = {},
 ): Promise<SyncSpaceGate> {
   if (typeof rawSpaceId !== 'string' || !rawSpaceId.trim() || rawSpaceId === 'default_space') {
-    return { ok: true, spaceId: null };
+    return { ok: true, spaceId: null, spaceType: null };
   }
   const spaceId = rawSpaceId.trim();
   try {
     const { space, role } = await requireSpaceAccess(spaceId, userId);
     if (opts.structure) {
-      if (space.type !== 'personal' && !canManageSpaceStructure(space, role)) {
+      if (space.type !== 'personal' && !isActualSpaceOwner(space, userId)) {
         return { ok: false, error: 'Only the space owner can create threads in a shared space' };
       }
     } else if (!canAuthorInSpace(space, role)) {
@@ -127,7 +213,7 @@ async function gateSyncSpaceId(
     if (opts.contentEncrypted && space.type !== 'personal') {
       return { ok: false, error: "Locked notes can't be created in shared spaces" };
     }
-    return { ok: true, spaceId };
+    return { ok: true, spaceId, spaceType: space.type };
   } catch (err) {
     if (err instanceof SpaceAccessError) return { ok: false, error: err.message };
     throw err;
@@ -155,19 +241,35 @@ async function processSpaceMutation(userId: string, operation: string, entityId:
   } else if (operation === 'update') {
     const existing = first(await db.select().from(Spaces).where(and(eq(Spaces.id, entityId), eq(Spaces.userId, userId))).limit(1));
     if (!existing) return { success: false, error: 'Space not found' };
+    const lifecycleError = syncSharedSpaceLifecycleUpdateError(existing.type, data);
+    if (lifecycleError) return { success: false, error: lifecycleError };
     await db.update(Spaces).set({
       title: data.title,
       description: data.description,
       color: data.color,
       backgroundGradient: data.backgroundGradient,
       isPublic: data.isPublic,
-      isActive: data.isActive,
+      ...(existing.type === 'personal' ? { isActive: data.isActive } : {}),
       order: data.order,
       updatedAt: nowISO(),
     }).where(eq(Spaces.id, entityId));
     return { success: true, entityId, serverId: entityId };
   } else if (operation === 'delete') {
-    await db.update(Spaces).set({ isActive: false, updatedAt: nowISO() }).where(and(eq(Spaces.id, entityId), eq(Spaces.userId, userId)));
+    const existing = first(
+      await db.select().from(Spaces).where(and(eq(Spaces.id, entityId), eq(Spaces.userId, userId))).limit(1),
+    );
+    if (!existing) return { success: false, error: 'Space not found' };
+    if (existing.type !== 'personal') {
+      await db.transaction((tx) =>
+        softDeleteSharedSpaceInTransaction(tx, {
+          spaceId: entityId,
+          ownerId: userId,
+          now: nowISO(),
+        }),
+      );
+    } else {
+      await db.update(Spaces).set({ isActive: false, updatedAt: nowISO() }).where(and(eq(Spaces.id, entityId), eq(Spaces.userId, userId)));
+    }
     return { success: true, entityId, serverId: entityId };
   }
   return { success: false, error: `Unknown operation: ${operation}` };
@@ -185,22 +287,39 @@ async function processThreadMutation(userId: string, operation: string, entityId
 
     const spaceGate = await gateSyncSpaceId(userId, data.spaceId, { structure: true });
     if (!spaceGate.ok) return { success: false, error: spaceGate.error };
+    const threadPolicy = resolveSyncThreadPolicy(spaceGate.spaceType, data);
+    if (!threadPolicy.ok) return { success: false, error: threadPolicy.error };
 
     const now = nowISO();
-    const newThread = first(await db.insert(Threads).values({
-      id: entityId.startsWith('local_') ? generateThreadId() : entityId,
-      title: data.title,
-      subtitle: data.subtitle || null,
-      spaceId: spaceGate.spaceId,
-      color: data.color || null,
-      isPublic: data.isPublic || false,
-      isPinned: data.isPinned || false,
-      order: data.order || 0,
-      userId,
-      createdAt: now,
-      updatedAt: now,
-      lastVisited: data.lastVisited ? new Date(data.lastVisited) : now,
-    }).returning())!;
+    const newThread = await db.transaction(async (tx) => {
+      const created = first(await tx.insert(Threads).values({
+        id: entityId.startsWith('local_') ? generateThreadId() : entityId,
+        title: data.title,
+        subtitle: data.subtitle || null,
+        spaceId: spaceGate.spaceId,
+        color: data.color || null,
+        isPublic: threadPolicy.isPublic,
+        isPinned: false,
+        order: data.order || 0,
+        userId,
+        createdAt: now,
+        updatedAt: now,
+        lastVisited: data.lastVisited ? new Date(data.lastVisited) : now,
+      }).returning())!;
+      if (threadPolicy.singularPin && spaceGate.spaceId) {
+        await setSingularThreadPin(tx, {
+          spaceId: spaceGate.spaceId,
+          threadId: created.id,
+          isPinned: true,
+          now,
+        });
+        created.isPinned = true;
+      } else if (data.isPinned === true) {
+        await tx.update(Threads).set({ isPinned: true }).where(eq(Threads.id, created.id));
+        created.isPinned = true;
+      }
+      return created;
+    });
 
     // Cache the result for idempotency
     if (clientMutationId) {
@@ -217,17 +336,50 @@ async function processThreadMutation(userId: string, operation: string, entityId
       if (!spaceGate.ok) return { success: false, error: spaceGate.error };
       nextThreadSpaceId = spaceGate.spaceId;
     }
-    await db.update(Threads).set({
-      title: data.title,
-      subtitle: data.subtitle,
-      spaceId: nextThreadSpaceId,
-      color: data.color,
-      isPublic: data.isPublic,
-      isPinned: data.isPinned,
-      order: data.order,
-      updatedAt: nowISO(),
-      ...(data.lastVisited && { lastVisited: new Date(data.lastVisited) }),
-    }).where(eq(Threads.id, entityId));
+    const effectiveSpaceId = nextThreadSpaceId === undefined ? existing.spaceId : nextThreadSpaceId;
+    const effectiveSpace = effectiveSpaceId
+      ? first(await db.select().from(Spaces).where(eq(Spaces.id, effectiveSpaceId)).limit(1))
+      : null;
+    if (effectiveSpace && effectiveSpace.type !== 'personal') {
+      const gate = await gateSyncSpaceId(userId, effectiveSpace.id, { structure: true });
+      if (!gate.ok) return { success: false, error: gate.error };
+    }
+    const threadPolicy = resolveSyncThreadPolicy(effectiveSpace?.type ?? null, data);
+    if (!threadPolicy.ok) return { success: false, error: threadPolicy.error };
+    const isSharedThread =
+      effectiveSpace?.type === 'shared' || effectiveSpace?.type === 'public';
+    const updateNow = nowISO();
+    await db.transaction(async (tx) => {
+      await tx.update(Threads).set({
+        title: data.title,
+        subtitle: data.subtitle,
+        spaceId: effectiveSpaceId,
+        color: data.color,
+        ...(isSharedThread
+          ? { isPublic: false, shareToken: null, shareTokenCreatedAt: null }
+          : data.isPublic !== undefined
+            ? { isPublic: threadPolicy.isPublic }
+            : {}),
+        ...(effectiveSpace?.type === 'personal' && data.isPinned !== undefined
+          ? { isPinned: Boolean(data.isPinned) }
+          : {}),
+        order: data.order,
+        updatedAt: updateNow,
+        ...(data.lastVisited && { lastVisited: new Date(data.lastVisited) }),
+      }).where(eq(Threads.id, entityId));
+      if (
+        effectiveSpaceId &&
+        effectiveSpace?.type !== 'personal' &&
+        typeof data.isPinned === 'boolean'
+      ) {
+        await setSingularThreadPin(tx, {
+          spaceId: effectiveSpaceId,
+          threadId: entityId,
+          isPinned: data.isPinned,
+          now: updateNow,
+        });
+      }
+    });
     return { success: true, entityId, serverId: entityId, data: { color: data.color } };
   } else if (operation === 'delete') {
     if (entityId === 'thread_unorganized') {
@@ -235,43 +387,14 @@ async function processThreadMutation(userId: string, operation: string, entityId
     }
     const existing = first(await db.select().from(Threads).where(and(eq(Threads.id, entityId), eq(Threads.userId, userId))).limit(1));
     if (!existing) return { success: false, error: 'Thread not found' };
-
-    const affectedNotes = await db.select({ noteId: NoteThreads.noteId }).from(NoteThreads).where(eq(NoteThreads.threadId, entityId));
-    await db.delete(NoteThreads).where(eq(NoteThreads.threadId, entityId));
-
-    if (affectedNotes.length > 0) {
-      const affectedNoteIds = affectedNotes.map(n => n.noteId);
-
-      // One query for the remaining thread relations across all affected notes
-      // (the deleted thread's junction rows were already removed above).
-      const remaining = await db.select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId })
-        .from(NoteThreads)
-        .where(inArray(NoteThreads.noteId, affectedNoteIds));
-
-      const firstRemainingByNote = new Map<string, string>();
-      for (const rel of remaining) {
-        if (!firstRemainingByNote.has(rel.noteId)) firstRemainingByNote.set(rel.noteId, rel.threadId);
-      }
-
-      // Group notes by destination thread (first remaining thread, else unorganized)
-      // so we issue one UPDATE per distinct destination instead of one per note.
-      const notesByDestination = new Map<string, string[]>();
-      for (const noteId of affectedNoteIds) {
-        const dest = firstRemainingByNote.get(noteId) ?? 'thread_unorganized';
-        if (!notesByDestination.has(dest)) notesByDestination.set(dest, []);
-        notesByDestination.get(dest)!.push(noteId);
-      }
-
-      const updatedAt = nowISO();
-      await Promise.all(
-        Array.from(notesByDestination.entries()).map(([dest, ids]) =>
-          db.update(Notes).set({ threadId: dest, spaceId: null, updatedAt })
-            .where(and(inArray(Notes.id, ids), eq(Notes.userId, userId))),
-        ),
-      );
+    if (existing.spaceId) {
+      const gate = await gateSyncSpaceId(userId, existing.spaceId, { structure: true });
+      if (!gate.ok) return { success: false, error: gate.error };
     }
 
-    await db.delete(Threads).where(and(eq(Threads.id, entityId), eq(Threads.userId, userId)));
+    await db.transaction((tx) =>
+      deleteThreadInTransaction(tx, { threadId: entityId, actorId: userId }),
+    );
     await recordDeletedEntities(userId, 'thread', [entityId]);
     return { success: true, entityId, serverId: entityId };
   }
@@ -289,8 +412,6 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     }
 
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(userId);
-    const nextSimpleNoteId = effectiveHighest + 1;
-    const assignedSimpleNoteId = data.simpleNoteId ?? nextSimpleNoteId;
     let threadId = data.threadId || 'thread_unorganized';
     if (threadId.startsWith('local_')) {
       console.warn(`[processNoteMutation] Thread ${threadId} is a local ID, using unorganized`);
@@ -356,40 +477,156 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     });
     if (!spaceGate.ok) return { success: false, error: spaceGate.error };
 
-    const newNote = first(await db.insert(Notes).values({
-      id: entityId.startsWith('local_') ? generateNoteId() : entityId,
-      title: noteTitle || null,
-      content: noteContent,
-      threadId,
-      spaceId: spaceGate.spaceId,
-      simpleNoteId: assignedSimpleNoteId,
-      noteType,
-      addedBy: data.addedBy || 'user',
-      isPublic: data.isPublic || false,
-      isFeatured: data.isFeatured || false,
-      order: data.order || 0,
-      userId,
-      createdAt: now,
-      updatedAt: now,
-      lastVisited: data.lastVisited ? new Date(data.lastVisited) : now,
-      contentEncrypted: data.contentEncrypted || false,
-      linkedFromNoteId: resolvedLinkedFromNoteId,
-      primaryCollection: createPrimary,
-      secondaryCollections: createSecondaryStored,
-      collectionPinned: typeof data.collectionPinned === 'boolean' ? data.collectionPinned : false,
-      collectionUserOverride: typeof data.collectionUserOverride === 'boolean' ? data.collectionUserOverride : false,
-      collectionLastAutoUpdatedAt: collectionLastAutoCreate,
-      studyThreadUserOverride:
-        typeof data.studyThreadUserOverride === 'boolean' ? data.studyThreadUserOverride : false,
-      studyThreadPinned: typeof data.studyThreadPinned === 'boolean' ? data.studyThreadPinned : false,
-    }).returning())!;
-
-    const newHighest = Math.max(assignedSimpleNoteId, effectiveHighest);
-    await db.update(UserMetadata).set({ highestSimpleNoteId: newHighest, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
-
-    if (threadId && threadId !== 'thread_unorganized') {
-      await db.insert(NoteThreads).values({ id: generateNoteId(), noteId: newNote.id, threadId, createdAt: nowISO() });
+    const serverNoteId = entityId.startsWith('local_') ? generateNoteId() : entityId;
+    const isSharedTarget =
+      spaceGate.spaceType === 'shared' || spaceGate.spaceType === 'public';
+    const myHomeSpaceId = isSharedTarget ? await ensurePersonalHomeSpace(userId) : null;
+    const syncTarget = resolveSyncCanonicalTarget(
+      spaceGate.spaceType,
+      spaceGate.spaceId,
+      myHomeSpaceId,
+    );
+    const canonicalSpaceId = syncTarget.canonicalSpaceId;
+    if (!data.contentEncrypted && typeof noteContent === 'string') {
+      noteContent = transformCanonicalScriptureContent({
+        noteId: serverNoteId,
+        content: noteContent,
+        translation: 'NET',
+        pillsOnly: noteType !== 'scripture',
+      }).updatedContent;
     }
+    const newNote = await db.transaction(async (tx) => {
+      const lockedMetadata = first(
+        await tx
+          .select()
+          .from(UserMetadata)
+          .where(eq(UserMetadata.userId, userId))
+          .for('update')
+          .limit(1),
+      );
+      if (!lockedMetadata) throw new Error('User metadata missing during sync note create');
+      if (isSharedTarget && spaceGate.spaceId) {
+        const lockedTarget = first(
+          await tx
+            .select({ id: Spaces.id, deletedAt: Spaces.deletedAt })
+            .from(Spaces)
+            .where(eq(Spaces.id, spaceGate.spaceId))
+            .for('update')
+            .limit(1),
+        );
+        if (!lockedTarget || lockedTarget.deletedAt) throw new Error('Shared space not found');
+      }
+      const requestedRealThread =
+        Boolean(threadId) &&
+        threadId !== 'thread_unorganized' &&
+        !threadId.startsWith('thread_onboarding_');
+      const targetThread = requestedRealThread
+        ? first(
+            await tx
+              .select({
+                id: Threads.id,
+                spaceId: Threads.spaceId,
+                userId: Threads.userId,
+                isPinned: Threads.isPinned,
+              })
+              .from(Threads)
+              .where(eq(Threads.id, threadId))
+              .for('update')
+              .limit(1),
+          )
+        : null;
+      const threadPlan = resolveCreateThreadAttachment({
+        requestedThreadId: threadId,
+        targetSpaceId: spaceGate.spaceId,
+        targetSpaceType: spaceGate.spaceType,
+        actorId: userId,
+        noteAuthorId: userId,
+        thread: targetThread ?? null,
+      });
+      const finalSimpleNoteId =
+        Math.max(effectiveHighest, lockedMetadata.highestSimpleNoteId ?? 0) + 1;
+      const created = first(await tx.insert(Notes).values({
+        id: serverNoteId,
+        title: noteTitle || null,
+        content: noteContent,
+        threadId: threadPlan.canonicalThreadId,
+        spaceId: canonicalSpaceId,
+        simpleNoteId: finalSimpleNoteId,
+        noteType,
+        addedBy: 'user',
+        isPublic: false,
+        isFeatured: false,
+        order: isSharedTarget ? 0 : data.order || 0,
+        userId,
+        createdAt: now,
+        updatedAt: now,
+        lastVisited: data.lastVisited ? new Date(data.lastVisited) : now,
+        contentEncrypted: data.contentEncrypted || false,
+        linkedFromNoteId: resolvedLinkedFromNoteId,
+        primaryCollection: isSharedTarget ? null : createPrimary,
+        secondaryCollections: isSharedTarget ? null : createSecondaryStored,
+        collectionPinned:
+          isSharedTarget
+            ? false
+            : typeof data.collectionPinned === 'boolean'
+              ? data.collectionPinned
+              : false,
+        collectionUserOverride:
+          isSharedTarget
+            ? false
+            : typeof data.collectionUserOverride === 'boolean'
+              ? data.collectionUserOverride
+              : false,
+        collectionLastAutoUpdatedAt: isSharedTarget ? null : collectionLastAutoCreate,
+        studyThreadUserOverride:
+          typeof data.studyThreadUserOverride === 'boolean' ? data.studyThreadUserOverride : false,
+        studyThreadPinned: typeof data.studyThreadPinned === 'boolean' ? data.studyThreadPinned : false,
+      }).returning())!;
+      await createInitialNoteVersion(tx, {
+        noteId: created.id,
+        noteAuthorId: userId,
+        content: {
+          title: created.title,
+          content: created.content,
+          contentEncrypted: created.contentEncrypted,
+        },
+        createdAt: now,
+        source: 'sync-create',
+      });
+      if (syncTarget.associationSpaceId) {
+        const associated = await associateAuthoredNoteWithSpace(tx, {
+          spaceId: syncTarget.associationSpaceId,
+          noteId: created.id,
+          actorId: userId,
+          now,
+        });
+        if (hasSharedNoteOrganizationMutation(data)) {
+          const associatedOrganization =
+            associated.association as typeof SpaceNotes.$inferSelect;
+          const normalized = normalizeSharedNoteOrganizationMutation(
+            data,
+            associatedOrganization,
+          );
+          await tx
+            .update(SpaceNotes)
+            .set({ ...normalized.patch, updatedAt: now })
+            .where(eq(SpaceNotes.id, associatedOrganization.id));
+        }
+      }
+      if (threadPlan.attachThreadId) {
+        await tx
+          .insert(NoteThreads)
+          .values({
+            id: generateNoteId(),
+            noteId: created.id,
+            threadId: threadPlan.attachThreadId,
+            createdAt: now,
+          })
+          .onConflictDoNothing();
+      }
+      await tx.update(UserMetadata).set({ highestSimpleNoteId: finalSimpleNoteId, updatedAt: now }).where(eq(UserMetadata.userId, userId));
+      return created;
+    });
 
     // Mirror create-from-highlight link into the NoteConnections graph.
     if (resolvedLinkedFromNoteId) {
@@ -413,7 +650,10 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     // killed when this serverless handler returns. Encrypted notes are never processed.
     if (!data.contentEncrypted && typeof noteContent === 'string' && noteContent.trim().length > 0) {
       try {
-        await processScriptureReferences(newNote.id, userId, threadId, noteContent, 'NET');
+        await processScriptureReferences(newNote.id, userId, threadId, noteContent, 'NET', {
+          pillsOnly: noteType !== 'scripture',
+          persistParentContent: false,
+        });
       } catch (err: any) {
         console.error('[processNoteMutation] scripture processing (create) failed (non-critical):', err?.message ?? err);
       }
@@ -424,10 +664,23 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       processedMutations.set(clientMutationId, { serverId: newNote.id, timestamp: Date.now() });
     }
 
-    return { success: true, entityId, serverId: newNote.id };
+    await broadcastCanonicalNoteInvalidation(userId, newNote.id, {
+      type: 'note:created',
+      id: newNote.id,
+    });
+    return { success: true, entityId, serverId: newNote.id, data: { currentVersion: 1 } };
   } else if (operation === 'update') {
     const existing = first(await db.select().from(Notes).where(and(eq(Notes.id, entityId), eq(Notes.userId, userId))).limit(1));
     if (!existing) return { success: false, error: 'Note not found' };
+    if (
+      syncCanonicalUpdateRequiresExpectedVersion(data) &&
+      !Number.isInteger(data.expectedVersion)
+    ) {
+      return {
+        success: false,
+        error: 'NOTE_VERSION_REQUIRED: canonical sync updates require expectedVersion',
+      };
+    }
 
     let nextPrimary: string | null = existing.primaryCollection ?? null;
     if (data.primaryCollection !== undefined) {
@@ -437,26 +690,89 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
           : null;
     }
 
-    const willBeEncrypted =
-      typeof data.contentEncrypted === 'boolean' ? data.contentEncrypted : existing.contentEncrypted;
-    let nextSpaceId: string | null | undefined = data.spaceId;
-    if (data.spaceId !== undefined && (data.spaceId ?? null) !== (existing.spaceId ?? null)) {
+    let updateSpaceGate: Extract<SyncSpaceGate, { ok: true }> | null = null;
+    if (data.spaceId !== undefined) {
       const spaceGate = await gateSyncSpaceId(userId, data.spaceId, {
-        contentEncrypted: Boolean(willBeEncrypted),
+        contentEncrypted: data.contentEncrypted === true,
       });
       if (!spaceGate.ok) return { success: false, error: spaceGate.error };
-      nextSpaceId = spaceGate.spaceId;
+      if (
+        (spaceGate.spaceType === 'shared' || spaceGate.spaceType === 'public') &&
+        spaceGate.spaceId === existing.spaceId
+      ) {
+        return {
+          success: false,
+          error:
+            'SHARED_NOTE_ORGANIZATION_HTTP_REQUIRED: canonical shared-space placement requires repair',
+        };
+      }
+      updateSpaceGate = spaceGate;
+    }
+    let explicitContextGate: Extract<SyncSpaceGate, { ok: true }> | null = null;
+    if (data.contextSpaceId !== undefined) {
+      const contextGate = await gateSyncSpaceId(userId, data.contextSpaceId, {
+        contentEncrypted: data.contentEncrypted === true,
+      });
+      if (!contextGate.ok) return { success: false, error: contextGate.error };
+      explicitContextGate = contextGate;
+      if (
+        contextGate.spaceType !== 'shared' &&
+        contextGate.spaceType !== 'public'
+      ) {
+        return {
+          success: false,
+          error: 'SHARED_NOTE_ORGANIZATION_HTTP_REQUIRED: contextSpaceId must identify a shared space',
+        };
+      }
+    }
+    const sharedOrganizationGate =
+      explicitContextGate ??
+      (updateSpaceGate?.spaceType === 'shared' || updateSpaceGate?.spaceType === 'public'
+        ? updateSpaceGate
+        : null);
+    const hasOrganizationMutation = hasSharedNoteOrganizationMutation(data);
+    if (
+      hasOrganizationMutation &&
+      !explicitContextGate &&
+      !updateSpaceGate &&
+      existing.spaceId
+    ) {
+      const existingContextSpace = first(
+        await db
+          .select({ type: Spaces.type })
+          .from(Spaces)
+          .where(eq(Spaces.id, existing.spaceId))
+          .limit(1),
+      );
+      if (
+        existingContextSpace?.type === 'shared' ||
+        existingContextSpace?.type === 'public'
+      ) {
+        return {
+          success: false,
+          error:
+            'SHARED_NOTE_ORGANIZATION_HTTP_REQUIRED: explicit active context required',
+        };
+      }
+    }
+    const sharedOrganizationTarget =
+      Boolean(sharedOrganizationGate?.spaceId) && hasOrganizationMutation;
+    if (
+      sharedOrganizationTarget &&
+      (data.collectionUserOverride !== undefined ||
+        data.collectionLastAutoUpdatedAt !== undefined)
+    ) {
+      return {
+        success: false,
+        error:
+          'SHARED_NOTE_ORGANIZATION_HTTP_REQUIRED: unsupported shared organization fields',
+      };
     }
 
-    const updatePayload: Record<string, unknown> = {
-      title: data.title,
-      content: data.content,
-      spaceId: nextSpaceId,
-      isPublic: data.isPublic,
-      isFeatured: data.isFeatured,
-      order: data.order,
-      updatedAt: nowISO(),
-    };
+    const updatePayload: Record<string, unknown> = { updatedAt: nowISO() };
+    if (data.isPublic !== undefined) updatePayload.isPublic = data.isPublic;
+    if (data.isFeatured !== undefined) updatePayload.isFeatured = data.isFeatured;
+    if (data.order !== undefined && !sharedOrganizationTarget) updatePayload.order = data.order;
     if (data.lastVisited) {
       updatePayload.lastVisited = new Date(data.lastVisited);
     }
@@ -468,20 +784,20 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
         updatePayload.shareTokenCreatedAt = null;
       }
     }
-    if (data.primaryCollection !== undefined) {
+    if (data.primaryCollection !== undefined && !sharedOrganizationTarget) {
       updatePayload.primaryCollection = nextPrimary;
     }
-    if (data.secondaryCollections !== undefined) {
+    if (data.secondaryCollections !== undefined && !sharedOrganizationTarget) {
       updatePayload.secondaryCollections = secondaryCollectionsFromSyncPayload(data.secondaryCollections, nextPrimary);
-    } else if (data.primaryCollection !== undefined) {
+    } else if (data.primaryCollection !== undefined && !sharedOrganizationTarget) {
       updatePayload.secondaryCollections = serializeNoteSecondaryCollections(
         normalizeSecondaryLabels(parseNoteSecondaryCollections(existing.secondaryCollections), nextPrimary),
       );
     }
-    if (data.collectionPinned !== undefined) {
+    if (data.collectionPinned !== undefined && !sharedOrganizationTarget) {
       updatePayload.collectionPinned = Boolean(data.collectionPinned);
     }
-    if (data.collectionUserOverride !== undefined) {
+    if (data.collectionUserOverride !== undefined && !sharedOrganizationTarget) {
       updatePayload.collectionUserOverride = Boolean(data.collectionUserOverride);
     }
     if (data.dismissedAutoTags !== undefined) {
@@ -490,7 +806,7 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
         : [];
       updatePayload.dismissedAutoTags = serializeDismissedAutoTags(arr);
     }
-    if (data.collectionLastAutoUpdatedAt !== undefined) {
+    if (data.collectionLastAutoUpdatedAt !== undefined && !sharedOrganizationTarget) {
       updatePayload.collectionLastAutoUpdatedAt =
         data.collectionLastAutoUpdatedAt == null || data.collectionLastAutoUpdatedAt === ''
           ? null
@@ -515,20 +831,152 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
           : new Date(data.studyThreadLastAutoSuggestedAt);
     }
 
-    await db.update(Notes).set(updatePayload as any).where(eq(Notes.id, entityId));
+    const versioned = await db.transaction(async (tx) => {
+      const result = await updateCanonicalNoteInTransaction(tx, {
+        noteId: entityId,
+        actorId: userId,
+        expectedVersion: Number.isInteger(data.expectedVersion) ? data.expectedVersion : undefined,
+        patch: (lockedNote) => ({
+          ...updatePayload,
+          ...(updateSpaceGate && updateSpaceGate.spaceType === 'personal'
+            ? { spaceId: updateSpaceGate.spaceId }
+            : {}),
+          ...(data.primaryCollection !== undefined && !sharedOrganizationTarget
+            ? {
+                primaryCollection:
+                  typeof data.primaryCollection === 'string' && data.primaryCollection.trim()
+                    ? data.primaryCollection.trim()
+                    : null,
+              }
+            : {}),
+          ...(data.secondaryCollections !== undefined && !sharedOrganizationTarget
+            ? {
+                secondaryCollections: secondaryCollectionsFromSyncPayload(
+                  data.secondaryCollections,
+                  data.primaryCollection !== undefined
+                    ? typeof data.primaryCollection === 'string' && data.primaryCollection.trim()
+                      ? data.primaryCollection.trim()
+                      : null
+                    : lockedNote.primaryCollection,
+                ),
+              }
+            : {}),
+          ...(data.secondaryCollections === undefined &&
+          data.primaryCollection !== undefined &&
+          !sharedOrganizationTarget
+            ? {
+                secondaryCollections: serializeNoteSecondaryCollections(
+                  normalizeSecondaryLabels(
+                    parseNoteSecondaryCollections(lockedNote.secondaryCollections),
+                    typeof data.primaryCollection === 'string' && data.primaryCollection.trim()
+                      ? data.primaryCollection.trim()
+                      : null,
+                  ),
+                ),
+              }
+            : {}),
+        }),
+        nextContent: (lockedNote) => {
+          const targetEncrypted = resolveLockedEncryptionState(
+            data.contentEncrypted,
+            lockedNote.contentEncrypted,
+          );
+          const rawContent =
+            typeof data.content === 'string' ? data.content : lockedNote.content;
+          return {
+            title: data.title !== undefined ? data.title : lockedNote.title,
+            content:
+              !targetEncrypted && typeof data.content === 'string'
+                ? transformCanonicalScriptureContent({
+                    noteId: entityId,
+                    content: rawContent,
+                    translation: 'NET',
+                    pillsOnly: lockedNote.noteType !== 'scripture',
+                  }).updatedContent
+                : rawContent,
+            contentEncrypted: targetEncrypted,
+          };
+        },
+        source: 'sync-update',
+        now: nowISO(),
+      });
+      if (
+        updateSpaceGate?.spaceId &&
+        (updateSpaceGate.spaceType === 'shared' || updateSpaceGate.spaceType === 'public')
+      ) {
+        if (!explicitContextGate) {
+          await associateAuthoredNoteWithSpace(tx, {
+            spaceId: updateSpaceGate.spaceId,
+            noteId: entityId,
+            actorId: userId,
+            now: nowISO(),
+          });
+        }
+      }
+      if (sharedOrganizationTarget && sharedOrganizationGate?.spaceId) {
+        const association = first(
+          await tx
+            .select()
+            .from(SpaceNotes)
+            .where(
+              and(
+                eq(SpaceNotes.spaceId, sharedOrganizationGate.spaceId),
+                eq(SpaceNotes.noteId, entityId),
+                isNull(SpaceNotes.removedAt),
+              ),
+            )
+            .for('update')
+            .limit(1),
+        );
+        if (!association) {
+          throw new Error(
+            'SHARED_NOTE_ORGANIZATION_HTTP_REQUIRED: active association required',
+          );
+        }
+        const normalized = normalizeSharedNoteOrganizationMutation(data, association);
+        const updatedAssociation = await tx
+          .update(SpaceNotes)
+          .set({ ...normalized.patch, updatedAt: nowISO() })
+          .where(
+            and(
+              eq(SpaceNotes.id, association.id),
+              isNull(SpaceNotes.removedAt),
+            ),
+          )
+          .returning({ id: SpaceNotes.id });
+        if (updatedAssociation.length !== 1) {
+          throw new Error(
+            'SHARED_NOTE_ORGANIZATION_HTTP_REQUIRED: association changed during sync',
+          );
+        }
+      }
+      return result;
+    });
 
     // Reprocess scripture pills on the updated body (parity with /api/notes/update). Skip when
     // the note is/became encrypted or no content was sent. Omit threadId so every NoteThreads
     // row for this note is resolved (multi-thread), matching the direct update path.
-    if (!willBeEncrypted && typeof data.content === 'string' && data.content.trim().length > 0) {
+    if (!versioned.note.contentEncrypted && typeof data.content === 'string' && data.content.trim().length > 0) {
       try {
-        await processScriptureReferences(entityId, userId, undefined, data.content, 'NET');
+        await processScriptureReferences(entityId, userId, undefined, versioned.note.content, 'NET', {
+          pillsOnly: versioned.note.noteType !== 'scripture',
+          persistParentContent: false,
+        });
       } catch (err: any) {
         console.error('[processNoteMutation] scripture processing (update) failed (non-critical):', err?.message ?? err);
       }
     }
 
-    return { success: true, entityId, serverId: entityId };
+    await broadcastCanonicalNoteInvalidation(userId, entityId, {
+      type: 'note:updated',
+      id: entityId,
+    });
+    return {
+      success: true,
+      entityId,
+      serverId: entityId,
+      data: { currentVersion: versioned.currentVersion.version },
+    };
   } else if (operation === 'delete') {
     const deleted = await deleteSingleNoteCascadeForUser(userId, entityId);
     if (deleted.deletedNoteIds.length === 0) {
@@ -541,27 +989,98 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
   return { success: false, error: `Unknown operation: ${operation}` };
 }
 
+async function assertSyncNoteThreadPolicy(
+  executor: any,
+  userId: string,
+  noteId: string,
+  threadId: string,
+  requireCurrent: boolean,
+): Promise<{ shared: boolean }> {
+  return authorizeNoteThreadMutationInTransaction(executor, {
+    actorId: userId,
+    noteId,
+    threadId,
+    requireCurrent,
+  });
+}
+
 async function processNoteThreadMutation(userId: string, operation: string, entityId: string, data: any) {
   if (operation === 'create') {
-    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, data.noteId), eq(Notes.userId, userId))).limit(1));
-    if (!note) return { success: false, error: 'Note not found' };
-    const existing = first(await db.select().from(NoteThreads).where(and(eq(NoteThreads.noteId, data.noteId), eq(NoteThreads.threadId, data.threadId))).limit(1));
-    if (existing) return { success: true, entityId, serverId: existing.id };
-    const newNoteThread = first(await db.insert(NoteThreads).values({
-      id: entityId.startsWith('local_') ? generateNoteId() : entityId,
-      noteId: data.noteId,
-      threadId: data.threadId,
-      createdAt: nowISO(),
-    }).returning())!;
+    if (typeof data.noteId !== 'string' || typeof data.threadId !== 'string') {
+      return { success: false, error: 'noteId and threadId are required' };
+    }
+    const newNoteThread = await db.transaction(async (tx) => {
+      await assertSyncNoteThreadPolicy(tx, userId, data.noteId, data.threadId, true);
+      const existing = first(
+        await tx
+          .select()
+          .from(NoteThreads)
+          .where(and(eq(NoteThreads.noteId, data.noteId), eq(NoteThreads.threadId, data.threadId)))
+          .for('update')
+          .limit(1),
+      );
+      if (existing) return existing;
+      return first(
+        await tx
+          .insert(NoteThreads)
+          .values({
+            id: entityId.startsWith('local_') ? generateNoteId() : entityId,
+            noteId: data.noteId,
+            threadId: data.threadId,
+            createdAt: nowISO(),
+          })
+          .returning(),
+      )!;
+    });
     return { success: true, entityId, serverId: newNoteThread.id };
+  } else if (operation === 'update') {
+    const updated = await db.transaction(async (tx) => {
+      const existing = first(
+        await tx.select().from(NoteThreads).where(eq(NoteThreads.id, entityId)).for('update').limit(1),
+      );
+      if (!existing) throw new Error('Note Thread link not found');
+      await assertSyncNoteThreadPolicy(tx, userId, existing.noteId, existing.threadId, false);
+      const noteId = typeof data.noteId === 'string' ? data.noteId : existing.noteId;
+      const threadId = typeof data.threadId === 'string' ? data.threadId : existing.threadId;
+      await assertSyncNoteThreadPolicy(tx, userId, noteId, threadId, true);
+      return first(
+        await tx
+          .update(NoteThreads)
+          .set({ noteId, threadId })
+          .where(eq(NoteThreads.id, entityId))
+          .returning(),
+      )!;
+    });
+    return { success: true, entityId, serverId: updated.id };
   } else if (operation === 'delete') {
-    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, data.noteId), eq(Notes.userId, userId))).limit(1));
-    if (!note) return { success: false, error: 'Note not found' };
-    await db.delete(NoteThreads).where(and(eq(NoteThreads.noteId, data.noteId), eq(NoteThreads.threadId, data.threadId)));
-    const remaining = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, data.noteId));
-    if (remaining.length === 0) {
+    const deletion = await db.transaction(async (tx) => {
+      const existing =
+        first(await tx.select().from(NoteThreads).where(eq(NoteThreads.id, entityId)).for('update').limit(1)) ??
+        (typeof data.noteId === 'string' && typeof data.threadId === 'string'
+          ? first(
+              await tx
+                .select()
+                .from(NoteThreads)
+                .where(and(eq(NoteThreads.noteId, data.noteId), eq(NoteThreads.threadId, data.threadId)))
+                .for('update')
+                .limit(1),
+            )
+          : null);
+      if (!existing) throw new Error('Note Thread link not found');
+      const policy = await assertSyncNoteThreadPolicy(
+        tx,
+        userId,
+        existing.noteId,
+        existing.threadId,
+        false,
+      );
+      await tx.delete(NoteThreads).where(eq(NoteThreads.id, existing.id));
+      const remaining = await tx.select().from(NoteThreads).where(eq(NoteThreads.noteId, existing.noteId));
+      return { noteId: existing.noteId, remaining: remaining.length, shared: policy.shared };
+    });
+    if (!deletion.shared && deletion.remaining === 0) {
       await ensureUnorganizedThread(userId);
-      await db.update(Notes).set({ threadId: 'thread_unorganized' }).where(eq(Notes.id, data.noteId));
+      await db.update(Notes).set({ threadId: 'thread_unorganized' }).where(eq(Notes.id, deletion.noteId));
     }
     return { success: true, entityId, serverId: entityId };
   }
@@ -657,6 +1176,23 @@ async function processStudyThreadEntryMutation(userId: string, operation: string
     if (!parentNoteId) return { success: false, error: 'parentNoteId required' };
     const note = first(await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, userId))).limit(1));
     if (!note) return { success: false, error: 'Note not found' };
+    const requestedContextSpaceId =
+      typeof data.contextSpaceId === 'string'
+        ? data.contextSpaceId
+        : typeof data.spaceId === 'string'
+          ? data.spaceId
+          : null;
+    if (requestedContextSpaceId) {
+      const contextSpace = first(
+        await db.select({ type: Spaces.type }).from(Spaces).where(eq(Spaces.id, requestedContextSpaceId)).limit(1),
+      );
+      if (syncStudyEntryRequiresHttp(contextSpace?.type)) {
+        return {
+          success: false,
+          error: 'SHARED_STUDY_THREAD_HTTP_REQUIRED: use the authoritative study-thread endpoint',
+        };
+      }
+    }
     const id = entityId.startsWith('local_') ? generateStudyThreadEntryId() : entityId;
     const entryKind =
       typeof data.entryKind === 'string' && ENTRY_KINDS.has(data.entryKind) ? data.entryKind : 'miniNote';
@@ -699,7 +1235,18 @@ async function processStudyThreadEntryMutation(userId: string, operation: string
     const existing = first(
       await db.select().from(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId))).limit(1),
     );
-    if (!existing) return { success: false, error: 'Study thread entry not found' };
+    if (!existing) return { success: false, error: 'Response not found' };
+    if (existing.spaceId) {
+      const contextSpace = first(
+        await db.select({ type: Spaces.type }).from(Spaces).where(eq(Spaces.id, existing.spaceId)).limit(1),
+      );
+      if (syncStudyEntryRequiresHttp(contextSpace?.type)) {
+        return {
+          success: false,
+          error: 'SHARED_STUDY_THREAD_HTTP_REQUIRED: use the authoritative study-thread endpoint',
+        };
+      }
+    }
     const patch: Record<string, unknown> = { updatedAt: nowISO() };
     if (typeof data.highlightAccentRaw === 'string') {
       patch.highlightAccentRaw = data.highlightAccentRaw;
@@ -732,7 +1279,18 @@ async function processStudyThreadEntryMutation(userId: string, operation: string
     const existing = first(
       await db.select().from(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId))).limit(1),
     );
-    if (!existing) return { success: false, error: 'Study thread entry not found' };
+    if (!existing) return { success: false, error: 'Response not found' };
+    if (existing.spaceId) {
+      const contextSpace = first(
+        await db.select({ type: Spaces.type }).from(Spaces).where(eq(Spaces.id, existing.spaceId)).limit(1),
+      );
+      if (syncStudyEntryRequiresHttp(contextSpace?.type)) {
+        return {
+          success: false,
+          error: 'SHARED_STUDY_THREAD_HTTP_REQUIRED: use the authoritative study-thread endpoint',
+        };
+      }
+    }
     await db.delete(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId)));
     await db
       .update(Notes)
@@ -799,7 +1357,13 @@ app.post('/api/sync/push', requireAuth, async (c) => {
         }
         results.push({ ...result, operationId });
       } catch (error) {
-        results.push({ success: false, operationId: mutation.operationId, error: error instanceof Error ? error.message : String(error) });
+        const versionError = noteVersionErrorResponse(error);
+        results.push({
+          success: false,
+          operationId: mutation.operationId,
+          error: versionError?.message ?? (error instanceof Error ? error.message : String(error)),
+          ...(versionError ? { code: versionError.code, status: versionError.status } : {}),
+        });
       }
     }
 
@@ -857,6 +1421,12 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
         studyThreadUserOverride: Notes.studyThreadUserOverride,
         studyThreadPinned: Notes.studyThreadPinned,
         studyThreadLastAutoSuggestedAt: Notes.studyThreadLastAutoSuggestedAt,
+        currentVersion: sql<number | null>`(
+          SELECT ${NoteVersions.version}
+          FROM ${NoteVersions}
+          WHERE ${NoteVersions.id} = ${Notes.currentVersionId}
+          LIMIT 1
+        )`,
       }).from(Notes).where(and(
         eq(Notes.userId, auth.userId),
         ne(Notes.noteType, 'scripture'),
@@ -1055,6 +1625,12 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
         studyThreadUserOverride: Notes.studyThreadUserOverride,
         studyThreadPinned: Notes.studyThreadPinned,
         studyThreadLastAutoSuggestedAt: Notes.studyThreadLastAutoSuggestedAt,
+        currentVersion: sql<number | null>`(
+          SELECT ${NoteVersions.version}
+          FROM ${NoteVersions}
+          WHERE ${NoteVersions.id} = ${Notes.currentVersionId}
+          LIMIT 1
+        )`,
       }).from(Notes).where(and(
         eq(Notes.userId, auth.userId),
         ne(Notes.noteType, 'scripture'),

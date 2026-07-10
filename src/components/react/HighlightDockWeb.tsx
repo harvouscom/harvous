@@ -8,6 +8,7 @@ import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import { isStudyHighlightAccentKey, STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL } from '@/utils/study-highlight-accents';
 import { studyPromptQuestionsForSnippet } from '@/utils/study-prompt-suggester';
 import { deriveHighlightFocusTitle } from '@/utils/study-thread-focus-title';
+import { studyThreadContextQuery, withStudyThreadContext } from '@/utils/study-dock-stack';
 import '@/styles/study-dock-card.css';
 import '@/styles/highlight-dock-web.css';
 
@@ -38,18 +39,25 @@ export interface HighlightDockWebProps {
   /** Shared-space unioned highlight — annotator display name when not the viewer. */
   authorDisplayName?: string | null;
   isOwnHighlight?: boolean;
+  /** Explicit read-only policy for another member's Activity entry. */
+  readOnly?: boolean;
+  contextSpaceId?: string | null;
   /** When false, skips remote thread hydration (inactive carousel card). Default true. */
   interactionActive?: boolean;
   /** Card enter animation — off in carousel (item handles enter). */
   animateEnter?: boolean;
 }
 
-function patchStudyThread(id: string, body: Record<string, string>) {
+function patchStudyThread(
+  id: string,
+  body: Record<string, string>,
+  contextSpaceId?: string | null,
+) {
   void fetch(`/api/study-threads/${id}`, {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(withStudyThreadContext(body, contextSpaceId)),
   }).catch(() => {
     /* ignore */
   });
@@ -72,6 +80,8 @@ export default function HighlightDockWeb({
   sourceNoteId = null,
   authorDisplayName = null,
   isOwnHighlight,
+  readOnly = false,
+  contextSpaceId = null,
   interactionActive = true,
   animateEnter = true,
 }: HighlightDockWebProps) {
@@ -122,7 +132,10 @@ export default function HighlightDockWeb({
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch(`/api/notes/${sourceNoteId}/study-threads`, { credentials: 'include' });
+        const res = await fetch(
+          `/api/notes/${sourceNoteId}/study-threads${studyThreadContextQuery(contextSpaceId)}`,
+          { credentials: 'include' },
+        );
         if (!res.ok || cancelled) return;
         const data = (await res.json()) as {
           studyThreads?: {
@@ -145,12 +158,13 @@ export default function HighlightDockWeb({
     return () => {
       cancelled = true;
     };
-  }, [studyThreadEntryId, sourceNoteId, interactionActive]);
+  }, [contextSpaceId, studyThreadEntryId, sourceNoteId, interactionActive]);
 
   const titleDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noteDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const flushPendingAnnotation = useCallback((threadId: string, note: string, title: string) => {
+    if (readOnly) return;
     const patch: Record<string, string> = {};
     const noteToSave = pendingMiniNoteRef.current ?? note;
     const titleToSave = pendingTitleRef.current ?? title;
@@ -161,40 +175,42 @@ export default function HighlightDockWeb({
       patch.focusTitle = titleToSave;
     }
     if (Object.keys(patch).length > 0) {
-      patchStudyThread(threadId, patch);
+      patchStudyThread(threadId, patch, contextSpaceId);
     }
     pendingMiniNoteRef.current = null;
     pendingTitleRef.current = null;
-  }, []);
+  }, [contextSpaceId, readOnly]);
 
   const persistTitle = useCallback(
     (value: string) => {
+      if (readOnly) return;
       onFocusTitleChange?.(value);
       if (studyThreadEntryId) {
-        patchStudyThread(studyThreadEntryId, { focusTitle: value });
+        patchStudyThread(studyThreadEntryId, { focusTitle: value }, contextSpaceId);
         pendingTitleRef.current = null;
       } else {
         pendingTitleRef.current = value;
       }
     },
-    [studyThreadEntryId, onFocusTitleChange],
+    [contextSpaceId, readOnly, studyThreadEntryId, onFocusTitleChange],
   );
 
   const persistMiniNote = useCallback(
     (value: string) => {
+      if (readOnly) return;
       onMiniNoteChange?.(value);
       if (studyThreadEntryId) {
-        patchStudyThread(studyThreadEntryId, { miniNoteBody: value });
+        patchStudyThread(studyThreadEntryId, { miniNoteBody: value }, contextSpaceId);
         pendingMiniNoteRef.current = null;
       } else {
         pendingMiniNoteRef.current = value;
       }
     },
-    [studyThreadEntryId, onMiniNoteChange],
+    [contextSpaceId, readOnly, studyThreadEntryId, onMiniNoteChange],
   );
 
   useEffect(() => {
-    if (!studyThreadEntryId) {
+    if (readOnly || !studyThreadEntryId) {
       hadStudyThreadIdRef.current = false;
       return;
     }
@@ -214,9 +230,10 @@ export default function HighlightDockWeb({
       miniNoteBodyRef.current,
       focusTitleRef.current,
     );
-  }, [studyThreadEntryId, flushPendingAnnotation]);
+  }, [readOnly, studyThreadEntryId, flushPendingAnnotation]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (readOnly) return;
     const value = e.target.value;
     userTouchedTitleRef.current = true;
     setFocusTitle(value);
@@ -225,6 +242,7 @@ export default function HighlightDockWeb({
   };
 
   const handleMiniNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (readOnly) return;
     const value = e.target.value;
     userTouchedMiniNoteRef.current = true;
     setMiniNoteBody(value);
@@ -237,7 +255,7 @@ export default function HighlightDockWeb({
       if (titleDebounceRef.current) clearTimeout(titleDebounceRef.current);
       if (noteDebounceRef.current) clearTimeout(noteDebounceRef.current);
       const threadId = studyThreadEntryIdRef.current;
-      if (!threadId) return;
+      if (readOnly || !threadId) return;
       if (
         !userTouchedMiniNoteRef.current &&
         !userTouchedTitleRef.current &&
@@ -248,7 +266,7 @@ export default function HighlightDockWeb({
       }
       flushPendingAnnotation(threadId, miniNoteBodyRef.current, focusTitleRef.current);
     };
-  }, [flushPendingAnnotation]);
+  }, [flushPendingAnnotation, readOnly]);
 
   const accentKey: StudyHighlightAccentKey = isStudyHighlightAccentKey(accent) ? accent : 'warmAmber';
   const accentColor = SCRIPTURE_DOCK_ACCENT_COLORS[accentKey];
@@ -261,7 +279,7 @@ export default function HighlightDockWeb({
     const next = `${miniNoteBody}${prefix}${prompt}\n`;
     userTouchedMiniNoteRef.current = true;
     setMiniNoteBody(next);
-    persistMiniNote(next);
+    if (!readOnly) persistMiniNote(next);
     setRespondMenuOpen(false);
   };
 
@@ -296,7 +314,7 @@ export default function HighlightDockWeb({
   return (
     <StudyDockCardShell
       rootClassName="highlight-dock-web"
-      ariaLabel="Highlight editor"
+      ariaLabel={readOnly ? 'Highlight details' : 'Highlight editor'}
       accentColor={accentColor}
       expanded={isExpanded}
       onToggleExpanded={toggleExpanded}
@@ -308,36 +326,39 @@ export default function HighlightDockWeb({
           type="text"
           className="highlight-dock-web__title-input study-dock-card__header-primary-text"
           value={headerTitleText}
-          readOnly={!isExpanded}
-          tabIndex={isExpanded ? 0 : -1}
+          readOnly={readOnly || !isExpanded}
+          disabled={readOnly}
+          tabIndex={isExpanded && !readOnly ? 0 : -1}
           placeholder={titlePlaceholder}
           aria-label="Highlight title"
-          onChange={isExpanded ? handleTitleChange : undefined}
+          onChange={isExpanded && !readOnly ? handleTitleChange : undefined}
           onMouseDown={(e) => {
-            if (isExpanded) e.stopPropagation();
+            if (isExpanded && !readOnly) e.stopPropagation();
           }}
           onClick={(e) => {
-            if (isExpanded) e.stopPropagation();
+            if (isExpanded && !readOnly) e.stopPropagation();
           }}
         />
       }
       headerActions={
-        <>
-          <DockAccentSwatchButton
-            selection={accentKey}
-            paletteTokens={STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL}
-            onSelectionChange={onAccentChange}
-          />
-          <button
-            type="button"
-            className="study-dock-card__header-btn study-dock-card__header-btn--plain"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={onRemove}
-            aria-label="Remove highlight"
-          >
-            <Icon name="trash-can" size={12} />
-          </button>
-        </>
+        readOnly ? null : (
+          <>
+            <DockAccentSwatchButton
+              selection={accentKey}
+              paletteTokens={STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL}
+              onSelectionChange={onAccentChange}
+            />
+            <button
+              type="button"
+              className="study-dock-card__header-btn study-dock-card__header-btn--plain"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={onRemove}
+              aria-label="Remove highlight"
+            >
+              <Icon name="trash-can" size={12} />
+            </button>
+          </>
+        )
       }
     >
       <div className="highlight-dock-web__body">
@@ -351,7 +372,9 @@ export default function HighlightDockWeb({
             placeholder="Note (optional)…"
             aria-label="Highlight note"
             rows={2}
-            onChange={handleMiniNoteChange}
+            readOnly={readOnly}
+            disabled={readOnly}
+            onChange={readOnly ? undefined : handleMiniNoteChange}
             onMouseDown={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
@@ -361,7 +384,7 @@ export default function HighlightDockWeb({
         ) : null}
       </div>
 
-      {HIGHLIGHT_DOCK_RESPOND_ENABLED && prompts.length > 0 ? (
+      {!readOnly && HIGHLIGHT_DOCK_RESPOND_ENABLED && prompts.length > 0 ? (
         <div className="highlight-dock-web__respond" ref={respondRef}>
           <button
             type="button"

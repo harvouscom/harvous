@@ -1,21 +1,23 @@
 # Harvous Features
 
-Discover the powerful features that make Harvous the perfect companion for your Bible study journey. Harvous is a modern Bible study notes application with a solid foundation and React Islands architecture. **v1 is complete** with production-ready core functionality; ongoing focus is performance and quality-of-life improvements.
+Harvous is a native-like Bible study notes app. The production web experience is a React SPA backed by the Hono
+API and Postgres. My Home is the complete private aggregate of authored notes; spaces add focused organization or
+a shared audience without changing note ownership.
 
 ## 🗂️ Flexible Organization
 
 ### Hierarchical Structure
-- **Spaces** → **Threads** → **Notes**
-- Organize your study materials in a way that makes sense to you
-- Mix individual notes and thread collections within the same space
-- **Easy Space Creation**: Dedicated space creation page with color selection and private/shared types
-- **Customizable Spaces**: Choose from 8 beautiful colors and set privacy levels
+- **My Home** → complete aggregate of everything you author
+- **Spaces** → audience and organization contexts
+- **Threads** → related notes inside the relevant context
+- Notes can appear in multiple spaces while remaining one canonical authored note
+- Per-space folders, pins, Threads, order, and responses stay isolated
 
 ### Example Organization:
 ```
 📁 Bible Study Space (Private, Blue)
 ├── 📚 Gospel of John Thread (5 notes)
-├── 📖 Romans Study Thread (12 notes)
+├── 📖 Romans Thread (12 notes)
 └── 📝 Individual Reflection Note
 
 📁 Church Group Study (Shared, Gold)
@@ -50,7 +52,7 @@ Discover the powerful features that make Harvous the perfect companion for your 
 - **Easy Access**: Quick navigation to your frequently used content
 
 ## Navigation Features ✅ **IMPLEMENTED**
-- **Space Protection**: Confirmation dialog when closing spaces (since they can't be recovered)
+- **Shared-space recovery**: Deletion hides and revokes immediately, with a 30-day owner recovery window in Settings
 - **Clean Interface**: No duplicate entries - each item appears only once
 - **localStorage Integration**: Simple localStorage-based system for tracking recently accessed items
 - **Color-coded Navigation**: Spaces and threads display with their respective colors
@@ -82,7 +84,7 @@ Discover the powerful features that make Harvous the perfect companion for your 
 - **Inline editing** - click any note to edit directly without separate edit pages
 - **HTML content processing** - clean text previews without formatting artifacts
 - **Mobile-optimized toolbar** with proper viewport handling
-- **React Islands integration** for seamless desktop and mobile experience
+- **SPA integration** across the native-like desktop and mobile web shell
 
 ### Note Examples:
 ```
@@ -101,13 +103,21 @@ N004: Prayer Request - Healing for Sarah
 - Only visible to you - your private spiritual journey
 
 ### Shared Spaces (Harvous 2.0 foundation)
-- **Collaborative environments** where members compose notes in a shared space (join always free; hosting requires the Shared Spaces add-on)
-- **Owner sets structure:** folders, study thread links, and group study threads are created by the space owner; members compose and attach notes
-- **Shared highlight annotations:** highlight text on another member's note to respond in context without editing their note
-- **Group study threads:** owner starts a pinned study thread; members optionally attach new notes to it
-- **Invitations:** Expiring SpaceInvites join links (replaces legacy shareToken spaces)
-- **Member management:** Owner invites, removes members; members can leave; up to 30 people per space
-- **Visibility:** Merged notes list with author chips; locked notes never shown in shared contexts
+**Status:** Implemented; launch verification pending.
+
+- **Canonical ownership:** My Home remains complete; shared spaces reuse authored notes through space associations
+- **Visible compose scope:** My Home creates privately; This space creates a Home note plus a space association
+- **Existing notes:** authors use **Add to space**; non-authors use **Save a copy** with attribution
+- **Independent organization:** folders, pins, Threads, and responses are isolated per space
+- **Passage responses:** respond on another member's read-only note without editing their body
+- **Note Activity:** responses are grouped by space in My Home; persistent overlays appear only in that space
+- **Threads:** the owner starts and selects the current Thread; members view it and attach their own associated notes
+- **Invitations:** expiring, revocable link invites with metadata-only preview
+- **Lifecycle:** leaving/removal archives authored associations and preserves responses on other authors' notes
+- **Recovery:** shared-space deletion revokes immediately, is recoverable for 30 days, then purges space data without canonical notes
+- **Privacy:** encrypted notes are excluded; non-owner member views omit email; public-link controls stay out of shared context
+- **Launch model:** joining is free; paid hosting configuration and purchase/cancel behavior still require
+  production verification
 
 ### Example Use Cases:
 ```
@@ -186,7 +196,7 @@ N004: Prayer Request - Healing for Sarah
 - **Quick access**: Recent items in navigation for fast switching
 - **Breadcrumb navigation**: Always know where you are
 - **Search functionality**: Find any note or thread quickly with enhanced relevance scoring
-- **React Islands**: Seamless desktop and mobile experience with unified components
+- **Production SPA**: Native-like desktop and mobile web experience with unified components
 
 ## 📱 Responsive Design ✅ **IMPLEMENTED**
 
@@ -387,19 +397,21 @@ Ready to transform your Bible study? Here's how to begin:
 
 1. **Sign in** to your Harvous account with Clerk authentication
 2. **Create your first space** with a custom color and privacy setting (e.g., "Daily Study" - Private, Blue)
-3. **Add a thread** with its own color (e.g., "Current Book Study" - Purple)
+3. **Add a Thread** (e.g., "Current Book Study")
 4. **Start taking notes** with the rich text editor and watch your XP grow!
 5. **Use the search** to find your insights quickly with enhanced relevance scoring
-6. **Create shared spaces** for group study and collaboration (invite via email or link, member management, tier limits)
+6. **Create shared spaces** for group study and invite members with a link
 7. Select text to create notes instantly and use specialized note types
 
-### Current Status: V1 Complete
+### Current Status
 - ✅ **Core Features**: Content creation, viewing, and management
-- ✅ **Mobile Experience**: Modern bottom sheet system with React Islands
+- ✅ **Mobile Experience**: Modern bottom sheet system in the production SPA
 - ✅ **XP System**: Gamification with automatic XP awarding
 - ✅ **Search**: Enhanced search with relevance scoring and tag support
 - ✅ **Billing & Referrals**: Free tier (500 notes), upgrade to unlimited, referral bonus (100 notes per friend)
 - ✅ **Locked Notes**: Client-side encryption (AES-GCM 256-bit, PBKDF2-SHA256 310k iterations); 4-digit PIN, no recovery
-- ✅ **Shared Spaces**: Invitations (email + link), member management, join/leave, tier limits; v1 complete. Next: performance and QoL.
+- ✅ **Shared Spaces**: Canonical note associations, link invites, responses, Threads, lifecycle, recovery, and
+  free-to-join behavior are implemented; launch verification remains pending. Clerk billing setup and a real
+  purchase/cancel run remain to be production-verified.
 
 Your journey of organized, meaningful Bible study starts now. 📖✨

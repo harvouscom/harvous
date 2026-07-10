@@ -7,16 +7,19 @@ This folder contains documentation for features planned for post-V1 release. Som
 - **Implemented features:** Listed below; full docs live in the main [docs/](../) folder.
 - **Planned features:** Deferred to v1.1+ (post-V1 launch). Architecture is designed and ready.
 
-## ✅ Implemented (moved to main docs)
+## ✅ Implemented in code (moved to main docs)
 
-These were designed here and are now live. The stub files in this folder point to the canonical docs.
+These were designed here and have implementation in the main product code. “Implemented” does not by itself mean
+production-live or paid-launch verified; follow each linked canonical document's operational status.
 
 - **Referral Bonus** – [REFERRAL_BONUS_IMPLEMENTATION.md](./REFERRAL_BONUS_IMPLEMENTATION.md) → [../REFERRAL_BONUS_IMPLEMENTATION.md](../REFERRAL_BONUS_IMPLEMENTATION.md)
   User-facing summary: [../FEATURES.md#💳 Billing & Referrals](../FEATURES.md#-billing--referrals--implemented)
 - **Locked Notes & Encryption** – [LOCKED_NOTES_ENCRYPTION.md](./LOCKED_NOTES_ENCRYPTION.md) → [../LOCKED_NOTES_ENCRYPTION.md](../LOCKED_NOTES_ENCRYPTION.md)
   Encryption: AES-GCM 256-bit, PBKDF2-SHA256 310k iterations (see main doc for full transparency). User-facing summary: [../FEATURES.md#🔒 Locked Notes & Encryption](../FEATURES.md#-locked-notes--encryption--implemented)
-- **Sharing System** – Public share links and collaborative shared spaces are fully implemented.
-  See [COLLABORATIVE_SHARED_SPACES.md](./COLLABORATIVE_SHARED_SPACES.md) for shared spaces details and [../SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md) for current design/behavior.
+- **Sharing System** – Public note links and the July 2026 Shared Spaces v1 loop are implemented in code. Shared
+  Spaces migration, disposable release E2E, production smoke, and paid billing verification remain launch gates.
+  [../SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md) is canonical. The older
+  [COLLABORATIVE_SHARED_SPACES.md](./COLLABORATIVE_SHARED_SPACES.md) is retained only as superseded history.
 - **Offline Mode** – Full offline read/write support with IndexedDB, sync queues, and conflict resolution is implemented.
   See [OFFLINE_MODE_IMPLEMENTATION.md](./OFFLINE_MODE_IMPLEMENTATION.md) for architecture reference.
 
@@ -61,7 +64,7 @@ These were designed here and are now live. The stub files in this folder point t
 
 ### Monetization & Business Model
 
-- **`MONETIZATION_AND_PRICING.md`** - Canonical product and pricing strategy (Review, Group Sharing, Season Pass, Group Leader, church org principles)
+- **`MONETIZATION_AND_PRICING.md`** - Pricing strategy (Review, Shared Spaces, Season Pass, future Group Leader and church organization principles)
   - Review vs Compete split; Group Leader hosts spaces without member Review
   - Planning Center competitive positioning for future church org (pricing TBD)
 
@@ -103,13 +106,17 @@ These were designed here and are now live. The stub files in this folder point t
   - Product flows, schema, auth/backend, invites/join, edge cases, UI/UX, migration
   - Summary table and pointers to CHURCH_CONNECTION_SYSTEM, CHURCH_ORG_AND_CURRICULUM
 
-### Sharing & Collaboration (✅ Implemented)
+### Sharing & Collaboration
 
-- **`SHARING_SYSTEM_DESIGN.md`** - Original sharing system design (implemented)
-- **`SHARING_AND_GROUPS_INFRASTRUCTURE.md`** - Infrastructure analysis (implemented)
-- **`SHARING_QUICK_REFERENCE.md`** - Quick comparison of sharing approaches (implemented)
-- **`COLLABORATIVE_SHARED_SPACES.md`** - Collaborative shared spaces (implemented, v1 complete Feb 2026)
-- **`SHARED_SPACES_LAUNCH_STRATEGY.md`** - Pre-launch product strategy for the July 2026 foundation rewrite: small-group differentiators (respond, group thread), operational checklist, messaging, and post-launch roadmap
+- **`../SHARED_SPACES_DEV_NOTES.md`** - Canonical July 2026 behavior: My Home ownership, `SpaceNotes`,
+  responses, Threads, permissions, and lifecycle
+- **`../SHARED_SPACES_TESTING.md`** - Disposable E2E and canonical-association migration runbook
+- **`SHARED_SPACES_LAUNCH_STRATEGY.md`** - Launch promise, operational gates, and verified claims
+- **`SHARED_SPACES_ROADMAP.md`** - v1.1, v1.2, v2, and long-term sequence
+- **`SPACE_MODES_PRODUCT.md`** - Canonical product rules and limits
+- **`SHARING_SYSTEM_DESIGN.md`**, **`SHARING_AND_GROUPS_INFRASTRUCTURE.md`**,
+  **`SHARING_QUICK_REFERENCE.md`**, and **`COLLABORATIVE_SHARED_SPACES.md`** - Retired February/Classic
+  designs retained for historical context under superseded notices
 
 ### Real-Time Collaboration (Planned)
 
@@ -149,8 +156,9 @@ These were designed here and are now live. The stub files in this folder point t
 
 ## 🎯 Implementation Priority
 
-### ✅ Completed
-- **Sharing System** — Public share links and collaborative shared spaces (implemented)
+### ✅ Implemented in code
+- **Sharing System** — Public share links and collaborative Shared Spaces are implemented; production and paid
+  launch verification are tracked in `SHARED_SPACES_LAUNCH_STRATEGY.md`
 - **Offline Mode** — Full offline read/write with IndexedDB, sync queues, and conflict resolution (implemented)
 
 ### Phase 1: Church Connection (High Value)
@@ -167,10 +175,10 @@ These were designed here and are now live. The stub files in this folder point t
 - See `CAPACITOR_STRATEGIC_ANALYSIS.md` for strategy and prerequisites
 - See `../CAPACITOR_IMPLEMENTATION_GUIDE.md` for implementation steps
 
-### Phase 3: Real-Time Collaboration (Enhanced Experience)
-- Real-time group study via Supabase Realtime + Tiptap
-- Cross-device instant sync
-- Google Docs-style collaborative note editing
+### Phase 3: Shared-space freshness
+- Production-verify realtime invalidation first
+- Add presence and event unread state only after invalidation is reliable
+- Treat same-note collaborative editing as optional, long-term, and evidence-led
 
 ## 🗄️ Database Schema
 
@@ -186,10 +194,10 @@ See `CLERK_MONETIZATION_ARCHITECTURE.md` for complete database schemas.
 
 ## 🚀 When to Implement
 
-**Not for V1:**
-- All features in this folder are post-V1
-- Focus on Note Types and Selected Text for V1
-- Launch V1 first, then add these features
+**Not automatically current:**
+- This folder mixes future plans with retired historical designs.
+- Follow each file's status notice and prefer linked canonical docs for shipped behavior.
+- Shared Spaces sequencing is in `SHARED_SPACES_ROADMAP.md`.
 
 **After V1:**
 - Implement based on user feedback and priorities
@@ -211,5 +219,5 @@ See `CLERK_MONETIZATION_ARCHITECTURE.md` for complete database schemas.
 
 ---
 
-**Status**: Some features implemented (see above); rest documented and ready for implementation post-V1 🚀
+**Status**: Mixed current roadmap and historical planning; verify each document's status before implementation.
 

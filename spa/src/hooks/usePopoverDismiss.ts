@@ -58,6 +58,8 @@ export function usePopoverDismiss<T extends HTMLElement = HTMLDivElement>(initia
 export type DismissOnOutsideOptions = {
   /** Clicks inside matching elements do not dismiss (e.g. sidebar while switching notes). */
   ignoreSelector?: string;
+  /** Defaults to true. Modal focus scopes can own Escape without double-dismissal. */
+  dismissOnEscape?: boolean;
 };
 
 export function useDismissOnOutside<T extends HTMLElement = HTMLElement>(
@@ -69,6 +71,7 @@ export function useDismissOnOutside<T extends HTMLElement = HTMLElement>(
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
   const ignoreSelector = options?.ignoreSelector;
+  const dismissOnEscape = options?.dismissOnEscape ?? true;
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -80,7 +83,7 @@ export function useDismissOnOutside<T extends HTMLElement = HTMLElement>(
       onDismissRef.current();
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onDismissRef.current();
+      if (dismissOnEscape && e.key === 'Escape') onDismissRef.current();
     };
     window.addEventListener('pointerdown', onPointerDown, { capture: true });
     window.addEventListener('keydown', onKeyDown);
@@ -88,5 +91,5 @@ export function useDismissOnOutside<T extends HTMLElement = HTMLElement>(
       window.removeEventListener('pointerdown', onPointerDown, { capture: true } as EventListenerOptions);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [ref, enabled, ignoreSelector]);
+  }, [ref, enabled, ignoreSelector, dismissOnEscape]);
 }

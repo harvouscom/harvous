@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { prototypeHomePath } from '@/lib/prototype-path';
+import { writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 
 /** Shared icons for public pages. */
 
@@ -18,6 +19,10 @@ export function HarvousLogoMark({ size = 36 }: { size?: number }) {
       style={{ width: size, height: size }}
     />
   );
+}
+
+export function writePublicToolbarPendingRedirect(destination: string): boolean {
+  return writePendingAuthRedirect(destination);
 }
 
 /**
@@ -49,6 +54,7 @@ export function PublicTopBar({
           <a
             href={`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`}
             className="public-toolbar__cta"
+            onClick={() => writePublicToolbarPendingRedirect(redirectUrl)}
           >
             Sign in
           </a>

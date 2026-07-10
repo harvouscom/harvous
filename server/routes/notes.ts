@@ -32,11 +32,12 @@ import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/a
 import {
   db, Notes, Threads, NoteThreads, StudyThreadEntries, Comments, Tags, NoteTags,
   UserMetadata, ScriptureMetadata, NoteScriptureReferences, NoteConnections, StudyThreadMemberOrders, ResourceMetadata, Spaces,
+  NoteVersions, SpaceNotes, SpaceMemberships,
   eq, and, or, ne, desc, asc, count, like, not, isNull, isNotNull, inArray, sql,
   first,
 } from '../db';
 import { nowISO } from '../db/dates';
-import { generateNoteId, generateShareToken, generateTimestampId } from '@/utils/ids';
+import { generateNoteId, generateShareToken, generateSpaceId, generateTimestampId } from '@/utils/ids';
 import { getHarvousSystemUserId } from '../utils/harvous-admin';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateContent, validateNoteType, validateThreadId, validateSpaceId, normalizeUrl, extractDomain, validateResourceUrl } from '@/utils/validation';
@@ -66,7 +67,10 @@ import { getThreadGradientCSS } from '@/utils/colors';
 import { awardCreationBonusXP, awardNoteCreatedXP, awardStudyThreadClusterCreatedXPIfNew, revokeXPOnDeletion, revokeAllXPForItem } from '../utils/xp-system';
 import { countStudyThreadClustersForUser } from '../utils/study-thread-cluster-count';
 import { generateAutoTags, applyAutoTags, removeAutoTags, regenerateAutoTags } from '../utils/auto-tag-generator';
-import { processScriptureReferences } from '../utils/process-scripture-references';
+import {
+  processScriptureReferences,
+  transformCanonicalScriptureContent,
+} from '../utils/process-scripture-references';
 import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
 import { formatNoteDefaultTitle } from '@/utils/date-formatting';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
@@ -77,12 +81,14 @@ import { removeScriptureNotesFromThread } from '../utils/remove-scripture-notes-
 import { requireSpaceAccess, SpaceAccessError, canAuthorInSpace, canManageSpaceStructure } from '../utils/space-access';
 import { batchAuthorAttribution } from '../utils/dashboard-data';
 import { mapStudyRow } from './study-threads';
-import { shouldUnionStudyThreadsForNote } from '../utils/shared-study-thread-access';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { extractArticleContent } from '@/utils/content-extractor';
 import { sortByLastVisited } from '@/utils/sorting';
 import { broadcastInvalidation } from '../utils/realtime';
-import { broadcastNoteInvalidation } from '../utils/broadcast-shared-space-note';
+import {
+  broadcastCanonicalNoteInvalidation,
+  broadcastNoteInvalidation,
+} from '../utils/broadcast-shared-space-note';
 import { stripHtml } from '@/utils/html-stripper';
 import { deleteNotesCascadeForUser, deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
 import { isOnboardingSystemNote } from '../utils/purge-onboarding-content';
@@ -106,6 +112,30 @@ import {
   parseNoteSecondaryCollections,
   serializeNoteSecondaryCollections,
 } from '../utils/note-secondary-collections';
+import {
+  createInitialNoteVersion,
+  noteVersionErrorResponse,
+  resolveCanonicalCreateScope,
+  resolveLockedEncryptionState,
+  restoreCanonicalNoteVersionInTransaction,
+  updateCanonicalNoteInTransaction,
+} from '../utils/note-version-service';
+import {
+  SpaceNoteAssociationError,
+  assertCanAssociateCanonicalNote,
+  buildSpaceNoteAssociation,
+  resolveCreateThreadAttachment,
+} from '../utils/space-note-associations';
+import { buildSharedNoteActivity } from '../utils/shared-note-activity';
+import {
+  canExposeCanonicalTagInContext,
+  serializeSharedCanonicalNote,
+} from '../utils/shared-note-serializer';
+import { ensurePersonalHomeSpace } from '../utils/ensure-personal-home-space';
+import {
+  authorizeNoteThreadMutationInTransaction,
+  SharedSpaceLifecycleError,
+} from '../utils/shared-space-lifecycle';
 const route = new Hono();
 
 function noteJsonWithParsedSecondaries<T extends { secondaryCollections?: string | null; dismissedAutoTags?: string | null }>(note: T) {
@@ -144,6 +174,67 @@ function normalizeOwnedNoteSpaceId(spaceId: string | null): string | null {
   if (!spaceId || !spaceId.trim()) return null;
   const t = spaceId.trim();
   return t.startsWith('space_') ? t : `space_${t}`;
+}
+
+type NoteReadContext = {
+  space: typeof Spaces.$inferSelect;
+  association: typeof SpaceNotes.$inferSelect | null;
+  isShared: boolean;
+};
+
+async function resolveNoteReadContext(input: {
+  note: typeof Notes.$inferSelect;
+  viewerUserId: string;
+  explicitSpaceId: string | null;
+}): Promise<NoteReadContext | null> {
+  let contextSpaceId = input.explicitSpaceId;
+  if (!contextSpaceId) {
+    if (input.note.userId !== input.viewerUserId) return null;
+    contextSpaceId = await ensurePersonalHomeSpace(input.viewerUserId);
+  }
+
+  const space = first(await db.select().from(Spaces).where(eq(Spaces.id, contextSpaceId)).limit(1));
+  if (!space || space.deletedAt) return null;
+  if (space.type === 'personal') {
+    const isMyHome = space.title.trim().toLowerCase() === 'my home';
+    if (
+      space.userId !== input.viewerUserId ||
+      input.note.userId !== input.viewerUserId ||
+      (!isMyHome && input.note.spaceId !== space.id)
+    ) {
+      return null;
+    }
+    return { space, association: null, isShared: false };
+  }
+
+  if (input.note.contentEncrypted) return null;
+  const [membership, association] = await Promise.all([
+    db
+      .select({ id: SpaceMemberships.id })
+      .from(SpaceMemberships)
+      .where(
+        and(
+          eq(SpaceMemberships.spaceId, space.id),
+          eq(SpaceMemberships.userId, input.viewerUserId),
+        ),
+      )
+      .limit(1)
+      .then((rows) => first(rows)),
+    db
+      .select()
+      .from(SpaceNotes)
+      .where(
+        and(
+          eq(SpaceNotes.spaceId, space.id),
+          eq(SpaceNotes.noteId, input.note.id),
+          isNull(SpaceNotes.removedAt),
+        ),
+      )
+      .limit(1)
+      .then((rows) => first(rows)),
+  ]);
+  if ((!membership && space.userId !== input.viewerUserId) || !association) return null;
+  return { space, association, isShared: true };
 }
 
 // ─── Title helpers ────────────────────────────────────────────────────────────
@@ -246,7 +337,7 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
     }
 
     const normalizedContent = canonicalizeNoteHtmlLineBreaks(content || '');
-    const capitalizedContent =
+    let capitalizedContent =
       normalizedContent && normalizedContent.length > 0
         ? normalizedContent.charAt(0).toUpperCase() + normalizedContent.slice(1)
         : normalizedContent;
@@ -283,52 +374,209 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
     }
 
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
-    const nextSimpleNoteId = effectiveHighest + 1;
+    let nextSimpleNoteId = effectiveHighest + 1;
     let finalSpaceId: string | null = null;
+    let associationSpaceId: string | null = null;
+    let targetSpaceAccess: Awaited<ReturnType<typeof requireSpaceAccess>> | null = null;
     if (spaceId && spaceId.trim() && spaceId !== 'default_space') {
       finalSpaceId = spaceId.trim().startsWith('space_') ? spaceId.trim() : `space_${spaceId.trim()}`;
-      let targetSpace;
       try {
-        targetSpace = await requireSpaceAccess(finalSpaceId, auth.userId);
+        targetSpaceAccess = await requireSpaceAccess(finalSpaceId, auth.userId);
       } catch (err) {
         if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
         throw err;
       }
-      if (!canAuthorInSpace(targetSpace.space, targetSpace.role)) {
+      if (!canAuthorInSpace(targetSpaceAccess.space, targetSpaceAccess.role)) {
         return c.json({ error: 'You cannot add notes to this space', code: 'FORBIDDEN' }, 403);
       }
-      if (contentEncrypted && targetSpace.space.type !== 'personal') {
+      if (contentEncrypted && targetSpaceAccess.space.type !== 'personal') {
         return c.json({ error: "Locked notes can't be created in shared spaces", code: 'LOCKED_NOTE_IN_SHARED_SPACE' }, 400);
       }
     }
 
     const now = nowISO();
+    const noteId = generateNoteId();
+    if (!contentEncrypted) {
+      capitalizedContent = transformCanonicalScriptureContent({
+        noteId,
+        content: capitalizedContent,
+        translation: scriptureVersion || 'NET',
+        pillsOnly: finalNoteType === 'default',
+      }).updatedContent;
+    }
     const isScriptureNote = finalNoteType === 'scripture';
-    const shouldAutoShare = isScriptureNote && !contentEncrypted;
+    const shouldAutoShare =
+      isScriptureNote &&
+      !contentEncrypted &&
+      (!targetSpaceAccess || targetSpaceAccess.space.type === 'personal');
     const shareToken = shouldAutoShare ? generateShareToken() : null;
+    let attachedThreadId: string | null = null;
 
-    const newNote = first(await db.insert(Notes).values({
-      id: generateNoteId(),
-      content: capitalizedContent,
-      title: capitalizedTitle,
-      threadId: finalThreadId,
-      spaceId: finalSpaceId,
-      simpleNoteId: nextSimpleNoteId,
-      noteType: finalNoteType,
-      userId: auth.userId,
-      isPublic: shouldAutoShare,
-      shareToken,
-      shareTokenCreatedAt: shouldAutoShare ? now : null,
-      contentEncrypted,
-      createdAt: now,
-      updatedAt: now,
-      lastVisited: now,
-      linkedFromNoteId: resolvedLinkedFromNoteId,
-    }).returning())!;
+    const newNote = await db.transaction(async (tx) => {
+      const lockedMetadata = first(
+        await tx
+          .select()
+          .from(UserMetadata)
+          .where(eq(UserMetadata.userId, auth.userId))
+          .for('update')
+          .limit(1),
+      );
+      if (!lockedMetadata) throw new Error('User metadata disappeared during note creation');
+      nextSimpleNoteId = Math.max(effectiveHighest, lockedMetadata.highestSimpleNoteId ?? 0) + 1;
 
-    await db.update(UserMetadata)
-      .set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })
-      .where(eq(UserMetadata.userId, auth.userId));
+      let lockedTarget: typeof Spaces.$inferSelect | null = null;
+      let membership: typeof SpaceMemberships.$inferSelect | null = null;
+      let myHomeSpaceId: string | null = null;
+      if (targetSpaceAccess) {
+        lockedTarget =
+          first(
+            await tx.select().from(Spaces).where(eq(Spaces.id, targetSpaceAccess.space.id)).for('update').limit(1),
+          ) ?? null;
+        if (!lockedTarget) throw new SpaceAccessError(404, 'Space not found');
+        if (lockedTarget.type !== 'personal') {
+          membership =
+            first(
+              await tx
+                .select()
+                .from(SpaceMemberships)
+                .where(
+                  and(
+                    eq(SpaceMemberships.spaceId, lockedTarget.id),
+                    eq(SpaceMemberships.userId, auth.userId),
+                  ),
+                )
+                .for('update')
+                .limit(1),
+            ) ?? null;
+          const personalSpaces = await tx
+            .select({ id: Spaces.id, title: Spaces.title })
+            .from(Spaces)
+            .where(and(eq(Spaces.userId, auth.userId), eq(Spaces.type, 'personal')));
+          myHomeSpaceId =
+            personalSpaces.find((row: { title: string }) => row.title.trim().toLowerCase() === 'my home')?.id ?? null;
+          if (!myHomeSpaceId) {
+            myHomeSpaceId = generateSpaceId();
+            await tx.insert(Spaces).values({
+              id: myHomeSpaceId,
+              title: 'My Home',
+              color: 'paper',
+              userId: auth.userId,
+              type: 'personal',
+              isPublic: false,
+              isActive: true,
+              order: 0,
+              createdAt: now,
+              updatedAt: now,
+            });
+          }
+        }
+      }
+
+      const scope = resolveCanonicalCreateScope({
+        targetSpace: lockedTarget ? { id: lockedTarget.id, type: lockedTarget.type } : null,
+        myHomeSpaceId,
+      });
+      finalSpaceId = scope.canonicalSpaceId;
+      associationSpaceId = scope.associationSpaceId;
+      if (lockedTarget && associationSpaceId) {
+        assertCanAssociateCanonicalNote({
+          note: { id: noteId, userId: auth.userId, contentEncrypted },
+          space: lockedTarget,
+          membership,
+          actorId: auth.userId,
+        });
+      }
+      const requestedThreadId = threadId?.trim() ?? '';
+      const requestedRealThread =
+        Boolean(requestedThreadId) &&
+        requestedThreadId !== 'thread_unorganized' &&
+        !requestedThreadId.startsWith('thread_onboarding_');
+      const targetThread = requestedRealThread
+        ? first(
+            await tx
+              .select({
+                id: Threads.id,
+                spaceId: Threads.spaceId,
+                userId: Threads.userId,
+                isPinned: Threads.isPinned,
+              })
+              .from(Threads)
+              .where(eq(Threads.id, requestedThreadId))
+              .for('update')
+              .limit(1),
+          )
+        : null;
+      const threadPlan = resolveCreateThreadAttachment({
+        requestedThreadId,
+        targetSpaceId: associationSpaceId ?? finalSpaceId,
+        targetSpaceType: lockedTarget?.type ?? null,
+        actorId: auth.userId,
+        noteAuthorId: auth.userId,
+        thread: targetThread ?? null,
+      });
+      attachedThreadId = threadPlan.attachThreadId;
+
+      const inserted = first(
+        await tx
+          .insert(Notes)
+          .values({
+            id: noteId,
+            content: capitalizedContent,
+            title: capitalizedTitle,
+            threadId: threadPlan.canonicalThreadId,
+            spaceId: finalSpaceId,
+            simpleNoteId: nextSimpleNoteId,
+            noteType: finalNoteType,
+            userId: auth.userId,
+            isPublic: shouldAutoShare,
+            shareToken,
+            shareTokenCreatedAt: shouldAutoShare ? now : null,
+            contentEncrypted,
+            createdAt: now,
+            updatedAt: now,
+            lastVisited: now,
+            linkedFromNoteId: resolvedLinkedFromNoteId,
+          })
+          .returning(),
+      );
+      if (!inserted) throw new Error('Failed to create note');
+      const initialVersion = await createInitialNoteVersion(tx, {
+        noteId,
+        noteAuthorId: auth.userId,
+        content: { title: capitalizedTitle, content: capitalizedContent, contentEncrypted },
+        createdAt: now,
+      });
+      inserted.currentVersionId = initialVersion.id;
+
+      if (associationSpaceId) {
+        await tx.insert(SpaceNotes).values(
+          buildSpaceNoteAssociation({
+            id: generateTimestampId('snote'),
+            spaceId: associationSpaceId,
+            noteId,
+            actorId: auth.userId,
+            now,
+          }),
+        );
+      }
+      if (threadPlan.attachThreadId) {
+        await tx.insert(NoteThreads).values({
+          id: generateTimestampId('nthread'),
+          noteId,
+          threadId: threadPlan.attachThreadId,
+          createdAt: now,
+        });
+        await tx
+          .update(Threads)
+          .set({ updatedAt: now })
+          .where(eq(Threads.id, threadPlan.attachThreadId));
+      }
+      await tx
+        .update(UserMetadata)
+        .set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: now })
+        .where(eq(UserMetadata.userId, auth.userId));
+      return inserted;
+    });
 
     // Mirror create-from-highlight link into the NoteConnections graph.
     if (resolvedLinkedFromNoteId) {
@@ -338,7 +586,7 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
           fromNoteId: resolvedLinkedFromNoteId,
           toNoteId: newNote.id,
           userId: auth.userId,
-          spaceId: finalSpaceId ?? null,
+          spaceId: associationSpaceId ?? finalSpaceId ?? null,
           createdAt: nowISO(),
         });
       } catch {
@@ -346,34 +594,7 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       }
     }
 
-    let noteStaysInUnorganized = true;
-
-    if (threadId && threadId.trim() !== '' && threadId !== 'thread_unorganized' && !threadId.startsWith('thread_onboarding_')) {
-      try {
-        const targetThread = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
-        const canAttachToOwnThread = targetThread?.userId === auth.userId;
-        const canAttachToSpaceThread =
-          Boolean(targetThread?.spaceId && finalSpaceId && targetThread.spaceId === finalSpaceId);
-        if (targetThread && (canAttachToOwnThread || canAttachToSpaceThread)) {
-          if (canAttachToSpaceThread && finalSpaceId) {
-            await requireSpaceAccess(finalSpaceId, auth.userId);
-          }
-          const junctionId = `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          await db.insert(NoteThreads).values({ id: junctionId, noteId: newNote.id, threadId, createdAt: nowISO() });
-          await db.update(Notes).set({ threadId }).where(eq(Notes.id, newNote.id));
-          if (canAttachToOwnThread) {
-            await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
-          } else {
-            await db.update(Threads).set({ updatedAt: nowISO() }).where(eq(Threads.id, threadId));
-          }
-          noteStaysInUnorganized = false;
-        }
-      } catch (error) {
-        console.error('[api/notes/create] Error adding note to specific thread:', error);
-      }
-    }
-
-    if (noteStaysInUnorganized) {
+    if (!attachedThreadId) {
       await db.update(Threads).set({ updatedAt: nowISO() })
         .where(and(eq(Threads.id, finalThreadId), eq(Threads.userId, auth.userId)));
     }
@@ -459,10 +680,22 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
           if (resourceMetadata.articleContent) updateData.content = resourceMetadata.articleContent;
           else if (resourceMetadata.description) updateData.content = resourceMetadata.description;
           if (updateData.title || updateData.content) {
-            await db.update(Notes).set(updateData).where(eq(Notes.id, newNote.id));
-            const updatedNote = first(await db.select().from(Notes).where(eq(Notes.id, newNote.id)).limit(1));
-            if (updatedNote) {
-              Object.assign(newNote, updatedNote);
+            const resourceUpdate = await db.transaction((tx) =>
+              updateCanonicalNoteInTransaction(tx, {
+                noteId: newNote.id,
+                actorId: auth.userId,
+                patch: updateData,
+                nextContent: (lockedNote) => ({
+                  title: updateData.title ?? lockedNote.title,
+                  content: updateData.content ?? lockedNote.content,
+                  contentEncrypted: lockedNote.contentEncrypted,
+                }),
+                source: 'resource-processing',
+                now: nowISO(),
+              }),
+            );
+            if (resourceUpdate.note) {
+              Object.assign(newNote, resourceUpdate.note);
               if (updateData.title) capitalizedTitle = updateData.title;
             }
           }
@@ -480,20 +713,30 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       }
     }
 
-    // Fire-and-forget scripture processing — note page reprocess-on-view is the safety net
-    const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
+    // Scripture processing is part of the create contract. A created note is not
+    // acknowledged until its durable scripture links have been written.
+    const actualThreadId = attachedThreadId ?? 'thread_unorganized';
     const contentToProcess = newNote.content;
-
+    let scriptureResults: unknown[] = [];
+    let processedContent: string | null = null;
     if (!contentEncrypted) {
-      (async () => {
-        try {
-          console.log('[api/notes/create] Background scripture processing start', { noteId: newNote.id });
-          await processScriptureReferences(newNote.id, auth.userId, actualThreadId, contentToProcess, scriptureVersion || 'NET');
-          console.log('[api/notes/create] Background scripture processing complete', { noteId: newNote.id });
-        } catch (err: any) {
-          console.error('[api/notes/create] Background scripture processing failed:', err?.message ?? err);
-        }
-      })().catch((err) => console.error('[api/notes/create] Unhandled background scripture error:', newNote.id, err));
+      try {
+        const scriptureResult = await processScriptureReferences(
+          newNote.id,
+          auth.userId,
+          actualThreadId,
+          contentToProcess,
+          scriptureVersion || 'NET',
+          { persistParentContent: false },
+        );
+        scriptureResults = scriptureResult?.results ?? [];
+        processedContent =
+          typeof scriptureResult?.updatedContent === 'string' ? scriptureResult.updatedContent : null;
+        processedContent = newNote.content;
+      } catch (err: any) {
+        console.error('[api/notes/create] Scripture processing failed:', err?.message ?? err);
+        throw err;
+      }
     }
 
     let createTags: Awaited<ReturnType<typeof fetchNoteTagsForResponse>> = [];
@@ -505,15 +748,9 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       }
     }
 
-    void broadcastNoteInvalidation(auth.userId, newNote.spaceId, {
+    await broadcastCanonicalNoteInvalidation(auth.userId, newNote.id, {
       type: 'note:created',
       id: newNote.id,
-      note: {
-        spaceId: newNote.spaceId,
-        title: newNote.title,
-        content: newNote.content,
-        updatedAt: newNote.updatedAt ?? newNote.createdAt,
-      },
     });
 
     void tryRecordVotdAddNoteFromCreatedNote(auth.userId, {
@@ -521,6 +758,20 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       content: newNote.content,
       createdAt: newNote.createdAt,
     }).catch(() => {});
+    const responseVersion = newNote.currentVersionId
+      ? first(
+          await db
+            .select({ id: NoteVersions.id, version: NoteVersions.version })
+            .from(NoteVersions)
+            .where(
+              and(
+                eq(NoteVersions.id, newNote.currentVersionId),
+                eq(NoteVersions.noteId, newNote.id),
+              ),
+            )
+            .limit(1),
+        )
+      : null;
 
     return c.json({
       success: 'Note created!',
@@ -534,11 +785,20 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
         isAutoGenerated: t.isAutoGenerated,
         confidence: t.confidence,
       })),
-      scriptureResults: [],
-      scriptureDeferred: true,
+      scriptureResults,
+      processedContent,
+      currentVersion: responseVersion?.version ?? 1,
+      currentVersionId: responseVersion?.id ?? newNote.currentVersionId,
+      scriptureDeferred: false,
     });
   } catch (error: any) {
     console.error('[api/notes/create] Error:', error);
+    if (error instanceof SpaceAccessError) return c.json({ error: error.message, code: error.code }, error.status);
+    const mapped = noteVersionErrorResponse(error);
+    if (mapped) return c.json({ error: mapped.message, code: mapped.code, ...(mapped.details ?? {}) }, mapped.status);
+    if (error instanceof SpaceNoteAssociationError) {
+      return c.json({ error: error.message, code: error.code }, 400);
+    }
     return c.json({ error: error.message || 'Failed to create note' }, 500);
   }
 });
@@ -563,6 +823,7 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       collectionUserOverride: collectionUserOverrideRaw,
       dismissedAutoTags: dismissedAutoTagsRaw,
       bumpUpdatedAt: bumpUpdatedAtRaw,
+      expectedVersion: expectedVersionRaw,
     } = body;
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
@@ -575,14 +836,23 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       return c.json({ error: 'This note is read-only.', code: 'ONBOARDING_NOTE_READ_ONLY' }, 400);
     }
 
-    const isEncrypted = contentEncrypted === true;
-    const contentForStore = isEncrypted
+    const targetEncrypted =
+      typeof contentEncrypted === 'boolean' ? contentEncrypted : existingNote.contentEncrypted;
+    const contentForStore = targetEncrypted
       ? content
       : canonicalizeNoteHtmlLineBreaks(typeof content === 'string' ? content : '');
-    const capitalizedContent = isEncrypted
+    let capitalizedContent = targetEncrypted
       ? contentForStore
       : contentForStore.charAt(0).toUpperCase() + contentForStore.slice(1);
     const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
+    if (!targetEncrypted) {
+      capitalizedContent = transformCanonicalScriptureContent({
+        noteId,
+        content: capitalizedContent,
+        translation: scriptureVersion || 'NET',
+        pillsOnly: existingNote.noteType === 'default',
+      }).updatedContent;
+    }
 
     // Only bump updatedAt when the note's actual content changed. Folder/pin/tag/collection edits are
     // metadata and must not churn the "last updated" sort order. Critically, this is also the endpoint
@@ -648,9 +918,54 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       }
     }
 
-    const updatedNote = first(await db.update(Notes).set(updateData)
-      .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).returning())!;
-    if (!updatedNote) return c.json({ error: 'Failed to update note' }, 500);
+    const versionedUpdate = await db.transaction((tx) =>
+      updateCanonicalNoteInTransaction(tx, {
+        noteId,
+        actorId: auth.userId,
+        expectedVersion:
+          expectedVersionRaw === undefined ? undefined : Number(expectedVersionRaw),
+        patch: (lockedNote) => {
+          const lockedPatch = { ...updateData };
+          const lockedTargetEncrypted = resolveLockedEncryptionState(
+            contentEncrypted,
+            lockedNote.contentEncrypted,
+          );
+          const lockedTitleChanged =
+            (capitalizedTitle ?? lockedNote.title) !== lockedNote.title;
+          const lockedContentChanged = capitalizedContent !== lockedNote.content;
+          const lockedEncryptionChanged = lockedTargetEncrypted !== lockedNote.contentEncrypted;
+          if (bumpUpdatedAtRaw === false) delete lockedPatch.updatedAt;
+          else if (lockedTitleChanged || lockedContentChanged || lockedEncryptionChanged) {
+            lockedPatch.updatedAt = nowISO();
+          } else {
+            delete lockedPatch.updatedAt;
+          }
+          if (primaryCollectionRaw !== undefined && secondaryCollectionsRaw === undefined) {
+            lockedPatch.secondaryCollections = serializeNoteSecondaryCollections(
+              normalizeSecondaryLabels(
+                parseNoteSecondaryCollections(lockedNote.secondaryCollections),
+                lockedPatch.primaryCollection ?? lockedNote.primaryCollection,
+              ),
+            );
+          }
+          return lockedPatch;
+        },
+        nextContent: (lockedNote) => ({
+          title: capitalizedTitle ?? lockedNote.title,
+          content:
+            resolveLockedEncryptionState(contentEncrypted, lockedNote.contentEncrypted)
+              ? content
+              : capitalizedContent,
+          contentEncrypted: resolveLockedEncryptionState(
+            contentEncrypted,
+            lockedNote.contentEncrypted,
+          ),
+        }),
+        source: 'save',
+        now: nowISO(),
+      }),
+    );
+    const updatedNote = versionedUpdate.note;
 
     // Update thread timestamps — single bulk UPDATE instead of N sequential round trips.
     const noteThreads = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, noteId));
@@ -662,10 +977,10 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
 
     // Re-tag only when title or body changed AND updatedAt is being bumped (a real edit, not
     // normalization-only) — folder/pin edits and non-bumping saves must not churn tags.
-    if (!isEncrypted && shouldBumpUpdatedAt && (titleChanged || contentChanged)) {
+    if (!updatedNote.contentEncrypted && shouldBumpUpdatedAt && (titleChanged || contentChanged)) {
       try {
         const tagExcludes = autoTagExcludeOptionsForNote(updatedNote);
-        const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId, 0.7, tagExcludes);
+        const r = await generateAutoTags(updatedNote.title || '', updatedNote.content, auth.userId, 0.7, tagExcludes);
         if (r.suggestions.length > 0) {
           await removeAutoTags(noteId);
           await applyAutoTags(noteId, r.suggestions, auth.userId);
@@ -683,38 +998,30 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       } catch {}
     }
 
-    // Scripture processing — deferred (fire-and-forget), mirroring /create. The
-    // durable note write above already persisted the user's content; running the
-    // 2–5s scripture pass inside the response made every autosave round-trip wait,
-    // delaying the optimistic cache patch, tag merge, sidebar/folder-chip update,
-    // and the classic-editor save spinner. Pills render instantly client-side; the
-    // server pass links them to scripture child-notes + verse text. The
-    // reprocess-on-view safety net (PrototypeNotePage / NotePage) plus the
-    // note:updated broadcast below settle the linked state shortly after.
-    if (!isEncrypted) {
-      const contentToProcess = capitalizedContent;
-      (async () => {
-        try {
-          // Omit threadId so processScriptureReferences resolves every NoteThreads row for this note (multi-thread)
-          const scriptureResult = await processScriptureReferences(noteId, auth.userId, undefined, contentToProcess, scriptureVersion || 'NET');
-          // Notify clients so the linked pills + verse text land without a manual refresh.
-          // Carry the processed HTML so listeners can patch in place (no refetch).
-          const processed = scriptureResult?.updatedContent;
-          void broadcastNoteInvalidation(auth.userId, existingNote.spaceId, {
-            type: 'note:updated',
-            id: noteId,
-            ...(typeof processed === 'string' && processed.length > 0
-              ? { note: { content: processed, updatedAt: new Date().toISOString(), spaceId: existingNote.spaceId } }
-              : { note: { spaceId: existingNote.spaceId } }),
-          });
-        } catch (err: any) {
-          console.error('[api/notes/update] Background scripture processing failed:', err?.message ?? err);
-        }
-      })().catch((err) => console.error('[api/notes/update] Unhandled background scripture error:', noteId, err));
+    let scriptureResults: unknown[] = [];
+    let processedContent: string | null = null;
+    if (!updatedNote.contentEncrypted) {
+      try {
+        const scriptureResult = await processScriptureReferences(
+          noteId,
+          auth.userId,
+          undefined,
+          updatedNote.content,
+          scriptureVersion || 'NET',
+          { persistParentContent: false },
+        );
+        scriptureResults = scriptureResult?.results ?? [];
+        processedContent =
+          typeof scriptureResult?.updatedContent === 'string' ? scriptureResult.updatedContent : null;
+        processedContent = updatedNote.content;
+      } catch (err: any) {
+        console.error('[api/notes/update] Scripture processing failed:', err?.message ?? err);
+        throw err;
+      }
     }
 
     let updateTags: Awaited<ReturnType<typeof fetchNoteTagsForResponse>> = [];
-    if (!isEncrypted) {
+    if (!updatedNote.contentEncrypted) {
       try {
         updateTags = await fetchNoteTagsForResponse(noteId, auth.userId);
       } catch (err) {
@@ -732,35 +1039,25 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       confidence: t.confidence,
     }));
 
-    // Carry the changed fields so other devices patch their caches in place instead
-    // of refetching. Scripture-linked HTML follows in the deferred broadcast above.
-    void broadcastNoteInvalidation(auth.userId, updatedNote.spaceId, {
+    await broadcastCanonicalNoteInvalidation(auth.userId, noteId, {
       type: 'note:updated',
       id: noteId,
-      note: {
-        title: updatedNote.title,
-        content: capitalizedContent,
-        updatedAt: updatedNote.updatedAt instanceof Date
-          ? updatedNote.updatedAt.toISOString()
-          : (typeof updatedNote.updatedAt === 'string' ? updatedNote.updatedAt : new Date().toISOString()),
-        spaceId: updatedNote.spaceId ?? null,
-        threadIds: threadIdsToTouch,
-        tags: tagsPatch,
-      },
     });
 
     return c.json({
       success: 'Note updated!',
       note: noteJsonWithParsedSecondaries(updatedNote),
+      currentVersion: versionedUpdate.currentVersion.version,
+      currentVersionId: versionedUpdate.currentVersion.id,
       tags: tagsPatch,
-      // Scripture now runs in the background (see above). These remain for client
-      // back-compat: callers fall back to their own content + reprocess-on-view.
-      scriptureResults: [],
-      processedContent: null,
+      scriptureResults,
+      processedContent,
       scriptureProcessingError: false,
-      scriptureDeferred: true,
+      scriptureDeferred: false,
     });
   } catch (error: any) {
+    const mapped = noteVersionErrorResponse(error);
+    if (mapped) return c.json({ error: mapped.message, code: mapped.code, ...(mapped.details ?? {}) }, mapped.status);
     return c.json({ error: error.message || 'Failed to update note' }, 500);
   }
 });
@@ -816,7 +1113,7 @@ route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c)
         ) {
           return c.json({
             success: false,
-            error: 'Only the space owner can create study thread links in a shared space',
+            error: 'Only the space owner can create Thread links in a shared space',
             code: 'FORBIDDEN',
           }, 403);
         }
@@ -1263,7 +1560,7 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
     // Revoke XP (fire-and-forget)
     (async () => {
       try {
-        await revokeXPOnDeletion(auth.userId, noteId, new Date(noteCreatedAt as string));
+        await revokeXPOnDeletion(auth.userId, noteId, noteCreatedAt);
         await revokeAllXPForItem(auth.userId, noteId);
       } catch {}
     })().catch(() => {});
@@ -1489,7 +1786,7 @@ route.post('/api/notes/cleanup-upgrade-note', requireAuth, rateLimit('write'), a
     await recordDeletedEntities(auth.userId, 'note', deleted.deletedNoteIds);
     await recordDeletedEntities(auth.userId, 'studyThread', deleted.deletedStudyThreadIds);
 
-    await revokeXPOnDeletion(auth.userId, noteId, new Date(noteCreatedAt as string));
+    await revokeXPOnDeletion(auth.userId, noteId, noteCreatedAt);
     await revokeAllXPForItem(auth.userId, noteId);
 
     const userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
@@ -1530,7 +1827,7 @@ route.delete('/api/notes/delete-all-unorganized', requireAuth, rateLimit('write'
         // Revoke XP (fire-and-forget to match main delete pattern)
         (async () => {
           try {
-            await revokeXPOnDeletion(auth.userId, note.id, new Date(note.createdAt as string));
+            await revokeXPOnDeletion(auth.userId, note.id, note.createdAt);
             await revokeAllXPForItem(auth.userId, note.id);
           } catch {}
         })().catch(() => {});
@@ -1656,17 +1953,30 @@ route.get('/api/notes/:id/tags', requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
     const noteId = requireParam(c, 'id');
 
-    const note = first(
-      await db.select({ id: Notes.id, userId: Notes.userId }).from(Notes).where(eq(Notes.id, noteId)).limit(1),
-    );
+    const note = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
     if (!note) return c.json({ error: 'Note not found' }, 404);
+    const explicitContextRaw = c.req.query('contextSpaceId') ?? c.req.query('spaceId') ?? null;
+    const context = await resolveNoteReadContext({
+      note,
+      viewerUserId: auth.userId,
+      explicitSpaceId: explicitContextRaw ? normalizeOwnedNoteSpaceId(explicitContextRaw) : null,
+    });
+    if (!context) return c.json({ error: 'Note not found' }, 404);
 
-    const ownerUserId = note.userId === auth.userId ? auth.userId : note.userId;
-    const tags = await fetchNoteTagsForResponse(noteId, ownerUserId);
+    const tags = await fetchNoteTagsForResponse(noteId, note.userId);
+    const visibleTags =
+      tags.filter((tag) =>
+        canExposeCanonicalTagInContext({
+          isAuthor: note.userId === auth.userId,
+          hasActiveSharedContext: context.isShared,
+          isSystemTag: tag.isSystem,
+        }),
+      );
 
     return c.json({
       success: true,
-      tags: tags.map((t) => ({
+      contextSpaceId: context.space.id,
+      tags: visibleTags.map((t) => ({
         id: t.id,
         name: t.name,
         color: t.color,
@@ -1687,34 +1997,19 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
 
     const noteId = requireParam(c, 'id');
-
-    // Owner path
-    let note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
-    let isMemberView = false;
-
-    if (!note) {
-      const noteById = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
-      if (!noteById) return c.json({ error: 'Note not found or access denied' }, 404);
-      let spaceIdForAccess = noteById.spaceId;
-      if (!spaceIdForAccess) {
-        const threadWithSpace = first(await db.select({ spaceId: Threads.spaceId })
-          .from(NoteThreads)
-          .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
-          .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId)))
-          .limit(1));
-        spaceIdForAccess = threadWithSpace?.spaceId ?? null;
-      }
-      if (!spaceIdForAccess) return c.json({ error: 'Note not found or access denied' }, 404);
-      try { await requireSpaceAccess(spaceIdForAccess, auth.userId); } catch (err) {
-        if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
-        throw err;
-      }
-      // Locked notes never appear in shared contexts — membership doesn't grant
-      // even title/metadata reads on another member's encrypted note.
-      if (noteById.contentEncrypted) return c.json({ error: 'Note not found or access denied' }, 404);
-      note = noteById;
-      isMemberView = true;
-    }
+    const explicitContextRaw = c.req.query('contextSpaceId') ?? c.req.query('spaceId') ?? null;
+    const explicitContextSpaceId = explicitContextRaw
+      ? normalizeOwnedNoteSpaceId(explicitContextRaw)
+      : null;
+    let note = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
+    if (!note) return c.json({ error: 'Note not found or access denied' }, 404);
+    const readContext = await resolveNoteReadContext({
+      note,
+      viewerUserId: auth.userId,
+      explicitSpaceId: explicitContextSpaceId,
+    });
+    if (!readContext) return c.json({ error: 'Note not found or access denied' }, 404);
+    const isMemberView = note.userId !== auth.userId;
 
     // Scripture version
     let version: string | undefined;
@@ -1736,9 +2031,22 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       } catch {}
     }
 
-    // All user threads
+    const contextIsMyHome =
+      !readContext.isShared && readContext.space.title.trim().toLowerCase() === 'my home';
+    const viewerIsSharedOwner =
+      readContext.isShared && readContext.space.userId === auth.userId;
+    const threadContextWhere = readContext.isShared
+      ? and(
+          eq(Threads.spaceId, readContext.space.id),
+          viewerIsSharedOwner ? undefined : eq(Threads.isPinned, true),
+        )
+      : contextIsMyHome
+        ? eq(Threads.userId, auth.userId)
+        : and(eq(Threads.userId, auth.userId), eq(Threads.spaceId, readContext.space.id));
+
+    // Threads selectable in the explicit note context.
     const allUserThreads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color, isPublic: Threads.isPublic, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
-      .from(Threads).where(eq(Threads.userId, auth.userId));
+      .from(Threads).where(threadContextWhere);
     const selectableUserThreads = allUserThreads.filter((thread) => {
       if (thread.id === 'thread_unorganized') return false;
       return thread.title?.trim().toLowerCase() !== 'unorganized';
@@ -1751,8 +2059,14 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
         .from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id))
         .where(and(
           eq(NoteThreads.noteId, noteId),
-          // thread_unorganized is a globally-unique row (single PK); include it regardless of which user created the row.
-          or(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized')),
+          readContext.isShared
+            ? and(
+                eq(Threads.spaceId, readContext.space.id),
+                viewerIsSharedOwner ? undefined : eq(Threads.isPinned, true),
+              )
+            : contextIsMyHome
+              ? or(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized'))
+              : and(eq(Threads.userId, auth.userId), eq(Threads.spaceId, readContext.space.id)),
         ));
       allThreads = junctionThreads;
     } catch { allThreads = []; }
@@ -1778,7 +2092,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     }
 
     // Notes that live only in unorganized have no NoteThreads row; include unorganized thread so nav shows My Pile.
-    if (!isMemberView && allThreads.length === 0 && note.threadId === 'thread_unorganized') {
+    if (!readContext.isShared && allThreads.length === 0 && note.threadId === 'thread_unorganized') {
       await ensureUnorganizedThread(auth.userId);
       const unorganizedRow = first(await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
         .from(Threads)
@@ -1800,30 +2114,25 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       }
     }
 
-    if (isMemberView) {
+    if (readContext.isShared) {
       try {
         const memberSpaceThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
           .from(NoteThreads).innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
-          .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId)));
-        const accessibleSpaceIds = new Set<string>();
-        for (const t of memberSpaceThreads) {
-          if (!t.spaceId) continue;
-          try {
-            await requireSpaceAccess(t.spaceId, auth.userId);
-            accessibleSpaceIds.add(t.spaceId);
-          } catch {}
-        }
+          .where(and(
+            eq(NoteThreads.noteId, noteId),
+            eq(Threads.spaceId, readContext.space.id),
+            viewerIsSharedOwner ? undefined : eq(Threads.isPinned, true),
+          ));
         const memberThreads = memberSpaceThreads.filter(
-          t => t.spaceId && accessibleSpaceIds.has(t.spaceId) && t.id !== 'thread_unorganized',
+          t => t.spaceId === readContext.space.id && t.id !== 'thread_unorganized',
         );
         allThreads = [...memberThreads, ...allThreads];
       } catch {}
     }
 
     // Member view: NoteThreads→space thread rows can be missing while note.spaceId + Notes.threadId still point at the space thread.
-    if (isMemberView && allThreads.length === 0 && note.spaceId && note.threadId && note.threadId !== 'thread_unorganized') {
+    if (readContext.isShared && allThreads.length === 0 && note.threadId && note.threadId !== 'thread_unorganized') {
       try {
-        await requireSpaceAccess(note.spaceId, auth.userId);
         const fallbackThread = first(
           await db
             .select({
@@ -1838,7 +2147,11 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
               updatedAt: Threads.updatedAt,
             })
             .from(Threads)
-            .where(and(eq(Threads.id, note.threadId), eq(Threads.spaceId, note.spaceId)))
+            .where(and(
+              eq(Threads.id, note.threadId),
+              eq(Threads.spaceId, readContext.space.id),
+              viewerIsSharedOwner ? undefined : eq(Threads.isPinned, true),
+            ))
             .limit(1),
         );
         if (fallbackThread) {
@@ -1854,10 +2167,10 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     // per thread) keyed by threadId: total junction counts for member-space threads,
     // owner-scoped counts for regular threads, and a single count for unorganized.
     const regularThreadIds = allThreads
-      .filter((t: any) => t.id !== 'thread_unorganized' && !(isMemberView && t.spaceId))
+      .filter((t: any) => t.id !== 'thread_unorganized' && !(readContext.isShared && t.spaceId))
       .map((t: any) => t.id);
     const memberTotalThreadIds = allThreads
-      .filter((t: any) => t.id !== 'thread_unorganized' && isMemberView && t.spaceId)
+      .filter((t: any) => t.id !== 'thread_unorganized' && readContext.isShared && t.spaceId)
       .map((t: any) => t.id);
     const hasUnorganized = allThreads.some((t: any) => t.id === 'thread_unorganized');
 
@@ -1903,16 +2216,22 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     });
 
     // Comments
-    const comments = await db.select({ id: Comments.id, content: Comments.content, createdAt: Comments.createdAt, updatedAt: Comments.updatedAt })
-      .from(Comments).where(and(eq(Comments.noteId, noteId), eq(Comments.userId, auth.userId))).orderBy(Comments.createdAt);
+    const comments = readContext.isShared
+      ? []
+      : await db.select({ id: Comments.id, content: Comments.content, createdAt: Comments.createdAt, updatedAt: Comments.updatedAt })
+          .from(Comments)
+          .where(and(eq(Comments.noteId, noteId), eq(Comments.userId, auth.userId)))
+          .orderBy(Comments.createdAt);
 
-    // Tags on the note: join Tags owned by the note author (not the viewer).
-    // Members viewing system-owned shared notes must see Harvous auto-tags; those Tag rows use Notes.userId.
-    const noteTags = await db.select({ id: Tags.id, name: Tags.name, color: Tags.color, category: Tags.category, isSystem: Tags.isSystem, isAutoGenerated: NoteTags.isAutoGenerated, confidence: NoteTags.confidence, createdAt: NoteTags.createdAt })
-      .from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id))
-      .where(and(eq(NoteTags.noteId, noteId), eq(Tags.userId, note.userId))).orderBy(Tags.name);
+    // Tags are canonical private metadata. Shared contexts intentionally expose none
+    // until a separate per-space tag model exists.
+    const noteTags = readContext.isShared
+      ? []
+      : await db.select({ id: Tags.id, name: Tags.name, color: Tags.color, category: Tags.category, isSystem: Tags.isSystem, isAutoGenerated: NoteTags.isAutoGenerated, confidence: NoteTags.confidence, createdAt: NoteTags.createdAt })
+          .from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id))
+          .where(and(eq(NoteTags.noteId, noteId), eq(Tags.userId, note.userId))).orderBy(Tags.name);
 
-    const dedupedNoteTags = dedupeNoteTagsForResponse(noteTags);
+    const dedupedNoteTags = dedupeNoteTagsForResponse(noteTags as any) as unknown as Array<(typeof noteTags)[number]>;
 
     // Referencing notes (for scripture notes)
     let referencingNotes: any[] = [];
@@ -2019,7 +2338,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     }
 
     let studyThreads: any[] = [];
-    const loadUnionedStudyThreads = await shouldUnionStudyThreadsForNote(noteId, note.spaceId);
+    const loadUnionedStudyThreads = readContext.isShared;
 
     if ((!isMemberView && note.userId === auth.userId) || loadUnionedStudyThreads || isMemberView) {
       try {
@@ -2028,8 +2347,21 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
           .from(StudyThreadEntries)
           .where(
             loadUnionedStudyThreads
-              ? and(eq(StudyThreadEntries.parentNoteId, noteId), eq(StudyThreadEntries.isArchived, false))
-              : and(eq(StudyThreadEntries.parentNoteId, noteId), eq(StudyThreadEntries.userId, auth.userId)),
+              ? and(
+                  eq(StudyThreadEntries.parentNoteId, noteId),
+                  eq(StudyThreadEntries.spaceId, readContext.space.id),
+                  eq(StudyThreadEntries.isArchived, false),
+                )
+              : and(
+                  eq(StudyThreadEntries.parentNoteId, noteId),
+                  eq(StudyThreadEntries.userId, auth.userId),
+                  contextIsMyHome
+                    ? or(
+                        eq(StudyThreadEntries.spaceId, readContext.space.id),
+                        isNull(StudyThreadEntries.spaceId),
+                      )
+                    : eq(StudyThreadEntries.spaceId, readContext.space.id),
+                ),
           )
           .orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt));
         const authorMap = loadUnionedStudyThreads
@@ -2051,24 +2383,132 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       }
     }
 
+    const activeAssociationRows = await db
+      .select({
+        spaceId: SpaceNotes.spaceId,
+        spaceTitle: Spaces.title,
+        spaceType: Spaces.type,
+        isPinned: SpaceNotes.isPinned,
+        primaryCollection: SpaceNotes.primaryCollection,
+        secondaryCollections: SpaceNotes.secondaryCollections,
+        collectionPinned: SpaceNotes.collectionPinned,
+        collectionUserOverride: SpaceNotes.collectionUserOverride,
+        order: SpaceNotes.order,
+      })
+      .from(SpaceNotes)
+      .innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId))
+      .innerJoin(
+        SpaceMemberships,
+        and(
+          eq(SpaceMemberships.spaceId, SpaceNotes.spaceId),
+          eq(SpaceMemberships.userId, auth.userId),
+        ),
+      )
+      .where(
+        and(
+          eq(SpaceNotes.noteId, noteId),
+          isNull(SpaceNotes.removedAt),
+          note.userId === auth.userId
+            ? or(eq(Spaces.type, 'shared'), eq(Spaces.type, 'public'))
+            : eq(SpaceNotes.spaceId, readContext.space.id),
+        ),
+      );
+    const currentVersion = note.currentVersionId
+      ? first(
+          await db
+            .select({
+              id: NoteVersions.id,
+              version: NoteVersions.version,
+              source: NoteVersions.source,
+              createdAt: NoteVersions.createdAt,
+            })
+            .from(NoteVersions)
+            .where(
+              and(
+                eq(NoteVersions.id, note.currentVersionId),
+                eq(NoteVersions.noteId, note.id),
+              ),
+            )
+            .limit(1),
+        )
+      : null;
+    const contextOrganization = readContext.association
+      ? {
+          isPinned: readContext.association.isPinned,
+          primaryCollection: readContext.association.primaryCollection,
+          secondaryCollections: parseNoteSecondaryCollections(readContext.association.secondaryCollections),
+          collectionPinned: readContext.association.collectionPinned,
+          order: readContext.association.order,
+        }
+      : null;
+    const detailAuthor = readContext.isShared
+      ? (await batchAuthorAttribution([note.userId]))[note.userId]
+      : null;
+    const detailNote = readContext.isShared
+      ? serializeSharedCanonicalNote({
+          id: note.id,
+          simpleNoteId: note.simpleNoteId,
+          title: note.title,
+          content: note.content,
+          noteType: note.noteType,
+          createdAt: note.createdAt,
+          updatedAt: note.updatedAt,
+          lastVisited: note.lastVisited,
+          contextSpaceId: readContext.space.id,
+          contextThreadId: formattedThreads[0]?.id ?? null,
+          organization: contextOrganization,
+          authorUserId: note.userId,
+          authorDisplayName: detailAuthor?.displayName ?? 'Member',
+          authorColor: detailAuthor?.userColor ?? 'blue',
+          isOwnNote: note.userId === auth.userId,
+          version,
+          resourceTitle,
+          resourceDescription,
+          resourceImage,
+        })
+      : {
+          ...noteJsonWithParsedSecondaries(note),
+          simpleNoteId: note.simpleNoteId ?? null,
+          contentEncrypted: note.contentEncrypted || false,
+          noteType: note.noteType || 'default',
+          addedBy: note.addedBy || 'user',
+          isOwnNote: !isMemberView && note.userId === auth.userId,
+          version,
+          resourceTitle,
+          resourceDescription,
+          resourceImage,
+        };
+
     return c.json({
       success: true,
-      note: {
-        ...noteJsonWithParsedSecondaries(note),
-        simpleNoteId: note.simpleNoteId ?? null,
-        contentEncrypted: note.contentEncrypted || false,
-        noteType: note.noteType || 'default',
-        addedBy: note.addedBy || 'user',
-        isOwnNote: !isMemberView && note.userId === auth.userId,
-        version,
-        resourceTitle,
-        resourceDescription,
-        resourceImage,
+      note: detailNote,
+      context: {
+        spaceId: readContext.space.id,
+        title: readContext.space.title,
+        type: readContext.space.type,
+        isShared: readContext.isShared,
+        organization: contextOrganization,
       },
+      activeSharedAssociations: readContext.isShared
+        ? [{ spaceId: readContext.space.id, spaceTitle: readContext.space.title, spaceType: readContext.space.type }]
+        : activeAssociationRows.map((row) => ({
+            ...row,
+            secondaryCollections: parseNoteSecondaryCollections(row.secondaryCollections),
+          })),
+      currentVersion: readContext.isShared
+        ? currentVersion
+          ? { version: currentVersion.version, createdAt: currentVersion.createdAt }
+          : null
+        : currentVersion,
+      ...(readContext.isShared
+        ? {}
+        : { currentVersionId: currentVersion?.id ?? note.currentVersionId ?? null }),
       threads: formattedThreads,
       allUserThreads: selectableUserThreads.map(t => ({ id: t.id, title: t.title, color: t.color, isPublic: t.isPublic, createdAt: t.createdAt, updatedAt: t.updatedAt })),
       comments: comments.map(c => ({ id: c.id, content: c.content, createdAt: c.createdAt, updatedAt: c.updatedAt })),
-      tags: dedupedNoteTags.map(t => ({ id: t.id, name: t.name, color: t.color, category: t.category, isSystem: t.isSystem, isAutoGenerated: t.isAutoGenerated, confidence: t.confidence })),
+      tags: readContext.isShared
+        ? []
+        : dedupedNoteTags.map(t => ({ id: t.id, name: t.name, color: t.color, category: t.category, isSystem: t.isSystem, isAutoGenerated: t.isAutoGenerated, confidence: t.confidence })),
       referencingNotes,
       linkedFromNotes,
       linkedToNotes,
@@ -2080,13 +2520,194 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
   }
 });
 
+// ─── Author-only immutable note history ─────────────────────────────────────
+route.get('/api/notes/:noteId/versions', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = requireParam(c, 'noteId');
+    const note = first(
+      await db
+        .select({ id: Notes.id, userId: Notes.userId, currentVersionId: Notes.currentVersionId })
+        .from(Notes)
+        .where(eq(Notes.id, noteId))
+        .limit(1),
+    );
+    if (!note) return c.json({ error: 'Note not found', code: 'NOTE_VERSION_NOT_FOUND' }, 404);
+    if (note.userId !== auth.userId) {
+      return c.json(
+        { error: 'Only the note author can access or change note history', code: 'NOT_NOTE_AUTHOR' },
+        403,
+      );
+    }
+    const versions = await db
+      .select({
+        id: NoteVersions.id,
+        noteId: NoteVersions.noteId,
+        version: NoteVersions.version,
+        title: NoteVersions.title,
+        contentEncrypted: NoteVersions.contentEncrypted,
+        source: NoteVersions.source,
+        createdAt: NoteVersions.createdAt,
+      })
+      .from(NoteVersions)
+      .where(and(eq(NoteVersions.noteId, noteId), eq(NoteVersions.authorId, auth.userId)))
+      .orderBy(desc(NoteVersions.version));
+    return c.json({
+      success: true,
+      currentVersionId: note.currentVersionId,
+      currentVersion: versions.find((row) => row.id === note.currentVersionId)?.version ?? null,
+      versions,
+    });
+  } catch (error: any) {
+    return c.json({ error: error.message || 'Failed to load note versions' }, 500);
+  }
+});
+
+route.get('/api/notes/:noteId/versions/:versionId', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = requireParam(c, 'noteId');
+    const versionId = requireParam(c, 'versionId');
+    const note = first(
+      await db.select({ userId: Notes.userId }).from(Notes).where(eq(Notes.id, noteId)).limit(1),
+    );
+    if (!note) return c.json({ error: 'Note not found', code: 'NOTE_VERSION_NOT_FOUND' }, 404);
+    if (note.userId !== auth.userId) {
+      return c.json(
+        { error: 'Only the note author can access or change note history', code: 'NOT_NOTE_AUTHOR' },
+        403,
+      );
+    }
+    const version = first(
+      await db
+        .select()
+        .from(NoteVersions)
+        .where(
+          and(
+            eq(NoteVersions.id, versionId),
+            eq(NoteVersions.noteId, noteId),
+            eq(NoteVersions.authorId, auth.userId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!version) return c.json({ error: 'Note version not found', code: 'NOTE_VERSION_NOT_FOUND' }, 404);
+    return c.json({ success: true, version });
+  } catch (error: any) {
+    return c.json({ error: error.message || 'Failed to load note version' }, 500);
+  }
+});
+
+route.post('/api/notes/:noteId/versions/:versionId/restore', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = requireParam(c, 'noteId');
+    const versionId = requireParam(c, 'versionId');
+    const body = (await c.req.json().catch(() => ({}))) as { expectedVersion?: number };
+    const restored = await db.transaction((tx) =>
+      restoreCanonicalNoteVersionInTransaction(tx, {
+        noteId,
+        versionId,
+        actorId: auth.userId,
+        expectedVersion:
+          body.expectedVersion === undefined ? undefined : Number(body.expectedVersion),
+        now: nowISO(),
+      }),
+    );
+    await broadcastCanonicalNoteInvalidation(auth.userId, noteId, {
+      type: 'note:updated',
+      id: noteId,
+    });
+    return c.json({
+      success: true,
+      note: noteJsonWithParsedSecondaries(restored.note),
+      currentVersion: restored.currentVersion.version,
+      currentVersionId: restored.currentVersion.id,
+    });
+  } catch (error) {
+    const mapped = noteVersionErrorResponse(error);
+    if (mapped) return c.json({ error: mapped.message, code: mapped.code, ...(mapped.details ?? {}) }, mapped.status);
+    throw error;
+  }
+});
+
+route.get('/api/notes/:noteId/activity', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = requireParam(c, 'noteId');
+    const note = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
+    if (!note) return c.json({ error: 'Note not found' }, 404);
+    const contextRaw = c.req.query('contextSpaceId') ?? c.req.query('spaceId') ?? null;
+    const contextSpaceId = contextRaw ? normalizeOwnedNoteSpaceId(contextRaw) : null;
+    if (note.userId !== auth.userId && !contextSpaceId) {
+      return c.json({ error: 'A shared contextSpaceId is required', code: 'CONTEXT_REQUIRED' }, 400);
+    }
+    if (contextSpaceId) {
+      const readContext = await resolveNoteReadContext({
+        note,
+        viewerUserId: auth.userId,
+        explicitSpaceId: contextSpaceId,
+      });
+      if (!readContext || !readContext.isShared) return c.json({ error: 'Note not found' }, 404);
+    }
+
+    const associations = await db
+      .select({ spaceId: SpaceNotes.spaceId, removedAt: SpaceNotes.removedAt })
+      .from(SpaceNotes)
+      .where(
+        contextSpaceId
+          ? and(
+              eq(SpaceNotes.noteId, noteId),
+              eq(SpaceNotes.spaceId, contextSpaceId),
+              isNull(SpaceNotes.removedAt),
+            )
+          : eq(SpaceNotes.noteId, noteId),
+      );
+    const spaceIds = associations.map((row) => row.spaceId);
+    if (spaceIds.length === 0) return c.json({ success: true, groups: [] });
+    const [spaces, entries] = await Promise.all([
+      db
+        .select({ id: Spaces.id, title: Spaces.title, type: Spaces.type })
+        .from(Spaces)
+        .where(inArray(Spaces.id, spaceIds)),
+      db
+        .select()
+        .from(StudyThreadEntries)
+        .where(
+          and(
+            eq(StudyThreadEntries.parentNoteId, noteId),
+            inArray(StudyThreadEntries.spaceId, spaceIds),
+          ),
+        )
+        .orderBy(desc(StudyThreadEntries.updatedAt), desc(StudyThreadEntries.createdAt)),
+    ]);
+    const authors = await batchAuthorAttribution(entries.map((row) => row.userId));
+    const groups = buildSharedNoteActivity({
+      noteId,
+      noteAuthorId: note.userId,
+      contextSpaceId,
+      associations,
+      spaces,
+      entries,
+      authors,
+    });
+    return c.json({ success: true, contextSpaceId, groups });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/notes/[noteId]/activity',
+      action: 'get_note_activity',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── POST /api/notes/:id/update-content ─────────────────────────────────────
 route.post('/api/notes/:id/update-content', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
     const id = requireParam(c, 'id');
-    const { content, contentEncrypted } = await c.req.json();
+    const { content, contentEncrypted, expectedVersion } = await c.req.json();
     if (!content || typeof content !== 'string') return c.json({ success: false, error: 'Content is required' }, 400);
 
     const note = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).limit(1));
@@ -2095,21 +2716,68 @@ route.post('/api/notes/:id/update-content', requireAuth, rateLimit('write'), asy
       return c.json({ success: false, error: 'This note is read-only.', code: 'ONBOARDING_NOTE_READ_ONLY' }, 400);
     }
 
-    const isEncryptedContent = contentEncrypted === true;
-    const contentForStore = isEncryptedContent
+    const targetEncrypted =
+      typeof contentEncrypted === 'boolean' ? contentEncrypted : note.contentEncrypted;
+    let contentForStore = targetEncrypted
       ? content
       : canonicalizeNoteHtmlLineBreaks(content);
+    if (!targetEncrypted) {
+      contentForStore = transformCanonicalScriptureContent({
+        noteId: id,
+        content: contentForStore,
+        translation: 'NET',
+        pillsOnly: note.noteType === 'default',
+      }).updatedContent;
+    }
     const updateData: any = { content: contentForStore, updatedAt: nowISO() };
     if (typeof contentEncrypted === 'boolean') {
       updateData.contentEncrypted = contentEncrypted;
       if (contentEncrypted === true) { updateData.isPublic = false; updateData.shareToken = null; updateData.shareTokenCreatedAt = null; }
     }
 
-    await db.update(Notes).set(updateData).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId)));
-    broadcastInvalidation(auth.userId, { type: 'note:updated', id });
-    return c.json({ success: true, message: 'Note content updated' });
+    const versioned = await db.transaction((tx) =>
+      updateCanonicalNoteInTransaction(tx, {
+        noteId: id,
+        actorId: auth.userId,
+        expectedVersion: expectedVersion === undefined ? undefined : Number(expectedVersion),
+        patch: updateData,
+        nextContent: (lockedNote) => ({
+          title: lockedNote.title,
+          content:
+            resolveLockedEncryptionState(contentEncrypted, lockedNote.contentEncrypted)
+              ? content
+              : contentForStore,
+          contentEncrypted: resolveLockedEncryptionState(
+            contentEncrypted,
+            lockedNote.contentEncrypted,
+          ),
+        }),
+        source: 'save',
+        now: nowISO(),
+      }),
+    );
+    if (!versioned.note.contentEncrypted) {
+      await processScriptureReferences(id, auth.userId, undefined, versioned.note.content, 'NET', {
+        persistParentContent: false,
+      });
+    }
+    await broadcastCanonicalNoteInvalidation(auth.userId, id, { type: 'note:updated', id });
+    return c.json({
+      success: true,
+      message: 'Note content updated',
+      note: noteJsonWithParsedSecondaries(versioned.note),
+      currentVersion: versioned.currentVersion.version,
+      currentVersionId: versioned.currentVersion.id,
+    });
   } catch (error) {
     console.error('Error updating note content:', error);
+    const mapped = noteVersionErrorResponse(error);
+    if (mapped) {
+      return c.json(
+        { success: false, error: mapped.message, code: mapped.code, ...(mapped.details ?? {}) },
+        mapped.status,
+      );
+    }
     return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
@@ -2165,35 +2833,59 @@ route.post('/api/notes/:id/add-thread', requireAuth, rateLimit('write'), async (
     if (!threadId) return c.json({ success: false, error: 'Thread ID is required' }, 400);
     if (threadId.startsWith('thread_onboarding_')) return c.json({ success: false, error: "This thread doesn't take new notes." }, 400);
 
-    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).limit(1));
-    if (!note) return c.json({ success: false, error: 'Note not found' }, 404);
-
-    const targetThread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
-    if (!targetThread) return c.json({ success: false, error: 'Target thread not found' }, 404);
-
-    const existingRelation = first(await db.select().from(NoteThreads).where(and(eq(NoteThreads.noteId, id), eq(NoteThreads.threadId, threadId))).limit(1));
-    if (existingRelation) return c.json({ success: true, alreadyInThread: true });
-
-    const existingThreadRelations = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, id));
-    const isInUnorganized = existingThreadRelations.length === 0 || note.threadId === 'thread_unorganized';
-
     try {
-      const noteThreadId = `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      await db.insert(NoteThreads).values({ id: noteThreadId, noteId: id, threadId, createdAt: nowISO() });
-      if (isInUnorganized && threadId !== 'thread_unorganized') {
-        await db.update(Notes).set({ threadId }).where(eq(Notes.id, id));
-      }
-      await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
-
-      // Fire and forget
-      moveScriptureNotesToThread(id, threadId, auth.userId).catch(() => {});
+      const result = await db.transaction(async (tx) => {
+        const policy = await authorizeNoteThreadMutationInTransaction(tx, {
+          actorId: auth.userId,
+          noteId: id,
+          threadId,
+          requireCurrent: true,
+        });
+        const existingRelation = first(
+          await tx
+            .select()
+            .from(NoteThreads)
+            .where(and(eq(NoteThreads.noteId, id), eq(NoteThreads.threadId, threadId)))
+            .for('update')
+            .limit(1),
+        );
+        if (existingRelation) return { ...policy, alreadyInThread: true };
+        const existingThreadRelations = await tx
+          .select()
+          .from(NoteThreads)
+          .where(eq(NoteThreads.noteId, id))
+          .for('update');
+        await tx.insert(NoteThreads).values({
+          id: generateTimestampId('notethread'),
+          noteId: id,
+          threadId,
+          createdAt: nowISO(),
+        });
+        if (
+          !policy.shared &&
+          (existingThreadRelations.length === 0 || policy.note.threadId === 'thread_unorganized') &&
+          threadId !== 'thread_unorganized'
+        ) {
+          await tx.update(Notes).set({ threadId }).where(eq(Notes.id, id));
+        }
+        await tx.update(Threads).set({ updatedAt: nowISO() }).where(eq(Threads.id, threadId));
+        return { ...policy, alreadyInThread: false };
+      });
+      if (result.alreadyInThread) return c.json({ success: true, alreadyInThread: true });
+      if (!result.shared) await moveScriptureNotesToThread(id, threadId, auth.userId);
     } catch (insertError) {
+      if (insertError instanceof SharedSpaceLifecycleError) {
+        return c.json(
+          { success: false, error: insertError.message, code: insertError.code },
+          insertError.status,
+        );
+      }
       const standardError = handleAPIError(insertError, { endpoint: '/api/notes/[id]/add-thread', action: 'add_note_to_thread' });
       return c.json({ success: false, error: standardError.message, code: standardError.code }, 500);
     }
 
     broadcastInvalidation(auth.userId, { type: 'note:updated', id });
-    return c.json({ success: true, message: 'Note added to thread', note: { id: note.id, threadId } });
+    return c.json({ success: true, message: 'Note added to thread', note: { id, threadId } });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/[id]/add-thread', action: 'add_note_to_thread' });
     return c.json({ success: false, error: standardError.message, code: standardError.code }, 500);
@@ -2227,6 +2919,54 @@ route.post('/api/notes/:id/remove-thread', requireAuth, rateLimit('write'), asyn
     }
 
     if (!note) return c.json({ success: false, error: 'Note not found' }, 404);
+
+    const targetThread = first(
+      await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1),
+    );
+    if (!targetThread) return c.json({ success: false, error: 'Thread not found' }, 404);
+    if (targetThread.spaceId) {
+      const targetSpace = first(
+        await db.select({ type: Spaces.type }).from(Spaces).where(eq(Spaces.id, targetThread.spaceId)).limit(1),
+      );
+      if (targetSpace && targetSpace.type !== 'personal') {
+        try {
+          await db.transaction(async (tx) => {
+            await authorizeNoteThreadMutationInTransaction(tx, {
+              actorId: auth.userId,
+              noteId: id,
+              threadId,
+              requireCurrent: true,
+            });
+            const relation = first(
+              await tx
+                .select()
+                .from(NoteThreads)
+                .where(and(eq(NoteThreads.noteId, id), eq(NoteThreads.threadId, threadId)))
+                .for('update')
+                .limit(1),
+            );
+            if (!relation) {
+              throw new SharedSpaceLifecycleError(
+                'Note is not in this Thread',
+                'NOTE_THREAD_NOT_FOUND',
+                404,
+              );
+            }
+            await tx.delete(NoteThreads).where(eq(NoteThreads.id, relation.id));
+          });
+        } catch (error) {
+          if (error instanceof SharedSpaceLifecycleError) {
+            return c.json(
+              { success: false, error: error.message, code: error.code },
+              error.status,
+            );
+          }
+          throw error;
+        }
+        broadcastInvalidation(auth.userId, { type: 'note:updated', id });
+        return c.json({ success: true, message: 'Note removed from thread', note: { id, threadId } });
+      }
+    }
 
     const existingRelation = first(await db.select().from(NoteThreads).where(and(eq(NoteThreads.noteId, id), eq(NoteThreads.threadId, threadId))).limit(1));
     if (!existingRelation) return c.json({ success: false, error: 'Note is not in this thread' }, 400);
@@ -2280,37 +3020,43 @@ route.post('/api/notes/:id/process-scripture-references', requireAuth, rateLimit
 
     const noteId = requireParam(c, 'id');
 
-    const noteRow = first(await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId, content: Notes.content }).from(Notes).where(eq(Notes.id, noteId)).limit(1));
-    if (!noteRow) return c.json({ error: 'Note not found' }, 404);
-
-    if (noteRow.userId !== auth.userId) {
-      let spaceIdForAccess = noteRow.spaceId;
-      if (!spaceIdForAccess) {
-        const threadWithSpace = first(await db.select({ spaceId: Threads.spaceId })
-          .from(NoteThreads)
-          .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
-          .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId)))
-          .limit(1));
-        spaceIdForAccess = threadWithSpace?.spaceId ?? null;
-      }
-      if (!spaceIdForAccess) return c.json({ error: 'Note not found' }, 404);
-      try {
-        await requireSpaceAccess(spaceIdForAccess, auth.userId);
-      } catch {
-        return c.json({ error: 'Note not found' }, 404);
-      }
-    }
-
     let threadId: string | undefined;
     let contentOverride: string | undefined;
     let translation: string | undefined;
+    let bodyContextSpaceId: string | null = null;
     try {
       const body = await c.req.json();
       threadId = body?.threadId;
       contentOverride = body?.contentOverride;
       translation = body?.translation;
+      bodyContextSpaceId =
+        typeof body?.contextSpaceId === 'string'
+          ? normalizeOwnedNoteSpaceId(body.contextSpaceId)
+          : null;
     } catch {
-      // Empty or invalid JSON body is ok; processScriptureReferences will read from DB
+      // Empty body is valid.
+    }
+    const noteRow = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
+    if (!noteRow) return c.json({ error: 'Note not found' }, 404);
+
+    const queryContext = c.req.query('contextSpaceId') ?? c.req.query('spaceId') ?? null;
+    const explicitContextSpaceId =
+      bodyContextSpaceId ?? (queryContext ? normalizeOwnedNoteSpaceId(queryContext) : null);
+    const readContext = await resolveNoteReadContext({
+      note: noteRow,
+      viewerUserId: auth.userId,
+      explicitSpaceId: explicitContextSpaceId,
+    });
+    if (!readContext) return c.json({ error: 'Note not found' }, 404);
+    if (readContext.isShared && threadId) {
+      const contextThread = first(
+        await db
+          .select({ id: Threads.id })
+          .from(Threads)
+          .where(and(eq(Threads.id, threadId), eq(Threads.spaceId, readContext.space.id)))
+          .limit(1),
+      );
+      if (!contextThread) return c.json({ error: 'Thread not found in context' }, 404);
     }
     // Always run as the note owner: lookups, scripture child notes, and metadata are keyed to Notes.userId.
     // Space members may trigger processing for admin/system-owned shared notes; content updates apply for everyone.
@@ -2318,8 +3064,77 @@ route.post('/api/notes/:id/process-scripture-references', requireAuth, rateLimit
     // auto-tag so merely viewing a note never appends new tags, and skip the updatedAt bump so merely
     // viewing a note never changes its "last updated" sort order. Genuine writes (create/update/sync/import)
     // call processScriptureReferences directly and keep both tagging and the updatedAt bump.
-    const result = await processScriptureReferences(noteId, noteRow.userId, threadId, contentOverride, translation || 'NET', { skipParentAutoTag: true, skipUpdatedAt: true });
-    return c.json(result);
+    const sourceContent =
+      noteRow.userId === auth.userId && typeof contentOverride === 'string'
+        ? contentOverride
+        : noteRow.content;
+    const transformed = noteRow.contentEncrypted
+      ? sourceContent
+      : transformCanonicalScriptureContent({
+          noteId,
+          content: sourceContent,
+          translation: translation || 'NET',
+          pillsOnly: noteRow.noteType === 'default',
+        }).updatedContent;
+    const didUpdateCanonical =
+      noteRow.userId === auth.userId && transformed !== noteRow.content;
+    if (didUpdateCanonical) {
+      await db.transaction((tx) =>
+        updateCanonicalNoteInTransaction(tx, {
+          noteId,
+          actorId: auth.userId,
+          patch: {},
+          nextContent: (lockedNote) => ({
+            title: lockedNote.title,
+            content: transformed,
+            contentEncrypted: lockedNote.contentEncrypted,
+          }),
+          source: 'scripture-processing',
+          now: nowISO(),
+        }),
+      );
+    }
+    const result = await processScriptureReferences(
+      noteId,
+      noteRow.userId,
+      threadId,
+      transformed,
+      translation || 'NET',
+      { skipParentAutoTag: true, skipUpdatedAt: true, persistParentContent: false },
+    );
+    if (didUpdateCanonical) {
+      await broadcastCanonicalNoteInvalidation(noteRow.userId, noteId, {
+        type: 'note:updated',
+        id: noteId,
+      });
+    }
+    const finalNote = first(
+      await db
+        .select({ currentVersionId: Notes.currentVersionId })
+        .from(Notes)
+        .where(eq(Notes.id, noteId))
+        .limit(1),
+    );
+    const finalVersion = finalNote?.currentVersionId
+      ? first(
+          await db
+            .select({ version: NoteVersions.version })
+            .from(NoteVersions)
+            .where(
+              and(
+                eq(NoteVersions.id, finalNote.currentVersionId),
+                eq(NoteVersions.noteId, noteId),
+              ),
+            )
+            .limit(1),
+        )
+      : null;
+    return c.json({
+      ...result,
+      updatedContent: transformed,
+      currentVersion: finalVersion?.version ?? null,
+      ...(readContext.isShared ? {} : { currentVersionId: finalNote?.currentVersionId ?? null }),
+    });
   } catch (error: any) {
     console.error('Error processing scripture references:', error);
     return c.json({ error: error.message || 'Error processing scripture references' }, 500);
@@ -2334,26 +3149,18 @@ route.post('/api/notes/:noteId/visit', requireAuth, async (c) => {
     let noteId = requireParam(c, 'noteId');
     if (noteId.startsWith('note/')) noteId = 'note_' + noteId.slice(5);
 
-    const note = first(await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId }).from(Notes).where(eq(Notes.id, noteId)).limit(1));
+    const note = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
     if (!note) return c.json({ error: 'Note not found' }, 404);
-    if (note.userId !== auth.userId) {
-      let spaceIdForAccess = note.spaceId;
-      if (!spaceIdForAccess) {
-        const threadWithSpace = first(await db.select({ spaceId: Threads.spaceId })
-          .from(NoteThreads)
-          .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
-          .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId)))
-          .limit(1));
-        spaceIdForAccess = threadWithSpace?.spaceId ?? null;
-      }
-      if (!spaceIdForAccess) return c.json({ error: 'Note not found' }, 404);
-      try {
-        await requireSpaceAccess(spaceIdForAccess, auth.userId);
-      } catch {
-        return c.json({ error: 'Note not found' }, 404);
-      }
+    const explicitContextRaw = c.req.query('contextSpaceId') ?? c.req.query('spaceId') ?? null;
+    const context = await resolveNoteReadContext({
+      note,
+      viewerUserId: auth.userId,
+      explicitSpaceId: explicitContextRaw ? normalizeOwnedNoteSpaceId(explicitContextRaw) : null,
+    });
+    if (!context) return c.json({ error: 'Note not found' }, 404);
+    if (!context.isShared) {
+      await db.update(Notes).set({ lastVisited: nowISO() }).where(eq(Notes.id, noteId));
     }
-    await db.update(Notes).set({ lastVisited: nowISO() }).where(eq(Notes.id, noteId));
     return c.json({ ok: true });
   } catch (error: any) {
     console.error('[visit] Error updating note lastVisited:', error);
@@ -2395,6 +3202,22 @@ route.get('/api/notes/:noteId/share', requireAuth, async (c) => {
     const needsToken = isScriptureNote && !note.shareToken && !note.contentEncrypted;
 
     if (needsToken) {
+      const activeAssociation = first(
+        await db
+          .select({ id: SpaceNotes.id })
+          .from(SpaceNotes)
+          .where(and(eq(SpaceNotes.noteId, noteId), isNull(SpaceNotes.removedAt)))
+          .limit(1),
+      );
+      if (activeAssociation) {
+        return c.json(
+          {
+            error: 'This note is active in a shared space. Acknowledge that a public link is separate before enabling it.',
+            code: 'SHARED_NOTE_PUBLIC_ACK_REQUIRED',
+          },
+          409,
+        );
+      }
       const now = nowISO();
       effectiveShareToken = generateShareToken();
       effectiveShareTokenCreatedAt = now;
@@ -2426,58 +3249,98 @@ route.post('/api/notes/:noteId/share', requireAuth, rateLimit('write'), async (c
 
     const noteId = requireParam(c, 'noteId');
 
-    const { action } = await c.req.json();
+    const { action, acknowledgeSharedContext } = await c.req.json();
     if (!action || !['enable', 'disable', 'refresh'].includes(action)) return c.json({ error: 'Invalid action' }, 400);
+    const result = await db.transaction(async (tx) => {
+      const note = first(
+        await tx.select().from(Notes).where(eq(Notes.id, noteId)).for('update').limit(1),
+      );
+      if (!note) return { error: 'Note not found', code: 'NOT_FOUND', status: 404 as const };
+      if (note.userId !== auth.userId) {
+        return { error: 'You do not have permission', code: 'FORBIDDEN', status: 403 as const };
+      }
+      if (isOnboardingSystemNote(note)) {
+        return {
+          error: 'This note cannot be shared.',
+          code: 'ONBOARDING_NOTE_READ_ONLY',
+          status: 400 as const,
+        };
+      }
+      if (note.contentEncrypted && (action === 'enable' || action === 'refresh')) {
+        return {
+          error: 'Remove the lock first to share it.',
+          code: 'ENCRYPTED_NOTE_CANNOT_SHARE',
+          status: 400 as const,
+        };
+      }
 
-    const note = first(
-      await db
-        .select({
-          id: Notes.id,
-          threadId: Notes.threadId,
-          addedBy: Notes.addedBy,
-          isPublic: Notes.isPublic,
-          shareToken: Notes.shareToken,
-          userId: Notes.userId,
-          contentEncrypted: Notes.contentEncrypted,
-        })
-        .from(Notes)
-        .where(eq(Notes.id, noteId))
-        .limit(1)
-    );
-    if (!note) return c.json({ error: 'Note not found' }, 404);
-    if (note.userId !== auth.userId) return c.json({ error: 'You do not have permission' }, 403);
-    if (isOnboardingSystemNote(note)) return c.json({ error: 'This note cannot be shared.', code: 'ONBOARDING_NOTE_READ_ONLY' }, 400);
+      const activeAssociation = first(
+        await tx
+          .select({ id: SpaceNotes.id })
+          .from(SpaceNotes)
+          .where(and(eq(SpaceNotes.noteId, noteId), isNull(SpaceNotes.removedAt)))
+          .for('update')
+          .limit(1),
+      );
+      const now = nowISO();
+      let newShareToken = note.shareToken;
+      let isPublic = note.isPublic;
 
-    if (note.contentEncrypted && (action === 'enable' || action === 'refresh')) {
-      return c.json({ error: 'Remove the lock first to share it.', code: 'ENCRYPTED_NOTE_CANNOT_SHARE' }, 400);
-    }
-
-    const now = nowISO();
-    let newShareToken: string | null = null;
-    let isPublic = note.isPublic;
-
-    if (action === 'enable') {
-      newShareToken = generateShareToken();
-      isPublic = true;
-      await db.update(Notes).set({ isPublic: true, shareToken: newShareToken, shareTokenCreatedAt: now, updatedAt: now })
-        .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
-    } else if (action === 'disable') {
-      newShareToken = null;
-      isPublic = false;
-      await db.update(Notes).set({ isPublic: false, shareToken: null, shareTokenCreatedAt: null, updatedAt: now })
-        .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
-    } else if (action === 'refresh') {
-      if (!note.isPublic) return c.json({ error: 'Cannot refresh share link for a private note' }, 400);
-      newShareToken = generateShareToken();
-      isPublic = true;
-      await db.update(Notes).set({ shareToken: newShareToken, shareTokenCreatedAt: now, updatedAt: now })
-        .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
-    }
+      if (action === 'enable') {
+        if (note.isPublic && note.shareToken) {
+          return {
+            isPublic: true,
+            shareToken: note.shareToken,
+            shareTokenCreatedAt: note.shareTokenCreatedAt,
+          };
+        }
+        if (activeAssociation && acknowledgeSharedContext !== true) {
+          return {
+            error: 'This note is active in a shared space. Acknowledge that the public link is separate before enabling it.',
+            code: 'SHARED_NOTE_PUBLIC_ACK_REQUIRED',
+            status: 409 as const,
+          };
+        }
+        newShareToken = generateShareToken();
+        isPublic = true;
+        await tx
+          .update(Notes)
+          .set({ isPublic: true, shareToken: newShareToken, shareTokenCreatedAt: now, updatedAt: now })
+          .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+      } else if (action === 'disable') {
+        newShareToken = null;
+        isPublic = false;
+        await tx
+          .update(Notes)
+          .set({ isPublic: false, shareToken: null, shareTokenCreatedAt: null, updatedAt: now })
+          .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+      } else {
+        if (!note.isPublic || !note.shareToken) {
+          return {
+            error: 'Cannot refresh share link for a private note',
+            code: 'NOT_PUBLIC',
+            status: 400 as const,
+          };
+        }
+        newShareToken = generateShareToken();
+        isPublic = true;
+        await tx
+          .update(Notes)
+          .set({ shareToken: newShareToken, shareTokenCreatedAt: now, updatedAt: now })
+          .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+      }
+      return {
+        isPublic,
+        shareToken: newShareToken,
+        shareTokenCreatedAt: action === 'disable' ? null : now,
+      };
+    });
+    if ('error' in result) return c.json({ error: result.error, code: result.code }, result.status);
 
     const origin = new URL(c.req.url).origin;
-    const shareUrl = newShareToken ? `${origin}/shared/note/${newShareToken}` : null;
+    const shareUrl = result.shareToken ? `${origin}/shared/note/${result.shareToken}` : null;
 
-    return c.json({ success: true, isPublic, shareToken: newShareToken, shareUrl, shareTokenCreatedAt: action !== 'disable' ? now : null });
+    return c.json({ success: true, ...result, shareUrl });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/[noteId]/share', action: 'update_share_status', noteId: c.req.param('noteId') });
     return c.json({ error: standardError.message, code: standardError.code }, 500);

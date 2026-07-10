@@ -1,5 +1,11 @@
 # Sharing and Groups Infrastructure Analysis
 
+> **Superseded July 2026.** This is a historical February/Classic gap analysis. Its `Members`, `isPublic`,
+> shared-container, and copy-in assumptions are retired by the clean-break canonical-note architecture. Do not
+> implement from this file. Use [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md) and
+> [SHARED_SPACES_ROADMAP.md](./SHARED_SPACES_ROADMAP.md). Current user-facing feature language is **Thread** or
+> **Threads**.
+
 ## Current State Analysis
 
 ### ✅ What Exists

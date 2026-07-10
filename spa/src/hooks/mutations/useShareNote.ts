@@ -8,6 +8,7 @@ export type ShareNoteAction = 'enable' | 'disable' | 'refresh';
 export interface ShareNoteInput {
   noteId: string;
   action: ShareNoteAction;
+  acknowledgeSharedContext?: boolean;
 }
 
 export interface ShareNoteResponse {
@@ -16,6 +17,16 @@ export interface ShareNoteResponse {
   shareToken: string | null;
   shareUrl: string | null;
   shareTokenCreatedAt: string | null;
+}
+
+export function buildShareNoteRequest(input: ShareNoteInput) {
+  return {
+    url: `/api/notes/${input.noteId}/share`,
+    body: {
+      action: input.action,
+      ...(input.acknowledgeSharedContext ? { acknowledgeSharedContext: true } : {}),
+    },
+  };
 }
 
 /**
@@ -38,8 +49,10 @@ export function useShareNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ noteId, action }: ShareNoteInput) =>
-      api.post<ShareNoteResponse>(`/api/notes/${noteId}/share`, { action } as any),
+    mutationFn: (input: ShareNoteInput) => {
+      const request = buildShareNoteRequest(input);
+      return api.post<ShareNoteResponse>(request.url, request.body);
+    },
     onSuccess: (data, variables) => {
       // Optimistically patch the cached note so the UI reflects the new state
       // before the invalidation refetch lands — otherwise the toggle flickers

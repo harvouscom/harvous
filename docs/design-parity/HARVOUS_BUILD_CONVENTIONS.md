@@ -2,7 +2,7 @@
 
 **Read this before you create a new component, token, color, or interaction pattern.**
 
-[`HARVOUS_DESIGN_PARITY_SPEC.md`](./HARVOUS_DESIGN_PARITY_SPEC.md) is the *policy* (native-first, web-secondary, feature tiers). This doc is the *concrete reference*: the actual tokens, the files that own them, the component seams, and the naming rules. The goal is that future work — human or agent — **extends what exists** instead of inventing a parallel system.
+[`HARVOUS_DESIGN_SYSTEM.md`](./HARVOUS_DESIGN_SYSTEM.md) is the *style handbook* (direction, inventory, contribution checklist). [`HARVOUS_DESIGN_PARITY_SPEC.md`](./HARVOUS_DESIGN_PARITY_SPEC.md) is the *policy* (native-first, web-secondary, feature tiers). This doc is the *concrete reference*: the actual tokens, the files that own them, the component seams, and the naming rules. The goal is that future work — human or agent — **extends what exists** instead of inventing a parallel system.
 
 > Rule of thumb: **reuse first.** If nothing fits, add the new thing in the place this doc names, and add it to *both* platforms so web and native stay aligned.
 
@@ -81,9 +81,15 @@ OKLCH pastels: `threadBlue/Yellow/Green/Pink/Orange/Purple` (native `Color` exte
 ### Surfaces & glass
 Web layers (all OKLCH, see `prototype-tokens.css`): `--pds-bg-page`, `--pds-bg-toolbar`/`--pds-bg-sidebar` (frosted, 0.78α), `--pds-bg-popover` (0.98α), `--pds-bg-popover-solid` (opaque menus), `--pds-bg-glass-*` (0.45–0.9α), `--pds-glass-shell` (color-mix tint from canvas). Translucent chrome uses **tiered `backdrop-filter`** via `--pds-glass-blur` (shell frame / panels), `--pds-glass-blur-elevated` (floating cards), and `--pds-glass-blur-control` (toolbar orbs). Shared recipe: `.proto-glass-surface` in `prototype-components.css`. Popovers/menus stay `--pds-bg-popover-solid`. `prefers-reduced-transparency` sets blur tokens to `none`.
 
-### Destructive / warning
-- **Web:** `--pds-destructive` (oklch `55% 0.2 25`) / `--pds-destructive-bg-hover`.
-- **Native:** `Color.harvousDestructive` (delete / irreversible actions) and `Color.harvousWarning` (non-blocking warnings, e.g. the sync-retry banner). Both are `Color` extension members backed by the system dynamic `.red`/`.orange`, so they stay light/dark + accessibility aware while keeping the hue tunable in one place. **Use these instead of raw `.red`/`.orange`** at destructive/warning sites. (Several older views still use raw `.red`; migrate opportunistically — don't blind-sweep, since some `.orange` usages are intentional accents.)
+### Destructive / warning / success / info
+- **Web:** `--pds-destructive`, `--pds-warning`, `--pds-success`, `--pds-info` (+ matching `-bg` / `-border` roles).
+- **Native:** `Color.harvousDestructive`, `Color.harvousWarning`, `Color.harvousSuccess`, `Color.harvousInfo` — system-dynamic so they stay light/dark + a11y aware. **Use these instead of raw `.red`/`.orange`/`.green`/`.blue`** at semantic status sites. (Several older views still use raw `.red`; migrate opportunistically — don't blind-sweep, since some `.orange` usages are intentional accents.)
+
+### Spacing / icons / layers / motion (web + native)
+- **Spacing:** `HarvousSpacing.space1…12` ↔ `--pds-space-1…12` (4pt base). Prefer these over ad-hoc paddings in new UI.
+- **Icons:** `HarvousIconSize` ↔ `--pds-icon-xs|sm|md|lg|xl`.
+- **Layers (web):** `--pds-z-sticky` (80), `--pds-z-dropdown` (100), `--pds-z-popover` (6000), `--pds-z-modal` (9800), `--pds-z-toast` (10000). Do not invent new z-index literals.
+- **Motion (web):** `--pds-duration-press|popover|sheet|panel` must stay in lockstep with `spa/src/layouts/proto-motion.ts`.
 
 ### Light / dark / wallpaper
 Web supports light, dark (`[data-color-scheme="dark"]` + `prefers-color-scheme`), and image-wallpaper (`html.harvous-proto-wallpaper-image`) modes — every token has overrides. Native uses `HarvousAppearanceStore` (canvas presets: Sky, Lilac, Peach, Mint, Pink, Cream + light/dark defaults). Any new color must define its dark value too.
@@ -108,22 +114,40 @@ Web supports light, dark (`[data-color-scheme="dark"]` + `prefers-color-scheme`)
 Web composes multi-layer shadows: `--pds-shadow-card` (`0 2px 8px @6% , 0 1px 2px @3%`), `--pds-shadow-popover` (deep bloom + `0 0 0 0.5px` hairline ring), `--pds-shadow-drawer`, `--pds-shadow-fab`, etc. Native: `CardShadow` (6pt/2pt depth + 3pt/1pt softness) in `HarvousShape.swift`.
 
 ### Motion
-Native `HarvousAnimation`: `spring` (response 0.32 / damping 0.72), `snappy` (0.42 / 0.60), `press` (0.22 / 0.55). Web shell panel exit timing is centralized in **`spa/src/layouts/proto-motion.ts`** (`PROTO_PANEL_EXIT_MS`, currently 260) — **this constant must match the exit animations in `prototype-shell.css`.** Do not hard-code panel-close timeouts; import the constant.
+Native `HarvousAnimation`: `spring` (response 0.32 / damping 0.72), `snappy` (0.42 / 0.60), `press` (0.22 / 0.55). Web shell panel exit timing is centralized in **`spa/src/layouts/proto-motion.ts`** (`PROTO_PANEL_EXIT_MS`, currently 260) — **this constant must match the exit animations in `prototype-shell.css` and `--pds-duration-panel`.** Do not hard-code panel-close timeouts; import the constant.
 
 ---
 
 ## 5. Component patterns to reuse
+
+Full inventory and variant matrix: [`HARVOUS_DESIGN_SYSTEM.md`](./HARVOUS_DESIGN_SYSTEM.md) §3.
+
+### Core primitives (prefer these)
+
+| Role | Native | Web |
+|---|---|---|
+| Section header | `HarvousSectionHeader` | `PrototypeSectionHeader` (`.pds-section-header`) |
+| List row | `HarvousListRow` | `PrototypeListRow` (`.proto-note-row` chrome) |
+| Search field | `HarvousSearchField` | `PrototypeSearchInput` |
+| Empty state | `HarvousEmptyStateView` | `PrototypeListEmptyState` / `PrototypePaneEmptyState` |
+| Floating toast | — | `.proto-update-toast` / `PrototypeFeedbackToast` (prototype); Sonner outside |
+| Popover shell | `HarvousPopoverMenu` | `ProtoPopoverShell` + `usePopoverDismiss` |
+| Confirm | system alert/sheet | `ProtoConfirmDialog` |
 
 ### Web (`spa/src/pages/prototype/`)
 - **Popovers/menus:** wrap content in the visual-only `ProtoPopoverShell`, and drive open/close with the **`usePopoverDismiss`** hook (`spa/src/hooks/usePopoverDismiss.ts`) — it owns the `open` state, `rootRef`, outside-click, and Escape. (See `ListViewMenu`, `PrototypeNoteMoreMenu`, `AccountMenu`.) Do **not** re-hand-roll the `mousedown`/`keydown` effect.
 - **Destructive confirm:** `ProtoConfirmDialog` — anchored floater (scripture-pill delete parity); callers must pass `anchorRect` from the delete trigger’s `getBoundingClientRect()`.
 - **Editor bottom chrome:** portal into the shell-provided hosts (`formatToolbarHostEl`, `studyDockCarouselHostEl`, `referenceChromeHostEl`) from `proto-shell-context`; add a new mode to `PrototypeEditorChromeMode` rather than a new bar.
 - **Settings categories:** add to the `SETTINGS_CATEGORIES` array — the nav renders from it. This is the model extension pattern to imitate for list-driven UI.
-- **Lists:** reuse the `proto-note-row` / list-row classes and `pds-list-title` / `pds-list-preview` type.
+- **Lists:** use `PrototypeListRow` (or the `proto-note-row` / list-row classes) with `pds-list-title` / `pds-list-preview` type.
+- **Section labels:** use `PrototypeSectionHeader` / `.pds-section-header` (aliases keep `.pds-inspector-label` and `.proto-inspector-section-title` working).
+- **Ephemeral feedback:** floating toasts (`showPrototypeFeedbackToast` / `.proto-update-toast`). Sticky in-context chrome: `PrototypeSharedNoteReadOnlyBanner`, inspector muted/error + Retry — **not** `PrototypeBanner` (deprecated).
 
 ### Native (`native/Harvous/DesignSystem/`)
 - **Menus:** `HarvousPopoverMenu`.
 - **Empty states:** `HarvousEmptyStateView`.
+- **Section headers / list rows / search:** `HarvousSectionHeader`, `HarvousListRow`, `HarvousSearchField`.
+- **Sticky inspector failures:** quiet inline copy + Retry (see `NoteInspectorView`) — not `HarvousBanner` (deprecated).
 - **Icons:** `HarvousFAGlyph(assetName: "Harvous.*", edgePt:)` — renders catalog vectors as tinted template images (inherits `.foregroundStyle`). Asset names are `Harvous.<Pascal>` in `Assets.xcassets`. Prefer these over ad-hoc SF Symbols for parity with FA-styled chrome.
 - **Keycaps / shortcuts:** `HarvousShortcutKeycap`.
 - **Study dock geometry:** `StudyDockLayoutMetrics` / `StudyDockShellBorderOverlay`.
@@ -146,16 +170,22 @@ Native `HarvousAnimation`: `spring` (response 0.32 / damping 0.72), `snappy` (0.
 | You're adding… | Do this |
 |---|---|
 | A color / surface | Add `--pds-*` (with dark + wallpaper overrides) **and** the matching `HarvousColors` member. |
+| A spacing / z-index / duration | Add `--pds-space-*` / `--pds-z-*` / `--pds-duration-*` **and** the matching `HarvousSpacing` / motion constant when native needs it. |
 | A radius / shadow / spring | Add to `HarvousShape` **and** `--pds-radius-*` / `--pds-shadow-*`. |
 | A font size | Use an existing role in §2 first; if truly new, add to `HarvousTypography` + a `.pds-*` class. |
 | A popover/menu (web) | `usePopoverDismiss` + `ProtoPopoverShell`. |
+| A list row / section / search | Use the core primitives in §5; add a gallery scene. |
+| Ephemeral feedback | Floating toast (prototype: `showPrototypeFeedbackToast`; else Sonner). Sticky context: dedicated inline chrome — not `PrototypeBanner`. |
 | A sidebar list mode (web) | Extend `SidebarListMode`, `VALID_MODES`, the `ListViewMenu` order tuple, and add a renderer (see audit — this seam is currently a large single file). |
 | An editor bottom-chrome mode (web) | Extend `PrototypeEditorChromeMode` + portal host. |
 | A settings page (web) | Add to `SETTINGS_CATEGORIES` + a route + page component. |
 | A note attachment / pill type (native) | See the audit — pill handling is currently hardcoded; coordinate before adding. |
 | A panel close animation (web) | Reuse `PROTO_PANEL_EXIT_MS`; match the CSS duration. |
+| A new visual pattern | Add a scene under `/__dev/design-system` and run `npm run design:check`. |
 
 When a change spans both platforms, fill out the feature template in [`HARVOUS_DESIGN_PARITY_SPEC.md`](./HARVOUS_DESIGN_PARITY_SPEC.md) §6.
+
+Full contribution checklist: [`HARVOUS_DESIGN_SYSTEM.md`](./HARVOUS_DESIGN_SYSTEM.md) §7.
 
 ---
 

@@ -11,6 +11,7 @@ import PublicJoinSpaceLetter, { type PublicJoinSpaceLetterSpace } from './Public
 import PublicJoinSpaceHero from './PublicJoinSpaceHero';
 import { writePersistedSidebarNav } from '../prototype/proto-sidebar-nav-store';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
+import { writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 
 interface JoinPreviewResponse {
   space: {
@@ -91,7 +92,7 @@ export default function PublicJoinSpacePage() {
 
   const handleJoin = async () => {
     if (!isSignedIn) {
-      try { sessionStorage.setItem('harvous_pending_redirect', window.location.href); } catch { /* ignore */ }
+      writePendingAuthRedirect(window.location.href);
       navigate({ to: `/sign-in?redirect_url=${encodeURIComponent(window.location.href)}` as any });
       return;
     }
@@ -158,7 +159,7 @@ export default function PublicJoinSpacePage() {
                     toastVisible={toastVisible}
                     signInHref={signInHref}
                     onSignInClick={() => {
-                      try { sessionStorage.setItem('harvous_pending_redirect', window.location.href); } catch { /* ignore */ }
+                      writePendingAuthRedirect(window.location.href);
                     }}
                     onJoin={() => void handleJoin()}
                     onGoToSpace={() => {

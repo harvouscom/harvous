@@ -61,6 +61,14 @@ export interface StudyThreadEntryDetail {
   anchorLocation: number | null;
   anchorLength: number | null;
   anchorTextSnapshot: string | null;
+  anchorQuote?: string | null;
+  anchorPrefixContext?: string | null;
+  anchorSuffixContext?: string | null;
+  anchorStatus?: string | null;
+  resolvedAnchorStart?: number | null;
+  resolvedAnchorEnd?: number | null;
+  anchorResolvedAt?: string | null;
+  anchorDetachedAt?: string | null;
   scriptureReference: string | null;
   scripturePassageTranslation: string | null;
   scripturePassageExcerpt: string | null;
@@ -83,6 +91,9 @@ export interface NoteDetail {
   addedBy?: string;
   contentEncrypted: boolean;
   version?: string;
+  /** Canonical optimistic-concurrency version, distinct from scripture translation. */
+  currentVersion?: number;
+  currentVersionId?: string | null;
   resourceTitle?: string | null;
   resourceDescription?: string | null;
   resourceImage?: string | null;
@@ -92,6 +103,18 @@ export interface NoteDetail {
   isPublic: boolean;
   shareToken?: string | null;
   userId?: string;
+  /** Canonical author fields returned for a shared-context read. */
+  authorUserId?: string;
+  authorDisplayName?: string;
+  authorColor?: string;
+  contextSpaceId?: string;
+  organization?: {
+    isPinned: boolean;
+    primaryCollection: string | null;
+    secondaryCollections: string[];
+    collectionPinned: boolean;
+    order: number;
+  } | null;
   /** Shared space list seed — note belongs to the viewer. */
   isOwnNote?: boolean;
   createdAt: string;
@@ -139,6 +162,24 @@ interface NoteDetailResponse {
   linkedFromNotes?: LinkedNoteRef[];
   linkedToNotes?: LinkedNoteRef[];
   studyThreads?: StudyThreadEntryDetail[];
+  activeSharedAssociations?: Array<{
+    spaceId: string;
+    spaceTitle: string;
+    spaceType?: string;
+  }>;
+  context?: {
+    spaceId: string;
+    title: string;
+    type: string;
+    isShared: boolean;
+    organization?: NoteDetail['organization'];
+  };
+  currentVersion?: { version: number; createdAt?: string } | number | null;
+  currentVersionId?: string | null;
+}
+
+export function shouldUseNoteOnlyParentThreadCache(contextSpaceId?: string | null): boolean {
+  return !contextSpaceId?.trim();
 }
 
 export function getCachedNoteParentThreadId(noteId: string): string | null {
@@ -363,6 +404,11 @@ export function seedNoteFromCreateResponse(
   queryClient: QueryClient,
   created: Record<string, unknown> & { id: string },
   requestSpaceId: string,
+  metadata?: {
+    currentVersion?: number;
+    currentVersionId?: string | null;
+    contextSpaceId?: string | null;
+  },
 ): void {
   if (!created?.id) return;
   const spaceNorm =
@@ -394,51 +440,105 @@ export function seedNoteFromCreateResponse(
     resourceTitle: typeof created.resourceTitle === 'string' ? created.resourceTitle : null,
     version: typeof created.version === 'string' ? created.version : undefined,
   };
-  seedNoteFromList(queryClient, listSeed, {
+  const threadContext = {
     id: 'thread_unorganized',
     title: '',
     color: null,
     backgroundGradient: '',
-  });
+  };
+  const versionPatch = {
+    ...(typeof metadata?.currentVersion === 'number'
+      ? { currentVersion: metadata.currentVersion }
+      : {}),
+    ...(metadata?.currentVersionId !== undefined
+      ? { currentVersionId: metadata.currentVersionId }
+      : {}),
+  };
+  const context = metadata?.contextSpaceId?.trim() || null;
+  if (context) {
+    queryClient.setQueryData(
+      ['note', created.id, context],
+      {
+        ...listNoteToNoteDetail(listSeed, threadContext),
+        ...versionPatch,
+        contextSpaceId: context,
+      },
+    );
+    return;
+  }
+  seedNoteFromList(queryClient, listSeed, threadContext);
+  queryClient.setQueryData<NoteDetail>(
+    ['note', created.id],
+    (cached) => cached ? { ...cached, ...versionPatch } : cached,
+  );
 }
 
-export function getNoteQueryOptions(noteId: string) {
+export function getNoteQueryOptions(noteId: string, contextSpaceId?: string | null) {
+  const context = contextSpaceId?.trim() || null;
+  const queryKey = context ? (['note', noteId, context] as const) : (['note', noteId] as const);
   return {
-    queryKey: ['note', noteId] as const,
+    queryKey,
     queryFn: async (): Promise<NoteDetail> => {
-      const res = await api.get<NoteDetailResponse>(`/api/notes/${noteId}/details`);
+      const contextQuery = context ? `?contextSpaceId=${encodeURIComponent(context)}` : '';
+      const res = await api.get<NoteDetailResponse>(`/api/notes/${noteId}/details${contextQuery}`);
+      const organization = res.context?.organization ?? res.note.organization ?? null;
       const note = {
         ...res.note,
+        currentVersion:
+          typeof res.currentVersion === 'number'
+            ? res.currentVersion
+            : res.currentVersion?.version ?? res.note.currentVersion,
+        currentVersionId: res.currentVersionId ?? res.note.currentVersionId,
+        contextSpaceId: res.context?.spaceId ?? res.note.contextSpaceId,
+        organization,
+        ...(organization
+          ? {
+              primaryCollection: organization.primaryCollection,
+              secondaryCollections: organization.secondaryCollections,
+              collectionPinned: organization.collectionPinned,
+            }
+          : {}),
         threads: res.threads ?? [],
         tags: res.tags ?? [],
         linkedFromNotes: Array.isArray(res.linkedFromNotes) ? res.linkedFromNotes : [],
         linkedToNotes: Array.isArray(res.linkedToNotes) ? res.linkedToNotes : [],
         studyThreads: Array.isArray(res.studyThreads) ? res.studyThreads : [],
+        spaces: Array.isArray(res.activeSharedAssociations)
+          ? res.activeSharedAssociations.map((association) => ({
+              id: association.spaceId,
+              title: association.spaceTitle,
+            }))
+          : [],
       } as NoteDetail;
-      const parentThread = note.threads?.[0];
-      if (parentThread?.id) {
-        try { localStorage.setItem(`harvous-note-thread-${noteId}`, parentThread.id); } catch { /* ignore */ }
-        const threadWithCount = parentThread as { count?: number; spaceId?: string | null };
-        setCachedNoteParentThread(noteId, {
-          id: parentThread.id,
-          title: parentThread.title,
-          noteCount: threadWithCount.count ?? 0,
-          backgroundGradient: parentThread.backgroundGradient ?? 'var(--color-gradient-gray)',
-          spaceId: threadWithCount.spaceId ?? null,
-        });
-      } else {
-        clearNoteParentThreadLocalCache(noteId);
+      if (shouldUseNoteOnlyParentThreadCache(context)) {
+        const parentThread = note.threads?.[0];
+        if (parentThread?.id) {
+          try { localStorage.setItem(`harvous-note-thread-${noteId}`, parentThread.id); } catch { /* ignore */ }
+          const threadWithCount = parentThread as { count?: number; spaceId?: string | null };
+          setCachedNoteParentThread(noteId, {
+            id: parentThread.id,
+            title: parentThread.title,
+            noteCount: threadWithCount.count ?? 0,
+            backgroundGradient: parentThread.backgroundGradient ?? 'var(--color-gradient-gray)',
+            spaceId: threadWithCount.spaceId ?? null,
+          });
+        } else {
+          clearNoteParentThreadLocalCache(noteId);
+        }
       }
-      setCachedNoteDetail(noteId, note);
+      // Shared-context detail is scoped and may expose unioned annotations. Never
+      // overwrite the context-free session snapshot used by My Home.
+      if (!context) setCachedNoteDetail(noteId, note);
       return note;
     },
     staleTime: NOTE_STALE_TIME,
   };
 }
 
-export function useNote(noteId: string) {
-  const options = getNoteQueryOptions(noteId);
-  const cachedDetail = noteId ? getCachedNoteDetail(noteId) : undefined;
+export function useNote(noteId: string, contextSpaceId?: string | null) {
+  const context = contextSpaceId?.trim() || null;
+  const options = getNoteQueryOptions(noteId, context);
+  const cachedDetail = noteId && !context ? getCachedNoteDetail(noteId) : undefined;
   /**
    * Session snapshots from incomplete list seed (or older builds) may omit `simpleNoteId` entirely.
    * Treat that as maximally stale so GET …/details runs; explicit `simpleNoteId: null` (legacy DB) stays normal stale window.

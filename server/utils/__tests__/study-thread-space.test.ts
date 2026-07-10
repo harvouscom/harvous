@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  shouldAttemptLegacyStudyThreadFallback,
   shouldFallbackToUnscopedStudyThreadGraph,
 } from '../study-thread-space';
 import {
@@ -61,5 +62,24 @@ describe('shouldFallbackToUnscopedStudyThreadGraph', () => {
       ]),
     };
     expect(shouldFallbackToUnscopedStudyThreadGraph(focus, unrelatedGraph, 1)).toBe(true);
+  });
+
+  it('never crosses an explicit SpaceNotes context through legacy fallback', () => {
+    expect(
+      shouldAttemptLegacyStudyThreadFallback({
+        hasExplicitSpaceContext: true,
+        focusNoteId: focus,
+        graph: graphWithoutEdge,
+        directConnectionCount: 1,
+      }),
+    ).toBe(false);
+    expect(
+      shouldAttemptLegacyStudyThreadFallback({
+        hasExplicitSpaceContext: false,
+        focusNoteId: focus,
+        graph: graphWithoutEdge,
+        directConnectionCount: 1,
+      }),
+    ).toBe(true);
   });
 });

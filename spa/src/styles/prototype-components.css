@@ -2014,12 +2014,204 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 }
 
 .proto-inspector-section-title {
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--pds-text-tertiary);
-  margin-bottom: 10px;
+  margin-bottom: var(--pds-space-3);
+}
+
+.proto-inspector-section--activity {
+  padding: 10px 10px 8px;
+}
+
+.proto-inspector-section--activity .proto-inspector-section-title {
+  margin-bottom: 6px;
+}
+
+.proto-inspector-activity__state {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-inspector-activity__state--error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.proto-inspector-activity__state--error button {
+  padding: 2px 7px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-surface-glass-strong);
+  color: var(--pds-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.proto-inspector-activity__state--error button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.proto-inspector-activity__groups,
+.proto-inspector-activity__group {
+  display: flex;
+  flex-direction: column;
+}
+
+.proto-inspector-activity__groups {
+  gap: 9px;
+}
+
+.proto-inspector-activity__group {
+  gap: 3px;
+}
+
+.proto-inspector-activity__group-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--pds-text-secondary);
+}
+
+.proto-inspector-activity__archived {
+  padding: 1px 5px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-chip-hover);
+  color: var(--pds-text-tertiary);
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.proto-inspector-activity {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.proto-inspector-activity__item {
+  margin: 0;
+  padding: 0;
+}
+
+.proto-inspector-activity__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 6px 4px;
+  border: none;
+  border-radius: var(--pds-radius-format);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--pds-font-body);
+  transition: background 0.1s ease;
+}
+
+.proto-inspector-activity__row:hover,
+.proto-inspector-activity__row--active {
+  background: var(--pds-bg-row-hover);
+}
+
+.proto-inspector-activity__glyph {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-inspector-activity__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.proto-inspector-activity__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.proto-inspector-activity__kind {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-inspector-activity__time {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-inspector-activity__subject {
+  font-size: var(--pds-list-title-size);
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--pds-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-inspector-activity__status {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-inspector-activity__meta {
+  font-size: var(--pds-list-meta-size);
+  line-height: 1.35;
+  color: var(--pds-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-inspector-activity__actor {
+  font-weight: 500;
+}
+
+.proto-inspector-activity__sep {
+  margin: 0 3px;
+  opacity: 0.55;
+}
+
+.proto-inspector-activity__preview {
+  font-weight: 400;
+}
+
+.proto-inspector-activity__context {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--pds-text-tertiary);
 }
 
 .proto-inspector-row {
@@ -2995,17 +3187,27 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   padding: 8px 14px 10px;
 }
 
-.proto-create-folder-sheet__name-input {
+/* Canonical plain text field — create sheets, settings/church, account forms. */
+.proto-create-folder-sheet__name-input,
+.proto-settings-field__input {
   width: 100%;
   box-sizing: border-box;
   margin-top: 6px;
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: var(--pds-radius-input, 10px);
   border: 0.5px solid var(--pds-border-control);
   background: var(--pds-bg-card, var(--pds-bg-subtle));
   font-family: var(--pds-font-body);
   font-size: 14px;
   color: var(--pds-text-primary);
+  outline: none;
+}
+
+.proto-create-folder-sheet__name-input:focus,
+.proto-settings-field__input:focus {
+  border-color: var(--pds-accent-focus-border);
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: 0;
 }
 
 .proto-create-folder-sheet__notes-label {
@@ -3329,6 +3531,22 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   filter: none;
   background: var(--pds-bg-row-hover);
 }
+
+/* ─── Settings field wrapper (label + canonical create-sheet input) ──────── */
+.proto-settings-field {
+  display: block;
+  margin: 0 0 16px;
+}
+
+.proto-settings-field__label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+  margin-bottom: 0;
+}
+
+/* Input visuals live with `.proto-create-folder-sheet__name-input` above. */
 
 /* ─── Settings (macOS System Settings-style two-pane) ─────────────────────── */
 /* Centered "Settings" title shown in the toolbar while in the settings shell. */
@@ -3930,6 +4148,57 @@ a.proto-copy-row__value:hover {
   font-size: 0.8125rem;
   line-height: 1.45;
   color: var(--pds-text-secondary);
+}
+
+.proto-sharing-deleted {
+  margin-top: 24px;
+}
+
+.proto-sharing-deleted__title {
+  margin: 0;
+  padding: 0 12px 6px;
+  color: var(--pds-text-tertiary);
+  text-transform: uppercase;
+}
+
+.proto-sharing-deleted__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-sharing-deleted__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.proto-sharing-deleted__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.proto-sharing-deleted__row + .proto-sharing-deleted__row {
+  border-top: 0.5px solid var(--pds-border-soft);
+}
+
+.proto-sharing-deleted__main {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.proto-sharing-deleted__main > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .proto-toolbar-icon-btn {
@@ -7680,22 +7949,25 @@ button.proto-appearance-hero__card {
   border: none;
   border-radius: 999px;
   padding: 6px 12px;
-  background: var(--pds-accent, #3d7de8);
-  color: #fff;
+  /* Same primary CTA chrome as `.proto-settings-btn` / share primary. */
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+  box-shadow: var(--pds-shadow-accent-button);
   font-family: inherit;
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
   flex: 0 0 auto;
+  transition: filter 0.1s;
 }
 
 .proto-update-toast__action:hover {
-  filter: brightness(0.95);
+  filter: brightness(1.06);
 }
 
 .proto-update-toast__action:active {
-  filter: brightness(0.9);
+  filter: brightness(0.98);
 }
 
 .proto-update-toast__action--secondary {
@@ -7712,6 +7984,133 @@ button.proto-appearance-hero__card {
 .proto-update-toast__action--secondary:active {
   filter: none;
   background: var(--pds-fill-secondary, rgba(0, 0, 0, 0.06));
+}
+
+.pds-list-row__trailing-time {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ─── Design-system banner (PrototypeBanner / HarvousBanner) ─────────────── */
+/* Quiet status row — hairline divider, neutral surface, semantic color on icon only.
+ * Matches `.proto-shared-readonly-banner` chrome (not pastel callout cards). */
+
+.pds-banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-2);
+  width: 100%;
+  padding: 0 0 var(--pds-space-3);
+  border: none;
+  border-radius: 0;
+  border-bottom: 0.5px solid var(--pds-border);
+  background: transparent;
+  color: var(--pds-text-primary);
+  box-sizing: border-box;
+}
+
+.pds-banner[data-tone='warning'],
+.pds-banner[data-tone='destructive'],
+.pds-banner[data-tone='success'] {
+  border-color: var(--pds-border);
+  background: transparent;
+}
+
+.pds-banner__body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pds-space-2);
+}
+
+.pds-banner__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--pds-info);
+}
+
+.pds-banner[data-tone='warning'] .pds-banner__icon {
+  color: var(--pds-warning);
+}
+
+.pds-banner[data-tone='destructive'] .pds-banner__icon {
+  color: var(--pds-destructive);
+}
+
+.pds-banner[data-tone='success'] .pds-banner__icon {
+  color: var(--pds-success);
+}
+
+.pds-banner__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.pds-banner__title {
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.pds-banner[data-tone='destructive'] .pds-banner__title {
+  color: var(--pds-destructive);
+}
+
+.pds-banner__description {
+  margin-top: 2px;
+  /* Stronger than tertiary/secondary alpha so small status copy clears WCAG AA. */
+  color: var(--pds-text-muted-strong);
+  font-family: var(--pds-font-body);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.pds-banner__action {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  padding-left: calc(13px + var(--pds-space-2));
+}
+
+/* Beat global.css + prototype-route `button` !important color rules
+ * (gallery/shell ancestors often match `[class*="proto-"] button`). */
+html.harvous-prototype-route .pds-banner .pds-banner__action-btn,
+html.harvous-prototype-route .pds-banner .pds-banner__action > button,
+html.harvous-prototype-route .pds-banner .pds-banner__action-btn *,
+html.harvous-prototype-route .pds-banner .pds-banner__action > button *,
+.pds-banner .pds-banner__action-btn,
+.pds-banner .pds-banner__action > button,
+.pds-banner .pds-banner__action-btn *,
+.pds-banner .pds-banner__action > button * {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  color: var(--pds-accent) !important;
+  font-family: var(--pds-font-body) !important;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+html.harvous-prototype-route .pds-banner .pds-banner__action-btn:hover:not(:disabled),
+html.harvous-prototype-route .pds-banner .pds-banner__action > button:hover:not(:disabled),
+.pds-banner .pds-banner__action-btn:hover:not(:disabled),
+.pds-banner .pds-banner__action > button:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+html.harvous-prototype-route .pds-banner .pds-banner__action-btn:disabled,
+html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
+.pds-banner .pds-banner__action-btn:disabled,
+.pds-banner .pds-banner__action > button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* ─── Shared spaces: read-only banner + author chips ─────────────────────── */
@@ -7742,44 +8141,6 @@ button.proto-appearance-hero__card {
 .proto-shared-readonly-banner__icon {
   flex-shrink: 0;
   opacity: 0.55;
-}
-
-/* Legend clarifying the two paint languages on a foreign note: the author's
- * in-body underline marks vs member response fills. Shown only once responses
- * exist on the note (see PrototypeSharedNoteReadOnlyBanner). */
-.proto-shared-readonly-legend {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 14px;
-  margin: -12px 12px 18px;
-  color: var(--pds-text-secondary);
-}
-
-.proto-shared-readonly-legend__item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  line-height: 1;
-}
-
-.proto-shared-readonly-legend__swatch {
-  display: inline-block;
-  width: 16px;
-  height: 12px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-
-.proto-shared-readonly-legend__swatch--underline {
-  border-bottom: 2px dashed var(--pds-text-secondary);
-  border-radius: 0;
-  height: 10px;
-}
-
-.proto-shared-readonly-legend__swatch--fill {
-  background-color: color-mix(in srgb, var(--pds-highlight-warm-amber) 38%, transparent);
-  box-shadow: inset 0 -3px 0 var(--pds-highlight-warm-amber);
 }
 
 .proto-shared-readonly-banner .proto-shared-author-chip {
@@ -8830,35 +9191,6 @@ button.proto-appearance-hero__card {
 
 .proto-menu-item__icon--space {
   position: relative;
-}
-
-.proto-compose-group-thread-picker {
-  margin: 0 0 12px;
-}
-
-.proto-compose-group-thread-picker__label {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--pds-text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.proto-compose-group-thread-picker__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.proto-compose-group-thread-picker__select {
-  flex: 1;
-  min-width: 0;
-  border: 0.5px solid var(--pds-border-control);
-  border-radius: 8px;
-  padding: 6px 10px;
-  background: var(--pds-bg-surface);
-  color: var(--pds-text-primary);
-  font: inherit;
 }
 
 .proto-note-row--unseen .proto-note-row__title-line::before {

@@ -55,7 +55,7 @@ Imagine Harvous as a house with three main rooms:
 
 **Room 1: The Front End (What You See)**
 - This is the website you interact with
-- Built with Astro (for fast loading) and React (for interactive features)
+- Built as a React SPA with a native-like shell
 - Like the furniture and decorations in your house - it's what makes the space usable
 
 **Room 2: The Back End (The Brain)**
@@ -79,7 +79,7 @@ Imagine Harvous as a house with three main rooms:
 
 ### Decision 1: Hierarchical Organization (Spaces → Threads → Notes)
 
-**Why:** Bible study naturally organizes itself in layers. You might have a "Bible Study" space containing multiple study threads (Gospel of John, Romans, etc.), and each thread contains multiple notes.
+**Why:** Bible study naturally organizes itself in layers. You might have a "Bible Study" space containing multiple Threads (Gospel of John, Romans, etc.), and each Thread contains multiple notes.
 
 **The Problem We Solved:** Generic note apps force you into flat lists or rigid filing hierarchies. Bible study needs flexibility - sometimes you want to see all notes about "faith" across different threads, sometimes you want to focus on one specific study.
 
@@ -129,20 +129,21 @@ Imagine Harvous as a house with three main rooms:
 
 **The Problem We Solved:** Astro SSR required server rendering for every page navigation, which introduced latency and made smooth route transitions difficult. The mobile PWA experience also needed faster response to touch inputs.
 
-**How It Works (Dual-App Architecture):**
-- **Astro layer** still handles API routes (all `/api/*`), the database, and public/unauthenticated pages (sign-in, shared notes, invitations)
-- **React SPA** (`/spa`) handles all authenticated routes as a client-side single-page application
+**How It Works:**
+- The bundled **Hono API** handles `/api/*`, authentication checks, and database access
+- The **React SPA** handles the authenticated and public web routes as a client-side single-page application
 - TanStack Router manages client-side routing — navigating between dashboard, threads, notes, and spaces never triggers a full page reload
 - TanStack Query caches server data so navigating back to a page you've already visited is instant
 
-**Think of it like:** The Astro layer is the building's plumbing and electrical (essential but invisible). The React SPA is the app you actually live in — always loaded, always ready, just updating what's on screen as you navigate.
+**Think of it like:** The Hono API is the building's plumbing and electrical. The React SPA is the app you live
+in — loaded once and updating as you navigate.
 
 **Benefits:**
 - Navigation is instant (client-side, no server round-trip)
 - No empty-state flash when revisiting pages (data cached by TanStack Query)
 - Smooth route transition animations (fade + slide)
 - Mobile PWA feels like a native app
-- Shared components (`src/components/react/`) still used by both the SPA and Astro public pages
+- Shared components (`src/components/react/`) are reused by SPA surfaces
 
 ### Decision 5: Many-to-Many Note-Thread Relationships
 
@@ -203,6 +204,45 @@ Imagine Harvous as a house with three main rooms:
 
 **Why localStorage:** It's fast, works offline, and doesn't require database queries. The navigation updates instantly when you access new content.
 
+### Decision 9: My Home ownership and Shared Spaces
+
+**Why:** Studying together should not make people give up ownership of their notes or create several stale copies.
+
+**How it works:**
+
+- **My Home is complete.** Every note you author remains in your private My Home aggregate.
+- A shared space is a live audience and organization context. `SpaceNotes` associates your canonical note with
+  that context; the space does not become the note's owner.
+- One note can appear in several spaces. Each space independently stores folders, pins, order, Threads, and
+  responses.
+- **My Home compose** creates privately. **This space compose** creates the Home note plus its association.
+- Authors use **Add to space**. Non-authors use **Save a copy**, which creates an attributed independent note.
+
+**Conversation and Activity:**
+
+- A member can select a passage on another person's read-only note and leave a response.
+- Persistent response overlays appear only while reading in that shared space.
+- My Home shows responses in **Note Activity**, grouped by space.
+- Note Activity is not the same as space activity or the “new since your visit” watermark.
+- When a durable response anchor no longer matches after an edit, Activity says **Passage changed**.
+- Note version history is available only to the author.
+
+**Threads:** The owner uses **Start a Thread** and selects one current Thread. Members can view it and attach
+their own notes that are active in the space. Internal identifiers such as `StudyThreadEntries` describe response
+storage, not a user-facing feature name.
+
+**Lifecycle and privacy:**
+
+- Leaving or removal archives a person's authored associations and preserves their responses on other people's
+  notes.
+- Re-sharing restores responses but not stale folders, pins, or Thread placement.
+- Deleting a shared space hides and revokes it immediately. The owner can restore it from Settings for 30 days;
+  after that, space data is purged while canonical notes remain.
+- Encrypted notes never enter a shared context. Invite preview is metadata-only, and non-owner member responses
+  do not expose email.
+- Public-link controls stay hidden in shared context. My Home warns before making an associated note public.
+- Creating/hosting requires the Shared Spaces add-on; joining is free.
+
 ---
 
 ## The Three-Layer Organization System
@@ -218,7 +258,8 @@ Imagine Harvous as a house with three main rooms:
 - "Sermon Notes" - Church service insights
 
 **Key Features:**
-- Can be **Private** (only you) or **Shared** (collaborative)
+- Private spaces and dedicated Shared Spaces are created through separate flows; there is no privacy toggle that
+  converts one into the other
 - Get a **custom color** for visual recognition
 - Show **total item count** (threads + notes)
 - Can contain both threads and individual notes
@@ -301,12 +342,11 @@ Imagine Harvous as a house with three main rooms:
 
 1. **You click "Add Thread"**
    - The NewThreadPanel opens
-   - You see a form with title, color selection, and type (Private/Shared)
+   - You see the Thread form for the current context
 
 2. **You fill out the form**
    - You type a title (e.g., "Gospel of John")
    - You select a color (e.g., Lovely Lavender)
-   - You choose Private or Shared
    - You can search for existing notes to add
 
 3. **You click "Create"**
@@ -354,7 +394,8 @@ Imagine Harvous as a house with three main rooms:
    - Active item (current page) is highlighted
 
 3. **You close an item**
-   - Confirmation dialog appears (for spaces, since they can't be recovered)
+   - Confirmation appears for destructive actions
+   - Deleted Shared Spaces are hidden immediately and remain owner-recoverable in Settings for 30 days
    - Item is removed from navigation
    - You're redirected to dashboard
 
@@ -364,19 +405,19 @@ Imagine Harvous as a house with three main rooms:
 
 ## The Technology Choices and Why They Matter
 
-### Astro: The API and Public Page Layer
+### Hono: The API Layer
 
-**What It Is:** A web framework that handles server-side logic, API routes, and public/unauthenticated pages.
+**What It Is:** The bundled Node API that handles server-side logic for authenticated and public routes.
 
 **Why We Use It:**
-- **Database access:** All database queries run through Astro API endpoints — they stay on the server, never in the browser
+- **Database access:** All database queries run through Hono API endpoints — they stay on the server, never in the browser
 - **Security:** Auth middleware (Clerk) runs server-side, so every API call is verified
-- **Public pages:** Sign-in, shared notes, invitations — pages that don't need authentication still get server-rendered HTML
+- **Deployment:** The API bundles into one Netlify Function with its runtime dependencies
 
 **How It Works:**
-- Astro handles every request to `/api/*`
+- Hono handles every request to `/api/*`
 - The React SPA calls these API endpoints to fetch/create/update data
-- Public pages like sign-in and shared note views are Astro pages with fast server-side rendering
+- The React SPA also renders sign-in, public shared-note, and invitation routes
 
 **The Benefit:** The database and authentication stay safely on the server. The React SPA only ever sees JSON responses, never raw database access.
 
@@ -388,7 +429,7 @@ Imagine Harvous as a house with three main rooms:
 - **Instant navigation:** Moving between threads, notes, and spaces never reloads the page
 - **Persistent state:** Navigation, panels, and data stay loaded as you move around
 - **Mobile PWA feel:** Behaves like a native app — fast, responsive, smooth
-- **Component reusability:** All the shared React components (`src/components/react/`) work in both the SPA and any Astro pages
+- **Component reusability:** Shared React components (`src/components/react/`) serve multiple SPA surfaces
 
 **How It Works:**
 - When you visit the app, `spa/index.html` loads once
@@ -591,7 +632,8 @@ Mobile and desktop have different needs:
 
 **Unified Codebase:** Same React components work on both platforms. We don't maintain separate mobile and desktop apps.
 
-**React Islands:** Components adapt to their context. A panel component knows if it's on mobile (use bottom sheet) or desktop (use additional column).
+**Responsive components:** Components adapt to their context. A panel can use a bottom sheet on mobile and an
+additional column on desktop.
 
 **The Benefit:** One codebase, two great experiences. Updates work on both platforms simultaneously.
 
@@ -599,7 +641,7 @@ Mobile and desktop have different needs:
 
 ## The Future: How the System Grows
 
-### Current Status: 85% Complete for V1
+### Current status: Harvous 2.x
 
 **What's Done:**
 - ✅ Core content creation (notes, threads, spaces)
@@ -608,10 +650,12 @@ Mobile and desktop have different needs:
 - ✅ Mobile/desktop responsive design
 - ✅ XP gamification
 - ✅ Navigation system
+- ✅ Shared Spaces canonical associations, responses, Threads, lifecycle, and recovery
 
-**What's Coming in V1:**
-- 🆕 Selected text note creation (select text → create note instantly)
-- 🆕 Note types system (Default, Scripture, Resource notes)
+**Shared Spaces roadmap:** v1.1 adds content/person mentions and a one-heart acknowledgment without
+notifications. v1.2 production-verifies realtime invalidation before presence and event unread state. v2 covers
+leaders, billing operations, email invites, ownership transfer, public broadcast, and church organizations.
+Native parity remains long-term; same-note collaborative editing is optional and evidence-led.
 
 ### How New Features Are Added
 
@@ -619,7 +663,7 @@ Mobile and desktop have different needs:
 1. **Design:** Plan the feature, understand user needs
 2. **Database:** Add any new tables/fields needed
 3. **API:** Create endpoints for the feature
-4. **Components:** Build React components (if interactive) or Astro components (if static)
+4. **Components:** Build or reuse React components
 5. **Integration:** Connect everything together
 6. **Testing:** Test on desktop and mobile
 7. **Deployment:** Release to production
@@ -637,7 +681,7 @@ Mobile and desktop have different needs:
 - **Modular:** Features are separate components, easy to add/remove
 - **Database-First:** Schema changes are straightforward
 - **API-Driven:** New features just need new API endpoints
-- **React Islands:** New interactive features = new React components
+- **React SPA:** New interactive features compose into the native-like shell
 - **Type-Safe:** TypeScript catches errors before they reach users
 
 **The Benefit:** We can add features quickly without breaking existing functionality.
@@ -666,8 +710,8 @@ We never compromise on data safety:
 ### 3. Performance Matters
 
 Fast is better than slow:
-- **Server-side rendering:** Instant page loads
-- **React Islands:** Only hydrate what's needed
+- **Client-side navigation:** The shell stays mounted between routes
+- **TanStack Query:** Cached server data avoids unnecessary refetches
 - **Database optimization:** Fast queries
 - **localStorage:** Instant navigation updates
 
@@ -696,7 +740,7 @@ Harvous is built on a foundation of thoughtful decisions, each one made to serve
 - **Hierarchical organization** gives you flexibility
 - **Sequential IDs** give you clarity
 - **Color coding** gives you speed
-- **React Islands** gives you performance
+- **The native-like React shell** gives you fast navigation
 - **Note preservation** gives you safety
 - **Many-to-many relationships** give you freedom
 
@@ -706,8 +750,8 @@ Every piece of the system works together to create an experience that's fast, sa
 
 ---
 
-**Last Updated:** January 2025  
-**Status:** 85% Complete for V1 - 3-4 Weeks to Production
+**Last Updated:** July 2026
+**Status:** Harvous 2.x production architecture; Shared Spaces v1 implemented, operational verification ongoing
 
 
 

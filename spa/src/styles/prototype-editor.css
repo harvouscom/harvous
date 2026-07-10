@@ -127,6 +127,25 @@
     var(--pds-editor-paper-padding-bottom);
 }
 
+/* Draft compose — destination row above title (parity with proto-shared-readonly-banner). */
+.proto-draft-destination-cue {
+  display: flex;
+  align-items: center;
+  width: auto;
+  margin: 0 12px 20px;
+  padding: 0 0 10px;
+  border-bottom: 0.5px solid var(--pds-border);
+}
+
+.proto-draft-destination-cue__status {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--pds-text-secondary);
+  font-weight: 500;
+  line-height: 1;
+}
+
 @container proto-editor-scroll (max-width: 640px) {
   .proto-editor-paper {
     padding: var(--pds-editor-paper-padding-top-narrow)

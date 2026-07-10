@@ -69,7 +69,7 @@ route.get('/api/og/share/thread/:shareToken', async (c) => {
   if (!thread) return c.html(renderNotFoundOgHtml(canonicalUrl), 200);
 
   return c.html(renderShareOgHtml({
-    title: thread.title?.trim() || 'Shared study thread',
+    title: thread.title?.trim() || 'Shared Thread',
     description: stripHtmlForPreview(thread.subtitle ?? '', 200),
     canonicalUrl,
   }), 200);

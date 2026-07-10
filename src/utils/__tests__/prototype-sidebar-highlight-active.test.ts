@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isSidebarHighlightRowActive,
   parsePrototypeNoteHighlightSearch,
+  prototypeNoteListNavigationSearch,
   resolveSidebarFocusedHighlightThreadId,
 } from '@/utils/prototype-sidebar-highlight-active';
 
@@ -33,6 +34,29 @@ describe('parsePrototypeNoteHighlightSearch', () => {
       studyThreadSearchId: 'st_2',
       dockReq: '123',
     });
+  });
+});
+
+describe('prototypeNoteListNavigationSearch', () => {
+  it.each([
+    ['owned', true],
+    ['foreign', false],
+  ])('keeps %s shared-list rows in the active shared context', (_label, _isOwnNote) => {
+    expect(
+      prototypeNoteListNavigationSearch({
+        isScopedSharedSpace: true,
+        spaceId: 'shared',
+      }).space,
+    ).toBe('space_shared');
+  });
+
+  it('clears shared context for My Home rows', () => {
+    expect(
+      prototypeNoteListNavigationSearch({
+        isScopedSharedSpace: false,
+        spaceId: 'space_home',
+      }).space,
+    ).toBeUndefined();
   });
 });
 

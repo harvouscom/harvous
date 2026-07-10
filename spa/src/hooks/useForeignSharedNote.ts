@@ -7,9 +7,17 @@ import { useActiveSpace } from './useActiveSpace';
 import { usePrototypeHomeSpaceId } from './usePrototypeHomeSpaceId';
 
 /** True when viewing another member's note inside a shared space (read-only). */
-export function useForeignSharedNote(noteId: string | null | undefined) {
+export function useForeignSharedNote(
+  noteId: string | null | undefined,
+  contextSpaceId?: string | null,
+) {
   const { userId: authUserId } = useAuth();
-  const { data: note } = useNote(noteId ?? '');
+  const routeContextSpaceId =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('space')
+      : null;
+  const explicitContextSpaceId = contextSpaceId?.trim() || routeContextSpaceId?.trim() || null;
+  const { data: note } = useNote(noteId ?? '', explicitContextSpaceId);
   const { data: nav } = useNavigation();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const { isSharedSpace, activeSpaceId } = useActiveSpace();
@@ -19,7 +27,8 @@ export function useForeignSharedNote(noteId: string | null | undefined) {
   const resolvedSpaceFromThread =
     (note?.threads?.[0] as { spaceId?: string | null } | undefined)?.spaceId ?? null;
   const effectiveSpaceId = noteId
-    ? (resolvedSpaceFromNote != null
+    ? explicitContextSpaceId ??
+      (resolvedSpaceFromNote != null
         ? resolvedSpaceFromNote
         : resolvedSpaceFromThread) ??
       (isSharedSpace ? activeSpaceId : homeSpaceId) ??
@@ -27,6 +36,7 @@ export function useForeignSharedNote(noteId: string | null | undefined) {
     : '';
 
   const noteInSharedSpace = useMemo(() => {
+    if (explicitContextSpaceId) return true;
     if (isSharedSpace) return true;
     if (!effectiveSpaceId || !nav) return false;
     const normalized = effectiveSpaceId.startsWith('space_') ? effectiveSpaceId : `space_${effectiveSpaceId}`;
@@ -37,7 +47,7 @@ export function useForeignSharedNote(noteId: string | null | undefined) {
       (s) => (s.id.startsWith('space_') ? s.id : `space_${s.id}`) === normalized,
     );
     return owned || memberOf;
-  }, [isSharedSpace, effectiveSpaceId, nav]);
+  }, [explicitContextSpaceId, isSharedSpace, effectiveSpaceId, nav]);
 
   const membersQuery = useSpaceMembers(noteInSharedSpace && effectiveSpaceId ? effectiveSpaceId : '');
 
@@ -46,7 +56,8 @@ export function useForeignSharedNote(noteId: string | null | undefined) {
     if (note.isOwnNote === true) return true;
     if (note.isOwnNote === false) return false;
     if (!authUserId) return null;
-    if (note.userId) return note.userId === authUserId;
+    const authorUserId = note.authorUserId ?? note.userId;
+    if (authorUserId) return authorUserId === authUserId;
     return null;
   }, [note, authUserId]);
 
@@ -62,9 +73,10 @@ export function useForeignSharedNote(noteId: string | null | undefined) {
   );
 
   const foreignNoteAuthor = useMemo(() => {
-    if (!isForeignSharedNote || !note?.userId) return null;
-    return membersQuery.data?.members.find((m) => m.userId === note.userId) ?? null;
-  }, [isForeignSharedNote, note?.userId, membersQuery.data?.members]);
+    const authorUserId = note?.authorUserId ?? note?.userId;
+    if (!isForeignSharedNote || !authorUserId) return null;
+    return membersQuery.data?.members.find((m) => m.userId === authorUserId) ?? null;
+  }, [isForeignSharedNote, note?.authorUserId, note?.userId, membersQuery.data?.members]);
 
   return {
     isForeignSharedNote,

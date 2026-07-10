@@ -59,6 +59,11 @@ export type SharedSpaceDashboardFixture = {
   members: SpaceMemberRow[];
   contributorIntro: SharedSpaceSocialIntro | null;
   selfDisplayName: string;
+  currentThread: {
+    id: string;
+    title: string;
+    noteCount: number;
+  } | null;
   spotlightThread: HomeTopThread | null;
   topPassage: HomePassageConnection | null;
   noteCardSlots: SharedSpaceNoteCardSlot[];
@@ -118,6 +123,11 @@ export const SHARED_SPACE_DASHBOARD_FIXTURE_FULL: SharedSpaceDashboardFixture = 
   members: ROMANS_MEMBERS,
   contributorIntro: null,
   selfDisplayName: 'Derek',
+  currentThread: {
+    id: 'thread_fixture_romans',
+    title: 'Living by the Spirit',
+    noteCount: 4,
+  },
   spotlightThread: {
     id: 'note_thread_romans8',
     title: 'Spirit vs. flesh in Romans 8',
@@ -127,9 +137,11 @@ export const SHARED_SPACE_DASHBOARD_FIXTURE_FULL: SharedSpaceDashboardFixture = 
     passageKey: 'Romans|8|1|11',
     displayRef: 'Romans 8:1\u201311',
     bookOrder: 45,
-    chapter: 8,
-    verseStart: 1,
     noteCount: 4,
+    notes: [
+      { id: 'note_sarah-adoption', title: 'Adoption as sons — Romans 8:15' },
+      { id: 'note_self-spirit', title: 'Life in the Spirit — draft' },
+    ],
   },
   noteCardSlots: [
     {
@@ -204,6 +216,7 @@ export const SHARED_SPACE_DASHBOARD_FIXTURE_SOCIAL: SharedSpaceDashboardFixture 
     hasMoreNotes: true,
   },
   selfDisplayName: 'Derek',
+  currentThread: null,
   spotlightThread: {
     id: 'note_thread_acts2',
     title: 'Pentecost and the Spirit',
@@ -213,9 +226,11 @@ export const SHARED_SPACE_DASHBOARD_FIXTURE_SOCIAL: SharedSpaceDashboardFixture 
     passageKey: 'Acts|2|1|13',
     displayRef: 'Acts 2:1\u201313',
     bookOrder: 44,
-    chapter: 2,
-    verseStart: 1,
     noteCount: 3,
+    notes: [
+      { id: 'note_marcus-peter', title: 'Peter\u2019s sermon outline' },
+      { id: 'note_elena-baptism', title: '3,000 baptized' },
+    ],
   },
   noteCardSlots: [
     {
@@ -258,3 +273,38 @@ export const SHARED_SPACE_DASHBOARD_FIXTURE_SOCIAL: SharedSpaceDashboardFixture 
 };
 
 export const SHARED_SPACE_DASHBOARD_UNSEEN_SINCE = UNSEEN_SINCE;
+
+export const SHARED_SPACE_THREAD_FIXTURES = {
+  ownerEmpty: {
+    ...SHARED_SPACE_DASHBOARD_FIXTURE_FULL,
+    bannerNewCount: 0,
+    contributorIntro: null,
+    currentThread: null,
+    spotlightThread: null,
+    isOwner: true,
+  },
+  memberEmpty: {
+    ...SHARED_SPACE_DASHBOARD_FIXTURE_SOCIAL,
+    currentThread: null,
+    spotlightThread: null,
+    isOwner: false,
+  },
+  ownerCurrent: {
+    ...SHARED_SPACE_DASHBOARD_FIXTURE_FULL,
+    currentThread: {
+      id: 'thread_fixture_owner_current',
+      title: 'Life together in Romans 12',
+      noteCount: 5,
+    },
+    isOwner: true,
+  },
+  memberCurrent: {
+    ...SHARED_SPACE_DASHBOARD_FIXTURE_SOCIAL,
+    currentThread: {
+      id: 'thread_fixture_member_current',
+      title: 'Witnesses in Acts',
+      noteCount: 3,
+    },
+    isOwner: false,
+  },
+} satisfies Record<string, SharedSpaceDashboardFixture>;

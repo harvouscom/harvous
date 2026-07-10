@@ -1,11 +1,12 @@
 import { useLayoutEffect, useState } from 'react';
-import { studyDockAccentCssVar } from '@/utils/study-highlight-accents';
+import { isStudyHighlightAccentKey, studyDockAccentCssVar } from '@/utils/study-highlight-accents';
 import type { StudyThreadEntryDetail } from '../../hooks/queries/useNote';
 import {
   filterOverlayStudyThreads,
   pmRangesOverlap,
   resolveStudyThreadPmRange,
 } from '../../lib/shared-highlight-overlay';
+import { highlightEntryKindAriaLabel } from './proto-highlight-subtitle';
 
 const OVERLAY_COORD_MAX_ATTEMPTS = 120;
 
@@ -26,9 +27,33 @@ export type SharedHighlightOverlayRect = {
   height: number;
   accent: string;
   authorDisplayName?: string;
+  entryKind: string;
+  quote?: string;
   /** Number of distinct authors stacked on this anchor (for the count badge). */
   authorCount: number;
 };
+
+function compactAccessibleQuote(value: string | null | undefined): string | undefined {
+  const quote = value?.replace(/\s+/g, ' ').trim();
+  if (!quote) return undefined;
+  return quote.length > 140 ? `${quote.slice(0, 139).trimEnd()}…` : quote;
+}
+
+export function sharedHighlightOverlayButtonLabel(
+  rect: Pick<SharedHighlightOverlayRect, 'authorCount' | 'authorDisplayName' | 'entryIds' | 'entryKind' | 'quote'>,
+): string {
+  const kind = highlightEntryKindAriaLabel(rect.entryKind);
+  const actor =
+    rect.authorCount > 1 ? `${rect.authorCount} people` : rect.authorDisplayName?.trim() || 'a space member';
+  const quote = compactAccessibleQuote(rect.quote);
+  const responseCount = rect.entryIds.length;
+  return [
+    `Open ${kind.toLowerCase()} by ${actor}${quote ? ` on “${quote}”` : ''}`,
+    responseCount > 1 ? `${responseCount} responses share this passage` : null,
+  ]
+    .filter(Boolean)
+    .join('. ');
+}
 
 export default function SharedStudyHighlightOverlay({
   editor,
@@ -99,6 +124,8 @@ export default function SharedStudyHighlightOverlay({
             height: Math.max(start.bottom - start.top, end.bottom - end.top, 14),
             accent: head.highlightAccentRaw ?? 'warmAmber',
             authorDisplayName: head.authorDisplayName,
+            entryKind: head.entryKind,
+            quote: head.anchorQuote ?? head.anchorTextSnapshot ?? head.sourceSnippet ?? undefined,
             authorCount: authors.size,
           });
         } catch {
@@ -138,8 +165,7 @@ export default function SharedStudyHighlightOverlay({
     window.addEventListener('resize', onLayout);
     window.addEventListener('scroll', onLayout, true);
 
-    const resizeObserver =
-      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(onLayout) : null;
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(onLayout) : null;
     resizeObserver?.observe(containerEl);
 
     return () => {
@@ -154,33 +180,35 @@ export default function SharedStudyHighlightOverlay({
   if (!rects.length) return null;
 
   return (
-    <div className="proto-shared-highlight-overlay" aria-hidden>
-      {rects.map((rect) => (
-        <button
-          key={rect.id}
-          type="button"
-          className="proto-shared-highlight-overlay__mark"
-          style={{
-            top: rect.top,
-            left: rect.left,
-            width: rect.width,
-            height: rect.height,
-            ['--shared-highlight-accent' as string]: studyDockAccentCssVar(rect.accent),
-          }}
-          title={
-            rect.authorCount > 1
-              ? `${rect.authorCount} responses`
-              : rect.authorDisplayName
-                ? `${rect.authorDisplayName}'s response`
-                : 'Shared highlight'
-          }
-          onClick={() => onSelectEntry?.(rect.id, rect.entryIds)}
-        >
-          {rect.authorCount > 1 ? (
-            <span className="proto-shared-highlight-overlay__badge">{rect.authorCount}</span>
-          ) : null}
-        </button>
-      ))}
+    <div className="proto-shared-highlight-overlay" role="group" aria-label="Shared note annotations">
+      {rects.map((rect) => {
+        const accessibleLabel = sharedHighlightOverlayButtonLabel(rect);
+        return (
+          <button
+            key={rect.id}
+            type="button"
+            className="proto-shared-highlight-overlay__mark"
+            style={{
+              top: rect.top,
+              left: rect.left,
+              width: rect.width,
+              height: rect.height,
+              ['--shared-highlight-accent' as string]: studyDockAccentCssVar(
+                isStudyHighlightAccentKey(rect.accent) ? rect.accent : 'warmAmber',
+              ),
+            }}
+            aria-label={accessibleLabel}
+            title={accessibleLabel}
+            onClick={() => onSelectEntry?.(rect.id, rect.entryIds)}
+          >
+            {rect.authorCount > 1 ? (
+              <span className="proto-shared-highlight-overlay__badge" aria-hidden>
+                {rect.authorCount}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
     </div>
   );
 }

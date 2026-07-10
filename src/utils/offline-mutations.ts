@@ -432,6 +432,7 @@ export async function createNoteOffline(userId: string, data: {
 
   const note: OfflineNote = ensureUserPartition<OfflineNote>({
     id: localId,
+    currentVersion: 1,
     title: data.title || null,
     content: data.content,
     threadId: effectiveThreadId,
@@ -465,6 +466,28 @@ export async function createNoteOffline(userId: string, data: {
     }
   }
 
+  // Queue the canonical create before dependent NoteThread mutations. The
+  // server deterministically creates version 1 for this operation.
+  await enqueueMutation(userId, {
+    operation: 'create',
+    entityType: 'note',
+    entityId: localId,
+    data: {
+      title: data.title,
+      content: data.content,
+      threadId: effectiveThreadId,
+      spaceId: data.spaceId,
+      simpleNoteId,
+      noteType: data.noteType || 'default',
+      addedBy: data.addedBy || 'user',
+      isPublic: data.isPublic,
+      isFeatured: data.isFeatured,
+      order: data.order,
+      lastVisited: new Date().toISOString(),
+      ...(data.linkedFromNoteId ? { linkedFromNoteId: data.linkedFromNoteId } : {}),
+    },
+  });
+
   // Create NoteThread relationship if threadId is provided (never for onboarding thread)
   if (effectiveThreadId && effectiveThreadId !== 'thread_unorganized') {
     const noteThreadId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -491,28 +514,6 @@ export async function createNoteOffline(userId: string, data: {
       },
     });
   }
-
-  // Queue sync operation for note
-  await enqueueMutation(userId, {
-    operation: 'create',
-    entityType: 'note',
-    entityId: localId,
-    data: {
-      title: data.title,
-      content: data.content,
-      threadId: effectiveThreadId,
-      spaceId: data.spaceId,
-      simpleNoteId,
-      noteType: data.noteType || 'default',
-      addedBy: data.addedBy || 'user',
-      isPublic: data.isPublic,
-      isFeatured: data.isFeatured,
-      order: data.order,
-      // Include lastVisited so server stores it (fixes order reset on sync)
-      lastVisited: new Date().toISOString(),
-      ...(data.linkedFromNoteId ? { linkedFromNoteId: data.linkedFromNoteId } : {}),
-    },
-  });
 
   return localId;
 }
@@ -543,6 +544,7 @@ async function pendingNoteOp(
  */
 export interface OfflineNoteSeed {
   content: string;
+  currentVersion?: number;
   title?: string | null;
   spaceId?: string | null;
   threadId?: string;
@@ -568,6 +570,7 @@ export async function updateNoteOffline(
   updates: Partial<{
     title: string | null;
     content: string;
+    contentEncrypted: boolean;
     spaceId: string | null;
     isPublic: boolean;
     isFeatured: boolean;
@@ -592,6 +595,7 @@ export async function updateNoteOffline(
       seed.threadId && !seed.threadId.startsWith('thread_onboarding_') ? seed.threadId : 'thread_unorganized';
     const materialized: OfflineNote = ensureUserPartition<OfflineNote>({
       id: noteId,
+      currentVersion: seed.currentVersion,
       title: updates.title ?? seed.title ?? null,
       content: updates.content ?? seed.content,
       threadId: effectiveThreadId,
@@ -626,10 +630,27 @@ export async function updateNoteOffline(
     return;
   }
 
+  const changesCanonicalContent =
+    Object.prototype.hasOwnProperty.call(updates, 'title') ||
+    Object.prototype.hasOwnProperty.call(updates, 'content') ||
+    Object.prototype.hasOwnProperty.call(updates, 'contentEncrypted');
+  const expectedVersion = note?.currentVersion ?? seed?.currentVersion;
+  if (changesCanonicalContent && !Number.isInteger(expectedVersion)) {
+    throw new Error('Cannot queue canonical note update without currentVersion');
+  }
+
   // Merge into an existing pending update rather than stacking duplicate ops.
   const updateOp = await pendingNoteOp(userId, noteId, 'update');
   if (updateOp) {
-    await offlineDB.syncQueue.update(updateOp.id!, { data: { ...updateOp.data, ...updates } });
+    await offlineDB.syncQueue.update(updateOp.id!, {
+      data: {
+        ...updateOp.data,
+        ...updates,
+        ...(changesCanonicalContent
+          ? { expectedVersion: updateOp.data.expectedVersion ?? expectedVersion }
+          : {}),
+      },
+    });
     return;
   }
 
@@ -637,7 +658,10 @@ export async function updateNoteOffline(
     operation: 'update',
     entityType: 'note',
     entityId: noteId,
-    data: updates,
+    data: {
+      ...updates,
+      ...(changesCanonicalContent ? { expectedVersion } : {}),
+    },
   });
 }
 
@@ -651,6 +675,7 @@ export async function updateNoteOfflineIfPresent(
   updates: Partial<{
     title: string | null;
     content: string;
+    contentEncrypted: boolean;
     spaceId: string | null;
     isPublic: boolean;
     isFeatured: boolean;

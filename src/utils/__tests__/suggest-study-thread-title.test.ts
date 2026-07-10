@@ -28,6 +28,10 @@ describe('pickStudyThreadRepresentativeNoteId', () => {
 });
 
 describe('suggestStudyThreadTitleFromNodes', () => {
+  it('uses the user-facing Thread fallback', () => {
+    expect(suggestStudyThreadTitleFromNodes([])).toBe('Thread');
+  });
+
   it('prefers keyword theme from combined cluster text over rep note title alone', () => {
     const nodes = [
       { id: 'note_a', title: 'Hello world', content: '<p>misc</p>' },
@@ -70,6 +74,16 @@ describe('suggestStudyThreadTitleFromNodes', () => {
 });
 
 describe('resolveStudyThreadDisplayTitle', () => {
+  it('uses the user-facing Thread fallback for an empty suggestion', () => {
+    expect(
+      resolveStudyThreadDisplayTitle({
+        studyThreadTitle: null,
+        studyThreadUserOverride: false,
+        suggestedTitle: '',
+      }),
+    ).toBe('Thread');
+  });
+
   it('uses manual title when user override is on', () => {
     expect(
       resolveStudyThreadDisplayTitle({

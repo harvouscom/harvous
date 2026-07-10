@@ -11,9 +11,12 @@ npm run build:api        # Bundle Hono API to netlify/functions/api.cjs
 npm run db:sync          # Drizzle Kit push (sync schema to Supabase) + auto-enable RLS
 npm run db:push          # Drizzle Kit push (apply server/db/schema.ts to Supabase) + auto-enable RLS
 npm run db:rls           # Enable RLS on all public tables (dynamic; runs automatically after db:push)
+npm run shared-spaces:db:push -- --apply # Guarded Shared Spaces final reconciliation + RLS
 npm run db:check         # Pre-commit schema check (server/db/schema.ts)
-npm run test:e2e         # Playwright e2e (join/invite flows)
-npm run test:e2e:setup   # Seed e2e data then run e2e
+npm run check:thread-terminology       # Enforce user-facing Thread/Threads labels
+npm run test:shared-spaces:offline     # Terminology + non-live Shared Spaces release checks
+npm run test:e2e:shared-spaces         # Disposable-DB release gate; requires the full safe E2E env
+npm run test:e2e                       # General Playwright suite
 npm run lighthouse:a11y  # Build SPA, vite preview, Lighthouse accessibility (must score 100); use `-- --skip-build` to skip build
 npm run bible:generate -- NASB     # Generate NASB.json (NASB 1995) via Claude (needs ANTHROPIC_API_KEY in .env); resumes from partial
 npm run bible:generate:all         # Generate NASB 1995 / CSB / AMP / MSG in sequence via Claude
@@ -27,6 +30,12 @@ npm run native:xcodegen           # Optional: force XcodeGen; usually runs via p
 ## Architecture Overview
 
 **Harvous** is a Bible study notes app. Three-level hierarchy: Spaces → Threads → Notes. Data: Supabase Postgres (Drizzle ORM), schema in `server/db/schema.ts`.
+
+**Shared Spaces:** My Home remains the complete canonical aggregate for every authored note. `SpaceNotes`
+associates one canonical note with one or more shared contexts; folders, pins, Threads, and responses remain
+space-specific. Safe migration order is backup/quiesce → additive dry/apply → preflight → backfill dry/apply →
+verifier → guarded Shared Spaces db push/RLS → verifier → deploy/smoke/resume. Never run the Shared Spaces release E2E against
+production; see `docs/SHARED_SPACES_TESTING.md`.
 
 - **Production frontend**: React SPA in `spa/src/`, built with Vite. Uses TanStack Router, React Query, Clerk React. Deployed as static `index.html` + hashed JS/CSS. This is what users see in production and in the PWA.
 - **Marketing site**: [harvous.com](https://harvous.com) — separate repo [harvouscom/harvous.com](https://github.com/harvouscom/harvous.com) (Astro). Not in this monorepo.
@@ -80,7 +89,7 @@ public/                      # Static assets, sw.js, manifest.json
 
 ## Important Files
 
-- **Before building web/native UI:** `docs/design-parity/HARVOUS_BUILD_CONVENTIONS.md` - concrete design tokens, component seams, and naming for the prototype shell (`spa/src/pages/prototype/`, served at `/` on localhost) and native apps (reuse before inventing). Policy in `docs/design-parity/HARVOUS_DESIGN_PARITY_SPEC.md`; known seams/debt in `docs/design-parity/ARCHITECTURE_READINESS_AUDIT.md`.
+- **Before building web/native UI:** Start with `docs/design-parity/HARVOUS_DESIGN_SYSTEM.md` (style direction + checklist), then `docs/design-parity/HARVOUS_BUILD_CONVENTIONS.md` (tokens, component seams, naming). Policy in `docs/design-parity/HARVOUS_DESIGN_PARITY_SPEC.md`; known seams/debt in `docs/design-parity/ARCHITECTURE_READINESS_AUDIT.md`. Live gallery: `http://localhost:4322/__dev/design-system` (dev). Use `/design-agent` for cohesion reviews.
 - `docs/ARCHITECTURE.md` - Data structures, database schema, relationships
 - `docs/CLEAR_SPLIT_MIGRATION.md` - Plan to simplify to Node API + SPA (no Astro in the middle)
 - `docs/CLEAR_SPLIT_MERGE_DELTA.md` - What changed at merge, production API contract, pre-merge checklist
@@ -100,14 +109,63 @@ Harvous is a Bible study app. When implementing or reviewing features that touch
 
 ## E2E Testing
 
-Playwright tests for **join** and **invite** flows live in `e2e/shared-space-join.spec.ts` and `e2e/invitation-accept.spec.ts`. Before each run, global setup runs **idempotent** `tsx scripts/seed-e2e.ts` (Drizzle + Supabase) so tests pass.
+The protected Shared Spaces release specs are `e2e/shared-space-join.spec.ts`,
+`e2e/shared-spaces-collaboration.spec.ts`, and `e2e/space-invites.spec.ts`. They seed current `SpaceInvites`,
+`SpaceMemberships`, `SpaceNotes`, and versioned-note fixtures in a per-run namespace. The retired
+`invitation-accept.spec.ts`, password-based setup, and fixed legacy seed claims are not part of the active gate.
 
-- **Prerequisites**: `.env` (or `.env.local`) with `TEST_USER_A_EMAIL`, `TEST_USER_A_PASSWORD`, `TEST_USER_B_EMAIL`, `TEST_USER_B_PASSWORD`, and `TEST_USER_A_CLERK_ID` (Clerk user ID of User A, so space_test_2 is owned by the right account). `PUBLIC_CLERK_PUBLISHABLE_KEY` required.
-- **Run**: `npm run test:e2e` (all e2e) or `npm run test:e2e:join` (join/invite only, 1 worker for order). For a fresh data state: `npm run test:e2e:setup` (seeds both DBs then runs join/invite tests). Some tests skip when the dev server’s DB doesn’t have the seeded data or TEST_USER_A_CLERK_ID doesn’t match User A.
+- **Generic suite:** `npm run test:e2e` intentionally ignores the protected release specs. It must not trigger
+  their fail-closed destructive setup.
+- **Protected suites:** `npm run test:e2e:join`, `npm run test:e2e:shared-spaces`, and
+  `npm run test:e2e:setup` set `HARVOUS_SHARED_SPACES_RELEASE_GATE=1`. The collaboration alias resolves to the
+  same protected full suite.
+- **Required safety identity:** exact disposable marker
+  `HARVOUS_E2E_DISPOSABLE_DB=HARVOUS_SHARED_SPACES_E2E_DISPOSABLE_V1`, `E2E_SUPABASE_DATABASE_URL`, matching
+  `HARVOUS_E2E_EXPECTED_PROJECT_REF`, distinct `HARVOUS_E2E_PRODUCTION_PROJECT_REF`, unique
+  `HARVOUS_E2E_RUN_ID`, and `HARVOUS_E2E_EXPECTED_DB_ROLE` naming a dedicated least-privilege role. The database
+  itself must carry the exact disposable comment and report that exact role; owner roles are rejected.
+- **Clerk test identity:** two distinct test users via `TEST_USER_A_EMAIL`, `TEST_USER_A_CLERK_ID`,
+  `TEST_USER_B_EMAIL`, and `TEST_USER_B_CLERK_ID`, plus test-instance `CLERK_SECRET_KEY` and
+  `PUBLIC_CLERK_PUBLISHABLE_KEY`.
+- **Routes:** verify the native-like shell at `http://localhost:4322/` and notes at `/n/{id}`, never
+  `/prototype` on localhost.
+
+## Shared Spaces migration
+
+Every migration command must use the same reviewed direct Supabase target:
+
+```bash
+export SHARED_SPACES_MIGRATION_DATABASE_URL='<direct Supabase URL on port 5432>'
+export SHARED_SPACES_MIGRATION_EXPECTED_PROJECT_REF='<target project ref>'
+export SHARED_SPACES_MIGRATION_PRODUCTION_PROJECT_REF='<known production project ref>'
+export SHARED_SPACES_MIGRATION_ENVIRONMENT='staging' # staging|production
+export SUPABASE_DIRECT_URL="$SHARED_SPACES_MIGRATION_DATABASE_URL"
+# Production only; exact value required:
+# export SHARED_SPACES_MIGRATION_PRODUCTION_ACK='I_ACKNOWLEDGE_SHARED_SPACES_PRODUCTION_MIGRATION'
+```
+
+The production ref is mandatory in staging and production. A target matching it is rejected in staging mode;
+production requires that exact target, `environment=production`, and the exact acknowledgement. After a verified
+backup, quiesce note/Thread/shared-space writers, then run this exact order:
+
+1. `npm run shared-spaces:schema:additive`, then
+   `npm run shared-spaces:schema:additive -- --apply`;
+2. `npm run shared-spaces:preflight`;
+3. `npm run shared-spaces:backfill -- --batch-size=200`, then
+   `npm run shared-spaces:backfill -- --apply --batch-size=200`;
+4. `npm run shared-spaces:verify -- --batch-size=200`;
+5. `npm run shared-spaces:db:push`, review its dry-run, then
+   `npm run shared-spaces:db:push -- --apply` for final schema reconciliation and RLS;
+6. `npm run shared-spaces:verify -- --batch-size=200` again;
+7. deploy, smoke-test `/` and `/n/{id}`, then resume writers.
 
 ## Database
 
-Supabase Postgres via Drizzle ORM. Schema in `server/db/schema.ts`. Env: `SUPABASE_DATABASE_URL` (pooler, port 6543 — used at runtime), `SUPABASE_DIRECT_URL` (port 5432 — used by drizzle-kit for migrations). Run `npm run db:push` (drizzle-kit push) pre-deploy, `npm run db:check` pre-commit.
+Supabase Postgres via Drizzle ORM. Schema in `server/db/schema.ts`. Env: `SUPABASE_DATABASE_URL` (pooler, port
+6543 — used at runtime), `SUPABASE_DIRECT_URL` (port 5432 — used by drizzle-kit for migrations). For ordinary
+schema changes, run `npm run db:push` pre-deploy and `npm run db:check` pre-commit. The Shared Spaces canonical
+migration must use the staged sequence and guarded `shared-spaces:db:push` wrapper above. Generic `npm run
+db:push` remains general project tooling and is not approved for the Shared Spaces cutover.
 
 `npm run db:push` now also runs `scripts/run-enable-rls.ts`, which enables Row-Level Security on every public table (Drizzle creates new tables with RLS off by default). This is automatic — no manual SQL-editor step is needed to clear Supabase's `rls_disabled_in_public` advisory. The app's API uses the service-role key (bypasses RLS) and the browser anon client uses Realtime Broadcast only, so RLS with no policies is safe.
 

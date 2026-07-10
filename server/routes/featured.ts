@@ -18,7 +18,6 @@ import { generateNoteId, generateShareToken } from '@/utils/ids';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { fetchVerseText } from '../utils/fetch-verse-text';
-import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { awardCreationBonusXP, awardVotdEngagementXP } from '../utils/xp-system';
 import { getCurrentSeason } from '@/utils/season-helpers';
 import {
@@ -27,6 +26,7 @@ import {
 } from '../constants/dev-featured-samples';
 import { getLocalCalendarDateString, isValidIanaTimeZone } from '../utils/votd-local-date';
 import { getUserDefaultTranslation } from '../utils/votd-user-translation';
+import { createInitialNoteVersion } from '../utils/note-version-service';
 
 const app = new Hono();
 
@@ -220,7 +220,7 @@ app.get('/api/featured/items', async (c) => {
             .values(
               toAutoDismiss.map((featuredItemId) => ({
                 id: crypto.randomUUID(),
-                userId: auth.userId,
+                userId: auth.userId!,
                 featuredItemId,
                 status: 'completed',
                 dismissedAt: null,
@@ -632,38 +632,68 @@ app.post('/api/featured/votd/quick-add', requireAuth, async (c) => {
     }
   }
 
-  const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
-  const nextSimpleNoteId = effectiveHighest + 1;
   const timestamp = nowISO();
   const shareToken = generateShareToken();
 
-  const newNote = first(
-    await db.insert(Notes).values({
-      id: generateNoteId(),
-      content: noteContentHtml,
-      title: reference,
-      threadId: 'thread_unorganized',
-      spaceId: null,
-      simpleNoteId: nextSimpleNoteId,
-      noteType: 'scripture',
-      userId: auth.userId,
-      isPublic: true,
-      shareToken,
-      shareTokenCreatedAt: timestamp,
-      contentEncrypted: false,
+  const newNote = await db.transaction(async (tx) => {
+    const lockedMetadata = first(
+      await tx
+        .select()
+        .from(UserMetadata)
+        .where(eq(UserMetadata.userId, auth.userId))
+        .for('update')
+        .limit(1),
+    );
+    if (!lockedMetadata) throw new Error('User metadata missing during note creation');
+    const highestExisting = first(
+      await tx
+        .select({ simpleNoteId: Notes.simpleNoteId })
+        .from(Notes)
+        .where(and(eq(Notes.userId, auth.userId), isNotNull(Notes.simpleNoteId)))
+        .orderBy(desc(Notes.simpleNoteId))
+        .limit(1),
+    )?.simpleNoteId ?? 0;
+    const nextSimpleNoteId =
+      Math.max(lockedMetadata?.highestSimpleNoteId ?? 0, highestExisting) + 1;
+    const created = first(
+      await tx.insert(Notes).values({
+        id: generateNoteId(),
+        content: noteContentHtml,
+        title: reference,
+        threadId: 'thread_unorganized',
+        spaceId: null,
+        simpleNoteId: nextSimpleNoteId,
+        noteType: 'scripture',
+        userId: auth.userId,
+        isPublic: true,
+        shareToken,
+        shareTokenCreatedAt: timestamp,
+        contentEncrypted: false,
+        createdAt: timestamp,
+        lastVisited: timestamp,
+      }).returning(),
+    );
+    if (!created) throw new Error('Failed to create note');
+    await createInitialNoteVersion(tx, {
+      noteId: created.id,
+      noteAuthorId: auth.userId,
+      content: {
+        title: created.title,
+        content: created.content,
+        contentEncrypted: created.contentEncrypted,
+      },
       createdAt: timestamp,
-      lastVisited: timestamp,
-    }).returning(),
-  );
+      source: 'featured-votd',
+    });
+    await tx.update(UserMetadata)
+      .set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: timestamp })
+      .where(eq(UserMetadata.id, lockedMetadata.id));
+    await tx.update(Threads).set({ updatedAt: timestamp })
+      .where(and(eq(Threads.id, 'thread_unorganized'), eq(Threads.userId, auth.userId)));
+    return created;
+  });
 
   if (!newNote) return c.json({ error: 'Failed to create note' }, 500);
-
-  await db.update(UserMetadata)
-    .set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })
-    .where(eq(UserMetadata.userId, auth.userId));
-
-  await db.update(Threads).set({ updatedAt: nowISO() })
-    .where(and(eq(Threads.id, 'thread_unorganized'), eq(Threads.userId, auth.userId)));
 
   // Create ScriptureMetadata
   try {

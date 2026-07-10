@@ -16,7 +16,7 @@
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
-  db, Threads, Notes, NoteThreads, Spaces,
+  db, Threads, Notes, NoteThreads, NoteScriptureReferences, Spaces, SpaceNotes, SpaceMemberships,
   eq, and, or, inArray, isNull,
   first,
 } from '../db';
@@ -30,7 +30,13 @@ import {
 } from '../utils/dashboard-data';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { repairMissingNoteThreadJunctionsForUser } from '../utils/thread-junction-repair';
-import { requireSpaceAccess, SpaceAccessError, canManageSpaceStructure } from '../utils/space-access';
+import { requireSpaceAccess, SpaceAccessError, isActualSpaceOwner } from '../utils/space-access';
+import {
+  assertSharedThreadNotePolicy,
+  deleteThreadInTransaction,
+  requireThreadReadAccess,
+  SharedSpaceLifecycleError,
+} from '../utils/shared-space-lifecycle';
 import { awardCreationBonusXP, awardThreadCreatedXP, revokeXPOnDeletion, revokeAllXPForItem, deleteAllXpForRelatedIds } from '../utils/xp-system';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
 import { getNextUntitledThreadName } from '../utils/untitled-naming';
@@ -47,6 +53,126 @@ import { broadcastInvalidation } from '../utils/realtime';
 const route = new Hono();
 
 const ERASE_NOTE_CHUNK = 2000;
+
+async function readableThreadOrNull(threadId: string, viewerUserId: string) {
+  try {
+    return await requireThreadReadAccess(db, { threadId, viewerUserId });
+  } catch (error) {
+    if (error instanceof SharedSpaceLifecycleError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export function threadAllowsPublicBroadcast(spaceType: string | null | undefined): boolean {
+  return !spaceType || spaceType === 'personal';
+}
+
+export function canAttachNoteToSharedThread(input: {
+  associationActive: boolean;
+  contentEncrypted: boolean;
+  actorIsNoteAuthor: boolean;
+  actorMayModerate: boolean;
+}): boolean {
+  return (
+    input.associationActive &&
+    !input.contentEncrypted &&
+    input.actorIsNoteAuthor
+  );
+}
+
+export function attributeSharedThreadNotesForViewer<T extends { authorUserId?: string | null }>(
+  notes: T[],
+  viewerUserId: string,
+): Array<T & { isOwnNote: boolean }> {
+  return notes.map((note) => ({
+    ...note,
+    isOwnNote: note.authorUserId === viewerUserId,
+  }));
+}
+
+async function attachNotesToSharedThread(
+  thread: { id: string; spaceId: string | null; isPinned: boolean },
+  space: { id: string; type: string; userId: string; deletedAt: Date | null },
+  membershipRole: string,
+  noteIds: string[],
+  actorId: string,
+): Promise<void> {
+  if (noteIds.length === 0) return;
+  const uniqueNoteIds = [...new Set(noteIds)];
+  await db.transaction(async (tx) => {
+    const lockedSpace = first(
+      await tx.select().from(Spaces).where(eq(Spaces.id, space.id)).for('update').limit(1),
+    );
+    const lockedThread = first(
+      await tx
+        .select()
+        .from(Threads)
+        .where(and(eq(Threads.id, thread.id), eq(Threads.spaceId, space.id)))
+        .for('update')
+        .limit(1),
+    );
+    const membership =
+      lockedSpace?.userId === actorId
+        ? null
+        : first(
+            await tx
+              .select()
+              .from(SpaceMemberships)
+              .where(
+                and(
+                  eq(SpaceMemberships.spaceId, space.id),
+                  eq(SpaceMemberships.userId, actorId),
+                ),
+              )
+              .for('update')
+              .limit(1),
+          ) ?? null;
+    const lockedNotes = await tx
+      .select()
+      .from(Notes)
+      .where(inArray(Notes.id, uniqueNoteIds))
+      .for('update');
+    const lockedAssociations = await tx
+      .select()
+      .from(SpaceNotes)
+      .where(and(eq(SpaceNotes.spaceId, space.id), inArray(SpaceNotes.noteId, uniqueNoteIds)))
+      .for('update');
+    if (lockedNotes.length !== uniqueNoteIds.length) {
+      throw new SharedSpaceLifecycleError(
+        'Every note must be actively shared with this space before attaching it',
+        'NOTE_NOT_FOUND',
+        404,
+      );
+    }
+    const associationByNoteId = new Map(
+      lockedAssociations.map((association) => [association.noteId, association]),
+    );
+    for (const note of lockedNotes) {
+      const association = associationByNoteId.get(note.id) ?? null;
+      assertSharedThreadNotePolicy({
+        actorId,
+        requireCurrent: true,
+        space: lockedSpace ?? null,
+        membership,
+        thread: lockedThread ?? null,
+        note,
+        association,
+      });
+    }
+    await tx
+      .insert(NoteThreads)
+      .values(
+        lockedNotes.map((note) => ({
+          id: `note-thread-${crypto.randomUUID()}`,
+          noteId: note.id,
+          threadId: lockedThread!.id,
+          createdAt: nowISO(),
+        })),
+      )
+      .onConflictDoNothing();
+  });
+  void membershipRole;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -203,19 +329,33 @@ route.post('/api/threads/create', requireAuth, rateLimit('write'), async (c) => 
     const spaceIdValidation = validateSpaceId(spaceId);
     if (!spaceIdValidation.isValid) return c.json({ error: spaceIdValidation.error, code: spaceIdValidation.code }, 400);
     let finalSpaceId = null;
+    let finalSpaceAccess: Awaited<ReturnType<typeof requireSpaceAccess>> | null = null;
     if (spaceId && spaceId.trim() && spaceId !== 'default_space') finalSpaceId = spaceId;
 
     if (finalSpaceId) {
       try {
         const access = await requireSpaceAccess(finalSpaceId, auth.userId);
+        finalSpaceAccess = access;
         if (
           access.space.type !== 'personal' &&
-          !canManageSpaceStructure(access.space, access.role)
+          !isActualSpaceOwner(access.space, auth.userId)
         ) {
           return c.json({
             error: 'Only the space owner can create threads in a shared space',
             code: 'FORBIDDEN',
           }, 403);
+        }
+        if (!threadAllowsPublicBroadcast(access.space.type) && isPublic) {
+          return c.json({
+            error: 'Shared-space Threads cannot be published with public links',
+            code: 'SHARED_THREAD_NOT_PUBLIC',
+          }, 409);
+        }
+        if (access.space.type !== 'personal' && selectedNoteIds.length > 0) {
+          return c.json({
+            error: 'Set the Thread as current before attaching notes',
+            code: 'THREAD_NOT_CURRENT',
+          }, 409);
         }
       } catch (err) {
         if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
@@ -244,7 +384,17 @@ route.post('/api/threads/create', requireAuth, rateLimit('write'), async (c) => 
     }).returning())!;
 
     if (selectedNoteIds.length > 0) {
-      await addNotesToThread(selectedNoteIds, newThread.id, auth.userId);
+      if (finalSpaceId && finalSpaceAccess && finalSpaceAccess.space.type !== 'personal') {
+        await attachNotesToSharedThread(
+          newThread,
+          finalSpaceAccess.space,
+          finalSpaceAccess.role,
+          selectedNoteIds,
+          auth.userId,
+        );
+      } else {
+        await addNotesToThread(selectedNoteIds, newThread.id, auth.userId);
+      }
       await db.update(Threads).set({ updatedAt: nowISO() })
         .where(and(eq(Threads.id, newThread.id), eq(Threads.userId, auth.userId)));
     }
@@ -285,6 +435,29 @@ route.post('/api/threads/update', requireAuth, rateLimit('write'), async (c) => 
     const currentThread = first(await db.select().from(Threads)
       .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
     if (!currentThread) return c.json({ error: 'Thread not found or access denied' }, 404);
+    let sharedThreadAccess: Awaited<ReturnType<typeof requireSpaceAccess>> | null = null;
+    if (currentThread.spaceId) {
+      try {
+        sharedThreadAccess = await requireSpaceAccess(currentThread.spaceId, auth.userId);
+      } catch (error) {
+        if (error instanceof SpaceAccessError) {
+          return c.json({ error: error.message, code: error.code }, error.status);
+        }
+        throw error;
+      }
+      if (
+        sharedThreadAccess.space.type !== 'personal' &&
+        !isActualSpaceOwner(sharedThreadAccess.space, auth.userId)
+      ) {
+        return c.json({ error: 'Only the space owner can update shared threads', code: 'FORBIDDEN' }, 403);
+      }
+      if (!threadAllowsPublicBroadcast(sharedThreadAccess.space.type) && isPublic) {
+        return c.json({
+          error: 'Shared-space Threads cannot be published with public links',
+          code: 'SHARED_THREAD_NOT_PUBLIC',
+        }, 409);
+      }
+    }
 
     const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
     const normalizedSubtitle = subtitle || null;
@@ -300,6 +473,9 @@ route.post('/api/threads/update', requireAuth, rateLimit('write'), async (c) => 
       subtitle: normalizedSubtitle,
       isPublic,
       color,
+      ...(sharedThreadAccess && !threadAllowsPublicBroadcast(sharedThreadAccess.space.type)
+        ? { isPublic: false, shareToken: null, shareTokenCreatedAt: null }
+        : {}),
     };
     if (!onlyColorChanged) {
       updateData.updatedAt = nowISO();
@@ -310,7 +486,17 @@ route.post('/api/threads/update', requireAuth, rateLimit('write'), async (c) => 
 
     // Add selected notes to thread
     if (selectedNoteIds.length > 0) {
-      await addNotesToThread(selectedNoteIds, threadId, auth.userId);
+      if (currentThread.spaceId && sharedThreadAccess && sharedThreadAccess.space.type !== 'personal') {
+        await attachNotesToSharedThread(
+          currentThread,
+          sharedThreadAccess.space,
+          sharedThreadAccess.role,
+          selectedNoteIds,
+          auth.userId,
+        );
+      } else {
+        await addNotesToThread(selectedNoteIds, threadId, auth.userId);
+      }
       await db.update(Threads).set({ updatedAt: nowISO() })
         .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
     }
@@ -318,6 +504,9 @@ route.post('/api/threads/update', requireAuth, rateLimit('write'), async (c) => 
     broadcastInvalidation(auth.userId, { type: 'thread:updated', id: threadId });
     return c.json({ success: 'Thread updated!', thread: updatedThread });
   } catch (error: any) {
+    if (error instanceof SharedSpaceLifecycleError) {
+      return c.json({ error: error.message, code: error.code }, error.status);
+    }
     const standardError = handleAPIError(error, { endpoint: '/api/threads/update', action: 'update_thread' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
@@ -336,53 +525,42 @@ route.delete('/api/threads/delete', requireAuth, rateLimit('write'), async (c) =
     if (!existingThread) return c.json({ error: 'Thread not found or access denied' }, 404);
 
     if (threadId === 'thread_unorganized') return c.json({ error: 'Cannot delete the unorganized thread' }, 400);
+    if (existingThread.spaceId) {
+      try {
+        const access = await requireSpaceAccess(existingThread.spaceId, auth.userId);
+        if (access.space.type !== 'personal' && !isActualSpaceOwner(access.space, auth.userId)) {
+          return c.json({ error: 'Only the space owner can delete shared threads', code: 'FORBIDDEN' }, 403);
+        }
+      } catch (error) {
+        if (error instanceof SpaceAccessError) {
+          return c.json({ error: error.message, code: error.code }, error.status);
+        }
+        throw error;
+      }
+    }
 
     const threadCreatedAt = existingThread.createdAt;
 
-    await revokeXPOnDeletion(auth.userId, threadId, new Date(threadCreatedAt as string));
+    await revokeXPOnDeletion(auth.userId, threadId, new Date(threadCreatedAt));
     await revokeAllXPForItem(auth.userId, threadId);
 
-    const affectedNotes = await db.select({ noteId: NoteThreads.noteId }).from(NoteThreads)
-      .where(eq(NoteThreads.threadId, threadId));
-    await db.delete(NoteThreads).where(eq(NoteThreads.threadId, threadId));
-
-    if (affectedNotes.length > 0) {
-      const affectedNoteIds = affectedNotes.map(n => n.noteId);
-
-      // One query for the remaining thread relations across all affected notes
-      // (the deleted thread's junction rows were already removed above).
-      const remaining = await db.select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId })
-        .from(NoteThreads)
-        .where(inArray(NoteThreads.noteId, affectedNoteIds));
-
-      const firstRemainingByNote = new Map<string, string>();
-      for (const rel of remaining) {
-        if (!firstRemainingByNote.has(rel.noteId)) firstRemainingByNote.set(rel.noteId, rel.threadId);
-      }
-
-      // Group notes by destination thread (first remaining thread, else unorganized)
-      // so we issue one UPDATE per distinct destination instead of one per note.
-      const notesByDestination = new Map<string, string[]>();
-      for (const noteId of affectedNoteIds) {
-        const dest = firstRemainingByNote.get(noteId) ?? 'thread_unorganized';
-        if (!notesByDestination.has(dest)) notesByDestination.set(dest, []);
-        notesByDestination.get(dest)!.push(noteId);
-      }
-
-      await Promise.all(
-        Array.from(notesByDestination.entries()).map(([dest, ids]) =>
-          db.update(Notes).set({ threadId: dest, spaceId: null })
-            .where(and(inArray(Notes.id, ids), eq(Notes.userId, auth.userId))),
-        ),
-      );
-    }
-
-    await db.delete(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    const deletion = await db.transaction((tx) =>
+      deleteThreadInTransaction(tx, { threadId, actorId: auth.userId }),
+    );
     await recordDeletedEntities(auth.userId, 'thread', [threadId]);
 
     broadcastInvalidation(auth.userId, { type: 'thread:deleted', id: threadId });
-    return c.json({ success: `Thread erased! Notes have been moved to the ${MY_PILE_THREAD_TITLE} thread.`, threadId });
+    return c.json({
+      success:
+        deletion.kind === 'shared'
+          ? 'Thread erased!'
+          : `Thread erased! Notes have been moved to the ${MY_PILE_THREAD_TITLE} thread.`,
+      threadId,
+    });
   } catch (error: any) {
+    if (error instanceof SharedSpaceLifecycleError) {
+      return c.json({ error: error.message, code: error.code }, error.status);
+    }
     const standardError = handleAPIError(error, { endpoint: '/api/threads/delete', action: 'delete_thread' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
@@ -481,11 +659,27 @@ route.get('/api/threads/:threadId/prefetch', requireAuth, async (c) => {
 
     let threadId = requireParam(c, 'threadId');
     if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
+    const readAccess = await readableThreadOrNull(threadId, auth.userId);
+    if (!readAccess) return c.json({ error: 'Thread not found' }, 404);
+    const accessThread = {
+      spaceId: readAccess.thread.spaceId,
+      ownerUserId: readAccess.space?.userId ?? readAccess.thread.userId,
+    };
+    if (accessThread?.spaceId) {
+      try {
+        await requireSpaceAccess(accessThread.spaceId, auth.userId);
+      } catch {
+        return c.json({ error: 'Thread not found' }, 404);
+      }
+    }
 
     await repairMissingNoteThreadJunctionsForUser(auth.userId);
-    let thread = await getThreadWithCount(threadId, auth.userId);
-    let notesResult: { notes: any[]; hasMore: boolean } | any = await getNotesForThread(threadId, auth.userId, 20, 0);
-    let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
+    const threadOwnerUserId = accessThread?.spaceId ? accessThread.ownerUserId : auth.userId;
+    let thread = await getThreadWithCount(threadId, threadOwnerUserId);
+    let notesResult: { notes: any[]; hasMore: boolean } | any = accessThread?.spaceId
+      ? await getNotesForThreadForMember(threadId, auth.userId, 20, 0)
+      : await getNotesForThread(threadId, auth.userId, 20, 0);
+    let noteTypeCounts = await getThreadNoteTypeCounts(threadId, threadOwnerUserId);
 
     if (!thread) {
       // thread_unorganized: only one row exists (id PK); other users get null from getThreadWithCount.
@@ -501,12 +695,12 @@ route.get('/api/threads/:threadId/prefetch', requireAuth, async (c) => {
           spaceId: null,
           noteCount: noteTypeCounts?.all ?? notes?.length ?? 0,
           backgroundGradient: getThreadGradientCSS('paper'),
-          lastUpdated: new Date().toISOString(),
+          lastUpdated: new Date(),
           accentColor: getThreadColorCSS(null),
           isPublic: false,
           isPinned: false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
           lastVisited: null,
         };
       } else {
@@ -516,7 +710,7 @@ route.get('/api/threads/:threadId/prefetch', requireAuth, async (c) => {
           try {
             const { space } = await requireSpaceAccess(threadRow.spaceId, auth.userId);
             thread = await getThreadWithCount(threadId, space.userId);
-            const memberNotes = await getNotesForThreadForMember(threadId, space.userId, 20, 0);
+            const memberNotes = await getNotesForThreadForMember(threadId, auth.userId, 20, 0);
             notesResult = memberNotes;
             noteTypeCounts = await getThreadNoteTypeCounts(threadId, space.userId);
           } catch {
@@ -529,6 +723,9 @@ route.get('/api/threads/:threadId/prefetch', requireAuth, async (c) => {
     }
     if (!thread) return c.json({ error: 'Thread not found' }, 404);
     const notes = Array.isArray(notesResult) ? [] : notesResult.notes;
+    const viewerNotes = accessThread?.spaceId
+      ? attributeSharedThreadNotesForViewer(notes, auth.userId)
+      : notes;
 
     return c.json({
       thread: {
@@ -541,7 +738,7 @@ route.get('/api/threads/:threadId/prefetch', requireAuth, async (c) => {
         userId: thread.userId,
         spaceId: thread.spaceId ?? null,
       },
-      notes,
+      notes: viewerNotes,
       noteTypeCounts,
     }, 200, {
       // Title/color change often; avoid browser HTTP cache serving stale thread headers for minutes.
@@ -560,11 +757,13 @@ route.get('/api/threads/:threadId/note-type-counts', requireAuth, async (c) => {
 
     let threadId = requireParam(c, 'threadId');
     if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
+    const readAccess = await readableThreadOrNull(threadId, auth.userId);
+    if (!readAccess) return c.json({ error: 'Thread not found' }, 404);
 
     let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
-    const threadRow = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
+    const threadRow = readAccess.thread;
     if (!threadRow) return c.json({ error: 'Thread not found' }, 404);
-    if (threadRow.userId !== auth.userId && threadRow.spaceId) {
+    if (threadRow.spaceId) {
       try {
         const { space } = await requireSpaceAccess(threadRow.spaceId, auth.userId);
         noteTypeCounts = await getThreadNoteTypeCounts(threadId, space.userId);
@@ -590,10 +789,10 @@ route.post('/api/threads/:threadId/visit', requireAuth, async (c) => {
 
     let threadId = requireParam(c, 'threadId');
     if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
-
-    const thread = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
-    if (!thread) return c.json({ error: 'Thread not found' }, 404);
-    if (thread.userId !== auth.userId && thread.spaceId) {
+    const readAccess = await readableThreadOrNull(threadId, auth.userId);
+    if (!readAccess) return c.json({ error: 'Thread not found' }, 404);
+    const thread = readAccess.thread;
+    if (thread.spaceId) {
       try {
         await requireSpaceAccess(thread.spaceId, auth.userId);
       } catch {
@@ -615,33 +814,33 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
 
     let threadId = requireParam(c, 'threadId');
     if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
+    const readAccess = await readableThreadOrNull(threadId, auth.userId);
+    if (!readAccess) return c.json({ error: 'Thread not found' }, 404);
 
     const offset = parseInt(c.req.query('offset') || '0', 10);
+    const threadAccessRow = { spaceId: readAccess.thread.spaceId };
+    if (threadAccessRow?.spaceId) {
+      try {
+        await requireSpaceAccess(threadAccessRow.spaceId, auth.userId);
+      } catch {
+        return c.json({ error: 'Thread not found' }, 404);
+      }
+    }
+
     const limit = parseInt(c.req.query('limit') || '20', 10);
 
     await repairMissingNoteThreadJunctionsForUser(auth.userId);
-    // Owner path
-    let result = await getNotesForThread(threadId, auth.userId, limit, offset);
+    let result = threadAccessRow?.spaceId
+      ? await getNotesForThreadForMember(threadId, auth.userId, limit, offset)
+      : await getNotesForThread(threadId, auth.userId, limit, offset);
     if (Array.isArray(result)) {
       result = { notes: [], hasMore: false };
     }
 
-    // If owner path returned no notes and offset is 0, try member path
-    if (result.notes.length === 0 && offset === 0) {
-      const thread = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
-      if (thread?.spaceId) {
-        let memberNotesResult: { notes: any[]; hasMore: boolean } | null = null;
-        try {
-          const { space } = await requireSpaceAccess(thread.spaceId, auth.userId);
-          memberNotesResult = await getNotesForThreadForMember(threadId, space.userId, limit, offset);
-        } catch {
-          // No access to the thread's space — leave the empty owner-path result.
-        }
-        if (memberNotesResult) result = memberNotesResult;
-      }
-    }
-
-    return c.json({ notes: result.notes, hasMore: result.hasMore, offset, limit });
+    const responseNotes = threadAccessRow?.spaceId
+      ? attributeSharedThreadNotesForViewer(result.notes, auth.userId)
+      : result.notes;
+    return c.json({ notes: responseNotes, hasMore: result.hasMore, offset, limit });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/[threadId]/notes', action: 'get_thread_notes', threadId: c.req.param('threadId') });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -658,10 +857,19 @@ route.get('/api/threads/:threadId/share', requireAuth, async (c) => {
     const thread = first(await db.select({
       id: Threads.id, isPublic: Threads.isPublic, shareToken: Threads.shareToken,
       shareTokenCreatedAt: Threads.shareTokenCreatedAt, userId: Threads.userId,
+      spaceId: Threads.spaceId,
     }).from(Threads).where(eq(Threads.id, threadId)).limit(1));
 
     if (!thread) return c.json({ error: 'Thread not found' }, 404);
     if (thread.userId !== auth.userId) return c.json({ error: 'You do not have permission to access this thread' }, 403);
+    if (thread.spaceId) {
+      const space = first(
+        await db.select({ type: Spaces.type }).from(Spaces).where(eq(Spaces.id, thread.spaceId)).limit(1),
+      );
+      if (!threadAllowsPublicBroadcast(space?.type)) {
+        return c.json({ isPublic: false, shareToken: null, shareUrl: null, shareTokenCreatedAt: null });
+      }
+    }
 
     const origin = new URL(c.req.url).origin;
     return c.json({
@@ -690,10 +898,24 @@ route.post('/api/threads/:threadId/share', requireAuth, async (c) => {
 
     const thread = first(await db.select({
       id: Threads.id, isPublic: Threads.isPublic, shareToken: Threads.shareToken, userId: Threads.userId,
+      spaceId: Threads.spaceId,
     }).from(Threads).where(eq(Threads.id, threadId)).limit(1));
 
     if (!thread) return c.json({ error: 'Thread not found' }, 404);
     if (thread.userId !== auth.userId) return c.json({ error: 'You do not have permission to modify this thread' }, 403);
+    if (thread.spaceId) {
+      const space = first(
+        await db.select({ type: Spaces.type }).from(Spaces).where(eq(Spaces.id, thread.spaceId)).limit(1),
+      );
+      if (!threadAllowsPublicBroadcast(space?.type)) {
+        if (action !== 'disable') {
+          return c.json({
+            error: 'Shared-space Threads cannot be published with public links',
+            code: 'SHARED_THREAD_NOT_PUBLIC',
+          }, 409);
+        }
+      }
+    }
 
     const now = nowISO();
     let newShareToken: string | null = null;
@@ -731,6 +953,11 @@ route.post('/api/threads/:threadId/share', requireAuth, async (c) => {
 route.get('/api/threads/:threadId/referenced-scripture-notes', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
+    let threadId = requireParam(c, 'threadId');
+    if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
+    if (!(await readableThreadOrNull(threadId, auth.userId))) {
+      return c.json({ error: 'Thread not found' }, 404);
+    }
 
     const noteIdsParam = c.req.query('noteIds');
     if (!noteIdsParam) return c.json({ scriptureNoteIds: [] });

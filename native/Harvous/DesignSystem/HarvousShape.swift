@@ -17,6 +17,28 @@ enum HarvousRadius {
     static let sidebarGlassLeading: CGFloat = 16
 }
 
+/// 4pt spacing scale — mirrors web `--pds-space-*`. Prefer these over ad-hoc paddings.
+enum HarvousSpacing {
+    static let space1: CGFloat = 4
+    static let space2: CGFloat = 8
+    static let space3: CGFloat = 12
+    static let space4: CGFloat = 16
+    static let space5: CGFloat = 20
+    static let space6: CGFloat = 24
+    static let space8: CGFloat = 32
+    static let space10: CGFloat = 40
+    static let space12: CGFloat = 48
+}
+
+/// Icon edge sizes — mirrors web `--pds-icon-*`.
+enum HarvousIconSize {
+    static let xs: CGFloat = 11
+    static let sm: CGFloat = 14
+    static let md: CGFloat = 18
+    static let lg: CGFloat = 28
+    static let xl: CGFloat = 40
+}
+
 /// iOS home / library / scripture / highlight feeds: `listRowInsets` horizontal edge plus interior padding keeps row titles aligned across surfaces.
 enum HarvousFeedListLayout {
     static let listRowHorizontalInset: CGFloat = 14

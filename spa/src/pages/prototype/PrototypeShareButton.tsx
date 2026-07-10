@@ -1,6 +1,12 @@
 import { useCallback, useRef, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import PrototypeSharePopover from './PrototypeSharePopover';
+import {
+  isVisiblePrototypeSharedContext,
+  resolveVisibleComposeTarget,
+  useProtoShell,
+} from '../../layouts/proto-shell-context';
+import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 
 interface PrototypeShareButtonProps {
   noteId: string;
@@ -24,6 +30,21 @@ export default function PrototypeShareButton({
 }: PrototypeShareButtonProps) {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const { homeSpaceId } = usePrototypeHomeSpaceId();
+  const { activeSpaceId, sidebarLayer, sidebarListSpaceScope } = useProtoShell();
+  const visibleTarget = resolveVisibleComposeTarget({
+    homeSpaceId,
+    activeSpaceId,
+    sidebarLayer,
+    sidebarListSpaceScope,
+  });
+  const routeContextSpaceId =
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('space') : null;
+  const sharedContext = isVisiblePrototypeSharedContext({
+    explicitContextSpaceId: routeContextSpaceId,
+    visibleTargetSpaceId: visibleTarget,
+    homeSpaceId,
+  });
 
   const open = useCallback(() => {
     if (!buttonRef.current) return;
@@ -32,7 +53,7 @@ export default function PrototypeShareButton({
 
   const close = useCallback(() => setAnchorRect(null), []);
 
-  if (hidden) return null;
+  if (hidden || sharedContext) return null;
 
   const pillClasses = [
     'proto-note-action-bar__pill',

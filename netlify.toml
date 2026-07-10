@@ -11,6 +11,9 @@
   directory = "netlify/functions"
   node_bundler = "none"
 
+[functions."purge-shared-spaces"]
+  schedule = "@daily"
+
 [build.environment]
   NODE_VERSION = "22"
   NPM_FLAGS = "--prefer-offline --no-audit"
@@ -88,10 +91,6 @@
     X-XSS-Protection = "1; mode=block"
     # Strict Transport Security (HSTS)
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
-
-# Note: For scheduled functions, configure in Netlify dashboard:
-# Site Settings > Functions > Scheduled Functions
-# Or use an external cron service to call /api/inbox/auto-archive daily
 
 # Branch deploy: staging → new.harvous.com (dev Clerk, production DB).
 # Assign new.harvous.com as branch domain in Netlify dashboard.

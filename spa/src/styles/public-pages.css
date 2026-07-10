@@ -20,13 +20,46 @@
   --site-accent-soft: #e8eefc;
   --site-warm: #f1ede2;
   --site-highlight: #ffe8a8;
+
+  /*
+   * Public cards are always light paper. Remap prototype PDS tokens so OS/app
+   * dark mode cannot paint near-white text onto white cards (add-on, join,
+   * invitation, shared note/thread). Accent highlight colors stay global.
+   */
+  --pds-text-primary: var(--site-ink);
+  --pds-text-secondary: var(--site-ink-soft);
+  --pds-text-list-preview: var(--site-ink-faint);
+  --pds-text-tertiary: var(--site-ink-faint);
+  --pds-text-muted: var(--site-ink-soft);
+  --pds-text-muted-strong: var(--site-ink);
+  --pds-text-muted-soft: var(--site-ink-soft);
+  --pds-text-muted-faint: var(--site-ink-faint);
+  --pds-text-muted-ghost: var(--site-ink-faint);
+  --pds-text-link: var(--site-accent);
+  --pds-bg-page: var(--site-card);
+  --pds-bg-input: color-mix(in srgb, var(--site-ink) 5.5%, transparent);
+  --pds-bg-sidebar-input: #ffffff;
+  --pds-bg-sidebar-input-hover: color-mix(in srgb, var(--site-ink) 4%, #ffffff);
+  --pds-bg-section: color-mix(in srgb, var(--site-ink) 3.8%, transparent);
+  --pds-border: color-mix(in srgb, var(--site-ink) 7.2%, transparent);
+  --pds-border-soft: color-mix(in srgb, var(--site-ink) 4%, transparent);
+  --pds-border-control: color-mix(in srgb, var(--site-ink) 8%, transparent);
+  --pds-glass-rim: inset 0 -0.5px 0 color-mix(in srgb, var(--site-ink) 4%, transparent);
+  --pds-selection-bg: var(--site-highlight);
+  --pds-on-accent: #ffffff;
+  --pds-bg-accent-button: linear-gradient(171deg, #5b8cff 7%, #3869e6 93%);
+  --pds-shadow-accent-button:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 24px -10px rgba(0, 110, 255, 0.6);
+  --pds-accent-active-bg: var(--site-accent-soft);
+  --pds-accent: var(--site-accent);
 }
 
 /* ─── Root ─────────────────────────────────────────────────────────────── */
 
 .public-page {
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Google Sans Flex", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
   background: var(--site-paper);
   min-height: 100svh;
@@ -37,6 +70,37 @@
   flex-direction: column;
   overflow: hidden;
   height: 100vh;
+}
+
+/* Join / shared preview loading — matches load-more-indicator dots once bundle CSS loads. */
+.public-page .page-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+}
+
+.public-page .page-loading::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--site-ink-soft);
+  box-shadow:
+    12px 0 0 var(--site-ink-soft),
+    -12px 0 0 var(--site-ink-soft);
+  animation: public-page-loading-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes public-page-loading-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+  }
+  40% {
+    opacity: 1;
+  }
 }
 
 /* ─── Toolbar (floating site-style capsule) ────────────────────────────── */

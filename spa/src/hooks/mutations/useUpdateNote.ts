@@ -1,5 +1,5 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/api';
+import { useMutation, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
+import { api, APIError } from '../../lib/api';
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
 import { updateSpaceNoteInCache } from '../../lib/space-notes-cache';
 import {
@@ -7,15 +7,17 @@ import {
   previewNoteTagsFromContent,
   type NoteTagRow,
 } from '../../lib/note-tags-cache';
-import type { NoteDetail } from '../queries/useNote';
+import { getNoteQueryOptions, type NoteDetail } from '../queries/useNote';
 import { invalidatePrototypeSpaceDerivedQueries } from '../../lib/prototype-space-query-keys';
-import { runOfflineFirst } from './withOfflineQueue';
+import { isOfflineError, runOfflineFirst } from './withOfflineQueue';
 import { updateNoteOffline } from '@/utils/offline-mutations';
 
-interface UpdateNoteInput {
+export interface UpdateNoteInput {
   noteId: string;
   title: string;
   content: string;
+  /** Shared read context for cache/version resolution. Never sent to the canonical endpoint. */
+  contextSpaceId?: string | null;
   scriptureVersion?: string;
   primaryCollection?: string | null;
   secondaryCollections?: string[];
@@ -31,10 +33,104 @@ interface UpdateNoteResponse {
     title: string;
     content: string;
     updatedAt: string;
+    currentVersionId?: string | null;
   };
+  currentVersion?: number;
+  currentVersionId?: string | null;
   tags?: NoteTagRow[];
   scriptureResults?: unknown;
   processedContent?: string | null;
+}
+
+export function getCurrentCachedNoteVersion(queryClient: QueryClient, noteId: string): number | undefined {
+  const versions = queryClient
+    .getQueriesData<NoteDetail>({ queryKey: ['note', noteId] })
+    .map(([, note]) => note?.currentVersion)
+    .filter((version): version is number => typeof version === 'number' && Number.isFinite(version));
+  return versions.length > 0 ? Math.max(...versions) : undefined;
+}
+
+export function buildUpdateNoteBody(
+  input: UpdateNoteInput,
+  expectedVersion?: number,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    noteId: input.noteId,
+    title: input.title,
+    content: input.content,
+  };
+  if (input.bumpUpdatedAt === false) body.bumpUpdatedAt = false;
+  if (input.scriptureVersion !== undefined) body.scriptureVersion = input.scriptureVersion;
+  if (!input.contextSpaceId?.trim()) {
+    if (input.primaryCollection !== undefined) body.primaryCollection = input.primaryCollection;
+    if (input.secondaryCollections !== undefined) body.secondaryCollections = input.secondaryCollections;
+    if (input.collectionPinned !== undefined) body.collectionPinned = input.collectionPinned;
+    if (input.collectionUserOverride !== undefined) {
+      body.collectionUserOverride = input.collectionUserOverride;
+    }
+  }
+  if (expectedVersion !== undefined) body.expectedVersion = expectedVersion;
+  return body;
+}
+
+export class MissingExpectedNoteVersionError extends Error {
+  constructor(noteId: string) {
+    super(`Cannot save ${noteId} safely because its current version could not be loaded. Refresh and try again.`);
+    this.name = 'MissingExpectedNoteVersionError';
+  }
+}
+
+export async function requireExpectedNoteVersion(
+  queryClient: QueryClient,
+  noteId: string,
+  contextSpaceId?: string | null,
+): Promise<number> {
+  const cached = getCurrentCachedNoteVersion(queryClient, noteId);
+  if (cached !== undefined) return cached;
+  const options = getNoteQueryOptions(noteId, contextSpaceId);
+  const authoritative = await queryClient.fetchQuery({
+    ...options,
+    staleTime: 0,
+  });
+  if (
+    typeof authoritative.currentVersion !== 'number' ||
+    !Number.isFinite(authoritative.currentVersion)
+  ) {
+    throw new MissingExpectedNoteVersionError(noteId);
+  }
+  return authoritative.currentVersion;
+}
+
+export function setContextualNoteData(
+  queryClient: QueryClient,
+  noteId: string,
+  updater: (note: NoteDetail) => NoteDetail,
+): void {
+  queryClient.setQueriesData<NoteDetail>(
+    { queryKey: ['note', noteId] },
+    (note) => (note ? updater(note) : note),
+  );
+}
+
+export type UpdateNoteMutationContext = {
+  previousNotes: [QueryKey, NoteDetail | undefined][];
+};
+
+export async function rollbackFailedNoteUpdate(
+  queryClient: QueryClient,
+  error: unknown,
+  noteId: string,
+  context?: UpdateNoteMutationContext,
+): Promise<void> {
+  for (const [queryKey, note] of context?.previousNotes ?? []) {
+    queryClient.setQueryData(queryKey, note);
+  }
+  if (error instanceof APIError && error.status === 409) {
+    await queryClient.invalidateQueries({
+      queryKey: ['note', noteId],
+      refetchType: 'all',
+    });
+  }
 }
 
 /**
@@ -50,49 +146,96 @@ export function useUpdateNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: UpdateNoteInput) => {
+    mutationFn: async (input: UpdateNoteInput) => {
       const {
         noteId,
         title,
         content,
-        scriptureVersion,
-        primaryCollection,
-        secondaryCollections,
-        collectionPinned,
-        collectionUserOverride,
       } = input;
-      const body: Record<string, unknown> = { noteId, title, content };
-      if (input.bumpUpdatedAt === false) body.bumpUpdatedAt = false;
-      if (scriptureVersion !== undefined) body.scriptureVersion = scriptureVersion;
-      if (primaryCollection !== undefined) body.primaryCollection = primaryCollection;
-      if (secondaryCollections !== undefined) body.secondaryCollections = secondaryCollections;
-      if (collectionPinned !== undefined) body.collectionPinned = collectionPinned;
-      if (collectionUserOverride !== undefined) body.collectionUserOverride = collectionUserOverride;
       // Online-first; if offline, queue the edit. `seed` (from the open note's cache) lets a
       // pre-existing server note that was never mirrored locally still queue its edit — the
       // edit coalesces into a pending create for offline-authored notes. Scripture pills are
       // not processed offline; they resolve on sync.
-      const cached = queryClient.getQueryData<NoteDetail>(['note', noteId]);
+      const cached =
+        queryClient.getQueriesData<NoteDetail>({ queryKey: ['note', noteId] })
+          .map(([, note]) => note)
+          .find(Boolean);
+      const offline = (userId: string) =>
+        updateNoteOffline(
+          userId,
+          noteId,
+          { title, content },
+          {
+            content,
+            currentVersion: cached?.currentVersion,
+            title,
+            spaceId: cached?.spaceId ?? null,
+            threadId: cached?.threads?.[0]?.id,
+            noteType: (cached?.noteType as 'default' | 'scripture' | 'resource' | undefined) ?? 'default',
+          },
+        ).then(() => undefined);
+      let expectedVersion: number;
+      try {
+        expectedVersion = await requireExpectedNoteVersion(
+          queryClient,
+          noteId,
+          input.contextSpaceId,
+        );
+      } catch (error) {
+        if (error instanceof MissingExpectedNoteVersionError) throw error;
+        if (!input.contextSpaceId?.trim() && isOfflineError(error)) {
+          return runOfflineFirst<UpdateNoteResponse>({
+            online: () => Promise.reject(error),
+            offline,
+          });
+        }
+        throw error;
+      }
+      const body = buildUpdateNoteBody(input, expectedVersion);
+      if (input.contextSpaceId?.trim()) {
+        const online = await api.put<UpdateNoteResponse>('/api/notes/update', body as any);
+        return { online, queued: false, localId: null };
+      }
       return runOfflineFirst({
         online: () => api.put<UpdateNoteResponse>('/api/notes/update', body as any),
-        offline: (userId) =>
-          updateNoteOffline(
-            userId,
-            noteId,
-            { title, content },
-            {
-              content,
-              title,
-              spaceId: cached?.spaceId ?? null,
-              threadId: cached?.threads?.[0]?.id,
-              noteType: (cached?.noteType as 'default' | 'scripture' | 'resource' | undefined) ?? 'default',
-            },
-          ).then(() => undefined),
+        offline,
       });
+    },
+    onMutate: async (variables): Promise<UpdateNoteMutationContext> => {
+      await queryClient.cancelQueries({ queryKey: ['note', variables.noteId] });
+      const previousNotes = queryClient.getQueriesData<NoteDetail>({
+        queryKey: ['note', variables.noteId],
+      });
+      const optimisticUpdatedAt = new Date().toISOString();
+      const patchCanonicalOrganization = !variables.contextSpaceId?.trim();
+      setContextualNoteData(queryClient, variables.noteId, (prev) => ({
+        ...prev,
+        title: variables.title,
+        content: variables.content,
+        updatedAt: optimisticUpdatedAt,
+        __contentIsPreview: false,
+        ...(patchCanonicalOrganization && variables.primaryCollection !== undefined
+          ? { primaryCollection: variables.primaryCollection }
+          : {}),
+        ...(patchCanonicalOrganization && variables.secondaryCollections !== undefined
+          ? { secondaryCollections: variables.secondaryCollections }
+          : {}),
+        ...(patchCanonicalOrganization && variables.collectionPinned !== undefined
+          ? { collectionPinned: variables.collectionPinned }
+          : {}),
+        ...(patchCanonicalOrganization && variables.collectionUserOverride !== undefined
+          ? { collectionUserOverride: variables.collectionUserOverride }
+          : {}),
+      }));
+      return { previousNotes };
+    },
+    onError: (error, variables, context) => {
+      return rollbackFailedNoteUpdate(queryClient, error, variables.noteId, context);
     },
     onSuccess: (outcome, variables) => {
       const data = outcome.online;
       const queuedOffline = outcome.queued;
+      const patchCanonicalOrganization = !variables.contextSpaceId?.trim();
       const processed =
         typeof data?.processedContent === 'string' && data.processedContent.length > 0
           ? data.processedContent
@@ -109,10 +252,10 @@ export function useUpdateNote() {
       // when those aren't known yet.
       let affectedSpaceId: string | undefined;
       let affectedThreadIds: string[] = [];
-      queryClient.setQueryData<NoteDetail | undefined>(
-        ['note', variables.noteId],
+      setContextualNoteData(
+        queryClient,
+        variables.noteId,
         (prev) => {
-          if (!prev) return prev;
           if (typeof prev.spaceId === 'string' && prev.spaceId.length > 0) affectedSpaceId = prev.spaceId;
           if (Array.isArray(prev.threads)) {
             affectedThreadIds = prev.threads
@@ -121,17 +264,31 @@ export function useUpdateNote() {
           }
           return {
             ...prev,
-            title: variables.title,
+            title: data?.note?.title ?? variables.title,
             content: processed,
             updatedAt: data?.note?.updatedAt ?? new Date().toISOString(),
+            ...(typeof data?.currentVersion === 'number'
+              ? { currentVersion: data.currentVersion }
+              : {}),
+            ...(data?.currentVersionId !== undefined
+              ? { currentVersionId: data.currentVersionId }
+              : {}),
             // Authoritative full content now in cache — clear any list-preview flag.
             __contentIsPreview: false,
-            ...(variables.primaryCollection !== undefined ? { primaryCollection: variables.primaryCollection } : {}),
-            ...(variables.secondaryCollections !== undefined ? { secondaryCollections: variables.secondaryCollections } : {}),
-            ...(variables.collectionPinned !== undefined ? { collectionPinned: variables.collectionPinned } : {}),
-            ...(variables.collectionUserOverride !== undefined ? { collectionUserOverride: variables.collectionUserOverride } : {}),
-            ...(data?.note && Array.isArray((data.note as { dismissedAutoTags?: string[] }).dismissedAutoTags)
-              ? { dismissedAutoTags: (data.note as { dismissedAutoTags: string[] }).dismissedAutoTags }
+            ...(patchCanonicalOrganization && variables.primaryCollection !== undefined
+              ? { primaryCollection: variables.primaryCollection }
+              : {}),
+            ...(patchCanonicalOrganization && variables.secondaryCollections !== undefined
+              ? { secondaryCollections: variables.secondaryCollections }
+              : {}),
+            ...(patchCanonicalOrganization && variables.collectionPinned !== undefined
+              ? { collectionPinned: variables.collectionPinned }
+              : {}),
+            ...(patchCanonicalOrganization && variables.collectionUserOverride !== undefined
+              ? { collectionUserOverride: variables.collectionUserOverride }
+              : {}),
+            ...(data?.note && Array.isArray((data.note as unknown as { dismissedAutoTags?: string[] }).dismissedAutoTags)
+              ? { dismissedAutoTags: (data.note as unknown as { dismissedAutoTags: string[] }).dismissedAutoTags }
               : {}),
           };
         },
@@ -145,8 +302,8 @@ export function useUpdateNote() {
           queryClient,
           variables.noteId,
           previewNoteTagsFromContent(variables.title, processed, {
-            primary: variables.primaryCollection,
-            secondaries: variables.secondaryCollections,
+            primary: patchCanonicalOrganization ? variables.primaryCollection : undefined,
+            secondaries: patchCanonicalOrganization ? variables.secondaryCollections : undefined,
             dismissedAutoTags: queryClient.getQueryData<NoteDetail>(['note', variables.noteId])?.dismissedAutoTags,
           }),
         );
@@ -161,12 +318,16 @@ export function useUpdateNote() {
           title: variables.title,
           content: processed,
           updatedAt: new Date().toISOString(),
-          ...(variables.primaryCollection !== undefined ? { primaryCollection: variables.primaryCollection } : {}),
-          ...(variables.secondaryCollections !== undefined
+          ...(patchCanonicalOrganization && variables.primaryCollection !== undefined
+            ? { primaryCollection: variables.primaryCollection }
+            : {}),
+          ...(patchCanonicalOrganization && variables.secondaryCollections !== undefined
             ? { secondaryCollections: variables.secondaryCollections }
             : {}),
-          ...(variables.collectionPinned !== undefined ? { collectionPinned: variables.collectionPinned } : {}),
-          ...(variables.collectionUserOverride !== undefined
+          ...(patchCanonicalOrganization && variables.collectionPinned !== undefined
+            ? { collectionPinned: variables.collectionPinned }
+            : {}),
+          ...(patchCanonicalOrganization && variables.collectionUserOverride !== undefined
             ? { collectionUserOverride: variables.collectionUserOverride }
             : {}),
         });
@@ -181,6 +342,10 @@ export function useUpdateNote() {
       // Skip background refetches when the edit was only queued offline — the network is down,
       // so they would just fail; the optimistic cache patches above already reflect the edit.
       if (!queuedOffline) {
+        queryClient.invalidateQueries({
+          queryKey: ['note', variables.noteId],
+          refetchType: 'inactive',
+        });
         if (affectedSpaceId) {
           queryClient.invalidateQueries({ queryKey: ['space', affectedSpaceId, 'bootstrap'] });
         } else {

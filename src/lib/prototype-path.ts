@@ -10,16 +10,24 @@ export function isSiteInspiredAuthHost(hostname?: string): boolean {
   return isDedicatedPrototypeHost(hostname);
 }
 
-/** `/prototype` on app.harvous.com; empty on new.harvous.com. */
-export function getPrototypeBasePath(): string {
-  return isDedicatedPrototypeHost() ? '' : '/prototype';
+/** `/prototype` on non-dedicated hosts; empty on localhost/new/app. */
+export function getPrototypeBasePath(hostname?: string): string {
+  return isDedicatedPrototypeHost(hostname) ? '' : '/prototype';
 }
 
-/** href for in-app navigation (e.g. `n/42`, `settings/account`). */
-export function prototypeHref(subpath = ''): string {
-  const base = getPrototypeBasePath();
+/** href for in-app navigation (e.g. a note slug or `settings/account`). */
+export function prototypeHref(subpath = '', hostname?: string): string {
+  const dedicated = isDedicatedPrototypeHost(hostname);
+  const base = getPrototypeBasePath(hostname);
   const normalized = subpath.replace(/^\//, '');
   if (!normalized) return base || '/';
+  if (
+    dedicated &&
+    !normalized.includes('/') &&
+    !RESERVED_PROTOTYPE_SEGMENTS.has(normalized)
+  ) {
+    return `/n/${normalized}`;
+  }
   return base ? `${base}/${normalized}` : `/${normalized}`;
 }
 
@@ -50,11 +58,37 @@ function isNonPrototypeAppPath(logical: string): boolean {
   return NON_PROTOTYPE_PREFIXES.some((p) => logical === p || logical.startsWith(p));
 }
 
+/** Join, shared note/thread, invitation, and add-on pages (public marketing-style shell). */
+export function isPublicAppPath(pathname: string): boolean {
+  const logical = prototypeLogicalPath(pathname);
+  return (
+    (logical.startsWith('/spaces/join') ||
+      logical.startsWith('/shared/') ||
+      logical.startsWith('/invitations/') ||
+      logical === '/addon' ||
+      logical.startsWith('/addon/')) &&
+    isNonPrototypeAppPath(logical)
+  );
+}
+
+export const PUBLIC_ROUTE_HTML_CLASS = 'harvous-public-route';
+
+/** Keep public-page CSS scoped correctly across client-side TanStack navigation. */
+export function syncPublicRouteHtmlClass(
+  pathname: string,
+  classList: Pick<DOMTokenList, 'toggle'> | null = typeof document !== 'undefined'
+    ? document.documentElement.classList
+    : null,
+): boolean {
+  const isPublic = isPublicAppPath(pathname);
+  classList?.toggle(PUBLIC_ROUTE_HTML_CLASS, isPublic);
+  return isPublic;
+}
+
 /**
- * Single-segment shell children that are NOT notes. Notes live at the root layer
- * (`/<slug>`), so any other single non-reserved segment is treated as a note.
+ * Single-segment shell children that are NOT compatibility note slugs.
  */
-const RESERVED_PROTOTYPE_SEGMENTS = new Set(['settings', 'space', 'search', 'admin']);
+const RESERVED_PROTOTYPE_SEGMENTS = new Set(['settings', 'space', 'search', 'admin', 'n']);
 
 /**
  * The lone path segment of a prototype-shell URL, or null when the path is the
@@ -82,6 +116,8 @@ export function isPrototypeHomePath(pathname: string): boolean {
 }
 
 export function isPrototypeNotePath(pathname: string): boolean {
+  const logical = prototypeLogicalPath(pathname);
+  if (/^\/n\/[^/]+\/?$/.test(logical)) return true;
   const seg = singlePrototypeSegment(pathname);
   return seg != null && !RESERVED_PROTOTYPE_SEGMENTS.has(seg);
 }
@@ -132,6 +168,8 @@ export function prototypeAdminSupportRouteTo(): '/admin/support' | '/prototype/a
 }
 
 export function matchPrototypeNoteId(pathname: string): string | null {
+  const canonical = prototypeLogicalPath(pathname).match(/^\/n\/([^/]+)\/?$/);
+  if (canonical?.[1]) return canonical[1];
   const seg = singlePrototypeSegment(pathname);
   if (seg == null || RESERVED_PROTOTYPE_SEGMENTS.has(seg)) return null;
   return seg;
@@ -142,9 +180,18 @@ export function matchLegacyPrototypeSpaceId(pathname: string): string | null {
   return m?.[1] ?? null;
 }
 
-/** TanStack Router `to` for root-level note routes (typed for app.harvous.com route tree at compile time). */
-export function prototypeNoteRouteTo(): '/prototype/$noteId' {
-  return (isDedicatedPrototypeHost() ? '/$noteId' : '/prototype/$noteId') as '/prototype/$noteId';
+export function prototypeNoteRoutePaths(hostname?: string): {
+  canonicalChildPath: 'n/$noteId' | '$noteId';
+  compatibilityChildPath: '$noteId' | 'n/$noteId';
+} {
+  return isDedicatedPrototypeHost(hostname)
+    ? { canonicalChildPath: 'n/$noteId', compatibilityChildPath: '$noteId' }
+    : { canonicalChildPath: '$noteId', compatibilityChildPath: 'n/$noteId' };
+}
+
+/** TanStack Router `to` for the canonical note route on the current host. */
+export function prototypeNoteRouteTo(hostname?: string): '/n/$noteId' | '/prototype/$noteId' {
+  return isDedicatedPrototypeHost(hostname) ? '/n/$noteId' : '/prototype/$noteId';
 }
 
 export function prototypeSettingsRouteTo(): '/settings' | '/prototype/settings' {

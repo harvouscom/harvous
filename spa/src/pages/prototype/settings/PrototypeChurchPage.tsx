@@ -4,40 +4,7 @@ import { prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { useProfile } from '../../../hooks/queries/useProfile';
 import { useUpdateChurch } from '../../../hooks/mutations/useUpdateChurch';
 import { SettingsIntro, SettingsShell } from './SettingsShell';
-
-const fieldLabelStyle: React.CSSProperties = {
-  display: 'block',
-  marginBottom: 6,
-  color: 'var(--pds-text-tertiary)',
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: '10px 14px',
-  border: '0.5px solid var(--pds-border)',
-  borderRadius: 'var(--pds-radius-input)',
-  background: 'var(--pds-bg-input)',
-  fontFamily: 'var(--pds-font-body)',
-  fontSize: '0.9375rem',
-  color: 'var(--pds-text-primary)',
-  outline: 'none',
-};
-
-function Field(props: { label: string; value: string; placeholder: string; onChange: (v: string) => void }) {
-  return (
-    <div style={{ marginBottom: 16 }}>
-      <label className="pds-inspector-label" style={fieldLabelStyle}>{props.label}</label>
-      <input
-        type="text"
-        value={props.value}
-        placeholder={props.placeholder}
-        onChange={(e) => props.onChange(e.target.value)}
-        style={inputStyle}
-      />
-    </div>
-  );
-}
+import { ErrorText, Field } from './account/accountShared';
 
 export default function PrototypeChurchPage() {
   const navigate = useNavigate();
@@ -75,11 +42,7 @@ export default function PrototypeChurchPage() {
       <Field label="State / region" value={state} placeholder="State or region" onChange={setState} />
       <Field label="Country" value={country} placeholder="Country" onChange={setCountry} />
 
-      {updateChurch.isError ? (
-        <p style={{ color: 'var(--pds-destructive)', fontSize: '0.8125rem', margin: '4px 0 12px' }}>
-          Couldn't save. Please try again.
-        </p>
-      ) : null}
+      <ErrorText>{updateChurch.isError ? "Couldn't save. Please try again." : null}</ErrorText>
 
       <button
         type="button"

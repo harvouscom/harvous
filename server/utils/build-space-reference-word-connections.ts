@@ -3,7 +3,7 @@
  * Queries saved reference study-thread rows and ranks via deriveReferenceWordConnections.
  */
 
-import { db, and, eq, StudyThreadEntries, Notes } from '../db';
+import { db, and, eq, StudyThreadEntries, Notes, SpaceNotes, isNull } from '../db';
 import {
   deriveReferenceWordConnections,
   type HomeReferenceWordConnection,
@@ -20,6 +20,7 @@ export async function buildSpaceReferenceWordConnections(
   userId: string,
   options: BuildSpaceReferenceWordConnectionsOptions = {},
 ): Promise<{ connections: HomeReferenceWordConnection[] }> {
+  void userId;
   const { limit = 3, minNotes = 2 } = options;
 
   const rows = await db
@@ -40,13 +41,20 @@ export async function buildSpaceReferenceWordConnections(
     })
     .from(StudyThreadEntries)
     .innerJoin(Notes, eq(StudyThreadEntries.parentNoteId, Notes.id))
+    .innerJoin(
+      SpaceNotes,
+      and(
+        eq(SpaceNotes.noteId, Notes.id),
+        eq(SpaceNotes.spaceId, spaceId),
+        isNull(SpaceNotes.removedAt),
+      ),
+    )
     .where(
       and(
         eq(StudyThreadEntries.isArchived, false),
         eq(StudyThreadEntries.entryKindRaw, 'reference'),
-        eq(StudyThreadEntries.userId, userId),
-        eq(Notes.userId, userId),
-        eq(Notes.spaceId, spaceId),
+        eq(StudyThreadEntries.spaceId, spaceId),
+        eq(Notes.contentEncrypted, false),
       ),
     );
 

@@ -49,6 +49,16 @@
     return !isNonPrototypeAppPath(prototypeLogicalPath(pathname));
   }
 
+  function isPublicAppPath(pathname) {
+    var logical = prototypeLogicalPath(pathname);
+    return isNonPrototypeAppPath(logical) &&
+      (logical.indexOf('/spaces/join') === 0 ||
+        logical.indexOf('/shared/') === 0 ||
+        logical.indexOf('/invitations/') === 0 ||
+        logical === '/addon' ||
+        logical.indexOf('/addon/') === 0);
+  }
+
   function isPrototypeNotePath(pathname, hostname) {
     var seg = singlePrototypeSegment(pathname, hostname);
     return seg != null && !RESERVED_SEGMENTS[seg];
@@ -57,6 +67,7 @@
   global.__harvousPrototypeShellPath = {
     isDedicatedPrototypeHost: isDedicatedPrototypeHost,
     isPrototypeShellPath: isPrototypeShellPath,
+    isPublicAppPath: isPublicAppPath,
     isPrototypeNotePath: isPrototypeNotePath,
   };
 })(typeof window !== 'undefined' ? window : self);

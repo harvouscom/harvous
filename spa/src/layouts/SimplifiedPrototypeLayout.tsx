@@ -46,7 +46,7 @@ import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
 import { useNote } from '../hooks/queries/useNote';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
 import { ProtoMigrationProvider } from './proto-migration-context';
-import { ProtoShellProvider, useProtoShell } from './proto-shell-context';
+import { ProtoShellProvider, resolveVisibleComposeTarget, useProtoShell } from './proto-shell-context';
 import {
   applyBackgroundWithImageTint,
   applyColorSchemePreference,
@@ -633,6 +633,8 @@ function PrototypeShortcutBridge() {
     setSidebarListMode,
     beginPrototypeComposeSession,
     composePersistedNoteId,
+    activeSpaceId,
+    sidebarListSpaceScope,
   } = useProtoShell();
 
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
@@ -653,14 +655,29 @@ function PrototypeShortcutBridge() {
   });
 
   const createPrototypeNote = useCallback(() => {
-    if (!homeSpaceId) return;
+    const targetSpaceId = resolveVisibleComposeTarget({
+      homeSpaceId,
+      activeSpaceId,
+      sidebarLayer,
+      sidebarListSpaceScope,
+    });
+    if (!targetSpaceId) return;
     if (isMobileSidebar) closeDrawer();
-    beginPrototypeComposeSession();
+    beginPrototypeComposeSession({ targetSpaceId });
     navigate.navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
     });
-  }, [beginPrototypeComposeSession, closeDrawer, homeSpaceId, isMobileSidebar, navigate]);
+  }, [
+    activeSpaceId,
+    beginPrototypeComposeSession,
+    closeDrawer,
+    homeSpaceId,
+    isMobileSidebar,
+    navigate,
+    sidebarLayer,
+    sidebarListSpaceScope,
+  ]);
 
   const togglePrototypeSidebar = useCallback(() => {
     if (isMobileSidebar) toggleDrawer();

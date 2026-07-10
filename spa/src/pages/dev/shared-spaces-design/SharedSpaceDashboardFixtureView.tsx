@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { homeSpotlightThreadEyebrow } from '@/utils/prototype-home-trends';
+import { sharedThreadNoteCountPreview } from '../../prototype/shared-space-dashboard';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import type { SpaceNoteRow } from '../../../hooks/queries/useSpace';
@@ -11,6 +12,7 @@ import SharedSpaceNoteAuthorChip from '../../prototype/SharedSpaceNoteAuthorChip
 import SharedSpaceSocialGreeting from '../../prototype/SharedSpaceSocialGreeting';
 import SharedSpaceAboutSheet from '../../prototype/SharedSpaceAboutSheet';
 import PrototypeSpacePeopleSheet from '../../prototype/PrototypeSpacePeopleSheet';
+import PrototypeListEmptyState from '../../prototype/PrototypeListEmptyState';
 import ProtoSpaceMenuIcon from '../../prototype/ProtoSpaceMenuIcon';
 import { useProtoHomeViewClassName } from '../../prototype/useProtoHomeViewEnter';
 import { sharedSpacePeopleHeaderLabel, type SharedSpaceNoteCardSlot } from '../../prototype/shared-space-dashboard';
@@ -44,17 +46,17 @@ function noteKindIcon(noteType: string | undefined): IconName {
 }
 
 function FixtureNoteCard({
-  slot,
+  cardSlot,
   authorName,
   authorColor,
   isOwn,
 }: {
-  slot: SharedSpaceNoteCardSlot;
+  cardSlot: SharedSpaceNoteCardSlot;
   authorName: string;
   authorColor: string;
   isOwn: boolean;
 }) {
-  const { note, eyebrow } = slot;
+  const { note, eyebrow } = cardSlot;
   const preview = noteRowPreview(note);
 
   return (
@@ -110,6 +112,7 @@ export default function SharedSpaceDashboardFixtureView({
     members,
     contributorIntro,
     selfDisplayName,
+    currentThread,
     spotlightThread,
     topPassage,
     noteCardSlots,
@@ -247,6 +250,40 @@ export default function SharedSpaceDashboardFixtureView({
             </div>
           ) : null}
 
+          <div className="proto-home-section">
+            <p className="proto-caption proto-home-section__eyebrow">Current Thread</p>
+            {currentThread ? (
+              <button type="button" className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable">
+                <div className="proto-home-card__body">
+                  <div className="proto-home-card__title-row">
+                    <span className="proto-home-card__icon-orb" aria-hidden>
+                      <Icon name="arrow-right-arrow-left" size={13} />
+                    </span>
+                    <p className="pds-list-title proto-home-card__title">{currentThread.title}</p>
+                    <span className="proto-home-card__chevron" aria-hidden>
+                      <Icon name="caret-right" size={11} />
+                    </span>
+                  </div>
+                  <p className="pds-list-preview proto-home-card__preview">
+                    {sharedThreadNoteCountPreview(currentThread.noteCount)}
+                  </p>
+                </div>
+              </button>
+            ) : (
+              <div className="proto-list-create-empty">
+                <PrototypeListEmptyState
+                  iconName="arrow-right-arrow-left"
+                  title={isOwner ? 'No thread yet.' : 'Waiting for the owner to start one.'}
+                />
+                {isOwner ? (
+                  <button type="button" className="proto-shared-thread-action proto-shared-thread-action--primary">
+                    Start a Thread
+                  </button>
+                ) : null}
+              </div>
+            )}
+          </div>
+
           {spotlightThread ? (
             <div className="proto-home-section">
               <button
@@ -307,7 +344,7 @@ export default function SharedSpaceDashboardFixtureView({
             const { isOwn, authorName, authorColor } = resolveAuthor(slot.note);
             return (
               <div key={slot.note.id} className="proto-home-section">
-                <FixtureNoteCard slot={slot} authorName={authorName} authorColor={authorColor} isOwn={isOwn} />
+                <FixtureNoteCard cardSlot={slot} authorName={authorName} authorColor={authorColor} isOwn={isOwn} />
               </div>
             );
           })}

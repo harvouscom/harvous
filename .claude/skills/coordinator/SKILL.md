@@ -29,6 +29,7 @@ Read the context files for each involved agent:
 - `.claude/agents/content.context.md`
 - `.claude/agents/sharing.context.md`
 - `.claude/agents/data.context.md`
+- `.claude/agents/design.context.md`
 
 Load only the ones relevant to this task.
 
@@ -37,6 +38,7 @@ The primary agent is the one whose domain contains most of the work. The others 
 
 Use the dependency map in `coordinator.context.md` to determine review order:
 - `data` changes are reviewed last (foundation — others depend on it)
+- `design` reviews UI chrome/tokens before editor/sharing polish when both touch the same surface
 - Cross-cutting changes (e.g., pill HTML structure) require both sides to review
 
 ## Step 5: Execute Primary Work

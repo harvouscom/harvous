@@ -132,6 +132,7 @@ import HighlightDockWeb from './HighlightDockWeb';
 import StudyDockCarouselWeb from './StudyDockCarouselWeb';
 import { deriveHighlightFocusTitle } from '@/utils/study-thread-focus-title';
 import {
+  activeHighlightEntryId,
   buildHighlightDockSessionForDeepLink,
   closeDockEntry,
   collapseActiveScriptureIfActive,
@@ -141,7 +142,7 @@ import {
   moveDockEntryToIndex,
   highlightDockStableKey,
   buildReadOnlyScriptureSession,
-  clearStudyDockStackLocalCache,
+  isHighlightDockReadOnly,
   openOrFocusHighlight,
   openOrFocusReference,
   openOrFocusScripture,
@@ -150,9 +151,13 @@ import {
   scriptureDockStableKey,
   serializeStudyDockStack,
   setActiveDockEntry,
+  shouldOpenHighlightRequestImmediately,
   studyDockStackHasEntries,
+  studyDockContextKey,
   studyDockStackStorageKey,
+  studyThreadContextQuery,
   updateDockEntry,
+  withStudyThreadContext,
   type HighlightDockOpenMetadata,
   type HighlightDockSession,
   type ReferenceDockSession,
@@ -233,6 +238,8 @@ interface TiptapEditorProps {
   mentionSource?: (query: string) => MentionPickerItem[] | Promise<MentionPickerItem[]>;
   /** Tap/click on a mention pill (editable and read-only). Navigation is owned by the parent. */
   onMentionPillClick?: (payload: MentionPillClickPayload) => void;
+  /** Explicit shared-space read context. Omitted for personal/My Home. */
+  contextSpaceId?: string | null;
   onEditorReady?: (editor: any) => void;
   onEditorInstanceReady?: (editor: any) => void; // Callback when editor instance is ready for direct access
   /** Legacy hint for layouts that host the editor in a bottom sheet; caret scroll uses `[data-keyboard-open]` + `toolbarAtBottom`. */
@@ -303,6 +310,7 @@ interface TiptapEditorProps {
     range?: { from: number; to: number } | null;
   } | null;
   onPrototypeHighlightOpenRequestConsumed?: () => void;
+  onPrototypeActiveHighlightEntryChange?: (entryId: string | null) => void;
 }
 
 const PROTOTYPE_FORMAT_BAR_HIDE_MS = 2000;
@@ -3933,6 +3941,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   spaceId,
   mentionSource,
   onMentionPillClick,
+  contextSpaceId = null,
   onEditorReady,
   onEditorInstanceReady,
   inBottomSheet = false,
@@ -3952,6 +3961,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   prototypeCrossRefTarget = null,
   prototypeHighlightOpenRequest = null,
   onPrototypeHighlightOpenRequestConsumed,
+  onPrototypeActiveHighlightEntryChange,
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -4115,8 +4125,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const [studyDockStack, setStudyDockStack] = useState<StudyDockStack>(emptyStudyDockStack);
   const studyDockStackRef = useRef(studyDockStack);
   studyDockStackRef.current = studyDockStack;
-  const studyDockRehydratedForNoteRef = useRef<string | null>(null);
-  const prevSourceNoteIdForDockRef = useRef<string | null | undefined>(sourceNoteId);
+  const dockContextKey = studyDockContextKey(sourceNoteId, contextSpaceId);
+  const studyThreadContextSuffix = studyThreadContextQuery(contextSpaceId);
+  const [studyDockStackContextKey, setStudyDockStackContextKey] = useState(dockContextKey);
+  const studyDockRehydratedForContextRef = useRef<string | null>(null);
   /** Last editor selection/caret — used for smart scripture quote insert placement. */
   const lastEditorSelectionForQuoteRef = useRef<{ from: number; to: number; at: number } | null>(null);
   const studyDockPortalTarget =
@@ -5204,15 +5216,41 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   }, [initialReferenceWord, initialReferenceRequestKey, editor, openReferenceDock, onReferenceDeepLinkHandoff]);
 
   useEffect(() => {
-    const prev = prevSourceNoteIdForDockRef.current;
-    prevSourceNoteIdForDockRef.current = sourceNoteId;
-    if (prev && prev !== sourceNoteId && isPersistableStudyDockNoteId(prev)) {
-      clearStudyDockStackLocalCache(prev);
-    }
-    setStudyDockStack(emptyStudyDockStack());
-    studyDockRehydratedForNoteRef.current = null;
+    const empty = emptyStudyDockStack();
+    studyDockStackRef.current = empty;
+    setStudyDockStack(empty);
+    setStudyDockStackContextKey(dockContextKey);
+    studyDockRehydratedForContextRef.current = null;
     initialReferenceWordFiredRef.current = null;
-  }, [sourceNoteId]);
+    onPrototypeActiveHighlightEntryChange?.(null);
+
+    if (!editor || editorChromeMode !== 'prototypeNative') return;
+    if (!isPersistableStudyDockNoteId(sourceNoteId)) return;
+    try {
+      const key = studyDockStackStorageKey(sourceNoteId!, contextSpaceId);
+      const stored = deserializeStudyDockStack(localStorage.getItem(key));
+      if (stored && studyDockStackHasEntries(stored)) {
+        const pruned = pruneStudyDockStack(stored, (entry) => studyDockEntryStillValid(editor, entry));
+        if (studyDockStackHasEntries(pruned)) {
+          studyDockStackRef.current = pruned;
+          setStudyDockStack(pruned);
+        } else {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      studyDockRehydratedForContextRef.current = dockContextKey;
+    }
+  }, [
+    contextSpaceId,
+    dockContextKey,
+    editor,
+    editorChromeMode,
+    onPrototypeActiveHighlightEntryChange,
+    sourceNoteId,
+  ]);
 
   // On note change / unmount: cancel the pending RAF and flush the latest HTML synchronously so
   // CardFullEditable's editContentRef is current before the editor is destroyed (child unmounts
@@ -5247,9 +5285,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative') return;
     if (!isPersistableStudyDockNoteId(sourceNoteId)) return;
-    if (studyDockRehydratedForNoteRef.current !== sourceNoteId) return;
+    if (studyDockStackContextKey !== dockContextKey) return;
+    if (studyDockRehydratedForContextRef.current !== dockContextKey) return;
     try {
-      const key = studyDockStackStorageKey(sourceNoteId!);
+      const key = studyDockStackStorageKey(sourceNoteId!, contextSpaceId);
       if (studyDockStackHasEntries(studyDockStack)) {
         localStorage.setItem(key, serializeStudyDockStack(studyDockStack));
       } else {
@@ -5258,7 +5297,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     } catch {
       /* ignore quota / disabled storage */
     }
-  }, [studyDockStack, sourceNoteId, editorChromeMode]);
+  }, [
+    contextSpaceId,
+    dockContextKey,
+    editorChromeMode,
+    sourceNoteId,
+    studyDockStack,
+    studyDockStackContextKey,
+  ]);
+
+  useEffect(() => {
+    onPrototypeActiveHighlightEntryChange?.(activeHighlightEntryId(studyDockStack));
+  }, [onPrototypeActiveHighlightEntryChange, studyDockStack]);
 
   // Hover preview card for scripture pills + note links (+ urlLink later in Phase A).
   // Adds a new affordance without changing existing click behavior.
@@ -5428,15 +5478,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              entryKind: 'reference',
-              sourceSnippet: snippet,
-              highlightAccentRaw: defaultAccent,
-              anchorTextSnapshot: snippet,
-              anchorLocation: from,
-              anchorLength: Math.max(0, to - from),
-              focusTitle: snippet,
-            }),
+            body: JSON.stringify(
+              withStudyThreadContext(
+                {
+                  entryKind: 'reference',
+                  sourceSnippet: snippet,
+                  highlightAccentRaw: defaultAccent,
+                  anchorTextSnapshot: snippet,
+                  anchorLocation: from,
+                  anchorLength: Math.max(0, to - from),
+                  focusTitle: snippet,
+                },
+                contextSpaceId,
+              ),
+            ),
           });
           if (res.ok) {
             const data = await res.json();
@@ -5469,7 +5524,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       return studyId;
     },
-    [editor, editorChromeMode, sourceNoteId, onContentChange, syncStudyThreadList],
+    [contextSpaceId, editor, editorChromeMode, sourceNoteId, onContentChange, syncStudyThreadList],
   );
 
   /** Persist a passage reference from the scripture pill dock (study-thread only, no note mark). */
@@ -5486,15 +5541,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            entryKind: 'reference',
-            sourceSnippet: word,
-            focusTitle: word,
-            highlightAccentRaw: defaultAccent,
-            scriptureReference: norm,
-            scripturePassageTranslation: passage.translation,
-            scripturePassageExcerpt: word,
-          }),
+          body: JSON.stringify(
+            withStudyThreadContext(
+              {
+                entryKind: 'reference',
+                sourceSnippet: word,
+                focusTitle: word,
+                highlightAccentRaw: defaultAccent,
+                scriptureReference: norm,
+                scripturePassageTranslation: passage.translation,
+                scripturePassageExcerpt: word,
+              },
+              contextSpaceId,
+            ),
+          ),
         });
         if (res.ok) {
           const data = await res.json();
@@ -5506,7 +5566,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       return null;
     },
-    [editorChromeMode, syncStudyThreadList],
+    [contextSpaceId, editorChromeMode, syncStudyThreadList],
   );
 
   const handleHoverPreviewOpen = useCallback(() => {
@@ -5851,29 +5911,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const normalizedContent = normalizeEmptyBodyHtmlForEditor(sanitizeScripturePillHtml(content));
     const currentContent = editor.getHTML();
 
-    const rehydrateStudyDockOnce = () => {
-      if (editorChromeMode !== 'prototypeNative') return;
-      if (!isPersistableStudyDockNoteId(sourceNoteId)) return;
-      if (studyDockRehydratedForNoteRef.current === sourceNoteId) return;
-      studyDockRehydratedForNoteRef.current = sourceNoteId!;
-      try {
-        const key = studyDockStackStorageKey(sourceNoteId!);
-        const stored = deserializeStudyDockStack(localStorage.getItem(key));
-        if (stored && studyDockStackHasEntries(stored)) {
-          const pruned = pruneStudyDockStack(stored, (e) => studyDockEntryStillValid(editor, e));
-          if (studyDockStackHasEntries(pruned)) {
-            setStudyDockStack(pruned);
-          } else {
-            localStorage.removeItem(key);
-          }
-        }
-      } catch {
-        /* ignore */
-      }
-    };
-
     if (currentContent === normalizedContent) {
-      rehydrateStudyDockOnce();
       return;
     }
     if (isTiptapBodyEmpty(currentContent) && isTiptapBodyEmpty(content)) return;
@@ -5923,7 +5961,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
 
     editor.commands.setContent(normalizedContent, { emitUpdate: false });
-    rehydrateStudyDockOnce();
 
     const needsCursorAfterScripturePill =
       isNewNoteEditor && content.includes('scripture-pill');
@@ -6415,10 +6452,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       const session = buildHighlightDockSessionForDeepLink(req.studyThreadEntryId, req.metadata, range);
       setStudyDockStack((s) => openOrFocusHighlight(s, session));
     };
-    const skipMarkPoll =
-      sharedAnnotationOverlayMode ||
-      req.range != null ||
-      (req.metadata?.anchorLocation != null && (req.metadata.anchorLength ?? 0) > 0);
+    const skipMarkPoll = shouldOpenHighlightRequestImmediately({
+      range: req.range,
+      metadata: req.metadata,
+      sharedAnnotationOverlayMode,
+    });
     if (skipMarkPoll) {
       openFromDeepLink(req.range ?? null, null);
       onPrototypeHighlightOpenRequestConsumed?.();
@@ -8733,14 +8771,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             method: 'POST',
                             credentials: 'include',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              entryKind: 'miniNote',
-                              sourceSnippet: snippet,
-                              highlightAccentRaw: defaultAccent,
-                              anchorTextSnapshot: snippet,
-                              anchorLocation,
-                              anchorLength,
-                            }),
+                            body: JSON.stringify(
+                              withStudyThreadContext(
+                                {
+                                  entryKind: 'miniNote',
+                                  sourceSnippet: snippet,
+                                  highlightAccentRaw: defaultAccent,
+                                  anchorTextSnapshot: snippet,
+                                  anchorLocation,
+                                  anchorLength,
+                                },
+                                contextSpaceId,
+                              ),
+                            ),
                           });
                           if (res.ok) {
                             const data = await res.json();
@@ -8908,7 +8951,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         void (async () => {
                           if (studyId) {
                             try {
-                              await fetch(`/api/study-threads/${studyId}`, {
+                              await fetch(`/api/study-threads/${studyId}${studyThreadContextSuffix}`, {
                                 method: 'DELETE',
                                 credentials: 'include',
                               });
@@ -9567,6 +9610,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       studyThreadEntryId={entry.session.studyThreadEntryId}
                       authorDisplayName={entry.session.authorDisplayName}
                       isOwnHighlight={entry.session.isOwnHighlight}
+                      readOnly={isHighlightDockReadOnly(entry.session)}
+                      contextSpaceId={contextSpaceId}
                       sourceNoteId={sourceNoteId ?? null}
                       interactionActive={isActive}
                       animateEnter={false}
@@ -9577,6 +9622,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         );
                       }}
                       onFocusTitleChange={(title) => {
+                        if (isHighlightDockReadOnly(entry.session)) return;
                         setStudyDockStack((s) =>
                           updateDockEntry(s, entry.id, (e) =>
                             e.kind === 'highlight' ? { ...e, session: { ...e.session, focusTitle: title } } : e,
@@ -9584,6 +9630,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         );
                       }}
                       onMiniNoteChange={(body) => {
+                        if (isHighlightDockReadOnly(entry.session)) return;
                         setStudyDockStack((s) =>
                           updateDockEntry(s, entry.id, (e) =>
                             e.kind === 'highlight' ? { ...e, session: { ...e.session, miniNoteBody: body } } : e,
@@ -9591,6 +9638,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         );
                       }}
                       onAccentChange={(nextAccent) => {
+                        if (isHighlightDockReadOnly(entry.session)) return;
                         if (!isStudyHighlightAccentKey(nextAccent)) return;
                         if (entry.kind !== 'highlight') return;
                         const sid = entry.session.studyThreadEntryId;
@@ -9599,7 +9647,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           void (async () => {
                             if (sid) {
                               try {
-                                await fetch(`/api/study-threads/${sid}`, {
+                                await fetch(`/api/study-threads/${sid}${studyThreadContextSuffix}`, {
                                   method: 'PATCH',
                                   credentials: 'include',
                                   headers: { 'Content-Type': 'application/json' },
@@ -9649,7 +9697,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         void (async () => {
                           if (sid) {
                             try {
-                              await fetch(`/api/study-threads/${sid}`, {
+                              await fetch(`/api/study-threads/${sid}${studyThreadContextSuffix}`, {
                                 method: 'PATCH',
                                 credentials: 'include',
                                 headers: { 'Content-Type': 'application/json' },
@@ -9699,6 +9747,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         })();
                       }}
                       onRemove={() => {
+                        if (isHighlightDockReadOnly(entry.session)) return;
                         if (entry.kind !== 'highlight') return;
                         const sid = entry.session.studyThreadEntryId;
 
@@ -9706,7 +9755,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           void (async () => {
                             if (sid) {
                               try {
-                                await fetch(`/api/study-threads/${sid}`, {
+                                await fetch(`/api/study-threads/${sid}${studyThreadContextSuffix}`, {
                                   method: 'DELETE',
                                   credentials: 'include',
                                 });
@@ -9745,7 +9794,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           void (async () => {
                             if (sid) {
                               try {
-                                const res = await fetch(`/api/study-threads/${sid}`, {
+                                const res = await fetch(`/api/study-threads/${sid}${studyThreadContextSuffix}`, {
                                   method: 'DELETE',
                                   credentials: 'include',
                                 });
@@ -9775,7 +9824,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         void (async () => {
                           if (sid) {
                             try {
-                              const res = await fetch(`/api/study-threads/${sid}`, {
+                              const res = await fetch(`/api/study-threads/${sid}${studyThreadContextSuffix}`, {
                                 method: 'DELETE',
                                 credentials: 'include',
                               });
@@ -9891,7 +9940,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           void (async () => {
                             if (sid) {
                               try {
-                                await fetch(`/api/study-threads/${sid}`, {
+                                await fetch(`/api/study-threads/${sid}${studyThreadContextSuffix}`, {
                                   method: 'PATCH',
                                   credentials: 'include',
                                   headers: { 'Content-Type': 'application/json' },
@@ -9930,7 +9979,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         void (async () => {
                           if (sid) {
                             try {
-                              await fetch(`/api/study-threads/${sid}`, {
+                              await fetch(`/api/study-threads/${sid}${studyThreadContextSuffix}`, {
                                 method: 'PATCH',
                                 credentials: 'include',
                                 headers: { 'Content-Type': 'application/json' },
@@ -9973,7 +10022,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           void (async () => {
                             if (sid) {
                               try {
-                                await fetch(`/api/study-threads/${sid}`, {
+                                await fetch(`/api/study-threads/${sid}${studyThreadContextSuffix}`, {
                                   method: 'DELETE',
                                   credentials: 'include',
                                 });
@@ -10004,7 +10053,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         void (async () => {
                           if (sid) {
                             try {
-                              await fetch(`/api/study-threads/${sid}`, {
+                              await fetch(`/api/study-threads/${sid}${studyThreadContextSuffix}`, {
                                 method: 'DELETE',
                                 credentials: 'include',
                               });
@@ -10248,7 +10297,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   hiddenInputRef.current.value = editor.getHTML();
                 }
                 onContentChange?.(editor.getHTML());
-                void fetch(`/api/study-threads/${studyThreadId}`, {
+                void fetch(`/api/study-threads/${studyThreadId}${studyThreadContextSuffix}`, {
                   method: 'PATCH',
                   credentials: 'include',
                   headers: { 'Content-Type': 'application/json' },
@@ -10299,7 +10348,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             editor.view.dispatch(tr);
             if (hiddenInputRef.current) hiddenInputRef.current.value = editor.getHTML();
             onContentChange?.(editor.getHTML());
-            void fetch(`/api/study-threads/${studyThreadId}`, {
+            void fetch(`/api/study-threads/${studyThreadId}${studyThreadContextSuffix}`, {
               method: 'PATCH',
               credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
@@ -10314,7 +10363,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             setConnectedNoteHighlightPopup(null);
             void (async () => {
               try {
-                await fetch(`/api/study-threads/${studyThreadId}`, {
+                await fetch(`/api/study-threads/${studyThreadId}${studyThreadContextSuffix}`, {
                   method: 'DELETE',
                   credentials: 'include',
                 });

@@ -60,6 +60,20 @@ export function canManageSpaceStructure(space: Pick<SpaceRow, 'type'>, role: Spa
   return ROLE_RANK[role] >= ROLE_RANK.leader;
 }
 
+/** Shared Thread structure is reserved for the canonical Spaces.userId owner. */
+export function isActualSpaceOwner(
+  space: Pick<SpaceRow, 'userId'> | null | undefined,
+  actorId: string,
+): boolean {
+  return Boolean(space && space.userId === actorId);
+}
+
+export function isSpaceActive<T extends Pick<SpaceRow, 'deletedAt'>>(
+  space: T | null | undefined,
+): space is T {
+  return Boolean(space && !space.deletedAt);
+}
+
 export async function requireSpaceAccess(
   spaceId: string,
   userId: string,
@@ -67,7 +81,7 @@ export async function requireSpaceAccess(
 ): Promise<{ role: SpaceRole; space: SpaceRow }> {
   const space = first(await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).limit(1));
 
-  if (!space) {
+  if (!isSpaceActive(space)) {
     throw new SpaceAccessError(404, 'Space not found');
   }
 

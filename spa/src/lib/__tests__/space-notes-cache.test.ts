@@ -129,6 +129,13 @@ describe('spaceNoteRowFromCopy', () => {
       authorUserId: 'user_other',
       authorDisplayName: 'Other',
       isOwnNote: false,
+      isPinned: true,
+      primaryCollection: 'Source folder',
+      secondaryCollections: ['Shared secondary'],
+      collectionPinned: true,
+      collectionUserOverride: true,
+      contentEncrypted: true,
+      version: 'source-version',
     };
     const copied = spaceNoteRowFromCopy(source, 'new-id');
     expect(copied.id).toBe('new-id');
@@ -138,5 +145,11 @@ describe('spaceNoteRowFromCopy', () => {
     expect(copied.isPinned).toBe(false);
     expect(copied.authorUserId).toBeUndefined();
     expect(copied.authorDisplayName).toBeUndefined();
+    expect(copied.primaryCollection).toBeNull();
+    expect(copied.secondaryCollections).toEqual([]);
+    expect(copied.collectionPinned).toBe(false);
+    expect(copied.collectionUserOverride).toBe(false);
+    expect(copied.contentEncrypted).toBe(false);
+    expect(copied.version).toBeUndefined();
   });
 });

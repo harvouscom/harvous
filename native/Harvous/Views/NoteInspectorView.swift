@@ -147,47 +147,30 @@ struct NoteInspectorView: View {
     /// Surfaced when a local edit failed to upload (`Note.syncError`). Previously the
     /// error was stored but never shown, so stuck notes failed silently. Retry re-flags
     /// the note dirty and kicks `HarvousSyncService` to flush again.
+    /// Sticky in-inspector sync failure — not a floating toast (ephemeral feedback uses toasts).
     @ViewBuilder
     private var syncErrorBanner: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 13)
-                    .foregroundStyle(Color.harvousWarning)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Changes not synced")
-                        .font(HarvousTypography.inspectorBody)
-                        .foregroundStyle(.primary)
-                    if let detail = note.syncError, !detail.isEmpty {
-                        Text(detail)
-                            .font(HarvousTypography.inspectorCompact)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: HarvousSpacing.space2) {
+            Text("Changes not synced")
+                .font(HarvousTypography.inspectorBody)
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+            if let message = note.syncError, !message.isEmpty {
+                Text(message)
+                    .font(HarvousTypography.inspectorCompact)
+                    .foregroundStyle(.primary.opacity(0.75))
+                    .fixedSize(horizontal: false, vertical: true)
             }
-
             Button(action: retrySync) {
-                HStack(spacing: 6) {
-                    HarvousFAGlyph(assetName: "Harvous.ArrowsRotate", edgePt: 11)
-                    Text(isRetryingSync ? "Retrying…" : "Retry sync")
-                        .font(HarvousTypography.inspectorCompactMedium)
-                }
-                .foregroundStyle(Color.harvousAccent)
+                Text(isRetryingSync ? "Retrying…" : "Retry sync")
+                    .font(HarvousTypography.inspectorCompactMedium)
+                    .foregroundStyle(Color.harvousAccent)
             }
             .buttonStyle(.plain)
             .disabled(isRetryingSync)
         }
-        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: HarvousRadius.input, style: .continuous)
-                .fill(Color.harvousWarning.opacity(0.10))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: HarvousRadius.input, style: .continuous)
-                .strokeBorder(Color.harvousWarning.opacity(0.22), lineWidth: 0.5)
-        )
+        .accessibilityElement(children: .combine)
     }
 
     private func retrySync() {
@@ -683,10 +666,7 @@ struct NoteInspectorView: View {
     // MARK: - Helpers
 
     private func sectionHeader(_ title: String) -> some View {
-        Text(title.uppercased())
-            .font(HarvousTypography.inspectorSectionLabel)
-            .foregroundStyle(.secondary)
-            .tracking(0.8)
+        HarvousSectionHeader(title: title, variant: .inspector)
             .padding(.bottom, 6)
     }
 }

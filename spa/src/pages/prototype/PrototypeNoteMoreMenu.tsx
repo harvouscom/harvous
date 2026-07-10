@@ -4,14 +4,18 @@
  */
 import { useEffect, useMemo, useState, type RefObject } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { prototypeHomeRouteTo } from '@/lib/prototype-path';
+import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
-import { useCopyNotesToSpace } from '../../hooks/mutations/useCopyNotesToSpace';
+import { useSaveNoteCopy } from '../../hooks/mutations/useCopyNotesToSpace';
+import {
+  useAssociateNoteWithSpace,
+  useRemoveNoteFromSpace,
+} from '../../hooks/mutations/useSpaceNoteAssociation';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { usePopoverDismiss } from '../../hooks/usePopoverDismiss';
 import { useNavigation } from '../../hooks/queries/useNavigation';
@@ -19,10 +23,21 @@ import { PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-to
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
+import { noteParamSlug } from './proto-route-slugs';
+import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 
 interface CachedSpaceNotesPage {
   notes?: { id: string; isPinned?: boolean }[];
 }
+
+export const RESHARE_NOTE_CONFIRMATION =
+  'Add this note to the selected space? If it was shared there before, prior responses can return. Previous Thread, folder, pin, and order placement will not return.';
+
+export const REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION =
+  'Remove this note from this space? The canonical note remains in My Home. Responses in this space are archived and can return if the note is shared here again. Thread and folder placement is removed.';
+
+export const DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION =
+  'Delete this note everywhere? This permanently deletes the canonical note from My Home and every shared space, including its connections and responses. This can’t be undone.';
 
 function readNotePinnedFromCache(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -51,6 +66,11 @@ export interface PrototypeNoteMoreMenuProps {
   isPublic?: boolean;
   /** Another member's note in a shared space — limit destructive/edit actions. */
   readOnlyForeign?: boolean;
+  homeSpaceId?: string;
+  currentSharedSpaceId?: string;
+  currentSharedSpaceTitle?: string;
+  canRemoveFromCurrentSpace?: boolean;
+  canPin?: boolean;
   onFind?: () => void;
   onShare?: () => void;
   menuButtonRef?: RefObject<HTMLButtonElement | null>;
@@ -63,6 +83,11 @@ export default function PrototypeNoteMoreMenu({
   overflowActions = false,
   isPublic = false,
   readOnlyForeign = false,
+  homeSpaceId,
+  currentSharedSpaceId,
+  currentSharedSpaceTitle,
+  canRemoveFromCurrentSpace = false,
+  canPin = true,
   onFind,
   onShare,
   menuButtonRef,
@@ -72,12 +97,20 @@ export default function PrototypeNoteMoreMenu({
   const [deleteAnchorRect, setDeleteAnchorRect] = useState<DOMRect | null>(null);
   const [pinOverride, setPinOverride] = useState<boolean | null>(null);
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
+  const [pendingAddTarget, setPendingAddTarget] = useState<{
+    spaceId: string;
+    title?: string;
+    anchorRect: DOMRect;
+  } | null>(null);
+  const [removeConfirmRect, setRemoveConfirmRect] = useState<DOMRect | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { closeDrawer, isMobileSidebar } = useProtoShell();
   const pinNote = usePinSpaceNote();
   const deleteNote = useDeleteNote();
-  const copyToSpace = useCopyNotesToSpace();
+  const associateWithSpace = useAssociateNoteWithSpace();
+  const removeFromSpace = useRemoveNoteFromSpace();
+  const saveCopy = useSaveNoteCopy();
   const { data: nav } = useNavigation();
 
   const ownedSharedTargets = useMemo(
@@ -86,23 +119,28 @@ export default function PrototypeNoteMoreMenu({
   );
   const joinedSharedTargets = useMemo(() => nav?.memberOfSpaces ?? [], [nav?.memberOfSpaces]);
   const sharedSpaceTargets = useMemo(
-    () => [...ownedSharedTargets, ...joinedSharedTargets],
-    [ownedSharedTargets, joinedSharedTargets],
+    () =>
+      [...ownedSharedTargets, ...joinedSharedTargets].filter(
+        (space) => space.id !== currentSharedSpaceId,
+      ),
+    [currentSharedSpaceId, ownedSharedTargets, joinedSharedTargets],
   );
   const showCopySpaceSearch = sharedSpaceTargets.length > 5;
   const [copySpaceFilter, setCopySpaceFilter] = useState('');
 
   const filteredOwnedTargets = useMemo(() => {
     const q = copySpaceFilter.trim().toLowerCase();
-    if (!q) return ownedSharedTargets;
-    return ownedSharedTargets.filter((s) => s.title.toLowerCase().includes(q));
-  }, [copySpaceFilter, ownedSharedTargets]);
+    return ownedSharedTargets.filter(
+      (s) => s.id !== currentSharedSpaceId && (!q || s.title.toLowerCase().includes(q)),
+    );
+  }, [copySpaceFilter, currentSharedSpaceId, ownedSharedTargets]);
 
   const filteredJoinedTargets = useMemo(() => {
     const q = copySpaceFilter.trim().toLowerCase();
-    if (!q) return joinedSharedTargets;
-    return joinedSharedTargets.filter((s) => s.title.toLowerCase().includes(q));
-  }, [copySpaceFilter, joinedSharedTargets]);
+    return joinedSharedTargets.filter(
+      (s) => s.id !== currentSharedSpaceId && (!q || s.title.toLowerCase().includes(q)),
+    );
+  }, [copySpaceFilter, currentSharedSpaceId, joinedSharedTargets]);
 
   const pinnedFromCache = useMemo(
     () => readNotePinnedFromCache(queryClient, spaceId, noteId),
@@ -117,26 +155,85 @@ export default function PrototypeNoteMoreMenu({
   useEffect(() => {
     if (!open) {
       setCopyMenuOpen(false);
-      setCopySpaceFilter('');
+      if (!pendingAddTarget) setCopySpaceFilter('');
     }
-  }, [open]);
+  }, [open, pendingAddTarget]);
 
-  const onCopyToSpace = (targetSpaceId: string, targetTitle?: string) => {
+  const requestAddToSpace = (anchorRect: DOMRect, targetSpaceId: string, targetTitle?: string) => {
+    setPendingAddTarget({ anchorRect, spaceId: targetSpaceId, title: targetTitle });
     setOpen(false);
     setCopyMenuOpen(false);
-    setCopySpaceFilter('');
-    copyToSpace.mutate(
-      { targetSpaceId, noteIds: [noteId] },
+  };
+
+  const onAddToSpaceConfirm = () => {
+    if (!pendingAddTarget) return;
+    const { spaceId: targetSpaceId, title: targetTitle } = pendingAddTarget;
+    associateWithSpace.mutate(
+      { spaceId: targetSpaceId, noteId },
       {
-        onSuccess: (data) => {
-          if (data.errors?.length) toast.error(data.errors[0]);
-          else toast.success(targetTitle ? `Copied to ${targetTitle}` : 'Copied to space');
+        onSuccess: () => {
+          setPendingAddTarget(null);
+          setCopySpaceFilter('');
+          toast.success(targetTitle ? `Added to ${targetTitle}` : 'Added to space');
         },
         onError: (err) => {
+          setPendingAddTarget(null);
           const msg =
-            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not copy note';
+            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not add note';
           toast.error(msg);
         },
+      },
+    );
+  };
+
+  const onRemoveFromCurrentSpace = () => {
+    if (!currentSharedSpaceId) return;
+    setOpen(false);
+    removeFromSpace.mutate(
+      { spaceId: currentSharedSpaceId, noteId },
+      {
+        onSuccess: () => {
+          setRemoveConfirmRect(null);
+          toast.success(
+            currentSharedSpaceTitle
+              ? `Removed from ${currentSharedSpaceTitle}`
+              : 'Removed from this space',
+          );
+          if (!readOnlyForeign) {
+            navigate({
+              to: prototypeNoteRouteTo(),
+              params: { noteId: noteParamSlug(noteId) },
+              search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+              replace: true,
+            });
+          } else {
+            navigate({ to: prototypeHomeRouteTo() as any, replace: true });
+          }
+        },
+        onError: (err) => {
+          setRemoveConfirmRect(null);
+          toast.error(err instanceof Error ? err.message : 'Could not remove note from space');
+        },
+      },
+    );
+  };
+
+  const onSaveCopy = () => {
+    if (!homeSpaceId) return;
+    setOpen(false);
+    saveCopy.mutate(
+      { homeSpaceId, sourceNoteId: noteId },
+      {
+        onSuccess: ({ newNoteId }) => {
+          toast.success('Saved a copy to My Home');
+          navigate({
+            to: prototypeNoteRouteTo(),
+            params: { noteId: noteParamSlug(newNoteId) },
+            search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+          });
+        },
+        onError: (err) =>
+          toast.error(err instanceof Error ? err.message : 'Could not save a copy'),
       },
     );
   };
@@ -163,7 +260,7 @@ export default function PrototypeNoteMoreMenu({
       {
         onSuccess: () => {
           setDeleteConfirmOpen(false);
-          navigate({ to: prototypeHomeRouteTo(), replace: true });
+          navigate({ to: prototypeHomeRouteTo() as any, replace: true });
           if (isMobileSidebar) closeDrawer();
         },
         onError: (err) => {
@@ -186,7 +283,13 @@ export default function PrototypeNoteMoreMenu({
           aria-haspopup="menu"
           title="More options"
           aria-label="More options"
-          disabled={pinNote.isPending || deleteNote.isPending}
+          disabled={
+            pinNote.isPending ||
+            deleteNote.isPending ||
+            associateWithSpace.isPending ||
+            removeFromSpace.isPending ||
+            saveCopy.isPending
+          }
           onClick={() => setOpen((x) => !x)}
         >
           <Icon name="ellipsis" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
@@ -235,14 +338,56 @@ export default function PrototypeNoteMoreMenu({
                 </button>
               ) : null}
               {overflowActions && (onFind || onShare) ? <div className="proto-menu-sep" role="separator" /> : null}
-              {!readOnlyForeign ? (
+              {readOnlyForeign ? (
                 <>
-              <button type="button" role="menuitem" className="proto-menu-item" disabled={pinNote.isPending} onClick={onPin}>
+                  {canPin ? (
+                    <button type="button" role="menuitem" className="proto-menu-item" disabled={pinNote.isPending} onClick={onPin}>
+                      <span className="proto-menu-item__icon" aria-hidden>
+                        <Icon name="thumbtack" size={iconSize} />
+                      </span>
+                      <span className="proto-menu-item__label">{pinned ? 'Unpin note' : 'Pin note'}</span>
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="proto-menu-item"
+                    disabled={!homeSpaceId || saveCopy.isPending}
+                    onClick={onSaveCopy}
+                  >
+                    <span className="proto-menu-item__icon" aria-hidden>
+                      <Icon name="copy" size={iconSize} />
+                    </span>
+                    <span className="proto-menu-item__label">
+                      {saveCopy.isPending ? 'Saving a copy…' : 'Save a copy'}
+                    </span>
+                  </button>
+                  {currentSharedSpaceId && canRemoveFromCurrentSpace ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="proto-menu-item"
+                      disabled={removeFromSpace.isPending}
+                      onClick={(e) => {
+                        setRemoveConfirmRect(e.currentTarget.getBoundingClientRect());
+                        setOpen(false);
+                      }}
+                    >
+                      <span className="proto-menu-item__icon" aria-hidden>
+                        <Icon name="minus" size={iconSize} />
+                      </span>
+                      <span className="proto-menu-item__label">Remove from this space</span>
+                    </button>
+                  ) : null}
+                </>
+              ) : (
+                <>
+              {canPin ? <button type="button" role="menuitem" className="proto-menu-item" disabled={pinNote.isPending} onClick={onPin}>
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="thumbtack" size={iconSize} />
                 </span>
                 <span className="proto-menu-item__label">{pinned ? 'Unpin note' : 'Pin note'}</span>
-              </button>
+              </button> : null}
               {sharedSpaceTargets.length > 0 ? (
                 copyMenuOpen ? (
                   <>
@@ -258,7 +403,7 @@ export default function PrototypeNoteMoreMenu({
                       <span className="proto-menu-item__icon" aria-hidden>
                         <Icon name="caret-left" size={iconSize} />
                       </span>
-                      <span className="proto-menu-item__label">Copy to…</span>
+                      <span className="proto-menu-item__label">Add to space…</span>
                     </button>
                     {showCopySpaceSearch ? (
                       <div style={{ padding: '4px 10px 6px' }}>
@@ -292,8 +437,10 @@ export default function PrototypeNoteMoreMenu({
                             role="menuitem"
                             className="proto-menu-item"
                             title={space.title}
-                            disabled={copyToSpace.isPending}
-                            onClick={() => onCopyToSpace(space.id, space.title)}
+                            disabled={associateWithSpace.isPending}
+                            onClick={(e) =>
+                              requestAddToSpace(e.currentTarget.getBoundingClientRect(), space.id, space.title)
+                            }
                           >
                             <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
                               <ProtoSpaceMenuIcon color={space.color || 'paper'} />
@@ -315,8 +462,10 @@ export default function PrototypeNoteMoreMenu({
                             role="menuitem"
                             className="proto-menu-item"
                             title={space.title}
-                            disabled={copyToSpace.isPending}
-                            onClick={() => onCopyToSpace(space.id, space.title)}
+                            disabled={associateWithSpace.isPending}
+                            onClick={(e) =>
+                              requestAddToSpace(e.currentTarget.getBoundingClientRect(), space.id, space.title)
+                            }
                           >
                             <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
                               <ProtoSpaceMenuIcon color={space.color || 'paper'} />
@@ -343,7 +492,7 @@ export default function PrototypeNoteMoreMenu({
                     <span className="proto-menu-item__icon" aria-hidden>
                       <Icon name="copy" size={iconSize} />
                     </span>
-                    <span className="proto-menu-item__label">Copy to shared space…</span>
+                    <span className="proto-menu-item__label">Add to space…</span>
                   </button>
                 )
               ) : (
@@ -351,9 +500,27 @@ export default function PrototypeNoteMoreMenu({
                   <span className="proto-menu-item__icon" aria-hidden>
                     <Icon name="copy" size={iconSize} />
                   </span>
-                  <span className="proto-menu-item__label">Copy to shared space…</span>
+                  <span className="proto-menu-item__label">Add to space…</span>
                 </button>
               )}
+              {currentSharedSpaceId && canRemoveFromCurrentSpace ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="proto-menu-item"
+                  disabled={removeFromSpace.isPending}
+                  onClick={(e) => {
+                    setRemoveConfirmRect(e.currentTarget.getBoundingClientRect());
+                    setOpen(false);
+                  }}
+                >
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name="minus" size={iconSize} />
+                  </span>
+                  <span className="proto-menu-item__label">Remove from this space</span>
+                </button>
+              ) : null}
+              {!currentSharedSpaceId ? (
               <button
                 type="button"
                 role="menuitem"
@@ -370,8 +537,9 @@ export default function PrototypeNoteMoreMenu({
                 </span>
                 <span className="proto-menu-item__label">Delete note</span>
               </button>
-                </>
               ) : null}
+                </>
+              )}
             </div>
           </ProtoPopoverShell>
         ) : null}
@@ -380,7 +548,8 @@ export default function PrototypeNoteMoreMenu({
       {deleteConfirmOpen && deleteAnchorRect ? (
         <ProtoConfirmDialog
           anchorRect={deleteAnchorRect}
-          confirmLabel="Delete"
+          title={DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION}
+          confirmLabel="Delete everywhere"
           busy={deleteNote.isPending}
           onConfirm={onDeleteConfirm}
           onCancel={() => {
@@ -388,6 +557,32 @@ export default function PrototypeNoteMoreMenu({
               setDeleteConfirmOpen(false);
               setDeleteAnchorRect(null);
             }
+          }}
+        />
+      ) : null}
+      {pendingAddTarget ? (
+        <ProtoConfirmDialog
+          anchorRect={pendingAddTarget.anchorRect}
+          title={RESHARE_NOTE_CONFIRMATION}
+          confirmLabel="Add to space"
+          cancelLabel="Cancel"
+          busy={associateWithSpace.isPending}
+          onConfirm={onAddToSpaceConfirm}
+          onCancel={() => {
+            if (!associateWithSpace.isPending) setPendingAddTarget(null);
+          }}
+        />
+      ) : null}
+      {removeConfirmRect ? (
+        <ProtoConfirmDialog
+          anchorRect={removeConfirmRect}
+          title={REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION}
+          confirmLabel="Remove"
+          cancelLabel="Keep"
+          busy={removeFromSpace.isPending}
+          onConfirm={onRemoveFromCurrentSpace}
+          onCancel={() => {
+            if (!removeFromSpace.isPending) setRemoveConfirmRect(null);
           }}
         />
       ) : null}

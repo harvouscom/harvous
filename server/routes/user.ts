@@ -78,6 +78,8 @@ import {
   isPrototypeFolderStatsColumnMissing,
 } from '../utils/pg-undefined-relation';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
+import { createInitialNoteVersion } from '../utils/note-version-service';
+import { buildLegacyAnchorMigrationPatch } from '../utils/durable-note-anchor';
 
 const app = new Hono();
 
@@ -1000,33 +1002,87 @@ app.post('/api/user/import', requireAuth, async (c) => {
         let noteType: 'default' | 'scripture' | 'resource' = scriptureReference ? 'scripture' : 'default';
 
         const secondarySerialized = serializeNoteSecondaryCollections(secondaryCollections);
-        const newNote = first(await db.insert(Notes).values({
-          id: generateNoteId(), content: capitalizedContent, title: capitalizedTitle,
-          threadId: 'thread_unorganized', spaceId: null, simpleNoteId: nextSimpleNoteId,
-          noteType, userId: auth.userId, isPublic: false, createdAt: createdDate, contentEncrypted: false,
-          // Modern folder system (what the 2.0 UI displays). Explicit folders mark an override
-          // so auto-collection suggestion doesn't reshuffle the user's imported structure.
-          primaryCollection: primaryCollection || null,
-          secondaryCollections: secondarySerialized,
-          collectionUserOverride: !!primaryCollection,
-        }).returning())!;
+        const { newNote, importedHighlightCount } = await db.transaction(async (tx) => {
+          const inserted = first(await tx.insert(Notes).values({
+            id: generateNoteId(), content: capitalizedContent, title: capitalizedTitle,
+            threadId: 'thread_unorganized', spaceId: null, simpleNoteId: nextSimpleNoteId,
+            noteType, userId: auth.userId, isPublic: false, createdAt: createdDate, contentEncrypted: false,
+            // Modern folder system (what the 2.0 UI displays). Explicit folders mark an override
+            // so auto-collection suggestion doesn't reshuffle the user's imported structure.
+            primaryCollection: primaryCollection || null,
+            secondaryCollections: secondarySerialized,
+            collectionUserOverride: !!primaryCollection,
+          }).returning())!;
+          const initialVersion = await createInitialNoteVersion(tx, {
+            noteId: inserted.id,
+            noteAuthorId: auth.userId,
+            content: {
+              title: inserted.title,
+              content: inserted.content,
+              contentEncrypted: inserted.contentEncrypted,
+            },
+            createdAt: createdDate,
+            source: 'import',
+          });
+
+          await tx.update(UserMetadata).set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })
+            .where(eq(UserMetadata.userId, auth.userId));
+
+          if (threadId !== 'thread_unorganized') {
+            await tx.insert(NoteThreads).values({
+              id: `note-thread-${crypto.randomUUID()}`,
+              noteId: inserted.id, threadId, createdAt: nowISO()
+            });
+            await tx.update(Threads).set({ updatedAt: nowISO() })
+              .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+          }
+
+          if (scriptureReference && noteType === 'scripture') {
+            const parsedReference = parseScriptureReference(scriptureReference);
+            if (parsedReference) {
+              const verse = Array.isArray(parsedReference.verse) ? parsedReference.verse[0] : parsedReference.verse;
+              const verseEnd = Array.isArray(parsedReference.verse) ? parsedReference.verse[1] : undefined;
+              await tx.insert(ScriptureMetadata).values({
+                id: `scripture_${crypto.randomUUID()}`,
+                noteId: inserted.id, reference: scriptureReference, book: parsedReference.book,
+                chapter: parsedReference.chapter, verse, verseEnd, translation: scriptureTranslation || 'NET',
+                originalText: '', createdAt: nowISO()
+              });
+            }
+          }
+
+          let insertedHighlights = 0;
+          for (const row of portableBuild?.studyInserts ?? []) {
+            const migratedAt = new Date();
+            const anchorPatch = buildLegacyAnchorMigrationPatch({
+              baselineVersionId: initialVersion.id,
+              baselineContent: inserted.content,
+              anchorLocation: row.anchorLocation,
+              anchorLength: row.anchorLength,
+              anchorTextSnapshot: row.anchorTextSnapshot,
+              sourceSnippet: row.sourceSnippet,
+              migratedAt,
+            });
+            await tx.insert(StudyThreadEntries).values({
+              ...row,
+              parentNoteId: inserted.id,
+              userId: auth.userId,
+              spaceId: null,
+              ...anchorPatch,
+              resolvedVersionId: initialVersion.id,
+              createdAt: new Date(row.createdAt),
+              updatedAt: row.updatedAt ? new Date(row.updatedAt) : null,
+            });
+            insertedHighlights++;
+          }
+          return { newNote: inserted, importedHighlightCount: insertedHighlights };
+        });
 
         if (sourceId) sourceIdToNewId.set(sourceId, newNote.id);
         if (primaryCollection) createdFolders.add(primaryCollection);
         for (const sc of secondaryCollections) createdFolders.add(sc);
-
-        await db.update(UserMetadata).set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })
-          .where(eq(UserMetadata.userId, auth.userId));
         userMetadata = { ...userMetadata!, highestSimpleNoteId: nextSimpleNoteId };
-
-        if (threadId !== 'thread_unorganized') {
-          await db.insert(NoteThreads).values({
-            id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            noteId: newNote.id, threadId, createdAt: nowISO()
-          });
-          await db.update(Threads).set({ updatedAt: nowISO() })
-            .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
-        }
+        highlightsImported += importedHighlightCount;
 
         // Resolve tag ids (sequential for dedup) then insert the note↔tag rows in one batch.
         const noteTagRows: (typeof NoteTags.$inferInsert)[] = [];
@@ -1046,37 +1102,6 @@ app.post('/api/user/import', requireAuth, async (c) => {
         if (noteTagRows.length > 0) {
           try { await db.insert(NoteTags).values(noteTagRows); }
           catch (tagError) { errors.push(`Failed to attach tags for note ${i + 1}`); }
-        }
-
-        if (scriptureReference && noteType === 'scripture') {
-          try {
-            const parsed = parseScriptureReference(scriptureReference);
-            if (parsed) {
-              const verse = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
-              const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
-              await db.insert(ScriptureMetadata).values({
-                id: `scripture_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                noteId: newNote.id, reference: scriptureReference, book: parsed.book,
-                chapter: parsed.chapter, verse, verseEnd, translation: scriptureTranslation || 'NET',
-                originalText: '', createdAt: nowISO()
-              });
-            }
-          } catch (err) { errors.push(`Failed to create scripture metadata for note ${i + 1}`); }
-        }
-
-        if (portableBuild && portableBuild.studyInserts.length > 0) {
-          try {
-            for (const row of portableBuild.studyInserts) {
-              await db.insert(StudyThreadEntries).values({
-                ...row,
-                parentNoteId: newNote.id,
-                userId: auth.userId,
-              });
-              highlightsImported++;
-            }
-          } catch (err) {
-            errors.push(`Failed to import highlights for note ${i + 1}`);
-          }
         }
 
         notesImported++;

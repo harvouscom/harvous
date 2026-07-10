@@ -11,6 +11,7 @@ import { useAddSharedThread } from '../../hooks/mutations/useAddSharedThread';
 import { getThreadGradientCSS } from '@/utils/colors';
 import type { ThreadDetail, ThreadPrefetchData } from '../../hooks/queries/useThread';
 import { PublicTopBar, PublicErrorState } from './public-shared';
+import { clearPendingAuthRedirect, writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 
 interface SharedThreadNote {
   id: string;
@@ -78,8 +79,8 @@ export default function PublicSharedThreadPage() {
         queryClient.setQueryData(['thread', id], prefetch);
         window.dispatchEvent(new CustomEvent('threadCreated', { detail: { thread: threadDetail, threadId: id, spaceId: null } }));
         document.dispatchEvent(new CustomEvent('threadCreated', { detail: { thread: threadDetail, threadId: id, spaceId: null } }));
+        clearPendingAuthRedirect();
         try {
-          sessionStorage.removeItem('harvous_pending_redirect');
           sessionStorage.removeItem('pendingSharedThreadAdd');
         } catch { /* ignore */ }
         navigate({ to: path as any });
@@ -122,8 +123,8 @@ export default function PublicSharedThreadPage() {
     if (!isSignedIn) {
       try {
         sessionStorage.setItem('pendingSharedThreadAdd', JSON.stringify({ shareToken, timestamp: Date.now() }));
-        sessionStorage.setItem('harvous_pending_redirect', window.location.href);
       } catch { /* ignore */ }
+      writePendingAuthRedirect(window.location.href);
       navigate({ to: `/sign-in?redirect_url=${encodeURIComponent(window.location.href)}` as any });
       return;
     }

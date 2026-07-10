@@ -42,8 +42,11 @@ import {
   ScriptureMetadata,
   Threads,
   SpaceMemberships,
+  UserMetadata,
   eq,
   and,
+  desc,
+  isNotNull,
 } from '../db';
 import { nowISO } from '../db/dates';
 import { aggregateMonthlyAnalytics, getCurrentMonth, getPreviousMonth } from '../utils/analytics-aggregator';
@@ -53,6 +56,8 @@ import { generateNoteId, generateShareToken, generateSpaceId, generateThreadId, 
 import { getHarvousSystemUserId, requireHarvousAdmin } from '../utils/harvous-admin';
 import { canAddMemberToSpace } from '../utils/tier-limits';
 import { generateAutoTags, applyAutoTags, regenerateAutoTags, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN } from '../utils/auto-tag-generator';
+import { createInitialNoteVersion } from '../utils/note-version-service';
+import { getCurrentSeason } from '@/utils/season-helpers';
 import { getUsageOverview, getUsageTrends, getUsageDiscovery } from '../utils/admin-usage-stats';
 import { getAdminPulse } from '../utils/admin-pulse-stats';
 import {
@@ -910,6 +915,26 @@ app.post('/api/admin/threads/:threadId/notes', async (c) => {
         .limit(1),
     );
     if (!thread) return c.json({ error: 'Thread not found' }, 404);
+    if (thread.spaceId) {
+      const targetSpace = first(
+        await db
+          .select({ type: Spaces.type })
+          .from(Spaces)
+          .where(eq(Spaces.id, thread.spaceId))
+          .limit(1),
+      );
+      if (!targetSpace) return c.json({ error: 'Thread space not found' }, 404);
+      if (targetSpace.type === 'shared' || targetSpace.type === 'public') {
+        return c.json(
+          {
+            error:
+              'Shared-space Thread notes require the owner-authored canonical note flow',
+            code: 'CANONICAL_SHARED_NOTE_FLOW_REQUIRED',
+          },
+          409,
+        );
+      }
+    }
 
     const body = await c.req.json().catch(() => ({} as any));
     const title = typeof body.title === 'string' ? body.title : null;
@@ -924,10 +949,29 @@ app.post('/api/admin/threads/:threadId/notes', async (c) => {
     }
 
     const now = nowISO();
-    const note = first(
-      await db
-        .insert(Notes)
-        .values({
+    const note = await db.transaction(async (tx) => {
+      const metadata = first(
+        await tx
+          .select()
+          .from(UserMetadata)
+          .where(eq(UserMetadata.userId, systemUserId))
+          .for('update')
+          .limit(1),
+      );
+      const highestExisting = first(
+        await tx
+          .select({ simpleNoteId: Notes.simpleNoteId })
+          .from(Notes)
+          .where(and(eq(Notes.userId, systemUserId), isNotNull(Notes.simpleNoteId)))
+          .orderBy(desc(Notes.simpleNoteId))
+          .limit(1),
+      )?.simpleNoteId ?? 0;
+      const nextSimpleNoteId = Math.max(
+        metadata?.highestSimpleNoteId ?? 0,
+        highestExisting,
+      ) + 1;
+      const created = first(
+        await tx.insert(Notes).values({
           id: generateNoteId(),
           title,
           content,
@@ -935,21 +979,46 @@ app.post('/api/admin/threads/:threadId/notes', async (c) => {
           threadId,
           spaceId: thread.spaceId ?? null,
           userId: systemUserId,
+          simpleNoteId: nextSimpleNoteId,
           isPublic: false,
           isFeatured: false,
           order: 0,
           addedBy: 'harvous',
           createdAt: now,
           updatedAt: now,
-        })
-        .returning(),
-    )!;
-
-    // Ensure junction exists for the thread (most code expects it).
-    await db
-      .insert(NoteThreads)
-      .values({ id: generateTimestampId('notethread'), noteId: note.id, threadId, createdAt: now })
-      .onConflictDoNothing();
+        }).returning(),
+      )!;
+      await createInitialNoteVersion(tx, {
+        noteId: created.id,
+        noteAuthorId: systemUserId,
+        content: {
+          title: created.title,
+          content: created.content,
+          contentEncrypted: created.contentEncrypted,
+        },
+        createdAt: now,
+        source: 'admin-thread-create',
+      });
+      await tx
+        .insert(NoteThreads)
+        .values({ id: generateTimestampId('notethread'), noteId: created.id, threadId, createdAt: now })
+        .onConflictDoNothing();
+      if (metadata) {
+        await tx
+          .update(UserMetadata)
+          .set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: now })
+          .where(eq(UserMetadata.id, metadata.id));
+      } else {
+        await tx.insert(UserMetadata).values({
+          id: `user_metadata_${systemUserId}`,
+          userId: systemUserId,
+          highestSimpleNoteId: nextSimpleNoteId,
+          currentSeason: getCurrentSeason(),
+          createdAt: now,
+        });
+      }
+      return created;
+    });
 
     try {
       const tagResult = await generateAutoTags(title || '', content, systemUserId, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN);

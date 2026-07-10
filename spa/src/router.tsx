@@ -12,7 +12,33 @@ import SimplifiedPrototypeLayout from './layouts/SimplifiedPrototypeLayout';
 import PrototypeHomePage from './pages/prototype/PrototypeHomePage';
 import PrototypeNotePage from './pages/prototype/PrototypeNotePage';
 import PrototypeRouteErrorState from './pages/prototype/PrototypeRouteErrorState';
+import PublicJoinSpacePage from './pages/public/PublicJoinSpacePage';
+import PublicSharedNotePage from './pages/public/PublicSharedNotePage';
+import PublicSharedThreadPage from './pages/public/PublicSharedThreadPage';
+import PublicInvitationPage from './pages/public/PublicInvitationPage';
 import { noteParamSlug, normalizeNoteIdFromParam } from './pages/prototype/proto-route-slugs';
+import { normalizePrototypeApiSpaceId } from './utils/prototype-space-api-id';
+
+export type PrototypeNoteSearch = {
+  studyThread?: string;
+  reference?: string;
+  scriptureRef?: string;
+  scriptureTranslation?: string;
+  highlight?: string;
+  dockReq?: string;
+  crossRefTarget?: string;
+  space?: string;
+};
+
+export function legacySpaceNoteRedirectSearch(
+  search: PrototypeNoteSearch,
+  spaceId: string,
+): PrototypeNoteSearch {
+  return {
+    ...search,
+    space: normalizePrototypeApiSpaceId(spaceId),
+  };
+}
 
 // Root route — must render Outlet so child routes paint (pathless layouts included).
 const rootRoute = createRootRoute({
@@ -78,26 +104,37 @@ const legacyUpgradeRedirectRoute = createRoute({
 const joinSpaceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/spaces/join/$token',
-  component: lazyRouteComponent(() => import('./pages/public/PublicJoinSpacePage')),
+  component: PublicJoinSpacePage,
 });
 
 const sharedNoteRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/shared/note/$shareToken',
-  component: lazyRouteComponent(() => import('./pages/public/PublicSharedNotePage')),
+  component: PublicSharedNotePage,
 });
 
 const sharedThreadRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/shared/thread/$shareToken',
-  component: lazyRouteComponent(() => import('./pages/public/PublicSharedThreadPage')),
+  component: PublicSharedThreadPage,
 });
 
 const invitationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/invitations/$token',
-  component: lazyRouteComponent(() => import('./pages/public/PublicInvitationPage')),
+  component: PublicInvitationPage,
 });
+
+const designSystemGalleryRoute = import.meta.env.DEV
+  ? createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/__dev/design-system',
+      validateSearch: (search: Record<string, unknown>) => ({
+        scene: typeof search.scene === 'string' ? search.scene : undefined,
+      }),
+      component: lazyRouteComponent(() => import('./pages/dev/design-system/DesignSystemGalleryPage')),
+    })
+  : null;
 
 const sharedSpacesDesignGalleryRoute = import.meta.env.DEV
   ? createRoute({
@@ -137,29 +174,68 @@ function buildPrototypeRouteBranch() {
     },
   });
 
+  const validatePrototypeNoteSearch = (
+    search: Record<string, unknown>,
+  ): PrototypeNoteSearch => ({
+    studyThread: typeof search.studyThread === 'string' ? search.studyThread : undefined,
+    reference: typeof search.reference === 'string' ? search.reference : undefined,
+    scriptureRef: typeof search.scriptureRef === 'string' ? search.scriptureRef : undefined,
+    scriptureTranslation:
+      typeof search.scriptureTranslation === 'string' ? search.scriptureTranslation : undefined,
+    highlight: typeof search.highlight === 'string' ? search.highlight : undefined,
+    dockReq: typeof search.dockReq === 'string' ? search.dockReq : undefined,
+    crossRefTarget: typeof search.crossRefTarget === 'string' ? search.crossRefTarget : undefined,
+    space: typeof search.space === 'string' ? search.space : undefined,
+  });
+
   const prototypeLegacySpaceNoteRedirectRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'space/$spaceId/n/$noteId',
-    beforeLoad: ({ params }) => {
+    validateSearch: validatePrototypeNoteSearch,
+    beforeLoad: ({ params, search }) => {
       throw redirect({
         to: prototypeNoteRouteTo(),
         params: { noteId: noteParamSlug(normalizeNoteIdFromParam(params.noteId)) },
+        search: legacySpaceNoteRedirectSearch(search, params.spaceId),
         replace: true,
       });
     },
   });
 
-  // Legacy `/n/<id>` links (old numeric/`/n/` scheme) → root `/<base62-slug>`.
-  const prototypeLegacyFlatNoteRedirectRoute = createRoute({
+  const prototypeNoteNestedRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'n/$noteId',
-    beforeLoad: ({ params }) => {
-      throw redirect({
-        to: prototypeNoteRouteTo(),
-        params: { noteId: noteParamSlug(normalizeNoteIdFromParam(params.noteId)) },
-        replace: true,
-      });
-    },
+    validateSearch: validatePrototypeNoteSearch,
+    ...(onDedicatedHost
+      ? { component: PrototypeNotePage }
+      : {
+          beforeLoad: ({ params, search }) => {
+            throw redirect({
+              to: prototypeNoteRouteTo(),
+              params: { noteId: noteParamSlug(normalizeNoteIdFromParam(params.noteId)) },
+              search,
+              replace: true,
+            });
+          },
+        }),
+  });
+
+  const prototypeNoteFlatRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: '$noteId',
+    validateSearch: validatePrototypeNoteSearch,
+    ...(onDedicatedHost
+      ? {
+          beforeLoad: ({ params, search }) => {
+            throw redirect({
+              to: prototypeNoteRouteTo(),
+              params: { noteId: noteParamSlug(normalizeNoteIdFromParam(params.noteId)) },
+              search,
+              replace: true,
+            });
+          },
+        }
+      : { component: PrototypeNotePage }),
   });
 
   const prototypeLegacySpaceRedirectRoute = createRoute({
@@ -171,22 +247,6 @@ function buildPrototypeRouteBranch() {
         replace: true,
       });
     },
-  });
-
-  const prototypeNoteFlatRoute = createRoute({
-    getParentRoute: () => simplifiedPrototypeRoute,
-    path: '$noteId',
-    component: PrototypeNotePage,
-    validateSearch: (search: Record<string, unknown>) => ({
-      studyThread: typeof search.studyThread === 'string' ? search.studyThread : undefined,
-      reference: typeof search.reference === 'string' ? search.reference : undefined,
-      scriptureRef: typeof search.scriptureRef === 'string' ? search.scriptureRef : undefined,
-      scriptureTranslation:
-        typeof search.scriptureTranslation === 'string' ? search.scriptureTranslation : undefined,
-      highlight: typeof search.highlight === 'string' ? search.highlight : undefined,
-      dockReq: typeof search.dockReq === 'string' ? search.dockReq : undefined,
-      crossRefTarget: typeof search.crossRefTarget === 'string' ? search.crossRefTarget : undefined,
-    }),
   });
 
   const prototypeSettingsRoute = createRoute({
@@ -320,7 +380,7 @@ function buildPrototypeRouteBranch() {
   return simplifiedPrototypeRoute.addChildren([
     prototypeLegacySpaceNoteRedirectRoute,
     prototypeLegacySpaceRedirectRoute,
-    prototypeLegacyFlatNoteRedirectRoute,
+    prototypeNoteNestedRoute,
     prototypeHomeRoute,
     prototypeSearchRedirectRoute,
     prototypeAdminHomeRoute,
@@ -453,6 +513,7 @@ function buildRouteTree() {
     sharedNoteRoute,
     sharedThreadRoute,
     invitationRoute,
+    ...(designSystemGalleryRoute ? [designSystemGalleryRoute] : []),
     ...(sharedSpacesDesignGalleryRoute ? [sharedSpacesDesignGalleryRoute] : []),
     buildPrototypeRouteBranch(),
     notFoundRoute,

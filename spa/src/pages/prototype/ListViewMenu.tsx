@@ -35,7 +35,7 @@ function listModeTitle(mode: SidebarListMode): string {
     case 'folders':    return 'Folders list';
     case 'highlights': return 'Highlights list';
     case 'scripture':  return 'Scripture index';
-    case 'threads':    return 'Study threads';
+    case 'threads':    return 'Threads';
     default:           return 'List view';
   }
 }

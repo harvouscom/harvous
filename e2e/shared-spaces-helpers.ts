@@ -1,6 +1,11 @@
 import { mkdirSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
+import {
+  missingSharedSpacesE2EPrerequisites,
+  readSafeE2EConfig,
+  registerE2ERunResources,
+} from './fixtures/e2e-db-safety';
 
 /** Absolute path — under the worktree/repo you run Playwright from, not the main monorepo root. */
 export const SCREENSHOT_DIR = resolve(process.cwd(), 'test-results', 'shared-spaces-screenshots');
@@ -81,16 +86,11 @@ export function sharedSpaceNoteRow(page: Page, previewOrTitle: string) {
 }
 
 export function requireSharedSpacesEnv() {
-  const keys = [
-    'TEST_USER_A_EMAIL',
-    'TEST_USER_B_EMAIL',
-    'CLERK_SECRET_KEY',
-    'PUBLIC_CLERK_PUBLISHABLE_KEY',
-  ] as const;
-  const missing = keys.filter((k) => !process.env[k]);
+  const missing = missingSharedSpacesE2EPrerequisites();
   if (missing.length > 0) {
     throw new Error(`Missing env for shared-spaces e2e: ${missing.join(', ')}`);
   }
+  readSafeE2EConfig();
 }
 
 export async function grantSharedSpacesAddon(request: APIRequestContext, enabled = true) {
@@ -107,14 +107,20 @@ export async function createSharedSpaceViaApi(
   title: string,
   color = 'purple',
 ): Promise<{ id: string; title: string }> {
+  const config = readSafeE2EConfig();
   const res = await request.post('/api/spaces/create-shared', {
-    data: { title, color },
+    data: {
+      title,
+      color,
+      description: `Disposable Shared Spaces fixture ${config.runNamespace}`,
+    },
   });
   const json = (await res.json()) as { space?: { id: string; title: string }; error?: string };
   if (!res.ok()) {
     throw new Error(`create-shared failed: ${JSON.stringify(json)}`);
   }
   if (!json.space?.id) throw new Error('create-shared returned no space');
+  registerE2ERunResources({ spaces: [json.space.id] });
   return json.space;
 }
 
@@ -152,6 +158,7 @@ export async function createNoteInSpaceViaApi(
   if (!res.ok() || !json.note?.id) {
     throw new Error(`create note failed: ${JSON.stringify(json)}`);
   }
+  registerE2ERunResources({ notes: [json.note.id] });
   return json.note.id;
 }
 

@@ -11,7 +11,87 @@
 
 import { config } from 'dotenv';
 import { resolve } from 'path';
+import { pathToFileURL } from 'node:url';
 config({ path: resolve(import.meta.dirname || __dirname, '..', '..', '.env') });
+
+export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
+  Spaces: ['deletedAt', 'recoveryUntil'],
+  Notes: [
+    'currentVersionId',
+    'copiedFromNoteId',
+    'copiedFromVersionId',
+    'copiedFromAuthorId',
+    'copiedFromAuthorDisplayName',
+  ],
+  NoteVersions: ['id', 'noteId', 'version', 'title', 'content', 'contentEncrypted', 'source', 'authorId', 'createdAt'],
+  SpaceNotes: [
+    'id',
+    'spaceId',
+    'noteId',
+    'addedBy',
+    'addedAt',
+    'updatedAt',
+    'removedBy',
+    'removedAt',
+    'isPinned',
+    'primaryCollection',
+    'secondaryCollections',
+    'collectionPinned',
+    'collectionUserOverride',
+    'order',
+  ],
+  StudyThreadEntries: [
+    'spaceId',
+    'noteVersionId',
+    'resolvedVersionId',
+    'anchorQuote',
+    'anchorPrefixContext',
+    'anchorSuffixContext',
+    'anchorStatus',
+    'resolvedAnchorStart',
+    'resolvedAnchorEnd',
+    'anchorResolvedAt',
+    'anchorDetachedAt',
+    'actorDisplayNameSnapshot',
+  ],
+};
+
+const REQUIRED_INDEXES: Record<string, readonly string[]> = {
+  Spaces: ['Spaces_deletedAt_recoveryUntilIndex'],
+  Notes: ['Notes_copiedFromNoteIdIndex'],
+  NoteVersions: [
+    'NoteVersions_note_version_unique',
+    'NoteVersions_noteId_createdAtIndex',
+    'NoteVersions_authorId_createdAtIndex',
+  ],
+  SpaceNotes: [
+    'SpaceNotes_space_note_unique',
+    'SpaceNotes_spaceId_removedAt_orderIndex',
+    'SpaceNotes_noteId_removedAtIndex',
+  ],
+  StudyThreadEntries: [
+    'StudyThreadEntries_noteVersionIdIndex',
+    'StudyThreadEntries_resolvedVersionIdIndex',
+    'StudyThreadEntries_spaceId_parentNoteIdIndex',
+    'StudyThreadEntries_anchorStatusIndex',
+  ],
+};
+
+export function validateRequiredTableColumns(
+  table: string,
+  actualColumns: Iterable<string>,
+): { missingColumns: string[]; message: string | null } {
+  const actualColumnNames = new Set(actualColumns);
+  const missingColumns = (REQUIRED_COLUMNS[table] ?? []).filter((name) => !actualColumnNames.has(name));
+
+  return {
+    missingColumns,
+    message:
+      missingColumns.length === 0
+        ? null
+        : `${table} schema mismatch — missing required columns: ${missingColumns.join(', ')}. Apply the pending schema migration before deployment.`,
+  };
+}
 
 async function main() {
   const { db } = await import('./index');
@@ -21,7 +101,10 @@ async function main() {
     'Spaces',
     'Threads',
     'Notes',
+    'NoteVersions',
+    'SpaceNotes',
     'NoteThreads',
+    'StudyThreadEntries',
     'Comments',
     'Members',
     'SpaceInvitations',
@@ -58,29 +141,55 @@ async function main() {
         ORDER BY ordinal_position
       `);
 
-      if (columns.rows.length === 0) {
+      if (columns.length === 0) {
         console.error(`  FAIL: ${table} — table does not exist`);
         failed++;
         continue;
       }
 
-      console.log(`  OK: ${table} — ${columns.rows.length} columns`);
-      for (const col of columns.rows) {
+      console.log(`  OK: ${table} — ${columns.length} columns`);
+      for (const col of columns) {
         const nullable = col.is_nullable === 'YES' ? '' : ', NOT NULL';
         console.log(`       ${col.column_name} (${col.data_type}${nullable})`);
       }
 
+      let tableValid = true;
+      const columnValidation = validateRequiredTableColumns(
+        table,
+        columns.map((column) => String(column.column_name)),
+      );
+      if (columnValidation.message) {
+        console.error(`  FAIL: ${columnValidation.message}`);
+        tableValid = false;
+      }
+
+      const expectedIndexes = REQUIRED_INDEXES[table] ?? [];
+      if (expectedIndexes.length > 0) {
+        const indexes = await db.execute(sql`
+          SELECT indexname
+          FROM pg_indexes
+          WHERE schemaname = 'public' AND tablename = ${table}
+        `);
+        const indexNames = new Set(indexes.map((row) => String(row.indexname)));
+        const missingIndexes = expectedIndexes.filter((name) => !indexNames.has(name));
+        if (missingIndexes.length > 0) {
+          console.error(`  FAIL: ${table} — missing required indexes: ${missingIndexes.join(', ')}`);
+          tableValid = false;
+        }
+      }
+
       const sample = await db.execute(sql`SELECT * FROM ${sql.identifier(table)} LIMIT 1`);
-      if (sample.rows.length === 0) {
+      if (sample.length === 0) {
         console.log(`       (no rows to sample)`);
       } else {
-        const row = sample.rows[0] as any;
+        const row = sample[0] as any;
         if ('createdAt' in row) {
           console.log(`       createdAt sample: ${row.createdAt} (${typeof row.createdAt})`);
         }
       }
 
-      passed++;
+      if (tableValid) passed++;
+      else failed++;
       console.log('');
     } catch (err: any) {
       console.error(`  FAIL: ${table} — ${err.message}`);
@@ -106,7 +215,9 @@ async function main() {
   process.exit(0);
 }
 
-main().catch(err => {
-  console.error('Fatal error:', err);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(err => {
+    console.error('Fatal error:', err);
+    process.exit(1);
+  });
+}

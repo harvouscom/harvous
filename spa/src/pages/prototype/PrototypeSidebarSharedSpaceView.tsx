@@ -7,12 +7,15 @@ import { useAuth, useUser } from '@clerk/clerk-react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from '@/utils/toast';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
-import { homeSpotlightThreadEyebrow } from '@/utils/prototype-home-trends';
 import { isQuerySettled } from '@/utils/prototype-home-ready';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { useSpace, useSpaceMembers, useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
-import { usePrototypeStudyThreads } from '../../hooks/queries/usePrototypeStudyThreads';
-import { useSpaceGroupThreads } from '../../hooks/queries/useSpaceGroupThreads';
+import {
+  selectCurrentSpaceThread,
+  useSpaceGroupThreads,
+  type SpaceGroupStudyThread,
+} from '../../hooks/queries/useSpaceGroupThreads';
+import { useSetCurrentSpaceThread } from '../../hooks/mutations/useSetCurrentSpaceThread';
 import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import {
   getSharedSpaceUnseenSince,
@@ -22,12 +25,14 @@ import {
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import type { SidebarListMode } from '../../layouts/proto-shell-context';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
-import { noteParamSlug } from './proto-route-slugs';
+import { noteParamSlug, PROTOTYPE_DRAFT_NOTE_SLUG } from './proto-route-slugs';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
+import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import PrototypeSpacePeopleSheet from './PrototypeSpacePeopleSheet';
+import PrototypeListEmptyState from './PrototypeListEmptyState';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
@@ -37,9 +42,9 @@ import {
   buildSharedSpaceNoteCardSlots,
   buildSharedSpaceSocialIntro,
   groupSharedSpaceNoteCardSlots,
-  selectSpotlightThreadForSpace,
   selectTopSharedPassage,
   sharedSpacePeopleHeaderLabel,
+  sharedThreadNoteCountPreview,
   formatSharedSpaceActivityWho,
   type SharedSpaceNoteCardSlot,
 } from './shared-space-dashboard';
@@ -50,9 +55,44 @@ import {
   sharedSpaceDashboardFixtureForMode,
 } from '../dev/shared-spaces-design/shared-space-dashboard-fixture-mode';
 import SharedSpaceDashboardFixtureView from '../dev/shared-spaces-design/SharedSpaceDashboardFixtureView';
+import PrototypeCreateSharedThreadSheet from './PrototypeCreateSharedThreadSheet';
+import PrototypeSharedThreadDrilldown, {
+  type SharedThreadDrillTarget,
+} from './PrototypeSharedThreadDrilldown';
+import { beginComposeInGroupThread } from '../../lib/compose-group-thread';
+import '../../styles/prototype-shared-threads.css';
 
 const PREVIEW_MAX = 90;
 const RECENT_PREVIEW_LIMIT = 3;
+
+export function sharedThreadDashboardModel(
+  threads: SpaceGroupStudyThread[],
+  isOwner: boolean,
+) {
+  const currentThread = selectCurrentSpaceThread(threads);
+  return {
+    currentThread,
+    otherThreads: threads.filter((thread) => thread.id !== currentThread?.id),
+    canStartThread: isOwner && currentThread === null,
+    emptyLabel:
+      currentThread === null
+        ? isOwner
+          ? 'No thread yet.'
+          : 'Waiting for the owner to start one.'
+        : null,
+  };
+}
+
+export function sharedSpaceDashboardHasError(input: {
+  space: boolean;
+  members: boolean;
+  activity: boolean;
+  notes: boolean;
+  currentThread: boolean;
+  scriptureIndex: boolean;
+}): boolean {
+  return Object.values(input).some(Boolean);
+}
 
 function noteRowTitle(note: SpaceNoteRow): string {
   const stripped = stripServerAutoUntitledNoteTitleForDisplay(note.title ?? null);
@@ -79,7 +119,7 @@ function noteKindIcon(noteType: string | undefined): IconName {
 }
 
 function SharedSpaceNoteCard({
-  slot,
+  cardSlot,
   authorName,
   authorUserId,
   authorFirstName,
@@ -89,7 +129,7 @@ function SharedSpaceNoteCard({
   onOpen,
   showEyebrow = true,
 }: {
-  slot: SharedSpaceNoteCardSlot;
+  cardSlot: SharedSpaceNoteCardSlot;
   authorName: string;
   authorUserId: string;
   authorFirstName?: string | null;
@@ -99,7 +139,7 @@ function SharedSpaceNoteCard({
   onOpen: () => void;
   showEyebrow?: boolean;
 }) {
-  const { note, eyebrow } = slot;
+  const { note, eyebrow } = cardSlot;
   const preview = noteRowPreview(note);
   const rel = protoRelativeCaptionAbbrev(note.lastUpdated ?? note.updatedAt ?? note.createdAt ?? null);
 
@@ -163,20 +203,24 @@ function PrototypeSidebarSharedSpaceViewLive() {
     isMobileSidebar,
     setSidebarLayer,
     setSidebarListMode,
-    setSidebarThreadDrilldownId,
     setScriptureDrill,
     ensureSidebarExpanded,
+    closeDrawer,
+    beginPrototypeComposeSession,
   } = useProtoShell();
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [createThreadOpen, setCreateThreadOpen] = useState(false);
+  const [drilledThread, setDrilledThread] = useState<SharedThreadDrillTarget | null>(null);
+  const [threadPinError, setThreadPinError] = useState<string | null>(null);
 
   const spaceQuery = useSpace(activeSpaceId ?? '');
   const membersQuery = useSpaceMembers(activeSpaceId ?? '');
   const activityQuery = useSharedSpaceActivityPreview(activeSpaceId);
   const notesQuery = useSpaceNotes(activeSpaceId ?? '', 20);
   const groupThreadsQuery = useSpaceGroupThreads(activeSpaceId ?? undefined);
-  const threadsQuery = usePrototypeStudyThreads(activeSpaceId ?? undefined);
   const scriptureQuery = usePrototypeSpaceScriptureIndex(activeSpaceId ?? undefined);
+  const setCurrentThread = useSetCurrentSpaceThread();
   const { newNoteCount: visitNewCount } = useSharedSpaceVisit(activeSpaceId);
 
   const space = spaceQuery.data;
@@ -184,7 +228,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
   const peopleCount = membersQuery.data?.memberCount ?? (members.length || 1);
   const spaceTitle = resolvedSpaceTitle ?? space?.title ?? 'Shared space';
 
-  const selfDisplayName = resolveProfileFirstName(user) || 'You';
+  const selfDisplayName = resolveProfileFirstName(user, null) || 'You';
   const isSpaceOwner =
     membersQuery.data?.isOwner ??
     (members.some((m) => m.userId === authUserId && m.role === 'owner') ||
@@ -230,29 +274,17 @@ function PrototypeSidebarSharedSpaceViewLive() {
     [notesForContinue, authUserId, totalNoteCount],
   );
 
-  const groupStudyThreads = groupThreadsQuery.data ?? [];
-  const pinnedGroupThread = useMemo(
-    () => groupStudyThreads.find((t) => t.isPinned) ?? groupStudyThreads[0] ?? null,
-    [groupStudyThreads],
+  const groupThreads = groupThreadsQuery.data ?? [];
+  const threadDashboard = useMemo(
+    () => sharedThreadDashboardModel(groupThreads, isSpaceOwner),
+    [groupThreads, isSpaceOwner],
   );
-
-  const spotlightThread = useMemo(() => {
-    if (pinnedGroupThread) {
-      return {
-        id: pinnedGroupThread.id,
-        title: pinnedGroupThread.title,
-        noteCount: pinnedGroupThread.noteCount,
-      };
-    }
-    return selectSpotlightThreadForSpace(threadsQuery.data ?? []);
-  }, [pinnedGroupThread, threadsQuery.data]);
 
   const topPassage = useMemo(
     () => selectTopSharedPassage(scriptureQuery.data ?? []),
     [scriptureQuery.data],
   );
 
-  const threadsSettled = isQuerySettled(threadsQuery.isPending, threadsQuery.data != null);
   const groupThreadsSettled = isQuerySettled(groupThreadsQuery.isPending, groupThreadsQuery.data != null);
   const scriptureSettled = isQuerySettled(scriptureQuery.isPending, scriptureQuery.data != null);
   const notesSettled = isQuerySettled(notesQuery.isPending, notesQuery.data != null);
@@ -266,15 +298,37 @@ function PrototypeSidebarSharedSpaceViewLive() {
   const goToNotesList = () => goToListMode('notes');
 
   const openNote = (note: SpaceNoteRow) => {
-    navigate({ to: prototypeNoteRouteTo(), params: { noteId: noteParamSlug(note.id) } });
+    navigate({
+      to: prototypeNoteRouteTo(),
+      params: { noteId: noteParamSlug(note.id) },
+      search: { ...PROTOTYPE_NOTE_LIST_NAV_SEARCH, space: activeSpaceId ?? undefined },
+    });
   };
 
-  const openThread = (threadId: string) => {
-    const slug = threadId.startsWith('note_') ? threadId.slice('note_'.length) : threadId;
-    setSidebarListMode('threads');
-    setSidebarThreadDrilldownId(slug);
-    setSidebarLayer('list');
+  const openThread = (thread: SpaceGroupStudyThread) => {
+    setDrilledThread(thread);
     ensureSidebarExpanded();
+  };
+
+  const composeInSharedSpace = (threadId?: string) => {
+    if (!activeSpaceId) return;
+    if (isMobileSidebar) closeDrawer();
+    if (threadId) {
+      beginComposeInGroupThread(activeSpaceId, threadId, beginPrototypeComposeSession);
+    } else {
+      beginPrototypeComposeSession({ targetSpaceId: activeSpaceId });
+    }
+    navigate({
+      to: prototypeNoteRouteTo(),
+      params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
+    });
+  };
+
+  const makeThreadCurrent = async (threadId: string) => {
+    if (!activeSpaceId) throw new Error('Shared space is unavailable');
+    setThreadPinError(null);
+    await setCurrentThread.mutateAsync({ spaceId: activeSpaceId, threadId });
+    setDrilledThread((current) => (current?.id === threadId ? { ...current, isPinned: true } : current));
   };
 
   const openPassage = () => {
@@ -308,7 +362,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
     const author = resolveAuthor(slot.note);
     return (
       <SharedSpaceNoteCard
-        slot={slot}
+        cardSlot={slot}
         authorName={author.authorName}
         authorUserId={author.authorUserId}
         authorFirstName={author.authorFirstName}
@@ -338,11 +392,44 @@ function PrototypeSidebarSharedSpaceViewLive() {
 
   if (!activeSpaceId) return null;
 
+  const dashboardHasError = sharedSpaceDashboardHasError({
+    space: spaceQuery.isError,
+    members: membersQuery.isError,
+    activity: activityQuery.isError,
+    notes: notesQuery.isError,
+    currentThread: groupThreadsQuery.isError,
+    scriptureIndex: scriptureQuery.isError,
+  });
+
+  const retryDashboard = () => {
+    void Promise.all([
+      spaceQuery.refetch(),
+      membersQuery.refetch(),
+      activityQuery.refetch(),
+      notesQuery.refetch(),
+      groupThreadsQuery.refetch(),
+      scriptureQuery.refetch(),
+    ]);
+  };
+
+  if (dashboardHasError) {
+    return (
+      <div className="proto-sidebar-root proto-shared-space-dashboard">
+        {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
+        <div className="proto-shared-thread-state" role="alert">
+          <p>Could not load this shared space.</p>
+          <button type="button" className="proto-shared-thread-action" onClick={retryDashboard}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const contentReady =
     !spaceQuery.isPending &&
     !activityQuery.isLoading &&
     notesSettled &&
-    threadsSettled &&
     groupThreadsSettled &&
     scriptureSettled;
 
@@ -354,6 +441,19 @@ function PrototypeSidebarSharedSpaceViewLive() {
         {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
         <ProtoSpaceLoading label="Loading space" />
       </div>
+    );
+  }
+
+  if (drilledThread) {
+    return (
+      <PrototypeSharedThreadDrilldown
+        thread={drilledThread}
+        spaceId={activeSpaceId}
+        isOwner={isSpaceOwner}
+        onBack={() => setDrilledThread(null)}
+        onCompose={() => composeInSharedSpace(drilledThread.id)}
+        onSetCurrent={makeThreadCurrent}
+      />
     );
   }
 
@@ -458,12 +558,94 @@ function PrototypeSidebarSharedSpaceViewLive() {
             </div>
           ) : null}
 
+          <div className="proto-home-section">
+            <p className="proto-caption proto-home-section__eyebrow">Current Thread</p>
+            {threadDashboard.currentThread ? (
+              <button
+                type="button"
+                className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+                onClick={() => openThread(threadDashboard.currentThread!)}
+              >
+                <div className="proto-home-card__body">
+                  <div className="proto-home-card__title-row">
+                    <span className="proto-home-card__icon-orb" aria-hidden>
+                      <Icon name="arrow-right-arrow-left" size={13} />
+                    </span>
+                    <p className="pds-list-title proto-home-card__title">
+                      {threadDashboard.currentThread.title}
+                    </p>
+                    <span className="proto-home-card__chevron" aria-hidden>
+                      <Icon name="caret-right" size={11} />
+                    </span>
+                  </div>
+                  <p className="pds-list-preview proto-home-card__preview">
+                    {sharedThreadNoteCountPreview(threadDashboard.currentThread.noteCount)}
+                  </p>
+                </div>
+              </button>
+            ) : (
+              <div className="proto-list-create-empty">
+                <PrototypeListEmptyState iconName="arrow-right-arrow-left" title={threadDashboard.emptyLabel ?? ''} />
+                {threadDashboard.canStartThread ? (
+                  <button
+                    type="button"
+                    className="proto-shared-thread-action proto-shared-thread-action--primary"
+                    onClick={() => setCreateThreadOpen(true)}
+                  >
+                    Start a Thread
+                  </button>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          {isSpaceOwner && threadDashboard.otherThreads.length > 0 ? (
+            <div className="proto-home-section">
+              <p className="proto-caption proto-home-section__eyebrow">Threads</p>
+              <ul className="proto-shared-thread-list">
+                {threadDashboard.otherThreads.map((thread) => (
+                  <li
+                    key={thread.id}
+                    className="proto-glass-surface proto-shared-thread-list-row"
+                  >
+                    <button
+                      type="button"
+                      className="proto-shared-thread-list-row__open pds-list-title"
+                      onClick={() => openThread(thread)}
+                    >
+                      {thread.title}
+                    </button>
+                    <button
+                      type="button"
+                      className="proto-shared-thread-action"
+                      disabled={setCurrentThread.isPending}
+                      onClick={() => {
+                        void makeThreadCurrent(thread.id).catch((error) => {
+                          setThreadPinError(
+                            error instanceof Error ? error.message : 'Could not set this Thread as current.',
+                          );
+                        });
+                      }}
+                    >
+                      Set current
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {threadPinError ? (
+                <p className="proto-connect-note-sheet__error" role="alert">
+                  {threadPinError}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           {totalNoteCount === 0 ? (
             <div className="proto-home-section">
               <button
                 type="button"
                 className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-                onClick={goToNotesList}
+                onClick={() => composeInSharedSpace(threadDashboard.currentThread?.id)}
               >
                 <div className="proto-home-card__body">
                   <div className="proto-home-card__title-row">
@@ -483,37 +665,6 @@ function PrototypeSidebarSharedSpaceViewLive() {
             </div>
           ) : (
             <>
-              {spotlightThread ? (
-                <div className="proto-home-section">
-                  <button
-                    type="button"
-                    className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-                    onClick={() => openThread(spotlightThread.id)}
-                  >
-                    <p className="proto-caption proto-home-card__eyebrow">
-                      {pinnedGroupThread ? 'Current group study' : homeSpotlightThreadEyebrow(spotlightThread.noteCount)}
-                    </p>
-                    <div className="proto-home-card__body">
-                      <div className="proto-home-card__title-row">
-                        <span className="proto-home-card__icon-orb" aria-hidden>
-                          <Icon name="arrow-right-arrow-left" size={13} />
-                        </span>
-                        <p className="pds-list-title proto-home-card__title">{spotlightThread.title}</p>
-                        <span className="proto-home-card__chevron" aria-hidden>
-                          <Icon name="caret-right" size={11} />
-                        </span>
-                      </div>
-                      <div className="proto-home-card__meta">
-                        <span className="proto-home-card__meta-item">
-                          {spotlightThread.noteCount}{' '}
-                          {spotlightThread.noteCount === 1 ? 'note' : 'notes'} in this space
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              ) : null}
-
               {topPassage ? (
                 <div className="proto-home-section">
                   <button
@@ -579,6 +730,17 @@ function PrototypeSidebarSharedSpaceViewLive() {
         spaceColor={space?.color}
         spaceDescription={space?.description}
         viewerIsOwner={isSpaceOwner}
+      />
+      <PrototypeCreateSharedThreadSheet
+        open={createThreadOpen}
+        onOpenChange={setCreateThreadOpen}
+        spaceId={activeSpaceId}
+        spaceColor={space?.color}
+        isOwner={isSpaceOwner}
+        onPinFailure={() => groupThreadsQuery.refetch()}
+        onCreated={(thread) => {
+          setDrilledThread({ id: thread.id, title: thread.title, isPinned: true });
+        }}
       />
     </div>
   );
