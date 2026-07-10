@@ -58,14 +58,17 @@ import {
   type PendingComposeUrlReplace,
 } from '@/utils/prototype-compose-url';
 import { isPrototypeDraftNoteSlug, noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
-import { getComposeGroupThreadId, setComposeGroupThreadId } from '../../lib/compose-group-thread';
+import {
+  draftDestinationChipModel,
+  getComposeGroupThreadId,
+  setComposeGroupThreadId,
+} from '../../lib/compose-group-thread';
 import { validComposeThreadSelection } from './PrototypeGroupStudyThreadPicker';
-import PrototypeAddToThreadConfirm from './PrototypeAddToThreadConfirm';
 import { selectCurrentSpaceThread, useSpaceGroupThreads } from '../../hooks/queries/useSpaceGroupThreads';
 import { trackSessionNoteOpen } from '@/utils/session-xp-client';
 import type { NoteActivityItem } from '../../lib/shared-note-activity-list';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
-import { APIError } from '../../lib/api';
+import { api, APIError } from '../../lib/api';
 
 const DRAFT_NOTE_ID = 'note_draft';
 const EMPTY_NOTE_COLLECTIONS: string[] = [];
@@ -77,9 +80,9 @@ export function draftSaveDestinationLabel(input: {
   threadTitle?: string | null;
 }): string {
   if (!input.targetSpaceId || input.targetSpaceId === input.homeSpaceId) return 'Saving to My Home';
-  const base = `Saving to ${input.targetSpaceTitle?.trim() || 'this space'}`;
+  const spaceTitle = input.targetSpaceTitle?.trim() || 'this space';
   const threadTitle = input.threadTitle?.trim();
-  return threadTitle ? `${base} · ${threadTitle}` : base;
+  return threadTitle ? `Saving to ${threadTitle} in ${spaceTitle}` : `Saving to ${spaceTitle}`;
 }
 
 export function resolvePrototypeNoteLoadState(input: {
@@ -272,47 +275,69 @@ export default function PrototypeNotePage() {
     }
   }, [isDraft, composeTargetSpaceIdOverride, clearComposeTargetSpaceIdOverride]);
 
-  // A fresh shared-space draft may join the space's current Thread. Rather than an
-  // always-visible inline picker, ask once (per compose session) before the editor
-  // settles — unless the draft already arrived with a Thread resolved (e.g. from the
-  // Thread drilldown's "Compose new note"), in which case there's nothing to ask.
+  // A fresh shared-space draft saves to the space only by default. When the space has a
+  // pinned current Thread, the destination cue shows an opt-in chip instead of a blocking
+  // dialog; composing from the Thread drilldown arrives with the Thread preselected
+  // (beginComposeInGroupThread), which just renders the chip active.
   const isSharedComposeTarget = isDraft && !!composeTargetSpaceId && composeTargetSpaceId !== personalHomeSpaceId;
   const composeGroupThreadsQuery = useSpaceGroupThreads(isSharedComposeTarget ? composeTargetSpaceId : undefined);
   const composeGroupThreads = composeGroupThreadsQuery.data ?? [];
   const pinnedComposeThread = isSharedComposeTarget ? selectCurrentSpaceThread(composeGroupThreads) : null;
+  const [composeThreadSelection, setComposeThreadSelection] = useState<string | null>(() =>
+    getComposeGroupThreadId(),
+  );
+  useEffect(() => {
+    setComposeThreadSelection(getComposeGroupThreadId());
+  }, [composeSessionEpoch]);
   const resolvedComposeThreadId = isSharedComposeTarget
-    ? validComposeThreadSelection(getComposeGroupThreadId(), composeGroupThreads, composeGroupThreadsQuery.isLoading)
+    ? validComposeThreadSelection(composeThreadSelection, composeGroupThreads, composeGroupThreadsQuery.isLoading)
     : null;
   const resolvedComposeThread = resolvedComposeThreadId
     ? composeGroupThreads.find((thread) => thread.id === resolvedComposeThreadId) ?? null
     : null;
+  const resolvedComposeThreadIdRef = useRef(resolvedComposeThreadId);
+  resolvedComposeThreadIdRef.current = resolvedComposeThreadId;
 
-  const [addToThreadPromptOpen, setAddToThreadPromptOpen] = useState(false);
-  const addToThreadPromptedEpochRef = useRef<number | null>(null);
+  const [composeThreadToggleBusy, setComposeThreadToggleBusy] = useState(false);
+  const toggleComposeThread = useCallback(() => {
+    if (!pinnedComposeThread || composeThreadToggleBusy) return;
+    const threadId = pinnedComposeThread.id;
+    const wasActive = resolvedComposeThreadIdRef.current === threadId;
+    const next = wasActive ? null : threadId;
+    setComposeGroupThreadId(next);
+    setComposeThreadSelection(next);
+    // Before the draft persists, the selection rides into the create call. After, the
+    // note is real — reconcile membership through the thread endpoints (awaiting any
+    // in-flight create so a toggle mid-save still lands on the final note).
+    if (!persistedDraftIdRef.current && !draftPersistPromiseRef.current) return;
+    setComposeThreadToggleBusy(true);
+    (async () => {
+      const noteId = persistedDraftIdRef.current ?? (await draftPersistPromiseRef.current);
+      if (!noteId) return;
+      try {
+        await api.post(`/api/notes/${noteId}/${next ? 'add-thread' : 'remove-thread'}`, { threadId });
+      } catch (err) {
+        // Removing a membership the create never wrote is fine; anything else reverts
+        // the chip so the cue never lies about where the note lives.
+        if (!(err instanceof APIError && err.status === 404 && !next)) throw err;
+      }
+      queryClient.invalidateQueries({ queryKey: ['thread', threadId, 'notes'] });
+      queryClient.invalidateQueries({ queryKey: ['note', noteId] });
+      if (composeTargetSpaceId) {
+        queryClient.invalidateQueries({ queryKey: ['space', composeTargetSpaceId, 'group-threads'] });
+      }
+    })()
+      .catch(() => {
+        setComposeGroupThreadId(wasActive ? threadId : null);
+        setComposeThreadSelection(wasActive ? threadId : null);
+      })
+      .finally(() => setComposeThreadToggleBusy(false));
+  }, [pinnedComposeThread, composeThreadToggleBusy, queryClient, composeTargetSpaceId]);
 
-  useEffect(() => {
-    if (!isSharedComposeTarget || !pinnedComposeThread || composeGroupThreadsQuery.isLoading) return;
-    if (addToThreadPromptedEpochRef.current === composeSessionEpoch) return;
-    addToThreadPromptedEpochRef.current = composeSessionEpoch;
-    if (resolvedComposeThreadId === pinnedComposeThread.id) return;
-    setAddToThreadPromptOpen(true);
-  }, [
-    isSharedComposeTarget,
-    pinnedComposeThread,
-    composeGroupThreadsQuery.isLoading,
-    resolvedComposeThreadId,
-    composeSessionEpoch,
-  ]);
-
-  const handleAddToThreadConfirm = useCallback(() => {
-    if (pinnedComposeThread) setComposeGroupThreadId(pinnedComposeThread.id);
-    setAddToThreadPromptOpen(false);
-  }, [pinnedComposeThread]);
-
-  const handleAddToThreadSkip = useCallback(() => {
-    setComposeGroupThreadId(null);
-    setAddToThreadPromptOpen(false);
-  }, []);
+  const composeThreadChip = draftDestinationChipModel({
+    pinnedThread: pinnedComposeThread,
+    resolvedThreadId: resolvedComposeThreadId,
+  });
 
   const onHighlightOpenRequestConsumed = useCallback(() => {
     setHighlightOpenRequest(null);
@@ -921,6 +946,8 @@ export default function PrototypeNotePage() {
         actorDisplayName: row.authorDisplayName?.trim() || 'Member',
         actorUserId: row.userId ?? '',
         actorColor: row.authorColor ?? 'blue',
+        actorFirstName: null,
+        actorProfileImageUrl: null,
         isSelf: row.isOwnHighlight === true,
         timestamp: row.updatedAt ?? row.createdAt,
         subject: row.anchorQuote ?? row.anchorTextSnapshot ?? row.sourceSnippet ?? 'Highlighted passage',
@@ -1066,14 +1093,13 @@ export default function PrototypeNotePage() {
             canonicalHomeSpaceId: personalHomeSpaceId,
             title: newTitle,
             content: newContent,
-            threadId: getComposeGroupThreadId() ?? undefined,
+            threadId: resolvedComposeThreadIdRef.current ?? undefined,
             allowOffline: spaceId === personalHomeSpaceId,
           });
           const createdId = getNoteIdFromCreateResponse(res);
           if (!createdId) {
             throw new Error('Create succeeded but response had no note id');
           }
-          setComposeGroupThreadId(null);
           persistedDraftIdRef.current = createdId;
           adoptedComposeIdRef.current = createdId;
           setAdoptedComposeId(createdId);
@@ -1432,14 +1458,6 @@ export default function PrototypeNotePage() {
   return (
     <>
     {studyThreadPopoverLayer}
-    {pinnedComposeThread ? (
-      <PrototypeAddToThreadConfirm
-        open={addToThreadPromptOpen}
-        threadTitle={pinnedComposeThread.title}
-        onAdd={handleAddToThreadConfirm}
-        onSkip={handleAddToThreadSkip}
-      />
-    ) : null}
     <PrototypeMainPaneShell>
     <div
       ref={notePaneRowRef}
@@ -1482,8 +1500,42 @@ export default function PrototypeNotePage() {
                 />
               ) : null}
               {isDraft ? (
-                <div className="proto-draft-destination-cue" role="status" aria-live="polite">
-                  <span className="proto-draft-destination-cue__status pds-caption">{draftDestinationCue}</span>
+                <div className="proto-draft-destination-cue">
+                  <span
+                    className="proto-draft-destination-cue__status pds-caption"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {draftDestinationCue}
+                  </span>
+                  {composeThreadChip.state !== 'hidden' ? (
+                    <button
+                      type="button"
+                      className={`proto-draft-destination-cue__chip${
+                        composeThreadChip.state === 'active' ? ' proto-draft-destination-cue__chip--active' : ''
+                      }`}
+                      aria-pressed={composeThreadChip.state === 'active'}
+                      aria-label={
+                        composeThreadChip.state === 'active'
+                          ? `Remove from ${composeThreadChip.threadTitle}`
+                          : `Add to ${composeThreadChip.threadTitle}`
+                      }
+                      disabled={composeThreadToggleBusy}
+                      onClick={toggleComposeThread}
+                    >
+                      <Icon
+                        name={composeThreadChip.state === 'active' ? 'arrow-right-arrow-left' : 'plus'}
+                        size={9}
+                        aria-hidden
+                      />
+                      <span className="proto-draft-destination-cue__chip-label">
+                        {composeThreadChip.state === 'active'
+                          ? composeThreadChip.threadTitle
+                          : `Add to ${composeThreadChip.threadTitle}`}
+                      </span>
+                      {composeThreadChip.state === 'active' ? <Icon name="xmark" size={9} aria-hidden /> : null}
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
               <CardFullEditable

@@ -27,14 +27,6 @@
   opacity: 0.55;
 }
 
-.proto-add-to-thread-confirm__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 14px 14px;
-  border-top: 0.5px solid var(--pds-border-control);
-}
-
 .proto-shared-thread-list {
   display: grid;
   gap: 6px;

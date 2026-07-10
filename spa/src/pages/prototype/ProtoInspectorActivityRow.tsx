@@ -1,6 +1,7 @@
 import Icon from '@/components/react/Icon';
 import type { NoteActivityItem } from '../../lib/shared-note-activity-list';
 import { noteActivityKindLabel } from '../../lib/shared-note-activity-list';
+import SharedSpaceMemberAvatar from './SharedSpaceMemberAvatar';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 
 function activityKindIcon(kind: NoteActivityItem['kind']): 'highlighter' | 'note-sticky' | 'arrow-right-arrow-left' {
@@ -38,12 +39,24 @@ export default function ProtoInspectorActivityRow({
         aria-label={`${kindLabel} by ${actorLabel} on ${item.subject}${accessibleStatus}`}
         onClick={onSelect}
       >
-        <span className="proto-inspector-activity__glyph" aria-hidden>
-          <Icon name={activityKindIcon(item.kind)} size={11} />
-        </span>
+        <SharedSpaceMemberAvatar
+          userId={item.actorUserId}
+          firstName={item.actorFirstName}
+          displayName={item.actorDisplayName}
+          userColor={item.actorColor}
+          profileImageUrl={item.actorProfileImageUrl}
+          className="proto-inspector-activity__avatar"
+        />
         <span className="proto-inspector-activity__body">
           <span className="proto-inspector-activity__head">
-            <span className="proto-inspector-activity__kind">{kindLabel}</span>
+            <span className="proto-inspector-activity__actor">{actorLabel}</span>
+            <span className="proto-inspector-activity__sep" aria-hidden>
+              ·
+            </span>
+            <span className="proto-inspector-activity__kind">
+              <Icon name={activityKindIcon(item.kind)} size={9} aria-hidden />
+              {kindLabel}
+            </span>
             {rel ? <span className="proto-inspector-activity__time">{rel}</span> : null}
           </span>
           {item.statusLabel ? (
@@ -52,17 +65,7 @@ export default function ProtoInspectorActivityRow({
           <span className="proto-inspector-activity__subject" title={item.subject}>
             {item.subject}
           </span>
-          <span className="proto-inspector-activity__meta">
-            <span className="proto-inspector-activity__actor">{actorLabel}</span>
-            {item.preview ? (
-              <>
-                <span className="proto-inspector-activity__sep" aria-hidden>
-                  ·
-                </span>
-                <span className="proto-inspector-activity__preview">{item.preview}</span>
-              </>
-            ) : null}
-          </span>
+          {item.preview ? <span className="proto-inspector-activity__preview">{item.preview}</span> : null}
           {item.context ? <span className="proto-inspector-activity__context">{item.context}</span> : null}
         </span>
       </button>

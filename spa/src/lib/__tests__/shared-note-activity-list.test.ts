@@ -58,7 +58,13 @@ describe('buildSharedNoteActivityGroups', () => {
     const groups = buildSharedNoteActivityGroups(
       [
         group('space_active', 'active', [
-          item({ id: 'newer', actorUserId: 'member_2', actorDisplayName: 'Sarah' }),
+          item({
+            id: 'newer',
+            actorUserId: 'member_2',
+            actorDisplayName: 'Sarah',
+            actorFirstName: 'Sarah',
+            actorProfileImageUrl: 'https://img.example/sarah.png',
+          }),
           item({
             id: 'older',
             actorUserId: 'member_1',
@@ -94,6 +100,14 @@ describe('buildSharedNoteActivityGroups', () => {
     expect(groups[0]?.items[1]?.isSelf).toBe(true);
     expect(groups[0]?.items[1]?.context).toBe('Harvous A. also highlighted this passage');
     expect(groups[0]?.items[1]?.preview).toBe('My response');
+    expect(groups[0]?.items[0]).toMatchObject({
+      actorFirstName: 'Sarah',
+      actorProfileImageUrl: 'https://img.example/sarah.png',
+    });
+    expect(groups[0]?.items[1]).toMatchObject({
+      actorFirstName: null,
+      actorProfileImageUrl: null,
+    });
   });
 
   it('keeps the original quote while labeling detached passages', () => {

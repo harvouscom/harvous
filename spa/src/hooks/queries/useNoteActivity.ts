@@ -7,6 +7,8 @@ export type NoteActivityWireItem = {
   actorUserId: string;
   actorDisplayName: string;
   actorColor: string;
+  actorFirstName?: string | null;
+  actorProfileImageUrl?: string | null;
   entryKind: string;
   highlightAccentRaw: string;
   focusTitle: string;

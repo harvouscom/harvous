@@ -34,6 +34,8 @@ export type SharedNoteActivityEntry = {
 export type SharedNoteActivityAuthor = {
   displayName: string;
   userColor: string;
+  firstName?: string | null;
+  profileImageUrl?: string | null;
 };
 
 export type SharedNoteActivityItem = {
@@ -41,6 +43,8 @@ export type SharedNoteActivityItem = {
   actorUserId: string;
   actorDisplayName: string;
   actorColor: string;
+  actorFirstName: string | null;
+  actorProfileImageUrl: string | null;
   entryKind: string;
   highlightAccentRaw: string;
   focusTitle: string;
@@ -140,6 +144,8 @@ export function buildSharedNoteActivity(input: {
       actorUserId: row.userId,
       actorDisplayName: liveAuthor?.displayName ?? row.actorDisplayNameSnapshot?.trim() ?? 'Former member',
       actorColor: liveAuthor?.userColor ?? 'blue',
+      actorFirstName: liveAuthor?.firstName ?? null,
+      actorProfileImageUrl: liveAuthor?.profileImageUrl ?? null,
       entryKind: row.entryKindRaw,
       highlightAccentRaw: row.highlightAccentRaw,
       focusTitle: row.focusTitle,

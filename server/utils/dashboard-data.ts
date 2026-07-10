@@ -31,7 +31,12 @@ import {
 import { serializeSharedCanonicalNote } from './shared-note-serializer';
 import { requireThreadReadAccess } from './shared-space-lifecycle';
 
-export type AuthorAttribution = { displayName: string; userColor: string };
+export type AuthorAttribution = {
+  displayName: string;
+  userColor: string;
+  firstName: string | null;
+  profileImageUrl: string | null;
+};
 
 /** Batched UserMetadata lookup for shared-space author chips (notes, highlights). */
 export async function batchAuthorAttribution(
@@ -46,6 +51,7 @@ export async function batchAuthorAttribution(
         firstName: UserMetadata.firstName,
         lastName: UserMetadata.lastName,
         userColor: UserMetadata.userColor,
+        profileImageUrl: UserMetadata.profileImageUrl,
       })
       .from(UserMetadata)
       .where(inArray(UserMetadata.userId, unique));
@@ -60,6 +66,8 @@ export async function batchAuthorAttribution(
               : firstName
             : 'A Harvous User',
           userColor: row.userColor || 'blue',
+          firstName: row.firstName || null,
+          profileImageUrl: row.profileImageUrl || null,
         };
         return acc;
       },

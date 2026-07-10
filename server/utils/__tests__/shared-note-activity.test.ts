@@ -61,13 +61,28 @@ describe('shared note activity', () => {
           actorDisplayNameSnapshot: 'Former Ruth',
         }),
       ],
-      authors: { user_member: { displayName: 'Paul P.', userColor: 'green' } },
+      authors: {
+        user_member: {
+          displayName: 'Paul P.',
+          userColor: 'green',
+          firstName: 'Paul',
+          profileImageUrl: 'https://img.example/paul.png',
+        },
+      },
     });
     expect(groups.map((group) => [group.spaceId, group.associationStatus])).toEqual([
       ['space_active', 'active'],
       ['space_archived', 'archived'],
     ]);
+    expect(groups[0]?.items[0]).toMatchObject({
+      actorFirstName: 'Paul',
+      actorProfileImageUrl: 'https://img.example/paul.png',
+    });
     expect(groups[1]?.items[0]?.actorDisplayName).toBe('Former Ruth');
+    expect(groups[1]?.items[0]).toMatchObject({
+      actorFirstName: null,
+      actorProfileImageUrl: null,
+    });
   });
 
   it('isolates a shared context to its active association', () => {

@@ -2128,15 +2128,13 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   background: var(--pds-bg-row-hover);
 }
 
-.proto-inspector-activity__glyph {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
+.proto-inspector-activity__row .proto-inspector-activity__avatar {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  font-size: 9px;
   margin-top: 1px;
-  color: var(--pds-text-tertiary);
 }
 
 .proto-inspector-activity__body {
@@ -2150,12 +2148,24 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 .proto-inspector-activity__head {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
 }
 
+.proto-inspector-activity__actor {
+  font-size: var(--pds-list-meta-size);
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .proto-inspector-activity__kind {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -2165,6 +2175,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 
 .proto-inspector-activity__time {
   flex-shrink: 0;
+  margin-left: auto;
   font-size: 11px;
   color: var(--pds-text-tertiary);
 }
@@ -2186,26 +2197,20 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   color: var(--pds-text-tertiary);
 }
 
-.proto-inspector-activity__meta {
+.proto-inspector-activity__sep {
+  flex-shrink: 0;
+  color: var(--pds-text-tertiary);
+  opacity: 0.55;
+}
+
+.proto-inspector-activity__preview {
   font-size: var(--pds-list-meta-size);
+  font-weight: 400;
   line-height: 1.35;
   color: var(--pds-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.proto-inspector-activity__actor {
-  font-weight: 500;
-}
-
-.proto-inspector-activity__sep {
-  margin: 0 3px;
-  opacity: 0.55;
-}
-
-.proto-inspector-activity__preview {
-  font-weight: 400;
 }
 
 .proto-inspector-activity__context {

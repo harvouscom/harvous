@@ -17,6 +17,28 @@ export function setComposeGroupThreadId(threadId: string | null) {
   }
 }
 
+export type DraftDestinationChip =
+  | { state: 'hidden' }
+  | { state: 'opt-in' | 'active'; threadId: string; threadTitle: string };
+
+/**
+ * Destination chip shown in the draft cue while composing in a shared space.
+ * `resolvedThreadId` must already be validated against the space's pinned
+ * threads (see validComposeThreadSelection), so a stale selection degrades to
+ * the opt-in state instead of rendering an active chip for a gone thread.
+ */
+export function draftDestinationChipModel(input: {
+  pinnedThread: { id: string; title: string } | null;
+  resolvedThreadId: string | null;
+}): DraftDestinationChip {
+  if (!input.pinnedThread) return { state: 'hidden' };
+  return {
+    state: input.resolvedThreadId === input.pinnedThread.id ? 'active' : 'opt-in',
+    threadId: input.pinnedThread.id,
+    threadTitle: input.pinnedThread.title,
+  };
+}
+
 /**
  * Start a shared-space compose session and then preselect its real Thread.
  * `beginCompose` clears stale selection first, so ordering is intentional.

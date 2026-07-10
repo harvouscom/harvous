@@ -10,6 +10,8 @@ export type NoteActivityItem = {
   actorDisplayName: string;
   actorUserId: string;
   actorColor: string;
+  actorFirstName: string | null;
+  actorProfileImageUrl: string | null;
   isSelf: boolean;
   timestamp: string;
   subject: string;
@@ -123,6 +125,8 @@ export function buildSharedNoteActivityGroups(
           actorDisplayName: item.actorDisplayName.trim() || 'Former member',
           actorUserId: item.actorUserId,
           actorColor: item.actorColor,
+          actorFirstName: item.actorFirstName ?? null,
+          actorProfileImageUrl: item.actorProfileImageUrl ?? null,
           isSelf: Boolean(options.viewerUserId && item.actorUserId === options.viewerUserId),
           timestamp: item.updatedAt ?? item.createdAt,
           subject: quote || item.focusTitle.trim() || 'Highlighted passage',

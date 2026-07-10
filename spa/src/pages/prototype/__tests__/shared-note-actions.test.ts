@@ -239,7 +239,7 @@ describe('shared panel retry and destination contracts', () => {
         targetSpaceTitle: 'Romans Group',
         threadTitle: 'Life together in Romans 12',
       }),
-    ).toBe('Saving to Romans Group · Life together in Romans 12');
+    ).toBe('Saving to Life together in Romans 12 in Romans Group');
     expect(
       draftSaveDestinationLabel({
         targetSpaceId: 'space_shared',
