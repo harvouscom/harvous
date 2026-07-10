@@ -21,6 +21,10 @@ import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { DOMSerializer } from '@tiptap/pm/model';
 import { NoteLink } from './TiptapNoteLink';
 import { ScripturePill } from './TiptapScripturePill';
+import { MentionPill } from './TiptapMentionPill';
+import MentionPickerPanel, { type MentionKindFilter } from './MentionPickerPanel';
+import type { MentionPickerItem, MentionPillClickPayload } from './mention-pill-types';
+import { findMentionTrigger } from '@/utils/mention-trigger';
 import {
   ScriptureDraft,
   enterScriptureDraftView,
@@ -222,6 +226,13 @@ interface TiptapEditorProps {
   parentThreadId?: string;
   sourceNoteId?: string; // ID of the note this editor is editing (for hyperlink creation)
   spaceId?: string;
+  /**
+   * Enables @ mention pills: given the text typed after `@`, return matching notes /
+   * study threads / folders. Absent → the @ typeahead never triggers (classic shell).
+   */
+  mentionSource?: (query: string) => MentionPickerItem[] | Promise<MentionPickerItem[]>;
+  /** Tap/click on a mention pill (editable and read-only). Navigation is owned by the parent. */
+  onMentionPillClick?: (payload: MentionPillClickPayload) => void;
   onEditorReady?: (editor: any) => void;
   onEditorInstanceReady?: (editor: any) => void; // Callback when editor instance is ready for direct access
   /** Legacy hint for layouts that host the editor in a bottom sheet; caret scroll uses `[data-keyboard-open]` + `toolbarAtBottom`. */
@@ -572,19 +583,20 @@ function findTextPositions(doc: any, searchText: string, skipMarked: boolean = t
 }
 
 // Helper function to find pill boundaries (start and end positions of a pill mark)
-// Returns null if position is not inside a pill
-function findPillBoundaries(doc: any, pos: number): { start: number; end: number } | null {
+// Returns null if position is not inside a pill. Defaults to scripture pills; pass
+// `markName` for other pill marks (e.g. mentionPill).
+function findPillBoundaries(doc: any, pos: number, markName: string = 'scripturePill'): { start: number; end: number } | null {
   let pillStart = pos;
   let pillEnd = pos;
-  
+
   // Find start of pill
   for (let p = pos; p >= 0; p--) {
     try {
       const $p = doc.resolve(p);
       const marks = $p.marks();
-      const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+      const hasPill = marks.some((m: any) => m.type.name === markName);
       // Also check nodeAfter marks — $p.marks() misses inclusive:false marks at the start boundary
-      const nodeAfterHasPill = $p.nodeAfter?.marks?.some((m: any) => m.type.name === 'scripturePill');
+      const nodeAfterHasPill = $p.nodeAfter?.marks?.some((m: any) => m.type.name === markName);
       if (!hasPill && !nodeAfterHasPill) {
         pillStart = p + 1;
         break;
@@ -598,13 +610,13 @@ function findPillBoundaries(doc: any, pos: number): { start: number; end: number
       break;
     }
   }
-  
+
   // Find end of pill
   for (let p = pos; p <= doc.content.size; p++) {
     try {
       const $p = doc.resolve(p);
       const marks = $p.marks();
-      const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+      const hasPill = marks.some((m: any) => m.type.name === markName);
       if (!hasPill) {
         pillEnd = p;
         break;
@@ -614,14 +626,14 @@ function findPillBoundaries(doc: any, pos: number): { start: number; end: number
       break;
     }
   }
-  
+
   // If start and end are the same, we're not inside a pill
   if (pillStart === pillEnd && pillStart === pos) {
     // Check if we're actually at a pill boundary
     try {
       const $pos = doc.resolve(pos);
       const marks = $pos.marks();
-      const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+      const hasPill = marks.some((m: any) => m.type.name === markName);
       if (!hasPill) {
         return null; // Not inside a pill
       }
@@ -629,7 +641,7 @@ function findPillBoundaries(doc: any, pos: number): { start: number; end: number
       return null;
     }
   }
-  
+
   return { start: pillStart, end: pillEnd };
 }
 
@@ -638,6 +650,72 @@ type ScripturePillDeleteConfirmState = {
   reference: string;
   boundaries: { start: number; end: number };
 };
+
+type MentionPickerState = {
+  /** The `@query` range in the doc: from = position of `@`, to = caret. */
+  range: { from: number; to: number };
+  query: string;
+  rect: { top: number; left: number; bottom: number; right: number; width: number };
+  /** Full unfiltered result set from mentionSource — sectioned by kind (notes, folders, threads). */
+  items: MentionPickerItem[];
+  /** Active kind tab; 'all' shows every kind grouped under section headers. */
+  kindFilter: MentionKindFilter;
+  /** Index into the FILTERED (visible) item list, not `items` — see visibleMentionItems. */
+  activeIndex: number;
+};
+
+/** Items belonging to the active kind tab (or all of them, grouped, when kindFilter is 'all'). */
+function visibleMentionItems(state: MentionPickerState): MentionPickerItem[] {
+  return state.kindFilter === 'all' ? state.items : state.items.filter((i) => i.kind === state.kindFilter);
+}
+
+/** Fixed-position style for the mention picker: below the caret, clamped to the viewport, flipped above when the keyboard/viewport bottom is too close. */
+function mentionPickerPortalStyle(rect: MentionPickerState['rect']): React.CSSProperties {
+  const maxHeight = 288;
+  const width = 264;
+  const openAbove =
+    rect.bottom + 6 + maxHeight > window.innerHeight - 12 && rect.top > maxHeight + 12;
+  const left = Math.min(Math.max(8, rect.left), Math.max(8, window.innerWidth - width - 8));
+  const style: React.CSSProperties = {
+    position: 'fixed',
+    left,
+    width,
+    maxHeight,
+    zIndex: 99999,
+    pointerEvents: 'auto',
+  };
+  if (openAbove) {
+    style.bottom = Math.max(8, window.innerHeight - rect.top + 6);
+  } else {
+    style.top = rect.bottom + 6;
+  }
+  return style;
+}
+
+/** Replace the active `@query` with a mention pill for the chosen item, then close the picker. */
+function commitMentionPickerItem(
+  editor: any,
+  state: MentionPickerState,
+  item: MentionPickerItem,
+  closePicker: () => void,
+): void {
+  try {
+    editor
+      .chain()
+      .focus()
+      .insertMentionPill({
+        kind: item.kind,
+        entityId: item.entityId,
+        spaceId: item.spaceId || null,
+        label: item.title,
+        range: state.range,
+      })
+      .run();
+  } catch {
+    /* ignore — stale range after a concurrent doc change */
+  }
+  closePicker();
+}
 
 /** Backspace/Delete/Escape handling for scripture pill delete confirmation. */
 function tryHandleScripturePillDeleteKey(
@@ -724,6 +802,40 @@ function tryHandleScripturePillDeleteKey(
   const confirmData = { rect, reference: pillReference, boundaries: pillBoundaries };
   setDeleteConfirmPill(confirmData);
   deleteConfirmPillRef.current = confirmData;
+  return true;
+}
+
+/**
+ * Backspace/Delete on or next to a mention pill removes the whole pill in one keystroke.
+ * Simpler sibling of tryHandleScripturePillDeleteKey — mentions are trivially recreated,
+ * so there is no confirm step.
+ */
+function tryHandleMentionPillDeleteKey(editor: any, event: KeyboardEvent, view: any): boolean {
+  if (!(event.key === 'Backspace' || event.key === 'Delete')) {
+    return false;
+  }
+
+  const { from, to } = view.state.selection;
+  if (from !== to) {
+    return false;
+  }
+
+  const $from = view.state.selection.$from;
+  const insidePill = $from.marks().some((m: any) => m.type.name === 'mentionPill');
+
+  let boundaries: { start: number; end: number } | null = null;
+  if (insidePill) {
+    boundaries = findPillBoundaries(view.state.doc, from, 'mentionPill');
+  } else {
+    const direction = event.key === 'Backspace' ? 'before' : 'after';
+    boundaries = findAdjacentPillBoundaries(view.state.doc, from, direction, 'mentionPill');
+  }
+  if (!boundaries) {
+    return false;
+  }
+
+  event.preventDefault();
+  editor.chain().deleteRange({ from: boundaries.start, to: boundaries.end }).run();
   return true;
 }
 
@@ -3819,6 +3931,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   parentThreadId,
   sourceNoteId,
   spaceId,
+  mentionSource,
+  onMentionPillClick,
   onEditorReady,
   onEditorInstanceReady,
   inBottomSheet = false,
@@ -3920,6 +4034,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     reference: string;
     boundaries: { start: number; end: number };
   } | null>(null);
+  // @ mention typeahead. State drives the portal; the ref mirror is read inside
+  // handleKeyDown and editor event listeners (same stale-closure pattern as deleteConfirmPillRef).
+  const [mentionPicker, setMentionPicker] = useState<MentionPickerState | null>(null);
+  const mentionPickerRef = useRef<MentionPickerState | null>(null);
+  /** Position of an `@` the user Escaped from — suppresses instant reopen until the trigger goes away. */
+  const mentionDismissedAtRef = useRef<number | null>(null);
+  /** Monotonic token guarding async mentionSource results against stale application. */
+  const mentionQueryTokenRef = useRef(0);
+  const mentionFetchTimerRef = useRef<number | null>(null);
+  const mentionSourceRef = useRef(mentionSource);
+  mentionSourceRef.current = mentionSource;
+  const onMentionPillClickRef = useRef(onMentionPillClick);
+  onMentionPillClickRef.current = onMentionPillClick;
   const [contentOverflowing, setContentOverflowing] = useState(false);
   const [contentHasScrolledDown, setContentHasScrolledDown] = useState(false);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
@@ -4151,6 +4278,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }),
       ScripturePill, // Must come before NoteLink so scripture pills are parsed correctly
       ScriptureDraft, // Inline edit-mode reference (prototype) — confirms into a ScripturePill
+      MentionPill, // Content mentions (@ notes/threads/folders) — before NoteLink for parse precedence
       NoteLink,
       UrlLink, // External URL links — parse priority lower so note/scripture spans win
       TextIndent,
@@ -4665,6 +4793,43 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           return false;
         }
 
+        // @ mention picker keyboard navigation. NEVER intercepts the space key (iOS
+        // double-space-to-period) — a space simply breaks the trigger regex and the
+        // picker closes on the next sync.
+        const mentionState = mentionPickerRef.current;
+        if (mentionState && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            mentionDismissedAtRef.current = mentionState.range.from;
+            mentionPickerRef.current = null;
+            setMentionPicker(null);
+            return true;
+          }
+          const visible = visibleMentionItems(mentionState);
+          if (visible.length > 0) {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              const delta = event.key === 'ArrowDown' ? 1 : -1;
+              const count = visible.length;
+              const nextIndex = (mentionState.activeIndex + delta + count) % count;
+              const next = { ...mentionState, activeIndex: nextIndex };
+              mentionPickerRef.current = next;
+              setMentionPicker(next);
+              return true;
+            }
+            if (event.key === 'Enter' || event.key === 'NumpadEnter' || event.key === 'Tab') {
+              event.preventDefault();
+              const item = visible[mentionState.activeIndex] || visible[0];
+              commitMentionPickerItem(editor, mentionState, item, () => {
+                mentionPickerRef.current = null;
+                setMentionPicker(null);
+                mentionDismissedAtRef.current = null;
+              });
+              return true;
+            }
+          }
+        }
+
         // Handle Cmd+Enter to submit form (dispatch event for parent panels to handle)
         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
           event.preventDefault();
@@ -4693,10 +4858,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
           if (event.key === 'ArrowRight') {
             const childAfterInfo = parent.childAfter(parentOffset);
-            if (childAfterInfo.node &&
-                childAfterInfo.offset === parentOffset &&
-                childAfterInfo.node.marks.some((m: any) => m.type.name === 'scripturePill')) {
-              const boundaries = findPillBoundaries(view.state.doc, from + 1);
+            const pillMarkAfter = childAfterInfo.node && childAfterInfo.offset === parentOffset
+              ? ['scripturePill', 'mentionPill'].find((name) =>
+                  childAfterInfo.node!.marks.some((m: any) => m.type.name === name))
+              : undefined;
+            if (pillMarkAfter) {
+              const boundaries = findPillBoundaries(view.state.doc, from + 1, pillMarkAfter);
               if (boundaries) {
                 event.preventDefault();
                 editor.commands.setTextSelection(boundaries.end);
@@ -4706,7 +4873,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           } else {
             // Cross a pill leftward in one press — even when the caret sits after the pill's invisible
             // trailing spacer (otherwise the first ArrowLeft only crosses the spacer and looks inert).
-            const target = scripturePillSkipLeftTarget(view.state.doc, from);
+            const target =
+              scripturePillSkipLeftTarget(view.state.doc, from) ??
+              scripturePillSkipLeftTarget(view.state.doc, from, 'mentionPill');
             if (target != null) {
               event.preventDefault();
               editor.commands.setTextSelection(target);
@@ -4717,6 +4886,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
         // EARLY CHECK: Handle Backspace/Delete adjacent to or inside a pill
         // This must fire first to prevent ProseMirror's default backspace from eating pill characters
+        if (tryHandleMentionPillDeleteKey(editor, event, view)) {
+          return true;
+        }
         if (tryHandleScripturePillDeleteKey(editor, event, view, deleteConfirmPillRef, setDeleteConfirmPill)) {
           return true;
         }
@@ -6304,6 +6476,30 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const handlePillPointer = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement;
 
+      const mentionSpan = target.closest('.mention-pill') as HTMLElement | null;
+      if (mentionSpan) {
+        if (!pointerIsInsideElementRect(e, mentionSpan)) return;
+        const kind = mentionSpan.getAttribute('data-mention-kind');
+        const entityId = mentionSpan.getAttribute('data-mention-id');
+        const mentionSpaceId = mentionSpan.getAttribute('data-mention-space-id');
+        if (!kind || !entityId) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (onMentionPillClickRef.current) {
+          onMentionPillClickRef.current({
+            kind: kind as MentionPillClickPayload['kind'],
+            entityId,
+            spaceId: mentionSpaceId,
+            label: mentionSpan.textContent || '',
+          });
+        } else if (kind === 'note') {
+          // Classic-shell fallback: navigate directly to the note (mirrors TiptapNoteLink).
+          const fullNoteId = entityId.startsWith('note_') ? entityId : `note_${entityId}`;
+          safeNavigate(idToUrl(fullNoteId));
+        }
+        return;
+      }
+
       const pillSpan = target.closest('.scripture-pill') as HTMLElement | null;
       if (pillSpan) {
         const reference = pillSpan.getAttribute('data-scripture-reference');
@@ -6497,6 +6693,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (!editor || editor.isDestroyed || !editor.isEditable || editor.isFocused) return;
       if (
         target.closest('.scripture-pill') ||
+        target.closest('.mention-pill') ||
         target.closest('.reference-suggestion') ||
         target.closest('.study-dock-card') ||
         target.closest('.study-dock-carousel') ||
@@ -6530,7 +6727,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         return;
       }
       handlePillPointer(e);
-      if (!pillSpan) focusEditorAtTapFallback(e.clientX, e.clientY, target);
+      if (!pillSpan && !target.closest('.mention-pill')) focusEditorAtTapFallback(e.clientX, e.clientY, target);
     };
 
     const handleDismiss = (e: MouseEvent) => {
@@ -6569,6 +6766,111 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       document.removeEventListener('mousedown', handleDismiss);
     };
   }, [editor, editorChromeMode, openStudyDockForHighlightMark]);
+
+  // @ mention typeahead: watch doc/selection changes for an `@query` ending at the caret.
+  // Scan-on-update (not keydown interception) so native mobile keyboard behavior is untouched.
+  useEffect(() => {
+    if (!editor) return;
+
+    const closeMentionPicker = () => {
+      if (mentionFetchTimerRef.current != null) {
+        clearTimeout(mentionFetchTimerRef.current);
+        mentionFetchTimerRef.current = null;
+      }
+      mentionQueryTokenRef.current++;
+      if (mentionPickerRef.current) {
+        mentionPickerRef.current = null;
+        setMentionPicker(null);
+      }
+    };
+
+    const syncMentionPicker = () => {
+      try {
+        if (!isEditorValid(editor)) return;
+        const source = mentionSourceRef.current;
+        if (!source || !editor.isEditable) {
+          closeMentionPicker();
+          return;
+        }
+        // An inline scripture draft owns the caret — never stack the two flows.
+        if (hasActiveScriptureDraft(editor.state)) {
+          closeMentionPicker();
+          return;
+        }
+        const trigger = findMentionTrigger(editor.state);
+        if (!trigger) {
+          mentionDismissedAtRef.current = null;
+          closeMentionPicker();
+          return;
+        }
+        if (mentionDismissedAtRef.current != null) {
+          if (mentionDismissedAtRef.current === trigger.from) return;
+          mentionDismissedAtRef.current = null;
+        }
+        let rect: MentionPickerState['rect'];
+        try {
+          const coords = editor.view.coordsAtPos(trigger.from);
+          rect = { top: coords.top, left: coords.left, bottom: coords.bottom, right: coords.right, width: 0 };
+        } catch {
+          closeMentionPicker();
+          return;
+        }
+        const prev = mentionPickerRef.current;
+        const queryChanged = !prev || prev.query !== trigger.query;
+        // A new @ position (not just a longer/shorter query at the same @) resets the kind tab —
+        // switching tabs mid-query for one mention shouldn't carry over to the next one.
+        const isNewTriggerPosition = !prev || prev.range.from !== trigger.from;
+        const next: MentionPickerState = {
+          range: { from: trigger.from, to: trigger.to },
+          query: trigger.query,
+          rect,
+          items: prev ? prev.items : [],
+          kindFilter: isNewTriggerPosition ? 'all' : prev.kindFilter,
+          activeIndex: !prev || queryChanged ? 0 : prev.activeIndex,
+        };
+        mentionPickerRef.current = next;
+        setMentionPicker(next);
+
+        if (queryChanged) {
+          if (mentionFetchTimerRef.current != null) clearTimeout(mentionFetchTimerRef.current);
+          const token = ++mentionQueryTokenRef.current;
+          const query = trigger.query;
+          mentionFetchTimerRef.current = window.setTimeout(() => {
+            mentionFetchTimerRef.current = null;
+            Promise.resolve()
+              .then(() => source(query))
+              .then((items) => {
+                if (token !== mentionQueryTokenRef.current) return;
+                const cur = mentionPickerRef.current;
+                if (!cur || cur.query !== query) return;
+                const list = items || [];
+                const updated: MentionPickerState = { ...cur, items: list };
+                updated.activeIndex = Math.min(cur.activeIndex, Math.max(0, visibleMentionItems(updated).length - 1));
+                mentionPickerRef.current = updated;
+                setMentionPicker(updated);
+              })
+              .catch(() => {
+                /* ignore — picker simply stays empty */
+              });
+          }, 120);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const closeOnBlur = () => closeMentionPicker();
+
+    editor.on('update', syncMentionPicker);
+    editor.on('selectionUpdate', syncMentionPicker);
+    editor.on('blur', closeOnBlur);
+    return () => {
+      editor.off('update', syncMentionPicker);
+      editor.off('selectionUpdate', syncMentionPicker);
+      editor.off('blur', closeOnBlur);
+      closeMentionPicker();
+    };
+  }, [editor]);
 
   /** Close scripture dock when the caret/selection leaves the tapped pill (prototype web). */
   useEffect(() => {
@@ -8874,6 +9176,46 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               );
             })}
             </div>
+          </div>,
+          document.body
+        )}
+        {/* @ mention typeahead — caret-anchored floating picker. No chrome-mode gate:
+            the prototype (prototypeNative) surface is the primary consumer. */}
+        {mentionPicker && createPortal(
+          <div
+            data-harvous-bottom-sheet-floating=""
+            className="mention-picker floating-picker-enter"
+            style={mentionPickerPortalStyle(mentionPicker.rect)}
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            <MentionPickerPanel
+              items={visibleMentionItems(mentionPicker)}
+              activeIndex={mentionPicker.activeIndex}
+              kindFilter={mentionPicker.kindFilter}
+              onKindFilterChange={(kind) => {
+                const state = mentionPickerRef.current;
+                if (!state || state.kindFilter === kind) return;
+                const next = { ...state, kindFilter: kind, activeIndex: 0 };
+                mentionPickerRef.current = next;
+                setMentionPicker(next);
+              }}
+              onCommit={(item) => {
+                const state = mentionPickerRef.current;
+                if (!state || !editor) return;
+                commitMentionPickerItem(editor, state, item, () => {
+                  mentionPickerRef.current = null;
+                  setMentionPicker(null);
+                  mentionDismissedAtRef.current = null;
+                });
+              }}
+              onActiveIndexChange={(index) => {
+                const state = mentionPickerRef.current;
+                if (!state || state.activeIndex === index) return;
+                const next = { ...state, activeIndex: index };
+                mentionPickerRef.current = next;
+                setMentionPicker(next);
+              }}
+            />
           </div>,
           document.body
         )}

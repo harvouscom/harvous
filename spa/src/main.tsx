@@ -88,6 +88,7 @@ import '../../src/styles/join-space-page.css';
 /* Study dock accent fills (native parity) — before prototype-tokens aliases. */
 import '../../src/styles/study-highlight-accent-colors.css';
 import '../../src/styles/scripture-pill-accent.css';
+import '../../src/styles/mention-pill.css';
 /* Prototype design tokens on :root — needed before lazy layout paints portaled UI. */
 import './styles/prototype-tokens.css';
 

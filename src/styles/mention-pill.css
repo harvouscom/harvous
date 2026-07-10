@@ -1,0 +1,162 @@
+/**
+ * @ mention pill — content links to notes / study threads / folders.
+ * One neutral tint for all kinds (same fill/border formula as scripture pills);
+ * a small kind icon distinguishes note vs thread vs folder.
+ */
+
+:root {
+  --mention-pill-fill-mix: 7.5%;
+  --mention-pill-fill-hover-mix: 10%;
+  --mention-pill-border-mix: 20%;
+  --mention-pill-tint: var(--study-dock-scripture-pill-neutral);
+}
+
+.proto-editor-surface .card-full-editable__content-html .mention-pill,
+.proto-editor-surface .ProseMirror .mention-pill,
+#shared-note-content .card-full-editable__content-html .mention-pill,
+#shared-thread-content .card-full-editable__content-html .mention-pill,
+.shared-page__card-container .card-full-editable__content-html .mention-pill,
+.public-note-card .card-full-editable__content-html .mention-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px;
+  border-radius: var(--pds-radius-scripture, 12px) !important;
+  margin: 0 0.12em !important;
+  padding: 2px 10px !important;
+  font-family: inherit !important;
+  font-size: calc(1em * var(--pds-scripture-pill-font-scale, 0.9375)) !important;
+  font-weight: 500 !important;
+  line-height: inherit !important;
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+  text-decoration: none !important;
+  cursor: pointer;
+  background-color: color-mix(in srgb, var(--mention-pill-tint) var(--mention-pill-fill-mix), transparent);
+  border: 0.5px solid color-mix(in srgb, var(--mention-pill-tint) var(--mention-pill-border-mix), transparent);
+}
+
+.proto-editor-surface .ProseMirror .mention-pill {
+  margin: 0 !important;
+}
+
+.proto-editor-surface .card-full-editable__content-html .mention-pill:hover,
+.proto-editor-surface .ProseMirror .mention-pill:hover {
+  background-color: color-mix(in srgb, var(--mention-pill-tint) var(--mention-pill-fill-hover-mix), transparent);
+}
+
+/* Kind icon via CSS mask so the stored HTML stays a plain styled span. */
+.mention-pill::before {
+  content: '';
+  display: inline-block;
+  width: 0.78em;
+  height: 0.78em;
+  flex: none;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.mention-pill[data-mention-kind="note"]::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath d='M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l224 0 0-112c0-26.5 21.5-48 48-48l112 0 0-224c0-35.3-28.7-64-64-64L64 32zM448 352l-45.3 0L336 352c-8.8 0-16 7.2-16 16l0 66.7 0 45.3 32-32 64-64 32-32z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath d='M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l224 0 0-112c0-26.5 21.5-48 48-48l112 0 0-224c0-35.3-28.7-64-64-64L64 32zM448 352l-45.3 0L336 352c-8.8 0-16 7.2-16 16l0 66.7 0 45.3 32-32 64-64 32-32z'/%3E%3C/svg%3E");
+}
+
+.mention-pill[data-mention-kind="thread"]::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath d='M438.6 150.6c12.5-12.5 12.5-32.8 0-45.3l-96-96c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L338.7 96 32 96C14.3 96 0 110.3 0 128s14.3 32 32 32l306.7 0-41.4 41.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l96-96zm-333.3 352c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 416 416 416c17.7 0 32-14.3 32-32s-14.3-32-32-32l-306.7 0 41.4-41.4c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-96 96c-12.5 12.5-12.5 32.8 0 45.3l96 96z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath d='M438.6 150.6c12.5-12.5 12.5-32.8 0-45.3l-96-96c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L338.7 96 32 96C14.3 96 0 110.3 0 128s14.3 32 32 32l306.7 0-41.4 41.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l96-96zm-333.3 352c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 416 416 416c17.7 0 32-14.3 32-32s-14.3-32-32-32l-306.7 0 41.4-41.4c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-96 96c-12.5 12.5-12.5 32.8 0 45.3l96 96z'/%3E%3C/svg%3E");
+}
+
+.mention-pill[data-mention-kind="folder"]::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath d='M64 480H448c35.3 0 64-28.7 64-64V160c0-35.3-28.7-64-64-64H288c-10.1 0-19.6-4.7-25.6-12.8L243.2 57.6C231.1 41.5 212.1 32 192 32H64C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath d='M64 480H448c35.3 0 64-28.7 64-64V160c0-35.3-28.7-64-64-64H288c-10.1 0-19.6-4.7-25.6-12.8L243.2 57.6C231.1 41.5 212.1 32 192 32H64C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64z'/%3E%3C/svg%3E");
+}
+
+/* ─── @ mention typeahead picker ─────────────────────────────────────────── */
+
+.mention-picker {
+  padding: 6px 0;
+  border-radius: 10px;
+  background: var(--pds-bg-popover-solid, var(--pds-bg-page));
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16), 0 4px 16px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.mention-picker__tabs {
+  margin: 4px 8px 4px;
+}
+
+.mention-picker__list {
+  max-height: calc(288px - 40px);
+  overflow-y: auto;
+}
+
+.mention-picker__empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+}
+
+.mention-picker__section-label {
+  padding: 6px 12px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary);
+}
+
+.mention-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--pds-text-primary) !important;
+}
+
+/* Beat global.css `button * { color: var(--color-deep-grey) !important }` — row title/subtitle
+   are direct descendants of the `.mention-picker__row` button. */
+.mention-picker__row * {
+  color: var(--pds-text-primary) !important;
+}
+
+.mention-picker__row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  opacity: 0.7;
+}
+
+.mention-picker__row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mention-picker__row-title {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mention-picker__row-subtitle {
+  font-size: 11px;
+  color: var(--pds-text-secondary) !important;
+}
+
+.mention-picker__row--active,
+.mention-picker__row:hover {
+  background: var(--pds-bg-chip-hover, var(--pds-bg-row-hover));
+}

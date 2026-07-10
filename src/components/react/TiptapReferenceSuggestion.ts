@@ -105,9 +105,10 @@ export const REFERENCE_SUGGESTION_REFRESH_META = 'referenceSuggestionRefresh';
 
 /**
  * Marks whose text must never carry a suggestion — a word already inside a scripture
- * pill, an existing highlight/reference, or a link is left alone (no double-marking).
+ * pill, a mention pill, an existing highlight/reference, or a link is left alone (no
+ * double-marking).
  */
-const EXCLUDED_MARK_NAMES = new Set(['scripturePill', 'highlight', 'noteLink', 'urlLink']);
+const EXCLUDED_MARK_NAMES = new Set(['scripturePill', 'mentionPill', 'highlight', 'noteLink', 'urlLink']);
 
 /** Word token: a letter (incl. Latin-1/extended) followed by letters, apostrophes, hyphens. */
 const WORD_REGEX = /[A-Za-zÀ-ɏ][A-Za-zÀ-ɏ'’-]*/g;

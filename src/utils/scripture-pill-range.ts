@@ -34,12 +34,13 @@ export function rangeContainsScripturePillMark(doc: any, from: number, to: numbe
   return found;
 }
 
-const nodeIsPill = (node: any): boolean =>
-  !!node?.marks?.some((m: any) => m.type.name === 'scripturePill');
+const nodeIsPill = (node: any, markName: string = 'scripturePill'): boolean =>
+  !!node?.marks?.some((m: any) => m.type.name === markName);
 
 /**
- * Where a left-arrow keypress should drop the caret to cross a scripture pill in ONE press, or null
- * when no pill is immediately to the left.
+ * Where a left-arrow keypress should drop the caret to cross a pill in ONE press, or null
+ * when no pill is immediately to the left. Defaults to scripture pills; pass `markName`
+ * for other pill marks (e.g. mentionPill).
  *
  * Pills are atomic and carry an invisible trailing formatting space, so from "the right of the pill"
  * the caret may sit either flush against the pill OR after that spacer. The spacer reads as part of
@@ -47,7 +48,11 @@ const nodeIsPill = (node: any): boolean =>
  * Treating `pill (+ optional single trailing space)` as one unit returns the position just before the
  * pill so ArrowLeft lands left of it in a single keystroke.
  */
-export function scripturePillSkipLeftTarget(doc: any, from: number): number | null {
+export function scripturePillSkipLeftTarget(
+  doc: any,
+  from: number,
+  markName: string = 'scripturePill',
+): number | null {
   if (!doc || from <= 0) return null;
   const $from = doc.resolve(from);
   const parent = $from.parent;
@@ -59,7 +64,7 @@ export function scripturePillSkipLeftTarget(doc: any, from: number): number | nu
   // Probe a position known to be INSIDE the pill that sits to the left of the caret.
   let probe: number | null = null;
   const before = parent.childBefore(parentOffset);
-  if (before.node && before.offset + before.node.nodeSize === parentOffset && nodeIsPill(before.node)) {
+  if (before.node && before.offset + before.node.nodeSize === parentOffset && nodeIsPill(before.node, markName)) {
     probe = from - 1; // pill flush against the caret
   } else {
     let charBefore = '';
@@ -68,7 +73,7 @@ export function scripturePillSkipLeftTarget(doc: any, from: number): number | nu
     } catch {
       /* boundary — leave empty */
     }
-    if (charBefore === ' ' && from - 2 >= 0 && nodeIsPill(doc.resolve(from - 1).nodeBefore)) {
+    if (charBefore === ' ' && from - 2 >= 0 && nodeIsPill(doc.resolve(from - 1).nodeBefore, markName)) {
       probe = from - 2; // a single spacer, then the pill
     }
   }
@@ -79,8 +84,8 @@ export function scripturePillSkipLeftTarget(doc: any, from: number): number | nu
   for (let p = probe; p >= blockStart; p--) {
     if (p === blockStart) return blockStart;
     const $p = doc.resolve(p);
-    const here = $p.marks().some((m: any) => m.type.name === 'scripturePill');
-    if (!here && !nodeIsPill($p.nodeAfter)) return p + 1;
+    const here = $p.marks().some((m: any) => m.type.name === markName);
+    if (!here && !nodeIsPill($p.nodeAfter, markName)) return p + 1;
   }
   return blockStart;
 }

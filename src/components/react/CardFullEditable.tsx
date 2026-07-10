@@ -285,6 +285,10 @@ interface CardFullEditableProps {
   noteCreatedAtIso?: string | null;
   /** Space the note belongs to — passed to TiptapEditor for connect-from-selection. */
   spaceId?: string;
+  /** Enables @ mention pills in the body editor. Absent → the @ typeahead never triggers. */
+  mentionSource?: (query: string) => import('./mention-pill-types').MentionPickerItem[] | Promise<import('./mention-pill-types').MentionPickerItem[]>;
+  /** Tap/click on a mention pill (editable and read-only content-html views). */
+  onMentionPillClick?: (payload: import('./mention-pill-types').MentionPillClickPayload) => void;
 }
 
 export default function CardFullEditable({ 
@@ -345,6 +349,8 @@ export default function CardFullEditable({
   prototypeDraftPersistRemountTick = 0,
   noteCreatedAtIso = null,
   spaceId,
+  mentionSource,
+  onMentionPillClick,
 }: CardFullEditableProps) {
   const effectivePrototypeNoteActionsChrome =
     editorChromeMode === 'prototypeNative'
@@ -2646,8 +2652,28 @@ export default function CardFullEditable({
   };
 
   const handleContentClick = async (e: React.MouseEvent<HTMLDivElement>) => {
-    // Check if click is on a note-link (highlighted text linking to another note)
     const target = e.target as HTMLElement;
+
+    // Check if click is on a mention pill (@ note/thread/folder) — read-only content-html view.
+    const mentionElement = target.closest('.mention-pill');
+    if (mentionElement) {
+      const kind = mentionElement.getAttribute('data-mention-kind');
+      const entityId = mentionElement.getAttribute('data-mention-id');
+      const mentionSpaceId = mentionElement.getAttribute('data-mention-space-id');
+      if (kind && entityId && onMentionPillClick) {
+        e.preventDefault();
+        e.stopPropagation();
+        onMentionPillClick({
+          kind: kind as 'note' | 'thread' | 'folder',
+          entityId,
+          spaceId: mentionSpaceId,
+          label: mentionElement.textContent || '',
+        });
+      }
+      return;
+    }
+
+    // Check if click is on a note-link (highlighted text linking to another note)
     const noteLinkElement = target.closest('.note-link');
     
     if (noteLinkElement) {
@@ -3036,6 +3062,8 @@ export default function CardFullEditable({
                       parentThreadId={parentThreadId}
                       sourceNoteId={noteId}
                       spaceId={spaceId}
+                      mentionSource={mentionSource}
+                      onMentionPillClick={onMentionPillClick}
                       onEditorReady={handleEditorReady}
                       editorChromeMode={editorChromeMode}
                       onPrototypeChromeModeChange={
@@ -3442,6 +3470,8 @@ export default function CardFullEditable({
                     parentThreadId={parentThreadId}
                     sourceNoteId={noteId}
                     spaceId={spaceId}
+                    mentionSource={mentionSource}
+                    onMentionPillClick={onMentionPillClick}
                     onEditorReady={handleEditorReady}
                     editorChromeMode={editorChromeMode}
                     onPrototypeChromeModeChange={

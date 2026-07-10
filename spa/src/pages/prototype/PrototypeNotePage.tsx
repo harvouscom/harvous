@@ -23,6 +23,9 @@ import PrototypeSharedNoteReadOnlyBanner from './PrototypeSharedNoteReadOnlyBann
 import SharedStudyHighlightOverlay from './SharedStudyHighlightOverlay';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
+import { useMentionSource } from './mention-picker-source';
+import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
+import type { MentionPillClickPayload } from '@/components/react/mention-pill-types';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { buildHighlightDockOpenMetadataFromStudyThread } from '@/utils/study-dock-stack';
@@ -177,6 +180,13 @@ export default function PrototypeNotePage() {
     setEditorChromeMode,
     studyThreadPopoverOpen,
     closeStudyThreadPopover,
+    setActiveSpaceId,
+    setSidebarListMode,
+    setSidebarThreadDrilldownId,
+    setSidebarFolderDrilldown,
+    setSidebarLayer,
+    ensureSidebarExpanded,
+    openDrawer,
   } = useProtoShell();
 
   // New-note compose target. Trust the persisted space selection directly (it's
@@ -327,6 +337,61 @@ export default function PrototypeNotePage() {
 
   const effectiveSpaceIdRef = useRef(effectiveSpaceId);
   effectiveSpaceIdRef.current = effectiveSpaceId;
+
+  // @ mention pills: personal notes search across the user's own spaces; notes inside a
+  // shared space are scoped to that space only so a pill can never point where other
+  // members can't follow. Omitted entirely (no typeahead) for read-only foreign notes.
+  const mentionSource = useMentionSource(
+    noteInSharedSpace
+      ? { mode: 'shared', spaceId: effectiveSpaceId }
+      : { mode: 'personal', personalSpaceId: personalHomeSpaceId ?? effectiveSpaceId },
+  );
+
+  const onMentionPillClick = useCallback(
+    (payload: MentionPillClickPayload) => {
+      const targetSpaceId = payload.spaceId;
+      const isCrossSpace =
+        !!targetSpaceId &&
+        !!personalHomeSpaceId &&
+        targetSpaceId.replace(/^space_/, '') !== personalHomeSpaceId.replace(/^space_/, '') &&
+        targetSpaceId.replace(/^space_/, '') !== (activeSpaceId ?? '').replace(/^space_/, '');
+
+      if (payload.kind === 'note') {
+        navigate({
+          to: prototypeNoteRouteTo(),
+          params: { noteId: noteParamSlug(payload.entityId) },
+        });
+        return;
+      }
+
+      if (isCrossSpace) {
+        setActiveSpaceId(targetSpaceId === personalHomeSpaceId ? null : targetSpaceId);
+      }
+      if (payload.kind === 'thread') {
+        setSidebarListMode('threads');
+        setSidebarThreadDrilldownId(threadClusterDrillSlug(payload.entityId));
+      } else {
+        setSidebarListMode('folders');
+        setSidebarFolderDrilldown(payload.entityId);
+      }
+      setSidebarLayer('list');
+      ensureSidebarExpanded();
+      if (isMobileSidebar) openDrawer();
+    },
+    [
+      navigate,
+      personalHomeSpaceId,
+      activeSpaceId,
+      setActiveSpaceId,
+      setSidebarListMode,
+      setSidebarThreadDrilldownId,
+      setSidebarFolderDrilldown,
+      setSidebarLayer,
+      ensureSidebarExpanded,
+      isMobileSidebar,
+      openDrawer,
+    ],
+  );
 
   // Handle "New Note from selection" — TiptapEditor fires openNewNotePanel + writes to
   // localStorage; the prototype doesn't mount BottomSheet/CreateNoteButton so we wire
@@ -1155,6 +1220,8 @@ export default function PrototypeNotePage() {
                   setSharedOverlayEditor(editor as typeof sharedOverlayEditor);
                 }}
                 spaceId={effectiveSpaceId ?? undefined}
+                mentionSource={readOnlyInSharedSpace ? undefined : mentionSource}
+                onMentionPillClick={onMentionPillClick}
                 editorChromeMode="prototypeNative"
                 formatToolbarPortalTarget={formatToolbarHostEl}
                 studyDockCarouselPortalTarget={studyDockCarouselHostEl}
