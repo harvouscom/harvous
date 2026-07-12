@@ -21,6 +21,13 @@
       "runtimeArgs": ["run", "dev:all", "--prefix", ".claude/worktrees/shared-spaces-foundation"],
       "port": 4322,
       "autoPort": false
+    },
+    {
+      "name": "shared-spaces-worktree-spa-alt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:spa", "--prefix", ".claude/worktrees/shared-spaces-foundation", "--", "--port", "4325"],
+      "port": 4325,
+      "autoPort": false
     }
   ]
 }

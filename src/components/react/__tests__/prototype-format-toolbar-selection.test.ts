@@ -185,6 +185,30 @@ describe('prototype format toolbar selection preservation', () => {
     }
   });
 
+  it('returns false for pre-mount editor without throwing', () => {
+    const editor = {
+      isDestroyed: false,
+      state: { doc: { content: { size: 4 } } },
+      chain: () => ({
+        focus: () => ({
+          setTextSelection: () => ({ run: () => false }),
+        }),
+      }),
+      commands: {
+        focus: () => false,
+        setTextSelection: () => false,
+      },
+      get view() {
+        throw new Error('[tiptap error]: The editor view is not available. Cannot access editor.view');
+      },
+    };
+
+    expect(() =>
+      runFormatCommandWithPreservedSelection(editor, { from: 1, to: 2 }, (chain) => chain),
+    ).not.toThrow();
+    expect(runFormatCommandWithPreservedSelection(editor, { from: 1, to: 2 }, (chain) => chain)).toBe(false);
+  });
+
   it('keeps a text selection when toggling heading on the portaled toolbar path', () => {
     const editor = new Editor({
       extensions,

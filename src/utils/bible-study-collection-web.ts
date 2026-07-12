@@ -177,7 +177,7 @@ function countKeywordOccurrences(plainTitle: string, plainBody: string, keyword:
     const n = raw.trim().toLowerCase();
     if (!n || seen.has(n)) continue;
     seen.add(n);
-    if (keyword.category === 'life') {
+    if (keyword.category === 'life' || keyword.name.toLowerCase() === 'marriage') {
       total += countLifeKeywordNeedleInLowerText(titleLower, raw, keyword.name);
       total += countLifeKeywordNeedleInLowerText(bodyLower, raw, keyword.name);
       continue;
@@ -435,6 +435,17 @@ export function collectionContextBannerText(
 function pickPrimaryKeyword(rows: ScRow[], plainTitle: string, plainBody: string): BibleStudyKeyword | null {
   const deduped = dedupeRowsByKeywordName(rows);
   return pickPrimaryRowFromDeduped(deduped, plainTitle, plainBody)?.keyword ?? null;
+}
+
+/** True when the stored primary is a Bible book from passing citations only (not a book study). */
+export function isNonDefiningBookPrimary(title: string, bodyHtml: string, primary: string | null): boolean {
+  if (!primary?.trim()) return false;
+  const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
+  const row = rows.find(
+    (r) => r.keyword.category === 'book' && r.keyword.name.toLowerCase() === primary.trim().toLowerCase(),
+  );
+  if (!row) return false;
+  return !isBookDefining(row, plainTitle, plainBody);
 }
 
 /** Top collection label from title + HTML body. */

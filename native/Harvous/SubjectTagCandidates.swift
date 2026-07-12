@@ -88,7 +88,9 @@ enum SubjectTagCandidates {
         SubjectRow(name: "Creation", category: .narrative, synonyms: ["gods creation", "god creating the world", "creating the world", "the creator", "in the beginning", "made the heavens and earth"]),
         SubjectRow(name: "The Fall", category: .narrative, synonyms: ["fall of man", "adam and eve", "the garden of eden", "original sin", "forbidden fruit"]),
         SubjectRow(name: "The Flood", category: .narrative, synonyms: ["noah", "noah's ark", "the great flood"]),
-        SubjectRow(name: "The Exodus", category: .narrative, synonyms: ["exodus from egypt", "leaving egypt", "the red sea", "deliverance from egypt", "out of egypt"]),
+        SubjectRow(name: "Passover", category: .narrative, synonyms: ["passover lamb", "feast of passover", "pascha", "blood of the lamb", "lamb of god", "our passover lamb"]),
+        SubjectRow(name: "The Exodus", category: .narrative, synonyms: ["exodus from egypt", "leaving egypt", "the red sea", "deliverance from egypt", "out of egypt", "passover", "the passover"]),
+        SubjectRow(name: "Biblical Feasts", category: .narrative, synonyms: ["feasts of the lord", "feast of unleavened bread", "feast of weeks", "feast of trumpets", "day of atonement", "feast of tabernacles"]),
         SubjectRow(name: "The Ten Commandments", category: .narrative, synonyms: ["ten commandments", "decalogue", "the law of moses"]),
         SubjectRow(name: "Wilderness Wandering", category: .narrative, synonyms: ["the wilderness", "wandering in the desert", "forty years"]),
         SubjectRow(name: "The Promised Land", category: .narrative, synonyms: ["promised land", "land of canaan", "entering canaan"]),
@@ -130,7 +132,7 @@ enum SubjectTagCandidates {
         SubjectRow(name: "The Temple", category: .narrative, synonyms: ["solomon's temple", "solomons temple", "temple of solomon", "rebuilding the temple", "the second temple"]),
         SubjectRow(name: "David's Reign", category: .narrative, synonyms: ["king david", "davidic kingdom", "davidic covenant"]),
         SubjectRow(name: "The Prophets", category: .narrative, synonyms: ["the prophet", "prophetic word", "words of the prophets"]),
-        SubjectRow(name: "The Last Supper", category: .narrative, synonyms: ["upper room", "the lord supper instituted", "breaking bread together"]),
+        SubjectRow(name: "The Last Supper", category: .narrative, synonyms: ["upper room", "the lord supper instituted", "breaking bread together", "lord's supper", "lords supper", "communion", "eucharist", "breaking bread"]),
         SubjectRow(name: "The Day of the Lord", category: .narrative, synonyms: ["day of the lord", "gods coming judgment", "the great day"]),
         SubjectRow(name: "The New Jerusalem", category: .narrative, synonyms: ["new heaven and new earth", "the holy city", "new heavens and a new earth", "eternity"]),
     ]
@@ -161,6 +163,25 @@ enum SubjectTagCandidates {
         }
         raw.sort { $0.confidence > $1.confidence }
         return Array(raw.prefix(maxCandidates))
+    }
+
+    /// Subjects a note's text is about — mirrors web `contentSubjects()` for folder enrichment.
+    static func folderSubjectNames(title: String, body: String) -> [String] {
+        let paddedTitle = padded(title)
+        let paddedBody = padded(body)
+        guard paddedTitle.count > 2 || paddedBody.count > 2 else { return [] }
+        var found: [String: Int] = [:]
+        for row in rows {
+            var score = 0
+            if containsPhrase(paddedTitle, phrase: row.name) { score = max(score, 2) }
+            else if containsPhrase(paddedBody, phrase: row.name) { score = max(score, 2) }
+            for syn in row.synonyms {
+                if containsPhrase(paddedTitle, phrase: syn) { score = max(score, 1) }
+                else if containsPhrase(paddedBody, phrase: syn) { score = max(score, 1) }
+            }
+            if score > 0 { found[row.name] = max(found[row.name] ?? 0, score) }
+        }
+        return found.sorted { $0.value > $1.value }.map(\.key)
     }
 
     private static func tagCategory(for category: SubjectCategory) -> String {

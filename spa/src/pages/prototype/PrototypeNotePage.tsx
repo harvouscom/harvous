@@ -1011,6 +1011,7 @@ export default function PrototypeNotePage() {
                 prototypeDraftPersistRemount={draftPersistRemountRef.current}
                 prototypeDraftPersistRemountTick={draftPersistRemountTick}
                 noteCreatedAtIso={editorNote.createdAt ?? null}
+                studyThreads={note?.studyThreads ?? []}
               />
               </div>
             </div>

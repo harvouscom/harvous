@@ -1368,6 +1368,17 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   flex-shrink: 0;
 }
 
+/* Inline in mobile format toolbar — no second floating capsule chrome */
+.pds-native-selection-bar--toolbar {
+  height: auto;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
 html.harvous-prototype-route .pds-native-selection-bar {
   color: var(--pds-text-primary);
 }

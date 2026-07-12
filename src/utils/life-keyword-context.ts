@@ -12,6 +12,9 @@ const CHURCH_FELLOWSHIP_RE = /\bchurch\s+fellowship\b/giu;
 const FAMILY_CHURCH_ATTENDANCE_RE =
   /\b(?:my\s+)?family(?:\s+and\s+i)?\s+(?:went|go|goes|attended|attend|used\s+to\s+go)\b[^.]{0,80}\bchurch\b/giu;
 const FAMILY_WENT_TO_CHURCH_RE = /\bmy\s+family\s+went\s+to\b[^.]{0,60}\bchurch\b/giu;
+/** Eschatological "marriage supper of the Lamb" — not a marriage-life study theme. */
+const MARRIAGE_SUPPER_OF_LAMB_RE = /\bmarriage(?:\s+supper|\s+feast|\s+banquet)\s+of\s+(?:the\s+)?lamb\b/giu;
+const MARRIAGE_OF_LAMB_RE = /\bmarriage\s+of\s+(?:the\s+)?lamb\b/giu;
 
 function escapeRegexToken(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -50,6 +53,16 @@ export function shouldSkipLifeKeywordNeedleMatch(
 
   if (key === 'family' && (needle === 'family' || needle.includes('family'))) {
     for (const re of [FAMILY_CHURCH_ATTENDANCE_RE, FAMILY_WENT_TO_CHURCH_RE]) {
+      for (const m of textLower.matchAll(re)) {
+        const start = m.index ?? 0;
+        const end = start + m[0].length;
+        if (matchStart >= start && matchStart < end) return true;
+      }
+    }
+  }
+
+  if (key === 'marriage' && (needle === 'marriage' || needle.includes('marriage'))) {
+    for (const re of [MARRIAGE_SUPPER_OF_LAMB_RE, MARRIAGE_OF_LAMB_RE]) {
       for (const m of textLower.matchAll(re)) {
         const start = m.index ?? 0;
         const end = start + m[0].length;

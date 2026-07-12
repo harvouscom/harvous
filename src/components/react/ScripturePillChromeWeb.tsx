@@ -30,6 +30,7 @@ import {
 } from '@/components/react/TiptapReferenceSuggestion';
 import { useEastonsSlugIndex } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import { deriveReferenceFromPassageSelection } from '@/utils/derive-passage-selection-reference';
+import { isMobileDevice } from '@/utils/pwa-prompt';
 import '@/styles/harvous-menu-pill.css';
 import '@/styles/study-dock-card.css';
 import '@/styles/scripture-pill-chrome.css';
@@ -697,6 +698,15 @@ export default function ScripturePillChromeWeb({
     return { top, centerX };
   }, [passageSelection, onPassageQuoteToNote]);
 
+  const showMobilePassageActions =
+    isMobileDevice() &&
+    !!passageSelection &&
+    !!sourceNoteId &&
+    !!passageHtml &&
+    !readOnly &&
+    isExpanded &&
+    interactionActive;
+
   return (
     <>
     <StudyDockCardShell
@@ -806,8 +816,60 @@ export default function ScripturePillChromeWeb({
           ) : null}
         </div>
       </div>
+      {/* Mobile: dock-footer actions (format toolbar is hidden while study dock is open;
+          floating capsule competes with iOS callout — native uses system edit menu instead). */}
+      {showMobilePassageActions ? (
+        <div
+          className="scripture-pill-chrome__passage-mobile-actions"
+          role="toolbar"
+          aria-label="Passage selection actions"
+          onMouseDown={(e) => e.preventDefault()}
+          onPointerDown={(e) => e.preventDefault()}
+        >
+          <button
+            type="button"
+            className="scripture-pill-chrome__passage-mobile-action"
+            onPointerDownCapture={(e: React.PointerEvent) => {
+              if (e.button !== 0) return;
+              e.preventDefault();
+              e.stopPropagation();
+              void handleCreatePassageHighlight();
+            }}
+            onClick={(e) => {
+              if (e.detail === 0) void handleCreatePassageHighlight();
+            }}
+            disabled={creatingHighlight}
+            aria-label="Highlight selected passage text"
+            title="Highlight"
+          >
+            <Icon name="highlighter" size={14} />
+            <span>Highlight</span>
+          </button>
+          {onPassageQuoteToNote ? (
+            <button
+              type="button"
+              className="scripture-pill-chrome__passage-mobile-action"
+              onPointerDownCapture={(e: React.PointerEvent) => {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                handleAddPassageToNote();
+              }}
+              onClick={(e) => {
+                if (e.detail === 0) handleAddPassageToNote();
+              }}
+              disabled={addingQuote}
+              aria-label="Add selected passage to note"
+              title="Add to note"
+            >
+              <Icon name="quote-left" size={14} />
+              <span>Quote</span>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </StudyDockCardShell>
-    {passageSelection && passageActionBarPos && sourceNoteId && passageHtml && !readOnly && typeof document !== 'undefined'
+    {passageSelection && passageActionBarPos && sourceNoteId && passageHtml && !readOnly && !isMobileDevice() && typeof document !== 'undefined'
       ? createPortal(
           <div
             data-harvous-bottom-sheet-floating=""
@@ -829,7 +891,7 @@ export default function ScripturePillChromeWeb({
               <button
                 type="button"
                 className="pds-native-selection-bar__btn"
-                onMouseDown={(e) => {
+                onPointerDownCapture={(e: React.PointerEvent) => {
                   if (e.button !== 0) return;
                   e.preventDefault();
                   e.stopPropagation();

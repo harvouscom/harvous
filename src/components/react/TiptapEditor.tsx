@@ -79,7 +79,15 @@ import {
 } from './TiptapReferenceSuggestion';
 import { UrlLink } from './TiptapUrlLink';
 import { TextIndent } from './TiptapTextIndent';
-import { normalizeScriptureReference, detectScriptureReferences, matchTrailingTranslationAbbreviation, matchAnchoredTrailingTranslationAbbreviation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
+import {
+  normalizeScriptureReference,
+  detectScriptureReferences,
+  detectScriptureReferencesWithTranslation,
+  matchTrailingTranslationAbbreviation,
+  matchAnchoredTrailingTranslationAbbreviation,
+  type ScriptureReference,
+  type ScriptureReferenceWithTranslation,
+} from '@/utils/scripture-detector';
 import {
   extractResolvedScripturePillReferencesFromHtml,
   filterReferencesWithoutExistingPills,
@@ -158,6 +166,7 @@ import {
 } from '@/utils/study-dock-stack';
 import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-list-sync';
 import { backfillOrphanHighlights } from '@/utils/orphan-highlight-backfill';
+import { rehydrateMissingBodyHighlightMarks, type StudyThreadRehydrateRow } from '@/utils/study-thread-highlight-rehydrate';
 import { scriptureReferenceContainsReference } from '@/utils/scripture-verse-keys';
 import LinkPreviewCard from './LinkPreviewCard';
 import UrlLinkPromptUI from './UrlLinkPromptUI';
@@ -207,7 +216,9 @@ interface TiptapEditorProps {
    * edits — open-time pill/translation normalization, orphan-highlight backfill — so consumers can
    * sync content without treating it as a dirtying edit (which would re-save and bump `updatedAt`).
    */
-  onContentChange?: (content: string, meta?: { programmatic?: boolean }) => void;
+  onContentChange?: (content: string, meta?: { programmatic?: boolean; flush?: boolean }) => void;
+  /** Study-thread rows from note details — used to rehydrate body highlight marks missing from HTML. */
+  studyThreads?: StudyThreadRehydrateRow[];
   /** Synchronous mirror of the latest body HTML (on every doc change) for unmount save. */
   onLiveBodyHtmlChange?: (content: string) => void;
   scrollPosition?: number;
@@ -373,7 +384,7 @@ function syncScripturePillAccentDom(
   to: number,
   accent: string | null,
 ): void {
-  if (!editor?.view?.domAtPos) return;
+  if (!isTiptapViewReady(editor)) return;
   const markType = editor?.state?.schema?.marks?.scripturePill;
   if (!markType) return;
   const seen = new Set<HTMLElement>();
@@ -469,7 +480,7 @@ function resolveScripturePillMarkForAccentChange(
 /** Resolve scripture pill boundaries from clicked DOM span (captures-phase handler). */
 function resolveScripturePillDOMRange(editor: any, pillEl: HTMLElement): { from: number; to: number } | null {
   try {
-    if (!editor?.view?.posAtDOM) return null;
+    if (!isTiptapViewReady(editor)) return null;
     const pos = editor.view.posAtDOM(pillEl, 0);
     const $pos = editor.state.doc.resolve(pos);
     const markType = editor.state.schema.marks.scripturePill;
@@ -1303,8 +1314,12 @@ function getTextBeforeCursorForScripture(editor: any): string {
 
 // Helper function to check/create scripture note and get noteId
 
+function isPartialTrailingTranslationText(text: string): boolean {
+  if (!text || !/^\s+[A-Za-z]/.test(text)) return false;
+  return matchAnchoredTrailingTranslationAbbreviation(text) === null;
+}
+
 /**
- * Resolves all pending translation pills for this editor. For each pill, checks the text
  * immediately after it for a valid translation abbreviation. If found, applies it and deletes
  * the abbreviation. Otherwise applies the user's default translation.
  * @returns true if any abbreviation was consumed from the text (so we can skip normal detection)
@@ -1362,6 +1377,9 @@ function resolvePendingTranslationPill(editor: any): boolean {
           tr.setStoredMarks([]);
           view.dispatch(tr);
           anyConsumed = true;
+        } else if (isPartialTrailingTranslationText(textAfterPill)) {
+          // User may still be typing "NIV" — don't apply the profile default yet.
+          continue;
         } else {
           const resolvedTranslation = getCachedProfileData()?.defaultTranslation ?? getEffectiveDefaultTranslation();
           const tr = view.state.tr;
@@ -1380,64 +1398,60 @@ function resolvePendingTranslationPill(editor: any): boolean {
 }
 
 /**
- * If text after any pending pill is already a full translation abbreviation, consume it and set
- * the mark on all pending pills for this editor. Does not apply the profile default (so the user
- * can still type an abbrev after a lone "ref + space").
+ * If text after the scripture pill nearest before the caret is a full translation abbreviation,
+ * consume it and set/update the pill translation — works for pending and already-resolved pills.
  * @returns true if an abbreviation was consumed from any pill
  */
-function tryConsumeTranslationAbbrevAfterPill(editor: any): boolean {
+export function tryConsumeLiveTrailingTranslationAfterPill(editor: any): boolean {
   if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return false;
-  const editorId = getTiptapEditorDomId(editor);
-  const entries = Array.from(pendingTranslationPills.entries()).filter(([, v]) => v.editorId === editorId);
-  if (entries.length === 0) return false;
 
   try {
     const view = editor.view;
+    const { from, to } = view.state.selection;
+    if (from !== to) return false;
+
     const doc = view.state.doc;
     const markType = view.state.schema.marks.scripturePill;
     if (!markType) return false;
 
-    const pendingRefs = new Set(entries.map(([, v]) => normalizeScriptureReference(v.reference)));
-    const cursorPos = view.state.selection.from;
-
-    // The pill the user just typed an abbreviation after = the pending pill ending nearest before
-    // the cursor. Match regardless of an existing translation so editing can CHANGE it (e.g. a
-    // carried "NLT" → typed "ESV"), and abbrev-only so the profile default is never applied here.
-    let pillFrom = -1, pillTo = -1, pillRef = '';
+    const cursorPos = from;
+    let pillFrom = -1;
+    let pillTo = -1;
+    let pillMark: any = null;
     doc.descendants((node: any, pos: number) => {
       if (!node.isText) return;
       const pm = node.marks.find((m: any) => m.type.name === 'scripturePill');
-      if (!pm || !pendingRefs.has(normalizeScriptureReference(pm.attrs.reference))) return;
+      if (!pm) return;
       const end = pos + node.nodeSize;
       if (end <= cursorPos && end > pillTo) {
         pillFrom = pos;
         pillTo = end;
-        pillRef = pm.attrs.reference;
+        pillMark = pm;
       }
     });
-    if (pillFrom === -1) return false;
+    if (pillFrom === -1 || !pillMark) return false;
 
     let textAfterPill = '';
     if (pillTo < cursorPos) {
-      try { textAfterPill = doc.textBetween(pillTo, Math.min(cursorPos, doc.content.size)); } catch (_) {}
+      try {
+        textAfterPill = doc.textBetween(pillTo, Math.min(cursorPos, doc.content.size));
+      } catch (_) {}
     }
     const trailing = matchAnchoredTrailingTranslationAbbreviation(textAfterPill);
     if (!trailing) return false;
 
-    const key = normalizeScriptureReference(pillRef);
+    const key = normalizeScriptureReference(pillMark.attrs.reference);
     const entry = pendingTranslationPills.get(key);
     if (entry?.timeoutId) clearTimeout(entry.timeoutId);
     pendingTranslationPills.delete(key);
 
-    const existingMark = doc.nodeAt(pillFrom)?.marks.find((m: any) => m.type === markType);
     const tr = view.state.tr;
     tr.delete(pillTo, pillTo + trailing.consumed.length);
     tr.addMark(
       pillFrom,
       pillTo,
       markType.create({
-        ...(existingMark ? existingMark.attrs : { reference: pillRef, noteId: 'pending' }),
-        reference: pillRef,
+        ...pillMark.attrs,
         translation: trailing.canonicalId,
       }),
     );
@@ -1446,9 +1460,13 @@ function tryConsumeTranslationAbbrevAfterPill(editor: any): boolean {
     view.dispatch(tr);
     return true;
   } catch (e) {
-    console.error('[TiptapEditor] Error in tryConsumeTranslationAbbrevAfterPill:', e);
+    console.error('[TiptapEditor] Error in tryConsumeLiveTrailingTranslationAfterPill:', e);
     return false;
   }
+}
+
+function tryConsumeTranslationAbbrevAfterPill(editor: any): boolean {
+  return tryConsumeLiveTrailingTranslationAfterPill(editor);
 }
 
 function schedulePendingTranslationAfterPillCreation(
@@ -1544,7 +1562,7 @@ function insertScriptureContinuationAtPillEnd(
   key: string,
   pillAttrs: { reference: string; noteId: string | null; translation?: string | null; pillAccent?: string | null },
 ): void {
-  if (!editor?.view) return;
+  if (!isTiptapViewReady(editor)) return;
   const view = editor.view;
   const markType = view.state.schema.marks.scripturePill;
   if (!markType) return;
@@ -1583,7 +1601,7 @@ export function absorbOrphanSuffixesAfterPills(
   editor: any,
   spacingMode: ScripturePillSpacingMode = 'live',
 ): boolean {
-  if (!editor || editor.isDestroyed || !editor.view) return false;
+  if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return false;
   try {
     const view = editor.view;
     const markType = view.state.schema.marks.scripturePill;
@@ -1642,7 +1660,7 @@ export function absorbOrphanSuffixesAfterPills(
 }
 
 function dispatchScripturePillSpacing(editor: any, mode: ScripturePillSpacingMode = 'live'): void {
-  if (!editor?.view) return;
+  if (!isTiptapViewReady(editor)) return;
   try {
     const tr = editor.state.tr;
     if (ensureScripturePillSpacing(tr, 'scripturePill', mode)) {
@@ -1723,11 +1741,11 @@ function applyDetectionAtCursor(editor: any, cursorPos: number): string | null {
   const textBeforeCursor = doc.textBetween(textStart, cursorPos);
   if (textBeforeCursor.trim().length === 0) return null;
 
-  const refs = detectScriptureReferences(textBeforeCursor);
+  const refs = detectScriptureReferencesWithTranslation(textBeforeCursor);
   if (refs.length === 0) return null;
 
   const lastRef = refs[refs.length - 1];
-  const applied = createPendingPillsForReferences(editor, [lastRef], undefined, cursorPos);
+  const applied = createPendingPillsForReferences(editor, [lastRef], lastRef.translation, cursorPos);
   return applied ? lastRef.reference : null;
 }
 
@@ -1744,9 +1762,9 @@ function lockPendingPillCreation(reference: string): void {
 
 /** Run detection + pending pill creation at the current cursor (desktop, mobile, safety net). */
 function runScriptureDetectionAtCursor(editor: any): void {
-  if (!editor || editor.isDestroyed || !editor.view) return;
+  if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return;
   try {
-    resolvePendingTranslationPill(editor);
+    tryConsumeLiveTrailingTranslationAfterPill(editor);
 
     const { from, to } = editor.state.selection;
     if (from !== to || from < 2) return;
@@ -1812,6 +1830,7 @@ function enterScriptureDraftAtCursor(
       : findScriptureReferenceAtCursor(doc, reference, cursorPos) ||
         mapReferenceEndInSliceToDocPos(doc, cursorPos, reference);
   if (!pos) return false;
+  if (!isTiptapViewReady(editor)) return false;
   return enterScriptureDraftView(editor.view, pos.from, pos.to);
 }
 
@@ -1822,7 +1841,7 @@ function enterScriptureDraftAtCursor(
  * split into multiple draft pills on iOS).
  */
 function runScriptureDraftDetectionAtCursor(editor: any): void {
-  if (!editor || editor.isDestroyed || !editor.view) return;
+  if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return;
   try {
     const state = editor.state;
     const { from, to } = state.selection;
@@ -1861,6 +1880,7 @@ function createPendingPillsForReferences(
   }
 
   try {
+    if (!isTiptapViewReady(editor)) return false;
     const view = editor.view;
     let state = view.state;
     let tr = state.tr;
@@ -1969,7 +1989,8 @@ function createPendingPillsForReferences(
             // already carries a scripturePill mark (legit extension goes through the branch above).
             if (rangeContainsScripturePillMark(tr.doc, adjustedPos.from, adjustedPos.to)) continue;
 
-            const pillTranslation = translation || null;
+            const pillTranslation =
+              (ref as ScriptureReferenceWithTranslation).translation ?? translation ?? null;
 
             applyScripturePillToRange(tr, markType, adjustedPos.from, adjustedPos.to, reference, {
               noteId: 'pending',
@@ -2010,7 +2031,7 @@ function createPendingPillsForReferences(
     // position (after the space, outside the pill).  Calling Selection.near()
     // can snap the cursor to before the space in some edge cases, eating it.
     setTimeout(() => {
-      if (!editor || editor.isDestroyed) return;
+      if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return;
       const view = editor.view;
       const curState = view.state;
 
@@ -2245,7 +2266,7 @@ export function applyDefaultTranslationToScripturePills(
   defaultTranslation: string,
   previousDefault?: string,
 ): boolean {
-  if (!editor || editor.isDestroyed || !editor.view) return false;
+  if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return false;
   try {
     const markType = editor.view.state.schema.marks.scripturePill;
     if (!markType) return false;
@@ -2286,7 +2307,7 @@ export function applyDefaultTranslationToScripturePills(
 }
 
 export function consumeTrailingTranslationAfterPills(editor: any): boolean {
-  if (!editor || editor.isDestroyed || !editor.view) return false;
+  if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return false;
   try {
     const view = editor.view;
     const markType = view.state.schema.marks.scripturePill;
@@ -3181,7 +3202,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
           // Immediately try to focus after transaction (before setTimeout)
           // This helps in form contexts where focus might be stolen
           try {
-            if (editor.view && editor.view.dom) {
+            if (isTiptapViewReady(editor)) {
               const dom = editor.view.dom as HTMLElement;
               
               // Force focus with multiple methods for form contexts
@@ -3201,7 +3222,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
               // If still not focused, try one more time after a microtask
               if (!isFocused) {
                 Promise.resolve().then(() => {
-                  if (editor && !editor.isDestroyed && editor.view && editor.view.dom) {
+                  if (editor && !editor.isDestroyed && isTiptapViewReady(editor)) {
                     const dom = editor.view.dom as HTMLElement;
                     dom.focus({ preventScroll: true });
                     editor.commands.focus();
@@ -3221,10 +3242,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
                 debug('[TiptapEditor] Editor destroyed during verification, skipping');
                 return;
               }
-              if (!editor.view || !editor.view.docView) {
-                debug('[TiptapEditor] Editor view invalid during verification, skipping');
-                return;
-              }
+  if (!isTiptapViewReady(editor)) return;
               
               // Get fresh state after transaction
               const freshState = editor.state;
@@ -3334,7 +3352,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
                 // 4. Force focus via requestAnimationFrame (ensures it happens after any form handlers)
                 requestAnimationFrame(() => {
                   if (!editor || editor.isDestroyed) return;
-                  if (!editor.view || !editor.view.dom) return;
+              if (!isTiptapViewReady(editor)) return;
                   
                   const dom = editor.view.dom as HTMLElement;
                   dom.focus({ preventScroll: true });
@@ -3348,7 +3366,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
                   // 5. One more attempt after a short delay to ensure focus sticks
                   setTimeout(() => {
                     if (!editor || editor.isDestroyed) return;
-                    if (!editor.view || !editor.view.dom) return;
+                if (!isTiptapViewReady(editor)) return;
                     
                     const dom = editor.view.dom as HTMLElement;
                     const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
@@ -3371,7 +3389,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
                 // CRITICAL: Verify editor can actually receive input
                 setTimeout(() => {
                   if (!editor || editor.isDestroyed) return;
-                  if (!editor.view || !editor.view.dom) return;
+              if (!isTiptapViewReady(editor)) return;
                   
                   const dom = editor.view.dom as HTMLElement;
                   const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
@@ -3392,7 +3410,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
                 // CRITICAL: Force focus and test if editor can actually receive input
                 setTimeout(() => {
                   if (!editor || editor.isDestroyed) return;
-                  if (!editor.view || !editor.view.dom) return;
+              if (!isTiptapViewReady(editor)) return;
                   
                   const dom = editor.view.dom as HTMLElement;
                   const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
@@ -3457,7 +3475,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
           setTimeout(() => {
             try {
               if (!editor || editor.isDestroyed) return;
-              if (!editor.view || !editor.view.dom) return;
+              if (!isTiptapViewReady(editor)) return;
               
               const dom = editor.view.dom as HTMLElement;
               const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
@@ -3480,7 +3498,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
           // FINAL ATTEMPT: After all delays, force focus and test input capability
           setTimeout(() => {
             if (!editor || editor.isDestroyed) return;
-            if (!editor.view || !editor.view.dom) return;
+            if (!isTiptapViewReady(editor)) return;
             
             const dom = editor.view.dom as HTMLElement;
             const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
@@ -3521,7 +3539,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
           // TEST: Try to programmatically insert text to verify editor can receive input
           setTimeout(() => {
             if (!editor || editor.isDestroyed) return;
-            if (!editor.view || !editor.view.dom) return;
+            if (!isTiptapViewReady(editor)) return;
             
             try {
               // Try to insert a test character programmatically
@@ -3597,7 +3615,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
             setTimeout(() => {
               try {
                 if (!editor || editor.isDestroyed) return;
-                if (!editor.view || !editor.view.docView) return;
+                if (!isTiptapViewReady(editor)) return;
                 
                 // Force focus using view directly (more reliable in form contexts)
                 const { view } = editor;
@@ -3627,7 +3645,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
           setTimeout(() => {
             try {
               if (!editor || editor.isDestroyed) return;
-              if (!editor.view || !editor.view.docView) return;
+              if (!isTiptapViewReady(editor)) return;
               
               // Only focus if editor was already focused (don't steal focus unnecessarily)
               if (editor.isFocused) {
@@ -3823,6 +3841,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   prototypeCrossRefTarget = null,
   prototypeHighlightOpenRequest = null,
   onPrototypeHighlightOpenRequestConsumed,
+  studyThreads = [],
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -3914,6 +3933,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const contentPropagateRafRef = useRef<number | null>(null);
   const onContentChangeRef = useRef(onContentChange);
   onContentChangeRef.current = onContentChange;
+  /** Eager-save note HTML after mark/pill mutations (bypass 700ms autosave). Safe from extension keydown handlers. */
+  const flushNoteHtmlToParent = () => {
+    const ed = editorRef.current;
+    if (!ed || !isEditorValid(ed)) return;
+    const html = noteHtmlFromEditor(ed, true);
+    if (hiddenInputRef.current) {
+      hiddenInputRef.current.value = html;
+    }
+    latestNoteHtmlRef.current = html;
+    onContentChangeRef.current?.(html, { flush: true });
+  };
   const latestNoteHtmlRef = useRef<string>('');
   // True when a genuine, user-initiated DOM content edit (beforeinput/paste/drop/cut) occurred. Lets
   // onUpdate tell real edits from PROGRAMMATIC doc changes (hydrate pill/translation/spacing
@@ -4374,12 +4404,24 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         /* ignore pre-mount view access during editor remount */
       }
 
+      // Live translation consume: typed abbrev after any scripture pill (pending or resolved).
+      try {
+        if (isTiptapViewReady(editor)) {
+          const { from, to } = editor.state.selection;
+          if (from === to) {
+            tryConsumeLiveTrailingTranslationAfterPill(editor);
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+
       // Scroll cursor into view when content changes
       // Use rAF to batch with the browser's next paint instead of forcing layout synchronously
       requestAnimationFrame(() => {
         try {
+          if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return;
           const view = editor.view;
-          if (!view || editor.isDestroyed) return;
           const editorDom = view.dom;
           // Keyboard-open layout: scroll-margin + selectionUpdate scroll handle caret; manual scroll fights CSS and causes a gap above the toolbar
           if (editorDom.closest('[data-keyboard-open]')) return;
@@ -4774,6 +4816,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             const tr = view.state.tr.insertText(event.key);
             tr.setStoredMarks([]);
             view.dispatch(tr);
+            flushNoteHtmlToParent();
             return true;
           }
           // Other keys (Backspace, arrows, digits, ':' ',' '-') edit the draft in place.
@@ -4799,9 +4842,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // In the prototype, creation goes through inline draft mode (passive detection +
         // confirm gestures above), so the keydown commit-on-space path is disabled there.
         if (isDetectionTrigger && from === to && allowDetectionAtCursor && !event.metaKey && !event.ctrlKey && !event.altKey && !isMobileDevice() && editorChromeModeRef.current !== 'prototypeNative') {
-          // Step 1: Resolve any pending translation pill from a previous keypress
-          // (Check if user typed a translation abbreviation like "ESV" after the last pill)
-          const consumedAbbrev = resolvePendingTranslationPill(editor);
+          // Step 1: Consume a trailing translation abbreviation if the user typed one after a pill.
+          const consumedAbbrev =
+            tryConsumeLiveTrailingTranslationAfterPill(editor) || resolvePendingTranslationPill(editor);
           if (consumedAbbrev) {
             if (isSyncTrigger) {
               event.preventDefault();
@@ -4822,7 +4865,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           const textBeforeCursor = doc.textBetween(textStart, detectFrom);
           const hasDetectableText =
             detectScriptureReferenceEndingAtCursor(doc, detectFrom) != null ||
-            (textBeforeCursor.trim().length > 0 && detectScriptureReferences(textBeforeCursor).length > 0);
+            (textBeforeCursor.trim().length > 0 &&
+              detectScriptureReferencesWithTranslation(textBeforeCursor).length > 0);
 
           try {
             if (hasDetectableText) {
@@ -5240,6 +5284,167 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     [spaceId, sourceNoteId],
   );
 
+  const runPrototypeSelectionHighlightAction = useCallback(() => {
+    const range = resolveSelectionBarRange();
+    if (!range || !editor || !isEditorValid(editor)) return;
+    const { from, to, snippet } = range;
+    const defaultAccent = 'warmAmber';
+
+    void (async () => {
+      let studyId: string | null = null;
+      if (editorChromeMode === 'prototypeNative' && sourceNoteId) {
+        try {
+          const res = await fetch(`/api/notes/${sourceNoteId}/study-threads`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              entryKind: 'miniNote',
+              sourceSnippet: snippet,
+              highlightAccentRaw: defaultAccent,
+              anchorTextSnapshot: snippet,
+              anchorLocation: from,
+              anchorLength: Math.max(0, to - from),
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            studyId = data.studyThread?.id ?? null;
+            if (studyId) syncStudyThreadList(sourceNoteId);
+          }
+        } catch {
+          /* fall through — backfill may recover orphan mark */
+        }
+      }
+
+      if (!editor || !isEditorValid(editor)) return;
+      const applied = applyHighlightMark(
+        { from, to },
+        {
+          color: defaultAccent,
+          ...(studyId ? { studyThreadEntryId: studyId } : {}),
+        },
+        { focusEditor: false },
+      );
+      if (!applied) return;
+
+      if (hiddenInputRef.current) {
+        hiddenInputRef.current.value = editor.getHTML();
+      }
+      onContentChange?.(editor.getHTML(), { flush: true });
+      clearSelectionActionBar();
+      releaseEditorFocusForStudyDock();
+      if (editorChromeMode === 'prototypeNative') {
+        setStudyDockStack((s) =>
+          openOrFocusHighlight(s, {
+            studyThreadEntryId: studyId,
+            accent: defaultAccent,
+            excerpt: snippet,
+            range: { from, to },
+            entryKind: 'miniNote',
+            focusTitle: deriveHighlightFocusTitle(snippet),
+            miniNoteBody: '',
+          }),
+        );
+      }
+      if (!studyId && sourceNoteId && spaceId && editor && isEditorValid(editor)) {
+        void backfillOrphanHighlights({
+          editor,
+          sourceNoteId,
+          spaceId,
+          applyMark: (r, attrs) => applyHighlightMark(r, attrs, { focusEditor: false }),
+        }).then((count) => {
+          if (count <= 0 || !editor || !isEditorValid(editor)) return;
+          if (hiddenInputRef.current) {
+            hiddenInputRef.current.value = editor.getHTML();
+          }
+          onContentChange?.(editor.getHTML(), { flush: true });
+        });
+      }
+    })();
+  }, [
+    resolveSelectionBarRange,
+    editor,
+    editorChromeMode,
+    sourceNoteId,
+    spaceId,
+    applyHighlightMark,
+    onContentChange,
+    clearSelectionActionBar,
+    releaseEditorFocusForStudyDock,
+    syncStudyThreadList,
+  ]);
+
+  const runPrototypeSelectionConnectAction = useCallback(() => {
+    const range = resolveSelectionBarRange();
+    if (range && editor && isEditorValid(editor)) {
+      const anchorLocation = editor.state.doc.textBetween(0, range.from, '\n').length;
+      setConnectFromSelectionRange({
+        from: range.from,
+        to: range.to,
+        text: range.snippet,
+        anchorLocation,
+        anchorLength: range.snippet.length,
+      });
+    } else {
+      setConnectFromSelectionRange(null);
+    }
+    setConnectFromSelectionAnchorRect(createNoteBubbleRef.current?.getBoundingClientRect() ?? null);
+    setConnectFromSelectionOpen(true);
+    clearSelectionActionBar();
+  }, [resolveSelectionBarRange, editor, clearSelectionActionBar]);
+
+  const runPrototypeSelectionClearHighlightAction = useCallback(() => {
+    const range = resolveSelectionBarRange();
+    if (!range || !editor || !isEditorValid(editor)) return;
+    const { from, to } = range;
+    const markType = editor.state.schema.marks.highlight;
+    let studyId: string | null = null;
+    editor.state.doc.nodesBetween(from, to, (node: any) => {
+      if (!node.isText || studyId) return;
+      const m = node.marks.find((x: any) => x.type.name === 'highlight');
+      if (m?.attrs?.studyThreadEntryId) {
+        studyId = m.attrs.studyThreadEntryId;
+      }
+    });
+    void (async () => {
+      if (studyId) {
+        try {
+          await fetch(`/api/study-threads/${studyId}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+          syncStudyThreadList(sourceNoteId);
+        } catch {
+          /* still strip mark */
+        }
+      }
+      if (editor && isEditorValid(editor)) {
+        editor.chain().focus().setTextSelection({ from, to }).unsetHighlight().run();
+        if (hiddenInputRef.current) {
+          hiddenInputRef.current.value = editor.getHTML();
+        }
+        onContentChange?.(editor.getHTML(), { flush: true });
+      }
+      clearSelectionActionBar();
+      if (studyId) {
+        setStudyDockStack((s) => {
+          const entry = s.entries.find(
+            (e) => e.kind === 'highlight' && e.session.studyThreadEntryId === studyId,
+          );
+          return entry ? closeDockEntry(s, entry.id) : s;
+        });
+      }
+    })();
+  }, [
+    resolveSelectionBarRange,
+    editor,
+    sourceNoteId,
+    onContentChange,
+    clearSelectionActionBar,
+    syncStudyThreadList,
+  ]);
+
   const orphanBackfillNoteRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -5253,20 +5458,36 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     if (orphanBackfillNoteRef.current === sourceNoteId) return;
     orphanBackfillNoteRef.current = sourceNoteId;
 
-    void backfillOrphanHighlights({
-      editor,
-      sourceNoteId,
-      spaceId,
-      applyMark: (range, attrs) => applyHighlightMark(range, attrs, { focusEditor: false }),
-    }).then((count) => {
-      if (count <= 0 || !editor || !isEditorValid(editor)) return;
+    const applyMark = (range: { from: number; to: number }, attrs: Parameters<typeof applyHighlightMark>[1]) =>
+      applyHighlightMark(range, attrs, { focusEditor: false });
+
+    void (async () => {
+      const orphanCount = await backfillOrphanHighlights({
+        editor,
+        sourceNoteId,
+        spaceId,
+        applyMark,
+      });
+      if (orphanCount > 0 && editor && isEditorValid(editor)) {
+        if (hiddenInputRef.current) {
+          hiddenInputRef.current.value = editor.getHTML();
+        }
+        onContentChange?.(editor.getHTML(), { flush: true });
+      }
+
+      if (!editor || !isEditorValid(editor) || !studyThreads?.length) return;
+      const rehydrated = rehydrateMissingBodyHighlightMarks({
+        editor,
+        studyThreads,
+        applyMark,
+      });
+      if (rehydrated <= 0 || !editor || !isEditorValid(editor)) return;
       if (hiddenInputRef.current) {
         hiddenInputRef.current.value = editor.getHTML();
       }
-      // Orphan-highlight backfill is an automatic open-time repair, not a user edit.
-      onContentChange?.(editor.getHTML(), { programmatic: true });
-    });
-  }, [editor, editorChromeMode, sourceNoteId, spaceId, applyHighlightMark, onContentChange]);
+      onContentChange?.(editor.getHTML(), { flush: true });
+    })();
+  }, [editor, editorChromeMode, sourceNoteId, spaceId, studyThreads, applyHighlightMark, onContentChange]);
 
   /**
    * Persist a reference for the word at `range`: create the server-side `reference`
@@ -5322,7 +5543,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           studyThreadEntryId: studyId || undefined,
         })
         .run();
-      onContentChange?.(editor.getHTML());
+      onContentChange?.(editor.getHTML(), { flush: true });
       if (opts?.openDock !== false) {
         openReferenceDock({
           query: snippet,
@@ -5608,7 +5829,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       latestNoteHtmlRef.current = html;
       // User-initiated passage quote — propagate like onApply (not programmatic normalization).
-      onContentChange?.(html);
+      onContentChange?.(html, { flush: true });
 
       setStudyDockStack((s) => collapseActiveScriptureIfActive(s));
 
@@ -5923,10 +6144,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       if (isSelectionActionBarEligible(editor)) {
         setShowCreateNoteButton(true);
-        // Position floating action bar below the selection (prototype: 8px gap + clamp like native SelectionActionBar)
         try {
           const { view } = editor;
           const { from, to } = view.state.selection;
+          const snippet = noteClipboardPlainTextFromRange(editor.state.doc, from, to);
+          selectionBarRangeRef.current = { from, to, snippet };
+          if (isMobileDevice()) {
+            setSelectionActionBar(null);
+            return;
+          }
+          // Position floating action bar below the selection (prototype: 8px gap + clamp like native SelectionActionBar)
           const start = view.coordsAtPos(from);
           const end = view.coordsAtPos(to);
           const bottomEdge = Math.max(start.bottom, end.bottom);
@@ -5944,9 +6171,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             const maxCx = vw - inset - barW / 2;
             centerX = Math.min(Math.max(centerX, minCx), maxCx);
           }
-          const snippet = noteClipboardPlainTextFromRange(editor.state.doc, from, to);
           const nextBar = { top, left: centerX, from, to, snippet };
-          selectionBarRangeRef.current = { from, to, snippet };
           setSelectionActionBar(nextBar);
         } catch (_) {
           clearSelectionActionBar();
@@ -6781,6 +7006,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const onConfirmed = (e: Event) => {
       const reference = (e as CustomEvent<{ reference: string }>).detail?.reference;
       if (reference) schedulePendingTranslationAfterPillCreation(editor, [{ reference }]);
+      flushNoteHtmlToParent();
     };
 
     editor.on('selectionUpdate', resolveDetachedDraft);
@@ -7418,7 +7644,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (editor.isFocused) return;
 
       editor.commands.focus();
-      if (!tryHandleScripturePillDeleteKey(editor, event, editor.view, deleteConfirmPillRef, setDeleteConfirmPill)) {
+      const view = isTiptapViewReady(editor) ? editor.view : null;
+      if (!view || !tryHandleScripturePillDeleteKey(editor, event, view, deleteConfirmPillRef, setDeleteConfirmPill)) {
         return;
       }
       event.preventDefault();
@@ -7727,6 +7954,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (confirmScriptureDraftView(view, to, { focus: true }) == null) {
         confirmAnyScriptureDraftView(view);
       }
+      flushNoteHtmlToParent();
     } catch {
       /* ignore */
     }
@@ -8141,6 +8369,61 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             </TiptapToolbarTrack>
           </div>
           <div className="tiptap-toolbar__trailing">
+            {isMobileDevice() && selectionExpanded && enableCreateNoteFromSelection ? (
+              <>
+                <FormatToolbarDivider />
+                <div
+                  className="pds-native-selection-bar pds-native-selection-bar--toolbar"
+                  role="toolbar"
+                  aria-label="Selection actions"
+                  onPointerDownCapture={(e) => e.preventDefault()}
+                >
+                  <PrototypeToolbarButton
+                    onClick={runPrototypeSelectionHighlightAction}
+                    title="Highlight selected text"
+                    ariaLabel="Highlight selected text"
+                  >
+                    <Icon name="highlighter" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+                  </PrototypeToolbarButton>
+                  {sourceNoteId && spaceId ? (
+                    <PrototypeToolbarButton
+                      onClick={runPrototypeSelectionConnectAction}
+                      title="Connect existing note to selection"
+                      ariaLabel="Connect existing note to selection"
+                    >
+                      <Icon
+                        name="arrow-right-arrow-left"
+                        size={PROTO_FORMAT_ICON_SIZE}
+                        className="proto-toolbar-icon"
+                      />
+                    </PrototypeToolbarButton>
+                  ) : null}
+                  <PrototypeToolbarButton
+                    onClick={() => {
+                      const range = resolveSelectionBarRange();
+                      void handleCreateNoteFromSelection(range ? { from: range.from, to: range.to } : undefined);
+                      clearSelectionActionBar();
+                    }}
+                    title="New Harvous note from selection"
+                    ariaLabel="New Harvous note from selection"
+                  >
+                    <Icon name="pen-to-square" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+                  </PrototypeToolbarButton>
+                  {(() => {
+                    const range = resolveSelectionBarRange();
+                    return range && editor && rangeHasHighlightMark(editor, range.from, range.to) ? (
+                      <PrototypeToolbarButton
+                        onClick={runPrototypeSelectionClearHighlightAction}
+                        title="Clear highlight from selection"
+                        ariaLabel="Clear highlight from selection"
+                      >
+                        <Icon name="eraser" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+                      </PrototypeToolbarButton>
+                    ) : null;
+                  })()}
+                </div>
+              </>
+            ) : null}
             <FormatToolbarDivider />
             <div className="tiptap-toolbar__history">
               <PrototypeToolbarButton
@@ -8176,7 +8459,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         type="hidden"
         id={id}
         name={name}
-        value={editor.getHTML()}
+        value={isTiptapViewReady(editor) ? editor.getHTML() : content}
       />
 
       {/* Toolbar above or below scroll area; below keeps it visible above keyboard on mobile */}
@@ -8404,6 +8687,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               if (confirmScriptureDraftView(view, to, { focus: true }) == null) {
                 confirmAnyScriptureDraftView(view);
               }
+              flushNoteHtmlToParent();
             }}
           >
             <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
@@ -8421,7 +8705,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         )}
         {/* Custom floating selection action bar — positioned via selectionUpdate event */}
         {/* Uses createPortal like the translation picker for reliable positioning */}
-        {selectionActionBar && enableCreateNoteFromSelection && createPortal(
+        {selectionActionBar && enableCreateNoteFromSelection && !isMobileDevice() && createPortal(
           <div
             ref={createNoteBubbleRef}
             data-harvous-bottom-sheet-floating=""
@@ -8499,7 +8783,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       if (hiddenInputRef.current) {
                         hiddenInputRef.current.value = editor.getHTML();
                       }
-                      onContentChange?.(editor.getHTML());
+                      onContentChange?.(editor.getHTML(), { flush: true });
                       clearSelectionActionBar();
                       releaseEditorFocusForStudyDock();
                       if (editorChromeMode === 'prototypeNative') {
@@ -8526,7 +8810,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           if (hiddenInputRef.current) {
                             hiddenInputRef.current.value = editor.getHTML();
                           }
-                          onContentChange?.(editor.getHTML());
+                          onContentChange?.(editor.getHTML(), { flush: true });
                         });
                       }
                     })();
@@ -8631,7 +8915,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             if (hiddenInputRef.current) {
                               hiddenInputRef.current.value = editor.getHTML();
                             }
-                            onContentChange?.(editor.getHTML());
+                            onContentChange?.(editor.getHTML(), { flush: true });
                           }
                           clearSelectionActionBar();
                           if (studyId) {
@@ -9006,7 +9290,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           hiddenInputRef.current.value = html;
                         }
                         latestNoteHtmlRef.current = html;
-                        onContentChange?.(html);
+                        onContentChange?.(html, { flush: true });
                         setStudyDockStack((s) =>
                           updateDockEntry(s, entry.id, (e) =>
                             e.kind === 'scripture'
@@ -9099,7 +9383,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             hiddenInputRef.current.value = html;
                           }
                           latestNoteHtmlRef.current = html;
-                          onContentChange?.(html);
+                          onContentChange?.(html, { flush: true });
 
                           const noteIdForApi = existingMark.attrs.noteId;
                           const sessionRefUnchanged = normalizeScriptureReference(sess.reference) === normRef;
@@ -9350,7 +9634,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           if (hiddenInputRef.current) {
                             hiddenInputRef.current.value = editor.getHTML();
                           }
-                          onContentChange?.(editor.getHTML());
+                          onContentChange?.(editor.getHTML(), { flush: true });
                           setStudyDockStack((s) =>
                             updateDockEntry(s, entry.id, (e) =>
                               e.kind === 'highlight' ? { ...e, session: { ...e.session, accent: nextAccent, range } } : e,
@@ -9426,7 +9710,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             if (hiddenInputRef.current) {
                               hiddenInputRef.current.value = editor.getHTML();
                             }
-                            onContentChange?.(editor.getHTML());
+                            onContentChange?.(editor.getHTML(), { flush: true });
                           }
                           setStudyDockStack((s) => closeDockEntry(s, entry.id));
                         })();
@@ -9574,7 +9858,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             }),
                           );
                           editor.view.dispatch(tr);
-                          onContentChange?.(editor.getHTML());
+                          onContentChange?.(editor.getHTML(), { flush: true });
                           setStudyDockStack((s) =>
                             updateDockEntry(s, entry.id, (e) =>
                               e.kind === 'reference'
@@ -9633,7 +9917,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           }
                           if (!editor || !isEditorValid(editor)) return;
                           editor.chain().focus().setTextSelection({ from, to }).unsetHighlight().run();
-                          onContentChange?.(editor.getHTML());
+                          onContentChange?.(editor.getHTML(), { flush: true });
                           setStudyDockStack((s) => closeDockEntry(s, entry.id));
                         })();
                       }}
@@ -9815,7 +10099,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             if (hiddenInputRef.current) {
               hiddenInputRef.current.value = editor.getHTML();
             }
-            onContentChange?.(editor.getHTML());
+            onContentChange?.(editor.getHTML(), { flush: true });
             // Compute screen position for the floating color picker
             try {
               const startCoords = editor.view.coordsAtPos(range.from);
@@ -9865,7 +10149,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 if (hiddenInputRef.current) {
                   hiddenInputRef.current.value = editor.getHTML();
                 }
-                onContentChange?.(editor.getHTML());
+                onContentChange?.(editor.getHTML(), { flush: true });
                 void fetch(`/api/study-threads/${studyThreadId}`, {
                   method: 'PATCH',
                   credentials: 'include',
@@ -9916,7 +10200,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             tr.addMark(from, to, markType.create({ color: newAccent, studyThreadEntryId: studyThreadId, linkedNoteId }));
             editor.view.dispatch(tr);
             if (hiddenInputRef.current) hiddenInputRef.current.value = editor.getHTML();
-            onContentChange?.(editor.getHTML());
+            onContentChange?.(editor.getHTML(), { flush: true });
             void fetch(`/api/study-threads/${studyThreadId}`, {
               method: 'PATCH',
               credentials: 'include',
@@ -9945,7 +10229,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               tr.removeMark(from, to, markType);
               editor.view.dispatch(tr);
               if (hiddenInputRef.current) hiddenInputRef.current.value = editor.getHTML();
-              onContentChange?.(editor.getHTML());
+              onContentChange?.(editor.getHTML(), { flush: true });
             })();
           }}
           onDismiss={() => setConnectedNoteHighlightPopup(null)}

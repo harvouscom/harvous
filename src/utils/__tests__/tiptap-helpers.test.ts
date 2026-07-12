@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getTiptapEditorDomId, isTiptapViewReady } from '../tiptap-helpers';
+import { getTiptapEditorDomId, getTiptapView, isTiptapViewReady } from '../tiptap-helpers';
 
 describe('isTiptapViewReady', () => {
   it('returns false for null/undefined', () => {
@@ -29,6 +29,28 @@ describe('isTiptapViewReady', () => {
 
   it('returns true when view and docView exist', () => {
     expect(isTiptapViewReady({ isDestroyed: false, view: { docView: {} } })).toBe(true);
+  });
+});
+
+function preMountEditor() {
+  return {
+    isDestroyed: false,
+    get view() {
+      throw new Error('[tiptap error]: The editor view is not available. Cannot access editor.view');
+    },
+  };
+}
+
+describe('getTiptapView', () => {
+  it('returns null when view getter throws (pre-mount TipTap)', () => {
+    const editor = preMountEditor();
+    expect(() => getTiptapView(editor)).not.toThrow();
+    expect(getTiptapView(editor)).toBeNull();
+  });
+
+  it('returns view when mounted', () => {
+    const view = { docView: {}, dom: { id: 'edit-note-content' } };
+    expect(getTiptapView({ isDestroyed: false, view })).toBe(view);
   });
 });
 

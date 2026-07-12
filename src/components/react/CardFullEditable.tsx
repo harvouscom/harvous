@@ -266,6 +266,8 @@ interface CardFullEditableProps {
   noteCreatedAtIso?: string | null;
   /** Space the note belongs to — passed to TiptapEditor for connect-from-selection. */
   spaceId?: string;
+  /** Study-thread rows from note details — rehydrate body highlight marks missing from saved HTML. */
+  studyThreads?: import('@/utils/study-thread-highlight-rehydrate').StudyThreadRehydrateRow[];
 }
 
 export default function CardFullEditable({ 
@@ -320,12 +322,13 @@ export default function CardFullEditable({
   prototypeDraftPersistRemountTick = 0,
   noteCreatedAtIso = null,
   spaceId,
+  studyThreads = [],
 }: CardFullEditableProps) {
   const effectivePrototypeNoteActionsChrome =
     editorChromeMode === 'prototypeNative'
       ? (prototypeNoteActionsChrome ?? !!(noteActionsPortalTarget || prototypeNoteActionBar))
       : false;
-  const eagerTiptap = editorChromeMode === 'prototypeNative' && alwaysEditing && !isMobileDevice();
+  const eagerTiptap = editorChromeMode === 'prototypeNative' && alwaysEditing;
   const TiptapEditorComponent = eagerTiptap ? TiptapEditorEager : TiptapEditorLazy;
   const prototypeAlwaysEditing =
     editorChromeMode === 'prototypeNative' &&
@@ -2440,7 +2443,7 @@ export default function CardFullEditable({
     liveBodyHtmlRef.current = canonicalizeNoteHtmlLineBreaks(newContent);
   }, []);
 
-  const handleContentChange = (newContent: string, meta?: { programmatic?: boolean }) => {
+  const handleContentChange = (newContent: string, meta?: { programmatic?: boolean; flush?: boolean }) => {
     const isProto = editorChromeMode === 'prototypeNative';
     if (isProto) {
       hasLocalContentUpdate.current = true;
@@ -2478,6 +2481,10 @@ export default function CardFullEditable({
     }
 
     setHasChanges(titleForChanges !== displayTitle || canonical !== displayContent);
+
+    if (isProto && meta?.flush) {
+      void protoSaveAsyncRef.current();
+    }
   };
 
   const resolveThreadContext = (): string => {
@@ -3010,6 +3017,7 @@ export default function CardFullEditable({
                       }
                       onPrototypeHighlightOpenRequestConsumed={onPrototypeHighlightOpenRequestConsumed}
                       prototypeNoteActionsChrome={effectivePrototypeNoteActionsChrome}
+                      studyThreads={studyThreads}
                     />,
                     'min-h-[100px]',
                   )}
@@ -3412,6 +3420,7 @@ export default function CardFullEditable({
                     }
                     onPrototypeHighlightOpenRequestConsumed={onPrototypeHighlightOpenRequestConsumed}
                     prototypeNoteActionsChrome={effectivePrototypeNoteActionsChrome}
+                    studyThreads={studyThreads}
                   />,
                   'min-h-[200px]',
                 )}
