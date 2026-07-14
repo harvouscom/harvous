@@ -8,6 +8,10 @@ import { seedProfileNamesAfterSignUp } from '../../hooks/queries/useProfile';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import { postAuthRedirectPath } from '../../utils/post-auth-redirect';
 import {
+  clearSignupAttributionCookie,
+  signupAttributionAsUnsafeMetadata,
+} from '../../utils/signup-attribution';
+import {
   clearAuthDraft,
   readAuthDraft,
   writeAuthDraft,
@@ -167,6 +171,7 @@ export default function HarvousAuthForm({
 
   async function finishSignUp(sessionId: string, createdUserId: string | null) {
     await setSignUpActive({ session: sessionId });
+    clearSignupAttributionCookie();
     if (createdUserId) {
       seedProfileNamesAfterSignUp(createdUserId, {
         firstName: firstName.trim(),
@@ -200,10 +205,12 @@ export default function HarvousAuthForm({
           emailAddressId: factor.emailAddressId,
         });
       } else if (mode === 'signUp' && signUp) {
+        const unsafeMetadata = signupAttributionAsUnsafeMetadata();
         await signUp.create({
           emailAddress: trimmed,
           firstName: trimmedFirstName,
           lastName: trimmedLastName,
+          ...(unsafeMetadata ? { unsafeMetadata } : {}),
         });
         await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
       }
