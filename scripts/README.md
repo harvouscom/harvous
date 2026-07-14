@@ -71,7 +71,7 @@ Exports `Changelog/{version}.md` entries to [harvous.com](https://github.com/har
 # Export current package.json version (sibling ../harvous.com checkout)
 npm run changelog:export
 
-# Backfill all versions newer than the CSV
+# Backfill changelog files at/above the CSV max version (fingerprint dedupe)
 npm run changelog:export:backfill
 
 # Custom path (used in CI)

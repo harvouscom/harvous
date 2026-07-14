@@ -10,6 +10,10 @@
  * Usage:
  *   node scripts/export-changelog-csv.js [--version 1.217.231] [--backfill] [--csv path]
  *
+ * Backfill exports changelog files at or above the CSV's max version number,
+ * then skips rows already present (version+title fingerprint). Using >= instead
+ * of > handles semver resets where legacy CSV rows share the same version.
+ *
  * Env:
  *   HARVOUS_COM_CSV_PATH — override output CSV path
  */
@@ -299,7 +303,8 @@ export function exportChangelogToMarketingSite(options = {}) {
   const files = listChangelogFiles(changelogDir).filter((filepath) => {
     const v = basename(filepath, ".md");
     if (version) return v === version;
-    if (backfill && minVersion) return compareSemver(v, minVersion) > 0;
+    // >= so a new Changelog/2.0.3.md still exports when legacy 2.0.3 rows exist in CSV.
+    if (backfill && minVersion) return compareSemver(v, minVersion) >= 0;
     return false;
   });
 
