@@ -9,14 +9,14 @@
  */
 
 import type { Handler, HandlerEvent } from '@netlify/functions';
-import { isValidShareToken } from '../../src/utils/ids';
-import { captureShareOgScreenshot } from '../../server/utils/og-screenshot';
+import { isValidShareToken } from '../src/utils/ids';
+import { captureShareOgScreenshot } from './utils/og-screenshot';
 import {
   createOgImageResponse,
   fallbackImageHtml,
-} from '../../src/utils/og-image';
-import { buildDefaultNoteCardHtml } from '../../server/utils/og-note-cards';
-import { buildThreadCardHtml } from '../../server/utils/og-thread-cards';
+} from '../src/utils/og-image';
+import { buildDefaultNoteCardHtml } from './utils/og-note-cards';
+import { buildThreadCardHtml } from './utils/og-thread-cards';
 
 const PATH_PATTERNS = [
   /^\/api\/og\/image\/(note|thread)\/([A-Za-z0-9]{12})\/?$/,

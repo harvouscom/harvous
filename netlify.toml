@@ -17,10 +17,11 @@
     "netlify/functions/RedditSans-Bold.ttf"
   ]
 
-# Chromium screenshot OG images — separate from single-file api.cjs
+# Chromium screenshot OG images — prebuilt og-image.cjs (see build:api)
 [functions.og-image]
-  node_bundler = "esbuild"
+  node_bundler = "none"
   external_node_modules = ["@sparticuz/chromium"]
+  included_files = ["node_modules/@sparticuz/chromium/**"]
   timeout = 26
 
 [build.environment]

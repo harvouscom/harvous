@@ -44,7 +44,7 @@ import { buildThreadCardHtml } from '../utils/og-thread-cards';
 const route = new Hono();
 
 /** Cache-bust for iMessage / social after OG generator changes */
-const OG_IMAGE_VERSION = '4';
+const OG_IMAGE_VERSION = '5';
 
 route.get('/api/og/referral/:code', (c) => {
   return c.text('OG image temporarily disabled', 200);
