@@ -443,6 +443,19 @@
   transition: opacity 0.2s;
   pointer-events: none;
   line-height: 1.3;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+/* Beat card/editor inheritance that can leave CTA toast copy left-aligned. */
+.public-card__cta .public-toast,
+.public-note-card .public-toast {
+  justify-content: center !important;
+  text-align: center !important;
 }
 
 .public-toast--visible {
@@ -1005,6 +1018,12 @@
   transition: opacity 0.2s;
   pointer-events: none;
   line-height: 1.3;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
 }
 .public-toast--visible { opacity: 1; }
 .public-toast--success { background: #e8f4ea; color: #2a5a25; }

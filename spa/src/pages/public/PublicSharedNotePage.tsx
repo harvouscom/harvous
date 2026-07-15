@@ -179,7 +179,10 @@ export default function PublicSharedNotePage() {
                       className="public-note-card"
                       footer={
                       <div className="public-card__cta">
-                        <div className={`public-toast public-toast--${toastType}${toastVisible ? ' public-toast--visible' : ''}`}>
+                        <div
+                          className={`public-toast public-toast--${toastType}${toastVisible ? ' public-toast--visible' : ''}`}
+                          style={{ textAlign: 'center', justifyContent: 'center' }}
+                        >
                           {toastMessage}
                         </div>
                         {alreadyOwned ? (
