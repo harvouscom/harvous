@@ -3175,6 +3175,42 @@ html.harvous-prototype-route .proto-fte-tag-chip__accept svg path {
   box-shadow: var(--pds-shadow-accent-button);
 }
 
+/* ─── Settings text fields ────────────────────────────────────────────────── */
+/* Soft fill + hairline border; focus ring matches search/FTE chrome + marketing forms. */
+.proto-settings-field {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-input);
+  background: var(--pds-bg-input);
+  font-family: var(--pds-font-body);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+  outline: none;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    background-color 120ms ease;
+}
+
+.proto-settings-field::placeholder {
+  color: var(--pds-text-tertiary);
+}
+
+.proto-settings-field:hover {
+  background: var(--pds-bg-input-hover);
+}
+
+.proto-settings-field:focus,
+.proto-settings-field:focus-visible {
+  outline: none;
+  border-color: var(--pds-accent-focus-border);
+  box-shadow: 0 0 0 2px var(--pds-accent-focus-ring);
+  background: var(--pds-bg-input);
+}
+
 /* ─── Settings action buttons ─────────────────────────────────────────────── */
 /* Pill-style action buttons matching the share popover primary style. */
 .proto-settings-btn {

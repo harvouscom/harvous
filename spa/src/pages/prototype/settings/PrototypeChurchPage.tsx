@@ -11,29 +11,16 @@ const fieldLabelStyle: React.CSSProperties = {
   color: 'var(--pds-text-tertiary)',
 };
 
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: '10px 14px',
-  border: '0.5px solid var(--pds-border)',
-  borderRadius: 'var(--pds-radius-input)',
-  background: 'var(--pds-bg-input)',
-  fontFamily: 'var(--pds-font-body)',
-  fontSize: '0.9375rem',
-  color: 'var(--pds-text-primary)',
-  outline: 'none',
-};
-
 function Field(props: { label: string; value: string; placeholder: string; onChange: (v: string) => void }) {
   return (
     <div style={{ marginBottom: 16 }}>
       <label className="pds-inspector-label" style={fieldLabelStyle}>{props.label}</label>
       <input
         type="text"
+        className="proto-settings-field"
         value={props.value}
         placeholder={props.placeholder}
         onChange={(e) => props.onChange(e.target.value)}
-        style={inputStyle}
       />
     </div>
   );

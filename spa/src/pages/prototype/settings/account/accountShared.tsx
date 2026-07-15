@@ -14,6 +14,7 @@ export const labelStyle: CSSProperties = {
   marginBottom: 6,
 };
 
+/** @deprecated Prefer className="proto-settings-field" for focus-ring support. */
 export const inputStyle: CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
@@ -40,11 +41,11 @@ export function Field(props: {
       <label style={labelStyle}>{props.label}</label>
       <input
         type={props.type ?? 'text'}
+        className="proto-settings-field"
         value={props.value}
         placeholder={props.placeholder}
         autoComplete={props.autoComplete}
         onChange={(e) => props.onChange(e.target.value)}
-        style={inputStyle}
       />
     </div>
   );

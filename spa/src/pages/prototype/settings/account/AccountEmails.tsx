@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useReverification, useUser } from '@clerk/clerk-react';
 import type { EmailAddressResource } from '@clerk/types';
 import { SettingsSubScreen, SettingsGroup } from '../SettingsShell';
-import { ErrorText, Field, getClerkErrorMessage, inputStyle, labelStyle, useRefreshProfileAfterMutation } from './accountShared';
+import { ErrorText, Field, getClerkErrorMessage, labelStyle, useRefreshProfileAfterMutation } from './accountShared';
 
 const tagStyle = (color: string): React.CSSProperties => ({
   fontSize: '0.6875rem',
@@ -145,12 +145,12 @@ export default function AccountEmails({ onBack }: { onBack: () => void }) {
           <label style={labelStyle}>Verification code</label>
           <input
             type="text"
+            className="proto-settings-field"
             inputMode="numeric"
             autoComplete="one-time-code"
             value={code}
             placeholder="123456"
             onChange={(e) => setCode(e.target.value)}
-            style={inputStyle}
           />
         </div>
         <ErrorText>{error}</ErrorText>
