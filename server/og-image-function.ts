@@ -98,6 +98,7 @@ export const handler: Handler = async (event) => {
       headers: {
         'Content-Type': 'image/png',
         'Cache-Control': 'public, max-age=86400, s-maxage=86400',
+        'X-Og-Source': 'screenshot',
       },
       body: png.toString('base64'),
       isBase64Encoded: true,
@@ -108,6 +109,13 @@ export const handler: Handler = async (event) => {
       kind === 'thread'
         ? buildThreadCardHtml({ title: 'Shared study thread', noteCount: 0 })
         : buildDefaultNoteCardHtml('Shared note', '');
-    return webResponseToLambda(await createOgImageResponse(html));
+    const fallback = await webResponseToLambda(await createOgImageResponse(html));
+    return {
+      ...fallback,
+      headers: {
+        ...fallback.headers,
+        'X-Og-Source': 'satori-fallback',
+      },
+    };
   }
 };

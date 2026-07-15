@@ -167939,7 +167939,7 @@ function buildThreadCardHtml(input) {
 
 // server/routes/og.ts
 var route5 = new Hono2();
-var OG_IMAGE_VERSION = "5";
+var OG_IMAGE_VERSION = "6";
 route5.get("/api/og/referral/:code", (c2) => {
   return c2.text("OG image temporarily disabled", 200);
 });

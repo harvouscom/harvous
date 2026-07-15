@@ -17,12 +17,36 @@
     "netlify/functions/RedditSans-Bold.ttf"
   ]
 
-# Chromium screenshot OG images — prebuilt og-image.cjs (see build:api)
+# Chromium screenshot OG images — prebuilt og-image.cjs (see build:api).
+# Include @sparticuz/chromium AND its runtime deps (node_bundler=none does not
+# hoist package.json dependencies into the function zip).
 [functions.og-image]
   node_bundler = "none"
   external_node_modules = ["@sparticuz/chromium"]
-  included_files = ["node_modules/@sparticuz/chromium/**"]
+  included_files = [
+    "node_modules/@sparticuz/chromium/**",
+    "node_modules/follow-redirects/**",
+    "node_modules/tar-fs/**",
+    "node_modules/tar-stream/**",
+    "node_modules/pump/**",
+    "node_modules/end-of-stream/**",
+    "node_modules/once/**",
+    "node_modules/wrappy/**",
+    "node_modules/b4a/**",
+    "node_modules/bare-fs/**",
+    "node_modules/bare-os/**",
+    "node_modules/bare-path/**",
+    "node_modules/bare-url/**",
+    "node_modules/bare-events/**",
+    "node_modules/bare-stream/**",
+    "node_modules/fast-fifo/**",
+    "node_modules/streamx/**",
+    "node_modules/events-universal/**",
+    "node_modules/text-decoder/**",
+    "node_modules/teex/**"
+  ]
   timeout = 26
+  memory = 3008
 
 [build.environment]
   NODE_VERSION = "22"

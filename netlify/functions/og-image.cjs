@@ -105499,7 +105499,8 @@ var handler = async (event) => {
       statusCode: 200,
       headers: {
         "Content-Type": "image/png",
-        "Cache-Control": "public, max-age=86400, s-maxage=86400"
+        "Cache-Control": "public, max-age=86400, s-maxage=86400",
+        "X-Og-Source": "screenshot"
       },
       body: png.toString("base64"),
       isBase64Encoded: true
@@ -105507,7 +105508,14 @@ var handler = async (event) => {
   } catch (error) {
     console.error("[og-image] screenshot failed, falling back to satori:", error);
     const html2 = kind === "thread" ? buildThreadCardHtml({ title: "Shared study thread", noteCount: 0 }) : buildDefaultNoteCardHtml("Shared note", "");
-    return webResponseToLambda(await createOgImageResponse(html2));
+    const fallback = await webResponseToLambda(await createOgImageResponse(html2));
+    return {
+      ...fallback,
+      headers: {
+        ...fallback.headers,
+        "X-Og-Source": "satori-fallback"
+      }
+    };
   }
 };
 // Annotate the CommonJS export names for ESM import in node:
