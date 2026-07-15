@@ -38,6 +38,9 @@ native/Harvous/null.o
 
 .netlify/
 
+# Copied beside api.cjs by build:api (resvg WASM for OG images)
+netlify/functions/index_bg.wasm
+
 # Agent team context files (local only, not shared)
 .claude/agents/
 

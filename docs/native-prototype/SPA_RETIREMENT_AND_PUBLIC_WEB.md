@@ -123,7 +123,7 @@ Use the **same canonical HTTPS URLs** as the web. When the app is installed, ope
 | Area | Why it matters |
 |------|----------------|
 | **Clerk redirect policy** | Join and invite flows rely on post-sign-in return to the **original URL**. See [AGENTS.md](../../AGENTS.md) (Clerk: do not override with force redirect to `/`). |
-| **Open Graph and crawlers** | Shared content in the SPA is largely **client-rendered**; link unfurling in iMessage, Slack, or X may be weak until the server returns **og:** meta or a dedicated image route. [server/routes/og.ts](../../server/routes/og.ts) is currently a minimal stub. |
+| **Open Graph and crawlers** | Share unfurls use [server/routes/og.ts](../../server/routes/og.ts) (`/api/og/share/...` meta + `/api/og/image/...` PNGs). Netlify edge function `shared-og` rewrites crawler UAs on `/shared/note|thread/:token` to the meta routes; humans keep the SPA. |
 | **E2E tests** | `e2e/` flows assume a browser SPA and Clerk. Moving primary UX to native implies **separate** native UI tests or **API-level** tests for preserved URLs and join/invite behavior. |
 | **Billing** | Clerk Checkout and subscription UIs are often used from **web** components. Plan for a **dedicated upgrade web** or in-app **WebView** if native cannot host checkout. |
 | **PWA and service worker** | If the SPA build is removed or slimmed, decide what happens to [public/sw.js](../../public/sw.js) and PWA install (drop for native-only, or keep only for the retained public site). |

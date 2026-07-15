@@ -57,11 +57,26 @@
 
 # API routing (/api/* → Hono function) and SPA fallback handled by public/_redirects
 
+# Crawlers on share URLs → server OG meta HTML (humans keep SPA)
+[[edge_functions]]
+  path = "/shared/note/*"
+  function = "shared-og"
+
+[[edge_functions]]
+  path = "/shared/thread/*"
+  function = "shared-og"
+
 # API routes must never be cached at the edge
 [[headers]]
   for = "/api/*"
   [headers.values]
     Cache-Control = "no-store, no-cache, must-revalidate"
+
+# OG meta + images are public and cacheable (after /api/* so this wins for /api/og/*)
+[[headers]]
+  for = "/api/og/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400, s-maxage=86400"
 
 # SPA assets (hashed filenames) — long cache so CDN/browser don't revalidate
 [[headers]]
