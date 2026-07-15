@@ -1889,17 +1889,19 @@
   gap: 0.2rem;
   height: 100%;
   padding: 1rem 1.25rem;
-  border: 0.5px solid var(--site-rule);
+  border: 1px solid var(--site-rule);
   border-radius: 0.75rem;
   background: var(--public-inset-bg);
   text-decoration: none;
   color: inherit;
   box-sizing: border-box;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition: background-color 150ms ease, transform 150ms ease, border-color 150ms ease;
 }
 
 .public-status-support__link:hover {
-  background: var(--site-warm);
+  text-decoration: none;
+  background-color: var(--site-warm);
+  border-color: color-mix(in srgb, var(--site-ink) 10%, var(--site-rule));
   transform: translateY(-1px);
 }
 
