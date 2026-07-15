@@ -1,8 +1,6 @@
 import { useQuery, useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
 import { useAuthReady } from '../useAuthReady';
 import { api, APIError } from '../../lib/api';
-import { hasClerkSessionCookieHint } from './useProfile';
 import { normalizeDate } from '../../../../src/utils/sorting';
 import { HARVOUS_SPACE_NOTES_CACHE_PREFIX } from '@/utils/user-cache-keys';
 
@@ -175,7 +173,7 @@ function setCachedSpaceNotesFirstPage(id: string, page: SpaceNotesPage) {
 export function useSpace(spaceId: string) {
   const authReady = useAuthReady();
   const queryClient = useQueryClient();
-  const query = useQuery({
+  return useQuery({
     queryKey: ['space', spaceId],
     queryFn: async () => {
       const bootstrap = queryClient.getQueryData<{ space: SpaceDetail; items: SpaceContentItem[] }>(bootstrapQueryKey(spaceId));
@@ -187,24 +185,11 @@ export function useSpace(spaceId: string) {
     enabled: authReady && !!spaceId,
     staleTime: 30_000,
     retry: (failureCount, error) => {
-      if (error instanceof APIError && error.status === 401) {
-        return hasClerkSessionCookieHint() && failureCount < 2;
-      }
+      if (error instanceof APIError && error.status === 401) return false;
       return failureCount < 2;
     },
     retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
-
-  const prevAuthReadyRef = useRef(authReady);
-  useEffect(() => {
-    const wasReady = prevAuthReadyRef.current;
-    prevAuthReadyRef.current = authReady;
-    if (!wasReady && authReady && spaceId) {
-      void query.refetch();
-    }
-  }, [authReady, spaceId, query.refetch]);
-
-  return query;
 }
 
 export function useSpaceNotes(spaceId: string, limit = 20) {
@@ -217,7 +202,7 @@ export function useSpaceNotes(spaceId: string, limit = 20) {
   const initialData: InfiniteData<SpaceNotesPage, number> | undefined = cachedFirstPage
     ? { pages: [cachedFirstPage], pageParams: [0] }
     : undefined;
-  const query = useInfiniteQuery({
+  return useInfiniteQuery({
     queryKey: ['space', id, 'notes', 'no-legacy-scripture', 'updated'],
     queryFn: async ({ pageParam = 0 }) => {
       const page = await api.get<SpaceNotesPage>(`/api/spaces/${id}/notes`, {
@@ -237,24 +222,11 @@ export function useSpaceNotes(spaceId: string, limit = 20) {
     initialData,
     initialDataUpdatedAt: initialData ? 0 : undefined,
     retry: (failureCount, error) => {
-      if (error instanceof APIError && error.status === 401) {
-        return hasClerkSessionCookieHint() && failureCount < 2;
-      }
+      if (error instanceof APIError && error.status === 401) return false;
       return failureCount < 2;
     },
     retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
-
-  const prevAuthReadyRef = useRef(authReady);
-  useEffect(() => {
-    const wasReady = prevAuthReadyRef.current;
-    prevAuthReadyRef.current = authReady;
-    if (!wasReady && authReady && id) {
-      void query.refetch();
-    }
-  }, [authReady, id, query.refetch]);
-
-  return query;
 }
 
 export function useSpaceMembers(spaceId: string) {

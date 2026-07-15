@@ -13,10 +13,10 @@ import { PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 
 export default function SpaceSwitcherMenu({
   homeSpaceId,
-  authReady,
+  shellAuthReady,
 }: {
   homeSpaceId: string | null;
-  authReady: boolean;
+  shellAuthReady: boolean;
 }) {
   const { sidebarLayer, setSidebarLayer, ensureSidebarExpanded } = useProtoShell();
   const showShiftHints = usePrototypeShiftHints();
@@ -27,7 +27,7 @@ export default function SpaceSwitcherMenu({
     [homeSpaceId],
   );
 
-  if (!authReady) {
+  if (!shellAuthReady) {
     return null;
   }
 

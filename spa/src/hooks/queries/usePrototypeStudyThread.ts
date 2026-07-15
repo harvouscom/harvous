@@ -1,8 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
 import { useAuthReady } from '../useAuthReady';
 import { api, APIError } from '../../lib/api';
-import { hasClerkSessionCookieHint } from './useProfile';
 import { normalizeNoteIdFromParam } from '../../pages/prototype/proto-route-slugs';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 
@@ -58,7 +56,7 @@ export function studyThreadQueryKey(noteId: string | undefined, spaceId?: string
 export function usePrototypeStudyThread(noteId: string | undefined, spaceId?: string | null) {
   const authReady = useAuthReady();
   const scopeId = normalizePrototypeApiSpaceId(spaceId);
-  const query = useQuery({
+  return useQuery({
     queryKey: studyThreadQueryKey(noteId, scopeId),
     enabled: authReady && Boolean(noteId && scopeId),
     staleTime: 60_000,
@@ -75,22 +73,9 @@ export function usePrototypeStudyThread(noteId: string | undefined, spaceId?: st
       return res;
     },
     retry: (failureCount, error) => {
-      if (error instanceof APIError && error.status === 401) {
-        return hasClerkSessionCookieHint() && failureCount < 2;
-      }
+      if (error instanceof APIError && error.status === 401) return false;
       return failureCount < 2;
     },
     retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
-
-  const prevAuthReadyRef = useRef(authReady);
-  useEffect(() => {
-    const wasReady = prevAuthReadyRef.current;
-    prevAuthReadyRef.current = authReady;
-    if (!wasReady && authReady && noteId && scopeId) {
-      void query.refetch();
-    }
-  }, [authReady, noteId, scopeId, query.refetch]);
-
-  return query;
 }

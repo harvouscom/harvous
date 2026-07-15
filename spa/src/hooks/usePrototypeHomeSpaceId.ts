@@ -18,8 +18,11 @@ function readProtoLastSpaceId(): string | null {
   }
 }
 
-/** Session / Clerk gate for painting prototype chrome before navigation fetch settles. */
-export function computePrototypeAuthReady(
+/**
+ * Optimistic chrome gate: Clerk signed-in OR cookie hint + cached user id.
+ * For API/data fetches use {@link useAuthReady} (JWT) instead — do not confuse the two.
+ */
+export function computePrototypeShellAuthReady(
   isLoaded: boolean,
   isSignedIn: boolean,
   userId: string | null | undefined,
@@ -29,16 +32,19 @@ export function computePrototypeAuthReady(
   return Boolean(isLoaded && isSignedIn && userId) || Boolean(sessionHint && cachedUserId);
 }
 
-/** Resolves home space id from nav, then optimistic client fallbacks when auth is ready. */
+/** @deprecated Use {@link computePrototypeShellAuthReady} — name clarified to avoid gating APIs on cookie hint. */
+export const computePrototypeAuthReady = computePrototypeShellAuthReady;
+
+/** Resolves home space id from nav, then optimistic client fallbacks when shell auth is ready. */
 export function resolvePrototypeHomeSpaceId(
   navSpaces: NavSpace[] | undefined,
-  authReady: boolean,
+  shellAuthReady: boolean,
   lastSpaceId: string | null = readProtoLastSpaceId(),
   selectedSpaceId: string | null = getSelectedSpaceId(),
 ): string | null {
   const fromNav = resolvePersonalHomeSpaceId(navSpaces ?? []);
   if (fromNav) return fromNav;
-  if (!authReady) return null;
+  if (!shellAuthReady) return null;
   return lastSpaceId ?? selectedSpaceId;
 }
 
@@ -47,8 +53,11 @@ export function resolvePrototypeHomeSpaceId(
  */
 export function usePrototypeHomeSpaceId(): {
   homeSpaceId: string | null;
-  /** True when a signed-in session is known (Clerk or session cookie + cached user id). */
-  authReady: boolean;
+  /**
+   * Optimistic shell signal (cookie hint + cache ok). Not sufficient for API calls —
+   * use `useAuthReady()` for notes/nav/tags.
+   */
+  shellAuthReady: boolean;
   /** True when Clerk signed in + user known and navigation fetch has settled (internal / setup edge cases). */
   navReady: boolean;
 } {
@@ -58,15 +67,21 @@ export function usePrototypeHomeSpaceId(): {
   const sessionHint = hasClerkSessionCookieHint();
   const cachedUserId = readClerkUserIdForProfileCache();
 
-  const authReady = computePrototypeAuthReady(isLoaded, isSignedIn, userId, sessionHint, cachedUserId);
+  const shellAuthReady = computePrototypeShellAuthReady(
+    isLoaded,
+    isSignedIn,
+    userId,
+    sessionHint,
+    cachedUserId,
+  );
 
   const navReady =
     Boolean(isLoaded && isSignedIn && userId) &&
     (nav != null || (!isPending && fetchStatus !== 'fetching'));
 
   const homeSpaceId = useMemo(
-    () => resolvePrototypeHomeSpaceId(nav?.spaces, authReady),
-    [nav?.spaces, authReady],
+    () => resolvePrototypeHomeSpaceId(nav?.spaces, shellAuthReady),
+    [nav?.spaces, shellAuthReady],
   );
 
   // Stale session nav can list zero spaces before ensurePersonalHomeSpace runs; refetch once.
@@ -80,5 +95,5 @@ export function usePrototypeHomeSpaceId(): {
     void queryClient.invalidateQueries({ queryKey: getNavigationQueryKey(userId) });
   }, [userId, navReady, nav?.spaces?.length, queryClient]);
 
-  return { homeSpaceId, authReady, navReady };
+  return { homeSpaceId, shellAuthReady, navReady };
 }

@@ -44,6 +44,17 @@ CLERK_AUTHORIZED_PARTIES=http://localhost:4322,https://app.harvous.com,https://n
 
 See [`.env.example`](../../.env.example).
 
+## Prototype cold-start (JWT + Bearer)
+
+Hard refresh should not fire authenticated `/api/*` until a session JWT is ready:
+
+1. **`useAuthReady`** (`spa/src/hooks/useAuthReady.ts`) — `isLoaded && isSignedIn && userId` and a non-null `getToken()` result.
+2. **`api.ts`** — attaches `Authorization: Bearer …` (plus `credentials: 'include'`). Prefer `api.get` / `api.post` over hand-rolled `fetch` for authed routes.
+3. **No cookie-hint 401 retries** — React Query should return `false` for 401 retries; waiting on JWT makes that obsolete.
+4. **Shell vs data** — `shellAuthReady` / cookie hint may paint chrome early; Home notes/nav/tags use strict `useAuthReady` only. Do not gate API on `shellAuthReady`.
+
+Console 401 spam on `/api/navigation/data`, `/api/tags/list`, notes, etc. usually means a caller skipped the JWT gate or used cookie-only fetch.
+
 ## Related
 
 - [Clerk unknown device](./CLERK_UNKNOWN_DEVICE.md)

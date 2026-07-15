@@ -1,7 +1,7 @@
 import { useAuth } from '@clerk/clerk-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthReady } from '../useAuthReady';
-import { APIError, getClerkBearerToken } from '../../lib/api';
+import { APIError, api } from '../../lib/api';
 import { HARVOUS_NAV_CACHE_KEY } from '@/utils/user-cache-keys';
 import { hasClerkSessionCookieHint, readClerkUserIdForProfileCache } from './useProfile';
 
@@ -74,15 +74,7 @@ export function useNavigation(options?: { enabled?: boolean }) {
     queryKey: userId ? getNavigationQueryKey(userId) : ['navigation', effectiveUserId ?? ''],
     enabled: (options?.enabled !== false) && authReady && !!userId,
     queryFn: async () => {
-      const headers = new Headers();
-      const token = await getClerkBearerToken();
-      if (token) headers.set('Authorization', `Bearer ${token}`);
-      const res = await fetch('/api/navigation/data', { credentials: 'include', headers });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new APIError(res.status, (body as { error?: string })?.error ?? `HTTP ${res.status}`);
-      }
-      const data = await res.json() as NavigationData;
+      const data = await api.get<NavigationData>('/api/navigation/data');
       setCachedNav(data);
       return data;
     },
@@ -91,7 +83,7 @@ export function useNavigation(options?: { enabled?: boolean }) {
     initialData: cachedForSession,
     initialDataUpdatedAt: cachedForSession ? Date.now() - 15_000 : undefined,
     retry: (failureCount, error) => {
-      // Don't retry 401 — that races cold-start cookies and spam the console; authReady waits for JWT.
+      // Don't retry 401 — authReady waits for JWT; retries only spam the console.
       if (error instanceof APIError && error.status === 401) return false;
       return failureCount < 2;
     },

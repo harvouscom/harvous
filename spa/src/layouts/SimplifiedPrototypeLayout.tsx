@@ -22,6 +22,8 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from 'react';
+import { useAuthReady } from '../hooks/useAuthReady';
+import { api } from '../lib/api';
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebarToolbar from '../pages/prototype/PrototypeSidebarToolbar';
 import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
@@ -68,6 +70,7 @@ import {
 
 export default function SimplifiedPrototypeLayout() {
   const { isLoaded, isSignedIn } = useAuth();
+  const authReady = useAuthReady();
   const { user } = useUser();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.search });
@@ -99,20 +102,16 @@ export default function SimplifiedPrototypeLayout() {
     };
   }, []);
 
-  // Profile appearance fetch needs a verified session — wait for Clerk (local cache paints interim).
+  // Profile appearance / attendance need a session JWT — wait for useAuthReady (Bearer via api).
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) return;
+    if (!authReady) return;
     void fetchAndHydrateAppearanceFromProfile();
-  }, [isLoaded, isSignedIn]);
+  }, [authReady]);
 
-  // Monthly attendance — was in session-tracker on DOMContentLoaded (cookie race → 401).
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) return;
-    void fetch('/api/user/check-monthly-attendance', {
-      method: 'POST',
-      credentials: 'include',
-    }).catch(() => {});
-  }, [isLoaded, isSignedIn]);
+    if (!authReady) return;
+    void api.post('/api/user/check-monthly-attendance').catch(() => {});
+  }, [authReady]);
 
   useEffect(() => {
     void applyBackgroundWithImageTint(readActiveBackground());

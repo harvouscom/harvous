@@ -24,7 +24,7 @@ export default function PrototypeSidebarToolbar({
   admin?: boolean;
 }) {
   const navigate = useNavigate();
-  const { homeSpaceId, authReady } = usePrototypeHomeSpaceId();
+  const { homeSpaceId, shellAuthReady } = usePrototypeHomeSpaceId();
   const { sidebarWidth, toggleDesktopSidebar, desktopSidebarCollapsed, sidebarExiting } = useProtoShell();
   const showShiftHints = usePrototypeShiftHints();
 
@@ -56,7 +56,7 @@ export default function PrototypeSidebarToolbar({
       <div className="proto-sidebar-toolbar__cluster">
         {showClusterChrome ? (
           <>
-            <SpaceSwitcherMenu homeSpaceId={homeSpaceId} authReady={authReady} />
+            <SpaceSwitcherMenu homeSpaceId={homeSpaceId} shellAuthReady={shellAuthReady} />
             <ListViewMenu disabled={!homeSpaceId} variant="icon-only" />
           </>
         ) : null}

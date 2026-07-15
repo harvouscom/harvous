@@ -120,6 +120,7 @@ Supabase Postgres via Drizzle ORM. Schema in `server/db/schema.ts`. Env: `SUPABA
 ## Auth (Clerk)
 
 - **Redirect URLs**: Do not set Clerk **Force redirect URL** to `/` (or app root) in Clerk Dashboard or via env vars (`CLERK_SIGN_IN_FORCE_REDIRECT_URL`, `CLERK_SIGN_UP_FORCE_REDIRECT_URL`). That would override the join/invite return flow; users must be sent back to `/spaces/join/[token]` or `/invitations/[token]` after sign-in when they came from those pages. Use **Fallback** redirect (e.g. `/`) only for when there is no `redirect_url` in the request.
+- **Cold-start contract (prototype SPA):** Gate authenticated API calls on `useAuthReady()` (Clerk loaded + signed in + session JWT via `getToken`). Send requests through `spa/src/lib/api.ts` so Bearer is attached (cookies still sent). Do **not** retry 401s based on a Clerk cookie hint — that was a race-era workaround and spams the console. Cookie hint / `shellAuthReady` from `usePrototypeHomeSpaceId` is for chrome paint only while Clerk loads; never use it to enable data queries. Shell redirect rules: `src/utils/prototype-shell-auth.ts`. See [docs/troubleshooting/CLERK_SESSION_SIGN_OUT.md](docs/troubleshooting/CLERK_SESSION_SIGN_OUT.md).
 
 ## Best Practices
 
