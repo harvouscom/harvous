@@ -173,8 +173,9 @@ function setCachedSpaceNotesFirstPage(id: string, page: SpaceNotesPage) {
 }
 
 export function useSpace(spaceId: string) {
+  const authReady = useAuthReady();
   const queryClient = useQueryClient();
-  return useQuery({
+  const query = useQuery({
     queryKey: ['space', spaceId],
     queryFn: async () => {
       const bootstrap = queryClient.getQueryData<{ space: SpaceDetail; items: SpaceContentItem[] }>(bootstrapQueryKey(spaceId));
@@ -183,9 +184,27 @@ export function useSpace(spaceId: string) {
       if (res.space === undefined) throw new Error('Space not found');
       return res.space;
     },
-    enabled: !!spaceId,
+    enabled: authReady && !!spaceId,
     staleTime: 30_000,
+    retry: (failureCount, error) => {
+      if (error instanceof APIError && error.status === 401) {
+        return hasClerkSessionCookieHint() && failureCount < 2;
+      }
+      return failureCount < 2;
+    },
+    retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
+
+  const prevAuthReadyRef = useRef(authReady);
+  useEffect(() => {
+    const wasReady = prevAuthReadyRef.current;
+    prevAuthReadyRef.current = authReady;
+    if (!wasReady && authReady && spaceId) {
+      void query.refetch();
+    }
+  }, [authReady, spaceId, query.refetch]);
+
+  return query;
 }
 
 export function useSpaceNotes(spaceId: string, limit = 20) {

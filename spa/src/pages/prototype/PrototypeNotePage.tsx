@@ -96,7 +96,7 @@ export default function PrototypeNotePage() {
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const navigate = useNavigate();
 
-  const { data: note, isLoading, isError, isFetching } = useNote(isDraft ? '' : noteId);
+  const { data: note, isPending, isError, isFetching } = useNote(isDraft ? '' : noteId);
 
   // Deep-link to a highlight's dock (Home "revisit" card → text / mini-note / connected highlight).
   const initialHighlightDock = useMemo(() => {
@@ -256,14 +256,15 @@ export default function PrototypeNotePage() {
 
   useEffect(() => {
     if (isDraft) return;
-    if (isLoading || isFetching || !isError || note) return;
+    // Disabled queries (auth not ready) are pending but not fetching — wait, don't bounce home.
+    if (isPending || isFetching || !isError || note) return;
     navigate({ to: prototypeHomeRouteTo(), replace: true });
-  }, [isDraft, isLoading, isFetching, isError, note, navigate]);
+  }, [isDraft, isPending, isFetching, isError, note, navigate]);
 
   useEffect(() => {
-    if (isDraft || isLoading || isError || !note) return;
+    if (isDraft || isPending || isError || !note) return;
     trackSessionNoteOpen(noteId);
-  }, [isDraft, isLoading, isError, note, noteId]);
+  }, [isDraft, isPending, isError, note, noteId]);
 
   const resolvedSpaceFromNote =
     typeof note?.spaceId === 'string' && note.spaceId.trim().length > 0 ? note.spaceId : null;
@@ -563,7 +564,7 @@ export default function PrototypeNotePage() {
   const reprocessAttemptsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
-    if (isDraft || !note || isLoading || note.contentEncrypted) return;
+    if (isDraft || !note || isPending || note.contentEncrypted) return;
     if (isPrototypeNoteEditorFocused()) return;
     const content = note.content ?? '';
     if (!content || typeof content !== 'string') return;
@@ -597,7 +598,7 @@ export default function PrototypeNotePage() {
     const refs = detectScriptureReferences(plainText);
     if (refs.length === 0) return;
     runReprocess();
-  }, [isDraft, note, noteId, isLoading, processScriptureMutation]);
+  }, [isDraft, note, noteId, isPending, processScriptureMutation]);
 
   const persistDraftNote = useCallback(
     async (
@@ -789,7 +790,7 @@ export default function PrototypeNotePage() {
     noteId,
     adoptedComposeId,
   );
-  if (!isDraft && isLoading && !note && !keepEditorDuringPersistedDraftLoad) {
+  if (!isDraft && isPending && !note && !keepEditorDuringPersistedDraftLoad) {
     return (
       <>
         {studyThreadPopoverLayer}

@@ -108,35 +108,11 @@
   }
 
   /**
-   * True when Clerk has left a session cookie hint (may still race cold restore).
-   */
-  function hasSessionCookieHint() {
-    try {
-      const cookies = document.cookie;
-      if (/(?:^|;\s*)__client_uat=[1-9]/.test(cookies)) return true;
-      if (/(?:^|;\s*)__session=/.test(cookies)) return true;
-    } catch {
-      /* ignore */
-    }
-    return false;
-  }
-
-  /**
-   * Track page load as activity
+   * Track page load as activity. Monthly attendance is triggered from the SPA
+   * after Clerk is signed in (see SimplifiedPrototypeLayout) to avoid cold-start 401s.
    */
   function trackPageLoad() {
     recordActivity('space_opened', window.location.pathname);
-
-    // Skip until a session cookie exists; quiet 401s during Clerk cold restore.
-    if (!hasSessionCookieHint()) return;
-    fetch('/api/user/check-monthly-attendance', {
-      method: 'POST',
-      credentials: 'include'
-    })
-      .then((res) => {
-        if (res.status === 401) return;
-      })
-      .catch(() => {});
   }
 
   /**

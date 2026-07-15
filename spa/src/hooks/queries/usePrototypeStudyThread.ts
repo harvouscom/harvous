@@ -1,5 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../../lib/api';
+import { useEffect, useRef } from 'react';
+import { useAuthReady } from '../useAuthReady';
+import { api, APIError } from '../../lib/api';
+import { hasClerkSessionCookieHint } from './useProfile';
 import { normalizeNoteIdFromParam } from '../../pages/prototype/proto-route-slugs';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 
@@ -53,10 +56,11 @@ export function studyThreadQueryKey(noteId: string | undefined, spaceId?: string
  * Returns flat nodes + edges — no nested tree.
  */
 export function usePrototypeStudyThread(noteId: string | undefined, spaceId?: string | null) {
+  const authReady = useAuthReady();
   const scopeId = normalizePrototypeApiSpaceId(spaceId);
-  return useQuery({
+  const query = useQuery({
     queryKey: studyThreadQueryKey(noteId, scopeId),
-    enabled: Boolean(noteId && scopeId),
+    enabled: authReady && Boolean(noteId && scopeId),
     staleTime: 60_000,
     placeholderData: (previousData) => previousData,
     queryFn: async () => {
@@ -70,5 +74,23 @@ export function usePrototypeStudyThread(noteId: string | undefined, spaceId?: st
       }
       return res;
     },
+    retry: (failureCount, error) => {
+      if (error instanceof APIError && error.status === 401) {
+        return hasClerkSessionCookieHint() && failureCount < 2;
+      }
+      return failureCount < 2;
+    },
+    retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
+
+  const prevAuthReadyRef = useRef(authReady);
+  useEffect(() => {
+    const wasReady = prevAuthReadyRef.current;
+    prevAuthReadyRef.current = authReady;
+    if (!wasReady && authReady && noteId && scopeId) {
+      void query.refetch();
+    }
+  }, [authReady, noteId, scopeId, query.refetch]);
+
+  return query;
 }

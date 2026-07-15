@@ -101,6 +101,15 @@ export default function SimplifiedPrototypeLayout() {
     void fetchAndHydrateAppearanceFromProfile();
   }, [isLoaded, isSignedIn]);
 
+  // Monthly attendance — was in session-tracker on DOMContentLoaded (cookie race → 401).
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    void fetch('/api/user/check-monthly-attendance', {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(() => {});
+  }, [isLoaded, isSignedIn]);
+
   useEffect(() => {
     void applyBackgroundWithImageTint(readActiveBackground());
   }, [colorScheme]);
