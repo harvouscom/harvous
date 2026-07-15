@@ -167931,7 +167931,7 @@ route5.get("/api/og/share/note/:shareToken", rateLimit("read"), async (c2) => {
       ),
       canonicalUrl,
       // ?v= busts aggressive iMessage / social OG image caches after generator fixes
-      imageUrl: `${origin}/api/og/image/note/${shareToken}?v=2`
+      imageUrl: `${origin}/api/og/image/note/${shareToken}?v=3`
     }),
     200
   );
@@ -167952,7 +167952,7 @@ route5.get("/api/og/share/thread/:shareToken", rateLimit("read"), async (c2) => 
       title: thread.title?.trim() || "Shared study thread",
       description: thread.subtitle?.trim() || "A shared study thread on Harvous.",
       canonicalUrl,
-      imageUrl: `${origin}/api/og/image/thread/${shareToken}?v=2`
+      imageUrl: `${origin}/api/og/image/thread/${shareToken}?v=3`
     }),
     200
   );
@@ -257893,12 +257893,26 @@ function legacyEventToRequest(event) {
   }
   return new Request(url, { method, headers: new Headers(headers), body: body !== void 0 ? body.toString() : void 0 });
 }
+function isBinaryContentType(contentType) {
+  const ct3 = contentType.toLowerCase();
+  return ct3.startsWith("image/") || ct3.startsWith("audio/") || ct3.startsWith("video/") || ct3.startsWith("font/") || ct3.startsWith("application/octet-stream") || ct3.startsWith("application/pdf") || ct3.startsWith("application/zip");
+}
 async function responseToLegacy(res) {
-  const body = await res.text();
   const headers = {};
   res.headers.forEach((value, key2) => {
     headers[key2] = value;
   });
+  const contentType = res.headers.get("content-type") ?? "";
+  if (isBinaryContentType(contentType)) {
+    const buf = Buffer.from(await res.arrayBuffer());
+    return {
+      statusCode: res.status,
+      body: buf.toString("base64"),
+      headers,
+      isBase64Encoded: true
+    };
+  }
+  const body = await res.text();
   return { statusCode: res.status, body, headers };
 }
 async function handler4(reqOrEvent, context) {
