@@ -897,17 +897,20 @@ export default function PrototypeSidebar() {
 
   const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
   const notesAuthReady = useAuthReady();
-  usePrototypeStudyThreadListSyncListener(homeSpaceId ?? undefined);
+  // Optimistic homeSpaceId (cookie/nav cache) must not drive HomeView/notes until Clerk is ready —
+  // otherwise VOTD fires ungated while notes stay disabled → zombie ProtoHomeLoading.
+  const dataSpaceId = notesAuthReady ? homeSpaceId : null;
+  usePrototypeStudyThreadListSyncListener(dataSpaceId ?? undefined);
 
   useEffect(() => {
     const onNoteDeleted = (event: Event) => {
       const noteId = (event as CustomEvent<{ noteId?: string }>).detail?.noteId;
-      if (!noteId || !homeSpaceId) return;
-      removeSpaceNoteFromCache(queryClient, homeSpaceId, noteId);
+      if (!noteId || !dataSpaceId) return;
+      removeSpaceNoteFromCache(queryClient, dataSpaceId, noteId);
     };
     window.addEventListener('noteDeleted', onNoteDeleted);
     return () => window.removeEventListener('noteDeleted', onNoteDeleted);
-  }, [queryClient, homeSpaceId]);
+  }, [queryClient, dataSpaceId]);
 
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -934,12 +937,12 @@ export default function PrototypeSidebar() {
     isFetchingNextPage,
     isFetchNextPageError,
     refetch: refetchNotes,
-  } = useSpaceNotes(homeSpaceId ?? '');
+  } = useSpaceNotes(dataSpaceId ?? '');
 
-  const folderRegistryQuery = usePrototypeFolderRegistry(homeSpaceId ?? undefined);
+  const folderRegistryQuery = usePrototypeFolderRegistry(dataSpaceId ?? undefined);
 
   const notesPaginationEnabled =
-    !!homeSpaceId && (mode === 'notes' || (mode === 'folders' && activeFolderKey !== undefined));
+    !!dataSpaceId && (mode === 'notes' || (mode === 'folders' && activeFolderKey !== undefined));
 
   const { setSentinelRef } = useIntersectionFetchNextPage({
     scrollRootRef,
@@ -962,7 +965,7 @@ export default function PrototypeSidebar() {
   const tagFilterActive = Boolean(tagFilter);
   const searchActive = !isHomeLayer && q.trim().length > 0 && !tagFilterActive;
 
-  const tagNoteIdsQuery = useTagNoteIds(tagFilter?.tagId, homeSpaceId ?? undefined);
+  const tagNoteIdsQuery = useTagNoteIds(tagFilter?.tagId, dataSpaceId ?? undefined);
   const tagNoteIdSet = useMemo(
     () => new Set(tagNoteIdsQuery.data?.noteIds ?? []),
     [tagNoteIdsQuery.data?.noteIds],
@@ -991,17 +994,17 @@ export default function PrototypeSidebar() {
   }, [sidebarTagSearchIntent, isHomeLayer, clearSidebarTagSearchIntent]);
 
   const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(
-    searchActive || mode === 'highlights' ? homeSpaceId ?? undefined : undefined,
+    searchActive || mode === 'highlights' ? dataSpaceId ?? undefined : undefined,
   );
   const scriptureQuery = usePrototypeSpaceScriptureIndex(
-    searchActive || mode === 'scripture' || isHomeLayer ? homeSpaceId ?? undefined : undefined,
+    searchActive || mode === 'scripture' || isHomeLayer ? dataSpaceId ?? undefined : undefined,
   );
   const studyThreadsQuery = usePrototypeStudyThreads(
-    searchActive || mode === 'threads' ? homeSpaceId ?? undefined : undefined,
+    searchActive || mode === 'threads' ? dataSpaceId ?? undefined : undefined,
   );
   const threadDrillQuery = usePrototypeStudyThread(
     (searchActive || mode === 'threads') && sidebarThreadDrilldownId ? sidebarThreadDrilldownId : undefined,
-    homeSpaceId,
+    dataSpaceId,
   );
   const threadDrillMemberIds = useMemo(
     () => threadDrillQuery.data?.nodes.map((n) => n.id) ?? [],
@@ -1234,7 +1237,7 @@ export default function PrototypeSidebar() {
   }, [notes, q, activeFolderKey, tagFilter, tagNoteIdsQuery.data, tagNoteIdSet]);
 
   const notesListPhase = computePrototypeNotesListPhase({
-    homeSpaceId,
+    homeSpaceId: dataSpaceId,
     // Strict Clerk readiness — matches useSpaceNotes enable gate (not cookie-hint optimistic).
     authReady: notesAuthReady,
     isPending: notesIsPending,
@@ -1849,7 +1852,9 @@ export default function PrototypeSidebar() {
       ) : null}
 
       <div ref={scrollRootRef} className="proto-sidebar-scroll">
-        {!homeSpaceId ? (
+        {!notesAuthReady ? (
+          <ProtoNotesListLoading />
+        ) : !dataSpaceId ? (
           navReady ? (
             <p className="proto-caption" style={{ padding: '14px 18px' }}>
               No My Home yet — finish setup in the classic app
@@ -1857,7 +1862,7 @@ export default function PrototypeSidebar() {
           ) : null
         ) : isHomeLayer ? (
           <PrototypeSidebarHomeView
-            homeSpaceId={homeSpaceId}
+            homeSpaceId={dataSpaceId}
             notes={notes}
             notesListPhase={notesListPhase}
             hasMoreNotes={!!hasNextPage}
