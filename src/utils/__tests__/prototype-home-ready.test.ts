@@ -2,50 +2,31 @@ import { describe, expect, it } from 'vitest';
 import { isPrototypeHomeContentReady, isQuerySettled } from '../prototype-home-ready';
 
 describe('isPrototypeHomeContentReady', () => {
-  const settled = {
-    scriptureSettled: true,
-    tagsSettled: true,
-    votdSettled: true,
-    threadsSettled: true,
-    highlightsSettled: true,
-  };
-
   it('returns false while notes are loading', () => {
-    expect(
-      isPrototypeHomeContentReady({ notesListPhase: 'loading', ...settled }),
-    ).toBe(false);
+    expect(isPrototypeHomeContentReady({ notesListPhase: 'loading' })).toBe(false);
   });
 
   it('returns false on notes error', () => {
-    expect(
-      isPrototypeHomeContentReady({ notesListPhase: 'error', ...settled }),
-    ).toBe(false);
+    expect(isPrototypeHomeContentReady({ notesListPhase: 'error' })).toBe(false);
   });
 
-  it('returns false when any auxiliary query is not settled', () => {
-    for (const flag of [
-      'scriptureSettled',
-      'tagsSettled',
-      'votdSettled',
-      'threadsSettled',
-      'highlightsSettled',
-    ] as const) {
-      expect(
-        isPrototypeHomeContentReady({ notesListPhase: 'list', ...settled, [flag]: false }),
-      ).toBe(false);
-    }
+  it('returns true for list when notes are ready (does not gate on auxiliary queries)', () => {
+    expect(isPrototypeHomeContentReady({ notesListPhase: 'list' })).toBe(true);
   });
 
-  it('returns true for list when all sources are settled', () => {
-    expect(
-      isPrototypeHomeContentReady({ notesListPhase: 'list', ...settled }),
-    ).toBe(true);
+  it('returns true for empty when notes are ready (does not gate on auxiliary queries)', () => {
+    expect(isPrototypeHomeContentReady({ notesListPhase: 'empty' })).toBe(true);
   });
 
-  it('returns true for empty when all sources are settled', () => {
-    expect(
-      isPrototypeHomeContentReady({ notesListPhase: 'empty', ...settled }),
-    ).toBe(true);
+  it('accepts only notesListPhase — auxiliary settled flags are not part of the paint contract', () => {
+    // Regression lock: if someone re-adds scriptureSettled/tagsSettled/etc. to the
+    // input type and AND-gates paint on them, this call site and the notes-only
+    // cases above must keep failing until the AND-gate is removed again.
+    const input: Parameters<typeof isPrototypeHomeContentReady>[0] = {
+      notesListPhase: 'list',
+    };
+    expect(Object.keys(input)).toEqual(['notesListPhase']);
+    expect(isPrototypeHomeContentReady(input)).toBe(true);
   });
 });
 

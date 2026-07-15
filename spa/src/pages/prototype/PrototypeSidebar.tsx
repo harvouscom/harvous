@@ -26,6 +26,7 @@ import { computePrototypeNotesListPhase } from '@/utils/prototype-notes-list-pha
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { useProtoShell, type SidebarTagSearchIntent, type ThreadProposal } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import { useAuthReady } from '../../hooks/useAuthReady';
 import { usePrototypeStudyThreadListSyncListener } from '../../hooks/usePrototypeStudyThreadListSyncListener';
 import { useIntersectionFetchNextPage } from '../../hooks/useIntersectionFetchNextPage';
 import { moveListRowFocus } from '../../hooks/useListKeyboardNavigation';
@@ -894,7 +895,8 @@ export default function PrototypeSidebar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { homeSpaceId, navReady, authReady } = usePrototypeHomeSpaceId();
+  const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
+  const notesAuthReady = useAuthReady();
   usePrototypeStudyThreadListSyncListener(homeSpaceId ?? undefined);
 
   useEffect(() => {
@@ -926,6 +928,7 @@ export default function PrototypeSidebar() {
     isError: notesIsError,
     isPending: notesIsPending,
     isFetching: notesIsFetching,
+    isFetched: notesIsFetched,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -1232,9 +1235,11 @@ export default function PrototypeSidebar() {
 
   const notesListPhase = computePrototypeNotesListPhase({
     homeSpaceId,
-    authReady,
+    // Strict Clerk readiness — matches useSpaceNotes enable gate (not cookie-hint optimistic).
+    authReady: notesAuthReady,
     isPending: notesIsPending,
     isFetching: notesIsFetching,
+    isFetched: notesIsFetched,
     noteCount: notes.length,
     isError: notesIsError,
   });
@@ -1858,7 +1863,6 @@ export default function PrototypeSidebar() {
             hasMoreNotes={!!hasNextPage}
             noteTotal={pages?.pages?.[0]?.total}
             scriptureBooks={scriptureBooks}
-            scriptureSettled={!scriptureQuery.isPending || scriptureQuery.data != null}
             activeNoteId={activeNoteFullId}
             onOpenNote={onNoteRow}
             prefetchNote={prefetchNote}

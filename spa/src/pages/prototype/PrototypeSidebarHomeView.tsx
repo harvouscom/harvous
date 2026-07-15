@@ -27,7 +27,7 @@ import { usePrototypeSpaceReferenceWordConnections } from '../../hooks/queries/u
 import { useProfile } from '../../hooks/queries/useProfile';
 import { useVotdToday } from '../../hooks/queries/useVotdToday';
 import type { PrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase';
-import { isPrototypeHomeContentReady, isQuerySettled } from '@/utils/prototype-home-ready';
+import { isPrototypeHomeContentReady } from '@/utils/prototype-home-ready';
 import {
   computeActivityRhythm,
   computeLastActivityTime,
@@ -182,7 +182,6 @@ type Props = {
   hasMoreNotes: boolean;
   noteTotal?: number;
   scriptureBooks: ScriptureIndexBook[];
-  scriptureSettled: boolean;
   /** Currently open note in the main pane — suppresses redundant "continue" card. */
   activeNoteId?: string;
   onOpenNote: (row: SpaceNoteRow) => void;
@@ -586,7 +585,6 @@ export default function PrototypeSidebarHomeView({
   hasMoreNotes,
   noteTotal,
   scriptureBooks,
-  scriptureSettled,
   activeNoteId,
   onOpenNote,
   prefetchNote,
@@ -617,19 +615,9 @@ export default function PrototypeSidebarHomeView({
     closeDrawer,
   } = useProtoShell();
 
-  const tagsSettled = isQuerySettled(tagsQuery.isPending, tagsQuery.data != null);
-  const threadsSettled = isQuerySettled(threadsQuery.isPending, threadsQuery.data != null);
-  const highlightsSettled = isQuerySettled(highlightsQuery.isPending, highlightsQuery.data != null);
-  const votdSettled =
-    isQuerySettled(votdQuery.isPending, votdQuery.data != null) || Boolean(votdQuery.isError);
-  const contentReady = isPrototypeHomeContentReady({
-    notesListPhase,
-    scriptureSettled,
-    tagsSettled,
-    threadsSettled,
-    highlightsSettled,
-    votdSettled,
-  });
+  // INVARIANT: paint when notes are ready only — do not AND-gate on tags/threads/
+  // highlights/scripture/VOTD (those may still be pending; cards populate progressively).
+  const contentReady = isPrototypeHomeContentReady({ notesListPhase });
 
   const [enterAnim, setEnterAnim] = useState(false);
   useEffect(() => {
