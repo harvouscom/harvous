@@ -1,7 +1,9 @@
 /**
  * OG Image generation using satori + @resvg/resvg-wasm + satori-html.
- * WASM is loaded from disk (node_modules in dev; copied beside api.cjs in prod)
- * so it works under tsx and the single-file Netlify Function (unlike sharp).
+ *
+ * Production (esbuild api.cjs): WASM + fonts are inlined via --loader:.wasm=binary
+ * and --loader:.ttf=binary so Netlify does not need sidecar files.
+ * Dev (tsx): loads the same assets from disk under node_modules / server/assets.
  */
 
 import type { ReactNode } from 'react';
@@ -40,55 +42,79 @@ export const OG_RULE = '#e7e4dc';
 export const HARVOUS_LOGO_PATH =
   'M44.8037 63.9941H0.0078125V0H44.8037V63.9941ZM34.5645 31.168C25.6988 34.2637 18.5024 41.2949 15.3711 50.543L14.2842 53.752H34.5645V31.168ZM10.2471 37.8643C15.8921 29.2487 24.5827 23.0353 34.5645 20.4824V10.2393H10.2471V37.8643Z';
 
-/**
- * Resolve resvg WASM path.
- * - Dev (tsx): node_modules/@resvg/resvg-wasm/index_bg.wasm
- * - Prod (Netlify): copied next to api.cjs by build:api
- */
-function resolveResvgWasmPath(): string {
-  const candidates: string[] = [];
+function asBytes(value: unknown): Uint8Array | null {
+  if (!value) return null;
+  if (value instanceof Uint8Array) return value;
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) return new Uint8Array(value);
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  return null;
+}
 
-  // CJS bundle sets __dirname to netlify/functions/
-  if (typeof __dirname !== 'undefined') {
-    candidates.push(join(__dirname, 'index_bg.wasm'));
+function readFirstExisting(paths: string[]): Uint8Array | null {
+  for (const candidate of paths) {
+    if (candidate && existsSync(candidate)) {
+      return new Uint8Array(readFileSync(candidate));
+    }
   }
+  return null;
+}
 
-  candidates.push(
+/**
+ * Load resvg WASM bytes.
+ * Prefer disk in dev; fall back to the esbuild-inlined binary require in prod.
+ */
+function loadResvgWasm(): Uint8Array {
+  const fromDisk = readFirstExisting([
+    typeof __dirname !== 'undefined' ? join(__dirname, 'index_bg.wasm') : '',
+    join(process.cwd(), 'netlify', 'functions', 'index_bg.wasm'),
     join(process.cwd(), 'node_modules', '@resvg', 'resvg-wasm', 'index_bg.wasm'),
-  );
+  ]);
+  if (fromDisk) return fromDisk;
 
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
+  try {
+    // Literal require path — esbuild --loader:.wasm=binary inlines into api.cjs
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const embedded = asBytes(require('@resvg/resvg-wasm/index_bg.wasm'));
+    if (embedded?.byteLength) return embedded;
+  } catch {
+    // tsx cannot require .wasm — disk path above covers local dev
   }
 
   throw new Error(
-    'Could not find @resvg/resvg-wasm/index_bg.wasm (npm install; build:api copies it beside api.cjs)',
+    'Could not load @resvg/resvg-wasm (missing index_bg.wasm on disk and not inlined in bundle)',
   );
 }
 
 /**
- * Load font data for satori
- * Note: satori requires TTF or OTF format (not woff/woff2)
- * We fetch Reddit Sans font TTF files from Google Fonts
+ * Load Reddit Sans TTF bytes (regular or bold).
  */
+function loadFontBytes(kind: 'regular' | 'bold'): Uint8Array {
+  const fileName = kind === 'bold' ? 'RedditSans-Bold.ttf' : 'RedditSans-Regular.ttf';
+  const fromDisk = readFirstExisting([
+    typeof __dirname !== 'undefined' ? join(__dirname, fileName) : '',
+    join(process.cwd(), 'netlify', 'functions', fileName),
+    join(process.cwd(), 'server', 'assets', 'fonts', fileName),
+  ]);
+  if (fromDisk) return fromDisk;
+
+  try {
+    // Literal require paths — esbuild --loader:.ttf=binary inlines into api.cjs
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const regular = asBytes(require('../../server/assets/fonts/RedditSans-Regular.ttf'));
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const bold = asBytes(require('../../server/assets/fonts/RedditSans-Bold.ttf'));
+    const embedded = kind === 'bold' ? bold : regular;
+    if (embedded?.byteLength) return embedded;
+  } catch {
+    // fall through
+  }
+
+  throw new Error(`Could not load OG font ${fileName}`);
+}
+
 async function loadFonts() {
-  const fontResponse = await fetch(
-    'https://fonts.gstatic.com/s/redditsans/v6/EYqgmaFOxq1T_-ETdN7EKSlnU2dHRsBCV5uxbYxmAQ.ttf'
-  );
-
-  if (!fontResponse.ok) {
-    throw new Error(`Failed to load regular font: ${fontResponse.status}`);
-  }
-  const fontData = await fontResponse.arrayBuffer();
-
-  const fontBoldResponse = await fetch(
-    'https://fonts.gstatic.com/s/redditsans/v6/EYqgmaFOxq1T_-ETdN7EKSlnU2dHRsBCV5uxiotmAQ.ttf'
-  );
-
-  if (!fontBoldResponse.ok) {
-    throw new Error(`Failed to load bold font: ${fontBoldResponse.status}`);
-  }
-  const fontBoldData = await fontBoldResponse.arrayBuffer();
+  const fontData = loadFontBytes('regular');
+  const fontBoldData = loadFontBytes('bold');
 
   return [
     {
@@ -118,7 +144,7 @@ async function getFonts() {
 
 async function ensureWasm() {
   if (!wasmInitPromise) {
-    wasmInitPromise = initWasm(readFileSync(resolveResvgWasmPath())).catch((err) => {
+    wasmInitPromise = initWasm(loadResvgWasm()).catch((err) => {
       wasmInitPromise = null;
       throw err;
     });
@@ -170,8 +196,9 @@ export async function createOgImageResponse(htmlString: string): Promise<Respons
       },
     });
   } catch (error) {
-    console.error('Error generating OG image:', error);
-    return new Response('Error generating image', {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Error generating OG image:', message, error);
+    return new Response(`Error generating image: ${message}`, {
       status: 500,
       headers: { 'Content-Type': 'text/plain' },
     });

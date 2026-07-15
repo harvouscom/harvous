@@ -136,7 +136,8 @@ route.get('/api/og/share/note/:shareToken', rateLimit('read'), async (c) => {
         resourceMetadata,
       ),
       canonicalUrl,
-      imageUrl: `${origin}/api/og/image/note/${shareToken}`,
+      // ?v= busts aggressive iMessage / social OG image caches after generator fixes
+      imageUrl: `${origin}/api/og/image/note/${shareToken}?v=2`,
     }),
     200,
   );
@@ -166,7 +167,7 @@ route.get('/api/og/share/thread/:shareToken', rateLimit('read'), async (c) => {
       title: thread.title?.trim() || 'Shared study thread',
       description: thread.subtitle?.trim() || 'A shared study thread on Harvous.',
       canonicalUrl,
-      imageUrl: `${origin}/api/og/image/thread/${shareToken}`,
+      imageUrl: `${origin}/api/og/image/thread/${shareToken}?v=2`,
     }),
     200,
   );

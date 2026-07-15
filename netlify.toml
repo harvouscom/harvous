@@ -10,6 +10,12 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "none"
+  # Sidecar OG assets (also inlined into api.cjs via esbuild binary loaders)
+  included_files = [
+    "netlify/functions/index_bg.wasm",
+    "netlify/functions/RedditSans-Regular.ttf",
+    "netlify/functions/RedditSans-Bold.ttf"
+  ]
 
 [build.environment]
   NODE_VERSION = "22"
