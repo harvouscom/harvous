@@ -4,11 +4,14 @@
  *   GET /api/og/referral/:code            — referral OG image (temporarily disabled)
  *   GET /api/og/share/note/:shareToken    — OG meta HTML for a shared note
  *   GET /api/og/share/thread/:shareToken  — OG meta HTML for a shared thread
- *   GET /api/og/image/note/:shareToken    — 1200×630 PNG (screenshot; satori fallback)
- *   GET /api/og/image/thread/:shareToken  — 1200×630 PNG (screenshot; satori fallback)
+ *   GET /api/og/image/note/:shareToken    — 1200×630 PNG (screenshot only)
+ *   GET /api/og/image/thread/:shareToken  — 1200×630 PNG (screenshot only)
  *
  * Production Netlify prefers the dedicated `og-image` function (Chromium) via
- * public/_redirects. These Hono routes power local `dev:api` and act as fallback.
+ * public/_redirects. These Hono routes power local `dev:api`.
+ *
+ * No generated-card fallback — if the screenshot fails, the image route 404s
+ * (crawlers unfurl title/description without a preview image).
  *
  * Rollout for unfurls: Netlify edge function `shared-og` rewrites crawler
  * user-agents on `/shared/note|thread/:token` to `/api/og/share/...` routes.
@@ -19,32 +22,24 @@ import {
   db,
   Notes,
   Threads,
-  NoteThreads,
   ScriptureMetadata,
   ResourceMetadata,
   eq,
   and,
-  count,
   first,
 } from '../db';
 import { isValidShareToken } from '@/utils/ids';
 import { rateLimit } from '@/utils/rate-limit';
-import {
-  createOgImageResponse,
-  fallbackImageHtml,
-} from '@/utils/og-image';
 import { renderShareOgHtml, renderNotFoundOgHtml } from '../utils/og-html';
 import {
-  buildNoteCardHtml,
   noteOgDescription,
   noteOgTitle,
 } from '../utils/og-note-cards';
-import { buildThreadCardHtml } from '../utils/og-thread-cards';
 
 const route = new Hono();
 
 /** Cache-bust for iMessage / social after OG generator changes */
-const OG_IMAGE_VERSION = '6';
+const OG_IMAGE_VERSION = '7';
 
 route.get('/api/og/referral/:code', (c) => {
   return c.text('OG image temporarily disabled', 200);
@@ -117,7 +112,7 @@ async function tryScreenshotPng(pageUrl: string): Promise<Buffer | null> {
     const { captureShareOgScreenshot } = await import('../utils/og-screenshot');
     return await captureShareOgScreenshot(pageUrl);
   } catch (error) {
-    console.error('[og] screenshot failed, using satori fallback:', error);
+    console.error('[og] screenshot failed (no image):', error);
     return null;
   }
 }
@@ -128,6 +123,17 @@ function pngResponse(png: Buffer): Response {
     headers: {
       'Content-Type': 'image/png',
       'Cache-Control': 'public, max-age=86400, s-maxage=86400',
+      'X-Og-Source': 'screenshot',
+    },
+  });
+}
+
+function noImageResponse(): Response {
+  return new Response(null, {
+    status: 404,
+    headers: {
+      'Cache-Control': 'public, max-age=60, s-maxage=60',
+      'X-Og-Source': 'none',
     },
   });
 }
@@ -197,36 +203,11 @@ route.get('/api/og/image/note/:shareToken', rateLimit('read'), async (c) => {
   const origin = new URL(c.req.url).origin;
 
   if (!isValidShareToken(shareToken)) {
-    return createOgImageResponse(fallbackImageHtml('Invalid share link'));
+    return noImageResponse();
   }
 
-  try {
-    const note = await loadPublicNote(shareToken);
-    if (!note) {
-      return createOgImageResponse(fallbackImageHtml('Note not found'));
-    }
-
-    const shot = await tryScreenshotPng(`${origin}/shared/note/${shareToken}?ogCapture=1`);
-    if (shot) return pngResponse(shot);
-
-    const { scriptureMetadata, resourceMetadata } = await loadNoteMetadata(
-      note.id,
-      note.noteType,
-    );
-
-    return createOgImageResponse(
-      buildNoteCardHtml({
-        title: note.title || 'Untitled Note',
-        content: note.content || '',
-        noteType: note.noteType,
-        scriptureMetadata,
-        resourceMetadata,
-      }),
-    );
-  } catch (error) {
-    console.error('Error generating note OG image:', error);
-    return createOgImageResponse(fallbackImageHtml('Error loading note'));
-  }
+  const shot = await tryScreenshotPng(`${origin}/shared/note/${shareToken}?ogCapture=1`);
+  return shot ? pngResponse(shot) : noImageResponse();
 });
 
 route.get('/api/og/image/thread/:shareToken', rateLimit('read'), async (c) => {
@@ -234,53 +215,11 @@ route.get('/api/og/image/thread/:shareToken', rateLimit('read'), async (c) => {
   const origin = new URL(c.req.url).origin;
 
   if (!isValidShareToken(shareToken)) {
-    return createOgImageResponse(fallbackImageHtml('Invalid share link'));
+    return noImageResponse();
   }
 
-  try {
-    const thread = first(
-      await db
-        .select({
-          id: Threads.id,
-          title: Threads.title,
-          subtitle: Threads.subtitle,
-          color: Threads.color,
-        })
-        .from(Threads)
-        .where(and(eq(Threads.shareToken, shareToken), eq(Threads.isPublic, true)))
-        .limit(1),
-    );
-
-    if (!thread) {
-      return createOgImageResponse(fallbackImageHtml('Thread not found'));
-    }
-
-    const shot = await tryScreenshotPng(`${origin}/shared/thread/${shareToken}?ogCapture=1`);
-    if (shot) return pngResponse(shot);
-
-    const noteCountRow = first(
-      await db
-        .select({ value: count() })
-        .from(NoteThreads)
-        .innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
-        .where(
-          and(eq(NoteThreads.threadId, thread.id), eq(Notes.contentEncrypted, false)),
-        ),
-    );
-    const noteCount = Number(noteCountRow?.value ?? 0);
-
-    return createOgImageResponse(
-      buildThreadCardHtml({
-        title: thread.title || 'Untitled Thread',
-        subtitle: thread.subtitle,
-        color: thread.color,
-        noteCount,
-      }),
-    );
-  } catch (error) {
-    console.error('Error generating thread OG image:', error);
-    return createOgImageResponse(fallbackImageHtml('Error loading thread'));
-  }
+  const shot = await tryScreenshotPng(`${origin}/shared/thread/${shareToken}?ogCapture=1`);
+  return shot ? pngResponse(shot) : noImageResponse();
 });
 
 export default route;

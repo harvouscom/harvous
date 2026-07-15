@@ -6,17 +6,13 @@
  *
  *   GET /api/og/image/note/:shareToken
  *   GET /api/og/image/thread/:shareToken
+ *
+ * Screenshot only — no generated-card fallback. Failures return 404 with no body.
  */
 
 import type { Handler, HandlerEvent } from '@netlify/functions';
 import { isValidShareToken } from '../src/utils/ids';
 import { captureShareOgScreenshot } from './utils/og-screenshot';
-import {
-  createOgImageResponse,
-  fallbackImageHtml,
-} from '../src/utils/og-image';
-import { buildDefaultNoteCardHtml } from './utils/og-note-cards';
-import { buildThreadCardHtml } from './utils/og-thread-cards';
 
 const PATH_PATTERNS = [
   /^\/api\/og\/image\/(note|thread)\/([A-Za-z0-9]{12})\/?$/,
@@ -54,37 +50,21 @@ function parseKindToken(event: HandlerEvent): { kind: 'note' | 'thread'; token: 
   return null;
 }
 
-async function webResponseToLambda(res: Response): Promise<{
-  statusCode: number;
-  headers: Record<string, string>;
-  body: string;
-  isBase64Encoded?: boolean;
-}> {
-  const headers: Record<string, string> = {};
-  res.headers.forEach((value, key) => {
-    headers[key] = value;
-  });
-  const contentType = res.headers.get('content-type') || '';
-  if (contentType.startsWith('image/')) {
-    const buf = Buffer.from(await res.arrayBuffer());
-    return {
-      statusCode: res.status,
-      headers,
-      body: buf.toString('base64'),
-      isBase64Encoded: true,
-    };
-  }
+function noImage(statusCode = 404) {
   return {
-    statusCode: res.status,
-    headers,
-    body: await res.text(),
+    statusCode,
+    headers: {
+      'Cache-Control': 'public, max-age=60, s-maxage=60',
+      'X-Og-Source': 'none',
+    },
+    body: '',
   };
 }
 
 export const handler: Handler = async (event) => {
   const parsed = parseKindToken(event);
   if (!parsed || !isValidShareToken(parsed.token)) {
-    return webResponseToLambda(await createOgImageResponse(fallbackImageHtml('Invalid share link')));
+    return noImage(404);
   }
 
   const { kind, token } = parsed;
@@ -104,18 +84,7 @@ export const handler: Handler = async (event) => {
       isBase64Encoded: true,
     };
   } catch (error) {
-    console.error('[og-image] screenshot failed, falling back to satori:', error);
-    const html =
-      kind === 'thread'
-        ? buildThreadCardHtml({ title: 'Shared study thread', noteCount: 0 })
-        : buildDefaultNoteCardHtml('Shared note', '');
-    const fallback = await webResponseToLambda(await createOgImageResponse(html));
-    return {
-      ...fallback,
-      headers: {
-        ...fallback.headers,
-        'X-Og-Source': 'satori-fallback',
-      },
-    };
+    console.error('[og-image] screenshot failed (no image):', error);
+    return noImage(404);
   }
 };

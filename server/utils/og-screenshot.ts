@@ -7,7 +7,6 @@
 
 import puppeteer, { type Browser } from 'puppeteer-core';
 
-/** Keep local to avoid pulling satori/ultrahtml into the screenshot module. */
 const OG_SHOT_WIDTH = 1200;
 const OG_SHOT_HEIGHT = 630;
 

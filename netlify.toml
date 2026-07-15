@@ -10,12 +10,6 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "none"
-  # Sidecar OG assets (also inlined into api.cjs via esbuild binary loaders)
-  included_files = [
-    "netlify/functions/index_bg.wasm",
-    "netlify/functions/RedditSans-Regular.ttf",
-    "netlify/functions/RedditSans-Bold.ttf"
-  ]
 
 # Chromium screenshot OG images — prebuilt og-image.cjs (see build:api).
 # Include @sparticuz/chromium AND its runtime deps (node_bundler=none does not
