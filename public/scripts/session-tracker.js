@@ -108,16 +108,35 @@
   }
 
   /**
+   * True when Clerk has left a session cookie hint (may still race cold restore).
+   */
+  function hasSessionCookieHint() {
+    try {
+      const cookies = document.cookie;
+      if (/(?:^|;\s*)__client_uat=[1-9]/.test(cookies)) return true;
+      if (/(?:^|;\s*)__session=/.test(cookies)) return true;
+    } catch {
+      /* ignore */
+    }
+    return false;
+  }
+
+  /**
    * Track page load as activity
    */
   function trackPageLoad() {
     recordActivity('space_opened', window.location.pathname);
-    
-    // Also check for monthly attendance
+
+    // Skip until a session cookie exists; quiet 401s during Clerk cold restore.
+    if (!hasSessionCookieHint()) return;
     fetch('/api/user/check-monthly-attendance', {
       method: 'POST',
       credentials: 'include'
-    }).catch(err => console.error('Error checking monthly attendance:', err));
+    })
+      .then((res) => {
+        if (res.status === 401) return;
+      })
+      .catch(() => {});
   }
 
   /**

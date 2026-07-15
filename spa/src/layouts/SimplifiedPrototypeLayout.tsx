@@ -44,6 +44,7 @@ import {
   applyBackgroundWithImageTint,
   applyColorSchemePreference,
   clearBackgroundVars,
+  fetchAndHydrateAppearanceFromProfile,
   getColorSchemeSnapshot,
   initAppearanceAccountSync,
   PROTO_ROUTE_CLASS,
@@ -93,6 +94,12 @@ export default function SimplifiedPrototypeLayout() {
       applyColorSchemePreference('system');
     };
   }, []);
+
+  // Profile appearance fetch needs a verified session — wait for Clerk (local cache paints interim).
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    void fetchAndHydrateAppearanceFromProfile();
+  }, [isLoaded, isSignedIn]);
 
   useEffect(() => {
     void applyBackgroundWithImageTint(readActiveBackground());

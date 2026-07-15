@@ -1,5 +1,8 @@
 import { useQuery, QueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/api';
+import { useEffect, useRef } from 'react';
+import { useAuthReady } from '../useAuthReady';
+import { api, APIError } from '../../lib/api';
+import { hasClerkSessionCookieHint } from './useProfile';
 
 /** Thread context when seeding note cache from a list (thread/space page). */
 export interface NoteSeedThreadContext {
@@ -427,6 +430,7 @@ export function getNoteQueryOptions(noteId: string) {
 }
 
 export function useNote(noteId: string) {
+  const authReady = useAuthReady();
   const options = getNoteQueryOptions(noteId);
   const cachedDetail = noteId ? getCachedNoteDetail(noteId) : undefined;
   /**
@@ -443,10 +447,28 @@ export function useNote(noteId: string) {
           : 'simpleNoteId' in cachedDetail
             ? Date.now() - 5_000
             : 0;
-  return useQuery({
+  const query = useQuery({
     ...options,
-    enabled: !!noteId,
+    enabled: !!noteId && authReady,
     initialData: cachedDetail,
     initialDataUpdatedAt,
+    retry: (failureCount, error) => {
+      if (error instanceof APIError && error.status === 401) {
+        return hasClerkSessionCookieHint() && failureCount < 2;
+      }
+      return failureCount < 2;
+    },
+    retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
+
+  const prevAuthReadyRef = useRef(authReady);
+  useEffect(() => {
+    const wasReady = prevAuthReadyRef.current;
+    prevAuthReadyRef.current = authReady;
+    if (!wasReady && authReady && noteId) {
+      void query.refetch();
+    }
+  }, [authReady, noteId, query.refetch]);
+
+  return query;
 }

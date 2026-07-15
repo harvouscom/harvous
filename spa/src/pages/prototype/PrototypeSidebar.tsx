@@ -930,6 +930,7 @@ export default function PrototypeSidebar() {
     hasNextPage,
     isFetchingNextPage,
     isFetchNextPageError,
+    refetch: refetchNotes,
   } = useSpaceNotes(homeSpaceId ?? '');
 
   const folderRegistryQuery = usePrototypeFolderRegistry(homeSpaceId ?? undefined);
@@ -1861,6 +1862,7 @@ export default function PrototypeSidebar() {
             activeNoteId={activeNoteFullId}
             onOpenNote={onNoteRow}
             prefetchNote={prefetchNote}
+            onRetryNotes={() => void refetchNotes()}
             onOpenScriptureBook={(bookOrder) => {
               setScriptureDrill({ level: 'passages', bookOrder });
               setSidebarListMode('scripture');

@@ -191,6 +191,7 @@ type Props = {
   onOpenScripturePassage: (bookOrder: number, passageKey: string) => void;
   onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => void;
   onOpenCreateThreadPrefill: (prefill: { noteIds: [string, string]; threadName: string }) => void;
+  onRetryNotes: () => void;
 };
 
 function ProtoHomeLoading() {
@@ -201,6 +202,17 @@ function ProtoHomeLoading() {
         <span className="load-more-indicator__dot" />
         <span className="load-more-indicator__dot" />
       </span>
+    </div>
+  );
+}
+
+function ProtoHomeError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="proto-home-error">
+      <p className="proto-caption">Couldn&apos;t load notes.</p>
+      <button type="button" className="proto-load-more-retry proto-caption" onClick={onRetry}>
+        Try again
+      </button>
     </div>
   );
 }
@@ -582,6 +594,7 @@ export default function PrototypeSidebarHomeView({
   onOpenScripturePassage,
   onOpenHighlight,
   onOpenCreateThreadPrefill,
+  onRetryNotes,
 }: Props) {
   const tagsQuery = useTagsList();
   const threadsQuery = usePrototypeStudyThreads(homeSpaceId);
@@ -1454,6 +1467,10 @@ export default function PrototypeSidebarHomeView({
       search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
     });
   }, [beginPrototypeComposeSession, closeDrawer, homeSpaceId, isMobileSidebar, navigate]);
+
+  if (notesListPhase === 'error') {
+    return <ProtoHomeError onRetry={onRetryNotes} />;
+  }
 
   if (!contentReady) {
     return <ProtoHomeLoading />;

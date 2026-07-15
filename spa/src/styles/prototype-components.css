@@ -4497,6 +4497,15 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   padding: 24px 14px 14px;
 }
 
+.proto-home-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 14px 14px;
+  text-align: center;
+}
+
 @keyframes proto-home-section-in {
   from {
     opacity: 0;

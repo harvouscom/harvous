@@ -752,7 +752,10 @@ export async function fetchAndHydrateAppearanceFromProfile(): Promise<void> {
   }
 }
 
-/** Wire account → device appearance sync. Idempotent; call once on prototype mount. */
+/**
+ * Wire account → device appearance sync. Idempotent; call once on prototype mount.
+ * Does not fetch profile — call {@link fetchAndHydrateAppearanceFromProfile} after Clerk is signed in.
+ */
 export function initAppearanceAccountSync(): void {
   if (appearanceAccountSyncInit || typeof window === 'undefined') return;
   appearanceAccountSyncInit = true;
@@ -763,6 +766,4 @@ export function initAppearanceAccountSync(): void {
   });
   window.addEventListener('online', () => { void flushPendingAppearance(); });
   void flushPendingAppearance(); // flush an edit left pending from a previous session
-  // The prototype shell skips IndexedDB bootstrap, so fetch the account value directly.
-  void fetchAndHydrateAppearanceFromProfile();
 }
