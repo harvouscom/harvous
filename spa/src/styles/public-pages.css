@@ -431,7 +431,29 @@
   box-shadow: 0 2px 8px -4px rgba(56, 105, 230, 0.3);
 }
 
-/* ─── Toast ─────────────────────────────────────────────────────────────── */
+/* ─── OG capture mode (?ogCapture=1) — hide chrome for 1200×630 screenshots ─ */
+
+.public-page--og-capture .public-toolbar__cta,
+.public-page--og-capture .public-card__cta,
+.public-page--og-capture .public-footer,
+.public-page--og-capture .public-toast {
+  display: none !important;
+}
+
+.public-page--og-capture .public-toolbar {
+  padding-top: 20px;
+  padding-bottom: 8px;
+}
+
+.public-page--og-capture .public-note-card .card-full-editable__content-html.overflow-auto,
+.public-page--og-capture .public-note-card .flex-1.overflow-auto {
+  padding-bottom: 32px !important;
+}
+
+.public-page--og-capture .public-body {
+  overflow: hidden;
+}
+
 
 .public-toast {
   font-family: var(--pds-font-body);

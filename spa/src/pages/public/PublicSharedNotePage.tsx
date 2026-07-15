@@ -49,6 +49,9 @@ export default function PublicSharedNotePage() {
   const [toastVisible, setToastVisible] = useState(false);
   const [alreadyOwned, setAlreadyOwned] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ogCapture =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('ogCapture') === '1';
 
   useEffect(() => {
     api.get<SharedNoteResponse>(`/api/shared/note/${shareToken}`)
@@ -134,7 +137,7 @@ export default function PublicSharedNotePage() {
   return (
     <>
       {note && <title>{`${note.title || 'Shared Note'} | Harvous`}</title>}
-      <div className="public-page">
+      <div className={`public-page${ogCapture ? ' public-page--og-capture' : ''}`}>
         <PublicTopBar isSignedIn={!!isSignedIn} />
 
         <div className="public-body">

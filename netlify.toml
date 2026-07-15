@@ -17,6 +17,12 @@
     "netlify/functions/RedditSans-Bold.ttf"
   ]
 
+# Chromium screenshot OG images — separate from single-file api.cjs
+[functions.og-image]
+  node_bundler = "esbuild"
+  external_node_modules = ["@sparticuz/chromium"]
+  timeout = 26
+
 [build.environment]
   NODE_VERSION = "22"
   NPM_FLAGS = "--prefer-offline --no-audit"
@@ -62,6 +68,13 @@
   force = true
 
 # API routing (/api/* → Hono function) and SPA fallback handled by public/_redirects
+
+# Dedicated Chromium screenshot function for OG images (before api.cjs catch-all)
+[[redirects]]
+  from = "/api/og/image/*"
+  to = "/.netlify/functions/og-image/:splat"
+  status = 200
+  force = true
 
 # Crawlers on share URLs → server OG meta HTML (humans keep SPA)
 [[edge_functions]]
