@@ -1,5 +1,6 @@
 import { useAuth } from '@clerk/clerk-react';
 import { useQuery } from '@tanstack/react-query';
+import { useAuthReady } from '../useAuthReady';
 import { api } from '../../lib/api';
 import { updateCachedProfileData } from '@/utils/profile-cache';
 import {
@@ -191,7 +192,8 @@ export interface XPData {
 }
 
 export function useProfile() {
-  const { isLoaded, isSignedIn, userId } = useAuth();
+  const { userId } = useAuth();
+  const authReady = useAuthReady();
   const sessionHint = hasClerkSessionCookieHint();
   const effectiveUserId =
     userId ?? (sessionHint ? readClerkUserIdForProfileCache() : undefined);
@@ -200,7 +202,7 @@ export function useProfile() {
 
   return useQuery({
     queryKey: ['profile', userId ?? effectiveUserId ?? 'none'],
-    enabled: isLoaded && isSignedIn && !!userId,
+    enabled: authReady && !!userId,
     queryFn: () =>
       api
         .get<
@@ -250,12 +252,13 @@ export function useProfile() {
 }
 
 export function useXP() {
-  const { isLoaded, isSignedIn, userId } = useAuth();
+  const { userId } = useAuth();
+  const authReady = useAuthReady();
   const cachedXP = userId ? getCachedXP() : undefined;
 
   return useQuery({
     queryKey: ['xp', userId],
-    enabled: isLoaded && isSignedIn && !!userId,
+    enabled: authReady && !!userId,
     queryFn: () =>
       api.get<XPData>('/api/user/xp').then((data) => {
         setCachedXP(data);
@@ -268,10 +271,11 @@ export function useXP() {
 }
 
 export function useUserLimits() {
-  const { isLoaded, isSignedIn, userId } = useAuth();
+  const { userId } = useAuth();
+  const authReady = useAuthReady();
   return useQuery({
     queryKey: ['limits', userId],
-    enabled: isLoaded && isSignedIn && !!userId,
+    enabled: authReady && !!userId,
     queryFn: () =>
       api.get<{ tier: string; limits: Record<string, number>; usage: Record<string, number> }>('/api/user/limits'),
     staleTime: 5 * 60_000,

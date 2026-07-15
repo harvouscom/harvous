@@ -1,5 +1,6 @@
 import { useAuth } from '@clerk/clerk-react';
 import { useQuery, type QueryClient } from '@tanstack/react-query';
+import { useAuthReady } from '../useAuthReady';
 import { APIError } from '../../lib/api';
 import { HARVOUS_FEATURED_DISMISSED_CACHE_KEY } from '@/utils/user-cache-keys';
 
@@ -60,8 +61,9 @@ async function fetchFeaturedDismissed(): Promise<DismissedFeaturedItem[]> {
 }
 
 export function useFeaturedDismissed(options?: { enabled?: boolean }) {
-  const { userId, isLoaded, isSignedIn } = useAuth();
-  const enabled = (options?.enabled !== false) && isLoaded && isSignedIn && !!userId;
+  const { userId } = useAuth();
+  const authReady = useAuthReady();
+  const enabled = (options?.enabled !== false) && authReady && !!userId;
   const cached = userId ? readCachedDismissed(userId) : undefined;
 
   return useQuery({

@@ -13,7 +13,7 @@ import { shouldSuppressAppToasts } from '@/utils/should-suppress-app-toasts';
 import { Toaster, toast as sonnerToast } from 'sonner';
 import { WebHaptics } from 'web-haptics';
 import { router } from './router';
-import { APIError } from './lib/api';
+import { APIError, setClerkGetToken } from './lib/api';
 import SpotlightSearch from './components/SpotlightSearch';
 import KeyboardShortcutsInit from '../../src/components/react/KeyboardShortcutsInit';
 import {
@@ -236,6 +236,15 @@ function AuthSignedOutCacheCleanup() {
     if (!isLoaded || isSignedIn) return;
     clearUserClientCaches(queryClient);
   }, [isLoaded, isSignedIn, queryClient]);
+  return null;
+}
+
+function ClerkTokenBridge() {
+  const { getToken } = useAuth();
+  useEffect(() => {
+    setClerkGetToken(() => getToken());
+    return () => setClerkGetToken(null);
+  }, [getToken]);
   return null;
 }
 
@@ -708,6 +717,7 @@ export default function App() {
   return (
     <HarvousClerkProvider>
       <QueryClientProvider client={queryClient}>
+        <ClerkTokenBridge />
         <AuthSignedOutCacheCleanup />
         <QueryClient401Redirect />
         <IosPwaSheetOverlayInset />

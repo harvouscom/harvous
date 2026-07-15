@@ -1,6 +1,7 @@
 import { useAuth } from '@clerk/clerk-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { APIError } from '../../lib/api';
+import { useAuthReady } from '../useAuthReady';
+import { APIError, getClerkBearerToken } from '../../lib/api';
 import { HARVOUS_NAV_CACHE_KEY } from '@/utils/user-cache-keys';
 import { hasClerkSessionCookieHint, readClerkUserIdForProfileCache } from './useProfile';
 
@@ -61,7 +62,8 @@ function setCachedNav(data: NavigationData) {
 }
 
 export function useNavigation(options?: { enabled?: boolean }) {
-  const { userId, isLoaded, isSignedIn } = useAuth();
+  const { userId } = useAuth();
+  const authReady = useAuthReady();
   const sessionHint = hasClerkSessionCookieHint();
   const effectiveUserId =
     userId ?? (sessionHint ? readClerkUserIdForProfileCache() : undefined);
@@ -70,9 +72,12 @@ export function useNavigation(options?: { enabled?: boolean }) {
 
   const query = useQuery({
     queryKey: userId ? getNavigationQueryKey(userId) : ['navigation', effectiveUserId ?? ''],
-    enabled: (options?.enabled !== false) && isLoaded && isSignedIn && !!userId,
+    enabled: (options?.enabled !== false) && authReady && !!userId,
     queryFn: async () => {
-      const res = await fetch('/api/navigation/data', { credentials: 'include' });
+      const headers = new Headers();
+      const token = await getClerkBearerToken();
+      if (token) headers.set('Authorization', `Bearer ${token}`);
+      const res = await fetch('/api/navigation/data', { credentials: 'include', headers });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new APIError(res.status, (body as { error?: string })?.error ?? `HTTP ${res.status}`);
@@ -85,7 +90,11 @@ export function useNavigation(options?: { enabled?: boolean }) {
     placeholderData: cachedForSession,
     initialData: cachedForSession,
     initialDataUpdatedAt: cachedForSession ? Date.now() - 15_000 : undefined,
-    retry: 2,
+    retry: (failureCount, error) => {
+      // Don't retry 401 — that races cold-start cookies and spam the console; authReady waits for JWT.
+      if (error instanceof APIError && error.status === 401) return false;
+      return failureCount < 2;
+    },
     retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
 

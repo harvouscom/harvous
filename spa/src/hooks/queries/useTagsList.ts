@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { useAuthReady } from '../useAuthReady';
 import { api, APIError } from '../../lib/api';
-import { hasClerkSessionCookieHint } from './useProfile';
 
 export interface TagSummary {
   id: string;
@@ -27,9 +26,8 @@ export function useTagsList() {
     enabled: authReady,
     staleTime: 30_000,
     retry: (failureCount, error) => {
-      if (error instanceof APIError && error.status === 401) {
-        return hasClerkSessionCookieHint() && failureCount < 2;
-      }
+      // Auth-ready waits for a session JWT; retrying 401 only spams the console.
+      if (error instanceof APIError && error.status === 401) return false;
       return failureCount < 2;
     },
     retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
