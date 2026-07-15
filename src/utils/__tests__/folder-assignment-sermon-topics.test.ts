@@ -89,4 +89,31 @@ describe('folder assignment — Passover note symptom (confirmed)', () => {
     expect(result.primaryCollection).toBeTruthy();
     expect(result.secondaryCollections.length).toBeGreaterThan(0);
   });
+
+  it('manual Exodus primary stays sticky and still gets secondaries', () => {
+    const html = toHtml(PASSOVER_SERMON);
+    const manual: CollectionChromeState = {
+      ...emptyChrome,
+      primaryCollection: 'Exodus',
+      collectionUserOverride: true,
+    };
+    const result = applyIdleFolderAutoAssign(manual, 'Jesus: our passover lamb', html, now);
+    expect(result.primaryCollection).toBe('Exodus');
+    expect(result.collectionUserOverride).toBe(true);
+    expect(result.secondaryCollections.length).toBeGreaterThan(0);
+    expect(result.secondaryCollections.some((s) => s.toLowerCase() === 'exodus')).toBe(false);
+  });
+
+  it('locked Exodus primary stays sticky and still gets secondaries', () => {
+    const html = toHtml(PASSOVER_SERMON);
+    const locked: CollectionChromeState = {
+      ...emptyChrome,
+      primaryCollection: 'Exodus',
+      collectionUserOverride: true,
+      collectionPinned: true,
+    };
+    const result = applyIdleFolderAutoAssign(locked, 'Jesus: our passover lamb', html, now);
+    expect(result.primaryCollection).toBe('Exodus');
+    expect(result.secondaryCollections.length).toBeGreaterThan(0);
+  });
 });

@@ -626,7 +626,6 @@ export default function CardFullEditable({
       // recompute/clear the folder. Mirrors the autosave guards (userEditedSinceOpenRef).
       if (!userEditedSinceOpenRef.current) return;
       const prev = collectionChromeRef.current;
-      if (prev.collectionUserOverride && !prev.collectionPinned) return;
       const editing = isTitleEditing || isContentEditing;
       const titleForSuggest = editing ? editTitle : displayTitle;
       let bodyForSuggest: string;

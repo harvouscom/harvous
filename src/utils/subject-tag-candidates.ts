@@ -4,6 +4,7 @@
  */
 
 import { conceptOverlapsAny } from '@/utils/bible-study-concept-overlaps';
+import { countLifeKeywordNeedleInLowerText } from '@/utils/life-keyword-context';
 import { SUBJECT_VOCABULARY, type Subject, type SubjectCategory } from '@/utils/subject-vocabulary';
 
 export const MAX_SUBJECT_TAG_CANDIDATES = 4;
@@ -68,12 +69,20 @@ function scoreSubjectMatch(
   subject: Subject,
   paddedTitle: string,
   paddedBody: string,
+  textLower: string,
 ): { confidence: number; matchedPhrase?: string } | null {
   let best = 0;
   let matchedPhrase: string | undefined;
 
   const consider = (phrase: string, confidence: number) => {
     if (confidence <= best) return;
+    // Life subjects share keyword false-positive gates (e.g. fellowship hall ≠ Friendship).
+    if (
+      subject.category === 'life' &&
+      countLifeKeywordNeedleInLowerText(textLower, phrase, subject.name) === 0
+    ) {
+      return;
+    }
     best = confidence;
     matchedPhrase = phrase;
   };
@@ -114,10 +123,11 @@ export function subjectTagCandidatesFromText(
   const paddedTitle = padded(title || '');
   const paddedBody = padded(body || '');
   if (paddedTitle.length <= 2 && paddedBody.length <= 2) return [];
+  const textLower = `${title || ''}\n${body || ''}`.toLowerCase();
 
   const raw: SubjectTagCandidate[] = [];
   for (const subject of SUBJECT_VOCABULARY) {
-    const scored = scoreSubjectMatch(subject, paddedTitle, paddedBody);
+    const scored = scoreSubjectMatch(subject, paddedTitle, paddedBody, textLower);
     if (!scored || scored.confidence < threshold) continue;
     if (isExcluded(subject.name)) continue;
     if (raw.some((r) => conceptOverlapsAny(r.name, [subject.name]))) continue;

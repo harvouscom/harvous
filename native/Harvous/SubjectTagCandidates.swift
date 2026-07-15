@@ -78,7 +78,7 @@ enum SubjectTagCandidates {
         SubjectRow(name: "Marriage", category: .life, synonyms: ["wedding", "spouse", "husband and wife", "a healthy marriage", "married life", "fighting with my wife", "marriage struggles"]),
         SubjectRow(name: "Family", category: .life, synonyms: ["relatives", "household", "parents and children"]),
         SubjectRow(name: "Parenting", category: .life, synonyms: ["raising children", "childrearing", "fatherhood", "motherhood", "kids acting up", "raising kids", "teenagers"]),
-        SubjectRow(name: "Friendship", category: .life, synonyms: ["companionship", "fellowship", "friends", "small group"]),
+        SubjectRow(name: "Friendship", category: .life, synonyms: ["companionship", "fellowship", "friendships", "small group"]),
         SubjectRow(name: "Death", category: .life, synonyms: ["dying", "mortality", "passing away"]),
         SubjectRow(name: "Healing", category: .life, synonyms: ["health", "wellness", "being healed", "sickness", "faith healing"]),
         SubjectRow(name: "Justice", category: .life, synonyms: ["fairness", "doing justice", "injustice", "oppression"]),
@@ -147,10 +147,11 @@ enum SubjectTagCandidates {
         let paddedTitle = padded(title)
         let paddedBody = padded(body)
         guard paddedTitle.count > 2 || paddedBody.count > 2 else { return [] }
+        let textLower = "\(title)\n\(body)".lowercased()
 
         var raw: [Candidate] = []
         for row in rows {
-            guard let scored = score(row, paddedTitle: paddedTitle, paddedBody: paddedBody) else { continue }
+            guard let scored = score(row, paddedTitle: paddedTitle, paddedBody: paddedBody, textLower: textLower) else { continue }
             guard scored.confidence >= confidenceThreshold else { continue }
             if isExcluded(row.name, excludeLabels: excludeLabels, existing: existingTagNames) { continue }
             if raw.contains(where: { overlaps($0.name, row.name) }) { continue }
@@ -217,13 +218,36 @@ enum SubjectTagCandidates {
     private static func score(
         _ row: SubjectRow,
         paddedTitle: String,
-        paddedBody: String
+        paddedBody: String,
+        textLower: String
     ) -> (confidence: Double, matchedPhrase: String?)? {
         var best = 0.0
         var matched: String?
 
         func consider(_ phrase: String, _ confidence: Double) {
             guard confidence > best else { return }
+            if row.category == .life {
+                let ns = textLower as NSString
+                let needle = phrase.lowercased()
+                guard let regex = try? NSRegularExpression(
+                    pattern: "\\b\(NSRegularExpression.escapedPattern(for: needle))\\b",
+                    options: [.caseInsensitive]
+                ) else { return }
+                var any = false
+                regex.enumerateMatches(in: textLower, options: [], range: NSRange(location: 0, length: ns.length)) { m, _, stop in
+                    guard let m else { return }
+                    if !LifeKeywordContextGate.shouldSkip(
+                        keywordName: row.name,
+                        needle: phrase,
+                        in: textLower,
+                        matchRange: m.range
+                    ) {
+                        any = true
+                        stop.pointee = true
+                    }
+                }
+                guard any else { return }
+            }
             best = confidence
             matched = phrase
         }

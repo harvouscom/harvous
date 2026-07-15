@@ -36,6 +36,14 @@ describe('subjectTagCandidatesFromText', () => {
     expect(candidates.some((c) => c.name === 'Marriage')).toBe(false);
   });
 
+  it('skips Friendship for fellowship hall (life keyword context)', () => {
+    const candidates = subjectTagCandidatesFromText(
+      'Sunday',
+      'We had coffee in the fellowship hall after church.',
+    );
+    expect(candidates.some((c) => c.name === 'Friendship')).toBe(false);
+  });
+
   it('caps at four subject tags', () => {
     const text =
       'overwhelmed about bills, grieving loss, lonely and isolated, doubting faith, angry at work burnout';

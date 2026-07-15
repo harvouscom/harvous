@@ -77,7 +77,7 @@ export const SUBJECT_VOCABULARY: Subject[] = [
   { name: 'Marriage', category: 'life', synonyms: ['wedding', 'spouse', 'husband and wife', 'a healthy marriage', 'married life', 'fighting with my wife', 'marriage struggles'] },
   { name: 'Family', category: 'life', synonyms: ['relatives', 'household', 'parents and children'] },
   { name: 'Parenting', category: 'life', synonyms: ['raising children', 'childrearing', 'fatherhood', 'motherhood', 'kids acting up', 'raising kids', 'teenagers'] },
-  { name: 'Friendship', category: 'life', synonyms: ['companionship', 'fellowship', 'friends', 'small group'] },
+  { name: 'Friendship', category: 'life', synonyms: ['companionship', 'fellowship', 'friendships', 'small group'] },
   { name: 'Death', category: 'life', synonyms: ['dying', 'mortality', 'passing away'] },
   { name: 'Healing', category: 'life', synonyms: ['health', 'wellness', 'being healed', 'sickness', 'faith healing'] },
   { name: 'Justice', category: 'life', synonyms: ['fairness', 'doing justice', 'injustice', 'oppression'] },

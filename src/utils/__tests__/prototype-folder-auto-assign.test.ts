@@ -75,7 +75,7 @@ describe('applyIdleFolderAutoAssign', () => {
     expect(result.secondaryCollections).toEqual([]);
   });
 
-  it('skips auto updates when manually overridden without pin', () => {
+  it('keeps manual primary sticky while still suggesting secondaries', () => {
     const manual: CollectionChromeState = {
       ...emptyChrome,
       primaryCollection: 'Prayer',
@@ -83,6 +83,7 @@ describe('applyIdleFolderAutoAssign', () => {
     };
     const result = applyIdleFolderAutoAssign(manual, '', SALVATION_BODY, now);
     expect(result.primaryCollection).toBe('Prayer');
+    expect(result.collectionUserOverride).toBe(true);
   });
 
   it('re-ranks primary to the best candidate immediately after a prior auto-update (no cooldown)', () => {

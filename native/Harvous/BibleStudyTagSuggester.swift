@@ -337,13 +337,20 @@ enum BibleStudyTagSuggester {
         }
         picked.sort { $0.confidence > $1.confidence }
 
-        var top = Array(picked.prefix(12))
-        var tagNames = top.map(\.name)
+        // Reserve final slots for person tags (Ps / Pastor) so dense keyword notes do not drop them.
+        var personTags: [String] = []
         for personTag in detectPersonTags(in: fullText) {
+            if personTags.contains(where: { $0.caseInsensitiveCompare(personTag) == .orderedSame }) { continue }
+            if picked.contains(where: { $0.name.caseInsensitiveCompare(personTag) == .orderedSame }) { continue }
+            personTags.append(personTag)
+        }
+        let keywordSlots = max(0, 12 - personTags.count)
+        var tagNames = Array(picked.prefix(keywordSlots).map(\.name))
+        for personTag in personTags {
             if tagNames.contains(where: { $0.caseInsensitiveCompare(personTag) == .orderedSame }) { continue }
             tagNames.append(personTag)
-            if tagNames.count > 12 { tagNames = Array(tagNames.prefix(12)); break }
         }
+        if tagNames.count > 12 { tagNames = Array(tagNames.prefix(12)) }
 
         let openingSegment = extractOpeningSegment(title: title, body: cappedBody)
         var shell = Analysis(

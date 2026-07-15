@@ -488,8 +488,9 @@ function meetsMinimumContext(title: string, plainBody: string, candidate: string
 }
 
 /**
- * After local title/body edit, refresh auto collection. Pinned freezes primary only; secondaries still suggest.
- * Manual (`collectionUserOverride` without pin) skips auto updates until restored.
+ * After local title/body edit, refresh auto collection.
+ * Pinned or manual override freezes primary only; secondaries still suggest.
+ * "Use auto suggestion" clears override so primary can track again.
  */
 export function applyAutoCollectionAfterEdit(
   prev: CollectionChromeState,
@@ -499,7 +500,6 @@ export function applyAutoCollectionAfterEdit(
   options?: { allowPrimaryUpdate?: boolean },
 ): CollectionChromeState {
   const allowPrimaryUpdate = options?.allowPrimaryUpdate ?? true;
-  if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
 
   const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
   const freezePrimary = prev.collectionPinned || prev.collectionUserOverride;

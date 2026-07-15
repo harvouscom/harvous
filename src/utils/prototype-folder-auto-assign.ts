@@ -138,17 +138,20 @@ export function applyIdleFolderAutoAssign(
   now: Date,
   allowPrimaryUpdate = true,
 ): CollectionChromeState {
-  if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
-
   if (isEffectivelyEmptyPrototypeNote(title, bodyHtml) || !hasAutoFolderBodyContent(bodyHtml)) {
     return clearAutoFolderChrome(prev);
   }
 
+  // Manual override and lock both freeze primary; subject enrichment must not steal it
+  // (e.g. book primary Exodus → narrative "The Exodus").
+  const freezePrimary = prev.collectionPinned || prev.collectionUserOverride;
+  const effectiveAllowPrimary = allowPrimaryUpdate && !freezePrimary;
+
   return withSubjectFolders(
-    applyAutoCollectionAfterEdit(prev, title, bodyHtml, now, { allowPrimaryUpdate }),
+    applyAutoCollectionAfterEdit(prev, title, bodyHtml, now, { allowPrimaryUpdate: effectiveAllowPrimary }),
     title,
     bodyHtml,
-    allowPrimaryUpdate,
+    effectiveAllowPrimary,
   );
 }
 

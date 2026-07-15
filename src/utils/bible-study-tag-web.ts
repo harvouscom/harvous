@@ -88,7 +88,8 @@ export function suggestAutoTagsFromNote(
   enhanced.sort((a, b) => b.confidence - a.confidence);
 
   const subjectCandidates = subjectTagCandidatesFromText(cleanTitle, cleanContent, {
-    excludeFolderLabels,
+    // subjectTagCandidatesFromText expects `excludeLabels` (not excludeFolderLabels).
+    excludeLabels: excludeFolderLabels,
     excludeTagNames,
     existingTagNames: enhanced.map((s) => s.name),
     confidenceThreshold,
@@ -105,15 +106,17 @@ export function suggestAutoTagsFromNote(
   }
   enhanced.sort((a, b) => b.confidence - a.confidence);
 
+  // Person tags (Ps / Pastor) are reserved in the final cap so dense keyword notes do not drop them.
+  const personTags: SuggestedAutoTag[] = [];
   for (const personTag of detectPersonTags(fullText)) {
     const key = personTag.toLowerCase();
     if (enhanced.some((s) => s.name.toLowerCase() === key)) continue;
+    if (personTags.some((s) => s.name.toLowerCase() === key)) continue;
     if (isExcluded(personTag)) continue;
-    enhanced.push({ name: personTag, category: 'character', confidence: 0.85, source: 'person' });
+    personTags.push({ name: personTag, category: 'character', confidence: 0.85, source: 'person' });
   }
-  enhanced.sort((a, b) => b.confidence - a.confidence);
-
-  return enhanced.slice(0, MAX_TAGS);
+  const keywordSlots = Math.max(0, MAX_TAGS - personTags.length);
+  return [...enhanced.slice(0, keywordSlots), ...personTags].slice(0, MAX_TAGS);
 }
 
 export type NoteTagPreview = {
