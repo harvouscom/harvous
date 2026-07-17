@@ -5,6 +5,7 @@ import {
   IMAGE_PRESETS_LIGHT,
   IMAGE_PRESETS_DARK,
   applyBackgroundWithImageTint,
+  canvasDefaultHexForMode,
   getColorSchemeSnapshot,
   imagePresetApplyValue,
   imagePresetById,
@@ -237,8 +238,7 @@ function ActiveHero({ lightBg, darkBg, isAuto, effectiveMode, editingMode, onTap
 function describeBg(bg: ProtoBg, mode: 'light' | 'dark'): { name: string; swatchColor: string; swatchImageUrl?: string } {
   if (bg === null) {
     const preset = BG_PRESETS[0];
-    const fallback = mode === 'dark' ? '#050509' : '#fcfbf7';
-    return { name: presetDisplayLabel(preset, mode), swatchColor: fallback };
+    return { name: presetDisplayLabel(preset, mode), swatchColor: canvasDefaultHexForMode(mode) };
   }
   if (bg.kind === 'color') {
     if (bg.presetId) {
@@ -253,7 +253,7 @@ function describeBg(bg: ProtoBg, mode: 'light' | 'dark'): { name: string; swatch
   if (preset) {
     return { name: preset.label, swatchColor: 'transparent', swatchImageUrl: imagePresetUrl(preset) };
   }
-  return { name: 'Custom', swatchColor: mode === 'dark' ? '#050509' : '#fcfbf7' };
+  return { name: 'Custom', swatchColor: canvasDefaultHexForMode(mode) };
 }
 
 // ─── Background carousel ────────────────────────────────────────────────────
@@ -342,9 +342,9 @@ const rowStyle: React.CSSProperties = {
 
 function modeSwatchColor(preset: BgPreset, mode: 'light' | 'dark'): string {
   if (mode === 'dark' && preset.dark !== undefined) {
-    return preset.dark === null ? 'var(--pds-canvas-default)' : preset.dark;
+    return preset.dark === null ? canvasDefaultHexForMode('dark') : preset.dark;
   }
-  return preset.light === null ? 'var(--pds-canvas-default)' : preset.light;
+  return preset.light === null ? canvasDefaultHexForMode('light') : preset.light;
 }
 
 function isColorPresetSelectedForMode(preset: BgPreset, bg: ProtoBg, _mode: 'light' | 'dark'): boolean {

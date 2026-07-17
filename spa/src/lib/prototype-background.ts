@@ -48,8 +48,13 @@ export const DEFAULT_CANVAS_BG = 'var(--pds-canvas-default)';
  * (light: 98.7% 0.005 92, dark: 12% 0.01 285). Used when lightening image shell tints.
  */
 /** Matches :root --pds-lch-canvas-default in prototype-tokens.css */
-const CANVAS_DEFAULT_LIGHT_HEX = appearancePresetsCatalog.canvasDefaultLightHex;
-const CANVAS_DEFAULT_DARK_HEX = appearancePresetsCatalog.canvasDefaultDarkHex;
+export const CANVAS_DEFAULT_LIGHT_HEX = appearancePresetsCatalog.canvasDefaultLightHex;
+export const CANVAS_DEFAULT_DARK_HEX = appearancePresetsCatalog.canvasDefaultDarkHex;
+
+/** Catalog Paper/default canvas hex for a specific appearance mode (not live document theme). */
+export function canvasDefaultHexForMode(mode: 'light' | 'dark'): string {
+  return mode === 'dark' ? CANVAS_DEFAULT_DARK_HEX : CANVAS_DEFAULT_LIGHT_HEX;
+}
 const LEGACY_PAPER_LIGHT_HEX = appearancePresetsCatalog.legacyPaperLightHex;
 const LEGACY_PAPER_DARK_HEX = appearancePresetsCatalog.legacyPaperDarkHex;
 
