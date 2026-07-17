@@ -1,0 +1,34 @@
+{
+  "space": {
+    "title": "Notes from Harvous",
+    "description": "Short notes for teachers, group leaders, and anyone who wants Sunday’s teaching to last into the week. Practice-first. Tools help; humans teach. This is study support, not counseling.",
+    "color": "sky",
+    "isFeatured": false
+  },
+  "thread": {
+    "title": "How the church teaches",
+    "subtitle": "And how learning lasts",
+    "color": "sky"
+  },
+  "notes": [
+    { "title": "Welcome — Notes from Harvous", "contentFile": "01-welcome.html", "noteType": "default" },
+    { "title": "When the lesson fades by Monday", "contentFile": "02-when-lesson-fades.html", "noteType": "default" },
+    { "title": "Prep a lesson that leaves a trail", "contentFile": "03-prep-leaves-trail.html", "noteType": "default" },
+    { "title": "The lesson-prep stack", "contentFile": "04-lesson-prep-stack.html", "noteType": "default" },
+    { "title": "Notes-first, not AI-first", "contentFile": "05-notes-first-not-ai.html", "noteType": "default" },
+    { "title": "Teaching through a book", "contentFile": "06-teaching-through-book.html", "noteType": "default" },
+    { "title": "Sermon series → group follow-up", "contentFile": "07-sermon-to-group.html", "noteType": "default" },
+    { "title": "The Monday retention loop", "contentFile": "08-monday-retention-loop.html", "noteType": "default" },
+    { "title": "Asking better questions", "contentFile": "09-asking-better-questions.html", "noteType": "default" },
+    { "title": "What education systems need", "contentFile": "10-education-systems-need.html", "noteType": "default" },
+    { "title": "Tools help. Humans teach.", "contentFile": "11-tools-help-humans-teach.html", "noteType": "default" }
+  ],
+  "featured": {
+    "enabled": false,
+    "contentType": "space",
+    "title": "Notes from Harvous",
+    "description": "How the church teaches—and how learning lasts.",
+    "color": null,
+    "isActive": false
+  }
+}

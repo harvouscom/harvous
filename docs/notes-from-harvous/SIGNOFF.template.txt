@@ -1,0 +1,4 @@
+APPROVED_FOR_PUBLISH
+Approver(s): <full name(s)>
+Date: <YYYY-MM-DD>
+Matches draft: DRAFT_V1.md + notes/*.html as of <date or commit>
