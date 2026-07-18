@@ -37,7 +37,13 @@ export const Spaces = pgTable(
      * copy, only owner/leader author). Org-owned spaces come later via orgId.
      */
     type: text('type').notNull().default('personal'),
-    /** Clerk organization id — future church-org ownership/sponsorship. Null today. */
+    /**
+     * Clerk organization id (= Churches.orgId) — church-org ownership/sponsorship.
+     * Null = personally owned. When set: Spaces.userId stays the creating staff
+     * member (audit anchor), but billing/limits derive from the church (see
+     * tier-limits.ts), and type='public' + orgId = a church broadcast space
+     * (congregants follow + copy). Null today; no create path sets it yet.
+     */
     orgId: text('orgId'),
     /** @deprecated v1 sharing — frozen with shareToken/shareTokenCreatedAt; new code keys off `type`. */
     isPublic: boolean('isPublic').notNull().default(false),
@@ -395,6 +401,47 @@ export const SpaceInvites = pgTable('SpaceInvites', {
   index('SpaceInvites_spaceIdIndex').on(table.spaceId),
 ]);
 
+// ─── Churches (church org registry — Clerk Organization ↔ Harvous record) ──────
+
+/**
+ * One row per church with a Clerk Organization on Harvous. The Clerk org holds
+ * only staff/volunteers (≤20); congregants are NEVER Clerk org members — their
+ * linkage is UserMetadata.connectedChurchId/connectedOrgId. Curriculum ships
+ * via org-owned broadcast spaces (Spaces.orgId = Churches.orgId, type='public'),
+ * not the legacy InboxItems pipe. Schema groundwork only — no code writes rows
+ * yet. Row ids: `chur_${crypto.randomUUID()}` (smem_/sinv_ convention).
+ */
+export const Churches = pgTable('Churches', {
+  id: text('id').primaryKey(),
+  /** Clerk organization id (org_…). Required — a church record exists only once its org does. */
+  orgId: text('orgId').notNull(),
+  name: text('name').notNull(),
+  city: text('city'),
+  state: text('state'),
+  country: text('country'),
+  /** Staff user who created the church record (audit anchor); admin roles live in Clerk org roles. */
+  createdBy: text('createdBy').notNull(),
+  /**
+   * Church billing plan slug — free text synced from billing, DB source of
+   * truth (draft: 'connect' | 'study' | 'study_plus' | 'network'). Null = no
+   * paid plan. Follows the sharedSpacesAddOn add-on pattern (nullable
+   * entitlement + UpdatedAt written by webhook/admin/backfill), not the
+   * retired tier enum.
+   */
+  billingPlan: text('billingPlan'),
+  billingPlanUpdatedAt: ts('billingPlanUpdatedAt'),
+  /** Admin kill-switch (Spaces.isActive parity). */
+  isActive: boolean('isActive').notNull().default(true),
+  /** Soft-delete lifecycle — Spaces parity, for a future church-offboarding flow. */
+  deletedAt: ts('deletedAt'),
+  recoveryUntil: ts('recoveryUntil'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('Churches_orgId_unique').on(table.orgId),
+  index('Churches_createdByIndex').on(table.createdBy),
+]);
+
 // ─── UserMetadata ──────────────────────────────────────────────────────────────
 
 export const UserMetadata = pgTable('UserMetadata', {
@@ -414,6 +461,16 @@ export const UserMetadata = pgTable('UserMetadata', {
   currentSeason: text('currentSeason'),
   lastMonthlyVisit: ts('lastMonthlyVisit'),
   churchAddedAt: ts('churchAddedAt'),
+  /**
+   * Churches.id once the user has linked to a church org (connect flow, future).
+   * The free-text churchName/City/State/Country above stay as-is for discovery/
+   * matching input — do not repurpose them. Null = not connected. Congregants
+   * are linked here only; they are never added to the Clerk org.
+   */
+  connectedChurchId: text('connectedChurchId'),
+  /** Denormalized Clerk org id (= Churches.orgId) for cheap org-scoped checks. */
+  connectedOrgId: text('connectedOrgId'),
+  connectedChurchAt: ts('connectedChurchAt'),
   referralBonusNotes: integer('referralBonusNotes').notNull().default(0),
   referralCode: text('referralCode').unique(),
   lockPinSalt: text('lockPinSalt'),
@@ -444,7 +501,11 @@ export const UserMetadata = pgTable('UserMetadata', {
   sharedSpacesAddOnUpdatedAt: ts('sharedSpacesAddOnUpdatedAt'),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
-});
+}, (table) => [
+  // The "all congregants of church X" fan-out (connect notifications, follow
+  // backfill into broadcast spaces). Cheap to add now; a lock under load later.
+  index('UserMetadata_connectedChurchIdIndex').on(table.connectedChurchId),
+]);
 
 // ─── ClerkUserMapping (pk_live → pk_test read-time resolution) ─────────────────
 

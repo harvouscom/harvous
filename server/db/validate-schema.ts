@@ -54,6 +54,23 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'anchorDetachedAt',
     'actorDisplayNameSnapshot',
   ],
+  Churches: [
+    'id',
+    'orgId',
+    'name',
+    'city',
+    'state',
+    'country',
+    'createdBy',
+    'billingPlan',
+    'billingPlanUpdatedAt',
+    'isActive',
+    'deletedAt',
+    'recoveryUntil',
+    'createdAt',
+    'updatedAt',
+  ],
+  UserMetadata: ['connectedChurchId', 'connectedOrgId', 'connectedChurchAt'],
 };
 
 const REQUIRED_INDEXES: Record<string, readonly string[]> = {
@@ -75,6 +92,8 @@ const REQUIRED_INDEXES: Record<string, readonly string[]> = {
     'StudyThreadEntries_spaceId_parentNoteIdIndex',
     'StudyThreadEntries_anchorStatusIndex',
   ],
+  Churches: ['Churches_orgId_unique', 'Churches_createdByIndex'],
+  UserMetadata: ['UserMetadata_connectedChurchIdIndex'],
 };
 
 export function validateRequiredTableColumns(
@@ -110,6 +129,7 @@ async function main() {
     'SpaceInvitations',
     'SpaceMemberships',
     'SpaceInvites',
+    'Churches',
     'UserMetadata',
     'UserXP',
     'UserSeasonalXP',

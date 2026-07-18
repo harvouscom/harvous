@@ -11,10 +11,15 @@
  * inert `hasUnlimited` field on /api/subscription/status.
  */
 
-import { db, Spaces, SpaceMemberships, UserMetadata, eq, and, count, first } from '../db';
+import { db, Spaces, SpaceMemberships, UserMetadata, eq, and, count, first, isNull } from '../db';
 import type { Auth } from '../middleware/types';
 
-/** Total people in a space (including owner), enforced at invite redeem. */
+/**
+ * Total people in a type='shared' collaborative space (including owner),
+ * enforced at invite redeem + admin add-member. Public/broadcast spaces are
+ * uncapped (congregation scale) — they are joined via follow/connect, not
+ * invites, and canAddMemberToSpace exempts them.
+ */
 export const MEMBERS_PER_SPACE_CAP = 30;
 
 /** Owned shared spaces without the add-on. */
@@ -166,12 +171,17 @@ export async function syncSharedSpacesAddOnFromClerk(
 
 // ─── Shared-space counts + gates ────────────────────────────────────────────
 
-/** Spaces the user owns with type='shared' (the only thing the paid gate counts). */
+/**
+ * Spaces the user owns with type='shared' (the only thing the paid gate counts).
+ * Org-sponsored spaces (orgId set) bill to the church (Churches.billingPlan),
+ * never against the creating staffer's personal add-on limit. No-op today
+ * (orgId is always null).
+ */
 export async function getSharedSpacesOwnedCount(userId: string): Promise<number> {
   const row = first(await db
     .select({ cnt: count() })
     .from(Spaces)
-    .where(and(eq(Spaces.userId, userId), eq(Spaces.type, 'shared'))));
+    .where(and(eq(Spaces.userId, userId), eq(Spaces.type, 'shared'), isNull(Spaces.orgId))));
   return Number(row?.cnt ?? 0);
 }
 
@@ -187,6 +197,8 @@ export async function getSpaceMemberCount(spaceId: string): Promise<number> {
 /**
  * The paid gate. Runs at exactly the "own one more shared space" moments
  * (create-shared today; invite creation re-derives from space.type).
+ * Org-context creation (church-sponsored spaces) will be a separate
+ * church-gated endpoint keyed off Churches.billingPlan — not this function.
  */
 export async function canCreateSharedSpace(
   userId: string,
@@ -214,11 +226,24 @@ export async function canCreateSharedSpace(
   return { allowed: true, currentCount, limit: OWNED_SHARED_SPACES_ADDON_LIMIT };
 }
 
-/** People cap, enforced at invite redeem + admin add-member. Same for every entitlement. */
+/**
+ * People cap, enforced at invite redeem + admin add-member. Same for every
+ * entitlement. Public/broadcast spaces are exempt: the follow model is
+ * congregation-scale, and Harvous-hosted public spaces already take members
+ * via the admin add-member path.
+ */
 export async function canAddMemberToSpace(
   spaceId: string,
 ): Promise<{ allowed: boolean; reason?: string; currentCount: number; limit: number }> {
+  const space = first(await db
+    .select({ type: Spaces.type })
+    .from(Spaces)
+    .where(eq(Spaces.id, spaceId))
+    .limit(1));
   const currentCount = await getSpaceMemberCount(spaceId);
+  if (space?.type === 'public') {
+    return { allowed: true, currentCount, limit: MEMBERS_PER_SPACE_CAP };
+  }
   if (currentCount >= MEMBERS_PER_SPACE_CAP) {
     return { allowed: false, reason: 'This space has reached its people limit.', currentCount, limit: MEMBERS_PER_SPACE_CAP };
   }

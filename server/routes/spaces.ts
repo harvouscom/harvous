@@ -2575,6 +2575,8 @@ route.post('/api/spaces/:spaceId/invites', requireAuth, rateLimit('write'), asyn
     }
 
     // The paid gate: creating invites requires the owner to hold the add-on.
+    // Church-org: org-sponsored spaces (orgId set) will gate on the church's
+    // billing (Churches.billingPlan) instead of the personal add-on.
     if (!(await hasSharedSpacesAddOn(auth))) {
       return c.json({
         error: 'Owning shared spaces requires the Shared Spaces add-on. Joining spaces is always free.',
@@ -2702,7 +2704,9 @@ route.get('/api/spaces/invite-preview/:token', rateLimit('read'), async (c) => {
     const space = first(await db.select().from(Spaces).where(eq(Spaces.id, invite.spaceId)).limit(1));
     if (!space || space.deletedAt || space.type === 'personal') return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
 
-    // Owner info (first name + last initial only; never full last name)
+    // Owner info (first name + last initial only; never full last name).
+    // Church-org: org-sponsored spaces (orgId set) will display Churches.name
+    // here, the same way Harvous-owned spaces display "Harvous".
     let isHarvousOwned = false;
     try {
       isHarvousOwned = space.userId === getHarvousSystemUserId();
@@ -2801,6 +2805,9 @@ route.post('/api/spaces/invites/:token/redeem', requireAuth, rateLimit('write'),
     const space = first(await db.select().from(Spaces).where(eq(Spaces.id, invite.spaceId)).limit(1));
     if (!space || space.deletedAt || space.type === 'personal') return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
 
+    // Church-org: keys off the human Spaces.userId; org-sponsored spaces keep a
+    // staff creator there, so this check stays valid — but revisit if ownership
+    // ever transfers to the org itself.
     if (space.userId === auth.userId) {
       return c.json({ error: 'You are the owner of this space', code: 'ALREADY_OWNER' }, 400);
     }
@@ -2854,7 +2861,11 @@ route.post('/api/spaces/invites/:token/redeem', requireAuth, rateLimit('write'),
             .limit(1),
         );
 
-        // Invisible people cap — joining is otherwise free and uncapped for the joiner.
+        // Invisible people cap — joining is otherwise free and uncapped for the
+        // joiner. The cap arg below is shared-space-scoped: invite creation
+        // rejects type !== 'shared', so this path can't fire for public
+        // broadcast spaces today. Revisit if leader-invites for public spaces
+        // ever land (public spaces are uncapped — see MEMBERS_PER_SPACE_CAP).
         const [{ value: memberCount }] = await tx.select({ value: count() }).from(SpaceMemberships)
           .where(eq(SpaceMemberships.spaceId, lockedInvite.spaceId));
         const lockedOutcome = evaluateLockedInviteRedemption({
