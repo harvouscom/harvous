@@ -167,6 +167,10 @@ export function prototypeAdminSupportRouteTo(): '/admin/support' | '/prototype/a
   return isDedicatedPrototypeHost() ? '/admin/support' : '/prototype/admin/support';
 }
 
+export function prototypeAdminChurchesRouteTo(): '/admin/churches' | '/prototype/admin/churches' {
+  return isDedicatedPrototypeHost() ? '/admin/churches' : '/prototype/admin/churches';
+}
+
 export function matchPrototypeNoteId(pathname: string): string | null {
   const canonical = prototypeLogicalPath(pathname).match(/^\/n\/([^/]+)\/?$/);
   if (canonical?.[1]) return canonical[1];

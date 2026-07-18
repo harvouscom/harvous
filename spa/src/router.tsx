@@ -369,6 +369,12 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/AdminVotdPage')),
   });
 
+  const prototypeAdminChurchesRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'admin/churches',
+    component: lazyRouteComponent(() => import('./pages/AdminChurchesPage')),
+  });
+
   const prototypeDevRouteErrorPreviewRoute = import.meta.env.DEV
     ? createRoute({
         getParentRoute: () => simplifiedPrototypeRoute,
@@ -391,6 +397,7 @@ function buildPrototypeRouteBranch() {
     prototypeAdminMaintenanceRoute,
     prototypeAdminSupportRoute,
     prototypeAdminVotdRoute,
+    prototypeAdminChurchesRoute,
     ...(prototypeDevRouteErrorPreviewRoute ? [prototypeDevRouteErrorPreviewRoute] : []),
     prototypeNoteFlatRoute,
     prototypeSettingsRoute.addChildren([

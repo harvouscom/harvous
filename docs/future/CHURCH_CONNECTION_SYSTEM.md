@@ -2,8 +2,17 @@
 
 > **Current schema status (July 2026):** `Churches` and
 > `UserMetadata.connectedChurchId/connectedOrgId/connectedChurchAt` are **landed**
-> in `server/db/schema.ts` (shared-spaces foundation). `ChurchConnectionRequests`
-> is **planned** — it lands with the connect flow. All endpoints, matching code,
+> in `server/db/schema.ts` (shared-spaces foundation), and the **admin
+> provisioning pipes are built** (`server/routes/churches.ts` +
+> `server/utils/clerk-org.ts` + the `/admin/churches` SPA page — all
+> `requireHarvousAdmin`-gated, invisible to users). `ChurchConnectionRequests`
+> is **planned** — it lands with the connect flow.
+>
+> **Operational prerequisite:** the Clerk instance must have the
+> **Organizations feature enabled** (Clerk dashboard → Organizations). Until
+> then, org lookups return 403 and the admin endpoints answer
+> `CLERK_ORGS_NOT_ENABLED` (verified July 2026 — currently NOT enabled on the
+> dev instance). All endpoints, matching code,
 > and UI in this doc are design sketches, not shipped code. Code samples are in
 > the Hono `server/routes/*` + Drizzle idiom of the current server (the original
 > Astro DB / `APIRoute` sketches are retired).
