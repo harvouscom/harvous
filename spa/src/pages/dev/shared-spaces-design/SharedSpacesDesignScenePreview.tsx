@@ -11,7 +11,8 @@ import PublicJoinSpaceLetter from '../../public/PublicJoinSpaceLetter';
 import PublicJoinSpaceHero from '../../public/PublicJoinSpaceHero';
 import PrototypeSharedNoteReadOnlyBanner from '../../prototype/PrototypeSharedNoteReadOnlyBanner';
 import SharedSpaceNoteAuthorChip from '../../prototype/SharedSpaceNoteAuthorChip';
-import ProtoInspectorActivityRow from '../../prototype/ProtoInspectorActivityRow';
+import { SharedNoteActivitySpaceSection } from '../../prototype/SharedNoteActivityPanel';
+import { PrototypeSectionHeader } from '../../prototype/design-system';
 import type { NoteActivityItem } from '../../../lib/shared-note-activity-list';
 import ProtoConfirmDialog from '../../prototype/ProtoConfirmDialog';
 import ProtoPopoverShell from '../../prototype/ProtoPopoverShell';
@@ -303,7 +304,7 @@ export const ACTIVITY_SCENE_ITEMS = {
       actorFirstName: 'James',
       subject: 'the law of the Spirit of life',
       preview: 'This phrase connects the opening of Romans 8 to the argument in chapter 7.',
-      context: 'The author also highlighted this passage',
+      context: null,
     },
   ],
   detached: [
@@ -324,9 +325,52 @@ export const ACTIVITY_SCENE_ITEMS = {
   empty: [],
 } satisfies Record<'populated' | 'detached' | 'empty', NoteActivityItem[]>;
 
+export const ACTIVITY_SCENE_GROUPS = {
+  populated: [
+    {
+      spaceId: 'space_romans',
+      spaceTitle: FIXTURE_SPACE.title,
+      spaceColor: FIXTURE_SPACE.color,
+      associationStatus: 'active' as const,
+      items: ACTIVITY_SCENE_ITEMS.populated,
+    },
+    {
+      spaceId: 'space_ephesians',
+      spaceTitle: 'Ephesians Circle',
+      spaceColor: 'teal',
+      associationStatus: 'archived' as const,
+      items: [
+        {
+          ...ACTIVITY_SCENE_ITEMS.populated[1],
+          id: 'activity_ephesians_highlight',
+        },
+      ],
+    },
+  ],
+  detached: [
+    {
+      spaceId: 'space_romans',
+      spaceTitle: FIXTURE_SPACE.title,
+      spaceColor: FIXTURE_SPACE.color,
+      associationStatus: 'active' as const,
+      items: ACTIVITY_SCENE_ITEMS.detached,
+    },
+  ],
+  empty: [],
+} satisfies Record<
+  'populated' | 'detached' | 'empty',
+  Array<{
+    spaceId: string;
+    spaceTitle: string;
+    spaceColor: string;
+    associationStatus: 'active' | 'archived';
+    items: NoteActivityItem[];
+  }>
+>;
+
 function ActivityScene({ mode }: { mode: keyof typeof ACTIVITY_SCENE_ITEMS }) {
-  const items = ACTIVITY_SCENE_ITEMS[mode];
-  if (items.length === 0) {
+  const groups = ACTIVITY_SCENE_GROUPS[mode];
+  if (groups.length === 0) {
     return (
       <div
         className="proto-theme"
@@ -337,28 +381,19 @@ function ActivityScene({ mode }: { mode: keyof typeof ACTIVITY_SCENE_ITEMS }) {
   }
   return (
     <div className="proto-theme" style={{ width: 360, maxWidth: '100%', margin: '0 auto' }}>
-      <div className="proto-glass-surface proto-glass-surface--panel" style={{ padding: 16 }}>
-        <section className="proto-inspector-section proto-inspector-section--activity">
-          <p className="proto-inspector-section-title">Activity</p>
-          {items.length > 0 ? (
-            <div className="proto-inspector-activity__groups">
-              <div className="proto-inspector-activity__group">
-                <p className="proto-inspector-activity__group-label">
-                  <span>{FIXTURE_SPACE.title}</span>
-                </p>
-                <ul className="proto-inspector-activity">
-                  {items.map((item, index) => (
-                    <ProtoInspectorActivityRow
-                      key={item.id}
-                      item={item}
-                      isActive={index === 0}
-                      onSelect={() => {}}
-                    />
-                  ))}
-                </ul>
-              </div>
-            </div>
-          ) : null}
+      <div className="proto-inspector" style={{ padding: 16 }}>
+        <section className="proto-inspector-section">
+          <PrototypeSectionHeader>Activity</PrototypeSectionHeader>
+          <div className="proto-inspector-activity__groups">
+            {groups.map((group, index) => (
+              <SharedNoteActivitySpaceSection
+                key={group.spaceId}
+                group={group}
+                activeActivityId={index === 0 ? group.items[0]?.id ?? null : null}
+                onSelectActivity={() => {}}
+              />
+            ))}
+          </div>
         </section>
       </div>
     </div>

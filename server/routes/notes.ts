@@ -2667,7 +2667,7 @@ route.get('/api/notes/:noteId/activity', requireAuth, async (c) => {
     if (spaceIds.length === 0) return c.json({ success: true, groups: [] });
     const [spaces, entries] = await Promise.all([
       db
-        .select({ id: Spaces.id, title: Spaces.title, type: Spaces.type })
+        .select({ id: Spaces.id, title: Spaces.title, type: Spaces.type, color: Spaces.color })
         .from(Spaces)
         .where(inArray(Spaces.id, spaceIds)),
       db

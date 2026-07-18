@@ -44,8 +44,8 @@ describe('shared note activity', () => {
     { spaceId: 'space_archived', removedAt: new Date('2026-07-08T00:00:00Z') },
   ];
   const spaces = [
-    { id: 'space_active', title: 'Romans Group', type: 'shared' },
-    { id: 'space_archived', title: 'Old Group', type: 'shared' },
+    { id: 'space_active', title: 'Romans Group', type: 'shared', color: 'purple' },
+    { id: 'space_archived', title: 'Old Group', type: 'shared', color: 'teal' },
   ];
 
   it('groups Home activity by active and archived association', () => {

@@ -35,6 +35,7 @@ export type NoteActivityItem = {
 export type NoteActivityGroup = {
   spaceId: string;
   spaceTitle: string;
+  spaceColor: string | null;
   associationStatus: 'active' | 'archived';
   items: NoteActivityItem[];
 };
@@ -48,6 +49,19 @@ export function noteActivityKindLabel(kind: NoteActivityKind): string {
     case 'highlight':
     default:
       return 'Highlight';
+  }
+}
+
+/** Inline verb phrase for activity prose rows (e.g. "Sarah responded on …"). */
+export function noteActivityKindVerb(kind: NoteActivityKind): string {
+  switch (kind) {
+    case 'response':
+      return 'responded on';
+    case 'connection':
+      return 'connected';
+    case 'highlight':
+    default:
+      return 'highlighted';
   }
 }
 
@@ -102,19 +116,11 @@ export function buildSharedNoteActivityGroups(
     stripHtml: (html: string, max: number) => string;
   },
 ): NoteActivityGroup[] {
-  const authorLabel = options.noteAuthorDisplayName?.trim() || 'The author';
-  const viewerIsAuthor =
-    Boolean(options.viewerUserId) &&
-    Boolean(options.noteAuthorUserId) &&
-    options.viewerUserId === options.noteAuthorUserId;
-  const authorOverlapCopy = viewerIsAuthor
-    ? 'You also highlighted this passage'
-    : `${authorLabel} also highlighted this passage`;
-
   return (groups ?? [])
     .map((group) => ({
       spaceId: group.spaceId,
       spaceTitle: group.spaceTitle,
+      spaceColor: group.spaceColor ?? null,
       associationStatus: group.associationStatus,
       items: group.items.map((item) => {
         const quote = item.anchor.quote?.trim() || null;
@@ -131,7 +137,7 @@ export function buildSharedNoteActivityGroups(
           timestamp: item.updatedAt ?? item.createdAt,
           subject: quote || item.focusTitle.trim() || 'Highlighted passage',
           preview: activityPreview(item, options.stripHtml),
-          context: item.overlapsAuthorResponseIds.length > 0 ? authorOverlapCopy : null,
+          context: null,
           statusLabel: item.anchor.status === 'detached' ? 'Passage changed' : null,
           highlightAccentRaw: item.highlightAccentRaw,
           focusTitle: item.focusTitle,

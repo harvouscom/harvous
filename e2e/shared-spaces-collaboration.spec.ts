@@ -167,7 +167,7 @@ test.describe('Shared Spaces two-user collaboration contract', () => {
     await ownerPage.goto(`/n/${noteSlug}?space=${fixture.spaceId}`);
     await ownerPage.getByRole('button', { name: 'Show note details' }).click();
     const activityRow = ownerPage
-      .getByRole('button', { name: new RegExp(`Response by .* on ${anchorQuote}`) })
+      .getByRole('button', { name: new RegExp(`.* responded on ${anchorQuote}`) })
       .first();
     await expect(activityRow).toBeVisible();
     await activityRow.click();
@@ -181,7 +181,7 @@ test.describe('Shared Spaces two-user collaboration contract', () => {
     await spaceBPage.getByRole('button', { name: 'Show note details' }).click();
     await expect(
       spaceBPage.getByRole('button', {
-        name: new RegExp(`Response by .* on ${anchorQuote}`),
+        name: new RegExp(`.* responded on ${anchorQuote}`),
       }),
     ).toHaveCount(0);
   });

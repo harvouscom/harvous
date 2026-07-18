@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSharedNoteActivityGroups,
   noteActivityKindLabel,
+  noteActivityKindVerb,
   sharedNoteAnchorsMatch,
 } from '../shared-note-activity-list';
 import type { NoteActivityWireGroup, NoteActivityWireItem } from '../../hooks/queries/useNoteActivity';
@@ -40,6 +41,7 @@ function group(
   return {
     spaceId,
     spaceTitle: spaceId === 'space_active' ? 'Romans Group' : 'Old Group',
+    spaceColor: spaceId === 'space_active' ? 'purple' : 'teal',
     associationStatus,
     items,
   };
@@ -50,6 +52,14 @@ describe('noteActivityKindLabel', () => {
     expect(noteActivityKindLabel('highlight')).toBe('Highlight');
     expect(noteActivityKindLabel('response')).toBe('Response');
     expect(noteActivityKindLabel('connection')).toBe('Connection');
+  });
+});
+
+describe('noteActivityKindVerb', () => {
+  it('maps kinds to inline verb phrases', () => {
+    expect(noteActivityKindVerb('highlight')).toBe('highlighted');
+    expect(noteActivityKindVerb('response')).toBe('responded on');
+    expect(noteActivityKindVerb('connection')).toBe('connected');
   });
 });
 
@@ -98,7 +108,7 @@ describe('buildSharedNoteActivityGroups', () => {
     expect(groups[0]?.items.map((activityItem) => activityItem.id)).toEqual(['newer', 'older']);
     expect(groups[0]?.items[1]?.kind).toBe('response');
     expect(groups[0]?.items[1]?.isSelf).toBe(true);
-    expect(groups[0]?.items[1]?.context).toBe('Harvous A. also highlighted this passage');
+    expect(groups[0]?.items[1]?.context).toBeNull();
     expect(groups[0]?.items[1]?.preview).toBe('My response');
     expect(groups[0]?.items[0]).toMatchObject({
       actorFirstName: 'Sarah',

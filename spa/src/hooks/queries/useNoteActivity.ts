@@ -31,6 +31,7 @@ export type NoteActivityWireItem = {
 export type NoteActivityWireGroup = {
   spaceId: string;
   spaceTitle: string;
+  spaceColor: string | null;
   associationStatus: 'active' | 'archived';
   items: NoteActivityWireItem[];
 };

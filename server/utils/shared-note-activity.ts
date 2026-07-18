@@ -7,6 +7,7 @@ export type SharedNoteActivitySpace = {
   id: string;
   title: string;
   type: string;
+  color: string | null;
 };
 
 export type SharedNoteActivityEntry = {
@@ -67,6 +68,7 @@ export type SharedNoteActivityItem = {
 export type SharedNoteActivityGroup = {
   spaceId: string;
   spaceTitle: string;
+  spaceColor: string | null;
   associationStatus: 'active' | 'archived';
   items: SharedNoteActivityItem[];
 };
@@ -132,6 +134,7 @@ export function buildSharedNoteActivity(input: {
       group = {
         spaceId: row.spaceId,
         spaceTitle: space.title,
+        spaceColor: space.color,
         associationStatus: association.removedAt === null ? 'active' : 'archived',
         items: [],
       };
