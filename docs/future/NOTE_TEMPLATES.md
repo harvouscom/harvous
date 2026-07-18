@@ -1,7 +1,16 @@
 # Note Templates
 
-**Status:** Partially Implemented  
-**Last Updated:** February 2026
+**Status:** Partially Implemented (Classic UI below); user/space/org templates redesigned July 2026
+**Last Updated:** July 2026
+
+> **July 2026 update:** the sections below describe the Classic-era
+> `note-panel/` UI (pre-prototype SPA). The built-in templates data and
+> content-format sections are still accurate. The **User-Created Templates**
+> and **Shared Spaces** sections are superseded by the redesigned direction
+> in [Redesigned Direction (July 2026)](#redesigned-direction-july-2026) —
+> read that section first for anything user/space/org-template related. See
+> also [PASTOR_FEATURES_ROADMAP.md](./PASTOR_FEATURES_ROADMAP.md) (item 5),
+> which names this as the recommended next general feature build.
 
 ---
 
@@ -209,3 +218,69 @@ flowchart LR
 - [ARCHITECTURE.md](../ARCHITECTURE.md) — Data structures, spaces, threads, notes.
 - [SHARING_SYSTEM_DESIGN.md](SHARING_SYSTEM_DESIGN.md) — Shared threads and spaces.
 - [NOTE_TYPES_DESIGN_PENDING.md](../NOTE_TYPES_DESIGN_PENDING.md) — Note types (default, scripture, resource) and form layout.
+- [PASTOR_FEATURES_ROADMAP.md](./PASTOR_FEATURES_ROADMAP.md) — Names templates as the recommended next general feature build; sermon template as org-provisioned template.
+- [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md) — Role-gated feature model that org-scoped templates plug into.
+
+---
+
+## Redesigned Direction (July 2026)
+
+Design decisions locked with the user, targeting the **prototype SPA**
+(`spa/src/pages/prototype/`), not the Classic `note-panel/` components above.
+This section supersedes **User-Created Templates** and **Shared Spaces**
+above; the built-in templates and content-format sections still apply.
+
+### UX
+
+- **Apply:** on a new/empty note, a quiet optional affordance in the top
+  header zone — same placement family as the attribution header shown on
+  shared notes from others — offers "Start from a template." It disappears
+  once the user starts typing, so the canvas stays clean for anyone who
+  doesn't want it. A `/template` slash-command in the TipTap editor is a
+  possible power-user path later.
+- **Create:** after typing a note, the same header affordance (and the
+  note's overflow menu) offers "Save as template" — captures the note's
+  structure as a reusable template. No separate "create template" flow;
+  saving *is* writing a normal note first.
+
+### Data model — three layers, one table
+
+```ts
+// NoteTemplates (design sketch — not yet in server/db/schema.ts)
+export const NoteTemplates = pgTable('NoteTemplates', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),      // creator — personal templates are userId-only
+  spaceId: text('spaceId'),              // set = space template (see below)
+  orgId: text('orgId'),                  // set = church/org-provisioned template (future)
+  name: text('name').notNull(),
+  title: text('title'),                  // titleTemplate equivalent
+  content: text('content').notNull(),    // Tiptap HTML, same format as Notes.content
+  noteType: text('noteType'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+});
+```
+
+- **`userId` only (personal):** the default. A user's own saved templates,
+  visible only to them.
+- **`spaceId` set (space template):** the **shared-space-owner win** — an
+  owner/leader attaches a template to their shared space, and everyone
+  composing a note there sees it in the template picker (e.g. a group study
+  response format). Rides the existing `SpaceMemberships` role checks for
+  who can attach/remove a space template (owner/leader, matching
+  `canManageSpaceStructure` in `space-access.ts`).
+- **`orgId` set (church template, future):** the sermon note template (see
+  [PASTOR_FEATURES_ROADMAP.md](./PASTOR_FEATURES_ROADMAP.md) item 6) is an
+  **org-provisioned template** on these same rails — provisioned to the
+  pastor role, never shown to general users. Not a special pastor-template
+  feature; it's the same `NoteTemplates` table with `orgId` set instead of
+  `spaceId`.
+
+### Why this shape
+
+One table, three optional scope columns, keeps "template" a single concept
+regardless of who it's visible to — the picker query is just "templates
+where `userId = me` OR `spaceId = current space` OR `orgId = my connected
+org (role-gated)`." No `TemplateSpaces` junction table needed unless a
+template must belong to multiple spaces at once, which is out of scope for
+v1.
