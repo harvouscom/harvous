@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   useAdminChurches,
+  useClerkOrgs,
   useRegisterChurch,
   useCreateChurchSpace,
   useSyncChurchStaff,
@@ -19,11 +20,22 @@ function copyToClipboard(text: string) {
 
 function RegisterChurchForm({ onRegistered }: { onRegistered: () => void }) {
   const register = useRegisterChurch();
+  const clerkOrgs = useClerkOrgs();
   const [orgId, setOrgId] = useState('');
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [country, setCountry] = useState('');
+
+  /** Selecting an org prefills the church name with the Clerk org's name. */
+  const handleSelectOrg = (nextOrgId: string) => {
+    setOrgId(nextOrgId);
+    const picked = clerkOrgs.data?.orgs.find((org) => org.id === nextOrgId);
+    if (picked && !name.trim()) setName(picked.name);
+  };
+
+  const selectable = (clerkOrgs.data?.orgs ?? []).filter((org) => !org.registered);
+  const clerkError = clerkOrgs.isError ? (clerkOrgs.error as Error).message : null;
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,16 +67,33 @@ function RegisterChurchForm({ onRegistered }: { onRegistered: () => void }) {
     <form className="admin-publish__form" onSubmit={onSubmit}>
       <div className="admin-publish__field">
         <label className="admin-publish__label" htmlFor="church-org-id">
-          Clerk organization id
+          Clerk organization
         </label>
-        <input
-          id="church-org-id"
-          className="admin-publish__input"
-          value={orgId}
-          onChange={(e) => setOrgId(e.target.value)}
-          placeholder="org_…"
-          required
-        />
+        {clerkError ? (
+          <p className="admin-publish__message admin-publish__message--error">{clerkError}</p>
+        ) : (
+          <select
+            id="church-org-id"
+            className="admin-publish__select"
+            value={orgId}
+            onChange={(e) => handleSelectOrg(e.target.value)}
+            required
+            disabled={clerkOrgs.isLoading}
+          >
+            <option value="">{clerkOrgs.isLoading ? 'Loading organizations…' : 'Select an organization…'}</option>
+            {selectable.map((org) => (
+              <option key={org.id} value={org.id}>
+                {org.name}
+                {typeof org.memberCount === 'number' ? ` · ${org.memberCount}/20 staff` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+        {!clerkError && !clerkOrgs.isLoading && selectable.length === 0 ? (
+          <p className="admin-publish__message">
+            No unregistered organizations. Create one in the Clerk dashboard first.
+          </p>
+        ) : null}
       </div>
       <div className="admin-publish__field">
         <label className="admin-publish__label" htmlFor="church-name">
@@ -274,8 +303,8 @@ export default function AdminChurchesPanel() {
       <section>
         <h3>Register a church</h3>
         <p style={{ margin: '4px 0 12px', opacity: 0.75 }}>
-          Create the organization in the Clerk dashboard first (staff/volunteers only — congregants never join the
-          Clerk org), then paste its id here.
+          Create the organization in the Clerk dashboard first (staff/volunteers only, 20 seats per church —
+          congregants never join the Clerk org), then pick it here.
         </p>
         <RegisterChurchForm onRegistered={() => void churches.refetch()} />
       </section>

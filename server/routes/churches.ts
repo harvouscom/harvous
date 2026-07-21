@@ -28,6 +28,7 @@ import {
   ClerkOrgError,
   computeStaffSyncPlan,
   fetchClerkOrganization,
+  fetchClerkOrganizations,
   fetchClerkOrgMemberships,
   isValidClerkOrgId,
 } from '../utils/clerk-org';
@@ -74,6 +75,41 @@ app.get('/api/admin/churches', async (c) => {
     return c.json({ success: true, churches: rows.reverse() });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/admin/churches', action: 'list_churches' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/admin/churches/clerk-orgs ─────────────────────────────────────
+/**
+ * Clerk organizations available to register, for the admin picker. Churches are
+ * onboarded manually, so the admin selects an org by name rather than pasting
+ * an opaque org_ id. Already-registered orgs are flagged, not hidden, so the
+ * picker explains why one isn't selectable.
+ */
+app.get('/api/admin/churches/clerk-orgs', async (c) => {
+  const gate = await requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    let orgs;
+    try {
+      orgs = await fetchClerkOrganizations();
+    } catch (error) {
+      const resp = clerkErrorResponse(c, error);
+      if (resp) return resp;
+      throw error;
+    }
+
+    const registered = new Set(
+      (await db.select({ orgId: Churches.orgId }).from(Churches)).map((row) => row.orgId),
+    );
+
+    return c.json({
+      success: true,
+      orgs: orgs.map((org) => ({ ...org, registered: registered.has(org.id) })),
+    });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/admin/churches/clerk-orgs', action: 'list_clerk_orgs' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

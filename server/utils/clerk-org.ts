@@ -17,7 +17,7 @@
  * these are admin-only pipes with no silent fallback.
  */
 
-export type ClerkOrgSummary = { id: string; name: string; slug: string | null };
+export type ClerkOrgSummary = { id: string; name: string; slug: string | null; memberCount?: number };
 export type ClerkOrgMember = { userId: string; role: string };
 
 export class ClerkOrgError extends Error {
@@ -82,12 +82,65 @@ export async function fetchClerkOrganization(orgId: string): Promise<ClerkOrgSum
   return { id: data.id, name: data.name, slug: data.slug ?? null };
 }
 
+type ClerkOrgRow = {
+  id?: string;
+  name?: string;
+  slug?: string | null;
+  members_count?: number;
+};
+
+/**
+ * List all organizations on the instance (admin picker). Read-only.
+ * Churches are onboarded manually, so this is expected to stay small.
+ */
+export async function fetchClerkOrganizations(): Promise<ClerkOrgSummary[]> {
+  const key = clerkSecretKey();
+  const orgs: ClerkOrgSummary[] = [];
+  let offset = 0;
+
+  for (;;) {
+    let response: Response;
+    try {
+      response = await fetch(
+        `https://api.clerk.com/v1/organizations?limit=${ORGS_PAGE_SIZE}&offset=${offset}`,
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        },
+      );
+    } catch (error) {
+      throw new ClerkOrgError('CLERK_UNAVAILABLE', `Clerk organizations fetch failed: ${error}`);
+    }
+    if (!response.ok) throw classifyClerkFailure(response.status);
+
+    const payload = (await response.json()) as { data?: ClerkOrgRow[]; total_count?: number };
+    const rows = Array.isArray(payload.data) ? payload.data : [];
+
+    for (const row of rows) {
+      if (!row.id || !row.name) continue;
+      orgs.push({
+        id: row.id,
+        name: row.name,
+        slug: row.slug ?? null,
+        memberCount: typeof row.members_count === 'number' ? row.members_count : undefined,
+      });
+    }
+
+    offset += rows.length;
+    const total = typeof payload.total_count === 'number' ? payload.total_count : offset;
+    if (rows.length < ORGS_PAGE_SIZE || offset >= total) break;
+  }
+
+  return orgs;
+}
+
 type ClerkMembershipRow = {
   role?: string;
   public_user_data?: { user_id?: string } | null;
 };
 
 const MEMBERSHIPS_PAGE_SIZE = 100;
+const ORGS_PAGE_SIZE = 100;
 
 /**
  * Fetch all memberships of an org (paginated; staff is ≤20 in practice, the

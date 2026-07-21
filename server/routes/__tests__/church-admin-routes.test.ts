@@ -16,8 +16,8 @@ describe('church admin route contracts', () => {
     const endpoints = route().match(/app\.(get|post|put|delete|patch)\(/g) ?? [];
     const gates = route().match(/const gate = await requireHarvousAdmin\(c\);\s*\n\s*if \(gate\) return gate;/g) ?? [];
     // deactivate/reactivate share one gated handler (setChurchActive)
-    expect(endpoints.length).toBe(6);
-    expect(gates.length).toBeGreaterThanOrEqual(5);
+    expect(endpoints.length).toBe(7);
+    expect(gates.length).toBeGreaterThanOrEqual(6);
     expect(route()).not.toContain('requireAuth');
   });
 
@@ -55,6 +55,12 @@ describe('church admin route contracts', () => {
     expect(route().indexOf('fetchClerkOrgMemberships(church.orgId)')).toBeLessThan(
       route().indexOf("role: 'leader'"),
     );
+  });
+
+  it('exposes a Clerk org picker that flags already-registered orgs', () => {
+    expect(route()).toContain("app.get('/api/admin/churches/clerk-orgs'");
+    expect(route()).toContain('fetchClerkOrganizations()');
+    expect(route()).toContain('registered: registered.has(org.id)');
   });
 
   it('is mounted in the app', () => {

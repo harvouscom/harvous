@@ -83,9 +83,12 @@ function AdminRegisterForm() {
     <form className="admin-publish__form" onSubmit={(e) => e.preventDefault()}>
       <div className="admin-publish__field">
         <label className="admin-publish__label" htmlFor="scene-org-id">
-          Clerk organization id
+          Clerk organization
         </label>
-        <input id="scene-org-id" className="admin-publish__input" placeholder="org_…" readOnly />
+        <select id="scene-org-id" className="admin-publish__select" defaultValue="">
+          <option value="">Select an organization…</option>
+          <option value="org_fixture">Testament Made · 1/20 staff</option>
+        </select>
       </div>
       <div className="admin-publish__field">
         <label className="admin-publish__label" htmlFor="scene-church-name">
@@ -138,8 +141,8 @@ function AdminChurchesScene({ mode }: { mode: 'empty' | 'list' | 'expanded' }) {
         <section>
           <h3>Register a church</h3>
           <p style={{ margin: '4px 0 12px', opacity: 0.75 }}>
-            Create the organization in the Clerk dashboard first (staff/volunteers only — congregants never join the
-            Clerk org), then paste its id here.
+            Create the organization in the Clerk dashboard first (staff/volunteers only, 20 seats per church —
+            congregants never join the Clerk org), then pick it here.
           </p>
           <AdminRegisterForm />
         </section>

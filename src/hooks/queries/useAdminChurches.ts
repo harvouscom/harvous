@@ -50,6 +50,26 @@ export type StaffSyncResult = {
   warnings: string[];
 };
 
+export type ClerkOrgOption = {
+  id: string;
+  name: string;
+  slug: string | null;
+  memberCount?: number;
+  registered: boolean;
+};
+
+/** Clerk orgs available to register — powers the admin picker (no id pasting). */
+export function useClerkOrgs() {
+  const admin = useHarvousAdminCheck();
+  return useQuery({
+    queryKey: ['admin', 'churches', 'clerk-orgs'],
+    queryFn: () => adminApiGet<{ success: boolean; orgs: ClerkOrgOption[] }>('/api/admin/churches/clerk-orgs'),
+    enabled: admin.data?.isAdmin === true,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
 export function useAdminChurches() {
   const admin = useHarvousAdminCheck();
   return useQuery({
