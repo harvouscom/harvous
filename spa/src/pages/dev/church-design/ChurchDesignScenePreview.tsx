@@ -97,10 +97,29 @@ function AdminRegisterForm() {
         <label className="admin-publish__label" htmlFor="scene-church-city">
           City / State / Country
         </label>
+        {/* proto reset sets `* { flex-shrink: 0 }` — inputs must opt into shrinking or they overflow. */}
         <div style={{ display: 'flex', gap: 8 }}>
-          <input id="scene-church-city" className="admin-publish__input" placeholder="City" readOnly />
-          <input className="admin-publish__input" placeholder="State" aria-label="State" readOnly />
-          <input className="admin-publish__input" placeholder="Country" aria-label="Country" readOnly />
+          <input
+            id="scene-church-city"
+            className="admin-publish__input"
+            style={{ flex: '1 1 0', minWidth: 0 }}
+            placeholder="City"
+            readOnly
+          />
+          <input
+            className="admin-publish__input"
+            style={{ flex: '1 1 0', minWidth: 0 }}
+            placeholder="State"
+            aria-label="State"
+            readOnly
+          />
+          <input
+            className="admin-publish__input"
+            style={{ flex: '1 1 0', minWidth: 0 }}
+            placeholder="Country"
+            aria-label="Country"
+            readOnly
+          />
         </div>
       </div>
       <button type="submit" className="admin-action-btn admin-action-btn--emphasis">

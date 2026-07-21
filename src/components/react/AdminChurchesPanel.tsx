@@ -83,16 +83,19 @@ function RegisterChurchForm({ onRegistered }: { onRegistered: () => void }) {
         <label className="admin-publish__label" htmlFor="church-city">
           City / State / Country
         </label>
+        {/* proto reset sets `* { flex-shrink: 0 }` — inputs must opt into shrinking or they overflow. */}
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             id="church-city"
             className="admin-publish__input"
+            style={{ flex: '1 1 0', minWidth: 0 }}
             value={city}
             onChange={(e) => setCity(e.target.value)}
             placeholder="City"
           />
           <input
             className="admin-publish__input"
+            style={{ flex: '1 1 0', minWidth: 0 }}
             value={state}
             onChange={(e) => setState(e.target.value)}
             placeholder="State"
@@ -100,6 +103,7 @@ function RegisterChurchForm({ onRegistered }: { onRegistered: () => void }) {
           />
           <input
             className="admin-publish__input"
+            style={{ flex: '1 1 0', minWidth: 0 }}
             value={country}
             onChange={(e) => setCountry(e.target.value)}
             placeholder="Country"
