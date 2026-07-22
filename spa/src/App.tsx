@@ -659,9 +659,16 @@ function useInAppLinkInterceptor() {
         return;
       }
 
+      // File downloads (e.g. My Data backup zip via blob: object URLs) must not be
+      // hijacked — preventDefault would cancel the download and router.navigate the
+      // blob path into a bogus route (settings Not Found → Account).
+      if (anchor.hasAttribute('download')) return;
+
       try {
         const url = new URL(anchor.href);
+        if (url.protocol === 'blob:' || url.protocol === 'data:') return;
         if (url.origin !== window.location.origin) return;
+        if (url.pathname.startsWith('/api/')) return;
         if (anchor.target === '_blank' || anchor.rel?.includes('external')) return;
         if (e.ctrlKey || e.metaKey || e.shiftKey) return;
 

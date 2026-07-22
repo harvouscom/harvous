@@ -52,12 +52,21 @@ type PreviewResponse = { days: VotdPreviewDay[] };
 const PREVIEW_KEY = ['votd-preview'] as const;
 
 export function useHarvousAdminCheck() {
-  const { userId, isLoaded, isSignedIn } = useAuth();
+  const { userId, isLoaded, isSignedIn, getToken } = useAuth();
   return useQuery({
     queryKey: ['harvous-admin-check', userId],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/admin/check`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Unauthorized');
+      const headers = new Headers();
+      try {
+        const token = await getToken();
+        if (token) headers.set('Authorization', `Bearer ${token}`);
+      } catch {
+        /* cookies still sent */
+      }
+      const res = await fetch(`${API_BASE}/api/admin/check`, { credentials: 'include', headers });
+      // Non-admins are expected — don't throw a console-noise 401 Error.
+      if (res.status === 401 || res.status === 403) return { isAdmin: false };
+      if (!res.ok) throw new Error('Admin check failed');
       return res.json() as Promise<{ isAdmin: boolean }>;
     },
     enabled: isLoaded && isSignedIn && !!userId,

@@ -59,7 +59,10 @@ describe('downloadUserBackupZip', () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(new Blob(['zip-bytes'], { type: 'application/zip' }), {
         status: 200,
-        headers: { 'Content-Type': 'application/zip' },
+        headers: {
+          'Content-Type': 'application/zip',
+          'Content-Disposition': 'attachment; filename="harvous-backup-2026-07-22.zip"',
+        },
       }),
     );
     vi.stubGlobal('fetch', fetchMock);
@@ -67,17 +70,25 @@ describe('downloadUserBackupZip', () => {
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
-    const filename = await downloadUserBackupZip('https://app.harvous.com');
+    const filename = await downloadUserBackupZip('https://app.harvous.com/');
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://app.harvous.com/api/user/export?format=backup',
       expect.objectContaining({ credentials: 'include' }),
     );
-    expect(filename).toMatch(/^harvous-backup-\d{4}-\d{2}-\d{2}\.zip$/);
+    expect(filename).toBe('harvous-backup-2026-07-22.zip');
   });
 
-  it('throws on a non-ok response', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 500 })));
-    await expect(downloadUserBackupZip('')).rejects.toThrow(/Backup failed/);
+  it('throws the server error body on a non-ok response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'Authentication required' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    );
+    await expect(downloadUserBackupZip('')).rejects.toThrow(/Authentication required/);
   });
 });

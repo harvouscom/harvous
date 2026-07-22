@@ -195,6 +195,11 @@ function buildPrototypeRouteBranch() {
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'settings',
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSettingsLayout')),
+    notFoundComponent: lazyRouteComponent(() =>
+      import('./pages/prototype/settings/PrototypeSettingsLayout').then((m) => ({
+        default: m.PrototypeSettingsNotFound,
+      })),
+    ),
   });
 
   const prototypeSettingsIndexRoute = createRoute({
@@ -463,6 +468,7 @@ function buildRouteTree() {
 export const router = createRouter({
   routeTree: buildRouteTree(),
   defaultErrorComponent: PrototypeRouteErrorState,
+  defaultNotFoundComponent: lazyRouteComponent(() => import('./pages/NotFoundPage')),
 });
 
 declare module '@tanstack/react-router' {

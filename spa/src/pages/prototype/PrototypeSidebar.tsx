@@ -807,7 +807,7 @@ function highlightKindMatches(filter: HighlightKindFilter, entryKind: string | n
 
 function ProtoNotesListLoading() {
   return (
-    <div style={{ padding: '12px 18px', display: 'flex', justifyContent: 'center' }}>
+    <div className="proto-home-loading">
       <span className="load-more-indicator" aria-label="Loading notes">
         <span className="load-more-indicator__dot" />
         <span className="load-more-indicator__dot" />
@@ -1852,15 +1852,8 @@ export default function PrototypeSidebar() {
       ) : null}
 
       <div ref={scrollRootRef} className="proto-sidebar-scroll">
-        {!notesAuthReady ? (
-          <ProtoNotesListLoading />
-        ) : !dataSpaceId ? (
-          navReady ? (
-            <p className="proto-caption" style={{ padding: '14px 18px' }}>
-              No My Home yet — finish setup in the classic app
-            </p>
-          ) : null
-        ) : isHomeLayer ? (
+        {isHomeLayer ? (
+          dataSpaceId ? (
           <PrototypeSidebarHomeView
             homeSpaceId={dataSpaceId}
             notes={notes}
@@ -1888,6 +1881,27 @@ export default function PrototypeSidebar() {
               setCreateThreadSheetOpen(true);
             }}
           />
+          ) : notesAuthReady && navReady ? (
+            <p className="proto-caption" style={{ padding: '14px 18px' }}>
+              No My Home yet — finish setup in the classic app
+            </p>
+          ) : (
+            <div className="proto-home-loading">
+              <span className="load-more-indicator" aria-label="Loading home">
+                <span className="load-more-indicator__dot" />
+                <span className="load-more-indicator__dot" />
+                <span className="load-more-indicator__dot" />
+              </span>
+            </div>
+          )
+        ) : !notesAuthReady ? (
+          <ProtoNotesListLoading />
+        ) : !dataSpaceId ? (
+          navReady ? (
+            <p className="proto-caption" style={{ padding: '14px 18px' }}>
+              No My Home yet — finish setup in the classic app
+            </p>
+          ) : null
         ) : sidebarThreadProposal ? (
           <div className="proto-thread-review">
             <div className="proto-thread-review__header">

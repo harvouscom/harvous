@@ -78,6 +78,18 @@ Register in `keyCommands` override on `HarvousBodyTextView`.
 
 `HarvousVaultExporter` writes Markdown to `~/Documents/Harvous/`. On iOS this writes to the app's Documents directory (shareable via Files.app). Add a "Share export folder" button in iOS settings pointing to the folder.
 
+### Watch-folder / Drive Desktop sync (deferred)
+
+**Status:** Not started — wait until other native Tier 2–4 priorities land. Web import already enriches folders, tags, and scripture pills on one-shot upload (`POST /api/user/import`).
+
+**Product intent:** Pastors often keep sermon archives in Google Drive / Dropbox by year and series. Point Harvous at a local folder (Drive Desktop or a bookmarked vault) so new files auto-import as notes.
+
+**Likely approach (when ready):**
+- Extend [`HarvousVaultInboxScanner`](../../Harvous/Services/HarvousVaultInboxScanner.swift) and external vault bookmarks in [`HarvousVaultLocation`](../../Harvous/Services/HarvousVaultLocation.swift) beyond lifecycle polls toward FSEvents / periodic scan + existing import dedupe.
+- Reuse [`HarvousVaultImporter`](../../Harvous/Services/HarvousVaultImporter.swift) (already merges body + YAML `refs` and suggests tags/folders).
+- Keep web as one-shot folder import; account sync remains Supabase — disk vault is ingest/mirror, not source of truth ([NATIVE_WEB_DATA_MODEL_GAP.md](./NATIVE_WEB_DATA_MODEL_GAP.md)).
+- No Google Drive / Dropbox OAuth required if users sync via Desktop clients into a watched local folder.
+
 ---
 
 ## Tier 5 — Original Feature Ideas

@@ -3259,6 +3259,108 @@ html.harvous-prototype-route .proto-fte-tag-chip__accept svg path {
   background: var(--pds-bg-row-hover);
 }
 
+/* My Data / settings detail section chrome */
+.proto-settings-section-label {
+  padding: 0 12px 6px;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-settings-section-label:not(:first-of-type) {
+  padding-top: 16px;
+}
+
+.proto-settings-section-hint {
+  color: var(--pds-text-tertiary);
+  padding: 0 12px 8px;
+  margin: 0;
+}
+
+.proto-settings-status {
+  color: var(--pds-text-secondary);
+  padding: 4px 12px 0;
+  margin: 0;
+}
+
+.proto-settings-status--error {
+  color: var(--pds-destructive);
+  font-size: 0.8125rem;
+}
+
+.proto-settings-confirm-row {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.proto-settings-confirm-row__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.proto-settings-confirm-row__actions .proto-settings-btn {
+  width: auto;
+  flex: 1;
+}
+
+.proto-settings-import-review {
+  margin-bottom: 8px;
+}
+
+.proto-settings-import-review__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 12px 8px;
+}
+
+.proto-settings-import-review__select-all {
+  width: auto;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.proto-settings-import-review__warnings {
+  color: var(--pds-text-secondary);
+  margin: 0 12px 8px;
+  padding-left: 18px;
+}
+
+.proto-settings-import-review__row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.proto-settings-import-review__row input[type='checkbox'] {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.proto-settings-import-review__list {
+  max-height: 280px;
+  overflow-y: auto;
+  margin-bottom: 4px;
+  border-radius: var(--pds-radius-menu);
+}
+
+.proto-settings-import-review__actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.proto-settings-import-review__actions .proto-settings-btn {
+  width: auto;
+  flex: 1;
+}
+
 /* ─── Settings (macOS System Settings-style two-pane) ─────────────────────── */
 /* Centered "Settings" title shown in the toolbar while in the settings shell. */
 .proto-toolbar-title {
@@ -3450,6 +3552,13 @@ html.harvous-prototype-route .proto-fte-tag-chip__accept svg path {
   min-width: 0;
   flex: 1 1 0;
   text-align: left;
+}
+
+/* Settings rows use note-row chrome, but option sublabels should wrap fully (My Data, etc.). */
+.proto-settings__content .proto-note-row .proto-settings-list-row__main .pds-list-preview {
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
 }
 
 /* Leading icon tile — pricing-style block (Settings > Add-ons, Sharing cards). */
@@ -4530,7 +4639,21 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
 .proto-home-loading {
   display: flex;
   justify-content: center;
-  padding: 24px 14px 14px;
+  padding: 28px 18px 14px;
+}
+
+.proto-home-reveal {
+  position: relative;
+}
+
+/* Prefetch home layout off-flow so the in-flow loading dots never move. */
+.proto-home-view--preparing {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .proto-home-error {
@@ -4568,20 +4691,18 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
 .proto-home-view--enter .proto-home-section {
   /* Avoid a static opacity:0 — if the animation doesn't start (scroll containers / WebKit),
      sections stay invisible until the user scrolls. Keyframe `from` + backwards handles the fade-in. */
-  animation: proto-home-section-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: proto-home-section-in 0.48s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
-.proto-home-view--enter .proto-home-section:nth-child(1) {
-  animation-delay: 0ms;
-}
-
-.proto-home-view--enter .proto-home-section:nth-child(2) {
-  animation-delay: 80ms;
-}
-
-.proto-home-view--enter .proto-home-section:nth-child(3) {
-  animation-delay: 160ms;
-}
+/* Top-to-bottom cascade once the full home composition is ready to present. */
+.proto-home-view--enter .proto-home-section:nth-child(1) { animation-delay: 0ms; }
+.proto-home-view--enter .proto-home-section:nth-child(2) { animation-delay: 70ms; }
+.proto-home-view--enter .proto-home-section:nth-child(3) { animation-delay: 140ms; }
+.proto-home-view--enter .proto-home-section:nth-child(4) { animation-delay: 210ms; }
+.proto-home-view--enter .proto-home-section:nth-child(5) { animation-delay: 280ms; }
+.proto-home-view--enter .proto-home-section:nth-child(6) { animation-delay: 350ms; }
+.proto-home-view--enter .proto-home-section:nth-child(7) { animation-delay: 420ms; }
+.proto-home-view--enter .proto-home-section:nth-child(8) { animation-delay: 490ms; }
 
 @media (prefers-reduced-motion: reduce) {
   .proto-home-view--enter .proto-home-section {
@@ -4692,7 +4813,7 @@ button.proto-home-card--tappable:focus-visible {
 
 .proto-home-card__preview,
 .proto-home-card__excerpt {
-  margin: 2px 0 0;
+  margin: 4px 0 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4703,7 +4824,7 @@ button.proto-home-card--tappable:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: 5px;
-  margin-top: 8px;
+  margin-top: 4px;
   font-family: var(--pds-font-body);
   font-size: var(--pds-list-meta-size);
   line-height: 1.35;
@@ -5276,20 +5397,24 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
   padding-bottom: 20px;
 }
 
-/* Pinned translation credit — sheet bottom, scripture dock banner parity. */
-.proto-votd-sheet__attribution {
+/* Full-bleed sheet footer — not the inset scripture-pill chrome banner. */
+.proto-votd-sheet > footer.proto-votd-sheet__attribution.scripture-pill-chrome__attribution {
   flex-shrink: 0;
-  margin-top: 0;
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
   border-radius: 0;
-  border-left: none;
-  border-right: none;
-  border-bottom: none;
+  border: none;
+  border-top: 0.5px solid var(--pds-border);
   padding: 8px 20px 12px;
   background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 3%, transparent);
 }
 
-.proto-votd-sheet__attribution--fab {
-  padding-right: 68px;
+/* Clear the absolute FAB (44px + 16px inset + gap). Must match or beat the padding
+   shorthand specificity above so padding-right actually applies. */
+.proto-votd-sheet
+  > footer.proto-votd-sheet__attribution.scripture-pill-chrome__attribution.proto-votd-sheet__attribution--fab {
+  padding: 8px 76px 12px 20px;
 }
 
 .proto-votd-sheet__html {
@@ -6757,9 +6882,10 @@ button.proto-appearance-hero__card {
 .proto-thread-review {
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  /* Fill the sidebar scroll area so absolute footer actions pin to the bottom. */
+  min-height: 100%;
   position: relative;
-  flex: 1;
+  flex: 1 1 auto;
 }
 
 /* Clear the floating migration pill stack (z-index 2) so footer actions stay tappable. */

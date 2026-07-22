@@ -5,12 +5,10 @@ export interface PrototypeHomeContentReadyInput {
 }
 
 /**
- * True when the home sidebar can leave ProtoHomeLoading and paint.
+ * True when notes have loaded enough to leave a hard-error/loading notes phase.
  *
- * INVARIANT: Home shell paint depends only on the notes list phase (`list` | `empty`).
- * Do NOT gate on tags, study threads, highlights, scripture index, or VOTD — those may
- * populate cards progressively. Requiring them caused endless loading dots when any
- * auxiliary stayed pending (including auth-gated queries that are `isPending` while disabled).
+ * Prefer {@link isPrototypeHomePresentationReady} for painting the home view — that waits
+ * until greeting + card enrichment queries have settled, then presents top-to-bottom.
  */
 export function isPrototypeHomeContentReady(input: PrototypeHomeContentReadyInput): boolean {
   const { notesListPhase } = input;
@@ -21,4 +19,41 @@ export function isPrototypeHomeContentReady(input: PrototypeHomeContentReadyInpu
 /** React Query helper: settled when not pending or cached data exists. */
 export function isQuerySettled(isPending: boolean, hasData: boolean): boolean {
   return !isPending || hasData;
+}
+
+export interface PrototypeHomePresentationReadyInput {
+  /** Notes list/empty. */
+  notesReady: boolean;
+  /** Clerk `useUser().isLoaded` — enough for the hello first name. */
+  clerkLoaded: boolean;
+  fingerprintsSettled: boolean;
+  tagsSettled: boolean;
+  threadsSettled: boolean;
+  scriptureSettled: boolean;
+  /** Cross-ref / reference-word queries used by optional greeting trend clauses. */
+  connectionsSettled: boolean;
+  /** Highlights feed cards (spotlight / recall). */
+  highlightsSettled: boolean;
+  /** Daily passage pill — settle even when the day has no VOTD. */
+  votdSettled: boolean;
+}
+
+/**
+ * True when Home can leave ProtoHomeLoading and present the full view once —
+ * greeting sentence + cards — in a single top-to-bottom enter animation.
+ *
+ * Uses query *settled* (fetched or cached), never “has rows”, so a slow/empty
+ * auxiliary cannot strand the shell on loading dots forever.
+ */
+export function isPrototypeHomePresentationReady(input: PrototypeHomePresentationReadyInput): boolean {
+  if (!input.notesReady || !input.clerkLoaded) return false;
+  return (
+    input.fingerprintsSettled &&
+    input.tagsSettled &&
+    input.threadsSettled &&
+    input.scriptureSettled &&
+    input.connectionsSettled &&
+    input.highlightsSettled &&
+    input.votdSettled
+  );
 }

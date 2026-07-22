@@ -1,9 +1,9 @@
 import { useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
+import { Navigate, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
-import { prototypeSettingsRouteTo } from '@/lib/prototype-path';
+import { prototypeSettingsAccountRouteTo, prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { readSettingsOpenerPath } from '../../../lib/prototype-settings-opener';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { SETTINGS_CATEGORIES } from './settingsCategories';
@@ -11,6 +11,11 @@ import { SETTINGS_CATEGORIES } from './settingsCategories';
 function isSettingsIndexPath(pathname: string) {
   const settingsRoot = prototypeSettingsRouteTo();
   return pathname === settingsRoot || pathname === `${settingsRoot}/`;
+}
+
+/** Shown in the settings Outlet when a child path doesn't match (avoids bare "Not Found"). */
+export function PrototypeSettingsNotFound() {
+  return <Navigate to={prototypeSettingsAccountRouteTo()} replace />;
 }
 
 /**
@@ -57,7 +62,7 @@ export default function PrototypeSettingsLayout() {
               className="proto-settings__nav-item"
               data-active={active ? 'true' : 'false'}
               aria-current={active ? 'page' : undefined}
-              onClick={() => navigate({ to: cat.route, replace: true })}
+              onClick={() => navigate({ to: cat.route as '/settings/account', replace: true })}
             >
               <span className="proto-settings__nav-icon" aria-hidden>
                 <Icon name={cat.icon} size={15} />

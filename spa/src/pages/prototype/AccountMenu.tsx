@@ -10,8 +10,9 @@ import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { resolveProfileFullName } from '@/utils/nav-avatar-initials';
 import { resolveClerkProfileImageUrl } from '../../lib/clerk-profile-image';
-import { prototypeSettingsRouteTo } from '@/lib/prototype-path';
+import { prototypeSettingsAccountRouteTo, prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { storeSettingsOpenerPath } from '../../lib/prototype-settings-opener';
+import { useProtoShell } from '../../layouts/proto-shell-context';
 import { updateCachedProfile, useProfile } from '../../hooks/queries/useProfile';
 import { usePopoverDismiss } from '../../hooks/usePopoverDismiss';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -24,6 +25,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.searchStr });
+  const { isMobileSidebar } = useProtoShell();
   const { data: profile } = useProfile();
   const queryClient = useQueryClient();
   const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
@@ -97,7 +99,11 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               onClick={() => {
                 setOpen(false);
                 storeSettingsOpenerPath(`${pathname}${searchRaw ?? ''}`);
-                void navigate({ to: prototypeSettingsRouteTo() });
+                // Desktop: open Account detail directly so the settings Outlet never
+                // briefly hits TanStack's default Not Found during the index redirect.
+                void navigate({
+                  to: isMobileSidebar ? prototypeSettingsRouteTo() : prototypeSettingsAccountRouteTo(),
+                });
               }}
             >
               <span className="proto-menu-item__icon" aria-hidden>
