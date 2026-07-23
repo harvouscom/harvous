@@ -5,34 +5,44 @@
 > in `server/db/schema.ts` (shared-spaces foundation), and the **admin
 > provisioning pipes are built** (`server/routes/churches.ts` +
 > `server/utils/clerk-org.ts` + the `/admin/churches` SPA page — all
-> `requireHarvousAdmin`-gated, invisible to users). `ChurchConnectionRequests`
-> is **planned** — it lands with the connect flow.
+> `requireHarvousAdmin`-gated). `ChurchConnectionRequests` is **planned** — it
+> lands with the connect flow. Product lock: **v0 is staff-only**; congregant
+> connect / Home "From your church" stay dark — see
+> [Locked product decisions](./CHURCH_ORG_AND_CURRICULUM.md#locked-product-decisions-july-2026).
+> **Multi-church + home church** is locked below (memberships many, home one);
+> schema for that lands with congregant connect, not in the staff pilot.
+>
+> **Here’s My Church (directory SoT):** Stable directory identity is
+> `Churches.hmcChurchId` / `UserMetadata.hmcChurchId` (e.g. `TX-123456`).
+> Name/city/state on those rows are a **denormalized cache** refreshed from the
+> HMC partner API (`server/utils/hmc-partner.ts`). Clerk `Churches.orgId` remains
+> the **staff org shell** for ministry spaces — not the directory identity.
+> Partner key is server-only; see heresmychurch `docs/future/public-api.md`.
 >
 > **Operational prerequisite:** the Clerk instance must have the
 > **Organizations feature enabled** (Clerk dashboard → Organizations). Until
 > then, org lookups return 403 and the admin endpoints answer
-> `CLERK_ORGS_NOT_ENABLED` (verified July 2026 — currently NOT enabled on the
-> dev instance). All endpoints, matching code,
-> and UI in this doc are design sketches, not shipped code. Code samples are in
-> the Hono `server/routes/*` + Drizzle idiom of the current server (the original
-> Astro DB / `APIRoute` sketches are retired).
+> `CLERK_ORGS_NOT_ENABLED`. Connect endpoints, matching code, and congregant UI
+> in this doc are design sketches, not shipped code. Code samples are in the
+> Hono `server/routes/*` + Drizzle idiom of the current server.
 
 ## Overview
 
-This system allows users to set their church, churches to create Clerk Organizations, and automatically connects them when a church joins Harvous.
+This system allows users to set their church, churches to create Clerk Organizations, and connects them when a church joins Harvous so they can receive **ministry education** (curriculum channels) — not a bulletin of announcements. Shared Spaces remain the small-group / PCO Groups lane; ministry broadcast spaces are the PCO Resources lane.
 
 ## User Flow
 
-### 1. User Sets Their Church (Already Implemented ✅)
-- User goes to Profile → My Church
-- Enters: Church Name, City, State/Province, Country
-- Stored in `UserMetadata` (`churchName/churchCity/churchState/churchCountry` — free-text, kept as **matching input only**; never repurposed for linkage)
+### 1. User Sets Their Church (HMC picker ✅)
+- User goes to Settings → My Church
+- State-scoped typeahead against Here’s My Church (`GET /api/user/churches/hmc/search`)
+- On pick: store `UserMetadata.hmcChurchId` + denormalized `churchName/churchCity/churchState` from HMC
+- Free-text fields remain a **cache / matching input**, not the identity SoT; never repurposed for org linkage (`connectedChurchId`)
 
 ### 2. Church Creates Organization
 - Church admin signs up for Harvous
 - Creates a Clerk Organization (staff/volunteers only, ≤20)
-- Enters matching church info (name, city, state, country) → creates the `Churches` row
-- System matches existing users and invites them to connect
+- Admin registers the org and **links an HMC church** (`Churches.hmcChurchId`) so hub name/location stay accurate
+- System matches existing users and invites them to connect (future)
 
 ### 3. Automatic Connection
 - System finds users with matching church info
@@ -146,14 +156,22 @@ route.post('/api/churches/connections/:requestId/accept', requireAuth, async (c)
 });
 ```
 
-### 3. Content Delivery — broadcast spaces, not inbox fan-out
+### 3. Content Delivery — ministry education channels, not inbox fan-out
 
 The retired design pushed per-user `InboxItems`/`UserInboxItems` rows on every publish. The foundation makes that unnecessary:
 
-- Church curriculum lives in **org-owned broadcast spaces** (`Spaces.orgId` set, `type='public'`). Staff author via `owner`/`leader` membership rows; `canAuthorInSpace` already denies congregant authoring.
-- **Publishing writes nothing per recipient** — connected users follow the space (`role='member'`), and "From your church" surfaces read from the followed spaces (plus `FeaturedItems.contentType='church'` for curated highlights).
-- Members copy notes into their own Harvous via the copy-lineage rails (`copiedFromNoteId`/`NoteVersions`) — same flow as any public space.
-- The congregant fan-out query ("all users connected to church X", e.g. to backfill follows or notify) is served by `UserMetadata_connectedChurchIdIndex`.
+- Church curriculum lives in **org-owned ministry broadcast spaces** (`Spaces.orgId` set, `type='public'`) — adult ed, students, sermon series companions, leader resources, etc. **Not** an announcements bulletin as the lead metaphor.
+- Staff author via `owner`/`leader` membership rows; `canAuthorInSpace` already denies congregant authoring into the channel.
+- **Publishing writes nothing per recipient** — connected users follow ministry spaces (`role='member'`), and "From your church" is a **study feed** from those spaces (plus `FeaturedItems.contentType='church'` and future sermon-calendar starters).
+- Members copy or start-from-starter into their own Harvous via copy-lineage / note-templates — same privacy model as any public space (their notes stay theirs).
+- The congregant fan-out query ("all users connected to church X") is served by `UserMetadata_connectedChurchIdIndex`.
+
+**Still open before shipping connect** (do not invent defaults in product UI):
+
+- Church-initiated matching vs user-initiated search
+- Whether `auto_joined` survives or everything is accept/decline
+- Request expiry
+- Auto-follow **all** ministry channels vs opted ministry tracks
 
 ## User Experience
 
@@ -162,8 +180,8 @@ The retired design pushed per-user `InboxItems`/`UserInboxItems` rows on every p
 1. **User sets church** in Profile → My Church
 2. **Church joins Harvous** later
 3. **User sees notification**: "First Baptist Church joined Harvous! Connect?"
-4. **User clicks "Connect"** → Linked to church in our DB (not added to Clerk org); auto-followed into church broadcast spaces
-5. **Church content appears** in "From your church" (delivery via broadcast-space membership, not Clerk org membership)
+4. **User clicks "Connect"** → Linked to church in our DB (not added to Clerk org); followed into ministry education channels (scope TBD)
+5. **Study content appears** in "From your church" (ministry-space membership, not Clerk org membership) — curriculum feed, not announcements
 
 ### For Churches
 
@@ -171,27 +189,56 @@ The retired design pushed per-user `InboxItems`/`UserInboxItems` rows on every p
 2. **Creates organization** with church info (staff/volunteers are added to Clerk org, ≤20)
 3. **System finds matching users** automatically
 4. **Sends connection requests** to high-confidence matches
-5. **Users accept** → Linked in our DB; followed into church broadcast spaces (congregants are not Clerk org members)
-6. **Church publishes** into its broadcast spaces → visible to all connected followers
+5. **Users accept** → Linked in our DB; followed into ministry channels (congregants are not Clerk org members)
+6. **Church publishes** curriculum into ministry broadcast spaces → visible to connected followers of those channels
 
 ## UI Components Needed (planned, SPA)
 
-1. **Church connection notification** — shown when a church matching the user's church info joins (prototype SPA surface, e.g. a Home banner or inbox-style card)
+1. **Church connection notification** — shown when a church matching the user's church info joins (Home banner or similar)
 2. **Church connection request panel** — pending requests in settings/My Church
-3. **Church dashboard** — SPA route for church staff (role-gated via Clerk org roles): manage broadcast spaces, view aggregate connection counts
+3. **Church dashboard** — SPA route for church staff (role-gated via Clerk org roles): manage **ministry education channels**, sermon calendar, aggregate connection counts
 
 ## Benefits
 
 ✅ **Automatic Discovery**: Users don't need to search for their church
 ✅ **Seamless Connection**: One-click to connect
-✅ **Content Delivery**: Church content appears via followed broadcast spaces — no per-user fan-out writes
-✅ **Privacy**: Users control their connection
-✅ **Scalable**: Works for churches of any size (congregants access via our DB and broadcast spaces; only staff count toward the 20-person Clerk org limit; broadcast spaces are exempt from the 30-person shared-space cap)
+✅ **Content Delivery**: Ministry curriculum appears via followed education channels — no per-user fan-out writes
+✅ **Privacy**: Users control their connection; their notes stay theirs
+✅ **Scalable**: Congregants via our DB + ministry spaces; only staff count toward the 20-person Clerk org limit; broadcast spaces are exempt from the 30-person shared-space cap
+
+## Locked: multi-church + home church (July 2026)
+
+Decided with the staff pilot; do not reopen casually. **No schema/UI in v0** — congregant connect remains dark. When connect ships, implement this model (not singular “one linked church forever”).
+
+| Decision | Lock |
+|---|---|
+| **Belonging** | Explicit **church membership** (connect/accept). Ministry channel follows are separate and only make sense under a membership. |
+| **Cardinality** | A user may hold **many** church memberships. |
+| **Home church** | Exactly **one** home church among those memberships. |
+| **Home UI** | **"From your church" = home church only.** Other churches appear in Settings — not on the Home feed. |
+| **Shell modes** | Top-level **My Home** vs **My Church**. My Church is always the **home church** (A). An in-mode church picker (**B**) is a later enhancement — do not build yet. |
+| **My Church catalog** | Two lanes: **Shared Spaces** (church-scoped; same name/styling as personal) and **ministry channels** (staff followable feeds). Full comparison: [CHURCH_ORG_AND_CURRICULUM — distinction](./CHURCH_ORG_AND_CURRICULUM.md#church-shared-spaces-vs-ministry-channels-locked-distinction). |
+| **Shared under both** | Personal Shared Spaces under My Home (`orgId` null, owner-pays). Church Shared Spaces under My Church (`orgId` set) — **create-at-church or migrate** from a member (UI later). Church-sponsored; leave personal owned-count on migrate. Collaborative compose; 30-person cap. |
+| **Ministry channels** | Followable church feed (`type='public'` + `orgId`) — curriculum and other staff-authored study info. Staff write; followers read + copy. Distinct UI/icon (RSS preferred); never called Shared Spaces. |
+| **First connect** | First accepted membership becomes home automatically. |
+| **Change home** | Allowed anytime among current memberships (settings). |
+| **Leave home** | If other memberships remain, user must pick a new home in the leave flow; if a choice cannot be collected (e.g. church deactivated), auto-promote the earliest remaining membership. If none remain, clear home. |
+| **Clerk org** | Unchanged: staff/volunteers ≤20; congregants never Clerk org members. |
+| **Staff pilot** | My Church lists ministry channels (and later church Shared Spaces) for the home church; staff bridge when home not connected; ministry channel open stays read-only for now. |
+
+**Schema direction (document only — no migration yet):**
+
+- `ChurchMemberships` (or equivalent): `(userId, churchId, status, joinedAt)` unique per pair
+- Clarify today’s singular `UserMetadata.connectedChurchId` / `connectedOrgId` as **home** (`homeChurchId` / `homeOrgId`, or keep names and treat them as home only)
+- Ministry channel follows stay as `SpaceMemberships` on `type='public'` + `orgId` spaces; joining a channel requires (or implies) church membership
+- Church-scoped Shared Space: `type='shared'` + `orgId` (church-sponsored); personal Shared Space: `type='shared'` + `orgId` null (owner-pays)
+
+Fan-out “all congregants of church X” becomes membership-table indexed, not “everyone whose home is X only,” once memberships exist. Home still drives the Home study feed.
 
 ## Future Enhancements
 
 1. **Church Search**: Let users search for their church if not auto-matched
-2. **Multiple Churches**: Support users who attend multiple churches
+2. **My Church picker (B)**: When the user belongs to multiple churches, pick which church My Church mode shows (home remains the default)
 3. **Church Verification**: Verify churches are legitimate
 4. **Church Directory**: Public directory of churches on Harvous
 5. **Church Analytics**: Aggregate only — N connected, N following a study; never individual note content ("Review is never shared" is the privacy principle)

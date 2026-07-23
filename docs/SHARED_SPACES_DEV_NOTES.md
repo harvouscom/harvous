@@ -199,4 +199,5 @@ Supabase project and rejects a declared production target.
 - [future/SPACE_MODES_PRODUCT.md](./future/SPACE_MODES_PRODUCT.md) — product rules and limits.
 - [future/SHARED_SPACES_LAUNCH_STRATEGY.md](./future/SHARED_SPACES_LAUNCH_STRATEGY.md) — launch readiness.
 - [future/SHARED_SPACES_ROADMAP.md](./future/SHARED_SPACES_ROADMAP.md) — post-v1 sequence.
+- [future/SPACE_COVER_IMAGE_VARIANTS.md](./future/SPACE_COVER_IMAGE_VARIANTS.md) — 5×5×light/dark cover catalog (space covers only).
 - [future/MENTION_PILLS.md](./future/MENTION_PILLS.md) — future mention rules.

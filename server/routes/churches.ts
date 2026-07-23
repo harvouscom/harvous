@@ -8,7 +8,10 @@
  *
  * Endpoints:
  *   GET  /api/admin/churches                          — list + space counts
- *   POST /api/admin/churches                          — register a church (verifies the Clerk org exists)
+ *   GET  /api/admin/churches/hmc/search               — proxy Here’s My Church partner search
+ *   POST /api/admin/churches                          — register a church (optional hmcChurchId link)
+ *   POST /api/admin/churches/:churchId/update         — edit details / link or unlink HMC
+ *   POST /api/admin/churches/:churchId/refresh-hmc    — refresh denorm name/city/state from HMC
  *   POST /api/admin/churches/:churchId/deactivate     — flip isActive off (inert kill-switch; spaces untouched)
  *   POST /api/admin/churches/:churchId/reactivate     — flip isActive on
  *   POST /api/admin/churches/:churchId/spaces         — create an org-owned broadcast space (type='public' + orgId)
@@ -21,7 +24,7 @@
  */
 
 import { Hono } from 'hono';
-import { db, first, Spaces, SpaceMemberships, Churches, eq, and, isNull, nowISO } from '../db';
+import { db, first, Spaces, SpaceMemberships, Churches, eq, and, ne, isNull, nowISO } from '../db';
 import { requireHarvousAdmin, getHarvousSystemUserId } from '../utils/harvous-admin';
 import { getAuth } from '../middleware/auth';
 import {
@@ -37,8 +40,21 @@ import { serializeSpaceCoverForDb, spaceCoverFromThreadColor } from '@/utils/spa
 import { validateTitle, validateColor } from '@/utils/validation';
 import { generateSpaceId } from '@/utils/ids';
 import { handleAPIError } from '@/utils/error-handling';
+import {
+  HmcPartnerError,
+  hmcDenormFields,
+  hmcGetChurchById,
+  hmcSearchChurches,
+} from '../utils/hmc-partner';
 
 const app = new Hono();
+
+function hmcErrorResponse(c: any, error: unknown) {
+  if (error instanceof HmcPartnerError) {
+    return c.json({ error: error.message, code: error.code }, error.status as 400 | 401 | 403 | 404 | 429 | 500 | 502 | 503);
+  }
+  return null;
+}
 
 function clerkErrorResponse(c: any, error: unknown) {
   if (error instanceof ClerkOrgError) {
@@ -75,6 +91,32 @@ app.get('/api/admin/churches', async (c) => {
     return c.json({ success: true, churches: rows.reverse() });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/admin/churches', action: 'list_churches' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/admin/churches/hmc/search ─────────────────────────────────────
+app.get('/api/admin/churches/hmc/search', async (c) => {
+  const gate = await requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const q = String(c.req.query('q') ?? '');
+    const state = String(c.req.query('state') ?? '');
+    const limitRaw = Number(c.req.query('limit') ?? 20);
+    const results = await hmcSearchChurches({
+      q,
+      state,
+      limit: Number.isFinite(limitRaw) ? limitRaw : 20,
+    });
+    return c.json({ success: true, results, query: q.trim() });
+  } catch (error: any) {
+    const hmc = hmcErrorResponse(c, error);
+    if (hmc) return hmc;
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/admin/churches/hmc/search',
+      action: 'hmc_search',
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
@@ -122,19 +164,46 @@ app.post('/api/admin/churches', async (c) => {
   try {
     const body = await c.req.json().catch(() => ({} as any));
     const orgId = typeof body.orgId === 'string' ? body.orgId.trim() : '';
-    const name = typeof body.name === 'string' ? body.name.trim() : '';
-    const city = typeof body.city === 'string' ? body.city.trim() || null : null;
-    const state = typeof body.state === 'string' ? body.state.trim() || null : null;
+    const hmcChurchIdRaw =
+      typeof body.hmcChurchId === 'string' ? body.hmcChurchId.trim() || null : null;
+    let name = typeof body.name === 'string' ? body.name.trim() : '';
+    let city = typeof body.city === 'string' ? body.city.trim() || null : null;
+    let state = typeof body.state === 'string' ? body.state.trim() || null : null;
     const country = typeof body.country === 'string' ? body.country.trim() || null : null;
+    let hmcChurchId: string | null = null;
 
     if (!isValidClerkOrgId(orgId)) {
       return c.json({ error: 'orgId must be a Clerk organization id (org_…)', code: 'INVALID_ORG_ID' }, 400);
     }
+
+    if (hmcChurchIdRaw) {
+      const hmc = await hmcGetChurchById(hmcChurchIdRaw);
+      if (!hmc) return c.json({ error: 'Here’s My Church record not found', code: 'HMC_CHURCH_NOT_FOUND' }, 404);
+      const denorm = hmcDenormFields(hmc);
+      hmcChurchId = hmc.id;
+      name = denorm.name;
+      city = denorm.city;
+      state = denorm.state;
+    }
+
     const titleValidation = validateTitle(name, true);
     if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
 
     const existing = first(await db.select({ id: Churches.id }).from(Churches).where(eq(Churches.orgId, orgId)).limit(1));
     if (existing) return c.json({ error: 'A church is already registered for this organization', code: 'CHURCH_EXISTS' }, 409);
+
+    if (hmcChurchId) {
+      const hmcTaken = first(
+        await db
+          .select({ id: Churches.id })
+          .from(Churches)
+          .where(eq(Churches.hmcChurchId, hmcChurchId))
+          .limit(1),
+      );
+      if (hmcTaken) {
+        return c.json({ error: 'Another church is already linked to this Here’s My Church record', code: 'HMC_ALREADY_LINKED' }, 409);
+      }
+    }
 
     // Verify the org actually exists in Clerk before registering. Fail closed:
     // the admin created it in the dashboard moments ago, so a retry is cheap.
@@ -155,10 +224,11 @@ app.post('/api/admin/churches', async (c) => {
     const church = first(await db.insert(Churches).values({
       id: `chur_${crypto.randomUUID()}`,
       orgId,
+      hmcChurchId,
       name,
       city,
       state,
-      country,
+      country: hmcChurchId ? null : country,
       createdBy,
       billingPlan: null,
       isActive: true,
@@ -169,7 +239,171 @@ app.post('/api/admin/churches', async (c) => {
     // Echo Clerk's own name so the admin can eyeball a mismatch with the registered name.
     return c.json({ success: true, church, clerkOrg: { name: clerkOrg.name, slug: clerkOrg.slug } });
   } catch (error: any) {
+    const hmc = hmcErrorResponse(c, error);
+    if (hmc) return hmc;
     const standardError = handleAPIError(error, { endpoint: '/api/admin/churches', action: 'register_church' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/admin/churches/:churchId/update ──────────────────────────────
+/**
+ * Edit registered church display fields / HMC link. Org id is immutable.
+ * When linked to HMC, name/city/state are SoT from HMC — manual edits rejected.
+ */
+app.post('/api/admin/churches/:churchId/update', async (c) => {
+  const gate = await requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const churchId = c.req.param('churchId');
+    const existing = first(await db.select().from(Churches).where(eq(Churches.id, churchId)).limit(1));
+    if (!existing) return c.json({ error: 'Church not found', code: 'CHURCH_NOT_FOUND' }, 404);
+
+    const body = await c.req.json().catch(() => ({} as any));
+    const patch: {
+      hmcChurchId?: string | null;
+      name?: string;
+      city?: string | null;
+      state?: string | null;
+      country?: string | null;
+      updatedAt: Date;
+    } = { updatedAt: nowISO() };
+
+    const linkingHmc =
+      body.hmcChurchId !== undefined &&
+      typeof body.hmcChurchId === 'string' &&
+      body.hmcChurchId.trim() !== '';
+    const unlinkingHmc =
+      body.hmcChurchId !== undefined &&
+      (body.hmcChurchId === null ||
+        (typeof body.hmcChurchId === 'string' && body.hmcChurchId.trim() === ''));
+
+    if (linkingHmc) {
+      const hmc = await hmcGetChurchById(String(body.hmcChurchId).trim());
+      if (!hmc) return c.json({ error: 'Here’s My Church record not found', code: 'HMC_CHURCH_NOT_FOUND' }, 404);
+      const taken = first(
+        await db
+          .select({ id: Churches.id })
+          .from(Churches)
+          .where(and(eq(Churches.hmcChurchId, hmc.id), ne(Churches.id, churchId)))
+          .limit(1),
+      );
+      if (taken) {
+        return c.json(
+          { error: 'Another church is already linked to this Here’s My Church record', code: 'HMC_ALREADY_LINKED' },
+          409,
+        );
+      }
+      const denorm = hmcDenormFields(hmc);
+      patch.hmcChurchId = hmc.id;
+      patch.name = denorm.name;
+      patch.city = denorm.city;
+      patch.state = denorm.state;
+      patch.country = null;
+    } else if (unlinkingHmc) {
+      patch.hmcChurchId = null;
+    }
+
+    const willBeLinked = linkingHmc || (!unlinkingHmc && Boolean(existing.hmcChurchId));
+    const touchingDenorm =
+      body.name !== undefined ||
+      body.city !== undefined ||
+      body.state !== undefined ||
+      body.country !== undefined;
+
+    if (willBeLinked && touchingDenorm && !linkingHmc) {
+      return c.json(
+        {
+          error: 'Name and location are managed by Here’s My Church while linked — refresh or unlink first',
+          code: 'HMC_LINKED_READONLY',
+        },
+        400,
+      );
+    }
+
+    if (!willBeLinked || linkingHmc) {
+      if (body.name !== undefined && !linkingHmc) {
+        const name = typeof body.name === 'string' ? body.name.trim() : '';
+        const titleValidation = validateTitle(name, true);
+        if (!titleValidation.isValid) {
+          return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
+        }
+        patch.name = name;
+      }
+      if (body.city !== undefined && !linkingHmc) {
+        patch.city = typeof body.city === 'string' ? body.city.trim() || null : null;
+      }
+      if (body.state !== undefined && !linkingHmc) {
+        patch.state = typeof body.state === 'string' ? body.state.trim() || null : null;
+      }
+      if (body.country !== undefined && !linkingHmc) {
+        patch.country = typeof body.country === 'string' ? body.country.trim() || null : null;
+      }
+    }
+
+    if (
+      patch.hmcChurchId === undefined &&
+      patch.name === undefined &&
+      patch.city === undefined &&
+      patch.state === undefined &&
+      patch.country === undefined
+    ) {
+      return c.json({ error: 'No fields to update', code: 'EMPTY_PATCH' }, 400);
+    }
+
+    const church = first(
+      await db.update(Churches).set(patch).where(eq(Churches.id, churchId)).returning(),
+    )!;
+    return c.json({ success: true, church });
+  } catch (error: any) {
+    const hmc = hmcErrorResponse(c, error);
+    if (hmc) return hmc;
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/admin/churches/[churchId]/update',
+      action: 'update_church',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/admin/churches/:churchId/refresh-hmc ─────────────────────────
+app.post('/api/admin/churches/:churchId/refresh-hmc', async (c) => {
+  const gate = await requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const churchId = c.req.param('churchId');
+    const existing = first(await db.select().from(Churches).where(eq(Churches.id, churchId)).limit(1));
+    if (!existing) return c.json({ error: 'Church not found', code: 'CHURCH_NOT_FOUND' }, 404);
+    if (!existing.hmcChurchId) {
+      return c.json({ error: 'Church is not linked to Here’s My Church', code: 'HMC_NOT_LINKED' }, 400);
+    }
+
+    const hmc = await hmcGetChurchById(existing.hmcChurchId);
+    if (!hmc) return c.json({ error: 'Here’s My Church record not found', code: 'HMC_CHURCH_NOT_FOUND' }, 404);
+    const denorm = hmcDenormFields(hmc);
+    const church = first(
+      await db
+        .update(Churches)
+        .set({
+          hmcChurchId: hmc.id,
+          name: denorm.name,
+          city: denorm.city,
+          state: denorm.state,
+          updatedAt: nowISO(),
+        })
+        .where(eq(Churches.id, churchId))
+        .returning(),
+    )!;
+    return c.json({ success: true, church });
+  } catch (error: any) {
+    const hmc = hmcErrorResponse(c, error);
+    if (hmc) return hmc;
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/admin/churches/[churchId]/refresh-hmc',
+      action: 'refresh_hmc',
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

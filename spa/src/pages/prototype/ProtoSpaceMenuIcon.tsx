@@ -1,9 +1,10 @@
 /**
- * Shared space row icon for prototype menus — accent tile + user-group glyph
+ * Space row icon for prototype menus — accent tile + glyph
  * (matches join invite letter via `.space-icon-tile`; replaces the old color dot).
+ * Shared Spaces use `user-group`; ministry channels pass `rss`.
  */
 import { useSyncExternalStore } from 'react';
-import Icon from '@/components/react/Icon';
+import Icon, { type IconName } from '@/components/react/Icon';
 import { spaceIconAccentHex } from '@/utils/space-cover';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
@@ -17,6 +18,7 @@ export default function ProtoSpaceMenuIcon({
   radius,
   glyphSize,
   variant = 'menu',
+  iconName = 'user-group',
 }: {
   color?: string;
   size?: number;
@@ -27,6 +29,8 @@ export default function ProtoSpaceMenuIcon({
   glyphSize?: number;
   /** `orb` fills the toolbar circle edge-to-edge; `menu` is the compact menu row tile. */
   variant?: 'menu' | 'orb';
+  /** Glyph inside the color tile. Default people icon; ministry channels use `rss`. */
+  iconName?: IconName;
 }) {
   const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
   const isOrb = variant === 'orb';
@@ -45,7 +49,7 @@ export default function ProtoSpaceMenuIcon({
         ['--space-icon-accent' as string]: accent,
       }}
     >
-      <Icon name="user-group" size={iconSize} />
+      <Icon name={iconName} size={iconSize} />
     </span>
   );
 }

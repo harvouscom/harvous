@@ -2,10 +2,20 @@ import { useState, type ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
 
-/** One-line intro under the settings nav/sheet header — matches My Church tone and typography. */
+/**
+ * Optional intro under the settings header. Prefer omitting when the nav title
+ * already explains the page — keep only for non-obvious behavior (e.g. PIN, Shift hints).
+ */
 export function SettingsIntro({ children }: { children: ReactNode }) {
   return (
-    <p className="pds-subheadline" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 20px' }}>
+    <p
+      className="pds-subheadline"
+      style={{
+        color: 'var(--pds-text-secondary)',
+        margin: '0 0 20px',
+        textWrap: 'pretty',
+      }}
+    >
       {children}
     </p>
   );

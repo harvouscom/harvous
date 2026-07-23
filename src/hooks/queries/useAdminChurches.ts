@@ -32,6 +32,7 @@ async function adminApiPost<T>(path: string, body?: unknown): Promise<T> {
 export type AdminChurch = {
   id: string;
   orgId: string;
+  hmcChurchId?: string | null;
   name: string;
   city: string | null;
   state: string | null;
@@ -41,6 +42,15 @@ export type AdminChurch = {
   isActive: boolean;
   createdAt: string;
   spaceCount: number;
+};
+
+export type AdminHmcChurchResult = {
+  id: string;
+  shortId: string;
+  name: string;
+  city: string;
+  state: string;
+  address?: string | null;
 };
 
 export type StaffSyncResult = {
@@ -81,10 +91,34 @@ export function useAdminChurches() {
   });
 }
 
+/** Stable helper for typeahead (avoids remounting search when mutation object identity changes). */
+export async function searchAdminHmcChurches(
+  q: string,
+  state: string,
+  limit = 20,
+): Promise<AdminHmcChurchResult[]> {
+  const params = new URLSearchParams({
+    q,
+    state,
+    limit: String(limit),
+  });
+  const data = await adminApiGet<{ success: boolean; results: AdminHmcChurchResult[] }>(
+    `/api/admin/churches/hmc/search?${params.toString()}`,
+  );
+  return data.results;
+}
+
 export function useRegisterChurch() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: { orgId: string; name: string; city?: string; state?: string; country?: string }) =>
+    mutationFn: (body: {
+      orgId: string;
+      name?: string;
+      city?: string;
+      state?: string;
+      country?: string;
+      hmcChurchId?: string;
+    }) =>
       adminApiPost<{ success: boolean; church: AdminChurch; clerkOrg: { name: string; slug: string | null } }>(
         '/api/admin/churches',
         body,
@@ -119,5 +153,42 @@ export function useSetChurchActive(churchId: string) {
         `/api/admin/churches/${churchId}/${active ? 'reactivate' : 'deactivate'}`,
       ),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin', 'churches'] }),
+  });
+}
+
+/** Edit registered church name / location / HMC link (hub subtitle reads city + state). */
+export function useUpdateAdminChurch(churchId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      name?: string;
+      city?: string | null;
+      state?: string | null;
+      country?: string | null;
+      hmcChurchId?: string | null;
+    }) =>
+      adminApiPost<{ success: boolean; church: AdminChurch }>(
+        `/api/admin/churches/${churchId}/update`,
+        body,
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'churches'] });
+      // Hub header location comes from nav church attach — refresh after edit.
+      void queryClient.invalidateQueries({ queryKey: ['navigation'] });
+    },
+  });
+}
+
+export function useRefreshAdminChurchHmc(churchId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      adminApiPost<{ success: boolean; church: AdminChurch }>(
+        `/api/admin/churches/${churchId}/refresh-hmc`,
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'churches'] });
+      void queryClient.invalidateQueries({ queryKey: ['navigation'] });
+    },
   });
 }

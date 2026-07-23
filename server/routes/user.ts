@@ -9,6 +9,7 @@
  *   DELETE /api/user/delete-account
  *   GET  /api/user/export
  *   POST /api/user/session
+ *   GET  /api/user/churches/hmc/search
  *   POST /api/user/update-church
  *   POST /api/user/update-credentials
  *   POST /api/user/update-profile
@@ -36,6 +37,12 @@ import {
   eq, and, ne, or, desc, asc, isNotNull, isNull, sql, inArray,
 } from '../db';
 import { nowISO } from '../db/dates';
+import {
+  HmcPartnerError,
+  hmcDenormFields,
+  hmcGetChurchById,
+  hmcSearchChurches,
+} from '../utils/hmc-partner';
 
 // Server-ported utilities
 import { getCachedUserData, invalidateUserCache } from '../utils/user-cache';
@@ -341,6 +348,28 @@ app.post('/api/user/session', requireAuth, async (c) => {
   }
 });
 
+// ─── GET /api/user/churches/hmc/search ───────────────────────────────────────
+
+app.get('/api/user/churches/hmc/search', requireAuth, async (c) => {
+  try {
+    const q = String(c.req.query('q') ?? '');
+    const state = String(c.req.query('state') ?? '');
+    const limitRaw = Number(c.req.query('limit') ?? 20);
+    const results = await hmcSearchChurches({
+      q,
+      state,
+      limit: Number.isFinite(limitRaw) ? limitRaw : 20,
+    });
+    return c.json({ success: true, results, query: q.trim() });
+  } catch (error) {
+    if (error instanceof HmcPartnerError) {
+      return c.json({ error: error.message, code: error.code }, error.status as 400 | 429 | 502 | 503);
+    }
+    const e = handleAPIError(error, { endpoint: '/api/user/churches/hmc/search', action: 'hmc_search' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
 // ─── POST /api/user/update-church ────────────────────────────────────────────
 
 app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) => {
@@ -348,37 +377,86 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
     const auth = getAuthenticatedAuth(c);
 
     const body = await c.req.json();
-    const { churchName, churchCity, churchState, churchCountry } = body;
+    const hmcChurchIdRaw =
+      body.hmcChurchId === null
+        ? null
+        : typeof body.hmcChurchId === 'string'
+          ? body.hmcChurchId.trim() || null
+          : undefined;
 
-    const normalizedChurchName = typeof churchName === 'string' ? (churchName.trim() || null) : (churchName ?? null);
-    const normalizedChurchCity = typeof churchCity === 'string' ? (churchCity.trim() || null) : (churchCity ?? null);
-    const normalizedChurchState = typeof churchState === 'string' ? (churchState.trim() || null) : (churchState ?? null);
-    const normalizedChurchCountry = typeof churchCountry === 'string' ? (churchCountry.trim() || null) : (churchCountry ?? null);
+    let normalizedHmcChurchId: string | null | undefined = hmcChurchIdRaw;
+    let normalizedChurchName =
+      typeof body.churchName === 'string' ? body.churchName.trim() || null : body.churchName ?? null;
+    let normalizedChurchCity =
+      typeof body.churchCity === 'string' ? body.churchCity.trim() || null : body.churchCity ?? null;
+    let normalizedChurchState =
+      typeof body.churchState === 'string' ? body.churchState.trim() || null : body.churchState ?? null;
+    let normalizedChurchCountry =
+      typeof body.churchCountry === 'string'
+        ? body.churchCountry.trim() || null
+        : body.churchCountry ?? null;
+
+    if (hmcChurchIdRaw) {
+      const hmc = await hmcGetChurchById(hmcChurchIdRaw);
+      if (!hmc) {
+        return c.json({ error: 'Here’s My Church record not found', code: 'HMC_CHURCH_NOT_FOUND' }, 404);
+      }
+      const denorm = hmcDenormFields(hmc);
+      normalizedHmcChurchId = hmc.id;
+      normalizedChurchName = denorm.name;
+      normalizedChurchCity = denorm.city;
+      normalizedChurchState = denorm.state;
+      normalizedChurchCountry = null;
+    } else if (hmcChurchIdRaw === null) {
+      // Explicit clear — wipe HMC link and denorm fields.
+      normalizedHmcChurchId = null;
+      normalizedChurchName = null;
+      normalizedChurchCity = null;
+      normalizedChurchState = null;
+      normalizedChurchCountry = null;
+    }
 
     const existingRecord = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1);
 
     if (existingRecord.length > 0) {
       const existing = existingRecord[0];
-      const isFirstTimeAddingChurch = !existing.churchName && !existing.churchCity && !existing.churchState && !existing.churchCountry &&
-        (normalizedChurchName || normalizedChurchCity || normalizedChurchState || normalizedChurchCountry);
+      const nextHmc =
+        normalizedHmcChurchId !== undefined ? normalizedHmcChurchId : (existing.hmcChurchId ?? null);
+      const isFirstTimeAddingChurch =
+        !existing.hmcChurchId &&
+        !existing.churchName &&
+        !existing.churchCity &&
+        !existing.churchState &&
+        !existing.churchCountry &&
+        Boolean(nextHmc || normalizedChurchName || normalizedChurchCity || normalizedChurchState);
 
-      await db.update(UserMetadata).set({
-        churchName: normalizedChurchName,
-        churchCity: normalizedChurchCity,
-        churchState: normalizedChurchState,
-        churchCountry: normalizedChurchCountry,
-        churchAddedAt: isFirstTimeAddingChurch ? nowISO() : existing.churchAddedAt,
-        updatedAt: nowISO()
-      }).where(eq(UserMetadata.userId, auth.userId));
+      await db
+        .update(UserMetadata)
+        .set({
+          ...(normalizedHmcChurchId !== undefined ? { hmcChurchId: normalizedHmcChurchId } : {}),
+          churchName: normalizedChurchName,
+          churchCity: normalizedChurchCity,
+          churchState: normalizedChurchState,
+          churchCountry: normalizedChurchCountry,
+          churchAddedAt: isFirstTimeAddingChurch ? nowISO() : existing.churchAddedAt,
+          updatedAt: nowISO(),
+        })
+        .where(eq(UserMetadata.userId, auth.userId));
 
       if (isFirstTimeAddingChurch) {
         await awardChurchAddedXP(auth.userId);
       }
     } else {
-      const hasChurchData = normalizedChurchName || normalizedChurchCity || normalizedChurchState || normalizedChurchCountry;
+      const hasChurchData =
+        normalizedHmcChurchId ||
+        normalizedChurchName ||
+        normalizedChurchCity ||
+        normalizedChurchState ||
+        normalizedChurchCountry;
       await db.insert(UserMetadata).values({
         id: crypto.randomUUID(),
         userId: auth.userId,
+        hmcChurchId: normalizedHmcChurchId ?? null,
         churchName: normalizedChurchName,
         churchCity: normalizedChurchCity,
         churchState: normalizedChurchState,
@@ -387,16 +465,26 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
         highestSimpleNoteId: 0,
         userColor: 'blue',
         createdAt: nowISO(),
-        updatedAt: nowISO()
+        updatedAt: nowISO(),
       });
       if (hasChurchData) await awardChurchAddedXP(auth.userId);
     }
 
     return c.json({
-      success: true, message: 'Church information updated',
-      church: { churchName: normalizedChurchName, churchCity: normalizedChurchCity, churchState: normalizedChurchState, churchCountry: normalizedChurchCountry }
+      success: true,
+      message: 'Church information updated',
+      church: {
+        hmcChurchId: normalizedHmcChurchId ?? null,
+        churchName: normalizedChurchName,
+        churchCity: normalizedChurchCity,
+        churchState: normalizedChurchState,
+        churchCountry: normalizedChurchCountry,
+      },
     });
   } catch (error) {
+    if (error instanceof HmcPartnerError) {
+      return c.json({ error: error.message, code: error.code }, error.status as 400 | 429 | 502 | 503);
+    }
     const e = handleAPIError(error, { endpoint: '/api/user/update-church', action: 'update_church_info' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
@@ -552,13 +640,25 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
     const userData = await getCachedUserData(auth.userId);
     console.log('[api/user/get-profile] userData loaded', { displayName: userData.displayName });
 
-    let churchData = { churchName: null as string | null, churchCity: null as string | null, churchState: null as string | null, churchCountry: null as string | null };
+    let churchData = {
+      hmcChurchId: null as string | null,
+      churchName: null as string | null,
+      churchCity: null as string | null,
+      churchState: null as string | null,
+      churchCountry: null as string | null,
+    };
     let defaultTranslation = 'NET';
     let appearanceSettings: string | null = null;
     try {
       const um = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
       if (um) {
-        churchData = { churchName: um.churchName ?? null, churchCity: um.churchCity ?? null, churchState: um.churchState ?? null, churchCountry: um.churchCountry ?? null };
+        churchData = {
+          hmcChurchId: um.hmcChurchId ?? null,
+          churchName: um.churchName ?? null,
+          churchCity: um.churchCity ?? null,
+          churchState: um.churchState ?? null,
+          churchCountry: um.churchCountry ?? null,
+        };
         defaultTranslation = um.defaultTranslation ?? 'NET';
         appearanceSettings = um.appearanceSettings ?? null;
       }
@@ -590,6 +690,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       userColor: userData.userColor, email: userData.email,
       profileImageUrl: userData.profileImageUrl ?? null,
       emailVerified,
+      hmcChurchId: churchData.hmcChurchId,
       churchName: churchData.churchName, churchCity: churchData.churchCity, churchState: churchData.churchState, churchCountry: churchData.churchCountry,
       defaultTranslation,
       appearanceSettings,

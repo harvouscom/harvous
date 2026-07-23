@@ -3,10 +3,12 @@
  * Option B: invite tagline + prose body (description, member count).
  */
 import { useSyncExternalStore } from 'react';
-import Icon from '@/components/react/Icon';
+import Icon, { type IconName } from '@/components/react/Icon';
 import { appearanceIconGlyphColor, avatarGlyphColorForAccent, spaceIconAccentHex, type SpaceCoverAppearance } from '@/utils/space-cover';
+import { cadenceLabel, type PublishCadence } from '@/utils/channel-publish-cadence';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import { resolveJoinCoverDisplay } from '../../lib/space-cover-display';
+import { protoRelativeCaption } from '../prototype/proto-time';
 
 export interface PublicJoinSpaceLetterSpace {
   id: string;
@@ -15,6 +17,10 @@ export interface PublicJoinSpaceLetterSpace {
   backgroundGradient?: string;
   cover?: SpaceCoverAppearance;
   description?: string;
+  /** Ministry channel feed cadence (staff-declared). */
+  publishCadence?: PublishCadence | null;
+  lastCurriculumAt?: string | null;
+  cadenceStale?: boolean;
   ownerDisplayName: string;
   ownerProfileImageUrl?: string | null;
   /** Owner's Settings › Appearance accent (used for the initial fallback when no photo). */
@@ -27,6 +33,8 @@ export interface PublicJoinSpaceLetterSpace {
   isAlreadyMember: boolean;
   notes?: Array<{ id: string; title: string; noteType?: string; scriptureTranslation?: string; version?: string }>;
   threads?: Array<{ id: string; title: string; color: string; noteCount: number }>;
+  /** Glyph on the color tile — Shared Spaces `user-group`, ministry channels `rss`. */
+  iconName?: IconName;
 }
 
 export interface PublicJoinSpaceLetterProps {
@@ -81,7 +89,16 @@ export default function PublicJoinSpaceLetter({
   const accentCss = coverDisplay.accentCss;
   const iconAccent = spaceIconAccentHex(space.color, colorScheme);
   const iconGlyphColor = appearanceIconGlyphColor(space.color, colorScheme);
+  const tileIconName = space.iconName ?? 'user-group';
   const description = space.description?.trim();
+  const cadenceLine = cadenceLabel(space.publishCadence ?? null);
+  const lastUpdatedRel = protoRelativeCaption(space.lastCurriculumAt ?? null);
+  const staleDisclaimer =
+    space.cadenceStale && lastUpdatedRel
+      ? `Last updated ${lastUpdatedRel} · May update less often lately`
+      : space.cadenceStale
+        ? 'May update less often lately'
+        : null;
 
   // Avatar stack: owner first, then up to 2 real (anonymized) members — each tinted by that
   // person's own Settings › Appearance accent for the current color scheme.
@@ -105,11 +122,20 @@ export default function PublicJoinSpaceLetter({
             aria-hidden
             style={{ ['--space-icon-accent' as string]: iconAccent }}
           >
-            <Icon name="user-group" size={22} />
+            <Icon name={tileIconName} size={22} />
           </span>
           <h1 className="public-addon-letter__title">{space.title}</h1>
         </div>
         {description ? <p className="public-join-letter-about__description">{description}</p> : null}
+        {cadenceLine ? (
+          <p className="public-join-letter-about__cadence proto-caption">
+            <Icon name="calendar" size={11} aria-hidden />
+            <span>{cadenceLine}</span>
+          </p>
+        ) : null}
+        {staleDisclaimer ? (
+          <p className="public-join-letter-about__cadence-stale proto-caption">{staleDisclaimer}</p>
+        ) : null}
       </div>
     );
   }
@@ -133,7 +159,7 @@ export default function PublicJoinSpaceLetter({
             aria-hidden
             style={{ ['--space-icon-accent' as string]: iconAccent }}
           >
-            <Icon name="user-group" size={22} />
+            <Icon name={tileIconName} size={22} />
           </span>
           {!isAbout ? (
             <p className="public-addon-letter__tagline public-join-letter__invite">{inviteTagline(space)}</p>

@@ -12,7 +12,7 @@
 
 import {
   db, first, Threads, Notes, Spaces, SpaceNotes, NoteThreads, SpaceMemberships, UserMetadata,
-  NoteScriptureReferences, ScriptureMetadata, ResourceMetadata,
+  Churches, NoteScriptureReferences, ScriptureMetadata, ResourceMetadata,
   eq, and, desc, asc, count, ne, isNull, isNotNull, inArray, sql,
 } from '../db';
 import { nowISO } from '../db/dates';
@@ -37,6 +37,67 @@ export type AuthorAttribution = {
   firstName: string | null;
   profileImageUrl: string | null;
 };
+
+type ChurchNavFields = {
+  churchName?: string | null;
+  churchCity?: string | null;
+  churchState?: string | null;
+};
+
+/** Attach Churches name + location for org-owned spaces (ministry / church-scoped). */
+async function attachChurchNamesToSpaces<T extends { orgId?: string | null }>(
+  spaces: T[],
+): Promise<Array<T & ChurchNavFields>> {
+  const orgIds = [
+    ...new Set(spaces.map((space) => space.orgId).filter((id): id is string => Boolean(id))),
+  ];
+  if (orgIds.length === 0) {
+    return spaces.map((space) => ({
+      ...space,
+      churchName: null,
+      churchCity: null,
+      churchState: null,
+    }));
+  }
+  try {
+    const churches = await db
+      .select({
+        orgId: Churches.orgId,
+        name: Churches.name,
+        city: Churches.city,
+        state: Churches.state,
+      })
+      .from(Churches)
+      .where(and(inArray(Churches.orgId, orgIds), eq(Churches.isActive, true), isNull(Churches.deletedAt)));
+    const byOrg = new Map(
+      churches.map((church) => [
+        church.orgId,
+        {
+          churchName: church.name,
+          churchCity: church.city ?? null,
+          churchState: church.state ?? null,
+        },
+      ]),
+    );
+    return spaces.map((space) => {
+      const meta = space.orgId ? byOrg.get(space.orgId) : undefined;
+      return {
+        ...space,
+        churchName: meta?.churchName ?? null,
+        churchCity: meta?.churchCity ?? null,
+        churchState: meta?.churchState ?? null,
+      };
+    });
+  } catch (error) {
+    console.error('Error attaching church names to spaces:', error);
+    return spaces.map((space) => ({
+      ...space,
+      churchName: null,
+      churchCity: null,
+      churchState: null,
+    }));
+  }
+}
 
 /** Batched UserMetadata lookup for shared-space author chips (notes, highlights). */
 export async function batchAuthorAttribution(
@@ -330,9 +391,11 @@ export async function getSpacesWithCounts(userId: string) {
     ] = await Promise.all([
       db.select({
         id: Spaces.id, title: Spaces.title, description: Spaces.description,
+        publishCadence: Spaces.publishCadence,
         color: Spaces.color, backgroundGradient: Spaces.backgroundGradient,
         coverBgLight: Spaces.coverBgLight, coverBgDark: Spaces.coverBgDark,
         isPublic: Spaces.isPublic, isActive: Spaces.isActive, type: Spaces.type,
+        orgId: Spaces.orgId,
         createdAt: Spaces.createdAt, updatedAt: Spaces.updatedAt,
         lastVisited: Spaces.lastVisited,
         threadCount: count(Threads.id),
@@ -402,10 +465,16 @@ export async function getSpacesWithCounts(userId: string) {
     );
     if (myHome) totalCountMap.set(myHome.id, authoredNoteCountRow?.totalNoteCount ?? 0);
 
-    return spacesWithThreadCounts.map(space => ({
+    const mapped = spacesWithThreadCounts.map(space => ({
       id: space.id, title: space.title, description: space.description,
+      publishCadence: space.publishCadence ?? null,
       color: space.color, backgroundGradient: space.backgroundGradient,
+      // Prefetch owner path reads these — dropping them made saved cover variants
+      // fall back to family variant 1 after refresh.
+      coverBgLight: space.coverBgLight ?? null,
+      coverBgDark: space.coverBgDark ?? null,
       isPublic: space.isPublic, isActive: space.isActive, type: space.type,
+      orgId: space.orgId ?? null,
       createdAt: space.createdAt, updatedAt: space.updatedAt,
       lastVisited: space.lastVisited,
       threadCount: space.threadCount || 0,
@@ -414,17 +483,37 @@ export async function getSpacesWithCounts(userId: string) {
       totalNoteCount: totalCountMap.get(space.id) || 0,
       lastUpdated: space.lastVisited || space.updatedAt || space.createdAt,
     }));
+    return attachChurchNamesToSpaces(mapped);
   } catch (error) {
     console.error("Error fetching spaces:", error);
     return [];
   }
 }
 
-export async function getMemberOfSpaces(userId: string): Promise<Array<{ id: string; title: string | null; color: string | null; type: string; role: string; memberCount: number; totalItemCount: number }>> {
+export async function getMemberOfSpaces(userId: string): Promise<Array<{
+  id: string;
+  title: string | null;
+  color: string | null;
+  type: string;
+  role: string;
+  memberCount: number;
+  totalItemCount: number;
+  orgId?: string | null;
+  churchName?: string | null;
+  publishCadence?: string | null;
+}>> {
   try {
     // Single JOIN to get all shared/public spaces the user belongs to but does not own.
     const spaceRows = await db
-      .select({ id: Spaces.id, title: Spaces.title, color: Spaces.color, type: Spaces.type, role: SpaceMemberships.role })
+      .select({
+        id: Spaces.id,
+        title: Spaces.title,
+        color: Spaces.color,
+        type: Spaces.type,
+        orgId: Spaces.orgId,
+        publishCadence: Spaces.publishCadence,
+        role: SpaceMemberships.role,
+      })
       .from(SpaceMemberships)
       .innerJoin(Spaces, eq(SpaceMemberships.spaceId, Spaces.id))
       .where(and(eq(SpaceMemberships.userId, userId), ne(Spaces.userId, userId), isNull(Spaces.deletedAt)));
@@ -458,15 +547,18 @@ export async function getMemberOfSpaces(userId: string): Promise<Array<{ id: str
     const threadCountMap = new Map(threadCounts.map(r => [r.spaceId!, r.cnt]));
     const noteCountMap = new Map(noteCounts.map(r => [r.spaceId!, r.cnt]));
 
-    return spaceRows.map(space => ({
+    const mapped = spaceRows.map(space => ({
       id: space.id,
       title: space.title,
       color: space.color,
       type: space.type,
+      orgId: space.orgId ?? null,
+      publishCadence: space.publishCadence ?? null,
       role: space.role,
       memberCount: memberCountMap.get(space.id) || 0,
       totalItemCount: (threadCountMap.get(space.id) || 0) + (noteCountMap.get(space.id) || 0),
     }));
+    return attachChurchNamesToSpaces(mapped);
   } catch (error) {
     console.error("Error fetching member-of spaces:", error);
     return [];

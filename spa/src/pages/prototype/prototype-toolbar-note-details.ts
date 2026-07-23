@@ -6,11 +6,12 @@ export function prototypeToolbarNoteDetailsAvailable(options: {
   hasToolbarNote: boolean;
   isDraftNoteRoute: boolean;
 }): boolean {
+  if (!options.isOnNotePage) return false;
+  // Drafts: allow Note details so Templates (Start from / Save as) live in the inspector.
+  if (options.isDraftNoteRoute) return true;
   return (
-    options.isOnNotePage &&
     !!options.toolbarNoteId &&
     !options.toolbarNoteLoading &&
-    options.hasToolbarNote &&
-    !options.isDraftNoteRoute
+    options.hasToolbarNote
   );
 }

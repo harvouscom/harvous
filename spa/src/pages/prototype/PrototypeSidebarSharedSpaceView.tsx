@@ -60,6 +60,12 @@ import PrototypeSharedThreadDrilldown, {
   type SharedThreadDrillTarget,
 } from './PrototypeSharedThreadDrilldown';
 import { beginComposeInGroupThread } from '../../lib/compose-group-thread';
+import {
+  canComposeInSpace,
+  canManageStudyThreadsInSharedSpace,
+  canModerateMinistryChannel,
+  isMinistryBroadcastSpace,
+} from '../../lib/shared-space-capabilities';
 import '../../styles/prototype-shared-threads.css';
 
 const PREVIEW_MAX = 90;
@@ -68,17 +74,21 @@ const RECENT_PREVIEW_LIMIT = 3;
 export function sharedThreadDashboardModel(
   threads: SpaceGroupStudyThread[],
   isOwner: boolean,
+  options?: { canStartThread?: boolean },
 ) {
   const currentThread = selectCurrentSpaceThread(threads);
+  const canStart = options?.canStartThread ?? isOwner;
   return {
     currentThread,
     otherThreads: threads.filter((thread) => thread.id !== currentThread?.id),
-    canStartThread: isOwner && currentThread === null,
+    canStartThread: canStart && currentThread === null,
     emptyLabel:
       currentThread === null
-        ? isOwner
+        ? canStart
           ? 'No thread yet.'
-          : 'Waiting for the owner to start one.'
+          : isOwner
+            ? 'Browse notes and About — composing opens later.'
+            : 'Waiting for the owner to start one.'
         : null,
   };
 }
@@ -198,7 +208,12 @@ function PrototypeSidebarSharedSpaceViewLive() {
   const navigate = useNavigate();
   const { userId: authUserId } = useAuth();
   const { user } = useUser();
-  const { activeSpaceId, isOwner, spaceTitle: resolvedSpaceTitle } = useActiveSpace();
+  const {
+    activeSpaceId,
+    isOwner,
+    spaceTitle: resolvedSpaceTitle,
+    space: navSpace,
+  } = useActiveSpace();
   const {
     isMobileSidebar,
     setSidebarLayer,
@@ -227,6 +242,13 @@ function PrototypeSidebarSharedSpaceViewLive() {
   const members = membersQuery.data?.members ?? [];
   const peopleCount = membersQuery.data?.memberCount ?? (members.length || 1);
   const spaceTitle = resolvedSpaceTitle ?? space?.title ?? 'Shared space';
+  const ministryMeta = {
+    type: navSpace?.type ?? space?.type,
+    orgId: navSpace?.orgId ?? null,
+  };
+  const isMinistryChannel = isMinistryBroadcastSpace(ministryMeta);
+  const canComposeHere = canComposeInSpace(ministryMeta);
+  const churchEyebrow = navSpace?.churchName?.trim() || null;
 
   const selfDisplayName = resolveProfileFirstName(user, null) || 'You';
   const isSpaceOwner =
@@ -234,8 +256,25 @@ function PrototypeSidebarSharedSpaceViewLive() {
     (members.some((m) => m.userId === authUserId && m.role === 'owner') ||
       Boolean(space?.isOwner) ||
       isOwner);
+  const membershipRole =
+    navSpace?.role ??
+    members.find((m) => m.userId === authUserId)?.role ??
+    (isSpaceOwner ? 'owner' : 'member');
+  const canManageThreads = canManageStudyThreadsInSharedSpace({
+    isOwner: isSpaceOwner,
+    membershipRole,
+    type: ministryMeta.type,
+    orgId: ministryMeta.orgId,
+  });
+  const canModerateChannel = canModerateMinistryChannel({
+    isOwner: isSpaceOwner,
+    membershipRole,
+    type: ministryMeta.type,
+    orgId: ministryMeta.orgId,
+  });
 
   const openPeopleSheet = () => {
+    if (isMinistryChannel && !canModerateChannel) return;
     setAboutOpen(false);
     setPeopleOpen(true);
   };
@@ -276,8 +315,11 @@ function PrototypeSidebarSharedSpaceViewLive() {
 
   const groupThreads = groupThreadsQuery.data ?? [];
   const threadDashboard = useMemo(
-    () => sharedThreadDashboardModel(groupThreads, isSpaceOwner),
-    [groupThreads, isSpaceOwner],
+    () =>
+      sharedThreadDashboardModel(groupThreads, isSpaceOwner, {
+        canStartThread: canManageThreads,
+      }),
+    [groupThreads, isSpaceOwner, canManageThreads],
   );
 
   const topPassage = useMemo(
@@ -449,7 +491,8 @@ function PrototypeSidebarSharedSpaceViewLive() {
       <PrototypeSharedThreadDrilldown
         thread={drilledThread}
         spaceId={activeSpaceId}
-        isOwner={isSpaceOwner}
+        isOwner={canManageThreads}
+        canCompose={canComposeHere}
         onBack={() => setDrilledThread(null)}
         onCompose={() => composeInSharedSpace(drilledThread.id)}
         onSetCurrent={makeThreadCurrent}
@@ -462,26 +505,36 @@ function PrototypeSidebarSharedSpaceViewLive() {
       {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
       <div className="proto-shared-space-header">
         <div className="proto-shared-space-header__row">
-          <ProtoSpaceMenuIcon color={space?.color || 'paper'} size={30} radius={9} />
+          <ProtoSpaceMenuIcon
+            color={space?.color || 'paper'}
+            size={30}
+            radius={9}
+            iconName={isMinistryChannel ? 'rss' : 'user-group'}
+          />
           <div className="proto-shared-space-header__meta">
+            {isMinistryChannel && churchEyebrow ? (
+              <p className="proto-caption proto-shared-space-header__church">{churchEyebrow}</p>
+            ) : null}
             <div className="pds-list-title proto-shared-space-header__title" title={spaceTitle}>
               {spaceTitle}
             </div>
-            <button
-              type="button"
-              className="proto-shared-space-header__people"
-              onClick={openPeopleSheet}
-            >
-              <span>{sharedSpacePeopleHeaderLabel(peopleCount)}</span>
-              {isSpaceOwner ? (
-                <>
-                  <span className="proto-shared-space-header__dot" aria-hidden>
-                    ·
-                  </span>
-                  <span className="proto-shared-space-header__invite">Invite</span>
-                </>
-              ) : null}
-            </button>
+            {!isMinistryChannel ? (
+              <button
+                type="button"
+                className="proto-shared-space-header__people"
+                onClick={openPeopleSheet}
+              >
+                <span>{sharedSpacePeopleHeaderLabel(peopleCount)}</span>
+                {isSpaceOwner ? (
+                  <>
+                    <span className="proto-shared-space-header__dot" aria-hidden>
+                      ·
+                    </span>
+                    <span className="proto-shared-space-header__invite">Invite</span>
+                  </>
+                ) : null}
+              </button>
+            ) : null}
           </div>
           <div className="proto-shared-space-header__actions">
             <button
@@ -493,12 +546,12 @@ function PrototypeSidebarSharedSpaceViewLive() {
             >
               <Icon name="circle-info" size={15} />
             </button>
-            {isSpaceOwner ? (
+            {(isSpaceOwner && !isMinistryChannel) || canModerateChannel ? (
               <button
                 type="button"
                 className="proto-toolbar-icon-btn"
-                title="Space settings"
-                aria-label="Space settings"
+                title={isMinistryChannel ? 'Channel settings' : 'Space settings'}
+                aria-label={isMinistryChannel ? 'Channel settings' : 'Space settings'}
                 onClick={openPeopleSheet}
               >
                 <Icon name="gear" size={15} />
@@ -553,53 +606,55 @@ function PrototypeSidebarSharedSpaceViewLive() {
                 intro={contributorIntro}
                 presenceOthers={[]}
                 onOpenNotes={goToNotesList}
-                onOpenPeople={openPeopleSheet}
+                onOpenPeople={isMinistryChannel && !canModerateChannel ? undefined : openPeopleSheet}
               />
             </div>
           ) : null}
 
-          <div className="proto-home-section">
-            <p className="proto-caption proto-home-section__eyebrow">Current Thread</p>
-            {threadDashboard.currentThread ? (
-              <button
-                type="button"
-                className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-                onClick={() => openThread(threadDashboard.currentThread!)}
-              >
-                <div className="proto-home-card__body">
-                  <div className="proto-home-card__title-row">
-                    <span className="proto-home-card__icon-orb" aria-hidden>
-                      <Icon name="arrow-right-arrow-left" size={13} />
-                    </span>
-                    <p className="pds-list-title proto-home-card__title">
-                      {threadDashboard.currentThread.title}
+          {!isMinistryChannel ? (
+            <div className="proto-home-section">
+              <p className="proto-caption proto-home-section__eyebrow">Current Thread</p>
+              {threadDashboard.currentThread ? (
+                <button
+                  type="button"
+                  className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+                  onClick={() => openThread(threadDashboard.currentThread!)}
+                >
+                  <div className="proto-home-card__body">
+                    <div className="proto-home-card__title-row">
+                      <span className="proto-home-card__icon-orb" aria-hidden>
+                        <Icon name="arrow-right-arrow-left" size={13} />
+                      </span>
+                      <p className="pds-list-title proto-home-card__title">
+                        {threadDashboard.currentThread.title}
+                      </p>
+                      <span className="proto-home-card__chevron" aria-hidden>
+                        <Icon name="caret-right" size={11} />
+                      </span>
+                    </div>
+                    <p className="pds-list-preview proto-home-card__preview">
+                      {sharedThreadNoteCountPreview(threadDashboard.currentThread.noteCount)}
                     </p>
-                    <span className="proto-home-card__chevron" aria-hidden>
-                      <Icon name="caret-right" size={11} />
-                    </span>
                   </div>
-                  <p className="pds-list-preview proto-home-card__preview">
-                    {sharedThreadNoteCountPreview(threadDashboard.currentThread.noteCount)}
-                  </p>
+                </button>
+              ) : (
+                <div className="proto-list-create-empty">
+                  <PrototypeListEmptyState iconName="arrow-right-arrow-left" title={threadDashboard.emptyLabel ?? ''} />
+                  {threadDashboard.canStartThread ? (
+                    <button
+                      type="button"
+                      className="proto-shared-thread-action proto-shared-thread-action--primary"
+                      onClick={() => setCreateThreadOpen(true)}
+                    >
+                      Start a Thread
+                    </button>
+                  ) : null}
                 </div>
-              </button>
-            ) : (
-              <div className="proto-list-create-empty">
-                <PrototypeListEmptyState iconName="arrow-right-arrow-left" title={threadDashboard.emptyLabel ?? ''} />
-                {threadDashboard.canStartThread ? (
-                  <button
-                    type="button"
-                    className="proto-shared-thread-action proto-shared-thread-action--primary"
-                    onClick={() => setCreateThreadOpen(true)}
-                  >
-                    Start a Thread
-                  </button>
-                ) : null}
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          ) : null}
 
-          {isSpaceOwner && threadDashboard.otherThreads.length > 0 ? (
+          {!isMinistryChannel && canManageThreads && threadDashboard.otherThreads.length > 0 ? (
             <div className="proto-home-section">
               <p className="proto-caption proto-home-section__eyebrow">Threads</p>
               <ul className="proto-shared-thread-list">
@@ -642,26 +697,42 @@ function PrototypeSidebarSharedSpaceViewLive() {
 
           {totalNoteCount === 0 ? (
             <div className="proto-home-section">
-              <button
-                type="button"
-                className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-                onClick={() => composeInSharedSpace(threadDashboard.currentThread?.id)}
-              >
-                <div className="proto-home-card__body">
-                  <div className="proto-home-card__title-row">
-                    <span className="proto-home-card__icon-orb" aria-hidden>
-                      <Icon name="note-sticky" size={13} />
-                    </span>
-                    <p className="pds-list-title proto-home-card__title">No notes yet</p>
-                    <span className="proto-home-card__chevron" aria-hidden>
-                      <Icon name="caret-right" size={11} />
-                    </span>
+              {canComposeHere ? (
+                <button
+                  type="button"
+                  className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+                  onClick={() => composeInSharedSpace(threadDashboard.currentThread?.id)}
+                >
+                  <div className="proto-home-card__body">
+                    <div className="proto-home-card__title-row">
+                      <span className="proto-home-card__icon-orb" aria-hidden>
+                        <Icon name="note-sticky" size={13} />
+                      </span>
+                      <p className="pds-list-title proto-home-card__title">No notes yet</p>
+                      <span className="proto-home-card__chevron" aria-hidden>
+                        <Icon name="caret-right" size={11} />
+                      </span>
+                    </div>
+                    <p className="pds-list-preview proto-home-card__preview">
+                      {`Create the first note in ${spaceTitle}...`}
+                    </p>
                   </div>
-                  <p className="pds-list-preview proto-home-card__preview">
-                    {`Create the first note in ${spaceTitle}...`}
-                  </p>
+                </button>
+              ) : (
+                <div className="proto-glass-surface proto-glass-surface--panel proto-home-card">
+                  <div className="proto-home-card__body">
+                    <div className="proto-home-card__title-row">
+                      <span className="proto-home-card__icon-orb" aria-hidden>
+                        <Icon name="note-sticky" size={13} />
+                      </span>
+                      <p className="pds-list-title proto-home-card__title">No notes yet</p>
+                    </div>
+                    <p className="pds-list-preview proto-home-card__preview">
+                      Curriculum notes will show up here when they are published.
+                    </p>
+                  </div>
                 </div>
-              </button>
+              )}
             </div>
           ) : (
             <>
@@ -719,7 +790,9 @@ function PrototypeSidebarSharedSpaceViewLive() {
         open={aboutOpen}
         onOpenChange={setAboutOpen}
         space={space ?? null}
-        members={members}
+        members={isMinistryChannel && !canModerateChannel ? [] : members}
+        hideMemberRoster={isMinistryChannel && !canModerateChannel}
+        ministryChannel={isMinistryChannel}
       />
 
       <PrototypeSpacePeopleSheet
@@ -729,7 +802,12 @@ function PrototypeSidebarSharedSpaceViewLive() {
         spaceTitle={spaceTitle}
         spaceColor={space?.color}
         spaceDescription={space?.description}
+        spaceCoverBgLight={space?.coverBgLight}
+        spacePublishCadence={space?.publishCadence}
+        spaceCadenceStale={space?.cadenceStale}
         viewerIsOwner={isSpaceOwner}
+        viewerCanModerate={canModerateChannel}
+        ministryChannel={isMinistryChannel}
       />
       <PrototypeCreateSharedThreadSheet
         open={createThreadOpen}

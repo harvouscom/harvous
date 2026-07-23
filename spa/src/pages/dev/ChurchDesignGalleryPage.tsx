@@ -105,9 +105,10 @@ export default function ChurchDesignGalleryPage() {
         </div>
 
         <p className="pds-caption pds-gallery__tip">
-          Admin scenes mirror the shipped <code>/admin/churches</code> page. Everything else is a mockup for phases
-          that are deliberately unbuilt — see <code>docs/future/PASTOR_FEATURES_ROADMAP.md</code>. Shared Spaces
-          gallery: <code>/__dev/shared-spaces-design</code>
+          Admin scenes mirror the shipped <code>/admin/churches</code> page. Receive/Staff mockups show{' '}
+          <strong>ministry education channels</strong> (not announcements). Vision:{' '}
+          <code>docs/future/CHURCH_ORG_AND_CURRICULUM.md</code>. Shared Spaces gallery:{' '}
+          <code>/__dev/shared-spaces-design</code>
         </p>
       </main>
     </div>

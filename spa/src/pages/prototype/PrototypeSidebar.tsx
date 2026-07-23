@@ -106,6 +106,7 @@ import {
 import { usePrototypeFolderRegistry } from '../../hooks/mutations/usePrototypeFolderRegistry';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
 import {
+  canComposeInSpace,
   canCreateSidebarCollections as resolveCanCreateSidebarCollections,
   canOrganizeSharedSpaceNote,
   canPinSharedSpaceItem,
@@ -1187,6 +1188,8 @@ export default function PrototypeSidebar({
       isScopedSharedSpaceList: isScopedSharedSpace,
       isOwner: viewerIsSpaceOwner,
       membershipRole: activeSharedSpace?.role,
+      type: activeSharedSpace?.type,
+      orgId: activeSharedSpace?.orgId,
     });
   const isMyHomeListInSharedShell =
     shellIsSharedSpace && showListSpaceScopeBar && sidebarListSpaceScope === 'my-home';
@@ -2269,7 +2272,11 @@ export default function PrototypeSidebar({
         <PrototypeSharedThreadDrilldown
           thread={drilled}
           spaceId={homeSpaceId}
-          isOwner={viewerIsSpaceOwner}
+          isOwner={canCreateSidebarCollections}
+          canCompose={canComposeInSpace({
+            type: activeSharedSpace?.type,
+            orgId: activeSharedSpace?.orgId,
+          })}
           onBack={() => {
             setSidebarThreadDrilldownId(undefined);
             setQ('');
@@ -2279,7 +2286,7 @@ export default function PrototypeSidebar({
             await setCurrentSpaceThread.mutateAsync({ spaceId: homeSpaceId, threadId });
           }}
           onRequestDelete={
-            viewerIsSpaceOwner
+            canCreateSidebarCollections
               ? (anchorRect) => {
                   const full =
                     (groupThreadsQuery.data ?? []).find((thread) => thread.id === drilled.id) ??
@@ -2316,7 +2323,9 @@ export default function PrototypeSidebar({
   }
 
   return (
-    <div className="proto-sidebar-root">
+    <div
+      className={`proto-sidebar-root${sidebarThreadProposal ? ' proto-sidebar-root--thread-review' : ''}`}
+    >
       {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
       {backTarget && !isHomeLayer ? (
         <div className="proto-sidebar-back-row">

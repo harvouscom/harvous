@@ -167,6 +167,7 @@ export interface UserProfile {
   userColor: string;
   church: string | null;
   /** Structured church fields from UserMetadata via get-profile. */
+  hmcChurchId?: string | null;
   churchName?: string | null;
   churchCity?: string | null;
   churchState?: string | null;
@@ -204,6 +205,7 @@ export function useProfile() {
           Omit<UserProfile, 'displayName' | 'defaultTranslation'> & {
             displayName?: string;
             emailVerified?: boolean;
+            hmcChurchId?: string | null;
             churchName?: string | null;
             churchCity?: string | null;
             churchState?: string | null;
@@ -229,6 +231,7 @@ export function useProfile() {
             hasLockPinSet: data.hasLockPinSet,
             defaultTranslation,
           });
+          // hmcChurchId lives on React Query profile; localStorage cache stays denorm-only.
           const profile = {
             ...data,
             id: userId!,

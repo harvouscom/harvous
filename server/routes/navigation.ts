@@ -11,6 +11,7 @@ import { Hono } from 'hono';
 import { getAuth } from '../middleware/auth';
 import { getCachedUserData } from '../utils/user-cache';
 import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount, getMemberOfSpaces, getThreadNoteTypeCounts } from '../utils/dashboard-data';
+import { attachMinistryCadenceToSpaces } from '../utils/channel-publish-cadence';
 import { getNewNoteCountsForUser } from '../utils/shared-space-visit';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
@@ -90,7 +91,12 @@ route.get('/api/navigation/data', async (c) => {
       backgroundGradient: unorganizedThreadData.backgroundGradient || getThreadGradientCSS('paper'),
     });
 
-    const spacesWithGradients = spaces.map(space => ({
+    const [spacesWithCadence, memberSpacesWithCadence] = await Promise.all([
+      attachMinistryCadenceToSpaces(spaces),
+      attachMinistryCadenceToSpaces(memberSpaces),
+    ]);
+
+    const spacesWithGradients = spacesWithCadence.map(space => ({
       ...space,
       backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'),
       ...(space.type === 'shared' || space.type === 'public'
@@ -98,7 +104,7 @@ route.get('/api/navigation/data', async (c) => {
         : {}),
     }));
 
-    const memberSpacesWithGradients = memberSpaces.map(space => ({
+    const memberSpacesWithGradients = memberSpacesWithCadence.map(space => ({
       ...space,
       backgroundGradient: getThreadGradientCSS(space.color || 'paper'),
       newNoteCount: newNoteCounts.get(space.id) ?? 0,

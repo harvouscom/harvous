@@ -39,7 +39,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     title: 'My Church',
     route: prototypeHref('settings/church'),
     icon: 'church',
-    footnote: 'Your church details, synced across your devices.',
+    footnote: 'Home church, other churches, and matching details.',
   },
   {
     key: 'appearance',

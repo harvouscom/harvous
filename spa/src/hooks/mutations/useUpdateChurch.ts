@@ -4,15 +4,19 @@ import { api } from '../../lib/api';
 import { updateCachedProfile } from '../queries/useProfile';
 
 export interface UpdateChurchVariables {
-  churchName: string | null;
-  churchCity: string | null;
-  churchState: string | null;
-  churchCountry: string | null;
+  /** Set to link/refresh from Here’s My Church; `null` clears. */
+  hmcChurchId?: string | null;
+  /** Manual fallback only when not sending hmcChurchId. */
+  churchName?: string | null;
+  churchCity?: string | null;
+  churchState?: string | null;
+  churchCountry?: string | null;
 }
 
 interface UpdateChurchResponse {
   success?: boolean;
   church?: {
+    hmcChurchId?: string | null;
     churchName: string | null;
     churchCity: string | null;
     churchState: string | null;
@@ -21,16 +25,14 @@ interface UpdateChurchResponse {
   error?: string;
 }
 
-function clean(v: string | null): string | null {
+function clean(v: string | null | undefined): string | null | undefined {
+  if (v === undefined) return undefined;
   const t = (v ?? '').trim();
   return t === '' ? null : t;
 }
 
 /**
- * Persist church details to the user's account. Mirrors the classic-web
- * MyChurchPanel save against `POST /api/user/update-church`. On success the
- * cached profile is patched and the profile query invalidated so every surface
- * (prototype, classic web, native via sync) reflects the change.
+ * Persist church details. Prefer `hmcChurchId` — server resolves name/city/state from HMC.
  */
 export function useUpdateChurch() {
   const queryClient = useQueryClient();
@@ -38,22 +40,31 @@ export function useUpdateChurch() {
 
   return useMutation({
     mutationFn: async (vars: UpdateChurchVariables) => {
-      const payload = {
-        churchName: clean(vars.churchName),
-        churchCity: clean(vars.churchCity),
-        churchState: clean(vars.churchState),
-        churchCountry: clean(vars.churchCountry),
-      };
+      const payload: Record<string, string | null> = {};
+      if (vars.hmcChurchId !== undefined) {
+        payload.hmcChurchId = vars.hmcChurchId;
+      }
+      if (vars.churchName !== undefined) payload.churchName = clean(vars.churchName) ?? null;
+      if (vars.churchCity !== undefined) payload.churchCity = clean(vars.churchCity) ?? null;
+      if (vars.churchState !== undefined) payload.churchState = clean(vars.churchState) ?? null;
+      if (vars.churchCountry !== undefined) payload.churchCountry = clean(vars.churchCountry) ?? null;
       return api.post<UpdateChurchResponse>('/api/user/update-church', payload);
     },
     onSuccess: (data, vars) => {
       const church = data.church ?? {
-        churchName: clean(vars.churchName),
-        churchCity: clean(vars.churchCity),
-        churchState: clean(vars.churchState),
-        churchCountry: clean(vars.churchCountry),
+        hmcChurchId: vars.hmcChurchId ?? null,
+        churchName: clean(vars.churchName) ?? null,
+        churchCity: clean(vars.churchCity) ?? null,
+        churchState: clean(vars.churchState) ?? null,
+        churchCountry: clean(vars.churchCountry) ?? null,
       };
-      updateCachedProfile(church);
+      updateCachedProfile({
+        hmcChurchId: church.hmcChurchId ?? null,
+        churchName: church.churchName,
+        churchCity: church.churchCity,
+        churchState: church.churchState,
+        churchCountry: church.churchCountry,
+      });
       void queryClient.invalidateQueries({ queryKey: ['profile', userId ?? 'none'] });
     },
   });

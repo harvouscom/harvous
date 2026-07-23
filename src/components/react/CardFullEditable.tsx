@@ -272,6 +272,8 @@ interface CardFullEditableProps {
   alwaysEditing?: boolean;
   /** Prototype-only: fired on editor unmount with live title/body so the parent can discard empty notes. */
   onPrototypeEditorUnmount?: (snapshot: { noteId: string; title: string; content: string }) => void;
+  /** Prototype-only: live title/body for quiet chrome (e.g. note templates empty detection). */
+  onPrototypeLiveChange?: (snapshot: { title: string; content: string }) => void;
   onEditorInstanceReady?: (editor: unknown) => void;
   /**
    * Prototype-only: stable identity for the body editor across the /n/new → /n/<id>
@@ -348,6 +350,7 @@ export default function CardFullEditable({
   collectionNavContext = DEFAULT_COLLECTION_NAV_CONTEXT,
   alwaysEditing = false,
   onPrototypeEditorUnmount,
+  onPrototypeLiveChange,
   onEditorInstanceReady,
   prototypeBodyMountId = null,
   prototypeDraftPersistRemount = null,
@@ -465,6 +468,8 @@ export default function CardFullEditable({
   const bodyInteractionRef = useRef(false);
   const onPrototypeEditorUnmountRef = useRef(onPrototypeEditorUnmount);
   onPrototypeEditorUnmountRef.current = onPrototypeEditorUnmount;
+  const onPrototypeLiveChangeRef = useRef(onPrototypeLiveChange);
+  onPrototypeLiveChangeRef.current = onPrototypeLiveChange;
   const isMountedRef = useRef(true);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
@@ -2327,6 +2332,18 @@ export default function CardFullEditable({
     }, 250);
     return () => window.clearTimeout(timerId);
   }, [editorChromeMode, effectiveIsEditable, editTitle, editContent]);
+
+  // Quiet chrome (templates): parent tracks empty vs typed without polling the DOM.
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative' || !alwaysEditing) return;
+    if (!onPrototypeLiveChangeRef.current) return;
+    const titleNow = editTitleRef.current;
+    const contentNow = noteHtmlForSave(
+      editorInstanceRef.current,
+      liveBodyHtmlRef.current || editContentRef.current,
+    );
+    onPrototypeLiveChangeRef.current({ title: titleNow, content: contentNow });
+  }, [editorChromeMode, alwaysEditing, editTitle, editContent, noteId]);
 
   // Unload-safe flush. The 700ms debounce + unmount cleanup both rely on async
   // fetches that the browser aborts mid-navigation, so a hard refresh / tab close

@@ -4,6 +4,13 @@
  */
 import appearanceImagePresets from '../../shared/appearance-image-presets.json';
 import appearancePresets from '../../shared/appearance-presets.json';
+import {
+  clampSpaceCoverVariant,
+  isSpaceCoverFamily,
+  resolveSpaceCoverVariant,
+  SPACE_COVER_PRESET_IDS,
+  spaceCoverFromFamilyVariant,
+} from './space-cover-presets';
 
 export type SpaceCoverBg =
   | { kind: 'color'; value: string; presetId?: string }
@@ -26,9 +33,10 @@ type AppearanceImagePresetRow = {
   mode: 'light' | 'dark';
 };
 
-const IMAGE_PRESET_IDS = new Set(
-  (appearanceImagePresets.presets as AppearanceImagePresetRow[]).map((p) => p.id),
-);
+const IMAGE_PRESET_IDS = new Set([
+  ...(appearanceImagePresets.presets as AppearanceImagePresetRow[]).map((p) => p.id),
+  ...SPACE_COVER_PRESET_IDS,
+]);
 const COLOR_PRESET_IDS = new Set(
   (appearancePresets.presets as AppearanceColorPreset[]).map((p) => p.id),
 );
@@ -49,8 +57,13 @@ export function emptySpaceCoverAppearance(): SpaceCoverAppearance {
   return { light: null, dark: null };
 }
 
-export function parseSpaceCoverBg(raw: string | null | undefined): SpaceCoverBg {
-  if (!raw || typeof raw !== 'string') return null;
+export function parseSpaceCoverBg(raw: string | null | undefined | SpaceCoverBg): SpaceCoverBg {
+  if (raw == null || raw === '') return null;
+  // Already-parsed API / cache objects (prefetch returns objects, not JSON strings).
+  if (typeof raw === 'object') {
+    return validateSpaceCoverBg(raw) ? raw : null;
+  }
+  if (typeof raw !== 'string') return null;
   try {
     const parsed = JSON.parse(raw) as unknown;
     return validateSpaceCoverBg(parsed) ? parsed : null;
@@ -287,26 +300,35 @@ function imagePresetCover(id: string): SpaceCoverBg {
   return { kind: 'image-preset', presetId: id };
 }
 
-/** Derive light/dark cover images from a thread accent color (paper → no imagery). */
-export function spaceCoverFromThreadColor(color: string | null | undefined): SpaceCoverAppearance {
+/**
+ * Derive light/dark space-cover images from family color + variant (default 1).
+ * paper → no imagery. Variants 2–5 live in `shared/space-cover-image-presets.json`.
+ */
+export function spaceCoverFromThreadColor(
+  color: string | null | undefined,
+  variant: number = 1,
+): SpaceCoverAppearance {
   const key = (color ?? 'paper').toLowerCase();
-  if (key === 'paper') return emptySpaceCoverAppearance();
-  const appearanceId = appearanceColorIdForThreadColor(key);
-  if (!appearanceId) return emptySpaceCoverAppearance();
-  const lightId = APPEARANCE_COLOR_TO_LIGHT_IMAGE_ID[appearanceId];
-  const darkId = APPEARANCE_COLOR_TO_DARK_IMAGE_ID[appearanceId];
-  return {
-    light: lightId ? imagePresetCover(lightId) : null,
-    dark: darkId ? imagePresetCover(darkId) : null,
-  };
+  if (key === 'paper' || !isSpaceCoverFamily(key)) return emptySpaceCoverAppearance();
+  return spaceCoverFromFamilyVariant(key, clampSpaceCoverVariant(variant));
 }
 
-/** Always derive from thread color so picker ↔ imagery stays in sync with Appearance. */
+/**
+ * Prefer stored space-cover variant when it matches the current color family;
+ * otherwise fall back to family + variant 1.
+ */
 export function effectiveSpaceCover(
-  _stored: SpaceCoverAppearance,
+  stored: SpaceCoverAppearance,
   threadColor: string | null | undefined,
+  variant?: number,
 ): SpaceCoverAppearance {
-  return spaceCoverFromThreadColor(threadColor);
+  const key = (threadColor ?? 'paper').toLowerCase();
+  if (key === 'paper' || !isSpaceCoverFamily(key)) return emptySpaceCoverAppearance();
+  const resolvedVariant =
+    variant != null
+      ? clampSpaceCoverVariant(variant)
+      : resolveSpaceCoverVariant(stored.light, key);
+  return spaceCoverFromFamilyVariant(key, resolvedVariant);
 }
 
 export function serializeSpaceCoverForDb(cover: SpaceCoverAppearance): {
@@ -319,7 +341,7 @@ export function serializeSpaceCoverForDb(cover: SpaceCoverAppearance): {
   };
 }
 
-/** API payloads — always derive cover from thread color (ignore stale DB rows). */
+/** API payloads — color family + stored variant (default 1). */
 export function spaceCoverApiFields(
   storedLight: string | null | undefined,
   storedDark: string | null | undefined,

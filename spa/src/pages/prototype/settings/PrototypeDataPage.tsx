@@ -10,7 +10,7 @@ import {
 import { refreshClientData } from '../../../lib/refresh-client-data';
 import { clearStuckSyncQueue } from '@/utils/sync-manager';
 import { getPersistedUserId } from '@/utils/user-id';
-import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
+import { SettingsGroup, SettingsRow, SettingsShell } from './SettingsShell';
 
 type ExportFormat = 'markdown' | 'csv-threads';
 type Busy =
@@ -253,8 +253,6 @@ export default function PrototypeDataPage() {
         style={{ display: 'none' }}
         onChange={(e) => handleImportFiles(e.target.files)}
       />
-
-      <SettingsIntro>Export, import, or delete your data.</SettingsIntro>
 
       <div className="pds-inspector-label" style={{ padding: '0 12px 6px', textTransform: 'uppercase', color: 'var(--pds-text-tertiary)' }}>
         Export

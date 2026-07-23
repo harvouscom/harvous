@@ -94,11 +94,11 @@ production-live or paid-launch verified; follow each linked canonical document's
   - Database schema for churches
   - Connection request flow
 
-- **`CHURCH_ORG_AND_CURRICULUM.md`** - Church org accounts & education curriculum vision
-  - Vision: churches have org accounts for curriculum management; share threads/notes to attendees
-  - Two layers: individual shared spaces (current) vs church-org distribution (future)
-  - MyChurchPanel evolution: sync with available church organizations (Clerk), user links to church → receives curriculum
-  - How curriculum flows (publish to org → inbox / “From your church” for org members)
+- **`CHURCH_ORG_AND_CURRICULUM.md`** - Church org accounts & ministry education vision
+  - Vision: ministry education channels (not announcements); sermon calendar → starter notes
+  - Two lanes vs PCO: Shared Spaces ↔ Groups; ministry broadcast ↔ Resources
+  - Locked v0 decisions: staff-only pilot, switcher surface, congregant connect dark
+  - MyChurchPanel → connect → “From your church” study feed (future)
   - References CHURCH_CONNECTION_SYSTEM, SHARING_AND_GROUPS_INFRASTRUCTURE
 
 - **`CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md`** - Implementation checklist for Clerk Organizations for churches

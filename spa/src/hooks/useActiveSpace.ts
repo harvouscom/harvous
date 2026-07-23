@@ -57,11 +57,24 @@ export function resolveSpaceSwitcherToolbarState(options: {
   space: NavSpace | null;
   spaceTitle: string | null;
   hasHome: boolean;
+  /** My Church hub (no space selected) or channel under church mode. */
+  myChurchMode?: boolean;
+  myChurchName?: string | null;
 }): {
   showSharedSpaceToolbar: boolean;
   label: string | null;
   triggerTitle: string;
 } {
+  if (options.myChurchMode && !options.space) {
+    return {
+      /** Same circular orb chrome as My Home — not the shared-space title pill. */
+      showSharedSpaceToolbar: false,
+      label: null,
+      triggerTitle: options.myChurchName?.trim()
+        ? `My Church — ${options.myChurchName.trim()}`
+        : 'My Church',
+    };
+  }
   const showSharedSpaceToolbar = Boolean(options.space);
   const label = showSharedSpaceToolbar
     ? options.spaceTitle?.trim() || options.space?.title?.trim() || null

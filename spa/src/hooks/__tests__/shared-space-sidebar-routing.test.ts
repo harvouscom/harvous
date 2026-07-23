@@ -125,6 +125,22 @@ describe('resolveSpaceSwitcherToolbarState', () => {
       }).label,
     ).toBe('Team Study');
   });
+
+  it('shows My Church hub toolbar as a circular orb like My Home', () => {
+    expect(
+      resolveSpaceSwitcherToolbarState({
+        space: null,
+        spaceTitle: null,
+        hasHome: true,
+        myChurchMode: true,
+        myChurchName: 'Testament Made',
+      }),
+    ).toEqual({
+      showSharedSpaceToolbar: false,
+      label: null,
+      triggerTitle: 'My Church — Testament Made',
+    });
+  });
 });
 
 describe('resolvePrototypeSidebarVariant', () => {
@@ -159,6 +175,30 @@ describe('resolvePrototypeSidebarVariant', () => {
         activeSpaceId: 'space_home',
       }),
     ).toBe('personal');
+  });
+
+  it('uses church-hub when My Church is active without a space', () => {
+    expect(
+      resolvePrototypeSidebarVariant({
+        isAdminRoute: false,
+        isSharedSpace: false,
+        sidebarLayer: 'space',
+        activeSpaceId: null,
+        activeChurchOrgId: 'org_1',
+      }),
+    ).toBe('church-hub');
+  });
+
+  it('prefers shared-space over church-hub when a channel is open', () => {
+    expect(
+      resolvePrototypeSidebarVariant({
+        isAdminRoute: false,
+        isSharedSpace: true,
+        sidebarLayer: 'space',
+        activeSpaceId: 'space_ministry',
+        activeChurchOrgId: 'org_1',
+      }),
+    ).toBe('shared-space');
   });
 
   it('prefers admin sidebar on admin routes', () => {

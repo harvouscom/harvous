@@ -12,6 +12,7 @@ import {
   getNoteIdFromCreateResponse,
   shouldUseNoteOnlyParentThreadCache,
   useNote,
+  type NoteDetail,
 } from '../../hooks/queries/useNote';
 import { useProcessScriptureRefs } from '../../hooks/mutations/useProcessScriptureRefs';
 import { useUpdateNote } from '../../hooks/mutations/useUpdateNote';
@@ -34,6 +35,8 @@ import PrototypeSharedNoteReadOnlyBanner from './PrototypeSharedNoteReadOnlyBann
 import SharedStudyHighlightOverlay from './SharedStudyHighlightOverlay';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
+import { useNavigationSharedSpaceAccess } from '../../hooks/queries/useNavigation';
+import type { ApplyableNoteTemplate } from '../../hooks/queries/useNoteTemplates';
 import { useMentionSource } from './mention-picker-source';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import type { MentionPillClickPayload } from '@/components/react/mention-pill-types';
@@ -269,6 +272,41 @@ export default function PrototypeNotePage() {
   }, [composeTargetSpaceIdOverride, selectedSpaceId, personalHomeSpaceId]);
   const prevComposeSessionEpochRef = useRef(composeSessionEpoch);
 
+  const [liveNoteSnapshot, setLiveNoteSnapshot] = useState({ title: '', content: '' });
+  const [templatePrefill, setTemplatePrefill] = useState<{
+    title: string;
+    content: string;
+    noteType: string;
+  } | null>(null);
+  const [templateApplyEpoch, setTemplateApplyEpoch] = useState(0);
+
+  const handlePrototypeLiveChange = useCallback((snapshot: { title: string; content: string }) => {
+    setLiveNoteSnapshot(snapshot);
+  }, []);
+
+  const handleApplyTemplate = useCallback(
+    (template: ApplyableNoteTemplate) => {
+      setTemplatePrefill({
+        title: template.title || '',
+        content: template.content,
+        noteType: template.noteType || 'default',
+      });
+      setTemplateApplyEpoch((n) => n + 1);
+      setLiveNoteSnapshot({
+        title: template.title || '',
+        content: template.content,
+      });
+      // Persist after remount so template content isn't stuck behind the edit-guard.
+      window.setTimeout(() => {
+        const save = (window as Window & { noteSaveCallback?: (t: string, c: string) => unknown }).noteSaveCallback;
+        if (typeof save === 'function') {
+          void Promise.resolve(save(template.title || '', template.content));
+        }
+      }, 0);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!isDraft && composeTargetSpaceIdOverride) {
       clearComposeTargetSpaceIdOverride();
@@ -461,6 +499,10 @@ export default function PrototypeNotePage() {
     : contextSpaceId ||
       foreignSharedSpaceId ||
       ((resolvedSpaceFromNote != null ? resolvedSpaceFromNote : resolvedSpaceFromThread) ?? composeTargetSpaceId ?? '');
+  const templateSpaceId = isDraft ? composeTargetSpaceId : effectiveSpaceId;
+  const templateSpaceAccess = useNavigationSharedSpaceAccess(
+    templateSpaceId && templateSpaceId !== personalHomeSpaceId ? templateSpaceId : null,
+  );
   const sharedActionSpaceId =
     contextSpaceId ||
     foreignSharedSpaceId ||
@@ -616,6 +658,9 @@ export default function PrototypeNotePage() {
     clearNoteDraft(DRAFT_NOTE_ID);
     draftPersistRemountRef.current = { content: '' };
     setDraftPersistRemountTick((t) => t + 1);
+    setTemplatePrefill(null);
+    setTemplateApplyEpoch(0);
+    setLiveNoteSnapshot({ title: '', content: '' });
   }, [setComposePersistedNoteId]);
 
   useEffect(() => {
@@ -1327,9 +1372,9 @@ export default function PrototypeNotePage() {
   const editorNote =
     useComposeEditorStub || isDraft || (!note && keepEditorDuringPersistedDraftLoad)
     ? {
-        title: '',
-        content: '',
-        noteType: 'default' as const,
+        title: templatePrefill?.title ?? '',
+        content: templatePrefill?.content ?? '',
+        noteType: (templatePrefill?.noteType || 'default') as 'default' | 'scripture' | 'resource',
         version: undefined as number | undefined,
         resourceTitle: undefined as string | undefined,
         resourceDescription: undefined as string | undefined,
@@ -1344,7 +1389,14 @@ export default function PrototypeNotePage() {
         createdAt: null as string | null,
         threads: [] as { id: string; title?: string; backgroundGradient?: string; count?: number; spaceId?: string | null }[],
       }
-    : note!;
+    : templatePrefill
+      ? {
+          ...note!,
+          title: templatePrefill.title,
+          content: templatePrefill.content,
+          noteType: templatePrefill.noteType || note!.noteType || 'default',
+        }
+      : note!;
 
   const MONTHS_LONG = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -1363,26 +1415,72 @@ export default function PrototypeNotePage() {
   // are ONE editing session, so they share a key — this prevents a destructive
   // CardFullEditable + TipTap remount mid-typing when /n/new → /n/<id>. A new
   // compose bumps composeSessionEpoch so distinct compose sessions never share an instance.
+  // templateApplyEpoch remounts after "Start from a template" so TipTap seeds the HTML.
   const composeEditorKey = prototypeComposeEditorKey(DRAFT_NOTE_ID, composeSessionEpoch);
-  const editorSessionKey = isDraft || !!adoptedComposeId ? composeEditorKey : noteId;
+  const editorSessionKey =
+    (isDraft || !!adoptedComposeId ? composeEditorKey : noteId) +
+    (templateApplyEpoch > 0 ? `:tpl-${templateApplyEpoch}` : '');
+
+  const noteIsEffectivelyEmpty = isEffectivelyEmptyPrototypeNote(
+    liveNoteSnapshot.title || prototypeDisplayTitle,
+    liveNoteSnapshot.content || editorNote.content,
+  );
+  const showTemplatesInInspector = !isForeignSharedNote && !readOnlyInSharedSpace && isEditable;
+  const canAttachSpaceTemplate =
+    !!templateSpaceAccess.access &&
+    (templateSpaceAccess.access.isOwner || templateSpaceAccess.access.role === 'leader');
+  const showSpaceAttachOption =
+    !!templateSpaceId &&
+    templateSpaceId !== personalHomeSpaceId &&
+    (templateSpaceAccess.access?.space.type === 'shared' ||
+      templateSpaceAccess.access?.space.type === 'public');
+
+  const inspectorTemplates = showTemplatesInInspector
+    ? {
+        spaceId: templateSpaceId,
+        spaceTitle: showSpaceAttachOption
+          ? templateSpaceAccess.access?.space.title?.trim() || null
+          : null,
+        canAttachToSpace: canAttachSpaceTemplate,
+        showSpaceAttachOption,
+        isEmpty: noteIsEffectivelyEmpty,
+        liveTitle: liveNoteSnapshot.title || prototypeDisplayTitle,
+        liveContent: liveNoteSnapshot.content || editorNote.content || '',
+        noteType: typeof editorNote.noteType === 'string' ? editorNote.noteType : 'default',
+        onApply: handleApplyTemplate,
+      }
+    : null;
+
+  const draftInspectorNote: NoteDetail = {
+    id: DRAFT_NOTE_ID,
+    title: liveNoteSnapshot.title || prototypeDisplayTitle || '',
+    content: liveNoteSnapshot.content || editorNote.content || '',
+    noteType: typeof editorNote.noteType === 'string' ? editorNote.noteType : 'default',
+    contentEncrypted: false,
+    isPublic: false,
+    isOwnNote: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    threads: [],
+    tags: [],
+  };
+
+  const inspectorNote = isDraft ? draftInspectorNote : note;
 
   const showInspectorDesktop = (inspectorOpen || inspectorExiting) && !isMobileSidebar;
   const showInspectorMobile = (inspectorOpen || inspectorExiting) && isMobileSidebar;
-  // Only reserve editor space when the inspector actually renders. The desktop
-  // inspector is gated on `!isDraft && note` below, so on a draft (a note with no
-  // content yet) or before the note loads, reserving space shrinks the editor for
-  // a panel that never appears — leaving a blank gap on the right.
   // Reserve (dock) only when: inspector open, on desktop (mobile uses a fixed
   // slide-over), and the pane is wide enough. When the pane is narrow the desktop
   // inspector stays mounted but floats over the editor as a quiet overlay.
+  // Drafts can open the inspector for Templates; they float (no dock reserve) so
+  // the empty compose canvas stays full-width until the note persists.
   const inspectorReservesEditorSpace =
     inspectorOpen && !inspectorExiting && !isDraft && !!note && !isMobileSidebar && paneIsWide;
 
   const inspectorFloating =
     inspectorOpen &&
     !inspectorExiting &&
-    !isDraft &&
-    !!note &&
+    !!inspectorNote &&
     !inspectorReservesEditorSpace &&
     (showInspectorDesktop || showInspectorMobile);
 
@@ -1402,7 +1500,7 @@ export default function PrototypeNotePage() {
       : null;
 
   const desktopInspectorLayer =
-    showInspectorDesktop && !isDraft && note && rightPanelPortalTarget
+    showInspectorDesktop && inspectorNote && rightPanelPortalTarget
       ? createPortal(
           <div
             className={`proto-inspector-desktop${inspectorExiting ? ' proto-inspector-desktop--exiting' : ''}`}
@@ -1410,7 +1508,7 @@ export default function PrototypeNotePage() {
             aria-label="Note details"
           >
             <PrototypeInspectorPane
-              note={note}
+              note={inspectorNote}
               spaceId={effectiveSpaceId}
               contextSpaceId={contextSpaceId}
               sharedSpaceId={sharedActionSpaceId}
@@ -1418,6 +1516,8 @@ export default function PrototypeNotePage() {
               noteAuthorDisplayName={noteAuthorDisplayName}
               onSelectActivity={handleActivitySelectEntry}
               activeActivityId={activeActivityId}
+              isDraftCompose={isDraft}
+              templates={inspectorTemplates}
             />
           </div>,
           rightPanelPortalTarget,
@@ -1425,7 +1525,7 @@ export default function PrototypeNotePage() {
       : null;
 
   const mobileInspectorLayer =
-    showInspectorMobile && !isDraft && note && typeof document !== 'undefined'
+    showInspectorMobile && inspectorNote && typeof document !== 'undefined'
       ? createPortal(
           <>
             <div
@@ -1440,7 +1540,7 @@ export default function PrototypeNotePage() {
               aria-label="Note details"
             >
               <PrototypeInspectorPane
-                note={note}
+                note={inspectorNote}
                 spaceId={effectiveSpaceId}
                 contextSpaceId={contextSpaceId}
                 sharedSpaceId={sharedActionSpaceId}
@@ -1448,6 +1548,8 @@ export default function PrototypeNotePage() {
                 noteAuthorDisplayName={noteAuthorDisplayName}
                 onSelectActivity={handleActivitySelectEntry}
                 activeActivityId={activeActivityId}
+                isDraftCompose={isDraft}
+                templates={inspectorTemplates}
               />
             </div>
           </>,
@@ -1553,6 +1655,7 @@ export default function PrototypeNotePage() {
                 isEditable={isEditable}
                 onSave={handleNoteSave}
                 onPrototypeEditorUnmount={handlePrototypeEditorUnmount}
+                onPrototypeLiveChange={handlePrototypeLiveChange}
                 readOnlyLikeScripture={readOnlyLikeScripture}
                 foreignSharedAnnotationMode={foreignSharedAnnotationMode}
                 onSharedAnnotationCreated={noteInSharedSpace ? refreshSharedAnnotations : undefined}

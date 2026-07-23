@@ -6,6 +6,7 @@ import {
   type ProtoBg,
 } from './prototype-background';
 import { appearanceAccentForThreadColor, coverBgForMode, effectiveSpaceCover, type SpaceCoverAppearance, type SpaceCoverBg } from '@/utils/space-cover';
+import { resolveSpaceCoverImageUrl } from '@/utils/space-cover-presets';
 import { getThreadGradientCSS } from '@/utils/colors';
 
 export interface JoinCoverDisplay {
@@ -82,6 +83,8 @@ export function resolveJoinHeroImageUrl(
   const resolvedCover = effectiveSpaceCover(space.cover ?? { light: null, dark: null }, space.color);
   const cover = coverBgForMode(resolvedCover, mode);
   if (cover?.kind !== 'image-preset') return null;
+  const spaceCoverUrl = resolveSpaceCoverImageUrl(cover.presetId);
+  if (spaceCoverUrl) return spaceCoverUrl;
   const preset = imagePresetById(cover.presetId);
   return preset ? imagePresetUrl(preset) : null;
 }

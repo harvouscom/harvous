@@ -26,10 +26,21 @@ export interface NavSpace {
   createdAt?: string;
   /** 'personal' | 'shared' | 'public' — absent on some legacy cached snapshots, treat as 'personal'. */
   type?: 'personal' | 'shared' | 'public';
+  /** Clerk org id when this is an org-owned ministry broadcast space. */
+  orgId?: string | null;
+  /** Churches.name for org-owned ministry spaces (null when not registered / inactive). */
+  churchName?: string | null;
+  /** Churches.city / state for hub header location line. */
+  churchCity?: string | null;
+  churchState?: string | null;
   /** Present on memberOfSpaces entries only. */
   role?: 'owner' | 'leader' | 'member';
   /** Notes updated since this member last opened the space dashboard. */
   newNoteCount?: number;
+  /** Ministry channels: staff-declared publish cadence. */
+  publishCadence?: import('@/utils/channel-publish-cadence').PublishCadence | null;
+  /** True when observed curriculum lag exceeds 2× the declared interval. */
+  cadenceStale?: boolean;
 }
 
 export interface NavigationData {

@@ -176,10 +176,17 @@ type ProtoShellContextValue = {
   /** Sidebar layer — 'space' shows the Home/space view, 'list' shows the list views. Persisted across refresh. */
   sidebarLayer: SidebarLayer;
   setSidebarLayer: (layer: SidebarLayer) => void;
-  /** Selected shared/public space (`space_...`); null = personal My Home. Persisted across refresh. */
+  /** Selected shared/public space (`space_...`); null = personal My Home (or My Church hub). Persisted across refresh. */
   activeSpaceId: string | null;
-  /** Switch the active space. Clears drill-down state and lands on the space layer. */
+  /** Switch the active space. Clears drill-down state and lands on the space layer. `null` also leaves My Church. */
   setActiveSpaceId: (spaceId: string | null) => void;
+  /**
+   * My Church mode — home church Clerk org id. Hub when set with `activeSpaceId` null;
+   * channel open may keep this set. Persisted across refresh.
+   */
+  activeChurchOrgId: string | null;
+  /** Enter/leave My Church hub. Non-null clears `activeSpaceId` and lands on the space layer. */
+  setActiveChurchOrgId: (orgId: string | null) => void;
   /** List sidebar scope overlay when a shared space is active (does not change `activeSpaceId`). */
   sidebarListSpaceScope: SidebarListSpaceScope;
   setSidebarListSpaceScope: (scope: SidebarListSpaceScope) => void;
@@ -279,6 +286,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const persistedNav = readPersistedSidebarNav();
   const [sidebarLayer, setSidebarLayerState] = useState<SidebarLayer>(persistedNav.layer);
   const [activeSpaceId, setActiveSpaceIdState] = useState<string | null>(persistedNav.activeSpaceId ?? null);
+  const [activeChurchOrgId, setActiveChurchOrgIdState] = useState<string | null>(
+    persistedNav.activeChurchOrgId ?? null,
+  );
   const [sidebarListSpaceScope, setSidebarListSpaceScopeState] = useState<SidebarListSpaceScope>(
     persistedNav.sidebarListSpaceScope,
   );
@@ -386,7 +396,12 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     if (spaceId) {
       writePersistedSidebarNav({ activeSpaceId: spaceId, clearSidebarListSpaceScope: true });
     } else {
-      writePersistedSidebarNav({ clearActiveSpaceId: true, clearSidebarListSpaceScope: true });
+      setActiveChurchOrgIdState(null);
+      writePersistedSidebarNav({
+        clearActiveSpaceId: true,
+        clearActiveChurchOrgId: true,
+        clearSidebarListSpaceScope: true,
+      });
     }
     setSidebarListSpaceScopeState('space');
     // Switching spaces invalidates any in-progress drill-down and always lands
@@ -397,6 +412,26 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     setScriptureDrillState({ level: 'books' });
     setSidebarLayerState('space');
     writePersistedSidebarNav({ layer: 'space' });
+  }, []);
+  const setActiveChurchOrgId = useCallback((orgId: string | null) => {
+    setActiveChurchOrgIdState((prev) => (prev === orgId ? prev : orgId));
+    if (orgId) {
+      setActiveSpaceIdState(null);
+      writePersistedSidebarNav({
+        activeChurchOrgId: orgId,
+        clearActiveSpaceId: true,
+        clearSidebarListSpaceScope: true,
+      });
+      setSidebarListSpaceScopeState('space');
+      clearPersistedDrilldowns();
+      setSidebarFolderDrilldownState(undefined);
+      setSidebarThreadDrilldownIdState(undefined);
+      setScriptureDrillState({ level: 'books' });
+      setSidebarLayerState('space');
+      writePersistedSidebarNav({ layer: 'space' });
+    } else {
+      writePersistedSidebarNav({ clearActiveChurchOrgId: true });
+    }
   }, []);
   const setSidebarListSpaceScope = useCallback((scope: SidebarListSpaceScope) => {
     setSidebarListSpaceScopeState((prev) => {
@@ -699,6 +734,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarLayer,
       activeSpaceId,
       setActiveSpaceId,
+      activeChurchOrgId,
+      setActiveChurchOrgId,
       sidebarListSpaceScope,
       setSidebarListSpaceScope,
       sidebarListMode,
@@ -765,6 +802,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarLayer,
       activeSpaceId,
       setActiveSpaceId,
+      activeChurchOrgId,
+      setActiveChurchOrgId,
       sidebarListSpaceScope,
       setSidebarListSpaceScope,
       sidebarListMode,

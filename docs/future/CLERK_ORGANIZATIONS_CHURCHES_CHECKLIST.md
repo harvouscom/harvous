@@ -17,12 +17,12 @@ The following decisions were captured for implementation. The list of churches o
 
 **V1 (20-person limit):** For v1 we should **not** allow any user to freely “join” a church org, given Clerk’s 20-person org limit. Instead the journey is **church-controlled**: the church sees a **list of people who said that is their church** (matched from UserMetadata free-text). The church can **accept all or select which** of those people get access to church content and shared spaces.
 
-**Clerk org = staff/volunteers only:** The 20 Clerk org slots are reserved for **church staff or volunteers** who manage the Bible education side (admins, curriculum authors, small group leaders who need the church dashboard). **Congregants/attendees are never added to the Clerk org.** They get access via (1) **shared space membership** (your DB: `Members` table—invite links, join tokens, PCO roster sync) and/or (2) **linked church** in your DB (`UserMetadata.connectedChurchId`). When a user accepts a connection request, we set `connectedChurchId`/`connectedOrgId` and optionally add them to church-owned spaces; we do **not** call Clerk to add them to the org. Curriculum and "From your church" inbox delivery use your DB (connected users + space membership), not Clerk org membership. This keeps unlimited congregants while staying within the 20-member limit.
+**Clerk org = staff/volunteers only:** The 20 Clerk org slots are reserved for **church staff or volunteers** who manage the Bible education side (admins, curriculum authors, small group leaders who need the church dashboard). **Congregants/attendees are never added to the Clerk org.** They get access via (1) **shared space membership** (Groups lane — invite links, join tokens, PCO Groups roster sync) and/or (2) **church memberships** in your DB (many allowed; one **home church**) plus follows on **ministry education channels**. When a user accepts a connection request, create/update a membership row, set home if first connect (`UserMetadata.connectedChurchId`/`connectedOrgId` today = home until renamed), and optionally follow ministry spaces; we do **not** call Clerk to add them to the org. Curriculum and "From your church" **study feed** use the **home church** only (plus that church’s ministry-space follows), not Clerk org membership. See [Locked: multi-church + home church](./CHURCH_CONNECTION_SYSTEM.md#locked-multi-church--home-church-july-2026).
 
 ### MyChurchPanel and policies
 
 - **MyChurchPanel:** Primary flow: user is part of a church and gets **invited** → then their free-text church (and link) is updated. Panel stays focused on “my church” (free-text + linked org when they joined via invite).
-- **Leave church:** Allowed; clear `connectedChurchId`/`connectedOrgId` in UserMetadata and remove from Clerk org only if they were an org member (e.g. staff); keep existing inbox items.
+- **Leave church:** Allowed; remove that church membership. If it was home and others remain, require a new home (or auto-promote). If none remain, clear home (`connectedChurchId`/`connectedOrgId`). Remove from Clerk org only if they were an org member (e.g. staff).
 - **One church per user:** Yes, one only.
 - **User joins another church:** Block — they must leave the current church first.
 - **Matching:** All matches get a connection request (no auto-join).
@@ -59,30 +59,43 @@ Clerk’s **free plan for organizations is limited to 20 people**. So for church
 
 **Principle:** Unlimited spaces and unlimited notes inside an org; pricing scales by **church size**, not by feature gates. Implementation will require configuring Clerk billing (plans, limits, webhooks) for these church tiers.
 
-### Planning Center (PCO) integration
+### Planning Center (PCO) integration — two products, two Harvous rails
 
-Fully native integration with **Planning Center (PCO) Groups** via their OAuth API is the target—pull groups/rosters directly, no middleware. From church/member views, it’s seamless “one-click connect” that feels like PCO built it.
+Harvous is not a full ChMS. Map PCO modules to Harvous deliberately:
 
-- **Product reference:** [Planning Center Groups](https://www.planningcenter.com/groups) — community organization, attendance, group chat, events, and Church Center app; Harvous would act as a “Bible Study add-on” to this flow.
-- **API:** The PCO API would need to be researched to implement this integration (OAuth scopes, Groups/People endpoints, token storage/refresh, and any rate limits or webhooks).
+| Planning Center | Harvous | Job |
+|---|---|---|
+| **[Groups](https://www.planningcenter.com/groups)** | **Shared Spaces** (`type='shared'`) | Small groups / rosters / discussion — Groups alternative or Bible-study add-on |
+| **[Resources](https://www.planningcenter.com/resources)** | **Ministry broadcast spaces** (`type='public'` + `orgId`) | Curriculum, lessons, sermon-series materials — **utilize or replace** PCO Resources |
+
+Canonical vision: [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md). Open later: whether Resources is API-utilized or Harvous becomes the system of record for study materials. Groups roster sync can land independently.
+
+#### Groups → Shared Spaces (roster / relational study)
+
+Fully native **PCO Groups** OAuth is the target for roster sync — pull groups/people, no middleware. Harvous acts as the Bible-study layer on the group.
 
 **Church admin/leader perspective**
 
-Admins (PCO users) treat Harvous as a “Bible Study add-on” in their PCO dashboard flow.
-
-1. **Connect once:** In Harvous settings → “Connect Planning Center” → OAuth login (PCO prompts scopes: Groups read/write, People read). Gets access token stored in Turso (refresh auto).
-2. **Auto-sync groups:** Harvous lists PCO groups (`GET /groups/v2/groups`) → One-click “Enable Bible Hub” creates matching shared space (plan/discussions prepped).
-3. **Manage in PCO:** Create/edit group in PCO → Harvous syncs roster (`GET /groups/{id}/people`), adds to space. Track attendance in PCO; Harvous feeds study progress back (`POST /groups/{id}/events` or custom field).
-4. **Dashboard view:** Harvous “PCO Groups” tab: Completion %, top discussions. Leaders get notified: “Your Romans group is 80% on plan—start chat!”
+1. **Connect once:** Settings → “Connect Planning Center” → OAuth (Groups + People scopes). Store/refresh tokens in Supabase (not Turso).
+2. **Auto-sync groups:** List PCO groups → one-click “Enable study space” creates a matching **shared space**.
+3. **Manage in PCO:** Create/edit group → Harvous syncs roster into the shared space.
+4. **Dashboard:** Shared-space progress for that group (completion, discussion) without replacing PCO attendance.
 
 **Member perspective**
 
-Zero friction—stays in familiar PCO/Church Center, discovers Harvous organically.
+1. **Discovery:** PCO group / Church Center → deep link into the Harvous shared space.
+2. **Join:** Auto-invite if on PCO roster → Harvous login (SSO later).
+3. **Daily use:** Notes and discussion in the shared space; optional progress signals back to PCO.
 
-1. **Discovery:** PCO group page → “Join Bible Study Notes” button (Harvous deep link via PCO custom link field). Or Church Center app shows “Study Hub Active.”
-2. **Join space:** Auto-invite if on PCO roster → Harvous login (or PCO SSO if you add later). Lands in space with plan loaded (API.Bible verses).
-3. **Daily use:** Check verse/read → Log note/discuss. Progress syncs to PCO profile (e.g., badge: “Week 2 Complete”).
-4. **Mobile:** PWA from Harvous; optional PCO calendar event links to daily plan.
+#### Resources → ministry education channels
+
+PCO Resources (files, lessons, plans) maps to Harvous **ministry broadcast spaces** — adult ed, students, sermon companions, leader resource packs — **not** an announcements bulletin.
+
+- Staff publish curriculum into `orgId` + `type='public'` channels.
+- Connected congregants follow and copy / start-from-starter into personal notes.
+- Sermon calendar + starter notes (see [PASTOR_FEATURES_ROADMAP.md](./PASTOR_FEATURES_ROADMAP.md)) live on this rail.
+
+Decide utilize-vs-replace when building the integration; product language and channel model should not wait on that API choice.
 
 ---
 
@@ -120,7 +133,7 @@ Zero friction—stays in familiar PCO/Church Center, discovers Harvous organical
 
 ### Sync with Clerk
 
-- **Source of truth:** Clerk holds org membership **only for staff/volunteers** (≤20). Your DB holds “which church this user is linked to” and space membership (`Members`); congregants are linked and get content via your DB only—they are not added to the Clerk org. On leave, clear `connectedChurchId`/`connectedOrgId`; if the user was in the Clerk org (staff), remove them from the org via Clerk API. 
+- **Source of truth:** Clerk holds org membership **only for staff/volunteers** (≤20). Your DB holds **church memberships (many)** + **home church (one)** and space membership; congregants get content via your DB only—they are not added to the Clerk org. On leave, drop that membership and update/clear home; if the user was in the Clerk org (staff), remove them from the org via Clerk API. 
 ---
 
 ## 3. Auth & Backend
@@ -164,9 +177,8 @@ Zero friction—stays in familiar PCO/Church Center, discovers Harvous organical
 
 ## 6. Edge Cases & Policies
 
-- **One church per user:** Current design is “linked to one church.” If you later allow multiple churches, schema and UI (e.g. list of churches in MyChurchPanel) need to support it.
-- **User already in an org:** If they join another church, do you remove the previous link (and Clerk membership) or support multiple?
-- **Church deleted / deactivated:** When a church is removed or deactivated, clear `connectedChurchId`/`connectedOrgId` for all users (and optionally remove Clerk memberships). Decide how to handle existing inbox items that referenced that org.
+- **Multi-church + home (locked):** Memberships many; one home. Joining another church adds a membership — it does not remove the previous link. Home changes only via explicit “set home” or leave-home rules. Settings lists all memberships; Home feed is home-only. Shell: **My Home vs My Church** — My Church hub has two lanes: church **Shared Spaces** (collaborate; church-sponsored) vs **ministry channels** (followable staff feed; RSS-leaning icon; not Shared Spaces). Comparison: [CHURCH_ORG_AND_CURRICULUM](./CHURCH_ORG_AND_CURRICULUM.md#church-shared-spaces-vs-ministry-channels-locked-distinction). Schema: future `ChurchMemberships` + home columns (today’s `connected*` = home until migrate). Details: [CHURCH_CONNECTION_SYSTEM](./CHURCH_CONNECTION_SYSTEM.md#locked-multi-church--home-church-july-2026).
+- **Church deleted / deactivated:** Remove memberships for that church for all users; if it was someone’s home, auto-promote or clear home; optionally remove Clerk memberships for staff. Decide how to handle existing inbox items that referenced that org.
 - **Matching algorithm:** CHURCH_CONNECTION_SYSTEM describes name/city/state scoring. Consider normalizations (trim, case, accents), false positives (same name in different cities), and whether you auto-join only exact matches or also “high” and require confirmation for “medium.”
 - **Privacy / GDPR:** Storing church link and org membership; church admins may see “members” in Clerk and in your DB. Document and expose in privacy policy.
 
@@ -200,7 +212,7 @@ Zero friction—stays in familiar PCO/Church Center, discovers Harvous organical
 | Area | Things to decide |
 |------|-------------------|
 | **Flows** | Church sign-up path; user “find church” vs “we match you”; new vs existing users. |
-| **Schema** | Churches, ChurchConnectionRequests (or equiv), UserMetadata.connectedChurchId/connectedOrgId. |
+| **Schema** | Churches, ChurchConnectionRequests, ChurchMemberships (many), home via UserMetadata.connected* / homeChurchId. |
 | **Clerk** | Backend org APIs; frontend org context vs your own “linked church” API; session claims for org. |
 | **API** | Church CRUD, connection request accept/decline, list churches (search), optional invite. |
 | **MyChurchPanel** | Replace with org-centric UI vs add “Link to church” block; show linked org + leave/change. |

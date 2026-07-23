@@ -1,46 +1,169 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import Icon from '@/components/react/Icon';
 import { type ThreadColor } from '@/utils/colors';
-import { SPACE_COVER_PICKER_COLORS, spacePickerSwatchColor } from '@/utils/space-cover';
+import {
+  SPACE_COVER_PICKER_COLORS,
+  spaceCoverFromThreadColor,
+  spacePickerSwatchColor,
+  type SpaceCoverBg,
+} from '@/utils/space-cover';
+import {
+  clampSpaceCoverVariant,
+  listSpaceCoverVariantsForFamily,
+  resolveSpaceCoverVariant,
+  spaceCoverPresetUrl,
+} from '@/utils/space-cover-presets';
+import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
+import { resolveJoinHeroBackground, resolveJoinHeroImageUrl } from '../../lib/space-cover-display';
 import { useUpdateSharedSpace } from '../../hooks/mutations/useUpdateSharedSpace';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
+import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
+import type { IconName } from '@/components/react/Icon';
+import {
+  PUBLISH_CADENCE_VALUES,
+  cadenceLabel,
+  parsePublishCadence,
+  staffCadenceStaleHint,
+  type PublishCadence,
+} from '@/utils/channel-publish-cadence';
+
+type CoverPickerMode = 'none' | 'color' | 'image';
+
+const CADENCE_OPTIONS: Array<{ value: '' | PublishCadence; label: string }> = [
+  { value: '', label: 'Not set' },
+  ...PUBLISH_CADENCE_VALUES.map((value) => ({
+    value,
+    label: cadenceLabel(value) ?? value,
+  })),
+];
+
+function baselineVariantFor(
+  color: string | null | undefined,
+  coverBgLight: SpaceCoverBg | null | undefined,
+  explicit?: number | null,
+): number {
+  if (explicit != null) return clampSpaceCoverVariant(explicit);
+  return resolveSpaceCoverVariant(coverBgLight, (color || 'blue').toLowerCase());
+}
 
 export default function PrototypeSpaceSettingsSection({
   spaceId,
   initialTitle,
   initialColor,
   initialDescription,
+  initialCoverBgLight,
+  initialCoverVariant,
+  initialPublishCadence,
+  initialCadenceStale = false,
   onSaved,
+  /** Shared Spaces: people. Ministry channels: rss. */
+  iconName = 'user-group',
+  ministryChannel = false,
 }: {
   spaceId: string;
   initialTitle: string;
   initialColor?: string | null;
   initialDescription?: string | null;
+  /** Stored light cover — used to restore the active variant when reopening settings. */
+  initialCoverBgLight?: SpaceCoverBg | null;
+  /** Optional explicit 1–5; wins over parsing `initialCoverBgLight`. */
+  initialCoverVariant?: number | null;
+  initialPublishCadence?: PublishCadence | string | null;
+  /** Observed lag vs declared cadence — staff-only soft hint. */
+  initialCadenceStale?: boolean;
   onSaved?: (title: string) => void;
+  iconName?: IconName;
+  ministryChannel?: boolean;
 }) {
+  const descriptionPlaceholder = ministryChannel
+    ? 'Optional description of this channel'
+    : 'Optional description of this space';
+  const defaultColor = ((initialColor as ThreadColor) || 'blue') as ThreadColor;
   const [title, setTitle] = useState(initialTitle);
-  const [color, setColor] = useState<ThreadColor>((initialColor as ThreadColor) || 'purple');
+  const [color, setColor] = useState<ThreadColor>(defaultColor);
+  const [coverVariant, setCoverVariant] = useState(() =>
+    baselineVariantFor(defaultColor, initialCoverBgLight, initialCoverVariant),
+  );
+  const [baselineVariant, setBaselineVariant] = useState(() =>
+    baselineVariantFor(defaultColor, initialCoverBgLight, initialCoverVariant),
+  );
+  const [pickerMode, setPickerMode] = useState<CoverPickerMode>('none');
   const [description, setDescription] = useState(initialDescription ?? '');
+  const [publishCadence, setPublishCadence] = useState<PublishCadence | ''>(
+    () => parsePublishCadence(initialPublishCadence) ?? '',
+  );
   const updateSpace = useUpdateSharedSpace();
+  const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
+
+  const initialCoverPresetId =
+    initialCoverBgLight && typeof initialCoverBgLight === 'object' && 'presetId' in initialCoverBgLight
+      ? String(initialCoverBgLight.presetId)
+      : typeof initialCoverBgLight === 'string'
+        ? initialCoverBgLight
+        : '';
+
+  // Sync color/cover when the space identity or saved cover changes — not when the
+  // parent only echoes the title after save (that was snapping the image back).
+  useEffect(() => {
+    const nextColor = ((initialColor as ThreadColor) || 'blue') as ThreadColor;
+    const nextVariant = baselineVariantFor(nextColor, initialCoverBgLight, initialCoverVariant);
+    setColor(nextColor);
+    setCoverVariant(nextVariant);
+    setBaselineVariant(nextVariant);
+    setPickerMode('none');
+  }, [spaceId, initialColor, initialCoverPresetId, initialCoverVariant]);
 
   useEffect(() => {
     setTitle(initialTitle);
-    setColor(((initialColor as ThreadColor) || 'purple') as ThreadColor);
+  }, [initialTitle]);
+
+  useEffect(() => {
     setDescription(initialDescription ?? '');
-  }, [initialTitle, initialColor, initialDescription, spaceId]);
+  }, [initialDescription]);
+
+  useEffect(() => {
+    setPublishCadence(parsePublishCadence(initialPublishCadence) ?? '');
+  }, [initialPublishCadence, spaceId]);
 
   const normalizedDescription = description.trim();
   const initialDescriptionNorm = (initialDescription ?? '').trim();
+  const initialCadenceNorm = parsePublishCadence(initialPublishCadence) ?? '';
   const dirty =
     title.trim() !== initialTitle.trim() ||
-    color !== (initialColor || 'purple') ||
-    normalizedDescription !== initialDescriptionNorm;
+    color !== (initialColor || 'blue') ||
+    coverVariant !== baselineVariant ||
+    normalizedDescription !== initialDescriptionNorm ||
+    (ministryChannel && publishCadence !== initialCadenceNorm);
+  const staleHint =
+    ministryChannel && initialCadenceStale && publishCadence === initialCadenceNorm
+      ? staffCadenceStaleHint(publishCadence || null)
+      : null;
+
+  const cover = spaceCoverFromThreadColor(color, coverVariant);
+  const coverPreview = {
+    color,
+    cover: { light: cover.light, dark: cover.dark },
+  };
+  const heroStyle = resolveJoinHeroBackground(coverPreview, colorScheme);
+  const heroIsImage = Boolean(resolveJoinHeroImageUrl(coverPreview, colorScheme));
+  const variantThumbs = listSpaceCoverVariantsForFamily(color, colorScheme);
+
+  function toggleMode(mode: Exclude<CoverPickerMode, 'none'>) {
+    setPickerMode((prev) => (prev === mode ? 'none' : mode));
+  }
+
+  function selectColor(next: ThreadColor) {
+    if (next !== color) {
+      setColor(next);
+      setCoverVariant(1);
+    }
+  }
 
   function save() {
     const trimmed = title.trim();
     if (!trimmed) {
-      toast.error('Space name is required');
+      toast.error('Name is required');
       return;
     }
     updateSpace.mutate(
@@ -48,16 +171,19 @@ export default function PrototypeSpaceSettingsSection({
         spaceId,
         title: trimmed,
         color,
+        coverVariant,
         description: normalizedDescription || null,
+        ...(ministryChannel ? { publishCadence: publishCadence || null } : {}),
       },
       {
         onSuccess: () => {
-          toast.success('Space updated');
+          setBaselineVariant(coverVariant);
+          toast.success('Saved');
           onSaved?.(trimmed);
         },
         onError: (err) => {
           const msg =
-            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not update space';
+            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not update';
           toast.error(msg);
         },
       },
@@ -83,30 +209,107 @@ export default function PrototypeSpaceSettingsSection({
           value={description}
           maxLength={500}
           rows={2}
-          placeholder="Optional — what this space is about"
+          placeholder={descriptionPlaceholder}
           onChange={(e) => setDescription(e.target.value)}
           style={{ resize: 'vertical', minHeight: 52 }}
         />
       </div>
+      {ministryChannel ? (
+        <div className="proto-shared-space-settings__field">
+          <label htmlFor="proto-space-settings-cadence">How often does this channel update?</label>
+          <select
+            id="proto-space-settings-cadence"
+            value={publishCadence}
+            onChange={(e) =>
+              setPublishCadence((e.target.value as PublishCadence | '') || '')
+            }
+          >
+            {CADENCE_OPTIONS.map((opt) => (
+              <option key={opt.value || 'not-set'} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          {staleHint ? (
+            <p className="proto-caption proto-shared-space-settings__cadence-hint">{staleHint}</p>
+          ) : null}
+        </div>
+      ) : null}
       <div className="proto-shared-space-settings__field">
-        <span className="proto-inspector-section-title" style={{ marginBottom: 6, display: 'block' }}>
-          Color
-        </span>
-        <div className="proto-shared-space-settings__colors" role="radiogroup" aria-label="Space color">
-          {SPACE_COVER_PICKER_COLORS.map((c) => (
+        <label>Color &amp; background</label>
+        <div
+          className={`proto-space-cover-picker proto-space-cover-picker--preview-led${pickerMode !== 'none' ? ` proto-space-cover-picker--mode-${pickerMode}` : ''}`}
+        >
+          <div className="proto-space-cover-picker__preview">
             <button
-              key={c}
               type="button"
-              role="radio"
-              aria-checked={color === c}
-              className={`proto-shared-space-settings__color${color === c ? ' proto-shared-space-settings__color--selected' : ''}`}
-              style={{ ['--swatch-accent' as string]: spacePickerSwatchColor(c) }}
-              title={c}
-              onClick={() => setColor(c)}
+              className={`proto-space-cover-picker__hero-hit${heroIsImage ? ' proto-space-cover-picker__hero--image' : ''}${pickerMode === 'image' ? ' proto-space-cover-picker__hero-hit--active' : ''}`}
+              style={heroStyle}
+              aria-pressed={pickerMode === 'image'}
+              aria-label="Choose cover image"
+              title="Choose cover image"
+              onClick={() => toggleMode('image')}
+            />
+            <button
+              type="button"
+              className={`proto-space-cover-picker__tile-hit${pickerMode === 'color' ? ' proto-space-cover-picker__tile-hit--active' : ''}`}
+              aria-pressed={pickerMode === 'color'}
+              aria-label="Choose color"
+              title="Choose color"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleMode('color');
+              }}
             >
-              {color === c ? <Icon name="check" size={12} /> : null}
+              <ProtoSpaceMenuIcon color={color} size={28} radius={8} iconName={iconName} />
             </button>
-          ))}
+          </div>
+
+          {pickerMode === 'color' ? (
+            <div className="proto-space-cover-picker__tray" role="radiogroup" aria-label="Color">
+              {SPACE_COVER_PICKER_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  role="radio"
+                  aria-checked={color === c}
+                  className={`proto-shared-space-settings__color proto-space-cover-picker__tray-swatch${color === c ? ' proto-shared-space-settings__color--selected' : ''}`}
+                  style={{ ['--swatch-accent' as string]: spacePickerSwatchColor(c) }}
+                  title={c}
+                  onClick={() => selectColor(c)}
+                >
+                  {color === c ? <Icon name="check" size={12} /> : null}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {pickerMode === 'image' && variantThumbs.length > 0 ? (
+            <div className="proto-space-cover-picker__tray" role="radiogroup" aria-label="Cover image">
+              {variantThumbs.map((preset) => {
+                const selected = coverVariant === preset.variant;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    aria-label={preset.label}
+                    title={preset.label}
+                    className={`proto-space-cover-picker__thumb${selected ? ' proto-space-cover-picker__thumb--selected' : ''}`}
+                    style={{ backgroundImage: `url(${spaceCoverPresetUrl(preset)})` }}
+                    onClick={() => setCoverVariant(preset.variant)}
+                  >
+                    {selected ? (
+                      <span className="proto-space-cover-picker__thumb-check" aria-hidden>
+                        <Icon name="check" size={12} />
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       </div>
       <button
@@ -114,7 +317,7 @@ export default function PrototypeSpaceSettingsSection({
         className="proto-settings-btn"
         disabled={!dirty || updateSpace.isPending}
         onClick={save}
-        style={{ marginTop: 12 }}
+        style={{ marginTop: 10 }}
       >
         {updateSpace.isPending ? 'Saving…' : 'Save changes'}
       </button>

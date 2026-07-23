@@ -311,6 +311,50 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   color: var(--pds-text-primary);
 }
 
+/* Space switcher rows: small eyebrow + title (ministry = church name; shared = Shared space). */
+.proto-menu-item--stacked {
+  align-items: flex-start;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.proto-menu-item__label--stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  white-space: normal;
+  overflow: hidden;
+}
+
+.proto-menu-item__eyebrow {
+  margin: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-menu-item span.proto-menu-item__title {
+  margin: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Match plain switcher rows (overrides span:not(.proto-menu-item__label) weight). */
+  font-size: inherit;
+  font-weight: inherit;
+  font-family: inherit;
+  font-variation-settings: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+.proto-menu-item--stacked .proto-menu-item__icon {
+  margin-top: 2px;
+}
+
 .proto-menu-item__check {
   flex-shrink: 0;
   display: inline-flex;
@@ -2022,6 +2066,307 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   margin-bottom: var(--pds-space-3);
 }
 
+/* Templates section (right inspector) */
+.proto-inspector-templates__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.proto-inspector-templates__action,
+.proto-inspector-templates__action-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--pds-radius-row);
+  border: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-elevated, transparent);
+  color: var(--pds-text-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  cursor: pointer;
+  text-align: center;
+}
+
+.proto-inspector-templates__action:hover {
+  background: var(--pds-bg-ghost);
+}
+
+.proto-inspector-templates__action-secondary {
+  border-color: transparent;
+  background: transparent;
+  color: var(--pds-text-secondary);
+  font-weight: 500;
+}
+
+.proto-inspector-templates__action-secondary:hover {
+  color: var(--pds-text-primary);
+  background: var(--pds-bg-ghost);
+}
+
+.proto-inspector-templates__action:focus-visible,
+.proto-inspector-templates__action-secondary:focus-visible,
+.proto-inspector-templates__close:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-border);
+  outline-offset: 2px;
+}
+
+.proto-inspector-templates__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.proto-inspector-templates__panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.proto-inspector-templates__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pds-text-tertiary);
+  cursor: pointer;
+}
+
+.proto-inspector-templates__close:hover {
+  color: var(--pds-text-primary);
+  background: var(--pds-bg-ghost);
+}
+
+/* Browse templates dialog / sheet — fill popover height; list scrolls in scoped-list-body. */
+.proto-browse-templates-sheet.proto-connect-note-sheet--popover,
+.proto-browse-templates-sheet.proto-add-notes-sheet {
+  display: flex;
+  flex-direction: column;
+  /* Fixed height so scoped-list-body can flex-fill instead of clipping at 260px. */
+  height: min(480px, 70vh);
+  max-height: min(520px, 72vh);
+  min-height: 0;
+}
+
+.proto-browse-templates-sheet .proto-study-thread-popover__header {
+  flex-shrink: 0;
+}
+
+.proto-browse-templates-sheet .proto-add-notes-sheet__scoped-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Beat base `.proto-add-notes-sheet__scoped-list { max-height: 260px }`. */
+  max-height: none !important;
+  height: auto;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-menu, 12px);
+  margin: 10px 14px 14px;
+  overflow: hidden;
+  background: var(--pds-bg-ghost);
+}
+
+/* Search is first (Add Notes puts chips first) — keep the same shrink/pad chrome. */
+.proto-browse-templates-sheet .proto-add-notes-sheet__scoped-list .proto-add-notes-sheet__search-in-panel {
+  flex-shrink: 0;
+  padding: 8px 8px 6px;
+}
+
+.proto-browse-templates-sheet .proto-add-notes-sheet__scoped-list .proto-add-notes-sheet__scope {
+  flex-shrink: 0;
+  padding: 0 8px 6px;
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.proto-browse-templates-sheet .proto-add-notes-sheet__scoped-list .proto-chip-bar,
+.proto-browse-templates-sheet .proto-chip-bar {
+  display: flex;
+  width: 100%;
+  margin: 0;
+  padding: 2px;
+  gap: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.proto-browse-templates-sheet .proto-chip {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+  justify-content: center;
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  font-variation-settings: var(--pds-font-body-variation-chip);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 1px 2px transparent;
+}
+
+.proto-browse-templates-sheet .proto-chip--selected {
+  font-weight: 500;
+  font-variation-settings: var(--pds-font-body-variation-chip);
+  box-shadow: var(--pds-shadow-chip-selected);
+}
+
+.proto-browse-templates-sheet__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+}
+
+/* Template pick rows — name + category, description, optional time (no icon well). */
+.proto-browse-templates-sheet__item {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proto-browse-templates-sheet__item-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  width: 100%;
+  margin: 0;
+  padding: 10px 11px;
+  box-sizing: border-box;
+  border: 0.5px solid transparent;
+  border-radius: var(--pds-radius-row, 10px);
+  background: var(--pds-bg-elevated, var(--pds-bg-page));
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.proto-browse-templates-sheet__item-btn:hover {
+  background: var(--pds-bg-row-hover, var(--pds-bg-ghost));
+  border-color: var(--pds-border-control);
+}
+
+.proto-browse-templates-sheet__item-btn:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-border);
+  outline-offset: 1px;
+}
+
+.proto-browse-templates-sheet__item-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.proto-browse-templates-sheet__item-name {
+  min-width: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--pds-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Reuses `.proto-home-tag-chip` (card tag style); only layout tweaks here. */
+.proto-browse-templates-sheet__item-cat.proto-home-tag-chip {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.proto-browse-templates-sheet__item-desc {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--pds-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Fill the scrollport so empty copy centers in the remaining panel height. */
+.proto-browse-templates-sheet .proto-add-notes-sheet__scoped-list-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.proto-browse-templates-sheet__empty {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  margin: 0;
+  padding: 20px 8px;
+  box-sizing: border-box;
+}
+
+.proto-browse-templates-sheet__empty .proto-list-empty-state {
+  max-width: 16rem;
+  flex: 0 0 auto;
+}
+
+.proto-inspector-templates__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.proto-inspector-templates__field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--pds-border);
+  font: inherit;
+  font-size: 13px;
+  background: var(--pds-bg-elevated, transparent);
+  color: var(--pds-text-primary);
+}
+
+.proto-inspector-templates__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-inspector-templates__save-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
 .proto-inspector-activity__groups {
   display: flex;
   flex-direction: column;
@@ -3438,14 +3783,14 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   box-sizing: border-box;
-  padding: 12px 24px;
+  padding: 20px 24px;
 }
 
 .proto-list-create-empty .proto-list-empty-state {
   flex: 0 0 auto;
-  padding: 0;
+  padding: 8px 0;
 }
 
 .proto-list-create-empty__btn {
@@ -7235,9 +7580,18 @@ button.proto-appearance-hero__card {
 .proto-thread-review {
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: 100%;
   position: relative;
-  flex: 1;
+  flex: 1 1 auto;
+}
+
+/* Clear the floating migration pill stack (z-index 2) so footer actions stay tappable. */
+.proto-sidebar-root--thread-review .proto-thread-review__actions {
+  bottom: 88px;
+}
+
+.proto-sidebar-root--thread-review .proto-thread-review__list {
+  padding-bottom: 160px;
 }
 
 .proto-thread-review__header {
@@ -8262,6 +8616,132 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   border: none;
 }
 
+.proto-church-hub__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Color tile + title/cadence — larger icon and more air than compact home cards. */
+.proto-church-hub__list .proto-home-card__title-row {
+  gap: 12px;
+  --proto-home-card-icon-size: 28px;
+}
+
+.proto-church-hub__list .proto-home-card__icon-orb {
+  width: 28px;
+  height: 28px;
+  opacity: 1;
+}
+
+.proto-church-hub__empty-lane {
+  margin: 0;
+  opacity: 0.72;
+}
+
+.proto-church-hub__row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.proto-church-hub__row-meta {
+  margin: 0;
+  opacity: 0.72;
+  line-height: 1.25;
+}
+
+.hmc-church-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hmc-church-picker__status {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.72;
+}
+
+.hmc-church-picker__error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--pds-destructive, #b42318);
+}
+
+.hmc-church-picker__results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow: auto;
+  border: 0.5px solid var(--pds-border-control, var(--pds-border));
+  border-radius: 10px;
+}
+
+.hmc-church-picker__result {
+  width: 100%;
+  appearance: none;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: inherit;
+  color: inherit;
+}
+
+.hmc-church-picker__result:hover,
+.hmc-church-picker__result:focus-visible {
+  background: var(--pds-bg-control, var(--pds-bg-subtle));
+  outline: none;
+}
+
+.hmc-church-picker__result-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hmc-church-picker__result-meta {
+  font-size: 12px;
+  opacity: 0.72;
+}
+
+.proto-shared-space-settings__cadence-hint {
+  margin: 6px 0 0;
+  opacity: 0.78;
+  line-height: 1.35;
+}
+
+.public-join-letter-about__cadence {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  opacity: 0.78;
+}
+
+.public-join-letter-about__cadence svg {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.public-join-letter-about__cadence-stale {
+  margin: 4px 0 0;
+  opacity: 0.66;
+}
+
 .proto-shared-space-header {
   padding: 12px 14px;
   border-bottom: 0.5px solid var(--pds-border);
@@ -8281,12 +8761,38 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   flex: 1;
 }
 
+.proto-shared-space-header__church-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--pds-bg-control);
+  color: var(--pds-text-secondary);
+}
+
+.proto-shared-space-header__church {
+  margin: 0;
+  color: var(--pds-text-tertiary);
+}
+
 .proto-shared-space-header__title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 15px;
   font-weight: 600;
+  line-height: 1.25;
+}
+
+.proto-shared-space-header__location {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.72;
   line-height: 1.25;
 }
 
@@ -8307,6 +8813,17 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   font-size: 12px;
   line-height: 1.3;
   transition: background 0.12s ease;
+}
+
+.proto-shared-space-header__people--static {
+  cursor: default;
+  margin: 0;
+  padding: 0;
+}
+
+.proto-shared-space-header__people--static:hover,
+.proto-shared-space-header__people--static:focus-visible {
+  background: none;
 }
 
 .proto-shared-space-header__people:hover {
@@ -8693,7 +9210,8 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   color: var(--pds-text-secondary);
 }
 
-.proto-shared-space-settings__field input[type='text'] {
+.proto-shared-space-settings__field input[type='text'],
+.proto-shared-space-settings__field select {
   width: 100%;
   box-sizing: border-box;
   padding: 8px 10px;
@@ -8706,6 +9224,7 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 }
 
 .proto-shared-space-settings__field input[type='text']:focus,
+.proto-shared-space-settings__field select:focus,
 .proto-shared-space-settings__field textarea:focus {
   outline: none;
   border-color: var(--pds-accent);
@@ -8734,6 +9253,61 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 .proto-shared-space-settings__color--selected svg,
 .proto-shared-space-settings__color--selected path {
   fill: oklch(from var(--swatch-accent) calc(l * 0.58) min(c * 3.5, 0.2) h);
+}
+
+/* My Home / My Church segmented chips (only when a Harvous church is available). */
+.proto-menu-section--mode-toggle {
+  padding: 6px 6px 4px;
+}
+
+.proto-space-switcher__mode-toggle {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: var(--pds-bg-control);
+  padding: 3px;
+  gap: 2px;
+}
+
+.proto-space-switcher__mode-chip {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  border-radius: 7px;
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.proto-space-switcher__mode-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 0;
+  opacity: 0.85;
+}
+
+.proto-space-switcher__mode-chip--active {
+  background: var(--pds-bg-page);
+  color: var(--pds-text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px oklch(0% 0 0 / 0.08);
+}
+
+.proto-space-switcher__mode-chip--active .proto-space-switcher__mode-chip-icon {
+  opacity: 1;
 }
 
 .proto-space-switcher__footer {
@@ -9083,12 +9657,200 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   color: var(--pds-text-primary);
 }
 
-/* Shared space cover picker (create form + people sheet settings) */
+/* Shared space cover picker — preview-led: icon → colors, cover → images. */
 .proto-space-cover-picker {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-top: 10px;
+  gap: 8px;
+  margin-top: 0;
+}
+
+.proto-space-cover-picker--preview-led {
+  gap: 8px;
+}
+
+.proto-space-cover-picker__preview {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 0.5px solid var(--pds-border);
+  background: var(--pds-bg-input);
+}
+
+.proto-space-cover-picker__hero-hit {
+  display: block;
+  width: 100%;
+  height: 112px;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: transparent;
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0.24, 1), filter 0.32s ease;
+}
+
+.proto-space-cover-picker__hero-hit:focus-visible {
+  outline: 2px solid var(--pds-focus-ring, var(--color-blue));
+  outline-offset: -2px;
+}
+
+.proto-space-cover-picker__hero-hit--active {
+  transform: scale(1.012);
+  filter: brightness(1.04);
+}
+
+.proto-space-cover-picker__tile-hit {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  padding: 4px;
+  border: none;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--pds-bg-page) 88%, transparent);
+  box-shadow: 0 1px 3px oklch(0% 0 0 / 0.08);
+  cursor: pointer;
+  transform-origin: center bottom;
+  transition:
+    transform 0.32s cubic-bezier(0.32, 0.72, 0.24, 1),
+    box-shadow 0.32s ease;
+}
+
+.proto-space-cover-picker__tile-hit:focus-visible {
+  outline: 2px solid var(--pds-focus-ring, var(--color-blue));
+  outline-offset: 2px;
+}
+
+.proto-space-cover-picker__tile-hit--active {
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px oklch(0% 0 0 / 0.12);
+}
+
+@keyframes proto-cover-tray-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes proto-cover-tray-item-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.proto-space-cover-picker__tray {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+  animation: proto-cover-tray-in 0.3s cubic-bezier(0.32, 0.72, 0.24, 1) both;
+}
+
+.proto-space-cover-picker__tray > * {
+  animation: proto-cover-tray-item-in 0.34s cubic-bezier(0.32, 0.72, 0.24, 1) both;
+}
+
+.proto-space-cover-picker__tray > *:nth-child(1) { animation-delay: 0.02s; }
+.proto-space-cover-picker__tray > *:nth-child(2) { animation-delay: 0.05s; }
+.proto-space-cover-picker__tray > *:nth-child(3) { animation-delay: 0.08s; }
+.proto-space-cover-picker__tray > *:nth-child(4) { animation-delay: 0.11s; }
+.proto-space-cover-picker__tray > *:nth-child(5) { animation-delay: 0.14s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-space-cover-picker__hero-hit,
+  .proto-space-cover-picker__tile-hit,
+  .proto-space-cover-picker__tray,
+  .proto-space-cover-picker__tray > * {
+    transition: none;
+    animation: none;
+  }
+
+  .proto-space-cover-picker__hero-hit--active,
+  .proto-space-cover-picker__tile-hit--active {
+    transform: none;
+    filter: none;
+  }
+}
+
+.proto-space-cover-picker__tray-swatch {
+  width: auto !important;
+  height: auto !important;
+  min-height: 36px;
+  aspect-ratio: 1;
+  border-radius: 7px !important;
+  border: 0.5px solid color-mix(in srgb, var(--swatch-accent, var(--pds-border)) 55%, var(--pds-border)) !important;
+}
+
+.proto-space-cover-picker__tray-swatch.proto-shared-space-settings__color--selected {
+  box-shadow: none;
+}
+
+.proto-space-cover-picker__tray-swatch.proto-shared-space-settings__color--selected svg {
+  width: 12px;
+  height: 12px;
+  padding: 3px;
+  box-sizing: content-box;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pds-bg-page) 92%, transparent);
+  box-shadow: 0 1px 2px oklch(0% 0 0 / 0.12);
+  fill: var(--pds-text-primary);
+}
+
+.proto-space-cover-picker__thumb {
+  position: relative;
+  min-width: 0;
+  min-height: 36px;
+  aspect-ratio: 1;
+  border: 0.5px solid var(--pds-border);
+  border-radius: 7px;
+  padding: 0;
+  background-color: var(--pds-bg-input);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.proto-space-cover-picker__thumb:focus-visible {
+  outline: 2px solid var(--pds-focus-ring, var(--color-blue));
+  outline-offset: 2px;
+}
+
+.proto-space-cover-picker__thumb--selected {
+  box-shadow: none;
+}
+
+.proto-space-cover-picker__thumb-check {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pds-text-primary);
+  pointer-events: none;
+}
+
+.proto-space-cover-picker__thumb-check svg {
+  width: 12px;
+  height: 12px;
+  padding: 3px;
+  box-sizing: content-box;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pds-bg-page) 92%, transparent);
+  box-shadow: 0 1px 2px oklch(0% 0 0 / 0.12);
 }
 
 .proto-space-cover-picker--compact .proto-appearance-preview {
@@ -9097,49 +9859,6 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 
 .proto-space-cover-picker--compact .proto-appearance-preview__label {
   font-size: 10px;
-}
-
-.proto-space-cover-picker__cover-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-.proto-space-cover-picker__mode-tabs {
-  display: inline-flex;
-  gap: 4px;
-  padding: 2px;
-  border-radius: 8px;
-  background: var(--pds-bg-input);
-  border: 0.5px solid var(--pds-border);
-}
-
-.proto-space-cover-picker__mode-tab {
-  border: none;
-  background: transparent;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 6px;
-  color: var(--pds-text-secondary);
-  cursor: pointer;
-}
-
-.proto-space-cover-picker__mode-tab--active {
-  background: var(--site-card);
-  color: var(--pds-text-primary);
-  box-shadow: 0 1px 2px rgba(20, 18, 12, 0.06);
-}
-
-.proto-space-cover-picker__segmented {
-  margin-bottom: 4px;
-}
-
-.proto-space-cover-picker__carousel {
-  max-width: 100%;
 }
 
 .proto-space-switcher__create-form--cover {

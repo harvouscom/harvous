@@ -1,6 +1,6 @@
 # Note Templates
 
-**Status:** Partially Implemented (Classic UI below); user/space/org templates redesigned July 2026
+**Status:** v1 landed on prototype SPA (personal + space); Classic UI still half-wired below; org templates future
 **Last Updated:** July 2026
 
 > **July 2026 update:** the sections below describe the Classic-era
@@ -130,7 +130,7 @@ When shared spaces are implemented (see [ARCHITECTURE.md](../ARCHITECTURE.md), [
 
 ✅ **Done** — Built-in templates use Tiptap-compatible HTML.
 
-- Note `content` in the database is whatever Tiptap persists (see [TiptapEditor](../../src/components/react/TiptapEditor.tsx)). Template `content` uses the same format (HTML) so it can be set as the initial value in the editor without conversion. Built-in templates are authored as HTML (e.g. `<h2>📖 Scripture</h2>`) in [`src/data/note-templates.ts`](../../src/data/note-templates.ts).
+- Note `content` in the database is whatever Tiptap persists (see [TiptapEditor](../../src/components/react/TiptapEditor.tsx)). Template `content` uses the same format (HTML) so it can be set as the initial value in the editor without conversion. Built-in templates are authored as HTML (e.g. `<h2>Scripture</h2>`) in [`src/data/note-templates.ts`](../../src/data/note-templates.ts) — no emoji in template content.
 
 ### File checklist
 
@@ -225,6 +225,14 @@ flowchart LR
 
 ## Redesigned Direction (July 2026)
 
+**Status (v1 landed on `feat/shared-spaces-foundation`):** schema
+(`NoteTemplates` in `server/db/schema.ts`), APIs
+(`GET/POST/DELETE /api/note-templates/*`), and prototype SPA UX
+(`PrototypeInspectorTemplatesSection` in the Note details inspector) are
+implemented for **personal + space** scope. `orgId` column exists but is
+unused (no org provisioning / sermon template yet). Classic `note-panel/`
+UI remains unwired.
+
 Design decisions locked with the user, targeting the **prototype SPA**
 (`spa/src/pages/prototype/`), not the Classic `note-panel/` components above.
 This section supersedes **User-Created Templates** and **Shared Spaces**
@@ -232,21 +240,29 @@ above; the built-in templates and content-format sections still apply.
 
 ### UX
 
-- **Apply:** on a new/empty note, a quiet optional affordance in the top
-  header zone — same placement family as the attribution header shown on
-  shared notes from others — offers "Start from a template." It disappears
-  once the user starts typing, so the canvas stays clean for anyone who
-  doesn't want it. A `/template` slash-command in the TipTap editor is a
-  possible power-user path later.
-- **Create:** after typing a note, the same header affordance (and the
-  note's overflow menu) offers "Save as template" — captures the note's
-  structure as a reusable template. No separate "create template" flow;
-  saving *is* writing a normal note first.
+- **Where:** **Templates** section in the prototype right-side Note details
+  inspector (`PrototypeInspectorPane`), same stack as Info / Tags / Connected
+  Notes / Folders. Shown for editable own notes (including drafts). Mobile
+  uses the same section inside the inspector sheet — no separate flow.
+- **Apply:** **Start from a template** / **Browse templates** open a
+  Connect-note-style dialog (desktop) or bottom sheet (mobile) with the Add
+  Notes scoped list chrome: **search first**, then **chip filter tabs** —
+  **All**, **Included**, **Saved**, then the current shared space by name
+  (owner/leader templates); a future **Church** / org chip (`orgId`) can
+  follow.   Rows show name + card-style category tag and description. Filter chips are
+  text-only. Tapping a row applies into the open note. On empty notes, start-from
+  is the primary action; once the note has content, browse remains available from
+  the same section. A `/template` slash-command in the TipTap editor is a possible
+  power-user path later only.
+- **Create:** **Save as template** in that section captures the live editor
+  title/content as a reusable template (optional attach-to-space for space
+  owners). No separate "create template" flow; saving *is* writing a normal
+  note first. Not in the note header or overflow menu.
 
 ### Data model — three layers, one table
 
 ```ts
-// NoteTemplates (design sketch — not yet in server/db/schema.ts)
+// NoteTemplates — landed in server/db/schema.ts (orgId unused in v1)
 export const NoteTemplates = pgTable('NoteTemplates', {
   id: text('id').primaryKey(),
   userId: text('userId').notNull(),      // creator — personal templates are userId-only

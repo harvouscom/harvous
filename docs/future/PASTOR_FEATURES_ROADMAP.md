@@ -13,25 +13,35 @@ Written July 2026 alongside the harvous.com `/for/pastors` audience page and
 
 - A **church** = a `Churches` row + a Clerk Organization holding **staff/volunteers
   only (≤20, hard constraint)** — congregants never join the Clerk org.
-- **Church curriculum** = org-owned broadcast spaces: `Spaces.orgId` set,
-  `type='public'`. Staff author (owner/leader), congregants follow + copy notes
-  into their own Harvous via the existing copy-lineage rails
-  (`copiedFromNoteId`/`NoteVersions`).
+- **Church curriculum** = org-owned **ministry education channels** (broadcast
+  spaces): `Spaces.orgId` set, `type='public'`. One space per ministry or study
+  context (adult ed, students, sermon series companion, leader resources, etc.) —
+  **not** a church announcements / bulletin feed. Staff author (owner/leader);
+  congregants follow + copy (or start-from-starter) into their own Harvous via
+  copy-lineage / note-templates (`copiedFromNoteId`/`NoteVersions`).
 - **Congregant linkage** = `UserMetadata.connectedChurchId`/`connectedOrgId`,
   set via a future connection-request flow. Connected users see "From your
-  church" surfaces and auto-follow church broadcast spaces.
+  church" as a **study feed** from followed ministry channels.
 - **Billing** = church pays (draft tiers: Connect free → Study → Study Plus →
   Network), same owner-pays philosophy as the Shared Spaces add-on.
   Org-owned spaces never count against a person's owned-space limit. Review
   stays individual, always.
+- **Planning Center split:** Shared Spaces ↔ PCO **Groups**; ministry broadcast
+  ↔ PCO **Resources** (utilize or replace). Details in
+  [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md).
 
 **The ladder** (product + pricing + marketing aligned):
 
 | Stage | Who pays | Rails | Marketing page |
 |---|---|---|---|
 | Solo pastor | free | personal spaces, threads, pills, Recall | `/for/pastors` + `sermon-prep` |
-| Pastor + team / group leader | leader (Shared Spaces add-on) | `type='shared'` spaces, `leader` role | `/for/group-leaders` |
-| Church org | church | `orgId` + `type='public'` broadcast spaces, connection flow | `/for/churches` |
+| Pastor + team / group leader | leader (Shared Spaces add-on) | `type='shared'` spaces, `leader` role (PCO Groups lane) | `/for/group-leaders` |
+| Church org | church | ministry broadcast spaces + connect (PCO Resources lane) | `/for/churches` |
+
+**v0 product lock** (before congregant surfaces): staff-only pilot — ministry
+spaces appear for staff who own/lead them; connect / Home "From your church" /
+sermon-calendar starters stay dark until those models are decided. See
+[Locked product decisions](./CHURCH_ORG_AND_CURRICULUM.md#locked-product-decisions-july-2026).
 
 ## Gating principle
 
@@ -88,21 +98,24 @@ Assigned by role under the church org — never shown to general users.
 6. **Sermon note template** — big idea / outline / application blocks,
    delivered as an org-provisioned `NoteTemplates` row (item 5) scoped to the
    pastor role.
-7. **Preaching calendar view** — timeline lens over series threads: plan
-   weeks ahead, see the year. A view, not a data-model change.
-8. **Broadcast publishing** — "This Sunday at [church]": pastor posts the
-   passage list + outline to the church's `type='public'` space before
-   Sunday; congregants follow and take their *own* notes alongside (pairs
-   `sermon-prep` with the existing `sermon-notes` use case). Publishing is
-   role-gated; following is general.
+7. **Sermon / service calendar** — plan weeks and series ahead (date, passage,
+   title). Staff attach **resources** and **sermon starter notes** to a given
+   service. Connected people get **start a new personal note from the starter**
+   (structure + passage preloaded via note-templates + copy-lineage) — pairs
+   `sermon-prep` with congregant `sermon-notes` without co-editing the pastor's
+   note.
+8. **Ministry channel publishing** — staff post curriculum into the relevant
+   `type='public'` + `orgId` ministry space (sermon series companion, adult ed,
+   students, etc.) before the week; followers read and take *own* notes.
+   Publishing is role-gated; following is general once connected.
 9. **Quarterly curriculum threads** — staff publish church-wide study
-   threads; members copy into their own space (copy-lineage preserves
-   attribution). Authoring is role-gated.
+   threads in ministry channels; members copy into their own space (copy-lineage
+   preserves attribution). Authoring is role-gated.
 10. **Teaching-team prep spaces** — activates `role='leader'`: staff
-    co-author prep in a shared space; `SpaceInvites.role='leader'` is
-    schema-ready.
-11. **Curriculum handoff** — church master thread → each small-group leader
-    derives a copy into their own shared space with their group.
+    co-author prep in a **shared** space (Groups lane); `SpaceInvites.role='leader'`
+    is schema-ready.
+11. **Curriculum handoff** — church master thread in a ministry channel → each
+    small-group leader derives a copy into their own shared space with their group.
 12. **Aggregate engagement view** (later, carefully) — churches see
     *aggregate* adoption only (N connected, N following the study), never
     individual note content. "Review is never shared" is the privacy
@@ -110,12 +123,13 @@ Assigned by role under the church org — never shown to general users.
 
 ## Congregant-side surfaces
 
-General users, but only appear once connected to a church.
+General users, but only appear once connected to a church. Dark until connect
+is decided (v0 is staff-only).
 
-13. **"From your church"** — Home-level section fed by the connected
-    church's broadcast spaces + `FeaturedItems.contentType='church'`
-    (church-curated VOTD / featured study). Not a new feature class for
-    general users — it's content, gated by connection, not UI complexity.
+13. **"From your church"** — Home-level **study feed** from followed ministry
+    education channels + sermon-calendar starters +
+    `FeaturedItems.contentType='church'`. Not a bulletin / announcements inbox.
+    Content gated by connection, not a new UI class for everyone.
 
 ---
 

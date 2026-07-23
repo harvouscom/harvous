@@ -24,9 +24,20 @@ export interface SharedSpaceAboutSheetProps {
   onOpenChange: (open: boolean) => void;
   space: SpaceDetail | null;
   members: SpaceMemberRow[];
+  /** Ministry channels: hide follower roster for non-staff. */
+  hideMemberRoster?: boolean;
+  /** Ministry channel about card uses RSS on the color tile. */
+  ministryChannel?: boolean;
 }
 
-export default function SharedSpaceAboutSheet({ open, onOpenChange, space, members }: SharedSpaceAboutSheetProps) {
+export default function SharedSpaceAboutSheet({
+  open,
+  onOpenChange,
+  space,
+  members,
+  hideMemberRoster = false,
+  ministryChannel = false,
+}: SharedSpaceAboutSheetProps) {
   const { userId: authUserId } = useAuth();
   const { isMobileSidebar } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
@@ -63,7 +74,10 @@ export default function SharedSpaceAboutSheet({ open, onOpenChange, space, membe
 
   if (!space) return null;
 
-  const letterSpace = mapSpaceToAboutLetterSpace(space, members);
+  const letterSpace = {
+    ...mapSpaceToAboutLetterSpace(space, members),
+    iconName: ministryChannel ? ('rss' as const) : ('user-group' as const),
+  };
   const heroSpace = {
     color: space.color ?? undefined,
     backgroundGradient: space.backgroundGradient,
@@ -74,7 +88,13 @@ export default function SharedSpaceAboutSheet({ open, onOpenChange, space, membe
   };
 
   const selfMember = members.find((m) => m.userId === authUserId);
-  const rosterMembers = members.length > 0 ? members : selfMember ? [selfMember] : [];
+  const rosterMembers = hideMemberRoster
+    ? []
+    : members.length > 0
+      ? members
+      : selfMember
+        ? [selfMember]
+        : [];
 
   const content = (
     <>

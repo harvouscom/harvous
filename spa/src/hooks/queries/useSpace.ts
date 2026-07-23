@@ -89,7 +89,12 @@ export interface SpaceDetail {
   memberCount: number;
   isPublic: boolean;
   type?: 'personal' | 'shared' | 'public';
+  orgId?: string | null;
   isOwner?: boolean;
+  /** Ministry channels: staff-declared publish cadence. */
+  publishCadence?: import('@/utils/channel-publish-cadence').PublishCadence | null;
+  lastCurriculumAt?: string | null;
+  cadenceStale?: boolean;
 }
 
 export interface SpaceItem {
@@ -191,11 +196,22 @@ export function useSpace(spaceId: string) {
   return useQuery({
     queryKey: ['space', spaceId],
     queryFn: async () => {
-      const bootstrap = queryClient.getQueryData<{ space: SpaceDetail; items: SpaceContentItem[] }>(bootstrapQueryKey(spaceId));
-      if (bootstrap?.space) return bootstrap.space;
+      // Always hit the network so cover/color updates aren't stuck on a stale
+      // bootstrap snapshot (About hero, settings, etc.).
       const res = await api.get<{ space: SpaceDetail }>(`/api/spaces/${spaceId}/prefetch`);
       if (res.space === undefined) throw new Error('Space not found');
+      const bootstrap = queryClient.getQueryData<SpaceBootstrapData>(bootstrapQueryKey(spaceId));
+      if (bootstrap) {
+        queryClient.setQueryData(bootstrapQueryKey(spaceId), {
+          ...bootstrap,
+          space: res.space,
+        });
+      }
       return res.space;
+    },
+    placeholderData: () => {
+      const bootstrap = queryClient.getQueryData<SpaceBootstrapData>(bootstrapQueryKey(spaceId));
+      return bootstrap?.space;
     },
     enabled: !!spaceId,
     staleTime: 30_000,

@@ -2,7 +2,7 @@ import Icon from '@/components/react/Icon';
 import { TRANSLATION_ORDER, getTranslation } from '@/data/translations';
 import { useProfile } from '../../../hooks/queries/useProfile';
 import { useUpdateTranslation } from '../../../hooks/mutations/useUpdateTranslation';
-import { SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
+import { SettingsGroup, SettingsShell } from './SettingsShell';
 
 export default function PrototypeTranslationPage() {
   const { data: profile } = useProfile();
@@ -16,7 +16,6 @@ export default function PrototypeTranslationPage() {
 
   return (
     <SettingsShell>
-      <SettingsIntro>The translation used across the app.</SettingsIntro>
       <SettingsGroup>
         {TRANSLATION_ORDER.map((id) => {
           const t = getTranslation(id);

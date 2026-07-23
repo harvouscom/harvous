@@ -24,7 +24,7 @@ export const BUILT_IN_TEMPLATES: NoteTemplate[] = [
     estimatedMinutes: '15–20 min',
     level: 'Beginner',
     titleTemplate: '',  // User will fill in
-    content: `<h2>📖 Scripture</h2><p>Write or paste the scripture passage here.</p><p><br></p><h2>👁️ Observation</h2><p>What do you notice about this passage? Key words, themes, context?</p><p><br></p><h2>✨ Application</h2><p>How does this apply to your life today?</p><p><br></p><h2>🙏 Prayer</h2><p>Turn your study into prayer.</p>`,
+    content: `<h2>Scripture</h2><p>Write or paste the scripture passage here.</p><p><br></p><h2>Observation</h2><p>What do you notice about this passage? Key words, themes, context?</p><p><br></p><h2>Application</h2><p>How does this apply to your life today?</p><p><br></p><h2>Prayer</h2><p>Turn your study into prayer.</p>`,
     noteType: 'default'
   },
   {

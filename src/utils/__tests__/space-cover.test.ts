@@ -6,34 +6,35 @@ import {
 } from '../space-cover';
 
 describe('spaceCoverFromThreadColor', () => {
-  it('maps blue to breeze / cinder', () => {
+  it('maps blue to space-cover variant 1 by default', () => {
     const cover = spaceCoverFromThreadColor('blue');
-    expect(cover.light).toEqual({ kind: 'image-preset', presetId: 'breeze' });
-    expect(cover.dark).toEqual({ kind: 'image-preset', presetId: 'cinder' });
+    expect(cover.light).toEqual({ kind: 'image-preset', presetId: 'blue-1' });
+    expect(cover.dark).toEqual({ kind: 'image-preset', presetId: 'blue-1-dark' });
   });
 
-  it('maps purple to aurora / ember', () => {
-    const cover = spaceCoverFromThreadColor('purple');
-    expect(cover.light).toEqual({ kind: 'image-preset', presetId: 'aurora' });
-    expect(cover.dark).toEqual({ kind: 'image-preset', presetId: 'ember' });
+  it('maps purple / orange / green / pink to family variant 1', () => {
+    expect(spaceCoverFromThreadColor('purple').light).toEqual({
+      kind: 'image-preset',
+      presetId: 'purple-1',
+    });
+    expect(spaceCoverFromThreadColor('orange').dark).toEqual({
+      kind: 'image-preset',
+      presetId: 'orange-1-dark',
+    });
+    expect(spaceCoverFromThreadColor('green').light).toEqual({
+      kind: 'image-preset',
+      presetId: 'green-1',
+    });
+    expect(spaceCoverFromThreadColor('pink').dark).toEqual({
+      kind: 'image-preset',
+      presetId: 'pink-1-dark',
+    });
   });
 
-  it('maps orange to drift / caldera', () => {
-    const cover = spaceCoverFromThreadColor('orange');
-    expect(cover.light).toEqual({ kind: 'image-preset', presetId: 'drift' });
-    expect(cover.dark).toEqual({ kind: 'image-preset', presetId: 'caldera' });
-  });
-
-  it('maps green to meadow / depths', () => {
-    const cover = spaceCoverFromThreadColor('green');
-    expect(cover.light).toEqual({ kind: 'image-preset', presetId: 'meadow' });
-    expect(cover.dark).toEqual({ kind: 'image-preset', presetId: 'depths' });
-  });
-
-  it('maps pink to dawn / flare', () => {
-    const cover = spaceCoverFromThreadColor('pink');
-    expect(cover.light).toEqual({ kind: 'image-preset', presetId: 'dawn' });
-    expect(cover.dark).toEqual({ kind: 'image-preset', presetId: 'flare' });
+  it('selects a non-default variant within the family', () => {
+    const cover = spaceCoverFromThreadColor('blue', 3);
+    expect(cover.light).toEqual({ kind: 'image-preset', presetId: 'blue-3' });
+    expect(cover.dark).toEqual({ kind: 'image-preset', presetId: 'blue-3-dark' });
   });
 
   it('keeps appearance color maps aligned with picker colors', () => {

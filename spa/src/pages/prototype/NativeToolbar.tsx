@@ -40,6 +40,7 @@ import {
   canPinSharedSpaceItem,
 } from '../../lib/shared-space-capabilities';
 import { useNavigationSharedSpaceAccess } from '../../hooks/queries/useNavigation';
+import { canComposeInSpace } from '../../lib/shared-space-capabilities';
 
 export type NativeToolbarVariant = 'detail' | 'unified';
 
@@ -168,6 +169,10 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   const isSharedContext = currentSharedSpaceId !== null;
   const noteSpaceId = currentSharedSpaceId ?? homeSpaceId;
   const sharedSpaceNames = toolbarNote?.spaces?.map((space) => space.title).filter(Boolean) ?? [];
+  const canComposeInContext = canComposeInSpace({
+    type: contextualSpaceAccess?.space.type,
+    orgId: contextualSpaceAccess?.space.orgId,
+  });
   const contextualCapabilities = resolveNativeToolbarContextCapabilities({
     hasSharedContext: isSharedContext,
     contextualAccessKnown,
@@ -213,7 +218,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   })();
 
   const onCompose = () => {
-    if (!visibleComposeTarget) return;
+    if (!visibleComposeTarget || !canComposeInContext) return;
     if (isMobileSidebar) closeDrawer();
     beginPrototypeComposeSession({ targetSpaceId: visibleComposeTarget });
     navigate({
@@ -318,9 +323,9 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
           <button
             type="button"
             className="proto-toolbar-icon-btn"
-            title="New note"
-            aria-label="New note"
-            disabled={!homeSpaceId}
+            title={canComposeInContext ? 'New note' : 'Composing is not available in this channel yet'}
+            aria-label={canComposeInContext ? 'New note' : 'New note unavailable'}
+            disabled={!homeSpaceId || !canComposeInContext}
             onClick={onCompose}
           >
             <Icon name="pen-to-square" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />

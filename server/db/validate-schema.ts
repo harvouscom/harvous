@@ -57,6 +57,7 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
   Churches: [
     'id',
     'orgId',
+    'hmcChurchId',
     'name',
     'city',
     'state',
@@ -70,7 +71,7 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'createdAt',
     'updatedAt',
   ],
-  UserMetadata: ['connectedChurchId', 'connectedOrgId', 'connectedChurchAt'],
+  UserMetadata: ['hmcChurchId', 'connectedChurchId', 'connectedOrgId', 'connectedChurchAt'],
 };
 
 const REQUIRED_INDEXES: Record<string, readonly string[]> = {
@@ -92,8 +93,8 @@ const REQUIRED_INDEXES: Record<string, readonly string[]> = {
     'StudyThreadEntries_spaceId_parentNoteIdIndex',
     'StudyThreadEntries_anchorStatusIndex',
   ],
-  Churches: ['Churches_orgId_unique', 'Churches_createdByIndex'],
-  UserMetadata: ['UserMetadata_connectedChurchIdIndex'],
+  Churches: ['Churches_orgId_unique', 'Churches_hmcChurchId_unique', 'Churches_createdByIndex'],
+  UserMetadata: ['UserMetadata_connectedChurchIdIndex', 'UserMetadata_hmcChurchIdIndex'],
 };
 
 export function validateRequiredTableColumns(

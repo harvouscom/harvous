@@ -2,7 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import SafeSubscriptionDetailsButton from '@/components/react/SafeSubscriptionDetailsButton';
 import { useNavigation } from '../../../hooks/queries/useNavigation';
 import { useSubscriptionStatus } from '../../../hooks/queries/useSubscriptionStatus';
-import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
+import { SettingsGroup, SettingsRow, SettingsShell } from './SettingsShell';
 
 const SHARED_SPACES_SUBLABEL = 'Host spaces for group study. Free to join.';
 
@@ -31,8 +31,6 @@ export default function PrototypeAddonsPage() {
 
   return (
     <SettingsShell>
-      <SettingsIntro>Optional paid upgrades for your Bible study.</SettingsIntro>
-
       {showLoading ? (
         <p className="pds-caption" style={{ marginTop: 4, color: 'var(--pds-text-secondary)' }}>
           Loading…

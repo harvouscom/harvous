@@ -22,6 +22,7 @@ type PersistedSidebarNavRaw = {
   threadDrillId?: unknown;
   scriptureDrill?: unknown;
   activeSpaceId?: unknown;
+  activeChurchOrgId?: unknown;
   sidebarListSpaceScope?: unknown;
 };
 
@@ -32,6 +33,11 @@ export type PersistedSidebarNav = {
   scriptureDrill: ScriptureDrillState;
   /** Selected shared/public space id (`space_...`); undefined = personal My Home. */
   activeSpaceId: string | undefined;
+  /**
+   * My Church mode — Clerk org id for the home church hub.
+   * Independent of `activeSpaceId` (hub has no space; channel open sets both).
+   */
+  activeChurchOrgId: string | undefined;
   /** When in a shared space list view: browse shared space vs personal My Home. */
   sidebarListSpaceScope: SidebarListSpaceScope;
 };
@@ -87,6 +93,11 @@ function parseActiveSpaceId(value: unknown): string | undefined {
   return value;
 }
 
+function parseActiveChurchOrgId(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.length === 0) return undefined;
+  return value;
+}
+
 function parseSidebarListSpaceScope(value: unknown): SidebarListSpaceScope {
   return value === 'my-home' ? 'my-home' : 'space';
 }
@@ -124,6 +135,7 @@ export function readPersistedSidebarNav(): PersistedSidebarNav {
     threadDrillId: parseThreadDrillId(raw.threadDrillId),
     scriptureDrill: parseScriptureDrill(raw.scriptureDrill),
     activeSpaceId: parseActiveSpaceId(raw.activeSpaceId),
+    activeChurchOrgId: parseActiveChurchOrgId(raw.activeChurchOrgId),
     sidebarListSpaceScope: parseSidebarListSpaceScope(raw.sidebarListSpaceScope),
   };
 }
@@ -134,6 +146,7 @@ export type SidebarNavPatch = {
   threadDrillId?: string | undefined;
   scriptureDrill?: ScriptureDrillState;
   activeSpaceId?: string | undefined;
+  activeChurchOrgId?: string | undefined;
   /** When true, omit folderDrill from storage (cleared). */
   clearFolderDrill?: boolean;
   /** When true, omit threadDrillId from storage (cleared). */
@@ -142,6 +155,8 @@ export type SidebarNavPatch = {
   clearScriptureDrill?: boolean;
   /** When true, omit activeSpaceId from storage (back to personal My Home). */
   clearActiveSpaceId?: boolean;
+  /** When true, leave My Church mode. */
+  clearActiveChurchOrgId?: boolean;
   sidebarListSpaceScope?: SidebarListSpaceScope;
   /** When true, omit sidebarListSpaceScope from storage (defaults to shared space). */
   clearSidebarListSpaceScope?: boolean;
@@ -181,6 +196,12 @@ export function writePersistedSidebarNav(patch: SidebarNavPatch): void {
     delete next.activeSpaceId;
   } else if (patch.activeSpaceId !== undefined) {
     next.activeSpaceId = patch.activeSpaceId;
+  }
+
+  if (patch.clearActiveChurchOrgId) {
+    delete next.activeChurchOrgId;
+  } else if (patch.activeChurchOrgId !== undefined) {
+    next.activeChurchOrgId = patch.activeChurchOrgId;
   }
 
   if (patch.clearSidebarListSpaceScope) {

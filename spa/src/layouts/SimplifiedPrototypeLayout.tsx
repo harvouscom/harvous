@@ -27,6 +27,7 @@ import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebarToolbar from '../pages/prototype/PrototypeSidebarToolbar';
 import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
 import PrototypeSidebarSharedSpaceView from '../pages/prototype/PrototypeSidebarSharedSpaceView';
+import PrototypeSidebarChurchHubView from '../pages/prototype/PrototypeSidebarChurchHubView';
 import PrototypeAdminSidebar from '../pages/prototype/PrototypeAdminSidebar';
 import AdminToolbar from '@/components/react/AdminToolbar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
@@ -167,8 +168,7 @@ export default function SimplifiedPrototypeLayout() {
 function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const queryClient = useQueryClient();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
-  const { isSharedSpace, activeSpaceId } = useActiveSpace();
-  const { sidebarLayer, sidebarListSpaceScope } = useProtoShell();
+  const { isSharedSpace, activeSpaceId: resolvedActiveSpaceId } = useActiveSpace();
   useRealtimeSync(userId, { homeSpaceId });
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const {
@@ -185,6 +185,10 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     inspectorOpen,
     hideSidebar,
     editorChromeMode,
+    sidebarLayer,
+    sidebarListSpaceScope,
+    activeSpaceId: shellActiveSpaceId,
+    activeChurchOrgId,
   } = useProtoShell();
   const shellRef = useRef<HTMLDivElement | null>(null);
   const resizeHandleRef = useRef<HTMLDivElement | null>(null);
@@ -192,16 +196,18 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
 
   const isNoteRoute = isPrototypeNotePath(pathname);
   const isAdminRoute = isPrototypeAdminPath(pathname);
+  /** Shell id is null on My Home / My Church hub; useActiveSpace remaps null → personal home. */
   const sidebarVariant = resolvePrototypeSidebarVariant({
     isAdminRoute,
     isSharedSpace,
     sidebarLayer,
-    activeSpaceId,
+    activeSpaceId: shellActiveSpaceId,
+    activeChurchOrgId,
   });
   const listScopeSpaceId =
     sidebarVariant === 'shared-list' && sidebarListSpaceScope === 'my-home' && homeSpaceId
       ? homeSpaceId
-      : activeSpaceId;
+      : resolvedActiveSpaceId;
   // inspector is rendered inline in PrototypeNotePage (flex-row), no extra grid column needed
   void inspectorOpen;
 
@@ -568,6 +574,8 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           >
             {sidebarVariant === 'admin' ? (
               <PrototypeAdminSidebar />
+            ) : sidebarVariant === 'church-hub' ? (
+              <PrototypeSidebarChurchHubView />
             ) : sidebarVariant === 'shared-space' ? (
               <PrototypeSidebarSharedSpaceView />
             ) : sidebarVariant === 'shared-list' ? (

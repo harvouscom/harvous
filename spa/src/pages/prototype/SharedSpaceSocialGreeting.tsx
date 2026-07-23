@@ -12,7 +12,8 @@ type Props = {
   intro: SharedSpaceSocialIntro;
   presenceOthers: SpacePresenceUser[];
   onOpenNotes: () => void;
-  onOpenPeople: () => void;
+  /** Omit on ministry channels for followers (no public subscriber roster). */
+  onOpenPeople?: () => void;
 };
 
 export function sharedSpaceGreetingHello(selfFirstName: string): string {
@@ -41,18 +42,27 @@ export default function SharedSpaceSocialGreeting({
     </button>
   );
 
-  const memberChip = (displayName: string, key: string) => (
-    <button
-      key={key}
-      type="button"
-      className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--thread"
-      aria-label="View people in this space"
-      onClick={onOpenPeople}
-    >
-      <Icon name="circle-user" size={10} aria-hidden />
-      <span>{displayName}</span>
-    </button>
-  );
+  const memberChip = (displayName: string, key: string) =>
+    onOpenPeople ? (
+      <button
+        key={key}
+        type="button"
+        className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--thread"
+        aria-label="View people in this space"
+        onClick={onOpenPeople}
+      >
+        <Icon name="circle-user" size={10} aria-hidden />
+        <span>{displayName}</span>
+      </button>
+    ) : (
+      <span
+        key={key}
+        className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--thread"
+      >
+        <Icon name="circle-user" size={10} aria-hidden />
+        <span>{displayName}</span>
+      </span>
+    );
 
   const others = intro.otherContributors;
   const firstOther = others[0];

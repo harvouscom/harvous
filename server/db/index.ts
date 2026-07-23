@@ -23,6 +23,8 @@ export {
   SpaceInvitations,
   SpaceMemberships,
   SpaceInvites,
+  Churches,
+  NoteTemplates,
   UserMetadata,
   ClerkUserMapping,
   UserXP,

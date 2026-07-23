@@ -8,9 +8,9 @@
  */
 import { useState, type ReactNode } from 'react';
 import Icon from '@/components/react/Icon';
-import { PrototypeSectionHeader } from '../../prototype/design-system';
 import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from '../../prototype/settings/SettingsShell';
 import ProtoSpaceMenuIcon from '../../prototype/ProtoSpaceMenuIcon';
+import PrototypeHomeCardCarousel from '../../prototype/PrototypeHomeCardCarousel';
 import type { ChurchDesignScene } from './sceneRegistry';
 import '@/styles/admin-usage.css';
 import '@/styles/admin-publish.css';
@@ -180,7 +180,7 @@ function AdminChurchesScene({ mode }: { mode: 'empty' | 'list' | 'expanded' }) {
                       </button>
                     </div>
                     <button type="button" className="admin-action-btn">
-                      Create broadcast space
+                      Create ministry channel
                     </button>
                   </div>
                 ) : null}
@@ -200,35 +200,80 @@ function ChurchSettingsScene({ connected }: { connected: boolean }) {
     <div style={{ maxWidth: 520, margin: '0 auto' }}>
       {connected ? (
         <SpeculativeNote>
-          Mockup — the connect flow is unbuilt. Today this page stores free-text church fields only.
+          Mockup — connect is unbuilt. Live Settings › My Church already frames home vs other churches;
+          memberships land with congregant connect.
         </SpeculativeNote>
-      ) : null}
+      ) : (
+        <SpeculativeNote>
+          Live page: discovery fields for matching + staff “churches you help lead” from ministry channels.
+          Connect / set home stay dark.
+        </SpeculativeNote>
+      )}
       <SettingsShell>
         <SettingsIntro>
-          {connected
-            ? 'You receive study from your church.'
-            : 'Tell us where you worship. We use this to connect you if your church joins Harvous.'}
+          You can belong to more than one church. Your home church is the one that appears in From your
+          church on Home.
         </SettingsIntro>
         {connected ? (
-          <SettingsGroup>
-            <SettingsRow
-              label="Testament Made"
-              sublabel="Nashville, TN · connected"
-              leadingIcon="church"
-              leadingAccent="var(--pds-highlight-sky-blue)"
-              badge="Connected"
-              onClick={() => {}}
-            />
-            <SettingsRow label="From your church" sublabel="1 study space you follow" value="Announcements" onClick={() => {}} />
-            <SettingsRow label="Disconnect" destructive trailing="none" onClick={() => {}} />
-          </SettingsGroup>
+          <>
+            <p className="proto-caption" style={{ margin: '0 0 8px', color: 'var(--pds-text-tertiary)' }}>
+              Home church
+            </p>
+            <SettingsGroup>
+              <SettingsRow
+                label="Testament Made"
+                sublabel="Nashville, TN"
+                leadingIcon="church"
+                leadingAccent="var(--pds-highlight-sky-blue)"
+                badge="Home"
+                onClick={() => {}}
+              />
+              <SettingsRow
+                label="From your church"
+                sublabel="1 ministry channel you follow"
+                value="Adult education"
+                onClick={() => {}}
+              />
+              <SettingsRow label="Change home church" onClick={() => {}} />
+              <SettingsRow label="Leave home church" destructive trailing="none" onClick={() => {}} />
+            </SettingsGroup>
+            <p className="proto-caption" style={{ margin: '0 0 8px', color: 'var(--pds-text-tertiary)' }}>
+              Other churches
+            </p>
+            <SettingsGroup>
+              <SettingsRow
+                label="Crossroads"
+                sublabel="Franklin, TN · connected"
+                leadingIcon="church"
+                onClick={() => {}}
+              />
+              <SettingsRow label="Set as home" trailing="none" onClick={() => {}} />
+            </SettingsGroup>
+          </>
         ) : (
-          <SettingsGroup>
-            <SettingsRow label="Church name" value="Testament Made" onClick={() => {}} />
-            <SettingsRow label="City" value="Nashville" onClick={() => {}} />
-            <SettingsRow label="State" value="TN" onClick={() => {}} />
-            <SettingsRow label="Country" value="United States" onClick={() => {}} />
-          </SettingsGroup>
+          <>
+            <p className="proto-caption" style={{ margin: '0 0 8px', color: 'var(--pds-text-tertiary)' }}>
+              Home church
+            </p>
+            <SettingsGroup>
+              <SettingsRow
+                label="Not connected yet"
+                sublabel="When you connect, that church becomes your home."
+                badge="Soon"
+                trailing="none"
+                disabled
+              />
+            </SettingsGroup>
+            <p className="proto-caption" style={{ margin: '0 0 8px', color: 'var(--pds-text-tertiary)' }}>
+              Help us find your home church
+            </p>
+            <SettingsGroup>
+              <SettingsRow label="Church name" value="Testament Made" onClick={() => {}} />
+              <SettingsRow label="City" value="Nashville" onClick={() => {}} />
+              <SettingsRow label="State" value="TN" onClick={() => {}} />
+              <SettingsRow label="Country" value="United States" onClick={() => {}} />
+            </SettingsGroup>
+          </>
         )}
       </SettingsShell>
     </div>
@@ -298,43 +343,46 @@ function ConnectPromptScene() {
 
 // ─── Receive scenes ─────────────────────────────────────────────────────────
 
+const FROM_YOUR_CHURCH_CARDS = [
+  { id: 'romans-8', title: 'This Sunday — Romans 8', meta: 'Adult education · starter ready' },
+  { id: 'sermon-on-the-mount', title: 'Fall study: The Sermon on the Mount', meta: 'Adult education · 6 notes' },
+] as const;
+
 function FromYourChurchScene() {
   return (
     <div>
       <SpeculativeNote>
-        Mockup — a Home section fed by the connected church’s broadcast spaces.
+        Mockup — Home study feed from followed ministry education channels (not a bulletin). Dark until connect ships.
       </SpeculativeNote>
       <PhoneChrome>
         <div style={{ padding: 16 }}>
-          <PrototypeSectionHeader variant="list">From your church</PrototypeSectionHeader>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
-            {[
-              { title: 'This Sunday — Romans 8', meta: 'Testament Made · posted Friday' },
-              { title: 'Fall study: The Sermon on the Mount', meta: 'Testament Made · 6 notes' },
-            ].map((card) => (
-              <article
-                key={card.title}
-                className="proto-glass-surface"
-                style={{
-                  borderRadius: 12,
-                  padding: 12,
-                  border: '0.5px solid var(--pds-border)',
-                  display: 'flex',
-                  gap: 10,
-                  alignItems: 'center',
-                }}
-              >
-                <ProtoSpaceMenuIcon color="blue" size={24} />
-                <div style={{ flexShrink: 1, minWidth: 0 }}>
-                  <p className="pds-list-title" style={{ margin: 0 }}>
-                    {card.title}
-                  </p>
-                  <p className="pds-caption" style={{ margin: 0, color: 'var(--pds-text-secondary)' }}>
-                    {card.meta}
-                  </p>
-                </div>
-              </article>
-            ))}
+          <div className="proto-home-section">
+            <p className="proto-caption proto-home-section__eyebrow">From your church</p>
+            <PrototypeHomeCardCarousel
+              items={[...FROM_YOUR_CHURCH_CARDS]}
+              ariaLabel="From your church"
+              renderItem={(card) => (
+                <button
+                  type="button"
+                  className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+                >
+                  <div className="proto-home-card__body">
+                    <div className="proto-home-card__title-row">
+                      <span className="proto-home-card__icon-orb" aria-hidden>
+                        <ProtoSpaceMenuIcon color="blue" size={13} />
+                      </span>
+                      <p className="pds-list-title proto-home-card__title">{card.title}</p>
+                      <span className="proto-home-card__chevron" aria-hidden>
+                        <Icon name="caret-right" size={11} />
+                      </span>
+                    </div>
+                    <div className="proto-home-card__meta">
+                      <span className="proto-home-card__meta-item">{card.meta}</span>
+                    </div>
+                  </div>
+                </button>
+              )}
+            />
           </div>
         </div>
       </PhoneChrome>
@@ -346,8 +394,8 @@ function BroadcastSpaceScene() {
   return (
     <div>
       <SpeculativeNote>
-        Mockup — an org-owned space (type=&apos;public&apos; + orgId). Members follow and copy; only staff author, so
-        there is no compose affordance.
+        Mockup — ministry education channel (type=&apos;public&apos; + orgId). Followers read and copy; only staff
+        author — no congregant compose into the channel.
       </SpeculativeNote>
       <PhoneChrome>
         <div style={{ padding: 16 }}>
@@ -355,7 +403,7 @@ function BroadcastSpaceScene() {
             <ProtoSpaceMenuIcon color="blue" size={28} />
             <div>
               <p className="pds-list-title" style={{ margin: 0 }}>
-                Announcements
+                Adult education
               </p>
               <p className="pds-caption" style={{ margin: 0, color: 'var(--pds-text-secondary)' }}>
                 Testament Made · following
@@ -372,7 +420,8 @@ function BroadcastSpaceScene() {
               color: 'var(--pds-text-secondary)',
             }}
           >
-            <Icon name="circle-info" size={11} aria-hidden /> Your church posts here. Save anything to your own notes.
+            <Icon name="circle-info" size={11} aria-hidden /> Curriculum from your church. Save or start a note of your
+            own.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {['This Sunday — Romans 8', 'Midweek: Psalm 23 reflections', 'Fall study kickoff'].map((title) => (
@@ -403,12 +452,13 @@ function BroadcastNoteScene() {
   return (
     <div>
       <SpeculativeNote>
-        Mockup — reading a church note. Copy uses the existing copy-lineage rails, so attribution survives.
+        Mockup — sermon starter on the calendar. Start a personal note (templates + copy-lineage); do not co-edit the
+        pastor&apos;s note.
       </SpeculativeNote>
       <PhoneChrome>
         <div style={{ padding: 16 }}>
           <p className="pds-caption" style={{ margin: '0 0 10px', color: 'var(--pds-text-secondary)' }}>
-            <Icon name="church" size={11} aria-hidden /> Testament Made · Pastor Derek
+            <Icon name="church" size={11} aria-hidden /> Testament Made · Sunday service starter
           </p>
           <p className="pds-list-title" style={{ margin: '0 0 8px' }}>
             This Sunday — Romans 8
@@ -420,7 +470,7 @@ function BroadcastNoteScene() {
             Big idea: there is therefore now no condemnation.
           </p>
           <button type="button" className="proto-settings-btn proto-settings-btn--primary">
-            Save to my notes
+            Start my note
           </button>
         </div>
       </PhoneChrome>
@@ -439,7 +489,7 @@ function StaffRolesScene() {
       </SpeculativeNote>
       <div style={{ maxWidth: 460, margin: '0 auto' }}>
         <SettingsShell>
-          <SettingsIntro>Announcements · Testament Made</SettingsIntro>
+          <SettingsIntro>Adult education · Testament Made</SettingsIntro>
           <SettingsGroup>
             <SettingsRow
               label="Derek J"

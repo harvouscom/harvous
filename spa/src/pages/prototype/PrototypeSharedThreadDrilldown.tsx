@@ -70,6 +70,7 @@ export default function PrototypeSharedThreadDrilldown({
   thread,
   spaceId,
   isOwner,
+  canCompose = true,
   onBack,
   onCompose,
   onSetCurrent,
@@ -78,6 +79,8 @@ export default function PrototypeSharedThreadDrilldown({
   thread: SharedThreadDrillTarget;
   spaceId: string;
   isOwner: boolean;
+  /** When false (ministry broadcast channels), hide compose / add-existing. */
+  canCompose?: boolean;
   onBack: () => void;
   onCompose: () => void;
   onSetCurrent: (threadId: string) => Promise<unknown>;
@@ -166,7 +169,7 @@ export default function PrototypeSharedThreadDrilldown({
               {pinPending ? 'Setting…' : 'Set current'}
             </button>
           ) : null}
-          {thread.isPinned ? (
+          {thread.isPinned && canCompose ? (
             <>
               <button type="button" className="proto-shared-thread-action" onClick={() => setAddExistingOpen(true)}>
                 {SHARED_THREAD_DRILLDOWN_ADD_EXISTING_LABEL}

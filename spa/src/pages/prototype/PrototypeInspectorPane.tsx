@@ -36,10 +36,24 @@ import PrototypeFolderTagEditor from './PrototypeFolderTagEditor';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import SharedNoteActivityPanel from './SharedNoteActivityPanel';
+import PrototypeInspectorTemplatesSection from './PrototypeInspectorTemplatesSection';
 import { PrototypeSectionHeader } from './design-system';
 import { noteParamSlug } from './proto-route-slugs';
 import { isConfirmedForeignNote } from './proto-note-ownership';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
+import type { ApplyableNoteTemplate } from '../../hooks/queries/useNoteTemplates';
+
+export type PrototypeInspectorTemplatesProps = {
+  spaceId?: string | null;
+  spaceTitle?: string | null;
+  canAttachToSpace?: boolean;
+  showSpaceAttachOption?: boolean;
+  isEmpty: boolean;
+  liveTitle: string;
+  liveContent: string;
+  noteType?: string | null;
+  onApply: (template: ApplyableNoteTemplate) => void;
+};
 
 interface PrototypeInspectorPaneProps {
   note: NoteDetail;
@@ -50,6 +64,9 @@ interface PrototypeInspectorPaneProps {
   noteAuthorDisplayName?: string | null;
   onSelectActivity?: (item: NoteActivityItem) => void;
   activeActivityId?: string | null;
+  /** Draft compose — light inspector (Templates + muted Info). */
+  isDraftCompose?: boolean;
+  templates?: PrototypeInspectorTemplatesProps | null;
 }
 
 export const REMOVE_NOTE_FROM_SPACE_CONFIRMATION =
@@ -78,6 +95,8 @@ export default function PrototypeInspectorPane({
   noteAuthorDisplayName = null,
   onSelectActivity,
   activeActivityId = null,
+  isDraftCompose = false,
+  templates = null,
 }: PrototypeInspectorPaneProps) {
   const { userId: authUserId } = useAuth();
   const [connectOpen, setConnectOpen] = useState(false);
@@ -151,7 +170,7 @@ export default function PrototypeInspectorPane({
   const modifiedSource = note.updatedAt ?? note.createdAt;
   const updatedStr = modifiedSource ? formatDate(new Date(modifiedSource)) : '—';
 
-  const wordCount = estimateWords(note.content ?? '');
+  const wordCount = estimateWords((templates?.liveContent ?? note.content) ?? '');
 
   const linkedFromNotes = note.linkedFromNotes ?? [];
   const linkedToNotes = note.linkedToNotes ?? [];
@@ -168,26 +187,37 @@ export default function PrototypeInspectorPane({
       <section className="proto-inspector-section">
         <PrototypeSectionHeader>Info</PrototypeSectionHeader>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {note.simpleNoteId != null ? (
-            <InspectorSimpleNoteIdRow simpleNoteId={note.simpleNoteId} />
-          ) : null}
-          <InspectorRow label="Created" value={createdStr} />
-          <InspectorRow
-            label="Added by"
-            value={<InspectorAddedByValue note={note} contextSpaceId={contextSpaceId} />}
-          />
-          <InspectorRow label="Edited" value={updatedStr} />
-          <InspectorRow label="Words" value={String(wordCount)} />
-          {note.noteType && note.noteType !== 'default' ? (
-            <InspectorRow label="Type" value={capitalize(note.noteType)} />
-          ) : null}
-          {note.isPublic ? (
-            <InspectorRow label="Sharing" value="Anyone with link" />
-          ) : null}
+          {isDraftCompose ? (
+            <>
+              <InspectorRow label="Status" value="Draft" />
+              <InspectorRow label="Words" value={String(wordCount)} />
+            </>
+          ) : (
+            <>
+              {note.simpleNoteId != null ? (
+                <InspectorSimpleNoteIdRow simpleNoteId={note.simpleNoteId} />
+              ) : null}
+              <InspectorRow label="Created" value={createdStr} />
+              <InspectorRow
+                label="Added by"
+                value={<InspectorAddedByValue note={note} contextSpaceId={contextSpaceId} />}
+              />
+              <InspectorRow label="Edited" value={updatedStr} />
+              <InspectorRow label="Words" value={String(wordCount)} />
+              {note.noteType && note.noteType !== 'default' ? (
+                <InspectorRow label="Type" value={capitalize(note.noteType)} />
+              ) : null}
+              {note.isPublic ? (
+                <InspectorRow label="Sharing" value="Anyone with link" />
+              ) : null}
+            </>
+          )}
         </div>
       </section>
 
-      {showActivityPanel ? (
+      {templates ? <PrototypeInspectorTemplatesSection {...templates} /> : null}
+
+      {showActivityPanel && !isDraftCompose ? (
         <SharedNoteActivityPanel
           noteId={note.id}
           contextSpaceId={contextSpaceId}
@@ -198,7 +228,7 @@ export default function PrototypeInspectorPane({
         />
       ) : null}
 
-      {!isForeignNote ? (
+      {!isForeignNote && !isDraftCompose ? (
         <>
       <section className="proto-inspector-section">
         <PrototypeSectionHeader>Tags</PrototypeSectionHeader>
@@ -298,7 +328,7 @@ export default function PrototypeInspectorPane({
         </>
       ) : null}
 
-      {destructiveAction ? (
+      {destructiveAction && !isDraftCompose ? (
         <div className="proto-inspector-delete">
           <button
             type="button"

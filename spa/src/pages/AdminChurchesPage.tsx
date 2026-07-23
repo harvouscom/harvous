@@ -32,7 +32,7 @@ function PrototypeAdminChurchesPage() {
   }
 
   return (
-    <AdminShell title="Churches" subtitle="Church org registry, broadcast spaces, and staff sync.">
+    <AdminShell title="Churches" subtitle="Church org registry, ministry education channels, and staff sync.">
       <AdminChurchesPanel />
     </AdminShell>
   );

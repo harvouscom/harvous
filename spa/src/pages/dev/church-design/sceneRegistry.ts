@@ -8,11 +8,12 @@
  * Phase key:
  *   Admin   — built today (server/routes/churches.ts + /admin/churches)
  *   Connect — future: congregant links their account to a church
- *   Receive — future: connected congregants see church curriculum
- *   Staff   — future: leader-role tooling on org-owned spaces
+ *   Receive — future: connected congregants see ministry education channels
+ *   Staff   — future: leader-role tooling on org-owned ministry spaces
  *
- * Only the Admin scenes reflect shipped UI. Everything else is design
- * exploration for phases that are deliberately unbuilt — see
+ * Broadcast spaces = ministry / curriculum channels (adult ed, sermon series,
+ * students, etc.) — not an announcements bulletin. Only Admin scenes reflect
+ * shipped UI. See docs/future/CHURCH_ORG_AND_CURRICULUM.md and
  * docs/future/PASTOR_FEATURES_ROADMAP.md.
  */
 
@@ -47,7 +48,7 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
   },
   {
     id: '04-settings-church-unconnected',
-    title: 'Settings › My Church (today)',
+    title: 'Settings › My Church (home not connected)',
     phase: 'Connect',
     editFiles: ['spa/src/pages/prototype/settings/PrototypeChurchPage.tsx'],
   },
@@ -60,35 +61,38 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
   },
   {
     id: '06-settings-church-connected',
-    title: 'Settings › My Church (connected)',
+    title: 'Settings › My Church (home + other)',
     phase: 'Connect',
-    editFiles: ['docs/future/CHURCH_CONNECTION_SYSTEM.md'],
+    editFiles: [
+      'spa/src/pages/prototype/settings/PrototypeChurchPage.tsx',
+      'docs/future/CHURCH_CONNECTION_SYSTEM.md',
+    ],
     speculative: true,
   },
   {
     id: '07-from-your-church',
-    title: 'Home › From your church',
+    title: 'Home › From your church (study feed)',
     phase: 'Receive',
     editFiles: ['docs/future/CHURCH_ORG_AND_CURRICULUM.md'],
     speculative: true,
   },
   {
     id: '08-broadcast-space',
-    title: 'Church broadcast space',
+    title: 'Ministry channel (adult education)',
     phase: 'Receive',
     editFiles: ['docs/future/CHURCH_ORG_AND_CURRICULUM.md'],
     speculative: true,
   },
   {
     id: '09-broadcast-note',
-    title: 'Church note › save to my notes',
+    title: 'Sermon starter › start my note',
     phase: 'Receive',
-    editFiles: ['docs/future/CHURCH_ORG_AND_CURRICULUM.md'],
+    editFiles: ['docs/future/PASTOR_FEATURES_ROADMAP.md'],
     speculative: true,
   },
   {
     id: '10-staff-roles',
-    title: 'Staff roles on an org space',
+    title: 'Staff roles on a ministry channel',
     phase: 'Staff',
     editFiles: ['server/utils/clerk-org.ts'],
     speculative: true,

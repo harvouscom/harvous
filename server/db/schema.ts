@@ -19,6 +19,11 @@ export const Spaces = pgTable(
     id: text('id').primaryKey(),
     title: text('title').notNull(),
     description: text('description'),
+    /**
+     * Ministry channels only (type='public' + orgId): staff-declared publish cadence.
+     * Values: daily | weekly | biweekly | monthly | quarterly | irregular | null.
+     */
+    publishCadence: text('publishCadence'),
     color: text('color'),
     backgroundGradient: text('backgroundGradient'),
     /** JSON `SpaceCoverBg` — join-page / invite hero for light appearance. */
@@ -415,6 +420,11 @@ export const Churches = pgTable('Churches', {
   id: text('id').primaryKey(),
   /** Clerk organization id (org_…). Required — a church record exists only once its org does. */
   orgId: text('orgId').notNull(),
+  /**
+   * Here’s My Church directory id (e.g. TX-123456). Source of truth for name/city/state
+   * when set — those columns are a denormalized cache refreshed from HMC.
+   */
+  hmcChurchId: text('hmcChurchId'),
   name: text('name').notNull(),
   city: text('city'),
   state: text('state'),
@@ -439,8 +449,44 @@ export const Churches = pgTable('Churches', {
   updatedAt: ts('updatedAt'),
 }, (table) => [
   uniqueIndex('Churches_orgId_unique').on(table.orgId),
+  uniqueIndex('Churches_hmcChurchId_unique').on(table.hmcChurchId),
   index('Churches_createdByIndex').on(table.createdBy),
 ]);
+
+// ─── NoteTemplates (personal / space / org-scoped note starters) ───────────────
+
+/**
+ * User-created and space/org-provisioned note templates. Built-ins stay in
+ * src/data/note-templates.ts (not rows). Scope:
+ * - userId only (spaceId/orgId null) = personal template
+ * - spaceId set = shared with everyone composing in that space (owner/leader attach)
+ * - orgId set = church/org-provisioned (future; always null in v1)
+ * Row ids: `ntpl_${crypto.randomUUID()}`.
+ */
+export const NoteTemplates = pgTable(
+  'NoteTemplates',
+  {
+    id: text('id').primaryKey(),
+    /** Creator — personal templates are userId-only (spaceId/orgId null). */
+    userId: text('userId').notNull(),
+    /** Set = space template visible to members composing in that space. */
+    spaceId: text('spaceId'),
+    /** Set = church/org-provisioned template (future role-gated); null in v1. */
+    orgId: text('orgId'),
+    name: text('name').notNull(),
+    /** Title prefill (titleTemplate equivalent). */
+    title: text('title'),
+    /** Tiptap HTML, same format as Notes.content. */
+    content: text('content').notNull(),
+    noteType: text('noteType'),
+    createdAt: ts('createdAt').notNull(),
+    updatedAt: ts('updatedAt'),
+  },
+  (table) => [
+    index('NoteTemplates_userIdIndex').on(table.userId),
+    index('NoteTemplates_spaceIdIndex').on(table.spaceId),
+  ]
+);
 
 // ─── UserMetadata ──────────────────────────────────────────────────────────────
 
@@ -454,6 +500,11 @@ export const UserMetadata = pgTable('UserMetadata', {
   email: text('email'),
   profileImageUrl: text('profileImageUrl'),
   clerkDataUpdatedAt: ts('clerkDataUpdatedAt'),
+  /**
+   * Here’s My Church directory id — SoT for the user’s picked church.
+   * churchName/City/State/Country below are denormalized cache from HMC.
+   */
+  hmcChurchId: text('hmcChurchId'),
   churchName: text('churchName'),
   churchCity: text('churchCity'),
   churchState: text('churchState'),
@@ -463,8 +514,8 @@ export const UserMetadata = pgTable('UserMetadata', {
   churchAddedAt: ts('churchAddedAt'),
   /**
    * Churches.id once the user has linked to a church org (connect flow, future).
-   * The free-text churchName/City/State/Country above stay as-is for discovery/
-   * matching input — do not repurpose them. Null = not connected. Congregants
+   * Denormalized churchName/City/State/Country stay for discovery/matching —
+   * do not repurpose them as linkage. Null = not connected. Congregants
    * are linked here only; they are never added to the Clerk org.
    */
   connectedChurchId: text('connectedChurchId'),
@@ -505,6 +556,7 @@ export const UserMetadata = pgTable('UserMetadata', {
   // The "all congregants of church X" fan-out (connect notifications, follow
   // backfill into broadcast spaces). Cheap to add now; a lock under load later.
   index('UserMetadata_connectedChurchIdIndex').on(table.connectedChurchId),
+  index('UserMetadata_hmcChurchIdIndex').on(table.hmcChurchId),
 ]);
 
 // ─── ClerkUserMapping (pk_live → pk_test read-time resolution) ─────────────────

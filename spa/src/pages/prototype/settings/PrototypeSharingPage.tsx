@@ -6,7 +6,7 @@ import { toast } from '@/utils/toast';
 import { useShareNote } from '../../../hooks/mutations/useShareNote';
 import { mySharingQueryKey, useMySharing, type SharedNoteItem } from '../../../hooks/queries/useMySharing';
 import { useQueryClient } from '@tanstack/react-query';
-import { SettingsCopyRow, SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
+import { SettingsCopyRow, SettingsGroup, SettingsShell } from './SettingsShell';
 import { protoRelativeCaptionAbbrev } from '../proto-time';
 import { noteParamSlug } from '../proto-route-slugs';
 import { useDeletedSpaces, type DeletedSpaceItem } from '../../../hooks/queries/useDeletedSpaces';
@@ -187,8 +187,6 @@ export default function PrototypeSharingPage() {
 
   return (
     <SettingsShell>
-      <SettingsIntro>See what you have shared and stop sharing.</SettingsIntro>
-
       {sharingQuery.isLoading ? (
         <p className="pds-caption" style={{ marginTop: 20, color: 'var(--pds-text-secondary)' }}>Loading…</p>
       ) : null}

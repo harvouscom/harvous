@@ -45,8 +45,16 @@ export interface PrototypeSpacePeopleSheetProps {
   spaceTitle: string;
   spaceColor?: string | null;
   spaceDescription?: string | null;
+  /** Stored light cover — restores the selected image variant in settings. */
+  spaceCoverBgLight?: import('@/utils/space-cover').SpaceCoverBg | null;
+  spacePublishCadence?: import('@/utils/channel-publish-cadence').PublishCadence | null;
+  spaceCadenceStale?: boolean;
   /** Nav/dashboard hint until members query resolves (keeps owner hub reachable). */
   viewerIsOwner?: boolean;
+  /** Ministry channel staff (owner/leader) — follower list + settings while members load. */
+  viewerCanModerate?: boolean;
+  /** Ministry channel: follower moderation + color settings; no invite links. */
+  ministryChannel?: boolean;
 }
 
 export type PendingRemoveMember = {
@@ -86,7 +94,12 @@ export default function PrototypeSpacePeopleSheet({
   spaceTitle: spaceTitleProp,
   spaceColor,
   spaceDescription,
+  spaceCoverBgLight,
+  spacePublishCadence = null,
+  spaceCadenceStale = false,
   viewerIsOwner = false,
+  viewerCanModerate = false,
+  ministryChannel = false,
 }: PrototypeSpacePeopleSheetProps) {
   const [spaceTitle, setSpaceTitle] = useState(spaceTitleProp);
   const [view, setView] = useState<PeopleView>('hub');
@@ -111,7 +124,13 @@ export default function PrototypeSpacePeopleSheet({
   const membersQuery = useSpaceMembers(spaceId);
   const ownerFromMembers = membersQuery.data?.members.some((m) => m.userId === authUserId && m.role === 'owner');
   const isOwner = membersQuery.data?.isOwner ?? ownerFromMembers ?? viewerIsOwner;
-  const invitesQuery = useSpaceInvites(spaceId, isOwner);
+  const selfRole = membersQuery.data?.members.find((m) => m.userId === authUserId)?.role;
+  const isChannelStaff =
+    ministryChannel &&
+    (isOwner || selfRole === 'leader' || selfRole === 'owner' || viewerCanModerate);
+  /** Owner hub, or ministry staff hub (followers + channel settings). */
+  const canManageHub = isOwner || isChannelStaff;
+  const invitesQuery = useSpaceInvites(spaceId, isOwner && !ministryChannel);
   const createInvite = useCreateSpaceInvite(spaceId);
   const revokeInvite = useRevokeSpaceInvite(spaceId);
   const removeMember = useRemoveSpaceMember(spaceId);
@@ -182,7 +201,8 @@ export default function PrototypeSpacePeopleSheet({
 
   function memberRowAction(m: { userId: string; role: string; displayName: string }) {
     if (m.role === 'owner') return null;
-    if (isOwner && m.userId !== authUserId) return 'remove';
+    // Shared Spaces: owner removes. Ministry channels: staff may remove followers for moderation.
+    if (m.userId !== authUserId && (isOwner || (ministryChannel && isChannelStaff))) return 'remove';
     if (m.userId === authUserId) return 'leave';
     return null;
   }
@@ -252,20 +272,25 @@ export default function PrototypeSpacePeopleSheet({
   const memberCount = members.length;
   const memberLimit = membersQuery.data?.limits?.membersPerSpace ?? MEMBERS_PER_SPACE_CAP;
   const ownerCapacityCopy =
-    isOwner && !membersQuery.isLoading ? getSpaceMembersCapacityCopy({ memberCount, memberLimit }) : null;
+    isOwner && !ministryChannel && !membersQuery.isLoading
+      ? getSpaceMembersCapacityCopy({ memberCount, memberLimit })
+      : null;
   const activeInvites = invites.length;
-  const showBack = isOwner && view !== 'hub';
+  const showBack = canManageHub && view !== 'hub';
+  const peopleLabel = ministryChannel ? 'Followers' : 'People';
+  const settingsLabel = ministryChannel ? 'Channel settings' : 'Space settings';
+  const manageLabel = ministryChannel ? 'Manage channel' : 'Manage space';
   // On a sub-view the header title becomes that section's name (the eyebrow label
   // inside the scroll is dropped as redundant); the hub keeps "Manage space".
-  const headerPrimary = !isOwner
-    ? 'People'
+  const headerPrimary = !canManageHub
+    ? peopleLabel
     : view === 'people'
-      ? 'People'
+      ? peopleLabel
       : view === 'invites'
         ? 'Invite links'
         : view === 'details'
-          ? 'Space settings'
-          : 'Manage space';
+          ? settingsLabel
+          : manageLabel;
 
   const memberListState = resolvePeopleQueryState({
     isLoading: membersQuery.isLoading,
@@ -472,25 +497,27 @@ export default function PrototypeSpacePeopleSheet({
     </>
   );
 
-  // Owner hub — one row per concern, each drilling into its own sub-view (Account-page pattern).
+  // Owner / channel-staff hub — one row per concern (Account-page pattern).
   const hub = (
     <div className="proto-settings__content">
       <SettingsGroup>
         <SettingsRow
-          label="People"
-          sublabel="Members and access"
+          label={peopleLabel}
+          sublabel={ministryChannel ? 'Followers (moderation)' : 'Members and access'}
           value={String(memberCount)}
           onClick={() => setView('people')}
         />
+        {!ministryChannel ? (
+          <SettingsRow
+            label="Invite links"
+            sublabel="Create and share invites"
+            value={activeInvites > 0 ? `${activeInvites} active` : 'None'}
+            onClick={() => setView('invites')}
+          />
+        ) : null}
         <SettingsRow
-          label="Invite links"
-          sublabel="Create and share invites"
-          value={activeInvites > 0 ? `${activeInvites} active` : 'None'}
-          onClick={() => setView('invites')}
-        />
-        <SettingsRow
-          label="Space settings"
-          sublabel="Name, description, and color"
+          label={settingsLabel}
+          sublabel="Name, description, color, and cover"
           onClick={() => setView('details')}
         />
       </SettingsGroup>
@@ -500,11 +527,11 @@ export default function PrototypeSpacePeopleSheet({
   let body: React.ReactNode;
   if (membersQuery.isError) {
     body = memberList;
-  } else if (!isOwner) {
+  } else if (!canManageHub) {
     body = memberList;
   } else if (view === 'people') {
     body = memberList;
-  } else if (view === 'invites') {
+  } else if (view === 'invites' && !ministryChannel) {
     body = invitesView;
   } else if (view === 'details') {
     body = (
@@ -514,21 +541,28 @@ export default function PrototypeSpacePeopleSheet({
           initialTitle={spaceTitle}
           initialColor={spaceColor}
           initialDescription={spaceDescription}
+          initialCoverBgLight={spaceCoverBgLight}
+          initialPublishCadence={spacePublishCadence}
+          initialCadenceStale={spaceCadenceStale}
           onSaved={setSpaceTitle}
+          iconName={ministryChannel ? 'rss' : 'user-group'}
+          ministryChannel={ministryChannel}
         />
-        <div className="proto-shared-manage-danger">
-          <button
-            type="button"
-            className="proto-share-popover__link-action proto-share-popover__link-action--danger"
-            disabled={deleteSpace.isPending}
-            onClick={(e) => {
-              setDeleteConfirmAnchor(e.currentTarget.getBoundingClientRect());
-              setDeleteConfirmOpen(true);
-            }}
-          >
-            {deleteSpace.isPending ? 'Deleting…' : 'Delete space'}
-          </button>
-        </div>
+        {isOwner ? (
+          <div className="proto-shared-manage-danger">
+            <button
+              type="button"
+              className="proto-share-popover__link-action proto-share-popover__link-action--danger"
+              disabled={deleteSpace.isPending}
+              onClick={(e) => {
+                setDeleteConfirmAnchor(e.currentTarget.getBoundingClientRect());
+                setDeleteConfirmOpen(true);
+              }}
+            >
+              {deleteSpace.isPending ? 'Deleting…' : ministryChannel ? 'Delete channel' : 'Delete space'}
+            </button>
+          </div>
+        ) : null}
       </>
     );
   } else {
@@ -550,7 +584,13 @@ export default function PrototypeSpacePeopleSheet({
               <Icon name="caret-left" size={14} />
             </button>
           ) : (
-            <ProtoSpaceMenuIcon color={spaceColor ?? 'paper'} size={44} radius={13} glyphSize={18} />
+            <ProtoSpaceMenuIcon
+              color={spaceColor ?? 'paper'}
+              size={44}
+              radius={13}
+              glyphSize={18}
+              iconName={ministryChannel ? 'rss' : 'user-group'}
+            />
           )}
           <span className="proto-study-thread-popover__title-block">
             <span

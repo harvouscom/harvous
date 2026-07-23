@@ -84,6 +84,12 @@ import {
   isNoteNewSinceVisit,
   recordSharedSpaceVisit,
 } from '../utils/shared-space-visit';
+import {
+  buildChannelCadenceFields,
+  getLastCurriculumAtForSpace,
+  isMinistryBroadcastSpaceRow,
+  parsePublishCadenceInput,
+} from '../utils/channel-publish-cadence';
 import { listGroupStudyThreadsForSpace } from '../utils/shared-space-group-threads';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { awardCreationBonusXP } from '../utils/xp-system';
@@ -633,15 +639,48 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
     const formData = await c.req.formData();
     const title = formData.get('title') as string;
     const color = formData.get('color') as string;
+    const coverVariantRaw = formData.get('coverVariant');
+    const coverVariantParsed = Number(
+      typeof coverVariantRaw === 'string' || typeof coverVariantRaw === 'number'
+        ? coverVariantRaw
+        : coverVariantRaw == null
+          ? NaN
+          : String(coverVariantRaw),
+    );
+    const coverVariant = Number.isFinite(coverVariantParsed)
+      ? Math.min(5, Math.max(1, Math.round(coverVariantParsed)))
+      : 1;
     const descriptionRaw = formData.get('description');
     const description =
       descriptionRaw == null || descriptionRaw === ''
         ? undefined
         : String(descriptionRaw).trim().slice(0, 500) || null;
+    const publishCadenceParsed = parsePublishCadenceInput(formData.get('publishCadence'));
+    if (publishCadenceParsed.kind === 'invalid') {
+      return c.json({ error: 'Invalid publish cadence', code: 'INVALID_PUBLISH_CADENCE' }, 400);
+    }
     // `isPublic` is no longer accepted — sharing is governed by Spaces.type + SpaceInvites.
 
-    const space = first(await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).limit(1));
-    if (!space) return c.json({ error: 'Space not found or access denied' }, 404);
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
+    try {
+      access = await requireSpaceAccess(spaceId, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    // Branding (title / color / cover / description): owner or leader — same for
+    // Shared Spaces and ministry channels (public + orgId).
+    if (!canManageSpaceStructure(access.space, access.role)) {
+      return c.json({ error: 'Only owners and leaders can update space settings', code: 'FORBIDDEN' }, 403);
+    }
+
+    const ministryChannel = isMinistryBroadcastSpaceRow(access.space);
+    if (publishCadenceParsed.kind === 'set' && !ministryChannel) {
+      return c.json(
+        { error: 'Publish cadence is only available on ministry channels', code: 'PUBLISH_CADENCE_MINISTRY_ONLY' },
+        400,
+      );
+    }
 
     const titleValidation = validateTitle(title, true);
     if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
@@ -650,7 +689,9 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
 
     const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
     const backgroundGradient = getThreadGradientCSS(color);
-    const { coverBgLight, coverBgDark } = serializeSpaceCoverForDb(spaceCoverFromThreadColor(color));
+    const { coverBgLight, coverBgDark } = serializeSpaceCoverForDb(
+      spaceCoverFromThreadColor(color, coverVariant),
+    );
 
     const updatedSpace = first(await db.update(Spaces).set({
       title: capitalizedTitle,
@@ -659,10 +700,43 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
       coverBgLight,
       coverBgDark,
       ...(description !== undefined ? { description } : {}),
+      ...(publishCadenceParsed.kind === 'set' && ministryChannel
+        ? { publishCadence: publishCadenceParsed.value }
+        : {}),
       updatedAt: nowISO(),
-    }).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).returning())!;
+    }).where(eq(Spaces.id, spaceId)).returning())!;
 
-    return c.json({ success: 'Space updated!', space: updatedSpace });
+    const coverFields = spaceCoverApiFields(
+      updatedSpace.coverBgLight,
+      updatedSpace.coverBgDark,
+      updatedSpace.color,
+    );
+    const cadenceFields = ministryChannel
+      ? buildChannelCadenceFields(
+          updatedSpace.publishCadence,
+          await getLastCurriculumAtForSpace(spaceId),
+        )
+      : null;
+    return c.json({
+      success: 'Space updated!',
+      space: {
+        id: updatedSpace.id,
+        title: updatedSpace.title,
+        color: updatedSpace.color,
+        backgroundGradient: updatedSpace.backgroundGradient,
+        description: updatedSpace.description ?? null,
+        coverBgLight: coverFields.coverBgLight,
+        coverBgDark: coverFields.coverBgDark,
+        coverVariant,
+        ...(cadenceFields
+          ? {
+              publishCadence: cadenceFields.publishCadence,
+              lastCurriculumAt: cadenceFields.lastCurriculumAt,
+              cadenceStale: cadenceFields.cadenceStale,
+            }
+          : {}),
+      },
+    });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/update', action: 'update_space' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -1847,6 +1921,19 @@ route.get('/api/spaces/:spaceId/bootstrap', requireAuth, async (c) => {
       spaceRow.coverBgDark,
       spaceRow.color,
     );
+    const ministryChannel = isMinistryBroadcastSpaceRow(spaceRow);
+    const [notesResult, threads, lastCurriculumAt] = await Promise.all([
+      spaceRow.type === 'personal'
+        ? getNotesForSpace(spaceId, auth.userId)
+        : getNotesForSharedSpace(spaceId, auth.userId, 100),
+      spaceRow.type === 'personal'
+        ? getThreadsForSpace(spaceId, auth.userId)
+        : getThreadsForSpaceBySpaceId(spaceId),
+      ministryChannel ? getLastCurriculumAtForSpace(spaceId) : Promise.resolve(null),
+    ]);
+    const cadenceFields = ministryChannel
+      ? buildChannelCadenceFields(spaceRow.publishCadence, lastCurriculumAt)
+      : null;
     const spaceDetail = {
       id: spaceRow.id,
       title: spaceRow.title,
@@ -1858,18 +1945,16 @@ route.get('/api/spaces/:spaceId/bootstrap', requireAuth, async (c) => {
       ownerId: spaceRow.userId,
       memberCount: 0,
       isPublic: spaceRow.isPublic,
+      type: spaceRow.type,
+      orgId: spaceRow.orgId ?? null,
+      ...(cadenceFields
+        ? {
+            publishCadence: cadenceFields.publishCadence,
+            lastCurriculumAt: cadenceFields.lastCurriculumAt,
+            cadenceStale: cadenceFields.cadenceStale,
+          }
+        : {}),
     };
-
-    const [notesResult, threads] =
-      spaceRow.type === 'personal'
-        ? await Promise.all([
-            getNotesForSpace(spaceId, auth.userId),
-            getThreadsForSpace(spaceId, auth.userId),
-          ])
-        : await Promise.all([
-            getNotesForSharedSpace(spaceId, auth.userId, 100),
-            getThreadsForSpaceBySpaceId(spaceId),
-          ]);
 
     const visibleThreads =
       spaceRow.type === 'personal'
@@ -1903,6 +1988,13 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
         (ownerSpace as any).coverBgDark,
         ownerSpace.color,
       );
+      const ministryChannel = isMinistryBroadcastSpaceRow(ownerSpace);
+      const cadenceFields = ministryChannel
+        ? buildChannelCadenceFields(
+            (ownerSpace as { publishCadence?: string | null }).publishCadence,
+            await getLastCurriculumAtForSpace(spaceId),
+          )
+        : null;
       return c.json({
         space: {
           id: ownerSpace.id,
@@ -1915,9 +2007,17 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
           totalItemCount: ownerSpace.totalItemCount,
           isPublic: ownerSpace.isPublic,
           type: ownerSpace.type,
+          orgId: (ownerSpace as { orgId?: string | null }).orgId ?? null,
           ownerId: auth.userId,
           isOwner: true,
           memberCount,
+          ...(cadenceFields
+            ? {
+                publishCadence: cadenceFields.publishCadence,
+                lastCurriculumAt: cadenceFields.lastCurriculumAt,
+                cadenceStale: cadenceFields.cadenceStale,
+              }
+            : {}),
         },
       }, 200, { 'Cache-Control': 'private, no-cache' });
     }
@@ -1960,6 +2060,14 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
       space.color,
     );
 
+    const ministryChannel = isMinistryBroadcastSpaceRow(space);
+    const cadenceFields = ministryChannel
+      ? buildChannelCadenceFields(
+          space.publishCadence,
+          await getLastCurriculumAtForSpace(spaceId),
+        )
+      : null;
+
     return c.json({
       space: {
         id: space.id,
@@ -1972,9 +2080,17 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
         totalItemCount,
         isPublic: space.isPublic,
         type: space.type,
+        orgId: space.orgId ?? null,
         ownerId: space.userId,
         isOwner: false,
         memberCount,
+        ...(cadenceFields
+          ? {
+              publishCadence: cadenceFields.publishCadence,
+              lastCurriculumAt: cadenceFields.lastCurriculumAt,
+              cadenceStale: cadenceFields.cadenceStale,
+            }
+          : {}),
       },
     }, 200, { 'Cache-Control': 'private, no-cache' });
   } catch (error: any) {
