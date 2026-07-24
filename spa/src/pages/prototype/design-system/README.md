@@ -12,5 +12,5 @@ Canonical web counterparts to `native/Harvous/DesignSystem/*`.
 
 Ephemeral feedback → toasts. Persistent inline chrome → `PrototypeSharedNoteReadOnlyBanner`, inspector error rows, confirms. `PrototypeBanner` is deprecated.
 
-Docs: `docs/design-parity/HARVOUS_DESIGN_SYSTEM.md`  
+Docs: `docs/design-parity/HARVOUS_DESIGN_SYSTEM.md`
 Gallery: `http://localhost:4322/__dev/design-system`

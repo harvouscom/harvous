@@ -1,6 +1,6 @@
 # Space cover image variants (5×5 × light/dark)
 
-**Status:** Locked product direction (July 2026). **Assets generated** (50 WebPs + catalog); settings picker (color → 5 thumbs) wired for Shared Spaces + ministry channels.  
+**Status:** Locked product direction (July 2026). **Assets generated** (50 WebPs + catalog); settings picker (color → 5 thumbs) wired for Shared Spaces + ministry channels.
 **Scope:** Shared Spaces + ministry channel covers only — **not** Settings › Appearance wallpapers.
 
 **On disk:**
