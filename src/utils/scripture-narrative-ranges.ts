@@ -32,6 +32,12 @@ const RANGES: Record<string, GuardRule> = {
   'The Fall': { inject: true, ranges: [['Genesis', 3, 3]] },
   'The Flood': { inject: true, ranges: [['Genesis', 6, 9]] },
   'The Exodus': { inject: true, ranges: [['Exodus', 1, 15]] },
+  Passover: { inject: true, ranges: [['Exodus', 11, 13], ['Numbers', 9, 9]] },
+  'The Last Supper': {
+    inject: true,
+    ranges: [['Matthew', 26, 26], ['Mark', 14, 14], ['Luke', 22, 22], ['John', 13, 17], ['1 Corinthians', 11, 11]],
+  },
+  'Biblical Feasts': { inject: true, ranges: [['Leviticus', 23, 23], ['Deuteronomy', 16, 16]] },
   'The Ten Commandments': { inject: true, ranges: [['Exodus', 20, 20], ['Deuteronomy', 5, 5]] },
   // Exclude the golden-calf interlude (Exodus 32–34) from the construction chapters.
   'The Tabernacle': { inject: true, ranges: [['Exodus', 25, 31], ['Exodus', 35, 40]] },
@@ -52,7 +58,14 @@ const RANGES: Record<string, GuardRule> = {
   'The New Jerusalem': { inject: true, ranges: [['Revelation', 21, 22]] },
 
   // ── Filter-only (remove misfires; never auto-add) ────────────────────────────
-  'The Early Church': { inject: false, ranges: [['Acts', 1, 28]] },
+  'The Church': {
+    inject: false,
+    ranges: [
+      ['Matthew', 16, 18], ['Matthew', 28, 28], ['Acts', 1, 28], ['Romans', 12, 16], ['1 Corinthians', 1, 16],
+      ['Ephesians', 1, 6], ['Colossians', 1, 4], ['1 Timothy', 3, 3], ['1 Peter', 2, 5], ['Revelation', 2, 3],
+    ],
+  },
+  'The Early Church': { inject: true, ranges: [['Acts', 2, 2]] },
   'The Prophets': {
     inject: false,
     ranges: [

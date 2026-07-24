@@ -36,7 +36,14 @@ enum BibleStudyTagSuggester {
             primaryLabel: secondaryPrimary,
             secondaryLabels: secondaries
         )
-        return (primary, secondaries, filteredTags)
+        let enriched = FolderSubjectEnrichment.enrich(
+            primary: primary,
+            secondaries: secondaries,
+            title: title,
+            body: body,
+            allowPrimaryUpdate: true
+        )
+        return (enriched.primary, enriched.secondaries, filteredTags)
     }
 
     /// Recomputes `primaryFolder`, `secondaryFolders`, and `tags` from the note’s title and body.
@@ -58,7 +65,13 @@ enum BibleStudyTagSuggester {
         if allowPrimaryUpdate && !skipAutoPrimary {
             applyPrimaryMutation(note: note, analysis: analysis, existingFolders: existingFolders)
         }
-        refreshAutoSecondaries(note: note, analysis: analysis, existingFolders: existingFolders)
+        refreshAutoSecondaries(
+            note: note,
+            analysis: analysis,
+            existingFolders: existingFolders,
+            allowPrimaryUpdate: allowPrimaryUpdate,
+            skipAutoPrimary: skipAutoPrimary
+        )
 
         let autoSuggested = tagsExcludingFolderMembership(analysis.tags, note: note)
             .filter { !note.isDismissedAutoTag($0) }
@@ -120,7 +133,13 @@ enum BibleStudyTagSuggester {
     /// When two folder scores are within this band, prefer title presence and category rank (reduces noisy primary flips).
     private static let primaryScoreAmbiguityEpsilon: Double = 0.04
 
-    private static func refreshAutoSecondaries(note: Note, analysis: Analysis, existingFolders: [String]) {
+    private static func refreshAutoSecondaries(
+        note: Note,
+        analysis: Analysis,
+        existingFolders: [String],
+        allowPrimaryUpdate: Bool,
+        skipAutoPrimary: Bool
+    ) {
         guard let primaryTrimmed = normalizedFolderName(note.primaryFolder) else {
             note.secondaryFolders = []
             return
@@ -130,11 +149,22 @@ enum BibleStudyTagSuggester {
             note.secondaryFolders = []
             return
         }
-        note.secondaryFolders = autoSecondaryLabels(
+        let keywordSecondaries = autoSecondaryLabels(
             analysis: analysis,
             primaryLabel: primaryTrimmed,
             existingFolders: existingFolders
         )
+        let enriched = FolderSubjectEnrichment.enrich(
+            primary: note.primaryFolder,
+            secondaries: keywordSecondaries,
+            title: note.title,
+            body: note.body,
+            allowPrimaryUpdate: allowPrimaryUpdate && !skipAutoPrimary
+        )
+        if allowPrimaryUpdate && !skipAutoPrimary {
+            note.primaryFolder = enriched.primary
+        }
+        note.secondaryFolders = enriched.secondaries
     }
 
     private static func autoSecondaryLabels(
@@ -279,13 +309,48 @@ enum BibleStudyTagSuggester {
                 synonymOnly: !hasLiteralJesus
             )
         }
-        var top = Array(picked.prefix(12))
-        var tagNames = top.map(\.name)
+
+        let existingKeywordNames = picked.map(\.name)
+        for sc in SubjectTagCandidates.candidates(
+            title: title,
+            body: cappedBody,
+            existingTagNames: existingKeywordNames
+        ) {
+            if picked.contains(where: { overlaps($0.name, sc.name) }) { continue }
+            let cat: TagCategory
+            switch sc.tagCategory {
+            case "spiritual": cat = .spiritual
+            case "life": cat = .life
+            default: cat = .biblical
+            }
+            let nameLower = sc.name.lowercased()
+            let inTitle = titleLower.contains(nameLower)
+            picked.append(
+                Scored(
+                    name: sc.name,
+                    category: cat,
+                    confidence: sc.confidence,
+                    occurrences: 1,
+                    inTitle: inTitle
+                )
+            )
+        }
+        picked.sort { $0.confidence > $1.confidence }
+
+        // Reserve final slots for person tags (Ps / Pastor) so dense keyword notes do not drop them.
+        var personTags: [String] = []
         for personTag in detectPersonTags(in: fullText) {
+            if personTags.contains(where: { $0.caseInsensitiveCompare(personTag) == .orderedSame }) { continue }
+            if picked.contains(where: { $0.name.caseInsensitiveCompare(personTag) == .orderedSame }) { continue }
+            personTags.append(personTag)
+        }
+        let keywordSlots = max(0, 12 - personTags.count)
+        var tagNames = Array(picked.prefix(keywordSlots).map(\.name))
+        for personTag in personTags {
             if tagNames.contains(where: { $0.caseInsensitiveCompare(personTag) == .orderedSame }) { continue }
             tagNames.append(personTag)
-            if tagNames.count > 12 { tagNames = Array(tagNames.prefix(12)); break }
         }
+        if tagNames.count > 12 { tagNames = Array(tagNames.prefix(12)) }
 
         let openingSegment = extractOpeningSegment(title: title, body: cappedBody)
         var shell = Analysis(
@@ -674,6 +739,7 @@ enum BibleStudyTagSuggester {
         a("Priesthood", .biblical, 0.8, ["high priest", "royal priesthood"])
         a("Sacrificial System", .biblical, 0.8, ["burnt offering", "sin offering"])
         a("Exodus", .biblical, 0.8, ["deliverance from egypt", "passover"])
+        a("Passover", .biblical, 0.85, ["passover lamb", "feast of passover", "pascha", "blood of the lamb"])
         a("Exile", .biblical, 0.8, ["captivity", "babylon"])
         a("Restoration", .biblical, 0.8, ["return", "rebuild"])
         a("Messiah", .biblical, 0.8, ["christ", "anointed one"])
@@ -803,7 +869,7 @@ enum BibleStudyTagSuggester {
         var inTitle = false
         var frequency = 0
         let usePersonGate = row.category == .character
-        let useLifeContextGate = row.category == .life
+        let useLifeContextGate = row.category == .life || nameLower == "marriage"
         let useChurchAttendanceGate = nameLower == "church"
 
         for piece in [nameLower] + row.synonyms.map({ $0.lowercased() }) {
@@ -1045,6 +1111,7 @@ enum BibleStudyTagSuggester {
         let x = a.lowercased()
         let y = b.lowercased()
         if x == y { return true }
+        if isBookVsNarrativeFolderPair(x, y) { return false }
         if x.contains(y) || y.contains(x) { return true }
         let pairs: [(String, String)] = [
             ("goodness", "righteousness"), ("grace", "mercy"), ("love", "mercy"), ("faith", "belief"), ("hope", "faith"),
@@ -1062,5 +1129,27 @@ enum BibleStudyTagSuggester {
             if (x == p && y == q) || (x == q && y == p) { return true }
         }
         return false
+    }
+
+    static func folderConceptOverlaps(_ a: String, _ b: String) -> Bool {
+        overlaps(a, b)
+    }
+
+    static func isNonDefiningBookPrimary(title: String, body: String, primary: String) -> Bool {
+        let analysis = analyze(title: title, body: body)
+        guard let row = analysis.picked.first(where: {
+            $0.category == .book && $0.name.caseInsensitiveCompare(primary) == .orderedSame
+        }) else {
+            return false
+        }
+        return !isBookDefining(row)
+    }
+
+    private static func isBookVsNarrativeFolderPair(_ a: String, _ b: String) -> Bool {
+        let shorter = a.count <= b.count ? a : b
+        let longer = a.count <= b.count ? b : a
+        guard longer.hasPrefix("the ") else { return false }
+        let stem = String(longer.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+        return !stem.isEmpty && shorter == stem
     }
 }

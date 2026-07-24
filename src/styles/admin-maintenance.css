@@ -113,8 +113,25 @@
 
 .admin-diagnostics__filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
   margin-bottom: 14px;
+}
+
+.admin-diagnostics__filter-divider {
+  width: 1px;
+  height: 24px;
+  background: color-mix(in srgb, var(--pds-text-primary) 12%, transparent);
+  margin: 0 2px;
+}
+
+.admin-diagnostics__bulk-resolve {
+  margin-left: auto;
+}
+
+.admin-diagnostics__issue-close {
+  flex-shrink: 0;
 }
 
 .admin-diagnostics__list {

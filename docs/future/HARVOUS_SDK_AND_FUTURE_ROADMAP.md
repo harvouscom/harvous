@@ -52,6 +52,23 @@ Faith-based apps rarely talk to each other. Users end up with notes and highligh
 - **Prefer intentional, typed integrations:** e.g. YouVersion highlight → **scripture note** in Harvous (structured, not generic "save link"). If/when the SDK or partner integrations are built, they should create the **right note types** (scripture, resource, etc.) with clear attribution.
 - **SDK is deferred** until core and learning feel right. The **data model** should already support (or be extended for) source attribution and "open back in [App]" (e.g. `Notes.addedBy`, `ResourceMetadata`, `ScriptureMetadata`) so that when SDK or partners are added, the experience is coherent.
 
+### Outbound Connector is a separate product
+
+Do not conflate the deferred **inbound** SDK (this document) with the **outbound** **Connector**
+add-on, which is a **paid, individual subscription** tracked in
+[MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) Section 4. Canonical scope and
+guardrails: [CONNECTOR_BOUNDARIES.md](./CONNECTOR_BOUNDARIES.md).
+
+| Direction | What it does | Status |
+|---|---|---|
+| **Inbound SDK** (this doc) | Other apps send content **into** Harvous (e.g. YouVersion highlight → scripture note). Includes OAuth, app registry, "Save to Harvous" UI components, deep links. | **Deferred** — build core + learning first. |
+| **Outbound Connector** | Harvous data flows **out** to the user's own tools (Claude Desktop, Cursor, scripts, MCP-compatible assistants). Read-only, query-shaped, rate-limited. **Permanent read-only** — no write tools. | **Planned as paid add-on** — see [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) Section 4 and [CONNECTOR_BOUNDARIES.md](./CONNECTOR_BOUNDARIES.md). |
+
+Connector is deliberately query-shaped (no bulk export) so it complements the
+"not a dumping ground" / "not locked in" / "not infrastructure" principles in Section 4 below rather
+than contradicting them: Harvous stays the place people open to capture and organize; Connector is
+a reference layer for their existing agents and scripts, not a mirror of the corpus somewhere else.
+
 ---
 
 ## 3. Future core features (planned)

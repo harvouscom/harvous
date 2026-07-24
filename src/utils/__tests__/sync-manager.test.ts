@@ -23,6 +23,23 @@ import { offlineDB, type SyncState } from '../offline-db';
 // Mock fetch globally
 global.fetch = vi.fn();
 
+// `isDedicatedPrototypeHost()` defaults to `window.location.hostname`, and jsdom's default
+// hostname is `localhost` — one of the dedicated prototype hosts. That makes every pathname
+// (other than the explicit non-prototype app paths) resolve as a prototype-shell path in tests,
+// so there's no way to simulate a genuinely "classic" (non-dedicated-host) route via pathname
+// alone. `mockSimulateClassicHost` lets a single test opt into non-dedicated-host behavior
+// without touching global state for the rest of the suite. (Variable must be prefixed `mock*`
+// — Vitest only hoists references with that prefix into `vi.mock` factories.)
+let mockSimulateClassicHost = false;
+vi.mock('@/lib/prototype-path', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/prototype-path')>();
+  return {
+    ...actual,
+    isPrototypeShellPath: (pathname: string) =>
+      mockSimulateClassicHost ? pathname.startsWith('/prototype') : actual.isPrototypeShellPath(pathname),
+  };
+});
+
 // Mock navigator.onLine
 Object.defineProperty(navigator, 'onLine', {
   writable: true,
@@ -495,6 +512,10 @@ describe('sync-manager', () => {
     });
 
     it('keeps permanent failures on classic routes', async () => {
+      // Simulate a non-dedicated-prototype host (real production hosts other than
+      // localhost/app.harvous.com/new.harvous.com) where `/dashboard` is a genuine
+      // non-prototype path, not the dedicated-host catch-all.
+      mockSimulateClassicHost = true;
       window.history.pushState({}, '', '/dashboard');
 
       const opId = await offlineDB.syncQueue.add({
@@ -519,6 +540,7 @@ describe('sync-manager', () => {
       expect(queueItems).toHaveLength(1);
       expect(queueItems[0].retryCount).toBe(999);
 
+      mockSimulateClassicHost = false;
       window.history.pushState({}, '', '/');
     });
   });
@@ -543,10 +565,15 @@ describe('sync-manager', () => {
       expect(
         shouldDropStalePrototypeQueueOp({ entityType: 'noteThread', operation: 'create' }, 'not_found'),
       ).toBe(false);
+
+      // `/dashboard` on a non-dedicated-prototype host (see `mockSimulateClassicHost`) is a
+      // genuine non-prototype path.
+      mockSimulateClassicHost = true;
       window.history.pushState({}, '', '/dashboard');
       expect(
         shouldDropStalePrototypeQueueOp({ entityType: 'note', operation: 'update' }, 'not_found'),
       ).toBe(false);
+      mockSimulateClassicHost = false;
       window.history.pushState({}, '', '/');
     });
   });

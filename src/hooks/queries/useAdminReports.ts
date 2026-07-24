@@ -47,6 +47,21 @@ export type AdminMonthlyReportUsage = {
   };
 };
 
+export type AdminReportCanonSection = {
+  id: string;
+  label: string;
+  count: number;
+  testament: 'ot' | 'nt';
+};
+
+export type AdminReportCanonBook = {
+  name: string;
+  order: number;
+  count: number;
+  sharePct: number;
+  heatLevel: number;
+};
+
 export type AdminMonthlyReportPayload = {
   month: string;
   seasonId: string;
@@ -61,7 +76,16 @@ export type AdminMonthlyReportPayload = {
     tags: AdminReportRankItem[];
     translations: AdminReportRankItem[];
     monthlyAnalytics: { books: AdminReportRankItem[]; tags: AdminReportRankItem[] };
-    threads: { activeThreads: number; avgNotesPerThread: number; linksCreated: number };
+    curiosity?: {
+      tones: AdminReportRankItem[];
+      folders: AdminReportRankItem[];
+      dictionaryWords: AdminReportRankItem[];
+    };
+    canon?: {
+      sections: AdminReportCanonSection[];
+      books: AdminReportCanonBook[];
+    };
+    threads: { totalThreads?: number; activeThreads?: number; avgNotesPerThread: number; linksCreated: number };
     xp: {
       totalXp: number;
       eventCount: number;
@@ -161,7 +185,8 @@ export function useGenerateAdminReport() {
       }
       return res.json() as Promise<{ success: boolean; month: string; payload: AdminMonthlyReportPayload }>;
     },
-    onSuccess: () => {
+    onSuccess: (data, month) => {
+      queryClient.setQueryData([...REPORTS_KEY, 'month', month], data.payload);
       queryClient.invalidateQueries({ queryKey: REPORTS_KEY });
     },
   });

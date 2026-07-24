@@ -45,6 +45,32 @@ function payloadToRows(scope: string, scopeId: string, payload: AdminMonthlyRepo
   for (const theme of pulse.themes) {
     pushMetric(rows, scope, scopeId, 'themes', theme.name, theme.count);
   }
+  for (const passage of pulse.passages) {
+    pushMetric(rows, scope, scopeId, 'passages', passage.name, passage.count);
+  }
+  for (const tag of pulse.tags) {
+    pushMetric(rows, scope, scopeId, 'tags', tag.name, tag.count);
+  }
+  for (const translation of pulse.translations) {
+    pushMetric(rows, scope, scopeId, 'translations', translation.name, translation.count);
+  }
+  const curiosity = pulse.curiosity ?? { tones: [], folders: [], dictionaryWords: [] };
+  for (const tone of curiosity.tones) {
+    pushMetric(rows, scope, scopeId, 'tones', tone.name, tone.count);
+  }
+  for (const folder of curiosity.folders) {
+    pushMetric(rows, scope, scopeId, 'folders', folder.name, folder.count);
+  }
+  for (const word of curiosity.dictionaryWords) {
+    pushMetric(rows, scope, scopeId, 'dictionaryWords', word.name, word.count);
+  }
+  const canon = pulse.canon ?? { sections: [], books: [] };
+  for (const section of canon.sections) {
+    pushMetric(rows, scope, scopeId, 'canonSections', section.label, section.count);
+  }
+  for (const book of canon.books.filter((cell) => cell.count > 0).slice(0, 10)) {
+    pushMetric(rows, scope, scopeId, 'canonBooks', book.name, book.count);
+  }
   for (const activity of pulse.xp.byActivity) {
     pushMetric(rows, scope, scopeId, 'xpActivity', activity.label, activity.totalXp);
   }

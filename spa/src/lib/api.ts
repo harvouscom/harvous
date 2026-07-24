@@ -1,8 +1,8 @@
 /**
  * SPA API client.
- * In the browser (web + Capacitor WebView), Clerk manages auth cookies automatically.
- * All requests go to the same origin (proxied to the Astro/Netlify backend in dev,
- * or directly to https://app.harvous.com in production native builds).
+ * Prefer Clerk session JWT as Bearer (avoids cold-start cookie races); still send cookies
+ * for same-origin session continuity. In Capacitor / split-origin builds, VITE_API_BASE_URL
+ * may point at the production API host.
  */
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
@@ -20,6 +20,38 @@ export class APIError extends Error {
   }
 }
 
+type GetTokenFn = () => Promise<string | null>;
+
+let clerkGetToken: GetTokenFn | null = null;
+
+/** Register Clerk `getToken` from inside `<ClerkProvider>` (see ClerkTokenBridge). */
+export function setClerkGetToken(fn: GetTokenFn | null): void {
+  clerkGetToken = fn;
+}
+
+/** Clerk session JWT when available — preferred over relying on __session cookie timing. */
+export async function getClerkBearerToken(): Promise<string | null> {
+  if (clerkGetToken) {
+    try {
+      return (await clerkGetToken()) || null;
+    } catch {
+      /* fall through */
+    }
+  }
+  if (typeof window === 'undefined') return null;
+  try {
+    const clerk = (
+      window as unknown as {
+        Clerk?: { session?: { getToken?: () => Promise<string | null> } };
+      }
+    ).Clerk;
+    const token = await clerk?.session?.getToken?.();
+    return token || null;
+  } catch {
+    return null;
+  }
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers ?? undefined);
   const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData;
@@ -33,6 +65,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     !headers.has('Content-Type')
   ) {
     headers.set('Content-Type', 'application/json');
+  }
+
+  if (!headers.has('Authorization')) {
+    const token = await getClerkBearerToken();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
   }
 
   const res = await fetch(`${BASE_URL}${path}`, {

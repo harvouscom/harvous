@@ -162,7 +162,10 @@ export default function ReferenceDockWeb({
   const noteAccent: StudyHighlightAccentKey =
     noteHighlightAccent && isStudyHighlightAccentKey(noteHighlightAccent) ? noteHighlightAccent : 'warmAmber';
   const savedReferenceHighlight = !!(noteHighlightRange || passageReferenceSaved);
-  const accentColor = SCRIPTURE_DOCK_ACCENT_COLORS[savedReferenceHighlight ? noteAccent : 'neutral'];
+  const showPendingSave = (pendingSuggestion || passageReference) && !!onSaveReference;
+  const accentColor = showPendingSave
+    ? SCRIPTURE_DOCK_ACCENT_COLORS.warmAmber
+    : SCRIPTURE_DOCK_ACCENT_COLORS[savedReferenceHighlight ? noteAccent : 'neutral'];
 
   const scriptureRefToggle =
     scriptureRefs.length > 0 && onOpenScripturePassage ? (
@@ -178,25 +181,25 @@ export default function ReferenceDockWeb({
       </button>
     ) : null;
 
+  const saveOrb =
+    showPendingSave ? (
+      <button
+        type="button"
+        className="study-dock-card__header-btn reference-dock-web__save-orb"
+        onMouseDown={(e) => runPointerAction(e, () => onSaveReference?.())}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (e.detail === 0) onSaveReference?.();
+        }}
+        aria-label="Save reference"
+        title="Save reference"
+      >
+        <Icon name="check" size={14} />
+      </button>
+    ) : null;
+
   const headerActions =
-    (pendingSuggestion || passageReference) && onSaveReference ? (
-      <>
-        {scriptureRefToggle}
-        <button
-          type="button"
-          className="study-dock-card__header-btn reference-dock-web__save-orb"
-          onMouseDown={(e) => runPointerAction(e, onSaveReference)}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (e.detail === 0) onSaveReference();
-          }}
-          aria-label="Save reference"
-          title="Save reference"
-        >
-          <Icon name="check" size={14} />
-        </button>
-      </>
-    ) : savedReferenceHighlight && (onChangeNoteHighlight || onRemoveNoteHighlight) ? (
+    savedReferenceHighlight && (onChangeNoteHighlight || onRemoveNoteHighlight) ? (
       <>
         {scriptureRefToggle}
         {onChangeNoteHighlight ? (
@@ -221,8 +224,11 @@ export default function ReferenceDockWeb({
           </button>
         ) : null}
       </>
-    ) : scriptureRefToggle ? (
-      scriptureRefToggle
+    ) : saveOrb || scriptureRefToggle ? (
+      <>
+        {saveOrb}
+        {scriptureRefToggle}
+      </>
     ) : null;
 
   return (

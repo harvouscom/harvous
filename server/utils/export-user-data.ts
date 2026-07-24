@@ -206,7 +206,7 @@ function safePathSegment(name: string): string {
  */
 export async function generateUserBackupZip(
   userId: string,
-): Promise<{ content: ArrayBuffer; fileExtension: string }> {
+): Promise<{ content: Uint8Array; fileExtension: string }> {
   const allNotes = dedupeById(await db
     .select({
       id: Notes.id,
@@ -352,6 +352,7 @@ export async function generateUserBackupZip(
   };
   zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 
-  const content = await zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' });
+  // Uint8Array plays nicer with Hono/Node Response bodies than ArrayBuffer.
+  const content = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
   return { content, fileExtension: 'zip' };
 }

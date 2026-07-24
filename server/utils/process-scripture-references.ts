@@ -245,6 +245,12 @@ export interface ProcessScriptureOptions {
    * Set false so this processor performs only post-commit reference/tag side effects.
    */
   persistParentContent?: boolean;
+  /**
+   * Extra reference strings (e.g. portable frontmatter `refs`) to process even when they are
+   * not present in the note body. Invalid / unparseable strings are ignored. Refs already
+   * detected in the body are not duplicated.
+   */
+  additionalReferences?: string[];
 }
 
 export type ScriptureContentTransformResult = {
@@ -318,6 +324,39 @@ export async function persistCanonicalScriptureContent(input: {
       now: new Date(),
     }),
   );
+}
+
+/**
+ * Merge portable / explicit scripture refs into body-detected refs (normalized dedupe).
+ * Exported for import enrichment tests.
+ */
+export function mergeAdditionalScriptureReferences(
+  detected: ReturnType<typeof detectScriptureReferences>,
+  additional: string[] | undefined,
+): ReturnType<typeof detectScriptureReferences> {
+  if (!additional?.length) return detected;
+  const seen = new Set(
+    detected.map((d) => normalizeScriptureReference(d.reference)).filter(Boolean) as string[],
+  );
+  const out = [...detected];
+  for (const raw of additional) {
+    const trimmed = typeof raw === 'string' ? raw.trim() : '';
+    if (!trimmed) continue;
+    const parsed = parseScriptureReference(trimmed);
+    if (!parsed) continue;
+    const reference = normalizeScriptureReference(trimmed) || trimmed;
+    const normalized = normalizeScriptureReference(reference);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push({
+      book: parsed.book,
+      chapter: parsed.chapter,
+      verse: parsed.verse,
+      endChapter: parsed.endChapter,
+      reference,
+    });
+  }
+  return out;
 }
 
 export async function processScriptureReferences(
@@ -609,12 +648,16 @@ async function processScriptureReferencesInternal(
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Detect all scripture references in the content
-  const detectedReferences = detectScriptureReferences(plainText);
+  // Detect all scripture references in the content; merge portable/explicit refs (import).
+  const detectedReferences = mergeAdditionalScriptureReferences(
+    detectScriptureReferences(plainText),
+    options?.additionalReferences,
+  );
   console.log('[processScriptureReferences] Detection', {
     noteId,
     plainTextLength: plainText.length,
     detectedCount: detectedReferences.length,
+    additionalCount: options?.additionalReferences?.length ?? 0,
     firstRef: detectedReferences[0]?.reference ?? null
   });
 

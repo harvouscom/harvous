@@ -117,4 +117,16 @@ Optional future enhancements (e.g. remove lock PIN, session PIN) are documented 
 
 ## Future: AI and API/MCP
 
-When a note is locked, nothing can read it—no server, no AI, no API. Content is only readable after the user unlocks (and optionally authorizes that use). Locked note content is available to AI or external APIs only when the user has unlocked the note and explicitly authorized that use; the server never sees plaintext for locked notes.
+When a note is locked, nothing can read its body—no server, no AI, no API. Content is only readable
+after the user unlocks in the Harvous app.
+
+**Connector (planned outbound add-on):**
+
+- **Your locked notes:** Connector returns **metadata only** (id, title, dates, `locked: true`) — no
+  body, not an error. User must unlock in Harvous to read content elsewhere.
+- **Others' locked notes in shared spaces:** **Excluded** from Connector list/search results (same as
+  member view in the app).
+- Connector is **read-only permanently** — no path to read locked plaintext via Connector without
+  in-app unlock.
+
+See [CONNECTOR_BOUNDARIES.md](../future/CONNECTOR_BOUNDARIES.md).

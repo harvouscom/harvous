@@ -118,6 +118,13 @@ export interface StudyDockCardShellProps {
   headerTrailing?: React.ReactNode;
   /** Accent swatch, trash, etc. — inserted before chevron/X. */
   headerActions?: React.ReactNode;
+  /** Primary action on the accent stripe — always visible (not buried in narrow overflow). */
+  accentPrimaryAction?: {
+    label: string;
+    ariaLabel?: string;
+    onClick: () => void;
+    icon?: React.ReactNode;
+  };
   children?: React.ReactNode;
 }
 
@@ -137,6 +144,7 @@ export default function StudyDockCardShell({
   headerTitleIsButton = false,
   headerTrailing,
   headerActions,
+  accentPrimaryAction,
   children,
 }: StudyDockCardShellProps) {
   const isNarrow = useNarrowViewport(NARROW_BREAKPOINT);
@@ -235,6 +243,28 @@ export default function StudyDockCardShell({
                 }
           }
         >
+          {accentPrimaryAction ? (
+            <button
+              type="button"
+              className="study-dock-card__accent-primary-action"
+              aria-label={accentPrimaryAction.ariaLabel ?? accentPrimaryAction.label}
+              onMouseDown={(e) => runHeaderPointerAction(e, accentPrimaryAction.onClick)}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (e.detail === 0) accentPrimaryAction.onClick();
+              }}
+            >
+              {accentPrimaryAction.icon ? (
+                <span className="study-dock-card__accent-primary-action-icon" aria-hidden>
+                  {accentPrimaryAction.icon}
+                </span>
+              ) : null}
+              <span className="study-dock-card__accent-primary-action-label">{accentPrimaryAction.label}</span>
+            </button>
+          ) : null}
+          <div
+            className={`study-dock-card__card-main${accentPrimaryAction ? ' study-dock-card__card-main--with-accent-action' : ''}`}
+          >
           <div className="study-dock-card__header">
             <span className="study-dock-card__header-icon" aria-hidden>
               {headerIcon}
@@ -304,6 +334,7 @@ export default function StudyDockCardShell({
               <div className="study-dock-card__body">{children}</div>
             </div>
           ) : null}
+          </div>
         </div>
       </div>
     </div>

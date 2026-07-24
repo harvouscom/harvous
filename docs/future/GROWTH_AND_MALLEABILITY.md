@@ -257,7 +257,7 @@ Imported content must map cleanly to Harvous's structure:
 |---------------|----------------|
 | Individual note/document | `Note` (type: `default`) |
 | Collection/notebook/category | `Thread` (created if needed) |
-| Any detected scripture references | Linked `ScriptureMetadata` + scripture pills in content |
+| Any detected scripture references | Linked `ScriptureMetadata` + scripture pills in content (web import commits call `processScriptureReferences` + auto-tags; continuous folder/Drive watch is native-deferred — see `native/docs/future/ARCHITECTURE_ROADMAP.md`) |
 | Bold, italic, lists, headings | Preserved as Tiptap HTML |
 | Images | Stripped initially (until image embed support ships) |
 | Links/URLs | Preserved as plain text links |

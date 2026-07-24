@@ -6,11 +6,19 @@ const API_BASE =
     ? String(import.meta.env.VITE_API_BASE_URL)
     : '';
 
+function formatAdminApiError(body: { error?: string; details?: string }, status: number): string {
+  if (status === 502 || status === 504) {
+    return `Request timed out (HTTP ${status}). Try again — aggregation and report now run as separate steps.`;
+  }
+  const base = body.error || `HTTP ${status}`;
+  return body.details ? `${base}: ${body.details}` : base;
+}
+
 async function adminApiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { credentials: 'include' });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error || `HTTP ${res.status}`);
+    throw new Error(formatAdminApiError(body as { error?: string; details?: string }, res.status));
   }
   return res.json() as Promise<T>;
 }
@@ -24,7 +32,7 @@ async function adminApiPost<T>(path: string, body?: unknown): Promise<T> {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
+    throw new Error(formatAdminApiError(data as { error?: string; details?: string }, res.status));
   }
   return res.json() as Promise<T>;
 }
@@ -66,21 +74,42 @@ export type LinkIntegrityResult = {
 export type AggregateAnalyticsResult = {
   success: boolean;
   month: string;
+  aggregated?: boolean;
+  reportGenerated?: boolean;
   message: string;
   error?: string;
+  details?: string;
 };
 
 export function useAggregateAnalytics() {
   const admin = useHarvousAdminCheck();
   return useMutation({
-    mutationFn: (params: { month?: string; previous?: boolean }) => {
+    mutationFn: async (params: { month?: string; previous?: boolean }) => {
       const qs = new URLSearchParams();
       if (params.month) qs.set('month', params.month);
       if (params.previous) qs.set('previous', 'true');
+      qs.set('skipReport', '1');
       const query = qs.toString();
-      return adminApiGet<AggregateAnalyticsResult>(
-        `/api/admin/aggregate-analytics${query ? `?${query}` : ''}`,
+
+      const agg = await adminApiPost<AggregateAnalyticsResult>(
+        `/api/admin/aggregate-analytics?${query}`,
       );
+
+      const month = agg.month;
+      try {
+        await adminApiPost<{ success: boolean; month: string }>(
+          `/api/admin/reports/generate?month=${encodeURIComponent(month)}`,
+        );
+        return {
+          ...agg,
+          success: true,
+          reportGenerated: true,
+          message: `Analytics and monthly report generated for ${month}`,
+        };
+      } catch (error) {
+        const reportError = error instanceof Error ? error.message : String(error);
+        throw new Error(`Analytics aggregated for ${month}, but report snapshot failed: ${reportError}`);
+      }
     },
     meta: { requiresAdmin: admin.data?.isAdmin },
   });

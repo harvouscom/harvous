@@ -177,7 +177,7 @@ function countKeywordOccurrences(plainTitle: string, plainBody: string, keyword:
     const n = raw.trim().toLowerCase();
     if (!n || seen.has(n)) continue;
     seen.add(n);
-    if (keyword.category === 'life') {
+    if (keyword.category === 'life' || keyword.name.toLowerCase() === 'marriage') {
       total += countLifeKeywordNeedleInLowerText(titleLower, raw, keyword.name);
       total += countLifeKeywordNeedleInLowerText(bodyLower, raw, keyword.name);
       continue;
@@ -437,6 +437,17 @@ function pickPrimaryKeyword(rows: ScRow[], plainTitle: string, plainBody: string
   return pickPrimaryRowFromDeduped(deduped, plainTitle, plainBody)?.keyword ?? null;
 }
 
+/** True when the stored primary is a Bible book from passing citations only (not a book study). */
+export function isNonDefiningBookPrimary(title: string, bodyHtml: string, primary: string | null): boolean {
+  if (!primary?.trim()) return false;
+  const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
+  const row = rows.find(
+    (r) => r.keyword.category === 'book' && r.keyword.name.toLowerCase() === primary.trim().toLowerCase(),
+  );
+  if (!row) return false;
+  return !isBookDefining(row, plainTitle, plainBody);
+}
+
 /** Top collection label from title + HTML body. */
 export function suggestPrimaryCollectionFromNote(title: string, bodyHtml: string): string | null {
   const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
@@ -477,8 +488,9 @@ function meetsMinimumContext(title: string, plainBody: string, candidate: string
 }
 
 /**
- * After local title/body edit, refresh auto collection. Pinned freezes primary only; secondaries still suggest.
- * Manual (`collectionUserOverride` without pin) skips auto updates until restored.
+ * After local title/body edit, refresh auto collection.
+ * Pinned or manual override freezes primary only; secondaries still suggest.
+ * "Use auto suggestion" clears override so primary can track again.
  */
 export function applyAutoCollectionAfterEdit(
   prev: CollectionChromeState,
@@ -488,7 +500,6 @@ export function applyAutoCollectionAfterEdit(
   options?: { allowPrimaryUpdate?: boolean },
 ): CollectionChromeState {
   const allowPrimaryUpdate = options?.allowPrimaryUpdate ?? true;
-  if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
 
   const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
   const freezePrimary = prev.collectionPinned || prev.collectionUserOverride;

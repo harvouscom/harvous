@@ -62,4 +62,19 @@ describe('runOfflineFirst', () => {
     expect(offline).toHaveBeenCalledWith('user_1');
     expect(out).toEqual({ online: null, queued: true, localId: 'local_abc' });
   });
+
+  it('rethrows when the durable offline write fails', async () => {
+    setOnline(false);
+    const offline = vi.fn(async () => {
+      throw new Error('IndexedDB quota exceeded');
+    });
+    await expect(
+      runOfflineFirst({
+        online: async () => {
+          throw new TypeError('Failed to fetch');
+        },
+        offline,
+      }),
+    ).rejects.toThrow('IndexedDB quota exceeded');
+  });
 });

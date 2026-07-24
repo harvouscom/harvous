@@ -104,3 +104,25 @@ export function useUpdateDiagnosticTriage() {
     },
   });
 }
+
+export function useBulkUpdateDiagnosticTriage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      signatures,
+      status,
+      adminNotes,
+    }: {
+      signatures: string[];
+      status: DiagnosticTriageStatus;
+      adminNotes?: string | null;
+    }) =>
+      adminApiPatch<{ success: boolean; updated: number; status: DiagnosticTriageStatus }>(
+        '/api/admin/diagnostics/issues/bulk',
+        { signatures, status, adminNotes },
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['admin', 'diagnostics'] });
+    },
+  });
+}

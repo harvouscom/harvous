@@ -6,11 +6,15 @@ import type {
   AdminMonthlyReportPayload,
   AdminMonthlyReportPulse,
   AdminMonthlyReportUsage,
+  AdminReportCanonBook,
+  AdminReportCanonSection,
   AdminReportRankItem,
   AdminReportRollup,
   AdminReportRollupTotals,
 } from './admin-report-types';
 import type { DiscoveryRankItem } from './admin-usage-stats';
+import { buildCanonBookGrid } from '@/utils/admin-pulse-heatmap';
+import { CANON_BOOK_GROUPS } from '@/utils/admin-pulse-canon-groups';
 
 function mergeRankedLists(lists: DiscoveryRankItem[][], limit: number): AdminReportRankItem[] {
   const totals = new Map<string, number>();
@@ -23,6 +27,43 @@ function mergeRankedLists(lists: DiscoveryRankItem[][], limit: number): AdminRep
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([name, count]) => ({ name, count }));
+}
+
+function emptyCuriosity(): AdminMonthlyReportPulse['curiosity'] {
+  return { tones: [], folders: [], dictionaryWords: [] };
+}
+
+function pulseThreadTotalThreads(threads: AdminMonthlyReportPulse['threads'] & { activeThreads?: number }): number {
+  return threads.totalThreads ?? threads.activeThreads ?? 0;
+}
+
+function mergeCanonSections(payloads: AdminMonthlyReportPayload[]): AdminReportCanonSection[] {
+  const totals = new Map<string, number>();
+  for (const payload of payloads) {
+    const sections = payload.pulse.canon?.sections ?? [];
+    for (const section of sections) {
+      totals.set(section.id, (totals.get(section.id) ?? 0) + section.count);
+    }
+  }
+  return CANON_BOOK_GROUPS.map((group) => ({
+    id: group.id,
+    label: group.label,
+    testament: group.testament,
+    count: totals.get(group.id) ?? 0,
+  })).filter((section) => section.count > 0);
+}
+
+function mergeCanonBooks(payloads: AdminMonthlyReportPayload[]): AdminReportCanonBook[] {
+  const totals = new Map<string, number>();
+  for (const payload of payloads) {
+    const books = payload.pulse.canon?.books ?? [];
+    for (const book of books) {
+      if (book.count <= 0) continue;
+      totals.set(book.name, (totals.get(book.name) ?? 0) + book.count);
+    }
+  }
+  const bookCounts = [...totals.entries()].map(([name, count]) => ({ name, count }));
+  return buildCanonBookGrid(bookCounts);
 }
 
 function mergeXpActivities(
@@ -111,7 +152,7 @@ function sumPulse(payloads: AdminMonthlyReportPayload[]): AdminMonthlyReportPuls
     eventCount += p.pulse.xp.eventCount;
     xpUsers += p.pulse.xp.users;
     uniquePassages += p.pulse.uniquePassages;
-    totalThreads = Math.max(totalThreads, p.pulse.threads.totalThreads);
+    totalThreads = Math.max(totalThreads, pulseThreadTotalThreads(p.pulse.threads));
     linksCreated += p.pulse.threads.linksCreated;
     avgNotesSum += p.pulse.threads.avgNotesPerThread;
   }
@@ -150,6 +191,24 @@ function sumPulse(payloads: AdminMonthlyReportPayload[]): AdminMonthlyReportPuls
         payloads.map((p) => p.pulse.monthlyAnalytics.tags),
         10,
       ),
+    },
+    curiosity: {
+      tones: mergeRankedLists(
+        payloads.map((p) => (p.pulse.curiosity ?? emptyCuriosity()).tones),
+        10,
+      ),
+      folders: mergeRankedLists(
+        payloads.map((p) => (p.pulse.curiosity ?? emptyCuriosity()).folders),
+        10,
+      ),
+      dictionaryWords: mergeRankedLists(
+        payloads.map((p) => (p.pulse.curiosity ?? emptyCuriosity()).dictionaryWords),
+        10,
+      ),
+    },
+    canon: {
+      sections: mergeCanonSections(payloads),
+      books: mergeCanonBooks(payloads),
     },
     threads: {
       totalThreads,

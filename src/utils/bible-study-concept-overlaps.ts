@@ -47,11 +47,26 @@ export function conceptOverlaps(a: string, b: string): boolean {
   const y = b.trim().toLowerCase();
   if (!x || !y) return false;
   if (x === y) return true;
+  if (isBookVsNarrativeFolderPair(x, y)) return false;
   if (x.includes(y) || y.includes(x)) return true;
   for (const [p, q] of CONCEPT_OVERLAP_PAIRS) {
     if ((x === p && y === q) || (x === q && y === p)) return true;
   }
   return false;
+}
+
+/** Bible book name vs "The {Book}" narrative event — distinct folder labels, not duplicates. */
+function isBookVsNarrativeFolderPair(a: string, b: string): boolean {
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length <= b.length ? b : a;
+  if (!longer.startsWith('the ')) return false;
+  const stem = longer.slice(4).trim();
+  return stem.length > 0 && shorter === stem;
+}
+
+/** Folder assignment — book vs narrative pairs are not treated as overlapping concepts. */
+export function conceptOverlapsForFolders(a: string, b: string): boolean {
+  return conceptOverlaps(a, b);
 }
 
 /** True when `name` matches or concept-overlaps any label in `labels`. */

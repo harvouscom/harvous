@@ -16,15 +16,19 @@ describe('guardNarrativeSubjects', () => {
     expect(out).toEqual(['The Tabernacle']);
   });
 
-  it('injects a missing headline event while keeping non-narrative subjects', () => {
-    // Matthew 27 is the crucifixion; "The Passion" should lead, the rest preserved.
+  it('injects a missing headline event while dropping anachronistic narrative subjects', () => {
+    // Matthew 27 is the crucifixion; "The Passion" should lead; "The Church" is out of range here.
     const out = guardNarrativeSubjects('Matthew', 27, ['The Church', 'Death', 'Atonement']);
     expect(out[0]).toBe('The Passion');
-    expect(out).toEqual(expect.arrayContaining(['The Church', 'Death', 'Atonement']));
+    expect(out).not.toContain('The Church');
+    expect(out).toEqual(expect.arrayContaining(['Death', 'Atonement']));
   });
 
-  it('drops "The Exile" from Pentecost (Acts 2) and keeps the real theme', () => {
-    expect(guardNarrativeSubjects('Acts', 2, ['Holy Spirit', 'The Exile'])).toEqual(['Holy Spirit']);
+  it('injects The Early Church on Pentecost and drops The Exile misfire', () => {
+    expect(guardNarrativeSubjects('Acts', 2, ['Holy Spirit', 'The Exile'])).toEqual([
+      'The Early Church',
+      'Holy Spirit',
+    ]);
   });
 
   it('swaps a misused "The Fall" for the in-range headline (1 Chronicles 28 → The Temple)', () => {

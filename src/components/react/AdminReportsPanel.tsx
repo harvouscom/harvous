@@ -1,17 +1,23 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   useAdminMonthlyReport,
   useAdminReportsCatalog,
   useAdminSeasonReport,
+  useGenerateAdminReport,
   downloadAdminReport,
   adminReportDownloadUrl,
   type AdminMonthlyReportPayload,
+  type AdminReportRankItem,
 } from '@/hooks/queries/useAdminReports';
+import AdminCanonHeatmap from '@/components/react/AdminCanonHeatmap';
+import { formatDivineNamesInLabel } from '@/utils/divine-name-display';
 import ProtoStatusChip from '@/components/react/ProtoStatusChip';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { getAdminReportMonthStatus } from '@/utils/season-helpers';
 import '@/styles/admin-usage.css';
 import '@/styles/admin-reports.css';
+import '@/styles/admin-pulse.css';
 
 function formatCount(n: number): string {
   return n.toLocaleString();
@@ -49,27 +55,67 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-function RankList({ title, items }: { title: string; items: { name: string; count: number }[] }) {
-  if (items.length === 0) return null;
+function RankList({
+  title,
+  items,
+  formatName,
+  emptyLabel = 'No activity.',
+}: {
+  title: string;
+  items: AdminReportRankItem[];
+  formatName?: (name: string) => string;
+  emptyLabel?: string;
+}) {
   return (
     <div className="admin-reports__rank-block">
       <h4 className="admin-reports__rank-title">{title}</h4>
-      <ol className="admin-reports__rank-list">
-        {items.map((item) => (
-          <li key={item.name}>
-            <span>{item.name}</span>
-            <span>{formatCount(item.count)}</span>
-          </li>
-        ))}
-      </ol>
+      {items.length === 0 ? (
+        <p className="admin-usage__muted admin-usage__empty--inline">{emptyLabel}</p>
+      ) : (
+        <ol className="admin-reports__rank-list">
+          {items.map((item) => (
+            <li key={item.name}>
+              <span>{formatName ? formatName(item.name) : item.name}</span>
+              <span>{formatCount(item.count)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }
 
+function reportCuriosity(payload: AdminMonthlyReportPayload) {
+  return payload.pulse.curiosity ?? { tones: [], folders: [], dictionaryWords: [] };
+}
+
+function reportCanon(payload: AdminMonthlyReportPayload) {
+  return payload.pulse.canon ?? { sections: [], books: [] };
+}
+
+function reportThreadTotal(payload: AdminMonthlyReportPayload): number {
+  const threads = payload.pulse.threads;
+  return threads.totalThreads ?? threads.activeThreads ?? 0;
+}
+
+function isLegacyPulseSnapshot(payload: AdminMonthlyReportPayload): boolean {
+  return payload.pulse.curiosity == null && payload.pulse.canon == null;
+}
+
 function MonthDetail({ payload }: { payload: AdminMonthlyReportPayload }) {
   const { usage, pulse } = payload;
+  const curiosity = reportCuriosity(payload);
+  const canon = reportCanon(payload);
+  const canonSections = canon.sections.filter((section) => section.count > 0);
+  const legacySnapshot = isLegacyPulseSnapshot(payload);
   return (
     <div className="admin-reports__detail" id={`month-${payload.month}`}>
+      {legacySnapshot ? (
+        <p className="admin-reports__legacy-note" role="status">
+          This snapshot predates expanded Pulse capture. Use Regenerate to refresh themes, translations, curiosity,
+          and canon metrics.
+        </p>
+      ) : null}
       <div className="admin-usage__hero" aria-label="Month headline metrics">
         <div className="admin-usage__hero-stat">
           <div className="admin-usage__hero-value">{formatCount(usage.notesCreated)}</div>
@@ -105,9 +151,48 @@ function MonthDetail({ payload }: { payload: AdminMonthlyReportPayload }) {
         <h3 className="admin-usage__board-title">Pulse</h3>
         <div className="admin-reports__rank-grid">
           <RankList title="Top books" items={pulse.books} />
-          <RankList title="Top themes" items={pulse.themes} />
+          <RankList title="Top themes" items={pulse.themes} formatName={formatDivineNamesInLabel} />
           <RankList title="Top passages" items={pulse.passages} />
           <RankList title="Top tags" items={pulse.tags} />
+          <RankList title="Translations" items={pulse.translations} />
+          <RankList title="Tones" items={curiosity.tones} />
+          <RankList title="Folders" items={curiosity.folders} />
+          <RankList title="Words people paused on" items={curiosity.dictionaryWords} />
+        </div>
+      </section>
+
+      <section className="admin-usage__board-card admin-reports__detail-section">
+        <h3 className="admin-usage__board-title">Canon</h3>
+        <div className="admin-reports__rank-grid">
+          <RankList
+            title="Section trends"
+            items={canonSections.map((section) => ({ name: section.label, count: section.count }))}
+          />
+        </div>
+        <div className="admin-reports__canon-heatmap">
+          <AdminCanonHeatmap books={canon.books} />
+        </div>
+      </section>
+
+      {(pulse.monthlyAnalytics.books.length > 0 || pulse.monthlyAnalytics.tags.length > 0) ? (
+        <section className="admin-usage__board-card admin-reports__detail-section">
+          <h3 className="admin-usage__board-title">Platform analytics</h3>
+          <p className="admin-usage__muted admin-usage__footnote pds-caption">
+            From the monthly analytics aggregator job, not limited to note activity in this calendar month.
+          </p>
+          <div className="admin-reports__rank-grid">
+            <RankList title="Top books (analytics)" items={pulse.monthlyAnalytics.books} />
+            <RankList title="Top tags (analytics)" items={pulse.monthlyAnalytics.tags} />
+          </div>
+        </section>
+      ) : null}
+
+      <section className="admin-usage__board-card admin-reports__detail-section">
+        <h3 className="admin-usage__board-title">Threads</h3>
+        <div className="admin-usage__cards admin-usage__cards--compact">
+          <StatCard label="Total threads" value={reportThreadTotal(payload)} />
+          <StatCard label="Links created" value={pulse.threads.linksCreated} />
+          <StatCard label="Avg notes / thread" value={pulse.threads.avgNotesPerThread} />
         </div>
       </section>
 
@@ -124,6 +209,153 @@ function MonthDetail({ payload }: { payload: AdminMonthlyReportPayload }) {
         />
       </section>
     </div>
+  );
+}
+
+function useAdminReportsDialogPortal(): { portalTarget: HTMLElement; scopedToDetailPane: boolean } {
+  const [portal, setPortal] = useState<{ portalTarget: HTMLElement; scopedToDetailPane: boolean }>(() => ({
+    portalTarget: typeof document !== 'undefined' ? document.body : (null as unknown as HTMLElement),
+    scopedToDetailPane: false,
+  }));
+
+  useEffect(() => {
+    const detailPane = document.querySelector('.proto-shell__main-inner');
+    if (detailPane instanceof HTMLElement) {
+      setPortal({ portalTarget: detailPane, scopedToDetailPane: true });
+    }
+  }, []);
+
+  return portal;
+}
+
+function ReportMonthDialog({
+  month,
+  label,
+  generatedAt,
+  report,
+  onClose,
+}: {
+  month: string;
+  label: string;
+  generatedAt: string;
+  report: ReturnType<typeof useAdminMonthlyReport>;
+  onClose: () => void;
+}) {
+  const { portalTarget, scopedToDetailPane } = useAdminReportsDialogPortal();
+  const regenerate = useGenerateAdminReport();
+  const [regenerateMessage, setRegenerateMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  const displayGeneratedAt = report.data?.generatedAt ?? generatedAt;
+  const generatedLabel = new Date(displayGeneratedAt).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const scrollHost =
+      scopedToDetailPane && portalTarget !== document.body ? portalTarget : document.body;
+    const previousOverflow = scrollHost.style.overflow;
+    scrollHost.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      scrollHost.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [onClose, portalTarget, scopedToDetailPane]);
+
+  const onRegenerate = async () => {
+    setRegenerateMessage(null);
+    try {
+      const result = await regenerate.mutateAsync(month);
+      if (isLegacyPulseSnapshot(result.payload)) {
+        setRegenerateMessage({
+          text: 'Report saved, but expanded Pulse fields are still missing. The API may not be on the latest deploy yet.',
+          isError: true,
+        });
+        return;
+      }
+      setRegenerateMessage({ text: 'Report regenerated with expanded Pulse metrics.', isError: false });
+    } catch (error) {
+      setRegenerateMessage({
+        text: error instanceof Error ? error.message : 'Regeneration failed.',
+        isError: true,
+      });
+    }
+  };
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      className={[
+        'admin-reports__dialog-overlay',
+        scopedToDetailPane ? '' : 'admin-reports__dialog-overlay--viewport',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={`admin-report-dialog-title-${month}`}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="admin-reports__dialog" onClick={(event) => event.stopPropagation()}>
+        <header className="admin-reports__dialog-header">
+          <div className="admin-reports__dialog-heading">
+            <span className="admin-reports__dialog-icon" aria-hidden>
+              <Icon name="calendar" size={18} />
+            </span>
+            <div className="admin-reports__dialog-copy">
+              <h2 className="admin-reports__dialog-title" id={`admin-report-dialog-title-${month}`}>
+                {label}
+              </h2>
+              <p className="admin-reports__dialog-meta">Generated {generatedLabel}</p>
+            </div>
+          </div>
+          <div className="admin-reports__dialog-actions">
+            <button
+              type="button"
+              className="admin-action-btn"
+              disabled={regenerate.isPending}
+              onClick={() => void onRegenerate()}
+            >
+              {regenerate.isPending ? 'Regenerating…' : 'Regenerate'}
+            </button>
+            <ExportButtons kind="month" id={month} compact />
+            <button type="button" className="admin-reports__dialog-close" onClick={onClose} aria-label="Close report">
+              <Icon name="xmark" size={16} aria-hidden />
+            </button>
+          </div>
+        </header>
+        {regenerateMessage ? (
+          <p
+            className={`admin-reports__regenerate-note${
+              regenerateMessage.isError ? ' admin-reports__regenerate-note--error' : ''
+            }`}
+            role={regenerateMessage.isError ? 'alert' : 'status'}
+          >
+            {regenerateMessage.text}
+          </p>
+        ) : null}
+        <div className="admin-reports__dialog-body">
+          {report.isLoading ? <ProtoStatusChip visible variant="syncing" label="Loading month…" /> : null}
+          {report.isError ? (
+            <p className="admin-reports__dialog-error" role="alert">
+              Could not load this month&apos;s report.
+            </p>
+          ) : null}
+          {report.data ? <MonthDetail payload={report.data} /> : null}
+        </div>
+      </div>
+    </div>,
+    portalTarget,
   );
 }
 
@@ -181,7 +413,7 @@ export default function AdminReportsPanel() {
   const catalog = useAdminReportsCatalog();
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
+  const [dialogMonth, setDialogMonth] = useState<string | null>(null);
   const [expandedSeason, setExpandedSeason] = useState<string | null>(null);
 
   const years = catalog.data?.years ?? [];
@@ -190,7 +422,16 @@ export default function AdminReportsPanel() {
     [years, selectedYear],
   );
 
-  const monthReport = useAdminMonthlyReport(expandedMonth);
+  const dialogMonthMeta = useMemo(() => {
+    if (!dialogMonth || !yearEntry) return null;
+    for (const season of yearEntry.seasons) {
+      const month = season.months.find((entry) => entry.month === dialogMonth);
+      if (month) return month;
+    }
+    return null;
+  }, [dialogMonth, yearEntry]);
+
+  const monthReport = useAdminMonthlyReport(dialogMonth);
   const seasonReport = useAdminSeasonReport(expandedSeason);
 
   const hasAnyGenerated = useMemo(
@@ -233,7 +474,7 @@ export default function AdminReportsPanel() {
                   aria-pressed={active}
                   onClick={() => {
                     setSelectedYear(y.year);
-                    setExpandedMonth(null);
+                    setDialogMonth(null);
                     setExpandedSeason(null);
                   }}
                 >
@@ -328,7 +569,7 @@ export default function AdminReportsPanel() {
 
             <div className="admin-reports__month-grid">
               {season.months.map((month) => {
-                const isExpanded = expandedMonth === month.month;
+                const isActive = dialogMonth === month.month;
                 const isGenerated = !!month.generatedAt;
                 const status = getAdminReportMonthStatus(month.month, month.generatedAt);
                 return (
@@ -336,17 +577,15 @@ export default function AdminReportsPanel() {
                     key={month.month}
                     className="admin-reports__month-tile"
                     data-generated={isGenerated ? 'true' : 'false'}
-                    data-expanded={isExpanded ? 'true' : 'false'}
+                    data-active={isActive ? 'true' : 'false'}
                   >
                     <div className="admin-reports__month-tile-head">
                       <button
                         type="button"
                         className="admin-reports__month-toggle"
                         disabled={!isGenerated}
-                        aria-expanded={isGenerated ? isExpanded : undefined}
-                        onClick={() =>
-                          setExpandedMonth((prev) => (prev === month.month ? null : month.month))
-                        }
+                        aria-haspopup={isGenerated ? 'dialog' : undefined}
+                        onClick={() => setDialogMonth(month.month)}
                       >
                         <span className="admin-reports__month-icon" aria-hidden>
                           <Icon name="calendar" size={16} />
@@ -364,23 +603,11 @@ export default function AdminReportsPanel() {
                             {status.label}
                           </span>
                         </span>
-                        {isGenerated ? (
-                          <Icon
-                            name="caret-down"
-                            size={12}
-                            className="admin-reports__month-chevron"
-                            aria-hidden
-                          />
-                        ) : null}
                       </button>
                       {isGenerated ? (
                         <ExportButtons kind="month" id={month.month} compact />
                       ) : null}
                     </div>
-                    {isExpanded && monthReport.data ? <MonthDetail payload={monthReport.data} /> : null}
-                    {isExpanded && monthReport.isLoading ? (
-                      <ProtoStatusChip visible variant="syncing" label="Loading month…" />
-                    ) : null}
                   </article>
                 );
               })}
@@ -392,6 +619,16 @@ export default function AdminReportsPanel() {
           </section>
         );
       })}
+
+      {dialogMonth && dialogMonthMeta?.generatedAt ? (
+        <ReportMonthDialog
+          month={dialogMonth}
+          label={dialogMonthMeta.label}
+          generatedAt={dialogMonthMeta.generatedAt}
+          report={monthReport}
+          onClose={() => setDialogMonth(null)}
+        />
+      ) : null}
     </div>
   );
 }

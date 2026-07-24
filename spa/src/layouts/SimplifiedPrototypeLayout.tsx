@@ -23,6 +23,8 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from 'react';
+import { useAuthReady } from '../hooks/useAuthReady';
+import { api } from '../lib/api';
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebarToolbar from '../pages/prototype/PrototypeSidebarToolbar';
 import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
@@ -52,6 +54,7 @@ import {
   applyBackgroundWithImageTint,
   applyColorSchemePreference,
   clearBackgroundVars,
+  fetchAndHydrateAppearanceFromProfile,
   getColorSchemeSnapshot,
   initAppearanceAccountSync,
   PROTO_ROUTE_CLASS,
@@ -68,9 +71,14 @@ import {
   prototypeHomePath,
   prototypeNoteRouteTo,
 } from '@/lib/prototype-path';
+import {
+  computePrototypeShouldShowShell,
+  shouldRedirectPrototypeToSignIn,
+} from '@/utils/prototype-shell-auth';
 
 export default function SimplifiedPrototypeLayout() {
   const { isLoaded, isSignedIn } = useAuth();
+  const authReady = useAuthReady();
   const { user } = useUser();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.search });
@@ -102,19 +110,32 @@ export default function SimplifiedPrototypeLayout() {
     };
   }, []);
 
+  // Profile appearance / attendance need a session JWT — wait for useAuthReady (Bearer via api).
+  useEffect(() => {
+    if (!authReady) return;
+    void fetchAndHydrateAppearanceFromProfile();
+  }, [authReady]);
+
+  useEffect(() => {
+    if (!authReady) return;
+    void api.post('/api/user/check-monthly-attendance').catch(() => {});
+  }, [authReady]);
+
   useEffect(() => {
     void applyBackgroundWithImageTint(readActiveBackground());
   }, [colorScheme]);
 
+  // Cookie hint is only for the pre-load window. Once Clerk has spoken, trust isSignedIn —
+  // a stale __session / __client_uat must not trap the shell without redirecting to sign-in.
   useEffect(() => {
-    if (!isLoaded || isSignedIn || hasSessionCookie) return;
+    if (!shouldRedirectPrototypeToSignIn(isLoaded, isSignedIn)) return;
     const path =
       typeof window !== 'undefined'
         ? `${window.location.pathname}${window.location.search || ''}`
         : prototypeHomePath();
     const redirectUrl = `/sign-in?redirect_url=${encodeURIComponent(path)}`;
     window.location.replace(redirectUrl);
-  }, [isLoaded, isSignedIn, hasSessionCookie]);
+  }, [isLoaded, isSignedIn]);
 
   const lastServiceWorkerNavCheckRef = useRef(0);
   const SW_UPDATE_CHECK_THROTTLE_MS = 90_000;
@@ -146,11 +167,9 @@ export default function SimplifiedPrototypeLayout() {
     void syncPassageKnowledge(user.id);
   }, [isLoaded, isSignedIn, user?.id]);
 
-  // Render the shell as soon as React mounts — don't gate on Clerk `isLoaded`.
-  // Prototype is auth-gated, so returning null while Clerk loads would leave only
-  // the boot-painted canvas visible until isLoaded resolves (the shell "popping in").
-  const shouldShowShell =
-    !isLoaded || hasSessionCookie || (isLoaded && isSignedIn);
+  // Optimistic shell only while Clerk is still loading (cookie hint avoids boot-canvas flash).
+  // After isLoaded, require a real signed-in session — ignore stale cookie hints.
+  const shouldShowShell = computePrototypeShouldShowShell(isLoaded, isSignedIn, hasSessionCookie);
 
   if (!shouldShowShell) {
     return <div className="proto-shell-frame simplified-prototype-root" aria-hidden="true" />;

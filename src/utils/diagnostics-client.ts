@@ -41,29 +41,44 @@ let lastCapturedError: {
 
 let captureInitialized = false;
 
+function isBenignErrorMessage(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('aborterror') ||
+    lower.includes('signal is aborted') ||
+    lower.includes('user aborted a request') ||
+    lower.includes('resizeobserver loop')
+  );
+}
+
+function isBareCrossOriginScriptError(message: string, eventError: unknown, filename?: string): boolean {
+  const normalized = message.trim().toLowerCase();
+  if (normalized !== 'script error.' && normalized !== 'script error') return false;
+  if (eventError instanceof Error && eventError.stack) return false;
+  if (filename && filename.length > 0) return false;
+  return true;
+}
+
+function isClerkLoadFailure(message: string): boolean {
+  return message.includes('failed_to_load_clerk_js') || message.includes('Failed to load Clerk');
+}
+
+function buildClientErrorMetadata(message: string): Record<string, unknown> | null {
+  if (!isClerkLoadFailure(message)) return null;
+  return {
+    clerkLoadFailure: true,
+    navigatorOnLine: typeof navigator !== 'undefined' ? navigator.onLine : null,
+  };
+}
+
 function shouldIgnoreError(error: Error | string): boolean {
   if (typeof error === 'string') {
-    const lower = error.toLowerCase();
-    return (
-      lower.includes('aborterror') ||
-      lower.includes('signal is aborted') ||
-      lower.includes('user aborted a request')
-    );
+    return isBenignErrorMessage(error);
   }
   if (error.name === 'AbortError' || error.name === 'DOMException') {
-    const message = error.message?.toLowerCase() ?? '';
-    return (
-      message.includes('aborterror') ||
-      message.includes('signal is aborted') ||
-      message.includes('user aborted a request')
-    );
+    return isBenignErrorMessage(error.message ?? '');
   }
-  const message = error.message?.toLowerCase() ?? '';
-  return (
-    message.includes('aborterror') ||
-    message.includes('signal is aborted') ||
-    message.includes('user aborted a request')
-  );
+  return isBenignErrorMessage(error.message ?? '');
 }
 
 function randomId(): string {
@@ -171,17 +186,31 @@ export function reportDiagnosticEvent(payload: DiagnosticReportPayload): void {
   });
 }
 
-export function reportClientError(error: Error | string, source: DiagnosticSource = 'client_js'): void {
+export function reportClientError(
+  error: Error | string,
+  source: DiagnosticSource = 'client_js',
+  metadata?: Record<string, unknown> | null,
+): void {
   if (shouldIgnoreError(error)) return;
   const message = typeof error === 'string' ? error : error.message || 'Unknown error';
   const stack = typeof error === 'string' ? null : error.stack ?? null;
   rememberError(message, stack);
-  reportDiagnosticEvent({ source, message, stack });
+  reportDiagnosticEvent({
+    source,
+    message,
+    stack,
+    metadata: {
+      ...(buildClientErrorMetadata(message) ?? {}),
+      ...(metadata ?? {}),
+    },
+  });
 }
 
 export function reportApiDiagnostic(path: string, status: number, message: string): void {
   if (status === 401 || status === 403) return;
   if (status < 500) return;
+  // Service worker offline fallback (public/sw.js) returns synthetic 503 with this exact message.
+  if (status === 503 && message === 'Network error') return;
   rememberError(message, null);
   reportDiagnosticEvent({
     source: 'client_api',
@@ -238,8 +267,14 @@ export function initDiagnosticCapture(): void {
   captureInitialized = true;
 
   window.addEventListener('error', (event) => {
-    const err = event.error instanceof Error ? event.error : new Error(event.message || 'Script error');
-    reportClientError(err, 'client_js');
+    const message = event.message || 'Script error';
+    if (isBareCrossOriginScriptError(message, event.error, event.filename)) return;
+    const err = event.error instanceof Error ? event.error : new Error(message);
+    reportClientError(err, 'client_js', {
+      scriptFilename: event.filename || null,
+      scriptLineno: event.lineno || null,
+      scriptColno: event.colno || null,
+    });
   });
 
   window.addEventListener('unhandledrejection', (event) => {

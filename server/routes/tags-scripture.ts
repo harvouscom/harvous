@@ -124,16 +124,18 @@ app.get('/api/tags/list', requireAuth, async (c) => {
       .where(eq(Tags.userId, auth.userId))
       .orderBy(Tags.name);
 
-    const tagsWithCounts = await Promise.all(
-      tags.map(async (tag) => {
-        const noteCount = await db
-          .select({ count: count() })
-          .from(NoteTags)
-          .where(eq(NoteTags.tagId, tag.id));
+    const counts = await db
+      .select({ tagId: NoteTags.tagId, noteCount: count() })
+      .from(NoteTags)
+      .innerJoin(Tags, eq(NoteTags.tagId, Tags.id))
+      .where(eq(Tags.userId, auth.userId))
+      .groupBy(NoteTags.tagId);
 
-        return { ...tag, noteCount: noteCount[0]?.count || 0 };
-      })
-    );
+    const countMap = new Map(counts.map((row) => [row.tagId, Number(row.noteCount) || 0]));
+    const tagsWithCounts = tags.map((tag) => ({
+      ...tag,
+      noteCount: countMap.get(tag.id) ?? 0,
+    }));
 
     return c.json({ success: true, tags: tagsWithCounts });
   } catch (error) {

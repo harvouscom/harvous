@@ -7,7 +7,7 @@ until Review ships.
 
 **Guiding principle:** Notes and passive **Remember** stay free. **Review** (personal AI practice) is
 always paid and always individual. **Compete** (community challenges) stays free to play; depth via
-**Season Pass**. **Group Leader** pays to host; members join spaces free and buy **Review** on their
+**Season Pass**. **Group Sharing** pays to host; members join spaces free and buy **Review** on their
 own if they want it.
 
 ---
@@ -20,8 +20,8 @@ own if they want it.
 | **Remember** | Passive resurfacing — nudges, home trend cards, On This Day | Free (deterministic; no runtime AI) |
 | **Review** | Active personal practice — AI quizzes from *your* notes, your pace | **Always paid; individual subscription** |
 | **Compete** | Themed seasons, study guides, leaderboards | Current season **free track**; **Season Pass** for full guide + archive |
-| **Shared Spaces** | Up to **10** owned shared spaces (collaboration) | Paid add-on (`UserMetadata.sharedSpacesAddOn`) — supersedes the retired Group Sharing / `unlimited` tier |
-| **Group Leader** | Host/admin for small groups — spaces, roster, cohort Compete | Paid (future SKU); does **not** include member Review |
+| **Group Sharing** | Unlimited owned shared spaces (host/admin for small groups — roster, optional cohort Compete) | Paid (live today as Premium / `unlimited` tier); members join spaces free and buy **Review** on their own |
+| **Connector** | Read-only reference to your notes, spaces, threads, and study connections from Claude, Cursor, scripts, and MCP-compatible assistants | Paid, individual, **stackable add-on** — see Section 4 |
 | **Church org** | Curriculum distribution, multiple leaders, admin | Future; pricing TBD — see Section 7 |
 
 **Naming:** Internal North Star pillar **Learn** powers customer-facing **Review**. **Compete** is a
@@ -34,18 +34,20 @@ separate pillar — communal program, not personal memory.
 | SKU | Monthly | Yearly | Buyer |
 |---|---|---|---|
 | **Review** | $4 | $36 | Individual |
-| **Shared Spaces** | $6 | $48 | Individual (matches live [UpgradePage](../../spa/src/pages/UpgradePage.tsx)) |
-| **Season Pass** | — | $5–8 one-time | Individual (or leader bulk codes later) |
-| **Group Leader** | ~$15–19 | TBD | Small-group / ministry leader |
+| **Group Sharing** | $6 | $48 | Individual (matches live [UpgradePage](../../spa/src/pages/UpgradePage.tsx)); host/admin includes roster and optional cohort Compete view |
+| **Connector** (docs/npm: **Harvous Connector**) | $6 | $50 | Individual — power users, Claude/Cursor, CLI |
+| **Season Pass** | — | $5–8 one-time | Individual (or host bulk codes later) |
 
-Review and Shared Spaces are **separate subscriptions** — no bundle SKU. Users who want both pay for each product independently ($10/mo à la carte).
+Review, Group Sharing, and Connector are **separate, independently stackable subscriptions** — no
+bundle SKU in v1. A user can hold any combination at once and pays for each product independently
+(e.g. all three à la carte = $16/mo).
 
 ### Free tier
 
 - Unlimited notes
 - Remember surfaces (themes, cross-refs, passages on Home, etc.)
 - Join shared spaces (no cap on memberships)
-- **0 owned shared spaces** (enforced in [server/utils/tier-limits.ts](../../server/utils/tier-limits.ts))
+- **3 owned shared spaces** (enforced in [server/utils/tier-limits.ts](../../server/utils/tier-limits.ts))
 - Current Compete season — **free track** (play, basic access)
 - Deterministic practice (connection MCQ, etc. from knowledge layer — no LLM)
 - **No free AI Review** (no monthly AI credits). Optional **one-time trial** on signup flagged as open
@@ -56,16 +58,16 @@ Review and Shared Spaces are **separate subscriptions** — no bundle SKU. Users
 - AI-generated quiz sessions from the user's own notes and preferences
 - Grounded on [scripture-knowledge layer](./SCRIPTURE_KNOWLEDGE_LAYER.md) (cross-refs, themes, related notes)
 - Web-first runtime: **Mistral Small** on server ([SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md))
-- Each subscriber's Review is tied to **their account only** — not shareable via Group Leader or church org
+- Each subscriber's Review is tied to **their account only** — not shareable via Group Sharing or church org
 
-### Shared Spaces (paid add-on)
+### Group Sharing (paid)
 
-- Up to **10** owned shared spaces (`UserMetadata.sharedSpacesAddOn === true`); joining a shared space is
-  always free, on every plan.
-- **30** people per space cap (invisible, every plan).
-- **Retired July 2026:** the old `Group Sharing` name and the `UserMetadata.tier === 'unlimited'`
-  mechanism. Zero subscribers at retirement — no grandfathering. See
-  [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md).
+- Unlimited owned shared spaces (today: `UserMetadata.tier === 'unlimited'`)
+- 150 members per space cap (invisible, both tiers)
+- Host/admin surface: roster view, optional private cohort view on the active Compete season (future — folded in from the deprecated Group Leader SKU)
+- Members join owned spaces free; each member who wants AI practice from their own notes subscribes to **Review** individually ($4/mo)
+
+**Onboarding copy (principle):** *"Run the group on Harvous. Everyone brings their own Review."*
 
 ---
 
@@ -87,28 +89,65 @@ Leaders may bulk-buy Season Pass codes for their group later; that does not incl
 
 ---
 
-## 4. Group Leader
+## 4. Connector
 
-**Who pays:** The person running the small group (leader, facilitator, youth leader).
+**Product name:** **Connector** (in-app upgrade page). **External / docs name:** **Harvous Connector**
+— Claude Connectors Directory listing, npm package, MCP manifest. No **Harvous** prefix on the in-app
+SKU (same pattern as **Review**, **Group Sharing**).
 
-**What they get:**
+**Canonical boundaries:** [CONNECTOR_BOUNDARIES.md](./CONNECTOR_BOUNDARIES.md) — tools, guardrails,
+auth, and permanent read-only scope.
 
-- Shared Spaces–class hosting (unlimited or high-cap owned shared spaces)
-- Member invites — **join the leader's spaces at no extra sharing cost**
-- Leader admin: roster, optional private cohort view on active Compete season
-- Optional bulk Season Pass codes (future)
+**Who pays:** Individual power users who already use Harvous for capture and want to reference their
+study from Claude Desktop, Cursor, personal scripts, and MCP-compatible AI assistants.
 
-**What invited members do NOT get from the leader's subscription:**
+**Positioning:** *"Reference your Harvous study wherever you already work."* This is an outbound
+add-on (Harvous data flowing *out* to other tools), distinct from the deferred inbound Harvous SDK
+(other apps writing content *into* Harvous — see
+[HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md)).
 
-- **Review** — each person who wants AI practice from their own notes subscribes individually ($4/mo)
+### What it unlocks (v1)
 
-**Leader onboarding copy (principle):** *"Run the group on Harvous. Everyone brings their own Review."*
+- Authenticated **MCP server** at `POST /mcp` (Claude, Cursor, other MCP clients).
+- Authenticated **CLI** via `/api/connector/*` and npm package **Harvous Connector**.
+- **Read-only, query-shaped** tools only — see [CONNECTOR_BOUNDARIES.md](./CONNECTOR_BOUNDARIES.md)
+  for the v1 tool catalog (search, get note, list spaces/threads/notes, study-thread connections,
+  optional share-token lookup). **No bulk "export all notes" endpoint.**
+- **Hybrid auth:** Clerk OAuth 2.1 for MCP; **1 revocable personal API key** for CLI/scripts (same
+  `userId`, same `hasCliMcpAccess` gate).
+- Visible **usage counter** on the account page.
 
-**Seat cap:** Limit active members per leader plan (e.g. 12–25) to prevent one subscription replacing
-many individual Review subs for AI; sharing seats are the intended subsidy.
+### Why read-only, query-shaped (retention safeguard)
 
-**Ladder to church org:** Group Leader is v1 of "someone pays so the group can gather." When a church
-formally adopts Harvous, the org may supersede or bundle multiple leader seats — see Section 7.
+The add-on makes Harvous useful as a **live reference layer** for other tools without turning it into
+a one-time migration/export tool. If Connector could dump the entire corpus in one call, a power user
+could mirror Harvous elsewhere and stop opening the app — killing the reason to keep capturing here.
+Query-shaped access preserves the reason to keep capture, organization, and Remember/Review inside
+Harvous. Grounded in the "not infrastructure" and "not locked in" principles already in
+[HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md) Section 4.
+
+**Permanent read-only:** Connector does **not** gain create/edit/delete tools in a future tier.
+Writes stay in the Harvous app (and deferred inbound SDK for partners).
+
+### Rate limits / fair use (draft — numbers to be finalized before launch)
+
+- **Per-user daily cap:** ~1,000 requests/day. Sized generously for personal agent workflows, not
+  scraping.
+- **Per-minute burst cap:** ~60 requests/min. Blocks hot-loop and misconfigured-agent abuse without
+  interrupting normal interactive use.
+- **Max page size:** 25–50 items per list/search page.
+- **No bulk export endpoint.** All endpoints scoped and paginated.
+- **Revocable key + visible usage counter** on the account page so users can self-manage.
+- Fair-use language modeled on the existing "Fair-use soft cap on Review sessions" open item in
+  Section 9 — soft caps with a clear message beat hard walls for retention.
+
+### Not in v1 (and never for writes)
+
+- **Write access** (create note, edit note via Connector) — **never**; permanent product boundary.
+- **Team/shared keys** under Group Sharing or church org — see Open decisions in Section 9.
+- **Bulk export.** If the user wants their data out, that's a separate account-level export feature,
+  not the Connector surface.
+- **Free tier or trial** — hard paywall; `hasCliMcpAccess` required.
 
 ---
 
@@ -121,8 +160,8 @@ referral signup.
 
 - Refer a friend who subscribes to **Review** → both get a short Review trial extension or Season Pass
   discount
-- Refer a **leader** → Season Pass or Group Leader trial month
-- Small-group milestone (e.g. 5 accounts in a space) → leader reward (Season Pass, not free Review for
+- Refer a **host** → Season Pass or Group Sharing trial month
+- Small-group milestone (e.g. 5 accounts in a space) → host reward (Season Pass, not free Review for
   the whole group)
 
 Implementation flagged future; rewards should be **access to study**, not cash.
@@ -131,40 +170,35 @@ Implementation flagged future; rewards should be **access to study**, not cash.
 
 ## 6. Technical entitlements (conceptual — not implemented)
 
-Today: `UserMetadata.sharedSpacesAddOn` (boolean) gates **Shared Spaces**
-([tier-limits.ts](../../server/utils/tier-limits.ts)). The legacy `UserMetadata.tier` (`'free' | 'unlimited'`)
-column still exists for the retired backfill script but grants nothing as of July 2026.
+Today: `UserMetadata.tier` is `'free' | 'unlimited'` ([tier-limits.ts](../../server/utils/tier-limits.ts));
+`unlimited` maps to **Group Sharing** only.
 
 **Target shape** (schema decision when Review ships):
 
 | Flag / field | Gates |
 |---|---|
 | `hasReview` | AI quiz session generation (`canUseAiFeature`) |
-| `hasGroupSharing` (implemented as `UserMetadata.sharedSpacesAddOn`) | Unlimited owned shared spaces |
-| `hasGroupLeader` | Leader admin + member seat pool |
+| `hasGroupSharing` | Unlimited owned shared spaces + host/admin surface (roster, optional cohort Compete) |
+| `hasCliMcpAccess` | Connector API key issuance, MCP OAuth handshake, and all `/api/connector/*` + `/mcp` reads |
 | `seasonPassIds[]` | Active Season Pass entitlements |
 | `reviewSponsor` (optional) | Church bulk seat — still activates **individual** Review on claim |
 
-Stripe / Clerk products: separate plan IDs for Review, Shared Spaces, Group Leader; Season Pass as
-one-time or annual SKU per season.
+Stripe / Clerk products: separate plan IDs for Review, Group Sharing, and Connector;
+Season Pass as one-time or annual SKU per season.
 
 ---
 
 ## 7. Church org (future — draft pricing for pilot)
 
-**Vision:** Church adopts a Harvous org account → pays a **base** platform fee → optionally stacks
-**church add-ons** (same pattern as individual Shared Spaces / Review). See
-[CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md) and
-[CHURCH_CONNECTION_SYSTEM.md](./CHURCH_CONNECTION_SYSTEM.md).
+**Vision:** Leader connects church → church adopts Harvous → church pays for org-level curriculum and
+leader seats with admin tools. See [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md).
 
 **Review stays individual.** Church may optionally buy **bulk Review seat packs** — each member
 **claims** a seat so AI still runs on their notes only (payer ≠ shared AI access).
 
-**Status:** Draft base + add-ons for friendly-church pilot — not committed in billing until validated.
-Supersedes Connect / Study / Study Plus / Network ladder drafts and the older $75 / $125 / $200
-placeholders in [CLERK_MONETIZATION_ARCHITECTURE.md](./CLERK_MONETIZATION_ARCHITECTURE.md) (that
-file’s Clerk `memberLimit` 100/500 figures are **connected-member targets**, not Clerk org size —
-congregants are never Clerk org members).
+**Status:** Draft tiers below for friendly-church pilot — not committed in billing until validated.
+Supersedes the older $75 / $125 / $200 placeholders in
+[CLERK_MONETIZATION_ARCHITECTURE.md](./CLERK_MONETIZATION_ARCHITECTURE.md) (technical file only).
 
 ### Position vs Planning Center
 
@@ -185,86 +219,85 @@ members**:
 **Pitch anchor:** *"Keep Planning Center. Harvous is where your people's Bible study lives — you
 publish the guide; they keep personal notes; Review helps each person remember what they learned."*
 
-### Clerk COGS (Harvous → Clerk)
+### Recommended tiers (modular — Option A)
 
-| Constraint | Meaning for Harvous |
-|---|---|
-| **20 members / org** (standard) | Every church base includes up to **20 staff/volunteers** in the Clerk org. Congregants never join Clerk. |
-| **100 MRO / app** included | ~100 churches with 2+ retained staff before ~$1/MRO overage. |
-| **Enhanced B2B** (~$100/mo app-wide) | Unlocks **unlimited members per org** (plus custom roles, domain restrict, etc.). Buy only when selling **Unlimited staff**; Harvous still gates >20 per church that purchased that add-on. |
+Public pricing for standard plans; no sales call required at entry tiers.
 
-**No public free Connect org.** Congregant HMC / “My church” linking does not create a Clerk org or burn an MRO. Pilots = complimentary base via `Churches.isActive`, not a $0 SKU.
+| Tier | Monthly (draft) | Included |
+|---|---|---|
+| **Church Connect** | **$0** | Link congregation; limited curriculum (e.g. 2 pushes/quarter); current Compete free track |
+| **Church Study** | **$29–39** | ~3 **leader seats**, up to **150 connected** members, curriculum to inbox / "From your church" |
+| **Church Study Plus** | **$59–79** | ~10 leaders, **500 connected**, unlimited curriculum pushes, **one church-wide Season Pass** per active season |
+| **Church Network** | **$99–149** | Up to **20 staff** (Clerk org cap), **1,500+ connected**, engagement analytics, group targeting |
 
-### Recommended model: base + church add-ons
-
-Same shape as individual add-ons — one platform fee, optional capabilities.
-
-| SKU | Monthly (draft) | Yearly (draft) | Includes |
-|---|---|---|---|
-| **Church base** | **$39** | **$390** (~2 mo free) | Clerk org + Harvous `Churches` row; **20 staff**; congregant link / My Church hub for staff. No curriculum publish, church Shared Spaces, or analytics until add-ons. |
-| **Curriculum** add-on | **$15** | **$150** | Ministry channels; publish to connected members; “From your church” |
-| **Church Shared Spaces** add-on | **$9** | **$90** | Church-scoped Shared Spaces (sponsored; step up from personal $6) |
-| **Analytics** add-on | **$9** | **$90** | Privacy-safe engagement aggregates; targeting later |
-| **Unlimited staff** add-on | **$25** | **$250** | Staff seats **>20** for that church. Requires Clerk Enhanced on the Harvous app (~4 buyers cover the $100/mo COGS). |
-
-**Example stacks:** base + curriculum = **$54/mo**; + Shared Spaces = **$63/mo**; all add-ons = **$97/mo**.
-
-**À la carte (any church on base):**
+**À la carte add-ons:**
 
 | Add-on | Price (draft) | Notes |
 |---|---|---|
 | **Review seat pack** | **$3/seat/mo** (min 10) | Church pays; each member **claims** individual Review |
+| **Extra leader seat** | **$12–15/mo** | Above tier-included leaders |
 | **Church-wide Season Pass** | **$79–149 once** | Full guide for Lent / Advent / sermon series — all connected members |
 | **Review scholarships** | **$3/seat/mo** | Same mechanics; youth / new believers pool |
 
-**Schema direction (when billing wires):** `billingPlan` ≈ base subscribed (`'church'` or similar); boolean/JSON flags e.g. `curriculumAddOn`, `churchSharedSpacesAddOn`, `analyticsAddOn`, `unlimitedStaffAddOn`. Pilot: `isActive` implies complimentary base; add-ons off until Stripe/Clerk Billing.
+**Example MRR per church:** Church Study Plus ($69) + 25 Review seats ($75) = **$144/mo** — org fee
+is high-margin; Review packs carry Mistral cost per active seat.
 
-### What base vs add-ons mean in product
+### Alternative: leader-based pricing (Option B)
 
-**Church base**
+| Component | Price (draft) |
+|---|---|
+| Platform base | $19/mo |
+| Per leader seat | $12/mo (Group Sharing–class hosting under org) |
+| Connected members | Included to 500; tier bump above |
 
-- Staff org (≤20 Clerk seats); admin register + HMC directory link
-- Congregants connect via Harvous DB (never Clerk) when connect ships
-- Works alongside Planning Center — no migration
+Example: 5 small-group leaders → **$19 + 5×$12 = $79/mo**.
 
-**Curriculum add-on**
+### Features to present (by tier)
 
-- Publish ministry channels / “From your church”
+**Church Connect (free)**
+
+- Church profile; members link via My Church
+- Limited curriculum pushes
+- Congregation on Compete free track
+
+**Church Study (paid core)**
+
+- Publish threads/notes to all connected members ("From your church")
+- Leader seats — group leaders host shared spaces under the org (members join free)
 - Align curriculum with sermon series + small groups
+- Optional private church cohort on Compete
+- Admin roster (connected members / groups — not private note bodies)
+- **Works alongside Planning Center** — no migration
 
-**Church Shared Spaces add-on**
+**Church Study Plus**
 
-- Create/migrate church-scoped Shared Spaces (`orgId` set); church-sponsored
+- Everything in Study
+- Church-wide Season Pass for active church series
+- Group targeting (men's, youth, ESL, etc.)
+- Aggregate engagement analytics (opens, challenge completion — privacy-safe)
 
-**Analytics add-on**
-
-- Aggregate engagement (opens, completion — privacy-safe); group targeting later
-
-**Unlimited staff add-on**
-
-- Lift Harvous 20-staff sync/invite cap for that church after Clerk Enhanced is enabled app-wide
-
-**Review packs (any church on base)**
+**Review add-on (any tier)**
 
 - *"We don't give everyone the same AI — each person reviews their own notes."*
+- Church-sponsored seats; optional student scholarships
 
 **Not in scope for church pitch:** CRM, giving, scheduling, check-ins, facilities.
 
 ### Rollout for church pricing
 
-1. Pilot **Church base** (+ chosen add-ons) with 2–3 partner churches before publishing prices.
-2. Measure curriculum push engagement and Shared Spaces adoption.
+1. Pilot **Church Study** at **$29–39** with 2–3 partner churches before publishing tiers.
+2. Measure curriculum push engagement and leader adoption.
 3. Adjust vs Planning Center Groups entry (~$15–30/mo) — Harvous charges for **curriculum + study
    memory**, not roster alone.
-4. Enable Clerk Enhanced only when the first church needs Unlimited staff.
 
 ### Open decisions (church)
 
-- [ ] Lock base / add-on prices after pilot ($39 vs $29 base; curriculum in base vs add-on)
+- [ ] Lock tier prices after pilot (Connect free / Study / Study Plus / Network)
+- [ ] Option A (tier bundles) vs Option B (base + per leader)
 - [ ] Review seat pack minimum and church discount ($3 vs retail $4)
 - [ ] Curriculum SKUs (per quarter vs church-wide Season Pass bundle)
 - [ ] Integration story ("works alongside Planning Center" messaging)
-- [ ] Exact `Churches` add-on column shape vs Clerk Billing metadata
+- [ ] Clerk Org vs DB-only delivery (see existing church docs)
 
 ---
 
@@ -273,9 +306,8 @@ Same shape as individual add-ons — one platform fee, optional capabilities.
 1. **Deterministic Compete + Review product** — UX and grounding builder; Mistral Review endpoint
 2. **Review billing** — `hasReview`, upgrade paths
 3. **Season Pass** — first themed season
-4. **Group Leader** SKU + seat enforcement
-5. **Referral** rewards update
-6. **Church org** — research pricing vs Planning Center; pilot with friendly churches
+4. **Referral** rewards update
+5. **Church org** — research pricing vs Planning Center; pilot with friendly churches
 
 **Deferred:** [Give Me More Context](./GIVE_ME_MORE_CONTEXT.md) — not v1 paid scope.
 
@@ -284,10 +316,12 @@ Same shape as individual add-ons — one platform fee, optional capabilities.
 ## 9. Open decisions (consumer)
 
 - [ ] One-time Review trial on signup (yes/no, length)
-- [ ] Group Leader exact price and seat cap
 - [ ] Season Pass price per season ($5 vs $8)
 - [ ] Fair-use soft cap on Review sessions for paid tier vs truly unlimited
 - [ ] Grandfather existing Premium (`unlimited`) users when Review launches
+- [ ] Connector: exact rate limit numbers (requests/day, requests/min, max page size) before launch
+- [ ] Connector: whether Group Sharing / church tiers get a higher shared limit, or Connector stays purely individual
+- [ ] Connector: final price point ($6/mo vs $8/mo) after gauging niche demand
 
 ---
 
@@ -299,3 +333,5 @@ Same shape as individual add-ons — one platform fee, optional capabilities.
 - [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md) — church ladder
 - [SPACE_MODES_PRODUCT.md](./SPACE_MODES_PRODUCT.md) — sharing limits
 - [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md) — shared spaces implementation
+- [CONNECTOR_BOUNDARIES.md](./CONNECTOR_BOUNDARIES.md) — Connector v1 scope, tools, guardrails, auth
+- [HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md) — Connector vs. the deferred inbound SDK

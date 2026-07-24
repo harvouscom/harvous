@@ -33,6 +33,7 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const DEFAULT_ORIGINS = [
   'https://app.harvous.com',
   'https://new.harvous.com',
+  'https://status.harvous.com',
   'https://harvous.com',
   'http://localhost:3000',
   'http://localhost:3001',  // Hono API dev server

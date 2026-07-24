@@ -29,6 +29,7 @@ import {
   getThreadNoteTypeCounts,
 } from '../utils/dashboard-data';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
+import { isUniqueViolationError } from '../utils/db-errors';
 import { repairMissingNoteThreadJunctionsForUser } from '../utils/thread-junction-repair';
 import { requireSpaceAccess, SpaceAccessError, isActualSpaceOwner } from '../utils/space-access';
 import {
@@ -595,8 +596,8 @@ route.post('/api/threads/ensure-unorganized', requireAuth, async (c) => {
     try {
       await db.insert(Threads).values(unorganizedThread);
       return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread created`, thread: unorganizedThread }, 201);
-    } catch (insertError: any) {
-      if (insertError.code === '23505' || insertError.message?.includes('unique constraint')) {
+    } catch (insertError: unknown) {
+      if (isUniqueViolationError(insertError)) {
         const createdThread = first(await db.select().from(Threads)
           .where(and(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized'))).limit(1));
         if (createdThread) return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread already exists`, thread: createdThread });

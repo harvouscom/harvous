@@ -135,6 +135,8 @@ export function clampFormatToolbarSelection(
 }
 
 /** Restore selection before running a format command (portaled toolbar parity with selection bar). */
+import { isTiptapViewReady } from '@/utils/tiptap-helpers';
+
 export function runFormatCommandWithPreservedSelection(
   editor: {
     chain: () => {
@@ -153,6 +155,8 @@ export function runFormatCommandWithPreservedSelection(
   apply: (chain: ReturnType<typeof editor.chain>) => ReturnType<typeof editor.chain>,
 ): boolean {
   const selection = clampFormatToolbarSelection(range, editor.state.doc.content.size);
+
+  if (!isTiptapViewReady(editor)) return false;
 
   try {
     editor.view.focus();

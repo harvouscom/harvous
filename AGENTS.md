@@ -25,6 +25,8 @@ npx tsx server/scripts/backfill-collections-from-threads.ts --dry-run   # Previe
 npm run native:xcodegen           # Optional: force XcodeGen; usually runs via postinstall / precommit
 ```
 
+**Versioning:** Shipped web semver is **2.x** (Harvous 2.0 from July 2026). Pre-commit `bump-version.js` advances only on `feat:` (minor) or `fix:` (patch) commits — not on every `chore:`. User release notes: `release-notes/`; technical log: `Changelog/`.
+
 **Clean new user (manual only):** The automatic dev-reset middleware was removed so production user data is never erased. To get "new user" state locally, call `POST /api/test/reset-to-new-user` (test route) when the API is running.
 
 ## Architecture Overview
@@ -176,6 +178,7 @@ db:push` remains general project tooling and is not approved for the Shared Spac
 ## Auth (Clerk)
 
 - **Redirect URLs**: Do not set Clerk **Force redirect URL** to `/` (or app root) in Clerk Dashboard or via env vars (`CLERK_SIGN_IN_FORCE_REDIRECT_URL`, `CLERK_SIGN_UP_FORCE_REDIRECT_URL`). That would override the join/invite return flow; users must be sent back to `/spaces/join/[token]` or `/invitations/[token]` after sign-in when they came from those pages. Use **Fallback** redirect (e.g. `/`) only for when there is no `redirect_url` in the request.
+- **Cold-start contract (prototype SPA):** Gate authenticated API calls on `useAuthReady()` (Clerk loaded + signed in + session JWT via `getToken`). Send requests through `spa/src/lib/api.ts` so Bearer is attached (cookies still sent). Do **not** retry 401s based on a Clerk cookie hint — that was a race-era workaround and spams the console. Cookie hint / `shellAuthReady` from `usePrototypeHomeSpaceId` is for chrome paint only while Clerk loads; never use it to enable data queries. Shell redirect rules: `src/utils/prototype-shell-auth.ts`. See [docs/troubleshooting/CLERK_SESSION_SIGN_OUT.md](docs/troubleshooting/CLERK_SESSION_SIGN_OUT.md).
 
 ## Best Practices
 

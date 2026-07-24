@@ -8,6 +8,7 @@
 import { db, first, UserMetadata, InboxItems, UserInboxItems, eq, and, inArray } from '../db';
 import { nowISO } from '../db/dates';
 import { generateReferralCode } from './referral-code';
+import { isUniqueViolationError } from './db-errors';
 import { getCurrentSeason } from '@/utils/season-helpers';
 
 export interface CachedUserData {
@@ -181,10 +182,7 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
       });
     } catch (insertErr: unknown) {
       // Postgres unique violation (23505): UserMetadata already created by concurrent request
-      const isUnique =
-        (insertErr as { code?: string })?.code === '23505' ||
-        (insertErr as Error)?.message?.includes('unique constraint');
-      if (isUnique) {
+      if (isUniqueViolationError(insertErr)) {
         insertSucceeded = false;
         console.log('[user-cache] UserMetadata already created by concurrent request', { userId });
       } else {

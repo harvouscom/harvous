@@ -169,6 +169,18 @@ describe('mobile mark-based draft', () => {
     expect(findDetachedScriptureDraft(getState())).toBeNull();
   });
 
+  it('findDetachedScriptureDraft after a trailing space outside the draft (mobile space-confirm path)', () => {
+    const text = 'John 3:16';
+    const from = 1;
+    const to = from + text.length;
+    const { view, getState } = mobileView([draftSchema.text(`${text} `)]);
+    enterScriptureDraftView(view, from, to);
+    view.dispatch(getState().tr.setSelection(TextSelection.create(getState().doc, to + 1)));
+    const detached = findDetachedScriptureDraft(getState());
+    expect(detached).not.toBeNull();
+    expect(detached?.to).toBe(to);
+  });
+
   it('hasDraftContinuationTailInDoc detects range tail after draft end', () => {
     const text = 'Numbers 5:5';
     const from = 1;

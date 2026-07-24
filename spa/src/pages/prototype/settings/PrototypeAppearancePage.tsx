@@ -5,6 +5,7 @@ import {
   IMAGE_PRESETS_LIGHT,
   IMAGE_PRESETS_DARK,
   applyBackgroundWithImageTint,
+  canvasDefaultHexForMode,
   getColorSchemeSnapshot,
   imagePresetApplyValue,
   imagePresetById,
@@ -68,6 +69,14 @@ export default function PrototypeAppearancePage() {
   };
 
   const onPickColorPreset = (preset: BgPreset) => {
+    // Dark has no Paper tile — re-tap the selected color to restore the default canvas.
+    if (
+      editingMode === 'dark' &&
+      isColorPresetSelectedForMode(preset, darkBg, 'dark')
+    ) {
+      applyForMode('dark', null);
+      return;
+    }
     const value = editingMode === 'dark'
       ? (preset.dark !== undefined ? preset.dark : preset.light)
       : preset.light;
@@ -225,7 +234,7 @@ function ActiveHero({ lightBg, darkBg, isAuto, effectiveMode, editingMode, onTap
               {isAuto ? (
                 <span className="proto-appearance-hero__mode">{mode === 'dark' ? 'Dark' : 'Light'}</span>
               ) : null}
-              <span className="proto-appearance-hero__name">{name}</span>
+              {name ? <span className="proto-appearance-hero__name">{name}</span> : null}
             </div>
           </Tag>
         );
@@ -236,9 +245,12 @@ function ActiveHero({ lightBg, darkBg, isAuto, effectiveMode, editingMode, onTap
 
 function describeBg(bg: ProtoBg, mode: 'light' | 'dark'): { name: string; swatchColor: string; swatchImageUrl?: string } {
   if (bg === null) {
+    // Paper is light-only branding; dark default canvas has no named color preset.
+    if (mode === 'dark') {
+      return { name: '', swatchColor: canvasDefaultHexForMode(mode) };
+    }
     const preset = BG_PRESETS[0];
-    const fallback = mode === 'dark' ? '#050509' : '#fcfbf7';
-    return { name: presetDisplayLabel(preset, mode), swatchColor: fallback };
+    return { name: presetDisplayLabel(preset, mode), swatchColor: canvasDefaultHexForMode(mode) };
   }
   if (bg.kind === 'color') {
     if (bg.presetId) {
@@ -253,7 +265,7 @@ function describeBg(bg: ProtoBg, mode: 'light' | 'dark'): { name: string; swatch
   if (preset) {
     return { name: preset.label, swatchColor: 'transparent', swatchImageUrl: imagePresetUrl(preset) };
   }
-  return { name: 'Custom', swatchColor: mode === 'dark' ? '#050509' : '#fcfbf7' };
+  return { name: 'Custom', swatchColor: canvasDefaultHexForMode(mode) };
 }
 
 // ─── Background carousel ────────────────────────────────────────────────────
@@ -291,6 +303,10 @@ function BgCarousel({ mode, bgKind, activeBg, imagePresets, colorScheme, onPickC
     );
   }
 
+  // Paper is the light default only — dark Colors shows named dark pairs (Night, Dusk, …).
+  const colorPresets =
+    mode === 'dark' ? BG_PRESETS.filter((preset) => !isPaperColorPreset(preset)) : BG_PRESETS;
+
   return (
     <div
       className="proto-appearance-carousel proto-appearance-carousel--colors"
@@ -298,7 +314,7 @@ function BgCarousel({ mode, bgKind, activeBg, imagePresets, colorScheme, onPickC
       aria-label={`${mode} color background`}
       style={{ marginTop: 12 }}
     >
-      {BG_PRESETS.map((preset) => (
+      {colorPresets.map((preset) => (
         <AppearancePreviewTile
           key={preset.label}
           label={presetDisplayLabel(preset, colorScheme)}
@@ -340,17 +356,19 @@ const rowStyle: React.CSSProperties = {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+function isPaperColorPreset(preset: BgPreset): boolean {
+  return preset.light === null && (preset.dark === null || preset.dark === undefined);
+}
+
 function modeSwatchColor(preset: BgPreset, mode: 'light' | 'dark'): string {
   if (mode === 'dark' && preset.dark !== undefined) {
-    return preset.dark === null ? 'var(--pds-canvas-default)' : preset.dark;
+    return preset.dark === null ? canvasDefaultHexForMode('dark') : preset.dark;
   }
-  return preset.light === null ? 'var(--pds-canvas-default)' : preset.light;
+  return preset.light === null ? canvasDefaultHexForMode('light') : preset.light;
 }
 
 function isColorPresetSelectedForMode(preset: BgPreset, bg: ProtoBg, _mode: 'light' | 'dark'): boolean {
-  const isPaperPreset =
-    preset.light === null && (preset.dark === null || preset.dark === undefined);
-  if (isPaperPreset) return bg === null;
+  if (isPaperColorPreset(preset)) return bg === null;
   if (bg?.kind !== 'color') return false;
   if (bg.presetId) return bg.presetId === preset.id;
   return false;

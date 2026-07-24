@@ -85,12 +85,44 @@ function legacyEventToRequest(event: LegacyEvent): Request {
   return new Request(url, { method, headers: new Headers(headers), body: body !== undefined ? body.toString() : undefined });
 }
 
-async function responseToLegacy(res: Response): Promise<{ statusCode: number; body: string; headers: Record<string, string> }> {
-  const body = await res.text();
+function isBinaryContentType(contentType: string): boolean {
+  const ct = contentType.toLowerCase();
+  return (
+    ct.startsWith('image/') ||
+    ct.startsWith('audio/') ||
+    ct.startsWith('video/') ||
+    ct.startsWith('font/') ||
+    ct.startsWith('application/octet-stream') ||
+    ct.startsWith('application/pdf') ||
+    ct.startsWith('application/zip')
+  );
+}
+
+async function responseToLegacy(res: Response): Promise<{
+  statusCode: number;
+  body: string;
+  headers: Record<string, string>;
+  isBase64Encoded?: boolean;
+}> {
   const headers: Record<string, string> = {};
   res.headers.forEach((value, key) => {
     headers[key] = value;
   });
+
+  const contentType = res.headers.get('content-type') ?? '';
+  // Never use res.text() for binary — UTF-8 decoding replaces bytes like 0x89 (PNG
+  // magic) with U+FFFD and corrupts OG images / other binary API responses.
+  if (isBinaryContentType(contentType)) {
+    const buf = Buffer.from(await res.arrayBuffer());
+    return {
+      statusCode: res.status,
+      body: buf.toString('base64'),
+      headers,
+      isBase64Encoded: true,
+    };
+  }
+
+  const body = await res.text();
   return { statusCode: res.status, body, headers };
 }
 

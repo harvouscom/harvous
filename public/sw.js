@@ -95,6 +95,8 @@ const NON_PROTOTYPE_PREFIXES = [
   '/shared/',
   '/invitations/',
   '/addon',
+  '/upgrade',
+  '/status',
   '/api/',
 ];
 const RESERVED_PROTOTYPE_SEGMENTS = new Set(['settings', 'space', 'search']);

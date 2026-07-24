@@ -196,7 +196,10 @@ export const BIBLE_STUDY_KEYWORDS: BibleStudyKeyword[] = [
   { name: 'Miracles', category: 'biblical', synonyms: ['wonders', 'signs'], confidence: 0.8 },
   { name: 'Prophecy', category: 'biblical', synonyms: ['prophecies', 'foretelling'], confidence: 0.8 },
   { name: 'Law', category: 'biblical', synonyms: ['commandments', 'statutes'], confidence: 0.8 },
-  { name: 'Sacrifice', category: 'biblical', synonyms: ['offering', 'giving up'], confidence: 0.8 },
+  { name: 'Passover', category: 'biblical', synonyms: ['passover lamb', 'feast of passover', 'pascha', 'blood of the lamb', 'lamb of god'], confidence: 0.85 },
+  { name: 'Sacrifice', category: 'biblical', synonyms: ['offering', 'giving up', 'passover sacrifice'], confidence: 0.8 },
+  { name: 'Priesthood', category: 'biblical', synonyms: ['high priest', 'royal priesthood'], confidence: 0.8 },
+  { name: 'Sacrificial System', category: 'biblical', synonyms: ['burnt offering', 'sin offering'], confidence: 0.8 },
   { name: 'Temple', category: 'biblical', synonyms: ['sanctuary', 'holy place'], confidence: 0.8 },
   { name: 'Sabbath', category: 'biblical', synonyms: ['rest', 'day of rest'], confidence: 0.8 },
   { name: 'Baptism', category: 'biblical', synonyms: ['immersion', 'washing', 'baptized', 'baptize'], confidence: 0.8 },
@@ -219,6 +222,7 @@ export const BIBLE_STUDY_KEYWORDS: BibleStudyKeyword[] = [
   { name: 'Names of God', category: 'biblical', synonyms: ['name of god', 'names of the lord'], confidence: 0.8 },
   { name: 'The Beatitudes', category: 'biblical', synonyms: ['beatitudes'], confidence: 0.8 },
   { name: 'Ten Commandments', category: 'biblical', synonyms: ['ten commandments', 'decalogue'], confidence: 0.8 },
+  { name: 'Exodus Theme', category: 'biblical', synonyms: ['deliverance from egypt', 'the exodus', 'out of egypt'], confidence: 0.8 },
 
   // Life Themes
   { name: 'Family', category: 'life', synonyms: ['relatives', 'household'], confidence: 0.7 },
@@ -271,6 +275,9 @@ function keywordNeedleOccursInLowerText(textLower: string, needleRaw: string): n
 }
 
 function keywordNeedleCountForRow(textLower: string, needleRaw: string, keyword: BibleStudyKeyword): number {
+  if (keyword.name.toLowerCase() === 'marriage') {
+    return countLifeKeywordNeedleInLowerText(textLower, needleRaw, keyword.name);
+  }
   if (keyword.category === 'life') {
     return countLifeKeywordNeedleInLowerText(textLower, needleRaw, keyword.name);
   }

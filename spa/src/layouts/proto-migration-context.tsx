@@ -23,13 +23,11 @@ import { APIError } from '../lib/api';
 
 type ProtoMigrationContextValue = {
   migrating: boolean;
-  showFoldersBanner: boolean;
   lastResult: PrototypeMigrationResult | null;
 };
 
 const ProtoMigrationContext = createContext<ProtoMigrationContextValue>({
   migrating: false,
-  showFoldersBanner: false,
   lastResult: null,
 });
 
@@ -47,7 +45,6 @@ export function ProtoMigrationProvider({ children }: { children: ReactNode }) {
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const migrate = usePrototypeMigration();
   const [migrating, setMigrating] = useState(false);
-  const [showFoldersBanner, setShowFoldersBanner] = useState(false);
   const [lastResult, setLastResult] = useState<PrototypeMigrationResult | null>(null);
   const startedRef = useRef(false);
 
@@ -69,9 +66,6 @@ export function ProtoMigrationProvider({ children }: { children: ReactNode }) {
         writeMigrationDoneFlag();
       }
 
-      if (result.showFoldersBanner) {
-        setShowFoldersBanner(true);
-      }
     } catch (error) {
       if (error instanceof APIError && (error.status === 503 || error.code === 'SCHEMA_NOT_READY')) {
         return;
@@ -95,8 +89,8 @@ export function ProtoMigrationProvider({ children }: { children: ReactNode }) {
   }, [isLoaded, isSignedIn, runMigrationIfNeeded]);
 
   const value = useMemo(
-    () => ({ migrating, showFoldersBanner, lastResult }),
-    [migrating, showFoldersBanner, lastResult],
+    () => ({ migrating, lastResult }),
+    [migrating, lastResult],
   );
 
   return <ProtoMigrationContext.Provider value={value}>{children}</ProtoMigrationContext.Provider>;

@@ -123,32 +123,29 @@ export default function PrototypeVotdPassageSheet({ votd, open, showsAddFAB, onC
         </div>
 
         {translationCopyright ? (
-          <>
-            <div className="proto-votd-sheet__divider" aria-hidden />
-            <footer
-              className={[
-                'proto-votd-sheet__attribution',
-                'scripture-pill-chrome__attribution',
-                showsAddFAB ? 'proto-votd-sheet__attribution--fab' : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
-            >
-              <Icon name="circle-info" size={9} className="scripture-pill-chrome__attribution-icon" aria-hidden />
-              <p className="scripture-pill-chrome__attribution-copyright">{translationCopyright}</p>
-              {translationInfo?.website ? (
-                <a
-                  className="scripture-pill-chrome__attribution-link"
-                  href={translationInfo.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {translationLabel}
-                  <Icon name="arrow-up-right-from-square" size={7} aria-hidden />
-                </a>
-              ) : null}
-            </footer>
-          </>
+          <footer
+            className={[
+              'proto-votd-sheet__attribution',
+              'scripture-pill-chrome__attribution',
+              showsAddFAB ? 'proto-votd-sheet__attribution--fab' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
+            <Icon name="circle-info" size={9} className="scripture-pill-chrome__attribution-icon" aria-hidden />
+            <p className="scripture-pill-chrome__attribution-copyright">{translationCopyright}</p>
+            {translationInfo?.website ? (
+              <a
+                className="scripture-pill-chrome__attribution-link"
+                href={translationInfo.website}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {translationLabel}
+                <Icon name="arrow-up-right-from-square" size={7} aria-hidden />
+              </a>
+            ) : null}
+          </footer>
         ) : null}
 
         {showsAddFAB ? (

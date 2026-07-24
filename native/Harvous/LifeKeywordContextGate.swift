@@ -10,6 +10,9 @@ enum LifeKeywordContextGate {
     private static let familyChurchAttendancePattern =
         #"\b(?:my\s+)?family(?:\s+and\s+i)?\s+(?:went|go|goes|attended|attend|used\s+to\s+go)\b[^.]{0,80}\bchurch\b"#
     private static let familyWentToChurchPattern = #"\bmy\s+family\s+went\s+to\b[^.]{0,60}\bchurch\b"#
+    private static let marriageSupperOfLambPattern =
+        #"\bmarriage(?:\s+supper|\s+feast|\s+banquet)\s+of\s+(?:the\s+)?lamb\b"#
+    private static let marriageOfLambPattern = #"\bmarriage\s+of\s+(?:the\s+)?lamb\b"#
 
   static func shouldSkip(keywordName: String, needle: String, in textLower: String, matchRange: NSRange) -> Bool {
     let key = keywordName.lowercased()
@@ -26,9 +29,14 @@ enum LifeKeywordContextGate {
             if range(matchRange, isInsidePattern: churchFellowshipPattern, in: textLower) { return true }
         }
 
-        if key == "family", needleLower.contains("family") {
+        if (key == "family", needleLower.contains("family")) {
             if range(matchRange, isInsidePattern: familyChurchAttendancePattern, in: textLower) { return true }
             if range(matchRange, isInsidePattern: familyWentToChurchPattern, in: textLower) { return true }
+        }
+
+        if key == "marriage", needleLower.contains("marriage") {
+            if range(matchRange, isInsidePattern: marriageSupperOfLambPattern, in: textLower) { return true }
+            if range(matchRange, isInsidePattern: marriageOfLambPattern, in: textLower) { return true }
         }
 
         return false

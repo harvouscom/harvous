@@ -18,7 +18,9 @@ describe('prototype note content propagation', () => {
     });
 
     expect(cancel).toHaveBeenCalledWith(rafId);
-    expect(onContentChange).toHaveBeenCalledWith('<p>final keystroke</p>');
+    // Unmount flushes without an explicit `wasUserEdit: true` are programmatic (not a live
+    // keystroke), so a `{ programmatic: true }` meta accompanies the flushed HTML.
+    expect(onContentChange).toHaveBeenCalledWith('<p>final keystroke</p>', { programmatic: true });
   });
 
   it('flushCoalescedNoteHtmlOnUnmount skips onContentChange when latest HTML is empty', () => {
@@ -32,6 +34,32 @@ describe('prototype note content propagation', () => {
     });
 
     expect(onContentChange).not.toHaveBeenCalled();
+  });
+
+  it('flushCoalescedNoteHtmlOnUnmount requires window-bound cancelAnimationFrame', () => {
+    const strictCancel = function (this: unknown, _id: number) {
+      if (this !== globalThis) {
+        throw new TypeError('Can only call Window.cancelAnimationFrame on instances of Window');
+      }
+    };
+
+    expect(() => {
+      flushCoalescedNoteHtmlOnUnmount({
+        pendingRafId: 1,
+        latestHtml: '<p>x</p>',
+        onContentChange: vi.fn(),
+        cancelAnimationFrame: strictCancel as typeof cancelAnimationFrame,
+      });
+    }).toThrow(/cancelAnimationFrame/);
+
+    const boundCancel = vi.fn();
+    flushCoalescedNoteHtmlOnUnmount({
+      pendingRafId: 2,
+      latestHtml: '<p>y</p>',
+      onContentChange: vi.fn(),
+      cancelAnimationFrame: (id) => boundCancel(id),
+    });
+    expect(boundCancel).toHaveBeenCalledWith(2);
   });
 
   it('mirrorEditContentRef updates ref before React re-render', () => {

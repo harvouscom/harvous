@@ -23,9 +23,12 @@ npm run version:bump
 6. Stages all files for commit
 
 **Commit message format:**
-- `feat:` → minor bump (1.13.0 → 1.14.0)
-- `fix:` → patch bump (1.13.0 → 1.13.1)
-- `BREAKING CHANGE` or `!` → major bump (1.13.0 → 2.0.0)
+- `feat:` → minor bump (2.0.0 → 2.1.0)
+- `fix:` → patch bump (2.0.0 → 2.0.1)
+- `BREAKING CHANGE` or `!` → major bump (2.0.0 → 3.0.0)
+- `chore:`, `docs:`, `test:`, etc. → **no bump** (only intentional `feat`/`fix` releases advance semver)
+
+**Product versioning (July 2026):** Public **Harvous 2.0** starts at `2.0.0`, anchored to Classic SPA retirement (June 30, 2026). Prior `1.217.x` was an internal patch train; February 2026 `2.0.x` changelogs live in `Changelog/legacy-2026-02/`.
 
 ### Technical Changelog Generation
 
@@ -57,6 +60,25 @@ npm run release-notes:generate <version>
 ```
 
 **Output:** `release-notes/v<major.minor>-<month-year>.md`
+
+### Marketing Site CSV Export
+
+**Script:** `export-changelog-csv.js`
+
+Exports `Changelog/{version}.md` entries to [harvous.com](https://github.com/harvouscom/harvous.com) `data/webflow-changelog.csv` for public release notes.
+
+```bash
+# Export current package.json version (sibling ../harvous.com checkout)
+npm run changelog:export
+
+# Backfill changelog files at/above the CSV max version (fingerprint dedupe)
+npm run changelog:export:backfill
+
+# Custom path (used in CI)
+npm run changelog:export:backfill -- --csv harvous.com/data/webflow-changelog.csv
+```
+
+`bump-version.js` runs this automatically after each changelog generation when a sibling `harvous.com` checkout exists. CI uses `.github/workflows/sync-release-notes.yml` to commit CSV updates to the marketing repo (requires `HARVOUS_COM_SYNC_TOKEN`).
 
 **What it does:**
 1. Reads the technical changelog for the version
@@ -91,6 +113,7 @@ User-friendly:
    - Bumps version
    - Generates technical changelog
    - Generates user-friendly release notes ✨
+   - Exports rows to harvous.com `data/webflow-changelog.csv` when a sibling checkout exists
    - Stages all files
 
 3. **Amend or create new commit:**

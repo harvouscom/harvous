@@ -12,6 +12,7 @@ import { usePersistedUserId } from '@/utils/user-id';
 import { isMyPileDisplayTitle, MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 import { getNextSimpleNoteIdPreview, getLocalNoteCount, cacheHighestSimpleNoteId, getCachedHighestSimpleNoteId } from '@/utils/offline-mutations';
 import { clearVotdPendingCreateNoteFeaturedId } from '@/utils/featured-dismiss-local';
+import { isTiptapViewReady } from '@/utils/tiptap-helpers';
 
 // Import extracted hooks
 import {
@@ -354,7 +355,7 @@ export default function NewNotePanel({
       if (!editor || editor.isDestroyed) return;
 
       // Check if view and docView are still valid
-      if (!editor.view || !editor.view.docView) return;
+      if (!isTiptapViewReady(editor)) return;
 
       try {
         const doc = editor.state.doc;

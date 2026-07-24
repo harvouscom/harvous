@@ -1,4 +1,5 @@
 import { Navigate, useNavigate } from '@tanstack/react-router';
+import { prototypeSettingsAccountRouteTo } from '@/lib/prototype-path';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { useProfile } from '../../../hooks/queries/useProfile';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
@@ -19,7 +20,9 @@ export default function PrototypeSettingsIndex() {
   const { data: profile } = useProfile();
 
   if (!isMobileSidebar) {
-    return <Navigate to={SETTINGS_CATEGORIES[0].route} replace />;
+    // Typed route — string hrefs from SETTINGS_CATEGORIES can miss the route tree and
+    // flash TanStack's default `<p>Not Found</p>` in the settings Outlet.
+    return <Navigate to={prototypeSettingsAccountRouteTo()} replace />;
   }
 
   const translationLabel = profile?.defaultTranslation
@@ -44,7 +47,7 @@ export default function PrototypeSettingsIndex() {
                   ? lockPinLabel
                   : undefined
             }
-            onClick={() => navigate({ to: cat.route })}
+            onClick={() => navigate({ to: cat.route as '/settings/account' })}
           />
         ))}
       </SettingsGroup>

@@ -70,6 +70,63 @@ function SharingCardHeader({
   );
 }
 
+type SharedItemKind = 'note' | 'thread' | 'space';
+
+/** Leading icon tile for shared-item cards — matches Settings > Add-ons rows. */
+export function resolveSharedItemLeadingMeta(kind: SharedItemKind): {
+  icon: IconName;
+  label: string;
+} {
+  switch (kind) {
+    case 'thread':
+      return { icon: 'layer-group', label: 'Thread' };
+    case 'space':
+      return { icon: 'user-group', label: 'Space' };
+    case 'note':
+    default:
+      return { icon: 'note-sticky', label: 'Note' };
+  }
+}
+
+function SharingCardHeader({
+  kind,
+  title,
+  noteId,
+  rel,
+  preview,
+}: {
+  kind: SharedItemKind;
+  title: string;
+  noteId: string;
+  rel?: string;
+  preview?: string;
+}) {
+  const { icon, label } = resolveSharedItemLeadingMeta(kind);
+
+  return (
+    <div className="proto-sharing-card__header">
+      <span
+        className="proto-settings-list-row__leading"
+        aria-label={label}
+        title={label}
+      >
+        <Icon name={icon} size={20} />
+      </span>
+      <div className="proto-sharing-card__header-main">
+        <Link
+          to={prototypeNoteRouteTo()}
+          params={{ noteId: noteParamSlug(noteId) }}
+          search={{}}
+          className="proto-sharing-card__title pds-list-title"
+        >
+          {title}
+        </Link>
+        <SharingNoteRecencyLine rel={rel} preview={preview} />
+      </div>
+    </div>
+  );
+}
+
 function SharingNoteRecencyLine({ rel, preview }: { rel?: string; preview?: string }) {
   if (!rel && !preview) return null;
   return (

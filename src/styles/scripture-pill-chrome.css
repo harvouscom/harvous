@@ -453,6 +453,47 @@ button .scripture-pill-chrome__trans-chip {
   user-select: none;
 }
 
+/* Mobile: sticky actions under the passage (study dock replaces format toolbar). */
+.scripture-pill-chrome__passage-mobile-actions {
+  display: flex;
+  align-items: center;
+  justify-content: stretch;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--pds-border, rgba(0, 0, 0, 0.08));
+  background: var(--pds-bg-toolbar, var(--color-snow-white, #fff));
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.scripture-pill-chrome__passage-mobile-action {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--pds-border, rgba(0, 0, 0, 0.1));
+  border-radius: 12px;
+  background: var(--pds-bg-row-hover, rgba(0, 0, 0, 0.04));
+  color: var(--pds-text-primary, var(--color-deep-grey, #1d1d1f));
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.scripture-pill-chrome__passage-mobile-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.scripture-pill-chrome__passage-mobile-action:active:not(:disabled) {
+  background: var(--pds-bg-row-selected, rgba(0, 0, 0, 0.08));
+}
 
 .sr-only {
   position: absolute;

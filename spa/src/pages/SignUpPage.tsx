@@ -8,6 +8,10 @@ import ClassicAuthMeshColumn from '../components/auth/ClassicAuthMeshColumn';
 import HarvousAuthForm from '../components/auth/HarvousAuthForm';
 import { useAuthHeroImage } from '../hooks/useAuthHeroImage';
 import { postAuthRedirectPath } from '../utils/post-auth-redirect';
+import {
+  persistSignupAttributionCookie,
+  readSignupAttributionFromSearch,
+} from '../utils/signup-attribution';
 
 /** Mirror of Astro sign-up.astro: persist ?ref= code as a cookie so
  *  ReferralCreditInit can credit the referrer after the user signs up. */
@@ -23,12 +27,23 @@ function useReferralCookie() {
   }, []);
 }
 
+/** Persist marketing audience / use-case query params across email-code signup. */
+function useSignupAttributionCookie() {
+  const applied = useRef(false);
+  useEffect(() => {
+    if (applied.current) return;
+    applied.current = true;
+    persistSignupAttributionCookie(readSignupAttributionFromSearch());
+  }, []);
+}
+
 export default function SignUpPage() {
   const { isLoaded, isSignedIn } = useAuth();
   const navigate = useNavigate();
   const siteInspired = isSiteInspiredAuthHost();
   const { heroImage, isReady: isHeroReady } = useAuthHeroImage();
   useReferralCookie();
+  useSignupAttributionCookie();
 
   // Redirect if already signed in.
   useEffect(() => {

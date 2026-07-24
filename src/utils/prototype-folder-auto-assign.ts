@@ -5,18 +5,19 @@
 
 import {
   applyAutoCollectionAfterEdit,
+  isNonDefiningBookPrimary,
   type CollectionChromeState,
 } from '@/utils/bible-study-collection-web';
 import { stripHtml } from '@/utils/html-stripper';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
 import { contentSubjects } from '@/utils/subject-vocabulary';
-import { conceptOverlaps } from '@/utils/bible-study-concept-overlaps';
+import { conceptOverlapsForFolders } from '@/utils/bible-study-concept-overlaps';
 import { detectScriptureReferences, parseScriptureReference } from '@/utils/scripture-detector';
 import chapterSubjectsData from '@/data/chapter-subjects.json';
 
 const chapterSubjects = chapterSubjectsData as Record<string, Record<string, string[]>>;
 const MAX_SUBJECT_SECONDARIES = 3; // matches MAX_AUTO_SECONDARIES in the keyword system
-const MAX_PASSAGE_SUBJECTS = 2; // cited-chapter subjects only fill gaps
+const MAX_PASSAGE_SUBJECTS = 3; // matches COMPACT_PER_CHAPTER in import-subjects.ts
 
 /** Plain body for folder snapshots — matches `buildRowsForCollectionSuggest` stripping. */
 export function plainBodyForFolderSnapshot(html: string): string {
@@ -77,11 +78,14 @@ function passageSubjectsForText(text: string): string[] {
   return out;
 }
 
+function isNarrativeSubject(name: string): boolean {
+  const n = name.trim();
+  return n.startsWith('The ') || n === 'Passover' || n === 'Biblical Feasts';
+}
+
 /**
- * Enrich the keyword folder chrome with curated subjects — CONTENT-FIRST. The note's own text
- * (`contentSubjects`) drives the primary + early secondaries; cited-chapter passage subjects only
- * fill remaining secondary slots. All clean vocabulary subjects, deduped via `conceptOverlaps`.
- * Web-only (native is mirrored separately); a note with neither is a no-op.
+ * Enrich keyword folder chrome with curated subjects. Passage narratives from cited chapters
+ * take priority over incidental keyword places; content vocabulary fills remaining slots.
  */
 function withSubjectFolders(
   chrome: CollectionChromeState,
@@ -94,10 +98,13 @@ function withSubjectFolders(
   const passageSubs = passageSubjectsForText(text).slice(0, MAX_PASSAGE_SUBJECTS);
   if (!contentSubs.length && !passageSubs.length) return chrome;
 
-  // Primary: keep the content keyword primary; only fill an EMPTY primary (content first, then passage).
   let primary = chrome.primaryCollection;
   if (allowPrimaryUpdate && (!primary || !primary.trim())) {
     primary = contentSubs[0] ?? passageSubs[0] ?? primary;
+  } else if (allowPrimaryUpdate && primary && isNonDefiningBookPrimary(title, bodyHtml, primary)) {
+    const narrativePassage = passageSubs.find(isNarrativeSubject);
+    const contentTheme = contentSubs.find((s) => s.toLowerCase() !== primary.trim().toLowerCase());
+    primary = narrativePassage ?? contentTheme ?? passageSubs[0] ?? primary;
   }
   const primaryRef = (primary ?? '').trim();
   const primaryLow = primaryRef.toLowerCase();
@@ -107,14 +114,15 @@ function withSubjectFolders(
   const add = (name: string) => {
     const low = name.trim().toLowerCase();
     if (!low || low === primaryLow || present.has(low)) return;
-    if (primaryRef && conceptOverlaps(name, primaryRef)) return;
-    if (result.some((r) => conceptOverlaps(r, name))) return;
+    if (primaryRef && conceptOverlapsForFolders(name, primaryRef)) return;
+    if (result.some((r) => conceptOverlapsForFolders(r, name))) return;
     result.push(name);
     present.add(low);
   };
-  for (const s of chrome.secondaryCollections) add(s); // existing keyword content secondaries (priority)
-  for (const s of contentSubs) add(s); // content vocabulary subjects
-  for (const s of passageSubs) add(s); // passage subjects — gap fill
+
+  for (const s of passageSubs) add(s);
+  for (const s of chrome.secondaryCollections) add(s);
+  for (const s of contentSubs) add(s);
 
   return { ...chrome, primaryCollection: primary, secondaryCollections: result.slice(0, MAX_SUBJECT_SECONDARIES) };
 }
@@ -130,17 +138,20 @@ export function applyIdleFolderAutoAssign(
   now: Date,
   allowPrimaryUpdate = true,
 ): CollectionChromeState {
-  if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
-
   if (isEffectivelyEmptyPrototypeNote(title, bodyHtml) || !hasAutoFolderBodyContent(bodyHtml)) {
     return clearAutoFolderChrome(prev);
   }
 
+  // Manual override and lock both freeze primary; subject enrichment must not steal it
+  // (e.g. book primary Exodus → narrative "The Exodus").
+  const freezePrimary = prev.collectionPinned || prev.collectionUserOverride;
+  const effectiveAllowPrimary = allowPrimaryUpdate && !freezePrimary;
+
   return withSubjectFolders(
-    applyAutoCollectionAfterEdit(prev, title, bodyHtml, now, { allowPrimaryUpdate }),
+    applyAutoCollectionAfterEdit(prev, title, bodyHtml, now, { allowPrimaryUpdate: effectiveAllowPrimary }),
     title,
     bodyHtml,
-    allowPrimaryUpdate,
+    effectiveAllowPrimary,
   );
 }
 

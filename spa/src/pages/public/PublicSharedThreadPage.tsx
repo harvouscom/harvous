@@ -44,6 +44,9 @@ export default function PublicSharedThreadPage() {
   const [toastVisible, setToastVisible] = useState(false);
   const [alreadyOwned, setAlreadyOwned] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ogCapture =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('ogCapture') === '1';
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info', duration = 3000) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -141,7 +144,7 @@ export default function PublicSharedThreadPage() {
   return (
     <>
       {thread && <title>{`${thread.title || 'Shared Thread'} | Harvous`}</title>}
-      <div className="public-page">
+      <div className={`public-page${ogCapture ? ' public-page--og-capture' : ''}`}>
         <PublicTopBar isSignedIn={!!isSignedIn} />
 
         <div className="public-body">
@@ -203,7 +206,10 @@ export default function PublicSharedThreadPage() {
                     </div>
 
                     <div className="public-card__cta">
-                      <div className={`public-toast public-toast--${toastType}${toastVisible ? ' public-toast--visible' : ''}`}>
+                      <div
+                        className={`public-toast public-toast--${toastType}${toastVisible ? ' public-toast--visible' : ''}`}
+                        style={{ textAlign: 'center', justifyContent: 'center' }}
+                      >
                         {toastMessage}
                       </div>
                       {alreadyOwned ? (

@@ -6,7 +6,7 @@
   "legacyPaperLightHex": "#f7f6f3",
   "legacyPaperDarkHex": "#1a1a1c",
   "presets": [
-    { "id": "paper", "label": "Paper", "darkLabel": "Night", "light": null, "dark": null },
+    { "id": "paper", "label": "Paper", "darkLabel": "Paper", "light": null, "dark": null },
     { "id": "sky", "label": "Sky", "darkLabel": "Night", "light": "#d7eaff", "dark": "#152536" },
     { "id": "lilac", "label": "Lilac", "darkLabel": "Dusk", "light": "#f3dfff", "dark": "#2a2438" },
     { "id": "peach", "label": "Peach", "darkLabel": "Ember", "light": "#ffe1d1", "dark": "#382820" },

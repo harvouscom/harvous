@@ -18,6 +18,28 @@ export function isTiptapViewReady(editorInstance: unknown): boolean {
   }
 }
 
+/** Returns ProseMirror view when mounted; null pre-mount (never throws). Prefer over `editor.view` guards. */
+export function getTiptapView(editorInstance: unknown): { docView?: unknown; dom?: HTMLElement } | null {
+  if (!isTiptapViewReady(editorInstance)) return null;
+  try {
+    return (editorInstance as { view: { docView?: unknown; dom?: HTMLElement } }).view;
+  } catch {
+    return null;
+  }
+}
+
+/** DOM id for scoping pending-pill maps. Safe before mount — never reads the throwing `view` getter unsafely. */
+export function getTiptapEditorDomId(editorInstance: unknown, fallback = 'default'): string {
+  if (!isTiptapViewReady(editorInstance)) return fallback;
+  try {
+    const view = (editorInstance as { view?: { dom?: { id?: string } } }).view;
+    const id = view?.dom?.id;
+    return id ? String(id) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 /**
  * Find text positions in a Tiptap editor document
  * @param editor - The Tiptap editor instance

@@ -48,17 +48,14 @@ export async function runOfflineFirst<T>(opts: {
   } catch (err) {
     if (!isOfflineError(err)) throw err;
 
-    // Offline: persist to the durable queue so the change syncs on reconnect.
     const userId = getPersistedUserId();
-    let localId: string | null = null;
-    if (opts.offline && userId && isOfflineModeEnabled()) {
-      try {
-        const res = await opts.offline(userId);
-        if (typeof res === 'string') localId = res;
-      } catch (offlineErr) {
-        console.error('[runOfflineFirst] offline write failed:', offlineErr);
-      }
+    if (!opts.offline || !userId || !isOfflineModeEnabled()) {
+      throw err;
     }
+
+    const res = await opts.offline(userId);
+    let localId: string | null = null;
+    if (typeof res === 'string') localId = res;
     return { online: null, queued: true, localId };
   }
 }

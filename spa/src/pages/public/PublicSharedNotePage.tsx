@@ -50,6 +50,9 @@ export default function PublicSharedNotePage() {
   const [toastVisible, setToastVisible] = useState(false);
   const [alreadyOwned, setAlreadyOwned] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ogCapture =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('ogCapture') === '1';
 
   useEffect(() => {
     api.get<SharedNoteResponse>(`/api/shared/note/${shareToken}`)
@@ -135,7 +138,7 @@ export default function PublicSharedNotePage() {
   return (
     <>
       {note && <title>{`${note.title || 'Shared Note'} | Harvous`}</title>}
-      <div className="public-page">
+      <div className={`public-page${ogCapture ? ' public-page--og-capture' : ''}`}>
         <PublicTopBar isSignedIn={!!isSignedIn} />
 
         <div className="public-body">
@@ -180,7 +183,10 @@ export default function PublicSharedNotePage() {
                       className="public-note-card"
                       footer={
                       <div className="public-card__cta">
-                        <div className={`public-toast public-toast--${toastType}${toastVisible ? ' public-toast--visible' : ''}`}>
+                        <div
+                          className={`public-toast public-toast--${toastType}${toastVisible ? ' public-toast--visible' : ''}`}
+                          style={{ textAlign: 'center', justifyContent: 'center' }}
+                        >
                           {toastMessage}
                         </div>
                         {alreadyOwned ? (

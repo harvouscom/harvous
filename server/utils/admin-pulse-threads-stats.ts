@@ -181,8 +181,12 @@ async function fetchWindowLinkActivity(since: Date, until?: Date): Promise<Windo
   }
 }
 
+/** Max note IDs passed to thread theme SQL — avoids oversized IN clauses. */
+const MAX_THREAD_THEME_NOTE_IDS = 500;
+
 async function fetchThreadThemes(threadNoteIds: string[], limit = 8): Promise<DiscoveryRankItem[]> {
   if (threadNoteIds.length === 0) return [];
+  if (threadNoteIds.length > MAX_THREAD_THEME_NOTE_IDS) return [];
 
   try {
     const fetchLimit = Math.max(limit * 5, 40);
@@ -302,6 +306,45 @@ export async function getAdminPulseThreadsStats(since: Date, until?: Date): Prom
     themes,
     recall,
   };
+}
+
+/** Monthly report thread summary — window-scoped SQL counts only (avoids full-platform graph scan). */
+export async function getAdminPulseThreadsSummaryForReport(
+  since: Date,
+  until: Date,
+): Promise<PulseThreadsSummary> {
+  const empty: PulseThreadsSummary = {
+    totalThreads: 0,
+    avgNotesPerThread: 0,
+    linksCreated: 0,
+    threadsLinkedInWindow: 0,
+    notesInThreads: 0,
+  };
+  try {
+    const sinceIso = since.toISOString();
+    const untilIso = until.toISOString();
+    const rows = await db.execute<{ links_created: number; users_with_links: number }>(sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM "NoteConnections"
+          WHERE "createdAt" >= ${sinceIso} AND "createdAt" < ${untilIso}) AS links_created,
+        (SELECT COUNT(DISTINCT "userId")::int FROM "NoteConnections"
+          WHERE "createdAt" >= ${sinceIso} AND "createdAt" < ${untilIso}) AS users_with_links
+    `);
+    const linksCreated = Number(rows[0]?.links_created ?? 0);
+    const usersWithLinks = Number(rows[0]?.users_with_links ?? 0);
+    return {
+      totalThreads: usersWithLinks,
+      avgNotesPerThread: 0,
+      linksCreated,
+      threadsLinkedInWindow: usersWithLinks,
+      notesInThreads: 0,
+    };
+  } catch (error) {
+    if (isNoteConnectionsTableMissing(error)) {
+      return empty;
+    }
+    throw error;
+  }
 }
 
 /** @internal test helper — clusters touched by new links in window. */

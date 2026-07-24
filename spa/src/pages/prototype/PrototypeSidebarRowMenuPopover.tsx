@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 import ProtoPopoverShell from './ProtoPopoverShell';
 
 const MENU_GAP = 2;
-/** Above `.proto-sidebar-floating-stack` (2); below toolbar / modal popovers. */
+/** Above sidebar scroll content (1); below toolbar / modal popovers. */
 const MENU_Z_INDEX = 100;
 
 type MenuPosition = { top: number; right: number; maxWidth: number };

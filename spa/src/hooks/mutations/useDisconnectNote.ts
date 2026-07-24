@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, APIError } from '../../lib/api';
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
+import { runOfflineFirst } from './withOfflineQueue';
+import { disconnectNotesOffline } from '@/utils/offline-mutations';
 
 export interface DisconnectNoteVariables {
   fromNoteId: string;
@@ -15,11 +17,21 @@ export function useDisconnectNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (vars: DisconnectNoteVariables) =>
-      api.delete<{ success: boolean }>('/api/notes/connect-link', {
-        fromNoteId: vars.fromNoteId,
-        toNoteId: vars.toNoteId,
-      }),
+    mutationFn: async (vars: DisconnectNoteVariables) => {
+      const outcome = await runOfflineFirst({
+        online: () =>
+          api.delete<{ success: boolean }>('/api/notes/connect-link', {
+            fromNoteId: vars.fromNoteId,
+            toNoteId: vars.toNoteId,
+          }),
+        offline: (userId) =>
+          disconnectNotesOffline(userId, vars.fromNoteId, vars.toNoteId).then(() => undefined),
+      });
+      if (outcome.queued) {
+        return { success: true };
+      }
+      return outcome.online!;
+    },
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({
         predicate: (query) =>

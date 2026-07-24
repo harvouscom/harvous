@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../../lib/api';
+import { useAuthReady } from '../useAuthReady';
+import { api, APIError } from '../../lib/api';
 
 export interface TagSummary {
   id: string;
@@ -17,9 +18,16 @@ interface TagsListResponse {
 }
 
 export function useTagsList() {
+  const authReady = useAuthReady();
   return useQuery({
     queryKey: ['tags-list'],
     queryFn: () => api.get<TagsListResponse>('/api/tags/list'),
+    enabled: authReady,
     staleTime: 30_000,
+    retry: (failureCount, error) => {
+      if (error instanceof APIError && error.status === 401) return false;
+      return failureCount < 2;
+    },
+    retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
 }

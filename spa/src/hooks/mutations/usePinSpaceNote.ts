@@ -1,6 +1,9 @@
 import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { patchSpaceNotesInfiniteCache, spaceNotesQueryKey, type SpaceNotesPage } from '../../lib/space-notes-cache';
+import type { NoteDetail } from '../queries/useNote';
+import { runOfflineFirst } from './withOfflineQueue';
+import { pinNoteOffline } from '@/utils/offline-mutations';
 
 function normalizeSpaceId(spaceId: string): string {
   const t = (spaceId ?? '').trim();
@@ -23,10 +26,25 @@ export function usePinSpaceNote() {
     mutationFn: async ({ spaceId, noteId, isPinned }: PinSpaceNoteVariables) => {
       const sid = normalizeSpaceId(spaceId);
       if (!sid) throw new Error('Space ID is required');
-      return api.post<{ success?: boolean; error?: string }>(`/api/spaces/${encodeURIComponent(sid)}/pin-item`, {
-        itemId: noteId,
-        itemType: 'note',
-        isPinned,
+
+      const cachedNote = queryClient.getQueryData<NoteDetail>(['note', noteId]);
+      const content = cachedNote?.content ?? '';
+
+      return runOfflineFirst({
+        online: () =>
+          api.post<{ success?: boolean; error?: string }>(`/api/spaces/${encodeURIComponent(sid)}/pin-item`, {
+            itemId: noteId,
+            itemType: 'note',
+            isPinned,
+          }),
+        offline: (userId) =>
+          pinNoteOffline(userId, noteId, isPinned, {
+            content,
+            title: cachedNote?.title ?? null,
+            spaceId: sid,
+            threadId: cachedNote?.threads?.[0]?.id,
+            noteType: (cachedNote?.noteType as 'default' | 'scripture' | 'resource' | undefined) ?? 'default',
+          }).then(() => undefined),
       });
     },
     onMutate: async (variables) => {

@@ -29,8 +29,9 @@ import {
 } from '@/utils/admin-pulse-deltas';
 import { buildCanonBookGrid, type CanonBookCell } from '@/utils/admin-pulse-heatmap';
 import { aggregateCanonGroupCounts, type CanonGroupStat } from '@/utils/admin-pulse-canon-groups';
+import type { AdminReportCanonBook, AdminReportCanonSection } from './admin-report-types';
 import { getAdminPulseXp, type PulseXpSummary } from './admin-pulse-xp-stats';
-import { getAdminPulseThreadsStats, type PulseThreadsStats } from './admin-pulse-threads-stats';
+import { getAdminPulseThreadsStats, getAdminPulseThreadsSummaryForReport, type PulseThreadsStats } from './admin-pulse-threads-stats';
 import { adminWindowSince, adminWindowPreviousRange, clampAdminDays } from './admin-time-window';
 import { filterPulseDiscoveryThemes } from '@/utils/universal-bible-entities';
 import { formatPulseThemeLabels } from '@/utils/divine-name-display';
@@ -401,22 +402,91 @@ export type PulseReportMetrics = {
   passages: DiscoveryRankItem[];
   tags: DiscoveryRankItem[];
   translations: DiscoveryRankItem[];
+  curiosity: {
+    tones: DiscoveryRankItem[];
+    folders: DiscoveryRankItem[];
+    dictionaryWords: DiscoveryRankItem[];
+  };
+  canon: {
+    sections: AdminReportCanonSection[];
+    books: AdminReportCanonBook[];
+  };
   threads: PulseThreadsStats;
 };
 
+function toReportCanonSections(groups: CanonGroupStat[]): AdminReportCanonSection[] {
+  return groups.map((group) => ({
+    id: group.id,
+    label: group.label,
+    count: group.count,
+    testament: group.testament,
+  }));
+}
+
+function toReportCanonBooks(cells: CanonBookCell[]): AdminReportCanonBook[] {
+  return cells.map((cell) => ({
+    name: cell.name,
+    order: cell.order,
+    count: cell.count,
+    sharePct: cell.sharePct,
+    heatLevel: cell.heatLevel,
+  }));
+}
+
 /** Fixed calendar range snapshot for monthly admin reports. */
 export async function getPulseReportMetrics(since: Date, until: Date): Promise<PulseReportMetrics> {
-  const [uniquePassages, books, themes, passages, tags, translations, threads] = await Promise.all([
+  const emptyRecall: PulseThreadsStats['recall'] = {
+    impressions: 0,
+    opens: 0,
+    snoozes: 0,
+    snoozeRatePct: 0,
+    impressionsByKind: [],
+    opensByKind: [],
+  };
+  const [
+    uniquePassages,
+    allBookCounts,
+    themes,
+    passages,
+    tags,
+    translations,
+    tones,
+    folders,
+    dictionaryWords,
+    threadSummary,
+  ] = await Promise.all([
     fetchUniquePassageCount(since, until),
-    fetchBooks(since, until, 10),
+    fetchBooks(since, until),
     fetchThemes(since, until, 10),
     fetchPassages(since, until, 10),
     fetchTags(since, until, 10),
     fetchTranslations(since, until),
-    getAdminPulseThreadsStats(since, until),
+    fetchTones(since, until, 10),
+    getTrendingAutoFolders(since, 10, until),
+    fetchDictionaryWords(since, until, 10),
+    getAdminPulseThreadsSummaryForReport(since, until),
   ]);
-  return { uniquePassages, books, themes, passages, tags, translations: translations.slice(0, 5), threads };
+  const books = allBookCounts.slice(0, 10);
+  const canonSections = aggregateCanonGroupCounts(allBookCounts);
+  const canonBooks = buildCanonBookGrid(allBookCounts);
+  return {
+    uniquePassages,
+    books,
+    themes,
+    passages,
+    tags,
+    translations: translations.slice(0, 5),
+    curiosity: { tones, folders, dictionaryWords },
+    canon: {
+      sections: toReportCanonSections(canonSections),
+      books: toReportCanonBooks(canonBooks),
+    },
+    threads: { summary: threadSummary, themes: [], recall: emptyRecall },
+  };
 }
+
+/** @deprecated Use getPulseReportMetrics — kept as alias for callers. */
+export const getPulseReportMetricsForSnapshot = getPulseReportMetrics;
 
 async function fetchMonthlyAnalyticsRank(
   monthKey: string,

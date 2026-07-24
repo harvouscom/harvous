@@ -18,6 +18,7 @@
 import { conceptOverlaps } from '@/utils/bible-study-concept-overlaps';
 import { isUniversalBibleEntity } from '@/utils/universal-bible-entities';
 import { canonicalBookOrder } from '@/utils/scripture-osis';
+import chapterSubjectsData from '../../src/data/chapter-subjects.json';
 import { db, eq, Notes, now } from '../db';
 import {
   getNotePassages,
@@ -160,8 +161,42 @@ export function dominantBook(passages: VerseKey[]): string | null {
   return best;
 }
 
+const chapterSubjects = chapterSubjectsData as Record<string, Record<string, string[]>>;
+
+function isNarrativeChapterSubject(name: string): boolean {
+  const n = name.trim();
+  return n.startsWith('The ') || n === 'Passover' || n === 'Biblical Feasts';
+}
+
+/** Top curated chapter subject across a note's cited passages (ties → narrative preference). Pure. */
+export function dominantChapterSubject(passages: VerseKey[]): string | null {
+  if (!passages.length) return null;
+  const counts = new Map<string, number>();
+  for (const p of passages) {
+    for (const subject of chapterSubjects[p.book]?.[String(p.chapter)] ?? []) {
+      counts.set(subject, (counts.get(subject) ?? 0) + 1);
+    }
+  }
+  let best: string | null = null;
+  let bestCount = -1;
+  let bestNarrative = false;
+  for (const [subject, count] of counts) {
+    const narrative = isNarrativeChapterSubject(subject);
+    if (
+      count > bestCount ||
+      (count === bestCount && narrative && !bestNarrative) ||
+      (count === bestCount && narrative === bestNarrative && best && subject.localeCompare(best) < 0)
+    ) {
+      best = subject;
+      bestCount = count;
+      bestNarrative = narrative;
+    }
+  }
+  return best;
+}
+
 /**
- * Gap-fill a note's primary collection from its dominant cited book — server-side, because the
+ * Gap-fill a note's primary collection from its dominant cited chapter subject (fallback: book).
  * client folder logic can't reach the knowledge layer. Deliberately conservative: only fills an
  * EMPTY primary on a content note that the user hasn't pinned or overridden, so it never fights
  * the client-authoritative folder system. Non-throwing. Returns the book set, or null.
@@ -185,14 +220,15 @@ export async function enrichCollectionWithPassages(noteId: string): Promise<stri
     if (note.collectionUserOverride || note.collectionPinned) return null;
     if (note.primaryCollection && note.primaryCollection.trim()) return null; // gap-fill only
 
-    const book = dominantBook(await getNotePassages(noteId));
-    if (!book) return null;
+    const passages = await getNotePassages(noteId);
+    const label = dominantChapterSubject(passages) ?? dominantBook(passages);
+    if (!label) return null;
 
     await db
       .update(Notes)
-      .set({ primaryCollection: book, collectionLastAutoUpdatedAt: now(), updatedAt: now() })
+      .set({ primaryCollection: label, collectionLastAutoUpdatedAt: now(), updatedAt: now() })
       .where(eq(Notes.id, noteId));
-    return book;
+    return label;
   } catch (err) {
     console.error('[enrichCollectionWithPassages] non-critical failure:', err instanceof Error ? err.message : err);
     return null;

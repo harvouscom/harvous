@@ -11,6 +11,7 @@ This folder contains troubleshooting documentation for common issues encountered
 - **[Database Deployment Errors](./database-deployment-errors.md)** - Fixing UNIQUE constraint errors during Netlify deployments
 - **[Auto-Tag Debugging Guide](./AUTO_TAG_DEBUGGING_GUIDE.md)** - Troubleshooting auto-tag generation issues
 - **[Clerk duplicate user migration](./CLERK_DUPLICATE_USER_MIGRATION.md)** - When a user has two Clerk IDs and missing notes/threads; how to reassign data to the current account
+- **[Clerk unexpected sign-outs](./CLERK_SESSION_SIGN_OUT.md)** - Weekly email-code re-login on Hobby plan, browser cookie limits, what is expected vs fixable
 - **Missing `SyncDeletedEntities` relation during native sync** - If `/api/sync/changes` returns 500 with `relation "SyncDeletedEntities" does not exist`, run `npm run db:push` against the active Supabase project
 
 ### UI/Component Issues

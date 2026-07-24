@@ -40,6 +40,7 @@ import {
   isStudyThreadNamingColumnMissing,
   isPrototypeFolderStatsColumnMissing,
   isPgUndefinedColumn,
+  isPgUndefinedRelation,
 } from './pg-undefined-relation';
 import { fetchVotdPassageEngagementMetrics, type VotdPassageEngagementMetrics } from './admin-votd-passage-metrics';
 import { getAdminPulseXp, type PulseXpSummary } from './admin-pulse-xp-stats';
@@ -1061,9 +1062,18 @@ export async function getUsageDiscovery(daysParam: number): Promise<UsageDiscove
 }
 
 /** Fixed calendar month usage metrics for admin monthly reports. */
-export async function getUsageOverviewForRange(since: Date, until: Date): Promise<AdminMonthlyReportUsage> {
+export async function getUsageOverviewForRange(
+  since: Date,
+  until: Date,
+  options?: { omitPassageEngagement?: boolean },
+): Promise<AdminMonthlyReportUsage> {
   const sinceIso = since.toISOString();
   const untilIso = until.toISOString();
+  const emptyPassage: VotdPassageEngagementMetrics = {
+    usersWhoAddedPassage: 0,
+    passageNotesAdded: 0,
+    dismissCloseEvents: 0,
+  };
 
   const [contentRows, noteTypeRows, studyBehavior, passageMetrics, scripturePills, studyThreadEntries, recallMetrics] =
     await Promise.all([
@@ -1085,7 +1095,9 @@ export async function getUsageOverviewForRange(since: Date, until: Date): Promis
         .where(and(gte(Notes.createdAt, since), lt(Notes.createdAt, until), countableUserNotesWhere()))
         .groupBy(Notes.noteType),
       fetchStudyBehaviorMetricsForRange(since, until),
-      fetchVotdPassageEngagementMetricsForRange(since, until),
+      options?.omitPassageEngagement
+        ? Promise.resolve(emptyPassage)
+        : fetchVotdPassageEngagementMetricsForRange(since, until),
       db
         .select({ count: sql<number>`COUNT(*)`.as('count') })
         .from(ScriptureMetadata)
@@ -1243,16 +1255,22 @@ async function fetchVotdPassageEngagementMetricsForRange(
   since: Date,
   until: Date,
 ): Promise<VotdPassageEngagementMetrics> {
-  const sinceIso = since.toISOString();
-  const untilIso = until.toISOString();
-  const publishDateMin = since.toISOString().slice(0, 10);
-  const publishDateMax = until.toISOString().slice(0, 10);
+  const empty: VotdPassageEngagementMetrics = {
+    usersWhoAddedPassage: 0,
+    passageNotesAdded: 0,
+    dismissCloseEvents: 0,
+  };
+  try {
+    const sinceIso = since.toISOString();
+    const untilIso = until.toISOString();
+    const publishDateMin = since.toISOString().slice(0, 10);
+    const publishDateMax = until.toISOString().slice(0, 10);
 
-  const rows = await db.execute<{
-    users_who_added_passage: number;
-    passage_notes_added: number;
-    dismiss_close_events: number;
-  }>(sql`
+    const rows = await db.execute<{
+      users_who_added_passage: number;
+      passage_notes_added: number;
+      dismiss_close_events: number;
+    }>(sql`
     WITH published AS (
       SELECT
         p."reference",
@@ -1292,12 +1310,22 @@ async function fetchVotdPassageEngagementMetricsForRange(
         INNER JOIN "FeaturedItems" fi ON fi."id" = ufi."featuredItemId"
         WHERE fi."contentType" = 'votd' AND ufi."status" = 'completed'
         AND ufi."completedAt" >= ${sinceIso} AND ufi."completedAt" < ${untilIso}) AS dismiss_close_events
-  `);
+    `);
 
-  const row = rows[0];
-  return {
-    usersWhoAddedPassage: Number(row?.users_who_added_passage ?? 0),
-    passageNotesAdded: Number(row?.passage_notes_added ?? 0),
-    dismissCloseEvents: Number(row?.dismiss_close_events ?? 0),
-  };
+    const row = rows[0];
+    return {
+      usersWhoAddedPassage: Number(row?.users_who_added_passage ?? 0),
+      passageNotesAdded: Number(row?.passage_notes_added ?? 0),
+      dismissCloseEvents: Number(row?.dismiss_close_events ?? 0),
+    };
+  } catch (error) {
+    if (
+      isPgUndefinedRelation(error, 'VotdPublishHistory') ||
+      isPgUndefinedRelation(error, 'UserFeaturedItems') ||
+      isPgUndefinedRelation(error, 'FeaturedItems')
+    ) {
+      return empty;
+    }
+    throw error;
+  }
 }

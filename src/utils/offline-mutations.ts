@@ -11,6 +11,7 @@ import {
   ensureUserPartition 
 } from './offline-db';
 import { enqueueMutation } from './sync-manager';
+import { filterThreadClusterEdgesForRemoval } from './thread-cluster-bulk-actions';
 import { cacheHighestSimpleNoteId, getCachedHighestSimpleNoteId } from './offline-db';
 import { getCurrentSeason } from './season-helpers';
 import { generateNoteId, generateSpaceId, generateThreadId } from './ids';
@@ -575,6 +576,11 @@ export async function updateNoteOffline(
     isPublic: boolean;
     isFeatured: boolean;
     order: number;
+    primaryCollection: string | null;
+    secondaryCollections: string[];
+    collectionPinned: boolean;
+    collectionUserOverride: boolean;
+    isPinned: boolean;
   }>,
   seed?: OfflineNoteSeed,
 ): Promise<void> {
@@ -680,6 +686,11 @@ export async function updateNoteOfflineIfPresent(
     isPublic: boolean;
     isFeatured: boolean;
     order: number;
+    primaryCollection: string | null;
+    secondaryCollections: string[];
+    collectionPinned: boolean;
+    collectionUserOverride: boolean;
+    isPinned: boolean;
   }>,
 ): Promise<boolean> {
   if (!isOfflineModeEnabled()) return false;
@@ -716,6 +727,21 @@ export async function deleteNoteOffline(userId: string, noteId: string): Promise
     for (const op of queuedForNote) {
       await offlineDB.syncQueue.delete(op.id!);
     }
+
+    // Cancel bundled noteThread creates for offline-only notes (createNoteOffline enqueues both).
+    const linkRows = await offlineDB.noteThreads.where('[userId+noteId]').equals([userId, noteId]).toArray();
+    for (const link of linkRows) {
+      const linkOps = await offlineDB.syncQueue
+        .where('userId')
+        .equals(userId)
+        .filter((op) => op.entityType === 'noteThread' && op.entityId === link.id)
+        .toArray();
+      for (const op of linkOps) {
+        await offlineDB.syncQueue.delete(op.id!);
+      }
+      await offlineDB.noteThreads.delete(link.id);
+    }
+
     if (note) await offlineDB.notes.delete(noteId);
     return;
   }
@@ -812,7 +838,20 @@ export async function unlinkNoteFromThreadOffline(userId: string, noteId: string
       },
     });
   } else {
-    // Pending operation - just delete locally
+    // Pending link — drop local row and cancel the queued create so reconnect won't orphan a link.
+    const pendingCreate = await offlineDB.syncQueue
+      .where('userId')
+      .equals(userId)
+      .filter(
+        (op) =>
+          op.entityType === 'noteThread' &&
+          op.entityId === noteThread.id &&
+          op.operation === 'create',
+      )
+      .first();
+    if (pendingCreate?.id) {
+      await offlineDB.syncQueue.delete(pendingCreate.id);
+    }
     await offlineDB.noteThreads.delete(noteThread.id);
   }
 }
@@ -1065,5 +1104,291 @@ export async function createNoteOfflineWithRetry(
     error: getOfflineErrorMessage(errorType),
     errorType
   };
+}
+
+/** Pending study-thread entry op (skips permanently-failed ops). */
+async function pendingStudyThreadEntryOp(
+  userId: string,
+  entryId: string,
+  operation: 'create' | 'update' | 'delete',
+) {
+  return offlineDB.syncQueue
+    .where('userId')
+    .equals(userId)
+    .filter(
+      (op) =>
+        op.entityType === 'studyThreadEntry' &&
+        op.entityId === entryId &&
+        op.operation === operation &&
+        op.retryCount < 5,
+    )
+    .first();
+}
+
+export type StudyThreadEntryOfflineKind =
+  | 'workspace'
+  | 'miniNote'
+  | 'linkedNote'
+  | 'scriptureLink'
+  | 'reference';
+
+/** Create a study-thread highlight entry offline (queue-only; prototype reads from server). */
+export async function createStudyThreadEntryOffline(
+  userId: string,
+  data: {
+    parentNoteId: string;
+    entryKind?: StudyThreadEntryOfflineKind;
+    highlightAccentRaw?: string;
+    sourceSnippet?: string;
+    focusTitle?: string;
+    notesBody?: string;
+    miniNoteBody?: string;
+    linkedNoteId?: string | null;
+    linkedNoteTitle?: string | null;
+    anchorLocation?: number | null;
+    anchorLength?: number | null;
+    anchorTextSnapshot?: string | null;
+    scriptureReference?: string | null;
+    scripturePassageTranslation?: string | null;
+    scripturePassageExcerpt?: string | null;
+  },
+): Promise<string> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
+  const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  await enqueueMutation(userId, {
+    operation: 'create',
+    entityType: 'studyThreadEntry',
+    entityId: localId,
+    data: {
+      parentNoteId: data.parentNoteId,
+      entryKind: data.entryKind ?? 'miniNote',
+      highlightAccentRaw: data.highlightAccentRaw ?? 'warmAmber',
+      sourceSnippet: data.sourceSnippet ?? '',
+      focusTitle: data.focusTitle ?? '',
+      notesBody: data.notesBody ?? '',
+      miniNoteBody: data.miniNoteBody ?? '',
+      linkedNoteId: data.linkedNoteId ?? null,
+      linkedNoteTitle: data.linkedNoteTitle ?? null,
+      anchorLocation: data.anchorLocation ?? null,
+      anchorLength: data.anchorLength ?? null,
+      anchorTextSnapshot: data.anchorTextSnapshot ?? null,
+      scriptureReference: data.scriptureReference ?? null,
+      scripturePassageTranslation: data.scripturePassageTranslation ?? null,
+      scripturePassageExcerpt: data.scripturePassageExcerpt ?? null,
+    },
+  });
+  return localId;
+}
+
+/** Update a study-thread highlight entry offline. */
+export async function updateStudyThreadEntryOffline(
+  userId: string,
+  entryId: string,
+  updates: Partial<{
+    entryKind: StudyThreadEntryOfflineKind;
+    highlightAccentRaw: string;
+    sourceSnippet: string;
+    focusTitle: string;
+    notesBody: string;
+    miniNoteBody: string;
+    linkedNoteId: string | null;
+    linkedNoteTitle: string | null;
+    anchorLocation: number | null;
+    anchorLength: number | null;
+    anchorTextSnapshot: string | null;
+    scriptureReference: string;
+    scripturePassageTranslation: string;
+    scripturePassageExcerpt: string;
+    isArchived: boolean;
+  }>,
+): Promise<void> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
+  const createOp = await pendingStudyThreadEntryOp(userId, entryId, 'create');
+  if (createOp) {
+    await offlineDB.syncQueue.update(createOp.id!, { data: { ...createOp.data, ...updates } });
+    return;
+  }
+
+  const updateOp = await pendingStudyThreadEntryOp(userId, entryId, 'update');
+  if (updateOp) {
+    await offlineDB.syncQueue.update(updateOp.id!, { data: { ...updateOp.data, ...updates } });
+    return;
+  }
+
+  await enqueueMutation(userId, {
+    operation: 'update',
+    entityType: 'studyThreadEntry',
+    entityId: entryId,
+    data: updates,
+  });
+}
+
+/** Delete a study-thread highlight entry offline. */
+export async function deleteStudyThreadEntryOffline(userId: string, entryId: string): Promise<void> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
+  const createOp = await pendingStudyThreadEntryOp(userId, entryId, 'create');
+  if (createOp) {
+    const queued = await offlineDB.syncQueue
+      .where('userId')
+      .equals(userId)
+      .filter((op) => op.entityType === 'studyThreadEntry' && op.entityId === entryId)
+      .toArray();
+    for (const op of queued) {
+      await offlineDB.syncQueue.delete(op.id!);
+    }
+    return;
+  }
+
+  await enqueueMutation(userId, {
+    operation: 'delete',
+    entityType: 'studyThreadEntry',
+    entityId: entryId,
+    data: {},
+  });
+}
+
+/** Toggle note pin offline via note update sync op. */
+export async function pinNoteOffline(
+  userId: string,
+  noteId: string,
+  isPinned: boolean,
+  seed: OfflineNoteSeed & { title?: string | null },
+): Promise<void> {
+  await updateNoteOffline(userId, noteId, { isPinned }, seed);
+}
+
+/** Connect two notes in the study-thread graph offline. */
+export async function connectNotesOffline(
+  userId: string,
+  data: { fromNoteId: string; toNoteId: string; spaceId: string | null },
+): Promise<string> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
+  const existing = (
+    await offlineDB.noteConnections.where('userId').equals(userId).toArray()
+  ).find((edge) => edge.fromNoteId === data.fromNoteId && edge.toNoteId === data.toNoteId);
+  if (existing && existing.syncStatus !== 'deleted') {
+    return existing.id;
+  }
+
+  const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const now = Date.now();
+  await offlineDB.noteConnections.add(
+    ensureUserPartition(
+      {
+        id: localId,
+        fromNoteId: data.fromNoteId,
+        toNoteId: data.toNoteId,
+        spaceId: data.spaceId,
+        syncStatus: 'pending',
+        lastModified: now,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      userId,
+    ),
+  );
+
+  await enqueueMutation(userId, {
+    operation: 'create',
+    entityType: 'noteConnection',
+    entityId: localId,
+    data: {
+      fromNoteId: data.fromNoteId,
+      toNoteId: data.toNoteId,
+      spaceId: data.spaceId,
+    },
+  });
+  return localId;
+}
+
+/** Disconnect two notes in the study-thread graph offline. */
+export async function disconnectNotesOffline(
+  userId: string,
+  fromNoteId: string,
+  toNoteId: string,
+): Promise<void> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
+  const edge = (
+    await offlineDB.noteConnections.where('userId').equals(userId).toArray()
+  ).find((row) => row.fromNoteId === fromNoteId && row.toNoteId === toNoteId);
+
+  if (edge?.syncStatus === 'pending') {
+    const pendingCreate = await offlineDB.syncQueue
+      .where('userId')
+      .equals(userId)
+      .filter(
+        (op) =>
+          op.entityType === 'noteConnection' &&
+          op.entityId === edge.id &&
+          op.operation === 'create' &&
+          op.retryCount < 5,
+      )
+      .first();
+    if (pendingCreate?.id) {
+      await offlineDB.syncQueue.delete(pendingCreate.id);
+    }
+    await offlineDB.noteConnections.delete(edge.id);
+    return;
+  }
+
+  await enqueueMutation(userId, {
+    operation: 'delete',
+    entityType: 'noteConnection',
+    entityId: edge?.id ?? `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    data: { fromNoteId, toNoteId },
+  });
+
+  if (edge) {
+    await offlineDB.noteConnections.update(edge.id, {
+      syncStatus: 'deleted',
+      lastModified: Date.now(),
+      updatedAt: new Date(),
+    });
+  }
+}
+
+/** Remove one note from a study-thread cluster offline (queues edge deletes). */
+export async function removeNoteFromThreadClusterOffline(
+  userId: string,
+  data: {
+    memberIds: string[];
+    noteId: string;
+    edges?: Array<{ fromNoteId: string; toNoteId: string }>;
+  },
+): Promise<void> {
+  const memberSet = new Set(data.memberIds);
+  const trimmedNoteId = data.noteId.trim();
+  if (!trimmedNoteId || !memberSet.has(trimmedNoteId)) {
+    throw new Error('noteId must be a member of memberIds');
+  }
+
+  const toRemove =
+    data.edges && data.edges.length > 0
+      ? filterThreadClusterEdgesForRemoval(data.edges, data.memberIds, trimmedNoteId)
+      : data.memberIds
+          .filter((id) => id !== trimmedNoteId)
+          .flatMap((otherId) => [
+            { fromNoteId: trimmedNoteId, toNoteId: otherId },
+            { fromNoteId: otherId, toNoteId: trimmedNoteId },
+          ]);
+
+  for (const edge of toRemove) {
+    await disconnectNotesOffline(userId, edge.fromNoteId, edge.toNoteId);
+  }
 }
 

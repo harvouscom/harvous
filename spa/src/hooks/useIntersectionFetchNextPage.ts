@@ -119,8 +119,11 @@ export function useIntersectionFetchNextPage({
       );
       observer.observe(sentinel);
       observerRef.current = observer;
+      requestAnimationFrame(() => {
+        maybeFetchIfSentinelVisible();
+      });
     },
-    [scrollRootRef, rootMargin, tryFetch, disconnectObserver]
+    [scrollRootRef, rootMargin, tryFetch, disconnectObserver, maybeFetchIfSentinelVisible]
   );
 
   const setSentinelRef = useCallback(

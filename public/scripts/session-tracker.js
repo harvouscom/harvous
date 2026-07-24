@@ -108,16 +108,11 @@
   }
 
   /**
-   * Track page load as activity
+   * Track page load as activity. Monthly attendance is triggered from the SPA
+   * after Clerk is signed in (see SimplifiedPrototypeLayout) to avoid cold-start 401s.
    */
   function trackPageLoad() {
     recordActivity('space_opened', window.location.pathname);
-    
-    // Also check for monthly attendance
-    fetch('/api/user/check-monthly-attendance', {
-      method: 'POST',
-      credentials: 'include'
-    }).catch(err => console.error('Error checking monthly attendance:', err));
   }
 
   /**

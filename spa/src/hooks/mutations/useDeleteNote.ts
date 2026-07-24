@@ -6,6 +6,7 @@ import { clearStudyDockStackLocalCache } from '@/utils/study-dock-stack';
 import { deleteNoteOffline } from '@/utils/offline-mutations';
 import { runOfflineFirst } from './withOfflineQueue';
 import {
+  normalizeSpaceIdForCache,
   removeSpaceNoteFromCache,
   spaceNotesQueryKey,
   type SpaceNotesPage,
@@ -48,12 +49,12 @@ export function useDeleteNote() {
       });
     },
     onMutate: async (variables) => {
-      const sid = variables.spaceId.startsWith('space_') ? variables.spaceId : `space_${variables.spaceId}`;
+      const sid = normalizeSpaceIdForCache(variables.spaceId);
+      if (!sid) return { previous: undefined, sid: '' };
       const key = spaceNotesQueryKey(sid);
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<InfiniteData<SpaceNotesPage, number>>(key);
       removeSpaceNoteFromCache(queryClient, sid, variables.noteId);
-      purgeDeletedNoteClientCaches(queryClient, variables.noteId);
       return { previous, sid };
     },
     onError: (_err, _variables, context) => {
@@ -62,11 +63,24 @@ export function useDeleteNote() {
       }
     },
     onSuccess: (_data, variables) => {
-      const sid = variables.spaceId.startsWith('space_') ? variables.spaceId : `space_${variables.spaceId}`;
+      const sid = normalizeSpaceIdForCache(variables.spaceId);
+      if (!sid) return;
+
+      removeSpaceNoteFromCache(queryClient, sid, variables.noteId);
       purgeDeletedNoteClientCaches(queryClient, variables.noteId);
+
       queryClient.invalidateQueries({ queryKey: ['space', sid, 'bootstrap'] });
       queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
+      queryClient.invalidateQueries({ queryKey: ['prototype', 'space', sid, 'study-threads'] });
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          Array.isArray(query.queryKey) &&
+          query.queryKey[0] === 'prototype' &&
+          query.queryKey[1] === 'note' &&
+          query.queryKey[3] === 'thread',
+      });
       invalidatePrototypeSpaceDerivedQueries(queryClient, sid);
+
       try {
         window.dispatchEvent(
           new CustomEvent('noteDeleted', { detail: { noteId: variables.noteId, threadId: 'thread_unorganized' } }),
@@ -74,10 +88,6 @@ export function useDeleteNote() {
       } catch {
         /* ignore */
       }
-    },
-    onSettled: (_data, _err, variables) => {
-      const sid = variables.spaceId.startsWith('space_') ? variables.spaceId : `space_${variables.spaceId}`;
-      void queryClient.invalidateQueries({ queryKey: ['space', sid, 'notes'] });
     },
   });
 }

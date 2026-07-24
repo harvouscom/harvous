@@ -1,3 +1,7 @@
+# OG screenshots → dedicated Chromium function (before general API)
+# :splat preserves /note/:token or /thread/:token for the function path parser
+/api/og/image/*  /.netlify/functions/og-image/:splat  200
+
 # API routes → Hono Netlify Function
 /api/*  /.netlify/functions/api/:splat  200
 

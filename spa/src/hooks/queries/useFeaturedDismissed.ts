@@ -1,6 +1,7 @@
 import { useAuth } from '@clerk/clerk-react';
 import { useQuery, type QueryClient } from '@tanstack/react-query';
-import { APIError } from '../../lib/api';
+import { useAuthReady } from '../useAuthReady';
+import { api, APIError } from '../../lib/api';
 import { HARVOUS_FEATURED_DISMISSED_CACHE_KEY } from '@/utils/user-cache-keys';
 
 export type DismissedFeaturedItem = {
@@ -50,18 +51,14 @@ export function writeCachedDismissed(userId: string, items: DismissedFeaturedIte
 }
 
 async function fetchFeaturedDismissed(): Promise<DismissedFeaturedItem[]> {
-  const res = await fetch('/api/featured/dismissed', { credentials: 'include', cache: 'no-store' });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new APIError(res.status, (body as { error?: string })?.error ?? `HTTP ${res.status}`);
-  }
-  const data = await res.json();
+  const data = await api.get<DismissedFeaturedItem[] | unknown>('/api/featured/dismissed');
   return Array.isArray(data) ? (data as DismissedFeaturedItem[]) : [];
 }
 
 export function useFeaturedDismissed(options?: { enabled?: boolean }) {
-  const { userId, isLoaded, isSignedIn } = useAuth();
-  const enabled = (options?.enabled !== false) && isLoaded && isSignedIn && !!userId;
+  const { userId } = useAuth();
+  const authReady = useAuthReady();
+  const enabled = (options?.enabled !== false) && authReady && !!userId;
   const cached = userId ? readCachedDismissed(userId) : undefined;
 
   return useQuery({
@@ -77,7 +74,10 @@ export function useFeaturedDismissed(options?: { enabled?: boolean }) {
     placeholderData: cached,
     initialData: cached,
     initialDataUpdatedAt: cached ? Date.now() - 20_000 : undefined,
-    retry: 1,
+    retry: (failureCount, error) => {
+      if (error instanceof APIError && error.status === 401) return false;
+      return failureCount < 1;
+    },
     retryDelay: 400,
   });
 }

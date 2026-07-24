@@ -91,6 +91,7 @@ import {
   getDiagnosticIssueEvents,
   getDiagnosticIssues,
   updateDiagnosticIssueTriage,
+  bulkUpdateDiagnosticIssueTriage,
 } from '../utils/admin-diagnostics-stats';
 import { isDiagnosticTriageStatus } from '@/utils/diagnostic-sources';
 
@@ -179,7 +180,8 @@ app.post('/api/admin/reports/generate', async (c) => {
     return c.json({ success: true, month, payload });
   } catch (error) {
     console.error('[admin reports generate]', error);
-    return c.json({ error: 'Failed to generate report' }, 500);
+    const details = error instanceof Error ? error.message : String(error);
+    return c.json({ error: 'Failed to generate report', details }, 500);
   }
 });
 
@@ -305,52 +307,96 @@ app.get('/api/admin/reports/:month', async (c) => {
 // ─── POST/GET /api/admin/aggregate-analytics ──────────────────────────
 
 async function handleAggregateAnalytics(c: any) {
+  const auth = getAuth(c);
+  const authHeader = c.req.header('authorization')?.split(',')[0]?.trim();
+  const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
+  const isAuthenticated = !!auth?.userId;
+  const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
+
+  if (expectedToken && !hasValidToken && !isAuthenticated) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  if (!hasValidToken) {
+    const denied = await requireHarvousAdmin(c);
+    if (denied) return denied;
+  }
+
+  const previous = c.req.query('previous') === 'true';
+  const monthParam = c.req.query('month');
+  // Default: aggregation only (fast). Pass report=1 for legacy single-call full snapshot.
+  const includeReport = c.req.query('report') === '1' || c.req.query('report') === 'true';
+
+  let targetMonth: string;
+  if (monthParam) {
+    if (!/^\d{4}-\d{2}$/.test(monthParam)) {
+      return c.json({ error: 'Invalid month format. Use YYYY-MM' }, 400);
+    }
+    targetMonth = monthParam;
+  } else if (previous) {
+    targetMonth = getPreviousMonth();
+  } else {
+    targetMonth = getCurrentMonth();
+  }
+
   try {
-    const auth = getAuth(c);
-    const authHeader = c.req.header('authorization')?.split(',')[0]?.trim();
-    const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
-    const isAuthenticated = !!auth?.userId;
-    const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
-
-    if (expectedToken && !hasValidToken && !isAuthenticated) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    if (!hasValidToken) {
-      const denied = await requireHarvousAdmin(c);
-      if (denied) return denied;
-    }
-
-    const previous = c.req.query('previous') === 'true';
-    const monthParam = c.req.query('month');
-
-    let targetMonth: string;
-    if (monthParam) {
-      if (!/^\d{4}-\d{2}$/.test(monthParam)) {
-        return c.json({ error: 'Invalid month format. Use YYYY-MM' }, 400);
-      }
-      targetMonth = monthParam;
-    } else if (previous) {
-      targetMonth = getPreviousMonth();
-    } else {
-      targetMonth = getCurrentMonth();
-    }
-
     await aggregateMonthlyAnalytics(targetMonth);
-    const report = await generateAdminMonthlyReport(targetMonth);
+  } catch (error) {
+    const details = error instanceof Error ? error.message : String(error);
+    console.error('Error aggregating analytics:', error);
+    return c.json(
+      {
+        success: false,
+        month: targetMonth,
+        aggregated: false,
+        reportGenerated: false,
+        error: 'Aggregation failed',
+        details,
+      },
+      500,
+    );
+  }
 
+  if (!includeReport) {
     return c.json({
       success: true,
       month: targetMonth,
-      reportGenerated: report != null,
-      message: report
-        ? `Analytics and monthly report generated for ${targetMonth}`
-        : `Analytics aggregated for ${targetMonth} (before reports launch; no report snapshot)`,
+      aggregated: true,
+      reportGenerated: false,
+      message: `Analytics aggregated for ${targetMonth}. Run report generate for snapshot.`,
     });
-  } catch (error) {
-    console.error('Error aggregating analytics:', error);
-    return c.json({ error: 'Internal server error', details: error instanceof Error ? error.message : String(error) }, 500);
   }
+
+  let reportGenerated = false;
+  try {
+    const report = await generateAdminMonthlyReport(targetMonth);
+    reportGenerated = report != null;
+  } catch (error) {
+    const details = error instanceof Error ? error.message : String(error);
+    console.error('Error generating monthly report:', error);
+    return c.json(
+      {
+        success: false,
+        month: targetMonth,
+        aggregated: true,
+        reportGenerated: false,
+        error: 'Monthly report snapshot failed',
+        details,
+        message: `Analytics aggregated for ${targetMonth}, but report snapshot failed`,
+      },
+      500,
+    );
+  }
+
+  return c.json({
+    success: true,
+    month: targetMonth,
+    aggregated: true,
+    reportGenerated,
+    message: reportGenerated
+      ? `Analytics and monthly report generated for ${targetMonth}`
+      : `Analytics aggregated for ${targetMonth} (before reports launch; no report snapshot)`,
+  });
 }
 
 app.post('/api/admin/aggregate-analytics', handleAggregateAnalytics);
@@ -1293,7 +1339,8 @@ app.post('/api/admin/support/tickets/:id/notes', async (c) => {
 // ─── POST/GET /api/admin/support/notify-check (cron: hourly Slack ping) ───────
 
 async function handleSupportNotifyCheck(c: any) {
-  const authHeader = c.req.header('authorization');
+  // Netlify's proxy can duplicate the Authorization header → "Bearer <tok>, Bearer <tok>"
+  const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '').split(',')[0].trim();
   const expectedToken = process.env.SUPPORT_NOTIFY_SECRET_TOKEN;
   const auth = getAuth(c);
   const isAuthenticated = !!auth?.userId;
@@ -1355,6 +1402,32 @@ app.get('/api/admin/diagnostics/issues/:signature/events', async (c) => {
   } catch (error: unknown) {
     console.error('[admin diagnostics events]', error);
     return c.json({ error: 'Failed to load diagnostic events' }, 500);
+  }
+});
+
+app.patch('/api/admin/diagnostics/issues/bulk', async (c) => {
+  const gate = await requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const body = await c.req.json().catch(() => ({} as Record<string, unknown>));
+    const status = typeof body.status === 'string' ? body.status : '';
+    if (!isDiagnosticTriageStatus(status)) {
+      return c.json({ error: 'Invalid status' }, 400);
+    }
+    const raw = body.signatures;
+    const signatures = Array.isArray(raw)
+      ? raw.filter((entry): entry is string => typeof entry === 'string').map((s) => s.trim()).filter(Boolean)
+      : [];
+    if (signatures.length === 0) {
+      return c.json({ error: 'signatures array is required' }, 400);
+    }
+    const adminNotes = typeof body.adminNotes === 'string' ? body.adminNotes : null;
+    const updated = await bulkUpdateDiagnosticIssueTriage(signatures, status, adminNotes);
+    return c.json({ success: true, updated, status });
+  } catch (error: unknown) {
+    console.error('[admin diagnostics bulk triage]', error);
+    return c.json({ error: 'Failed to update triage' }, 500);
   }
 });
 

@@ -1,5 +1,6 @@
 import { SignIn, SignUp } from '@clerk/clerk-react';
 import { postAuthClerkFallbackUrl, postAuthRedirectPath } from '../../utils/post-auth-redirect';
+import { signupAttributionAsUnsafeMetadata } from '../../utils/signup-attribution';
 import { classicClerkAuthAppearance } from './clerkAuthAppearance';
 
 export default function ClerkPrebuiltAuth({
@@ -12,6 +13,7 @@ export default function ClerkPrebuiltAuth({
   const hasCustomRedirect = redirectRaw != null && redirectRaw !== '';
   const redirectPath = postAuthRedirectPath(redirectRaw);
   const clerkFallbackUrl = postAuthClerkFallbackUrl(redirectPath);
+  const unsafeMetadata = mode === 'signUp' ? signupAttributionAsUnsafeMetadata() : undefined;
 
   const shared = {
     routing: 'path' as const,
@@ -36,6 +38,7 @@ export default function ClerkPrebuiltAuth({
   return (
     <SignUp
       {...shared}
+      {...(unsafeMetadata ? { unsafeMetadata } : {})}
       signInUrl={
         hasCustomRedirect
           ? `/sign-in?redirect_url=${encodeURIComponent(redirectRaw!)}`

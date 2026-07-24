@@ -36,7 +36,16 @@ function samplePayload(month: string, overrides: Partial<AdminMonthlyReportPaylo
       tags: [{ name: 'grace', count: 2 }],
       translations: [{ name: 'NET', count: 20 }],
       monthlyAnalytics: { books: [{ name: 'Psalms', count: 10 }], tags: [] },
-      threads: { activeThreads: 5, avgNotesPerThread: 2.5, linksCreated: 12 },
+      curiosity: {
+        tones: [{ name: 'Reflective', count: 3 }],
+        folders: [{ name: 'Prayer', count: 2 }],
+        dictionaryWords: [{ name: 'grace', count: 1 }],
+      },
+      canon: {
+        sections: [{ id: 'wisdom', label: 'Wisdom', count: 10, testament: 'ot' }],
+        books: [{ name: 'Psalms', order: 19, count: 10, sharePct: 100, heatLevel: 1 }],
+      },
+      threads: { totalThreads: 5, avgNotesPerThread: 2.5, linksCreated: 12 },
       xp: {
         totalXp: 500,
         eventCount: 50,
@@ -86,5 +95,27 @@ describe('rollupMonthlyReports', () => {
 
     const rollup = rollupMonthlyReports('season', 'spring-2026', 'Spring 2026', [a, b]);
     expect(rollup.pulse.books[0]).toEqual({ name: 'Psalms', count: 13 });
+  });
+
+  it('merges curiosity and canon sections across months', () => {
+    const a = samplePayload('2026-03');
+    const b = samplePayload('2026-04', {
+      pulse: {
+        ...samplePayload('2026-04').pulse,
+        curiosity: {
+          tones: [{ name: 'Reflective', count: 2 }],
+          folders: [],
+          dictionaryWords: [],
+        },
+        canon: {
+          sections: [{ id: 'wisdom', label: 'Wisdom', count: 4, testament: 'ot' }],
+          books: [],
+        },
+      },
+    });
+
+    const rollup = rollupMonthlyReports('season', 'spring-2026', 'Spring 2026', [a, b]);
+    expect(rollup.pulse.curiosity.tones[0]).toEqual({ name: 'Reflective', count: 5 });
+    expect(rollup.pulse.canon.sections.find((section) => section.id === 'wisdom')?.count).toBe(14);
   });
 });

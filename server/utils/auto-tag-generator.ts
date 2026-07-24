@@ -3,6 +3,7 @@ import { conceptOverlapsAny } from '@/utils/bible-study-concept-overlaps';
 import { shouldSuppressJesusAutoTag } from '@/utils/christ-keyword-context';
 import { findKeywordsInText, findKeywordsInTextWithPriority, BIBLE_STUDY_KEYWORDS, type BibleStudyKeyword } from '@/utils/bible-study-keywords';
 import { db, first, Tags, NoteTags, eq, and, now } from '../db';
+import { subjectTagCandidatesFromText } from '@/utils/subject-tag-candidates';
 import { getOrCreateTag, noteHasTagWithNormalizedName, clearDismissedAutoTags } from './tag-helpers';
 
 /** Confidence threshold for Harvous system user / automated note creation and admin regeneration. */
@@ -108,17 +109,45 @@ export async function generateAutoTags(
     });
     enhancedSuggestions.sort((a, b) => b.confidence - a.confidence);
 
-    const { detectPersonTags } = await import('@/utils/person-tag-detector');
-    for (const personTag of detectPersonTags(fullText)) {
-      const key = personTag.toLowerCase();
-      if (enhancedSuggestions.some(s => s.keyword.toLowerCase() === key)) continue;
-      if (isExcluded(personTag)) continue;
-      const isExisting = existingTagNames.has(key);
+    const existingKeywordNames = enhancedSuggestions.map((s) => s.keyword);
+    const subjectCandidates = subjectTagCandidatesFromText(cleanTitle, cleanContent, {
+      excludeLabels,
+      excludeTagNames,
+      existingTagNames: existingKeywordNames,
+      confidenceThreshold,
+    });
+    for (const sc of subjectCandidates) {
+      if (enhancedSuggestions.some((s) => isTagOverlapping(sc.name, s.keyword))) continue;
+      const isExisting = existingTagNames.has(sc.name.toLowerCase());
       const existingTag = isExisting
-        ? existingTags.filter(t => t.name.toLowerCase() === key)
+        ? existingTags
+            .filter((t) => t.name.toLowerCase() === sc.name.toLowerCase())
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
         : undefined;
       enhancedSuggestions.push({
+        keyword: sc.name,
+        category: sc.category,
+        confidence: sc.confidence,
+        isExisting,
+        tagId: existingTag?.id,
+      });
+    }
+    enhancedSuggestions.sort((a, b) => b.confidence - a.confidence);
+
+    // Person tags (Ps / Pastor) are reserved in the final cap so dense keyword notes do not drop them.
+    const { detectPersonTags } = await import('@/utils/person-tag-detector');
+    const personSuggestions: AutoTagSuggestion[] = [];
+    for (const personTag of detectPersonTags(fullText)) {
+      const key = personTag.toLowerCase();
+      if (enhancedSuggestions.some((s) => s.keyword.toLowerCase() === key)) continue;
+      if (personSuggestions.some((s) => s.keyword.toLowerCase() === key)) continue;
+      if (isExcluded(personTag)) continue;
+      const isExisting = existingTagNames.has(key);
+      const existingTag = isExisting
+        ? existingTags.filter((t) => t.name.toLowerCase() === key)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+        : undefined;
+      personSuggestions.push({
         keyword: personTag,
         category: 'character',
         confidence: 0.85,
@@ -126,9 +155,11 @@ export async function generateAutoTags(
         tagId: existingTag?.id,
       });
     }
-    enhancedSuggestions.sort((a, b) => b.confidence - a.confidence);
-
-    const topSuggestions = enhancedSuggestions.slice(0, 12);
+    const keywordSlots = Math.max(0, 12 - personSuggestions.length);
+    const topSuggestions = [
+      ...enhancedSuggestions.slice(0, keywordSlots),
+      ...personSuggestions,
+    ].slice(0, 12);
     return { suggestions: topSuggestions, totalFound: suggestions.length, highConfidence };
   } catch (error: unknown) {
     console.error('Error generating auto tags:', error instanceof Error ? error.message : String(error));
