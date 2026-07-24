@@ -93,10 +93,10 @@ async function main() {
     }
   }
 
-  const addOnRow = await db.select({ sharedSpacesAddOn: UserMetadata.sharedSpacesAddOn })
-    .from(UserMetadata).where(eq(UserMetadata.userId, systemUserId)).limit(1);
-  if (addOnRow[0] && !addOnRow[0].sharedSpacesAddOn) {
-    console.log(`  grant sharedSpacesAddOn → ${systemUserId}`);
+  const { hasSharedSpacesAddOnForUserId } = await import('../utils/tier-limits');
+  const hasPlus = await hasSharedSpacesAddOnForUserId(systemUserId);
+  if (!hasPlus) {
+    console.log(`  grant shared_spaces entitlement → ${systemUserId}`);
     if (!dryRun) await setSharedSpacesAddOnForUserId(systemUserId, true);
   }
 

@@ -82,7 +82,6 @@ function AddonScene({ active }: { active: boolean }) {
             <UpgradePageContent
               initialHasSharedSpaces={active}
               publishableKey={null}
-              sharedSpacesPlanId=""
               designPreview={{ signedIn: active }}
             />
           </SubtleContentMount>

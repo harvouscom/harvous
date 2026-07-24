@@ -100,11 +100,11 @@ import {
   getSpaceMemberCount,
   hasSharedSpacesAddOn,
   hasSharedSpacesAddOnForUserId,
-  syncSharedSpacesAddOnFromClerk,
   MEMBERS_PER_SPACE_CAP,
   OWNED_SHARED_SPACES_ADDON_LIMIT,
   FREE_OWNED_SHARED_SPACES_LIMIT,
 } from '../utils/tier-limits';
+import { syncEntitlementsFromProvider } from '../utils/entitlements';
 import { assertCanCreateChurchSharedSpace } from '../utils/church-staff';
 import { getThreadGradientCSS } from '@/utils/colors';
 import {
@@ -330,7 +330,7 @@ route.post('/api/spaces/create-shared', requireAuth, rateLimit('write'), async (
 
     // Reconcile-on-write when the DB flag is still false (post-checkout gap before webhook).
     if (!(await hasSharedSpacesAddOnForUserId(auth.userId))) {
-      await syncSharedSpacesAddOnFromClerk(auth.userId, auth);
+      await syncEntitlementsFromProvider(auth.userId);
     }
 
     const canCreate = await canCreateSharedSpace(auth.userId, auth);
@@ -2789,7 +2789,7 @@ route.post('/api/spaces/:spaceId/invites', requireAuth, rateLimit('write'), asyn
       return c.json({
         error: 'Owning shared spaces requires the Shared Spaces add-on. Joining spaces is always free.',
         code: 'SHARED_SPACE_LIMIT_EXCEEDED',
-        upgradeUrl: '/addon',
+        upgradeUrl: '/upgrade',
       }, 403);
     }
 

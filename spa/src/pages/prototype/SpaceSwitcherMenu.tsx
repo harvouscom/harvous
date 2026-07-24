@@ -10,7 +10,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
-import { useAuth } from '@clerk/clerk-react';
 import Icon from '@/components/react/Icon';
 import ProtoHouseIcon from './ProtoHouseIcon';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
@@ -30,10 +29,6 @@ import {
   normalizeSharedSpaceSwitcherId,
   orderPersonalSharedSpaces,
 } from '../../lib/shared-space-switcher-order';
-import {
-  dispatchSharedSpacesEntitlementSynced,
-  syncSharedSpacesBilling,
-} from '@/utils/sync-shared-spaces-billing';
 import { useSharedSpaceSwitcherDragReorder } from '../../hooks/useSharedSpaceSwitcherDragReorder';
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -58,7 +53,6 @@ export default function SpaceSwitcherMenu({
   iconOnly?: boolean;
 }) {
   const navigate = useNavigate();
-  const { isLoaded, isSignedIn, has } = useAuth();
   const {
     sidebarLayer,
     setSidebarLayer,
@@ -74,34 +68,14 @@ export default function SpaceSwitcherMenu({
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   /** Captured when opening the create sheet so My Church mode survives menu close. */
   const [createOrgId, setCreateOrgId] = useState<string | null>(null);
-  const [createSyncBilling, setCreateSyncBilling] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [anchorPos, setAnchorPos] = useState<{ top: number; left: number } | null>(null);
   const { data: nav } = useNavigation();
   const { data: profile } = useProfile();
   const { data: subscription } = useSubscriptionStatus();
-  const backgroundSyncStarted = useRef(false);
 
-  const clerkEntitled = isLoaded && isSignedIn && has({ feature: 'shared_spaces' });
-  const apiHasSharedSpaces = Boolean(subscription?.hasSharedSpaces);
-  const hasSharedSpaces = apiHasSharedSpaces || clerkEntitled;
-
-  useEffect(() => {
-    if (!clerkEntitled || apiHasSharedSpaces || backgroundSyncStarted.current) return;
-    backgroundSyncStarted.current = true;
-    void syncSharedSpacesBilling()
-      .then((result) => {
-        dispatchSharedSpacesEntitlementSynced({
-          hasSharedSpaces: result.hasSharedSpaces,
-          updated: result.updated,
-        });
-      })
-      .catch((error) => {
-        console.error('[SpaceSwitcherMenu] Shared Spaces billing sync failed:', error);
-        backgroundSyncStarted.current = false;
-      });
-  }, [clerkEntitled, apiHasSharedSpaces]);
+  const hasSharedSpaces = Boolean(subscription?.hasSharedSpaces);
 
   const normalizedActive = useMemo(
     () => (homeSpaceId == null ? null : normalizeSpaceId(homeSpaceId)),
@@ -265,12 +239,11 @@ export default function SpaceSwitcherMenu({
       if (atOwnedLimit) return;
       if (!hasSharedSpaces) {
         setOpen(false);
-        void navigate({ to: '/addon' as any });
+        void navigate({ to: '/upgrade' as any });
         return;
       }
     }
     setCreateOrgId(inMyChurchMode ? activeChurchOrgId : null);
-    setCreateSyncBilling(Boolean(clerkEntitled && !apiHasSharedSpaces));
     setOpen(false);
     setCreateSheetOpen(true);
   }
@@ -462,7 +435,7 @@ export default function SpaceSwitcherMenu({
                   {inMyChurchMode ? 'New church Shared Space' : 'New shared space'}
                 </span>
                 {!inMyChurchMode && !hasSharedSpaces ? (
-                  <span className="proto-menu-item__badge">Add-on</span>
+                  <span className="proto-menu-item__badge">Plus</span>
                 ) : null}
               </button>
             </div>
@@ -522,7 +495,6 @@ export default function SpaceSwitcherMenu({
         open={createSheetOpen}
         onOpenChange={setCreateSheetOpen}
         orgId={createOrgId}
-        syncBillingBeforeCreate={createSyncBilling}
         onCreated={(spaceId) => selectSpace(spaceId, { keepChurch: Boolean(createOrgId) })}
       />
     </div>

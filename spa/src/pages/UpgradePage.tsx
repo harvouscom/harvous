@@ -13,7 +13,7 @@ import { api } from '../lib/api';
 const UPGRADE_HERO_IMAGE = '/images/auth-hero/ai_bg_045.webp';
 
 /**
- * Standalone /addon page — single-purpose Shared Spaces upgrade, built on
+ * Standalone /upgrade page — Harvous Plus (Shared Spaces hosting), built on
  * the `.public-page` shell (shared note / join-space / sign-in aesthetic),
  * with the same auth hero image bleeding behind the top of the card.
  */
@@ -39,7 +39,7 @@ export default function UpgradePage() {
     }
 
     try {
-      const sync = await api.post<{ hasSharedSpaces: boolean }>('/api/billing/sync-shared-spaces', {});
+      const sync = await api.post<{ hasSharedSpaces: boolean }>('/api/billing/sync', {});
       setHasSharedSpaces(Boolean(sync.hasSharedSpaces));
       const sub = await api.get<{
         hasSharedSpaces: boolean;
@@ -96,7 +96,7 @@ export default function UpgradePage() {
 
   return (
     <>
-      <title>Shared Spaces | Harvous</title>
+      <title>Harvous Plus | Harvous</title>
       <div className="public-page">
         <PublicTopBar isSignedIn={!!isSignedIn} signedInCtaLabel="Back to my Harvous" />
 
@@ -117,7 +117,6 @@ export default function UpgradePage() {
                   initialSharedSpacesOwnedCount={sharedSpacesOwnedCount}
                   initialSharedSpacesOwnedLimit={sharedSpacesOwnedLimit}
                   publishableKey={null}
-                  sharedSpacesPlanId={import.meta.env.VITE_CLERK_SHARED_SPACES_PLAN_ID ?? ''}
                 />
               </SubtleContentMount>
             )}

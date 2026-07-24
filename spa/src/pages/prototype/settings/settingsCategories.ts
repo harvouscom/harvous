@@ -58,10 +58,10 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     key: 'addons',
-    title: 'Add-ons',
+    title: 'Plan',
     route: prototypeHref('settings/addons'),
     icon: 'layer-group',
-    footnote: 'Shared Spaces, Review, Challenges.',
+    footnote: 'Harvous Plus and what it includes.',
   },
   {
     key: 'data',

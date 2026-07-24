@@ -3,8 +3,8 @@
  *
  * Endpoints:
  *   POST /api/billing/checkout
- *   POST /api/billing/downgrade
- *   POST /api/billing/sync-shared-spaces
+ *   GET  /api/billing/portal
+ *   POST /api/billing/sync
  *   GET  /api/subscription/status
  *   POST /api/referral/credit
  *   GET  /api/referral/status
@@ -15,160 +15,159 @@ import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { db, first, UserMetadata, UserXP, eq, and, count } from '../db';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
-import { SHARED_SPACES_PLAN_ID, getSubscriptionInfo } from '../utils/subscription';
-import { hasSharedSpacesAddOnForUserId, syncSharedSpacesAddOnFromClerk } from '../utils/tier-limits';
+import { getSubscriptionInfo } from '../utils/subscription';
+import {
+  getPaddleCustomerId,
+  setPaddleCustomerId,
+  syncEntitlementsFromProvider,
+  hasEntitlementForUserId,
+} from '../utils/entitlements';
+import { getPaddleClient, isPaddleConfigured } from '../utils/paddle-client';
+import { listedPlanForInterval, type PlanInterval } from '@/lib/billing-plans';
 import { resolveRefToUserId, generateReferralCode } from '../utils/referral-code';
 import { ACTIVITY_TYPES, awardXP, getReferralCreditXpForOrdinal } from '../utils/xp-system';
 import { getCookie, deleteCookie } from 'hono/cookie';
 
 const app = new Hono();
 
+async function resolveUserEmail(userId: string, metadataEmail?: string | null): Promise<string> {
+  if (metadataEmail?.includes('@')) return metadataEmail;
+  const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+  if (!clerkSecretKey) {
+    throw new Error('Unable to resolve user email for billing');
+  }
+  const response = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
+    headers: { Authorization: `Bearer ${clerkSecretKey}` },
+  });
+  if (!response.ok) {
+    throw new Error('Unable to resolve user email for billing');
+  }
+  const user = (await response.json()) as {
+    email_addresses?: Array<{ email_address?: string; id?: string }>;
+    primary_email_address_id?: string;
+  };
+  const primary = user.email_addresses?.find((e) => e.id === user.primary_email_address_id);
+  const email = primary?.email_address || user.email_addresses?.[0]?.email_address;
+  if (!email) throw new Error('User has no email for billing');
+  return email;
+}
+
+async function ensurePaddleCustomer(userId: string, metadataEmail?: string | null): Promise<string> {
+  const existing = await getPaddleCustomerId(userId);
+  if (existing) return existing;
+
+  const email = await resolveUserEmail(userId, metadataEmail);
+  const paddle = getPaddleClient();
+  const customer = await paddle.customers.create({
+    email,
+    customData: { clerkUserId: userId },
+  });
+  await setPaddleCustomerId(userId, customer.id);
+  return customer.id;
+}
+
 // ─── Billing ────────────────────────────────────────────────────────
 
-/** POST /api/billing/checkout */
+/** POST /api/billing/checkout — resolve/create Paddle customer + return price for Paddle.js */
 app.post('/api/billing/checkout', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const { planId, billingInterval } = await c.req.json();
-
-    // Only the Shared Spaces add-on is purchasable (the Unlimited plan is retired).
-    if (!planId || !SHARED_SPACES_PLAN_ID || planId !== SHARED_SPACES_PLAN_ID) {
-      return c.json({ error: 'Invalid plan ID' }, 400);
+    if (!isPaddleConfigured()) {
+      return c.json({ error: 'Billing is not configured' }, 503);
     }
 
-    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-    if (!clerkSecretKey) {
-      return c.json({ error: 'Clerk secret key not configured' }, 500);
-    }
-
-    const origin = new URL(c.req.url).origin;
-
-    const checkoutPayload: any = {
-      plan_id: planId,
-      return_url: `${origin}/addon?success=true`,
-      cancel_url: `${origin}/addon?canceled=true`,
+    const body = (await c.req.json().catch(() => ({}))) as {
+      interval?: PlanInterval | 'annual';
+      priceId?: string;
     };
 
-    if (billingInterval === 'annual' || billingInterval === 'year') {
-      checkoutPayload.billing_interval = 'year';
-      checkoutPayload.interval = 'year';
+    const interval: PlanInterval =
+      body.interval === 'month' ? 'month' : 'year';
+
+    const month = listedPlanForInterval('month');
+    const year = listedPlanForInterval('year');
+    const allowed = new Set([month?.priceId, year?.priceId].filter(Boolean) as string[]);
+    const plan = interval === 'month' ? month : year;
+    const priceId = body.priceId && allowed.has(body.priceId) ? body.priceId : plan?.priceId;
+
+    if (!priceId || !allowed.has(priceId)) {
+      return c.json({ error: 'Invalid or unconfigured plan price' }, 400);
     }
 
-    let response = await fetch(`https://api.clerk.com/v1/users/${auth.userId}/billing/checkout`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${clerkSecretKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(checkoutPayload),
+    const meta = first(
+      await db
+        .select({ email: UserMetadata.email })
+        .from(UserMetadata)
+        .where(eq(UserMetadata.userId, auth.userId))
+        .limit(1),
+    );
+
+    const customerId = await ensurePaddleCustomer(auth.userId, meta?.email);
+    const resolvedInterval: PlanInterval =
+      priceId === month?.priceId ? 'month' : priceId === year?.priceId ? 'year' : interval;
+
+    return c.json({
+      priceId,
+      customerId,
+      customData: { clerkUserId: auth.userId },
+      interval: resolvedInterval,
     });
-
-    if (!response.ok && (response.status === 404 || response.status === 405)) {
-      response = await fetch(`https://api.clerk.com/v1/users/${auth.userId}/billing/subscriptions`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${clerkSecretKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan_id: planId,
-          ...(billingInterval === 'annual' || billingInterval === 'year' ? { billing_interval: 'year' } : {}),
-        }),
-      });
-
-      if (response.ok) {
-        return c.json({ success: true, message: 'Subscription created successfully' });
-      }
-    }
-
-    if (response.ok) {
-      const checkoutSession = await response.json();
-      return c.json({ checkoutUrl: checkoutSession.url || checkoutSession.checkout_url || checkoutSession.session_url });
-    }
-
-    const errorText = await response.text();
-    let errorData: any;
-    try { errorData = JSON.parse(errorText); } catch { errorData = { message: errorText || `HTTP ${response.status}` }; }
-
-    console.error('Clerk Billing API error:', { status: response.status, error: errorData });
-
-    let errorMessage = 'Error creating checkout session';
-    let hint = 'Please check Clerk Billing API documentation.';
-    if (response.status === 404) { errorMessage = 'Checkout endpoint not found'; hint = 'Checkout might need frontend components.'; }
-    else if (response.status === 401 || response.status === 403) { errorMessage = 'Authentication failed'; hint = 'Verify Clerk secret key.'; }
-
-    return c.json({ error: errorMessage, details: errorData.message || errorData.error, statusCode: response.status, hint }, response.status as any);
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/billing/checkout', action: 'create_checkout_session' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
 
-/** POST /api/billing/downgrade */
-app.post('/api/billing/downgrade', requireAuth, async (c) => {
+/** GET /api/billing/portal — Paddle customer portal session URL */
+app.get('/api/billing/portal', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-    if (!clerkSecretKey) {
-      return c.json({ error: 'Clerk secret key not configured' }, 500);
+    if (!isPaddleConfigured()) {
+      return c.json({ error: 'Billing is not configured' }, 503);
     }
 
-    let subscriptionId: string | null = null;
-
-    const subscriptionsResponse = await fetch(`https://api.clerk.com/v1/users/${auth.userId}/billing/subscriptions`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${clerkSecretKey}`, 'Content-Type': 'application/json' },
-    });
-
-    if (subscriptionsResponse.ok) {
-      const subscriptionsData = await subscriptionsResponse.json();
-      const activeSubscription = Array.isArray(subscriptionsData)
-        ? subscriptionsData.find((sub: any) => sub.status === 'active' || sub.status === 'trialing')
-        : subscriptionsData.data?.find((sub: any) => sub.status === 'active' || sub.status === 'trialing');
-      if (activeSubscription) subscriptionId = activeSubscription.id || activeSubscription.subscription_id;
+    const customerId = await getPaddleCustomerId(auth.userId);
+    if (!customerId) {
+      return c.json({ error: 'No billing customer found' }, 404);
     }
 
-    if (!subscriptionId) {
-      return c.json({ error: 'No active subscription found', message: 'You do not have an active subscription to cancel' }, 404);
+    const paddle = getPaddleClient();
+    const subscriptionIds: string[] = [];
+    for await (const sub of paddle.subscriptions.list({ customerId: [customerId] })) {
+      if (sub.id) subscriptionIds.push(sub.id);
     }
 
-    const cancelResponse = await fetch(`https://api.clerk.com/v1/users/${auth.userId}/billing/subscriptions/${subscriptionId}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${clerkSecretKey}`, 'Content-Type': 'application/json' },
-    });
-
-    if (cancelResponse.ok) {
-      return c.json({ success: true, message: 'Subscription canceled successfully' });
+    const session = await paddle.customerPortalSessions.create(customerId, subscriptionIds);
+    const url = session.urls?.general?.overview;
+    if (!url) {
+      console.error('[billing/portal] Unexpected portal session shape:', session);
+      return c.json({ error: 'Failed to create portal session' }, 500);
     }
 
-    const patchResponse = await fetch(`https://api.clerk.com/v1/users/${auth.userId}/billing/subscriptions/${subscriptionId}`, {
-      method: 'PATCH',
-      headers: { 'Authorization': `Bearer ${clerkSecretKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cancel_at_period_end: true }),
-    });
-
-    if (patchResponse.ok) {
-      return c.json({ success: true, message: 'Subscription will be canceled at the end of the billing period' });
-    }
-
-    const errorText = await patchResponse.text();
-    let errorData: any;
-    try { errorData = JSON.parse(errorText); } catch { errorData = { message: errorText }; }
-    console.error('Clerk Billing cancel error:', { status: patchResponse.status, error: errorData });
-
-    return c.json({ error: 'Failed to cancel subscription', details: errorData.message || errorData.error }, patchResponse.status as any);
+    return c.json({ url });
   } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: '/api/billing/downgrade', action: 'cancel_subscription' });
+    const standardError = handleAPIError(error, { endpoint: '/api/billing/portal', action: 'create_portal_session' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
 
-/** POST /api/billing/sync-shared-spaces — idempotent Clerk → DB entitlement reconcile */
-app.post('/api/billing/sync-shared-spaces', requireAuth, async (c) => {
+/** POST /api/billing/sync — reconcile entitlements from Paddle API (purchase→webhook gap) */
+app.post('/api/billing/sync', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const { hasSharedSpaces, updated } = await syncSharedSpacesAddOnFromClerk(auth.userId, auth);
-    return c.json({ synced: true, updated, hasSharedSpaces });
+    const result = await syncEntitlementsFromProvider(auth.userId);
+    return c.json({
+      synced: true,
+      updated: result.updated,
+      hasSharedSpaces: result.hasSharedSpaces,
+      entitlements: result.entitlements,
+    });
   } catch (error) {
     const standardError = handleAPIError(error, {
-      endpoint: '/api/billing/sync-shared-spaces',
-      action: 'sync_shared_spaces_addon',
+      endpoint: '/api/billing/sync',
+      action: 'sync_entitlements',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
@@ -176,14 +175,13 @@ app.post('/api/billing/sync-shared-spaces', requireAuth, async (c) => {
 
 // ─── Subscription ───────────────────────────────────────────────────
 
-/** GET /api/subscription/status — billing tier + note stats; note `limit` is always null (unlimited notes). */
+/** GET /api/subscription/status */
 app.get('/api/subscription/status', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    // Reconcile-on-read when the DB flag is still false (post-checkout gap before webhook).
-    if (!(await hasSharedSpacesAddOnForUserId(auth.userId))) {
-      await syncSharedSpacesAddOnFromClerk(auth.userId, auth);
+    if (!(await hasEntitlementForUserId(auth.userId, 'shared_spaces'))) {
+      await syncEntitlementsFromProvider(auth.userId);
     }
 
     const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
@@ -192,6 +190,9 @@ app.get('/api/subscription/status', requireAuth, async (c) => {
       {
         hasUnlimited: subscriptionInfo.hasUnlimited,
         hasSharedSpaces: subscriptionInfo.hasSharedSpaces,
+        entitlements: subscriptionInfo.entitlements,
+        planKey: subscriptionInfo.planKey,
+        limits: subscriptionInfo.limits,
         currentCount: subscriptionInfo.currentCount,
         limit: subscriptionInfo.limit,
         sharedSpacesOwnedCount: subscriptionInfo.sharedSpacesOwnedCount,
@@ -215,7 +216,6 @@ app.post('/api/referral/credit', requireAuth, async (c) => {
 
     const ref = getCookie(c, 'harvous_referrer')?.trim();
 
-    // Clear cookie regardless of outcome
     deleteCookie(c, 'harvous_referrer', { path: '/' });
 
     if (!ref) return c.json({ credited: false });

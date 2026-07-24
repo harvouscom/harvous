@@ -27,6 +27,7 @@ export {
   ChurchMemberships,
   NoteTemplates,
   UserMetadata,
+  Entitlements,
   ClerkUserMapping,
   UserXP,
   UserSeasonalXP,

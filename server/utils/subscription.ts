@@ -1,20 +1,17 @@
 /**
- * Subscription utilities — Drizzle port of src/utils/subscription.ts
- *
- * Note creation is unlimited for all users. `hasUnlimited` still reflects Clerk
- * `unlimited_notes` (used for shared-space tier and billing UI). `limit` is
- * always null for notes.
+ * Subscription utilities — note stats + entitlement summary for the SPA.
  */
 
-import { db, first, UserMetadata, Notes, eq, and, isNotNull, desc } from '../db';
+import { db, first, UserMetadata, Notes, Entitlements, eq, and, isNotNull, desc } from '../db';
 import type { Auth } from '../middleware/types';
-import { getTierForAuth, getSharedSpacesOwnedCount, hasSharedSpacesAddOn, OWNED_SHARED_SPACES_ADDON_LIMIT, FREE_OWNED_SHARED_SPACES_LIMIT } from './tier-limits';
-
-/** Clerk Billing plan for the Shared Spaces add-on (feature slug `shared_spaces`). */
-export const SHARED_SPACES_PLAN_ID = process.env.CLERK_SHARED_SPACES_PLAN_ID || '';
-
-/** @deprecated The Unlimited plan is retired (zero subscribers, archived in Clerk). */
-export const UNLIMITED_PLAN_ID = process.env.CLERK_UNLIMITED_PLAN_ID || 'cplan_37aJweoipC2wY2Pa94o7zMdoIyw';
+import {
+  getTierForAuth,
+  getSharedSpacesOwnedCount,
+  hasSharedSpacesAddOn,
+  FREE_OWNED_SHARED_SPACES_LIMIT,
+} from './tier-limits';
+import { getActiveEntitlements, limitsForUser } from './entitlements';
+import { planForPriceId, type FeatureKey, type PlanKey } from '@/lib/billing-plans';
 
 export async function getUserNoteCount(userId: string): Promise<number> {
   try {
@@ -24,7 +21,7 @@ export async function getUserNoteCount(userId: string): Promise<number> {
         .from(UserMetadata)
         .where(eq(UserMetadata.userId, userId))
         .limit(1)
-        .then(rows => first(rows)),
+        .then((rows) => first(rows)),
       db
         .select({ simpleNoteId: Notes.simpleNoteId })
         .from(Notes)
@@ -74,23 +71,60 @@ export async function canCreateNote(
   return { allowed: true };
 }
 
+async function resolvePlanKey(userId: string): Promise<PlanKey | null> {
+  const row = first(
+    await db
+      .select({ priceId: Entitlements.priceId })
+      .from(Entitlements)
+      .where(
+        and(
+          eq(Entitlements.userId, userId),
+          eq(Entitlements.status, 'active'),
+          eq(Entitlements.source, 'billing'),
+        ),
+      )
+      .limit(1),
+  );
+  const plan = planForPriceId(row?.priceId);
+  return plan?.key ?? null;
+}
+
 export async function getSubscriptionInfo(userId: string, auth: Auth) {
-  const [hasUnlimited, hasSharedSpaces, currentCount, referralBonusNotes, sharedSpacesOwnedCount] = await Promise.all([
+  const [
+    hasUnlimited,
+    hasSharedSpaces,
+    currentCount,
+    referralBonusNotes,
+    sharedSpacesOwnedCount,
+    entitlements,
+    limits,
+    planKey,
+  ] = await Promise.all([
     hasUnlimitedNotes(auth),
     hasSharedSpacesAddOn(auth),
     getUserNoteCount(userId),
     getReferralBonusNotes(userId),
     getSharedSpacesOwnedCount(userId),
+    getActiveEntitlements(userId),
+    limitsForUser(userId),
+    resolvePlanKey(userId),
   ]);
 
+  const sharedSpacesOwnedLimit = hasSharedSpaces ? limits.ownedSpaces : FREE_OWNED_SHARED_SPACES_LIMIT;
+
   return {
-    /** @deprecated inert — the Unlimited plan is retired. */
     hasUnlimited,
     hasSharedSpaces,
+    entitlements: entitlements as FeatureKey[],
+    planKey,
+    limits: {
+      ownedSpaces: sharedSpacesOwnedLimit,
+      membersPerSpace: limits.membersPerSpace,
+    },
     currentCount,
     limit: null as number | null,
     referralBonusNotes,
     sharedSpacesOwnedCount,
-    sharedSpacesOwnedLimit: hasSharedSpaces ? OWNED_SHARED_SPACES_ADDON_LIMIT : FREE_OWNED_SHARED_SPACES_LIMIT,
+    sharedSpacesOwnedLimit,
   };
 }

@@ -1,12 +1,21 @@
 import { useNavigate } from '@tanstack/react-router';
 import SafeSubscriptionDetailsButton from '@/components/react/SafeSubscriptionDetailsButton';
-import { useNavigation } from '../../../hooks/queries/useNavigation';
+import { getSharedSpacesAddonFeatureBullets } from '@/lib/shared-spaces-limits';
+import { formatPlanPrice, listedPlanForInterval } from '@/lib/billing-plans';
 import { useSubscriptionStatus } from '../../../hooks/queries/useSubscriptionStatus';
 import { SettingsGroup, SettingsRow, SettingsShell } from './SettingsShell';
 
-const SHARED_SPACES_SUBLABEL = 'Host spaces for group study. Free to join.';
+const monthPlan = listedPlanForInterval('month');
+const yearPlan = listedPlanForInterval('year');
+const PLAN_NAME = yearPlan?.name ?? monthPlan?.name ?? 'Harvous Plus';
+const PRICE_SUMMARY = [
+  monthPlan ? `${formatPlanPrice(monthPlan)}/mo` : null,
+  yearPlan ? `${formatPlanPrice(yearPlan)}/yr` : null,
+]
+  .filter(Boolean)
+  .join(' · ');
 
-/** Badge for Settings > Add-ons Shared Spaces row — host add-on vs. free member. */
+/** Badge helper retained for tests / join-state copy. */
 export function resolveSharedSpacesAddonBadge(options: {
   hasSharedSpaces: boolean;
   memberOfCount: number;
@@ -17,17 +26,18 @@ export function resolveSharedSpacesAddonBadge(options: {
 }
 
 /**
- * Settings > Add-ons — browse paid upgrades. Shared Spaces links to /addon;
- * Review and Challenges are coming soon.
+ * Settings > Plan — active Harvous Plus summary, or a path to upgrade.
  */
 export default function PrototypeAddonsPage() {
   const navigate = useNavigate();
-  const { data: nav } = useNavigation();
   const { data: subscription, isLoading } = useSubscriptionStatus();
   const hasSharedSpaces = Boolean(subscription?.hasSharedSpaces);
-  const memberOfCount = nav?.memberOfSpaces?.length ?? 0;
-  const sharedSpacesBadge = resolveSharedSpacesAddonBadge({ hasSharedSpaces, memberOfCount });
   const showLoading = isLoading && !subscription;
+  const featureBullets = getSharedSpacesAddonFeatureBullets({
+    hasAddOn: hasSharedSpaces,
+    ownedCount: hasSharedSpaces ? (subscription?.sharedSpacesOwnedCount ?? null) : null,
+    ownedLimit: subscription?.sharedSpacesOwnedLimit ?? null,
+  });
 
   return (
     <SettingsShell>
@@ -39,40 +49,46 @@ export default function PrototypeAddonsPage() {
 
       <SettingsGroup>
         <SettingsRow
-          label="Shared Spaces"
-          sublabel={SHARED_SPACES_SUBLABEL}
-          leadingIcon="user-group"
+          label={PLAN_NAME}
+          sublabel={
+            hasSharedSpaces
+              ? 'Active on your account'
+              : PRICE_SUMMARY || 'Unlock Shared Spaces hosting'
+          }
+          leadingIcon="layer-group"
           leadingAccent="var(--pds-highlight-coral-rose)"
-          badge={sharedSpacesBadge}
-          onClick={() => navigate({ to: '/addon' })}
-        />
-        <SettingsRow
-          label="Review"
-          sublabel="Spaced practice from your notes and highlights."
-          leadingIcon="rotate-left"
-          leadingAccent="var(--pds-highlight-sky-blue)"
-          badge="Coming later"
-          trailing="none"
-          disabled
-        />
-        <SettingsRow
-          label="Challenges"
-          sublabel="Themed study seasons with guides and leaderboards."
-          leadingIcon="trophy"
-          leadingAccent="var(--pds-highlight-warm-amber)"
-          badge="Coming later"
-          trailing="none"
-          disabled
+          badge={hasSharedSpaces ? 'Active' : undefined}
+          onClick={hasSharedSpaces ? undefined : () => navigate({ to: '/upgrade' })}
+          trailing={hasSharedSpaces ? 'none' : 'chevron'}
         />
       </SettingsGroup>
 
-      {hasSharedSpaces ? (
-        <SafeSubscriptionDetailsButton publishableKey={null}>
-          <button type="button" className="proto-settings-btn proto-settings-btn--secondary">
-            Manage Add-On
-          </button>
-        </SafeSubscriptionDetailsButton>
-      ) : null}
+      <ul className="proto-settings-plan-features" style={{ margin: '12px 0 0', paddingLeft: 20 }}>
+        {featureBullets.map((bullet) => (
+          <li key={bullet} className="pds-caption" style={{ color: 'var(--pds-text-secondary)', marginBottom: 6 }}>
+            {bullet}
+          </li>
+        ))}
+      </ul>
+
+      {!hasSharedSpaces ? (
+        <button
+          type="button"
+          className="proto-settings-btn proto-settings-btn--primary"
+          style={{ marginTop: 16 }}
+          onClick={() => navigate({ to: '/upgrade' })}
+        >
+          Get {PLAN_NAME}
+        </button>
+      ) : (
+        <div style={{ marginTop: 16 }}>
+          <SafeSubscriptionDetailsButton publishableKey={null}>
+            <button type="button" className="proto-settings-btn proto-settings-btn--secondary">
+              Manage Subscription
+            </button>
+          </SafeSubscriptionDetailsButton>
+        </div>
+      )}
     </SettingsShell>
   );
 }

@@ -1,18 +1,19 @@
 /**
- * Entitlements + limits for the Shared Spaces add-on.
+ * Shared Spaces gates — thin wrappers over entitlements + plan limits.
  *
- * Owning shared spaces is gated by the "Shared Spaces" add-on (owner pays;
- * joining is always free). The entitlement source of truth is
- * `UserMetadata.sharedSpacesAddOn`; Clerk billing webhooks + reconcile-on-read cover the purchase gap.
- * The Clerk JWT `shared_spaces` feature remains a fallback when `BILLING_TIER_DB_ONLY=true`.
- *
- * The legacy 'free' | 'unlimited' tier is retired (zero subscribers) and
- * grants nothing; its plumbing is kept only for the backfill script and the
- * inert `hasUnlimited` field on /api/subscription/status.
+ * Owning shared spaces requires the `shared_spaces` feature (Harvous Plus).
+ * Joining is always free. Entitlements live in the Entitlements table (Paddle
+ * Billing / admin grants); see server/utils/entitlements.ts.
  */
 
 import { db, Spaces, SpaceMemberships, UserMetadata, eq, and, count, first, isNull } from '../db';
 import type { Auth } from '../middleware/types';
+import {
+  hasEntitlement,
+  hasEntitlementForUserId,
+  setFeatureEntitlement,
+  limitsForUser,
+} from './entitlements';
 
 /**
  * Total people in a type='shared' collaborative space (including owner),
@@ -22,151 +23,26 @@ import type { Auth } from '../middleware/types';
  */
 export const MEMBERS_PER_SPACE_CAP = 30;
 
-/** Owned shared spaces without the add-on. */
+/** Owned shared spaces without Plus. */
 export const FREE_OWNED_SHARED_SPACES_LIMIT = 0;
 
-/** Max owned shared spaces with the Shared Spaces add-on. */
+/** Max owned shared spaces with Harvous Plus (default; plan registry may raise). */
 export const OWNED_SHARED_SPACES_ADDON_LIMIT = 10;
 
-const TIER_DB_ONLY = process.env.BILLING_TIER_DB_ONLY === 'true';
+// ─── Shared Spaces entitlement ──────────────────────────────────────────────
 
-// ─── Shared Spaces add-on entitlement ───────────────────────────────────────
-
-async function readDbSharedSpacesAddOn(userId: string): Promise<boolean> {
-  try {
-    const row = first(await db
-      .select({ sharedSpacesAddOn: UserMetadata.sharedSpacesAddOn })
-      .from(UserMetadata)
-      .where(eq(UserMetadata.userId, userId))
-      .limit(1));
-    return row?.sharedSpacesAddOn === true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Whether the request's user holds the Shared Spaces add-on. DB first; the
- * Clerk JWT `shared_spaces` feature covers the purchase→webhook gap.
- */
 export async function hasSharedSpacesAddOn(auth: Auth): Promise<boolean> {
-  if (!auth.userId) return false;
-  if (await readDbSharedSpacesAddOn(auth.userId)) return true;
-  if (!TIER_DB_ONLY && auth.has({ feature: 'shared_spaces' })) return true;
-  return false;
+  return hasEntitlement(auth, 'shared_spaces');
 }
 
-/** DB-only entitlement check for paths without an auth context (scripts, admin grants). */
 export async function hasSharedSpacesAddOnForUserId(userId: string): Promise<boolean> {
-  return readDbSharedSpacesAddOn(userId);
+  return hasEntitlementForUserId(userId, 'shared_spaces');
 }
 
-/** Writes the entitlement (billing webhook / admin grant / backfill). Inserts metadata when missing. */
+/** Admin / test grant — writes Entitlements (source=admin_grant). */
 export async function setSharedSpacesAddOnForUserId(userId: string, enabled: boolean): Promise<void> {
-  const now = new Date();
-  const updated = await db
-    .update(UserMetadata)
-    .set({ sharedSpacesAddOn: enabled, sharedSpacesAddOnUpdatedAt: now, updatedAt: now })
-    .where(eq(UserMetadata.userId, userId))
-    .returning({ userId: UserMetadata.userId });
-
-  if (updated.length > 0) return;
-
-  await db.insert(UserMetadata).values({
-    id: crypto.randomUUID(),
-    userId,
-    sharedSpacesAddOn: enabled,
-    sharedSpacesAddOnUpdatedAt: now,
-    highestSimpleNoteId: 0,
-    userColor: 'blue',
-    createdAt: now,
-    updatedAt: now,
-  });
-  console.log(`[billing-sync] Inserted UserMetadata with sharedSpacesAddOn=${enabled} for ${userId}`);
-}
-
-type ClerkSubscriptionRow = {
-  status?: string;
-  plan_id?: string;
-  plan?: { id?: string; slug?: string };
-};
-
-function normalizeClerkSubscriptionsPayload(data: unknown): ClerkSubscriptionRow[] {
-  if (Array.isArray(data)) return data;
-  if (data && typeof data === 'object' && Array.isArray((data as { data?: unknown }).data)) {
-    return (data as { data: ClerkSubscriptionRow[] }).data;
-  }
-  return [];
-}
-
-function clerkSubscriptionIsActiveSharedSpaces(sub: ClerkSubscriptionRow, planId: string): boolean {
-  if (!planId) return false;
-  const status = sub.status;
-  if (status !== 'active' && status !== 'trialing') return false;
-  return (
-    sub.plan_id === planId ||
-    sub.plan?.id === planId ||
-    sub.plan?.slug === planId
-  );
-}
-
-/**
- * Reconcile `UserMetadata.sharedSpacesAddOn` from Clerk Billing when payment
- * succeeded in Clerk but the DB flag was never written (no webhook yet, user
- * closed the drawer before Continue, stale JWT, etc.). Never auto-revokes.
- */
-export async function syncSharedSpacesAddOnFromClerk(
-  userId: string,
-  auth?: Auth,
-): Promise<{ hasSharedSpaces: boolean; updated: boolean }> {
-  const dbFlag = await readDbSharedSpacesAddOn(userId);
-  const jwtEntitled = Boolean(auth && !TIER_DB_ONLY && auth.has({ feature: 'shared_spaces' }));
-  const planId = process.env.CLERK_SHARED_SPACES_PLAN_ID || '';
-  const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-
-  if (!clerkSecretKey || !planId) {
-    if (jwtEntitled && !dbFlag) {
-      await setSharedSpacesAddOnForUserId(userId, true);
-      return { hasSharedSpaces: true, updated: true };
-    }
-    return { hasSharedSpaces: dbFlag || jwtEntitled, updated: false };
-  }
-
-  let clerkActive = false;
-  try {
-    const response = await fetch(`https://api.clerk.com/v1/users/${userId}/billing/subscriptions`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${clerkSecretKey}`, 'Content-Type': 'application/json' },
-    });
-    if (response.ok) {
-      const data = await response.json();
-      const subs = normalizeClerkSubscriptionsPayload(data);
-      clerkActive = subs.some((sub) => clerkSubscriptionIsActiveSharedSpaces(sub, planId));
-    }
-  } catch (error) {
-    console.error('[billing-sync] Clerk subscriptions fetch failed:', error);
-    if (jwtEntitled && !dbFlag) {
-      await setSharedSpacesAddOnForUserId(userId, true);
-      return { hasSharedSpaces: true, updated: true };
-    }
-    return { hasSharedSpaces: dbFlag || jwtEntitled, updated: false };
-  }
-
-  const entitled = clerkActive || jwtEntitled;
-
-  if (entitled && !dbFlag) {
-    await setSharedSpacesAddOnForUserId(userId, true);
-    console.log(`[billing-sync] Promoted sharedSpacesAddOn for ${userId}`);
-    return { hasSharedSpaces: true, updated: true };
-  }
-
-  if (!clerkActive && dbFlag) {
-    console.warn(
-      `[billing-sync] DB has sharedSpacesAddOn but Clerk has no active ${planId} subscription for ${userId} — not auto-revoking`,
-    );
-  }
-
-  return { hasSharedSpaces: dbFlag || entitled, updated: false };
+  await setFeatureEntitlement(userId, 'shared_spaces', enabled, 'admin_grant');
+  console.log(`[billing-sync] set shared_spaces admin_grant=${enabled} for ${userId}`);
 }
 
 // ─── Shared-space counts + gates ────────────────────────────────────────────
@@ -174,7 +50,7 @@ export async function syncSharedSpacesAddOnFromClerk(
 /**
  * Spaces the user owns with type='shared' (the only thing the paid gate counts).
  * Org-sponsored spaces (orgId set) bill to the church (Churches.billingPlan /
- * isActive pilot), never against the creating staffer's personal add-on limit.
+ * isActive pilot), never against the creating staffer's personal Plus limit.
  */
 export async function getSharedSpacesOwnedCount(userId: string): Promise<number> {
   const row = first(await db
@@ -194,48 +70,50 @@ export async function getSpaceMemberCount(spaceId: string): Promise<number> {
 }
 
 /**
- * The paid gate. Runs at exactly the "own one more shared space" moments
- * (create-shared today; invite creation re-derives from space.type).
+ * The paid gate. Runs at exactly the "own one more shared space" moments.
  * Church-sponsored Shared Spaces use POST /api/spaces/create-church-shared
  * (staff-gated, Churches.isActive) — not this function.
+ *
+ * Downgrade rule: never evict — only new creates are blocked when over cap.
  */
 export async function canCreateSharedSpace(
   userId: string,
   auth: Auth,
 ): Promise<{ allowed: boolean; reason?: string; currentCount: number; limit: number | null; upgradeUrl?: string }> {
   const currentCount = await getSharedSpacesOwnedCount(userId);
-  const hasAddOn = await hasSharedSpacesAddOn(auth);
-  if (!hasAddOn) {
+  const hasPlus = await hasSharedSpacesAddOn(auth);
+  const limits = await limitsForUser(userId);
+  const ownedLimit = hasPlus ? limits.ownedSpaces : FREE_OWNED_SHARED_SPACES_LIMIT;
+
+  if (!hasPlus) {
     return {
       allowed: false,
-      reason: 'Owning shared spaces requires the Shared Spaces add-on. Joining spaces is always free.',
+      reason: 'Owning shared spaces requires Harvous Plus. Joining spaces is always free.',
       currentCount,
       limit: FREE_OWNED_SHARED_SPACES_LIMIT,
-      upgradeUrl: '/addon',
+      upgradeUrl: '/upgrade',
     };
   }
-  if (currentCount >= OWNED_SHARED_SPACES_ADDON_LIMIT) {
+  if (currentCount >= ownedLimit) {
     return {
       allowed: false,
-      reason: `You can own up to ${OWNED_SHARED_SPACES_ADDON_LIMIT} shared spaces.`,
+      reason: `You can own up to ${ownedLimit} shared spaces.`,
       currentCount,
-      limit: OWNED_SHARED_SPACES_ADDON_LIMIT,
+      limit: ownedLimit,
     };
   }
-  return { allowed: true, currentCount, limit: OWNED_SHARED_SPACES_ADDON_LIMIT };
+  return { allowed: true, currentCount, limit: ownedLimit };
 }
 
 /**
- * People cap, enforced at invite redeem + admin add-member. Same for every
- * entitlement. Public/broadcast spaces are exempt: the follow model is
- * congregation-scale, and Harvous-hosted public spaces already take members
- * via the admin add-member path.
+ * People cap from the space owner's plan. Public/broadcast spaces are exempt.
+ * Never-evict: only blocks new joins when already at or over the cap.
  */
 export async function canAddMemberToSpace(
   spaceId: string,
 ): Promise<{ allowed: boolean; reason?: string; currentCount: number; limit: number }> {
   const space = first(await db
-    .select({ type: Spaces.type })
+    .select({ type: Spaces.type, userId: Spaces.userId })
     .from(Spaces)
     .where(eq(Spaces.id, spaceId))
     .limit(1));
@@ -243,36 +121,44 @@ export async function canAddMemberToSpace(
   if (space?.type === 'public') {
     return { allowed: true, currentCount, limit: MEMBERS_PER_SPACE_CAP };
   }
-  if (currentCount >= MEMBERS_PER_SPACE_CAP) {
-    return { allowed: false, reason: 'This space has reached its people limit.', currentCount, limit: MEMBERS_PER_SPACE_CAP };
+
+  let limit = MEMBERS_PER_SPACE_CAP;
+  if (space?.userId) {
+    const ownerLimits = await limitsForUser(space.userId);
+    limit = ownerLimits.membersPerSpace || MEMBERS_PER_SPACE_CAP;
   }
-  return { allowed: true, currentCount, limit: MEMBERS_PER_SPACE_CAP };
+
+  if (currentCount >= limit) {
+    return { allowed: false, reason: 'This space has reached its people limit.', currentCount, limit };
+  }
+  return { allowed: true, currentCount, limit };
 }
 
-/** Summary for /api/user/limits (shape kept close to the pre-add-on version for existing clients). */
+/** Summary for /api/user/limits. */
 export async function getUserLimitsInfo(userId: string, auth: Auth) {
-  const [hasAddOn, sharedSpacesOwned] = await Promise.all([
+  const [hasPlus, sharedSpacesOwned, limits] = await Promise.all([
     hasSharedSpacesAddOn(auth),
     getSharedSpacesOwnedCount(userId),
+    limitsForUser(userId),
   ]);
-  const limit = hasAddOn ? OWNED_SHARED_SPACES_ADDON_LIMIT : FREE_OWNED_SHARED_SPACES_LIMIT;
+  const ownedLimit = hasPlus ? limits.ownedSpaces : FREE_OWNED_SHARED_SPACES_LIMIT;
   return {
-    tier: (hasAddOn ? 'unlimited' : 'free') as 'free' | 'unlimited',
-    hasSharedSpacesAddOn: hasAddOn,
+    tier: (hasPlus ? 'unlimited' : 'free') as 'free' | 'unlimited',
+    hasSharedSpacesAddOn: hasPlus,
     limits: {
-      ownedSharedSpaces: { current: sharedSpacesOwned, limit, remaining: limit - sharedSpacesOwned },
-      membersPerSpace: { limit: MEMBERS_PER_SPACE_CAP },
+      ownedSharedSpaces: { current: sharedSpacesOwned, limit: ownedLimit, remaining: ownedLimit - sharedSpacesOwned },
+      membersPerSpace: { limit: limits.membersPerSpace },
       joinableSpaces: { current: 0, limit: Infinity, remaining: Infinity },
     },
   };
 }
 
-// ─── Legacy tier plumbing (retired; kept for the backfill script + inert status field) ─
+// ─── Legacy tier plumbing (retired; kept for backfill script + inert status) ─
 
 /** @deprecated The 'unlimited' tier is retired and grants nothing. */
 export type UserTier = 'free' | 'unlimited';
 
-/** @deprecated Retired tier — only /api/subscription/status's inert `hasUnlimited` reads this. */
+/** @deprecated Retired tier — only inert `hasUnlimited` on status reads this. */
 export async function getTierForAuth(auth: Auth): Promise<UserTier> {
   if (!auth.userId) return 'free';
   try {

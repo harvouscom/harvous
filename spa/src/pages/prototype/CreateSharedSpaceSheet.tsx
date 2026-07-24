@@ -27,10 +27,6 @@ import { useCreateSharedSpace } from '../../hooks/mutations/useCreateSharedSpace
 import { useCreateChurchSharedSpace } from '../../hooks/mutations/useCreateChurchSharedSpace';
 import { getNavigationQueryKey } from '../../hooks/queries/useNavigation';
 import { APIError } from '../../lib/api';
-import {
-  dispatchSharedSpacesEntitlementSynced,
-  syncSharedSpacesBilling,
-} from '@/utils/sync-shared-spaces-billing';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
@@ -49,8 +45,6 @@ export interface CreateSharedSpaceSheetProps {
   orgId?: string | null;
   /** After create — typically select the new space in the shell. */
   onCreated?: (spaceId: string) => void;
-  /** Attempt Clerk→API entitlement sync before personal create (My Home). */
-  syncBillingBeforeCreate?: boolean;
 }
 
 export default function CreateSharedSpaceSheet({
@@ -58,7 +52,6 @@ export default function CreateSharedSpaceSheet({
   onOpenChange,
   orgId = null,
   onCreated,
-  syncBillingBeforeCreate = false,
 }: CreateSharedSpaceSheetProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -147,18 +140,6 @@ export default function CreateSharedSpaceSheet({
     setError(null);
     setShowAddonLink(false);
     try {
-      if (!churchScoped && syncBillingBeforeCreate) {
-        try {
-          const syncResult = await syncSharedSpacesBilling();
-          dispatchSharedSpacesEntitlementSynced({
-            hasSharedSpaces: syncResult.hasSharedSpaces,
-            updated: syncResult.updated,
-          });
-        } catch (syncError) {
-          console.error('[CreateSharedSpaceSheet] Shared Spaces billing sync failed:', syncError);
-        }
-      }
-
       const payload = {
         title: trimmed,
         color,
@@ -354,7 +335,7 @@ export default function CreateSharedSpaceSheet({
                     className="proto-space-switcher__create-error-link"
                     onClick={() => {
                       onOpenChange(false);
-                      void navigate({ to: '/addon' as any });
+                      void navigate({ to: '/upgrade' as any });
                     }}
                   >
                     Get Shared Spaces

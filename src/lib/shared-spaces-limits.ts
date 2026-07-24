@@ -9,7 +9,7 @@ export const OWNED_SHARED_SPACES_ADDON_LIMIT = 10;
 /** Total people in a space (including owner). */
 export const MEMBERS_PER_SPACE_CAP = 30;
 
-/** Feature bullets on /addon (Shared Spaces upgrade page) — purchase / inactive copy. */
+/** Feature bullets on /upgrade (Shared Spaces upgrade page) — purchase / inactive copy. */
 export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   `Create up to ${OWNED_SHARED_SPACES_ADDON_LIMIT} shared spaces and invite others to study with you`,
   `Up to ${MEMBERS_PER_SPACE_CAP} people in each space — everyone contributes notes together`,

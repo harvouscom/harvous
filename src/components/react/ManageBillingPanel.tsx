@@ -174,7 +174,7 @@ export default function ManageBillingPanel({
                     {/* Get Shared Spaces — only show for free plan users */}
                     {subscriptionInfo && !subscriptionInfo.hasSharedSpaces ? (
                       <a
-                        href="/addon"
+                        href="/upgrade"
                         className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-200 pl-4 w-full"
                         style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px', textDecoration: 'none', display: 'block', margin: 0 }}
                       >
@@ -208,7 +208,7 @@ export default function ManageBillingPanel({
                           <div className="panel__list-item">
                             <div className="panel__list-item-text">
                               <span className="panel__list-item-label">
-                                Manage Add-On
+                                Manage Subscription
                               </span>
                             </div>
                             <div className="panel__list-item-icon">

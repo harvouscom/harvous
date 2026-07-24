@@ -69,6 +69,8 @@ export function isPublicAppPath(pathname: string): boolean {
     (logical.startsWith('/spaces/join') ||
       logical.startsWith('/shared/') ||
       logical.startsWith('/invitations/') ||
+      logical === '/upgrade' ||
+      logical.startsWith('/upgrade/') ||
       logical === '/addon' ||
       logical.startsWith('/addon/')) &&
     isNonPrototypeAppPath(logical)

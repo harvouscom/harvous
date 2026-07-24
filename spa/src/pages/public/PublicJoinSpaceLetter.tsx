@@ -1,5 +1,5 @@
 /**
- * Join-space letter card — paper-stack layout matching /addon and sign-in.
+ * Join-space letter card — paper-stack layout matching /upgrade and sign-in.
  * Option B: invite tagline + prose body (description, member count).
  */
 import { useSyncExternalStore } from 'react';

@@ -3,6 +3,7 @@
  *
  * Endpoints:
  *   POST /api/webhooks/clerk
+ *   POST /api/webhooks/paddle
  */
 
 import { Hono } from 'hono';
@@ -10,8 +11,15 @@ import { verifyWebhook } from '@clerk/backend/webhooks';
 import { tagAsAppUser } from '@/utils/audienceful';
 import { handleAPIError } from '@/utils/error-handling';
 import { invalidateUserCache } from '../utils/user-cache';
-import { SHARED_SPACES_PLAN_ID } from '../utils/subscription';
-import { setSharedSpacesAddOnForUserId } from '../utils/tier-limits';
+import { verifyPaddleSignature } from '../utils/paddle-signature';
+import { firstHeaderValue } from '../utils/paddle-client';
+import {
+  applyPaddleSubscriptionEntitlement,
+  setPaddleCustomerId,
+  getPaddleCustomerId,
+} from '../utils/entitlements';
+import { planForPriceId } from '@/lib/billing-plans';
+import { db, first, UserMetadata, eq } from '../db';
 
 const app = new Hono();
 
@@ -51,24 +59,7 @@ interface ClerkEmailWebhookEvent {
   timestamp?: number;
 }
 
-type ClerkWebhookEvent = ClerkUserWebhookEvent | ClerkEmailWebhookEvent | ClerkSubscriptionItemWebhookEvent;
-
-interface ClerkSubscriptionItemWebhookEvent {
-  type:
-    | 'subscriptionItem.active'
-    | 'subscriptionItem.canceled'
-    | 'subscriptionItem.ended'
-    | 'subscriptionItem.expired';
-  data: {
-    plan?: { id?: string; slug?: string };
-    plan_id?: string | null;
-    payer?: { user_id?: string; organization_id?: string };
-    status?: string;
-    [key: string]: any;
-  };
-  object: 'event';
-  timestamp?: number;
-}
+type ClerkWebhookEvent = ClerkUserWebhookEvent | ClerkEmailWebhookEvent;
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -226,35 +217,6 @@ async function handleUserDeleted(event: ClerkUserWebhookEvent): Promise<void> {
   console.log('User deleted in Clerk:', event.data.id);
 }
 
-function getSubscriptionItemPlanId(data: ClerkSubscriptionItemWebhookEvent['data']): string | null {
-  return data.plan?.id ?? data.plan_id ?? null;
-}
-
-/** Sync Shared Spaces add-on entitlement from Clerk billing subscription item events. */
-async function handleSubscriptionItemBilling(
-  event: ClerkSubscriptionItemWebhookEvent,
-  enabled: boolean,
-): Promise<void> {
-  if (!SHARED_SPACES_PLAN_ID) {
-    console.warn('[Webhook] CLERK_SHARED_SPACES_PLAN_ID not configured; skipping subscriptionItem sync');
-    return;
-  }
-
-  const planId = getSubscriptionItemPlanId(event.data);
-  if (planId !== SHARED_SPACES_PLAN_ID) {
-    return;
-  }
-
-  const userId = event.data.payer?.user_id;
-  if (!userId) {
-    console.warn('[Webhook] subscriptionItem event missing payer.user_id:', { type: event.type, planId });
-    return;
-  }
-
-  await setSharedSpacesAddOnForUserId(userId, enabled);
-  console.log('[Webhook] Shared Spaces add-on updated:', { userId, enabled, eventType: event.type });
-}
-
 // ─── POST /api/webhooks/clerk ─────────────────────────────────────────
 
 app.post('/api/webhooks/clerk', async (c) => {
@@ -298,8 +260,6 @@ app.post('/api/webhooks/clerk', async (c) => {
     try {
       if (event.type === 'emailAddress.created') {
         userId = (event as ClerkEmailWebhookEvent).data.user_id || '';
-      } else if (event.type.startsWith('subscriptionItem.')) {
-        userId = (event as ClerkSubscriptionItemWebhookEvent).data.payer?.user_id || '';
       } else {
         userId = (event as ClerkUserWebhookEvent).data.id || '';
       }
@@ -325,14 +285,6 @@ app.post('/api/webhooks/clerk', async (c) => {
         case 'user.deleted':
           await handleUserDeleted(event as ClerkUserWebhookEvent);
           break;
-        case 'subscriptionItem.active':
-          await handleSubscriptionItemBilling(event as ClerkSubscriptionItemWebhookEvent, true);
-          break;
-        case 'subscriptionItem.canceled':
-        case 'subscriptionItem.ended':
-        case 'subscriptionItem.expired':
-          await handleSubscriptionItemBilling(event as ClerkSubscriptionItemWebhookEvent, false);
-          break;
         default:
           console.log('[Webhook] Unhandled event type:', (event as any).type);
       }
@@ -346,8 +298,6 @@ app.post('/api/webhooks/clerk', async (c) => {
       try {
         if (event.type === 'emailAddress.created') {
           errorUserId = (event as ClerkEmailWebhookEvent).data?.user_id || 'unknown';
-        } else if (event.type.startsWith('subscriptionItem.')) {
-          errorUserId = (event as ClerkSubscriptionItemWebhookEvent).data?.payer?.user_id || 'unknown';
         } else {
           errorUserId = (event as ClerkUserWebhookEvent).data?.id || 'unknown';
         }
@@ -372,6 +322,131 @@ app.post('/api/webhooks/clerk', async (c) => {
     }
 
     return c.json({ error: 'Internal server error', message: error?.message || 'An unexpected error occurred' }, 500);
+  }
+});
+
+// ─── POST /api/webhooks/paddle ────────────────────────────────────────
+
+type PaddleWebhookEvent = {
+  event_id?: string;
+  event_type?: string;
+  data?: {
+    id?: string;
+    status?: string;
+    customer_id?: string;
+    custom_data?: { clerkUserId?: string } | null;
+    items?: Array<{ price?: { id?: string }; price_id?: string }>;
+    subscription_id?: string | null;
+    [key: string]: unknown;
+  };
+};
+
+async function resolveClerkUserIdFromPaddle(data: PaddleWebhookEvent['data']): Promise<string | null> {
+  if (!data) return null;
+  const fromCustom = data.custom_data?.clerkUserId;
+  if (fromCustom) return fromCustom;
+
+  const customerId = data.customer_id;
+  if (!customerId) return null;
+
+  const byCustomer = first(
+    await db
+      .select({ userId: UserMetadata.userId })
+      .from(UserMetadata)
+      .where(eq(UserMetadata.paddleCustomerId, customerId))
+      .limit(1),
+  );
+  return byCustomer?.userId ?? null;
+}
+
+function priceIdFromPaddleData(data: PaddleWebhookEvent['data']): string | null {
+  if (!data?.items?.length) return null;
+  const item = data.items[0];
+  return item?.price?.id ?? item?.price_id ?? null;
+}
+
+app.post('/api/webhooks/paddle', async (c) => {
+  try {
+    const secret = process.env.PADDLE_WEBHOOK_SECRET;
+    if (!secret) {
+      console.error('[Paddle webhook] PADDLE_WEBHOOK_SECRET not configured');
+      return c.json({ error: 'Webhook secret not configured' }, 500);
+    }
+
+    const rawBody = await c.req.text();
+    const signature = firstHeaderValue(c.req.header('paddle-signature') ?? c.req.header('Paddle-Signature'));
+
+    if (!verifyPaddleSignature(rawBody, signature, secret)) {
+      console.error('[Paddle webhook] Signature verification failed');
+      return c.json({ error: 'Invalid webhook signature' }, 401);
+    }
+
+    const event = JSON.parse(rawBody) as PaddleWebhookEvent;
+    const eventType = event.event_type || '';
+    const data = event.data;
+    console.log('[Paddle webhook] Received:', { eventType, eventId: event.event_id });
+
+    const userId = await resolveClerkUserIdFromPaddle(data);
+    if (!userId) {
+      console.warn('[Paddle webhook] Could not resolve clerk user id', { eventType, customerId: data?.customer_id });
+      return c.json({ ok: true, skipped: true });
+    }
+
+    if (data?.customer_id) {
+      const existing = await getPaddleCustomerId(userId);
+      if (!existing) await setPaddleCustomerId(userId, data.customer_id);
+    }
+
+    const priceId = priceIdFromPaddleData(data);
+    const subscriptionId = data?.id?.startsWith('sub_') ? data.id : data?.subscription_id ?? null;
+
+    switch (eventType) {
+      case 'subscription.activated':
+      case 'subscription.updated':
+      case 'transaction.completed': {
+        const enabled =
+          eventType === 'transaction.completed'
+            ? Boolean(priceId && planForPriceId(priceId))
+            : data?.status === 'active' || data?.status === 'trialing' || data?.status === 'past_due';
+        if (priceId && planForPriceId(priceId)) {
+          await applyPaddleSubscriptionEntitlement({
+            userId,
+            priceId,
+            subscriptionId,
+            enabled: enabled || eventType === 'subscription.activated',
+          });
+        }
+        break;
+      }
+      case 'subscription.canceled': {
+        await applyPaddleSubscriptionEntitlement({
+          userId,
+          priceId,
+          subscriptionId,
+          enabled: false,
+        });
+        break;
+      }
+      case 'subscription.past_due': {
+        // Keep entitlement during past_due (dunning); status stays active in our model.
+        if (priceId && planForPriceId(priceId)) {
+          await applyPaddleSubscriptionEntitlement({
+            userId,
+            priceId,
+            subscriptionId,
+            enabled: true,
+          });
+        }
+        break;
+      }
+      default:
+        console.log('[Paddle webhook] Unhandled event type:', eventType);
+    }
+
+    return c.json({ ok: true });
+  } catch (error: any) {
+    console.error('[Paddle webhook] Error:', error?.message || error);
+    return c.json({ error: 'Internal server error' }, 500);
   }
 });
 

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouterState } from '@tanstack/react-router';
 import { api } from '../../lib/api';
+import type { FeatureKey, PlanKey, PlanLimits } from '@/lib/billing-plans';
 import {
   applySharedSpacesEntitlementSynced,
   SHARED_SPACES_ENTITLEMENT_SYNCED_EVENT,
@@ -11,6 +12,9 @@ import type { SharedSpacesEntitlementSyncedDetail } from '@/utils/sync-shared-sp
 export interface SubscriptionStatusResponse {
   hasUnlimited: boolean;
   hasSharedSpaces: boolean;
+  entitlements: FeatureKey[];
+  planKey: PlanKey | null;
+  limits: PlanLimits;
   currentCount: number;
   limit: number | null;
   sharedSpacesOwnedCount: number;
@@ -42,7 +46,7 @@ export function useSubscriptionStatus() {
   }, [queryClient]);
 
   useEffect(() => {
-    if (prevPathRef.current === '/addon' && pathname === '/') {
+    if ((prevPathRef.current === '/upgrade' || prevPathRef.current === '/addon') && pathname === '/') {
       void queryClient.invalidateQueries({ queryKey: ['subscription', 'status'] });
     }
     prevPathRef.current = pathname;

@@ -110,7 +110,7 @@ export default function SpaceSharePanel({
                 message: data.error,
                 type: 'error',
                 code: 'SHARED_SPACE_LIMIT_EXCEEDED',
-                upgradeUrl: data.upgradeUrl || '/addon',
+                upgradeUrl: data.upgradeUrl || '/upgrade',
               },
             }),
           );
@@ -400,7 +400,7 @@ export default function SpaceSharePanel({
                   message: data.error,
                   type: 'error',
                   code: 'SHARED_SPACE_LIMIT_EXCEEDED',
-                  upgradeUrl: data.upgradeUrl || '/addon',
+                  upgradeUrl: data.upgradeUrl || '/upgrade',
                 },
               }),
             );

@@ -65,19 +65,26 @@ test.describe('Shared Spaces UI screenshot tour', () => {
     writeScreenshotManifest();
   });
 
-  test('01 — /addon page (User B, no add-on)', async ({ userBContext }) => {
+  test('01 — /upgrade page (User B, no add-on)', async ({ userBContext }) => {
     const page = await userBContext.newPage();
-    await page.goto('/addon');
+    await page.goto('/upgrade');
     await page.waitForLoadState('domcontentloaded');
-    await expect(page.getByRole('heading', { name: 'Shared Spaces' })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Harvous Plus' })).toBeVisible({ timeout: 15_000 });
     await snap(page, 'addon-page-user-b-no-addon');
   });
 
-  test('02 — Settings › Add-ons (User A, before grant)', async ({ userAContext }) => {
+  test('01b — /addon redirects to /upgrade', async ({ userBContext }) => {
+    const page = await userBContext.newPage();
+    await page.goto('/addon');
+    await page.waitForURL((url) => url.pathname === '/upgrade', { timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Harvous Plus' })).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('02 — Settings › Plan (User A, before grant)', async ({ userAContext }) => {
     const page = await userAContext.newPage();
     await page.goto('/settings/addons');
     await page.waitForLoadState('domcontentloaded');
-    await expect(page.getByText('Shared Spaces')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Harvous Plus')).toBeVisible({ timeout: 15_000 });
     await snap(page, 'settings-addons-before-grant');
   });
 
@@ -90,14 +97,14 @@ test.describe('Shared Spaces UI screenshot tour', () => {
     await createNoteInSpaceViaApi(userAContext.request, spaceId, 'Owner-authored content for read-only test.', ownerNoteTitle);
   });
 
-  test('04 — /addon active state (User A)', async ({ userAContext }) => {
+  test('04 — /upgrade active state (User A)', async ({ userAContext }) => {
     const page = await userAContext.newPage();
-    await page.goto('/addon');
-    await expect(page.getByText(/Shared Spaces is active/i)).toBeVisible({ timeout: 15_000 });
+    await page.goto('/upgrade');
+    await expect(page.getByText(/Harvous Plus is active/i)).toBeVisible({ timeout: 15_000 });
     await snap(page, 'addon-page-user-a-active');
   });
 
-  test('05 — Settings › Add-ons active badge (User A)', async ({ userAContext }) => {
+  test('05 — Settings › Plan active badge (User A)', async ({ userAContext }) => {
     const page = await userAContext.newPage();
     await page.goto('/settings/addons');
     await expect(page.getByText('Active')).toBeVisible({ timeout: 10_000 });

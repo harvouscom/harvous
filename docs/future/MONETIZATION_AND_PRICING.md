@@ -1,14 +1,16 @@
 # Monetization and Pricing Strategy
 
-Canonical product and pricing model for Harvous paid features. Complements the technical billing
-patterns in [CLERK_MONETIZATION_ARCHITECTURE.md](./CLERK_MONETIZATION_ARCHITECTURE.md) (Clerk metadata,
-Stripe webhooks, org patterns). **Status:** decision doc; pre-launch prices are recommended defaults
-until Review ships.
+Canonical product and pricing model for Harvous paid features. Technical billing (Paddle MoR,
+entitlements, webhooks) lives in [`docs/BILLING_ARCHITECTURE.md`](../BILLING_ARCHITECTURE.md). Clerk
+auth/orgs: [`docs/CLERK_ARCHITECTURE.md`](../CLERK_ARCHITECTURE.md).
 
-**Guiding principle:** Notes and passive **Remember** stay free. **Review** (personal AI practice) is
-always paid and always individual. **Compete** (community challenges) stays free to play; depth via
-**Season Pass**. **Group Sharing** pays to host; members join spaces free and buy **Review** on their
-own if they want it.
+**Status (July 2026):** Ship **one plan — Harvous Plus** (founding **$5/mo · $45/yr**, stepping to
+**$9/mo · $79/yr** when Review + Challenges land). À-la-carte SKUs below are historical derivation;
+they are **not** sold separately at launch. Shared Spaces hosting is the first Plus feature;
+joining spaces stays free.
+
+**Guiding principle:** Notes and passive **Remember** stay free. **Review** is paid (bundled into
+Plus when it ships). **Compete** stays free to play. Hosting Shared Spaces is Plus; members join free.
 
 ---
 

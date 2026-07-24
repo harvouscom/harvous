@@ -63,6 +63,8 @@
       (logical.indexOf('/spaces/join') === 0 ||
         logical.indexOf('/shared/') === 0 ||
         logical.indexOf('/invitations/') === 0 ||
+        logical === '/upgrade' ||
+        logical.indexOf('/upgrade/') === 0 ||
         logical === '/addon' ||
         logical.indexOf('/addon/') === 0);
   }

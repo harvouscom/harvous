@@ -88,16 +88,16 @@ const signUpSplatRoute = createRoute({
 
 const upgradeRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/addon',
+  path: '/upgrade',
   component: lazyRouteComponent(() => import('./pages/UpgradePage')),
 });
 
-// Legacy `/upgrade` links (old slug) → `/addon`, preserving query params (e.g. Clerk return_url).
-const legacyUpgradeRedirectRoute = createRoute({
+// Legacy `/addon` links (old slug) → `/upgrade`, preserving query params (e.g. return_url).
+const legacyAddonRedirectRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/upgrade',
+  path: '/addon',
   beforeLoad: ({ search }) => {
-    throw redirect({ to: '/addon', search, replace: true });
+    throw redirect({ to: '/upgrade', search, replace: true });
   },
 });
 
@@ -526,7 +526,7 @@ function buildRouteTree() {
     ]),
     ...buildClassicRedirectRoutes(),
     upgradeRoute,
-    legacyUpgradeRedirectRoute,
+    legacyAddonRedirectRoute,
     joinSpaceRoute,
     sharedNoteRoute,
     sharedThreadRoute,

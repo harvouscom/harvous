@@ -12,8 +12,7 @@
  * the Spaces.userId row, and 'member' rows (future congregant followers)
  * are never touched.
  *
- * Uses raw fetch + CLERK_SECRET_KEY (the syncSharedSpacesAddOnFromClerk
- * precedent in tier-limits.ts). Fails closed when the key is missing —
+ * Uses raw fetch + CLERK_SECRET_KEY. Fails closed when the key is missing —
  * these are admin-only pipes with no silent fallback.
  */
 

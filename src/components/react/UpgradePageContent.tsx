@@ -7,6 +7,7 @@ import {
   getSharedSpacesAddonFeatureBullets,
   OWNED_SHARED_SPACES_ADDON_LIMIT,
 } from '@/lib/shared-spaces-limits';
+import { formatPlanPrice, listedPlanForInterval } from '@/lib/billing-plans';
 import UpgradeCheckoutButton from './UpgradeCheckoutButton';
 
 interface SubscriptionStatusSnapshot {
@@ -20,31 +21,32 @@ interface UpgradePageContentProps {
   initialSharedSpacesOwnedCount?: number | null;
   initialSharedSpacesOwnedLimit?: number | null;
   publishableKey?: string | null;
-  sharedSpacesPlanId?: string;
   /** Dev design gallery — bypasses Clerk for static previews. */
   designPreview?: { signedIn: boolean; ownedCount?: number; ownedLimit?: number };
 }
 
-const PRODUCT_NAME = 'Shared Spaces';
+const monthPlan = listedPlanForInterval('month');
+const yearPlan = listedPlanForInterval('year');
+const PLAN_NAME = yearPlan?.name ?? monthPlan?.name ?? 'Harvous Plus';
+const PRICE_MONTHLY_LABEL = monthPlan ? `${formatPlanPrice(monthPlan)} per month` : '';
+const PRICE_ANNUAL_LABEL = yearPlan ? `${formatPlanPrice(yearPlan)} per year` : '';
 
-const ACTIVE_TAGLINE = `${PRODUCT_NAME} is active on your account. Here's a reminder of what it includes:`;
-const PURCHASE_TAGLINE =
-  'Study with others in shared spaces where everyone contributes notes together.';
+const ACTIVE_TAGLINE = `${PLAN_NAME} is active on your account. Here's a reminder of what it includes:`;
+const PURCHASE_TAGLINE = `${PLAN_NAME} unlocks Shared Spaces hosting — study with others where everyone contributes notes together.`;
 
 /**
  * Single-purpose Shared Spaces upgrade card — paper-stack letter layout
- * matching shared-note / sign-in pages. The old multi-add-on list lives in
- * Settings > Add-ons.
+ * matching shared-note / sign-in pages. Plan summary also lives in
+ * Settings > Plan.
  */
 export default function UpgradePageContent({
   initialHasSharedSpaces,
   initialSharedSpacesOwnedCount = null,
   initialSharedSpacesOwnedLimit = null,
   publishableKey,
-  sharedSpacesPlanId,
   designPreview,
 }: UpgradePageContentProps) {
-  const { isSignedIn: clerkSignedIn, has } = useAuth();
+  const { isSignedIn: clerkSignedIn } = useAuth();
   const isSignedIn = designPreview?.signedIn ?? clerkSignedIn;
   const [hasSharedSpaces, setHasSharedSpaces] = useState(initialHasSharedSpaces);
   const [sharedSpacesOwnedCount, setSharedSpacesOwnedCount] = useState<number | null>(
@@ -55,8 +57,7 @@ export default function UpgradePageContent({
       ? (designPreview.ownedLimit ?? OWNED_SHARED_SPACES_ADDON_LIMIT)
       : initialSharedSpacesOwnedLimit,
   );
-  const clerkHasSharedSpaces = isSignedIn ? has({ feature: 'shared_spaces' }) : false;
-  const showActiveCopy = hasSharedSpaces || clerkHasSharedSpaces;
+  const showActiveCopy = hasSharedSpaces;
 
   const featureBullets = useMemo(
     () =>
@@ -102,7 +103,7 @@ export default function UpgradePageContent({
     window.addEventListener('spaceCreated', handleUpgrade);
 
     const handlePageLoad = () => {
-      if (window.location.pathname === '/addon') {
+      if (window.location.pathname === '/upgrade' || window.location.pathname === '/addon') {
         checkStatus();
       }
     };
@@ -121,7 +122,7 @@ export default function UpgradePageContent({
   };
 
   const redirectUrl =
-    typeof window !== 'undefined' ? encodeURIComponent(window.location.href) : encodeURIComponent('/addon');
+    typeof window !== 'undefined' ? encodeURIComponent(window.location.href) : encodeURIComponent('/upgrade');
   const signInHref = `/sign-in?redirect_url=${redirectUrl}`;
 
   return (
@@ -134,7 +135,7 @@ export default function UpgradePageContent({
             <span className="public-addon-letter__icon" aria-hidden>
               <Icon name="user-group" size={22} />
             </span>
-            <h1 className="public-addon-letter__title">{PRODUCT_NAME}</h1>
+            <h1 className="public-addon-letter__title">{PLAN_NAME}</h1>
             <p className="public-addon-letter__tagline">
               {showActiveCopy ? ACTIVE_TAGLINE : PURCHASE_TAGLINE}
             </p>
@@ -162,7 +163,7 @@ export default function UpgradePageContent({
                   onSubscriptionCancel={handleSubscriptionCancel}
                 >
                   <button type="button" className="upgrade-secondary-btn">
-                    Manage Add-On
+                    Manage Subscription
                   </button>
                 </SafeSubscriptionDetailsButton>
               </>
@@ -170,10 +171,9 @@ export default function UpgradePageContent({
               <UpgradeCheckoutButton
                 className="upgrade-checkout"
                 publishableKey={publishableKey}
-                planId={sharedSpacesPlanId}
-                ctaLabel={`Add ${PRODUCT_NAME}`}
-                priceMonthlyLabel="$6 per month"
-                priceAnnualLabel="$48 per year"
+                ctaLabel={`Get ${PLAN_NAME}`}
+                priceMonthlyLabel={PRICE_MONTHLY_LABEL}
+                priceAnnualLabel={PRICE_ANNUAL_LABEL}
               />
             ) : (
               <a href={signInHref} className="upgrade-primary-btn">
