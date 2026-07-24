@@ -22,10 +22,12 @@ Written July 2026 alongside the harvous.com `/for/pastors` audience page and
 - **Congregant linkage** = `UserMetadata.connectedChurchId`/`connectedOrgId`,
   set via a future connection-request flow. Connected users see "From your
   church" as a **study feed** from followed ministry channels.
-- **Billing** = church pays (draft tiers: Connect free → Study → Study Plus →
-  Network), same owner-pays philosophy as the Shared Spaces add-on.
-  Org-owned spaces never count against a person's owned-space limit. Review
-  stays individual, always.
+- **Billing** = church pays **Church base + add-ons** (curriculum, church Shared
+  Spaces, analytics, unlimited staff) — see
+  [MONETIZATION_AND_PRICING.md §7](./MONETIZATION_AND_PRICING.md). Same
+  owner-pays philosophy as the personal Shared Spaces add-on. Org-owned spaces
+  never count against a person's owned-space limit. Review stays individual,
+  always.
 - **Planning Center split:** Shared Spaces ↔ PCO **Groups**; ministry broadcast
   ↔ PCO **Resources** (utilize or replace). Details in
   [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md).
@@ -62,8 +64,8 @@ assignment — no new tables needed. The server derives a per-user
 org membership + role + `Churches.isActive`; clients render role surfaces
 only when the payload says so. Congregants (`connectedChurchId` only, never
 Clerk members) never receive role surfaces. A solo pastor without a church
-org is served by the general-first features below, plus, later, the free
-"Church Connect" tier as the role-assignment entry point.
+org is served by the general-first features below, plus, later, **Church base**
+(paid or pilot `isActive`) as the role-assignment entry point.
 
 ---
 

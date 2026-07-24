@@ -263,7 +263,18 @@
 }
 
 .study-dock-carousel__item--dragging {
-  opacity: 0.55;
+  opacity: 0.35;
+}
+
+.study-dock-carousel__item--dragging .study-dock-carousel__item-inner {
+  border: 1px dashed var(--pds-border-strong, var(--pds-border));
+  border-radius: 12px;
+  background: transparent;
+}
+
+.study-dock-carousel__drag-preview {
+  /* Inherits .proto-html5-drag-preview lift; keep dock card chrome intact. */
+  background: var(--pds-bg-popover-solid, var(--pds-bg-page));
 }
 
 .study-dock-carousel__drag-handle:focus,

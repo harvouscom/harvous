@@ -3,6 +3,8 @@
  *
  * Endpoints:
  *   POST   /api/spaces/create
+ *   POST   /api/spaces/create-shared
+ *   POST   /api/spaces/create-church-shared
  *   DELETE /api/spaces/delete
  *   GET    /api/spaces/deleted
  *   GET    /api/spaces/items
@@ -103,6 +105,7 @@ import {
   OWNED_SHARED_SPACES_ADDON_LIMIT,
   FREE_OWNED_SHARED_SPACES_LIMIT,
 } from '../utils/tier-limits';
+import { assertCanCreateChurchSharedSpace } from '../utils/church-staff';
 import { getThreadGradientCSS } from '@/utils/colors';
 import {
   serializeSpaceCoverForDb,
@@ -309,10 +312,15 @@ route.post('/api/spaces/create-shared', requireAuth, rateLimit('write'), async (
       title?: string;
       color?: string;
       description?: string;
+      coverVariant?: number | string;
     };
     const title = (body.title ?? '').trim();
     const color = (body.color ?? 'paper').trim() || 'paper';
-    const cover = spaceCoverFromThreadColor(color);
+    const coverVariantRaw = Number(body.coverVariant);
+    const coverVariant = Number.isFinite(coverVariantRaw)
+      ? Math.min(5, Math.max(1, Math.round(coverVariantRaw)))
+      : 1;
+    const cover = spaceCoverFromThreadColor(color, coverVariant);
     const { coverBgLight, coverBgDark } = serializeSpaceCoverForDb(cover);
 
     const titleValidation = validateTitle(title, true);
@@ -373,6 +381,90 @@ route.post('/api/spaces/create-shared', requireAuth, rateLimit('write'), async (
     return c.json({ success: 'Shared space created!', space: newSpace });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/create-shared', action: 'create_shared_space' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/spaces/create-church-shared ──────────────────────────────────
+/**
+ * Creates a church-scoped Shared Space: type='shared' + orgId.
+ * Staff-gated (Churches.createdBy or owner/leader on an org space). Does not
+ * burn the personal Shared Spaces add-on quota. Pilot sponsorship = Churches.isActive.
+ */
+route.post('/api/spaces/create-church-shared', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({})) as {
+      title?: string;
+      color?: string;
+      description?: string;
+      orgId?: string;
+      coverVariant?: number | string;
+    };
+    const orgId = (body.orgId ?? '').trim();
+    if (!orgId) return c.json({ error: 'orgId is required', code: 'ORG_ID_REQUIRED' }, 400);
+
+    const gate = await assertCanCreateChurchSharedSpace(auth.userId, orgId);
+    if (!gate.ok) {
+      return c.json({ error: gate.error, code: gate.code }, gate.status);
+    }
+
+    const title = (body.title ?? '').trim();
+    const color = (body.color ?? 'paper').trim() || 'paper';
+    const coverVariantRaw = Number(body.coverVariant);
+    const coverVariant = Number.isFinite(coverVariantRaw)
+      ? Math.min(5, Math.max(1, Math.round(coverVariantRaw)))
+      : 1;
+    const cover = spaceCoverFromThreadColor(color, coverVariant);
+    const { coverBgLight, coverBgDark } = serializeSpaceCoverForDb(cover);
+
+    const titleValidation = validateTitle(title, true);
+    if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
+    const colorValidation = validateColor(color);
+    if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
+
+    const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
+    const now = nowISO();
+
+    const newSpace = await db.transaction(async (tx) => {
+      const space = first(await tx.insert(Spaces).values({
+        id: generateSpaceId(),
+        title: capitalizedTitle,
+        description: body.description?.trim() || null,
+        color,
+        backgroundGradient: getThreadGradientCSS(color),
+        coverBgLight,
+        coverBgDark,
+        userId: auth.userId,
+        type: 'shared',
+        orgId: gate.church.orgId,
+        isPublic: false,
+        isActive: true,
+        order: 0,
+        createdAt: now,
+        updatedAt: now,
+      }).returning())!;
+
+      await tx.insert(SpaceMemberships).values({
+        id: `smem_${crypto.randomUUID()}`,
+        spaceId: space.id,
+        userId: auth.userId,
+        role: 'owner',
+        joinedAt: now,
+        createdAt: now,
+      });
+
+      return space;
+    });
+
+    awardCreationBonusXP(auth.userId, 'space').catch(() => {});
+
+    return c.json({ success: 'Church Shared Space created!', space: newSpace });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/create-church-shared',
+      action: 'create_church_shared_space',
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

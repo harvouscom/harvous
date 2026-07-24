@@ -45,19 +45,13 @@ From the church org, admins/leaders can **create and manage multiple shared spac
 
 ### Church billing & Clerk org limits
 
-Clerk’s **free plan for organizations is limited to 20 people**. So for churches (which often exceed that), we need **paid church plans** and will need to set up additional features in **Clerk billing** to support them. For v1, Church Starter effectively lives at this 20-person cap; we should add a **lower plan** (e.g. for very small churches or trial) that fits the 20-person limit before or alongside Starter.
+Clerk’s standard Organizations allowance is **20 members per org** and **~100 MRO per app**. We do **not** put congregants in the Clerk org to “need” higher member limits — congregation scale is Harvous DB + `SpaceMemberships`. Canonical pricing: **Church base + add-ons** in [MONETIZATION_AND_PRICING.md §7](./MONETIZATION_AND_PRICING.md).
 
-- **Lower plan (TBD name, v1)** — fits 20-person Clerk limit; for small churches or trial. Details TBD.
-- **Church Starter**
-  - **Monthly:** $19 / org · **Annual (20% off):** $182 / org
-  - **Intended size (guideline):** Up to ~75 active adults (v1 may cap at 20 until Clerk billing is in place)
-  - **Included:** Unlimited shared spaces, PCO sync, MyChurchPanel content, uploads (PDFs/docs/links), 1–2 admins
-- **Church Growth**
-  - **Monthly:** $39 / org · **Annual (20% off):** $374 / org
-  - **Intended size (guideline):** ~75–300 active adults
-  - **Included:** Everything in Church Starter, plus richer analytics, 3–5 admins, priority email support
+- **Church base** (draft **$39/mo**) — Clerk org + up to **20 staff**; congregant link; no public free Connect org.
+- **Add-ons** (draft): Curriculum **$15**, Church Shared Spaces **$9**, Analytics **$9**, Unlimited staff **$25** (requires Clerk **Enhanced** ~$100/mo app-wide).
+- **Connected members** (150 / 500 / 1,500-style scale) are product targets on Harvous rails — not Clerk org size. Older Starter/Growth $19/$39 ladders and Clerk `memberLimit` 100/500 in [CLERK_MONETIZATION_ARCHITECTURE.md](./CLERK_MONETIZATION_ARCHITECTURE.md) are **superseded**.
 
-**Principle:** Unlimited spaces and unlimited notes inside an org; pricing scales by **church size**, not by feature gates. Implementation will require configuring Clerk billing (plans, limits, webhooks) for these church tiers.
+**Principle:** Notes unlimited; capabilities scale by **add-ons**, not by putting the whole congregation in Clerk. Clerk Billing / Stripe wiring still future work.
 
 ### Planning Center (PCO) integration — two products, two Harvous rails
 
@@ -111,7 +105,7 @@ Decide utilize-vs-replace when building the integration; product language and ch
 ### Users joining a church
 
 - **Existing users:** Already have free-text church in `UserMetadata`. Two paths:
-  - **Match-first (CHURCH_CONNECTION_SYSTEM):** When a church creates an org, find users by name/city/state and create “connection requests”; user accepts → link + add to Clerk org.
+  - **Match-first (CHURCH_CONNECTION_SYSTEM):** When a church creates an org, find users by name/city/state and create “connection requests”; user accepts → link in **Harvous DB only** (never add congregants to the Clerk org).
   - **User-first:** User goes to My Church → “Find your church” → search/select org → request to join or direct add (if org allows).
 - **New users:** Sign up then either set church (free-text) and get matched later, or go straight to “Join a church” and pick an org.
 - **Redirects (from AGENTS.md):** Do not set Clerk **Force redirect URL** to `/`; preserve `redirect_url` so users coming from `/spaces/join/[token]` or `/invitations/[token]` (and later e.g. `/churches/join/[token]`) return there. Same for church join/invite links.
@@ -122,14 +116,15 @@ Decide utilize-vs-replace when building the integration; product language and ch
 
 ### Already in place
 
-- **UserMetadata:** `churchName`, `churchCity`, `churchState`, `churchCountry`, `churchAddedAt` (and profile cache / `get-profile`, `update-church`).
-- **No** `connectedChurchId` / `connectedOrgId` yet.
+- **UserMetadata:** `churchName`, `churchCity`, `churchState`, `churchCountry`, `churchAddedAt`, `hmcChurchId` (and profile cache / `get-profile`, `update-church`).
+- **UserMetadata home church:** `connectedChurchId` / `connectedOrgId` / `connectedChurchAt` columns + get-profile expose — **no congregant connect writer yet** (temporary singular home until `ChurchMemberships`).
+- **Churches:** landed (`orgId`, `hmcChurchId`, name/location, `billingPlan`, `isActive`, soft-delete). Admin register/update/HMC link/sync-staff/broadcast create in `server/routes/churches.ts`.
+- **Space org lanes:** ministry channel = `type='public'+orgId`; church Shared Space = `type='shared'+orgId` (create path for church Shared Spaces + follow helper for channels).
 
 ### To add (from future docs)
 
-- **Churches:** `id`, `orgId` (Clerk org), church name/location, `adminUserId`, subscription/plan, `isActive`, timestamps. Optional: slug for URLs.
 - **ChurchConnectionRequests (or similar):** Pending “user ↔ church” links (e.g. `churchId`, `userId`, `status`, `matchedBy`, timestamps). Used for match-first flow and/or invite-to-join.
-- **UserMetadata:** `connectedChurchId`, `connectedOrgId` (and migration for existing rows).
+- **ChurchMemberships:** stub table landed (`chmem_*`); connect writers + home-pointer migration still to build. Until then `connected*` remains temporary singular home (exposed on get-profile).
 
 ### Sync with Clerk
 

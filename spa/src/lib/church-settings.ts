@@ -1,5 +1,6 @@
-import type { NavSpace } from '../hooks/queries/useNavigation';
+import type { NavSpace, NavigationData } from '../hooks/queries/useNavigation';
 import { isMinistryBroadcastSpace } from './shared-space-capabilities';
+import { isUnitedStatesCountryLabel } from '@/utils/us-states';
 
 export type StaffChurchSummary = {
   orgId: string;
@@ -9,16 +10,24 @@ export type StaffChurchSummary = {
   channelTitles: string[];
 };
 
-/** "City, ST" for hub/settings — omits when both empty. */
+/** "City, ST" or "City, Country" for hub/settings — omits empties. */
 export function formatChurchLocation(church: {
   churchCity?: string | null;
   churchState?: string | null;
+  churchCountry?: string | null;
 }): string | null {
   const city = church.churchCity?.trim() || '';
   const state = church.churchState?.trim() || '';
-  if (city && state) return `${city}, ${state}`;
-  if (city) return city;
-  if (state) return state;
+  const country = church.churchCountry?.trim() || '';
+  const locality = city && state ? `${city}, ${state}` : city || state || '';
+
+  if (locality && country) {
+    // US directory rows already show state; don't append "United States".
+    if (isUnitedStatesCountryLabel(country) && state) return locality;
+    return `${locality}, ${country}`;
+  }
+  if (locality) return locality;
+  if (country) return country;
   return null;
 }
 
@@ -105,4 +114,30 @@ export function churchHubSpacesForOrg(
         (isMinistryBroadcastSpace(space) || isChurchScopedSharedSpace(space)),
     )
     .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+}
+
+/**
+ * Church-scoped Shared Spaces the viewer owns or leads — for Settings › My Church.
+ * Owned entries come from `spaces`; memberships need role owner|leader.
+ */
+export function staffedChurchSharedSpaces(
+  navigation: Pick<NavigationData, 'spaces' | 'memberOfSpaces'> | null | undefined,
+): NavSpace[] {
+  if (!navigation) return [];
+  const byId = new Map<string, NavSpace>();
+
+  for (const space of navigation.spaces ?? []) {
+    if (!isChurchScopedSharedSpace(space)) continue;
+    byId.set(space.id, space);
+  }
+
+  for (const space of navigation.memberOfSpaces ?? []) {
+    if (!isChurchScopedSharedSpace(space)) continue;
+    if (space.role !== 'owner' && space.role !== 'leader') continue;
+    if (!byId.has(space.id)) byId.set(space.id, space);
+  }
+
+  return [...byId.values()].sort((a, b) =>
+    a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }),
+  );
 }

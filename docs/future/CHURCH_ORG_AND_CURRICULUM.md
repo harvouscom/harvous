@@ -100,7 +100,7 @@ Decided before any user-facing church surfacing. Do not reopen casually.
 | **Home feed** | **"From your church" = home church only.** Non-home churches: Settings (and later picker), not the Home feed. |
 | **Permissions** | Ministry: staff author; followers read + Save a copy / start-from-starter. Follower roster staff-only. Church Shared Spaces: collaborative compose as today. |
 | **Ministry chrome** | No people count for followers; no Current Thread; same color & background picker as Shared Spaces (RSS on color tile). |
-| **Billing (pilot)** | Free while `Churches.isActive`. `billingPlan` not required for pilot surfaces. Church Shared Spaces sponsorship rules land with create/migrate. |
+| **Billing (pilot)** | Complimentary **Church base** while `Churches.isActive` (not a public $0 Connect SKU). Paid model: base + add-ons (curriculum, church Shared Spaces, analytics, unlimited staff) — [MONETIZATION_AND_PRICING.md §7](./MONETIZATION_AND_PRICING.md). Church Shared Spaces sponsorship rules land with create/migrate. |
 | **Language** | Prefer **ministry / curriculum / study channel** (followable feed). Avoid **announcements**. Never call ministry channels "Shared Spaces" in UI. |
 | **Channel icon** | Distinct from Shared Spaces and from My Church. Prototype uses **`rss`**. See [icon guidance](#ministry-channel-icon-guidance--not-fully-locked). |
 
@@ -116,7 +116,7 @@ Pastor/staff tooling (sermon note template, preaching calendar, broadcast publis
 - The server derives a per-user **feature-set payload** (on the existing user/session bootstrap) from Clerk org membership + role + `Churches.isActive`. Clients render role surfaces only when the payload says so.
 - Congregants (`connectedChurchId` only, never Clerk org members) never receive role surfaces.
 - Only **general-first features** ship app-wide (passage history, seasonal recall, import, share links, note templates as a mechanism). The sermon template, for example, is an **org-provisioned template** on the general NoteTemplates rails — not pastor-specific UI.
-- A solo pastor without an org uses the general features; the free "Church Connect" tier is the future role-assignment entry point.
+- A solo pastor without an org uses the general features; **Church base** (paid, or pilot `isActive`) is the role-assignment entry point — not a free Connect org SKU.
 
 ---
 
@@ -186,7 +186,7 @@ This doc adds: **product vision** (church org accounts for curriculum), **two-la
 
 **Landed (July 2026, shared-spaces foundation branch)** — see `server/db/schema.ts`:
 
-- **`Churches`**: `id` (`chur_<uuid>`), `orgId` (Clerk org id, unique, notNull), `name/city/state/country`, `createdBy` (staff creator; admin roles live in Clerk), `billingPlan` (nullable slug — draft `'connect' | 'study' | 'study_plus' | 'network'`; add-on pattern, not the retired tier enum), `billingPlanUpdatedAt`, `isActive`, `deletedAt`/`recoveryUntil` (Spaces soft-delete parity), `createdAt`, `updatedAt`.
+- **`Churches`**: `id` (`chur_<uuid>`), `orgId` (Clerk org id, unique, notNull), `name/city/state/country`, `createdBy` (staff creator; admin roles live in Clerk), `billingPlan` (nullable slug — draft `'church'` for base subscribed; legacy connect/study/* ignored), `billingPlanUpdatedAt`, `isActive`, `deletedAt`/`recoveryUntil` (Spaces soft-delete parity), `createdAt`, `updatedAt`. Future: church add-on booleans (`curriculumAddOn`, `churchSharedSpacesAddOn`, `analyticsAddOn`, `unlimitedStaffAddOn`).
 - **`UserMetadata`**: `connectedChurchId`, `connectedOrgId`, `connectedChurchAt` + `UserMetadata_connectedChurchIdIndex` (the congregant fan-out query).
 - **`Spaces.orgId`**: church ownership/sponsorship; org-sponsored spaces are exempt from the personal owned-space count (`getSharedSpacesOwnedCount`), and `type='public'` spaces are exempt from the member cap (`canAddMemberToSpace`).
 - **`SpaceMemberships.role='leader'`** and **`SpaceInvites.role`**: schema-ready, dormant.
@@ -202,7 +202,7 @@ Canonical consumer pricing: [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRI
 | Stage | Who pays | What members get |
 |---|---|---|
 | **Group Leader** (v1) | Leader (Shared Spaces add-on today; ~$15–19/mo est. for the fuller SKU) | Join leader's **shared spaces** free; **Review** is individual ($4/mo each if they want AI from their own notes) |
-| **Church org** (future) | Church (`Churches.billingPlan`; pricing TBD) | Curriculum to connected members; multiple leader seats; optional **bulk Review seat packs** (each seat still personal) |
+| **Church org** (future) | Church **base** + optional **add-ons** ([§7](./MONETIZATION_AND_PRICING.md)) | Up to 20 staff (Clerk); curriculum / church Shared Spaces / analytics via add-ons; optional **bulk Review seat packs** (each seat still personal) |
 
 **Review is never shared:** AI practice is customized to each person's notes and preferences. A leader or
 church pays to **host and distribute curriculum**, not to substitute for each member's Review subscription.
@@ -220,22 +220,24 @@ scheduling, giving, or facilities. Competitive targets:
 - **Groups** → Shared Spaces (relational group study)
 - **Resources** → ministry broadcast / curriculum channels (utilize or replace)
 
-Not the full PC suite. Church org **pricing is not committed**; principles are public modular tiers, free entry
-where possible, and optional Review seat packs. See open decisions in MONETIZATION_AND_PRICING.md Section 7.
+Not the full PC suite. Church org **pricing is not committed**; principles are **paid base + light
+add-ons** (no free Connect org that burns Clerk MRO), and optional Review seat packs. See
+MONETIZATION_AND_PRICING.md Section 7.
 
-**Ladder:** Successful **Group Leader** → church connects → church adopts Harvous org account when
-curriculum + admin needs justify it.
+**Ladder:** Successful **Group Leader** → church connects → church adopts Harvous **Church base** when
+curriculum + admin needs justify it; stack add-ons as needed.
 
-**Draft church tiers (pilot):** Church Connect (free), Church Study ($29–39), Church Study Plus
-($59–79), Church Network ($99–149), plus Review seat packs and church-wide Season Pass add-ons. Full
-detail in [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) Section 7.
+**Draft church SKUs (pilot):** Church base **$39/mo** (20 staff); add-ons Curriculum **$15**, Church
+Shared Spaces **$9**, Analytics **$9**, Unlimited staff **$25** (needs Clerk Enhanced). Plus Review
+seat packs and church-wide Season Pass. Full detail in
+[MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) Section 7.
 
 ---
 
 ## Summary
 
 - **Vision:** Church org accounts for ministry education/curriculum; channels per ministry or study context — not an announcements bulletin.
-- **Clerk org and 20-person limit:** Staff/volunteers only (≤20). Congregants via `connectedChurchId` + ministry-space membership; never Clerk org members.
+- **Clerk org:** Staff/volunteers only (≤20 on base; Unlimited staff add-on + Clerk Enhanced for more). Congregants via `connectedChurchId` + ministry-space membership; never Clerk org members. ~100 MRO/app included on Clerk.
 - **Delivery = spaces rails:** org-owned ministry broadcast spaces (`Spaces.orgId` + `type='public'`); followers read + copy / start-from-starter — InboxItems pipe retired.
 - **Two Harvous lanes vs PCO:** Shared Spaces ↔ Groups; ministry broadcast ↔ Resources. Church may host Shared Spaces under My Church (same product, church-sponsored).
 - **Role-gated tooling:** pastor/staff features ride Clerk org custom roles → feature payload (after staff pilot); general users only see general-first features.

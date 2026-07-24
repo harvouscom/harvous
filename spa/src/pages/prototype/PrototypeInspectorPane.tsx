@@ -37,11 +37,16 @@ import ProtoConfirmDialog from './ProtoConfirmDialog';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import SharedNoteActivityPanel from './SharedNoteActivityPanel';
 import PrototypeInspectorTemplatesSection from './PrototypeInspectorTemplatesSection';
+import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { PrototypeSectionHeader } from './design-system';
 import { noteParamSlug } from './proto-route-slugs';
 import { isConfirmedForeignNote } from './proto-note-ownership';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import type { ApplyableNoteTemplate } from '../../hooks/queries/useNoteTemplates';
+import {
+  NOTE_TEMPLATE_ICON_NAME,
+  resolveNoteTemplateIconColor,
+} from '@/utils/note-template-icon';
 
 export type PrototypeInspectorTemplatesProps = {
   spaceId?: string | null;
@@ -52,7 +57,11 @@ export type PrototypeInspectorTemplatesProps = {
   liveTitle: string;
   liveContent: string;
   noteType?: string | null;
+  startedFromTemplateId?: string | null;
+  startedFromTemplateName?: string | null;
   onApply: (template: ApplyableNoteTemplate) => void;
+  /** Keep note provenance label in sync when the source template is renamed. */
+  onTemplateProvenanceChange?: (provenance: { id: string; name: string }) => void;
 };
 
 interface PrototypeInspectorPaneProps {
@@ -171,6 +180,17 @@ export default function PrototypeInspectorPane({
   const updatedStr = modifiedSource ? formatDate(new Date(modifiedSource)) : '—';
 
   const wordCount = estimateWords((templates?.liveContent ?? note.content) ?? '');
+  const templateFromId = (
+    templates?.startedFromTemplateId ??
+    note.startedFromTemplateId ??
+    ''
+  ).trim();
+  const templateFromName = (
+    templates?.startedFromTemplateName ??
+    note.startedFromTemplateName ??
+    ''
+  ).trim();
+  const showTemplateFrom = Boolean(templateFromId && templateFromName);
 
   const linkedFromNotes = note.linkedFromNotes ?? [];
   const linkedToNotes = note.linkedToNotes ?? [];
@@ -182,6 +202,26 @@ export default function PrototypeInspectorPane({
 
   const showActivityPanel = typeof onSelectActivity === 'function';
 
+  const templateFromRow = showTemplateFrom ? (
+    <InspectorRow
+      label="Template"
+      value={
+        <span className="proto-inspector-template-from">
+          <span className="proto-inspector-template-from__icon" aria-hidden>
+            <ProtoSpaceMenuIcon
+              color={resolveNoteTemplateIconColor(templateFromId)}
+              iconName={NOTE_TEMPLATE_ICON_NAME}
+              size={16}
+              radius={4}
+              glyphSize={8}
+            />
+          </span>
+          {templateFromName}
+        </span>
+      }
+    />
+  ) : null;
+
   return (
     <div className="proto-inspector">
       <section className="proto-inspector-section">
@@ -191,6 +231,7 @@ export default function PrototypeInspectorPane({
             <>
               <InspectorRow label="Status" value="Draft" />
               <InspectorRow label="Words" value={String(wordCount)} />
+              {templateFromRow}
             </>
           ) : (
             <>
@@ -204,6 +245,7 @@ export default function PrototypeInspectorPane({
               />
               <InspectorRow label="Edited" value={updatedStr} />
               <InspectorRow label="Words" value={String(wordCount)} />
+              {templateFromRow}
               {note.noteType && note.noteType !== 'default' ? (
                 <InspectorRow label="Type" value={capitalize(note.noteType)} />
               ) : null}
@@ -302,7 +344,7 @@ export default function PrototypeInspectorPane({
             </button>
           </>
         ) : (
-          <p className="proto-inspector-muted">No connections yet.</p>
+          <p className="proto-inspector-muted">Connect a related note.</p>
         )}
       </section>
 

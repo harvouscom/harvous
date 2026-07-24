@@ -125,6 +125,71 @@ function SettingsAddonsScene({ active }: { active: boolean }) {
 }
 
 function SpaceSwitcherScene({ creating }: { creating?: boolean }) {
+  const cover = spaceCoverFromThreadColor('blue');
+  if (creating) {
+    return (
+      <div className="proto-theme" style={{ width: 360 }}>
+        <div
+          className="proto-shared-space-about proto-create-shared-space"
+          role="dialog"
+          aria-label="New shared space"
+        >
+          <div className="proto-shared-space-about__scroll">
+            <div className="proto-shared-space-about__hero">
+              <PublicJoinSpaceHero
+                space={{ color: 'blue', cover: { light: cover.light, dark: cover.dark } }}
+              />
+            </div>
+            <div className="proto-shared-space-about__letter">
+              <div className="public-join-letter-about proto-create-shared-space__letter">
+                <div className="public-join-letter-about__header">
+                  <span className="public-join-letter-about__icon space-icon-tile" aria-hidden>
+                    <ProtoSpaceMenuIcon color="blue" size={36} radius={10} />
+                  </span>
+                  <input
+                    type="text"
+                    className="public-addon-letter__title proto-create-shared-space__title-input"
+                    defaultValue="New study space"
+                    readOnly
+                  />
+                </div>
+                <p className="public-join-letter-about__description">Optional description</p>
+                <div
+                  className="proto-space-cover-picker__tray proto-create-shared-space__tray"
+                  role="radiogroup"
+                  aria-label="Color"
+                >
+                  {SPACE_COVER_PICKER_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      aria-label={`Color ${color}`}
+                      aria-pressed={color === 'blue'}
+                      className={`proto-shared-space-settings__color proto-space-cover-picker__tray-swatch${
+                        color === 'blue' ? ' proto-shared-space-settings__color--selected' : ''
+                      }`}
+                      style={{ ['--swatch-accent' as string]: spacePickerSwatchColor(color) }}
+                    >
+                      {color === 'blue' ? <Icon name="check" size={12} /> : null}
+                    </button>
+                  ))}
+                </div>
+                <div className="proto-create-shared-space__actions">
+                  <button type="button" className="proto-settings-btn proto-settings-btn--secondary">
+                    Cancel
+                  </button>
+                  <button type="button" className="proto-settings-btn">
+                    Create
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="proto-theme" style={{ width: 280 }}>
       <ProtoPopoverShell className="proto-menu__popover" role="menu" aria-label="Spaces preview" style={{ position: 'relative' }}>
@@ -149,59 +214,14 @@ function SpaceSwitcherScene({ creating }: { creating?: boolean }) {
             </span>
           </button>
         </div>
-        {creating ? (
-          <div className="proto-space-switcher__create-form">
-            <div className="proto-space-switcher__preview" aria-hidden>
-              <span className="proto-menu-item__icon proto-menu-item__icon--space">
-                <ProtoSpaceMenuIcon color="blue" />
-              </span>
-              <span className="proto-menu-item__label proto-space-switcher__preview-title">
-                New study space
-              </span>
-            </div>
-            <input
-              type="text"
-              defaultValue="New study space"
-              readOnly
-              className="proto-space-switcher__create-input"
-            />
-            <div className="proto-space-switcher__create-colors">
-              {SPACE_COVER_PICKER_COLORS.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  aria-label={`Color ${color}`}
-                  aria-pressed={color === 'blue'}
-                  className={
-                    color === 'blue'
-                      ? 'proto-shared-space-settings__color proto-shared-space-settings__color--selected'
-                      : 'proto-shared-space-settings__color'
-                  }
-                  style={{ ['--swatch-accent' as string]: spacePickerSwatchColor(color) }}
-                >
-                  {color === 'blue' ? <Icon name="check" size={12} /> : null}
-                </button>
-              ))}
-            </div>
-            <div className="proto-space-switcher__create-actions">
-              <button type="button" className="proto-settings-btn proto-settings-btn--secondary">
-                Cancel
-              </button>
-              <button type="button" className="proto-settings-btn">
-                Create
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="proto-menu-section">
-            <button type="button" className="proto-menu-item">
-              <span className="proto-menu-item__icon" aria-hidden>
-                <Icon name="plus" size={PROTO_TOOLBAR_ICON_SIZE} />
-              </span>
-              <span className="proto-menu-item__label">New shared space</span>
-            </button>
-          </div>
-        )}
+        <div className="proto-menu-section">
+          <button type="button" className="proto-menu-item">
+            <span className="proto-menu-item__icon" aria-hidden>
+              <Icon name="plus" size={PROTO_TOOLBAR_ICON_SIZE} />
+            </span>
+            <span className="proto-menu-item__label">New shared space</span>
+          </button>
+        </div>
       </ProtoPopoverShell>
     </div>
   );

@@ -52,3 +52,39 @@ export const US_STATE_OPTIONS: ReadonlyArray<{ code: string; label: string }> = 
   { code: 'WI', label: 'Wisconsin' },
   { code: 'WY', label: 'Wyoming' },
 ];
+
+export const US_STATE_CODES: ReadonlySet<string> = new Set(US_STATE_OPTIONS.map((o) => o.code));
+
+/** Normalize to a 2-letter US/DC code, or null. */
+export function normalizeUsStateCode(state: string | null | undefined): string | null {
+  const code = (state ?? '').trim().toUpperCase();
+  return US_STATE_CODES.has(code) ? code : null;
+}
+
+export function isUnitedStatesCountryLabel(country: string | null | undefined): boolean {
+  const n = (country ?? '').trim().toLowerCase();
+  if (!n) return false;
+  return (
+    n === 'us' ||
+    n === 'usa' ||
+    n === 'u.s.' ||
+    n === 'u.s.a.' ||
+    n === 'united states' ||
+    n === 'united states of america'
+  );
+}
+
+/**
+ * Manual My Church entry counts as U.S. (and should also submit to HMC) when
+ * state is a US code and country is empty or explicitly United States.
+ */
+export function isUsChurchLocation(options: {
+  churchState?: string | null;
+  churchCountry?: string | null;
+}): boolean {
+  const state = normalizeUsStateCode(options.churchState);
+  if (!state) return false;
+  const country = (options.churchCountry ?? '').trim();
+  if (!country) return true;
+  return isUnitedStatesCountryLabel(country);
+}

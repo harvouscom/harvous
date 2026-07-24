@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
@@ -54,7 +54,6 @@ import { protoRelativeCaptionAbbrev } from './proto-time';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoThreadTrailOrb from './ProtoThreadTrailOrb';
-import ProtoThreadTrailReorderDivider from './ProtoThreadTrailReorderDivider';
 import PrototypeSidebarRowMenuPopover from './PrototypeSidebarRowMenuPopover';
 import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { usePrototypeSpaceStudyThreadHighlights } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
@@ -197,6 +196,23 @@ type PrototypeSidebarNoteRowProps = {
   folderRemoval?: { folderName: string };
   /** Vertical trail dots + spine (thread drilldown). */
   trailLayout?: boolean;
+  /** Thread-trail reorder: mark the source step while its ghost follows the cursor. */
+  isDragging?: boolean;
+  /**
+   * Thread-trail row reorder (⋮ hold-to-drag). Click still opens the note menu when present.
+   */
+  trailReorder?: {
+    noteId: string;
+    reorderIndex: number;
+    onDragStart: (
+      event: React.DragEvent<HTMLElement>,
+      noteId: string,
+      previewSource?: HTMLElement | null,
+    ) => void;
+    onDragEnd: (event: React.DragEvent<HTMLElement>) => void;
+    onDragOver: (event: React.DragEvent<HTMLElement>, insertBeforeIndex: number) => void;
+    onDrop: (event: React.DragEvent<HTMLElement>) => void;
+  } | null;
   /** Roster lookup for shared-space author avatars on list rows. */
   sharedSpaceMemberByUserId?: Map<string, SpaceMemberRow>;
   /** Actual shared-space owner, not leader/member moderation role. */
@@ -692,12 +708,15 @@ function PrototypeSidebarNoteRow({
   threadRemoval,
   folderRemoval,
   trailLayout = false,
+  isDragging = false,
+  trailReorder = null,
   sharedSpaceMemberByUserId,
   viewerIsSpaceOwner = false,
 }: PrototypeSidebarNoteRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteAnchorRect, setDeleteAnchorRect] = useState<DOMRect | null>(null);
+  const suppressMenuClickRef = useRef(false);
   const rowRef = useRef<HTMLLIElement>(null);
   const menuRootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -883,26 +902,70 @@ function PrototypeSidebarNoteRow({
     </button>
   );
 
-  const menuBlock = rowHideMenu ? null : (
+  const canTrailReorder = Boolean(trailReorder);
+  const showMenuChrome = !rowHideMenu || canTrailReorder;
+
+  const menuBlock = !showMenuChrome ? null : (
       <div
-        className={`proto-menu proto-note-row__menu${menuOpen ? ' proto-note-row__menu--open' : ''}`}
+        className={`proto-menu proto-note-row__menu${menuOpen ? ' proto-note-row__menu--open' : ''}${
+          canTrailReorder ? ' proto-note-row__menu--reorder' : ''
+        }`}
         ref={menuRootRef}
       >
         <button
           type="button"
           className="proto-note-row__menu-trigger"
-          aria-expanded={menuOpen}
-          aria-haspopup="menu"
-          aria-label="Note actions"
-          disabled={pinNote.isPending || deleteNote.isPending || containerActionPending}
+          aria-expanded={rowHideMenu ? undefined : menuOpen}
+          aria-haspopup={rowHideMenu ? undefined : 'menu'}
+          aria-label={
+            canTrailReorder
+              ? rowHideMenu
+                ? `Reorder ${rowTitle}`
+                : `Note actions, drag to reorder ${rowTitle}`
+              : 'Note actions'
+          }
+          title={canTrailReorder ? 'Drag to reorder' : undefined}
+          draggable={canTrailReorder}
+          disabled={
+            !canTrailReorder && (pinNote.isPending || deleteNote.isPending || containerActionPending)
+          }
+          onMouseDown={(e) => {
+            if (canTrailReorder) e.stopPropagation();
+          }}
+          onDragStart={
+            canTrailReorder && trailReorder
+              ? (e) => {
+                  suppressMenuClickRef.current = true;
+                  setMenuOpen(false);
+                  const step = e.currentTarget.closest('.proto-thread-trail__step') as HTMLElement | null;
+                  trailReorder.onDragStart(e, trailReorder.noteId, step);
+                }
+              : undefined
+          }
+          onDragEnd={
+            canTrailReorder && trailReorder
+              ? (e) => {
+                  trailReorder.onDragEnd(e);
+                  window.setTimeout(() => {
+                    suppressMenuClickRef.current = false;
+                  }, 0);
+                }
+              : undefined
+          }
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
+            if (suppressMenuClickRef.current) {
+              suppressMenuClickRef.current = false;
+              return;
+            }
+            if (rowHideMenu) return;
             setMenuOpen((o) => !o);
           }}
         >
           <Icon name="ellipsis-vertical" size={14} />
         </button>
+        {rowHideMenu ? null : (
         <PrototypeSidebarRowMenuPopover
           open={menuOpen}
           rowRef={rowRef}
@@ -977,6 +1040,7 @@ function PrototypeSidebarNoteRow({
             </button> : null}
           </div>
         </PrototypeSidebarRowMenuPopover>
+        )}
       </div>
   );
 
@@ -997,13 +1061,31 @@ function PrototypeSidebarNoteRow({
     );
 
   if (trailLayout) {
+    const reorderIndex = trailReorder?.reorderIndex ?? 0;
+    const insertBeforeFromPointer = (e: React.DragEvent<HTMLElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      return e.clientY < rect.top + rect.height / 2 ? reorderIndex : reorderIndex + 1;
+    };
     return (
       <li
         ref={rowRef}
-        className={`proto-thread-trail__step${active ? ' proto-thread-trail__step--focus' : ''}`}
+        className={`proto-thread-trail__step${active ? ' proto-thread-trail__step--focus' : ''}${
+          isDragging ? ' proto-thread-trail__step--dragging' : ''
+        }`}
         data-active={active ? 'true' : 'false'}
         role="listitem"
         aria-current={active ? 'true' : undefined}
+        onDragEnter={
+          trailReorder
+            ? (e) => trailReorder.onDragOver(e, insertBeforeFromPointer(e))
+            : undefined
+        }
+        onDragOver={
+          trailReorder
+            ? (e) => trailReorder.onDragOver(e, insertBeforeFromPointer(e))
+            : undefined
+        }
+        onDrop={trailReorder ? trailReorder.onDrop : undefined}
       >
         <ProtoThreadTrailOrb active={active} />
         <div className="proto-thread-trail__step-body">
@@ -2804,20 +2886,6 @@ export default function PrototypeSidebar({
                     className={`proto-note-list proto-thread-trail__spine proto-thread-trail__spine--fill proto-sidebar-thread-trail${threadDrillDrag.draggingId ? ' proto-thread-trail__spine--dragging' : ''}`}
                     role="list"
                   >
-                    {threadDrillDrag.showDragHandle ? (
-                      <li className="proto-thread-trail__reorder-divider-item" role="presentation">
-                        <ProtoThreadTrailReorderDivider
-                          insertBeforeIndex={0}
-                          dragNoteId=""
-                          dragNoteTitle=""
-                          dropOnly
-                          onDragStart={threadDrillDrag.handleDragStart}
-                          onDragEnd={threadDrillDrag.handleDragEnd}
-                          onDragOver={threadDrillDrag.handleDragOver}
-                          onDrop={threadDrillDrag.handleDrop}
-                        />
-                      </li>
-                    ) : null}
                     {threadDrillDisplayNodes.map((node, index) => {
                       const row = resolveDrillNoteRow({
                         id: node.id,
@@ -2825,11 +2893,9 @@ export default function PrototypeSidebar({
                         content: node.content ?? node.resourceDescription ?? '',
                         updatedAt: node.updatedAt,
                       });
-                      const rowTitle =
-                        stripServerAutoUntitledNoteTitleForDisplay(row.title?.trim() ?? '') || 'New Note';
                       return (
-                        <Fragment key={node.id}>
                           <PrototypeSidebarNoteRow
+                            key={node.id}
                             row={row}
                             active={!!(activeNoteFullId && node.id === activeNoteFullId)}
                             homeSpaceId={homeSpaceId}
@@ -2839,26 +2905,24 @@ export default function PrototypeSidebar({
                             viewerIsSpaceOwner={viewerIsSpaceOwner}
                             prefetchNote={prefetchNote}
                             trailLayout
+                            isDragging={threadDrillDrag.draggingId === node.id}
+                            trailReorder={
+                              threadDrillDrag.showDragHandle
+                                ? {
+                                    noteId: node.id,
+                                    reorderIndex: index,
+                                    onDragStart: threadDrillDrag.handleDragStart,
+                                    onDragEnd: threadDrillDrag.handleDragEnd,
+                                    onDragOver: threadDrillDrag.handleDragOver,
+                                    onDrop: threadDrillDrag.handleDrop,
+                                  }
+                                : null
+                            }
                             threadRemoval={{ memberIds: threadDrillMemberIds }}
                             onOpenNote={(r) => {
                               onNoteRow(r);
                             }}
                           />
-                          {threadDrillDrag.showDragHandle ? (
-                            <li className="proto-thread-trail__reorder-divider-item" role="presentation">
-                              <ProtoThreadTrailReorderDivider
-                                insertBeforeIndex={index + 1}
-                                dragNoteId={node.id}
-                                dragNoteTitle={rowTitle}
-                                isDragging={threadDrillDrag.draggingId === node.id}
-                                onDragStart={threadDrillDrag.handleDragStart}
-                                onDragEnd={threadDrillDrag.handleDragEnd}
-                                onDragOver={threadDrillDrag.handleDragOver}
-                                onDrop={threadDrillDrag.handleDrop}
-                              />
-                            </li>
-                          ) : null}
-                        </Fragment>
                       );
                     })}
                   </ul>

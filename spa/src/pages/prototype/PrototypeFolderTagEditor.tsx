@@ -487,7 +487,7 @@ export default function PrototypeFolderTagEditor({
           </span>
         </label>
         <p className="proto-fte-lock__hint">
-          When on, Harvous won't change the primary folder automatically; secondary suggestions still update from your note.
+          When on, Harvous keeps the primary folder you choose.
         </p>
       </div>
 
@@ -515,7 +515,7 @@ export default function PrototypeFolderTagEditor({
               ))}
             </div>
           ) : (
-            <p className="proto-fte-tag-empty">No tags yet.</p>
+            <p className="proto-fte-tag-empty">Add a tag to organize this note.</p>
           )}
           <div className="proto-fte-field proto-fte-field--tag">
             <input

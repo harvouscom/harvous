@@ -28,7 +28,16 @@ export type ProtoAnchoredPopoverStrategy = 'anchor' | 'main-column-top-right' | 
 export function useProtoAnchoredPopoverPosition(
   cardRef: RefObject<HTMLElement | null>,
   anchor: ProtoAnchoredPopoverAnchor,
-  options: AnchoredPopoverPositionOptions & { enabled: boolean; strategy?: ProtoAnchoredPopoverStrategy },
+  options: AnchoredPopoverPositionOptions & {
+    enabled: boolean;
+    strategy?: ProtoAnchoredPopoverStrategy;
+    /**
+     * When true, keep the first laid-out position while open. Card ResizeObserver
+     * remeasures are skipped (window resize still repositions). Use for dialogs
+     * whose height changes from in-place editing / trays so they don't jump.
+     */
+    stablePosition?: boolean;
+  },
   layoutDeps: unknown[] = [],
 ): { position: { top: number; left: number } | null; sync: () => void } {
   const {
@@ -40,6 +49,7 @@ export function useProtoAnchoredPopoverPosition(
     fallbackWidth,
     fallbackHeight,
     viewportMargin,
+    stablePosition = false,
   } = options;
   const isFixedMainColumn = strategy === 'main-column-top-right';
   const isCentered = strategy === 'centered';
@@ -49,6 +59,7 @@ export function useProtoAnchoredPopoverPosition(
   anchorRectRef.current = anchor.anchorRect ?? null;
 
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const lockedWhileOpenRef = useRef(false);
 
   const sync = useCallback(() => {
     const card = cardRef.current;
@@ -68,6 +79,7 @@ export function useProtoAnchoredPopoverPosition(
             { maxHeightPx, vhFraction },
           );
     setPosition(next);
+    if (stablePosition) lockedWhileOpenRef.current = true;
   }, [
     cardRef,
     fallbackHeight,
@@ -75,6 +87,7 @@ export function useProtoAnchoredPopoverPosition(
     isCentered,
     isFixedMainColumn,
     maxHeightPx,
+    stablePosition,
     topVhFraction,
     vhFraction,
     viewportMargin,
@@ -82,9 +95,12 @@ export function useProtoAnchoredPopoverPosition(
 
   useLayoutEffect(() => {
     if (!enabled) {
+      lockedWhileOpenRef.current = false;
       setPosition(null);
       return;
     }
+    // Stable dialogs: position once on open; ignore content-driven layoutDeps.
+    if (stablePosition && lockedWhileOpenRef.current) return;
     sync();
     // Re-sync when popover content/layout changes (caller-supplied deps).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- layoutDeps is intentional
@@ -92,14 +108,22 @@ export function useProtoAnchoredPopoverPosition(
     enabled,
     isCentered,
     isFixedMainColumn,
+    stablePosition,
     sync,
-    ...(isCentered || isFixedMainColumn ? layoutDeps : [anchor.anchorEl, anchor.anchorRect, ...layoutDeps]),
+    ...(stablePosition
+      ? []
+      : isCentered || isFixedMainColumn
+        ? layoutDeps
+        : [anchor.anchorEl, anchor.anchorRect, ...layoutDeps]),
   ]);
 
   useEffect(() => {
     if (!enabled) return undefined;
     const onResize = () => sync();
     window.addEventListener('resize', onResize);
+    if (stablePosition) {
+      return () => window.removeEventListener('resize', onResize);
+    }
     const card = cardRef.current;
     if (!card) {
       return () => window.removeEventListener('resize', onResize);
@@ -127,7 +151,7 @@ export function useProtoAnchoredPopoverPosition(
       window.removeEventListener('resize', onResize);
       window.removeEventListener('scroll', onScroll, true);
     };
-  }, [cardRef, enabled, isCentered, isFixedMainColumn, sync]);
+  }, [cardRef, enabled, isCentered, isFixedMainColumn, stablePosition, sync]);
 
   return { position, sync };
 }

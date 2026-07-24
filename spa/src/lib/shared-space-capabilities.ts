@@ -1,7 +1,11 @@
 export type SharedSpaceMembershipRole = 'owner' | 'leader' | 'member';
 export type SidebarListSpaceScope = 'space' | 'my-home';
 
-/** Org-owned ministry education channel (broadcast), not a collaborative shared space. */
+/**
+ * Org-owned ministry education channel (broadcast), not a collaborative Shared Space.
+ * Discrimination (no isMinistryBroadcast column): public+orgId = channel;
+ * shared+orgId = church Shared Space; shared without orgId = personal Shared Space.
+ */
 export function isMinistryBroadcastSpace(options: {
   type?: 'personal' | 'shared' | 'public' | string | null;
   orgId?: string | null;

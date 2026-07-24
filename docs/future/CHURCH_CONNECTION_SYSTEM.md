@@ -32,11 +32,13 @@ This system allows users to set their church, churches to create Clerk Organizat
 
 ## User Flow
 
-### 1. User Sets Their Church (HMC picker ✅)
+### 1. User Sets Their Church (HMC picker ✅ + outside-US manual ✅)
 - User goes to Settings → My Church
-- State-scoped typeahead against Here’s My Church (`GET /api/user/churches/hmc/search`)
-- On pick: store `UserMetadata.hmcChurchId` + denormalized `churchName/churchCity/churchState` from HMC
-- Free-text fields remain a **cache / matching input**, not the identity SoT; never repurposed for org linkage (`connectedChurchId`)
+- **U.S. directory:** state-scoped typeahead against Here’s My Church (`GET /api/user/churches/hmc/search`)
+- On HMC pick: store `UserMetadata.hmcChurchId` + denormalized `churchName/churchCity/churchState` from HMC (`churchCountry` cleared)
+- **Outside U.S. / not listed:** manual name + city + region + country via `POST /api/user/update-church` (server clears any prior HMC link). Name required.
+- **U.S. but not in directory:** same manual form with US state + city. Server **also submits** the church to Here’s My Church (`POST …/churches/add` after geocode). On success (or duplicate match), Harvous stores the returned `hmcChurchId` so the pick becomes directory-backed. Geocode/add failures still save free-text on Harvous.
+- Free-text / denorm fields are **matching input / display**, not org linkage (`connectedChurchId` stays separate).
 
 ### 2. Church Creates Organization
 - Church admin signs up for Harvous
@@ -50,9 +52,11 @@ This system allows users to set their church, churches to create Clerk Organizat
 - User accepts → linked in our DB (`UserMetadata.connectedChurchId`/`connectedOrgId`/`connectedChurchAt`); church content appears via church broadcast spaces
 - **Congregants are not added to the Clerk org.** Only church staff/volunteers (≤20) are Clerk org members; congregants get access via our DB and membership in church broadcast spaces (see CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md).
 
-## Clerk Organization Limit (20 People)
+## Clerk Organization Limits (20 staff + 100 MRO)
 
-Clerk's free plan limits organizations to 20 members. We stay within this by **reserving the Clerk org for church staff/volunteers only** (admins, curriculum authors, small group leaders who need the church dashboard). **Congregants/attendees are never added to the Clerk org.** When a user accepts a connection request, we only update `UserMetadata.connectedChurchId`/`connectedOrgId` and optionally add them as `role='member'` rows in the church's broadcast spaces (`SpaceMemberships` — broadcast spaces are exempt from the 30-person shared-space cap, so congregation scale is fine). Curriculum and "From your church" delivery read from those spaces, not Clerk org membership.
+Clerk’s standard Organizations allowance: **20 members per org** and **~100 Monthly Retained Organizations (MRO) per app** (an MRO ≈ org with ≥2 members and ≥1 retained user). We stay within the **20** by **reserving the Clerk org for church staff/volunteers only** (admins, curriculum authors, small group leaders who need the church dashboard). **Congregants/attendees are never added to the Clerk org.** When a user accepts a connection request, write a `ChurchMemberships` row, set home via `UserMetadata.connectedChurchId`/`connectedOrgId`/`connectedChurchAt` (temporary singular home until home pointer moves onto memberships), and optionally call `followMinistryChannel` for broadcast spaces (`SpaceMemberships` role=`member` — public spaces are exempt from the 30-person cap). Curriculum and "From your church" delivery read from those spaces, not Clerk org membership.
+
+**Billing model:** paid **Church base** ($39/mo draft) creates the Clerk org; optional church add-ons (curriculum, church Shared Spaces, analytics, unlimited staff). There is **no public free Connect org** — congregant HMC “My church” does not create an org or burn an MRO. Staff seats above 20 require the **Unlimited staff** add-on and Clerk’s **Enhanced** B2B add-on (~$100/mo app-wide). Canonical prices: [MONETIZATION_AND_PRICING.md §7](./MONETIZATION_AND_PRICING.md). Sync-staff refuses Clerk rosters over 20 (`CLERK_ORG_MEMBER_LIMIT`) until unlimited staff ships.
 
 ## Database Schema
 
@@ -68,8 +72,10 @@ export const Churches = pgTable('Churches', {
   state: text('state'),
   country: text('country'),
   createdBy: text('createdBy').notNull(),   // staff creator; admin roles live in Clerk org roles
-  billingPlan: text('billingPlan'),         // nullable slug: 'connect' | 'study' | 'study_plus' | 'network' (draft)
+  billingPlan: text('billingPlan'),         // nullable slug — draft 'church' (base); legacy connect/study/* ignored
   billingPlanUpdatedAt: ts('billingPlanUpdatedAt'),
+  // Future add-on flags (same spirit as UserMetadata.sharedSpacesAddOn):
+  // curriculumAddOn, churchSharedSpacesAddOn, analyticsAddOn, unlimitedStaffAddOn (+ *UpdatedAt)
   isActive: boolean('isActive').notNull().default(true),
   deletedAt: ts('deletedAt'),               // soft-delete lifecycle (Spaces parity)
   recoveryUntil: ts('recoveryUntil'),
@@ -80,14 +86,17 @@ export const Churches = pgTable('Churches', {
   index('Churches_createdByIndex').on(table.createdBy),
 ]);
 
-// UserMetadata additions (landed)
-connectedChurchId: text('connectedChurchId'),   // Churches.id once linked
+// UserMetadata home (landed — temporary singular home until connect writers)
+connectedChurchId: text('connectedChurchId'),   // Churches.id home
 connectedOrgId: text('connectedOrgId'),         // denormalized Clerk org id
 connectedChurchAt: ts('connectedChurchAt'),
-// + index('UserMetadata_connectedChurchIdIndex') — the congregant fan-out query
+// get-profile exposes these; no congregant accept writer yet
+
+// ChurchMemberships — stub landed (no writers yet); chmem_<uuid>
+// churchId, userId, role='member', joinedAt — unique(churchId, userId)
 ```
 
-Notable decisions vs. earlier drafts: `createdBy` replaces `adminUserId` (admin is a Clerk org role, possibly plural); nullable `billingPlan` slug replaces the `subscriptionTier 'starter'|'growth'|'enterprise'` enum (follows the `sharedSpacesAddOn` add-on pattern; survives tier renames without migration).
+Notable decisions vs. earlier drafts: `createdBy` replaces `adminUserId` (admin is a Clerk org role, possibly plural); nullable `billingPlan` + future boolean church add-ons replace tier ladders (`connect`/`study`/`network`, `starter`/`growth`/`enterprise`) — same spirit as `sharedSpacesAddOn`. **`connected*` is temporary home-only** until connect populates `ChurchMemberships` and (later) a dedicated home pointer.
 
 ### Planned — lands with the connect flow
 

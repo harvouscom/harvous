@@ -90,6 +90,7 @@ import '../../src/styles/study-highlight-accent-colors.css';
 import '../../src/styles/scripture-pill-accent.css';
 import '../../src/styles/mention-pill.css';
 /* Prototype design tokens on :root — needed before lazy layout paints portaled UI. */
+import '../../src/styles/html5-drag-preview.css';
 import './styles/prototype-tokens.css';
 /* Shell + sidebar chrome (shared-space dashboard, lists) — load with entry bundle to avoid first-paint FOUC. */
 import './styles/prototype-shell.css';

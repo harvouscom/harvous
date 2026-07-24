@@ -17,6 +17,8 @@ type Props = {
   /** Search via Harvous API (admin or user proxy). */
   onSearch: (q: string, state: string) => Promise<HmcChurchPick[]>;
   onPick: (church: HmcChurchPick) => void;
+  /** Outside-US / unlisted fallback (settings). */
+  onRequestManual?: () => void;
   initialState?: string;
   disabled?: boolean;
   /** Optional class prefix for admin vs settings styling. */
@@ -26,6 +28,7 @@ type Props = {
 export default function HmcChurchPicker({
   onSearch,
   onPick,
+  onRequestManual,
   initialState = '',
   disabled = false,
   variant = 'settings',
@@ -140,6 +143,16 @@ export default function HmcChurchPicker({
       ) : null}
       {!loading && !error && state && query.trim().length >= 2 && results.length === 0 ? (
         <p className="hmc-church-picker__status">No matches for “{query.trim()}” in {state}.</p>
+      ) : null}
+      {onRequestManual ? (
+        <button
+          type="button"
+          className="hmc-church-picker__manual-link"
+          disabled={disabled}
+          onClick={onRequestManual}
+        >
+          Outside the U.S. or not listed? Enter manually
+        </button>
       ) : null}
     </div>
   );

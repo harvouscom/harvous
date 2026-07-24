@@ -152,15 +152,19 @@ one-time or annual SKU per season.
 
 ## 7. Church org (future — draft pricing for pilot)
 
-**Vision:** Leader connects church → church adopts Harvous → church pays for org-level curriculum and
-leader seats with admin tools. See [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md).
+**Vision:** Church adopts a Harvous org account → pays a **base** platform fee → optionally stacks
+**church add-ons** (same pattern as individual Shared Spaces / Review). See
+[CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md) and
+[CHURCH_CONNECTION_SYSTEM.md](./CHURCH_CONNECTION_SYSTEM.md).
 
 **Review stays individual.** Church may optionally buy **bulk Review seat packs** — each member
 **claims** a seat so AI still runs on their notes only (payer ≠ shared AI access).
 
-**Status:** Draft tiers below for friendly-church pilot — not committed in billing until validated.
-Supersedes the older $75 / $125 / $200 placeholders in
-[CLERK_MONETIZATION_ARCHITECTURE.md](./CLERK_MONETIZATION_ARCHITECTURE.md) (technical file only).
+**Status:** Draft base + add-ons for friendly-church pilot — not committed in billing until validated.
+Supersedes Connect / Study / Study Plus / Network ladder drafts and the older $75 / $125 / $200
+placeholders in [CLERK_MONETIZATION_ARCHITECTURE.md](./CLERK_MONETIZATION_ARCHITECTURE.md) (that
+file’s Clerk `memberLimit` 100/500 figures are **connected-member targets**, not Clerk org size —
+congregants are never Clerk org members).
 
 ### Position vs Planning Center
 
@@ -181,85 +185,86 @@ members**:
 **Pitch anchor:** *"Keep Planning Center. Harvous is where your people's Bible study lives — you
 publish the guide; they keep personal notes; Review helps each person remember what they learned."*
 
-### Recommended tiers (modular — Option A)
+### Clerk COGS (Harvous → Clerk)
 
-Public pricing for standard plans; no sales call required at entry tiers.
+| Constraint | Meaning for Harvous |
+|---|---|
+| **20 members / org** (standard) | Every church base includes up to **20 staff/volunteers** in the Clerk org. Congregants never join Clerk. |
+| **100 MRO / app** included | ~100 churches with 2+ retained staff before ~$1/MRO overage. |
+| **Enhanced B2B** (~$100/mo app-wide) | Unlocks **unlimited members per org** (plus custom roles, domain restrict, etc.). Buy only when selling **Unlimited staff**; Harvous still gates >20 per church that purchased that add-on. |
 
-| Tier | Monthly (draft) | Included |
-|---|---|---|
-| **Church Connect** | **$0** | Link congregation; limited curriculum (e.g. 2 pushes/quarter); current Compete free track |
-| **Church Study** | **$29–39** | ~3 **leader seats**, up to **150 connected** members, curriculum to inbox / "From your church" |
-| **Church Study Plus** | **$59–79** | ~10 leaders, **500 connected**, unlimited curriculum pushes, **one church-wide Season Pass** per active season |
-| **Church Network** | **$99–149** | Up to **20 staff** (Clerk org cap), **1,500+ connected**, engagement analytics, group targeting |
+**No public free Connect org.** Congregant HMC / “My church” linking does not create a Clerk org or burn an MRO. Pilots = complimentary base via `Churches.isActive`, not a $0 SKU.
 
-**À la carte add-ons:**
+### Recommended model: base + church add-ons
+
+Same shape as individual add-ons — one platform fee, optional capabilities.
+
+| SKU | Monthly (draft) | Yearly (draft) | Includes |
+|---|---|---|---|
+| **Church base** | **$39** | **$390** (~2 mo free) | Clerk org + Harvous `Churches` row; **20 staff**; congregant link / My Church hub for staff. No curriculum publish, church Shared Spaces, or analytics until add-ons. |
+| **Curriculum** add-on | **$15** | **$150** | Ministry channels; publish to connected members; “From your church” |
+| **Church Shared Spaces** add-on | **$9** | **$90** | Church-scoped Shared Spaces (sponsored; step up from personal $6) |
+| **Analytics** add-on | **$9** | **$90** | Privacy-safe engagement aggregates; targeting later |
+| **Unlimited staff** add-on | **$25** | **$250** | Staff seats **>20** for that church. Requires Clerk Enhanced on the Harvous app (~4 buyers cover the $100/mo COGS). |
+
+**Example stacks:** base + curriculum = **$54/mo**; + Shared Spaces = **$63/mo**; all add-ons = **$97/mo**.
+
+**À la carte (any church on base):**
 
 | Add-on | Price (draft) | Notes |
 |---|---|---|
 | **Review seat pack** | **$3/seat/mo** (min 10) | Church pays; each member **claims** individual Review |
-| **Extra leader seat** | **$12–15/mo** | Above tier-included leaders |
 | **Church-wide Season Pass** | **$79–149 once** | Full guide for Lent / Advent / sermon series — all connected members |
 | **Review scholarships** | **$3/seat/mo** | Same mechanics; youth / new believers pool |
 
-**Example MRR per church:** Church Study Plus ($69) + 25 Review seats ($75) = **$144/mo** — org fee
-is high-margin; Review packs carry Mistral cost per active seat.
+**Schema direction (when billing wires):** `billingPlan` ≈ base subscribed (`'church'` or similar); boolean/JSON flags e.g. `curriculumAddOn`, `churchSharedSpacesAddOn`, `analyticsAddOn`, `unlimitedStaffAddOn`. Pilot: `isActive` implies complimentary base; add-ons off until Stripe/Clerk Billing.
 
-### Alternative: leader-based pricing (Option B)
+### What base vs add-ons mean in product
 
-| Component | Price (draft) |
-|---|---|
-| Platform base | $19/mo |
-| Per leader seat | $12/mo (Group Leader–class hosting under org) |
-| Connected members | Included to 500; tier bump above |
+**Church base**
 
-Example: 5 small-group leaders → **$19 + 5×$12 = $79/mo**.
+- Staff org (≤20 Clerk seats); admin register + HMC directory link
+- Congregants connect via Harvous DB (never Clerk) when connect ships
+- Works alongside Planning Center — no migration
 
-### Features to present (by tier)
+**Curriculum add-on**
 
-**Church Connect (free)**
-
-- Church profile; members link via My Church
-- Limited curriculum pushes
-- Congregation on Compete free track
-
-**Church Study (paid core)**
-
-- Publish threads/notes to all connected members ("From your church")
-- Leader seats — group leaders host shared spaces under the org (members join free)
+- Publish ministry channels / “From your church”
 - Align curriculum with sermon series + small groups
-- Optional private church cohort on Compete
-- Admin roster (connected members / groups — not private note bodies)
-- **Works alongside Planning Center** — no migration
 
-**Church Study Plus**
+**Church Shared Spaces add-on**
 
-- Everything in Study
-- Church-wide Season Pass for active church series
-- Group targeting (men's, youth, ESL, etc.)
-- Aggregate engagement analytics (opens, challenge completion — privacy-safe)
+- Create/migrate church-scoped Shared Spaces (`orgId` set); church-sponsored
 
-**Review add-on (any tier)**
+**Analytics add-on**
+
+- Aggregate engagement (opens, completion — privacy-safe); group targeting later
+
+**Unlimited staff add-on**
+
+- Lift Harvous 20-staff sync/invite cap for that church after Clerk Enhanced is enabled app-wide
+
+**Review packs (any church on base)**
 
 - *"We don't give everyone the same AI — each person reviews their own notes."*
-- Church-sponsored seats; optional student scholarships
 
 **Not in scope for church pitch:** CRM, giving, scheduling, check-ins, facilities.
 
 ### Rollout for church pricing
 
-1. Pilot **Church Study** at **$29–39** with 2–3 partner churches before publishing tiers.
-2. Measure curriculum push engagement and leader adoption.
+1. Pilot **Church base** (+ chosen add-ons) with 2–3 partner churches before publishing prices.
+2. Measure curriculum push engagement and Shared Spaces adoption.
 3. Adjust vs Planning Center Groups entry (~$15–30/mo) — Harvous charges for **curriculum + study
    memory**, not roster alone.
+4. Enable Clerk Enhanced only when the first church needs Unlimited staff.
 
 ### Open decisions (church)
 
-- [ ] Lock tier prices after pilot (Connect free / Study / Study Plus / Network)
-- [ ] Option A (tier bundles) vs Option B (base + per leader)
+- [ ] Lock base / add-on prices after pilot ($39 vs $29 base; curriculum in base vs add-on)
 - [ ] Review seat pack minimum and church discount ($3 vs retail $4)
 - [ ] Curriculum SKUs (per quarter vs church-wide Season Pass bundle)
 - [ ] Integration story ("works alongside Planning Center" messaging)
-- [ ] Clerk Org vs DB-only delivery (see existing church docs)
+- [ ] Exact `Churches` add-on column shape vs Clerk Billing metadata
 
 ---
 

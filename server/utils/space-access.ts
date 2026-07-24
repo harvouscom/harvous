@@ -8,14 +8,13 @@
  * Role order: owner > leader > member. 'leader' is schema-ready but dormant in
  * the foundation UI (activates with Group Leader / church org).
  *
- * Church-org groundwork: a space with orgId set is owned/sponsored by that
- * church (Churches.orgId). Spaces.userId stays the creating staff member.
- * Staff authoring = explicit SpaceMemberships rows (creator 'owner', other
- * staff 'leader'), synced from the Clerk org by a future admin flow — never
- * healed from Clerk at read time (access stays pure-DB; no Clerk API in the
- * hot path). Congregants follow org broadcast spaces (type='public') as
- * role='member' rows; canAuthorInSpace already denies them authoring. No
- * orgId space exists yet — no create path sets orgId.
+ * Church-org: a space with orgId set is owned/sponsored by that church
+ * (Churches.orgId). Spaces.userId stays the creating staff member. Staff
+ * authoring = SpaceMemberships (creator 'owner', other staff 'leader' via
+ * admin sync-staff). Access stays pure-DB — never heal from Clerk at read
+ * time. Congregants follow ministry channels (type='public'+orgId) as
+ * role='member' via followMinistryChannel; canAuthorInSpace denies them
+ * authoring. Church Shared Spaces use type='shared'+orgId.
  */
 
 import { db, first, Spaces, SpaceMemberships, eq, and, now } from '../db';
@@ -69,7 +68,7 @@ export function canManageSpaceStructure(space: Pick<SpaceRow, 'type'>, role: Spa
   return ROLE_RANK[role] >= ROLE_RANK.leader;
 }
 
-/** Church-owned/sponsored space (see header). Inert until a create path sets orgId. */
+/** Church-owned/sponsored space (ministry channel or church Shared Space). */
 export function isOrgOwnedSpace(space: Pick<SpaceRow, 'orgId'>): boolean {
   return space.orgId != null;
 }

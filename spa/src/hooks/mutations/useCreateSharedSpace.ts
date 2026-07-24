@@ -6,9 +6,11 @@ import {
   navigationQueryKeyPrefix,
 } from '../queries/useNavigation';
 
-interface CreateSharedSpaceBody {
+export interface CreateSharedSpaceBody {
   title: string;
   color?: string;
+  description?: string | null;
+  coverVariant?: number;
 }
 
 interface CreateSharedSpaceResponse {

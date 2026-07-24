@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   HmcPartnerError,
+  hmcAddChurch,
   hmcDenormFields,
   hmcGetChurchById,
   hmcSearchChurches,
+  hmcSubmitUnlistedUsChurch,
   isHmcConfigured,
 } from '../hmc-partner';
 
@@ -158,5 +160,94 @@ describe('HmcPartnerError', () => {
     expect(err).toBeInstanceOf(Error);
     expect(err.code).toBe('HMC_NOT_CONFIGURED');
     expect(err.status).toBe(503);
+  });
+});
+
+describe('hmcAddChurch', () => {
+  it('posts to edge root /churches/add (not partner /v1)', async () => {
+    setEnv();
+    globalThis.fetch = vi.fn(async (input, init) => {
+      expect(String(input)).toBe(
+        'https://example.supabase.co/functions/v1/make-server-283d8046/churches/add',
+      );
+      expect(init?.method).toBe('POST');
+      const headers = new Headers(init?.headers);
+      expect(headers.get('x-partner-key')).toBe('partner-test');
+      return new Response(
+        JSON.stringify({
+          success: true,
+          church: {
+            id: 'community-IA-1',
+            shortId: '1',
+            name: 'New Hope',
+            city: 'Des Moines',
+            state: 'IA',
+          },
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+
+    await expect(
+      hmcAddChurch({
+        name: 'New Hope',
+        city: 'Des Moines',
+        state: 'IA',
+        lat: 41.5,
+        lng: -93.6,
+      }),
+    ).resolves.toMatchObject({
+      isDuplicate: false,
+      church: { id: 'community-IA-1', name: 'New Hope', state: 'IA' },
+    });
+  });
+
+  it('maps existingChurch duplicates', async () => {
+    setEnv();
+    globalThis.fetch = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          isDuplicate: true,
+          existingChurch: {
+            id: 'IA-99',
+            shortId: '99',
+            name: 'Grace',
+            city: 'Ames',
+            state: 'IA',
+          },
+        }),
+        { status: 200 },
+      ),
+    ) as unknown as typeof fetch;
+
+    await expect(
+      hmcAddChurch({
+        name: 'Grace',
+        city: 'Ames',
+        state: 'IA',
+        lat: 42,
+        lng: -93,
+      }),
+    ).resolves.toMatchObject({
+      isDuplicate: true,
+      church: { id: 'IA-99' },
+    });
+  });
+});
+
+describe('hmcSubmitUnlistedUsChurch', () => {
+  it('returns null when geocode finds nothing', async () => {
+    setEnv();
+    globalThis.fetch = vi.fn(async (input) => {
+      if (String(input).includes('nominatim')) {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      throw new Error(`unexpected fetch ${String(input)}`);
+    }) as unknown as typeof fetch;
+
+    await expect(
+      hmcSubmitUnlistedUsChurch({ name: 'Hope', city: 'Nowhere', state: 'IA' }),
+    ).resolves.toBeNull();
   });
 });

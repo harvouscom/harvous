@@ -55,9 +55,13 @@ export const SHARED_SPACES_DESIGN_SCENES: SharedSpacesDesignScene[] = [
   },
   {
     id: '06-switcher-create',
-    title: 'New shared space form',
+    title: 'New shared space dialog',
     phase: 'Shell',
-    editFiles: ['spa/src/pages/prototype/SpaceSwitcherMenu.tsx', 'src/utils/space-cover.ts'],
+    editFiles: [
+      'spa/src/pages/prototype/CreateSharedSpaceSheet.tsx',
+      'spa/src/pages/prototype/SpaceSwitcherMenu.tsx',
+      'src/utils/space-cover.ts',
+    ],
     screenshotSlug: '06-space-switcher-create-form-colors',
   },
   {

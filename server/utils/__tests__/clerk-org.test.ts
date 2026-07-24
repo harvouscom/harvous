@@ -1,10 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ClerkOrgError,
+  CLERK_ORG_STAFF_CAP,
   computeStaffSyncPlan,
   fetchClerkOrgMemberships,
   isValidClerkOrgId,
+  isWithinClerkOrgStaffCap,
 } from '../clerk-org';
+
+describe('isWithinClerkOrgStaffCap', () => {
+  it('allows up to the standard Clerk org staff ceiling', () => {
+    expect(CLERK_ORG_STAFF_CAP).toBe(20);
+    expect(isWithinClerkOrgStaffCap(0)).toBe(true);
+    expect(isWithinClerkOrgStaffCap(20)).toBe(true);
+    expect(isWithinClerkOrgStaffCap(21)).toBe(false);
+  });
+});
 
 describe('isValidClerkOrgId', () => {
   it('accepts Clerk org ids', () => {

@@ -15,6 +15,7 @@
  *   POST /api/user/update-profile
  *   GET  /api/user/xp
  *   GET  /api/user/get-profile
+ *   POST /api/user/update-shared-space-switcher-order
  *   POST /api/user/migrate-to-prototype
  *   GET  /api/user/migrate-to-prototype/status
  *   GET  /api/user/locked-notes
@@ -42,7 +43,9 @@ import {
   hmcDenormFields,
   hmcGetChurchById,
   hmcSearchChurches,
+  hmcSubmitUnlistedUsChurch,
 } from '../utils/hmc-partner';
+import { isUsChurchLocation, normalizeUsStateCode } from '@/utils/us-states';
 
 // Server-ported utilities
 import { getCachedUserData, invalidateUserCache } from '../utils/user-cache';
@@ -384,17 +387,24 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
           ? body.hmcChurchId.trim() || null
           : undefined;
 
+    const hasManualKeys =
+      'churchName' in body ||
+      'churchCity' in body ||
+      'churchState' in body ||
+      'churchCountry' in body;
+
+    const readOptionalString = (value: unknown): string | null => {
+      if (typeof value === 'string') return value.trim() || null;
+      if (value === null) return null;
+      return null;
+    };
+
     let normalizedHmcChurchId: string | null | undefined = hmcChurchIdRaw;
-    let normalizedChurchName =
-      typeof body.churchName === 'string' ? body.churchName.trim() || null : body.churchName ?? null;
-    let normalizedChurchCity =
-      typeof body.churchCity === 'string' ? body.churchCity.trim() || null : body.churchCity ?? null;
-    let normalizedChurchState =
-      typeof body.churchState === 'string' ? body.churchState.trim() || null : body.churchState ?? null;
-    let normalizedChurchCountry =
-      typeof body.churchCountry === 'string'
-        ? body.churchCountry.trim() || null
-        : body.churchCountry ?? null;
+    let normalizedChurchName: string | null | undefined;
+    let normalizedChurchCity: string | null | undefined;
+    let normalizedChurchState: string | null | undefined;
+    let normalizedChurchCountry: string | null | undefined;
+    let applyChurchUpdate = false;
 
     if (hmcChurchIdRaw) {
       const hmc = await hmcGetChurchById(hmcChurchIdRaw);
@@ -407,37 +417,121 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       normalizedChurchCity = denorm.city;
       normalizedChurchState = denorm.state;
       normalizedChurchCountry = null;
-    } else if (hmcChurchIdRaw === null) {
+      applyChurchUpdate = true;
+    } else if (hmcChurchIdRaw === null && !hasManualKeys) {
       // Explicit clear — wipe HMC link and denorm fields.
       normalizedHmcChurchId = null;
       normalizedChurchName = null;
       normalizedChurchCity = null;
       normalizedChurchState = null;
       normalizedChurchCountry = null;
+      applyChurchUpdate = true;
+    } else if (hasManualKeys) {
+      // Manual entry: outside-US free-text, or U.S. unlisted (also submits to HMC).
+      normalizedHmcChurchId = null;
+      normalizedChurchName = readOptionalString(body.churchName);
+      normalizedChurchCity = readOptionalString(body.churchCity);
+      normalizedChurchState = readOptionalString(body.churchState);
+      normalizedChurchCountry = readOptionalString(body.churchCountry);
+      const clearingManual =
+        !normalizedChurchName &&
+        !normalizedChurchCity &&
+        !normalizedChurchState &&
+        !normalizedChurchCountry;
+      if (!clearingManual && !normalizedChurchName) {
+        return c.json({ error: 'Church name is required', code: 'CHURCH_NAME_REQUIRED' }, 400);
+      }
+
+      if (
+        !clearingManual &&
+        normalizedChurchName &&
+        isUsChurchLocation({
+          churchState: normalizedChurchState,
+          churchCountry: normalizedChurchCountry,
+        })
+      ) {
+        const usState = normalizeUsStateCode(normalizedChurchState);
+        if (!normalizedChurchCity) {
+          return c.json(
+            { error: 'City is required for U.S. churches', code: 'CHURCH_CITY_REQUIRED' },
+            400,
+          );
+        }
+        if (!usState) {
+          return c.json(
+            { error: 'Select a U.S. state', code: 'CHURCH_STATE_REQUIRED' },
+            400,
+          );
+        }
+        normalizedChurchState = usState;
+        // Empty / "United States" — directory SoT is HMC; don't store country label.
+        normalizedChurchCountry = null;
+        try {
+          const submitted = await hmcSubmitUnlistedUsChurch({
+            name: normalizedChurchName,
+            city: normalizedChurchCity,
+            state: usState,
+          });
+          if (submitted) {
+            const denorm = hmcDenormFields(submitted);
+            normalizedHmcChurchId = submitted.id;
+            normalizedChurchName = denorm.name;
+            normalizedChurchCity = denorm.city;
+            normalizedChurchState = denorm.state;
+            normalizedChurchCountry = null;
+          }
+        } catch (error) {
+          if (error instanceof HmcPartnerError && error.code === 'HMC_RATE_LIMITED') {
+            return c.json({ error: error.message, code: error.code }, 429);
+          }
+          // Geocode / add failures fall through to free-text save.
+        }
+      }
+      applyChurchUpdate = true;
     }
 
     const existingRecord = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1);
 
+    if (!applyChurchUpdate) {
+      const existing = existingRecord[0];
+      return c.json({
+        success: true,
+        message: 'No church changes',
+        church: {
+          hmcChurchId: existing?.hmcChurchId ?? null,
+          churchName: existing?.churchName ?? null,
+          churchCity: existing?.churchCity ?? null,
+          churchState: existing?.churchState ?? null,
+          churchCountry: existing?.churchCountry ?? null,
+        },
+      });
+    }
+
     if (existingRecord.length > 0) {
       const existing = existingRecord[0];
-      const nextHmc =
-        normalizedHmcChurchId !== undefined ? normalizedHmcChurchId : (existing.hmcChurchId ?? null);
+      const nextHmc = normalizedHmcChurchId ?? null;
       const isFirstTimeAddingChurch =
         !existing.hmcChurchId &&
         !existing.churchName &&
         !existing.churchCity &&
         !existing.churchState &&
         !existing.churchCountry &&
-        Boolean(nextHmc || normalizedChurchName || normalizedChurchCity || normalizedChurchState);
+        Boolean(
+          nextHmc ||
+            normalizedChurchName ||
+            normalizedChurchCity ||
+            normalizedChurchState ||
+            normalizedChurchCountry,
+        );
 
       await db
         .update(UserMetadata)
         .set({
-          ...(normalizedHmcChurchId !== undefined ? { hmcChurchId: normalizedHmcChurchId } : {}),
-          churchName: normalizedChurchName,
-          churchCity: normalizedChurchCity,
-          churchState: normalizedChurchState,
-          churchCountry: normalizedChurchCountry,
+          hmcChurchId: normalizedHmcChurchId ?? null,
+          churchName: normalizedChurchName ?? null,
+          churchCity: normalizedChurchCity ?? null,
+          churchState: normalizedChurchState ?? null,
+          churchCountry: normalizedChurchCountry ?? null,
           churchAddedAt: isFirstTimeAddingChurch ? nowISO() : existing.churchAddedAt,
           updatedAt: nowISO(),
         })
@@ -457,10 +551,10 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
         id: crypto.randomUUID(),
         userId: auth.userId,
         hmcChurchId: normalizedHmcChurchId ?? null,
-        churchName: normalizedChurchName,
-        churchCity: normalizedChurchCity,
-        churchState: normalizedChurchState,
-        churchCountry: normalizedChurchCountry,
+        churchName: normalizedChurchName ?? null,
+        churchCity: normalizedChurchCity ?? null,
+        churchState: normalizedChurchState ?? null,
+        churchCountry: normalizedChurchCountry ?? null,
         churchAddedAt: hasChurchData ? nowISO() : null,
         highestSimpleNoteId: 0,
         userColor: 'blue',
@@ -475,10 +569,10 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       message: 'Church information updated',
       church: {
         hmcChurchId: normalizedHmcChurchId ?? null,
-        churchName: normalizedChurchName,
-        churchCity: normalizedChurchCity,
-        churchState: normalizedChurchState,
-        churchCountry: normalizedChurchCountry,
+        churchName: normalizedChurchName ?? null,
+        churchCity: normalizedChurchCity ?? null,
+        churchState: normalizedChurchState ?? null,
+        churchCountry: normalizedChurchCountry ?? null,
       },
     });
   } catch (error) {
@@ -646,9 +740,13 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       churchCity: null as string | null,
       churchState: null as string | null,
       churchCountry: null as string | null,
+      connectedChurchId: null as string | null,
+      connectedOrgId: null as string | null,
+      connectedChurchAt: null as string | null,
     };
     let defaultTranslation = 'NET';
     let appearanceSettings: string | null = null;
+    let sharedSpaceSwitcherOrder: string[] | null = null;
     try {
       const um = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
       if (um) {
@@ -658,9 +756,13 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
           churchCity: um.churchCity ?? null,
           churchState: um.churchState ?? null,
           churchCountry: um.churchCountry ?? null,
+          connectedChurchId: um.connectedChurchId ?? null,
+          connectedOrgId: um.connectedOrgId ?? null,
+          connectedChurchAt: um.connectedChurchAt ?? null,
         };
         defaultTranslation = um.defaultTranslation ?? 'NET';
         appearanceSettings = um.appearanceSettings ?? null;
+        sharedSpaceSwitcherOrder = parseSharedSpaceSwitcherOrder(um.sharedSpaceSwitcherOrder);
       }
     } catch (_) { /* non-fatal */ }
 
@@ -692,12 +794,113 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       emailVerified,
       hmcChurchId: churchData.hmcChurchId,
       churchName: churchData.churchName, churchCity: churchData.churchCity, churchState: churchData.churchState, churchCountry: churchData.churchCountry,
+      connectedChurchId: churchData.connectedChurchId,
+      connectedOrgId: churchData.connectedOrgId,
+      connectedChurchAt: churchData.connectedChurchAt,
       defaultTranslation,
       appearanceSettings,
+      sharedSpaceSwitcherOrder,
       hasLockPinSet
     });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/get-profile', action: 'get_user_profile' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+function parseSharedSpaceSwitcherOrder(raw: string | null | undefined): string[] | null {
+  if (raw == null || raw === '') return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    const ids = parsed
+      .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      .map((id) => (id.startsWith('space_') ? id : `space_${id}`));
+    return ids.length > 0 ? ids : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── POST /api/user/update-shared-space-switcher-order ────────────────────────
+
+/**
+ * Per-user preference for My Home switcher order (personal Shared Spaces only).
+ * Drops ids the user cannot access or that are not personal shared spaces.
+ */
+app.post('/api/user/update-shared-space-switcher-order', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({})) as { spaceIds?: unknown };
+    if (!Array.isArray(body.spaceIds)) {
+      return c.json({ error: 'spaceIds must be an array', code: 'INVALID_SPACE_IDS' }, 400);
+    }
+    if (body.spaceIds.length > 100) {
+      return c.json({ error: 'Too many space ids', code: 'SPACE_IDS_TOO_LONG' }, 400);
+    }
+
+    const requested = body.spaceIds
+      .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      .map((id) => (id.startsWith('space_') ? id.trim() : `space_${id.trim()}`));
+    const uniqueRequested = [...new Set(requested)];
+
+    let allowedIds = new Set<string>();
+    if (uniqueRequested.length > 0) {
+      const owned = await db
+        .select({ id: Spaces.id })
+        .from(Spaces)
+        .where(
+          and(
+            eq(Spaces.userId, auth.userId),
+            eq(Spaces.type, 'shared'),
+            isNull(Spaces.orgId),
+            isNull(Spaces.deletedAt),
+            inArray(Spaces.id, uniqueRequested),
+          ),
+        );
+      const memberRows = await db
+        .select({ id: Spaces.id })
+        .from(SpaceMemberships)
+        .innerJoin(Spaces, eq(SpaceMemberships.spaceId, Spaces.id))
+        .where(
+          and(
+            eq(SpaceMemberships.userId, auth.userId),
+            eq(Spaces.type, 'shared'),
+            isNull(Spaces.orgId),
+            isNull(Spaces.deletedAt),
+            inArray(Spaces.id, uniqueRequested),
+          ),
+        );
+      allowedIds = new Set([...owned, ...memberRows].map((r) => r.id));
+    }
+
+    const cleaned = uniqueRequested.filter((id) => allowedIds.has(id));
+    const sharedSpaceSwitcherOrder = cleaned.length > 0 ? JSON.stringify(cleaned) : null;
+
+    const existing = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+    if (existing) {
+      await db
+        .update(UserMetadata)
+        .set({ sharedSpaceSwitcherOrder, updatedAt: nowISO() })
+        .where(eq(UserMetadata.userId, auth.userId));
+    } else {
+      await db.insert(UserMetadata).values({
+        id: crypto.randomUUID(),
+        userId: auth.userId,
+        sharedSpaceSwitcherOrder,
+        createdAt: nowISO(),
+        updatedAt: nowISO(),
+      });
+    }
+
+    broadcastInvalidation(auth.userId, { type: 'userMetadata:updated' });
+
+    return c.json({ success: true, sharedSpaceSwitcherOrder: cleaned });
+  } catch (error) {
+    const e = handleAPIError(error, {
+      endpoint: '/api/user/update-shared-space-switcher-order',
+      action: 'update_shared_space_switcher_order',
+    });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

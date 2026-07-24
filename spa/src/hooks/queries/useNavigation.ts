@@ -144,6 +144,8 @@ export function appendOwnedSpaceToNavCache(
     title: string;
     color: string | null;
     backgroundGradient: string | null;
+    type?: 'personal' | 'shared' | 'public';
+    orgId?: string | null;
   },
 ): void {
   const key = getNavigationQueryKey(userId);
@@ -166,7 +168,8 @@ export function appendOwnedSpaceToNavCache(
       backgroundGradient: space.backgroundGradient ?? '',
       ownerId: userId,
       memberCount: 1,
-      type: 'shared',
+      type: space.type ?? 'shared',
+      orgId: space.orgId ?? null,
     };
     return { ...base, spaces: [...base.spaces, row] };
   });

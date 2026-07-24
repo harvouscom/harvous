@@ -20,6 +20,18 @@
 export type ClerkOrgSummary = { id: string; name: string; slug: string | null; memberCount?: number };
 export type ClerkOrgMember = { userId: string; role: string };
 
+/**
+ * Standard Clerk Organizations membership ceiling (free / non-Enhanced).
+ * Church base always includes this many staff seats; Unlimited staff add-on
+ * (+ Clerk Enhanced app-wide) is the future unlock path.
+ */
+export const CLERK_ORG_STAFF_CAP = 20;
+
+/** True when a Clerk org roster fits the Harvous church base staff cap. */
+export function isWithinClerkOrgStaffCap(memberCount: number): boolean {
+  return memberCount <= CLERK_ORG_STAFF_CAP;
+}
+
 export class ClerkOrgError extends Error {
   constructor(
     public code: 'CLERK_KEY_MISSING' | 'CLERK_UNAVAILABLE' | 'CLERK_ORGS_NOT_ENABLED',

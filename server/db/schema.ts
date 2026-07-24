@@ -38,16 +38,21 @@ export const Spaces = pgTable(
      * 'personal' | 'shared' | 'public' — space kind discriminator.
      * 'shared' = collaborative space on the SpaceMemberships/SpaceInvites rails
      * (owning one requires the Shared Spaces add-on; joining is free).
-     * 'public' = reserved for Harvous-hosted broadcast spaces (members follow +
-     * copy, only owner/leader author). Org-owned spaces come later via orgId.
+     * 'public' = ministry broadcast channel when orgId is set (members follow +
+     * copy; only owner/leader author). Not a Shared Space product surface.
+     * Discrimination (no isMinistryBroadcast column):
+     * - personal Shared Space: type='shared' + orgId null
+     * - church Shared Space: type='shared' + orgId set
+     * - ministry channel: type='public' + orgId set
      */
     type: text('type').notNull().default('personal'),
     /**
      * Clerk organization id (= Churches.orgId) — church-org ownership/sponsorship.
      * Null = personally owned. When set: Spaces.userId stays the creating staff
      * member (audit anchor), but billing/limits derive from the church (see
-     * tier-limits.ts), and type='public' + orgId = a church broadcast space
-     * (congregants follow + copy). Null today; no create path sets it yet.
+     * tier-limits.ts). Written by admin ministry-channel create and staff
+     * church-scoped Shared Space create (see server/routes/churches.ts,
+     * server/routes/spaces.ts).
      */
     orgId: text('orgId'),
     /** @deprecated v1 sharing — frozen with shareToken/shareTokenCreatedAt; new code keys off `type`. */
@@ -154,6 +159,10 @@ export const Notes = pgTable(
     copiedFromAuthorId: text('copiedFromAuthorId'),
     /** Durable attribution if the source account later becomes unavailable. */
     copiedFromAuthorDisplayName: text('copiedFromAuthorDisplayName'),
+    /** Template applied to start/fill this note (`soap`, `ntpl_…`, etc.). */
+    startedFromTemplateId: text('startedFromTemplateId'),
+    /** Display name snapshot so provenance survives template rename/delete. */
+    startedFromTemplateName: text('startedFromTemplateName'),
   },
   (table) => [
     index('Notes_userIdIndex').on(table.userId),
@@ -411,10 +420,11 @@ export const SpaceInvites = pgTable('SpaceInvites', {
 /**
  * One row per church with a Clerk Organization on Harvous. The Clerk org holds
  * only staff/volunteers (≤20); congregants are NEVER Clerk org members — their
- * linkage is UserMetadata.connectedChurchId/connectedOrgId. Curriculum ships
- * via org-owned broadcast spaces (Spaces.orgId = Churches.orgId, type='public'),
- * not the legacy InboxItems pipe. Schema groundwork only — no code writes rows
- * yet. Row ids: `chur_${crypto.randomUUID()}` (smem_/sinv_ convention).
+ * home linkage is UserMetadata.connectedChurchId/connectedOrgId (temporary
+ * home-only until ChurchMemberships lands). Curriculum ships via org-owned
+ * broadcast spaces (Spaces.orgId = Churches.orgId, type='public'). Rows are
+ * written by requireHarvousAdmin routes in server/routes/churches.ts.
+ * Row ids: `chur_${crypto.randomUUID()}`.
  */
 export const Churches = pgTable('Churches', {
   id: text('id').primaryKey(),
@@ -432,11 +442,11 @@ export const Churches = pgTable('Churches', {
   /** Staff user who created the church record (audit anchor); admin roles live in Clerk org roles. */
   createdBy: text('createdBy').notNull(),
   /**
-   * Church billing plan slug — free text synced from billing, DB source of
-   * truth (draft: 'connect' | 'study' | 'study_plus' | 'network'). Null = no
-   * paid plan. Follows the sharedSpacesAddOn add-on pattern (nullable
-   * entitlement + UpdatedAt written by webhook/admin/backfill), not the
-   * retired tier enum.
+   * Church billing plan slug — nullable entitlement (draft: 'church' = paid base).
+   * Pilot churches may run on isActive alone without a plan slug. Future add-ons
+   * (curriculum, church Shared Spaces, analytics, unlimited staff) are separate
+   * flags — see MONETIZATION_AND_PRICING.md §7. Written by billing webhook /
+   * admin when paid plans ship.
    */
   billingPlan: text('billingPlan'),
   billingPlanUpdatedAt: ts('billingPlanUpdatedAt'),
@@ -451,6 +461,30 @@ export const Churches = pgTable('Churches', {
   uniqueIndex('Churches_orgId_unique').on(table.orgId),
   uniqueIndex('Churches_hmcChurchId_unique').on(table.hmcChurchId),
   index('Churches_createdByIndex').on(table.createdBy),
+]);
+
+// ─── ChurchMemberships (many church links; home stays on UserMetadata.connected*) ─
+
+/**
+ * Conglomerate memberships for multi-church (locked: many memberships, one home).
+ * Stub table for connect flow — no product writers yet. Until connect ships,
+ * UserMetadata.connectedChurchId/connectedOrgId/connectedChurchAt remain the
+ * temporary singular home pointer (get-profile exposes them).
+ * Row ids: `chmem_${crypto.randomUUID()}`.
+ */
+export const ChurchMemberships = pgTable('ChurchMemberships', {
+  id: text('id').primaryKey(),
+  churchId: text('churchId').notNull(),
+  userId: text('userId').notNull(),
+  /** 'member' today; staff stay in Clerk org + SpaceMemberships, not here. */
+  role: text('role').notNull().default('member'),
+  joinedAt: ts('joinedAt').notNull(),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('ChurchMemberships_church_user_unique').on(table.churchId, table.userId),
+  index('ChurchMemberships_userIdIndex').on(table.userId),
+  index('ChurchMemberships_churchIdIndex').on(table.churchId),
 ]);
 
 // ─── NoteTemplates (personal / space / org-scoped note starters) ───────────────
@@ -474,11 +508,15 @@ export const NoteTemplates = pgTable(
     /** Set = church/org-provisioned template (future role-gated); null in v1. */
     orgId: text('orgId'),
     name: text('name').notNull(),
+    /** Short list blurb (≤ ~2 lines in browse sheet). */
+    description: text('description'),
     /** Title prefill (titleTemplate equivalent). */
     title: text('title'),
     /** Tiptap HTML, same format as Notes.content. */
     content: text('content').notNull(),
     noteType: text('noteType'),
+    /** Thread accent for the shared list icon tile (`blue`, `green`, …). */
+    iconColor: text('iconColor'),
     createdAt: ts('createdAt').notNull(),
     updatedAt: ts('updatedAt'),
   },
@@ -513,10 +551,10 @@ export const UserMetadata = pgTable('UserMetadata', {
   lastMonthlyVisit: ts('lastMonthlyVisit'),
   churchAddedAt: ts('churchAddedAt'),
   /**
-   * Churches.id once the user has linked to a church org (connect flow, future).
-   * Denormalized churchName/City/State/Country stay for discovery/matching —
-   * do not repurpose them as linkage. Null = not connected. Congregants
-   * are linked here only; they are never added to the Clerk org.
+   * Home church (Churches.id) — temporary singular home until ChurchMemberships
+   * lands (locked: many memberships, one home). Denormalized churchName/City/
+   * State/Country stay for discovery/matching — do not repurpose as linkage.
+   * Null = no home church. Congregants are linked here only; never Clerk org.
    */
   connectedChurchId: text('connectedChurchId'),
   /** Denormalized Clerk org id (= Churches.orgId) for cheap org-scoped checks. */
@@ -534,6 +572,11 @@ export const UserMetadata = pgTable('UserMetadata', {
    * Account is source of truth; localStorage is the per-device first-paint cache.
    */
   appearanceSettings: text('appearanceSettings'),
+  /**
+   * Per-user My Home space-switcher order for personal Shared Spaces (hosted + joined).
+   * JSON `string[]` of space ids. Not `Spaces.order` — preference only.
+   */
+  sharedSpaceSwitcherOrder: text('sharedSpaceSwitcherOrder'),
   /** Last applied onboarding markdown pack version (see ONBOARDING_PACK_VERSION). */
   onboardingPackVersionApplied: integer('onboardingPackVersionApplied').notNull().default(0),
   /**

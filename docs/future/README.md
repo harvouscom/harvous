@@ -138,7 +138,7 @@ production-live or paid-launch verified; follow each linked canonical document's
   - Key files to touch and technical notes
 
 - **`NOTE_TEMPLATES.md`** - Note templates (future feature)
-  - Pre-defined study methods (SOAP, Inductive, Bible Nerd, Topical, Chapter Summary, Comparative)
+  - Pre-defined study methods (SOAP, Inductive, TEXT, Topical, Chapter Summary, Comparative)
   - User-created templates and "Save as template"
   - Shared-space templates for groups
   - Implementation outline and design considerations

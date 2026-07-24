@@ -3,11 +3,13 @@
  *
  * All endpoints are requireHarvousAdmin-gated; there is no user-facing
  * church surface yet. The pilot flow: create the Clerk Organization
- * manually in the Clerk dashboard (staff/volunteers only, ≤20 — congregants
- * are NEVER Clerk org members), then register it here.
+ * manually in the Clerk dashboard (staff/volunteers only, ≤ CLERK_ORG_STAFF_CAP —
+ * congregants are NEVER Clerk org members), then register it here. Sync-staff
+ * refuses rosters over that cap (CLERK_ORG_MEMBER_LIMIT).
  *
  * Endpoints:
  *   GET  /api/admin/churches                          — list + space counts
+ *   GET  /api/admin/churches/hmc-interest             — aggregate My Church HMC picks (outreach demand)
  *   GET  /api/admin/churches/hmc/search               — proxy Here’s My Church partner search
  *   POST /api/admin/churches                          — register a church (optional hmcChurchId link)
  *   POST /api/admin/churches/:churchId/update         — edit details / link or unlink HMC
@@ -29,11 +31,13 @@ import { requireHarvousAdmin, getHarvousSystemUserId } from '../utils/harvous-ad
 import { getAuth } from '../middleware/auth';
 import {
   ClerkOrgError,
+  CLERK_ORG_STAFF_CAP,
   computeStaffSyncPlan,
   fetchClerkOrganization,
   fetchClerkOrganizations,
   fetchClerkOrgMemberships,
   isValidClerkOrgId,
+  isWithinClerkOrgStaffCap,
 } from '../utils/clerk-org';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { serializeSpaceCoverForDb, spaceCoverFromThreadColor } from '@/utils/space-cover';
@@ -46,6 +50,7 @@ import {
   hmcGetChurchById,
   hmcSearchChurches,
 } from '../utils/hmc-partner';
+import { listHmcChurchInterest } from '../utils/hmc-church-interest';
 
 const app = new Hono();
 
@@ -91,6 +96,27 @@ app.get('/api/admin/churches', async (c) => {
     return c.json({ success: true, churches: rows.reverse() });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/admin/churches', action: 'list_churches' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/admin/churches/hmc-interest ───────────────────────────────────
+/**
+ * Outreach demand: churches users picked in Settings → My Church (HMC ids).
+ * Counts + denorm name/location only — no congregant PII.
+ */
+app.get('/api/admin/churches/hmc-interest', async (c) => {
+  const gate = await requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const interest = await listHmcChurchInterest();
+    return c.json({ success: true, interest });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/admin/churches/hmc-interest',
+      action: 'list_hmc_interest',
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
@@ -547,6 +573,18 @@ app.post('/api/admin/churches/:churchId/sync-staff', async (c) => {
       const resp = clerkErrorResponse(c, error);
       if (resp) return resp;
       throw error;
+    }
+
+    if (!isWithinClerkOrgStaffCap(staff.length)) {
+      return c.json(
+        {
+          error: `This Clerk org has ${staff.length} members; Church base allows ${CLERK_ORG_STAFF_CAP} staff. Remove members in Clerk, or use Unlimited staff (requires Clerk Enhanced) when that add-on ships.`,
+          code: 'CLERK_ORG_MEMBER_LIMIT',
+          staffCount: staff.length,
+          limit: CLERK_ORG_STAFF_CAP,
+        },
+        409,
+      );
     }
 
     // Include inactive spaces (membership stays truthful); exclude deleted.

@@ -6,6 +6,7 @@ import {
   resolveMyChurchFromNav,
   staffChurchChannelSummary,
   staffChurchesFromNavSpaces,
+  staffedChurchSharedSpaces,
 } from '../church-settings';
 import type { NavSpace } from '../../hooks/queries/useNavigation';
 
@@ -63,6 +64,30 @@ describe('formatChurchLocation', () => {
     expect(formatChurchLocation({ churchCity: null, churchState: 'TX' })).toBe('TX');
     expect(formatChurchLocation({ churchCity: null, churchState: null })).toBeNull();
   });
+
+  it('appends country for outside-US / manual entries', () => {
+    expect(
+      formatChurchLocation({
+        churchCity: 'Nairobi',
+        churchState: null,
+        churchCountry: 'Kenya',
+      }),
+    ).toBe('Nairobi, Kenya');
+    expect(
+      formatChurchLocation({
+        churchCity: 'Vancouver',
+        churchState: 'BC',
+        churchCountry: 'Canada',
+      }),
+    ).toBe('Vancouver, BC, Canada');
+    expect(
+      formatChurchLocation({
+        churchCity: 'Austin',
+        churchState: 'TX',
+        churchCountry: 'United States',
+      }),
+    ).toBe('Austin, TX');
+  });
 });
 
 describe('resolveMyChurchFromNav / churchHubSpacesForOrg', () => {
@@ -93,5 +118,52 @@ describe('resolveMyChurchFromNav / churchHubSpacesForOrg', () => {
     ]);
     expect(isPersonalSharedSpace(family)).toBe(true);
     expect(isPersonalSharedSpace(churchShared)).toBe(false);
+  });
+});
+
+describe('staffedChurchSharedSpaces', () => {
+  it('returns owned and leader church shared spaces; ignores personal, ministry, and members', () => {
+    const ownedChurchShared = space({
+      id: 'space_owned',
+      title: 'Youth group',
+      type: 'shared',
+      orgId: 'org_1',
+      churchName: 'Testament Made',
+    });
+    const leaderMembership = space({
+      id: 'space_lead',
+      title: 'Elders',
+      type: 'shared',
+      orgId: 'org_1',
+      churchName: 'Testament Made',
+      role: 'leader',
+    });
+    const memberOnly = space({
+      id: 'space_member',
+      title: 'Visitors',
+      type: 'shared',
+      orgId: 'org_1',
+      role: 'member',
+    });
+    const personalShared = space({
+      id: 'space_personal',
+      title: 'Family',
+      type: 'shared',
+      orgId: null,
+    });
+    const ministry = space({
+      id: 'space_channel',
+      title: 'Adult education',
+      type: 'public',
+      orgId: 'org_1',
+      churchName: 'Testament Made',
+    });
+
+    const rows = staffedChurchSharedSpaces({
+      spaces: [ownedChurchShared, personalShared, ministry],
+      memberOfSpaces: [leaderMembership, memberOnly],
+    });
+
+    expect(rows.map((s) => s.id)).toEqual(['space_lead', 'space_owned']);
   });
 });

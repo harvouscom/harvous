@@ -24,6 +24,8 @@ export interface UpdateNoteInput {
   collectionPinned?: boolean;
   collectionUserOverride?: boolean;
   bumpUpdatedAt?: boolean;
+  startedFromTemplateId?: string | null;
+  startedFromTemplateName?: string | null;
 }
 
 interface UpdateNoteResponse {
@@ -61,6 +63,12 @@ export function buildUpdateNoteBody(
   };
   if (input.bumpUpdatedAt === false) body.bumpUpdatedAt = false;
   if (input.scriptureVersion !== undefined) body.scriptureVersion = input.scriptureVersion;
+  if (input.startedFromTemplateId !== undefined) {
+    body.startedFromTemplateId = input.startedFromTemplateId;
+  }
+  if (input.startedFromTemplateName !== undefined) {
+    body.startedFromTemplateName = input.startedFromTemplateName;
+  }
   if (!input.contextSpaceId?.trim()) {
     if (input.primaryCollection !== undefined) body.primaryCollection = input.primaryCollection;
     if (input.secondaryCollections !== undefined) body.secondaryCollections = input.secondaryCollections;
@@ -226,6 +234,12 @@ export function useUpdateNote() {
         ...(patchCanonicalOrganization && variables.collectionUserOverride !== undefined
           ? { collectionUserOverride: variables.collectionUserOverride }
           : {}),
+        ...(variables.startedFromTemplateId !== undefined
+          ? { startedFromTemplateId: variables.startedFromTemplateId }
+          : {}),
+        ...(variables.startedFromTemplateName !== undefined
+          ? { startedFromTemplateName: variables.startedFromTemplateName }
+          : {}),
       }));
       return { previousNotes };
     },
@@ -289,6 +303,12 @@ export function useUpdateNote() {
               : {}),
             ...(data?.note && Array.isArray((data.note as unknown as { dismissedAutoTags?: string[] }).dismissedAutoTags)
               ? { dismissedAutoTags: (data.note as unknown as { dismissedAutoTags: string[] }).dismissedAutoTags }
+              : {}),
+            ...(variables.startedFromTemplateId !== undefined
+              ? { startedFromTemplateId: variables.startedFromTemplateId }
+              : {}),
+            ...(variables.startedFromTemplateName !== undefined
+              ? { startedFromTemplateName: variables.startedFromTemplateName }
               : {}),
           };
         },

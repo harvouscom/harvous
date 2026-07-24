@@ -15,9 +15,9 @@ describe('church admin route contracts', () => {
   it('gates every endpoint with requireHarvousAdmin', () => {
     const endpoints = route().match(/app\.(get|post|put|delete|patch)\(/g) ?? [];
     const gates = route().match(/const gate = await requireHarvousAdmin\(c\);\s*\n\s*if \(gate\) return gate;/g) ?? [];
-    // deactivate/reactivate share one gated handler (setChurchActive)
-    expect(endpoints.length).toBe(7);
-    expect(gates.length).toBeGreaterThanOrEqual(6);
+    // deactivate/reactivate share one gated handler (setChurchActive); HMC + update add more routes
+    expect(endpoints.length).toBe(11);
+    expect(gates.length).toBeGreaterThanOrEqual(10);
     expect(route()).not.toContain('requireAuth');
   });
 
@@ -57,10 +57,29 @@ describe('church admin route contracts', () => {
     );
   });
 
+  it('staff sync refuses Clerk rosters over the 20-staff church base cap', () => {
+    expect(route()).toContain('isWithinClerkOrgStaffCap');
+    expect(route()).toContain("code: 'CLERK_ORG_MEMBER_LIMIT'");
+    expect(route()).toContain('CLERK_ORG_STAFF_CAP');
+    const syncStaff = route().slice(route().indexOf("app.post('/api/admin/churches/:churchId/sync-staff'"));
+    // Cap check runs after fetch and before membership writes in this handler
+    expect(syncStaff.indexOf('isWithinClerkOrgStaffCap(staff.length)')).toBeLessThan(
+      syncStaff.indexOf('computeStaffSyncPlan'),
+    );
+  });
+
   it('exposes a Clerk org picker that flags already-registered orgs', () => {
     expect(route()).toContain("app.get('/api/admin/churches/clerk-orgs'");
     expect(route()).toContain('fetchClerkOrganizations()');
     expect(route()).toContain('registered: registered.has(org.id)');
+  });
+
+  it('exposes HMC interest aggregation for outreach (before :churchId routes)', () => {
+    expect(route()).toContain("app.get('/api/admin/churches/hmc-interest'");
+    expect(route()).toContain('listHmcChurchInterest');
+    expect(route().indexOf("app.get('/api/admin/churches/hmc-interest'")).toBeLessThan(
+      route().indexOf("app.post('/api/admin/churches/:churchId/update'"),
+    );
   });
 
   it('is mounted in the app', () => {

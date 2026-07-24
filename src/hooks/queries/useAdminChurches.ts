@@ -53,6 +53,17 @@ export type AdminHmcChurchResult = {
   address?: string | null;
 };
 
+/** Aggregated Settings → My Church HMC picks (outreach demand; no user PII). */
+export type AdminHmcInterestRow = {
+  hmcChurchId: string;
+  churchName: string | null;
+  churchCity: string | null;
+  churchState: string | null;
+  userCount: number;
+  registeredChurchId: string | null;
+  registeredOrgId: string | null;
+};
+
 export type StaffSyncResult = {
   success: boolean;
   staffCount: number;
@@ -87,6 +98,18 @@ export function useAdminChurches() {
     queryFn: () => adminApiGet<{ success: boolean; churches: AdminChurch[] }>('/api/admin/churches'),
     enabled: admin.data?.isAdmin === true,
     staleTime: 0,
+    refetchOnMount: 'always',
+  });
+}
+
+export function useAdminHmcInterest() {
+  const admin = useHarvousAdminCheck();
+  return useQuery({
+    queryKey: ['admin', 'churches', 'hmc-interest'],
+    queryFn: () =>
+      adminApiGet<{ success: boolean; interest: AdminHmcInterestRow[] }>('/api/admin/churches/hmc-interest'),
+    enabled: admin.data?.isAdmin === true,
+    staleTime: 30_000,
     refetchOnMount: 'always',
   });
 }

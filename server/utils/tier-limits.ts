@@ -173,9 +173,8 @@ export async function syncSharedSpacesAddOnFromClerk(
 
 /**
  * Spaces the user owns with type='shared' (the only thing the paid gate counts).
- * Org-sponsored spaces (orgId set) bill to the church (Churches.billingPlan),
- * never against the creating staffer's personal add-on limit. No-op today
- * (orgId is always null).
+ * Org-sponsored spaces (orgId set) bill to the church (Churches.billingPlan /
+ * isActive pilot), never against the creating staffer's personal add-on limit.
  */
 export async function getSharedSpacesOwnedCount(userId: string): Promise<number> {
   const row = first(await db
@@ -197,8 +196,8 @@ export async function getSpaceMemberCount(spaceId: string): Promise<number> {
 /**
  * The paid gate. Runs at exactly the "own one more shared space" moments
  * (create-shared today; invite creation re-derives from space.type).
- * Org-context creation (church-sponsored spaces) will be a separate
- * church-gated endpoint keyed off Churches.billingPlan — not this function.
+ * Church-sponsored Shared Spaces use POST /api/spaces/create-church-shared
+ * (staff-gated, Churches.isActive) — not this function.
  */
 export async function canCreateSharedSpace(
   userId: string,

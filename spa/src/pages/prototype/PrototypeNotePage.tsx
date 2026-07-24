@@ -48,7 +48,11 @@ import {
   filterOverlayStudyThreads,
   resolveStudyThreadPmRange,
 } from '../../lib/shared-highlight-overlay';
-import { isPrototypeNoteEditorFocused } from '@/utils/prototype-editor-focused';
+import {
+  isPrototypeInspectorNode,
+  isPrototypeNoteEditorFocused,
+  isPrototypeNoteSessionFocused,
+} from '@/utils/prototype-editor-focused';
 import { clearNoteDraft } from '@/utils/note-draft-store';
 import {
   isDraftComposeAdoptionTransition,
@@ -279,33 +283,41 @@ export default function PrototypeNotePage() {
     noteType: string;
   } | null>(null);
   const [templateApplyEpoch, setTemplateApplyEpoch] = useState(0);
+  const [templateProvenance, setTemplateProvenance] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const templateProvenanceRef = useRef<{ id: string; name: string } | null>(null);
 
   const handlePrototypeLiveChange = useCallback((snapshot: { title: string; content: string }) => {
     setLiveNoteSnapshot(snapshot);
   }, []);
 
-  const handleApplyTemplate = useCallback(
-    (template: ApplyableNoteTemplate) => {
-      setTemplatePrefill({
-        title: template.title || '',
-        content: template.content,
-        noteType: template.noteType || 'default',
-      });
-      setTemplateApplyEpoch((n) => n + 1);
-      setLiveNoteSnapshot({
-        title: template.title || '',
-        content: template.content,
-      });
-      // Persist after remount so template content isn't stuck behind the edit-guard.
-      window.setTimeout(() => {
-        const save = (window as Window & { noteSaveCallback?: (t: string, c: string) => unknown }).noteSaveCallback;
-        if (typeof save === 'function') {
-          void Promise.resolve(save(template.title || '', template.content));
-        }
-      }, 0);
-    },
-    [],
-  );
+  const handleApplyTemplate = useCallback((template: ApplyableNoteTemplate) => {
+    const provenance = {
+      id: template.id,
+      name: template.name.trim() || 'Template',
+    };
+    templateProvenanceRef.current = provenance;
+    setTemplateProvenance(provenance);
+    setTemplatePrefill({
+      title: template.title || '',
+      content: template.content,
+      noteType: template.noteType || 'default',
+    });
+    setTemplateApplyEpoch((n) => n + 1);
+    setLiveNoteSnapshot({
+      title: template.title || '',
+      content: template.content,
+    });
+    // Persist after remount so template content isn't stuck behind the edit-guard.
+    window.setTimeout(() => {
+      const save = (window as Window & { noteSaveCallback?: (t: string, c: string) => unknown }).noteSaveCallback;
+      if (typeof save === 'function') {
+        void Promise.resolve(save(template.title || '', template.content));
+      }
+    }, 0);
+  }, []);
 
   useEffect(() => {
     if (!isDraft && composeTargetSpaceIdOverride) {
@@ -660,6 +672,8 @@ export default function PrototypeNotePage() {
     setDraftPersistRemountTick((t) => t + 1);
     setTemplatePrefill(null);
     setTemplateApplyEpoch(0);
+    templateProvenanceRef.current = null;
+    setTemplateProvenance(null);
     setLiveNoteSnapshot({ title: '', content: '' });
   }, [setComposePersistedNoteId]);
 
@@ -703,7 +717,8 @@ export default function PrototypeNotePage() {
     }
     composeUrlIdleTimerRef.current = setTimeout(() => {
       composeUrlIdleTimerRef.current = null;
-      if (!isPrototypeNoteEditorFocused()) {
+      // Inspector is portaled outside the note pane — keep draft URL while using it.
+      if (!isPrototypeNoteSessionFocused()) {
         flushPendingComposeUrlReplace();
       }
     }, COMPOSE_URL_IDLE_MS);
@@ -757,8 +772,9 @@ export default function PrototypeNotePage() {
       if (!pendingComposeUrlReplaceRef.current) return;
       const next = e.relatedTarget as Node | null;
       if (next && pane.contains(next)) return;
+      if (isPrototypeInspectorNode(next)) return;
       requestAnimationFrame(() => {
-        if (!isPrototypeNoteEditorFocused()) {
+        if (!isPrototypeNoteSessionFocused()) {
           flushPendingComposeUrlReplace();
         }
       });
@@ -1105,6 +1121,12 @@ export default function PrototypeNotePage() {
         spaceId,
         personalHomeSpaceId,
       );
+      const provenanceExtras = templateProvenanceRef.current
+        ? {
+            startedFromTemplateId: templateProvenanceRef.current.id,
+            startedFromTemplateName: templateProvenanceRef.current.name,
+          }
+        : {};
       const updatePersisted = async (id: string) => {
         const result = await updateNoteMutationRef.current.mutateAsync({
           noteId: id,
@@ -1113,6 +1135,7 @@ export default function PrototypeNotePage() {
           scriptureVersion,
           contextSpaceId: sharedContextSpaceId,
           ...(sharedContextSpaceId ? {} : (collectionExtras ?? {})),
+          ...provenanceExtras,
         });
         if (sharedContextSpaceId) {
           await patchSharedOrganization(id, sharedContextSpaceId, collectionExtras);
@@ -1140,6 +1163,7 @@ export default function PrototypeNotePage() {
             content: newContent,
             threadId: resolvedComposeThreadIdRef.current ?? undefined,
             allowOffline: spaceId === personalHomeSpaceId,
+            ...provenanceExtras,
           });
           const createdId = getNoteIdFromCreateResponse(res);
           if (!createdId) {
@@ -1220,6 +1244,12 @@ export default function PrototypeNotePage() {
       // Offline persistence (queue + materialize) is handled by useUpdateNote's runOfflineFirst
       // path below — no separate offline write here, which would double-queue the edit.
       const sharedContextSpaceId = contextSpaceId?.trim() || null;
+      const provenanceExtras = templateProvenanceRef.current
+        ? {
+            startedFromTemplateId: templateProvenanceRef.current.id,
+            startedFromTemplateName: templateProvenanceRef.current.name,
+          }
+        : {};
       const result = await updateNoteMutationRef.current.mutateAsync({
         noteId,
         title: newTitle,
@@ -1228,6 +1258,7 @@ export default function PrototypeNotePage() {
         contextSpaceId: sharedContextSpaceId,
         ...(sharedContextSpaceId ? {} : (collectionExtras ?? {})),
         ...(saveOptions?.bumpUpdatedAt === false ? { bumpUpdatedAt: false } : {}),
+        ...provenanceExtras,
       });
       if (sharedContextSpaceId) {
         await patchSharedOrganization(
@@ -1435,6 +1466,12 @@ export default function PrototypeNotePage() {
     (templateSpaceAccess.access?.space.type === 'shared' ||
       templateSpaceAccess.access?.space.type === 'public');
 
+  const resolvedTemplateProvenance = templateProvenance
+    ? templateProvenance
+    : note?.startedFromTemplateId && note.startedFromTemplateName
+      ? { id: note.startedFromTemplateId, name: note.startedFromTemplateName }
+      : null;
+
   const inspectorTemplates = showTemplatesInInspector
     ? {
         spaceId: templateSpaceId,
@@ -1447,7 +1484,25 @@ export default function PrototypeNotePage() {
         liveTitle: liveNoteSnapshot.title || prototypeDisplayTitle,
         liveContent: liveNoteSnapshot.content || editorNote.content || '',
         noteType: typeof editorNote.noteType === 'string' ? editorNote.noteType : 'default',
+        startedFromTemplateId: resolvedTemplateProvenance?.id ?? null,
+        startedFromTemplateName: resolvedTemplateProvenance?.name ?? null,
         onApply: handleApplyTemplate,
+        onTemplateProvenanceChange: (provenance) => {
+          templateProvenanceRef.current = provenance;
+          setTemplateProvenance(provenance);
+          if (!isDraft && noteId) {
+            void updateNoteMutationRef.current.mutateAsync({
+              noteId,
+              title: liveNoteSnapshot.title || prototypeDisplayTitle || '',
+              content: liveNoteSnapshot.content || '',
+              scriptureVersion: getEffectiveDefaultTranslation(),
+              contextSpaceId: contextSpaceId?.trim() || null,
+              startedFromTemplateId: provenance.id,
+              startedFromTemplateName: provenance.name,
+              bumpUpdatedAt: false,
+            });
+          }
+        },
       }
     : null;
 
@@ -1461,6 +1516,8 @@ export default function PrototypeNotePage() {
     isOwnNote: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    startedFromTemplateId: resolvedTemplateProvenance?.id ?? null,
+    startedFromTemplateName: resolvedTemplateProvenance?.name ?? null,
     threads: [],
     tags: [],
   };

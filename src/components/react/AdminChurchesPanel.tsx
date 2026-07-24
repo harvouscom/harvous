@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   useAdminChurches,
+  useAdminHmcInterest,
   useClerkOrgs,
   useRegisterChurch,
   useCreateChurchSpace,
@@ -10,6 +11,7 @@ import {
   useRefreshAdminChurchHmc,
   searchAdminHmcChurches,
   type AdminChurch,
+  type AdminHmcInterestRow,
 } from '@/hooks/queries/useAdminChurches';
 import HmcChurchPicker, { type HmcChurchPick } from './HmcChurchPicker';
 import { THREAD_COLORS, type ThreadColor } from '@/utils/colors';
@@ -465,7 +467,11 @@ function ChurchRow({ church }: { church: AdminChurch }) {
         );
         setSyncSummary(data.warnings.length > 0 ? data.warnings : null);
       },
-      onError: (err) => window.toast?.error(err.message),
+      onError: (err) => {
+        const message = err instanceof Error ? err.message : 'Sync failed';
+        window.toast?.error(message);
+        setSyncSummary([message]);
+      },
     });
   };
 
@@ -522,6 +528,52 @@ function ChurchRow({ church }: { church: AdminChurch }) {
   );
 }
 
+function interestLocation(row: AdminHmcInterestRow): string {
+  return [row.churchCity, row.churchState].filter(Boolean).join(', ');
+}
+
+function HmcInterestSection() {
+  const interest = useAdminHmcInterest();
+  const rows = interest.data?.interest ?? [];
+
+  return (
+    <section>
+      <h3>Churches users selected</h3>
+      <p style={{ margin: '4px 0 12px', opacity: 0.75 }}>
+        Here’s My Church picks from Settings → My Church — outreach demand (user counts only; not registered
+        church orgs).
+      </p>
+      {interest.isLoading ? <p>Loading…</p> : null}
+      {interest.isError ? (
+        <p className="admin-publish__message admin-publish__message--error">Failed to load selections.</p>
+      ) : null}
+      {!interest.isLoading && !interest.isError && rows.length === 0 ? (
+        <p className="admin-publish__empty">No My Church HMC selections yet.</p>
+      ) : null}
+      <div className="admin-publish__space-list">
+        {rows.map((row) => {
+          const location = interestLocation(row);
+          const registered = Boolean(row.registeredChurchId);
+          return (
+            <article key={row.hmcChurchId} className="admin-publish__space-card">
+              <div className="admin-publish__space-header" style={{ width: '100%', textAlign: 'left' }}>
+                <span className="admin-publish__space-title">{row.churchName || row.hmcChurchId}</span>
+                <span className="admin-publish__space-meta">
+                  {registered ? 'Registered · ' : ''}
+                  {location ? `${location} · ` : ''}
+                  {row.userCount} user{row.userCount === 1 ? '' : 's'}
+                  {' · '}
+                  <code style={{ fontSize: '0.85em' }}>{row.hmcChurchId}</code>
+                </span>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default function AdminChurchesPanel() {
   const churches = useAdminChurches();
 
@@ -535,6 +587,8 @@ export default function AdminChurchesPanel() {
         </p>
         <RegisterChurchForm onRegistered={() => void churches.refetch()} />
       </section>
+
+      <HmcInterestSection />
 
       <section>
         <h3>Churches</h3>

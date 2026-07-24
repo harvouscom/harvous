@@ -7,6 +7,8 @@ import {
   syncStudyDockDragHandleHeight,
   updateStudyDockExpandedMaxHeight,
 } from '@/utils/study-dock-layout';
+import { applyHtml5DragPreview } from '@/utils/html5-drag-preview';
+import '@/styles/html5-drag-preview.css';
 import '@/styles/study-dock-card.css';
 import '@/styles/study-dock-carousel.css';
 
@@ -257,11 +259,19 @@ export default function StudyDockCarouselWeb({
     [moveEntryWithAnnouncement, onSelectEntry, stack.entries],
   );
 
+  const dragPreviewCleanupRef = useRef<(() => void) | null>(null);
+
   const handleDragStart = useCallback((event: React.DragEvent<HTMLDivElement>, entryId: string) => {
     draggingIdRef.current = entryId;
     setDraggingId(entryId);
     event.dataTransfer.setData('text/plain', entryId);
     event.dataTransfer.effectAllowed = 'move';
+    dragPreviewCleanupRef.current?.();
+    const item = event.currentTarget.closest('.study-dock-carousel__item') as HTMLElement | null;
+    const preview = applyHtml5DragPreview(event, item, {
+      className: 'study-dock-carousel__drag-preview',
+    });
+    dragPreviewCleanupRef.current = preview?.cleanup ?? null;
     const handle = event.currentTarget;
     handle.blur();
     if (document.activeElement instanceof HTMLElement && document.activeElement !== handle) {
@@ -272,6 +282,8 @@ export default function StudyDockCarouselWeb({
   const handleDragEnd = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     draggingIdRef.current = null;
     setDraggingId(null);
+    dragPreviewCleanupRef.current?.();
+    dragPreviewCleanupRef.current = null;
     event.currentTarget.blur();
   }, []);
 
@@ -293,6 +305,8 @@ export default function StudyDockCarouselWeb({
     event.preventDefault();
     draggingIdRef.current = null;
     setDraggingId(null);
+    dragPreviewCleanupRef.current?.();
+    dragPreviewCleanupRef.current = null;
   }, []);
 
   const scrollActiveToEditorCenter = useCallback(

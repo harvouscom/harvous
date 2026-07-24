@@ -57,6 +57,8 @@ export interface CreateSimpleNoteBody {
   noteType?: 'default' | 'scripture' | 'resource';
   linkedFromNoteId?: string;
   threadId?: string;
+  startedFromTemplateId?: string | null;
+  startedFromTemplateName?: string | null;
   /** Shared spaces require connectivity in the foundation — pass `false` to fail loudly instead of queueing offline. */
   allowOffline?: boolean;
   /** Shared-space context used only for contextual cache seeding. */
@@ -110,7 +112,17 @@ export function useCreateSimpleNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ spaceId, title = '', content = '<p></p>', noteType = 'default', linkedFromNoteId, threadId, allowOffline = true }: CreateSimpleNoteBody): Promise<CreateResult> => {
+    mutationFn: async ({
+      spaceId,
+      title = '',
+      content = '<p></p>',
+      noteType = 'default',
+      linkedFromNoteId,
+      threadId,
+      startedFromTemplateId,
+      startedFromTemplateName,
+      allowOffline = true,
+    }: CreateSimpleNoteBody): Promise<CreateResult> => {
       const sid = normalizedSpaceIdForApi(spaceId);
       try {
         return await api.post<CreateNoteResponse>('/api/notes/create', {
@@ -121,6 +133,12 @@ export function useCreateSimpleNote() {
           threadId: threadId ?? '',
           scriptureVersion: getEffectiveDefaultTranslation(),
           ...(linkedFromNoteId ? { linkedFromNoteId } : {}),
+          ...(startedFromTemplateId
+            ? {
+                startedFromTemplateId,
+                startedFromTemplateName: startedFromTemplateName ?? null,
+              }
+            : {}),
         });
       } catch (err) {
         // Offline: don't fail the mutation. onSuccess persists it to the durable queue

@@ -24,6 +24,7 @@ export {
   SpaceMemberships,
   SpaceInvites,
   Churches,
+  ChurchMemberships,
   NoteTemplates,
   UserMetadata,
   ClerkUserMapping,

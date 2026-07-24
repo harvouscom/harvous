@@ -2,18 +2,23 @@
  * Browse / apply note templates — Connect-note dialog/sheet shell + Add Notes list chrome.
  * Search first; chip tabs filter: All → Included → Saved → {space} (Church/org later).
  * List scrolls in `.proto-add-notes-sheet__scoped-list-body` (same as Add Notes).
+ * Saved / space rows: ⋮ Edit / Delete (edit closes browse → inspector panel).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
 import { getBuiltInTemplates } from '@/data/note-templates';
+import { toast } from '@/utils/toast';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
+import ProtoConfirmDialog from './ProtoConfirmDialog';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useDebouncedSearchState } from '../../hooks/useDebouncedSearchState';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { APIError } from '../../lib/api';
+import { useDeleteNoteTemplate } from '../../hooks/mutations/useDeleteNoteTemplate';
 import {
   useNoteTemplates,
   type ApplyableNoteTemplate,
@@ -23,13 +28,26 @@ import {
   type ProtoAnchoredPopoverStrategy,
 } from './useProtoAnchoredPopoverPosition';
 import PrototypeSearchInput from './components/PrototypeSearchInput';
+import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { PrototypeListEmptyState, PrototypeListNoMatchEmptyState } from './design-system';
+import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
+import {
+  NOTE_TEMPLATE_ICON_NAME,
+  resolveNoteTemplateIconColor,
+} from '@/utils/note-template-icon';
+
+export type EditableNoteTemplate = ApplyableNoteTemplate & {
+  description?: string | null;
+  spaceId?: string | null;
+  section: 'personal' | 'space';
+};
 
 type BrowseTemplateRow = ApplyableNoteTemplate & {
   description?: string;
   estimatedMinutes?: string;
   level?: string;
   createdAt?: string | null;
+  spaceId?: string | null;
 };
 
 type TemplateScopeTab = 'all' | 'builtIn' | 'personal' | 'space';
@@ -42,7 +60,11 @@ export interface PrototypeBrowseTemplatesSheetProps {
   spaceTitle?: string | null;
   /** When true, show the space-owner templates tab. */
   showSpaceSection?: boolean;
+  /** Owner/leader may edit/delete space templates (and see Edit on those rows). */
+  canManageSpaceTemplates?: boolean;
   onApply: (template: ApplyableNoteTemplate) => void;
+  /** Opens inspector edit panel for a personal/space template. */
+  onEdit?: (template: EditableNoteTemplate) => void;
   /** `main-column-top-right` for inspector flows; default `anchor` for trigger-relative. */
   placement?: ProtoAnchoredPopoverStrategy;
   anchorEl?: HTMLElement | null;
@@ -93,34 +115,138 @@ function TemplatesScopeChipBar({
 
 function TemplateListRow({
   template,
-  spaceCaption,
+  showActions,
+  menuOpen,
+  onToggleMenu,
+  onCloseMenu,
   onApply,
+  onEdit,
+  onRequestDelete,
 }: {
   template: BrowseTemplateRow;
-  spaceCaption: string;
+  showActions: boolean;
+  menuOpen: boolean;
+  onToggleMenu: () => void;
+  onCloseMenu: () => void;
   onApply: (template: BrowseTemplateRow) => void;
+  onEdit: (template: BrowseTemplateRow) => void;
+  onRequestDelete: (template: BrowseTemplateRow, anchorRect: DOMRect) => void;
 }) {
-  const caption = categoryCaption(template.section, spaceCaption);
-  const description = rowPreview(template, spaceCaption);
+  const description = template.description?.trim() || '';
+  const iconColor = resolveNoteTemplateIconColor(template.id, template.iconColor);
+  const menuRootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (menuRootRef.current?.contains(target)) return;
+      onCloseMenu();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseMenu();
+    };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menuOpen, onCloseMenu]);
 
   return (
-    <li className="proto-browse-templates-sheet__item">
+    <li
+      className={`proto-browse-templates-sheet__item${
+        menuOpen ? ' proto-browse-templates-sheet__item--menu-open' : ''
+      }`}
+    >
       <button
         type="button"
-        className="proto-browse-templates-sheet__item-btn"
+        className={`proto-browse-templates-sheet__item-btn${
+          description ? '' : ' proto-browse-templates-sheet__item-btn--no-desc'
+        }${showActions ? ' proto-browse-templates-sheet__item-btn--has-menu' : ''}`}
         onClick={() => onApply(template)}
-        aria-label={`Apply ${template.name}, ${caption}`}
+        aria-label={`Apply ${template.name}`}
       >
-        <div className="proto-browse-templates-sheet__item-top">
-          <span className="proto-browse-templates-sheet__item-name">{template.name}</span>
-          <span className="proto-home-tag-chip proto-browse-templates-sheet__item-cat">
-            {caption}
-          </span>
-        </div>
-        {description ? (
-          <p className="proto-browse-templates-sheet__item-desc">{description}</p>
-        ) : null}
+        <span className="proto-browse-templates-sheet__item-icon" aria-hidden>
+          <ProtoSpaceMenuIcon
+            color={iconColor}
+            iconName={NOTE_TEMPLATE_ICON_NAME}
+            size={28}
+            radius={8}
+            glyphSize={13}
+          />
+        </span>
+        <span className="proto-browse-templates-sheet__item-main">
+          <div className="proto-browse-templates-sheet__item-top">
+            <span className="proto-browse-templates-sheet__item-name">{template.name}</span>
+          </div>
+          {description ? (
+            <p className="proto-browse-templates-sheet__item-desc">{description}</p>
+          ) : null}
+        </span>
       </button>
+      {showActions ? (
+        <div
+          className={`proto-menu proto-browse-templates-sheet__item-menu${
+            menuOpen ? ' proto-browse-templates-sheet__item-menu--open' : ''
+          }`}
+          ref={menuRootRef}
+        >
+          <button
+            type="button"
+            className="proto-browse-templates-sheet__item-menu-trigger"
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            aria-label={`Actions for ${template.name}`}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleMenu();
+            }}
+          >
+            <Icon name="ellipsis-vertical" size={14} />
+          </button>
+          {menuOpen ? (
+            <div
+              className="proto-menu__popover proto-menu__popover--right proto-menu__popover--list-view proto-browse-templates-sheet__row-menu-popover"
+              role="menu"
+              aria-label={`${template.name} actions`}
+            >
+              <div className="proto-menu-section" role="group">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="proto-menu-item"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(template);
+                  }}
+                >
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name="pen-to-square" size={PROTO_TOOLBAR_ICON_SIZE} />
+                  </span>
+                  <span className="proto-menu-item__label">Edit</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="proto-menu-item proto-menu-item--destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRequestDelete(template, e.currentTarget.getBoundingClientRect());
+                  }}
+                >
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name="trash-can" size={PROTO_TOOLBAR_ICON_SIZE} />
+                  </span>
+                  <span className="proto-menu-item__label">Delete</span>
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -131,7 +257,9 @@ export default function PrototypeBrowseTemplatesSheet({
   spaceId = null,
   spaceTitle = null,
   showSpaceSection = false,
+  canManageSpaceTemplates = false,
   onApply,
+  onEdit,
   placement = 'main-column-top-right',
   anchorEl = null,
   anchorRect = null,
@@ -141,7 +269,14 @@ export default function PrototypeBrowseTemplatesSheet({
   const cardRef = useRef<HTMLDivElement | null>(null);
   const listSpaceId = spaceId?.trim() || null;
   const { data, isLoading, isError } = useNoteTemplates(listSpaceId, open);
+  const deleteTemplate = useDeleteNoteTemplate();
   const [scopeTab, setScopeTab] = useState<TemplateScopeTab>('all');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+    anchorRect: DOMRect;
+  } | null>(null);
   const { input: searchInput, setInput: setSearchInput, debounced: debouncedSearch } =
     useDebouncedSearchState(200);
 
@@ -149,6 +284,8 @@ export default function PrototypeBrowseTemplatesSheet({
     if (open) {
       setScopeTab('all');
       setSearchInput('');
+      setOpenMenuId(null);
+      setDeleteTarget(null);
     }
   }, [open, setSearchInput]);
 
@@ -169,6 +306,7 @@ export default function PrototypeBrowseTemplatesSheet({
             content: t.content,
             noteType: t.noteType || 'default',
             section: 'builtIn' as const,
+            iconColor: t.iconColor ?? local?.iconColor ?? null,
             description: t.description ?? local?.description,
             estimatedMinutes: t.estimatedMinutes ?? local?.estimatedMinutes,
             level: t.level ?? local?.level,
@@ -181,6 +319,7 @@ export default function PrototypeBrowseTemplatesSheet({
           content: t.content,
           noteType: t.noteType || 'default',
           section: 'builtIn' as const,
+          iconColor: t.iconColor,
           description: t.description,
           estimatedMinutes: t.estimatedMinutes,
           level: t.level,
@@ -192,7 +331,10 @@ export default function PrototypeBrowseTemplatesSheet({
       content: t.content,
       noteType: t.noteType || 'default',
       section: 'personal',
+      iconColor: t.iconColor ?? null,
+      description: t.description ?? undefined,
       createdAt: toIso(t.createdAt),
+      spaceId: null,
     }));
     const space: BrowseTemplateRow[] = (data?.space ?? []).map((t) => ({
       id: t.id,
@@ -201,10 +343,13 @@ export default function PrototypeBrowseTemplatesSheet({
       content: t.content,
       noteType: t.noteType || 'default',
       section: 'space',
+      iconColor: t.iconColor ?? null,
+      description: t.description ?? undefined,
       createdAt: toIso(t.createdAt),
+      spaceId: t.spaceId ?? listSpaceId,
     }));
     return { builtIn: builtInSource, personal, space };
-  }, [data]);
+  }, [data, listSpaceId]);
 
   const itemCount =
     sections.builtIn.length + sections.personal.length + sections.space.length;
@@ -223,13 +368,66 @@ export default function PrototypeBrowseTemplatesSheet({
     [itemCount, isLoading, isError, showSpaceSection],
   );
 
-  useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation);
+  useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation && !deleteTarget, {
+    ignoreSelector: '.harvous-delete-confirm, .proto-browse-templates-sheet__row-menu-popover',
+  });
 
   const handleApply = (template: BrowseTemplateRow) => {
-    const { description: _d, estimatedMinutes: _m, level: _l, createdAt: _c, ...applyable } =
-      template;
+    const {
+      description: _d,
+      estimatedMinutes: _m,
+      level: _l,
+      createdAt: _c,
+      spaceId: _s,
+      ...applyable
+    } = template;
     onApply(applyable);
     onOpenChange(false);
+  };
+
+  const handleEdit = (template: BrowseTemplateRow) => {
+    if (!onEdit || (template.section !== 'personal' && template.section !== 'space')) return;
+    setOpenMenuId(null);
+    onEdit({
+      id: template.id,
+      name: template.name,
+      title: template.title,
+      content: template.content,
+      noteType: template.noteType,
+      section: template.section,
+      iconColor: template.iconColor ?? null,
+      description: template.description ?? null,
+      spaceId: template.spaceId ?? null,
+    });
+  };
+
+  const handleRequestDelete = (template: BrowseTemplateRow, rect: DOMRect) => {
+    setOpenMenuId(null);
+    setDeleteTarget({ id: template.id, name: template.name, anchorRect: rect });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteTemplate.mutateAsync(deleteTarget.id);
+      toast.success('Template deleted');
+      setDeleteTarget(null);
+    } catch (err) {
+      const msg =
+        err instanceof APIError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Could not delete template';
+      toast.error(msg);
+    }
+  };
+
+  const rowCanShowActions = (template: BrowseTemplateRow) => {
+    if (!onEdit) return false;
+    if (template.section === 'personal') return true;
+    if (template.section === 'space') return canManageSpaceTemplates;
+    return false;
   };
 
   const spaceTabLabel = truncateChipLabel(spaceTitle?.trim() || 'Space', 12);
@@ -317,14 +515,24 @@ export default function PrototypeBrowseTemplatesSheet({
               ) : null}
               {activeItems.length > 0 ? (
                 <ul className="proto-browse-templates-sheet__list">
-                  {activeItems.map((t) => (
-                    <TemplateListRow
-                      key={`${t.section}-${t.id}`}
-                      template={t}
-                      spaceCaption={spaceCaption}
-                      onApply={handleApply}
-                    />
-                  ))}
+                  {activeItems.map((t) => {
+                    const rowKey = `${t.section}-${t.id}`;
+                    return (
+                      <TemplateListRow
+                        key={rowKey}
+                        template={t}
+                        showActions={rowCanShowActions(t)}
+                        menuOpen={openMenuId === rowKey}
+                        onToggleMenu={() =>
+                          setOpenMenuId((cur) => (cur === rowKey ? null : rowKey))
+                        }
+                        onCloseMenu={() => setOpenMenuId(null)}
+                        onApply={handleApply}
+                        onEdit={handleEdit}
+                        onRequestDelete={handleRequestDelete}
+                      />
+                    );
+                  })}
                 </ul>
               ) : showNoMatch ? (
                 <div className="proto-browse-templates-sheet__empty">
@@ -346,47 +554,69 @@ export default function PrototypeBrowseTemplatesSheet({
     </>
   );
 
+  const deleteConfirm =
+    deleteTarget && typeof document !== 'undefined' ? (
+      <ProtoConfirmDialog
+        anchorRect={deleteTarget.anchorRect}
+        title={`Delete “${deleteTarget.name}”?`}
+        confirmLabel="Delete"
+        busy={deleteTemplate.isPending}
+        onConfirm={() => void handleConfirmDelete()}
+        onCancel={() => {
+          if (!deleteTemplate.isPending) setDeleteTarget(null);
+        }}
+      />
+    ) : null;
+
   if (showPopoverPortal && typeof document !== 'undefined') {
-    return createPortal(
+    return (
       <>
-        <ProtoDialogBackdrop
-          exiting={exiting}
-          onDismiss={() => onOpenChange(false)}
-          aria-label="Close templates dialog"
-        />
-        <ProtoPopoverShell
-          ref={cardRef}
-          role="dialog"
-          aria-label="Templates"
-          className={portaledDialogShellClassName('proto-connect-note-popover', exiting)}
-          style={{
-            position: 'fixed',
-            top: position?.top ?? -9999,
-            left: position?.left ?? -9999,
-            zIndex: 6000,
-          }}
-        >
-          <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-add-notes-sheet proto-browse-templates-sheet">
-            {content}
-          </div>
-        </ProtoPopoverShell>
-      </>,
-      document.body,
+        {createPortal(
+          <>
+            <ProtoDialogBackdrop
+              exiting={exiting}
+              onDismiss={() => onOpenChange(false)}
+              aria-label="Close templates dialog"
+            />
+            <ProtoPopoverShell
+              ref={cardRef}
+              role="dialog"
+              aria-label="Templates"
+              className={portaledDialogShellClassName('proto-connect-note-popover', exiting)}
+              style={{
+                position: 'fixed',
+                top: position?.top ?? -9999,
+                left: position?.left ?? -9999,
+                zIndex: 6000,
+              }}
+            >
+              <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-add-notes-sheet proto-browse-templates-sheet">
+                {content}
+              </div>
+            </ProtoPopoverShell>
+          </>,
+          document.body,
+        )}
+        {deleteConfirm}
+      </>
     );
   }
 
   if (!open) return null;
 
   return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange}>
-      <DrawerContent
-        onOverlayClick={() => onOpenChange(false)}
-        overlayClassName="proto-connect-note-sheet-overlay"
-        className="proto-connect-note-sheet proto-add-notes-sheet proto-browse-templates-sheet"
-      >
-        {content}
-      </DrawerContent>
-    </Drawer.Root>
+    <>
+      <Drawer.Root open={open} onOpenChange={onOpenChange}>
+        <DrawerContent
+          onOverlayClick={() => onOpenChange(false)}
+          overlayClassName="proto-connect-note-sheet-overlay"
+          className="proto-connect-note-sheet proto-add-notes-sheet proto-browse-templates-sheet"
+        >
+          {content}
+        </DrawerContent>
+      </Drawer.Root>
+      {deleteConfirm}
+    </>
   );
 }
 
@@ -418,27 +648,6 @@ function templateMatchesSearch(template: BrowseTemplateRow, queryLower: string):
     .join(' ')
     .toLowerCase();
   return haystack.includes(queryLower);
-}
-
-function categoryCaption(section: BrowseTemplateRow['section'], spaceCaption: string): string {
-  switch (section) {
-    case 'personal':
-      return 'Saved';
-    case 'space':
-      return truncateChipLabel(spaceCaption, 14);
-    case 'builtIn':
-    default:
-      return 'Included';
-    // Future: org / Church → 'Church'
-  }
-}
-
-function rowPreview(template: BrowseTemplateRow, spaceCaption: string): string {
-  const description = template.description?.trim();
-  if (description) return description;
-  if (template.section === 'personal') return 'Your template';
-  if (template.section === 'space') return spaceCaption;
-  return 'Study method template';
 }
 
 function categoryEmptyCopy(

@@ -206,7 +206,7 @@ export default function PrototypeStudyThreadPopover({
                     <span className="proto-fte-switch__thumb" />
                   </span>
                 </label>
-                <p className="proto-fte-lock__hint">When on, Harvous won&apos;t change the thread name automatically when notes connect or change.</p>
+                <p className="proto-fte-lock__hint">When on, Harvous keeps the thread name you choose.</p>
               </div>
             </section>
 

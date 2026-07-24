@@ -178,8 +178,7 @@
 }
 
 .proto-draft-destination-cue__chip:focus-visible {
-  outline: 2px solid var(--pds-accent-focus-border);
-  outline-offset: 2px;
+  outline: none;
 }
 
 .proto-draft-destination-cue__chip:disabled {

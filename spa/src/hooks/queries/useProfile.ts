@@ -172,10 +172,17 @@ export interface UserProfile {
   churchCity?: string | null;
   churchState?: string | null;
   churchCountry?: string | null;
+  /** Home church (Churches.id) — temporary singular home until ChurchMemberships. */
+  connectedChurchId?: string | null;
+  /** Denormalized Clerk org id for My Church mode (home church). */
+  connectedOrgId?: string | null;
+  connectedChurchAt?: string | null;
   /** Whether an account lock PIN is set (the hash itself is never sent to clients). */
   hasLockPinSet?: boolean;
   /** Preferred Bible translation (e.g. ESV, NET); from UserMetadata via get-profile */
   defaultTranslation?: string;
+  /** Per-user My Home switcher order for personal Shared Spaces (hosted + joined). */
+  sharedSpaceSwitcherOrder?: string[] | null;
 }
 
 export interface XPData {
@@ -210,8 +217,12 @@ export function useProfile() {
             churchCity?: string | null;
             churchState?: string | null;
             churchCountry?: string | null;
+            connectedChurchId?: string | null;
+            connectedOrgId?: string | null;
+            connectedChurchAt?: string | null;
             hasLockPinSet?: boolean;
             defaultTranslation?: string;
+            sharedSpaceSwitcherOrder?: string[] | null;
           }
         >('/api/user/get-profile')
         .then((data) => {
@@ -231,10 +242,16 @@ export function useProfile() {
             hasLockPinSet: data.hasLockPinSet,
             defaultTranslation,
           });
-          // hmcChurchId lives on React Query profile; localStorage cache stays denorm-only.
+          // hmcChurchId / connected* live on React Query profile; localStorage cache stays denorm-only.
           const profile = {
             ...data,
             id: userId!,
+            connectedChurchId: data.connectedChurchId ?? null,
+            connectedOrgId: data.connectedOrgId ?? null,
+            connectedChurchAt: data.connectedChurchAt ?? null,
+            sharedSpaceSwitcherOrder: Array.isArray(data.sharedSpaceSwitcherOrder)
+              ? data.sharedSpaceSwitcherOrder
+              : null,
             defaultTranslation,
             displayName:
               (data.displayName ?? `${data.firstName ?? ''} ${(data.lastName ?? '').charAt(0)}`.trim()) || 'User',

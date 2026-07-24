@@ -30,17 +30,24 @@ export function SettingsShell({
   children,
   /** Full detail-pane width; carousel and other edge-to-edge sections sit outside inset padding. */
   appearanceLayout = false,
+  /** Column flex + min-height 100% so children can use margin-top: auto (e.g. footer callouts). */
+  fillHeight = false,
 }: {
   children: ReactNode;
   appearanceLayout?: boolean;
+  fillHeight?: boolean;
 }) {
+  const className = [
+    'proto-settings__content',
+    appearanceLayout ? 'proto-settings__content--appearance' : null,
+    fillHeight ? 'proto-settings__content--fill-height' : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <div
-      className={
-        appearanceLayout
-          ? 'proto-settings__content proto-settings__content--appearance'
-          : 'proto-settings__content'
-      }
+      className={className}
       style={
         appearanceLayout
           ? { width: '100%', padding: '24px 0 64px' }

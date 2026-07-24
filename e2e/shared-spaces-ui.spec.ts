@@ -113,14 +113,20 @@ test.describe('Shared Spaces UI screenshot tour', () => {
     await page.keyboard.press('Escape');
   });
 
-  test('07 — New shared space form + color picker (User A)', async ({ userAContext }) => {
+  test('07 — New shared space dialog + color picker (User A)', async ({ userAContext }) => {
     const page = await userAContext.newPage();
     await waitForAppShell(page);
     await openSpaceSwitcherMenu(page);
     await page.getByRole('menuitem', { name: 'New shared space' }).click();
-    await expect(page.getByPlaceholder('Space name')).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: /new shared space/i });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByPlaceholder('Space name')).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Choose cover image' })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Choose color' }).click();
+    await expect(dialog.getByRole('radiogroup', { name: 'Color' })).toBeVisible();
     await snap(page, 'space-switcher-create-form-colors', { fullPage: false });
     await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
   });
 
   test('08 — Shared space sidebar view (User A)', async ({ userAContext }) => {

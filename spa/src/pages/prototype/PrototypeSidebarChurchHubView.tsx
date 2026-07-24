@@ -2,10 +2,11 @@
  * My Church hub — two lanes: church Shared Spaces + ministry channels.
  * Not a space dashboard; picking a row opens that space.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useNavigation } from '../../hooks/queries/useNavigation';
+import { useProfile } from '../../hooks/queries/useProfile';
 import {
   churchHubSpacesForOrg,
   formatChurchLocation,
@@ -16,6 +17,7 @@ import { cadenceShortLabel } from '@/utils/channel-publish-cadence';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
+import CreateSharedSpaceSheet from './CreateSharedSpaceSheet';
 
 function normalizeSpaceId(id: string): string {
   return id.startsWith('space_') ? id : `space_${id}`;
@@ -74,15 +76,17 @@ function ChurchHubSpaceButton({
 export default function PrototypeSidebarChurchHubView() {
   const { isMobileSidebar, activeChurchOrgId, setActiveSpaceId, ensureSidebarExpanded } = useProtoShell();
   const { data: nav } = useNavigation();
+  const { data: profile } = useProfile();
+  const [createSheetOpen, setCreateSheetOpen] = useState(false);
 
   const church = useMemo(
     () =>
       resolveMyChurchFromNav({
         spaces: nav?.spaces,
         memberOfSpaces: nav?.memberOfSpaces,
-        connectedOrgId: activeChurchOrgId,
+        connectedOrgId: activeChurchOrgId ?? profile?.connectedOrgId,
       }),
-    [nav?.spaces, nav?.memberOfSpaces, activeChurchOrgId],
+    [nav?.spaces, nav?.memberOfSpaces, activeChurchOrgId, profile?.connectedOrgId],
   );
 
   const orgId = activeChurchOrgId ?? church?.orgId ?? null;
@@ -131,32 +135,64 @@ export default function PrototypeSidebarChurchHubView() {
 
       <div className="proto-sidebar-scroll">
         <div className="proto-home-view">
-          {isEmpty ? (
-            <div className="proto-home-section">
-              <PrototypeListEmptyState
-                iconName="church"
-                title="No spaces yet"
-                description="Shared Spaces and ministry channels for this church will show up here."
-              />
-            </div>
-          ) : (
-            <>
+          <>
+            {isEmpty ? (
               <div className="proto-home-section">
-                <p className="proto-caption proto-home-section__eyebrow">Shared Spaces</p>
-                {sharedSpaces.length === 0 ? (
-                  <p className="proto-caption proto-church-hub__empty-lane">
-                    No church Shared Spaces yet.
-                  </p>
-                ) : (
-                  <ul className="proto-church-hub__list">
-                    {sharedSpaces.map((space) => (
-                      <li key={space.id}>
-                        <ChurchHubSpaceButton space={space} ministry={false} onOpen={openSpace} />
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <PrototypeListEmptyState
+                  iconName="church"
+                  title="No spaces yet"
+                  description="Create a church Shared Space, or open a ministry channel once staff add one."
+                />
               </div>
+            ) : null}
+
+            <div className="proto-home-section">
+              {!isEmpty ? (
+                <p className="proto-caption proto-home-section__eyebrow">Shared Spaces</p>
+              ) : null}
+              {sharedSpaces.length > 0 ? (
+                <ul className="proto-church-hub__list">
+                  {sharedSpaces.map((space) => (
+                    <li key={space.id}>
+                      <ChurchHubSpaceButton space={space} ministry={false} onOpen={openSpace} />
+                    </li>
+                  ))}
+                </ul>
+              ) : !isEmpty ? (
+                <p className="proto-caption proto-church-hub__empty-lane">
+                  No church Shared Spaces yet.
+                </p>
+              ) : null}
+              {orgId ? (
+                <button
+                  type="button"
+                  className={
+                    isEmpty
+                      ? 'proto-settings-btn proto-settings-btn--secondary'
+                      : 'proto-caption'
+                  }
+                  style={
+                    isEmpty
+                      ? { marginTop: 12 }
+                      : {
+                          marginTop: 8,
+                          appearance: 'none',
+                          border: 0,
+                          background: 'transparent',
+                          color: 'var(--pds-text-accent, var(--pds-accent))',
+                          cursor: 'pointer',
+                          padding: 0,
+                          fontWeight: 500,
+                        }
+                  }
+                  onClick={() => setCreateSheetOpen(true)}
+                >
+                  New church Shared Space
+                </button>
+              ) : null}
+            </div>
+
+            {!isEmpty || ministryChannels.length > 0 ? (
               <div className="proto-home-section">
                 <p className="proto-caption proto-home-section__eyebrow">Ministry channels</p>
                 {ministryChannels.length === 0 ? (
@@ -173,10 +209,18 @@ export default function PrototypeSidebarChurchHubView() {
                   </ul>
                 )}
               </div>
-            </>
-          )}
+            ) : null}
+          </>
         </div>
       </div>
+      {orgId ? (
+        <CreateSharedSpaceSheet
+          open={createSheetOpen}
+          onOpenChange={setCreateSheetOpen}
+          orgId={orgId}
+          onCreated={(spaceId) => openSpace(spaceId)}
+        />
+      ) : null}
     </div>
   );
 }

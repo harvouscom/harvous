@@ -131,6 +131,10 @@ export interface NoteDetail {
   }[];
   spaces?: { id: string; title: string }[];
   linkedFromNoteId?: string | null;
+  /** Template id applied to start/fill this note (`soap`, `ntpl_…`). */
+  startedFromTemplateId?: string | null;
+  /** Display name snapshot for template provenance. */
+  startedFromTemplateName?: string | null;
   primaryCollection?: string | null;
   secondaryCollections?: string[];
   collectionPinned?: boolean;

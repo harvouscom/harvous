@@ -24,7 +24,7 @@ Note templates let users create notes from pre-filled title and content. The fea
 
 ### What's Implemented
 
-- **Built-in templates data:** Static template definitions in [`src/data/note-templates.ts`](../../src/data/note-templates.ts) with 6 study method templates (SOAP, Inductive Study, Bible Nerd Method, Topical Study, Chapter Summary, Comparative Study). Each template has: `id`, `name`, `description`, `estimatedMinutes`, `level`, `titleTemplate`, `content` (HTML for Tiptap), and `noteType`. Helper functions: `getBuiltInTemplates()`, `getTemplateById()`.
+- **Built-in templates data:** Static template definitions in [`src/data/note-templates.ts`](../../src/data/note-templates.ts) with 6 study method templates (SOAP, Inductive Study, TEXT, Topical Study, Chapter Summary, Comparative Study). Each template has: `id`, `name`, `description`, `estimatedMinutes`, `level`, `titleTemplate`, `content` (HTML for Tiptap), `noteType`, and `iconColor`. Helper functions: `getBuiltInTemplates()`, `getTemplateById()`.
 - **TemplateSelector dropdown:** [`TemplateSelector.tsx`](../../src/components/react/note-panel/TemplateSelector.tsx) renders a portal-based dropdown showing "Blank Note" plus all built-in templates. Includes selection state, keyboard navigation (Escape to close), click-outside-to-close, and analytics tracking (`note_template_selected`, `note_template_blank_selected`).
 - **NoteTemplateHeader component:** [`NoteTemplateHeader.tsx`](../../src/components/react/note-panel/NoteTemplateHeader.tsx) is a CardStack-style header that displays the selected template name with a caret. Intended for use as a trigger to open the dropdown.
 - **Form state:** `selectedTemplateId` and `setSelectedTemplateId` in [`useNewNoteForm`](../../src/components/react/note-panel/hooks/useNewNoteForm.ts) and [`NewNotePanelContext`](../../src/components/react/contexts/NewNotePanelContext.tsx) track the currently selected template.
@@ -51,8 +51,8 @@ The built-in set aligns with the **top study methods** (e.g. a "Guide" list). Th
 | Method | Description | Time | Level |
 |--------|-------------|------|-------|
 | **SOAP** | Scripture, Observation, Application, Prayer | 15–20 min | Beginner |
+| **TEXT** | Talk, Encounter, eXamine, Talk — prayerful study for new believers | 15–25 min | Beginner |
 | **Inductive Study** | Observation → Interpretation → Application | 45–90 min | Intermediate |
-| **Bible Nerd Method** | Faith’s 5-step process: context, translations, dictionaries, commentaries | 60–120 min | Intermediate–Advanced |
 | **Topical Study** | Study themes across the whole Bible | 20–60 min | Beginner–Intermediate |
 | **Chapter Summary** | Quick summaries for reading retention | 10–15 min | Beginner |
 | **Comparative Study** | Side-by-side analysis of translations, parallel passages, authors | 20–60 min | Intermediate |

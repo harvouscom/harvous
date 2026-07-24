@@ -2,24 +2,24 @@
  * Space switcher — Home layer half of the sidebar layer toggle.
  * When the user has a Harvous church (connected or staff bridge), My Home / My Church
  * are a segmented chip toggle; otherwise only My Home appears as a row. Below that:
- * personal Shared Spaces (or church spaces in My Church mode), with "New shared space"
- * gated on the add-on. Ministry channels live under My Church — not in this list.
+ * personal Shared Spaces in one list (hosted + joined, drag-reorder preference),
+ * or church spaces in My Church mode. "New shared space" gated on the add-on.
+ * Ministry channels live under My Church — not in this list.
+ * Create opens CreateSharedSpaceSheet (dialog/sheet), not an inline form.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
-import { useQueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import ProtoHouseIcon from './ProtoHouseIcon';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { resolveSpaceSwitcherToolbarState, useActiveSpace } from '../../hooks/useActiveSpace';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
-import { useNavigation, getNavigationQueryKey, type NavSpace } from '../../hooks/queries/useNavigation';
+import { useNavigation, type NavSpace } from '../../hooks/queries/useNavigation';
 import { useSubscriptionStatus } from '../../hooks/queries/useSubscriptionStatus';
-import { useCreateSharedSpace } from '../../hooks/mutations/useCreateSharedSpace';
-import { APIError } from '../../lib/api';
+import { useProfile } from '../../hooks/queries/useProfile';
 import { isMinistryBroadcastSpace } from '../../lib/shared-space-capabilities';
 import {
   churchHubSpacesForOrg,
@@ -27,21 +27,21 @@ import {
   resolveMyChurchFromNav,
 } from '../../lib/church-settings';
 import {
+  normalizeSharedSpaceSwitcherId,
+  orderPersonalSharedSpaces,
+} from '../../lib/shared-space-switcher-order';
+import {
   dispatchSharedSpacesEntitlementSynced,
   syncSharedSpacesBilling,
 } from '@/utils/sync-shared-spaces-billing';
-import { type ThreadColor } from '@/utils/colors';
-import { SPACE_COVER_PICKER_COLORS, spacePickerSwatchColor } from '@/utils/space-cover';
+import { useSharedSpaceSwitcherDragReorder } from '../../hooks/useSharedSpaceSwitcherDragReorder';
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import CreateSharedSpaceSheet from './CreateSharedSpaceSheet';
 import { PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE, PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
 
 function normalizeSpaceId(id: string): string {
   return id.startsWith('space_') ? id : `space_${id}`;
-}
-
-function sortSpaces<T extends { title: string }>(spaces: T[]): T[] {
-  return [...spaces].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
 }
 
 /** Mirror server OWNED_SHARED_SPACES_ADDON_LIMIT — used when API cache is stale (limit still 0). */
@@ -58,8 +58,7 @@ export default function SpaceSwitcherMenu({
   iconOnly?: boolean;
 }) {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { isLoaded, isSignedIn, has, userId } = useAuth();
+  const { isLoaded, isSignedIn, has } = useAuth();
   const {
     sidebarLayer,
     setSidebarLayer,
@@ -72,17 +71,16 @@ export default function SpaceSwitcherMenu({
   const { isSharedSpace, space, spaceTitle } = useActiveSpace();
   const showShiftHints = usePrototypeShiftHints();
   const [open, setOpen] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [createTitle, setCreateTitle] = useState('');
-  const [createColor, setCreateColor] = useState<ThreadColor>('blue');
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [createShowAddonLink, setCreateShowAddonLink] = useState(false);
+  const [createSheetOpen, setCreateSheetOpen] = useState(false);
+  /** Captured when opening the create sheet so My Church mode survives menu close. */
+  const [createOrgId, setCreateOrgId] = useState<string | null>(null);
+  const [createSyncBilling, setCreateSyncBilling] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [anchorPos, setAnchorPos] = useState<{ top: number; left: number } | null>(null);
   const { data: nav } = useNavigation();
+  const { data: profile } = useProfile();
   const { data: subscription } = useSubscriptionStatus();
-  const createSharedSpace = useCreateSharedSpace();
   const backgroundSyncStarted = useRef(false);
 
   const clerkEntitled = isLoaded && isSignedIn && has({ feature: 'shared_spaces' });
@@ -114,30 +112,60 @@ export default function SpaceSwitcherMenu({
       resolveMyChurchFromNav({
         spaces: nav?.spaces,
         memberOfSpaces: nav?.memberOfSpaces,
+        connectedOrgId: profile?.connectedOrgId,
       }),
-    [nav?.spaces, nav?.memberOfSpaces],
+    [nav?.spaces, nav?.memberOfSpaces, profile?.connectedOrgId],
   );
   const inMyChurchMode = Boolean(activeChurchOrgId);
-  /** My Home: personal Shared Spaces you host. My Church: that church’s spaces (owned + joined). */
-  const ownedHosted = useMemo(() => {
-    if (inMyChurchMode && activeChurchOrgId) {
-      return churchHubSpacesForOrg(
-        [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])],
-        activeChurchOrgId,
-      );
-    }
-    return sortSpaces((nav?.spaces ?? []).filter((s) => isPersonalSharedSpace(s)));
+  /** My Church: that church’s spaces (owned + joined). */
+  const churchSpaces = useMemo(() => {
+    if (!inMyChurchMode || !activeChurchOrgId) return [] as NavSpace[];
+    return churchHubSpacesForOrg(
+      [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])],
+      activeChurchOrgId,
+    );
   }, [nav?.spaces, nav?.memberOfSpaces, inMyChurchMode, activeChurchOrgId]);
-  const memberOf = useMemo(
-    () => sortSpaces((nav?.memberOfSpaces ?? []).filter((s) => isPersonalSharedSpace(s))),
-    [nav?.memberOfSpaces],
+
+  /** My Home: one list of personal Shared Spaces (hosted + joined), preference-ordered. */
+  const personalSharedSpaces = useMemo(() => {
+    const byId = new Map<string, NavSpace>();
+    for (const s of nav?.spaces ?? []) {
+      if (isPersonalSharedSpace(s)) byId.set(normalizeSharedSpaceSwitcherId(s.id), s);
+    }
+    for (const s of nav?.memberOfSpaces ?? []) {
+      if (isPersonalSharedSpace(s)) byId.set(normalizeSharedSpaceSwitcherId(s.id), s);
+    }
+    return orderPersonalSharedSpaces([...byId.values()], profile?.sharedSpaceSwitcherOrder);
+  }, [nav?.spaces, nav?.memberOfSpaces, profile?.sharedSpaceSwitcherOrder]);
+
+  const personalSharedIds = useMemo(
+    () => personalSharedSpaces.map((s) => normalizeSharedSpaceSwitcherId(s.id)),
+    [personalSharedSpaces],
   );
+  const spaceDrag = useSharedSpaceSwitcherDragReorder({
+    orderedSpaceIds: personalSharedIds,
+    enabled: !inMyChurchMode && open,
+  });
+  const personalSpacesById = useMemo(() => {
+    const map = new Map<string, NavSpace>();
+    for (const s of personalSharedSpaces) {
+      map.set(normalizeSharedSpaceSwitcherId(s.id), s);
+    }
+    return map;
+  }, [personalSharedSpaces]);
+  const displayedPersonalSpaces = useMemo(() => {
+    if (inMyChurchMode) return [];
+    return spaceDrag.displayOrderedIds
+      .map((id) => personalSpacesById.get(id))
+      .filter((s): s is NavSpace => Boolean(s));
+  }, [inMyChurchMode, personalSpacesById, spaceDrag.displayOrderedIds]);
+
   const ownedLimit = hasSharedSpaces
     ? Math.max(subscription?.sharedSpacesOwnedLimit ?? OWNED_SHARED_SPACES_ADDON_LIMIT, OWNED_SHARED_SPACES_ADDON_LIMIT)
     : 0;
-  /** Shared Spaces add-on limit counts collaborative spaces only — not ministry channels. */
+  /** Personal Shared Spaces only — church-scoped (orgId) do not burn the add-on quota. */
   const ownedCount = useMemo(
-    () => (nav?.spaces ?? []).filter((s) => s.type === 'shared').length,
+    () => (nav?.spaces ?? []).filter((s) => isPersonalSharedSpace(s)).length,
     [nav?.spaces],
   );
   const atOwnedLimit = hasSharedSpaces && ownedLimit > 0 && ownedCount >= ownedLimit;
@@ -165,6 +193,7 @@ export default function SpaceSwitcherMenu({
   useEffect(() => {
     if (!open) return undefined;
     const onPointerDown = (e: MouseEvent) => {
+      if (spaceDrag.isDragging) return;
       const target = e.target as Node;
       if (triggerRef.current?.contains(target)) return;
       if (popoverRef.current?.contains(target)) return;
@@ -179,16 +208,7 @@ export default function SpaceSwitcherMenu({
       document.removeEventListener('mousedown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) {
-      setIsCreating(false);
-      setCreateColor('blue');
-      setCreateError(null);
-      setCreateShowAddonLink(false);
-    }
-  }, [open]);
+  }, [open, spaceDrag.isDragging]);
 
   if (!authReady) {
     return null;
@@ -240,53 +260,22 @@ export default function SpaceSwitcherMenu({
     ensureSidebarExpanded();
   }
 
-  async function handleCreateSubmit() {
-    const title = createTitle.trim();
-    if (!title || createSharedSpace.isPending) return;
-    setCreateError(null);
-    setCreateShowAddonLink(false);
-    try {
-      if (clerkEntitled && !apiHasSharedSpaces) {
-        try {
-          const syncResult = await syncSharedSpacesBilling();
-          dispatchSharedSpacesEntitlementSynced({
-            hasSharedSpaces: syncResult.hasSharedSpaces,
-            updated: syncResult.updated,
-          });
-        } catch (error) {
-          console.error('[SpaceSwitcherMenu] Shared Spaces billing sync failed:', error);
-        }
-      }
-
-      const result = await createSharedSpace.mutateAsync({ title, color: createColor });
-      if (!result.space?.id) {
-        setCreateError('Shared space was created but the response was incomplete. Try refreshing.');
+  function openCreateSheet() {
+    if (!inMyChurchMode) {
+      if (atOwnedLimit) return;
+      if (!hasSharedSpaces) {
+        setOpen(false);
+        void navigate({ to: '/addon' as any });
         return;
       }
-
-      if (userId) {
-        await queryClient.refetchQueries({ queryKey: getNavigationQueryKey(userId) });
-      }
-
-      setCreateTitle('');
-      setCreateColor('blue');
-      setIsCreating(false);
-      selectSpace(result.space.id);
-    } catch (error) {
-      if (error instanceof APIError) {
-        setCreateError(error.message || `Request failed (${error.status})`);
-        setCreateShowAddonLink(error.status === 403 && error.code === 'SHARED_SPACE_LIMIT_EXCEEDED');
-      } else if (error instanceof Error) {
-        setCreateError(error.message);
-        setCreateShowAddonLink(false);
-      } else {
-        setCreateError('Could not create shared space. Try again.');
-        setCreateShowAddonLink(false);
-      }
     }
+    setCreateOrgId(inMyChurchMode ? activeChurchOrgId : null);
+    setCreateSyncBilling(Boolean(clerkEntitled && !apiHasSharedSpaces));
+    setOpen(false);
+    setCreateSheetOpen(true);
   }
 
-  function renderSpaceRow(row: NavSpace) {
+  function renderSpaceRow(row: NavSpace, options?: { reorderIndex?: number; allowReorder?: boolean }) {
     const checked = activeSpaceId === normalizeSpaceId(row.id);
     const hasUnseen = !checked && Boolean(row.newNoteCount && row.newNoteCount > 0);
     const badge =
@@ -296,34 +285,72 @@ export default function SpaceSwitcherMenu({
           : String(row.newNoteCount)
         : null;
     const ministry = isMinistryBroadcastSpace(row);
+    const spaceId = normalizeSharedSpaceSwitcherId(row.id);
+    const allowReorder = Boolean(options?.allowReorder && spaceDrag.showDragHandle);
+    const isDraggingRow = spaceDrag.draggingId === spaceId;
     return (
-      <button
+      <div
         key={row.id}
-        type="button"
-        role="menuitemradio"
-        aria-checked={checked}
-        className="proto-menu-item"
-        title={row.title}
-        onClick={() => selectSpace(row.id, { keepChurch: inMyChurchMode })}
+        className={`proto-space-switcher__row${isDraggingRow ? ' proto-space-switcher__row--dragging' : ''}${
+          allowReorder ? ' proto-space-switcher__row--reorderable' : ''
+        }`}
+        onDragEnter={
+          allowReorder && options?.reorderIndex != null
+            ? (e) => spaceDrag.handleDragOver(e, options.reorderIndex!)
+            : undefined
+        }
+        onDragOver={
+          allowReorder && options?.reorderIndex != null
+            ? (e) => spaceDrag.handleDragOver(e, options.reorderIndex!)
+            : undefined
+        }
+        onDrop={allowReorder ? spaceDrag.handleDrop : undefined}
       >
-        <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
-          {ministry ? (
-            <ProtoSpaceMenuIcon color={row.color || 'paper'} iconName="rss" />
-          ) : (
-            <ProtoSpaceMenuIcon color={row.color || 'paper'} />
-          )}
-          {hasUnseen ? <span className="proto-space-switcher-dot" aria-hidden /> : null}
-        </span>
-        <span className="proto-menu-item__label">{row.title}</span>
-        {badge ? (
-          <span className="proto-space-switcher-badge" aria-label={`${badge} new notes`}>
-            {badge}
-          </span>
+        {allowReorder ? (
+          <button
+            type="button"
+            className="proto-space-switcher__drag-handle"
+            draggable
+            aria-label={`Reorder ${row.title}`}
+            title="Drag to reorder"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onDragStart={(e) => {
+              const rowEl = e.currentTarget.closest('.proto-space-switcher__row') as HTMLElement | null;
+              spaceDrag.handleDragStart(e, spaceId, rowEl);
+            }}
+            onDragEnd={spaceDrag.handleDragEnd}
+          >
+            <Icon name="ellipsis-vertical" size={12} />
+          </button>
         ) : null}
-        <span className="proto-menu-item__check" aria-hidden>
-          {checked ? <Icon name="check" size={12} /> : null}
-        </span>
-      </button>
+        <button
+          type="button"
+          role="menuitemradio"
+          aria-checked={checked}
+          className="proto-menu-item proto-space-switcher__row-item"
+          title={row.title}
+          onClick={() => selectSpace(row.id, { keepChurch: inMyChurchMode })}
+        >
+          <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
+            {ministry ? (
+              <ProtoSpaceMenuIcon color={row.color || 'paper'} iconName="rss" />
+            ) : (
+              <ProtoSpaceMenuIcon color={row.color || 'paper'} />
+            )}
+            {hasUnseen ? <span className="proto-space-switcher-dot" aria-hidden /> : null}
+          </span>
+          <span className="proto-menu-item__label">{row.title}</span>
+          {badge ? (
+            <span className="proto-space-switcher-badge" aria-label={`${badge} new notes`}>
+              {badge}
+            </span>
+          ) : null}
+          <span className="proto-menu-item__check" aria-hidden>
+            {checked ? <Icon name="check" size={12} /> : null}
+          </span>
+        </button>
+      </div>
     );
   }
 
@@ -395,142 +422,53 @@ export default function SpaceSwitcherMenu({
             </div>
           )}
 
-          {ownedHosted.length > 0 ? (
-            <div
-              className="proto-menu-section"
-              role="group"
-              aria-label={inMyChurchMode ? 'Church spaces' : 'Spaces you host'}
-            >
-              {ownedHosted.map((space) => renderSpaceRow(space))}
+          {inMyChurchMode && churchSpaces.length > 0 ? (
+            <div className="proto-menu-section" role="group" aria-label="Church spaces">
+              {churchSpaces.map((space) => renderSpaceRow(space))}
             </div>
           ) : null}
 
-          {!inMyChurchMode && memberOf.length > 0 ? (
-            <div className="proto-menu-section" role="group" aria-label="Spaces you've joined">
-              {memberOf.map((space) => renderSpaceRow(space))}
-            </div>
-          ) : null}
-
-          {!inMyChurchMode ? (
-          <div className="proto-menu-section" role="group">
-            {isCreating ? (
-              <div className="proto-space-switcher__create-form">
-                <div className="proto-space-switcher__preview" aria-hidden>
-                  <span className="proto-menu-item__icon proto-menu-item__icon--space">
-                    <ProtoSpaceMenuIcon color={createColor} />
-                  </span>
-                  <span className="proto-menu-item__label proto-space-switcher__preview-title">
-                    {createTitle.trim() || 'New shared space'}
-                  </span>
-                </div>
-                <input
-                  autoFocus
-                  type="text"
-                  value={createTitle}
-                  onChange={(e) => {
-                    setCreateTitle(e.target.value);
-                    if (createError) {
-                      setCreateError(null);
-                      setCreateShowAddonLink(false);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void handleCreateSubmit();
-                    if (e.key === 'Escape') setIsCreating(false);
-                  }}
-                  placeholder="Space name"
-                  disabled={createSharedSpace.isPending}
-                  className="proto-space-switcher__create-input"
+          {!inMyChurchMode && displayedPersonalSpaces.length > 0 ? (
+            <div className="proto-menu-section" role="group" aria-label="Shared spaces">
+              {displayedPersonalSpaces.map((space, index) =>
+                renderSpaceRow(space, { reorderIndex: index, allowReorder: true }),
+              )}
+              {spaceDrag.showDragHandle ? (
+                <div
+                  className="proto-space-switcher__drop-tail"
+                  role="presentation"
+                  onDragEnter={(e) => spaceDrag.handleDragOver(e, displayedPersonalSpaces.length)}
+                  onDragOver={(e) => spaceDrag.handleDragOver(e, displayedPersonalSpaces.length)}
+                  onDrop={spaceDrag.handleDrop}
                 />
-                <div className="proto-space-switcher__create-colors">
-                  {SPACE_COVER_PICKER_COLORS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      aria-label={`Color ${color}`}
-                      aria-pressed={createColor === color}
-                      disabled={createSharedSpace.isPending}
-                      onClick={() => setCreateColor(color)}
-                      className={
-                        createColor === color
-                          ? 'proto-shared-space-settings__color proto-shared-space-settings__color--selected'
-                          : 'proto-shared-space-settings__color'
-                      }
-                      style={{ ['--swatch-accent' as string]: spacePickerSwatchColor(color) }}
-                    >
-                      {createColor === color ? <Icon name="check" size={12} /> : null}
-                    </button>
-                  ))}
-                </div>
-                <div className="proto-space-switcher__create-actions">
-                  <button
-                    type="button"
-                    className="proto-settings-btn proto-settings-btn--secondary"
-                    onClick={() => {
-                      setIsCreating(false);
-                      setCreateError(null);
-      setCreateShowAddonLink(false);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="proto-settings-btn"
-                    disabled={!createTitle.trim() || createSharedSpace.isPending}
-                    onClick={() => void handleCreateSubmit()}
-                  >
-                    {createSharedSpace.isPending ? 'Creating…' : 'Create'}
-                  </button>
-                </div>
-                {createError ? (
-                  <div className="proto-space-switcher__create-error" role="alert">
-                    <span className="proto-space-switcher__create-error-text">{createError}</span>
-                    {createShowAddonLink ? (
-                      <button
-                        type="button"
-                        className="proto-space-switcher__create-error-link"
-                        onClick={() => {
-                          setOpen(false);
-                          void navigate({ to: '/addon' as any });
-                        }}
-                      >
-                        Get Shared Spaces
-                      </button>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            ) : (
+              ) : null}
+            </div>
+          ) : null}
+
+          {(inMyChurchMode ? Boolean(activeChurchOrgId) : true) ? (
+            <div className="proto-menu-section" role="group">
               <button
                 type="button"
                 role="menuitem"
                 className="proto-menu-item"
-                disabled={atOwnedLimit}
-                aria-disabled={atOwnedLimit}
-                onClick={() => {
-                  if (atOwnedLimit) return;
-                  if (!hasSharedSpaces) {
-                    setOpen(false);
-                    void navigate({ to: '/addon' as any });
-                    return;
-                  }
-                  setCreateError(null);
-      setCreateShowAddonLink(false);
-                  setIsCreating(true);
-                }}
+                disabled={!inMyChurchMode && atOwnedLimit}
+                aria-disabled={!inMyChurchMode && atOwnedLimit}
+                onClick={openCreateSheet}
               >
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="plus" size={PROTO_TOOLBAR_ICON_SIZE} />
                 </span>
-                <span className="proto-menu-item__label">New shared space</span>
-                {!hasSharedSpaces ? <span className="proto-menu-item__badge">Add-on</span> : null}
+                <span className="proto-menu-item__label">
+                  {inMyChurchMode ? 'New church Shared Space' : 'New shared space'}
+                </span>
+                {!inMyChurchMode && !hasSharedSpaces ? (
+                  <span className="proto-menu-item__badge">Add-on</span>
+                ) : null}
               </button>
-            )}
-          </div>
+            </div>
           ) : null}
 
-          {!inMyChurchMode && hasSharedSpaces && !isCreating && atOwnedLimit ? (
+          {!inMyChurchMode && hasSharedSpaces && atOwnedLimit ? (
             <div className="proto-space-switcher__footer proto-space-switcher__footer--limit" role="status">
               {`You've used all ${ownedLimit} shared spaces you can own.`}
             </div>
@@ -580,6 +518,13 @@ export default function SpaceSwitcherMenu({
         </button>
       </PrototypeToolbarShortcutItem>
       {popover}
+      <CreateSharedSpaceSheet
+        open={createSheetOpen}
+        onOpenChange={setCreateSheetOpen}
+        orgId={createOrgId}
+        syncBillingBeforeCreate={createSyncBilling}
+        onCreated={(spaceId) => selectSpace(spaceId, { keepChurch: Boolean(createOrgId) })}
+      />
     </div>
   );
 }

@@ -262,6 +262,8 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
     let spaceId: string | null;
     let contentEncrypted: boolean;
     let linkedFromNoteIdRaw: string | null = null;
+    let startedFromTemplateIdRaw: string | null = null;
+    let startedFromTemplateNameRaw: string | null = null;
 
     if (contentType.includes('application/json')) {
       const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
@@ -278,6 +280,14 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       contentEncrypted = body.contentEncrypted === true || body.contentEncrypted === 'true';
       const lfn = body.linkedFromNoteId;
       linkedFromNoteIdRaw = typeof lfn === 'string' && lfn.trim() ? lfn.trim() : null;
+      startedFromTemplateIdRaw =
+        typeof body.startedFromTemplateId === 'string' && body.startedFromTemplateId.trim()
+          ? body.startedFromTemplateId.trim()
+          : null;
+      startedFromTemplateNameRaw =
+        typeof body.startedFromTemplateName === 'string' && body.startedFromTemplateName.trim()
+          ? body.startedFromTemplateName.trim().slice(0, 80)
+          : null;
     } else {
       const formData = await c.req.formData();
       content = formData.get('content') as string;
@@ -292,6 +302,11 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       contentEncrypted = formData.get('contentEncrypted') === 'true';
       const lfnForm = formData.get('linkedFromNoteId') as string | null;
       linkedFromNoteIdRaw = lfnForm && lfnForm.trim() ? lfnForm.trim() : null;
+      const tplIdForm = formData.get('startedFromTemplateId') as string | null;
+      startedFromTemplateIdRaw = tplIdForm && tplIdForm.trim() ? tplIdForm.trim() : null;
+      const tplNameForm = formData.get('startedFromTemplateName') as string | null;
+      startedFromTemplateNameRaw =
+        tplNameForm && tplNameForm.trim() ? tplNameForm.trim().slice(0, 80) : null;
     }
 
     let prefetchedResourceMetadata: { title?: string; description?: string; image?: string; articleContent?: string; siteName?: string } | null = null;
@@ -536,6 +551,8 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
             updatedAt: now,
             lastVisited: now,
             linkedFromNoteId: resolvedLinkedFromNoteId,
+            startedFromTemplateId: startedFromTemplateIdRaw,
+            startedFromTemplateName: startedFromTemplateNameRaw,
           })
           .returning(),
       );
@@ -824,6 +841,8 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       dismissedAutoTags: dismissedAutoTagsRaw,
       bumpUpdatedAt: bumpUpdatedAtRaw,
       expectedVersion: expectedVersionRaw,
+      startedFromTemplateId: startedFromTemplateIdRaw,
+      startedFromTemplateName: startedFromTemplateNameRaw,
     } = body;
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
@@ -908,6 +927,18 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
         ? dismissedAutoTagsRaw.filter((x: unknown): x is string => typeof x === 'string')
         : [];
       updateData.dismissedAutoTags = serializeDismissedAutoTags(arr);
+    }
+    if (startedFromTemplateIdRaw !== undefined) {
+      updateData.startedFromTemplateId =
+        typeof startedFromTemplateIdRaw === 'string' && startedFromTemplateIdRaw.trim()
+          ? startedFromTemplateIdRaw.trim()
+          : null;
+    }
+    if (startedFromTemplateNameRaw !== undefined) {
+      updateData.startedFromTemplateName =
+        typeof startedFromTemplateNameRaw === 'string' && startedFromTemplateNameRaw.trim()
+          ? startedFromTemplateNameRaw.trim().slice(0, 80)
+          : null;
     }
     if (typeof contentEncrypted === 'boolean') {
       updateData.contentEncrypted = contentEncrypted;

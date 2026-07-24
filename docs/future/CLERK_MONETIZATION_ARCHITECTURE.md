@@ -4,6 +4,11 @@
 > This file is **technical** — Clerk metadata, Stripe webhooks, Organizations, feature-gating patterns.
 > The example `ADDONS` block below ($8–12/mo learning courses) is **superseded** by Review / Group
 > Sharing / Season Pass / Group Leader in the pricing doc.
+>
+> **Church orgs (July 2026):** Canonical model is **Church base + add-ons** (§7 of the pricing doc),
+> staff-only Clerk org (≤20; Unlimited staff + Clerk Enhanced for more). Example `CHURCH_TIERS` /
+> `memberLimit` 100/500 below are **superseded** — those numbers were connected-congregation targets,
+> not Clerk org size. Congregants are never Clerk org members.
 
 ## Overview
 

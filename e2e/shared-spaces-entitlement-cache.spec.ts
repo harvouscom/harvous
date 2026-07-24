@@ -72,8 +72,10 @@ test.describe('Shared Spaces entitlement cache', () => {
 
     await openSpaceSwitcherMenu(page);
     await page.getByRole('menuitem', { name: 'New shared space' }).click();
-    await page.getByPlaceholder('Space name').fill(spaceTitle);
-    await page.getByRole('button', { name: 'Create' }).click();
+    const dialog = page.getByRole('dialog', { name: /new shared space/i });
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel('Space name').fill(spaceTitle);
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
 
     await expect(page.getByRole('heading', { name: spaceTitle }).or(page.locator('.proto-shared-space-header__title', { hasText: spaceTitle }))).toBeVisible({
       timeout: 15_000,

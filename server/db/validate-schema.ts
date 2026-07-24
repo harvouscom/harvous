@@ -22,6 +22,8 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'copiedFromVersionId',
     'copiedFromAuthorId',
     'copiedFromAuthorDisplayName',
+    'startedFromTemplateId',
+    'startedFromTemplateName',
   ],
   NoteVersions: ['id', 'noteId', 'version', 'title', 'content', 'contentEncrypted', 'source', 'authorId', 'createdAt'],
   SpaceNotes: [

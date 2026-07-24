@@ -18,7 +18,13 @@ import {
 } from '../../hooks/mutations/useSpaceNoteAssociation';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { usePopoverDismiss } from '../../hooks/usePopoverDismiss';
-import { useNavigation } from '../../hooks/queries/useNavigation';
+import { useNavigation, type NavSpace } from '../../hooks/queries/useNavigation';
+import { useProfile } from '../../hooks/queries/useProfile';
+import { isPersonalSharedSpace } from '../../lib/church-settings';
+import {
+  normalizeSharedSpaceSwitcherId,
+  orderPersonalSharedSpaces,
+} from '../../lib/shared-space-switcher-order';
 import { PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -112,35 +118,37 @@ export default function PrototypeNoteMoreMenu({
   const removeFromSpace = useRemoveNoteFromSpace();
   const saveCopy = useSaveNoteCopy();
   const { data: nav } = useNavigation();
+  const { data: profile } = useProfile();
 
-  const ownedSharedTargets = useMemo(
-    () => (nav?.spaces ?? []).filter((s) => s.type === 'shared'),
-    [nav?.spaces],
-  );
-  const joinedSharedTargets = useMemo(() => nav?.memberOfSpaces ?? [], [nav?.memberOfSpaces]);
-  const sharedSpaceTargets = useMemo(
-    () =>
-      [...ownedSharedTargets, ...joinedSharedTargets].filter(
-        (space) => space.id !== currentSharedSpaceId,
-      ),
-    [currentSharedSpaceId, ownedSharedTargets, joinedSharedTargets],
-  );
+  /** Same personal Shared Spaces list + preference order as the space switcher. */
+  const personalSharedTargets = useMemo(() => {
+    const byId = new Map<string, NavSpace>();
+    for (const s of nav?.spaces ?? []) {
+      if (isPersonalSharedSpace(s)) byId.set(normalizeSharedSpaceSwitcherId(s.id), s);
+    }
+    for (const s of nav?.memberOfSpaces ?? []) {
+      if (isPersonalSharedSpace(s)) byId.set(normalizeSharedSpaceSwitcherId(s.id), s);
+    }
+    return orderPersonalSharedSpaces([...byId.values()], profile?.sharedSpaceSwitcherOrder);
+  }, [nav?.spaces, nav?.memberOfSpaces, profile?.sharedSpaceSwitcherOrder]);
+
+  const sharedSpaceTargets = useMemo(() => {
+    const current = currentSharedSpaceId
+      ? normalizeSharedSpaceSwitcherId(currentSharedSpaceId)
+      : null;
+    return personalSharedTargets.filter(
+      (space) => normalizeSharedSpaceSwitcherId(space.id) !== current,
+    );
+  }, [currentSharedSpaceId, personalSharedTargets]);
+
   const showCopySpaceSearch = sharedSpaceTargets.length > 5;
   const [copySpaceFilter, setCopySpaceFilter] = useState('');
 
-  const filteredOwnedTargets = useMemo(() => {
+  const filteredSharedTargets = useMemo(() => {
     const q = copySpaceFilter.trim().toLowerCase();
-    return ownedSharedTargets.filter(
-      (s) => s.id !== currentSharedSpaceId && (!q || s.title.toLowerCase().includes(q)),
-    );
-  }, [copySpaceFilter, currentSharedSpaceId, ownedSharedTargets]);
-
-  const filteredJoinedTargets = useMemo(() => {
-    const q = copySpaceFilter.trim().toLowerCase();
-    return joinedSharedTargets.filter(
-      (s) => s.id !== currentSharedSpaceId && (!q || s.title.toLowerCase().includes(q)),
-    );
-  }, [copySpaceFilter, currentSharedSpaceId, joinedSharedTargets]);
+    if (!q) return sharedSpaceTargets;
+    return sharedSpaceTargets.filter((s) => s.title.toLowerCase().includes(q));
+  }, [copySpaceFilter, sharedSpaceTargets]);
 
   const pinnedFromCache = useMemo(
     () => readNotePinnedFromCache(queryClient, spaceId, noteId),
@@ -425,60 +433,25 @@ export default function PrototypeNoteMoreMenu({
                         />
                       </div>
                     ) : null}
-                    {filteredOwnedTargets.length > 0 ? (
-                      <>
-                        <div className="proto-copy-space-group-label" role="presentation">
-                          Spaces you host
-                        </div>
-                        {filteredOwnedTargets.map((space) => (
-                          <button
-                            key={space.id}
-                            type="button"
-                            role="menuitem"
-                            className="proto-menu-item"
-                            title={space.title}
-                            disabled={associateWithSpace.isPending}
-                            onClick={(e) =>
-                              requestAddToSpace(e.currentTarget.getBoundingClientRect(), space.id, space.title)
-                            }
-                          >
-                            <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
-                              <ProtoSpaceMenuIcon color={space.color || 'paper'} />
-                            </span>
-                            <span className="proto-menu-item__label">{space.title}</span>
-                          </button>
-                        ))}
-                      </>
-                    ) : null}
-                    {filteredJoinedTargets.length > 0 ? (
-                      <>
-                        <div className="proto-copy-space-group-label" role="presentation">
-                          Spaces you've joined
-                        </div>
-                        {filteredJoinedTargets.map((space) => (
-                          <button
-                            key={space.id}
-                            type="button"
-                            role="menuitem"
-                            className="proto-menu-item"
-                            title={space.title}
-                            disabled={associateWithSpace.isPending}
-                            onClick={(e) =>
-                              requestAddToSpace(e.currentTarget.getBoundingClientRect(), space.id, space.title)
-                            }
-                          >
-                            <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
-                              <ProtoSpaceMenuIcon color={space.color || 'paper'} />
-                            </span>
-                            <span className="proto-menu-item__label">{space.title}</span>
-                          </button>
-                        ))}
-                      </>
-                    ) : null}
-                    {showCopySpaceSearch &&
-                    copySpaceFilter.trim() &&
-                    filteredOwnedTargets.length === 0 &&
-                    filteredJoinedTargets.length === 0 ? (
+                    {filteredSharedTargets.map((space) => (
+                      <button
+                        key={space.id}
+                        type="button"
+                        role="menuitem"
+                        className="proto-menu-item"
+                        title={space.title}
+                        disabled={associateWithSpace.isPending}
+                        onClick={(e) =>
+                          requestAddToSpace(e.currentTarget.getBoundingClientRect(), space.id, space.title)
+                        }
+                      >
+                        <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
+                          <ProtoSpaceMenuIcon color={space.color || 'paper'} />
+                        </span>
+                        <span className="proto-menu-item__label">{space.title}</span>
+                      </button>
+                    ))}
+                    {showCopySpaceSearch && copySpaceFilter.trim() && filteredSharedTargets.length === 0 ? (
                       <p className="proto-space-switcher__empty-hint">No spaces match your search.</p>
                     ) : null}
                   </>
