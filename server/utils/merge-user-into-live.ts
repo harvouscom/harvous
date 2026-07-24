@@ -13,6 +13,8 @@ import {
   Comments,
   Members,
   SpaceInvitations,
+  SpaceMemberships,
+  SpaceInvites,
   UserMetadata,
   UserXP,
   UserSeasonalXP,
@@ -43,14 +45,18 @@ export async function mergeDevUserIntoLive(
   await db.update(Threads).set({ userId: liveUserId }).where(eq(Threads.userId, devUserId));
   await db.update(Notes).set({ userId: liveUserId }).where(eq(Notes.userId, devUserId));
   await db.update(Comments).set({ userId: liveUserId }).where(eq(Comments.userId, devUserId));
+  // Hygiene reassignment on the frozen v1 tables (kept until they are dropped)
   await db.update(Members).set({ userId: liveUserId }).where(eq(Members.userId, devUserId));
   await db.update(SpaceInvitations).set({ invitedBy: liveUserId }).where(eq(SpaceInvitations.invitedBy, devUserId));
   await db.update(SpaceInvitations).set({ invitedUserId: liveUserId }).where(eq(SpaceInvitations.invitedUserId, devUserId));
+  await db.update(SpaceMemberships).set({ userId: liveUserId }).where(eq(SpaceMemberships.userId, devUserId));
+  await db.update(SpaceMemberships).set({ invitedBy: liveUserId }).where(eq(SpaceMemberships.invitedBy, devUserId));
+  await db.update(SpaceInvites).set({ createdBy: liveUserId }).where(eq(SpaceInvites.createdBy, devUserId));
   await db.update(UserXP).set({ userId: liveUserId }).where(eq(UserXP.userId, devUserId));
   await db.update(WeeklyStreaks).set({ userId: liveUserId }).where(eq(WeeklyStreaks.userId, devUserId));
   await db.update(Tags).set({ userId: liveUserId }).where(eq(Tags.userId, devUserId));
   await db.update(UserInboxItems).set({ userId: liveUserId }).where(eq(UserInboxItems.userId, devUserId));
-  log('Reassigned content: Spaces, Threads, Notes, Comments, Members, SpaceInvitations, UserXP, WeeklyStreaks, Tags, UserInboxItems');
+  log('Reassigned content: Spaces, Threads, Notes, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, UserXP, WeeklyStreaks, Tags, UserInboxItems');
 
   const liveMeta = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, liveUserId)).limit(1));
   const devMeta = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, devUserId)).limit(1));

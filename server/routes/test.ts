@@ -5,6 +5,7 @@
  *   POST /api/test/reset-to-new-user — Clear all current user data + UserMetadata so
  *        on refresh the app treats them as new (empty content).
  *        Dev only. No auth required: pass { "userId": "user_xxx" } in body, or omit to use session.
+ *   POST /api/test/set-shared-spaces-addon — Dev only; toggle UserMetadata.sharedSpacesAddOn.
  *   POST /api/test/seed-sample-votd — Localhost only; sample VOTD row for today (UTC).
  *   POST /api/test/seed-sample-featured — Localhost only; VOTD plus sample carousel cards. Response includes featuredItemIds
  *        for clearing localStorage dismissed_featured_* keys.
@@ -13,6 +14,7 @@
 import { Hono } from 'hono';
 import { getAuth } from '../middleware/auth';
 import { resetUserToNew } from '../utils/reset-user-to-new';
+import { setSharedSpacesAddOnForUserId } from '../utils/tier-limits';
 import { db, eq, inArray } from '../db';
 import { now } from '../db/dates';
 import { FeaturedItems, UserFeaturedItems, VotdSchedule } from '../db/schema';
@@ -58,6 +60,34 @@ app.post('/api/test/reset-to-new-user', async (c) => {
   } catch (error: any) {
     console.error('Reset to new user error:', error);
     return c.json({ error: error.message || 'Failed to reset user' }, 500);
+  }
+});
+
+/** POST /api/test/set-shared-spaces-addon — dev only; toggles Shared Spaces entitlement in DB */
+app.post('/api/test/set-shared-spaces-addon', async (c) => {
+  if (isTestRoutesForbidden()) {
+    return c.json({ error: 'Test endpoint not available in production' }, 403);
+  }
+
+  try {
+    const body = (await c.req.json().catch(() => ({}))) as { userId?: string; enabled?: boolean };
+    const auth = getAuth(c);
+    const userId = body.userId ?? auth.userId ?? null;
+    if (!userId) {
+      return c.json(
+        { error: 'Provide userId in request body (e.g. { "userId": "user_xxx" }) or be logged in' },
+        400
+      );
+    }
+
+    const enabled = body.enabled === true;
+    await setSharedSpacesAddOnForUserId(userId, enabled);
+    console.log(`✅ Set sharedSpacesAddOn=${enabled} for user ${userId}`);
+
+    return c.json({ success: true, hasSharedSpaces: enabled });
+  } catch (error: any) {
+    console.error('Set shared spaces add-on error:', error);
+    return c.json({ error: error.message || 'Failed to update Shared Spaces add-on' }, 500);
   }
 });
 

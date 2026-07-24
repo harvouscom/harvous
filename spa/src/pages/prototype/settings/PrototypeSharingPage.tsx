@@ -6,9 +6,69 @@ import { toast } from '@/utils/toast';
 import { useShareNote } from '../../../hooks/mutations/useShareNote';
 import { mySharingQueryKey, useMySharing, type SharedNoteItem } from '../../../hooks/queries/useMySharing';
 import { useQueryClient } from '@tanstack/react-query';
-import { SettingsCopyRow, SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
+import { SettingsCopyRow, SettingsGroup, SettingsShell } from './SettingsShell';
 import { protoRelativeCaptionAbbrev } from '../proto-time';
 import { noteParamSlug } from '../proto-route-slugs';
+import { useDeletedSpaces, type DeletedSpaceItem } from '../../../hooks/queries/useDeletedSpaces';
+import { useRestoreSpace } from '../../../hooks/mutations/useRestoreSpace';
+import { APIError } from '../../../lib/api';
+
+type SharedItemKind = 'note' | 'thread' | 'space';
+
+/** Leading icon tile for shared-item cards — matches Settings > Add-ons rows. */
+export function resolveSharedItemLeadingMeta(kind: SharedItemKind): {
+  icon: IconName;
+  label: string;
+} {
+  switch (kind) {
+    case 'thread':
+      return { icon: 'layer-group', label: 'Thread' };
+    case 'space':
+      return { icon: 'user-group', label: 'Space' };
+    case 'note':
+    default:
+      return { icon: 'note-sticky', label: 'Note' };
+  }
+}
+
+function SharingCardHeader({
+  kind,
+  title,
+  noteId,
+  rel,
+  preview,
+}: {
+  kind: SharedItemKind;
+  title: string;
+  noteId: string;
+  rel?: string;
+  preview?: string;
+}) {
+  const { icon, label } = resolveSharedItemLeadingMeta(kind);
+
+  return (
+    <div className="proto-sharing-card__header">
+      <span
+        className="proto-settings-list-row__leading"
+        aria-label={label}
+        title={label}
+      >
+        <Icon name={icon} size={20} />
+      </span>
+      <div className="proto-sharing-card__header-main">
+        <Link
+          to={prototypeNoteRouteTo()}
+          params={{ noteId: noteParamSlug(noteId) }}
+          search={{}}
+          className="proto-sharing-card__title pds-list-title"
+        >
+          {title}
+        </Link>
+        <SharingNoteRecencyLine rel={rel} preview={preview} />
+      </div>
+    </div>
+  );
+}
 
 type SharedItemKind = 'note' | 'thread' | 'space';
 
@@ -98,16 +158,51 @@ function truncateShareUrl(url: string, maxLength = 48): string {
   }
 }
 
+const RECOVERY_DAY_MS = 24 * 60 * 60 * 1000;
+
+export function deletedSpaceDaysRemaining(recoveryUntil: string, now = Date.now()): number {
+  const recoveryTime = new Date(recoveryUntil).getTime();
+  if (!Number.isFinite(recoveryTime)) return 0;
+  return Math.max(0, Math.ceil((recoveryTime - now) / RECOVERY_DAY_MS));
+}
+
+export function deletedSpacesSectionState(input: {
+  isLoading: boolean;
+  isError: boolean;
+  rowCount: number;
+}): 'loading' | 'error' | 'hidden' | 'rows' {
+  if (input.isLoading) return 'loading';
+  if (input.isError) return 'error';
+  return input.rowCount > 0 ? 'rows' : 'hidden';
+}
+
+function deletedSpaceRecoveryLabel(space: DeletedSpaceItem): string {
+  const days = deletedSpaceDaysRemaining(space.recoveryUntil);
+  const date = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(
+    new Date(space.recoveryUntil),
+  );
+  const daysLabel = `${days} day${days === 1 ? '' : 's'} left`;
+  return `Recoverable until ${date} · ${daysLabel}`;
+}
+
 export default function PrototypeSharingPage() {
   const [disablingId, setDisablingId] = useState<string | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [confirmRefreshId, setConfirmRefreshId] = useState<string | null>(null);
   const sharingQuery = useMySharing();
+  const deletedSpacesQuery = useDeletedSpaces();
   const shareNote = useShareNote();
+  const restoreSpace = useRestoreSpace();
   const queryClient = useQueryClient();
 
   const notes = sharingQuery.data?.notes ?? [];
+  const deletedSpaces = deletedSpacesQuery.data?.spaces ?? [];
   const isEmpty = !sharingQuery.isLoading && !sharingQuery.error && notes.length === 0;
+  const deletedSectionState = deletedSpacesSectionState({
+    isLoading: deletedSpacesQuery.isLoading,
+    isError: Boolean(deletedSpacesQuery.error),
+    rowCount: deletedSpaces.length,
+  });
 
   const handleDisableNote = async (note: SharedNoteItem) => {
     setDisablingId(note.id);
@@ -136,10 +231,19 @@ export default function PrototypeSharingPage() {
     }
   };
 
+  const handleRestoreSpace = async (space: DeletedSpaceItem) => {
+    try {
+      await restoreSpace.mutateAsync(space.id);
+      toast.success(`Restored ${space.title}`);
+    } catch (err) {
+      const message =
+        err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not restore space';
+      toast.error(message);
+    }
+  };
+
   return (
     <SettingsShell>
-      <SettingsIntro>See what you have shared and stop sharing.</SettingsIntro>
-
       {sharingQuery.isLoading ? (
         <p className="pds-caption" style={{ marginTop: 20, color: 'var(--pds-text-secondary)' }}>Loading…</p>
       ) : null}
@@ -215,7 +319,7 @@ export default function PrototypeSharingPage() {
                 <div className="proto-sharing-card__actions">
                   <button
                     type="button"
-                    className="proto-thread-review__dismiss"
+                    className="proto-thread-review__dismiss proto-thread-review__dismiss--danger"
                     disabled={isRowBusy}
                     onClick={() => handleDisableNote(note)}
                   >
@@ -223,7 +327,7 @@ export default function PrototypeSharingPage() {
                   </button>
                   <button
                     type="button"
-                    className="proto-thread-review__btn proto-thread-review__btn--primary"
+                    className="proto-thread-review__dismiss"
                     disabled={isRowBusy}
                     onClick={() => setConfirmRefreshId(note.id)}
                   >
@@ -235,6 +339,62 @@ export default function PrototypeSharingPage() {
           </SettingsGroup>
         );
       })}
+
+      {deletedSectionState !== 'hidden' ? (
+        <section className="proto-sharing-deleted" aria-labelledby="proto-sharing-deleted-title">
+          <h2 id="proto-sharing-deleted-title" className="pds-inspector-label proto-sharing-deleted__title">
+            Recently deleted spaces
+          </h2>
+
+          {deletedSectionState === 'loading' ? (
+            <p className="pds-caption proto-sharing-deleted__status" role="status">
+              Loading recently deleted spaces…
+            </p>
+          ) : null}
+
+          {deletedSectionState === 'error' ? (
+            <div className="proto-sharing-deleted__status" role="alert">
+              <span className="pds-caption">Could not load recently deleted spaces.</span>
+              <button
+                type="button"
+                className="proto-thread-review__dismiss"
+                onClick={() => void deletedSpacesQuery.refetch()}
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
+
+          {deletedSectionState === 'rows' ? (
+            <SettingsGroup>
+              <div className="proto-sharing-deleted__list">
+                {deletedSpaces.map((space) => {
+                  const isRestoring = restoreSpace.isPending && restoreSpace.variables === space.id;
+                  return (
+                    <div key={space.id} className="proto-sharing-deleted__row">
+                      <span className="proto-settings-list-row__leading" aria-hidden>
+                        <Icon name="trash-can" size={18} />
+                      </span>
+                      <span className="proto-sharing-deleted__main">
+                        <span className="pds-list-title">{space.title}</span>
+                        <span className="pds-list-preview">{deletedSpaceRecoveryLabel(space)}</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="proto-thread-review__dismiss"
+                        disabled={restoreSpace.isPending}
+                        onClick={() => void handleRestoreSpace(space)}
+                      >
+                        {isRestoring ? 'Restoring…' : 'Restore'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </SettingsGroup>
+          ) : null}
+        </section>
+      ) : null}
     </SettingsShell>
   );
 }

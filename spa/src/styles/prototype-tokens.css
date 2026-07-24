@@ -108,7 +108,11 @@
   --pds-lch-thread-orange: 88.5% 0.08 70;
   --pds-lch-thread-purple: 81% 0.12 310;
 
-  --pds-lch-destructive: 55% 0.2 25;
+  /* Status hues stay dark enough for icons + occasional text on light surfaces. */
+  --pds-lch-destructive: 48% 0.2 25;
+  --pds-lch-warning: 52% 0.16 55;
+  --pds-lch-success: 48% 0.14 145;
+  --pds-lch-info: 48% 0.14 250;
 
   /* Brand accent — Color(red:0.22, green:0.41, blue:0.90) */
   --pds-accent: oklch(var(--pds-lch-accent));
@@ -284,6 +288,55 @@
   /* Destructive (delete-style) tints */
   --pds-destructive: oklch(var(--pds-lch-destructive));
   --pds-destructive-bg-hover: oklch(var(--pds-lch-destructive) / 0.08);
+
+  /* Semantic status — mirrors Color.harvousWarning / success / info */
+  --pds-warning: oklch(var(--pds-lch-warning));
+  --pds-warning-bg: oklch(var(--pds-lch-warning) / 0.1);
+  --pds-warning-border: oklch(var(--pds-lch-warning) / 0.22);
+  --pds-success: oklch(var(--pds-lch-success));
+  --pds-success-bg: oklch(var(--pds-lch-success) / 0.1);
+  --pds-success-border: oklch(var(--pds-lch-success) / 0.22);
+  --pds-info: oklch(var(--pds-lch-info));
+  --pds-info-bg: oklch(var(--pds-lch-info) / 0.1);
+  --pds-info-border: oklch(var(--pds-lch-info) / 0.22);
+
+  /* Spacing scale — HarvousSpacing (4pt base) */
+  --pds-space-1: 4px;
+  --pds-space-2: 8px;
+  --pds-space-3: 12px;
+  --pds-space-4: 16px;
+  --pds-space-5: 20px;
+  --pds-space-6: 24px;
+  --pds-space-8: 32px;
+  --pds-space-10: 40px;
+  --pds-space-12: 48px;
+
+  /* Icon sizes — toolbar / list / empty-state roles */
+  --pds-icon-xs: 11px;
+  --pds-icon-sm: 14px;
+  --pds-icon-md: 18px;
+  --pds-icon-lg: 28px;
+  --pds-icon-xl: 40px;
+
+  /* Motion — keep in lockstep with spa/src/layouts/proto-motion.ts */
+  --pds-duration-press: 120ms;
+  --pds-duration-popover: 120ms;
+  --pds-duration-sheet: 220ms;
+  --pds-duration-panel: 260ms;
+  --pds-ease-standard: cubic-bezier(0.32, 0.72, 0.24, 1);
+  --pds-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Layering — web overlays only */
+  --pds-z-base: 0;
+  --pds-z-sticky: 80;
+  --pds-z-dropdown: 100;
+  --pds-z-popover: 6000;
+  --pds-z-modal: 9800;
+  --pds-z-toast: 10000;
+
+  /* Breakpoints (documented; media queries still use literal px) */
+  --pds-bp-mobile-max: 899px;
+  --pds-bp-tablet-min: 900px;
 
   /* Shadows — CardShadow (6%/8 + 3%/2) */
   --pds-shadow-card:
@@ -566,6 +619,9 @@ html.harvous-proto-wallpaper-image {
     --pds-lch-thread-purple: 38% 0.1 310;
 
     --pds-lch-destructive: 65% 0.18 25;
+    --pds-lch-warning: 78% 0.14 75;
+    --pds-lch-success: 68% 0.12 145;
+    --pds-lch-info: 70% 0.12 250;
 
     --pds-paper-desk: #1c1b19;
     --pds-paper-sheet: var(--pds-bg-sidebar);
@@ -744,6 +800,9 @@ html.harvous-proto-wallpaper-image {
   --pds-lch-thread-purple: 38% 0.1 310;
 
   --pds-lch-destructive: 65% 0.18 25;
+  --pds-lch-warning: 78% 0.14 75;
+  --pds-lch-success: 68% 0.12 145;
+  --pds-lch-info: 70% 0.12 250;
 
   --pds-paper-desk: #1c1b19;
   --pds-paper-sheet: var(--pds-bg-sidebar);
@@ -1085,12 +1144,29 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
 }
 
 /* HarvousTypography.inspectorSectionLabel — 10pt / 600 */
+.pds-section-header,
 .pds-inspector-label {
   font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--pds-text-secondary);
+}
+
+.pds-section-header[data-variant='inspector'],
+.pds-inspector-label {
+  color: var(--pds-text-secondary);
+}
+
+.pds-section-header[data-variant='search'] {
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  color: var(--pds-text-tertiary);
+}
+
+.pds-section-header[data-variant='list'] {
+  letter-spacing: 0.05em;
+  color: var(--pds-text-tertiary);
 }
 
 /* HarvousTypography.inspectorBody — 12pt / 400 */

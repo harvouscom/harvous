@@ -11,6 +11,9 @@
   directory = "netlify/functions"
   node_bundler = "none"
 
+[functions."purge-shared-spaces"]
+  schedule = "@daily"
+
 # Chromium screenshot OG images — prebuilt og-image.cjs (see build:api).
 # Include @sparticuz/chromium AND its runtime deps (node_bundler=none does not
 # hoist package.json dependencies into the function zip).
@@ -46,7 +49,7 @@
   NODE_VERSION = "22"
   NPM_FLAGS = "--prefer-offline --no-audit"
   # Plan ID is inlined into SPA bundle by Vite; it's a public plan identifier, not a secret
-  SECRETS_SCAN_OMIT_KEYS = "VITE_CLERK_UNLIMITED_PLAN_ID,CLERK_UNLIMITED_PLAN_ID"
+  SECRETS_SCAN_OMIT_KEYS = "VITE_CLERK_UNLIMITED_PLAN_ID,CLERK_UNLIMITED_PLAN_ID,VITE_CLERK_SHARED_SPACES_PLAN_ID,CLERK_SHARED_SPACES_PLAN_ID"
 
 # Prototype hosts: strip /prototype prefix from legacy bookmarks.
 [[redirects]]
@@ -141,10 +144,6 @@
     X-XSS-Protection = "1; mode=block"
     # Strict Transport Security (HSTS)
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
-
-# Note: For scheduled functions, configure in Netlify dashboard:
-# Site Settings > Functions > Scheduled Functions
-# Or use an external cron service to call /api/inbox/auto-archive daily
 
 # Branch deploy: staging → new.harvous.com (dev Clerk, production DB).
 # Assign new.harvous.com as branch domain in Netlify dashboard.

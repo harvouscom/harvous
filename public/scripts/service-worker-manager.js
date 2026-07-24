@@ -76,7 +76,7 @@
     // Don't show update toasts on upgrade, auth, or shared/join/invitation pages
     function isNoUpdateToastPath() {
       var p = window.location.pathname;
-      return p === '/upgrade' ||
+      return p === '/addon' ||
         p.indexOf('/sign-in') === 0 ||
         p.indexOf('/sign-up') === 0 ||
         p.indexOf('/spaces/join/') === 0 ||

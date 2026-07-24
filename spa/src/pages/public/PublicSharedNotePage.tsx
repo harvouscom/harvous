@@ -9,6 +9,7 @@ import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { api, APIError } from '../../lib/api';
 import { useAddSharedNote } from '../../hooks/mutations/useAddSharedNote';
 import { PublicTopBar, PublicErrorState } from './public-shared';
+import { clearPendingAuthRedirect, writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 
 interface SharedNoteResponse {
   note: {
@@ -94,8 +95,8 @@ export default function PublicSharedNotePage() {
         const id = result.createdIds.noteId;
         const path = noteUrlForCurrentSurface(id);
         setTimeout(() => {
+          clearPendingAuthRedirect();
           try {
-            sessionStorage.removeItem('harvous_pending_redirect');
             sessionStorage.removeItem('pendingSharedNoteAdd');
           } catch { /* ignore */ }
           navigate({ to: path as any });
@@ -116,8 +117,8 @@ export default function PublicSharedNotePage() {
     if (!isSignedIn) {
       try {
         sessionStorage.setItem('pendingSharedNoteAdd', JSON.stringify({ shareToken, timestamp: Date.now() }));
-        sessionStorage.setItem('harvous_pending_redirect', window.location.href);
       } catch { /* ignore */ }
+      writePendingAuthRedirect(window.location.href);
       navigate({ to: `/sign-in?redirect_url=${encodeURIComponent(window.location.href)}` as any });
       return;
     }

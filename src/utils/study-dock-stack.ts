@@ -37,6 +37,11 @@ export type HighlightDockSession = {
   /** Passage context for `scriptureLink` highlights (no editor mark — painted inline in scripture dock). */
   scriptureReference?: string | null;
   scripturePassageTranslation?: string | null;
+  /** Shared-space unioned highlights — who wrote this annotation. */
+  authorDisplayName?: string | null;
+  isOwnHighlight?: boolean;
+  /** Explicit UI policy for another member's Activity entry. */
+  readOnly?: boolean;
 };
 
 /** Snapshot passed through deep-link navigation when the editor mark may not be ready yet. */
@@ -49,6 +54,12 @@ export type HighlightDockOpenMetadata = {
   linkedNoteId?: string | null;
   scriptureReference?: string | null;
   scripturePassageTranslation?: string | null;
+  authorDisplayName?: string | null;
+  isOwnHighlight?: boolean;
+  anchorLocation?: number | null;
+  anchorLength?: number | null;
+  detached?: boolean;
+  readOnly?: boolean;
 };
 
 /** Minimal study-thread fields needed to build a highlight dock session without a DOM mark. */
@@ -64,6 +75,11 @@ export type HighlightDockStudyThreadSource = {
   scriptureReference?: string | null;
   scripturePassageTranslation?: string | null;
   scripturePassageExcerpt?: string | null;
+  authorDisplayName?: string | null;
+  isOwnHighlight?: boolean;
+  anchorLocation?: number | null;
+  anchorLength?: number | null;
+  detached?: boolean;
 };
 
 function normalizeHighlightDockEntryKind(
@@ -110,6 +126,12 @@ export function buildHighlightDockOpenMetadataFromStudyThread(
     linkedNoteId: row.linkedNoteId ?? null,
     scriptureReference: (row.scriptureReference ?? '').trim() || null,
     scripturePassageTranslation: (row.scripturePassageTranslation ?? '').trim() || null,
+    authorDisplayName: row.authorDisplayName ?? null,
+    isOwnHighlight: row.isOwnHighlight,
+    anchorLocation: row.anchorLocation ?? null,
+    anchorLength: row.anchorLength ?? null,
+    detached: row.detached === true,
+    readOnly: row.isOwnHighlight === false,
   };
 }
 
@@ -129,6 +151,9 @@ export function buildHighlightDockSessionForDeepLink(
       entryKind: metadata.entryKind ?? 'miniNote',
       scriptureReference: metadata.scriptureReference ?? null,
       scripturePassageTranslation: metadata.scripturePassageTranslation ?? null,
+      authorDisplayName: metadata.authorDisplayName ?? null,
+      isOwnHighlight: metadata.isOwnHighlight,
+      readOnly: metadata.readOnly === true,
     };
   }
   return {
@@ -145,7 +170,12 @@ export function buildHighlightDockSessionFromStudyThread(
   range?: { from: number; to: number } | null,
 ): HighlightDockSession {
   const metadata = buildHighlightDockOpenMetadataFromStudyThread(row);
-  return buildHighlightDockSessionForDeepLink(row.id, metadata, range ?? null);
+  const session = buildHighlightDockSessionForDeepLink(row.id, metadata, range ?? null);
+  return {
+    ...session,
+    authorDisplayName: row.authorDisplayName ?? null,
+    isOwnHighlight: row.isOwnHighlight,
+  };
 }
 
 export type ScriptureLinkPassageContext = {
@@ -249,22 +279,71 @@ export type StudyDockStack = {
   activeId: string | null;
 };
 
-export function studyDockStackStorageKey(noteId: string): string {
-  return `${HARVOUS_STUDY_DOCK_STACK_PREFIX}${noteId}`;
+export function studyDockContextKey(
+  noteId?: string | null,
+  contextSpaceId?: string | null,
+): string {
+  return `${noteId ?? ''}::${contextSpaceId?.trim() || 'home'}`;
+}
+
+export function studyDockStackStorageKey(noteId: string, contextSpaceId?: string | null): string {
+  const contextSuffix = contextSpaceId?.trim()
+    ? `--${encodeURIComponent(contextSpaceId.trim())}`
+    : '';
+  return `${HARVOUS_STUDY_DOCK_STACK_PREFIX}${noteId}${contextSuffix}`;
 }
 
 export function isPersistableStudyDockNoteId(noteId?: string | null): boolean {
   return !!noteId && noteId.startsWith('note_');
 }
 
-export function clearStudyDockStackLocalCache(noteId?: string | null): void {
+export function clearStudyDockStackLocalCache(
+  noteId?: string | null,
+  contextSpaceId?: string | null,
+): void {
   if (!isPersistableStudyDockNoteId(noteId)) return;
   if (typeof window === 'undefined') return;
   try {
-    localStorage.removeItem(studyDockStackStorageKey(noteId!));
+    localStorage.removeItem(studyDockStackStorageKey(noteId!, contextSpaceId));
   } catch {
     /* ignore */
   }
+}
+
+export function withStudyThreadContext<T extends Record<string, unknown>>(
+  body: T,
+  contextSpaceId?: string | null,
+): T & { contextSpaceId?: string } {
+  const context = contextSpaceId?.trim();
+  return context ? { ...body, contextSpaceId: context } : body;
+}
+
+export function studyThreadContextQuery(contextSpaceId?: string | null): string {
+  const context = contextSpaceId?.trim();
+  return context ? `?contextSpaceId=${encodeURIComponent(context)}` : '';
+}
+
+export function activeHighlightEntryId(stack: StudyDockStack): string | null {
+  const active = stack.entries.find((entry) => entry.id === stack.activeId);
+  if (!active || active.kind !== 'highlight') return null;
+  return active.session.studyThreadEntryId ?? null;
+}
+
+export function isHighlightDockReadOnly(session: HighlightDockSession): boolean {
+  return session.readOnly === true || session.isOwnHighlight === false;
+}
+
+export function shouldOpenHighlightRequestImmediately(request: {
+  range?: { from: number; to: number } | null;
+  metadata?: HighlightDockOpenMetadata;
+  sharedAnnotationOverlayMode?: boolean;
+}): boolean {
+  return (
+    request.sharedAnnotationOverlayMode === true ||
+    request.metadata?.detached === true ||
+    request.range != null ||
+    (request.metadata?.anchorLocation != null && (request.metadata.anchorLength ?? 0) > 0)
+  );
 }
 
 const STUDY_DOCK_STACK_STORAGE_VERSION = 1;

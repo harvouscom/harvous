@@ -1114,6 +1114,7 @@ html.harvous-prototype-route .proto-share-popover,
 html.harvous-prototype-route .proto-find-popover,
 html.harvous-prototype-route .proto-folder-popover,
 html.harvous-prototype-route .proto-connect-note-popover,
+html.harvous-prototype-route .proto-shared-space-about,
 html.harvous-prototype-route .harvous-delete-confirm,
 html.harvous-prototype-route .harvous-menu-pill__menu {
   background: var(--pds-bg-popover-solid);
@@ -1128,6 +1129,11 @@ html.harvous-proto-wallpaper-color .proto-menu-item,
 html.harvous-proto-wallpaper-color .proto-menu-item__icon,
 html.harvous-proto-wallpaper-color .proto-menu-item__check {
   color: var(--pds-text-on-chrome);
+}
+
+html.harvous-proto-wallpaper-image .proto-menu-item__icon--space,
+html.harvous-proto-wallpaper-color .proto-menu-item__icon--space {
+  color: unset;
 }
 
 html.harvous-proto-wallpaper-image .proto-menu-item:hover,

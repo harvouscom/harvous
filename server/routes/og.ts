@@ -189,8 +189,8 @@ route.get('/api/og/share/thread/:shareToken', rateLimit('read'), async (c) => {
 
   return c.html(
     renderShareOgHtml({
-      title: thread.title?.trim() || 'Shared study thread',
-      description: thread.subtitle?.trim() || 'A shared study thread on Harvous.',
+      title: thread.title?.trim() || 'Shared Thread',
+      description: thread.subtitle?.trim() || 'A shared Thread on Harvous.',
       canonicalUrl,
       imageUrl: `${origin}/api/og/image/thread/${shareToken}?v=${OG_IMAGE_VERSION}`,
     }),

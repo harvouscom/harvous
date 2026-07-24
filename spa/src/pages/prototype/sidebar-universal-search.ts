@@ -196,6 +196,27 @@ export function elsewhereEmptyStateTitle(
   return SIDEBAR_NO_MATCH_COPY.noOtherMatches;
 }
 
+/** My Home cross-space search empty-state title (shared shell, personal notes scope). */
+export function myHomeEmptyStateTitle(typeFilter: SidebarElsewhereTypeFilter): string {
+  if (typeFilter !== 'all') {
+    switch (typeFilter) {
+      case 'notes':
+        return SIDEBAR_NO_MATCH_COPY.noNotesMatch;
+      case 'folders':
+        return SIDEBAR_NO_MATCH_COPY.noFoldersMatch;
+      case 'threads':
+        return SIDEBAR_NO_MATCH_COPY.noThreadsMatch;
+      case 'highlights':
+        return SIDEBAR_NO_MATCH_COPY.noHighlightsMatch;
+      case 'scripture':
+        return SIDEBAR_NO_MATCH_COPY.noScriptureMatch;
+      default:
+        return 'Nothing in My Home';
+    }
+  }
+  return 'Nothing in My Home';
+}
+
 function noteToResult(note: SpaceNoteRow, subtitle?: string, ftsExcerpt?: string): SidebarSearchResult {
   const title = noteSearchTitle(note);
   return {

@@ -8,7 +8,7 @@ export function shouldSuppressAppToasts(): boolean {
   if (typeof window === 'undefined') return false;
   const p = window.location.pathname;
   return (
-    p === '/upgrade' ||
+    p === '/addon' ||
     p.startsWith('/sign-in') ||
     p.startsWith('/sign-up') ||
     isPrototypeShellPath(p)

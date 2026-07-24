@@ -1,7 +1,7 @@
 /**
  * Flat join-order trail for connected notes in the thread panel (with optional drag reorder).
  */
-import { Fragment, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import {
   type StudyThreadNodeFlat,
@@ -18,7 +18,6 @@ import {
   threadTrailRowUpdatedAt,
 } from './proto-thread-trail-row';
 import ProtoThreadTrailOrb from './ProtoThreadTrailOrb';
-import ProtoThreadTrailReorderDivider from './ProtoThreadTrailReorderDivider';
 
 function findEdge(aId: string, bId: string, edges: StudyThreadEdge[]): StudyThreadEdge | undefined {
   return edges.find(
@@ -34,6 +33,18 @@ interface ThreadTrailStepProps {
   edges: StudyThreadEdge[];
   onOpen: (id: string) => void;
   isDragging?: boolean;
+  trailReorder?: {
+    noteId: string;
+    reorderIndex: number;
+    onDragStart: (
+      event: React.DragEvent<HTMLElement>,
+      noteId: string,
+      previewSource?: HTMLElement | null,
+    ) => void;
+    onDragEnd: (event: React.DragEvent<HTMLElement>) => void;
+    onDragOver: (event: React.DragEvent<HTMLElement>, insertBeforeIndex: number) => void;
+    onDrop: (event: React.DragEvent<HTMLElement>) => void;
+  } | null;
 }
 
 function ThreadTrailStep({
@@ -44,10 +55,12 @@ function ThreadTrailStep({
   edges,
   onOpen,
   isDragging,
+  trailReorder = null,
 }: ThreadTrailStepProps) {
   const disconnectNote = useDisconnectNote();
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressClickRef = useRef(false);
 
   const edge = showDisconnect ? findEdge(focusNoteId, node.id, edges) : undefined;
   const title = threadTrailRowTitle(node);
@@ -67,11 +80,24 @@ function ThreadTrailStep({
     disconnectNote.mutate({ fromNoteId: edge.fromId, toNoteId: edge.toId });
   };
 
+  const reorderIndex = trailReorder?.reorderIndex ?? 0;
+  const insertBeforeFromPointer = (e: React.DragEvent<HTMLElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return e.clientY < rect.top + rect.height / 2 ? reorderIndex : reorderIndex + 1;
+  };
+
   return (
     <div
       className={`proto-thread-trail__step${isFocus ? ' proto-thread-trail__step--focus' : ''}${isDragging ? ' proto-thread-trail__step--dragging' : ''}`}
       role="listitem"
       aria-current={isFocus ? 'location' : undefined}
+      onDragEnter={
+        trailReorder ? (e) => trailReorder.onDragOver(e, insertBeforeFromPointer(e)) : undefined
+      }
+      onDragOver={
+        trailReorder ? (e) => trailReorder.onDragOver(e, insertBeforeFromPointer(e)) : undefined
+      }
+      onDrop={trailReorder ? trailReorder.onDrop : undefined}
     >
       <ProtoThreadTrailOrb active={isFocus} />
       <div className="proto-thread-trail__step-body">
@@ -87,6 +113,39 @@ function ThreadTrailStep({
           </div>
           <ProtoThreadTrailRecencyLine rel={rel} preview={preview} />
         </button>
+
+        {trailReorder ? (
+          <div className="proto-menu proto-note-row__menu proto-note-row__menu--reorder">
+            <button
+              type="button"
+              className="proto-note-row__menu-trigger"
+              draggable
+              aria-label={`Reorder ${title}`}
+              title="Drag to reorder"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (suppressClickRef.current) {
+                  suppressClickRef.current = false;
+                }
+              }}
+              onDragStart={(e) => {
+                suppressClickRef.current = true;
+                const step = e.currentTarget.closest('.proto-thread-trail__step') as HTMLElement | null;
+                trailReorder.onDragStart(e, trailReorder.noteId, step);
+              }}
+              onDragEnd={(e) => {
+                trailReorder.onDragEnd(e);
+                window.setTimeout(() => {
+                  suppressClickRef.current = false;
+                }, 0);
+              }}
+            >
+              <Icon name="ellipsis-vertical" size={14} />
+            </button>
+          </div>
+        ) : null}
 
         {edge ? (
           <div className="proto-thread-trail__step-actions">
@@ -149,7 +208,7 @@ export default function PrototypeStudyThreadTrail({
   if (displayMembers.length === 0) {
     return (
       <div className="proto-side-panel__empty">
-        <p className="proto-inspector-muted">No notes connected yet.</p>
+        <p className="proto-inspector-muted">Connect a related note.</p>
       </div>
     );
   }
@@ -161,46 +220,30 @@ export default function PrototypeStudyThreadTrail({
         role="list"
         aria-label="Connected notes trail"
       >
-        {drag.showDragHandle ? (
-          <ProtoThreadTrailReorderDivider
-            insertBeforeIndex={0}
-            dragNoteId=""
-            dragNoteTitle=""
-            dropOnly
-            onDragStart={drag.handleDragStart}
-            onDragEnd={drag.handleDragEnd}
-            onDragOver={drag.handleDragOver}
-            onDrop={drag.handleDrop}
+        {displayMembers.map((node, index) => (
+          <ThreadTrailStep
+            key={node.id}
+            node={node}
+            isFocus={node.id === focusNoteId}
+            showDisconnect={node.id !== focusNoteId}
+            focusNoteId={focusNoteId}
+            edges={edges}
+            onOpen={onOpen}
+            isDragging={drag.draggingId === node.id}
+            trailReorder={
+              drag.showDragHandle
+                ? {
+                    noteId: node.id,
+                    reorderIndex: index,
+                    onDragStart: drag.handleDragStart,
+                    onDragEnd: drag.handleDragEnd,
+                    onDragOver: drag.handleDragOver,
+                    onDrop: drag.handleDrop,
+                  }
+                : null
+            }
           />
-        ) : null}
-        {displayMembers.map((node, index) => {
-          const title = threadTrailRowTitle(node);
-          return (
-            <Fragment key={node.id}>
-              <ThreadTrailStep
-                node={node}
-                isFocus={node.id === focusNoteId}
-                showDisconnect={node.id !== focusNoteId}
-                focusNoteId={focusNoteId}
-                edges={edges}
-                onOpen={onOpen}
-                isDragging={drag.draggingId === node.id}
-              />
-              {drag.showDragHandle ? (
-                <ProtoThreadTrailReorderDivider
-                  insertBeforeIndex={index + 1}
-                  dragNoteId={node.id}
-                  dragNoteTitle={title}
-                  isDragging={drag.draggingId === node.id}
-                  onDragStart={drag.handleDragStart}
-                  onDragEnd={drag.handleDragEnd}
-                  onDragOver={drag.handleDragOver}
-                  onDrop={drag.handleDrop}
-                />
-              ) : null}
-            </Fragment>
-          );
-        })}
+        ))}
       </div>
     </div>
   );

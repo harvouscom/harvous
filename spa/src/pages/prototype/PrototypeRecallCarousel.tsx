@@ -157,7 +157,9 @@ export default function PrototypeRecallCarousel({
             </div>
             {active.meta ? (
               <div className="proto-home-card__meta">
-                <span className="proto-home-card__meta-item">{active.meta}</span>
+                <span className="proto-home-card__meta-item">
+                  {active.meta}
+                </span>
               </div>
             ) : null}
           </div>

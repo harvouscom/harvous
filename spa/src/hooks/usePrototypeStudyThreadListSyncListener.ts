@@ -15,9 +15,11 @@ export function usePrototypeStudyThreadListSyncListener(homeSpaceId: string | un
 
     const onChanged = (event: Event) => {
       const detail = (event as CustomEvent<StudyThreadListChangedDetail>).detail;
-      const spaceId = detail?.spaceId ?? homeSpaceId;
-      if (!spaceId) return;
-      invalidatePrototypeStudyThreadListQueries(queryClient, spaceId, detail?.parentNoteId);
+      invalidatePrototypeStudyThreadListQueries(
+        queryClient,
+        detail?.spaceId || homeSpaceId,
+        detail?.parentNoteId,
+      );
     };
 
     window.addEventListener(STUDY_THREAD_LIST_CHANGED_EVENT, onChanged);

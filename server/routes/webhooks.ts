@@ -10,6 +10,8 @@ import { verifyWebhook } from '@clerk/backend/webhooks';
 import { tagAsAppUser } from '@/utils/audienceful';
 import { handleAPIError } from '@/utils/error-handling';
 import { invalidateUserCache } from '../utils/user-cache';
+import { SHARED_SPACES_PLAN_ID } from '../utils/subscription';
+import { setSharedSpacesAddOnForUserId } from '../utils/tier-limits';
 
 const app = new Hono();
 
@@ -49,7 +51,24 @@ interface ClerkEmailWebhookEvent {
   timestamp?: number;
 }
 
-type ClerkWebhookEvent = ClerkUserWebhookEvent | ClerkEmailWebhookEvent;
+type ClerkWebhookEvent = ClerkUserWebhookEvent | ClerkEmailWebhookEvent | ClerkSubscriptionItemWebhookEvent;
+
+interface ClerkSubscriptionItemWebhookEvent {
+  type:
+    | 'subscriptionItem.active'
+    | 'subscriptionItem.canceled'
+    | 'subscriptionItem.ended'
+    | 'subscriptionItem.expired';
+  data: {
+    plan?: { id?: string; slug?: string };
+    plan_id?: string | null;
+    payer?: { user_id?: string; organization_id?: string };
+    status?: string;
+    [key: string]: any;
+  };
+  object: 'event';
+  timestamp?: number;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -207,6 +226,35 @@ async function handleUserDeleted(event: ClerkUserWebhookEvent): Promise<void> {
   console.log('User deleted in Clerk:', event.data.id);
 }
 
+function getSubscriptionItemPlanId(data: ClerkSubscriptionItemWebhookEvent['data']): string | null {
+  return data.plan?.id ?? data.plan_id ?? null;
+}
+
+/** Sync Shared Spaces add-on entitlement from Clerk billing subscription item events. */
+async function handleSubscriptionItemBilling(
+  event: ClerkSubscriptionItemWebhookEvent,
+  enabled: boolean,
+): Promise<void> {
+  if (!SHARED_SPACES_PLAN_ID) {
+    console.warn('[Webhook] CLERK_SHARED_SPACES_PLAN_ID not configured; skipping subscriptionItem sync');
+    return;
+  }
+
+  const planId = getSubscriptionItemPlanId(event.data);
+  if (planId !== SHARED_SPACES_PLAN_ID) {
+    return;
+  }
+
+  const userId = event.data.payer?.user_id;
+  if (!userId) {
+    console.warn('[Webhook] subscriptionItem event missing payer.user_id:', { type: event.type, planId });
+    return;
+  }
+
+  await setSharedSpacesAddOnForUserId(userId, enabled);
+  console.log('[Webhook] Shared Spaces add-on updated:', { userId, enabled, eventType: event.type });
+}
+
 // ─── POST /api/webhooks/clerk ─────────────────────────────────────────
 
 app.post('/api/webhooks/clerk', async (c) => {
@@ -250,6 +298,8 @@ app.post('/api/webhooks/clerk', async (c) => {
     try {
       if (event.type === 'emailAddress.created') {
         userId = (event as ClerkEmailWebhookEvent).data.user_id || '';
+      } else if (event.type.startsWith('subscriptionItem.')) {
+        userId = (event as ClerkSubscriptionItemWebhookEvent).data.payer?.user_id || '';
       } else {
         userId = (event as ClerkUserWebhookEvent).data.id || '';
       }
@@ -275,6 +325,14 @@ app.post('/api/webhooks/clerk', async (c) => {
         case 'user.deleted':
           await handleUserDeleted(event as ClerkUserWebhookEvent);
           break;
+        case 'subscriptionItem.active':
+          await handleSubscriptionItemBilling(event as ClerkSubscriptionItemWebhookEvent, true);
+          break;
+        case 'subscriptionItem.canceled':
+        case 'subscriptionItem.ended':
+        case 'subscriptionItem.expired':
+          await handleSubscriptionItemBilling(event as ClerkSubscriptionItemWebhookEvent, false);
+          break;
         default:
           console.log('[Webhook] Unhandled event type:', (event as any).type);
       }
@@ -288,6 +346,8 @@ app.post('/api/webhooks/clerk', async (c) => {
       try {
         if (event.type === 'emailAddress.created') {
           errorUserId = (event as ClerkEmailWebhookEvent).data?.user_id || 'unknown';
+        } else if (event.type.startsWith('subscriptionItem.')) {
+          errorUserId = (event as ClerkSubscriptionItemWebhookEvent).data?.payer?.user_id || 'unknown';
         } else {
           errorUserId = (event as ClerkUserWebhookEvent).data?.id || 'unknown';
         }

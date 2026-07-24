@@ -39,7 +39,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     title: 'My Church',
     route: prototypeHref('settings/church'),
     icon: 'church',
-    footnote: 'Your church details, synced across your devices.',
+    footnote: 'Home church, other churches, and matching details.',
   },
   {
     key: 'appearance',
@@ -55,6 +55,13 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     route: prototypeHref('settings/sharing'),
     icon: 'share',
     footnote: 'See what you have shared and stop sharing.',
+  },
+  {
+    key: 'addons',
+    title: 'Add-ons',
+    route: prototypeHref('settings/addons'),
+    icon: 'layer-group',
+    footnote: 'Shared Spaces, Review, Challenges.',
   },
   {
     key: 'data',

@@ -41,9 +41,12 @@ import {
   NoteScriptureReferences,
   ScriptureMetadata,
   Threads,
-  Members,
+  SpaceMemberships,
+  UserMetadata,
   eq,
   and,
+  desc,
+  isNotNull,
 } from '../db';
 import { nowISO } from '../db/dates';
 import { aggregateMonthlyAnalytics, getCurrentMonth, getPreviousMonth } from '../utils/analytics-aggregator';
@@ -51,14 +54,10 @@ import { generateUserExport } from '../utils/export-user-data';
 import { validateColor, validateContent, validateTitle } from '@/utils/validation';
 import { generateNoteId, generateShareToken, generateSpaceId, generateThreadId, generateTimestampId } from '@/utils/ids';
 import { getHarvousSystemUserId, requireHarvousAdmin } from '../utils/harvous-admin';
-import {
-  canAddMemberToSpaceByOwnerId,
-  canOwnerAddOneMoreSharedSpace,
-  getSpaceMembershipCount,
-  getTierForUserId,
-  getTierLimits,
-} from '../utils/tier-limits';
+import { canAddMemberToSpace } from '../utils/tier-limits';
 import { generateAutoTags, applyAutoTags, regenerateAutoTags, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN } from '../utils/auto-tag-generator';
+import { createInitialNoteVersion } from '../utils/note-version-service';
+import { getCurrentSeason } from '@/utils/season-helpers';
 import { getUsageOverview, getUsageTrends, getUsageDiscovery } from '../utils/admin-usage-stats';
 import { getAdminPulse } from '../utils/admin-pulse-stats';
 import {
@@ -900,6 +899,9 @@ app.post('/api/admin/spaces/:spaceId/members', async (c) => {
     if (!space) {
       return c.json({ error: 'Space not found or not owned by Harvous system user' }, 404);
     }
+    if (space.type === 'personal') {
+      return c.json({ error: 'Personal spaces cannot have members', code: 'NOT_SHARED_SPACE' }, 400);
+    }
 
     if (space.userId === userId) {
       return c.json({ error: 'User is already the space owner' }, 400);
@@ -908,45 +910,25 @@ app.post('/api/admin/spaces/:spaceId/members', async (c) => {
     const existing = first(
       await db
         .select()
-        .from(Members)
-        .where(and(eq(Members.spaceId, spaceId), eq(Members.userId, userId)))
+        .from(SpaceMemberships)
+        .where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, userId)))
         .limit(1),
     );
     if (existing) {
       return c.json({ success: true, alreadyMember: true, spaceId, userId });
     }
 
-    const memberCheck = await canAddMemberToSpaceByOwnerId(spaceId, systemUserId);
+    const memberCheck = await canAddMemberToSpace(spaceId);
     if (!memberCheck.allowed) {
       return c.json({ error: memberCheck.reason, code: 'MEMBER_LIMIT_EXCEEDED' }, 403);
-    }
-
-    const sharedCheck = await canOwnerAddOneMoreSharedSpace(systemUserId, spaceId);
-    if (!sharedCheck.allowed) {
-      return c.json({ error: sharedCheck.reason, code: 'SHARED_SPACE_LIMIT_EXCEEDED' }, 403);
-    }
-
-    const granteeTier = await getTierForUserId(userId);
-    const granteeLimits = getTierLimits(granteeTier);
-    if (granteeLimits.joinableSpaces !== Infinity) {
-      const membershipCount = await getSpaceMembershipCount(userId);
-      if (membershipCount >= granteeLimits.joinableSpaces) {
-        return c.json(
-          {
-            error: `That user is at their limit of ${granteeLimits.joinableSpaces} joined spaces for their plan.`,
-            code: 'JOIN_LIMIT_EXCEEDED',
-          },
-          403,
-        );
-      }
     }
 
     const now = nowISO();
     const member = first(
       await db
-        .insert(Members)
+        .insert(SpaceMemberships)
         .values({
-          id: `member_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+          id: `smem_${crypto.randomUUID()}`,
           spaceId,
           userId,
           role: 'member',
@@ -979,6 +961,26 @@ app.post('/api/admin/threads/:threadId/notes', async (c) => {
         .limit(1),
     );
     if (!thread) return c.json({ error: 'Thread not found' }, 404);
+    if (thread.spaceId) {
+      const targetSpace = first(
+        await db
+          .select({ type: Spaces.type })
+          .from(Spaces)
+          .where(eq(Spaces.id, thread.spaceId))
+          .limit(1),
+      );
+      if (!targetSpace) return c.json({ error: 'Thread space not found' }, 404);
+      if (targetSpace.type === 'shared' || targetSpace.type === 'public') {
+        return c.json(
+          {
+            error:
+              'Shared-space Thread notes require the owner-authored canonical note flow',
+            code: 'CANONICAL_SHARED_NOTE_FLOW_REQUIRED',
+          },
+          409,
+        );
+      }
+    }
 
     const body = await c.req.json().catch(() => ({} as any));
     const title = typeof body.title === 'string' ? body.title : null;
@@ -993,10 +995,29 @@ app.post('/api/admin/threads/:threadId/notes', async (c) => {
     }
 
     const now = nowISO();
-    const note = first(
-      await db
-        .insert(Notes)
-        .values({
+    const note = await db.transaction(async (tx) => {
+      const metadata = first(
+        await tx
+          .select()
+          .from(UserMetadata)
+          .where(eq(UserMetadata.userId, systemUserId))
+          .for('update')
+          .limit(1),
+      );
+      const highestExisting = first(
+        await tx
+          .select({ simpleNoteId: Notes.simpleNoteId })
+          .from(Notes)
+          .where(and(eq(Notes.userId, systemUserId), isNotNull(Notes.simpleNoteId)))
+          .orderBy(desc(Notes.simpleNoteId))
+          .limit(1),
+      )?.simpleNoteId ?? 0;
+      const nextSimpleNoteId = Math.max(
+        metadata?.highestSimpleNoteId ?? 0,
+        highestExisting,
+      ) + 1;
+      const created = first(
+        await tx.insert(Notes).values({
           id: generateNoteId(),
           title,
           content,
@@ -1004,21 +1025,46 @@ app.post('/api/admin/threads/:threadId/notes', async (c) => {
           threadId,
           spaceId: thread.spaceId ?? null,
           userId: systemUserId,
+          simpleNoteId: nextSimpleNoteId,
           isPublic: false,
           isFeatured: false,
           order: 0,
           addedBy: 'harvous',
           createdAt: now,
           updatedAt: now,
-        })
-        .returning(),
-    )!;
-
-    // Ensure junction exists for the thread (most code expects it).
-    await db
-      .insert(NoteThreads)
-      .values({ id: generateTimestampId('notethread'), noteId: note.id, threadId, createdAt: now })
-      .onConflictDoNothing();
+        }).returning(),
+      )!;
+      await createInitialNoteVersion(tx, {
+        noteId: created.id,
+        noteAuthorId: systemUserId,
+        content: {
+          title: created.title,
+          content: created.content,
+          contentEncrypted: created.contentEncrypted,
+        },
+        createdAt: now,
+        source: 'admin-thread-create',
+      });
+      await tx
+        .insert(NoteThreads)
+        .values({ id: generateTimestampId('notethread'), noteId: created.id, threadId, createdAt: now })
+        .onConflictDoNothing();
+      if (metadata) {
+        await tx
+          .update(UserMetadata)
+          .set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: now })
+          .where(eq(UserMetadata.id, metadata.id));
+      } else {
+        await tx.insert(UserMetadata).values({
+          id: `user_metadata_${systemUserId}`,
+          userId: systemUserId,
+          highestSimpleNoteId: nextSimpleNoteId,
+          currentSeason: getCurrentSeason(),
+          createdAt: now,
+        });
+      }
+      return created;
+    });
 
     try {
       const tagResult = await generateAutoTags(title || '', content, systemUserId, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN);

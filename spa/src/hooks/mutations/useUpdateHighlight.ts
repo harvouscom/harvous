@@ -3,12 +3,12 @@ import { api } from '../../lib/api';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import type { StudyThreadEntryDetail } from '../queries/useNote';
 import type { StudyThreadEntryKind } from './useCreateHighlight';
-import { runOfflineFirst } from './withOfflineQueue';
-import { updateStudyThreadEntryOffline } from '@/utils/offline-mutations';
+import { withStudyThreadContext } from '@/utils/study-dock-stack';
 
-interface UpdateHighlightInput {
+export interface UpdateHighlightInput {
   id: string;
   spaceId: string;
+  contextSpaceId?: string | null;
   parentNoteId?: string;
   highlightAccentRaw?: string;
   sourceSnippet?: string;
@@ -27,6 +27,23 @@ interface UpdateHighlightInput {
   entryKind?: StudyThreadEntryKind;
 }
 
+export function buildUpdateHighlightRequest(input: UpdateHighlightInput): {
+  url: string;
+  body: Record<string, unknown>;
+} {
+  const {
+    id,
+    spaceId: _spaceId,
+    contextSpaceId,
+    parentNoteId: _parentNoteId,
+    ...patch
+  } = input;
+  return {
+    url: `/api/study-threads/${encodeURIComponent(id)}`,
+    body: withStudyThreadContext(patch, contextSpaceId),
+  };
+}
+
 interface UpdateHighlightResponse {
   success?: boolean;
   studyThread?: StudyThreadEntryDetail | null;
@@ -37,17 +54,9 @@ export function useUpdateHighlight() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: UpdateHighlightInput) => {
-      const { id, spaceId: _spaceId, parentNoteId: _parentNoteId, ...patch } = input;
-      const outcome = await runOfflineFirst({
-        online: () =>
-          api.patch<UpdateHighlightResponse>(`/api/study-threads/${encodeURIComponent(id)}`, patch),
-        offline: (userId) => updateStudyThreadEntryOffline(userId, id, patch).then(() => undefined),
-      });
-      if (outcome.queued) {
-        return { success: true } satisfies UpdateHighlightResponse;
-      }
-      return outcome.online!;
+    mutationFn: (input: UpdateHighlightInput) => {
+      const request = buildUpdateHighlightRequest(input);
+      return api.patch<UpdateHighlightResponse>(request.url, request.body);
     },
     onSuccess: (_data, variables) => {
       const sid = normalizePrototypeApiSpaceId(variables.spaceId);
@@ -59,6 +68,9 @@ export function useUpdateHighlight() {
       });
       if (variables.parentNoteId) {
         queryClient.invalidateQueries({ queryKey: ['note', variables.parentNoteId] });
+        queryClient.invalidateQueries({
+          queryKey: ['noteActivity', variables.parentNoteId, variables.contextSpaceId?.trim() || null],
+        });
       }
     },
   });

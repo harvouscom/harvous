@@ -4,7 +4,6 @@
  */
 
 import { db, first, Notes, UserMetadata, NoteThreads, ScriptureMetadata, NoteScriptureReferences, NoteTags, Comments, Threads, eq, and, desc, isNotNull, count, ne } from '../db';
-import { getEffectiveHighestSimpleNoteId } from './highest-simple-note-id';
 import { detectScriptureReferences, normalizeScriptureReference, parseScriptureReference } from '@/utils/scripture-detector';
 import { highlightScriptureReferences } from '@/utils/scripture-highlighter';
 import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
@@ -16,11 +15,99 @@ import { fetchVerseText } from './fetch-verse-text';
 import { deleteSingleNoteCascadeForUser } from './delete-note-cascade';
 import { recordDeletedEntities } from './sync-deletion-log';
 import { broadcastInvalidation } from './realtime';
+import { createInitialNoteVersion, updateCanonicalNoteInTransaction } from './note-version-service';
 
 export interface ProcessingResult {
   action: 'created' | 'added' | 'unorganized' | 'skipped';
   noteId: string;
   reference: string;
+}
+
+async function createCanonicalScriptureChild(input: {
+  userId: string;
+  title: string;
+  content: string;
+  reference: string;
+  translation: string;
+  shareToken: string;
+  now: Date;
+}) {
+  return db.transaction(async (tx) => {
+    const metadata = first(
+      await tx
+        .select({ highestSimpleNoteId: UserMetadata.highestSimpleNoteId })
+        .from(UserMetadata)
+        .where(eq(UserMetadata.userId, input.userId))
+        .for('update')
+        .limit(1),
+    );
+    if (!metadata) throw new Error('User metadata missing while creating scripture note');
+    const latestNote = first(
+      await tx
+        .select({ simpleNoteId: Notes.simpleNoteId })
+        .from(Notes)
+        .where(and(eq(Notes.userId, input.userId), isNotNull(Notes.simpleNoteId)))
+        .orderBy(desc(Notes.simpleNoteId))
+        .limit(1),
+    );
+    const nextSimpleNoteId =
+      Math.max(metadata.highestSimpleNoteId, latestNote?.simpleNoteId ?? 0) + 1;
+    const note = first(
+      await tx
+        .insert(Notes)
+        .values({
+          id: generateNoteId(),
+          content: input.content,
+          title: input.title,
+          threadId: 'thread_unorganized',
+          spaceId: null,
+          simpleNoteId: nextSimpleNoteId,
+          noteType: 'scripture',
+          userId: input.userId,
+          isPublic: true,
+          shareToken: input.shareToken,
+          shareTokenCreatedAt: input.now,
+          addedBy: 'harvous',
+          createdAt: input.now,
+        })
+        .returning(),
+    )!;
+    await createInitialNoteVersion(tx, {
+      noteId: note.id,
+      noteAuthorId: input.userId,
+      content: {
+        title: note.title,
+        content: note.content,
+        contentEncrypted: note.contentEncrypted,
+      },
+      createdAt: input.now,
+      source: 'scripture-child',
+    });
+    await tx
+      .update(UserMetadata)
+      .set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: input.now })
+      .where(eq(UserMetadata.userId, input.userId));
+
+    const parsed = parseScriptureReference(input.reference);
+    if (parsed) {
+      const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+      const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
+      await tx.insert(ScriptureMetadata).values({
+        id: `scripture_${note.id}_${crypto.randomUUID()}`,
+        noteId: note.id,
+        reference: input.reference,
+        book: parsed.book,
+        chapter: parsed.chapter,
+        verse: verseStart,
+        verseEnd: verseEnd || null,
+        chapterEnd: parsed.endChapter ?? null,
+        translation: input.translation,
+        originalText: input.content,
+        createdAt: input.now,
+      });
+    }
+    return note;
+  });
 }
 
 async function resolveParentThreadIds(
@@ -154,11 +241,89 @@ export interface ProcessScriptureOptions {
    */
   pillsOnly?: boolean;
   /**
+   * Canonical callers persist transformed content through note-version-service.
+   * Set false so this processor performs only post-commit reference/tag side effects.
+   */
+  persistParentContent?: boolean;
+  /**
    * Extra reference strings (e.g. portable frontmatter `refs`) to process even when they are
    * not present in the note body. Invalid / unparseable strings are ignored. Refs already
    * detected in the body are not duplicated.
    */
   additionalReferences?: string[];
+}
+
+export type ScriptureContentTransformResult = {
+  updatedContent: string;
+  references: string[];
+};
+
+export function shouldPersistProcessedParentContent(
+  contentChanged: boolean,
+  options?: Pick<ProcessScriptureOptions, 'persistParentContent'>,
+): boolean {
+  return contentChanged && options?.persistParentContent !== false;
+}
+
+/**
+ * Pure, non-persisting canonical save transform. Default authored notes use the
+ * parent note id for scripture pills; legacy child-note modes retain their
+ * existing processor path because child ids require database side effects.
+ */
+export function transformCanonicalScriptureContent(input: {
+  noteId: string;
+  content: string;
+  translation?: string;
+  pillsOnly: boolean;
+}): ScriptureContentTransformResult {
+  const canonicalContent = canonicalizeNoteHtmlLineBreaks(input.content);
+  if (!input.pillsOnly) return { updatedContent: canonicalContent, references: [] };
+  const plainText = canonicalContent
+    .replace(/<span[^>]*data-scripture-reference[^>]*>([\s\S]*?)<\/span>/gi, '$1')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const references = [
+    ...new Set(
+      detectScriptureReferences(plainText)
+        .map((detected) => normalizeScriptureReference(detected.reference))
+        .filter(Boolean),
+    ),
+  ];
+  const highlighted = highlightScriptureReferences(
+    canonicalContent,
+    references.map((reference) => ({
+      reference,
+      noteId: input.noteId,
+      translation: input.translation ?? 'NET',
+    })),
+  );
+  return {
+    updatedContent: canonicalizeNoteHtmlLineBreaks(highlighted),
+    references,
+  };
+}
+
+export async function persistCanonicalScriptureContent(input: {
+  noteId: string;
+  userId: string;
+  updatedContent: string;
+  skipUpdatedAt?: boolean;
+}): Promise<void> {
+  await db.transaction((tx) =>
+    updateCanonicalNoteInTransaction(tx, {
+      noteId: input.noteId,
+      actorId: input.userId,
+      patch: input.skipUpdatedAt ? {} : { updatedAt: new Date() },
+      nextContent: (lockedNote) => ({
+        title: lockedNote.title,
+        content: input.updatedContent,
+        contentEncrypted: lockedNote.contentEncrypted,
+      }),
+      source: 'scripture-processing',
+      now: new Date(),
+    }),
+  );
 }
 
 /**
@@ -240,6 +405,25 @@ async function processScriptureReferencesInternal(
   // Use provided content or note content
   // Use let instead of const so we can update it when fixing pasted pill noteIds
   let noteContent = contentOverride || note.content;
+  let persistedParentContent = note.content;
+  if (pillsOnly && options?.persistParentContent !== false) {
+    const preTransformed = transformCanonicalScriptureContent({
+      noteId,
+      content: noteContent,
+      translation,
+      pillsOnly: true,
+    }).updatedContent;
+    if (preTransformed !== note.content) {
+      await persistCanonicalScriptureContent({
+        noteId,
+        userId,
+        updatedContent: preTransformed,
+        skipUpdatedAt: options?.skipUpdatedAt,
+      });
+    }
+    noteContent = preTransformed;
+    persistedParentContent = preTransformed;
+  }
 
   // All threads the parent note belongs to (explicit param, or every NoteThreads row + Notes.threadId)
   const parentThreadIds = await resolveParentThreadIds(noteId, threadId, note);
@@ -530,7 +714,7 @@ async function processScriptureReferencesInternal(
 
         const relevantNotes = dupeNotes
           .filter(n => dupeNoteIds.includes(n.id))
-          .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+          .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
         if (relevantNotes.length < 2) continue;
 
@@ -578,7 +762,23 @@ async function processScriptureReferencesInternal(
                 `data-note-id="${keeperId}"`
               );
               if (updatedContent !== affectedNote.content) {
-                await db.update(Notes).set({ content: updatedContent }).where(eq(Notes.id, affectedNote.id));
+                await db.transaction((tx) =>
+                  updateCanonicalNoteInTransaction(tx, {
+                    noteId: affectedNote.id,
+                    actorId: userId,
+                    patch: {},
+                    nextContent: (lockedNote) => ({
+                      title: lockedNote.title,
+                      content: lockedNote.content.replace(
+                        new RegExp(`data-note-id=["']${dupeId}["']`, 'g'),
+                        `data-note-id="${keeperId}"`,
+                      ),
+                      contentEncrypted: lockedNote.contentEncrypted,
+                    }),
+                    source: 'scripture-dedup',
+                    now: new Date(),
+                  }),
+                );
               }
             }
           }
@@ -719,6 +919,8 @@ async function processScriptureReferencesInternal(
               highestSimpleNoteId: highestExistingId,
               userColor: 'blue',
               currentSeason: season,
+              sharedSpacesAddOn: false,
+              sharedSpacesAddOnUpdatedAt: null,
               createdAt: new Date()
             });
             userMetadata = {
@@ -736,8 +938,13 @@ async function processScriptureReferencesInternal(
               churchState: null,
               churchCountry: null,
               currentSeason: season,
+              sharedSpacesAddOn: false,
+              sharedSpacesAddOnUpdatedAt: null,
               lastMonthlyVisit: null,
               churchAddedAt: null,
+              connectedChurchId: null,
+              connectedOrgId: null,
+              connectedChurchAt: null,
               referralBonusNotes: 0,
               referralCode: null,
               lockPinSalt: null,
@@ -751,8 +958,6 @@ async function processScriptureReferencesInternal(
             };
           }
 
-          const effectiveHighest = await getEffectiveHighestSimpleNoteId(userId);
-          const nextSimpleNoteId = effectiveHighest + 1;
           const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
           const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
 
@@ -764,74 +969,33 @@ async function processScriptureReferencesInternal(
           const now = new Date();
           const shareToken = generateShareToken();
 
-          // Do not set lastVisited on creation: scripture notes are excluded from the dashboard
-          // list until the user visits them; they still appear inside the parent note card (refs/pills).
-          const scriptureNote = first(await db.insert(Notes)
-            .values({
-              id: generateNoteId(),
-              content: capitalizedContent,
-              title: capitalizedTitle,
-              threadId: 'thread_unorganized',
-              spaceId: null,
-              simpleNoteId: nextSimpleNoteId,
-              noteType: 'scripture',
-              userId,
-              isPublic: true,
-              shareToken: shareToken,
-              shareTokenCreatedAt: now,
-              addedBy: 'harvous',
-              createdAt: now,
-            })
-            .returning())!;
-
-          // Update user metadata
-          await db.update(UserMetadata)
-            .set({
-              highestSimpleNoteId: nextSimpleNoteId,
-              updatedAt: new Date()
-            })
-            .where(eq(UserMetadata.userId, userId));
-
-          // Create ScriptureMetadata
-          const parsed = parseScriptureReference(normalizedReference);
-          if (parsed) {
-            const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
-            const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
-
-            await db.insert(ScriptureMetadata).values({
-              id: `scripture_${scriptureNote.id}_${Date.now()}`,
-              noteId: scriptureNote.id,
-              reference: normalizedReference, // Store normalized reference
-              book: parsed.book,
-              chapter: parsed.chapter,
-              verse: verseStart,
-              verseEnd: verseEnd || null,
-              chapterEnd: parsed.endChapter ?? null, // cross-chapter range end (verseEnd lives in chapterEnd)
-              translation: effectiveTranslation,
-              originalText: capitalizedContent,
-              createdAt: new Date()
-            });
-          }
+          // Note, immutable version 1, watermark, and metadata commit atomically.
+          const scriptureNote = await createCanonicalScriptureChild({
+            userId,
+            title: capitalizedTitle,
+            content: capitalizedContent,
+            reference: normalizedReference,
+            translation: effectiveTranslation,
+            shareToken,
+            now,
+          });
 
           // Award XP (scripture notes get 3 XP and are exempt from rate/content checks)
           await awardNoteCreatedXP(userId, scriptureNote.id, true, capitalizedContent);
 
-          // Auto-tag fire-and-forget (non-critical)
-          (async () => {
-            try {
-              const autoTagResult = await generateAutoTags(
-                capitalizedTitle || '',
-                capitalizedContent,
-                userId,
-                AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN
-              );
-              if (autoTagResult.suggestions.length > 0) {
-                await applyAutoTags(scriptureNote.id, autoTagResult.suggestions, userId);
-              }
-            } catch (err) {
-              console.error('Auto-tagging failed for scripture note (non-critical):', err);
+          try {
+            const autoTagResult = await generateAutoTags(
+              capitalizedTitle || '',
+              capitalizedContent,
+              userId,
+              AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN
+            );
+            if (autoTagResult.suggestions.length > 0) {
+              await applyAutoTags(scriptureNote.id, autoTagResult.suggestions, userId);
             }
-          })().catch(() => {});
+          } catch (err) {
+            console.error('Auto-tagging failed for scripture note (non-critical):', err);
+          }
 
           // Add new scripture note to every parent thread
           await addScriptureNoteToParentThreads(scriptureNote.id, parentThreadIds, userId);
@@ -1154,6 +1318,8 @@ async function processScriptureReferencesInternal(
                 highestSimpleNoteId: highestExistingId,
                 userColor: 'blue',
                 currentSeason: season,
+                sharedSpacesAddOn: false,
+                sharedSpacesAddOnUpdatedAt: null,
                 createdAt: new Date()
               });
               userMetadata = {
@@ -1171,8 +1337,13 @@ async function processScriptureReferencesInternal(
                 churchState: null,
                 churchCountry: null,
                 currentSeason: season,
+                sharedSpacesAddOn: false,
+                sharedSpacesAddOnUpdatedAt: null,
                 lastMonthlyVisit: null,
                 churchAddedAt: null,
+                connectedChurchId: null,
+                connectedOrgId: null,
+                connectedChurchAt: null,
                 referralBonusNotes: 0,
                 referralCode: null,
                 lockPinSalt: null,
@@ -1186,8 +1357,6 @@ async function processScriptureReferencesInternal(
               };
             }
 
-            const effectiveHighest = await getEffectiveHighestSimpleNoteId(userId);
-            const nextSimpleNoteId = effectiveHighest + 1;
             const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
             const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
 
@@ -1198,53 +1367,15 @@ async function processScriptureReferencesInternal(
             const now = new Date();
             const shareToken = generateShareToken();
 
-            // Do not set lastVisited: scripture notes only appear in the organized content list when visited.
-            const newScriptureNote = first(await db.insert(Notes)
-              .values({
-                id: generateNoteId(),
-                content: capitalizedContent,
-                title: capitalizedTitle,
-                threadId: 'thread_unorganized',
-                spaceId: null,
-                simpleNoteId: nextSimpleNoteId,
-                noteType: 'scripture',
-                userId,
-                isPublic: true,
-                shareToken: shareToken,
-                shareTokenCreatedAt: now,
-                addedBy: 'harvous',
-                createdAt: now,
-              })
-              .returning())!;
-
-            // Update user metadata
-            await db.update(UserMetadata)
-              .set({
-                highestSimpleNoteId: nextSimpleNoteId,
-                updatedAt: new Date()
-              })
-              .where(eq(UserMetadata.userId, userId));
-
-            // Create ScriptureMetadata
-            const parsed = parseScriptureReference(normalizedRef);
-            if (parsed) {
-              const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
-              const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
-
-              await db.insert(ScriptureMetadata).values({
-                id: `scripture_${newScriptureNote.id}_${Date.now()}`,
-                noteId: newScriptureNote.id,
-                reference: normalizedRef,
-                book: parsed.book,
-                chapter: parsed.chapter,
-                verse: verseStart,
-                verseEnd: verseEnd || null,
-                chapterEnd: parsed.endChapter ?? null, // cross-chapter range end (verseEnd lives in chapterEnd)
-                translation,
-                originalText: capitalizedContent,
-                createdAt: new Date()
-              });
-            }
+            const newScriptureNote = await createCanonicalScriptureChild({
+              userId,
+              title: capitalizedTitle,
+              content: capitalizedContent,
+              reference: normalizedRef,
+              translation,
+              shareToken,
+              now,
+            });
 
             // Award XP
             await awardNoteCreatedXP(userId, newScriptureNote.id, true, capitalizedContent);
@@ -1354,21 +1485,22 @@ async function processScriptureReferencesInternal(
   // have correct class and data attributes even if Tiptap's getHTML output was missing some.
   // Skip the write entirely when the highlighted content is byte-identical to what's stored — the
   // pills are already correct, so there is nothing to persist (and nothing to re-stamp).
-  const contentChanged = updatedContent !== note.content;
-  if (contentChanged) {
+  const contentChanged = updatedContent !== persistedParentContent;
+  if (shouldPersistProcessedParentContent(contentChanged, options)) {
     console.log('[processScriptureReferences] Updating note with highlighted content', {
       noteId,
       referencesForHighlightingCount: referencesForHighlighting.length,
       skipUpdatedAt: options?.skipUpdatedAt === true,
     });
-    // On the load/backfill path (skipUpdatedAt) we still persist the materialized pills but must not
-    // bump updatedAt — opening a note must never change its "last updated" sort order.
-    await db.update(Notes)
-      .set({
-        content: updatedContent,
-        ...(options?.skipUpdatedAt ? {} : { updatedAt: new Date() }),
-      })
-      .where(eq(Notes.id, noteId));
+    // Every parent-body write goes through the canonical version transaction,
+    // including legacy sync/shared callers that have not yet adopted the pure
+    // pre-transform API.
+    await persistCanonicalScriptureContent({
+      noteId,
+      userId,
+      updatedContent,
+      skipUpdatedAt: options?.skipUpdatedAt,
+    });
   }
 
   if (!options?.skipParentAutoTag) {

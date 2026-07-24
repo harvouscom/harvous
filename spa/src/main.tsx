@@ -83,11 +83,18 @@ import '../../src/styles/shared-page.css';
 import '../../src/styles/auth-page-site.css';
 import '../../src/styles/dev-badge.css';
 import './styles/public-pages.css';
+import '../../src/styles/upgrade-page.css';
+import '../../src/styles/join-space-page.css';
 /* Study dock accent fills (native parity) — before prototype-tokens aliases. */
 import '../../src/styles/study-highlight-accent-colors.css';
 import '../../src/styles/scripture-pill-accent.css';
+import '../../src/styles/mention-pill.css';
 /* Prototype design tokens on :root — needed before lazy layout paints portaled UI. */
+import '../../src/styles/html5-drag-preview.css';
 import './styles/prototype-tokens.css';
+/* Shell + sidebar chrome (shared-space dashboard, lists) — load with entry bundle to avoid first-paint FOUC. */
+import './styles/prototype-shell.css';
+import './styles/prototype-components.css';
 
 syncReduceMotionFromStorage();
 initDiagnosticCapture();

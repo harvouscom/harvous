@@ -6,6 +6,7 @@
  */
 
 import { pgTable, text, integer, real, boolean, timestamp, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 // Helper for date columns — Postgres TIMESTAMPTZ, returned as JS Date objects
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
@@ -18,17 +19,54 @@ export const Spaces = pgTable(
     id: text('id').primaryKey(),
     title: text('title').notNull(),
     description: text('description'),
+    /**
+     * Ministry channels only (type='public' + orgId): staff-declared publish cadence.
+     * Values: daily | weekly | biweekly | monthly | quarterly | irregular | null.
+     */
+    publishCadence: text('publishCadence'),
     color: text('color'),
     backgroundGradient: text('backgroundGradient'),
+    /** JSON `SpaceCoverBg` — join-page / invite hero for light appearance. */
+    coverBgLight: text('coverBgLight'),
+    /** JSON `SpaceCoverBg` — join-page / invite hero for dark appearance. */
+    coverBgDark: text('coverBgDark'),
     createdAt: ts('createdAt').notNull(),
     updatedAt: ts('updatedAt'),
     lastVisited: ts('lastVisited'),
     userId: text('userId').notNull(),
+    /**
+     * 'personal' | 'shared' | 'public' — space kind discriminator.
+     * 'shared' = collaborative space on the SpaceMemberships/SpaceInvites rails
+     * (owning one requires the Shared Spaces add-on; joining is free).
+     * 'public' = ministry broadcast channel when orgId is set (members follow +
+     * copy; only owner/leader author). Not a Shared Space product surface.
+     * Discrimination (no isMinistryBroadcast column):
+     * - personal Shared Space: type='shared' + orgId null
+     * - church Shared Space: type='shared' + orgId set
+     * - ministry channel: type='public' + orgId set
+     */
+    type: text('type').notNull().default('personal'),
+    /**
+     * Clerk organization id (= Churches.orgId) — church-org ownership/sponsorship.
+     * Null = personally owned. When set: Spaces.userId stays the creating staff
+     * member (audit anchor), but billing/limits derive from the church (see
+     * tier-limits.ts). Written by admin ministry-channel create and staff
+     * church-scoped Shared Space create (see server/routes/churches.ts,
+     * server/routes/spaces.ts).
+     */
+    orgId: text('orgId'),
+    /** @deprecated v1 sharing — frozen with shareToken/shareTokenCreatedAt; new code keys off `type`. */
     isPublic: boolean('isPublic').notNull().default(false),
     isFeatured: boolean('isFeatured').notNull().default(false),
     isActive: boolean('isActive').notNull().default(true),
     order: integer('order').notNull().default(0),
+    /** Soft-delete lifecycle for shared/public spaces; canonical notes remain untouched. */
+    deletedAt: ts('deletedAt'),
+    /** Owner recovery deadline (normally deletedAt + 30 days). */
+    recoveryUntil: ts('recoveryUntil'),
+    /** @deprecated v1 sharing — legacy join links are no longer honored; invites live in SpaceInvites. */
     shareToken: text('shareToken'),
+    /** @deprecated v1 sharing. */
     shareTokenCreatedAt: ts('shareTokenCreatedAt'),
     /** JSON string[] — folder labels with zero notes (prototype empty-folder registry). */
     prototypeEmptyFolderLabels: text('prototypeEmptyFolderLabels'),
@@ -36,6 +74,8 @@ export const Spaces = pgTable(
   (table) => [
     index('Spaces_userIdIndex').on(table.userId),
     index('Spaces_userId_updatedAtIndex').on(table.userId, table.updatedAt),
+    index('Spaces_userId_typeIndex').on(table.userId, table.type),
+    index('Spaces_deletedAt_recoveryUntilIndex').on(table.deletedAt, table.recoveryUntil),
   ],
 );
 
@@ -63,6 +103,9 @@ export const Threads = pgTable(
     index('Threads_userIdIndex').on(table.userId),
     index('Threads_userId_updatedAtIndex').on(table.userId, table.updatedAt),
     index('Threads_spaceIdIndex').on(table.spaceId),
+    uniqueIndex('Threads_onePinnedPerSpace')
+      .on(table.spaceId)
+      .where(sql`${table.spaceId} IS NOT NULL AND ${table.isPinned} = true`),
   ],
 );
 
@@ -108,13 +151,78 @@ export const Notes = pgTable(
     studyThreadLastAutoSuggestedAt: ts('studyThreadLastAutoSuggestedAt'),
     /** JSON array of normalized auto-tag names the user dismissed (string[]). */
     dismissedAutoTags: text('dismissedAutoTags'),
+    /** Latest immutable NoteVersions checkpoint for the canonical note. */
+    currentVersionId: text('currentVersionId'),
+    /** Source lineage for an independent copy of another author's note. */
+    copiedFromNoteId: text('copiedFromNoteId'),
+    copiedFromVersionId: text('copiedFromVersionId'),
+    copiedFromAuthorId: text('copiedFromAuthorId'),
+    /** Durable attribution if the source account later becomes unavailable. */
+    copiedFromAuthorDisplayName: text('copiedFromAuthorDisplayName'),
+    /** Template applied to start/fill this note (`soap`, `ntpl_…`, etc.). */
+    startedFromTemplateId: text('startedFromTemplateId'),
+    /** Display name snapshot so provenance survives template rename/delete. */
+    startedFromTemplateName: text('startedFromTemplateName'),
   },
   (table) => [
     index('Notes_userIdIndex').on(table.userId),
     index('Notes_linkedFromNoteIdIndex').on(table.linkedFromNoteId),
+    index('Notes_copiedFromNoteIdIndex').on(table.copiedFromNoteId),
     index('Notes_userId_updatedAtIndex').on(table.userId, table.updatedAt),
     index('Notes_spaceIdIndex').on(table.spaceId),
     index('Notes_threadIdIndex').on(table.threadId),
+  ],
+);
+
+// ─── NoteVersions (immutable author-owned canonical note checkpoints) ──────────
+
+export const NoteVersions = pgTable(
+  'NoteVersions',
+  {
+    id: text('id').primaryKey(),
+    noteId: text('noteId').notNull(),
+    version: integer('version').notNull(),
+    title: text('title'),
+    content: text('content').notNull(),
+    contentEncrypted: boolean('contentEncrypted').notNull().default(false),
+    /** 'save' | 'restore' | 'copy' | 'migration-baseline' (open text for future sources). */
+    source: text('source').notNull().default('save'),
+    /** Permanent note author; only this user may list, inspect, create, or restore versions. */
+    authorId: text('authorId').notNull(),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    uniqueIndex('NoteVersions_note_version_unique').on(table.noteId, table.version),
+    index('NoteVersions_noteId_createdAtIndex').on(table.noteId, table.createdAt),
+    index('NoteVersions_authorId_createdAtIndex').on(table.authorId, table.createdAt),
+  ],
+);
+
+// ─── SpaceNotes (reusable canonical-note associations) ────────────────────────
+
+export const SpaceNotes = pgTable(
+  'SpaceNotes',
+  {
+    id: text('id').primaryKey(),
+    spaceId: text('spaceId').notNull(),
+    noteId: text('noteId').notNull(),
+    addedBy: text('addedBy').notNull(),
+    addedAt: ts('addedAt').notNull(),
+    updatedAt: ts('updatedAt'),
+    removedBy: text('removedBy'),
+    removedAt: ts('removedAt'),
+    isPinned: boolean('isPinned').notNull().default(false),
+    /** Per-space folder metadata; serialized string[] for secondary labels. */
+    primaryCollection: text('primaryCollection'),
+    secondaryCollections: text('secondaryCollections'),
+    collectionPinned: boolean('collectionPinned').notNull().default(false),
+    collectionUserOverride: boolean('collectionUserOverride').notNull().default(false),
+    order: integer('order').notNull().default(0),
+  },
+  (table) => [
+    uniqueIndex('SpaceNotes_space_note_unique').on(table.spaceId, table.noteId),
+    index('SpaceNotes_spaceId_removedAt_orderIndex').on(table.spaceId, table.removedAt, table.order),
+    index('SpaceNotes_noteId_removedAtIndex').on(table.noteId, table.removedAt),
   ],
 );
 
@@ -150,6 +258,21 @@ export const StudyThreadEntries = pgTable(
     anchorLocation: integer('anchorLocation'),
     anchorLength: integer('anchorLength'),
     anchorTextSnapshot: text('anchorTextSnapshot'),
+    /** Durable source checkpoint and quote/context selector; legacy anchor fields remain above. */
+    noteVersionId: text('noteVersionId'),
+    /** Latest canonical version against which this selector was deterministically resolved. */
+    resolvedVersionId: text('resolvedVersionId'),
+    anchorQuote: text('anchorQuote'),
+    anchorPrefixContext: text('anchorPrefixContext'),
+    anchorSuffixContext: text('anchorSuffixContext'),
+    /** 'unresolved' | 'resolved' | 'detached' | 'orphaned'. Migration resolves legacy rows explicitly. */
+    anchorStatus: text('anchorStatus').notNull().default('unresolved'),
+    resolvedAnchorStart: integer('resolvedAnchorStart'),
+    resolvedAnchorEnd: integer('resolvedAnchorEnd'),
+    anchorResolvedAt: ts('anchorResolvedAt'),
+    anchorDetachedAt: ts('anchorDetachedAt'),
+    /** Durable attribution after the actor leaves the space or account is unavailable. */
+    actorDisplayNameSnapshot: text('actorDisplayNameSnapshot'),
     scriptureReference: text('scriptureReference'),
     scripturePassageTranslation: text('scripturePassageTranslation'),
     scripturePassageExcerpt: text('scripturePassageExcerpt'),
@@ -161,6 +284,10 @@ export const StudyThreadEntries = pgTable(
   (table) => [
     index('StudyThreadEntries_parentNoteIdIndex').on(table.parentNoteId),
     index('StudyThreadEntries_userIdIndex').on(table.userId),
+    index('StudyThreadEntries_noteVersionIdIndex').on(table.noteVersionId),
+    index('StudyThreadEntries_resolvedVersionIdIndex').on(table.resolvedVersionId),
+    index('StudyThreadEntries_spaceId_parentNoteIdIndex').on(table.spaceId, table.parentNoteId),
+    index('StudyThreadEntries_anchorStatusIndex').on(table.anchorStatus),
   ],
 );
 
@@ -194,6 +321,11 @@ export const Comments = pgTable('Comments', {
 
 // ─── Members ───────────────────────────────────────────────────────────────────
 
+/**
+ * @deprecated v1 sharing (Classic era) — frozen July 2026, superseded by
+ * SpaceMemberships. No reads or new writes; only hygiene deletes (account
+ * deletion / merge / reset / space deletion) remain until the table is dropped.
+ */
 export const Members = pgTable('Members', {
   id: text('id').primaryKey(),
   userId: text('userId').notNull(),
@@ -208,6 +340,10 @@ export const Members = pgTable('Members', {
 
 // ─── SpaceInvitations ──────────────────────────────────────────────────────────
 
+/**
+ * @deprecated v1 sharing (Classic era) — frozen July 2026, superseded by
+ * SpaceInvites. No reads or new writes; only hygiene deletes remain until drop.
+ */
 export const SpaceInvitations = pgTable('SpaceInvitations', {
   id: text('id').primaryKey(),
   spaceId: text('spaceId').notNull(),
@@ -227,6 +363,169 @@ export const SpaceInvitations = pgTable('SpaceInvitations', {
   index('SpaceInvitations_emailIndex').on(table.invitedEmail),
 ]);
 
+// ─── SpaceMemberships (shared/public space membership — supersedes Members) ─────
+
+export const SpaceMemberships = pgTable('SpaceMemberships', {
+  id: text('id').primaryKey(),
+  spaceId: text('spaceId').notNull(),
+  userId: text('userId').notNull(),
+  /**
+   * 'owner' | 'leader' | 'member'. The owner has a membership row too (the v1
+   * model derived owner solely from Spaces.userId, which stays the
+   * creator/billing anchor). 'leader' is schema-ready but dormant in the
+   * foundation UI; it activates with Group Leader / church org.
+   */
+  role: text('role').notNull().default('member'),
+  /** userId of the inviter; null on the owner row. */
+  invitedBy: text('invitedBy'),
+  /** SpaceInvites.id that was redeemed to create this membership; null on the owner row. */
+  inviteId: text('inviteId'),
+  joinedAt: ts('joinedAt').notNull(),
+  /** Last time this member opened the shared space dashboard (new-since watermark). */
+  lastVisitedAt: ts('lastVisitedAt'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('SpaceMemberships_space_user_unique').on(table.spaceId, table.userId),
+  index('SpaceMemberships_userIdIndex').on(table.userId),
+  index('SpaceMemberships_spaceId_roleIndex').on(table.spaceId, table.role),
+]);
+
+// ─── SpaceInvites (expiring join links — supersedes SpaceInvitations) ───────────
+
+export const SpaceInvites = pgTable('SpaceInvites', {
+  id: text('id').primaryKey(),
+  spaceId: text('spaceId').notNull(),
+  token: text('token').notNull(),
+  /** 'link' | 'email' — email invites are a fast-follow; only 'link' is created today. */
+  kind: text('kind').notNull().default('link'),
+  /** Role granted on redeem ('member' today; 'leader' later). */
+  role: text('role').notNull().default('member'),
+  invitedEmail: text('invitedEmail'),
+  createdBy: text('createdBy').notNull(),
+  /** Validated at preview AND redeem. Null = no expiry; default flow issues now+30d. */
+  expiresAt: ts('expiresAt'),
+  /** Null = unlimited uses. */
+  maxUses: integer('maxUses'),
+  useCount: integer('useCount').notNull().default(0),
+  revokedAt: ts('revokedAt'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  uniqueIndex('SpaceInvites_token_unique').on(table.token),
+  index('SpaceInvites_spaceIdIndex').on(table.spaceId),
+]);
+
+// ─── Churches (church org registry — Clerk Organization ↔ Harvous record) ──────
+
+/**
+ * One row per church with a Clerk Organization on Harvous. The Clerk org holds
+ * only staff/volunteers (≤20); congregants are NEVER Clerk org members — their
+ * home linkage is UserMetadata.connectedChurchId/connectedOrgId (temporary
+ * home-only until ChurchMemberships lands). Curriculum ships via org-owned
+ * broadcast spaces (Spaces.orgId = Churches.orgId, type='public'). Rows are
+ * written by requireHarvousAdmin routes in server/routes/churches.ts.
+ * Row ids: `chur_${crypto.randomUUID()}`.
+ */
+export const Churches = pgTable('Churches', {
+  id: text('id').primaryKey(),
+  /** Clerk organization id (org_…). Required — a church record exists only once its org does. */
+  orgId: text('orgId').notNull(),
+  /**
+   * Here’s My Church directory id (e.g. TX-123456). Source of truth for name/city/state
+   * when set — those columns are a denormalized cache refreshed from HMC.
+   */
+  hmcChurchId: text('hmcChurchId'),
+  name: text('name').notNull(),
+  city: text('city'),
+  state: text('state'),
+  country: text('country'),
+  /** Staff user who created the church record (audit anchor); admin roles live in Clerk org roles. */
+  createdBy: text('createdBy').notNull(),
+  /**
+   * Church billing plan slug — nullable entitlement (draft: 'church' = paid base).
+   * Pilot churches may run on isActive alone without a plan slug. Future add-ons
+   * (curriculum, church Shared Spaces, analytics, unlimited staff) are separate
+   * flags — see MONETIZATION_AND_PRICING.md §7. Written by billing webhook /
+   * admin when paid plans ship.
+   */
+  billingPlan: text('billingPlan'),
+  billingPlanUpdatedAt: ts('billingPlanUpdatedAt'),
+  /** Admin kill-switch (Spaces.isActive parity). */
+  isActive: boolean('isActive').notNull().default(true),
+  /** Soft-delete lifecycle — Spaces parity, for a future church-offboarding flow. */
+  deletedAt: ts('deletedAt'),
+  recoveryUntil: ts('recoveryUntil'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('Churches_orgId_unique').on(table.orgId),
+  uniqueIndex('Churches_hmcChurchId_unique').on(table.hmcChurchId),
+  index('Churches_createdByIndex').on(table.createdBy),
+]);
+
+// ─── ChurchMemberships (many church links; home stays on UserMetadata.connected*) ─
+
+/**
+ * Conglomerate memberships for multi-church (locked: many memberships, one home).
+ * Stub table for connect flow — no product writers yet. Until connect ships,
+ * UserMetadata.connectedChurchId/connectedOrgId/connectedChurchAt remain the
+ * temporary singular home pointer (get-profile exposes them).
+ * Row ids: `chmem_${crypto.randomUUID()}`.
+ */
+export const ChurchMemberships = pgTable('ChurchMemberships', {
+  id: text('id').primaryKey(),
+  churchId: text('churchId').notNull(),
+  userId: text('userId').notNull(),
+  /** 'member' today; staff stay in Clerk org + SpaceMemberships, not here. */
+  role: text('role').notNull().default('member'),
+  joinedAt: ts('joinedAt').notNull(),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('ChurchMemberships_church_user_unique').on(table.churchId, table.userId),
+  index('ChurchMemberships_userIdIndex').on(table.userId),
+  index('ChurchMemberships_churchIdIndex').on(table.churchId),
+]);
+
+// ─── NoteTemplates (personal / space / org-scoped note starters) ───────────────
+
+/**
+ * User-created and space/org-provisioned note templates. Built-ins stay in
+ * src/data/note-templates.ts (not rows). Scope:
+ * - userId only (spaceId/orgId null) = personal template
+ * - spaceId set = shared with everyone composing in that space (owner/leader attach)
+ * - orgId set = church/org-provisioned (future; always null in v1)
+ * Row ids: `ntpl_${crypto.randomUUID()}`.
+ */
+export const NoteTemplates = pgTable(
+  'NoteTemplates',
+  {
+    id: text('id').primaryKey(),
+    /** Creator — personal templates are userId-only (spaceId/orgId null). */
+    userId: text('userId').notNull(),
+    /** Set = space template visible to members composing in that space. */
+    spaceId: text('spaceId'),
+    /** Set = church/org-provisioned template (future role-gated); null in v1. */
+    orgId: text('orgId'),
+    name: text('name').notNull(),
+    /** Short list blurb (≤ ~2 lines in browse sheet). */
+    description: text('description'),
+    /** Title prefill (titleTemplate equivalent). */
+    title: text('title'),
+    /** Tiptap HTML, same format as Notes.content. */
+    content: text('content').notNull(),
+    noteType: text('noteType'),
+    /** Thread accent for the shared list icon tile (`blue`, `green`, …). */
+    iconColor: text('iconColor'),
+    createdAt: ts('createdAt').notNull(),
+    updatedAt: ts('updatedAt'),
+  },
+  (table) => [
+    index('NoteTemplates_userIdIndex').on(table.userId),
+    index('NoteTemplates_spaceIdIndex').on(table.spaceId),
+  ]
+);
+
 // ─── UserMetadata ──────────────────────────────────────────────────────────────
 
 export const UserMetadata = pgTable('UserMetadata', {
@@ -239,6 +538,11 @@ export const UserMetadata = pgTable('UserMetadata', {
   email: text('email'),
   profileImageUrl: text('profileImageUrl'),
   clerkDataUpdatedAt: ts('clerkDataUpdatedAt'),
+  /**
+   * Here’s My Church directory id — SoT for the user’s picked church.
+   * churchName/City/State/Country below are denormalized cache from HMC.
+   */
+  hmcChurchId: text('hmcChurchId'),
   churchName: text('churchName'),
   churchCity: text('churchCity'),
   churchState: text('churchState'),
@@ -246,6 +550,16 @@ export const UserMetadata = pgTable('UserMetadata', {
   currentSeason: text('currentSeason'),
   lastMonthlyVisit: ts('lastMonthlyVisit'),
   churchAddedAt: ts('churchAddedAt'),
+  /**
+   * Home church (Churches.id) — temporary singular home until ChurchMemberships
+   * lands (locked: many memberships, one home). Denormalized churchName/City/
+   * State/Country stay for discovery/matching — do not repurpose as linkage.
+   * Null = no home church. Congregants are linked here only; never Clerk org.
+   */
+  connectedChurchId: text('connectedChurchId'),
+  /** Denormalized Clerk org id (= Churches.orgId) for cheap org-scoped checks. */
+  connectedOrgId: text('connectedOrgId'),
+  connectedChurchAt: ts('connectedChurchAt'),
   referralBonusNotes: integer('referralBonusNotes').notNull().default(0),
   referralCode: text('referralCode').unique(),
   lockPinSalt: text('lockPinSalt'),
@@ -258,6 +572,11 @@ export const UserMetadata = pgTable('UserMetadata', {
    * Account is source of truth; localStorage is the per-device first-paint cache.
    */
   appearanceSettings: text('appearanceSettings'),
+  /**
+   * Per-user My Home space-switcher order for personal Shared Spaces (hosted + joined).
+   * JSON `string[]` of space ids. Not `Spaces.order` — preference only.
+   */
+  sharedSpaceSwitcherOrder: text('sharedSpaceSwitcherOrder'),
   /** Last applied onboarding markdown pack version (see ONBOARDING_PACK_VERSION). */
   onboardingPackVersionApplied: integer('onboardingPackVersionApplied').notNull().default(0),
   /**
@@ -267,9 +586,21 @@ export const UserMetadata = pgTable('UserMetadata', {
    * See docs/native-prototype/PHASE_0_DATA_MODEL_ADR.md and tier-limits.ts.
    */
   tier: text('tier').notNull().default('free'),
+  /**
+   * Shared Spaces paid add-on (owner-pays). DB source of truth; the Clerk JWT
+   * `shared_spaces` feature is a fallback for freshly-purchased sessions until
+   * the billing webhook lands. The retired 'unlimited' tier grants nothing.
+   */
+  sharedSpacesAddOn: boolean('sharedSpacesAddOn').notNull().default(false),
+  sharedSpacesAddOnUpdatedAt: ts('sharedSpacesAddOnUpdatedAt'),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
-});
+}, (table) => [
+  // The "all congregants of church X" fan-out (connect notifications, follow
+  // backfill into broadcast spaces). Cheap to add now; a lock under load later.
+  index('UserMetadata_connectedChurchIdIndex').on(table.connectedChurchId),
+  index('UserMetadata_hmcChurchIdIndex').on(table.hmcChurchId),
+]);
 
 // ─── ClerkUserMapping (pk_live → pk_test read-time resolution) ─────────────────
 

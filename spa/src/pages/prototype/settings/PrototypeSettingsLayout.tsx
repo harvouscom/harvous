@@ -79,9 +79,9 @@ export default function PrototypeSettingsLayout() {
     if (typeof document === 'undefined') return null;
 
     return createPortal(
-      <div className="proto-settings-modal-overlay" role="presentation" onClick={closeSettings}>
+      <div className="proto-settings-modal-overlay proto-settings-modal-overlay--motion" role="presentation" onClick={closeSettings}>
         <div
-          className="proto-settings-modal"
+          className="proto-settings-modal proto-settings-modal--motion"
           role="dialog"
           aria-label="Settings"
           aria-modal="true"

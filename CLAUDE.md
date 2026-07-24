@@ -18,6 +18,7 @@ This project uses a team of specialized agents as slash commands. Each agent own
 | `/theologian-agent` | Theological review of authored study content (pairs with content-agent) |
 | `/sharing-agent` | Share tokens, public access, import flow |
 | `/data-agent` | Supabase, API endpoints, offline sync |
+| `/design-agent` | Design system, tokens, prototype CSS, native DesignSystem, gallery, visual cohesion |
 | `/marketing-agent` | Changelog entries, user release notes in `release-notes/`, social copy, admin featured content |
 
 **Release notes style:** Markdown under `release-notes/` is plain text only — no emoji in titles, section headers, or body (`release-notes/README.md`, `release-notes/TEMPLATE.md`). The marketing agent owns this convention.

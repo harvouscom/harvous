@@ -123,7 +123,7 @@ TanStack Router with the full route tree. Routes are organized into three groups
 - `/note/:noteId` → NotePage
 
 **Standalone public routes** (no nav, no auth required):
-- `/upgrade` → UpgradePage
+- `/addon` → UpgradePage
 - `/spaces/join/:token` → JoinSpacePage
 - `/shared/note/:shareToken` → SharedNotePage
 - `/shared/thread/:shareToken` → SharedThreadPage

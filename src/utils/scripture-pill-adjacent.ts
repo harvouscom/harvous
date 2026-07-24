@@ -1,11 +1,13 @@
 /**
- * Find scripture pill boundaries adjacent to a cursor for delete-confirm UX.
+ * Find pill-mark boundaries adjacent to a cursor for atomic-delete UX.
+ * Defaults to scripture pills; pass `markName` for other pill marks (e.g. mentionPill).
  */
 
 export function findAdjacentPillBoundaries(
   doc: any,
   pos: number,
   direction: 'before' | 'after',
+  markName: string = 'scripturePill',
 ): { start: number; end: number } | null {
   try {
     const $pos = doc.resolve(pos);
@@ -22,7 +24,7 @@ export function findAdjacentPillBoundaries(
         const childStart = parentStart + offset;
         const childEnd = childStart + child.nodeSize;
 
-        if (child.marks.some((m: any) => m.type.name === 'scripturePill')) {
+        if (child.marks.some((m: any) => m.type.name === markName)) {
           if (lastPillEnd === childStart) {
             lastPillEnd = childEnd;
           } else {
@@ -54,11 +56,11 @@ export function findAdjacentPillBoundaries(
         const childStart = parentStart + offset;
         const childEnd = childStart + child.nodeSize;
 
-        if (childStart >= pos && child.marks.some((m: any) => m.type.name === 'scripturePill')) {
+        if (childStart >= pos && child.marks.some((m: any) => m.type.name === markName)) {
           let pillEnd = childEnd;
           for (let j = i + 1; j < parent.childCount; j++) {
             const next = parent.child(j);
-            if (next.marks.some((m: any) => m.type.name === 'scripturePill')) {
+            if (next.marks.some((m: any) => m.type.name === markName)) {
               pillEnd = parentStart + offset + child.nodeSize;
               let o2 = 0;
               for (let k = 0; k <= j; k++) o2 += parent.child(k).nodeSize;

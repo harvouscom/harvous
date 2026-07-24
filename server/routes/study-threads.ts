@@ -14,29 +14,211 @@ import {
   db,
   first,
   Notes,
+  Spaces,
+  SpaceNotes,
+  SpaceMemberships,
+  UserMetadata,
   NoteConnections,
   StudyThreadEntries,
   eq,
   and,
   desc,
+  isNull,
 } from '../db';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
 import { generateStudyThreadEntryId, generateNoteId } from '@/utils/ids';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
+import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
 import { broadcastInvalidation } from '../utils/realtime';
+import { batchAuthorAttribution } from '../utils/dashboard-data';
+import {
+  canModerateStudyThreadEntry,
+  SharedStudyThreadAccessError,
+} from '../utils/shared-study-thread-access';
+import { SpaceAccessError } from '../utils/space-access';
+import {
+  createDurableNoteAnchorFromHtml,
+  createDurableNoteAnchorFromText,
+  resolveDurableNoteAnchorInText,
+  tipTapHtmlToCanonicalText,
+} from '../utils/durable-note-anchor';
+import { ensureAnchorableCurrentNoteVersion } from '../utils/note-version-service';
 
 const route = new Hono();
 
 const ENTRY_KINDS = new Set(['workspace', 'miniNote', 'linkedNote', 'scriptureLink', 'reference']);
 
-async function touchParentNoteEditedAt(parentNoteId: string, userId: string) {
+function normalizeContextSpaceId(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const trimmed = value.trim();
+  return trimmed.startsWith('space_') ? trimmed : `space_${trimmed}`;
+}
+
+const SHARED_RESPONSE_MUTABLE_FIELDS = new Set([
+  'highlightAccentRaw',
+  'notesBody',
+  'miniNoteBody',
+]);
+
+export function immutableSharedResponsePatchFields(body: Record<string, unknown>): string[] {
+  return Object.keys(body).filter(
+    (key) => key !== 'contextSpaceId' && key !== 'spaceId' && !SHARED_RESPONSE_MUTABLE_FIELDS.has(key),
+  );
+}
+
+type StudyEntryParentContext = {
+  note: typeof Notes.$inferSelect;
+  spaceId: string | null;
+  isShared: boolean;
+};
+
+async function resolveStudyEntryParentContext(
+  executor: any,
+  input: {
+    parentNoteId: string;
+    actorId: string;
+    contextSpaceId: string | null;
+    lock?: boolean;
+  },
+): Promise<StudyEntryParentContext> {
+  let noteQuery = executor.select().from(Notes).where(eq(Notes.id, input.parentNoteId));
+  if (input.lock) noteQuery = noteQuery.for('update');
+  const note = first(await noteQuery.limit(1)) as typeof Notes.$inferSelect | undefined;
+  if (!note) throw new SharedStudyThreadAccessError(404, 'Note not found');
+
+  if (!input.contextSpaceId) {
+    if (note.userId !== input.actorId) {
+      throw new SharedStudyThreadAccessError(403, 'A contextSpaceId is required', 'CONTEXT_REQUIRED');
+    }
+    return { note, spaceId: note.spaceId, isShared: false };
+  }
+
+  let spaceQuery = executor.select().from(Spaces).where(eq(Spaces.id, input.contextSpaceId));
+  if (input.lock) spaceQuery = spaceQuery.for('update');
+  const space = first(await spaceQuery.limit(1)) as typeof Spaces.$inferSelect | undefined;
+  if (!space || space.deletedAt) throw new SharedStudyThreadAccessError(404, 'Note not found');
+  if (space.type === 'personal') {
+    const isMyHome = space.title.trim().toLowerCase() === 'my home';
+    if (
+      space.userId !== input.actorId ||
+      note.userId !== input.actorId ||
+      (!isMyHome && note.spaceId !== space.id)
+    ) {
+      throw new SharedStudyThreadAccessError(404, 'Note not found');
+    }
+    return { note, spaceId: space.id, isShared: false };
+  }
+  if (note.contentEncrypted) throw new SharedStudyThreadAccessError(404, 'Note not found');
+
+  let membershipQuery = executor
+    .select({ id: SpaceMemberships.id })
+    .from(SpaceMemberships)
+    .where(
+      and(
+        eq(SpaceMemberships.spaceId, space.id),
+        eq(SpaceMemberships.userId, input.actorId),
+      ),
+    );
+  let associationQuery = executor
+    .select({ id: SpaceNotes.id })
+    .from(SpaceNotes)
+    .where(
+      and(
+        eq(SpaceNotes.spaceId, space.id),
+        eq(SpaceNotes.noteId, note.id),
+        isNull(SpaceNotes.removedAt),
+      ),
+    );
+  if (input.lock) {
+    membershipQuery = membershipQuery.for('update');
+    associationQuery = associationQuery.for('update');
+  }
+  const [membership, association] = await Promise.all([
+    membershipQuery.limit(1).then((rows: unknown[]) => first(rows)),
+    associationQuery.limit(1).then((rows: unknown[]) => first(rows)),
+  ]);
+  if (!membership || !association) throw new SharedStudyThreadAccessError(404, 'Note not found');
+  return { note, spaceId: space.id, isShared: true };
+}
+
+function durableAnchorValues(input: {
+  html: string;
+  start: number | null;
+  length: number | null;
+  quote: string | null;
+  now: Date;
+}) {
+  try {
+    let anchor;
+    if (input.start != null && input.length != null) {
+      anchor = createDurableNoteAnchorFromHtml({
+        html: input.html,
+        start: input.start,
+        end: input.start + input.length,
+      });
+    } else if (input.quote?.length) {
+      const canonicalText = tipTapHtmlToCanonicalText(input.html);
+      const resolution = resolveDurableNoteAnchorInText(canonicalText, {
+        quote: input.quote,
+        prefixContext: '',
+        suffixContext: '',
+        start: null,
+        end: null,
+      });
+      if (resolution.status !== 'resolved') throw new RangeError('Anchor quote is not unique');
+      anchor = createDurableNoteAnchorFromText({
+        text: canonicalText,
+        start: resolution.start,
+        end: resolution.end,
+      });
+    } else {
+      return {
+        anchorQuote: null,
+        anchorPrefixContext: null,
+        anchorSuffixContext: null,
+        anchorStatus: 'orphaned' as const,
+        resolvedAnchorStart: null,
+        resolvedAnchorEnd: null,
+        anchorResolvedAt: null,
+        anchorDetachedAt: input.now,
+      };
+    }
+    return {
+      anchorQuote: anchor.quote,
+      anchorPrefixContext: anchor.prefixContext,
+      anchorSuffixContext: anchor.suffixContext,
+      anchorStatus: 'resolved' as const,
+      resolvedAnchorStart: anchor.start,
+      resolvedAnchorEnd: anchor.end,
+      anchorResolvedAt: input.now,
+      anchorDetachedAt: null,
+    };
+  } catch {
+    return {
+      anchorQuote: input.quote,
+      anchorPrefixContext: null,
+      anchorSuffixContext: null,
+      anchorStatus: 'detached' as const,
+      resolvedAnchorStart: null,
+      resolvedAnchorEnd: null,
+      anchorResolvedAt: null,
+      anchorDetachedAt: input.now,
+    };
+  }
+}
+
+async function touchParentNoteEditedAt(parentNoteId: string, parentAuthorUserId: string, actorUserId: string) {
+  if (parentAuthorUserId !== actorUserId) {
+    broadcastInvalidation(parentAuthorUserId, { type: 'note:updated', id: parentNoteId });
+    return;
+  }
   await db
     .update(Notes)
     .set({ updatedAt: nowISO() })
-    .where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, userId)));
-  broadcastInvalidation(userId, { type: 'note:updated', id: parentNoteId });
+    .where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, parentAuthorUserId)));
+  broadcastInvalidation(parentAuthorUserId, { type: 'note:updated', id: parentNoteId });
 }
 
 export function mapStudyRow(row: typeof StudyThreadEntries.$inferSelect) {
@@ -56,6 +238,15 @@ export function mapStudyRow(row: typeof StudyThreadEntries.$inferSelect) {
     anchorLocation: row.anchorLocation,
     anchorLength: row.anchorLength,
     anchorTextSnapshot: row.anchorTextSnapshot,
+    noteVersionId: row.noteVersionId,
+    anchorQuote: row.anchorQuote,
+    anchorPrefixContext: row.anchorPrefixContext,
+    anchorSuffixContext: row.anchorSuffixContext,
+    anchorStatus: row.anchorStatus,
+    resolvedAnchorStart: row.resolvedAnchorStart,
+    resolvedAnchorEnd: row.resolvedAnchorEnd,
+    anchorResolvedAt: row.anchorResolvedAt,
+    anchorDetachedAt: row.anchorDetachedAt,
     scriptureReference: row.scriptureReference,
     scripturePassageTranslation: row.scripturePassageTranslation,
     scripturePassageExcerpt: row.scripturePassageExcerpt,
@@ -66,25 +257,71 @@ export function mapStudyRow(row: typeof StudyThreadEntries.$inferSelect) {
   };
 }
 
+async function mapUnionedRows(rows: typeof StudyThreadEntries.$inferSelect[], viewerUserId: string) {
+  const authorMap = await batchAuthorAttribution(rows.map((row) => row.userId));
+  return rows.map((row) => {
+    const mapped = mapStudyRow(row);
+    const author = authorMap[row.userId];
+    return {
+      ...mapped,
+      authorDisplayName: author?.displayName ?? 'A Harvous User',
+      authorColor: author?.userColor ?? 'blue',
+      isOwnHighlight: row.userId === viewerUserId,
+    };
+  });
+}
+
+function handleStudyThreadAccessError(c: any, err: unknown) {
+  if (err instanceof SharedStudyThreadAccessError || err instanceof SpaceAccessError) {
+    return c.json({ error: err.message, code: err.code }, err.status);
+  }
+  throw err;
+}
+
 // ─── GET /api/notes/:parentNoteId/study-threads ───────────────────────────────
 route.get('/api/notes/:parentNoteId/study-threads', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const parentNoteId = c.req.param('parentNoteId');
-    const parent = first(
-      await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1),
-    );
-    if (!parent) return c.json({ error: 'Note not found' }, 404);
+    const parentNoteId = c.req.param('parentNoteId')!;
 
+    let parentCtx;
+    try {
+      parentCtx = await resolveStudyEntryParentContext(db, {
+        parentNoteId,
+        actorId: auth.userId,
+        contextSpaceId: normalizeContextSpaceId(
+          c.req.query('contextSpaceId') ?? c.req.query('spaceId'),
+        ),
+      });
+    } catch (err) {
+      return handleStudyThreadAccessError(c, err);
+    }
+
+    const unioned = parentCtx.isShared;
+    const listWhere = parentCtx.spaceId
+      ? and(
+          eq(StudyThreadEntries.parentNoteId, parentNoteId),
+          eq(StudyThreadEntries.spaceId, parentCtx.spaceId),
+          ...(unioned ? [] : [eq(StudyThreadEntries.userId, auth.userId)]),
+          eq(StudyThreadEntries.isArchived, false),
+        )
+      : and(
+          eq(StudyThreadEntries.parentNoteId, parentNoteId),
+          eq(StudyThreadEntries.userId, auth.userId),
+          isNull(StudyThreadEntries.spaceId),
+          eq(StudyThreadEntries.isArchived, false),
+        );
     const rows = await db
       .select()
       .from(StudyThreadEntries)
-      .where(and(eq(StudyThreadEntries.parentNoteId, parentNoteId), eq(StudyThreadEntries.userId, auth.userId)))
+      .where(listWhere)
       .orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt));
+
+    const studyThreads = unioned ? await mapUnionedRows(rows, auth.userId) : rows.map(mapStudyRow);
 
     return c.json({
       success: true,
-      studyThreads: rows.map(mapStudyRow),
+      studyThreads,
     });
   } catch (error: any) {
     const e = handleAPIError(error, { endpoint: '/api/notes/[parentNoteId]/study-threads', action: 'list_study_threads' });
@@ -96,33 +333,53 @@ route.get('/api/notes/:parentNoteId/study-threads', requireAuth, async (c) => {
 route.get('/api/notes/:parentNoteId/study-threads/by-scripture', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const parentNoteId = c.req.param('parentNoteId');
+    const parentNoteId = c.req.param('parentNoteId')!;
     const refRaw = c.req.query('reference') ?? '';
     const translation = (c.req.query('translation') ?? '').trim() || 'NET';
     const norm = normalizeScriptureReference(refRaw.trim()) ?? refRaw.trim();
     if (!norm) return c.json({ error: 'reference query required' }, 400);
 
-    const parent = first(
-      await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1),
-    );
-    if (!parent) return c.json({ error: 'Note not found' }, 404);
+    let parentCtx;
+    try {
+      parentCtx = await resolveStudyEntryParentContext(db, {
+        parentNoteId,
+        actorId: auth.userId,
+        contextSpaceId: normalizeContextSpaceId(
+          c.req.query('contextSpaceId') ?? c.req.query('spaceId'),
+        ),
+      });
+    } catch (err) {
+      return handleStudyThreadAccessError(c, err);
+    }
 
+    const unioned = parentCtx.isShared;
+    const byScriptureWhere = unioned
+      ? and(
+          eq(StudyThreadEntries.parentNoteId, parentNoteId),
+          eq(StudyThreadEntries.spaceId, parentCtx.spaceId!),
+          eq(StudyThreadEntries.scriptureReference, norm),
+          eq(StudyThreadEntries.scripturePassageTranslation, translation),
+        )
+      : and(
+          eq(StudyThreadEntries.parentNoteId, parentNoteId),
+          eq(StudyThreadEntries.userId, auth.userId),
+          parentCtx.spaceId
+            ? eq(StudyThreadEntries.spaceId, parentCtx.spaceId)
+            : isNull(StudyThreadEntries.spaceId),
+          eq(StudyThreadEntries.scriptureReference, norm),
+          eq(StudyThreadEntries.scripturePassageTranslation, translation),
+        );
     const rows = await db
       .select()
       .from(StudyThreadEntries)
-      .where(
-        and(
-          eq(StudyThreadEntries.parentNoteId, parentNoteId),
-          eq(StudyThreadEntries.userId, auth.userId),
-          eq(StudyThreadEntries.scriptureReference, norm),
-          eq(StudyThreadEntries.scripturePassageTranslation, translation),
-        ),
-      )
+      .where(byScriptureWhere)
       .orderBy(desc(StudyThreadEntries.createdAt));
+
+    const studyThreads = unioned ? await mapUnionedRows(rows, auth.userId) : rows.map(mapStudyRow);
 
     return c.json({
       success: true,
-      studyThreads: rows.map(mapStudyRow),
+      studyThreads,
     });
   } catch (error: any) {
     const e = handleAPIError(error, { endpoint: '/api/notes/[parentNoteId]/study-threads/by-scripture', action: 'by_scripture' });
@@ -134,11 +391,7 @@ route.get('/api/notes/:parentNoteId/study-threads/by-scripture', requireAuth, as
 route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const parentNoteId = c.req.param('parentNoteId');
-    const parent = first(
-      await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1),
-    );
-    if (!parent) return c.json({ error: 'Note not found' }, 404);
+    const parentNoteId = c.req.param('parentNoteId')!;
 
     const body = await c.req.json();
     const entryKind = typeof body.entryKind === 'string' ? body.entryKind : 'miniNote';
@@ -153,62 +406,139 @@ route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('wri
 
     const sourceSnippet = typeof body.sourceSnippet === 'string' ? body.sourceSnippet : '';
     const focusTitle = typeof body.focusTitle === 'string' ? body.focusTitle : '';
-    const notesBody = typeof body.notesBody === 'string' ? body.notesBody : '';
-    const miniNoteBody = typeof body.miniNoteBody === 'string' ? body.miniNoteBody : '';
+    const notesBody =
+      typeof body.notesBody === 'string' ? canonicalizeNoteHtmlLineBreaks(body.notesBody) : '';
+    const miniNoteBody =
+      typeof body.miniNoteBody === 'string' ? canonicalizeNoteHtmlLineBreaks(body.miniNoteBody) : '';
 
     const id = generateStudyThreadEntryId();
     const now = nowISO();
-    const spaceId = typeof parent.spaceId === 'string' && parent.spaceId ? parent.spaceId : null;
-
-    await db.insert(StudyThreadEntries).values({
-      id,
-      userId: auth.userId,
-      parentNoteId,
-      spaceId,
-      entryKindRaw: entryKind,
-      highlightAccentRaw,
-      sourceSnippet,
-      focusTitle,
-      notesBody,
-      miniNoteBody,
-      linkedNoteId: typeof body.linkedNoteId === 'string' ? body.linkedNoteId : null,
-      linkedNoteTitle: typeof body.linkedNoteTitle === 'string' ? body.linkedNoteTitle : null,
-      anchorLocation: typeof body.anchorLocation === 'number' ? body.anchorLocation : null,
-      anchorLength: typeof body.anchorLength === 'number' ? body.anchorLength : null,
-      anchorTextSnapshot: typeof body.anchorTextSnapshot === 'string' ? body.anchorTextSnapshot : null,
-      scriptureReference:
-        typeof body.scriptureReference === 'string' ? normalizeScriptureReference(body.scriptureReference.trim()) ?? body.scriptureReference : null,
-      scripturePassageTranslation:
-        typeof body.scripturePassageTranslation === 'string' ? body.scripturePassageTranslation : null,
-      scripturePassageExcerpt: typeof body.scripturePassageExcerpt === 'string' ? body.scripturePassageExcerpt : null,
-      isArchived: false,
-      highlightListEditedAt: now,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    // Mirror linkedNote entries into NoteConnections so the web prototype inspector
-    // shows native-created connections (it reads NoteConnections, not StudyThreadEntries).
+    const contextSpaceId = normalizeContextSpaceId(
+      body.contextSpaceId ?? body.spaceId ?? c.req.query('contextSpaceId') ?? c.req.query('spaceId'),
+    );
     const resolvedLinkedNoteId = typeof body.linkedNoteId === 'string' ? body.linkedNoteId : null;
-    if (entryKind === 'linkedNote' && resolvedLinkedNoteId && resolvedLinkedNoteId !== parentNoteId) {
-      try {
-        await db.insert(NoteConnections).values({
-          id: generateNoteId(),
-          fromNoteId: parentNoteId,
-          toNoteId: resolvedLinkedNoteId,
-          userId: auth.userId,
-          spaceId,
-          createdAt: now,
+    let parentCtx: StudyEntryParentContext;
+    let row: typeof StudyThreadEntries.$inferSelect | null = null;
+    try {
+      ({ parentCtx, row } = await db.transaction(async (tx) => {
+        const lockedContext = await resolveStudyEntryParentContext(tx, {
+          parentNoteId,
+          actorId: auth.userId,
+          contextSpaceId,
+          lock: true,
         });
-      } catch {
-        // Unique constraint — already connected, safe to ignore.
-      }
+        const currentVersion = await ensureAnchorableCurrentNoteVersion(tx, {
+          note: lockedContext.note,
+          now,
+        });
+        const actor = first(
+          await tx
+            .select({ firstName: UserMetadata.firstName, lastName: UserMetadata.lastName })
+            .from(UserMetadata)
+            .where(eq(UserMetadata.userId, auth.userId))
+            .limit(1),
+        );
+        const actorDisplayNameSnapshot = actor?.firstName
+          ? `${actor.firstName}${actor.lastName ? ` ${actor.lastName.charAt(0).toUpperCase()}.` : ''}`
+          : 'A Harvous User';
+        const anchorLocation = typeof body.anchorLocation === 'number' ? body.anchorLocation : null;
+        const anchorLength = typeof body.anchorLength === 'number' ? body.anchorLength : null;
+        const anchorTextSnapshot =
+          typeof body.anchorTextSnapshot === 'string' ? body.anchorTextSnapshot : null;
+        const anchor = durableAnchorValues({
+          html: currentVersion.content,
+          start: anchorLocation,
+          length: anchorLength,
+          quote: anchorTextSnapshot,
+          now,
+        });
+        if (lockedContext.isShared && anchor.anchorStatus !== 'resolved') {
+          throw new SharedStudyThreadAccessError(
+            403,
+            'A shared response requires a valid durable anchor',
+            'INVALID_ANCHOR',
+          );
+        }
+        const inserted = first(
+          await tx
+            .insert(StudyThreadEntries)
+            .values({
+              id,
+              userId: auth.userId,
+              parentNoteId,
+              spaceId: lockedContext.spaceId,
+              entryKindRaw: entryKind,
+              highlightAccentRaw,
+              sourceSnippet,
+              focusTitle,
+              notesBody,
+              miniNoteBody,
+              linkedNoteId: resolvedLinkedNoteId,
+              linkedNoteTitle: typeof body.linkedNoteTitle === 'string' ? body.linkedNoteTitle : null,
+              anchorLocation,
+              anchorLength,
+              anchorTextSnapshot,
+              noteVersionId: currentVersion.id,
+              ...anchor,
+              actorDisplayNameSnapshot,
+              scriptureReference:
+                typeof body.scriptureReference === 'string'
+                  ? normalizeScriptureReference(body.scriptureReference.trim()) ?? body.scriptureReference
+                  : null,
+              scripturePassageTranslation:
+                typeof body.scripturePassageTranslation === 'string'
+                  ? body.scripturePassageTranslation
+                  : null,
+              scripturePassageExcerpt:
+                typeof body.scripturePassageExcerpt === 'string' ? body.scripturePassageExcerpt : null,
+              isArchived: false,
+              highlightListEditedAt: now,
+              createdAt: now,
+              updatedAt: now,
+            })
+            .returning(),
+        );
+        if (
+          entryKind === 'linkedNote' &&
+          resolvedLinkedNoteId &&
+          resolvedLinkedNoteId !== parentNoteId
+        ) {
+          await tx
+            .insert(NoteConnections)
+            .values({
+              id: generateNoteId(),
+              fromNoteId: parentNoteId,
+              toNoteId: resolvedLinkedNoteId,
+              userId: auth.userId,
+              spaceId: lockedContext.spaceId,
+              createdAt: now,
+            })
+            .onConflictDoNothing();
+        }
+        return { parentCtx: lockedContext, row: inserted ?? null };
+      }));
+    } catch (err) {
+      return handleStudyThreadAccessError(c, err);
     }
 
-    await touchParentNoteEditedAt(parentNoteId, auth.userId);
+    await touchParentNoteEditedAt(parentNoteId, parentCtx.note.userId, auth.userId);
+    broadcastInvalidation(auth.userId, { type: 'note:updated', id: parentNoteId });
 
-    const row = first(await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.id, id)).limit(1));
-    return c.json({ success: true, studyThread: row ? mapStudyRow(row) : null });
+    const mapped = row ? mapStudyRow(row) : null;
+    if (mapped && parentCtx.isShared) {
+      const authorMap = await batchAuthorAttribution([auth.userId]);
+      const author = authorMap[auth.userId];
+      return c.json({
+        success: true,
+        studyThread: {
+          ...mapped,
+          authorDisplayName: author?.displayName ?? 'A Harvous User',
+          authorColor: author?.userColor ?? 'blue',
+          isOwnHighlight: true,
+        },
+      });
+    }
+    return c.json({ success: true, studyThread: mapped });
   } catch (error: any) {
     const e = handleAPIError(error, { endpoint: '/api/notes/[parentNoteId]/study-threads', action: 'create_study_thread' });
     return c.json({ error: e.message, code: e.code }, 500);
@@ -219,50 +549,134 @@ route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('wri
 route.patch('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const id = c.req.param('id');
-    const existing = first(
-      await db
-        .select()
-        .from(StudyThreadEntries)
-        .where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId)))
-        .limit(1),
-    );
-    if (!existing) return c.json({ error: 'Study thread not found' }, 404);
-
+    const id = c.req.param('id')!;
     const body = await c.req.json();
-    const patch: Record<string, unknown> = { updatedAt: nowISO() };
+    const contextSpaceId = normalizeContextSpaceId(
+      body.contextSpaceId ?? body.spaceId ?? c.req.query('contextSpaceId') ?? c.req.query('spaceId'),
+    );
+    let existing: typeof StudyThreadEntries.$inferSelect;
+    let parentCtx: StudyEntryParentContext;
+    let row: typeof StudyThreadEntries.$inferSelect | null;
+    try {
+      ({ existing, parentCtx, row } = await db.transaction(async (tx) => {
+        const locked = first(
+          await tx
+            .select()
+            .from(StudyThreadEntries)
+            .where(eq(StudyThreadEntries.id, id))
+            .for('update')
+            .limit(1),
+        );
+        if (!locked) throw new SharedStudyThreadAccessError(404, 'Response not found');
+        if (locked.userId !== auth.userId) {
+          throw new SharedStudyThreadAccessError(
+            403,
+            'Only the annotation author can edit it',
+            'FORBIDDEN',
+          );
+        }
+        const context = await resolveStudyEntryParentContext(tx, {
+          parentNoteId: locked.parentNoteId,
+          actorId: auth.userId,
+          contextSpaceId,
+          lock: true,
+        });
+        if (locked.spaceId !== context.spaceId) {
+          throw new SharedStudyThreadAccessError(404, 'Response not found');
+        }
+        if (context.isShared) {
+          const immutableFields = immutableSharedResponsePatchFields(body);
+          if (immutableFields.length > 0) {
+            throw new SharedStudyThreadAccessError(
+              403,
+              'Shared response anchors and context are immutable',
+              'IMMUTABLE_SHARED_RESPONSE_CONTEXT',
+            );
+          }
+        }
+        const patch: Record<string, unknown> = { updatedAt: nowISO() };
+        if (typeof body.highlightAccentRaw === 'string') {
+          patch.highlightAccentRaw = body.highlightAccentRaw;
+          patch.highlightListEditedAt = nowISO();
+        }
+        if (typeof body.sourceSnippet === 'string') patch.sourceSnippet = body.sourceSnippet;
+        if (typeof body.focusTitle === 'string') patch.focusTitle = body.focusTitle;
+        if (typeof body.notesBody === 'string') {
+          patch.notesBody = canonicalizeNoteHtmlLineBreaks(body.notesBody);
+        }
+        if (typeof body.miniNoteBody === 'string') {
+          patch.miniNoteBody = canonicalizeNoteHtmlLineBreaks(body.miniNoteBody);
+        }
+        if (typeof body.linkedNoteId === 'string' || body.linkedNoteId === null) patch.linkedNoteId = body.linkedNoteId;
+        if (typeof body.linkedNoteTitle === 'string') patch.linkedNoteTitle = body.linkedNoteTitle;
+        if (typeof body.scriptureReference === 'string') {
+          patch.scriptureReference = normalizeScriptureReference(body.scriptureReference.trim()) ?? body.scriptureReference;
+        }
+        if (typeof body.scripturePassageTranslation === 'string') patch.scripturePassageTranslation = body.scripturePassageTranslation;
+        if (typeof body.scripturePassageExcerpt === 'string') patch.scripturePassageExcerpt = body.scripturePassageExcerpt;
+        if (typeof body.isArchived === 'boolean') patch.isArchived = body.isArchived;
+        if (typeof body.entryKind === 'string' && ENTRY_KINDS.has(body.entryKind)) patch.entryKindRaw = body.entryKind;
 
-    if (typeof body.highlightAccentRaw === 'string') {
-      patch.highlightAccentRaw = body.highlightAccentRaw;
-      patch.highlightListEditedAt = nowISO();
+        const anchorChanged =
+          body.anchorLocation !== undefined ||
+          body.anchorLength !== undefined ||
+          body.anchorTextSnapshot !== undefined;
+        if (anchorChanged) {
+          const anchorLocation =
+            typeof body.anchorLocation === 'number' ? body.anchorLocation : locked.anchorLocation;
+          const anchorLength =
+            typeof body.anchorLength === 'number' ? body.anchorLength : locked.anchorLength;
+          const anchorTextSnapshot =
+            typeof body.anchorTextSnapshot === 'string'
+              ? body.anchorTextSnapshot
+              : locked.anchorTextSnapshot;
+          const currentVersion = await ensureAnchorableCurrentNoteVersion(tx, {
+            note: context.note,
+            now: nowISO(),
+          });
+          Object.assign(
+            patch,
+            {
+              anchorLocation,
+              anchorLength,
+              anchorTextSnapshot,
+              noteVersionId: currentVersion.id,
+            },
+            durableAnchorValues({
+              html: context.note.content,
+              start: anchorLocation,
+              length: anchorLength,
+              quote: anchorTextSnapshot,
+              now: nowISO(),
+            }),
+          );
+        }
+        const updated = first(
+          await tx
+            .update(StudyThreadEntries)
+            .set(patch as any)
+            .where(
+              and(
+                eq(StudyThreadEntries.id, id),
+                eq(StudyThreadEntries.parentNoteId, locked.parentNoteId),
+                context.spaceId
+                  ? eq(StudyThreadEntries.spaceId, context.spaceId)
+                  : isNull(StudyThreadEntries.spaceId),
+                eq(StudyThreadEntries.userId, auth.userId),
+              ),
+            )
+            .returning(),
+        );
+        if (!updated) throw new SharedStudyThreadAccessError(404, 'Response not found');
+        return { existing: locked, parentCtx: context, row: updated };
+      }));
+    } catch (err) {
+      return handleStudyThreadAccessError(c, err);
     }
-    if (typeof body.sourceSnippet === 'string') patch.sourceSnippet = body.sourceSnippet;
-    if (typeof body.focusTitle === 'string') patch.focusTitle = body.focusTitle;
-    if (typeof body.notesBody === 'string') patch.notesBody = body.notesBody;
-    if (typeof body.miniNoteBody === 'string') patch.miniNoteBody = body.miniNoteBody;
-    if (typeof body.linkedNoteId === 'string' || body.linkedNoteId === null) patch.linkedNoteId = body.linkedNoteId;
-    if (typeof body.linkedNoteTitle === 'string') patch.linkedNoteTitle = body.linkedNoteTitle;
-    if (typeof body.anchorLocation === 'number' || body.anchorLocation === null) patch.anchorLocation = body.anchorLocation;
-    if (typeof body.anchorLength === 'number' || body.anchorLength === null) patch.anchorLength = body.anchorLength;
-    if (typeof body.anchorTextSnapshot === 'string' || body.anchorTextSnapshot === null) {
-      patch.anchorTextSnapshot = body.anchorTextSnapshot;
-    }
-    if (typeof body.scriptureReference === 'string') {
-      patch.scriptureReference = normalizeScriptureReference(body.scriptureReference.trim()) ?? body.scriptureReference;
-    }
-    if (typeof body.scripturePassageTranslation === 'string') patch.scripturePassageTranslation = body.scripturePassageTranslation;
-    if (typeof body.scripturePassageExcerpt === 'string') patch.scripturePassageExcerpt = body.scripturePassageExcerpt;
-    if (typeof body.isArchived === 'boolean') patch.isArchived = body.isArchived;
-    if (typeof body.entryKind === 'string' && ENTRY_KINDS.has(body.entryKind)) patch.entryKindRaw = body.entryKind;
 
-    await db
-      .update(StudyThreadEntries)
-      .set(patch as any)
-      .where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId)));
+    await touchParentNoteEditedAt(existing.parentNoteId, parentCtx.note.userId, auth.userId);
+    broadcastInvalidation(existing.userId, { type: 'note:updated', id: existing.parentNoteId });
 
-    await touchParentNoteEditedAt(existing.parentNoteId, auth.userId);
-
-    const row = first(await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.id, id)).limit(1));
     return c.json({ success: true, studyThread: row ? mapStudyRow(row) : null });
   } catch (error: any) {
     const e = handleAPIError(error, { endpoint: '/api/study-threads/[id]', action: 'patch_study_thread' });
@@ -274,34 +688,100 @@ route.patch('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c)
 route.delete('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const id = c.req.param('id');
-    const existing = first(
-      await db
-        .select()
-        .from(StudyThreadEntries)
-        .where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId)))
-        .limit(1),
+    const id = c.req.param('id')!;
+    const contextSpaceId = normalizeContextSpaceId(
+      c.req.query('contextSpaceId') ?? c.req.query('spaceId'),
     );
-    if (!existing) return c.json({ error: 'Study thread not found' }, 404);
-
-    await db.delete(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId)));
-
-    await touchParentNoteEditedAt(existing.parentNoteId, auth.userId);
-
-    // If this was a linkedNote entry, also remove the mirrored NoteConnections edge.
-    if (existing.entryKindRaw === 'linkedNote' && existing.linkedNoteId) {
-      try {
-        await db.delete(NoteConnections).where(
-          and(
-            eq(NoteConnections.fromNoteId, existing.parentNoteId),
-            eq(NoteConnections.toNoteId, existing.linkedNoteId),
-            eq(NoteConnections.userId, auth.userId),
-          ),
+    let existing: typeof StudyThreadEntries.$inferSelect;
+    let parentCtx: StudyEntryParentContext;
+    try {
+      ({ existing, parentCtx } = await db.transaction(async (tx) => {
+        const locked = first(
+          await tx
+            .select()
+            .from(StudyThreadEntries)
+            .where(eq(StudyThreadEntries.id, id))
+            .for('update')
+            .limit(1),
         );
-      } catch {
-        // Best-effort — don't fail the delete if the edge is already gone.
-      }
+        if (!locked) throw new SharedStudyThreadAccessError(404, 'Response not found');
+        const context = await resolveStudyEntryParentContext(tx, {
+          parentNoteId: locked.parentNoteId,
+          actorId: auth.userId,
+          contextSpaceId,
+          lock: true,
+        });
+        if (locked.spaceId !== context.spaceId) {
+          throw new SharedStudyThreadAccessError(404, 'Response not found');
+        }
+        const membershipRole = context.isShared
+          ? first(
+              await tx
+                .select({ role: SpaceMemberships.role })
+                .from(SpaceMemberships)
+                .where(
+                  and(
+                    eq(SpaceMemberships.spaceId, context.spaceId!),
+                    eq(SpaceMemberships.userId, auth.userId),
+                  ),
+                )
+                .limit(1),
+            )?.role
+          : null;
+        const viewerRole =
+          context.note.userId === auth.userId
+            ? 'owner'
+            : membershipRole === 'owner' || membershipRole === 'leader' || membershipRole === 'member'
+              ? membershipRole
+              : null;
+        if (
+          !viewerRole ||
+          !canModerateStudyThreadEntry({
+            annotatorUserId: locked.userId,
+            parentAuthorUserId: context.note.userId,
+            viewerUserId: auth.userId,
+            viewerSpaceRole: viewerRole,
+          })
+        ) {
+          throw new SharedStudyThreadAccessError(
+            403,
+            'You cannot delete this annotation',
+            'FORBIDDEN',
+          );
+        }
+        await tx
+          .delete(StudyThreadEntries)
+          .where(
+            and(
+              eq(StudyThreadEntries.id, id),
+              eq(StudyThreadEntries.parentNoteId, locked.parentNoteId),
+              context.spaceId
+                ? eq(StudyThreadEntries.spaceId, context.spaceId)
+                : isNull(StudyThreadEntries.spaceId),
+            ),
+          );
+        if (locked.entryKindRaw === 'linkedNote' && locked.linkedNoteId) {
+          await tx
+            .delete(NoteConnections)
+            .where(
+              and(
+                eq(NoteConnections.fromNoteId, locked.parentNoteId),
+                eq(NoteConnections.toNoteId, locked.linkedNoteId),
+                eq(NoteConnections.userId, locked.userId),
+                context.spaceId
+                  ? eq(NoteConnections.spaceId, context.spaceId)
+                  : isNull(NoteConnections.spaceId),
+              ),
+            );
+        }
+        return { existing: locked, parentCtx: context };
+      }));
+    } catch (err) {
+      return handleStudyThreadAccessError(c, err);
     }
+
+    await touchParentNoteEditedAt(existing.parentNoteId, parentCtx.note.userId, auth.userId);
+    broadcastInvalidation(existing.userId, { type: 'note:updated', id: existing.parentNoteId });
 
     return c.json({ success: true, deletedId: id });
   } catch (error: any) {

@@ -7,6 +7,7 @@ import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { PROTO_SIDEBAR_TOOLBAR_SUPPRESS_BELOW, useProtoShell } from '../../layouts/proto-shell-context';
 import SpaceSwitcherMenu from './SpaceSwitcherMenu';
 import ListViewMenu from './ListViewMenu';
@@ -24,12 +25,15 @@ export default function PrototypeSidebarToolbar({
   admin?: boolean;
 }) {
   const navigate = useNavigate();
-  const { homeSpaceId, shellAuthReady } = usePrototypeHomeSpaceId();
-  const { sidebarWidth, toggleDesktopSidebar, desktopSidebarCollapsed, sidebarExiting } = useProtoShell();
+  const { homeSpaceId, authReady } = usePrototypeHomeSpaceId();
+  const { isSharedSpace, activeSpaceId } = useActiveSpace();
+  const { sidebarWidth, toggleDesktopSidebar, desktopSidebarCollapsed, sidebarExiting, sidebarListMode } = useProtoShell();
   const showShiftHints = usePrototypeShiftHints();
 
   const isDrawer = variant === 'drawer';
-  const showClusterChrome = !admin && (isDrawer || sidebarWidth >= PROTO_SIDEBAR_TOOLBAR_SUPPRESS_BELOW);
+  const showSpaceSwitcher =
+    !admin && (isDrawer || sidebarWidth >= PROTO_SIDEBAR_TOOLBAR_SUPPRESS_BELOW);
+  const showListViewMenu = !admin;
   const sidebarOpen = !desktopSidebarCollapsed && !sidebarExiting;
 
   return (
@@ -54,11 +58,9 @@ export default function PrototypeSidebarToolbar({
         </button>
       ) : null}
       <div className="proto-sidebar-toolbar__cluster">
-        {showClusterChrome ? (
-          <>
-            <SpaceSwitcherMenu homeSpaceId={homeSpaceId} shellAuthReady={shellAuthReady} />
-            <ListViewMenu disabled={!homeSpaceId} variant="icon-only" />
-          </>
+        {showSpaceSwitcher ? <SpaceSwitcherMenu homeSpaceId={homeSpaceId} authReady={authReady} /> : null}
+        {showListViewMenu ? (
+          <ListViewMenu disabled={!(isSharedSpace ? activeSpaceId : homeSpaceId)} variant="icon-only" />
         ) : null}
         {!isDrawer ? (
           <PrototypeToolbarShortcutItem shortcut="S" showShortcut={showShiftHints}>

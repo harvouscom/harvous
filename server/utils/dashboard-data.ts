@@ -11,8 +11,8 @@
  */
 
 import {
-  db, first, Threads, Notes, Spaces, Members, NoteThreads,
-  NoteScriptureReferences, ScriptureMetadata, ResourceMetadata,
+  db, first, Threads, Notes, Spaces, SpaceNotes, NoteThreads, SpaceMemberships, UserMetadata,
+  Churches, NoteScriptureReferences, ScriptureMetadata, ResourceMetadata,
   eq, and, desc, asc, count, ne, isNull, isNotNull, inArray, sql,
 } from '../db';
 import { nowISO } from '../db/dates';
@@ -28,6 +28,116 @@ import {
   NOT_ONBOARDING_SYSTEM_NOTES,
   NOT_ONBOARDING_THREADS,
 } from './purge-onboarding-content';
+import { serializeSharedCanonicalNote } from './shared-note-serializer';
+import { requireThreadReadAccess } from './shared-space-lifecycle';
+
+export type AuthorAttribution = {
+  displayName: string;
+  userColor: string;
+  firstName: string | null;
+  profileImageUrl: string | null;
+};
+
+type ChurchNavFields = {
+  churchName?: string | null;
+  churchCity?: string | null;
+  churchState?: string | null;
+};
+
+/** Attach Churches name + location for org-owned spaces (ministry / church-scoped). */
+async function attachChurchNamesToSpaces<T extends { orgId?: string | null }>(
+  spaces: T[],
+): Promise<Array<T & ChurchNavFields>> {
+  const orgIds = [
+    ...new Set(spaces.map((space) => space.orgId).filter((id): id is string => Boolean(id))),
+  ];
+  if (orgIds.length === 0) {
+    return spaces.map((space) => ({
+      ...space,
+      churchName: null,
+      churchCity: null,
+      churchState: null,
+    }));
+  }
+  try {
+    const churches = await db
+      .select({
+        orgId: Churches.orgId,
+        name: Churches.name,
+        city: Churches.city,
+        state: Churches.state,
+      })
+      .from(Churches)
+      .where(and(inArray(Churches.orgId, orgIds), eq(Churches.isActive, true), isNull(Churches.deletedAt)));
+    const byOrg = new Map(
+      churches.map((church) => [
+        church.orgId,
+        {
+          churchName: church.name,
+          churchCity: church.city ?? null,
+          churchState: church.state ?? null,
+        },
+      ]),
+    );
+    return spaces.map((space) => {
+      const meta = space.orgId ? byOrg.get(space.orgId) : undefined;
+      return {
+        ...space,
+        churchName: meta?.churchName ?? null,
+        churchCity: meta?.churchCity ?? null,
+        churchState: meta?.churchState ?? null,
+      };
+    });
+  } catch (error) {
+    console.error('Error attaching church names to spaces:', error);
+    return spaces.map((space) => ({
+      ...space,
+      churchName: null,
+      churchCity: null,
+      churchState: null,
+    }));
+  }
+}
+
+/** Batched UserMetadata lookup for shared-space author chips (notes, highlights). */
+export async function batchAuthorAttribution(
+  userIds: string[],
+): Promise<Record<string, AuthorAttribution>> {
+  const unique = [...new Set(userIds.filter(Boolean))];
+  if (unique.length === 0) return {};
+  try {
+    const rows = await db
+      .select({
+        userId: UserMetadata.userId,
+        firstName: UserMetadata.firstName,
+        lastName: UserMetadata.lastName,
+        userColor: UserMetadata.userColor,
+        profileImageUrl: UserMetadata.profileImageUrl,
+      })
+      .from(UserMetadata)
+      .where(inArray(UserMetadata.userId, unique));
+    return rows.reduce(
+      (acc, row) => {
+        const firstName = row.firstName || '';
+        const lastInitial = row.lastName ? row.lastName.charAt(0).toUpperCase() : '';
+        acc[row.userId] = {
+          displayName: firstName
+            ? lastInitial
+              ? `${firstName} ${lastInitial}.`
+              : firstName
+            : 'A Harvous User',
+          userColor: row.userColor || 'blue',
+          firstName: row.firstName || null,
+          profileImageUrl: row.profileImageUrl || null,
+        };
+        return acc;
+      },
+      {} as Record<string, AuthorAttribution>,
+    );
+  } catch {
+    return {};
+  }
+}
 
 // ─── Private helpers ────────────────────────────────────────────────────────────
 
@@ -48,6 +158,22 @@ function extractScriptureTranslationFromNoteContent(content: string | null | und
   const parsed = match[1]?.trim();
   if (!parsed) return undefined;
   return parsed.toUpperCase();
+}
+
+/**
+ * Owner thread lists may include personal-space and null-space Threads, but
+ * must not surface metadata from soft-deleted shared/public spaces.
+ */
+export function activeOwnerThreadSpacePredicate() {
+  return sql`(
+    ${Threads.spaceId} IS NULL
+    OR EXISTS (
+      SELECT 1
+      FROM ${Spaces}
+      WHERE ${Spaces.id} = ${Threads.spaceId}
+        AND (${Spaces.type} = 'personal' OR ${Spaces.deletedAt} IS NULL)
+    )
+  )`;
 }
 
 /**
@@ -117,18 +243,6 @@ async function findUnorganizedThread(userId: string) {
   }
 }
 
-/**
- * Get the member count for a space (inlined from tier-limits.ts).
- */
-async function getSpaceMemberCount(spaceId: string): Promise<number> {
-  const row = first(
-    await db.select({ cnt: count() })
-      .from(Members)
-      .where(eq(Members.spaceId, spaceId)),
-  );
-  return row?.cnt ?? 0;
-}
-
 // ─── Exported functions ─────────────────────────────────────────────────────────
 
 export async function getAllThreadsWithCounts(userId: string) {
@@ -145,6 +259,7 @@ export async function getAllThreadsWithCounts(userId: string) {
       eq(Threads.userId, userId),
       ne(Threads.id, "thread_unorganized"),
       NOT_ONBOARDING_THREADS,
+      activeOwnerThreadSpacePredicate(),
     ))
     .orderBy(
       desc(Threads.isPinned),
@@ -267,18 +382,27 @@ export async function getAllThreadsWithCounts(userId: string) {
 export async function getSpacesWithCounts(userId: string) {
   try {
     // Run all three independent count queries in parallel
-    const [spacesWithThreadCounts, standaloneNoteCounts, totalNoteCounts] = await Promise.all([
+    const [
+      spacesWithThreadCounts,
+      standaloneNoteCounts,
+      totalNoteCounts,
+      authoredNoteCountRow,
+      sharedNoteCounts,
+    ] = await Promise.all([
       db.select({
         id: Spaces.id, title: Spaces.title, description: Spaces.description,
+        publishCadence: Spaces.publishCadence,
         color: Spaces.color, backgroundGradient: Spaces.backgroundGradient,
-        isPublic: Spaces.isPublic, isActive: Spaces.isActive,
+        coverBgLight: Spaces.coverBgLight, coverBgDark: Spaces.coverBgDark,
+        isPublic: Spaces.isPublic, isActive: Spaces.isActive, type: Spaces.type,
+        orgId: Spaces.orgId,
         createdAt: Spaces.createdAt, updatedAt: Spaces.updatedAt,
         lastVisited: Spaces.lastVisited,
         threadCount: count(Threads.id),
       })
       .from(Spaces)
       .leftJoin(Threads, eq(Spaces.id, Threads.spaceId))
-      .where(eq(Spaces.userId, userId))
+      .where(and(eq(Spaces.userId, userId), isNull(Spaces.deletedAt)))
       .groupBy(Spaces.id)
       .orderBy(
         desc(Spaces.isActive),
@@ -314,15 +438,43 @@ export async function getSpacesWithCounts(userId: string) {
       ))
       .groupBy(Notes.spaceId)
       ,
+      db.select({ totalNoteCount: count(Notes.id) })
+        .from(Notes)
+        .where(eq(Notes.userId, userId))
+        .then((rows) => first(rows)),
+      db.select({ spaceId: SpaceNotes.spaceId, totalNoteCount: count(SpaceNotes.noteId) })
+        .from(SpaceNotes)
+        .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
+        .where(and(isNull(SpaceNotes.removedAt), eq(Notes.contentEncrypted, false)))
+        .groupBy(SpaceNotes.spaceId),
     ]);
 
     const standaloneCountMap = new Map(standaloneNoteCounts.map(item => [item.spaceId, item.standaloneNoteCount]));
     const totalCountMap = new Map(totalNoteCounts.map(item => [item.spaceId, item.totalNoteCount]));
+    const sharedCountMap = new Map(sharedNoteCounts.map((item) => [item.spaceId, item.totalNoteCount]));
+    for (const space of spacesWithThreadCounts) {
+      if (space.type !== 'shared' && space.type !== 'public') continue;
+      const associationCount = sharedCountMap.get(space.id) ?? 0;
+      totalCountMap.set(space.id, associationCount);
+      standaloneCountMap.set(space.id, associationCount);
+    }
+    const myHome = spacesWithThreadCounts.find(
+      (space) =>
+        space.type === 'personal' &&
+        space.title.trim().toLowerCase() === 'my home',
+    );
+    if (myHome) totalCountMap.set(myHome.id, authoredNoteCountRow?.totalNoteCount ?? 0);
 
-    return spacesWithThreadCounts.map(space => ({
+    const mapped = spacesWithThreadCounts.map(space => ({
       id: space.id, title: space.title, description: space.description,
+      publishCadence: space.publishCadence ?? null,
       color: space.color, backgroundGradient: space.backgroundGradient,
-      isPublic: space.isPublic, isActive: space.isActive,
+      // Prefetch owner path reads these — dropping them made saved cover variants
+      // fall back to family variant 1 after refresh.
+      coverBgLight: space.coverBgLight ?? null,
+      coverBgDark: space.coverBgDark ?? null,
+      isPublic: space.isPublic, isActive: space.isActive, type: space.type,
+      orgId: space.orgId ?? null,
       createdAt: space.createdAt, updatedAt: space.updatedAt,
       lastVisited: space.lastVisited,
       threadCount: space.threadCount || 0,
@@ -331,20 +483,40 @@ export async function getSpacesWithCounts(userId: string) {
       totalNoteCount: totalCountMap.get(space.id) || 0,
       lastUpdated: space.lastVisited || space.updatedAt || space.createdAt,
     }));
+    return attachChurchNamesToSpaces(mapped);
   } catch (error) {
     console.error("Error fetching spaces:", error);
     return [];
   }
 }
 
-export async function getMemberOfSpaces(userId: string): Promise<Array<{ id: string; title: string | null; color: string | null; memberCount: number; totalItemCount: number }>> {
+export async function getMemberOfSpaces(userId: string): Promise<Array<{
+  id: string;
+  title: string | null;
+  color: string | null;
+  type: string;
+  role: string;
+  memberCount: number;
+  totalItemCount: number;
+  orgId?: string | null;
+  churchName?: string | null;
+  publishCadence?: string | null;
+}>> {
   try {
-    // Single JOIN to get all spaces the user is a member of (but does not own)
+    // Single JOIN to get all shared/public spaces the user belongs to but does not own.
     const spaceRows = await db
-      .select({ id: Spaces.id, title: Spaces.title, color: Spaces.color })
-      .from(Members)
-      .innerJoin(Spaces, eq(Members.spaceId, Spaces.id))
-      .where(and(eq(Members.userId, userId), ne(Spaces.userId, userId)));
+      .select({
+        id: Spaces.id,
+        title: Spaces.title,
+        color: Spaces.color,
+        type: Spaces.type,
+        orgId: Spaces.orgId,
+        publishCadence: Spaces.publishCadence,
+        role: SpaceMemberships.role,
+      })
+      .from(SpaceMemberships)
+      .innerJoin(Spaces, eq(SpaceMemberships.spaceId, Spaces.id))
+      .where(and(eq(SpaceMemberships.userId, userId), ne(Spaces.userId, userId), isNull(Spaces.deletedAt)));
 
     if (spaceRows.length === 0) return [];
 
@@ -352,31 +524,41 @@ export async function getMemberOfSpaces(userId: string): Promise<Array<{ id: str
 
     // Three aggregation queries instead of 2N individual queries
     const [memberCounts, threadCounts, noteCounts] = await Promise.all([
-      db.select({ spaceId: Members.spaceId, cnt: count() })
-        .from(Members)
-        .where(inArray(Members.spaceId, spaceIds))
-        .groupBy(Members.spaceId),
+      db.select({ spaceId: SpaceMemberships.spaceId, cnt: count() })
+        .from(SpaceMemberships)
+        .where(inArray(SpaceMemberships.spaceId, spaceIds))
+        .groupBy(SpaceMemberships.spaceId),
       db.select({ spaceId: Threads.spaceId, cnt: count() })
         .from(Threads)
         .where(and(isNotNull(Threads.spaceId), inArray(Threads.spaceId, spaceIds)))
         .groupBy(Threads.spaceId),
-      db.select({ spaceId: Notes.spaceId, cnt: count() })
-        .from(Notes)
-        .where(and(isNotNull(Notes.spaceId), inArray(Notes.spaceId, spaceIds)))
-        .groupBy(Notes.spaceId),
+      db.select({ spaceId: SpaceNotes.spaceId, cnt: count() })
+        .from(SpaceNotes)
+        .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
+        .where(and(
+          inArray(SpaceNotes.spaceId, spaceIds),
+          isNull(SpaceNotes.removedAt),
+          eq(Notes.contentEncrypted, false),
+        ))
+        .groupBy(SpaceNotes.spaceId),
     ]);
 
     const memberCountMap = new Map(memberCounts.map(r => [r.spaceId, r.cnt]));
     const threadCountMap = new Map(threadCounts.map(r => [r.spaceId!, r.cnt]));
     const noteCountMap = new Map(noteCounts.map(r => [r.spaceId!, r.cnt]));
 
-    return spaceRows.map(space => ({
+    const mapped = spaceRows.map(space => ({
       id: space.id,
       title: space.title,
       color: space.color,
+      type: space.type,
+      orgId: space.orgId ?? null,
+      publishCadence: space.publishCadence ?? null,
+      role: space.role,
       memberCount: memberCountMap.get(space.id) || 0,
       totalItemCount: (threadCountMap.get(space.id) || 0) + (noteCountMap.get(space.id) || 0),
     }));
+    return attachChurchNamesToSpaces(mapped);
   } catch (error) {
     console.error("Error fetching member-of spaces:", error);
     return [];
@@ -404,7 +586,7 @@ export async function getThreadWithCount(threadId: string, userId: string) {
       lastVisited: Threads.lastVisited,
     })
     .from(Threads)
-    .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)))
+    .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId), activeOwnerThreadSpacePredicate()))
     .limit(1));
 
     if (!thread) return null;
@@ -461,7 +643,12 @@ export async function getThreadsWithCountsLimited(userId: string, limit?: number
       lastVisited: Threads.lastVisited,
     })
     .from(Threads)
-    .where(and(eq(Threads.userId, userId), ne(Threads.id, "thread_unorganized"), NOT_ONBOARDING_THREADS))
+    .where(and(
+      eq(Threads.userId, userId),
+      ne(Threads.id, "thread_unorganized"),
+      NOT_ONBOARDING_THREADS,
+      activeOwnerThreadSpacePredicate(),
+    ))
     .orderBy(
       desc(Threads.isPinned),
       asc(sql`CASE WHEN ${Threads.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
@@ -625,6 +812,42 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
       scriptureCount = allNotes.filter(n => n.noteType === 'scripture').length;
       resourceCount = allNotes.filter(n => n.noteType === 'resource').length;
     } else {
+      const threadContext = first(
+        await db
+          .select({ spaceId: Threads.spaceId })
+          .from(Threads)
+          .where(eq(Threads.id, threadId))
+          .limit(1),
+      );
+      if (threadContext?.spaceId) {
+        const sharedNotes = await db
+          .select({ id: Notes.id, noteType: Notes.noteType })
+          .from(NoteThreads)
+          .innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
+          .innerJoin(
+            SpaceNotes,
+            and(
+              eq(SpaceNotes.noteId, Notes.id),
+              eq(SpaceNotes.spaceId, threadContext.spaceId),
+              isNull(SpaceNotes.removedAt),
+            ),
+          )
+          .where(
+            and(
+              eq(NoteThreads.threadId, threadId),
+              eq(Notes.contentEncrypted, false),
+            ),
+          );
+        const uniqueSharedNotes = [
+          ...new Map(sharedNotes.map((note) => [note.id, note])).values(),
+        ];
+        return {
+          all: uniqueSharedNotes.length,
+          default: uniqueSharedNotes.filter((note) => !note.noteType || note.noteType === 'default').length,
+          scripture: uniqueSharedNotes.filter((note) => note.noteType === 'scripture').length,
+          resource: uniqueSharedNotes.filter((note) => note.noteType === 'resource').length,
+        };
+      }
       const threadNotes = await db.select({ id: Notes.id, noteType: Notes.noteType })
         .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)));
@@ -689,13 +912,16 @@ const NOTE_SELECT_COLUMNS = {
 
 /**
  * Max characters of note HTML returned in *list* responses (thread/space note
- * lists, sidebar). List/preview surfaces only render a short stripped preview;
- * the full note body is loaded on open via GET /api/notes/:id/details. Capping
- * content here keeps list payloads small for long notes. The cap is generous so
- * that typical-length notes are still returned in full. Offline reads are served
- * from IndexedDB (sync bootstrap), so this truncation does not affect them.
+ * lists, sidebar). List/preview surfaces only render a short stripped preview,
+ * and the client always flags list content as a preview (useNote.ts
+ * __contentIsPreview) and loads the full body on open via GET
+ * /api/notes/:id/details — so this truncation is never user-visible as
+ * "missing" content. Kept generous enough to cover a card preview strip while
+ * keeping list payloads small: at limit=100 a 20k cap meant up to ~2 MB of HTML
+ * per bootstrap response, dominated by content the list never renders. Offline
+ * reads are served from IndexedDB (sync bootstrap), unaffected by this cap.
  */
-const NOTE_LIST_CONTENT_MAX_CHARS = 20000;
+const NOTE_LIST_CONTENT_MAX_CHARS = 2000;
 
 /** List-payload column set: same as NOTE_SELECT_COLUMNS but content is truncated. */
 const NOTE_LIST_SELECT = {
@@ -867,29 +1093,55 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
 
 export async function getNotesForThreadForMember(
   threadId: string,
-  ownerUserId: string,
+  viewerUserId: string,
   limit = 100,
   offset = 0
 ): Promise<{ notes: any[]; hasMore: boolean }> {
-  try {
+    await requireThreadReadAccess(db, { threadId, viewerUserId });
     const fetchLimit = limit + offset + 1;
+    const contextThread = first(
+      await db
+        .select({ spaceId: Threads.spaceId })
+        .from(Threads)
+        .where(eq(Threads.id, threadId))
+        .limit(1),
+    );
+    if (!contextThread?.spaceId) return { notes: [], hasMore: false };
     const memberThreadOrderBy = isOnboardingThread(threadId)
       ? [asc(Notes.simpleNoteId), asc(Notes.id)]
       : [
-          asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-          desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id),
+          desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id),
         ];
-    const junctionNotes = await db.select(NOTE_LIST_SELECT)
+    const sharedThreadSelect = {
+      ...NOTE_LIST_SELECT,
+      associationIsPinned: SpaceNotes.isPinned,
+      associationPrimaryCollection: SpaceNotes.primaryCollection,
+      associationSecondaryCollections: SpaceNotes.secondaryCollections,
+      associationCollectionPinned: SpaceNotes.collectionPinned,
+      associationOrder: SpaceNotes.order,
+    } as const;
+    const junctionNotes = await db.select(sharedThreadSelect)
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-      .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false)))
+      .innerJoin(
+        SpaceNotes,
+        and(
+          eq(SpaceNotes.noteId, Notes.id),
+          eq(SpaceNotes.spaceId, contextThread.spaceId),
+        ),
+      )
+      .where(and(
+        eq(NoteThreads.threadId, threadId),
+        isNull(SpaceNotes.removedAt),
+        eq(Notes.contentEncrypted, false),
+      ))
       .orderBy(...memberThreadOrderBy)
       .limit(fetchLimit);
 
     const mappedMember = junctionNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
     const sortedAllNotes = isOnboardingThread(threadId)
       ? sortOnboardingThreadNotes(mappedMember)
-      : sortByLastVisited(mappedMember);
+      : sortNotesByLastUpdated(mappedMember);
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 
@@ -897,33 +1149,30 @@ export async function getNotesForThreadForMember(
     const scriptureNoteIds = sortedNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];
     const noteIds = sortedNotes.map(n => n.id).filter(Boolean) as string[];
 
-    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap] = await Promise.all([
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap, authorMap] = await Promise.all([
       (async () => {
         if (resourceNoteIds.length === 0) return {} as Record<string, any>;
-        try {
-          const rm = await db.select({
-            noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
-            sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
-            sourceDomain: ResourceMetadata.sourceDomain, sourceName: ResourceMetadata.sourceName,
-          }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds));
-          return rm.reduce((acc: any, meta) => {
-            acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
-            return acc;
-          }, {} as Record<string, any>);
-        } catch (_) { return {} as Record<string, any>; }
+        const rm = await db.select({
+          noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
+          sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
+          sourceDomain: ResourceMetadata.sourceDomain, sourceName: ResourceMetadata.sourceName,
+        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds));
+        return rm.reduce((acc: any, meta) => {
+          acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
+          return acc;
+        }, {} as Record<string, any>);
       })(),
       (async (): Promise<Record<string, string>> => {
         if (scriptureNoteIds.length === 0) return {};
-        try {
-          const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
-            .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
-          return rows.reduce((acc, row) => {
-            if (row.noteId && row.translation) acc[row.noteId] = row.translation;
-            return acc;
-          }, {} as Record<string, string>);
-        } catch (_) { return {}; }
+        const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
+          .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
+        return rows.reduce((acc, row) => {
+          if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+          return acc;
+        }, {} as Record<string, string>);
       })(),
-      getThreadColorsForNotesBatch(noteIds, ownerUserId),
+      Promise.resolve(new Map<string, Array<{ color: string; frequency: number }>>()),
+      batchAuthorAttribution(sortedNotes.map((note) => note.userId)),
     ]);
 
     const notesWithThreadColors = sortedNotes.map(note => {
@@ -932,24 +1181,29 @@ export async function getNotesForThreadForMember(
       const version = note.noteType === 'scripture'
         ? (scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? 'NET')
         : undefined;
-      return {
+      return serializeSharedCanonicalNote({
         ...note,
-        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
-        lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
-        lastVisited: note.lastVisited,
+        contextSpaceId: contextThread.spaceId!,
+        contextThreadId: sharedThreadResultThreadId(note.threadId, threadId),
+        authorUserId: note.userId,
+        authorDisplayName: authorMap[note.userId]?.displayName ?? 'Former member',
+        authorColor: authorMap[note.userId]?.userColor ?? 'blue',
         resourceTitle: resourceMeta?.sourceTitle || null,
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
         version,
-      };
+      });
     });
 
     return { notes: notesWithThreadColors, hasMore };
-  } catch (error) {
-    console.error("Error fetching notes for thread (member):", error);
-    return { notes: [], hasMore: false };
-  }
+}
+
+export function sharedThreadResultThreadId(
+  _canonicalPrivateThreadId: string | null | undefined,
+  contextThreadId: string,
+): string {
+  return contextThreadId;
 }
 
 // ─── Dashboard note helpers ─────────────────────────────────────────────────────
@@ -1082,7 +1336,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
 
     if (defaultNoteIds.length > 0) {
       try {
-        let junctionEntries = await db.select({
+        const junctionEntries = await db.select({
           noteId: NoteScriptureReferences.noteId,
           scriptureNoteId: NoteScriptureReferences.scriptureNoteId,
         })
@@ -1090,19 +1344,6 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
         .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
         .where(and(inArray(NoteScriptureReferences.noteId, defaultNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')))
         ;
-
-        // Retry once after short delay if junction is empty (handles read-after-write when refs were just committed by another request)
-        if (junctionEntries.length === 0 && offset === 0) {
-          await new Promise(r => setTimeout(r, 80));
-          junctionEntries = await db.select({
-            noteId: NoteScriptureReferences.noteId,
-            scriptureNoteId: NoteScriptureReferences.scriptureNoteId,
-          })
-          .from(NoteScriptureReferences)
-          .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
-          .where(and(inArray(NoteScriptureReferences.noteId, defaultNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')))
-          ;
-        }
 
         const scriptureNoteIds = [...new Set(junctionEntries.map(e => e.scriptureNoteId))];
         let scriptureMetadataMap: Record<string, { reference: string; translation?: string }> = {};
@@ -1356,6 +1597,13 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
   }
 }
 
+export function visibleSharedThreadsForViewer<T extends { isPinned: boolean }>(
+  threads: T[],
+  viewerIsOwner: boolean,
+): T[] {
+  return viewerIsOwner ? threads : threads.filter((thread) => thread.isPinned);
+}
+
 export async function getThreadsForSpaceBySpaceId(spaceId: string) {
   try {
     const chronological = await spaceUsesChronologicalOrdering(spaceId);
@@ -1427,9 +1675,20 @@ export async function getNotesForSpace(
   try {
     const fetchLimit = limit + offset + 1;
     const chronological = await spaceUsesChronologicalOrdering(spaceId);
+    const contextSpace = first(
+      await db
+        .select({ title: Spaces.title, type: Spaces.type, userId: Spaces.userId })
+        .from(Spaces)
+        .where(eq(Spaces.id, spaceId))
+        .limit(1),
+    );
+    const isMyHomeAggregate =
+      contextSpace?.type === 'personal' &&
+      contextSpace.userId === userId &&
+      contextSpace.title.trim().toLowerCase() === 'my home';
     const spaceWhere = and(
-      eq(Notes.spaceId, spaceId),
       eq(Notes.userId, userId),
+      ...(isMyHomeAggregate ? [] : [eq(Notes.spaceId, spaceId)]),
       NOT_ONBOARDING_NOTES_THREAD,
       NOT_ONBOARDING_SYSTEM_NOTES,
       ...(options?.excludeLegacyScriptureNotes ? [ne(Notes.noteType, 'scripture')] : []),
@@ -1514,6 +1773,7 @@ export async function getNotesForSpace(
         : undefined;
       return {
         ...note,
+        contextSpaceId: isMyHomeAggregate ? spaceId : note.spaceId,
         secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
         lastUpdated: sortByLastUpdated
           ? note.updatedAt || note.createdAt
@@ -1534,96 +1794,159 @@ export async function getNotesForSpace(
   }
 }
 
+/**
+ * Merged-author note list for shared (and future public) spaces.
+ *
+ * Unlike getNotesForSpace this does NOT filter by author: every member's
+ * contributions appear, locked notes are excluded for every viewer (including
+ * their own — docs rule), and each row carries author attribution fields
+ * (authorUserId / authorDisplayName / authorColor) from UserMetadata so the
+ * client doesn't need an N+1 against the members endpoint.
+ */
+export async function getNotesForSharedSpace(
+  spaceId: string,
+  viewerUserId: string,
+  limit = 20,
+  offset = 0,
+  options?: GetNotesForSpaceOptions,
+) {
+  try {
+    const fetchLimit = limit + offset + 1;
+    const chronological = await spaceUsesChronologicalOrdering(spaceId);
+    const spaceWhere = and(
+      eq(SpaceNotes.spaceId, spaceId),
+      isNull(SpaceNotes.removedAt),
+      eq(Notes.contentEncrypted, false),
+      NOT_ONBOARDING_NOTES_THREAD,
+      NOT_ONBOARDING_SYSTEM_NOTES,
+      ...(options?.excludeLegacyScriptureNotes ? [ne(Notes.noteType, 'scripture')] : []),
+    );
+    const sortByLastUpdated = options?.sortByLastUpdated === true;
+    const select = {
+      ...NOTE_LIST_SELECT,
+      userId: Notes.userId,
+      associationIsPinned: SpaceNotes.isPinned,
+      associationPrimaryCollection: SpaceNotes.primaryCollection,
+      associationSecondaryCollections: SpaceNotes.secondaryCollections,
+      associationCollectionPinned: SpaceNotes.collectionPinned,
+      associationOrder: SpaceNotes.order,
+    } as const;
+    const allNotes = chronological
+      ? await db
+          .select(select)
+          .from(SpaceNotes)
+          .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
+          .where(spaceWhere)
+          .orderBy(desc(SpaceNotes.isPinned), asc(Notes.createdAt), asc(Notes.id))
+          .limit(fetchLimit)
+      : sortByLastUpdated
+        ? await db
+            .select(select)
+            .from(SpaceNotes)
+            .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
+            .where(spaceWhere)
+            .orderBy(desc(SpaceNotes.isPinned), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id))
+            .limit(fetchLimit)
+        : await db
+            .select(select)
+            .from(SpaceNotes)
+            .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
+            .where(spaceWhere)
+            .orderBy(
+              desc(SpaceNotes.isPinned),
+              desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
+            )
+            .limit(fetchLimit);
+
+    const mapped = allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
+    const sortedAllNotes = chronological
+      ? sortByCreatedAtAsc(mapped)
+      : sortNotesByLastUpdated(mapped);
+    const hasMore = sortedAllNotes.length > offset + limit;
+    const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
+
+    const totalRow = first(
+      await db
+        .select({ value: count() })
+        .from(SpaceNotes)
+        .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
+        .where(spaceWhere),
+    );
+    const total = totalRow?.value ?? sortedAllNotes.length;
+
+    const resourceNoteIds = sortedNotes.filter(n => n.noteType === 'resource').map(n => n.id);
+    const scriptureNoteIds = sortedNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];
+    const noteIds = sortedNotes.map(n => n.id).filter(Boolean) as string[];
+    const authorIds = [...new Set(sortedNotes.map(n => n.userId).filter(Boolean))] as string[];
+
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap, authorMap] = await Promise.all([
+      (async (): Promise<Record<string, any>> => {
+        if (resourceNoteIds.length === 0) return {};
+        try {
+          const rm = await db.select({
+            noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
+            sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
+            sourceDomain: ResourceMetadata.sourceDomain, sourceName: ResourceMetadata.sourceName,
+          }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds));
+          return rm.reduce((acc: any, meta) => {
+            acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
+            return acc;
+          }, {});
+        } catch (_) { return {}; }
+      })(),
+      (async (): Promise<Record<string, string>> => {
+        if (scriptureNoteIds.length === 0) return {};
+        try {
+          const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
+            .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
+          return rows.reduce((acc, row) => {
+            if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+            return acc;
+          }, {} as Record<string, string>);
+        } catch (_) { return {}; }
+      })(),
+      Promise.resolve(new Map<string, Array<{ color: string; frequency: number }>>()),
+      batchAuthorAttribution(authorIds),
+    ]);
+
+    const notesWithMeta = sortedNotes.map(note => {
+      const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
+      const threadColors = threadColorsMap.get(note.id);
+      const author = authorMap[note.userId as string];
+      const version = note.noteType === 'scripture'
+        ? (scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? 'NET')
+        : undefined;
+      return serializeSharedCanonicalNote({
+        ...note,
+        contextSpaceId: spaceId,
+        contextThreadId: null,
+        lastUpdated: note.updatedAt || note.createdAt,
+        resourceTitle: resourceMeta?.sourceTitle || null,
+        resourceDescription: resourceMeta?.sourceDescription || null,
+        resourceImage: resourceMeta?.sourceImage || null,
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+        version,
+        authorUserId: note.userId,
+        authorDisplayName: author?.displayName ?? 'Member',
+        authorColor: author?.userColor ?? 'blue',
+        isOwnNote: note.userId === viewerUserId,
+      });
+    });
+
+    return { notes: notesWithMeta, hasMore, total };
+  } catch (error) {
+    console.error("Error fetching notes for shared space:", error);
+    return { notes: [], hasMore: false, total: 0 };
+  }
+}
+
+/** @deprecated superseded by getNotesForSharedSpace (merged-author, paginated, attributed). */
 export async function getNotesForSpaceForMember(
   spaceId: string,
   ownerUserId: string,
   limit = 100,
   offset = 0
 ): Promise<{ notes: any[]; hasMore: boolean }> {
-  try {
-    const fetchLimit = limit + offset + 1;
-    const chronological = await spaceUsesChronologicalOrdering(spaceId);
-    const allNotes = chronological
-      ? await db
-          .select({ ...NOTE_LIST_SELECT, userId: Notes.userId })
-          .from(Notes)
-          .where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false)))
-          .orderBy(desc(Notes.isPinned), asc(Notes.createdAt), asc(Notes.id))
-          .limit(fetchLimit)
-      : await db
-          .select({ ...NOTE_LIST_SELECT, userId: Notes.userId })
-          .from(Notes)
-          .where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false)))
-          .orderBy(
-            desc(Notes.isPinned),
-            asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-            desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
-          )
-          .limit(fetchLimit);
-
-    const mapped = allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
-    const sortedAllNotes = chronological ? sortByCreatedAtAsc(mapped) : sortNotesByLastVisited(mapped);
-    const hasMore = sortedAllNotes.length > offset + limit;
-    const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
-
-    const resourceNoteIds = sortedNotes.filter(n => n.noteType === 'resource').map(n => n.id);
-    let resourceMetadataMap: Record<string, any> = {};
-    if (resourceNoteIds.length > 0) {
-      try {
-        const rm = await db.select({
-          noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
-          sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
-          sourceDomain: ResourceMetadata.sourceDomain, sourceName: ResourceMetadata.sourceName,
-        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds));
-        resourceMetadataMap = rm.reduce((acc: any, meta) => {
-          acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
-          return acc;
-        }, {});
-      } catch (_) {}
-    }
-
-    // Scripture version (translation) for scripture notes.
-    // This powers the `CondensedNoteItem` translation badge in space member views.
-    const scriptureNoteIds = sortedNotes
-      .filter(n => n.noteType === 'scripture')
-      .map(n => n.id)
-      .filter(Boolean) as string[];
-    let scriptureVersionMap: Record<string, string> = {};
-    if (scriptureNoteIds.length > 0) {
-      try {
-        const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
-          .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
-        scriptureVersionMap = rows.reduce((acc, row) => {
-          if (row.noteId && row.translation) acc[row.noteId] = row.translation;
-          return acc;
-        }, {} as Record<string, string>);
-      } catch (_) { /* ignore */ }
-    }
-
-    const noteIds = sortedNotes.map(n => n.id).filter(Boolean) as string[];
-    const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, ownerUserId);
-
-    const notesWithMeta = sortedNotes.map(note => {
-      const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
-      const threadColors = threadColorsMap.get(note.id);
-      return {
-        ...note,
-        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
-        lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
-        lastVisited: note.lastVisited,
-        resourceTitle: resourceMeta?.sourceTitle || null,
-        resourceDescription: resourceMeta?.sourceDescription || null,
-        resourceImage: resourceMeta?.sourceImage || null,
-        threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
-        version: note.noteType === 'scripture'
-          ? (scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? 'NET')
-          : undefined,
-      };
-    });
-
-    return { notes: notesWithMeta, hasMore };
-  } catch (error) {
-    console.error("Error fetching notes for space (member view):", error);
-    return { notes: [], hasMore: false };
-  }
+  const result = await getNotesForSharedSpace(spaceId, ownerUserId, limit, offset);
+  return { notes: result.notes, hasMore: result.hasMore };
 }

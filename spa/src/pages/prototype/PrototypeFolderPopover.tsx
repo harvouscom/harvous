@@ -15,6 +15,7 @@ const CARD_WIDTH = 340;
 
 interface PrototypeFolderPopoverProps {
   note: NoteDetail;
+  contextSpaceId?: string | null;
   anchorRect: DOMRect | null;
   onDismiss: () => void;
   exiting?: boolean;
@@ -22,6 +23,7 @@ interface PrototypeFolderPopoverProps {
 
 export default function PrototypeFolderPopover({
   note,
+  contextSpaceId = null,
   anchorRect,
   onDismiss,
   exiting = false,
@@ -57,7 +59,11 @@ export default function PrototypeFolderPopover({
         zIndex: 6000,
       }}
     >
-      <PrototypeFolderTagEditor note={note} folderOnly />
+      <PrototypeFolderTagEditor
+        note={note}
+        contextSpaceId={contextSpaceId}
+        folderOnly
+      />
     </ProtoPopoverShell>,
     document.body,
   );

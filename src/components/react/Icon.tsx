@@ -21,6 +21,8 @@ import lockSvg from '@fortawesome/fontawesome-free/svgs/solid/lock.svg?raw';
 import unlockSvg from '@fortawesome/fontawesome-free/svgs/solid/unlock.svg?raw';
 import rightFromBracketSvg from '@fortawesome/fontawesome-free/svgs/solid/right-from-bracket.svg?raw';
 import bookmarkSvg from '@fortawesome/fontawesome-free/svgs/solid/bookmark.svg?raw';
+import rectangleListSvg from '@fortawesome/fontawesome-free/svgs/solid/rectangle-list.svg?raw';
+import listCheckSvg from '@fortawesome/fontawesome-free/svgs/solid/list-check.svg?raw';
 import arrowRotateLeftSvg from '@fortawesome/fontawesome-free/svgs/solid/arrow-rotate-left.svg?raw';
 import arrowRotateRightSvg from '@fortawesome/fontawesome-free/svgs/solid/arrow-rotate-right.svg?raw';
 import strikethroughSvg from '@fortawesome/fontawesome-free/svgs/solid/strikethrough.svg?raw';
@@ -47,6 +49,7 @@ import bookSvg from '@fortawesome/fontawesome-free/svgs/solid/book.svg?raw';
 import paintbrushSvg from '@fortawesome/fontawesome-free/svgs/solid/paintbrush.svg?raw';
 import circleUserSvg from '@fortawesome/fontawesome-free/svgs/solid/circle-user.svg?raw';
 import circleXmarkSvg from '@fortawesome/fontawesome-free/svgs/solid/circle-xmark.svg?raw';
+import circleCheckSvg from '@fortawesome/fontawesome-free/svgs/solid/circle-check.svg?raw';
 import ellipsisVerticalSvg from '@fortawesome/fontawesome-free/svgs/solid/ellipsis-vertical.svg?raw';
 import ellipsisSvg from '@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg?raw';
 import thumbtackSvg from '@fortawesome/fontawesome-free/svgs/solid/thumbtack.svg?raw';
@@ -59,6 +62,7 @@ import bookOpenSvg from '@fortawesome/fontawesome-free/svgs/solid/book-open.svg?
 import linesLeaningSvg from '@fortawesome/fontawesome-free/svgs/solid/lines-leaning.svg?raw';
 import locationDotSvg from '@fortawesome/fontawesome-free/svgs/solid/location-dot.svg?raw';
 import churchSvg from '@fortawesome/fontawesome-free/svgs/solid/church.svg?raw';
+import rssSvg from '@fortawesome/fontawesome-free/svgs/solid/rss.svg?raw';
 import tagSvg from '@fortawesome/fontawesome-free/svgs/solid/tag.svg?raw';
 import shareSvg from '@fortawesome/fontawesome-free/svgs/solid/share.svg?raw';
 import circleUpSvg from '@fortawesome/fontawesome-free/svgs/solid/circle-up.svg?raw';
@@ -121,12 +125,16 @@ const icons = {
   'lines-leaning': withCurrentColor(linesLeaningSvg),
   'location-dot': svgRootCurrentColor(locationDotSvg),
   'church': svgRootCurrentColor(churchSvg),
+  /** Ministry channel — followable feed (distinct from My Church / Shared Spaces). */
+  rss: svgRootCurrentColor(rssSvg),
   'tag': withCurrentColor(tagSvg),
   'share': withCurrentColor(shareSvg),
   paste: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor"><path d="M160 0c-23.7 0-44.8 14.9-52.9 37.3L48 112 48 96c0-26.5-21.5-48-48-48S0 69.5 0 96l0 384c0 26.5 21.5 48 48 48l224 0c26.5 0 48-21.5 48-48l0-16 16 0c26.5 0 48-21.5 48-48l0-256c0-26.5-21.5-48-48-48l-64 0 0-16c0-35.3-28.7-64-64-64zM96 48c0-8.8 7.2-16 16-16s16 7.2 16 16l0 16-32 0 0-16zm64 64l192 0c8.8 0 16 7.2 16 16l0 256c0 8.8-7.2 16-16 16l-192 0c-8.8 0-16-7.2-16-16l0-256c0-8.8 7.2-16 16-16z"/></svg>`,
   
   // Note type icons
   bookmark: withCurrentColor(bookmarkSvg),
+  'rectangle-list': withCurrentColor(rectangleListSvg),
+  'list-check': withCurrentColor(listCheckSvg),
   scroll: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" fill="currentColor"><path d="M0 80l0 48c0 17.7 14.3 32 32 32l16 0 48 0 0-80c0-26.5-21.5-48-48-48S0 53.5 0 80zM112 32c10 13.4 16 30 16 48l0 304c0 35.3 28.7 64 64 64s64-28.7 64-64l0-5.3c0-32.4 26.3-58.7 58.7-58.7L480 320l0-192c0-53-43-96-96-96L112 32zM464 480c61.9 0 112-50.1 112-112c0-8.8-7.2-16-16-16l-245.3 0c-14.7 0-26.7 11.9-26.7 26.7l0 5.3c0 53-43 96-96 96l176 0 96 0z"/></svg>`,
   'file-image': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" fill="currentColor"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM64 256a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm152 32c5.3 0 10.2 2.6 13.2 6.9l88 128c3.4 4.9 3.7 11.3 1 16.5s-8.2 8.6-14.2 8.6l-88 0-40 0-48 0-48 0c-5.8 0-11.1-3.1-13.9-8.1s-2.8-11.2 .2-16.1l48-80c2.9-4.8 8.1-7.8 13.7-7.8s10.8 2.9 13.7 7.8l12.8 21.4 48.3-70.2c3-4.3 7.9-6.9 13.2-6.9z"/></svg>`,
   newspaper: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor"><path d="M96 96c0-35.3 28.7-64 64-64l288 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L80 480c-44.2 0-80-35.8-80-80L0 128c0-17.7 14.3-32 32-32s32 14.3 32 32l0 272c0 8.8 7.2 16 16 16s16-7.2 16-16L96 96zm64 24l0 80c0 13.3 10.7 24 24 24l112 0c13.3 0 24-10.7 24-24l0-80c0-13.3-10.7-24-24-24L184 96c-13.3 0-24 10.7-24 24zm208-8c0 8.8 7.2 16 16 16l48 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-48 0c-8.8 0-16 7.2-16 16zm0 96c0 8.8 7.2 16 16 16l48 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-48 0c-8.8 0-16 7.2-16 16zM160 304c0 8.8 7.2 16 16 16l256 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-256 0c-8.8 0-16 7.2-16 16zm0 96c0 8.8 7.2 16 16 16l256 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-256 0c-8.8 0-16 7.2-16 16z"/></svg>`,
@@ -162,6 +170,7 @@ const icons = {
   paintbrush: withCurrentColor(paintbrushSvg),
   'circle-user': svgRootCurrentColor(circleUserSvg),
   'circle-xmark': svgRootCurrentColor(circleXmarkSvg),
+  'circle-check': svgRootCurrentColor(circleCheckSvg),
 
   'layer-group': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" fill="currentColor"><path d="M264.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 149.8C37.4 145.8 32 137.3 32 128s5.4-17.9 13.9-21.8L264.5 5.2zM476.9 209.6l53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 277.8C37.4 273.8 32 265.3 32 256s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0l152-70.2zm-152 198.2l152-70.2 53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 405.8C37.4 401.8 32 393.3 32 384s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0z"/></svg>`,
   'magnifying-glass': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor"><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/></svg>`,

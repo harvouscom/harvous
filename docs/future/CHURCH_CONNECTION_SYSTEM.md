@@ -1,423 +1,186 @@
 # Church Connection System Design
 
+> **Current schema status (July 2026):** `Churches` and
+> `UserMetadata.connectedChurchId/connectedOrgId/connectedChurchAt` are **landed**
+> in `server/db/schema.ts` (shared-spaces foundation), and the **admin
+> provisioning pipes are built** (`server/routes/churches.ts` +
+> `server/utils/clerk-org.ts` + the `/admin/churches` SPA page — all
+> `requireHarvousAdmin`-gated). `ChurchConnectionRequests` is **planned** — it
+> lands with the connect flow. Product lock: **v0 is staff-only**; congregant
+> connect / Home "From your church" stay dark — see
+> [Locked product decisions](./CHURCH_ORG_AND_CURRICULUM.md#locked-product-decisions-july-2026).
+> **Multi-church + home church** is locked below (memberships many, home one);
+> schema for that lands with congregant connect, not in the staff pilot.
+>
+> **Here’s My Church (directory SoT):** Stable directory identity is
+> `Churches.hmcChurchId` / `UserMetadata.hmcChurchId` (e.g. `TX-123456`).
+> Name/city/state on those rows are a **denormalized cache** refreshed from the
+> HMC partner API (`server/utils/hmc-partner.ts`). Clerk `Churches.orgId` remains
+> the **staff org shell** for ministry spaces — not the directory identity.
+> Partner key is server-only; see heresmychurch `docs/future/public-api.md`.
+>
+> **Operational prerequisite:** the Clerk instance must have the
+> **Organizations feature enabled** (Clerk dashboard → Organizations). Until
+> then, org lookups return 403 and the admin endpoints answer
+> `CLERK_ORGS_NOT_ENABLED`. Connect endpoints, matching code, and congregant UI
+> in this doc are design sketches, not shipped code. Code samples are in the
+> Hono `server/routes/*` + Drizzle idiom of the current server.
+
 ## Overview
 
-This system allows users to set their church, churches to create Clerk Organizations, and automatically connects them when a church joins Harvous.
+This system allows users to set their church, churches to create Clerk Organizations, and connects them when a church joins Harvous so they can receive **ministry education** (curriculum channels) — not a bulletin of announcements. Shared Spaces remain the small-group / PCO Groups lane; ministry broadcast spaces are the PCO Resources lane.
 
 ## User Flow
 
-### 1. User Sets Their Church (Already Implemented ✅)
-- User goes to Profile → My Church
-- Enters: Church Name, City, State/Province, Country
-- Stored in `UserMetadata` table
+### 1. User Sets Their Church (HMC picker ✅ + outside-US manual ✅)
+- User goes to Settings → My Church
+- **U.S. directory:** state-scoped typeahead against Here’s My Church (`GET /api/user/churches/hmc/search`)
+- On HMC pick: store `UserMetadata.hmcChurchId` + denormalized `churchName/churchCity/churchState` from HMC (`churchCountry` cleared)
+- **Outside U.S. / not listed:** manual name + city + region + country via `POST /api/user/update-church` (server clears any prior HMC link). Name required.
+- **U.S. but not in directory:** same manual form with US state + city. Server **also submits** the church to Here’s My Church (`POST …/churches/add` after geocode). On success (or duplicate match), Harvous stores the returned `hmcChurchId` so the pick becomes directory-backed. Geocode/add failures still save free-text on Harvous.
+- Free-text / denorm fields are **matching input / display**, not org linkage (`connectedChurchId` stays separate).
 
 ### 2. Church Creates Organization
 - Church admin signs up for Harvous
-- Creates a Clerk Organization
-- Enters matching church info (name, city, state, country)
-- System matches existing users and invites them
+- Creates a Clerk Organization (staff/volunteers only, ≤20)
+- Admin registers the org and **links an HMC church** (`Churches.hmcChurchId`) so hub name/location stay accurate
+- System matches existing users and invites them to connect (future)
 
 ### 3. Automatic Connection
 - System finds users with matching church info
 - Sends connection request (invitation to link to church)
-- User accepts → linked in our DB (`UserMetadata.connectedChurchId`/`connectedOrgId`); church content appears in their inbox
-- **Congregants are not added to the Clerk org.** Only church staff/volunteers (≤20) are Clerk org members; congregants get access via our DB and/or shared space membership (see CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md).
+- User accepts → linked in our DB (`UserMetadata.connectedChurchId`/`connectedOrgId`/`connectedChurchAt`); church content appears via church broadcast spaces
+- **Congregants are not added to the Clerk org.** Only church staff/volunteers (≤20) are Clerk org members; congregants get access via our DB and membership in church broadcast spaces (see CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md).
 
-## Clerk Organization Limit (20 People)
+## Clerk Organization Limits (20 staff + 100 MRO)
 
-Clerk's free plan limits organizations to 20 members. We stay within this by **reserving the Clerk org for church staff/volunteers only** (admins, curriculum authors, small group leaders who need the church dashboard). **Congregants/attendees are never added to the Clerk org.** When a user accepts a connection request, we only update `UserMetadata.connectedChurchId`/`connectedOrgId` and optionally add them to church-owned shared spaces (via the `Members` table). Curriculum and "From your church" inbox delivery use our DB (connected users and/or space membership), not Clerk org membership. See CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md for the full design.
+Clerk’s standard Organizations allowance: **20 members per org** and **~100 Monthly Retained Organizations (MRO) per app** (an MRO ≈ org with ≥2 members and ≥1 retained user). We stay within the **20** by **reserving the Clerk org for church staff/volunteers only** (admins, curriculum authors, small group leaders who need the church dashboard). **Congregants/attendees are never added to the Clerk org.** When a user accepts a connection request, write a `ChurchMemberships` row, set home via `UserMetadata.connectedChurchId`/`connectedOrgId`/`connectedChurchAt` (temporary singular home until home pointer moves onto memberships), and optionally call `followMinistryChannel` for broadcast spaces (`SpaceMemberships` role=`member` — public spaces are exempt from the 30-person cap). Curriculum and "From your church" delivery read from those spaces, not Clerk org membership.
 
-## Database Schema Updates
+**Billing model:** paid **Church base** ($39/mo draft) creates the Clerk org; optional church add-ons (curriculum, church Shared Spaces, analytics, unlimited staff). There is **no public free Connect org** — congregant HMC “My church” does not create an org or burn an MRO. Staff seats above 20 require the **Unlimited staff** add-on and Clerk’s **Enhanced** B2B add-on (~$100/mo app-wide). Canonical prices: [MONETIZATION_AND_PRICING.md §7](./MONETIZATION_AND_PRICING.md). Sync-staff refuses Clerk rosters over 20 (`CLERK_ORG_MEMBER_LIMIT`) until unlimited staff ships.
 
-### New Tables
+## Database Schema
 
-```typescript
-// db/config.ts additions
+### Landed — `server/db/schema.ts`
 
-// Churches table - tracks churches that have created organizations
-const Churches = defineTable({
-  columns: {
-    id: column.text({ primaryKey: true }),
-    orgId: column.text({ unique: true }), // Clerk organization ID
-    churchName: column.text(),
-    churchCity: column.text({ optional: true }),
-    churchState: column.text({ optional: true }),
-    churchCountry: column.text({ optional: true }),
-    adminUserId: column.text(), // User who created the church org
-    subscriptionTier: column.text({ optional: true }), // 'starter' | 'growth' | 'enterprise'
-    isActive: column.boolean({ default: true }),
-    createdAt: column.date(),
-    updatedAt: column.date({ optional: true }),
-  }
-});
+```ts
+// Churches — one row per church with a Clerk Organization on Harvous.
+export const Churches = pgTable('Churches', {
+  id: text('id').primaryKey(),              // chur_<uuid>
+  orgId: text('orgId').notNull(),           // Clerk organization id — unique
+  name: text('name').notNull(),
+  city: text('city'),
+  state: text('state'),
+  country: text('country'),
+  createdBy: text('createdBy').notNull(),   // staff creator; admin roles live in Clerk org roles
+  billingPlan: text('billingPlan'),         // nullable slug — draft 'church' (base); legacy connect/study/* ignored
+  billingPlanUpdatedAt: ts('billingPlanUpdatedAt'),
+  // Future add-on flags (same spirit as UserMetadata.sharedSpacesAddOn):
+  // curriculumAddOn, churchSharedSpacesAddOn, analyticsAddOn, unlimitedStaffAddOn (+ *UpdatedAt)
+  isActive: boolean('isActive').notNull().default(true),
+  deletedAt: ts('deletedAt'),               // soft-delete lifecycle (Spaces parity)
+  recoveryUntil: ts('recoveryUntil'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('Churches_orgId_unique').on(table.orgId),
+  index('Churches_createdByIndex').on(table.createdBy),
+]);
 
-// Church connection requests - tracks pending connections
-const ChurchConnectionRequests = defineTable({
-  columns: {
-    id: column.text({ primaryKey: true }),
-    churchId: column.text(), // Reference to Churches
-    userId: column.text(), // User who might be a member
-    status: column.text(), // 'pending' | 'accepted' | 'declined' | 'auto_joined'
-    matchedBy: column.text(), // 'name_city_state' | 'name_city' | 'name_only' | 'manual'
-    createdAt: column.date(),
-    respondedAt: column.date({ optional: true }),
-  }
-});
+// UserMetadata home (landed — temporary singular home until connect writers)
+connectedChurchId: text('connectedChurchId'),   // Churches.id home
+connectedOrgId: text('connectedOrgId'),         // denormalized Clerk org id
+connectedChurchAt: ts('connectedChurchAt'),
+// get-profile exposes these; no congregant accept writer yet
+
+// ChurchMemberships — stub landed (no writers yet); chmem_<uuid>
+// churchId, userId, role='member', joinedAt — unique(churchId, userId)
 ```
 
-### Updated UserMetadata
+Notable decisions vs. earlier drafts: `createdBy` replaces `adminUserId` (admin is a Clerk org role, possibly plural); nullable `billingPlan` + future boolean church add-ons replace tier ladders (`connect`/`study`/`network`, `starter`/`growth`/`enterprise`) — same spirit as `sharedSpacesAddOn`. **`connected*` is temporary home-only** until connect populates `ChurchMemberships` and (later) a dedicated home pointer.
 
-```typescript
-// Add to UserMetadata (already exists, just documenting usage)
-const UserMetadata = defineTable({
-  columns: {
-    // ... existing fields ...
-    churchName: column.text({ optional: true }), // ✅ Already exists
-    churchCity: column.text({ optional: true }), // ✅ Already exists
-    churchState: column.text({ optional: true }), // ✅ Already exists
-    churchCountry: column.text({ optional: true }), // ✅ Already exists
-    connectedChurchId: column.text({ optional: true }), // NEW: Reference to Churches table
-    connectedOrgId: column.text({ optional: true }), // NEW: Clerk org ID (for quick lookup)
-  }
-});
+### Planned — lands with the connect flow
+
+```ts
+// ChurchConnectionRequests — pending connections (shape may still evolve with the UX)
+export const ChurchConnectionRequests = pgTable('ChurchConnectionRequests', {
+  id: text('id').primaryKey(),              // chreq_<uuid>
+  churchId: text('churchId').notNull(),     // Churches.id
+  userId: text('userId').notNull(),
+  status: text('status').notNull().default('pending'), // 'pending' | 'accepted' | 'declined' | 'auto_joined'
+  matchedBy: text('matchedBy').notNull(),   // 'name_city_state' | 'name_city' | 'name_only' | 'manual'
+  createdAt: ts('createdAt').notNull(),
+  respondedAt: ts('respondedAt'),
+}, (table) => [
+  uniqueIndex('ChurchConnectionRequests_church_user_unique').on(table.churchId, table.userId),
+  index('ChurchConnectionRequests_userId_statusIndex').on(table.userId, table.status),
+]);
 ```
 
-## Matching Algorithm
+Open UX questions that keep this deferred: church-initiated matching vs. user-initiated search; whether `auto_joined` survives; request expiry.
 
-### Matching Logic
+## Matching Algorithm (design sketch)
 
-When a church creates an organization, the system searches for matching users:
+When a church creates an organization, the system searches `UserMetadata` free-text church fields for likely members. Scoring (out of 100): exact name 40 (partial word-overlap 20), city 30, state 20, country 10. Users scoring ≥50 are candidates; `exact` (≥90) / `high` (≥70) matches get connection requests automatically; users already connected (`connectedChurchId` set) are excluded.
 
-```typescript
-// src/utils/church-matching.ts
-
+```ts
+// server/utils/church-matching.ts (planned)
 export interface ChurchMatch {
   userId: string;
-  matchScore: number; // 0-100, higher = better match
+  matchScore: number;                        // 0–100
   matchType: 'exact' | 'high' | 'medium' | 'low';
-  matchedFields: string[]; // Which fields matched
+  matchedFields: string[];
 }
-
-/**
- * Find users who might belong to this church
- */
-export async function findMatchingUsers(
-  churchName: string,
-  churchCity?: string,
-  churchState?: string,
-  churchCountry?: string
-): Promise<ChurchMatch[]> {
-  const matches: ChurchMatch[] = [];
-  
-  // Get all users with church info
-  const users = await db
-    .select()
-    .from(UserMetadata)
-    .where(
-      and(
-        isNotNull(UserMetadata.churchName),
-        // Don't include users already connected to a church
-        or(
-          isNull(UserMetadata.connectedChurchId),
-          eq(UserMetadata.connectedChurchId, '')
-        )
-      )
-    )
-    .all();
-
-  for (const user of users) {
-    const match = calculateMatchScore(
-      {
-        name: churchName,
-        city: churchCity,
-        state: churchState,
-        country: churchCountry
-      },
-      {
-        name: user.churchName || '',
-        city: user.churchCity || '',
-        state: user.churchState || '',
-        country: user.churchCountry || ''
-      }
-    );
-
-    if (match.matchScore >= 50) { // Only include medium+ confidence matches
-      matches.push({
-        userId: user.userId,
-        ...match
-      });
-    }
-  }
-
-  // Sort by match score (highest first)
-  return matches.sort((a, b) => b.matchScore - a.matchScore);
-}
-
-/**
- * Calculate match score between church and user church info
- */
-function calculateMatchScore(
-  church: { name: string; city?: string; state?: string; country?: string },
-  user: { name: string; city?: string; state?: string; country?: string }
-): { matchScore: number; matchType: 'exact' | 'high' | 'medium' | 'low'; matchedFields: string[] } {
-  const matchedFields: string[] = [];
-  let score = 0;
-
-  // Normalize strings for comparison
-  const normalize = (str: string) => str.toLowerCase().trim();
-
-  // Name match (required, 40 points)
-  if (normalize(church.name) === normalize(user.name)) {
-    score += 40;
-    matchedFields.push('name');
-  } else {
-    // Partial name match (20 points)
-    const churchWords = normalize(church.name).split(/\s+/);
-    const userWords = normalize(user.name).split(/\s+/);
-    const commonWords = churchWords.filter(w => userWords.includes(w));
-    if (commonWords.length >= 2) {
-      score += 20;
-      matchedFields.push('name_partial');
-    }
-  }
-
-  // City match (30 points)
-  if (church.city && user.city && normalize(church.city) === normalize(user.city)) {
-    score += 30;
-    matchedFields.push('city');
-  }
-
-  // State match (20 points)
-  if (church.state && user.state && normalize(church.state) === normalize(user.state)) {
-    score += 20;
-    matchedFields.push('state');
-  }
-
-  // Country match (10 points)
-  if (church.country && user.country && normalize(church.country) === normalize(user.country)) {
-    score += 10;
-    matchedFields.push('country');
-  }
-
-  // Determine match type
-  let matchType: 'exact' | 'high' | 'medium' | 'low';
-  if (score >= 90) matchType = 'exact';
-  else if (score >= 70) matchType = 'high';
-  else if (score >= 50) matchType = 'medium';
-  else matchType = 'low';
-
-  return { matchScore: score, matchType, matchedFields };
-}
+export async function findMatchingUsers(church: {
+  name: string; city?: string; state?: string; country?: string;
+}): Promise<ChurchMatch[]> { /* normalize + score UserMetadata church fields */ }
 ```
 
-## Implementation Flow
+## Implementation Flow (design sketches — Hono + Drizzle idiom)
 
 ### 1. Church Creates Organization
 
-```typescript
-// src/pages/api/churches/create.ts
-import type { APIRoute } from 'astro';
-import { db, Churches, ChurchConnectionRequests, UserMetadata, eq, and } from 'astro:db';
-import { findMatchingUsers } from '@/utils/church-matching';
-
-export const POST: APIRoute = async ({ request, locals }) => {
-  const { userId, orgId } = await locals.auth();
-  
-  if (!orgId) {
-    return new Response(JSON.stringify({ 
-      error: 'Organization ID required' 
-    }), { status: 400 });
-  }
-
-  const { churchName, churchCity, churchState, churchCountry } = await request.json();
-
-  // 1. Create church record
-  const church = await db.insert(Churches).values({
-    id: `church_${Date.now()}`,
-    orgId,
-    churchName,
-    churchCity: churchCity || null,
-    churchState: churchState || null,
-    churchCountry: churchCountry || null,
-    adminUserId: userId,
-    isActive: true,
-    createdAt: new Date()
-  }).returning().get();
-
-  // 2. Find matching users
-  const matches = await findMatchingUsers(
-    churchName,
-    churchCity,
-    churchState,
-    churchCountry
-  );
-
-  // 3. Create connection requests for high-confidence matches
-  const connectionRequests = matches
-    .filter(m => m.matchType === 'exact' || m.matchType === 'high')
-    .map(match => ({
-      id: `connection_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      churchId: church.id,
-      userId: match.userId,
-      status: 'pending' as const,
-      matchedBy: match.matchType === 'exact' ? 'name_city_state' : 'name_city',
-      createdAt: new Date()
-    }));
-
-  if (connectionRequests.length > 0) {
-    await db.insert(ChurchConnectionRequests).values(connectionRequests);
-  }
-
-  // 4. Auto-join exact matches (optional - or require user confirmation)
-  // For now, we'll create pending requests and let users accept
-
-  return new Response(JSON.stringify({ 
-    success: true,
-    churchId: church.id,
-    matchesFound: matches.length,
-    connectionRequestsCreated: connectionRequests.length
-  }), { status: 200 });
-};
+```ts
+// server/routes/churches.ts (planned)
+route.post('/api/churches', requireAuth, rateLimit('write'), async (c) => {
+  // 1. Verify caller is an admin of the Clerk org (auth.orgId + org role)
+  // 2. Insert Churches row: { id: `chur_${crypto.randomUUID()}`, orgId, name, city, state, country,
+  //    createdBy: auth.userId, isActive: true, createdAt: now }
+  // 3. findMatchingUsers(...) → insert ChurchConnectionRequests for exact/high matches
+  // 4. Return { churchId, matchesFound, connectionRequestsCreated }
+});
 ```
 
 ### 2. User Accepts Connection
 
-```typescript
-// src/pages/api/churches/accept-connection.ts
-import type { APIRoute } from 'astro';
-import { db, ChurchConnectionRequests, Churches, UserMetadata, eq } from 'astro:db';
-
-export const POST: APIRoute = async ({ request, locals }) => {
-  const { userId } = await locals.auth();
-  const { connectionRequestId } = await request.json();
-
-  // Get connection request
-  const request = await db
-    .select()
-    .from(ChurchConnectionRequests)
-    .where(
-      and(
-        eq(ChurchConnectionRequests.id, connectionRequestId),
-        eq(ChurchConnectionRequests.userId, userId),
-        eq(ChurchConnectionRequests.status, 'pending')
-      )
-    )
-    .get();
-
-  if (!request) {
-    return new Response(JSON.stringify({ 
-      error: 'Connection request not found' 
-    }), { status: 404 });
-  }
-
-  // Get church info
-  const church = await db
-    .select()
-    .from(Churches)
-    .where(eq(Churches.id, request.churchId))
-    .get();
-
-  if (!church) {
-    return new Response(JSON.stringify({ 
-      error: 'Church not found' 
-    }), { status: 404 });
-  }
-
-  // Update connection request
-  await db
-    .update(ChurchConnectionRequests)
-    .set({
-      status: 'accepted',
-      respondedAt: new Date()
-    })
-    .where(eq(ChurchConnectionRequests.id, connectionRequestId));
-
-  // Update user metadata (do NOT add user to Clerk org—congregants get access via our DB only; Clerk org is for staff/volunteers only, ≤20)
-  await db
-    .update(UserMetadata)
-    .set({
-      connectedChurchId: church.id,
-      connectedOrgId: church.orgId
-    })
-    .where(eq(UserMetadata.userId, userId));
-
-  return new Response(JSON.stringify({ 
-    success: true,
-    message: 'Connected to church successfully'
-  }), { status: 200 });
-};
+```ts
+// server/routes/churches.ts (planned)
+route.post('/api/churches/connections/:requestId/accept', requireAuth, async (c) => {
+  // 1. Load pending ChurchConnectionRequests row for auth.userId (404 otherwise)
+  // 2. Load the church (must be isActive, not deleted)
+  // 3. Mark request accepted (respondedAt = now)
+  // 4. Update UserMetadata: connectedChurchId, connectedOrgId, connectedChurchAt
+  //    — do NOT add the user to the Clerk org (staff-only, ≤20)
+  // 5. Optionally insert SpaceMemberships role='member' rows into the church's
+  //    broadcast spaces (Spaces.orgId = church.orgId, type='public')
+});
 ```
 
-### 3. Inbox Integration
+### 3. Content Delivery — ministry education channels, not inbox fan-out
 
-When church pushes content, it automatically appears in connected members' inboxes:
+The retired design pushed per-user `InboxItems`/`UserInboxItems` rows on every publish. The foundation makes that unnecessary:
 
-```typescript
-// src/utils/church-inbox.ts
-import { db, Churches, UserMetadata, InboxItems, UserInboxItems, eq } from 'astro:db';
+- Church curriculum lives in **org-owned ministry broadcast spaces** (`Spaces.orgId` set, `type='public'`) — adult ed, students, sermon series companions, leader resources, etc. **Not** an announcements bulletin as the lead metaphor.
+- Staff author via `owner`/`leader` membership rows; `canAuthorInSpace` already denies congregant authoring into the channel.
+- **Publishing writes nothing per recipient** — connected users follow ministry spaces (`role='member'`), and "From your church" is a **study feed** from those spaces (plus `FeaturedItems.contentType='church'` and future sermon-calendar starters).
+- Members copy or start-from-starter into their own Harvous via copy-lineage / note-templates — same privacy model as any public space (their notes stay theirs).
+- The congregant fan-out query ("all users connected to church X") is served by `UserMetadata_connectedChurchIdIndex`.
 
-/**
- * Push church content to all connected members' inboxes
- */
-export async function pushChurchContentToInbox(
-  orgId: string,
-  inboxItemId: string
-): Promise<{ success: boolean; memberCount: number }> {
-  // Get church
-  const church = await db
-    .select()
-    .from(Churches)
-    .where(eq(Churches.orgId, orgId))
-    .get();
+**Still open before shipping connect** (do not invent defaults in product UI):
 
-  if (!church) {
-    throw new Error('Church not found');
-  }
-
-  // Get all users connected to this church
-  const connectedUsers = await db
-    .select()
-    .from(UserMetadata)
-    .where(eq(UserMetadata.connectedChurchId, church.id))
-    .all();
-
-  // Create UserInboxItems for each connected user
-  const memberIds = connectedUsers.map(u => u.userId);
-  
-  const created = await Promise.all(
-    memberIds.map(async (userId) => {
-      // Check if already exists
-      const existing = await db
-        .select()
-        .from(UserInboxItems)
-        .where(
-          and(
-            eq(UserInboxItems.userId, userId),
-            eq(UserInboxItems.inboxItemId, inboxItemId)
-          )
-        )
-        .get();
-
-      if (existing) {
-        return null; // Already exists
-      }
-
-      return db.insert(UserInboxItems).values({
-        id: `user_inbox_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        userId,
-        inboxItemId,
-        status: 'inbox',
-        createdAt: new Date()
-      });
-    })
-  );
-
-  return {
-    success: true,
-    memberCount: created.filter(Boolean).length
-  };
-}
-```
+- Church-initiated matching vs user-initiated search
+- Whether `auto_joined` survives or everything is accept/decline
+- Request expiry
+- Auto-follow **all** ministry channels vs opted ministry tracks
 
 ## User Experience
 
@@ -426,8 +189,8 @@ export async function pushChurchContentToInbox(
 1. **User sets church** in Profile → My Church
 2. **Church joins Harvous** later
 3. **User sees notification**: "First Baptist Church joined Harvous! Connect?"
-4. **User clicks "Connect"** → Linked to church in our DB (not added to Clerk org); optionally added to church-owned shared spaces
-5. **Church content appears** in their "For You" inbox (delivery via `connectedChurchId`, not Clerk org membership)
+4. **User clicks "Connect"** → Linked to church in our DB (not added to Clerk org); followed into ministry education channels (scope TBD)
+5. **Study content appears** in "From your church" (ministry-space membership, not Clerk org membership) — curriculum feed, not announcements
 
 ### For Churches
 
@@ -435,45 +198,56 @@ export async function pushChurchContentToInbox(
 2. **Creates organization** with church info (staff/volunteers are added to Clerk org, ≤20)
 3. **System finds matching users** automatically
 4. **Sends connection requests** to high-confidence matches
-5. **Users accept** → Linked in our DB; church can push content to them and add them to shared spaces (congregants are not Clerk org members)
-6. **Church can push content** → Appears in all connected users' inboxes (and/or space members)
+5. **Users accept** → Linked in our DB; followed into ministry channels (congregants are not Clerk org members)
+6. **Church publishes** curriculum into ministry broadcast spaces → visible to connected followers of those channels
 
-## UI Components Needed
+## UI Components Needed (planned, SPA)
 
-### 1. Church Connection Notification
-
-```typescript
-// src/components/react/ChurchConnectionNotification.tsx
-// Shows when a church matching user's church info joins
-```
-
-### 2. Church Connection Request Panel
-
-```typescript
-// src/components/react/ChurchConnectionRequest.tsx
-// Shows pending connection requests
-```
-
-### 3. Church Dashboard (for admins)
-
-```typescript
-// src/pages/church/[orgId]/dashboard.astro
-// Church admin interface for managing content and members
-```
+1. **Church connection notification** — shown when a church matching the user's church info joins (Home banner or similar)
+2. **Church connection request panel** — pending requests in settings/My Church
+3. **Church dashboard** — SPA route for church staff (role-gated via Clerk org roles): manage **ministry education channels**, sermon calendar, aggregate connection counts
 
 ## Benefits
 
 ✅ **Automatic Discovery**: Users don't need to search for their church
 ✅ **Seamless Connection**: One-click to connect
-✅ **Content Delivery**: Church content automatically appears in inbox
-✅ **Privacy**: Users control their connection
-✅ **Scalable**: Works for churches of any size (congregants access via our DB and shared spaces; only staff count toward the 20-person Clerk org limit)
+✅ **Content Delivery**: Ministry curriculum appears via followed education channels — no per-user fan-out writes
+✅ **Privacy**: Users control their connection; their notes stay theirs
+✅ **Scalable**: Congregants via our DB + ministry spaces; only staff count toward the 20-person Clerk org limit; broadcast spaces are exempt from the 30-person shared-space cap
+
+## Locked: multi-church + home church (July 2026)
+
+Decided with the staff pilot; do not reopen casually. **No schema/UI in v0** — congregant connect remains dark. When connect ships, implement this model (not singular “one linked church forever”).
+
+| Decision | Lock |
+|---|---|
+| **Belonging** | Explicit **church membership** (connect/accept). Ministry channel follows are separate and only make sense under a membership. |
+| **Cardinality** | A user may hold **many** church memberships. |
+| **Home church** | Exactly **one** home church among those memberships. |
+| **Home UI** | **"From your church" = home church only.** Other churches appear in Settings — not on the Home feed. |
+| **Shell modes** | Top-level **My Home** vs **My Church**. My Church is always the **home church** (A). An in-mode church picker (**B**) is a later enhancement — do not build yet. |
+| **My Church catalog** | Two lanes: **Shared Spaces** (church-scoped; same name/styling as personal) and **ministry channels** (staff followable feeds). Full comparison: [CHURCH_ORG_AND_CURRICULUM — distinction](./CHURCH_ORG_AND_CURRICULUM.md#church-shared-spaces-vs-ministry-channels-locked-distinction). |
+| **Shared under both** | Personal Shared Spaces under My Home (`orgId` null, owner-pays). Church Shared Spaces under My Church (`orgId` set) — **create-at-church or migrate** from a member (UI later). Church-sponsored; leave personal owned-count on migrate. Collaborative compose; 30-person cap. |
+| **Ministry channels** | Followable church feed (`type='public'` + `orgId`) — curriculum and other staff-authored study info. Staff write; followers read + copy. Distinct UI/icon (RSS preferred); never called Shared Spaces. |
+| **First connect** | First accepted membership becomes home automatically. |
+| **Change home** | Allowed anytime among current memberships (settings). |
+| **Leave home** | If other memberships remain, user must pick a new home in the leave flow; if a choice cannot be collected (e.g. church deactivated), auto-promote the earliest remaining membership. If none remain, clear home. |
+| **Clerk org** | Unchanged: staff/volunteers ≤20; congregants never Clerk org members. |
+| **Staff pilot** | My Church lists ministry channels (and later church Shared Spaces) for the home church; staff bridge when home not connected; ministry channel open stays read-only for now. |
+
+**Schema direction (document only — no migration yet):**
+
+- `ChurchMemberships` (or equivalent): `(userId, churchId, status, joinedAt)` unique per pair
+- Clarify today’s singular `UserMetadata.connectedChurchId` / `connectedOrgId` as **home** (`homeChurchId` / `homeOrgId`, or keep names and treat them as home only)
+- Ministry channel follows stay as `SpaceMemberships` on `type='public'` + `orgId` spaces; joining a channel requires (or implies) church membership
+- Church-scoped Shared Space: `type='shared'` + `orgId` (church-sponsored); personal Shared Space: `type='shared'` + `orgId` null (owner-pays)
+
+Fan-out “all congregants of church X” becomes membership-table indexed, not “everyone whose home is X only,” once memberships exist. Home still drives the Home study feed.
 
 ## Future Enhancements
 
 1. **Church Search**: Let users search for their church if not auto-matched
-2. **Multiple Churches**: Support users who attend multiple churches
+2. **My Church picker (B)**: When the user belongs to multiple churches, pick which church My Church mode shows (home remains the default)
 3. **Church Verification**: Verify churches are legitimate
 4. **Church Directory**: Public directory of churches on Harvous
-5. **Church Analytics**: Show churches how many members are connected
-
+5. **Church Analytics**: Aggregate only — N connected, N following a study; never individual note content ("Review is never shared" is the privacy principle)

@@ -1,6 +1,11 @@
 # Collaborative Shared Spaces Implementation Plan
 
-**v1 complete (February 2026).** The implementation described below has been completed. Shared spaces are in a good place and complete for v1. For current design, behavior, and implementation details, see [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md). Future work: performance and quality-of-life improvements.
+> **Superseded July 2026.** This is a historical February/Classic implementation plan. Its `Members`,
+> `SpaceInvitations`, copy-in, visibility-toggle, and ownership assumptions are retired and must not guide new
+> work. Current behavior uses canonical My Home notes, reusable `SpaceNotes`, and explicit shared-space context.
+> See [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md) and
+> [SHARED_SPACES_ROADMAP.md](./SHARED_SPACES_ROADMAP.md). Historical code/schema identifiers below are retained
+> as written; current user-facing feature language is **Thread** or **Threads**.
 
 ## Implementation status: member UX (current)
 

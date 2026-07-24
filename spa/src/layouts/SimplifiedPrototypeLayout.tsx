@@ -5,6 +5,7 @@ import KeyboardShortcutsInit from '../../../src/components/react/KeyboardShortcu
 import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
 import PrototypeSyncChip from '../components/PrototypeSyncChip';
 import PrototypeAppUpdateToast from '../components/PrototypeAppUpdateToast';
+import PrototypeFeedbackToast from '../components/PrototypeFeedbackToast';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { syncPassageKnowledge } from '../lib/passage-knowledge-sync';
 import { useAuth, useUser } from '@clerk/clerk-react';
@@ -27,6 +28,8 @@ import { api } from '../lib/api';
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebarToolbar from '../pages/prototype/PrototypeSidebarToolbar';
 import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
+import PrototypeSidebarSharedSpaceView from '../pages/prototype/PrototypeSidebarSharedSpaceView';
+import PrototypeSidebarChurchHubView from '../pages/prototype/PrototypeSidebarChurchHubView';
 import PrototypeAdminSidebar from '../pages/prototype/PrototypeAdminSidebar';
 import AdminToolbar from '@/components/react/AdminToolbar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
@@ -37,11 +40,16 @@ import '../styles/prototype-editor.css';
 import '../styles/prototype-route-overrides.css';
 import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
+import { useActiveSpace } from '../hooks/useActiveSpace';
+import { resolvePrototypeSidebarVariant } from './resolve-prototype-sidebar-variant';
 import { updateStudyDockExpandedMaxHeight } from '@/utils/study-dock-layout';
-import { noteParamSlug, PROTOTYPE_DRAFT_NOTE_SLUG } from '../pages/prototype/proto-route-slugs';
+import { noteParamSlug, PROTOTYPE_DRAFT_NOTE_SLUG, isPrototypeDraftNoteSlug, normalizeNoteIdFromParam } from '../pages/prototype/proto-route-slugs';
+import { prototypeToolbarNoteDetailsAvailable } from '../pages/prototype/prototype-toolbar-note-details';
+import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
+import { useNote } from '../hooks/queries/useNote';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
 import { ProtoMigrationProvider } from './proto-migration-context';
-import { ProtoShellProvider, useProtoShell } from './proto-shell-context';
+import { ProtoShellProvider, resolveVisibleComposeTarget, useProtoShell } from './proto-shell-context';
 import {
   applyBackgroundWithImageTint,
   applyColorSchemePreference,
@@ -179,6 +187,7 @@ export default function SimplifiedPrototypeLayout() {
 function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const queryClient = useQueryClient();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
+  const { isSharedSpace, activeSpaceId: resolvedActiveSpaceId } = useActiveSpace();
   useRealtimeSync(userId, { homeSpaceId });
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const {
@@ -195,6 +204,10 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     inspectorOpen,
     hideSidebar,
     editorChromeMode,
+    sidebarLayer,
+    sidebarListSpaceScope,
+    activeSpaceId: shellActiveSpaceId,
+    activeChurchOrgId,
   } = useProtoShell();
   const shellRef = useRef<HTMLDivElement | null>(null);
   const resizeHandleRef = useRef<HTMLDivElement | null>(null);
@@ -202,6 +215,18 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
 
   const isNoteRoute = isPrototypeNotePath(pathname);
   const isAdminRoute = isPrototypeAdminPath(pathname);
+  /** Shell id is null on My Home / My Church hub; useActiveSpace remaps null → personal home. */
+  const sidebarVariant = resolvePrototypeSidebarVariant({
+    isAdminRoute,
+    isSharedSpace,
+    sidebarLayer,
+    activeSpaceId: shellActiveSpaceId,
+    activeChurchOrgId,
+  });
+  const listScopeSpaceId =
+    sidebarVariant === 'shared-list' && sidebarListSpaceScope === 'my-home' && homeSpaceId
+      ? homeSpaceId
+      : resolvedActiveSpaceId;
   // inspector is rendered inline in PrototypeNotePage (flex-row), no extra grid column needed
   void inspectorOpen;
 
@@ -517,6 +542,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         ) : null}
         <PrototypeSyncChip userId={userId} />
         <PrototypeAppUpdateToast />
+        <PrototypeFeedbackToast />
         <PrototypeShortcutBridge />
         <KeyboardShortcutsInit />
         <PrototypePinPanels />
@@ -565,7 +591,21 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
               .filter(Boolean)
               .join(' ')}
           >
-            {isAdminRoute ? <PrototypeAdminSidebar /> : <PrototypeSidebar />}
+            {sidebarVariant === 'admin' ? (
+              <PrototypeAdminSidebar />
+            ) : sidebarVariant === 'church-hub' ? (
+              <PrototypeSidebarChurchHubView />
+            ) : sidebarVariant === 'shared-space' ? (
+              <PrototypeSidebarSharedSpaceView />
+            ) : sidebarVariant === 'shared-list' ? (
+              <PrototypeSidebar
+                scopedSpaceId={listScopeSpaceId}
+                showListSpaceScopeBar
+                shellIsSharedSpace
+              />
+            ) : (
+              <PrototypeSidebar />
+            )}
           </aside>
         ) : null}
         {!hideSidebar && !isMobileSidebar && !desktopSidebarCollapsed && !sidebarExiting ? (
@@ -619,17 +659,52 @@ function PrototypeShortcutBridge() {
     sidebarListMode,
     setSidebarListMode,
     beginPrototypeComposeSession,
+    composePersistedNoteId,
+    activeSpaceId,
+    sidebarListSpaceScope,
   } = useProtoShell();
 
+  const noteSlugFromPath = matchPrototypeNoteId(pathname);
+  const isDraftNoteRoute = noteSlugFromPath != null && isPrototypeDraftNoteSlug(noteSlugFromPath);
+  const toolbarNoteId = resolvePrototypeToolbarNoteId(
+    composePersistedNoteId,
+    noteSlugFromPath,
+    isDraftNoteRoute,
+    normalizeNoteIdFromParam,
+  );
+  const { data: toolbarNote, isLoading: toolbarNoteLoading } = useNote(toolbarNoteId ?? '');
+  const showNoteDetailsOrb = prototypeToolbarNoteDetailsAvailable({
+    isOnNotePage: isPrototypeNotePath(pathname),
+    toolbarNoteId,
+    toolbarNoteLoading,
+    hasToolbarNote: !!toolbarNote,
+    isDraftNoteRoute,
+  });
+
   const createPrototypeNote = useCallback(() => {
-    if (!homeSpaceId) return;
+    const targetSpaceId = resolveVisibleComposeTarget({
+      homeSpaceId,
+      activeSpaceId,
+      sidebarLayer,
+      sidebarListSpaceScope,
+    });
+    if (!targetSpaceId) return;
     if (isMobileSidebar) closeDrawer();
-    beginPrototypeComposeSession();
+    beginPrototypeComposeSession({ targetSpaceId });
     navigate.navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
     });
-  }, [beginPrototypeComposeSession, closeDrawer, homeSpaceId, isMobileSidebar, navigate]);
+  }, [
+    activeSpaceId,
+    beginPrototypeComposeSession,
+    closeDrawer,
+    homeSpaceId,
+    isMobileSidebar,
+    navigate,
+    sidebarLayer,
+    sidebarListSpaceScope,
+  ]);
 
   const togglePrototypeSidebar = useCallback(() => {
     if (isMobileSidebar) toggleDrawer();
@@ -687,7 +762,7 @@ function PrototypeShortcutBridge() {
     const onNewNote = () => createPrototypeNote();
     const onToggleSidebar = () => togglePrototypeSidebar();
     const onToggleInspector = () => {
-      if (!isPrototypeNotePath(pathname)) return;
+      if (!showNoteDetailsOrb) return;
       toggleInspector();
     };
     const onFocusList = () => focusPrototypeNoteList();
@@ -725,6 +800,7 @@ function PrototypeShortcutBridge() {
     focusPrototypeNoteList,
     focusPrototypeSidebarSearch,
     pathname,
+    showNoteDetailsOrb,
     showHomeLayer,
     showListLayer,
     toggleInspector,

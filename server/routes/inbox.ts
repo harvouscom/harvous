@@ -27,6 +27,9 @@ import {
   Notes,
   Threads,
   NoteThreads,
+  Spaces,
+  SpaceNotes,
+  SpaceMemberships,
   eq,
   and,
   lt,
@@ -37,19 +40,55 @@ import {
 } from '../db';
 import { nowISO } from '../db/dates';
 import { rateLimit } from '@/utils/rate-limit';
-import { generateNoteId, generateThreadId } from '@/utils/ids';
+import { generateNoteId, generateSpaceId, generateThreadId, generateTimestampId } from '@/utils/ids';
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
 import { awardNoteCreatedXP, awardThreadCreatedXP } from '../utils/xp-system';
 import { getInboxItemWithNotes } from '../utils/inbox-data';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
-import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { verifyInboxItemInWebflow } from '@/utils/webflow-verification';
+import { createInitialNoteVersion } from '../utils/note-version-service';
+import {
+  SpaceNoteAssociationError,
+  assertCanAssociateCanonicalNote,
+  buildSpaceNoteAssociation,
+  resolveCreateThreadAttachment,
+} from '../utils/space-note-associations';
 
 const app = new Hono();
 
 const INBOX_BULK_INSERT_CHUNK = 400;
 const INBOX_XP_AWARD_CONCURRENCY = 8;
+
+class InboxTargetError extends Error {
+  constructor(
+    message: string,
+    readonly code: string,
+    readonly status: 400 | 403 | 404 | 409,
+  ) {
+    super(message);
+    this.name = 'InboxTargetError';
+  }
+}
+
+export function assertInboxThreadBundleTarget(input: {
+  actorId: string;
+  space: { userId: string; type: string; deletedAt: Date | null } | null;
+}): void {
+  if (!input.space) return;
+  if (input.space.deletedAt) {
+    throw new InboxTargetError('Space not found', 'SPACE_NOT_FOUND', 404);
+  }
+  if (input.space.userId !== input.actorId) {
+    throw new InboxTargetError(
+      input.space.type === 'personal'
+        ? 'Target space not found'
+        : 'Only the shared space owner can add a Thread bundle',
+      input.space.type === 'personal' ? 'SPACE_NOT_FOUND' : 'SHARED_SPACE_OWNER_REQUIRED',
+      input.space.type === 'personal' ? 404 : 403,
+    );
+  }
+}
 
 async function awardNoteCreatedXPInBatchesInbox(
   userId: string,
@@ -250,30 +289,192 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
         } as any;
       }
 
-      const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
-      const nextSimpleNoteId: number = effectiveHighest + 1;
-      const finalThreadId = targetThreadId || 'thread_unorganized';
       const now = nowISO();
 
-      const newNote = first(await db.insert(Notes)
-        .values({
+      const newNote = await db.transaction(async (tx) => {
+        const lockedMetadata = first(
+          await tx
+            .select()
+            .from(UserMetadata)
+            .where(eq(UserMetadata.userId, auth.userId))
+            .for('update')
+            .limit(1),
+        );
+        const highestExisting = first(
+          await tx
+            .select({ simpleNoteId: Notes.simpleNoteId })
+            .from(Notes)
+            .where(and(eq(Notes.userId, auth.userId), isNotNull(Notes.simpleNoteId)))
+            .orderBy(desc(Notes.simpleNoteId))
+            .limit(1),
+        )?.simpleNoteId ?? 0;
+        const nextSimpleNoteId =
+          Math.max(lockedMetadata?.highestSimpleNoteId ?? 0, highestExisting) + 1;
+        const requestedThreadId =
+          typeof targetThreadId === 'string' ? targetThreadId.trim() : '';
+        const requestedRealThread =
+          Boolean(requestedThreadId) &&
+          requestedThreadId !== 'thread_unorganized' &&
+          !requestedThreadId.startsWith('thread_onboarding_');
+        const targetThread = requestedRealThread
+          ? first(
+              await tx
+                .select()
+                .from(Threads)
+                .where(eq(Threads.id, requestedThreadId))
+                .for('update')
+                .limit(1),
+            ) ?? null
+          : null;
+        if (requestedRealThread && !targetThread) {
+          throw new InboxTargetError('Target Thread not found', 'THREAD_NOT_FOUND', 404);
+        }
+
+        const effectiveTargetSpaceId =
+          typeof targetSpaceId === 'string' && targetSpaceId.trim()
+            ? targetSpaceId.trim()
+            : targetThread?.spaceId ?? null;
+        const targetSpace = effectiveTargetSpaceId
+          ? first(
+              await tx
+                .select()
+                .from(Spaces)
+                .where(eq(Spaces.id, effectiveTargetSpaceId))
+                .for('update')
+                .limit(1),
+            ) ?? null
+          : null;
+        if (effectiveTargetSpaceId && (!targetSpace || targetSpace.deletedAt)) {
+          throw new InboxTargetError('Target space not found', 'SPACE_NOT_FOUND', 404);
+        }
+        if (
+          targetThread &&
+          targetThread.spaceId !== (targetSpace?.id ?? null)
+        ) {
+          throw new InboxTargetError(
+            'Target Thread is not in the target space',
+            'THREAD_NOT_IN_TARGET_SPACE',
+            409,
+          );
+        }
+
+        const collaborativeTarget =
+          targetSpace && targetSpace.type !== 'personal' ? targetSpace : null;
+        let membership: typeof SpaceMemberships.$inferSelect | null = null;
+        let canonicalSpaceId = targetSpace?.id ?? null;
+        if (collaborativeTarget) {
+          membership =
+            first(
+              await tx
+                .select()
+                .from(SpaceMemberships)
+                .where(
+                  and(
+                    eq(SpaceMemberships.spaceId, collaborativeTarget.id),
+                    eq(SpaceMemberships.userId, auth.userId),
+                  ),
+                )
+                .for('update')
+                .limit(1),
+            ) ?? null;
+          assertCanAssociateCanonicalNote({
+            note: {
+              id: 'pending-inbox-note',
+              userId: auth.userId,
+              contentEncrypted: false,
+            },
+            space: collaborativeTarget,
+            membership,
+            actorId: auth.userId,
+          });
+          const personalSpaces = await tx
+            .select({ id: Spaces.id, title: Spaces.title })
+            .from(Spaces)
+            .where(and(eq(Spaces.userId, auth.userId), eq(Spaces.type, 'personal')));
+          canonicalSpaceId =
+            personalSpaces.find(
+              (row: { title: string }) => row.title.trim().toLowerCase() === 'my home',
+            )?.id ?? null;
+          if (!canonicalSpaceId) {
+            canonicalSpaceId = generateSpaceId();
+            await tx.insert(Spaces).values({
+              id: canonicalSpaceId,
+              title: 'My Home',
+              color: 'paper',
+              userId: auth.userId,
+              type: 'personal',
+              isPublic: false,
+              isActive: true,
+              order: 0,
+              createdAt: now,
+              updatedAt: now,
+            });
+          }
+        } else if (targetSpace && targetSpace.userId !== auth.userId) {
+          throw new InboxTargetError('Target space not found', 'SPACE_NOT_FOUND', 404);
+        }
+
+        const threadPlan = resolveCreateThreadAttachment({
+          requestedThreadId,
+          targetSpaceId: targetSpace?.id ?? canonicalSpaceId,
+          targetSpaceType: targetSpace?.type ?? null,
+          actorId: auth.userId,
+          noteAuthorId: auth.userId,
+          thread: targetThread,
+        });
+        const created = first(await tx.insert(Notes).values({
           id: generateNoteId(),
           title: inboxItem.title || null,
           content: inboxItem.content || '',
-          threadId: finalThreadId,
-          spaceId: targetSpaceId || null,
+          threadId: threadPlan.canonicalThreadId,
+          spaceId: canonicalSpaceId,
           simpleNoteId: nextSimpleNoteId,
           userId: auth.userId,
           isPublic: false,
+          contentEncrypted: false,
           addedBy: 'harvous',
           createdAt: now,
           lastVisited: now,
-        })
-        .returning())!;
-
-      await db.update(UserMetadata)
-        .set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })
-        .where(eq(UserMetadata.userId, auth.userId));
+        }).returning())!;
+        await createInitialNoteVersion(tx, {
+          noteId: created.id,
+          noteAuthorId: auth.userId,
+          content: {
+            title: created.title,
+            content: created.content,
+            contentEncrypted: created.contentEncrypted,
+          },
+          createdAt: now,
+          source: 'inbox-add',
+        });
+        if (collaborativeTarget) {
+          await tx.insert(SpaceNotes).values(
+            buildSpaceNoteAssociation({
+              id: generateTimestampId('snote'),
+              spaceId: collaborativeTarget.id,
+              noteId: created.id,
+              actorId: auth.userId,
+              now,
+            }),
+          );
+        }
+        if (threadPlan.attachThreadId) {
+          await tx.insert(NoteThreads).values({
+            id: generateTimestampId('nthread'),
+            noteId: created.id,
+            threadId: threadPlan.attachThreadId,
+            createdAt: now,
+          });
+          await tx
+            .update(Threads)
+            .set({ updatedAt: now })
+            .where(eq(Threads.id, threadPlan.attachThreadId));
+        }
+        await tx.update(UserMetadata)
+          .set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: now })
+          .where(eq(UserMetadata.userId, auth.userId));
+        return created;
+      });
 
       const isScriptureNote = newNote.noteType === 'scripture';
       awardNoteCreatedXP(auth.userId, newNote.id, isScriptureNote, newNote.content || '').catch(() => {});
@@ -283,23 +484,6 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
       const newThreadId = generateThreadId();
       const threadColor = convertInboxColorToThreadColor(inboxItem.color) || getRandomThreadColor();
       const threadNow = nowISO();
-
-      const newThread = first(await db.insert(Threads)
-        .values({
-          id: newThreadId,
-          title: inboxItem.title,
-          subtitle: inboxItem.subtitle || null,
-          spaceId: targetSpaceId || null,
-          userId: auth.userId,
-          isPublic: false,
-          color: threadColor,
-          createdAt: threadNow,
-          updatedAt: threadNow,
-          lastVisited: threadNow,
-        })
-        .returning())!;
-
-      awardThreadCreatedXP(auth.userId, newThreadId, newThread.title, newThread.subtitle || null).catch(() => {});
       createdIds.threadId = newThreadId;
 
       // Get or create user metadata
@@ -345,15 +529,14 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
         } as any;
       }
 
-      const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
       const notes = inboxItem.notes || [];
-      let currentSimpleNoteId: number = effectiveHighest + 1;
+      let currentSimpleNoteId = 0;
       const baseTimestamp = Date.now();
-      const junctionTs = nowISO();
+      const junctionTs = new Date();
 
       type NoteInsert = typeof Notes.$inferInsert;
       const noteRows: NoteInsert[] = [];
-      const junctionRows: { id: string; noteId: string; threadId: string; createdAt: string }[] = [];
+      const junctionRows: { id: string; noteId: string; threadId: string; createdAt: Date }[] = [];
       const xpItems: Array<{ noteId: string; isScripture: boolean; content: string }> = [];
 
       for (let noteIndex = 0; noteIndex < notes.length; noteIndex++) {
@@ -365,8 +548,8 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
           id: newNoteId,
           title: note.title || null,
           content: note.content,
-          threadId: newThreadId,
-          spaceId: targetSpaceId || null,
+          threadId: 'thread_unorganized',
+          spaceId: null,
           simpleNoteId: currentSimpleNoteId,
           userId: auth.userId,
           isPublic: false,
@@ -391,22 +574,160 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
         currentSimpleNoteId++;
       }
 
-      for (let i = 0; i < noteRows.length; i += INBOX_BULK_INSERT_CHUNK) {
-        await db.insert(Notes).values(noteRows.slice(i, i + INBOX_BULK_INSERT_CHUNK));
-      }
-      for (let i = 0; i < junctionRows.length; i += INBOX_BULK_INSERT_CHUNK) {
-        await db.insert(NoteThreads).values(junctionRows.slice(i, i + INBOX_BULK_INSERT_CHUNK));
-      }
+      const newThread = await db.transaction(async (tx) => {
+        const requestedSpaceId =
+          typeof targetSpaceId === 'string' && targetSpaceId.trim()
+            ? targetSpaceId.trim()
+            : null;
+        const targetSpace = requestedSpaceId
+          ? first(
+              await tx
+                .select()
+                .from(Spaces)
+                .where(eq(Spaces.id, requestedSpaceId))
+                .for('update')
+                .limit(1),
+            ) ?? null
+          : null;
+        if (requestedSpaceId && !targetSpace) {
+          throw new InboxTargetError('Target space not found', 'SPACE_NOT_FOUND', 404);
+        }
+        assertInboxThreadBundleTarget({ actorId: auth.userId, space: targetSpace });
+        const collaborativeTarget =
+          targetSpace && targetSpace.type !== 'personal' ? targetSpace : null;
+        let canonicalSpaceId = targetSpace?.id ?? null;
+        if (collaborativeTarget) {
+          const personalSpaces = await tx
+            .select({ id: Spaces.id, title: Spaces.title })
+            .from(Spaces)
+            .where(and(eq(Spaces.userId, auth.userId), eq(Spaces.type, 'personal')));
+          canonicalSpaceId =
+            personalSpaces.find(
+              (row: { title: string }) => row.title.trim().toLowerCase() === 'my home',
+            )?.id ?? null;
+          if (!canonicalSpaceId) {
+            canonicalSpaceId = generateSpaceId();
+            await tx.insert(Spaces).values({
+              id: canonicalSpaceId,
+              title: 'My Home',
+              color: 'paper',
+              userId: auth.userId,
+              type: 'personal',
+              isPublic: false,
+              isActive: true,
+              order: 0,
+              createdAt: threadNow,
+              updatedAt: threadNow,
+            });
+          }
+          await tx
+            .update(Threads)
+            .set({ isPinned: false, updatedAt: threadNow })
+            .where(eq(Threads.spaceId, collaborativeTarget.id));
+        }
+        const createdThread = first(
+          await tx
+            .insert(Threads)
+            .values({
+              id: newThreadId,
+              title: inboxItem.title,
+              subtitle: inboxItem.subtitle || null,
+              spaceId: targetSpace?.id ?? null,
+              userId: auth.userId,
+              isPublic: false,
+              isPinned: Boolean(collaborativeTarget),
+              color: threadColor,
+              createdAt: threadNow,
+              updatedAt: threadNow,
+              lastVisited: threadNow,
+            })
+            .returning(),
+        )!;
+        const lockedMetadata = first(
+          await tx
+            .select()
+            .from(UserMetadata)
+            .where(eq(UserMetadata.userId, auth.userId))
+            .for('update')
+            .limit(1),
+        );
+        const highestExisting = first(
+          await tx
+            .select({ simpleNoteId: Notes.simpleNoteId })
+            .from(Notes)
+            .where(and(eq(Notes.userId, auth.userId), isNotNull(Notes.simpleNoteId)))
+            .orderBy(desc(Notes.simpleNoteId))
+            .limit(1),
+        )?.simpleNoteId ?? 0;
+        currentSimpleNoteId =
+          Math.max(lockedMetadata?.highestSimpleNoteId ?? 0, highestExisting) + 1;
+        for (let index = 0; index < noteRows.length; index++) {
+          noteRows[index].simpleNoteId = currentSimpleNoteId + index;
+          noteRows[index].spaceId = canonicalSpaceId;
+          noteRows[index].threadId = collaborativeTarget
+            ? 'thread_unorganized'
+            : newThreadId;
+          noteRows[index].contentEncrypted = false;
+        }
+        currentSimpleNoteId += noteRows.length;
+        for (let i = 0; i < noteRows.length; i += INBOX_BULK_INSERT_CHUNK) {
+          const chunk = noteRows.slice(i, i + INBOX_BULK_INSERT_CHUNK);
+          await tx.insert(Notes).values(chunk);
+          for (const noteRow of chunk) {
+            await createInitialNoteVersion(tx, {
+              noteId: noteRow.id,
+              noteAuthorId: auth.userId,
+              content: {
+                title: noteRow.title ?? null,
+                content: noteRow.content,
+                contentEncrypted: noteRow.contentEncrypted ?? false,
+              },
+              createdAt: noteRow.createdAt as Date,
+              source: 'inbox-thread-add',
+            });
+            if (collaborativeTarget) {
+              assertCanAssociateCanonicalNote({
+                note: {
+                  id: noteRow.id,
+                  userId: auth.userId,
+                  contentEncrypted: false,
+                },
+                space: collaborativeTarget,
+                membership: null,
+                actorId: auth.userId,
+              });
+              await tx.insert(SpaceNotes).values(
+                buildSpaceNoteAssociation({
+                  id: generateTimestampId('snote'),
+                  spaceId: collaborativeTarget.id,
+                  noteId: noteRow.id,
+                  actorId: auth.userId,
+                  now: noteRow.createdAt as Date,
+                }),
+              );
+            }
+          }
+        }
+        for (let i = 0; i < junctionRows.length; i += INBOX_BULK_INSERT_CHUNK) {
+          await tx.insert(NoteThreads).values(junctionRows.slice(i, i + INBOX_BULK_INSERT_CHUNK));
+        }
+        await tx.update(UserMetadata)
+          .set({ highestSimpleNoteId: currentSimpleNoteId - 1, updatedAt: nowISO() })
+          .where(eq(UserMetadata.userId, auth.userId));
+        await tx.update(Threads)
+          .set({ updatedAt: nowISO() })
+          .where(and(eq(Threads.id, newThreadId), eq(Threads.userId, auth.userId)));
+        return createdThread;
+      });
 
+      await awardThreadCreatedXP(
+        auth.userId,
+        newThreadId,
+        newThread.title,
+        newThread.subtitle || null,
+      ).catch(() => {});
       await awardNoteCreatedXPInBatchesInbox(auth.userId, xpItems, INBOX_XP_AWARD_CONCURRENCY);
 
-      await db.update(UserMetadata)
-        .set({ highestSimpleNoteId: currentSimpleNoteId - 1, updatedAt: nowISO() })
-        .where(eq(UserMetadata.userId, auth.userId));
-
-      await db.update(Threads)
-        .set({ updatedAt: nowISO() })
-        .where(and(eq(Threads.id, newThreadId), eq(Threads.userId, auth.userId)));
     }
 
     // Update UserInboxItems status to 'added'
@@ -422,6 +743,18 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
       createdIds,
     });
   } catch (error: any) {
+    if (error instanceof InboxTargetError) {
+      return c.json({ error: error.message, code: error.code }, error.status);
+    }
+    if (error instanceof SpaceNoteAssociationError) {
+      const status =
+        error.code === 'NOT_SPACE_MEMBER' || error.code === 'ROLE_CANNOT_ASSOCIATE'
+          ? 403
+          : error.code === 'SPACE_DELETED'
+            ? 404
+            : 409;
+      return c.json({ error: error.message, code: error.code }, status);
+    }
     console.error('Error adding inbox item to Harvous:', error);
     return c.json({ error: 'Failed to add inbox item to Harvous', details: error.message }, 500);
   }

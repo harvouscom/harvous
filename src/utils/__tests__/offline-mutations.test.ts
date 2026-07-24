@@ -423,6 +423,12 @@ describe('offline-mutations', () => {
 
       expect(noteThreads).toHaveLength(1);
       expect(noteThreads[0].threadId).toBe(threadId);
+      const calls = vi.mocked(enqueueMutation).mock.calls
+        .map(([, mutation]) => mutation.entityType);
+      expect(calls.slice(-2)).toEqual(['note', 'noteThread']);
+      expect(
+        (await offlineDB.notes.get(noteId))?.currentVersion,
+      ).toBe(1);
     });
   });
 
@@ -795,15 +801,60 @@ describe('note offline coalescing & materialization', () => {
       userId,
       'note_server',
       { title: 'T', content: '<p>edited</p>' },
-      { content: '<p>edited</p>', title: 'T' },
+      { content: '<p>edited</p>', title: 'T', currentVersion: 7 },
     );
 
     const row = await offlineDB.notes.get('note_server');
     expect(row?.content).toBe('<p>edited</p>');
     expect(enqueueMutation).toHaveBeenCalledWith(
       userId,
-      expect.objectContaining({ operation: 'update', entityType: 'note', entityId: 'note_server' }),
+      expect.objectContaining({
+        operation: 'update',
+        entityType: 'note',
+        entityId: 'note_server',
+        data: expect.objectContaining({ expectedVersion: 7 }),
+      }),
     );
+  });
+
+  it('fails closed when a server note content edit has no immutable version', async () => {
+    await expect(
+      updateNoteOffline(
+        userId,
+        'note_server_unversioned',
+        { content: '<p>edited</p>' },
+        { content: '<p>before</p>' },
+      ),
+    ).rejects.toThrow('currentVersion');
+  });
+
+  it('persists the original expectedVersion while coalescing canonical edits', async () => {
+    await seedNoteRow('note_synced');
+    await offlineDB.notes.update('note_synced', {
+      currentVersion: 4,
+      syncStatus: 'synced',
+    });
+    await offlineDB.syncQueue.add({
+      userId,
+      operation: 'update',
+      entityType: 'note',
+      entityId: 'note_synced',
+      data: { content: '<p>first</p>', expectedVersion: 4 },
+      retryCount: 0,
+      timestamp: Date.now(),
+      clientMutationId: 'cmid-update',
+    } as any);
+    await updateNoteOffline(userId, 'note_synced', {
+      title: 'Second',
+      contentEncrypted: true,
+    });
+    const queued = await offlineDB.syncQueue.where('userId').equals(userId).first();
+    expect(queued?.data).toMatchObject({
+      content: '<p>first</p>',
+      title: 'Second',
+      contentEncrypted: true,
+      expectedVersion: 4,
+    });
   });
 
   it('throws for a missing note without a seed (legacy behavior preserved)', async () => {

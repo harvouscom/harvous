@@ -1521,7 +1521,12 @@ button.admin-usage__window-chip--active:active {
   gap: 6px;
   border: 0.5px solid var(--pds-border, var(--color-fog-white));
   border-radius: var(--pds-radius-md, 10px);
-  background: var(--pds-bg-secondary, #fff);
+  /*
+   * `--pds-bg-secondary` and `--pds-fill-tertiary` were never defined tokens,
+   * so the hardcoded light fallbacks won in every theme — white button, white
+   * text, unreadable in dark mode. Use the real control tokens.
+   */
+  background: var(--pds-bg-control);
   color: var(--pds-text-primary, var(--color-deep-grey));
   padding: 8px 14px;
   font: var(--pds-font-body, inherit);
@@ -1534,7 +1539,7 @@ button.admin-usage__window-chip--active:active {
 }
 
 .admin-action-btn:hover:not(:disabled) {
-  background: var(--pds-fill-tertiary, var(--color-fog-white));
+  background: var(--pds-bg-control-hover);
   color: var(--pds-text-primary, var(--color-deep-grey));
 }
 

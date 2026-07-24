@@ -216,7 +216,7 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
                   </span>
                 </label>
                 <p className="proto-fte-lock__hint">
-                  When on, Harvous won&apos;t change the thread name automatically when notes connect or change.
+                  When on, Harvous keeps the thread name you choose.
                 </p>
               </div>
             </section>

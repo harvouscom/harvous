@@ -1,33 +1,14 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { isClerkAPIResponseError } from '@clerk/clerk-react/errors';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import type { UserResource } from '@clerk/types';
 import { updateCachedProfile } from '../../../../hooks/queries/useProfile';
 
-/** Shared field styles — mirror PrototypeChurchPage so account forms match other settings. */
-export const labelStyle: CSSProperties = {
-  display: 'block',
-  fontSize: '0.75rem',
-  fontWeight: 600,
-  color: 'var(--pds-text-secondary)',
-  marginBottom: 6,
-};
-
-/** @deprecated Prefer className="proto-settings-field" for focus-ring support. */
-export const inputStyle: CSSProperties = {
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: '10px 14px',
-  border: '0.5px solid var(--pds-border)',
-  borderRadius: 'var(--pds-radius-input)',
-  background: 'var(--pds-bg-input)',
-  fontFamily: 'var(--pds-font-body)',
-  fontSize: '0.9375rem',
-  color: 'var(--pds-text-primary)',
-  outline: 'none',
-};
-
+/**
+ * Settings/account/church text field — same input chrome as create-sheet
+ * (`.proto-create-folder-sheet__name-input` / `.proto-settings-field__input`).
+ */
 export function Field(props: {
   label: string;
   value: string;
@@ -37,17 +18,17 @@ export function Field(props: {
   onChange: (v: string) => void;
 }) {
   return (
-    <div style={{ marginBottom: 16 }}>
-      <label style={labelStyle}>{props.label}</label>
+    <label className="proto-settings-field">
+      <span className="proto-settings-field__label">{props.label}</span>
       <input
         type={props.type ?? 'text'}
-        className="proto-settings-field"
+        className="proto-settings-field__input proto-create-folder-sheet__name-input"
         value={props.value}
         placeholder={props.placeholder}
         autoComplete={props.autoComplete}
         onChange={(e) => props.onChange(e.target.value)}
       />
-    </div>
+    </label>
   );
 }
 
@@ -80,7 +61,11 @@ export function useRefreshProfileAfterMutation() {
   const queryClient = useQueryClient();
   return useCallback(
     async (user: UserResource) => {
-      await user.reload();
+      try {
+        await user.reload();
+      } catch (e) {
+        console.error('[useRefreshProfileAfterMutation] user.reload() failed (non-fatal):', e);
+      }
       updateCachedProfile({
         firstName: user.firstName ?? '',
         lastName: user.lastName ?? '',

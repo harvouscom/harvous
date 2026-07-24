@@ -1,5 +1,6 @@
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import { HARVOUS_SPACE_NOTES_CACHE_PREFIX } from '@/utils/user-cache-keys';
+import type { NoteDetail } from '../hooks/queries/useNote';
 import type { SpaceNoteRow } from '../hooks/queries/useSpace';
 
 export interface SpaceNotesPage {
@@ -20,6 +21,22 @@ export function spaceNotesQueryKey(spaceId: string) {
   return ['space', normalizeSpaceIdForCache(spaceId), 'notes', 'no-legacy-scripture', 'updated'] as const;
 }
 
+function sessionStorageKey(spaceId: string): string {
+  return `${HARVOUS_SPACE_NOTES_CACHE_PREFIX}${normalizeSpaceIdForCache(spaceId)}`;
+}
+
+function seedSessionStorageFirstPage(spaceId: string, page: SpaceNotesPage) {
+  const id = normalizeSpaceIdForCache(spaceId);
+  if (!id) return;
+  try {
+    const key = sessionStorageKey(id);
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, JSON.stringify(page));
+  } catch {
+    /* ignore */
+  }
+}
+
 function patchSessionStorageFirstPage(
   spaceId: string,
   patchNotes: (notes: SpaceNoteRow[]) => SpaceNoteRow[],
@@ -28,17 +45,83 @@ function patchSessionStorageFirstPage(
   const id = normalizeSpaceIdForCache(spaceId);
   if (!id) return;
   try {
-    const raw = sessionStorage.getItem(`${HARVOUS_SPACE_NOTES_CACHE_PREFIX}${id}`);
+    const raw = sessionStorage.getItem(sessionStorageKey(id));
     if (!raw) return;
     const page = JSON.parse(raw) as SpaceNotesPage;
     page.notes = patchNotes(page.notes);
     if (totalDelta !== undefined && typeof page.total === 'number') {
       page.total = Math.max(0, page.total + totalDelta);
     }
-    sessionStorage.setItem(`${HARVOUS_SPACE_NOTES_CACHE_PREFIX}${id}`, JSON.stringify(page));
+    sessionStorage.setItem(sessionStorageKey(id), JSON.stringify(page));
   } catch {
     /* ignore */
   }
+}
+
+function spaceNoteRowFromNoteDetail(detail: NoteDetail): SpaceNoteRow {
+  return {
+    id: detail.id,
+    title: detail.title,
+    content: detail.content,
+    noteType: detail.noteType,
+    simpleNoteId: detail.simpleNoteId ?? null,
+    createdAt: detail.createdAt,
+    updatedAt: detail.updatedAt,
+    isPinned: false,
+    contentEncrypted: detail.contentEncrypted,
+    primaryCollection: detail.primaryCollection ?? null,
+    secondaryCollections: detail.secondaryCollections,
+    collectionPinned: detail.collectionPinned,
+    collectionUserOverride: detail.collectionUserOverride,
+    resourceTitle: detail.resourceTitle ?? null,
+    version: detail.version,
+  };
+}
+
+/** Scan space-notes caches, then note detail cache, for a list row shape. */
+export function findSpaceNoteRowInCache(queryClient: QueryClient, noteId: string): SpaceNoteRow | null {
+  const spaceNotesKeys = queryClient
+    .getQueryCache()
+    .findAll()
+    .map((q) => q.queryKey)
+    .filter(
+      (key): key is readonly [string, string, string, ...unknown[]] =>
+        Array.isArray(key) && key[0] === 'space' && key[2] === 'notes' && typeof key[1] === 'string',
+    );
+
+  for (const key of spaceNotesKeys) {
+    const data = queryClient.getQueryData<InfiniteData<SpaceNotesPage, number>>(key);
+    for (const page of data?.pages ?? []) {
+      const hit = page.notes.find((n) => n.id === noteId);
+      if (hit) return hit;
+    }
+  }
+
+  const detail = queryClient.getQueryData<NoteDetail>(['note', noteId]);
+  if (detail) return spaceNoteRowFromNoteDetail(detail);
+
+  return null;
+}
+
+/** Build a target-space list row for a note copied from an existing cached source. */
+export function spaceNoteRowFromCopy(source: SpaceNoteRow, newNoteId: string): SpaceNoteRow {
+  const now = new Date().toISOString();
+  return {
+    id: newNoteId,
+    title: source.title,
+    content: source.content,
+    noteType: source.noteType,
+    createdAt: now,
+    updatedAt: now,
+    isPinned: false,
+    isOwnNote: true,
+    contentEncrypted: false,
+    primaryCollection: null,
+    secondaryCollections: [],
+    collectionPinned: false,
+    collectionUserOverride: false,
+    resourceTitle: source.resourceTitle ?? null,
+  };
 }
 
 /** Patch notes across all infinite-query pages (map: return null to remove). */
@@ -96,11 +179,24 @@ export function prependSpaceNoteToCache(queryClient: QueryClient, spaceId: strin
       ],
     };
   });
-  patchSessionStorageFirstPage(
-    spaceId,
-    (notes) => [note, ...notes.filter((n) => n.id !== note.id)],
-    totalDelta,
-  );
+
+  const id = normalizeSpaceIdForCache(spaceId);
+  const firstPage = queryClient.getQueryData<InfiniteData<SpaceNotesPage, number>>(key)?.pages[0];
+  if (id && firstPage) {
+    try {
+      if (sessionStorage.getItem(sessionStorageKey(id))) {
+        patchSessionStorageFirstPage(
+          spaceId,
+          (notes) => [note, ...notes.filter((n) => n.id !== note.id)],
+          totalDelta,
+        );
+      } else {
+        seedSessionStorageFirstPage(spaceId, firstPage);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 export function removeSpaceNoteFromCache(queryClient: QueryClient, spaceId: string, noteId: string) {

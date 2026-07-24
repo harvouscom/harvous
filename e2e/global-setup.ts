@@ -1,35 +1,39 @@
 import { clerkSetup } from '@clerk/testing/playwright';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import dotenv from 'dotenv';
 import { resolve } from 'path';
+import {
+  readSafeE2EConfig,
+  SHARED_SPACES_RELEASE_GATE_ENV,
+} from './fixtures/e2e-db-safety';
 
-// Load .env files manually before clerkSetup runs its own dotenv pass.
-// This ensures PUBLIC_CLERK_PUBLISHABLE_KEY (Astro's prefix) is available.
+// Load the same local env files as the API and SPA.
 dotenv.config({ path: resolve(process.cwd(), '.env.local') });
 dotenv.config({ path: resolve(process.cwd(), '.env') });
 
 /**
  * Global Playwright setup — runs once before all tests.
- * 1. Seeds the DB used by the dev server (so shared-space-join tests find space_test_2).
- * 2. Fetches a Clerk testing token; setupClerkTestingToken() uses it to bypass bot protection.
- *
- * Astro uses PUBLIC_CLERK_PUBLISHABLE_KEY, but @clerk/testing looks for CLERK_PUBLISHABLE_KEY.
- * We bridge the two by passing the key explicitly.
+ * Seeds only when an explicitly disposable E2E database is configured, then
+ * fetches the Clerk testing token used by authenticated browser fixtures.
  */
 export default async function globalSetup() {
-  // Idempotent E2E seed: space_test_2, invitation, reset non-owner members.
-  // Run for both local and remote so tests pass regardless of which DB the dev server uses.
-  const remote = (process.env.TURSO_DATABASE_URL ?? process.env.ASTRO_DB_REMOTE_URL) ? '--remote' : '';
-  for (const flag of ['', '--remote']) {
-    try {
-      execSync(`npx astro db execute db/seed-e2e.ts ${flag}`.trim(), {
+  if (process.env[SHARED_SPACES_RELEASE_GATE_ENV] === '1') {
+    const config = readSafeE2EConfig();
+    execFileSync(
+      process.execPath,
+      [
+        resolve(process.cwd(), 'node_modules/tsx/dist/cli.mjs'),
+        'scripts/seed-e2e.ts',
+      ],
+      {
         cwd: process.cwd(),
-        stdio: 'pipe',
-        env: process.env,
-      });
-    } catch (err) {
-      // One DB may not exist or schema may differ; continue
-    }
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          SUPABASE_DATABASE_URL: config.databaseUrl,
+        },
+      },
+    );
   }
 
   const publishableKey = process.env.PUBLIC_CLERK_PUBLISHABLE_KEY;

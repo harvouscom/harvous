@@ -9,11 +9,13 @@
  *   DELETE /api/user/delete-account
  *   GET  /api/user/export
  *   POST /api/user/session
+ *   GET  /api/user/churches/hmc/search
  *   POST /api/user/update-church
  *   POST /api/user/update-credentials
  *   POST /api/user/update-profile
  *   GET  /api/user/xp
  *   GET  /api/user/get-profile
+ *   POST /api/user/update-shared-space-switcher-order
  *   POST /api/user/migrate-to-prototype
  *   GET  /api/user/migrate-to-prototype/status
  *   GET  /api/user/locked-notes
@@ -28,15 +30,22 @@
  */
 
 import { Hono } from 'hono';
-import type { Context } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db, first, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata,
-  UserXP, Comments, ScriptureMetadata, Members, NoteScriptureReferences, ResourceMetadata,
+  UserXP, Comments, ScriptureMetadata, Members, SpaceMemberships, SpaceInvites, NoteScriptureReferences, ResourceMetadata,
   StudyThreadEntries, NoteConnections,
-  eq, and, or, desc, asc, isNotNull, isNull, sql, inArray,
+  eq, and, ne, or, desc, asc, isNotNull, isNull, sql, inArray,
 } from '../db';
 import { nowISO } from '../db/dates';
+import {
+  HmcPartnerError,
+  hmcDenormFields,
+  hmcGetChurchById,
+  hmcSearchChurches,
+  hmcSubmitUnlistedUsChurch,
+} from '../utils/hmc-partner';
+import { isUsChurchLocation, normalizeUsStateCode } from '@/utils/us-states';
 
 // Server-ported utilities
 import { getCachedUserData, invalidateUserCache } from '../utils/user-cache';
@@ -46,7 +55,7 @@ import {
   calculateTotalXP, getXPBreakdown, backfillUserXP,
 } from '../utils/xp-system';
 import { calculateSessionXP, type SessionData } from '../utils/session-tracker';
-import { canCreateSharedSpace, canJoinSpace, getUserLimitsInfo, getSpaceMemberCount } from '../utils/tier-limits';
+import { canCreateSharedSpace, getUserLimitsInfo, getSpaceMemberCount } from '../utils/tier-limits';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 
 // Pure @/utils (no astro:db)
@@ -74,9 +83,13 @@ import {
   runPrototypeUserMigration,
   userNeedsCollectionBackfill,
 } from '../utils/prototype-user-migration';
-import { isNoteConnectionsTableMissing } from '../utils/pg-undefined-relation';
+import {
+  isNoteConnectionsTableMissing,
+  isPrototypeFolderStatsColumnMissing,
+} from '../utils/pg-undefined-relation';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
-import { enrichImportedNote } from '../utils/import-enrichment';
+import { createInitialNoteVersion } from '../utils/note-version-service';
+import { buildLegacyAnchorMigrationPatch } from '../utils/durable-note-anchor';
 
 const app = new Hono();
 
@@ -169,6 +182,17 @@ app.get('/api/user/migrate-to-prototype/status', requireAuth, async (c) => {
     const needsCollectionBackfill = await userNeedsCollectionBackfill(auth.userId);
     return c.json({ success: true, needsCollectionBackfill });
   } catch (error) {
+    if (isNoteConnectionsTableMissing(error) || isPrototypeFolderStatsColumnMissing(error)) {
+      return c.json(
+        {
+          error: 'Prototype migration schema not ready. Run `npm run db:push` on the target database.',
+          code: 'SCHEMA_NOT_READY',
+          success: false,
+          needsCollectionBackfill: false,
+        },
+        503,
+      );
+    }
     const e = handleAPIError(error, { endpoint: '/api/user/migrate-to-prototype/status', action: 'migrate_to_prototype_status' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
@@ -188,8 +212,14 @@ app.delete('/api/user/clear-data', requireAuth, async (c) => {
 
     const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, auth.userId));
     for (const space of userSpaces) {
+      await db.delete(SpaceMemberships).where(eq(SpaceMemberships.spaceId, space.id));
+      await db.delete(SpaceInvites).where(eq(SpaceInvites.spaceId, space.id));
+      // Hygiene deletes on the frozen v1 tables (kept until they are dropped)
       await db.delete(Members).where(eq(Members.spaceId, space.id));
     }
+    // Own membership rows in spaces owned by other people.
+    await db.delete(SpaceMemberships).where(eq(SpaceMemberships.userId, auth.userId));
+    await db.delete(Members).where(eq(Members.userId, auth.userId));
     await db.delete(Spaces).where(eq(Spaces.userId, auth.userId));
     await db.delete(Tags).where(eq(Tags.userId, auth.userId));
 
@@ -214,8 +244,14 @@ app.delete('/api/user/delete-account', requireAuth, async (c) => {
 
     const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, auth.userId));
     for (const space of userSpaces) {
+      await db.delete(SpaceMemberships).where(eq(SpaceMemberships.spaceId, space.id));
+      await db.delete(SpaceInvites).where(eq(SpaceInvites.spaceId, space.id));
+      // Hygiene deletes on the frozen v1 tables (kept until they are dropped)
       await db.delete(Members).where(eq(Members.spaceId, space.id));
     }
+    // Own membership rows in spaces owned by other people.
+    await db.delete(SpaceMemberships).where(eq(SpaceMemberships.userId, auth.userId));
+    await db.delete(Members).where(eq(Members.userId, auth.userId));
     await db.delete(Spaces).where(eq(Spaces.userId, auth.userId));
     await db.delete(Tags).where(eq(Tags.userId, auth.userId));
     await db.delete(UserXP).where(eq(UserXP.userId, auth.userId));
@@ -256,10 +292,10 @@ app.get('/api/user/export', requireAuth, async (c) => {
     if (formatParam === 'backup') {
       const { content, fileExtension } = await generateUserBackupZip(auth.userId);
       const filename = `harvous-backup-${timestamp}.${fileExtension}`;
-      c.header('Content-Type', 'application/zip');
-      c.header('Content-Disposition', `attachment; filename="${filename}"`);
-      c.header('Cache-Control', 'private, no-store');
-      return c.body(content);
+      return new Response(content, {
+        status: 200,
+        headers: { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${filename}"` },
+      });
     }
 
     const format: ExportFormat =
@@ -315,6 +351,28 @@ app.post('/api/user/session', requireAuth, async (c) => {
   }
 });
 
+// ─── GET /api/user/churches/hmc/search ───────────────────────────────────────
+
+app.get('/api/user/churches/hmc/search', requireAuth, async (c) => {
+  try {
+    const q = String(c.req.query('q') ?? '');
+    const state = String(c.req.query('state') ?? '');
+    const limitRaw = Number(c.req.query('limit') ?? 20);
+    const results = await hmcSearchChurches({
+      q,
+      state,
+      limit: Number.isFinite(limitRaw) ? limitRaw : 20,
+    });
+    return c.json({ success: true, results, query: q.trim() });
+  } catch (error) {
+    if (error instanceof HmcPartnerError) {
+      return c.json({ error: error.message, code: error.code }, error.status as 400 | 429 | 502 | 503);
+    }
+    const e = handleAPIError(error, { endpoint: '/api/user/churches/hmc/search', action: 'hmc_search' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
 // ─── POST /api/user/update-church ────────────────────────────────────────────
 
 app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) => {
@@ -322,55 +380,205 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
     const auth = getAuthenticatedAuth(c);
 
     const body = await c.req.json();
-    const { churchName, churchCity, churchState, churchCountry } = body;
+    const hmcChurchIdRaw =
+      body.hmcChurchId === null
+        ? null
+        : typeof body.hmcChurchId === 'string'
+          ? body.hmcChurchId.trim() || null
+          : undefined;
 
-    const normalizedChurchName = typeof churchName === 'string' ? (churchName.trim() || null) : (churchName ?? null);
-    const normalizedChurchCity = typeof churchCity === 'string' ? (churchCity.trim() || null) : (churchCity ?? null);
-    const normalizedChurchState = typeof churchState === 'string' ? (churchState.trim() || null) : (churchState ?? null);
-    const normalizedChurchCountry = typeof churchCountry === 'string' ? (churchCountry.trim() || null) : (churchCountry ?? null);
+    const hasManualKeys =
+      'churchName' in body ||
+      'churchCity' in body ||
+      'churchState' in body ||
+      'churchCountry' in body;
+
+    const readOptionalString = (value: unknown): string | null => {
+      if (typeof value === 'string') return value.trim() || null;
+      if (value === null) return null;
+      return null;
+    };
+
+    let normalizedHmcChurchId: string | null | undefined = hmcChurchIdRaw;
+    let normalizedChurchName: string | null | undefined;
+    let normalizedChurchCity: string | null | undefined;
+    let normalizedChurchState: string | null | undefined;
+    let normalizedChurchCountry: string | null | undefined;
+    let applyChurchUpdate = false;
+
+    if (hmcChurchIdRaw) {
+      const hmc = await hmcGetChurchById(hmcChurchIdRaw);
+      if (!hmc) {
+        return c.json({ error: 'Here’s My Church record not found', code: 'HMC_CHURCH_NOT_FOUND' }, 404);
+      }
+      const denorm = hmcDenormFields(hmc);
+      normalizedHmcChurchId = hmc.id;
+      normalizedChurchName = denorm.name;
+      normalizedChurchCity = denorm.city;
+      normalizedChurchState = denorm.state;
+      normalizedChurchCountry = null;
+      applyChurchUpdate = true;
+    } else if (hmcChurchIdRaw === null && !hasManualKeys) {
+      // Explicit clear — wipe HMC link and denorm fields.
+      normalizedHmcChurchId = null;
+      normalizedChurchName = null;
+      normalizedChurchCity = null;
+      normalizedChurchState = null;
+      normalizedChurchCountry = null;
+      applyChurchUpdate = true;
+    } else if (hasManualKeys) {
+      // Manual entry: outside-US free-text, or U.S. unlisted (also submits to HMC).
+      normalizedHmcChurchId = null;
+      normalizedChurchName = readOptionalString(body.churchName);
+      normalizedChurchCity = readOptionalString(body.churchCity);
+      normalizedChurchState = readOptionalString(body.churchState);
+      normalizedChurchCountry = readOptionalString(body.churchCountry);
+      const clearingManual =
+        !normalizedChurchName &&
+        !normalizedChurchCity &&
+        !normalizedChurchState &&
+        !normalizedChurchCountry;
+      if (!clearingManual && !normalizedChurchName) {
+        return c.json({ error: 'Church name is required', code: 'CHURCH_NAME_REQUIRED' }, 400);
+      }
+
+      if (
+        !clearingManual &&
+        normalizedChurchName &&
+        isUsChurchLocation({
+          churchState: normalizedChurchState,
+          churchCountry: normalizedChurchCountry,
+        })
+      ) {
+        const usState = normalizeUsStateCode(normalizedChurchState);
+        if (!normalizedChurchCity) {
+          return c.json(
+            { error: 'City is required for U.S. churches', code: 'CHURCH_CITY_REQUIRED' },
+            400,
+          );
+        }
+        if (!usState) {
+          return c.json(
+            { error: 'Select a U.S. state', code: 'CHURCH_STATE_REQUIRED' },
+            400,
+          );
+        }
+        normalizedChurchState = usState;
+        // Empty / "United States" — directory SoT is HMC; don't store country label.
+        normalizedChurchCountry = null;
+        try {
+          const submitted = await hmcSubmitUnlistedUsChurch({
+            name: normalizedChurchName,
+            city: normalizedChurchCity,
+            state: usState,
+          });
+          if (submitted) {
+            const denorm = hmcDenormFields(submitted);
+            normalizedHmcChurchId = submitted.id;
+            normalizedChurchName = denorm.name;
+            normalizedChurchCity = denorm.city;
+            normalizedChurchState = denorm.state;
+            normalizedChurchCountry = null;
+          }
+        } catch (error) {
+          if (error instanceof HmcPartnerError && error.code === 'HMC_RATE_LIMITED') {
+            return c.json({ error: error.message, code: error.code }, 429);
+          }
+          // Geocode / add failures fall through to free-text save.
+        }
+      }
+      applyChurchUpdate = true;
+    }
 
     const existingRecord = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1);
 
+    if (!applyChurchUpdate) {
+      const existing = existingRecord[0];
+      return c.json({
+        success: true,
+        message: 'No church changes',
+        church: {
+          hmcChurchId: existing?.hmcChurchId ?? null,
+          churchName: existing?.churchName ?? null,
+          churchCity: existing?.churchCity ?? null,
+          churchState: existing?.churchState ?? null,
+          churchCountry: existing?.churchCountry ?? null,
+        },
+      });
+    }
+
     if (existingRecord.length > 0) {
       const existing = existingRecord[0];
-      const isFirstTimeAddingChurch = !existing.churchName && !existing.churchCity && !existing.churchState && !existing.churchCountry &&
-        (normalizedChurchName || normalizedChurchCity || normalizedChurchState || normalizedChurchCountry);
+      const nextHmc = normalizedHmcChurchId ?? null;
+      const isFirstTimeAddingChurch =
+        !existing.hmcChurchId &&
+        !existing.churchName &&
+        !existing.churchCity &&
+        !existing.churchState &&
+        !existing.churchCountry &&
+        Boolean(
+          nextHmc ||
+            normalizedChurchName ||
+            normalizedChurchCity ||
+            normalizedChurchState ||
+            normalizedChurchCountry,
+        );
 
-      await db.update(UserMetadata).set({
-        churchName: normalizedChurchName,
-        churchCity: normalizedChurchCity,
-        churchState: normalizedChurchState,
-        churchCountry: normalizedChurchCountry,
-        churchAddedAt: isFirstTimeAddingChurch ? nowISO() : existing.churchAddedAt,
-        updatedAt: nowISO()
-      }).where(eq(UserMetadata.userId, auth.userId));
+      await db
+        .update(UserMetadata)
+        .set({
+          hmcChurchId: normalizedHmcChurchId ?? null,
+          churchName: normalizedChurchName ?? null,
+          churchCity: normalizedChurchCity ?? null,
+          churchState: normalizedChurchState ?? null,
+          churchCountry: normalizedChurchCountry ?? null,
+          churchAddedAt: isFirstTimeAddingChurch ? nowISO() : existing.churchAddedAt,
+          updatedAt: nowISO(),
+        })
+        .where(eq(UserMetadata.userId, auth.userId));
 
       if (isFirstTimeAddingChurch) {
         await awardChurchAddedXP(auth.userId);
       }
     } else {
-      const hasChurchData = normalizedChurchName || normalizedChurchCity || normalizedChurchState || normalizedChurchCountry;
+      const hasChurchData =
+        normalizedHmcChurchId ||
+        normalizedChurchName ||
+        normalizedChurchCity ||
+        normalizedChurchState ||
+        normalizedChurchCountry;
       await db.insert(UserMetadata).values({
         id: crypto.randomUUID(),
         userId: auth.userId,
-        churchName: normalizedChurchName,
-        churchCity: normalizedChurchCity,
-        churchState: normalizedChurchState,
-        churchCountry: normalizedChurchCountry,
+        hmcChurchId: normalizedHmcChurchId ?? null,
+        churchName: normalizedChurchName ?? null,
+        churchCity: normalizedChurchCity ?? null,
+        churchState: normalizedChurchState ?? null,
+        churchCountry: normalizedChurchCountry ?? null,
         churchAddedAt: hasChurchData ? nowISO() : null,
         highestSimpleNoteId: 0,
         userColor: 'blue',
         createdAt: nowISO(),
-        updatedAt: nowISO()
+        updatedAt: nowISO(),
       });
       if (hasChurchData) await awardChurchAddedXP(auth.userId);
     }
 
     return c.json({
-      success: true, message: 'Church information updated',
-      church: { churchName: normalizedChurchName, churchCity: normalizedChurchCity, churchState: normalizedChurchState, churchCountry: normalizedChurchCountry }
+      success: true,
+      message: 'Church information updated',
+      church: {
+        hmcChurchId: normalizedHmcChurchId ?? null,
+        churchName: normalizedChurchName ?? null,
+        churchCity: normalizedChurchCity ?? null,
+        churchState: normalizedChurchState ?? null,
+        churchCountry: normalizedChurchCountry ?? null,
+      },
     });
   } catch (error) {
+    if (error instanceof HmcPartnerError) {
+      return c.json({ error: error.message, code: error.code }, error.status as 400 | 429 | 502 | 503);
+    }
     const e = handleAPIError(error, { endpoint: '/api/user/update-church', action: 'update_church_info' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
@@ -526,15 +734,35 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
     const userData = await getCachedUserData(auth.userId);
     console.log('[api/user/get-profile] userData loaded', { displayName: userData.displayName });
 
-    let churchData = { churchName: null as string | null, churchCity: null as string | null, churchState: null as string | null, churchCountry: null as string | null };
+    let churchData = {
+      hmcChurchId: null as string | null,
+      churchName: null as string | null,
+      churchCity: null as string | null,
+      churchState: null as string | null,
+      churchCountry: null as string | null,
+      connectedChurchId: null as string | null,
+      connectedOrgId: null as string | null,
+      connectedChurchAt: null as string | null,
+    };
     let defaultTranslation = 'NET';
     let appearanceSettings: string | null = null;
+    let sharedSpaceSwitcherOrder: string[] | null = null;
     try {
       const um = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
       if (um) {
-        churchData = { churchName: um.churchName ?? null, churchCity: um.churchCity ?? null, churchState: um.churchState ?? null, churchCountry: um.churchCountry ?? null };
+        churchData = {
+          hmcChurchId: um.hmcChurchId ?? null,
+          churchName: um.churchName ?? null,
+          churchCity: um.churchCity ?? null,
+          churchState: um.churchState ?? null,
+          churchCountry: um.churchCountry ?? null,
+          connectedChurchId: um.connectedChurchId ?? null,
+          connectedOrgId: um.connectedOrgId ?? null,
+          connectedChurchAt: um.connectedChurchAt ?? null,
+        };
         defaultTranslation = um.defaultTranslation ?? 'NET';
         appearanceSettings = um.appearanceSettings ?? null;
+        sharedSpaceSwitcherOrder = parseSharedSpaceSwitcherOrder(um.sharedSpaceSwitcherOrder);
       }
     } catch (_) { /* non-fatal */ }
 
@@ -564,13 +792,115 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       userColor: userData.userColor, email: userData.email,
       profileImageUrl: userData.profileImageUrl ?? null,
       emailVerified,
+      hmcChurchId: churchData.hmcChurchId,
       churchName: churchData.churchName, churchCity: churchData.churchCity, churchState: churchData.churchState, churchCountry: churchData.churchCountry,
+      connectedChurchId: churchData.connectedChurchId,
+      connectedOrgId: churchData.connectedOrgId,
+      connectedChurchAt: churchData.connectedChurchAt,
       defaultTranslation,
       appearanceSettings,
+      sharedSpaceSwitcherOrder,
       hasLockPinSet
     });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/get-profile', action: 'get_user_profile' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+function parseSharedSpaceSwitcherOrder(raw: string | null | undefined): string[] | null {
+  if (raw == null || raw === '') return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    const ids = parsed
+      .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      .map((id) => (id.startsWith('space_') ? id : `space_${id}`));
+    return ids.length > 0 ? ids : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── POST /api/user/update-shared-space-switcher-order ────────────────────────
+
+/**
+ * Per-user preference for My Home switcher order (personal Shared Spaces only).
+ * Drops ids the user cannot access or that are not personal shared spaces.
+ */
+app.post('/api/user/update-shared-space-switcher-order', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({})) as { spaceIds?: unknown };
+    if (!Array.isArray(body.spaceIds)) {
+      return c.json({ error: 'spaceIds must be an array', code: 'INVALID_SPACE_IDS' }, 400);
+    }
+    if (body.spaceIds.length > 100) {
+      return c.json({ error: 'Too many space ids', code: 'SPACE_IDS_TOO_LONG' }, 400);
+    }
+
+    const requested = body.spaceIds
+      .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      .map((id) => (id.startsWith('space_') ? id.trim() : `space_${id.trim()}`));
+    const uniqueRequested = [...new Set(requested)];
+
+    let allowedIds = new Set<string>();
+    if (uniqueRequested.length > 0) {
+      const owned = await db
+        .select({ id: Spaces.id })
+        .from(Spaces)
+        .where(
+          and(
+            eq(Spaces.userId, auth.userId),
+            eq(Spaces.type, 'shared'),
+            isNull(Spaces.orgId),
+            isNull(Spaces.deletedAt),
+            inArray(Spaces.id, uniqueRequested),
+          ),
+        );
+      const memberRows = await db
+        .select({ id: Spaces.id })
+        .from(SpaceMemberships)
+        .innerJoin(Spaces, eq(SpaceMemberships.spaceId, Spaces.id))
+        .where(
+          and(
+            eq(SpaceMemberships.userId, auth.userId),
+            eq(Spaces.type, 'shared'),
+            isNull(Spaces.orgId),
+            isNull(Spaces.deletedAt),
+            inArray(Spaces.id, uniqueRequested),
+          ),
+        );
+      allowedIds = new Set([...owned, ...memberRows].map((r) => r.id));
+    }
+
+    const cleaned = uniqueRequested.filter((id) => allowedIds.has(id));
+    const sharedSpaceSwitcherOrder = cleaned.length > 0 ? JSON.stringify(cleaned) : null;
+
+    const existing = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+    if (existing) {
+      await db
+        .update(UserMetadata)
+        .set({ sharedSpaceSwitcherOrder, updatedAt: nowISO() })
+        .where(eq(UserMetadata.userId, auth.userId));
+    } else {
+      await db.insert(UserMetadata).values({
+        id: crypto.randomUUID(),
+        userId: auth.userId,
+        sharedSpaceSwitcherOrder,
+        createdAt: nowISO(),
+        updatedAt: nowISO(),
+      });
+    }
+
+    broadcastInvalidation(auth.userId, { type: 'userMetadata:updated' });
+
+    return c.json({ success: true, sharedSpaceSwitcherOrder: cleaned });
+  } catch (error) {
+    const e = handleAPIError(error, {
+      endpoint: '/api/user/update-shared-space-switcher-order',
+      action: 'update_shared_space_switcher_order',
+    });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
@@ -778,10 +1108,10 @@ app.get('/api/user/can-create-space', requireAuth, rateLimit('read'), async (c) 
 
 app.get('/api/user/can-join-space', requireAuth, rateLimit('read'), async (c) => {
   try {
-    const auth = getAuthenticatedAuth(c);
+    getAuthenticatedAuth(c);
 
-    const canJoin = await canJoinSpace(auth.userId, auth);
-    return c.json(canJoin);
+    // Joining shared spaces is free and uncapped on every plan.
+    return c.json({ allowed: true, limit: null });
   } catch (error: any) {
     const e = handleAPIError(error, { endpoint: '/api/user/can-join-space', action: 'check_can_join_space' });
     return c.json({ error: e.message, code: e.code }, 500);
@@ -804,28 +1134,9 @@ app.get('/api/user/limits', requireAuth, rateLimit('read'), async (c) => {
 
 // ─── POST /api/user/import/preview ───────────────────────────────────────────
 
-/** Max total upload size for import endpoints — prevents memory exhaustion. */
-const MAX_IMPORT_BYTES = 50 * 1024 * 1024; // 50MB
-
-function importTooLargeResponse(c: Context) {
-  const contentLength = Number(c.req.header('Content-Length') ?? 0);
-  if (contentLength > MAX_IMPORT_BYTES) {
-    return c.json({ error: 'Import too large. Maximum upload size is 50MB.' }, 413);
-  }
-  return null;
-}
-
-function importFilesTooLarge(files: File[]): boolean {
-  let total = 0;
-  for (const file of files) total += file.size;
-  return total > MAX_IMPORT_BYTES;
-}
-
 app.post('/api/user/import/preview', requireAuth, async (c) => {
   try {
     getAuthenticatedAuth(c);
-    const tooLarge = importTooLargeResponse(c);
-    if (tooLarge) return tooLarge;
     const formData = await c.req.formData();
     const format = formData.get('format') as string;
     if (!format || (format !== 'markdown' && format !== 'csv-threads')) {
@@ -839,9 +1150,6 @@ app.post('/api/user/import/preview', requireAuth, async (c) => {
       if (fileEntry) files.push(fileEntry);
     }
     if (files.length === 0) return c.json({ error: 'At least one file is required' }, 400);
-    if (importFilesTooLarge(files)) {
-      return c.json({ error: 'Import too large. Maximum upload size is 50MB.' }, 413);
-    }
 
     const { rows, warnings, unsupported } = await parseImportFiles(files, format as 'markdown' | 'csv-threads');
     if (rows.length === 0) return c.json({ error: 'No notes found in files', warnings, unsupported }, 400);
@@ -873,8 +1181,6 @@ app.post('/api/user/import', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const tooLarge = importTooLargeResponse(c);
-    if (tooLarge) return tooLarge;
     const formData = await c.req.formData();
     const format = formData.get('format') as string;
     if (!format || (format !== 'markdown' && format !== 'csv-threads')) {
@@ -898,9 +1204,6 @@ app.post('/api/user/import', requireAuth, async (c) => {
     if (fileEntry) files.push(fileEntry);
     else if (filesEntry?.length > 0) files.push(...filesEntry);
     else return c.json({ error: 'At least one file is required' }, 400);
-    if (importFilesTooLarge(files)) {
-      return c.json({ error: 'Import too large. Maximum upload size is 50MB.' }, 413);
-    }
 
     const parsed = await parseImportFiles(files, format as 'markdown' | 'csv-threads');
     let allParsedNotes: ParsedImportRow[] = parsed.rows;
@@ -925,9 +1228,7 @@ app.post('/api/user/import', requireAuth, async (c) => {
     }
 
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
-    const defaultTranslation = userMetadata.defaultTranslation?.trim() || 'NET';
     let notesImported = 0, threadsCreated = 0, tagsCreated = 0, duplicatesSkipped = 0, highlightsImported = 0;
-    let scriptureProcessed = 0, autoTagsApplied = 0;
     const errors: string[] = [];
     const createdThreadIds = new Set<string>();
     const createdFolders = new Set<string>();
@@ -941,7 +1242,6 @@ app.post('/api/user/import', requireAuth, async (c) => {
         let tags: string[] = [], createdDate: Date = new Date();
         let scriptureReference: string | null = null, scriptureTranslation: string | null = null;
         let sourceId: string | null = null;
-        let portableRefs: string[] = [];
         // Folders come from frontmatter/directory structure (resolved in parseImportFiles).
         const threadName: string | null = primaryCollection;
 
@@ -967,9 +1267,6 @@ app.post('/api/user/import', requireAuth, async (c) => {
           createdDate = parseExportDate(mdNote.createdDate);
           scriptureReference = mdNote.scriptureReference || null;
           scriptureTranslation = mdNote.scriptureTranslation || null;
-          portableRefs = Array.isArray(mdNote.portable?.meta?.refs)
-            ? mdNote.portable!.meta.refs!.filter((r): r is string => typeof r === 'string' && r.trim().length > 0)
-            : [];
         }
 
         const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
@@ -1009,33 +1306,87 @@ app.post('/api/user/import', requireAuth, async (c) => {
         let noteType: 'default' | 'scripture' | 'resource' = scriptureReference ? 'scripture' : 'default';
 
         const secondarySerialized = serializeNoteSecondaryCollections(secondaryCollections);
-        const newNote = first(await db.insert(Notes).values({
-          id: generateNoteId(), content: capitalizedContent, title: capitalizedTitle,
-          threadId: 'thread_unorganized', spaceId: null, simpleNoteId: nextSimpleNoteId,
-          noteType, userId: auth.userId, isPublic: false, createdAt: createdDate, contentEncrypted: false,
-          // Modern folder system (what the 2.0 UI displays). Explicit folders mark an override
-          // so auto-collection suggestion doesn't reshuffle the user's imported structure.
-          primaryCollection: primaryCollection || null,
-          secondaryCollections: secondarySerialized,
-          collectionUserOverride: !!primaryCollection,
-        }).returning())!;
+        const { newNote, importedHighlightCount } = await db.transaction(async (tx) => {
+          const inserted = first(await tx.insert(Notes).values({
+            id: generateNoteId(), content: capitalizedContent, title: capitalizedTitle,
+            threadId: 'thread_unorganized', spaceId: null, simpleNoteId: nextSimpleNoteId,
+            noteType, userId: auth.userId, isPublic: false, createdAt: createdDate, contentEncrypted: false,
+            // Modern folder system (what the 2.0 UI displays). Explicit folders mark an override
+            // so auto-collection suggestion doesn't reshuffle the user's imported structure.
+            primaryCollection: primaryCollection || null,
+            secondaryCollections: secondarySerialized,
+            collectionUserOverride: !!primaryCollection,
+          }).returning())!;
+          const initialVersion = await createInitialNoteVersion(tx, {
+            noteId: inserted.id,
+            noteAuthorId: auth.userId,
+            content: {
+              title: inserted.title,
+              content: inserted.content,
+              contentEncrypted: inserted.contentEncrypted,
+            },
+            createdAt: createdDate,
+            source: 'import',
+          });
+
+          await tx.update(UserMetadata).set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })
+            .where(eq(UserMetadata.userId, auth.userId));
+
+          if (threadId !== 'thread_unorganized') {
+            await tx.insert(NoteThreads).values({
+              id: `note-thread-${crypto.randomUUID()}`,
+              noteId: inserted.id, threadId, createdAt: nowISO()
+            });
+            await tx.update(Threads).set({ updatedAt: nowISO() })
+              .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+          }
+
+          if (scriptureReference && noteType === 'scripture') {
+            const parsedReference = parseScriptureReference(scriptureReference);
+            if (parsedReference) {
+              const verse = Array.isArray(parsedReference.verse) ? parsedReference.verse[0] : parsedReference.verse;
+              const verseEnd = Array.isArray(parsedReference.verse) ? parsedReference.verse[1] : undefined;
+              await tx.insert(ScriptureMetadata).values({
+                id: `scripture_${crypto.randomUUID()}`,
+                noteId: inserted.id, reference: scriptureReference, book: parsedReference.book,
+                chapter: parsedReference.chapter, verse, verseEnd, translation: scriptureTranslation || 'NET',
+                originalText: '', createdAt: nowISO()
+              });
+            }
+          }
+
+          let insertedHighlights = 0;
+          for (const row of portableBuild?.studyInserts ?? []) {
+            const migratedAt = new Date();
+            const anchorPatch = buildLegacyAnchorMigrationPatch({
+              baselineVersionId: initialVersion.id,
+              baselineContent: inserted.content,
+              anchorLocation: row.anchorLocation,
+              anchorLength: row.anchorLength,
+              anchorTextSnapshot: row.anchorTextSnapshot,
+              sourceSnippet: row.sourceSnippet,
+              migratedAt,
+            });
+            await tx.insert(StudyThreadEntries).values({
+              ...row,
+              parentNoteId: inserted.id,
+              userId: auth.userId,
+              spaceId: null,
+              ...anchorPatch,
+              resolvedVersionId: initialVersion.id,
+              createdAt: new Date(row.createdAt),
+              updatedAt: row.updatedAt ? new Date(row.updatedAt) : null,
+            });
+            insertedHighlights++;
+          }
+          return { newNote: inserted, importedHighlightCount: insertedHighlights };
+        });
 
         if (sourceId) sourceIdToNewId.set(sourceId, newNote.id);
         if (primaryCollection) createdFolders.add(primaryCollection);
         for (const sc of secondaryCollections) createdFolders.add(sc);
-
-        await db.update(UserMetadata).set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })
-          .where(eq(UserMetadata.userId, auth.userId));
         userMetadata = { ...userMetadata!, highestSimpleNoteId: nextSimpleNoteId };
-
-        if (threadId !== 'thread_unorganized') {
-          await db.insert(NoteThreads).values({
-            id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            noteId: newNote.id, threadId, createdAt: nowISO()
-          });
-          await db.update(Threads).set({ updatedAt: nowISO() })
-            .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
-        }
+        highlightsImported += importedHighlightCount;
 
         // Resolve tag ids (sequential for dedup) then insert the note↔tag rows in one batch.
         const noteTagRows: (typeof NoteTags.$inferInsert)[] = [];
@@ -1055,62 +1406,6 @@ app.post('/api/user/import', requireAuth, async (c) => {
         if (noteTagRows.length > 0) {
           try { await db.insert(NoteTags).values(noteTagRows); }
           catch (tagError) { errors.push(`Failed to attach tags for note ${i + 1}`); }
-        }
-
-        if (scriptureReference && noteType === 'scripture') {
-          try {
-            const parsed = parseScriptureReference(scriptureReference);
-            if (parsed) {
-              const verse = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
-              const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
-              await db.insert(ScriptureMetadata).values({
-                id: `scripture_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                noteId: newNote.id, reference: scriptureReference, book: parsed.book,
-                chapter: parsed.chapter, verse, verseEnd, translation: scriptureTranslation || 'NET',
-                originalText: '', createdAt: nowISO()
-              });
-            }
-          } catch (err) { errors.push(`Failed to create scripture metadata for note ${i + 1}`); }
-        }
-
-        if (portableBuild && portableBuild.studyInserts.length > 0) {
-          try {
-            for (const row of portableBuild.studyInserts) {
-              await db.insert(StudyThreadEntries).values({
-                ...row,
-                parentNoteId: newNote.id,
-                userId: auth.userId,
-              });
-              highlightsImported++;
-            }
-          } catch (err) {
-            errors.push(`Failed to import highlights for note ${i + 1}`);
-          }
-        }
-
-        // Match create/update: auto-tags + scripture pills (body + portable refs). Non-fatal.
-        try {
-          const enrichment = await enrichImportedNote({
-            noteId: newNote.id,
-            userId: auth.userId,
-            threadId,
-            title: capitalizedTitle,
-            content: capitalizedContent,
-            noteType,
-            primaryCollection: primaryCollection || null,
-            secondaryCollections,
-            manualTagNames: tags,
-            additionalReferences: portableRefs,
-            defaultTranslation: scriptureTranslation || defaultTranslation,
-          });
-          autoTagsApplied += enrichment.autoTagsApplied;
-          scriptureProcessed += enrichment.scriptureResultCount;
-        } catch (enrichErr) {
-          errors.push(
-            `Failed to enrich note ${i + 1} (tags/scripture): ${
-              enrichErr instanceof Error ? enrichErr.message : 'Unknown error'
-            }`,
-          );
         }
 
         notesImported++;
@@ -1142,19 +1437,7 @@ app.post('/api/user/import', requireAuth, async (c) => {
       }
     }
 
-    return c.json({
-      success: true,
-      notesImported,
-      threadsCreated,
-      tagsCreated,
-      foldersCreated: createdFolders.size,
-      duplicatesSkipped,
-      highlightsImported,
-      connectionsImported,
-      scriptureProcessed,
-      autoTagsApplied,
-      errors: errors.length > 0 ? errors : undefined,
-    });
+    return c.json({ success: true, notesImported, threadsCreated, tagsCreated, foldersCreated: createdFolders.size, duplicatesSkipped, highlightsImported, connectionsImported, errors: errors.length > 0 ? errors : undefined });
   } catch (error: any) {
     console.error('Import error:', error);
     return c.json({ error: error.message || 'Failed to import data' }, 500);
@@ -1224,34 +1507,37 @@ app.get('/api/profile/my-shared-spaces', requireAuth, rateLimit('read'), async (
     const origin = new URL(c.req.url).origin;
 
     const ownedSpacesRows = await db.select({
-      id: Spaces.id, title: Spaces.title, color: Spaces.color, shareToken: Spaces.shareToken
-    }).from(Spaces).where(eq(Spaces.userId, auth.userId))
+      id: Spaces.id, title: Spaces.title, color: Spaces.color,
+    }).from(Spaces).where(and(eq(Spaces.userId, auth.userId), eq(Spaces.type, 'shared')))
       .orderBy(
         asc(sql`CASE WHEN ${Spaces.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Spaces.lastVisited)
       );
 
-    const owned: Array<{ id: string; title: string; color?: string | null; memberCount: number; shareToken?: string | null; shareUrl?: string }> = [];
+    const owned: Array<{ id: string; title: string; color?: string | null; memberCount: number; shareUrl?: string }> = [];
     for (const space of ownedSpacesRows) {
       const memberCount = await getSpaceMemberCount(space.id);
-      const hasShareLink = space.shareToken != null && space.shareToken.length > 0;
-      if (memberCount > 0 || hasShareLink) {
-        owned.push({
-          id: space.id, title: space.title || 'Untitled space', color: space.color ?? undefined,
-          memberCount, shareToken: space.shareToken ?? undefined,
-          shareUrl: space.shareToken ? `${origin}/spaces/join/${space.shareToken}` : undefined
-        });
-      }
+      const activeInvite = first(await db.select({ token: SpaceInvites.token })
+        .from(SpaceInvites)
+        .where(and(eq(SpaceInvites.spaceId, space.id), isNull(SpaceInvites.revokedAt)))
+        .orderBy(desc(SpaceInvites.createdAt))
+        .limit(1));
+      owned.push({
+        id: space.id, title: space.title || 'Untitled space', color: space.color ?? undefined,
+        memberCount,
+        shareUrl: activeInvite ? `${origin}/spaces/join/${activeInvite.token}` : undefined,
+      });
     }
 
-    const memberships = await db.select({ spaceId: Members.spaceId }).from(Members).where(eq(Members.userId, auth.userId));
+    const memberRows = await db.select({ spaceId: SpaceMemberships.spaceId })
+      .from(SpaceMemberships).where(eq(SpaceMemberships.userId, auth.userId));
     const ownedSpaceIds = new Set(ownedSpacesRows.map(s => s.id));
     const memberOf: Array<{ id: string; title: string; color?: string | null; memberCount: number }> = [];
 
-    for (const m of memberships) {
+    for (const m of memberRows) {
       if (ownedSpaceIds.has(m.spaceId)) continue;
       const spaceRow = first(await db.select({ id: Spaces.id, title: Spaces.title, color: Spaces.color })
-        .from(Spaces).where(eq(Spaces.id, m.spaceId)).limit(1));
+        .from(Spaces).where(and(eq(Spaces.id, m.spaceId), ne(Spaces.type, 'personal'))).limit(1));
       if (spaceRow) {
         const memberCount = await getSpaceMemberCount(spaceRow.id);
         memberOf.push({ id: spaceRow.id, title: spaceRow.title || 'Untitled space', color: spaceRow.color ?? undefined, memberCount });

@@ -4,13 +4,10 @@
  * continue, a highlight to revisit, an older note to revisit, a study-thread
  * spotlight, a theme connecting your passages, and a loose-notes nudge. Each
  * card renders only when it qualifies.
- *
- * Presentation: hold ProtoHomeLoading until notes + enrichment queries settle,
- * then reveal the full composition top-to-bottom (`proto-home-view--enter`).
  * Copy follows docs/BRAND_VOICE.md — friend-over-coffee, no hype, no em dashes.
  */
 import { useUser } from '@clerk/clerk-react';
-import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
+import { useCallback, useMemo, useState, Fragment } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
@@ -19,7 +16,6 @@ import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
-import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import { useTagsList } from '../../hooks/queries/useTagsList';
 import { usePrototypeStudyThreads } from '../../hooks/queries/usePrototypeStudyThreads';
 import {
@@ -31,11 +27,7 @@ import { usePrototypeSpaceReferenceWordConnections } from '../../hooks/queries/u
 import { useProfile } from '../../hooks/queries/useProfile';
 import { useVotdToday } from '../../hooks/queries/useVotdToday';
 import type { PrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase';
-import {
-  isPrototypeHomeContentReady,
-  isPrototypeHomePresentationReady,
-  isQuerySettled,
-} from '@/utils/prototype-home-ready';
+import { isPrototypeHomeContentReady, isQuerySettled } from '@/utils/prototype-home-ready';
 import {
   computeActivityRhythm,
   computeLastActivityTime,
@@ -108,6 +100,8 @@ import { loadPinnedHighlightIds } from './proto-pinned-stores';
 import { stabilityById, mergeStabilityMaps } from './proto-recall-stability';
 import { activeCooldownIds, recordRecallSnoozed, recentRecallSectionCounts } from './proto-recall-cooldown';
 import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeRecallCarousel';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
+import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
 import { useCrossRefGaps } from '../../hooks/queries/useCrossRefGaps';
 import { findMostRecentNoteForScriptureReference } from '@/utils/scripture-passage-drill';
@@ -190,6 +184,7 @@ type Props = {
   hasMoreNotes: boolean;
   noteTotal?: number;
   scriptureBooks: ScriptureIndexBook[];
+  scriptureSettled: boolean;
   /** Currently open note in the main pane — suppresses redundant "continue" card. */
   activeNoteId?: string;
   onOpenNote: (row: SpaceNoteRow) => void;
@@ -198,33 +193,8 @@ type Props = {
   onOpenScripturePassage: (bookOrder: number, passageKey: string) => void;
   onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => void;
   onOpenCreateThreadPrefill: (prefill: { noteIds: [string, string]; threadName: string }) => void;
-  onRetryNotes: () => void;
 };
 
-function ProtoHomeLoading() {
-  return (
-    <div className="proto-home-loading">
-      <span className="load-more-indicator" aria-label="Loading home">
-        <span className="load-more-indicator__dot" />
-        <span className="load-more-indicator__dot" />
-        <span className="load-more-indicator__dot" />
-      </span>
-    </div>
-  );
-}
-
-function ProtoHomeError({ onRetry }: { onRetry: () => void }) {
-  return (
-    <div className="proto-home-error">
-      <p className="proto-caption">Couldn&apos;t load notes.</p>
-      <button type="button" className="proto-load-more-retry proto-caption" onClick={onRetry}>
-        Try again
-      </button>
-    </div>
-  );
-}
-
-/** Pinned first, then most recently edited — the highlight worth resurfacing. */
 function pickSpotlightHighlight(
   rows: PrototypeHighlightStudyThreadRow[],
   spaceId: string,
@@ -420,7 +390,7 @@ function HomeGreeting({
       <button
         type="button"
         className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--thread"
-        aria-label={`Open study thread ${lead.thread.title}`}
+        aria-label={`Open Thread ${lead.thread.title}`}
         onClick={() => {
           const slug = lead.thread.id.startsWith('note_') ? lead.thread.id.slice('note_'.length) : lead.thread.id;
           setSidebarListMode('threads');
@@ -570,7 +540,9 @@ function HomeNoteCard({
             <Icon name="caret-right" size={11} />
           </span>
         </div>
-        {preview ? <p className="pds-list-preview proto-home-card__preview">{preview}</p> : null}
+        {preview ? (
+          <p className="pds-list-preview proto-home-card__preview">{preview}</p>
+        ) : null}
         <div className="proto-home-card__meta">
           {rel ? <span className="proto-home-card__meta-item">{rel}</span> : null}
           {rel && note.primaryCollection ? <span className="proto-home-card__meta-sep">in</span> : null}
@@ -593,6 +565,7 @@ export default function PrototypeSidebarHomeView({
   hasMoreNotes,
   noteTotal,
   scriptureBooks,
+  scriptureSettled,
   activeNoteId,
   onOpenNote,
   prefetchNote,
@@ -600,13 +573,10 @@ export default function PrototypeSidebarHomeView({
   onOpenScripturePassage,
   onOpenHighlight,
   onOpenCreateThreadPrefill,
-  onRetryNotes,
 }: Props) {
-  const { isLoaded: clerkLoaded } = useUser();
   const tagsQuery = useTagsList();
   const threadsQuery = usePrototypeStudyThreads(homeSpaceId);
   const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(homeSpaceId);
-  const scriptureIndexQuery = usePrototypeSpaceScriptureIndex(homeSpaceId);
   const crossRefConnectionsQuery = usePrototypeSpaceScriptureConnections(homeSpaceId);
   const referenceWordConnectionsQuery = usePrototypeSpaceReferenceWordConnections(homeSpaceId);
   const votdQuery = useVotdToday({ enabled: Boolean(homeSpaceId) });
@@ -625,7 +595,21 @@ export default function PrototypeSidebarHomeView({
     closeDrawer,
   } = useProtoShell();
 
-  const notesReady = isPrototypeHomeContentReady({ notesListPhase });
+  const tagsSettled = isQuerySettled(tagsQuery.isPending, tagsQuery.data != null);
+  const threadsSettled = isQuerySettled(threadsQuery.isPending, threadsQuery.data != null);
+  const highlightsSettled = isQuerySettled(highlightsQuery.isPending, highlightsQuery.data != null);
+  const votdSettled =
+    isQuerySettled(votdQuery.isPending, votdQuery.data != null) || Boolean(votdQuery.isError);
+  const contentReady = isPrototypeHomeContentReady({
+    notesListPhase,
+    scriptureSettled,
+    tagsSettled,
+    threadsSettled,
+    highlightsSettled,
+    votdSettled,
+  });
+
+  const homeViewClassName = useProtoHomeViewClassName(contentReady);
 
   const tags = tagsQuery.data?.tags ?? [];
   const threads = threadsQuery.data ?? [];
@@ -658,16 +642,8 @@ export default function PrototypeSidebarHomeView({
   // Memory layer Workstream B: forgetting-aware resurfacing. meaningWeight (server fingerprints) +
   // per-note stability (lengthened each time the user re-engages a recall) rank the "Worth another
   // look" pick toward meaningful, fading notes. Degrades to recency logic before fingerprints exist.
-  const {
-    meaningWeightById,
-    fingerprintsById,
-    canonSectionById,
-    recallStabilityById,
-    lastRecallEngagedAtById,
-    isPending: fingerprintsPending,
-    isFetched: fingerprintsFetched,
-    data: fingerprintsData,
-  } = useNoteFingerprints();
+  const { meaningWeightById, fingerprintsById, canonSectionById, recallStabilityById, lastRecallEngagedAtById } =
+    useNoteFingerprints();
   const localRecallStability = useMemo(() => stabilityById(homeSpaceId), [homeSpaceId]);
   const recallStability = useMemo(
     () => mergeStabilityMaps(recallStabilityById, localRecallStability),
@@ -1379,34 +1355,6 @@ export default function PrototypeSidebarHomeView({
     [fingerprintsById],
   );
 
-  // Present Home only when greeting + card enrichment queries have settled — then animate
-  // top-to-bottom once. Settled ≠ has rows (avoids endless loading dots on empty/slow aux).
-  const presentationReady = isPrototypeHomePresentationReady({
-    notesReady,
-    clerkLoaded,
-    fingerprintsSettled: isQuerySettled(fingerprintsPending, fingerprintsFetched || fingerprintsData != null),
-    tagsSettled: isQuerySettled(tagsQuery.isPending, tagsQuery.isFetched || tagsQuery.data != null),
-    threadsSettled: isQuerySettled(threadsQuery.isPending, threadsQuery.isFetched || threadsQuery.data != null),
-    scriptureSettled: isQuerySettled(
-      scriptureIndexQuery.isPending,
-      scriptureIndexQuery.isFetched || scriptureIndexQuery.data != null,
-    ),
-    connectionsSettled:
-      isQuerySettled(
-        crossRefConnectionsQuery.isPending,
-        crossRefConnectionsQuery.isFetched || crossRefConnectionsQuery.data != null,
-      ) &&
-      isQuerySettled(
-        referenceWordConnectionsQuery.isPending,
-        referenceWordConnectionsQuery.isFetched || referenceWordConnectionsQuery.data != null,
-      ),
-    highlightsSettled: isQuerySettled(
-      highlightsQuery.isPending,
-      highlightsQuery.isFetched || highlightsQuery.data != null,
-    ),
-    votdSettled: isQuerySettled(votdQuery.isPending, votdQuery.isFetched || votdQuery.data != null),
-  });
-
   const recallTrendGreeting = useMemo((): HomeGreetingTrend | undefined => {
     const trend = pickRecallTrend(recallCandidates);
     if (!trend) return undefined;
@@ -1461,43 +1409,6 @@ export default function PrototypeSidebarHomeView({
     openReferenceWordConnection,
   ]);
 
-  // Snapshot greeting on the first ready render (sync) so we never paint full-opacity
-  // content and then attach `--enter` a frame later (that flash).
-  type GreetingCommit = {
-    lead: HomeLeadTheme;
-    trend?: HomeGreetingTrend;
-    topCanonSection?: HomeTopCanonSection;
-  };
-  const greetingCommitRef = useRef<GreetingCommit | null>(null);
-  if (!notesReady) {
-    greetingCommitRef.current = null;
-  } else if (presentationReady && !greetingCommitRef.current) {
-    greetingCommitRef.current = {
-      lead,
-      trend: hasMoreNotes ? undefined : recallTrendGreeting,
-      topCanonSection,
-    };
-  }
-  const greetingCommit = greetingCommitRef.current;
-
-  // Keep loading dots over the first paint of `--enter` (sections start at opacity 0
-  // via animation-fill-mode: backwards) so the handoff isn't a blank flash.
-  const [revealPainted, setRevealPainted] = useState(false);
-  useEffect(() => {
-    if (!presentationReady || !greetingCommit) {
-      setRevealPainted(false);
-      return;
-    }
-    let cancelled = false;
-    const id = requestAnimationFrame(() => {
-      if (!cancelled) setRevealPainted(true);
-    });
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(id);
-    };
-  }, [presentationReady, greetingCommit]);
-
   const handleRecallSnooze = useCallback(
     (id: string) => {
       recordRecallSnoozed(homeSpaceId, id, recallDayIndex);
@@ -1509,7 +1420,7 @@ export default function PrototypeSidebarHomeView({
   const onCreateFirstNote = useCallback(() => {
     if (!homeSpaceId) return;
     if (isMobileSidebar) closeDrawer();
-    beginPrototypeComposeSession();
+    beginPrototypeComposeSession({ targetSpaceId: homeSpaceId });
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
@@ -1517,11 +1428,9 @@ export default function PrototypeSidebarHomeView({
     });
   }, [beginPrototypeComposeSession, closeDrawer, homeSpaceId, isMobileSidebar, navigate]);
 
-  if (notesListPhase === 'error') {
-    return <ProtoHomeError onRetry={onRetryNotes} />;
+  if (!contentReady) {
+    return <ProtoSpaceLoading label="Loading home" />;
   }
-
-  const canPresent = Boolean(presentationReady && greetingCommit);
 
   const openThread = (threadId: string) => {
     const slug = threadId.startsWith('note_') ? threadId.slice('note_'.length) : threadId;
@@ -1530,26 +1439,16 @@ export default function PrototypeSidebarHomeView({
     ensureSidebarExpanded();
   };
 
-  // Loading stays in normal flow in one slot until the first painted ready frame.
-  // Content mounts with `--enter` + `--preparing` (off-flow, hidden) so it cannot
-  // nudge the dots; then we drop loading and take content in-flow together.
   return (
-    <div className="proto-home-reveal">
-      {!revealPainted ? <ProtoHomeLoading /> : null}
-      {canPresent && greetingCommit ? (
-      <div
-        className={`proto-home-view proto-home-view--enter${revealPainted ? '' : ' proto-home-view--preparing'}`}
-        aria-busy={!revealPainted}
-        aria-hidden={!revealPainted}
-      >
+    <div className={homeViewClassName}>
       <div className="proto-home-section">
         <HomeGreeting
           notes={notes}
           countForLogic={countForLogic}
           hasMoreForLogic={hasMoreForLogic}
-          lead={greetingCommit.lead}
-          trend={greetingCommit.trend}
-          topCanonSection={greetingCommit.topCanonSection}
+          lead={lead}
+          trend={recallTrendGreeting}
+          topCanonSection={topCanonSection}
           onOpenScriptureBook={onOpenScriptureBook}
         />
       </div>
@@ -1661,7 +1560,7 @@ export default function PrototypeSidebarHomeView({
                   <Icon name="folder" size={13} />
                 </span>
                 <p className="pds-list-title proto-home-card__title">
-                  {looseCount} notes haven&apos;t found a home yet
+                  {`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a home`}
                 </p>
                 <span className="proto-home-card__chevron" aria-hidden>
                   <Icon name="caret-right" size={11} />
@@ -1681,8 +1580,6 @@ export default function PrototypeSidebarHomeView({
             homeSpaceId={homeSpaceId}
           />
         </div>
-      ) : null}
-      </div>
       ) : null}
     </div>
   );

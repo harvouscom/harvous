@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  applyHtml5DragPreview,
+  resolveThreadTrailDragPreviewSource,
+} from '@/utils/html5-drag-preview';
+import {
   patchStudyThreadMemberOrderInCache,
   useUpdateStudyThreadMemberOrder,
 } from './mutations/useUpdateStudyThreadMemberOrder';
@@ -16,13 +20,6 @@ interface UseStudyThreadMemberDragReorderOptions {
 function sameIdOrder(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((id, index) => id === b[index]);
 }
-
-const EMPTY_DRAG_IMAGE = (() => {
-  if (typeof document === 'undefined') return null;
-  const img = new Image();
-  img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
-  return img;
-})();
 
 /** HTML5 drag reorder for study-thread member lists (sidebar drill + thread panel). */
 export function useStudyThreadMemberDragReorder({
@@ -41,6 +38,7 @@ export function useStudyThreadMemberDragReorder({
   const lastOrderKeyRef = useRef<string | null>(null);
   const dragStartOrderRef = useRef<string[] | null>(null);
   const optimisticOrderRef = useRef<string[] | null>(null);
+  const dragPreviewCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (draggingIdRef.current) return;
@@ -58,6 +56,13 @@ export function useStudyThreadMemberDragReorder({
     orderedIdsRef.current = orderedNoteIds;
     setDisplayOrderedIds(orderedNoteIds);
   }, [orderedNoteIds]);
+
+  useEffect(() => {
+    return () => {
+      dragPreviewCleanupRef.current?.();
+      dragPreviewCleanupRef.current = null;
+    };
+  }, []);
 
   const showDragHandle = enabled && orderedNoteIds.length > 1;
 
@@ -86,6 +91,8 @@ export function useStudyThreadMemberDragReorder({
     draggingIdRef.current = null;
     setDraggingId(null);
     lastOrderKeyRef.current = null;
+    dragPreviewCleanupRef.current?.();
+    dragPreviewCleanupRef.current = null;
   }, []);
 
   const persistPendingOrder = useCallback(() => {
@@ -103,23 +110,34 @@ export function useStudyThreadMemberDragReorder({
     updateOrder.mutate({ anchorNoteId, spaceId, orderedNoteIds: next });
   }, [anchorNoteId, queryClient, spaceId, updateOrder]);
 
-  const handleDragStart = useCallback((event: React.DragEvent<HTMLElement>, noteId: string) => {
-    draggingIdRef.current = noteId;
-    dragStartOrderRef.current = [...orderedIdsRef.current];
-    setDraggingId(noteId);
-    lastOrderKeyRef.current = null;
-    event.dataTransfer.setData('text/plain', noteId);
-    event.dataTransfer.effectAllowed = 'move';
-    if (EMPTY_DRAG_IMAGE) {
-      event.dataTransfer.setDragImage(EMPTY_DRAG_IMAGE, 0, 0);
-    }
-    event.stopPropagation();
-    const handle = event.currentTarget;
-    handle.blur();
-    if (document.activeElement instanceof HTMLElement && document.activeElement !== handle) {
-      document.activeElement.blur();
-    }
-  }, []);
+  const handleDragStart = useCallback(
+    (event: React.DragEvent<HTMLElement>, noteId: string, previewSource?: HTMLElement | null) => {
+      draggingIdRef.current = noteId;
+      dragStartOrderRef.current = [...orderedIdsRef.current];
+      setDraggingId(noteId);
+      lastOrderKeyRef.current = null;
+      event.dataTransfer.setData('text/plain', noteId);
+      event.dataTransfer.effectAllowed = 'move';
+
+      dragPreviewCleanupRef.current?.();
+      const source =
+        resolveThreadTrailDragPreviewSource(previewSource ?? event.currentTarget) ??
+        previewSource ??
+        null;
+      const preview = applyHtml5DragPreview(event, source, {
+        className: 'proto-thread-trail__drag-preview',
+      });
+      dragPreviewCleanupRef.current = preview?.cleanup ?? null;
+
+      event.stopPropagation();
+      const handle = event.currentTarget;
+      handle.blur();
+      if (document.activeElement instanceof HTMLElement && document.activeElement !== handle) {
+        document.activeElement.blur();
+      }
+    },
+    [],
+  );
 
   const handleDragEnd = useCallback(
     (event: React.DragEvent<HTMLElement>) => {

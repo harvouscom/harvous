@@ -47,7 +47,7 @@ export default function PrototypeAppUpdateToast() {
       <button type="button" className="proto-update-toast__action" onClick={reloadPrototypeAfterUpdate}>
         Reload
       </button>
-      <button type="button" className="proto-update-toast__dismiss" aria-label="Dismiss" onClick={dismiss}>
+      <button type="button" className="proto-side-panel__action-btn" aria-label="Dismiss" onClick={dismiss}>
         <Icon name="xmark" size={12} aria-hidden />
       </button>
     </div>,

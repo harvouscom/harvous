@@ -1,11 +1,21 @@
 import { useState, type ReactNode } from 'react';
-import Icon from '@/components/react/Icon';
+import Icon, { type IconName } from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
 
-/** One-line intro under the settings nav/sheet header — matches My Church tone and typography. */
+/**
+ * Optional intro under the settings header. Prefer omitting when the nav title
+ * already explains the page — keep only for non-obvious behavior (e.g. PIN, Shift hints).
+ */
 export function SettingsIntro({ children }: { children: ReactNode }) {
   return (
-    <p className="pds-subheadline" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 20px' }}>
+    <p
+      className="pds-subheadline"
+      style={{
+        color: 'var(--pds-text-secondary)',
+        margin: '0 0 20px',
+        textWrap: 'pretty',
+      }}
+    >
       {children}
     </p>
   );
@@ -20,17 +30,24 @@ export function SettingsShell({
   children,
   /** Full detail-pane width; carousel and other edge-to-edge sections sit outside inset padding. */
   appearanceLayout = false,
+  /** Column flex + min-height 100% so children can use margin-top: auto (e.g. footer callouts). */
+  fillHeight = false,
 }: {
   children: ReactNode;
   appearanceLayout?: boolean;
+  fillHeight?: boolean;
 }) {
+  const className = [
+    'proto-settings__content',
+    appearanceLayout ? 'proto-settings__content--appearance' : null,
+    fillHeight ? 'proto-settings__content--fill-height' : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <div
-      className={
-        appearanceLayout
-          ? 'proto-settings__content proto-settings__content--appearance'
-          : 'proto-settings__content'
-      }
+      className={className}
       style={
         appearanceLayout
           ? { width: '100%', padding: '24px 0 64px' }
@@ -81,25 +98,63 @@ export function SettingsRow({
   label,
   sublabel,
   value,
+  badge,
+  leadingIcon,
+  leadingAccent,
   onClick,
   destructive = false,
+  disabled = false,
   trailing = 'chevron',
 }: {
   label: string;
   sublabel?: string;
   value?: string;
+  /** Pill next to the title (e.g. "Coming soon", "Active"). */
+  badge?: string;
+  /** Optional leading icon tile (pricing-style block), e.g. add-on rows. */
+  leadingIcon?: IconName;
+  /** Glyph color for the leading icon tile (defaults to secondary text). */
+  leadingAccent?: string;
   onClick?: () => void;
   destructive?: boolean;
+  disabled?: boolean;
   trailing?: 'chevron' | 'none';
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={destructive ? 'proto-note-row proto-note-row--destructive' : 'proto-note-row'}
+      disabled={disabled}
+      className={
+        destructive
+          ? 'proto-note-row proto-note-row--destructive'
+          : disabled
+            ? 'proto-note-row proto-note-row--disabled'
+            : 'proto-note-row'
+      }
     >
+      {leadingIcon ? (
+        <span
+          className="proto-settings-list-row__leading"
+          style={leadingAccent ? { color: leadingAccent } : undefined}
+          aria-hidden
+        >
+          <Icon name={leadingIcon} size={20} />
+        </span>
+      ) : null}
       <span className="proto-settings-list-row__main">
-        <span className="pds-list-title" style={{ display: 'block', color: destructive ? 'var(--pds-destructive)' : 'var(--pds-text-primary)' }}>{label}</span>
+        <span
+          className="proto-settings-list-row__title-row"
+          style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+        >
+          <span
+            className="pds-list-title"
+            style={{ color: destructive ? 'var(--pds-destructive)' : 'var(--pds-text-primary)' }}
+          >
+            {label}
+          </span>
+          {badge ? <span className="proto-thread-review__badge">{badge}</span> : null}
+        </span>
         {sublabel ? (
           <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>
             {sublabel}

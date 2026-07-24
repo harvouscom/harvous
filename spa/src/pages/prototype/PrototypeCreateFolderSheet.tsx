@@ -2,10 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { useCreateFolderRegistryLabel } from '../../hooks/mutations/usePrototypeFolderRegistry';
-import { useAddNotesToFolder } from '../../hooks/mutations/useAddNotesToFolder';
+import {
+  useAddNotesToFolder,
+  type FolderMutationSpaceKind,
+} from '../../hooks/mutations/useAddNotesToFolder';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
+import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import { PrototypeAddNotesPicker, resolveSelectedNoteRows } from './PrototypeAddNotesSheet';
@@ -15,6 +20,7 @@ export interface PrototypeCreateFolderSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   spaceId: string;
+  spaceKind: FolderMutationSpaceKind;
   spaceNotes: SpaceNoteRow[];
   notesById: Map<string, SpaceNoteRow>;
   onCreated: (folderName: string) => void;
@@ -24,11 +30,13 @@ export default function PrototypeCreateFolderSheet({
   open,
   onOpenChange,
   spaceId,
+  spaceKind,
   spaceNotes,
   notesById,
   onCreated,
 }: PrototypeCreateFolderSheetProps) {
   const { isMobileSidebar } = useProtoShell();
+  const { mounted, exiting } = useProtoOverlayMotion(open);
   const createFolder = useCreateFolderRegistryLabel();
   const addNotes = useAddNotesToFolder();
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -49,13 +57,14 @@ export default function PrototypeCreateFolderSheet({
 
   const shouldUseSheetPresentation =
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
-  const shouldUsePopover = open && !shouldUseSheetPresentation;
+  const usePopoverPresentation = !shouldUseSheetPresentation;
+  const showPopoverPortal = usePopoverPresentation && mounted;
 
   const { position } = useProtoAnchoredPopoverPosition(
     cardRef,
     {},
     {
-      enabled: shouldUsePopover,
+      enabled: showPopoverPortal,
       strategy: 'centered',
       topVhFraction: 0.12,
       fallbackWidth: 360,
@@ -73,7 +82,12 @@ export default function PrototypeCreateFolderSheet({
       if (selectedIds.length > 0) {
         const rows = resolveSelectedNoteRows(selectedIds, notesById, spaceNotes);
         if (rows.length > 0) {
-          await addNotes.mutateAsync({ rows, folderName: name, spaceId });
+          await addNotes.mutateAsync({
+            rows,
+            folderName: name,
+            spaceId,
+            spaceKind,
+          });
         }
       }
       onOpenChange(false);
@@ -88,7 +102,7 @@ export default function PrototypeCreateFolderSheet({
     }
   };
 
-  useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover);
+  useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation);
 
   const content = (
     <>
@@ -157,27 +171,37 @@ export default function PrototypeCreateFolderSheet({
     </>
   );
 
-  if (!open) return null;
-
-  if (shouldUsePopover && typeof document !== 'undefined') {
+  if (showPopoverPortal && typeof document !== 'undefined') {
     return createPortal(
-      <ProtoPopoverShell
-        ref={cardRef}
-        role="dialog"
-        aria-label="New folder"
-        className="proto-connect-note-popover proto-create-folder-popover"
-        style={{
-          position: 'fixed',
-          top: position?.top ?? -9999,
-          left: position?.left ?? -9999,
-          zIndex: 6000,
-        }}
-      >
-        <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-create-folder-sheet">{content}</div>
-      </ProtoPopoverShell>,
+      <>
+        <ProtoDialogBackdrop
+          exiting={exiting}
+          onDismiss={() => onOpenChange(false)}
+          aria-label="Close new folder dialog"
+        />
+        <ProtoPopoverShell
+          ref={cardRef}
+          role="dialog"
+          aria-label="New folder"
+          className={portaledDialogShellClassName(
+            'proto-connect-note-popover proto-create-folder-popover',
+            exiting,
+          )}
+          style={{
+            position: 'fixed',
+            top: position?.top ?? -9999,
+            left: position?.left ?? -9999,
+            zIndex: 6000,
+          }}
+        >
+          <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-create-folder-sheet">{content}</div>
+        </ProtoPopoverShell>
+      </>,
       document.body,
     );
   }
+
+  if (!open) return null;
 
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange}>

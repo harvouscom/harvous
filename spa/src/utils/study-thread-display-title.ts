@@ -4,7 +4,7 @@ import type { StudyThreadResponse } from '../hooks/queries/usePrototypeStudyThre
 /** Client display title — mirrors server `resolveStudyThreadDisplayTitle` rules. */
 export function studyThreadDisplayTitle(thread: StudyThreadResponse): string {
   const suggested =
-    stripServerAutoUntitledNoteTitleForDisplay(thread.suggestedTitle)?.trim() || 'Study thread';
+    stripServerAutoUntitledNoteTitleForDisplay(thread.suggestedTitle)?.trim() || 'Thread';
   if (thread.studyThreadUserOverride) {
     const manual = stripServerAutoUntitledNoteTitleForDisplay(thread.threadTitle)?.trim();
     return manual || suggested;

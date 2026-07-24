@@ -39,7 +39,7 @@ function buildAggregateText(nodes: StudyThreadSuggestNode[]): { title: string; b
   const bodies: string[] = [];
   for (const n of nodes) {
     const t = nodePlainTitle(n);
-    const b = stripHtml(nodeBodyHtml(n), false);
+    const b = stripHtml(nodeBodyHtml(n));
     if (t) titles.push(t);
     if (b) bodies.push(b);
   }
@@ -86,8 +86,10 @@ export function pickStudyThreadRepresentativeNoteId(
   degreeById: ReadonlyMap<string, number> | Record<string, number>,
 ): string | null {
   const degree = (id: string): number => {
-    if (degreeById instanceof Map) return degreeById.get(id) ?? 0;
-    return degreeById[id] ?? 0;
+    if (typeof (degreeById as ReadonlyMap<string, number>).get === 'function') {
+      return (degreeById as ReadonlyMap<string, number>).get(id) ?? 0;
+    }
+    return (degreeById as Record<string, number>)[id] ?? 0;
   };
 
   let best: string | null = null;
@@ -112,13 +114,13 @@ export function suggestStudyThreadTitleFromNodes(
   nodes: StudyThreadSuggestNode[],
   repNoteId?: string | null,
 ): string {
-  if (!nodes.length) return 'Study thread';
+  if (!nodes.length) return 'Thread';
 
   const { title, bodyHtml } = buildAggregateText(nodes);
   const keyword = suggestPrimaryCollectionFromNote(title, bodyHtml);
   if (keyword?.trim()) return keyword.trim();
 
-  return fallbackTitle(nodes, repNoteId) ?? 'Study thread';
+  return fallbackTitle(nodes, repNoteId) ?? 'Thread';
 }
 
 /**
@@ -129,7 +131,7 @@ export function resolveStudyThreadDisplayTitle(args: {
   studyThreadUserOverride: boolean;
   suggestedTitle: string;
 }): string {
-  const suggested = args.suggestedTitle.trim() || 'Study thread';
+  const suggested = args.suggestedTitle.trim() || 'Thread';
   if (args.studyThreadUserOverride) {
     const manual = stripServerAutoUntitledNoteTitleForDisplay(args.studyThreadTitle);
     return manual?.trim() || suggested;

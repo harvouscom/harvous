@@ -1,10 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { PROTO_PANEL_EXIT_MS } from './proto-motion';
 import {
+  clearPersistedDrilldowns,
   readPersistedSidebarNav,
   writePersistedSidebarNav,
+  type SidebarListSpaceScope,
 } from '../pages/prototype/proto-sidebar-nav-store';
 import type { ScriptureDrillState } from '../pages/prototype/sidebar-universal-search';
+import { setComposeGroupThreadId } from '../lib/compose-group-thread';
 
 /** Breakpoint sync with prototype-shell.css (899px drawer). */
 const MOBILE_MQ = '(max-width: 899px)';
@@ -36,6 +39,45 @@ export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture' |
 
 /** Sidebar layer — Home space dashboard vs the list views. Only 'space' layer content today is My Home. */
 export type SidebarLayer = 'space' | 'list';
+
+export type VisibleComposeTargetInput = {
+  homeSpaceId: string | null | undefined;
+  activeSpaceId: string | null | undefined;
+  sidebarLayer: SidebarLayer;
+  sidebarListSpaceScope: SidebarListSpaceScope;
+};
+
+function normalizeComposeSpaceId(spaceId: string | null | undefined): string | null {
+  const trimmed = spaceId?.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith('space_') ? trimmed : `space_${trimmed}`;
+}
+
+/** Resolve new-note placement from the sidebar scope the user can currently see. */
+export function resolveVisibleComposeTarget({
+  homeSpaceId,
+  activeSpaceId,
+  sidebarLayer,
+  sidebarListSpaceScope,
+}: VisibleComposeTargetInput): string | null {
+  const home = normalizeComposeSpaceId(homeSpaceId);
+  const active = normalizeComposeSpaceId(activeSpaceId);
+  const showingSharedSpace =
+    Boolean(active && active !== home) &&
+    (sidebarLayer === 'space' || sidebarListSpaceScope === 'space');
+  return showingSharedSpace ? active : home;
+}
+
+export function isVisiblePrototypeSharedContext(options: {
+  explicitContextSpaceId?: string | null;
+  visibleTargetSpaceId?: string | null;
+  homeSpaceId?: string | null;
+}): boolean {
+  if (options.explicitContextSpaceId?.trim()) return true;
+  const visible = normalizeComposeSpaceId(options.visibleTargetSpaceId);
+  const home = normalizeComposeSpaceId(options.homeSpaceId);
+  return Boolean(visible && visible !== home);
+}
 
 /** A proposed thread surfaced from a Home theme card, pending user review/accept. */
 export interface ThreadProposal {
@@ -131,9 +173,23 @@ type ProtoShellContextValue = {
   persistSidebarWidth: (width?: number) => void;
   sidebarWidthMin: number;
   sidebarWidthMax: number;
-  /** Sidebar layer — 'space' shows the Home space view, 'list' shows the list views. Persisted across refresh. */
+  /** Sidebar layer — 'space' shows the Home/space view, 'list' shows the list views. Persisted across refresh. */
   sidebarLayer: SidebarLayer;
   setSidebarLayer: (layer: SidebarLayer) => void;
+  /** Selected shared/public space (`space_...`); null = personal My Home (or My Church hub). Persisted across refresh. */
+  activeSpaceId: string | null;
+  /** Switch the active space. Clears drill-down state and lands on the space layer. `null` also leaves My Church. */
+  setActiveSpaceId: (spaceId: string | null) => void;
+  /**
+   * My Church mode — home church Clerk org id. Hub when set with `activeSpaceId` null;
+   * channel open may keep this set. Persisted across refresh.
+   */
+  activeChurchOrgId: string | null;
+  /** Enter/leave My Church hub. Non-null clears `activeSpaceId` and lands on the space layer. */
+  setActiveChurchOrgId: (orgId: string | null) => void;
+  /** List sidebar scope overlay when a shared space is active (does not change `activeSpaceId`). */
+  sidebarListSpaceScope: SidebarListSpaceScope;
+  setSidebarListSpaceScope: (scope: SidebarListSpaceScope) => void;
   /** Notes / folders / highlights / scripture sidebar list mode. */
   sidebarListMode: SidebarListMode;
   setSidebarListMode: (mode: SidebarListMode) => void;
@@ -180,7 +236,10 @@ type ProtoShellContextValue = {
   setComposePersistedNoteId: (noteId: string | null) => void;
   /** Bumped on each explicit compose action so `/n/new` gets a fresh editor session. */
   composeSessionEpoch: number;
-  beginPrototypeComposeSession: () => number;
+  /** When set, the next draft compose targets this space instead of the active shared space. */
+  composeTargetSpaceIdOverride: string | null;
+  clearComposeTargetSpaceIdOverride: () => void;
+  beginPrototypeComposeSession: (options?: { targetSpaceId?: string }) => number;
   standaloneScripturePassage: StandaloneScripturePassageState | null;
   openStandaloneScripturePassage: (value: StandaloneScripturePassageState) => void;
   dismissStandaloneScripturePassage: () => void;
@@ -226,6 +285,13 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>(readStoredSidebarListMode);
   const persistedNav = readPersistedSidebarNav();
   const [sidebarLayer, setSidebarLayerState] = useState<SidebarLayer>(persistedNav.layer);
+  const [activeSpaceId, setActiveSpaceIdState] = useState<string | null>(persistedNav.activeSpaceId ?? null);
+  const [activeChurchOrgId, setActiveChurchOrgIdState] = useState<string | null>(
+    persistedNav.activeChurchOrgId ?? null,
+  );
+  const [sidebarListSpaceScope, setSidebarListSpaceScopeState] = useState<SidebarListSpaceScope>(
+    persistedNav.sidebarListSpaceScope,
+  );
   const [sidebarFolderDrilldown, setSidebarFolderDrilldownState] = useState<SidebarFolderDrilldown>(
     persistedNav.folderDrill,
   );
@@ -238,6 +304,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [sidebarTagSearchIntent, setSidebarTagSearchIntent] = useState<SidebarTagSearchIntent | null>(null);
   const [prototypeFolderChip, setPrototypeFolderChipState] = useState<PrototypeFolderChip | null>(null);
   const [composePersistedNoteId, setComposePersistedNoteIdState] = useState<string | null>(null);
+  const [composeTargetSpaceIdOverride, setComposeTargetSpaceIdOverrideState] = useState<string | null>(null);
   const [composeSessionEpoch, setComposeSessionEpoch] = useState(0);
   const [standaloneScripturePassage, setStandaloneScripturePassage] = useState<StandaloneScripturePassageState | null>(
     null,
@@ -323,6 +390,64 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const setSidebarLayer = useCallback((layer: SidebarLayer) => {
     setSidebarLayerState(layer);
     writePersistedSidebarNav({ layer });
+  }, []);
+  const setActiveSpaceId = useCallback((spaceId: string | null) => {
+    setActiveSpaceIdState((prev) => (prev === spaceId ? prev : spaceId));
+    if (spaceId) {
+      writePersistedSidebarNav({ activeSpaceId: spaceId, clearSidebarListSpaceScope: true });
+    } else {
+      setActiveChurchOrgIdState(null);
+      writePersistedSidebarNav({
+        clearActiveSpaceId: true,
+        clearActiveChurchOrgId: true,
+        clearSidebarListSpaceScope: true,
+      });
+    }
+    setSidebarListSpaceScopeState('space');
+    // Switching spaces invalidates any in-progress drill-down and always lands
+    // on the space's top-level view (mirrors native "switch context resets scope").
+    clearPersistedDrilldowns();
+    setSidebarFolderDrilldownState(undefined);
+    setSidebarThreadDrilldownIdState(undefined);
+    setScriptureDrillState({ level: 'books' });
+    setSidebarLayerState('space');
+    writePersistedSidebarNav({ layer: 'space' });
+  }, []);
+  const setActiveChurchOrgId = useCallback((orgId: string | null) => {
+    setActiveChurchOrgIdState((prev) => (prev === orgId ? prev : orgId));
+    if (orgId) {
+      setActiveSpaceIdState(null);
+      writePersistedSidebarNav({
+        activeChurchOrgId: orgId,
+        clearActiveSpaceId: true,
+        clearSidebarListSpaceScope: true,
+      });
+      setSidebarListSpaceScopeState('space');
+      clearPersistedDrilldowns();
+      setSidebarFolderDrilldownState(undefined);
+      setSidebarThreadDrilldownIdState(undefined);
+      setScriptureDrillState({ level: 'books' });
+      setSidebarLayerState('space');
+      writePersistedSidebarNav({ layer: 'space' });
+    } else {
+      writePersistedSidebarNav({ clearActiveChurchOrgId: true });
+    }
+  }, []);
+  const setSidebarListSpaceScope = useCallback((scope: SidebarListSpaceScope) => {
+    setSidebarListSpaceScopeState((prev) => {
+      if (prev === scope) return prev;
+      clearPersistedDrilldowns();
+      setSidebarFolderDrilldownState(undefined);
+      setSidebarThreadDrilldownIdState(undefined);
+      setScriptureDrillState({ level: 'books' });
+      writePersistedSidebarNav({ clearFolderDrill: true, clearThreadDrill: true, clearScriptureDrill: true });
+      if (scope === 'space') {
+        writePersistedSidebarNav({ clearSidebarListSpaceScope: true });
+      } else {
+        writePersistedSidebarNav({ sidebarListSpaceScope: scope });
+      }
+      return scope;
+    });
   }, []);
   const setSidebarFolderDrilldown = useCallback((value: SidebarFolderDrilldown) => {
     setSidebarFolderDrilldownState(value);
@@ -562,9 +687,20 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   }, []);
   const setComposePersistedNoteId = useCallback((noteId: string | null) => {
     setComposePersistedNoteIdState((prev) => (prev === noteId ? prev : noteId));
+    if (noteId) {
+      setComposeTargetSpaceIdOverrideState(null);
+    }
   }, []);
-  const beginPrototypeComposeSession = useCallback(() => {
+  const clearComposeTargetSpaceIdOverride = useCallback(() => {
+    setComposeTargetSpaceIdOverrideState(null);
+  }, []);
+  const beginPrototypeComposeSession = useCallback((options?: { targetSpaceId?: string }) => {
     setComposePersistedNoteIdState(null);
+    const target = options?.targetSpaceId?.trim();
+    setComposeGroupThreadId(null);
+    setComposeTargetSpaceIdOverrideState(
+      target ? (target.startsWith('space_') ? target : `space_${target}`) : null,
+    );
     let next = 0;
     setComposeSessionEpoch((prev) => {
       next = prev + 1;
@@ -596,6 +732,12 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       sidebarWidthMax: PROTO_SIDEBAR_WIDTH_MAX,
       sidebarLayer,
       setSidebarLayer,
+      activeSpaceId,
+      setActiveSpaceId,
+      activeChurchOrgId,
+      setActiveChurchOrgId,
+      sidebarListSpaceScope,
+      setSidebarListSpaceScope,
       sidebarListMode,
       setSidebarListMode,
       sidebarFolderDrilldown,
@@ -629,6 +771,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       composePersistedNoteId,
       setComposePersistedNoteId,
       composeSessionEpoch,
+      composeTargetSpaceIdOverride,
+      clearComposeTargetSpaceIdOverride,
       beginPrototypeComposeSession,
       standaloneScripturePassage,
       openStandaloneScripturePassage,
@@ -656,6 +800,12 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       persistSidebarWidth,
       sidebarLayer,
       setSidebarLayer,
+      activeSpaceId,
+      setActiveSpaceId,
+      activeChurchOrgId,
+      setActiveChurchOrgId,
+      sidebarListSpaceScope,
+      setSidebarListSpaceScope,
       sidebarListMode,
       setSidebarListMode,
       sidebarFolderDrilldown,
@@ -688,6 +838,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       composePersistedNoteId,
       setComposePersistedNoteId,
       composeSessionEpoch,
+      composeTargetSpaceIdOverride,
+      clearComposeTargetSpaceIdOverride,
       beginPrototypeComposeSession,
       standaloneScripturePassage,
       openStandaloneScripturePassage,

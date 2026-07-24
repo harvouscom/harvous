@@ -3,6 +3,7 @@ import {
   buildHighlightDockOpenMetadataFromStudyThread,
   buildHighlightDockSessionForDeepLink,
   buildHighlightDockSessionFromStudyThread,
+  activeHighlightEntryId,
   closeDockEntry,
   collapseActiveScriptureIfActive,
   clearStudyDockStackLocalCache,
@@ -11,6 +12,7 @@ import {
   highlightDockExcerptFromStudyThread,
   highlightDockStableKey,
   isPersistableStudyDockNoteId,
+  isHighlightDockReadOnly,
   openOrFocusHighlight,
   openOrFocusReference,
   openOrFocusScripture,
@@ -18,9 +20,13 @@ import {
   resolveScriptureLinkPassageContext,
   scriptureDockStableKey,
   serializeStudyDockStack,
+  shouldOpenHighlightRequestImmediately,
   STUDY_DOCK_STACK_MAX_ENTRIES,
   studyDockStackStorageKey,
+  studyDockContextKey,
+  studyThreadContextQuery,
   updateDockEntry,
+  withStudyThreadContext,
 } from '../study-dock-stack';
 
 const scriptureSession = {
@@ -223,6 +229,22 @@ describe('study-dock-stack', () => {
 
   it('studyDockStackStorageKey uses harvous-study-dock- prefix', () => {
     expect(studyDockStackStorageKey('note_x')).toBe('harvous-study-dock-note_x');
+    expect(studyDockStackStorageKey('note_x', 'space_shared')).toBe(
+      'harvous-study-dock-note_x--space_shared',
+    );
+    expect(studyDockContextKey('note_x', 'space_shared')).not.toBe(
+      studyDockContextKey('note_x', null),
+    );
+  });
+
+  it('keeps the active Activity entry selected until its dock closes', () => {
+    let stack = openOrFocusHighlight(emptyStudyDockStack(), highlightSession);
+    expect(activeHighlightEntryId(stack)).toBe('st_1');
+    stack = updateDockEntry(stack, stack.activeId!, (entry) => ({ ...entry, expanded: false }));
+    expect(activeHighlightEntryId(stack)).toBe('st_1');
+    stack = openOrFocusHighlight(stack, highlightSession);
+    stack = closeDockEntry(stack, stack.activeId!);
+    expect(activeHighlightEntryId(stack)).toBeNull();
   });
 
   it('serialize and deserialize round-trip entries, activeId, and expanded', () => {
@@ -264,7 +286,8 @@ describe('study-dock-stack', () => {
     const restored = deserializeStudyDockStack(raw);
     expect(restored).not.toBeNull();
     expect(restored!.entries).toHaveLength(STUDY_DOCK_STACK_MAX_ENTRIES);
-    expect(restored!.entries[0].session.reference).toBe('Ref 3');
+    const first = restored!.entries[0];
+    expect(first.kind === 'scripture' ? first.session.reference : null).toBe('Ref 3');
   });
 
   it('clearStudyDockStackLocalCache removes persisted stack for note_ ids only', () => {
@@ -330,6 +353,36 @@ describe('highlight dock deep-link helpers', () => {
     );
   });
 
+  it('marks another member Activity entry read-only', () => {
+    const metadata = buildHighlightDockOpenMetadataFromStudyThread({
+      ...studyThreadRow,
+      isOwnHighlight: false,
+    });
+    const session = buildHighlightDockSessionForDeepLink('st_foreign', metadata, null);
+    expect(session.readOnly).toBe(true);
+    expect(isHighlightDockReadOnly(session)).toBe(true);
+    expect(isHighlightDockReadOnly({ ...session, readOnly: false, isOwnHighlight: true })).toBe(false);
+  });
+
+  it('opens detached metadata immediately without polling for a mark', () => {
+    expect(
+      shouldOpenHighlightRequestImmediately({
+        metadata: {
+          accent: 'warmAmber',
+          excerpt: 'remembered quote',
+          detached: true,
+        },
+        range: null,
+      }),
+    ).toBe(true);
+    expect(
+      shouldOpenHighlightRequestImmediately({
+        metadata: { accent: 'warmAmber', excerpt: 'live quote' },
+        range: null,
+      }),
+    ).toBe(false);
+  });
+
   it('buildHighlightDockSessionFromStudyThread copies scripture passage context for scriptureLink rows', () => {
     const row = {
       id: 'st_scripture_1',
@@ -345,6 +398,20 @@ describe('highlight dock deep-link helpers', () => {
     expect(session.scriptureReference).toBe('John 3:16');
     expect(session.scripturePassageTranslation).toBe('NET');
     expect(session.accent).toBe('violet');
+  });
+});
+
+describe('study-thread context requests', () => {
+  it('omits personal context and sends explicit shared context', () => {
+    expect(studyThreadContextQuery()).toBe('');
+    expect(studyThreadContextQuery('space shared')).toBe('?contextSpaceId=space%20shared');
+    expect(withStudyThreadContext({ entryKind: 'miniNote' }, null)).toEqual({
+      entryKind: 'miniNote',
+    });
+    expect(withStudyThreadContext({ entryKind: 'miniNote' }, 'space_shared')).toEqual({
+      entryKind: 'miniNote',
+      contextSpaceId: 'space_shared',
+    });
   });
 });
 

@@ -65,3 +65,35 @@ export function stripStudyHighlightMarkInlineBackground(html: string | null | un
     return nextAttrs ? `<mark${nextAttrs}>` : '<mark>';
   });
 }
+
+export function pmRangesOverlap(
+  a: { from: number; to: number },
+  b: { from: number; to: number },
+): boolean {
+  return a.from < b.to && b.from < a.to;
+}
+
+/** Hide in-body highlight underlines where a shared overlay already paints the passage. */
+export function syncStudyHighlightMarksOverlayCovered(
+  editor: { view: { dom: HTMLElement; posAtDOM: (node: Node, offset: number) => number } } | null,
+  overlayRanges: { from: number; to: number }[],
+): void {
+  if (!editor?.view) return;
+  const root = editor.view.dom;
+  root.querySelectorAll('mark').forEach((markEl) => {
+    let covered = false;
+    if (overlayRanges.length > 0) {
+      try {
+        const from = editor.view.posAtDOM(markEl, 0);
+        const to = editor.view.posAtDOM(markEl, markEl.childNodes.length);
+        if (from >= 0 && to >= from) {
+          const markRange = { from, to };
+          covered = overlayRanges.some((range) => pmRangesOverlap(range, markRange));
+        }
+      } catch {
+        /* posAtDOM unavailable while doc is settling */
+      }
+    }
+    markEl.toggleAttribute('data-overlay-covered', covered);
+  });
+}

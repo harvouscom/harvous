@@ -19,6 +19,8 @@ describe('proto-sidebar-nav-store', () => {
   it('defaults to Home layer with no drill-downs', () => {
     expect(readPersistedSidebarNav()).toEqual({
       layer: 'space',
+      activeSpaceId: undefined,
+      sidebarListSpaceScope: 'space',
       folderDrill: undefined,
       threadDrillId: undefined,
       scriptureDrill: { level: 'books' },

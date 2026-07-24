@@ -443,38 +443,15 @@ struct SidebarPanelView: View {
     }
 
     private var sidebarSearchField: some View {
-        HStack(spacing: 8) {
-            HarvousFAGlyph(assetName: "Harvous.MagnifyingGlass", edgePt: 14)
-                .foregroundStyle(.secondary)
-            TextField("Search", text: $folderListSearchText)
-                .textFieldStyle(.plain)
-                .font(HarvousFonts.font(size: 15, weight: .regular, design: .default))
-                .focused($searchFieldFocused)
-            if !folderListSearchText.isEmpty {
-                Button {
-                    folderListSearchText = ""
-                    searchFieldFocused = false
-                } label: {
-                    HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 15)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.primary.opacity(0.07))
-        )
-        .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
-        .padding(.top, 2)
-        .padding(.bottom, 6)
-        .background(
-            Button("") { searchFieldFocused = true }
-                .keyboardShortcut("f", modifiers: .command)
-                .opacity(0)
-        )
+        HarvousSearchField(text: $folderListSearchText, placeholder: "Search", isFocused: $searchFieldFocused)
+            .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
+            .padding(.top, 2)
+            .padding(.bottom, 6)
+            .background(
+                Button("") { searchFieldFocused = true }
+                    .keyboardShortcut("f", modifiers: .command)
+                    .opacity(0)
+            )
     }
 
     #if os(macOS)

@@ -3,31 +3,35 @@ import { useParams, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
-import CondensedNoteItem from '@/components/react/CondensedNoteItem';
 import { api } from '../../lib/api';
 import { useJoinSpace } from '../../hooks/mutations/useJoinSpace';
 import { navigationQueryKeyPrefix } from '../../hooks/queries/useNavigation';
-import { idToUrl } from '@/utils/url-helpers';
-import { formatBadgeCount } from '@/utils/badge-count';
 import { PublicTopBar, PublicErrorState } from './public-shared';
-
-interface SpacePreview {
-  id: string;
-  title: string;
-  color?: string;
-  backgroundGradient?: string;
-  ownerDisplayName: string;
-  isHarvousOwned: boolean;
-  memberCount: number;
-  isAlreadyMember: boolean;
-  notes?: Array<{ id: string; title: string; noteType: string; scriptureTranslation?: string; version?: string }>;
-  threads?: Array<{ id: string; title: string; color: string; noteCount: number }>;
-}
+import PublicJoinSpaceLetter, { type PublicJoinSpaceLetterSpace } from './PublicJoinSpaceLetter';
+import PublicJoinSpaceHero from './PublicJoinSpaceHero';
+import { writePersistedSidebarNav } from '../prototype/proto-sidebar-nav-store';
+import { prototypeHomeRouteTo } from '@/lib/prototype-path';
+import { writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 
 interface JoinPreviewResponse {
-  space: { id: string; title: string; color?: string; backgroundGradient?: string; description?: string };
-  owner: { displayName: string; isHarvousOwned?: boolean } | null;
+  space: {
+    id: string;
+    title: string;
+    color?: string;
+    backgroundGradient?: string;
+    description?: string;
+    coverBgLight?: import('@/utils/space-cover').SpaceCoverBg;
+    coverBgDark?: import('@/utils/space-cover').SpaceCoverBg;
+  };
+  owner: {
+    displayName: string;
+    isHarvousOwned?: boolean;
+    profileImageUrl?: string | null;
+    accentLight?: string | null;
+    accentDark?: string | null;
+  } | null;
   memberCount: number;
+  memberPreviews?: Array<{ initial: string; accentLight?: string | null; accentDark?: string | null }>;
   threadPreviews: Array<{ id: string; title: string; color: string; noteCount: number }>;
   notePreviews: Array<{ id: string; title: string; noteType: string; createdAt?: string }>;
   isAlreadyMember: boolean;
@@ -38,7 +42,7 @@ export default function PublicJoinSpacePage() {
   const { isSignedIn } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [space, setSpace] = useState<SpacePreview | null>(null);
+  const [space, setSpace] = useState<PublicJoinSpaceLetterSpace | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const joinSpaceMutation = useJoinSpace();
   const [error, setError] = useState<string | null>(null);
@@ -48,16 +52,28 @@ export default function PublicJoinSpacePage() {
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    api.get<JoinPreviewResponse>(`/api/spaces/join-preview/${token}`)
+    api.get<JoinPreviewResponse>(`/api/spaces/invite-preview/${token}`)
       .then((res) => {
         setSpace({
-          ...res.space,
+          id: res.space.id,
+          title: res.space.title,
+          color: res.space.color,
+          backgroundGradient: res.space.backgroundGradient,
+          description: res.space.description,
+          cover: {
+            light: res.space.coverBgLight ?? null,
+            dark: res.space.coverBgDark ?? null,
+          },
           ownerDisplayName: res.owner?.displayName ?? 'Anonymous',
+          ownerProfileImageUrl: res.owner?.profileImageUrl ?? null,
+          ownerAccentLight: res.owner?.accentLight ?? null,
+          ownerAccentDark: res.owner?.accentDark ?? null,
           isHarvousOwned: res.owner?.isHarvousOwned ?? false,
           memberCount: res.memberCount,
+          memberPreviews: res.memberPreviews ?? [],
           isAlreadyMember: res.isAlreadyMember,
-          notes: res.notePreviews,
-          threads: res.threadPreviews,
+          notes: res.notePreviews?.slice(0, 3),
+          threads: res.threadPreviews?.slice(0, 3),
         });
       })
       .catch(() => setError('invalid'))
@@ -76,7 +92,7 @@ export default function PublicJoinSpacePage() {
 
   const handleJoin = async () => {
     if (!isSignedIn) {
-      try { sessionStorage.setItem('harvous_pending_redirect', window.location.href); } catch { /* ignore */ }
+      writePendingAuthRedirect(window.location.href);
       navigate({ to: `/sign-in?redirect_url=${encodeURIComponent(window.location.href)}` as any });
       return;
     }
@@ -88,23 +104,32 @@ export default function PublicJoinSpacePage() {
           detail: {
             space: {
               id: result.spaceId,
-              title: space?.title ?? '',
+              title: space?.title ?? result.spaceName ?? '',
               backgroundGradient: space?.backgroundGradient ?? 'var(--color-paper)',
               isShared: true,
             },
           },
         }));
+        const normalizedId = result.spaceId.startsWith('space_') ? result.spaceId : `space_${result.spaceId}`;
+        try {
+          sessionStorage.setItem(
+            'harvous_just_joined_space',
+            JSON.stringify({ id: normalizedId, title: space?.title ?? result.spaceName ?? '' }),
+          );
+        } catch { /* ignore */ }
+        writePersistedSidebarNav({ activeSpaceId: normalizedId, layer: 'space', clearFolderDrill: true, clearThreadDrill: true, clearScriptureDrill: true });
         await queryClient.refetchQueries({ queryKey: navigationQueryKeyPrefix });
-        navigate({ to: (result.redirectUrl || idToUrl(result.spaceId)) as any });
+        navigate({ to: prototypeHomeRouteTo() as any });
       }
     } catch (err: any) {
       showToast(err?.message || 'Failed to join space. Please try again.', 'error');
     }
   };
 
-  const spaceColor = space?.color || 'paper';
-  const colorVar = `var(--color-${spaceColor})`;
-  const spaceUrl = space ? idToUrl(space.id) : '';
+  const signInHref =
+    typeof window !== 'undefined'
+      ? `/sign-in?redirect_url=${encodeURIComponent(window.location.href)}`
+      : '/sign-in';
 
   return (
     <>
@@ -113,7 +138,8 @@ export default function PublicJoinSpacePage() {
         <PublicTopBar isSignedIn={!!isSignedIn} />
 
         <div className="public-body">
-          <div className="public-content">
+          <div className="public-content public-content--upgrade">
+            <PublicJoinSpaceHero space={space} />
             {isLoading ? (
               <div className="page-loading" />
             ) : (error || !space) ? (
@@ -122,96 +148,34 @@ export default function PublicJoinSpacePage() {
                 message="Hmm, we can't find this space. The link might have expired or the owner made it private."
               />
             ) : (
-              <SubtleContentMount>
+              <SubtleContentMount variant="fade">
                 <>
-                  <p className="public-creator">
-                    {space.isHarvousOwned
-                      ? "You're invited to join this space on Harvous"
-                      : `${space.ownerDisplayName || 'A Harvous User'} invited you to join this space on Harvous`}
-                  </p>
-
-                  <div className="public-card">
-                    <div className="public-card__color-stripe" style={{ background: colorVar }} />
-                    <div className="public-card__header">
-                      <h1 className="public-card__title">{space.title}</h1>
-                    </div>
-
-                    <div className="public-card__scroll">
-                      <p className="public-people-count">
-                        {space.memberCount} {space.memberCount === 1 ? 'person' : 'people'} in this space
-                      </p>
-
-                      {(!space.threads?.length && !space.notes?.length) ? (
-                        <div className="public-card__empty">No notes yet. Join to get started.</div>
-                      ) : (
-                        <>
-                          {space.threads?.map((thread, i) => (
-                            <div
-                              key={thread.id}
-                              className="public-thread-row card-enter"
-                              style={{ animationDelay: `${100 + i * 40}ms` }}
-                            >
-                              <div className="public-thread-row__accent" style={{ background: `var(--color-${thread.color || 'blue'})` }} />
-                              <span className="public-thread-row__title">{thread.title}</span>
-                              {thread.noteCount > 0 && (
-                                <span className="public-thread-row__badge">{formatBadgeCount(thread.noteCount)}</span>
-                              )}
-                            </div>
-                          ))}
-                          {space.notes?.map((note, i) => (
-                            <div
-                              key={note.id}
-                              className="public-card__list-item card-enter"
-                              style={{ animationDelay: `${100 + ((space.threads?.length || 0) + i) * 40}ms` }}
-                            >
-                              <CondensedNoteItem
-                                title={note.title || 'Untitled'}
-                                noteType={note.noteType as any || 'default'}
-                                href="#"
-                                noteId={note.id}
-                                scriptureTranslation={note.scriptureTranslation ?? note.version ?? undefined}
-                              />
-                            </div>
-                          ))}
-                        </>
-                      )}
-                    </div>
-
-                    <div className="public-card__cta">
-                      <div className={`public-toast public-toast--${toastType}${toastVisible ? ' public-toast--visible' : ''}`}>
-                        {toastMessage}
-                      </div>
-                      {!isSignedIn ? (
-                        <a
-                          href={`/sign-in?redirect_url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}`}
-                          className="public-cta-btn"
-                          onClick={() => {
-                            try { sessionStorage.setItem('harvous_pending_redirect', window.location.href); } catch { /* ignore */ }
-                          }}
-                        >
-                          Join this space on Harvous
-                        </a>
-                      ) : space.isAlreadyMember ? (
-                        <button className="public-cta-btn" onClick={() => navigate({ to: spaceUrl as any })}>
-                          Go to Space
-                        </button>
-                      ) : (
-                        <button
-                          id="join-space-btn"
-                          className="public-cta-btn"
-                          onClick={handleJoin}
-                          disabled={joinSpaceMutation.isPending}
-                        >
-                          {joinSpaceMutation.isPending ? 'Joining…' : 'Join this space on Harvous'}
-                        </button>
-                      )}
-                    </div>
+                  <PublicJoinSpaceLetter
+                    space={space}
+                    isSignedIn={!!isSignedIn}
+                    isJoinPending={joinSpaceMutation.isPending}
+                    toastMessage={toastMessage}
+                    toastType={toastType}
+                    toastVisible={toastVisible}
+                    signInHref={signInHref}
+                    onSignInClick={() => {
+                      writePendingAuthRedirect(window.location.href);
+                    }}
+                    onJoin={() => void handleJoin()}
+                    onGoToSpace={() => {
+                      const normalizedId = space.id.startsWith('space_') ? space.id : `space_${space.id}`;
+                      writePersistedSidebarNav({ activeSpaceId: normalizedId, layer: 'space', clearFolderDrill: true, clearThreadDrill: true, clearScriptureDrill: true });
+                      navigate({ to: prototypeHomeRouteTo() as any });
+                    }}
+                  />
+                  <div className="public-footer public-footer--rich">
+                    <span className="public-footer__tag">
+                      Harvous is a notes app for Bible study.{' '}
+                      <a href="https://harvous.com" target="_blank" rel="noopener noreferrer" className="public-footer__cta">
+                        harvous.com
+                      </a>
+                    </span>
                   </div>
-
-                  <p className="public-footer">
-                    Harvous is a notes app for Bible study.{' '}
-                    <a href="https://harvous.com" target="_blank" rel="noopener noreferrer">harvous.com</a>
-                  </p>
                 </>
               </SubtleContentMount>
             )}

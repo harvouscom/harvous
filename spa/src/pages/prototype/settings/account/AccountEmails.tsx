@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useReverification, useUser } from '@clerk/clerk-react';
 import type { EmailAddressResource } from '@clerk/types';
 import { SettingsSubScreen, SettingsGroup } from '../SettingsShell';
-import { ErrorText, Field, getClerkErrorMessage, labelStyle, useRefreshProfileAfterMutation } from './accountShared';
+import { ErrorText, Field, getClerkErrorMessage, useRefreshProfileAfterMutation } from './accountShared';
 
 const tagStyle = (color: string): React.CSSProperties => ({
   fontSize: '0.6875rem',
@@ -141,18 +141,13 @@ export default function AccountEmails({ onBack }: { onBack: () => void }) {
         <p className="pds-subheadline" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 16px' }}>
           Enter the code sent to {pending?.emailAddress}.
         </p>
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Verification code</label>
-          <input
-            type="text"
-            className="proto-settings-field"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            value={code}
-            placeholder="123456"
-            onChange={(e) => setCode(e.target.value)}
-          />
-        </div>
+        <Field
+          label="Verification code"
+          value={code}
+          placeholder="123456"
+          autoComplete="one-time-code"
+          onChange={setCode}
+        />
         <ErrorText>{error}</ErrorText>
         <button type="button" className="proto-settings-btn" disabled={isWorking || !code.trim()} onClick={handleVerify}>
           {isWorking ? 'Verifying…' : 'Verify'}

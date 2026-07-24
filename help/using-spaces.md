@@ -54,7 +54,8 @@ Spaces are the highest level of organization in Harvous. They contain threads an
 
 - **Collaborative environments** where multiple people can contribute
 - Perfect for church small groups, Bible study groups, book clubs, and family devotions
-- All members can create threads and notes within the shared space
+- The owner starts Threads and chooses the current Thread
+- Members can view the current Thread, attach their own active notes to it, or compose a new note there
 - **Invite via share link** — copy the link from Space details and share it; others join from the join page
 - **Member management** — owner can see the people list and remove members; members can leave
 - **Locked notes** are never shown in shared contexts (only you see your locked notes)
@@ -71,7 +72,7 @@ Spaces can contain:
 ```
 📁 Bible Study Space (Private, Blue)
 ├── 📚 Gospel of John Thread (5 notes)
-├── 📖 Romans Study Thread (12 notes)
+├── 📖 Romans Thread (12 notes)
 └── 📝 Individual Reflection Note
 
 📁 Prayer Journal Space (Private, Mint)

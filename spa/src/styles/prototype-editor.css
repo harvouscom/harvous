@@ -127,6 +127,87 @@
     var(--pds-editor-paper-padding-bottom);
 }
 
+/* Draft compose — destination row above title (parity with proto-shared-readonly-banner). */
+.proto-draft-destination-cue {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  width: auto;
+  margin: 0 12px 20px;
+  padding: 0 0 10px;
+  border-bottom: 0.5px solid var(--pds-border);
+}
+
+.proto-draft-destination-cue__status {
+  display: inline-flex;
+  align-items: center;
+  /* The app reset sets `* { flex-shrink: 0 }` — long Thread-in-Space labels must shrink and wrap. */
+  flex-shrink: 1;
+  min-width: 0;
+  color: var(--pds-text-secondary);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+/* Current-Thread opt-in chip — greeting-chip recipe shrunk to caption scale. */
+.proto-draft-destination-cue__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 2px 8px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pds-text-secondary);
+  font-family: var(--pds-font-body);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.proto-draft-destination-cue__chip:hover {
+  background: var(--pds-bg-control-strong);
+  color: var(--pds-text-primary);
+}
+
+.proto-draft-destination-cue__chip:focus-visible {
+  outline: none;
+}
+
+.proto-draft-destination-cue__chip:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.proto-draft-destination-cue__chip--active {
+  border-color: transparent;
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+}
+
+.proto-draft-destination-cue__chip--active:hover {
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+  opacity: 0.9;
+}
+
+.proto-draft-destination-cue__chip svg {
+  display: block;
+}
+
+.proto-draft-destination-cue__chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
 @container proto-editor-scroll (max-width: 640px) {
   .proto-editor-paper {
     padding: var(--pds-editor-paper-padding-top-narrow)
@@ -560,6 +641,25 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
 .proto-editor-surface .card-full-editable__content-html mark[data-color="mintGreen"] { --mark-accent: var(--pds-highlight-mint-green); }
 .proto-editor-surface .ProseMirror mark[data-color="coralRose"],
 .proto-editor-surface .card-full-editable__content-html mark[data-color="coralRose"] { --mark-accent: var(--pds-highlight-coral-rose); }
+
+/* When a shared overlay covers the same passage, hide the in-body underline so only the fill shows. */
+.proto-editor-surface .ProseMirror mark[data-overlay-covered],
+.proto-editor-surface .card-full-editable__content-html mark[data-overlay-covered] {
+  text-decoration: none !important;
+  text-shadow: none !important;
+}
+
+/* On a foreign shared note these in-body marks are the AUTHOR's own highlights,
+ * not editable and not responses. Render them as a dashed underline so they read
+ * as read-only reference context, visually distinct from the solid response
+ * fills members add (mirrored by the read-only banner legend). The
+ * data-foreign-shared-annotate flag sits on the .card-full-editable root, so the
+ * marks and static-HTML content are its descendants. */
+[data-foreign-shared-annotate='true'] .ProseMirror mark,
+[data-foreign-shared-annotate='true'] .card-full-editable__content-html mark {
+  text-decoration-style: dashed;
+  opacity: 0.85;
+}
 
 /* Spotlight: while a highlight (or reference) dock is expanded, only the expanded highlight keeps
  * its color — every other highlight underline dims to neutral gray so the active one stands out.

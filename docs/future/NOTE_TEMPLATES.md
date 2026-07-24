@@ -1,7 +1,16 @@
 # Note Templates
 
-**Status:** Partially Implemented  
-**Last Updated:** February 2026
+**Status:** v1 landed on prototype SPA (personal + space); Classic UI still half-wired below; org templates future
+**Last Updated:** July 2026
+
+> **July 2026 update:** the sections below describe the Classic-era
+> `note-panel/` UI (pre-prototype SPA). The built-in templates data and
+> content-format sections are still accurate. The **User-Created Templates**
+> and **Shared Spaces** sections are superseded by the redesigned direction
+> in [Redesigned Direction (July 2026)](#redesigned-direction-july-2026) —
+> read that section first for anything user/space/org-template related. See
+> also [PASTOR_FEATURES_ROADMAP.md](./PASTOR_FEATURES_ROADMAP.md) (item 5),
+> which names this as the recommended next general feature build.
 
 ---
 
@@ -15,7 +24,7 @@ Note templates let users create notes from pre-filled title and content. The fea
 
 ### What's Implemented
 
-- **Built-in templates data:** Static template definitions in [`src/data/note-templates.ts`](../../src/data/note-templates.ts) with 6 study method templates (SOAP, Inductive Study, Bible Nerd Method, Topical Study, Chapter Summary, Comparative Study). Each template has: `id`, `name`, `description`, `estimatedMinutes`, `level`, `titleTemplate`, `content` (HTML for Tiptap), and `noteType`. Helper functions: `getBuiltInTemplates()`, `getTemplateById()`.
+- **Built-in templates data:** Static template definitions in [`src/data/note-templates.ts`](../../src/data/note-templates.ts) with 6 study method templates (SOAP, Inductive Study, TEXT, Topical Study, Chapter Summary, Comparative Study). Each template has: `id`, `name`, `description`, `estimatedMinutes`, `level`, `titleTemplate`, `content` (HTML for Tiptap), `noteType`, and `iconColor`. Helper functions: `getBuiltInTemplates()`, `getTemplateById()`.
 - **TemplateSelector dropdown:** [`TemplateSelector.tsx`](../../src/components/react/note-panel/TemplateSelector.tsx) renders a portal-based dropdown showing "Blank Note" plus all built-in templates. Includes selection state, keyboard navigation (Escape to close), click-outside-to-close, and analytics tracking (`note_template_selected`, `note_template_blank_selected`).
 - **NoteTemplateHeader component:** [`NoteTemplateHeader.tsx`](../../src/components/react/note-panel/NoteTemplateHeader.tsx) is a CardStack-style header that displays the selected template name with a caret. Intended for use as a trigger to open the dropdown.
 - **Form state:** `selectedTemplateId` and `setSelectedTemplateId` in [`useNewNoteForm`](../../src/components/react/note-panel/hooks/useNewNoteForm.ts) and [`NewNotePanelContext`](../../src/components/react/contexts/NewNotePanelContext.tsx) track the currently selected template.
@@ -42,8 +51,8 @@ The built-in set aligns with the **top study methods** (e.g. a "Guide" list). Th
 | Method | Description | Time | Level |
 |--------|-------------|------|-------|
 | **SOAP** | Scripture, Observation, Application, Prayer | 15–20 min | Beginner |
+| **TEXT** | Talk, Encounter, eXamine, Talk — prayerful study for new believers | 15–25 min | Beginner |
 | **Inductive Study** | Observation → Interpretation → Application | 45–90 min | Intermediate |
-| **Bible Nerd Method** | Faith’s 5-step process: context, translations, dictionaries, commentaries | 60–120 min | Intermediate–Advanced |
 | **Topical Study** | Study themes across the whole Bible | 20–60 min | Beginner–Intermediate |
 | **Chapter Summary** | Quick summaries for reading retention | 10–15 min | Beginner |
 | **Comparative Study** | Side-by-side analysis of translations, parallel passages, authors | 20–60 min | Intermediate |
@@ -121,7 +130,7 @@ When shared spaces are implemented (see [ARCHITECTURE.md](../ARCHITECTURE.md), [
 
 ✅ **Done** — Built-in templates use Tiptap-compatible HTML.
 
-- Note `content` in the database is whatever Tiptap persists (see [TiptapEditor](../../src/components/react/TiptapEditor.tsx)). Template `content` uses the same format (HTML) so it can be set as the initial value in the editor without conversion. Built-in templates are authored as HTML (e.g. `<h2>📖 Scripture</h2>`) in [`src/data/note-templates.ts`](../../src/data/note-templates.ts).
+- Note `content` in the database is whatever Tiptap persists (see [TiptapEditor](../../src/components/react/TiptapEditor.tsx)). Template `content` uses the same format (HTML) so it can be set as the initial value in the editor without conversion. Built-in templates are authored as HTML (e.g. `<h2>Scripture</h2>`) in [`src/data/note-templates.ts`](../../src/data/note-templates.ts) — no emoji in template content.
 
 ### File checklist
 
@@ -209,3 +218,85 @@ flowchart LR
 - [ARCHITECTURE.md](../ARCHITECTURE.md) — Data structures, spaces, threads, notes.
 - [SHARING_SYSTEM_DESIGN.md](SHARING_SYSTEM_DESIGN.md) — Shared threads and spaces.
 - [NOTE_TYPES_DESIGN_PENDING.md](../NOTE_TYPES_DESIGN_PENDING.md) — Note types (default, scripture, resource) and form layout.
+- [PASTOR_FEATURES_ROADMAP.md](./PASTOR_FEATURES_ROADMAP.md) — Names templates as the recommended next general feature build; sermon template as org-provisioned template.
+- [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md) — Role-gated feature model that org-scoped templates plug into.
+
+---
+
+## Redesigned Direction (July 2026)
+
+**Status (v1 landed on `feat/shared-spaces-foundation`):** schema
+(`NoteTemplates` in `server/db/schema.ts`), APIs
+(`GET/POST/DELETE /api/note-templates/*`), and prototype SPA UX
+(`PrototypeInspectorTemplatesSection` in the Note details inspector) are
+implemented for **personal + space** scope. `orgId` column exists but is
+unused (no org provisioning / sermon template yet). Classic `note-panel/`
+UI remains unwired.
+
+Design decisions locked with the user, targeting the **prototype SPA**
+(`spa/src/pages/prototype/`), not the Classic `note-panel/` components above.
+This section supersedes **User-Created Templates** and **Shared Spaces**
+above; the built-in templates and content-format sections still apply.
+
+### UX
+
+- **Where:** **Templates** section in the prototype right-side Note details
+  inspector (`PrototypeInspectorPane`), same stack as Info / Tags / Connected
+  Notes / Folders. Shown for editable own notes (including drafts). Mobile
+  uses the same section inside the inspector sheet — no separate flow.
+- **Apply:** **Start from a template** / **Browse templates** open a
+  Connect-note-style dialog (desktop) or bottom sheet (mobile) with the Add
+  Notes scoped list chrome: **search first**, then **chip filter tabs** —
+  **All**, **Included**, **Saved**, then the current shared space by name
+  (owner/leader templates); a future **Church** / org chip (`orgId`) can
+  follow.   Rows show name + card-style category tag and description. Filter chips are
+  text-only. Tapping a row applies into the open note. On empty notes, start-from
+  is the primary action; once the note has content, browse remains available from
+  the same section. A `/template` slash-command in the TipTap editor is a possible
+  power-user path later only.
+- **Create:** **Save as template** in that section captures the live editor
+  title/content as a reusable template (optional attach-to-space for space
+  owners). No separate "create template" flow; saving *is* writing a normal
+  note first. Not in the note header or overflow menu.
+
+### Data model — three layers, one table
+
+```ts
+// NoteTemplates — landed in server/db/schema.ts (orgId unused in v1)
+export const NoteTemplates = pgTable('NoteTemplates', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),      // creator — personal templates are userId-only
+  spaceId: text('spaceId'),              // set = space template (see below)
+  orgId: text('orgId'),                  // set = church/org-provisioned template (future)
+  name: text('name').notNull(),
+  title: text('title'),                  // titleTemplate equivalent
+  content: text('content').notNull(),    // Tiptap HTML, same format as Notes.content
+  noteType: text('noteType'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+});
+```
+
+- **`userId` only (personal):** the default. A user's own saved templates,
+  visible only to them.
+- **`spaceId` set (space template):** the **shared-space-owner win** — an
+  owner/leader attaches a template to their shared space, and everyone
+  composing a note there sees it in the template picker (e.g. a group study
+  response format). Rides the existing `SpaceMemberships` role checks for
+  who can attach/remove a space template (owner/leader, matching
+  `canManageSpaceStructure` in `space-access.ts`).
+- **`orgId` set (church template, future):** the sermon note template (see
+  [PASTOR_FEATURES_ROADMAP.md](./PASTOR_FEATURES_ROADMAP.md) item 6) is an
+  **org-provisioned template** on these same rails — provisioned to the
+  pastor role, never shown to general users. Not a special pastor-template
+  feature; it's the same `NoteTemplates` table with `orgId` set instead of
+  `spaceId`.
+
+### Why this shape
+
+One table, three optional scope columns, keeps "template" a single concept
+regardless of who it's visible to — the picker query is just "templates
+where `userId = me` OR `spaceId = current space` OR `orgId = my connected
+org (role-gated)`." No `TemplateSpaces` junction table needed unless a
+template must belong to multiple spaces at once, which is out of scope for
+v1.

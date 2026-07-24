@@ -13,6 +13,7 @@ export class APIError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
   ) {
     super(message);
     this.name = 'APIError';
@@ -53,11 +54,14 @@ export async function getClerkBearerToken(): Promise<string | null> {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers ?? undefined);
+  const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData;
   // Avoid Content-Type on GET/HEAD so requests stay "simple" for cross-origin (Capacitor / split-origin dev).
+  // FormData must not get application/json — the browser sets multipart boundary.
   if (
     init.body !== undefined &&
     init.body !== null &&
     init.body !== '' &&
+    !isFormData &&
     !headers.has('Content-Type')
   ) {
     headers.set('Content-Type', 'application/json');
@@ -77,10 +81,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = await res.json().catch(() => ({})) as { error?: string; code?: string };
     const errMessage = body.error || `HTTP ${res.status}`;
     reportApiDiagnostic(path, res.status, errMessage);
-    throw new APIError(res.status, errMessage);
+    throw new APIError(res.status, errMessage, body.code);
   }
 
   return res.json() as Promise<T>;
@@ -92,6 +96,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
  */
 export function apiUrl(path: string): string {
   return `${BASE_URL}${path}`;
+}
+
+function serializeBody(body: unknown): BodyInit | undefined {
+  if (body === undefined || body === null) return undefined;
+  if (typeof FormData !== 'undefined' && body instanceof FormData) return body;
+  return JSON.stringify(body);
 }
 
 export const api = {
@@ -106,11 +116,11 @@ export const api = {
     return request<T>(url);
   },
   post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
+    request<T>(path, { method: 'POST', body: serializeBody(body) }),
   put: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
+    request<T>(path, { method: 'PUT', body: serializeBody(body) }),
   patch: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
+    request<T>(path, { method: 'PATCH', body: serializeBody(body) }),
   delete: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'DELETE', body: body ? JSON.stringify(body) : undefined }),
+    request<T>(path, { method: 'DELETE', body: serializeBody(body) }),
 };

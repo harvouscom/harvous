@@ -269,7 +269,7 @@ export const onRequest = clerkMiddleware(async (context, next) => {
       const hasAccess = await hasFeature(userId, feature);
       if (!hasAccess) {
         // Redirect to upgrade page
-        return Response.redirect(new URL('/upgrade', context.request.url));
+        return Response.redirect(new URL('/addon', context.request.url));
       }
     }
   }

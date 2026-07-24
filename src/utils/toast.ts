@@ -1,4 +1,10 @@
+import { isPrototypeShellPath } from '@/lib/prototype-path';
 import { toast as sonnerToast } from 'sonner';
+import {
+  showPrototypeFeedbackToast,
+  type PrototypeFeedbackToastVariant,
+  type ShowPrototypeFeedbackToastOptions,
+} from '@/utils/prototype-feedback-toast';
 import { shouldSuppressAppToasts } from '@/utils/should-suppress-app-toasts';
 
 // Helper function to strip periods and exclamation marks from toast messages
@@ -21,14 +27,36 @@ function ensurePortalExists(callback: () => void, maxRetries = 10, attempt = 0):
 }
 
 // Helper function to safely call Sonner toast
-function safeToast(callback: () => void, type: string, message: string) {
-  if (shouldSuppressAppToasts()) return;
+function safeToast(
+  callback: () => void,
+  type: PrototypeFeedbackToastVariant,
+  message: string,
+  prototypeOptions?: ShowPrototypeFeedbackToastOptions,
+) {
+  if (shouldSuppressAppToasts()) {
+    if (typeof window !== 'undefined' && isPrototypeShellPath(window.location.pathname)) {
+      showPrototypeFeedbackToast(message, type, prototypeOptions);
+    }
+    return;
+  }
   try {
     ensurePortalExists(callback);
   } catch (error) {
     console.error(`Toast [${type}] error:`, error);
     console.error('Message that failed:', message);
   }
+}
+
+const ERROR_TOAST_PROTOTYPE_OPTIONS: ShowPrototypeFeedbackToastOptions = {
+  persistent: true,
+  action: { label: 'Support' },
+};
+
+function openSupportSettings() {
+  try {
+    sessionStorage.setItem('harvousSkipBeforeUnload', 'support');
+  } catch (_) {}
+  window.location.href = '/settings/support';
 }
 
 // Toast utility functions that can be used from anywhere
@@ -40,7 +68,21 @@ export const toast = {
   
   error: (message: string) => {
     const cleanedMessage = stripPunctuation(message);
-    safeToast(() => sonnerToast.error(cleanedMessage, { icon: null, duration: 4000 }), 'error', cleanedMessage);
+    safeToast(
+      () =>
+        sonnerToast.error(cleanedMessage, {
+          icon: null,
+          duration: Infinity,
+          className: 'harvous-error-toast',
+          action: {
+            label: 'Support',
+            onClick: openSupportSettings,
+          },
+        }),
+      'error',
+      cleanedMessage,
+      ERROR_TOAST_PROTOTYPE_OPTIONS,
+    );
   },
   
   info: (message: string) => {
@@ -61,7 +103,21 @@ export const toast = {
         safeToast(() => sonnerToast.success(cleanedMessage, { icon: null, duration: 4000 }), 'success', cleanedMessage);
         break;
       case 'error':
-        safeToast(() => sonnerToast.error(cleanedMessage, { icon: null, duration: 4000 }), 'error', cleanedMessage);
+        safeToast(
+          () =>
+            sonnerToast.error(cleanedMessage, {
+              icon: null,
+              duration: Infinity,
+              className: 'harvous-error-toast',
+              action: {
+                label: 'Support',
+                onClick: openSupportSettings,
+              },
+            }),
+          'error',
+          cleanedMessage,
+          ERROR_TOAST_PROTOTYPE_OPTIONS,
+        );
         break;
       case 'info':
         safeToast(() => sonnerToast.info(cleanedMessage, { icon: null, duration: 4000 }), 'info', cleanedMessage);
@@ -87,7 +143,7 @@ export const toast = {
 
   // Persistent upgrade prompt: message + Upgrade (primary) and Not now (secondary). Stays open until user acts.
   upgradePrompt: (message: string, upgradeUrl?: string) => {
-    const url = upgradeUrl || '/upgrade';
+    const url = upgradeUrl || '/addon';
     safeToast(() => sonnerToast.error(message, {
       icon: null,
       duration: Infinity,

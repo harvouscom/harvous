@@ -55,6 +55,40 @@ html.harvous-prototype-route [class*='proto-'] button path {
   fill: currentColor !important;
 }
 
+/* Space icon tile glyph (switcher rows) — hue-matched, beats blanket currentColor fill above. */
+html.harvous-prototype-route .space-icon-tile:not(.space-icon-tile--on-dark) svg,
+html.harvous-prototype-route .space-icon-tile:not(.space-icon-tile--on-dark) path {
+  fill: oklch(from var(--space-icon-accent) calc(l * 0.58) min(c * 3.5, 0.2) h) !important;
+}
+
+html.harvous-prototype-route .space-icon-tile--on-dark svg,
+html.harvous-prototype-route .space-icon-tile--on-dark path {
+  fill: rgba(255, 255, 255, 0.96) !important;
+}
+
+/* Selected color swatch checkmark — same space-icon hue. */
+html.harvous-prototype-route .proto-shared-space-settings__color--selected svg,
+html.harvous-prototype-route .proto-shared-space-settings__color--selected path {
+  fill: oklch(from var(--swatch-accent) calc(l * 0.58) min(c * 3.5, 0.2) h) !important;
+}
+
+html.harvous-prototype-route [class*='proto-'] button .proto-home-card__preview,
+html.harvous-prototype-route [class*='proto-'] button .proto-home-card__preview * {
+  color: var(--pds-text-list-preview) !important;
+  font-synthesis: none;
+  font-variation-settings: var(--pds-font-body-variation-list-preview) !important;
+}
+
+/* Home / shared-space dashboard cards — meta row (timestamp, folder) inside tappable buttons */
+html.harvous-prototype-route [class*='proto-'] button .proto-home-card__meta,
+html.harvous-prototype-route [class*='proto-'] button .proto-home-card__meta-item {
+  color: var(--pds-text-secondary) !important;
+}
+
+html.harvous-prototype-route [class*='proto-'] button .proto-home-card__meta-sep {
+  color: var(--pds-text-tertiary) !important;
+}
+
 /* List row preview lines inside buttons — beat blanket `button *` primary above.
    Timestamp stays secondary; excerpt body uses list-preview (native secondary / tertiary). */
 html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview,
@@ -85,7 +119,8 @@ html.harvous-prototype-route button.proto-thread-trail__step-main .pds-list-prev
 html.harvous-prototype-route button.proto-thread-trail__step-main .proto-thread-trail__preview .pds-list-timestamp,
 html.harvous-prototype-route [class*='proto-'] button .pds-list-preview .pds-list-timestamp,
 html.harvous-prototype-route [class*='proto-'] button .proto-note-row__preview .pds-list-timestamp,
-html.harvous-prototype-route [class*='proto-'] button .proto-thread-trail__preview .pds-list-timestamp {
+html.harvous-prototype-route [class*='proto-'] button .proto-thread-trail__preview .pds-list-timestamp,
+html.harvous-prototype-route [class*='proto-'] button .proto-inspector-activity__subject-row .pds-list-timestamp {
   color: var(--pds-text-secondary) !important;
 }
 
@@ -138,10 +173,14 @@ html.harvous-prototype-route button.proto-fte-field__btn--apply,
 html.harvous-prototype-route button.proto-fte-field__btn--apply *,
 html.harvous-prototype-route button.proto-share-popover__primary,
 html.harvous-prototype-route button.proto-share-popover__primary *,
+html.harvous-prototype-route button.proto-update-toast__action:not(.proto-update-toast__action--secondary),
+html.harvous-prototype-route button.proto-update-toast__action:not(.proto-update-toast__action--secondary) *,
 html.harvous-prototype-route button.proto-note-action-bar__pill--share-active,
 html.harvous-prototype-route button.proto-note-action-bar__pill--share-active *,
 html.harvous-prototype-route button.proto-thread-review__btn--primary,
 html.harvous-prototype-route button.proto-thread-review__btn--primary *,
+html.harvous-prototype-route button.proto-shared-thread-action--primary,
+html.harvous-prototype-route button.proto-shared-thread-action--primary *,
 html.harvous-prototype-route button.admin-usage__window-chip--active,
 html.harvous-prototype-route button.admin-usage__window-chip--active:hover,
 html.harvous-prototype-route button.admin-usage__window-chip--active:focus-visible,
@@ -219,6 +258,18 @@ html.harvous-prototype-route button.proto-inspector-delete-btn,
 html.harvous-prototype-route button.proto-inspector-delete-btn *,
 html.harvous-prototype-route button.proto-inspector-delete-btn svg,
 html.harvous-prototype-route button.proto-inspector-delete-btn path {
+  color: var(--pds-destructive) !important;
+  fill: currentColor !important;
+}
+
+html.harvous-prototype-route button.proto-thread-review__dismiss--danger,
+html.harvous-prototype-route button.proto-thread-review__dismiss--danger * {
+  color: var(--pds-destructive) !important;
+  fill: currentColor !important;
+}
+
+html.harvous-prototype-route button.proto-shared-people-row__action--destructive,
+html.harvous-prototype-route button.proto-shared-people-row__action--destructive * {
   color: var(--pds-destructive) !important;
   fill: currentColor !important;
 }

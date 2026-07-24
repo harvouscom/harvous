@@ -1,265 +1,203 @@
-# Shared Spaces — Development Notes & Decisions
+# Shared Spaces — development notes
 
-**Status: v1 complete (February 2026).** Shared spaces are fully implemented and in a good place. The feature is complete for v1: invite via link, join/leave, member view, tier limits, locked notes excluded. Future work focuses on performance and quality-of-life improvements.
+**Status:** Implemented in the July 2026 native-like production web shell; launch verification is pending. This
+is the canonical engineering reference for Shared Spaces. The February 2026 membership, copy-in, and
+personal-to-public-toggle designs are retired; see [Clean break](#clean-break).
 
-This document captures design decisions, rules, and implementation details for the collaborative shared spaces feature. It is a living reference for continued development.
+## Product model
 
----
+### My Home is canonical
 
-## Visibility Rules
+Every note a person authors has one canonical, author-owned row and remains visible in **My Home**, which is the
+complete aggregate of that person's authored notes. A shared space is a live audience and organization context,
+not a second owner and not a copied note container.
 
-### Two Independent Layers
+`SpaceNotes` associates a canonical note with a shared or public space:
 
-Shared spaces use two separate visibility systems that do not override each other:
+- A note can be associated with multiple spaces at once.
+- Editing the author-owned note updates every context that renders that note.
+- The author retains edit and delete authority. A space owner can remove an association but cannot rewrite
+  another person's note.
+- `SpaceNotes` owns per-space placement such as folders, pin state, order, and other organization overrides.
+- `Threads`, `NoteThreads`, and anchored responses are scoped to the relevant space. Organization in one space
+  does not leak into My Home or another space.
+- Encrypted notes (`contentEncrypted=true`) cannot be associated with or rendered in a shared context.
 
-**Layer 1 — Space-level visibility**
-Whether someone with the space's share link (or who is a member) can see content in the space. This is governed entirely by the space's `isPublic` flag and `shareToken`. The individual `isPublic` or `shareToken` on threads/notes inside the space is **irrelevant** to space-level access — if it's in the space, space members/visitors can see it.
+`Notes.spaceId` remains for the canonical private location and legacy compatibility. A note composed in a shared
+space is created canonically in the author's My Home and receives a `SpaceNotes` association to the visible
+space. The server applies the same rule to sync-created notes.
 
-**Layer 2 — Item-level visibility**
-Whether a specific note or thread has its own independent share link (`shareToken`). This is completely independent of space membership. Adding an item to a space does not revoke or change its individual share link. Making a space private does not affect item-level share links.
+### Visible compose scope
 
-### Practical Rules
+Compose follows the scope the user can see:
 
-| Situation | Visible via space? | Individual link still works? |
-|---|---|---|
-| Private thread in shared space | ✅ Yes | N/A (no individual link) |
-| Shared thread in shared space | ✅ Yes | ✅ Yes |
-| Thread removed from space | ❌ No | ✅ Yes (if it had one) |
-| Space goes private | ❌ No | ✅ Yes (individual links unaffected) |
+- **My Home:** creates a private canonical note only.
+- **This space:** creates the canonical note in My Home and associates it with the active shared space.
+- **Add to space:** an author may associate an existing authored note with another shared space.
+- **Save a copy:** a non-author cannot reuse another person's canonical note. They may create an independent
+  copy in My Home. The copy stores source note/version/author attribution.
 
-### Locked Notes
+The native-like shell is served at `/` on dedicated hosts, including `http://localhost:4322/`. Canonical note
+routes are `/n/{id}`. An explicit `?space={spaceId}` context selects the shared-space read and organization
+context without changing note ownership.
 
-**Locked notes (`contentEncrypted: true`) must never appear in shared space contexts.**
+## Note Activity and space activity
 
-- They are excluded from the join page (`/spaces/join/[token].astro`) via `eq(Notes.contentEncrypted, false)` in the query.
-- The owner viewing their own space can still see locked notes — the filter only applies to unauthenticated/non-owner views.
-- When the authenticated member view is built, the same `contentEncrypted: false` filter must be applied to notes queries for non-owners.
+**Note Activity** is the response index for one canonical note:
 
----
+- In My Home it groups responses by shared space, including archived associations.
+- Inside a shared space it is limited to that active context.
+- Persistent in-body response overlays render only while the note is opened in the relevant shared space.
+  My Home exposes those responses through Note Activity, never as persistent overlays.
+- A detached durable anchor remains in the index as **Passage changed** instead of moving to unrelated text.
+- Immutable `NoteVersions` checkpoints support durable anchors and recovery, but version history is
+  author-only.
 
-## Content Display in Shared Contexts
+This is separate from **space activity** and the member's `SpaceMemberships.lastVisitedAt` watermark. Space
+activity answers what is new in a space since the member's visit; Note Activity answers who responded to one
+note and where.
 
-### Individual Sharing UI Is Hidden
+The internal table/API identifier `StudyThreadEntries` remains for anchored highlight and response rows. That is
+an implementation identifier, not a user-facing feature name.
 
-When a thread or note is displayed within a shared space context (join page, future member view), its individual sharing controls (share button, share link UI) should **not be shown**. The space's sharing is what matters. Don't expose per-item share state to space viewers.
+## Threads
 
-### Icon for Threads
+Shared Spaces v1 has real **Threads**:
 
-In shared space contexts, always use the **layer-group icon** for threads, regardless of whether the thread itself is private or has its own share token. The thread's individual privacy state is irrelevant inside a shared space.
+- The owner uses **Start a Thread** and chooses the one current/pinned Thread.
+- Members can view the current Thread and attach their own actively associated notes to it.
+- A note may be attached only when it is active in that space, unencrypted, and authored by the actor.
+- Thread membership and folder/pin organization are isolated to the space.
+- Internal connection-cluster and `StudyThreadEntries` identifiers may remain in code and schema; all product
+  and user-facing language is **Thread** or **Threads**.
 
-The `CardThread.astro` component already supports `icon="layer-group"` for this purpose.
+**One Thread concept, two backends (implementation only):**
 
----
+- **My Home** sidebar Threads are note-link clusters (`NoteConnections` + `studyThreadTitle` on notes). Create
+  by connecting notes; delete unlinks the cluster.
+- **Shared spaces** use real `Threads` rows scoped by `spaceId` (`group-threads`). Create via **Start a
+  Thread**; delete removes the space Thread container while canonical notes stay in My Home.
+- Product copy stays **Thread** in both contexts. Shared-space UI must not use the My Home cluster create/list
+  path when **This space** is selected.
+- **Space dashboard:** **Current Thread** card shows the pinned Thread; the owner-only **Threads** section lists
+  other Threads only (no duplicate current row). **Sidebar → Threads** list mode shows every Thread in the
+  space, including current, for open/delete/manage.
 
-## Permission Model
+## Membership, invites, and roles
 
-### Roles
+`Spaces.type` is `personal | shared | public`. `SpaceMemberships` contains an explicit owner row plus future
+`leader` and current `member` roles. `SpaceInvites` provides expiring/revocable link invitations.
 
-There are two effective roles:
+- The owner manages the space, links, people, structure, and the current Thread.
+- Members join free, add or remove their own notes, view the current Thread, attach their own notes to it, and
+  respond to notes.
+- `leader` is schema-ready but has no v1 promotion UI.
+- Invite preview is metadata-only: space identity, owner display name, people count, expiry, and join state. It
+  does not expose note, Thread, or member previews.
+- Non-owner member serialization strips email fields, including nested response shapes.
 
-- **Owner** — the user who created the space, identified by `Spaces.userId`. All elevated permissions derive from this field directly.
-- **Member** — any user added to the `Members` table. The `Members.role` column always defaults to `'member'`.
+## Lifecycle
 
-> The DB schema has `'admin'` and `'owner'` as possible `Members.role` values, but **neither is used in code**. All owner checks compare `Spaces.userId === currentUserId`, not the Members table. These are dead code reserved for a future ownership-transfer or admin-promotion feature.
+### Note and membership removal
 
-### What each role can do
+Removing a note archives its `SpaceNotes` association. The canonical note remains in My Home.
 
-| Action | Owner | Member |
-|--------|-------|--------|
-| View space, see member list | ✅ | ✅ |
-| See pending invitations | ✅ | ❌ |
-| Edit title, color, visibility | ✅ | ❌ |
-| Toggle Public ↔ Private | ✅ | ❌ |
-| Generate / refresh share link | ✅ | ❌ |
-| Invite via link | ✅ | ❌ |
-| Remove any member | ✅ | ❌ |
-| Remove any thread/note from space | ✅ (via remove-items API) | Only own items |
-| Leave space (remove self) | ❌ (blocked) | ✅ |
-| Add/remove own notes & threads | ✅ | ✅ |
-| Delete the space | ✅ | ❌ |
+When a member leaves or is removed:
 
-When a member leaves, an in-app confirmation dialog explains that anything they added to the space will remain in the space unless they remove it; they can rejoin later with the same link.
+- Their active authored associations are archived.
+- Their notes remain canonical in My Home.
+- Their per-space Thread attachments and organization are removed.
+- Their responses on other authors' notes are preserved, with a display-name snapshot when needed.
 
-### Access enforcement
+Re-sharing a previously removed note reactivates the existing unique association. Responses return with that
+space context, but old folders, pins, order, and Thread placement do not silently return.
 
-All space API routes use `requireSpaceAccess(spaceId, userId, requireOwner?)` from `src/utils/space-permissions.ts`:
-- Default (no flag) → passes for owner **or** member
-- `requireOwner: true` → owner only, returns 403 for members
+### Shared-space deletion and recovery
 
-Owner-only endpoints: `update`, `share-link` (POST), `members/invite`, `delete`.
+Deleting a shared space immediately hides it, revokes active invite links, and invalidates member access. The
+owner can restore it for 30 days from **Settings → Sharing → Recently deleted spaces**.
 
-### Tier limits (simplified)
+After the recovery deadline, bounded maintenance purges the space, memberships, invites, associations, Threads,
+Thread attachments, responses, and space-level connections. Canonical notes and their author-owned versions are
+not purged.
 
-**User-facing:** One metric only. Free: 3 shared spaces (spaces you create and invite people to). Paid: unlimited shared spaces. No join limit; users can join as many spaces as they like on both tiers.
+## Privacy and sharing boundaries
 
-**Invisible cap:** 150 people per space (both tiers), not shown in UI—like YouVersion. Enforced in `canAddMemberToSpace` / `canAddMemberToSpaceByOwnerId`; when hit, user sees "This space has reached its people limit."
+- Encrypted notes are excluded from shared-space association, reads, search, and response flows.
+- Every note read and mutation carries an explicit context; membership plus an active association is required
+  for a shared-space read.
+- Public note links are hidden while working in a shared-space context.
+- From My Home, creating a public link for a note that is also in shared spaces requires a warning that its live
+  contents will become visible outside those spaces.
+- Invite preview is metadata-only and rate-limited.
+- Shared response APIs do not disclose member email addresses to non-owners.
+- Shared Spaces are owner-paid to create or host; joining is free.
 
-Implementation: [server/utils/tier-limits.ts](../server/utils/tier-limits.ts) (`TIER_LIMITS`, `canCreateSharedSpace`, `canOwnerAddOneMoreSharedSpace`, `canAddMemberToSpace`, etc.). Product summary: [future/SPACE_MODES_PRODUCT.md](future/SPACE_MODES_PRODUCT.md).
+## Billing state
 
-**Pricing names:** Paid unlimited shared spaces = customer-facing **Group Sharing** (live today as Premium). **Review** (personal AI from own notes) is a separate always-paid individual product. **Group Leader** (future) pays to host; invited members join spaces without a sharing subscription but buy **Review** individually if they want AI. Canonical SKUs: [future/MONETIZATION_AND_PRICING.md](future/MONETIZATION_AND_PRICING.md).
+`UserMetadata.sharedSpacesAddOn` is the persisted entitlement. The server includes:
 
----
+- Clerk subscription-item webhook handling for active, canceled, ended, and expired events;
+- an idempotent Clerk-to-database reconciliation endpoint;
+- a JWT feature fallback for the checkout-to-webhook gap;
+- owner creation and invite-creation gates.
 
-## Current Architecture
+This code is **not yet proof of production billing readiness**. Clerk plan/feature IDs, webhook signing secret,
+event subscriptions, environment variables, and an end-to-end monthly/annual purchase/cancel test still require
+manual setup and verification. Do not document billing as production-verified until those checks pass.
 
-### What's Implemented
+## Clean break
 
-| Feature | Status |
-|---------|--------|
-| Space creation (private) | ✅ Done |
-| Toggle Public / Private | ✅ Done |
-| Permanent share link (join via link) | ✅ Done |
-| Join page preview (`/spaces/join/[token]`) | ✅ Done |
-| Join API (`POST /api/spaces/join/[token]`) | ✅ Done |
-| Members list API with full metadata | ✅ Done |
-| Remove member (owner removes others) | ✅ Done |
-| People list in EditSpacePanel | ✅ Done |
-| "Make Private" confirmation when others are in space | ✅ Done |
-| Real-time space content update on add/remove | ✅ Done |
-| TabNav in EditSpacePanel (Added / Add / People) | ✅ Done |
-| TabNav in EditThreadPanel (Added / Add) | ✅ Done |
-| Member view (same route as owner: `/space/{id}` via [...slug].astro) | ✅ Done |
-| Email invitations | ⏸ Out of scope for now — link-based joining only |
-| Leave space (member self-removal UI) | ✅ Done (SpaceCardStackHeader when spaceRole === 'member') |
+The July 2026 implementation does not preserve the February membership rails:
 
-### Key Files
+- `Members`, `SpaceInvitations`, and space `isPublic/shareToken` membership behavior are retired and frozen.
+- Legacy membership/join routes return `410 GONE`.
+- No personal-to-public or private-to-shared toggle exists. A Shared Space is created as shared.
+- Historical copy-in was replaced by canonical notes plus `SpaceNotes`. Copying remains only the explicit
+  non-author **Save a copy** action.
+- Historical design documents remain for context only and must carry a superseded notice.
 
-| File | Role |
-|---|---|
-| `db/config.ts` | Schema: `Spaces`, `Members`, `SpaceInvitations` tables |
-| `src/pages/spaces/join/[token].astro` | Public join page (unauthenticated preview + join CTA) |
-| `src/pages/api/spaces/join/[token].ts` | POST: adds authenticated user as member |
-| `src/pages/api/spaces/[spaceId]/share-link.ts` | GET: returns share URL; POST: refreshes token |
-| `src/pages/api/spaces/[spaceId]/members/index.ts` | GET: lists members + pending invitations |
-| `src/pages/api/spaces/[spaceId]/members/invite.ts` | POST: creates invitation record (link method only) |
-| `src/pages/api/spaces/[spaceId]/members/[userId].ts` | DELETE: removes a member |
-| `src/pages/api/spaces/[spaceId]/update.ts` | PATCH: updates space (title, color, isPublic, etc.) |
-| `src/components/react/EditSpacePanel.tsx` | Owner UI: edit space, manage members, share link, tab nav |
-| `src/components/react/SpaceMembersList.tsx` | Standalone panel: view/remove members |
-| `src/utils/space-permissions.ts` | `requireSpaceAccess()` — enforces owner/member access |
-| `src/utils/tier-limits.ts` | Shared-space count (3 / unlimited) and invisible 150 people/space cap |
+## Migration and verification
 
-### Join Flow (Permanent Share Link — current approach)
-
-1. Owner toggles space to Shared in `EditSpacePanel` → `POST /api/spaces/[spaceId]/update`
-2. Share link auto-generated via `GET /api/spaces/[spaceId]/share-link`
-3. Owner copies link and shares it manually
-4. Recipient visits `/spaces/join/[token]`
-5. Page shows space preview: owner name, title/color, condensed notes & threads (locked notes excluded)
-6. CTA: "Join this space on Harvous" → if authenticated, POSTs to `/api/spaces/join/[token]`; if not, redirects to sign-up then returns
-7. On success: redirected to canonical space URL (`/space/{id}` via `idToUrl(space.id)`). Same [...slug].astro route serves both owners and members; members see space content with locked notes excluded.
-
-### Language: People, Not Members
-
-All user-facing text uses **"person/people"** (not "member/members") when referring to people in a space. This applies to:
-- Join page people count
-- `SpaceMembersList` panel header
-- `EditSpacePanel` member count display
-- `SharedSpaceIndicator` badge
-
----
-
-## Known Issues & Gaps
-
-### Member View (Implemented in [...slug].astro)
-
-The join API redirects to the canonical space URL via `idToUrl(space.id)` (e.g. `/space/1770777786201`). The same [...slug].astro route serves both owners and members:
-
-- When the space is not in the user's owned list, `requireSpaceAccess(spaceId, userId)` is called. If the user is owner or member, the space and content are loaded.
-- For **members**: threads and notes are loaded by `spaceId` only; notes with `contentEncrypted: true` are excluded (`getNotesForSpaceForMember`). Helpers: `getThreadsForSpaceBySpaceId(spaceId)` and `getNotesForSpaceForMember(spaceId, ownerUserId, limit?, offset?)` in `dashboard-data.ts`.
-- For **owners**: existing `getThreadsForSpace` and `getNotesForSpace` are used. No separate member-view page; the same template renders for both.
-
-### Members Insert (Fixed)
-
-In `join/[token].ts`, the `Members` insert includes both `createdAt: new Date()` and `joinedAt: new Date()`, satisfying the schema requirement for `createdAt` and recording join time.
-
-### Invitation Already-Exists Check (Fixed)
-
-In `invite.ts`, the existing-invitation check now wraps the three conditions in `and(...)` so the query is valid. Email invitations are still out of scope; the fix is in place for when they are enabled.
-
----
-
-## Outstanding Work
-
-Shared spaces v1 is complete and in a good place. The items below are future enhancements or quality-of-life improvements, not required for the feature to be considered complete.
-
-### High Priority
-
-None at this time.
-
-### Medium Priority
-
-**NewSpacePanel Shared mode**: When the user selects "Shared", the create request correctly sends `isPublic: true` (formData and JSON body use `selectedType === 'Shared'`). No change needed.
-
-**Leave space UI**: Implemented in `SpaceCardStackHeader`: when the viewer is a member (`spaceRole === 'member'`), a "Leave space" control is shown. It calls `DELETE /api/spaces/[spaceId]/members/[userId]` with the current user's id, then redirects to `/`. [...slug].astro passes `spaceRole` and `currentUserId` to the header.
-
-### Future / Not Needed Yet
-
-5. **Email invitations** — infrastructure exists (`SpaceInvitations` table, `invite.ts` endpoint, `/invitations/[token]` page) but email sending is not implemented and this path is not being pursued right now. Link-based joining is the only active flow.
-6. **Notification when space content is updated** — members have no way to know when new notes are added.
-7. **Member-contributed content** — currently only the owner's notes/threads appear in the space (filtered by `userId`). Design intent includes members adding their own content.
-8. **Role expansion** — schema supports `admin` role but nothing uses it. No UI for promoting members or transferring ownership.
-9. **Space deletion cleanup** — when a space is deleted, `Members` and `SpaceInvitations` records are not cleaned up (orphaned rows).
-10. **Invitation expiration** — `expiresAt` is stored on `SpaceInvitations` but never validated.
-
----
-
-## Local Dev Testing Guide
-
-### Testing the "Make Private" confirmation dialog
-
-The dialog only fires when `memberCount > 1`. Seed a fake member directly into the DB:
+Use one reviewed direct Supabase target for every command:
 
 ```bash
-# Insert
-npx astro db shell --query "INSERT INTO Members (id, spaceId, userId, role, createdAt, joinedAt) VALUES ('member_test_001', 'YOUR_SPACE_ID_HERE', 'user_test_fake_001', 'member', datetime('now'), datetime('now'));"
-
-# Verify
-npx astro db shell --query "SELECT * FROM Members WHERE id = 'member_test_001';"
-
-# Clean up when done
-npx astro db shell --query "DELETE FROM Members WHERE id = 'member_test_001';"
+export SHARED_SPACES_MIGRATION_DATABASE_URL='<direct Supabase URL on port 5432>'
+export SHARED_SPACES_MIGRATION_EXPECTED_PROJECT_REF='<target project ref>'
+export SHARED_SPACES_MIGRATION_PRODUCTION_PROJECT_REF='<known production project ref>'
+export SHARED_SPACES_MIGRATION_ENVIRONMENT='staging' # staging|production
+export SUPABASE_DIRECT_URL="$SHARED_SPACES_MIGRATION_DATABASE_URL"
+# Production only; exact value required:
+# export SHARED_SPACES_MIGRATION_PRODUCTION_ACK='I_ACKNOWLEDGE_SHARED_SPACES_PRODUCTION_MIGRATION'
 ```
 
-With the fake member inserted, open that space's `EditSpacePanel` → it should show "2 people in this space" and the People tab. Clicking "Turn off sharing" should trigger the confirmation dialog.
+The known production ref is mandatory for both staging and production. A target matching it cannot run under a
+staging label; production requires the exact production target, `environment=production`, and exact
+acknowledgement.
 
-### Testing the full end-to-end join flow
+After taking and verifying a backup, quiesce note/Thread/shared-space writers. Follow this exact sequence from
+[SHARED_SPACES_TESTING.md](./SHARED_SPACES_TESTING.md):
 
-**Requirement**: Two Clerk accounts (or a second browser profile).
+1. `npm run shared-spaces:schema:additive`, then
+   `npm run shared-spaces:schema:additive -- --apply`;
+2. `npm run shared-spaces:preflight`;
+3. `npm run shared-spaces:backfill -- --batch-size=200`, then
+   `npm run shared-spaces:backfill -- --apply --batch-size=200`;
+4. `npm run shared-spaces:verify -- --batch-size=200`;
+5. `npm run shared-spaces:db:push`, review its dry-run, then
+   `npm run shared-spaces:db:push -- --apply` for final schema reconciliation and RLS;
+6. `npm run shared-spaces:verify -- --batch-size=200` again;
+7. deploy, smoke-test `/` and `/n/{id}`, then resume writers.
 
-1. Chrome → your profile avatar → Add Profile → create a second profile
-2. Sign into your main account in Profile 1, a test Clerk account in Profile 2
-3. In Profile 1: create a Shared space, open `EditSpacePanel`, copy the share link
-4. In Profile 2: paste the share link → join page appears with preview
-5. Click "Join this space on Harvous" → will join and redirect to the space URL (same route as owner; member view is implemented)
-6. Back in Profile 1: open `EditSpacePanel` → should now show 2 people and the People tab
+Generic `npm run db:push` remains general project tooling and is not approved for the Shared Spaces cutover.
+Never run destructive E2E setup against production. The E2E preflight requires an explicitly marked disposable
+Supabase project and rejects a declared production target.
 
-### What's testable without a second account
+## Related documents
 
-- ✅ Join page preview (`/spaces/join/[token]`) — use incognito
-- ✅ `EditSpacePanel` share link generation and copy
-- ✅ "Make Private" dialog (seed a DB member per above)
-- ✅ People tab in `EditSpacePanel` (seed a DB member per above)
-- ❌ Actual join flow (requires second account)
-- ❌ Email invitation delivery (not implemented, out of scope)
-
----
-
-## Data Model Quick Reference
-
-```
-Spaces
-  id, title, color, userId (owner), isPublic, shareToken, shareTokenCreatedAt
-
-Members
-  id, userId, spaceId, role ('member' in practice; 'admin'/'owner' unused), createdAt, joinedAt
-
-SpaceInvitations  [infrastructure exists, email flow out of scope for now]
-  id, spaceId, invitedBy, invitedEmail, invitedUserId, inviteToken (unique),
-  role, status ('pending'|'accepted'|'declined'|'expired'|'cancelled'),
-  message, expiresAt, createdAt, acceptedAt
-```
-
-Notes and Threads belong to a space via `spaceId` (optional column on both tables). There is no separate junction table — `Notes.spaceId` and `Threads.spaceId` are the relationship.
-
-Note counts per thread use the `NoteThreads` junction table (many-to-many), not `Notes.threadId` directly.
+- [SHARED_SPACES_TESTING.md](./SHARED_SPACES_TESTING.md) — safe migration and release verification.
+- [future/SPACE_MODES_PRODUCT.md](./future/SPACE_MODES_PRODUCT.md) — product rules and limits.
+- [future/SHARED_SPACES_LAUNCH_STRATEGY.md](./future/SHARED_SPACES_LAUNCH_STRATEGY.md) — launch readiness.
+- [future/SHARED_SPACES_ROADMAP.md](./future/SHARED_SPACES_ROADMAP.md) — post-v1 sequence.
+- [future/SPACE_COVER_IMAGE_VARIANTS.md](./future/SPACE_COVER_IMAGE_VARIANTS.md) — 5×5×light/dark cover catalog (space covers only).
+- [future/MENTION_PILLS.md](./future/MENTION_PILLS.md) — future mention rules.

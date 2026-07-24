@@ -39,6 +39,8 @@ export interface OfflineThread extends BaseOfflineEntity {
 
 // Offline Note entity
 export interface OfflineNote extends BaseOfflineEntity {
+  /** Immutable canonical version expected by the next queued content mutation. */
+  currentVersion?: number;
   title: string | null;
   content: string;
   contentEncrypted?: boolean;

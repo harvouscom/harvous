@@ -1,15 +1,27 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
+import { useAuth } from '@clerk/clerk-react';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
+import Icon from '@/components/react/Icon';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
-import { getNoteIdFromCreateResponse, useNote } from '../../hooks/queries/useNote';
+import {
+  getNoteIdFromCreateResponse,
+  shouldUseNoteOnlyParentThreadCache,
+  useNote,
+  type NoteDetail,
+} from '../../hooks/queries/useNote';
 import { useProcessScriptureRefs } from '../../hooks/mutations/useProcessScriptureRefs';
 import { useUpdateNote } from '../../hooks/mutations/useUpdateNote';
 import { alertCreateNoteFailure, useCreateSimpleNote } from '../../hooks/mutations/useCreateSimpleNote';
+import {
+  spaceNoteOrganizationPatchFromCollectionExtras,
+  usePatchSpaceNoteOrganization,
+  type NoteCollectionExtras,
+} from '../../hooks/mutations/usePatchSpaceNoteOrganization';
 import { PANE_DOCK_MIN_WIDTH } from '../../layouts/proto-inspector-layout';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
@@ -18,11 +30,29 @@ import PrototypeInspectorPane from './PrototypeInspectorPane';
 import PrototypeStudyThreadPopover from './PrototypeStudyThreadPopover';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypePaneEmptyState from './PrototypePaneEmptyState';
-import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
+import PrototypeSharedNoteReadOnlyBanner from './PrototypeSharedNoteReadOnlyBanner';
+import SharedStudyHighlightOverlay from './SharedStudyHighlightOverlay';
+import { useActiveSpace } from '../../hooks/useActiveSpace';
+import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
+import { useNavigationSharedSpaceAccess } from '../../hooks/queries/useNavigation';
+import type { ApplyableNoteTemplate } from '../../hooks/queries/useNoteTemplates';
+import { useMentionSource } from './mention-picker-source';
+import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
+import type { MentionPillClickPayload } from '@/components/react/mention-pill-types';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { buildHighlightDockOpenMetadataFromStudyThread } from '@/utils/study-dock-stack';
-import { isPrototypeNoteEditorFocused } from '@/utils/prototype-editor-focused';
+import {
+  filterForeignNoteOverlayStudyThreads,
+  filterOverlayStudyThreads,
+  resolveStudyThreadPmRange,
+} from '../../lib/shared-highlight-overlay';
+import {
+  isPrototypeInspectorNode,
+  isPrototypeNoteEditorFocused,
+  isPrototypeNoteSessionFocused,
+} from '@/utils/prototype-editor-focused';
 import { clearNoteDraft } from '@/utils/note-draft-store';
 import {
   isDraftComposeAdoptionTransition,
@@ -35,10 +65,58 @@ import {
   type PendingComposeUrlReplace,
 } from '@/utils/prototype-compose-url';
 import { isPrototypeDraftNoteSlug, noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
+import {
+  draftDestinationChipModel,
+  getComposeGroupThreadId,
+  setComposeGroupThreadId,
+} from '../../lib/compose-group-thread';
+import { validComposeThreadSelection } from './PrototypeGroupStudyThreadPicker';
+import { selectCurrentSpaceThread, useSpaceGroupThreads } from '../../hooks/queries/useSpaceGroupThreads';
 import { trackSessionNoteOpen } from '@/utils/session-xp-client';
+import type { NoteActivityItem } from '../../lib/shared-note-activity-list';
+import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
+import { api, APIError } from '../../lib/api';
 
 const DRAFT_NOTE_ID = 'note_draft';
 const EMPTY_NOTE_COLLECTIONS: string[] = [];
+
+export function draftSaveDestinationLabel(input: {
+  targetSpaceId: string | null | undefined;
+  homeSpaceId: string | null | undefined;
+  targetSpaceTitle: string | null | undefined;
+  threadTitle?: string | null;
+}): string {
+  if (!input.targetSpaceId || input.targetSpaceId === input.homeSpaceId) return 'Saving to My Home';
+  const spaceTitle = input.targetSpaceTitle?.trim() || 'this space';
+  const threadTitle = input.threadTitle?.trim();
+  return threadTitle ? `Saving to ${threadTitle} in ${spaceTitle}` : `Saving to ${spaceTitle}`;
+}
+
+export function resolvePrototypeNoteLoadState(input: {
+  isDraft: boolean;
+  isLoading: boolean;
+  hasNote: boolean;
+  error: unknown;
+  keepEditor: boolean;
+}): 'draft' | 'loading' | 'error' | 'not-found' | 'ready' {
+  if (input.isDraft) return 'draft';
+  if (input.hasNote || input.keepEditor) return 'ready';
+  if (input.isLoading) return 'loading';
+  if (input.error) return input.error instanceof APIError && input.error.status === 404 ? 'not-found' : 'error';
+  return 'not-found';
+}
+
+function sharedContextForSave(
+  explicitContextSpaceId: string | null | undefined,
+  targetSpaceId: string | null | undefined,
+  personalHomeSpaceId: string | null | undefined,
+): string | null {
+  const explicit = explicitContextSpaceId?.trim();
+  if (explicit) return explicit;
+  const target = targetSpaceId?.trim();
+  if (!target || target === personalHomeSpaceId) return null;
+  return target;
+}
 
 /**
  * Cap how many times a single note auto-reprocesses scripture. Without a cap, a
@@ -60,6 +138,7 @@ export default function PrototypeNotePage() {
     highlight: initialHighlightThread,
     dockReq,
     crossRefTarget: initialCrossRefTargetSearch,
+    space: contextSpaceId,
   } = useSearch({ strict: false }) as {
     reference?: string;
     scriptureRef?: string;
@@ -68,6 +147,7 @@ export default function PrototypeNotePage() {
     highlight?: string;
     dockReq?: string;
     crossRefTarget?: string;
+    space?: string;
   };
   // Stable object so CardFullEditable's open-on-load effect doesn't refire each render.
   // `requestKey` (dockReq nonce from sidebar) makes each home tap re-open the dock even when
@@ -93,10 +173,22 @@ export default function PrototypeNotePage() {
     };
   }, [initialCrossRefTargetSearch, dockReq]);
 
-  const { homeSpaceId } = usePrototypeHomeSpaceId();
+  // personalHomeSpaceId is the viewer's My Home; it's used for the offline guard
+  // (shared spaces require connectivity in the foundation) and as the compose
+  // fallback when no shared space is selected. The compose *target* itself comes
+  // from the persisted selection (see composeTargetSpaceId below), not from the
+  // nav-validated activeSpaceId, so a brand-new draft never races the navigation
+  // query and land in My Home while a shared space is active.
+  const { homeSpaceId: personalHomeSpaceId, spaceTitle: activeSpaceTitle } = useActiveSpace();
+  const { userId: authUserId } = useAuth();
   const navigate = useNavigate();
 
-  const { data: note, isPending, isError, isFetching } = useNote(isDraft ? '' : noteId);
+  const { data: note, isLoading, isError, error: noteQueryError, refetch: refetchNote } = useNote(
+    isDraft ? '' : noteId,
+    isDraft ? null : contextSpaceId,
+  );
+  const { readOnlyInSharedSpace, isForeignSharedNote, noteInSharedSpace, effectiveSpaceId: foreignSharedSpaceId, foreignNoteAuthor } =
+    useForeignSharedNote(isDraft ? null : noteId, isDraft ? null : contextSpaceId);
 
   // Deep-link to a highlight's dock (Home "revisit" card → text / mini-note / connected highlight).
   const initialHighlightDock = useMemo(() => {
@@ -121,11 +213,14 @@ export default function PrototypeNotePage() {
   const queryClient = useQueryClient();
   const updateNoteMutation = useUpdateNote();
   const createNoteMutation = useCreateSimpleNote();
+  const patchSpaceNoteOrganizationMutation = usePatchSpaceNoteOrganization();
   // Stable ref so noteSaveCallback never re-registers just because the mutation object identity changed
   const updateNoteMutationRef = useRef(updateNoteMutation);
   updateNoteMutationRef.current = updateNoteMutation;
   const createNoteMutationRef = useRef(createNoteMutation);
   createNoteMutationRef.current = createNoteMutation;
+  const patchSpaceNoteOrganizationMutationRef = useRef(patchSpaceNoteOrganizationMutation);
+  patchSpaceNoteOrganizationMutationRef.current = patchSpaceNoteOrganizationMutation;
   const draftPersistPromiseRef = useRef<Promise<string | null> | null>(null);
   const persistedDraftIdRef = useRef<string | null>(null);
   // The note id a draft compose persisted into. Unlike `persistedDraftIdRef` (reset
@@ -140,6 +235,7 @@ export default function PrototypeNotePage() {
   const [draftPersistRemountTick, setDraftPersistRemountTick] = useState(0);
   const processScriptureMutation = useProcessScriptureRefs();
   const {
+    activeSpaceId: selectedSpaceId,
     inspectorOpen,
     inspectorExiting,
     isMobileSidebar,
@@ -147,6 +243,8 @@ export default function PrototypeNotePage() {
     setPrototypeFolderChip,
     setComposePersistedNoteId,
     composeSessionEpoch,
+    composeTargetSpaceIdOverride,
+    clearComposeTargetSpaceIdOverride,
     dismissStandaloneScripturePassage,
     openStandaloneScripturePassage,
     formatToolbarHostEl,
@@ -154,44 +252,189 @@ export default function PrototypeNotePage() {
     setEditorChromeMode,
     studyThreadPopoverOpen,
     closeStudyThreadPopover,
+    setActiveSpaceId,
+    setSidebarListMode,
+    setSidebarThreadDrilldownId,
+    setSidebarFolderDrilldown,
+    setSidebarLayer,
+    ensureSidebarExpanded,
+    openDrawer,
   } = useProtoShell();
+
+  // New-note compose target. Trust the persisted space selection directly (it's
+  // set synchronously when the user picks a space and restored from localStorage
+  // on load) rather than the nav-validated activeSpaceId, which briefly falls back
+  // to My Home on a cold page before the navigation query settles. That fallback
+  // could otherwise persist a fresh draft into personal My Home instead of the
+  // shared space the user is composing in. Falls back to My Home when nothing is
+  // selected; a stale selection is cleared by useActiveSpace and the server
+  // rejects a create into a space you no longer belong to.
+  const composeTargetSpaceId = useMemo(() => {
+    if (composeTargetSpaceIdOverride) return composeTargetSpaceIdOverride;
+    if (!selectedSpaceId) return personalHomeSpaceId;
+    return selectedSpaceId.startsWith('space_') ? selectedSpaceId : `space_${selectedSpaceId}`;
+  }, [composeTargetSpaceIdOverride, selectedSpaceId, personalHomeSpaceId]);
   const prevComposeSessionEpochRef = useRef(composeSessionEpoch);
+
+  const [liveNoteSnapshot, setLiveNoteSnapshot] = useState({ title: '', content: '' });
+  const [templatePrefill, setTemplatePrefill] = useState<{
+    title: string;
+    content: string;
+    noteType: string;
+  } | null>(null);
+  const [templateApplyEpoch, setTemplateApplyEpoch] = useState(0);
+  const [templateProvenance, setTemplateProvenance] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const templateProvenanceRef = useRef<{ id: string; name: string } | null>(null);
+
+  const handlePrototypeLiveChange = useCallback((snapshot: { title: string; content: string }) => {
+    setLiveNoteSnapshot(snapshot);
+  }, []);
+
+  const handleApplyTemplate = useCallback((template: ApplyableNoteTemplate) => {
+    const provenance = {
+      id: template.id,
+      name: template.name.trim() || 'Template',
+    };
+    templateProvenanceRef.current = provenance;
+    setTemplateProvenance(provenance);
+    setTemplatePrefill({
+      title: template.title || '',
+      content: template.content,
+      noteType: template.noteType || 'default',
+    });
+    setTemplateApplyEpoch((n) => n + 1);
+    setLiveNoteSnapshot({
+      title: template.title || '',
+      content: template.content,
+    });
+    // Persist after remount so template content isn't stuck behind the edit-guard.
+    window.setTimeout(() => {
+      const save = (window as Window & { noteSaveCallback?: (t: string, c: string) => unknown }).noteSaveCallback;
+      if (typeof save === 'function') {
+        void Promise.resolve(save(template.title || '', template.content));
+      }
+    }, 0);
+  }, []);
+
+  useEffect(() => {
+    if (!isDraft && composeTargetSpaceIdOverride) {
+      clearComposeTargetSpaceIdOverride();
+    }
+  }, [isDraft, composeTargetSpaceIdOverride, clearComposeTargetSpaceIdOverride]);
+
+  // A fresh shared-space draft saves to the space only by default. When the space has a
+  // pinned current Thread, the destination cue shows an opt-in chip instead of a blocking
+  // dialog; composing from the Thread drilldown arrives with the Thread preselected
+  // (beginComposeInGroupThread), which just renders the chip active.
+  const isSharedComposeTarget = isDraft && !!composeTargetSpaceId && composeTargetSpaceId !== personalHomeSpaceId;
+  const composeGroupThreadsQuery = useSpaceGroupThreads(isSharedComposeTarget ? composeTargetSpaceId : undefined);
+  const composeGroupThreads = composeGroupThreadsQuery.data ?? [];
+  const pinnedComposeThread = isSharedComposeTarget ? selectCurrentSpaceThread(composeGroupThreads) : null;
+  const [composeThreadSelection, setComposeThreadSelection] = useState<string | null>(() =>
+    getComposeGroupThreadId(),
+  );
+  useEffect(() => {
+    setComposeThreadSelection(getComposeGroupThreadId());
+  }, [composeSessionEpoch]);
+  const resolvedComposeThreadId = isSharedComposeTarget
+    ? validComposeThreadSelection(composeThreadSelection, composeGroupThreads, composeGroupThreadsQuery.isLoading)
+    : null;
+  const resolvedComposeThread = resolvedComposeThreadId
+    ? composeGroupThreads.find((thread) => thread.id === resolvedComposeThreadId) ?? null
+    : null;
+  const resolvedComposeThreadIdRef = useRef(resolvedComposeThreadId);
+  resolvedComposeThreadIdRef.current = resolvedComposeThreadId;
+
+  const [composeThreadToggleBusy, setComposeThreadToggleBusy] = useState(false);
+  const toggleComposeThread = useCallback(() => {
+    if (!pinnedComposeThread || composeThreadToggleBusy) return;
+    const threadId = pinnedComposeThread.id;
+    const wasActive = resolvedComposeThreadIdRef.current === threadId;
+    const next = wasActive ? null : threadId;
+    setComposeGroupThreadId(next);
+    setComposeThreadSelection(next);
+    // Before the draft persists, the selection rides into the create call. After, the
+    // note is real — reconcile membership through the thread endpoints (awaiting any
+    // in-flight create so a toggle mid-save still lands on the final note).
+    if (!persistedDraftIdRef.current && !draftPersistPromiseRef.current) return;
+    setComposeThreadToggleBusy(true);
+    (async () => {
+      const noteId = persistedDraftIdRef.current ?? (await draftPersistPromiseRef.current);
+      if (!noteId) return;
+      try {
+        await api.post(`/api/notes/${noteId}/${next ? 'add-thread' : 'remove-thread'}`, { threadId });
+      } catch (err) {
+        // Removing a membership the create never wrote is fine; anything else reverts
+        // the chip so the cue never lies about where the note lives.
+        if (!(err instanceof APIError && err.status === 404 && !next)) throw err;
+      }
+      queryClient.invalidateQueries({ queryKey: ['thread', threadId, 'notes'] });
+      queryClient.invalidateQueries({ queryKey: ['note', noteId] });
+      if (composeTargetSpaceId) {
+        queryClient.invalidateQueries({ queryKey: ['space', composeTargetSpaceId, 'group-threads'] });
+      }
+    })()
+      .catch(() => {
+        setComposeGroupThreadId(wasActive ? threadId : null);
+        setComposeThreadSelection(wasActive ? threadId : null);
+      })
+      .finally(() => setComposeThreadToggleBusy(false));
+  }, [pinnedComposeThread, composeThreadToggleBusy, queryClient, composeTargetSpaceId]);
+
+  const composeThreadChip = draftDestinationChipModel({
+    pinnedThread: pinnedComposeThread,
+    resolvedThreadId: resolvedComposeThreadId,
+  });
+
+  const onHighlightOpenRequestConsumed = useCallback(() => {
+    setHighlightOpenRequest(null);
+  }, []);
+
+  const [activeActivityId, setActiveActivityId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setHighlightOpenRequest(null);
+    setActiveActivityId(null);
+  }, [contextSpaceId, noteId]);
 
   const onHighlightDeepLinkHandoff = useCallback(() => {
     if (!initialHighlightThread) return;
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: noteSlugParam },
-      search: {},
+      search: { ...PROTOTYPE_NOTE_LIST_NAV_SEARCH, space: contextSpaceId },
       replace: true,
     });
-  }, [navigate, noteSlugParam, initialHighlightThread]);
+  }, [navigate, noteSlugParam, initialHighlightThread, contextSpaceId]);
 
   const onScriptureDeepLinkHandoff = useCallback(() => {
     if (!initialScriptureRef) return;
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: noteSlugParam },
-      search: {},
+      search: { ...PROTOTYPE_NOTE_LIST_NAV_SEARCH, space: contextSpaceId },
       replace: true,
     });
-  }, [navigate, noteSlugParam, initialScriptureRef]);
+  }, [navigate, noteSlugParam, initialScriptureRef, contextSpaceId]);
 
   const onReferenceDeepLinkHandoff = useCallback(() => {
     if (!initialReferenceWord) return;
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: noteSlugParam },
-      search: {},
+      search: { ...PROTOTYPE_NOTE_LIST_NAV_SEARCH, space: contextSpaceId },
       replace: true,
     });
-  }, [navigate, noteSlugParam, initialReferenceWord]);
+  }, [navigate, noteSlugParam, initialReferenceWord, contextSpaceId]);
 
   // Scripture highlight whose parent note has no matching pill: fall back to the standalone passage
   // pane (focused on the thread) so the tap never silently lands on "just the note".
   const onScriptureDockUnresolved = useCallback(() => {
     if (!initialScriptureRef) return;
-    navigate({ to: prototypeHomeRouteTo() });
+    navigate({ to: prototypeHomeRouteTo() as any });
     openStandaloneScripturePassage({
       canonicalReference: initialScriptureRef,
       translationCode: initialScriptureTranslation ?? '',
@@ -247,7 +490,7 @@ export default function PrototypeNotePage() {
     const onDeleted = (e: Event) => {
       const deletedId = (e as CustomEvent<{ noteId?: string }>).detail?.noteId;
       if (deletedId && deletedId === noteId) {
-        navigate({ to: prototypeHomeRouteTo(), replace: true });
+        navigate({ to: prototypeHomeRouteTo() as any, replace: true });
       }
     };
     window.addEventListener('noteDeleted', onDeleted);
@@ -255,33 +498,115 @@ export default function PrototypeNotePage() {
   }, [noteId, navigate]);
 
   useEffect(() => {
-    if (isDraft) return;
-    // Disabled queries (auth not ready) are pending but not fetching — wait, don't bounce home.
-    if (isPending || isFetching || !isError || note) return;
-    navigate({ to: prototypeHomeRouteTo(), replace: true });
-  }, [isDraft, isPending, isFetching, isError, note, navigate]);
-
-  useEffect(() => {
-    if (isDraft || isPending || isError || !note) return;
+    if (isDraft || isLoading || isError || !note) return;
     trackSessionNoteOpen(noteId);
-  }, [isDraft, isPending, isError, note, noteId]);
+  }, [isDraft, isLoading, isError, note, noteId]);
 
   const resolvedSpaceFromNote =
     typeof note?.spaceId === 'string' && note.spaceId.trim().length > 0 ? note.spaceId : null;
   const resolvedSpaceFromThread = (note?.threads?.[0] as { spaceId?: string | null } | undefined)?.spaceId ?? null;
 
-  const effectiveSpaceId =
-    (resolvedSpaceFromNote != null ? resolvedSpaceFromNote : resolvedSpaceFromThread) ?? homeSpaceId ?? '';
+  const effectiveSpaceId = isDraft
+    ? composeTargetSpaceId ?? ''
+    : contextSpaceId ||
+      foreignSharedSpaceId ||
+      ((resolvedSpaceFromNote != null ? resolvedSpaceFromNote : resolvedSpaceFromThread) ?? composeTargetSpaceId ?? '');
+  const templateSpaceId = isDraft ? composeTargetSpaceId : effectiveSpaceId;
+  const templateSpaceAccess = useNavigationSharedSpaceAccess(
+    templateSpaceId && templateSpaceId !== personalHomeSpaceId ? templateSpaceId : null,
+  );
+  const sharedActionSpaceId =
+    contextSpaceId ||
+    foreignSharedSpaceId ||
+    (personalHomeSpaceId && effectiveSpaceId !== personalHomeSpaceId ? effectiveSpaceId : null);
+  const draftDestinationCue = draftSaveDestinationLabel({
+    targetSpaceId: composeTargetSpaceId,
+    homeSpaceId: personalHomeSpaceId,
+    targetSpaceTitle: activeSpaceTitle,
+    threadTitle: resolvedComposeThread?.title ?? null,
+  });
 
   const effectiveSpaceIdRef = useRef(effectiveSpaceId);
   effectiveSpaceIdRef.current = effectiveSpaceId;
+
+  // @ mention pills: personal notes search across the user's own spaces; notes inside a
+  // shared space are scoped to that space only so a pill can never point where other
+  // members can't follow. Omitted entirely (no typeahead) for read-only foreign notes.
+  const mentionSource = useMentionSource(
+    noteInSharedSpace
+      ? { mode: 'shared', spaceId: effectiveSpaceId }
+      : { mode: 'personal', personalSpaceId: personalHomeSpaceId ?? effectiveSpaceId },
+  );
+
+  const onMentionPillClick = useCallback(
+    (payload: MentionPillClickPayload) => {
+      const targetSpaceId = payload.spaceId;
+      const isCrossSpace =
+        !!targetSpaceId &&
+        !!personalHomeSpaceId &&
+        targetSpaceId.replace(/^space_/, '') !== personalHomeSpaceId.replace(/^space_/, '') &&
+        targetSpaceId.replace(/^space_/, '') !== (selectedSpaceId ?? '').replace(/^space_/, '');
+
+      if (payload.kind === 'note') {
+        navigate({
+          to: prototypeNoteRouteTo(),
+          params: { noteId: noteParamSlug(payload.entityId) },
+        });
+        return;
+      }
+
+      if (isCrossSpace) {
+        setActiveSpaceId(targetSpaceId === personalHomeSpaceId ? null : targetSpaceId);
+      }
+      if (payload.kind === 'thread') {
+        setSidebarListMode('threads');
+        setSidebarThreadDrilldownId(threadClusterDrillSlug(payload.entityId));
+      } else {
+        setSidebarListMode('folders');
+        setSidebarFolderDrilldown(payload.entityId);
+      }
+      setSidebarLayer('list');
+      ensureSidebarExpanded();
+      if (isMobileSidebar) openDrawer();
+    },
+    [
+      navigate,
+      personalHomeSpaceId,
+      selectedSpaceId,
+      setActiveSpaceId,
+      setSidebarListMode,
+      setSidebarThreadDrilldownId,
+      setSidebarFolderDrilldown,
+      setSidebarLayer,
+      ensureSidebarExpanded,
+      isMobileSidebar,
+      openDrawer,
+    ],
+  );
+
+  const patchSharedOrganization = useCallback(
+    async (
+      targetNoteId: string,
+      sharedSpaceId: string,
+      extras?: NoteCollectionExtras,
+    ) => {
+      const organization = spaceNoteOrganizationPatchFromCollectionExtras(extras);
+      if (Object.keys(organization).length === 0) return;
+      await patchSpaceNoteOrganizationMutationRef.current.mutateAsync({
+        noteId: targetNoteId,
+        spaceId: sharedSpaceId,
+        ...organization,
+      });
+    },
+    [],
+  );
 
   // Handle "New Note from selection" — TiptapEditor fires openNewNotePanel + writes to
   // localStorage; the prototype doesn't mount BottomSheet/CreateNoteButton so we wire
   // it up here directly.
   useEffect(() => {
     const handler = async () => {
-      const spaceId = effectiveSpaceIdRef.current || homeSpaceId;
+      const spaceId = composeTargetSpaceId || effectiveSpaceIdRef.current;
       if (!spaceId) return;
 
       const title = localStorage.getItem('newNoteTitle') ?? '';
@@ -297,15 +622,26 @@ export default function PrototypeNotePage() {
       try {
         const res = await createNoteMutationRef.current.mutateAsync({
           spaceId,
+          contextSpaceId: sharedContextForSave(
+            contextSpaceId,
+            spaceId,
+            personalHomeSpaceId,
+          ),
+          canonicalHomeSpaceId: personalHomeSpaceId,
           title,
           content: content || '<p></p>',
           linkedFromNoteId,
+          allowOffline: spaceId === personalHomeSpaceId,
         });
         const createdId = getNoteIdFromCreateResponse(res);
         if (createdId) {
           navigate({
             to: prototypeNoteRouteTo(),
             params: { noteId: noteParamSlug(createdId) },
+            search: {
+              ...PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+              space: spaceId === personalHomeSpaceId ? undefined : spaceId,
+            },
           });
         }
       } catch (err) {
@@ -315,9 +651,7 @@ export default function PrototypeNotePage() {
 
     window.addEventListener('openNewNotePanel', handler);
     return () => window.removeEventListener('openNewNotePanel', handler);
-  }, [homeSpaceId, navigate]);
-
-  const isEditable = true;
+  }, [composeTargetSpaceId, contextSpaceId, personalHomeSpaceId, navigate]);
 
   const liveFolderLabelRef = useRef<string | null>(null);
 
@@ -336,6 +670,11 @@ export default function PrototypeNotePage() {
     clearNoteDraft(DRAFT_NOTE_ID);
     draftPersistRemountRef.current = { content: '' };
     setDraftPersistRemountTick((t) => t + 1);
+    setTemplatePrefill(null);
+    setTemplateApplyEpoch(0);
+    templateProvenanceRef.current = null;
+    setTemplateProvenance(null);
+    setLiveNoteSnapshot({ title: '', content: '' });
   }, [setComposePersistedNoteId]);
 
   useEffect(() => {
@@ -360,9 +699,16 @@ export default function PrototypeNotePage() {
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: pending.slug },
+      search: {
+        ...PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+        space:
+          composeTargetSpaceId === personalHomeSpaceId
+            ? undefined
+            : composeTargetSpaceId || undefined,
+      },
       replace: true,
     });
-  }, [navigate, setComposePersistedNoteId]);
+  }, [composeTargetSpaceId, navigate, personalHomeSpaceId, setComposePersistedNoteId]);
 
   const scheduleComposeUrlIdleReplace = useCallback(() => {
     if (!pendingComposeUrlReplaceRef.current) return;
@@ -371,7 +717,8 @@ export default function PrototypeNotePage() {
     }
     composeUrlIdleTimerRef.current = setTimeout(() => {
       composeUrlIdleTimerRef.current = null;
-      if (!isPrototypeNoteEditorFocused()) {
+      // Inspector is portaled outside the note pane — keep draft URL while using it.
+      if (!isPrototypeNoteSessionFocused()) {
         flushPendingComposeUrlReplace();
       }
     }, COMPOSE_URL_IDLE_MS);
@@ -425,8 +772,9 @@ export default function PrototypeNotePage() {
       if (!pendingComposeUrlReplaceRef.current) return;
       const next = e.relatedTarget as Node | null;
       if (next && pane.contains(next)) return;
+      if (isPrototypeInspectorNode(next)) return;
       requestAnimationFrame(() => {
-        if (!isPrototypeNoteEditorFocused()) {
+        if (!isPrototypeNoteSessionFocused()) {
           flushPendingComposeUrlReplace();
         }
       });
@@ -537,8 +885,165 @@ export default function PrototypeNotePage() {
     [note?.threads, parentThreadId],
   );
 
+  const readOnlyLikeScripture = isOnboardingReadonly;
+  const foreignSharedAnnotationMode = isForeignSharedNote && !isOnboardingReadonly;
+  const isEditable = !readOnlyInSharedSpace && !isOnboardingReadonly;
+
+  const sharedOverlayPaperRef = useRef<HTMLDivElement>(null);
+  const [sharedOverlayContainerEl, setSharedOverlayContainerEl] = useState<HTMLElement | null>(null);
+  const [sharedOverlayEditor, setSharedOverlayEditor] = useState<{
+    view?: { coordsAtPos: (pos: number) => DOMRect };
+    state: { doc: Parameters<typeof resolveStudyThreadPmRange>[0] };
+  } | null>(null);
+  const refreshSharedAnnotations = useCallback(() => {
+    if (!noteId || isDraft) return;
+    void queryClient.invalidateQueries({ queryKey: ['note', noteId] });
+  }, [queryClient, noteId, isDraft]);
+
+  const noteAuthorUserId = note?.authorUserId ?? note?.userId ?? null;
+  const noteAuthorDisplayName = note?.authorDisplayName ?? foreignNoteAuthor?.displayName ?? null;
+
+  const overlayStudyThreads = useMemo(() => {
+    const rows = (note?.studyThreads ?? []).filter((thread) => thread.anchorStatus !== 'detached');
+    if (foreignSharedAnnotationMode) {
+      return filterForeignNoteOverlayStudyThreads(rows, noteAuthorUserId);
+    }
+    return rows.filter(
+      (t) =>
+        t.isOwnHighlight === false ||
+        (Boolean(t.userId) && Boolean(authUserId) && t.userId !== authUserId),
+    );
+  }, [note?.studyThreads, foreignSharedAnnotationMode, authUserId, noteAuthorUserId]);
+
+  const sharedHighlightLayoutRevision = useMemo(() => {
+    const threadKey = overlayStudyThreads.map((t) => t.id).join(',');
+    const contentLen = note?.content?.length ?? 0;
+    return `${contentLen}:${threadKey}:${note?.updatedAt ?? ''}`;
+  }, [overlayStudyThreads, note?.content, note?.updatedAt]);
+
+  const showSharedHighlightOverlay = useMemo(() => {
+    // Persistent response overlays belong only to an explicit shared-space read.
+    // My Home still exposes the same responses through Activity, never in-body.
+    if (isDraft || isOnboardingReadonly || !contextSpaceId) return false;
+    return filterOverlayStudyThreads(overlayStudyThreads).length > 0;
+  }, [contextSpaceId, isDraft, isOnboardingReadonly, overlayStudyThreads]);
+
+  const sharedOverlayPmRanges = useMemo(() => {
+    if (!showSharedHighlightOverlay || !sharedOverlayEditor?.state?.doc) return [];
+    const doc = sharedOverlayEditor.state.doc as Parameters<typeof resolveStudyThreadPmRange>[0];
+    return filterOverlayStudyThreads(overlayStudyThreads)
+      .map((entry) => resolveStudyThreadPmRange(doc, entry))
+      .filter((range): range is { from: number; to: number } => range != null);
+  }, [sharedOverlayEditor, overlayStudyThreads, showSharedHighlightOverlay]);
+
+  const [highlightOpenRequest, setHighlightOpenRequest] = useState<{
+    studyThreadEntryId: string;
+    requestKey: string;
+    metadata: ReturnType<typeof buildHighlightDockOpenMetadataFromStudyThread>;
+    range: { from: number; to: number } | null;
+  } | null>(null);
+
+  const handleActivitySelectEntry = useCallback(
+    (item: NoteActivityItem) => {
+      const row = note?.studyThreads?.find((thread) => thread.id === item.id);
+      const dockSource = row ? {
+        ...row,
+        detached: item.anchor.status === 'detached',
+        isOwnHighlight: item.isSelf,
+        authorDisplayName: item.actorDisplayName,
+      } : {
+        id: item.id,
+        entryKind: item.entryKind,
+        highlightAccentRaw: item.highlightAccentRaw,
+        anchorTextSnapshot: item.anchor.quote,
+        sourceSnippet: item.anchor.quote,
+        focusTitle: item.focusTitle,
+        miniNoteBody: item.miniNoteBody || item.notesBody,
+        authorDisplayName: item.actorDisplayName,
+        isOwnHighlight: item.isSelf,
+        anchorLocation: item.anchor.start,
+        anchorLength:
+          item.anchor.start != null && item.anchor.end != null
+            ? item.anchor.end - item.anchor.start
+            : null,
+        detached: item.anchor.status === 'detached',
+      };
+      let range: { from: number; to: number } | null = null;
+      if (item.anchor.status !== 'detached' && sharedOverlayEditor?.state?.doc) {
+        const doc = sharedOverlayEditor.state.doc as Parameters<typeof resolveStudyThreadPmRange>[0];
+        const currentAnchorLength =
+          item.anchor.start != null && item.anchor.end != null
+            ? item.anchor.end - item.anchor.start
+            : null;
+        if (item.anchor.start != null && currentAnchorLength != null && currentAnchorLength > 0) {
+          range = resolveStudyThreadPmRange(doc, {
+            anchorLocation: item.anchor.start,
+            anchorLength: currentAnchorLength,
+            anchorTextSnapshot: item.anchor.quote,
+            sourceSnippet: item.anchor.quote,
+          });
+        }
+        if (!range && row) range = resolveStudyThreadPmRange(doc, row);
+      }
+      setHighlightOpenRequest({
+        studyThreadEntryId: item.id,
+        requestKey: `activity-${item.id}-${Date.now()}`,
+        metadata: buildHighlightDockOpenMetadataFromStudyThread(dockSource),
+        range,
+      });
+      setActiveActivityId(item.id);
+    },
+    [note?.studyThreads, sharedOverlayEditor],
+  );
+
+  const handleOverlaySelectEntry = useCallback(
+    (entryId: string) => {
+      const row = note?.studyThreads?.find((thread) => thread.id === entryId);
+      if (!row) return;
+      handleActivitySelectEntry({
+        id: row.id,
+        kind: row.entryKind === 'linkedNote' ? 'connection' : row.entryKind === 'miniNote' ? 'response' : 'highlight',
+        entryKind: row.entryKind,
+        actorDisplayName: row.authorDisplayName?.trim() || 'Member',
+        actorUserId: row.userId ?? '',
+        actorColor: row.authorColor ?? 'blue',
+        actorFirstName: null,
+        actorProfileImageUrl: null,
+        isSelf: row.isOwnHighlight === true,
+        timestamp: row.updatedAt ?? row.createdAt,
+        subject: row.anchorQuote ?? row.anchorTextSnapshot ?? row.sourceSnippet ?? 'Highlighted passage',
+        preview: row.miniNoteBody ?? row.notesBody ?? null,
+        context: null,
+        statusLabel: row.anchorStatus === 'detached' ? 'Passage changed' : null,
+        highlightAccentRaw: row.highlightAccentRaw ?? 'warmAmber',
+        focusTitle: row.focusTitle ?? '',
+        notesBody: row.notesBody ?? '',
+        miniNoteBody: row.miniNoteBody ?? '',
+        anchor: {
+          quote: row.anchorQuote ?? row.anchorTextSnapshot ?? row.sourceSnippet ?? null,
+          prefixContext: row.anchorPrefixContext ?? '',
+          suffixContext: row.anchorSuffixContext ?? '',
+          status: row.anchorStatus ?? 'resolved',
+          start: row.resolvedAnchorStart ?? row.anchorLocation,
+          end:
+            row.resolvedAnchorEnd ??
+            (row.anchorLocation != null && row.anchorLength != null
+              ? row.anchorLocation + row.anchorLength
+              : null),
+        },
+      });
+    },
+    [handleActivitySelectEntry, note?.studyThreads],
+  );
+
   useEffect(() => {
-    if (!parentThread?.id || !noteId) return;
+    if (
+      !shouldUseNoteOnlyParentThreadCache(contextSpaceId) ||
+      !parentThread?.id ||
+      !noteId
+    ) {
+      return;
+    }
     try {
       localStorage.setItem(`harvous-note-thread-${noteId}`, parentThread.id);
     } catch {
@@ -559,12 +1064,12 @@ export default function PrototypeNotePage() {
     } catch {
       /* ignore */
     }
-  }, [noteId, parentThread, effectiveSpaceId]);
+  }, [contextSpaceId, noteId, parentThread, effectiveSpaceId]);
 
   const reprocessAttemptsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
-    if (isDraft || !note || isPending || note.contentEncrypted) return;
+    if (isDraft || !note || isLoading || note.contentEncrypted) return;
     if (isPrototypeNoteEditorFocused()) return;
     const content = note.content ?? '';
     if (!content || typeof content !== 'string') return;
@@ -598,28 +1103,45 @@ export default function PrototypeNotePage() {
     const refs = detectScriptureReferences(plainText);
     if (refs.length === 0) return;
     runReprocess();
-  }, [isDraft, note, noteId, isPending, processScriptureMutation]);
+  }, [isDraft, note, noteId, isLoading, processScriptureMutation]);
 
   const persistDraftNote = useCallback(
     async (
       newTitle: string,
       newContent: string,
-      collectionExtras?: {
-        primaryCollection?: string | null;
-        secondaryCollections?: string[];
-        collectionPinned?: boolean;
-        collectionUserOverride?: boolean;
-      },
+      collectionExtras?: NoteCollectionExtras,
     ): Promise<string | null> => {
       const scriptureVersion = getEffectiveDefaultTranslation();
-      const updatePersisted = (id: string) =>
-        updateNoteMutationRef.current.mutateAsync({
+      const spaceId = isDraft
+        ? composeTargetSpaceId || effectiveSpaceIdRef.current
+        : effectiveSpaceIdRef.current || composeTargetSpaceId;
+      if (!spaceId) return null;
+      const sharedContextSpaceId = sharedContextForSave(
+        contextSpaceId,
+        spaceId,
+        personalHomeSpaceId,
+      );
+      const provenanceExtras = templateProvenanceRef.current
+        ? {
+            startedFromTemplateId: templateProvenanceRef.current.id,
+            startedFromTemplateName: templateProvenanceRef.current.name,
+          }
+        : {};
+      const updatePersisted = async (id: string) => {
+        const result = await updateNoteMutationRef.current.mutateAsync({
           noteId: id,
           title: newTitle,
           content: newContent,
           scriptureVersion,
-          ...(collectionExtras ?? {}),
+          contextSpaceId: sharedContextSpaceId,
+          ...(sharedContextSpaceId ? {} : (collectionExtras ?? {})),
+          ...provenanceExtras,
         });
+        if (sharedContextSpaceId) {
+          await patchSharedOrganization(id, sharedContextSpaceId, collectionExtras);
+        }
+        return result;
+      };
 
       if (persistedDraftIdRef.current) {
         await updatePersisted(persistedDraftIdRef.current);
@@ -631,16 +1153,18 @@ export default function PrototypeNotePage() {
         await updatePersisted(createdId);
         return createdId;
       }
-      const spaceId = effectiveSpaceIdRef.current || homeSpaceId;
-      if (!spaceId) return null;
-
       draftPersistPromiseRef.current = (async () => {
         try {
-        const res = await createNoteMutationRef.current.mutateAsync({
-          spaceId,
-          title: newTitle,
-          content: newContent,
-        });
+          const res = await createNoteMutationRef.current.mutateAsync({
+            spaceId,
+            contextSpaceId: sharedContextSpaceId,
+            canonicalHomeSpaceId: personalHomeSpaceId,
+            title: newTitle,
+            content: newContent,
+            threadId: resolvedComposeThreadIdRef.current ?? undefined,
+            allowOffline: spaceId === personalHomeSpaceId,
+            ...provenanceExtras,
+          });
           const createdId = getNoteIdFromCreateResponse(res);
           if (!createdId) {
             throw new Error('Create succeeded but response had no note id');
@@ -651,13 +1175,21 @@ export default function PrototypeNotePage() {
           setComposePersistedNoteId(createdId);
           clearNoteDraft(DRAFT_NOTE_ID);
           if (collectionExtras && Object.keys(collectionExtras).length > 0) {
-            await updateNoteMutationRef.current.mutateAsync({
-              noteId: createdId,
-              title: newTitle,
-              content: newContent,
-              scriptureVersion,
-              ...collectionExtras,
-            });
+            if (sharedContextSpaceId) {
+              await patchSharedOrganization(
+                createdId,
+                sharedContextSpaceId,
+                collectionExtras,
+              );
+            } else {
+              await updateNoteMutationRef.current.mutateAsync({
+                noteId: createdId,
+                title: newTitle,
+                content: newContent,
+                scriptureVersion,
+                ...collectionExtras,
+              });
+            }
           }
           const chipForToolbar = noteFolderChipDisplayState({
             primaryCollection:
@@ -683,19 +1215,23 @@ export default function PrototypeNotePage() {
 
       return draftPersistPromiseRef.current;
     },
-    [homeSpaceId, scheduleComposeUrlIdleReplace, setComposePersistedNoteId, setPrototypeFolderChip],
+    [
+      composeTargetSpaceId,
+      contextSpaceId,
+      isDraft,
+      patchSharedOrganization,
+      personalHomeSpaceId,
+      scheduleComposeUrlIdleReplace,
+      setComposePersistedNoteId,
+      setPrototypeFolderChip,
+    ],
   );
 
   const handleNoteSave = useCallback(
     async (
       newTitle: string,
       newContent: string,
-      collectionExtras?: {
-        primaryCollection?: string | null;
-        secondaryCollections?: string[];
-        collectionPinned?: boolean;
-        collectionUserOverride?: boolean;
-      },
+      collectionExtras?: NoteCollectionExtras,
       saveOptions?: { bumpUpdatedAt?: boolean },
     ) => {
       if (isEffectivelyEmptyPrototypeNote(newTitle, newContent)) {
@@ -707,16 +1243,33 @@ export default function PrototypeNotePage() {
       }
       // Offline persistence (queue + materialize) is handled by useUpdateNote's runOfflineFirst
       // path below — no separate offline write here, which would double-queue the edit.
-      return updateNoteMutationRef.current.mutateAsync({
+      const sharedContextSpaceId = contextSpaceId?.trim() || null;
+      const provenanceExtras = templateProvenanceRef.current
+        ? {
+            startedFromTemplateId: templateProvenanceRef.current.id,
+            startedFromTemplateName: templateProvenanceRef.current.name,
+          }
+        : {};
+      const result = await updateNoteMutationRef.current.mutateAsync({
         noteId,
         title: newTitle,
         content: newContent,
         scriptureVersion: getEffectiveDefaultTranslation(),
-        ...(collectionExtras ?? {}),
+        contextSpaceId: sharedContextSpaceId,
+        ...(sharedContextSpaceId ? {} : (collectionExtras ?? {})),
         ...(saveOptions?.bumpUpdatedAt === false ? { bumpUpdatedAt: false } : {}),
+        ...provenanceExtras,
       });
+      if (sharedContextSpaceId) {
+        await patchSharedOrganization(
+          noteId,
+          sharedContextSpaceId,
+          collectionExtras,
+        );
+      }
+      return result;
     },
-    [isDraft, noteId, persistDraftNote],
+    [contextSpaceId, isDraft, noteId, patchSharedOrganization, persistDraftNote],
   );
 
   const handlePrototypeEditorUnmount = useCallback(
@@ -783,36 +1336,35 @@ export default function PrototypeNotePage() {
       />
     ) : null;
 
-  /* Loading — use PDS shimmer, no SPA card-full class. Keep editor mounted when this
+  /* Keep editor mounted when this
    * page instance just persisted a draft (note may still be seeding in React Query). */
   const keepEditorDuringPersistedDraftLoad = shouldKeepEditorDuringPersistedDraftLoad(
     isDraft,
     noteId,
     adoptedComposeId,
   );
-  if (!isDraft && isPending && !note && !keepEditorDuringPersistedDraftLoad) {
+  const noteLoadState = resolvePrototypeNoteLoadState({
+    isDraft,
+    isLoading,
+    hasNote: Boolean(note),
+    error: noteQueryError,
+    keepEditor: keepEditorDuringPersistedDraftLoad,
+  });
+  if (noteLoadState === 'loading') {
     return (
       <>
         {studyThreadPopoverLayer}
         <PrototypeMainPaneShell>
-        <div className="proto-editor-surface">
-          <div className="proto-editor-loading">
-            <div className="proto-editor-loading-wrap">
-              <div className="proto-editor-loading-inner proto-editor-paper">
-              <div className="proto-editor-loading-line proto-editor-loading-line--title" />
-              <div className="proto-editor-loading-line" style={{ width: '90%' }} />
-              <div className="proto-editor-loading-line" style={{ width: '75%' }} />
-              <div className="proto-editor-loading-line proto-editor-loading-line--short" />
-              </div>
-            </div>
+          <div className="proto-editor-surface">
+            <ProtoSpaceLoading label="Loading note" />
           </div>
-        </div>
-      </PrototypeMainPaneShell>
+        </PrototypeMainPaneShell>
       </>
     );
   }
 
-  if (!isDraft && !note && !keepEditorDuringPersistedDraftLoad) {
+  if (noteLoadState === 'error' || noteLoadState === 'not-found') {
+    const notFound = noteLoadState === 'not-found';
     return (
       <>
         {studyThreadPopoverLayer}
@@ -820,12 +1372,23 @@ export default function PrototypeNotePage() {
           <div className="proto-editor-surface">
             <PrototypePaneEmptyState
               icon="circle-exclamation"
-              title="Note not found"
-              description="It may have been deleted or moved."
+              title={notFound ? 'Note not found' : 'Couldn’t load note'}
+              description={
+                notFound
+                  ? 'It may have been deleted, moved, or removed from this space.'
+                  : 'Your current context is unchanged. Retry when you’re ready.'
+              }
+              role="alert"
               action={{
-                label: 'Go home',
+                label: 'Retry',
                 onClick: () => {
-                  void navigate({ to: prototypeHomeRouteTo() });
+                  void refetchNote();
+                },
+              }}
+              secondaryAction={{
+                label: 'Go to Home',
+                onClick: () => {
+                  void navigate({ to: prototypeHomeRouteTo() as any });
                 },
               }}
             />
@@ -840,9 +1403,9 @@ export default function PrototypeNotePage() {
   const editorNote =
     useComposeEditorStub || isDraft || (!note && keepEditorDuringPersistedDraftLoad)
     ? {
-        title: '',
-        content: '',
-        noteType: 'default' as const,
+        title: templatePrefill?.title ?? '',
+        content: templatePrefill?.content ?? '',
+        noteType: (templatePrefill?.noteType || 'default') as 'default' | 'scripture' | 'resource',
         version: undefined as number | undefined,
         resourceTitle: undefined as string | undefined,
         resourceDescription: undefined as string | undefined,
@@ -857,7 +1420,14 @@ export default function PrototypeNotePage() {
         createdAt: null as string | null,
         threads: [] as { id: string; title?: string; backgroundGradient?: string; count?: number; spaceId?: string | null }[],
       }
-    : note!;
+    : templatePrefill
+      ? {
+          ...note!,
+          title: templatePrefill.title,
+          content: templatePrefill.content,
+          noteType: templatePrefill.noteType || note!.noteType || 'default',
+        }
+      : note!;
 
   const MONTHS_LONG = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -876,26 +1446,98 @@ export default function PrototypeNotePage() {
   // are ONE editing session, so they share a key — this prevents a destructive
   // CardFullEditable + TipTap remount mid-typing when /n/new → /n/<id>. A new
   // compose bumps composeSessionEpoch so distinct compose sessions never share an instance.
+  // templateApplyEpoch remounts after "Start from a template" so TipTap seeds the HTML.
   const composeEditorKey = prototypeComposeEditorKey(DRAFT_NOTE_ID, composeSessionEpoch);
-  const editorSessionKey = isDraft || !!adoptedComposeId ? composeEditorKey : noteId;
+  const editorSessionKey =
+    (isDraft || !!adoptedComposeId ? composeEditorKey : noteId) +
+    (templateApplyEpoch > 0 ? `:tpl-${templateApplyEpoch}` : '');
+
+  const noteIsEffectivelyEmpty = isEffectivelyEmptyPrototypeNote(
+    liveNoteSnapshot.title || prototypeDisplayTitle,
+    liveNoteSnapshot.content || editorNote.content,
+  );
+  const showTemplatesInInspector = !isForeignSharedNote && !readOnlyInSharedSpace && isEditable;
+  const canAttachSpaceTemplate =
+    !!templateSpaceAccess.access &&
+    (templateSpaceAccess.access.isOwner || templateSpaceAccess.access.role === 'leader');
+  const showSpaceAttachOption =
+    !!templateSpaceId &&
+    templateSpaceId !== personalHomeSpaceId &&
+    (templateSpaceAccess.access?.space.type === 'shared' ||
+      templateSpaceAccess.access?.space.type === 'public');
+
+  const resolvedTemplateProvenance = templateProvenance
+    ? templateProvenance
+    : note?.startedFromTemplateId && note.startedFromTemplateName
+      ? { id: note.startedFromTemplateId, name: note.startedFromTemplateName }
+      : null;
+
+  const inspectorTemplates = showTemplatesInInspector
+    ? {
+        spaceId: templateSpaceId,
+        spaceTitle: showSpaceAttachOption
+          ? templateSpaceAccess.access?.space.title?.trim() || null
+          : null,
+        canAttachToSpace: canAttachSpaceTemplate,
+        showSpaceAttachOption,
+        isEmpty: noteIsEffectivelyEmpty,
+        liveTitle: liveNoteSnapshot.title || prototypeDisplayTitle,
+        liveContent: liveNoteSnapshot.content || editorNote.content || '',
+        noteType: typeof editorNote.noteType === 'string' ? editorNote.noteType : 'default',
+        startedFromTemplateId: resolvedTemplateProvenance?.id ?? null,
+        startedFromTemplateName: resolvedTemplateProvenance?.name ?? null,
+        onApply: handleApplyTemplate,
+        onTemplateProvenanceChange: (provenance) => {
+          templateProvenanceRef.current = provenance;
+          setTemplateProvenance(provenance);
+          if (!isDraft && noteId) {
+            void updateNoteMutationRef.current.mutateAsync({
+              noteId,
+              title: liveNoteSnapshot.title || prototypeDisplayTitle || '',
+              content: liveNoteSnapshot.content || '',
+              scriptureVersion: getEffectiveDefaultTranslation(),
+              contextSpaceId: contextSpaceId?.trim() || null,
+              startedFromTemplateId: provenance.id,
+              startedFromTemplateName: provenance.name,
+              bumpUpdatedAt: false,
+            });
+          }
+        },
+      }
+    : null;
+
+  const draftInspectorNote: NoteDetail = {
+    id: DRAFT_NOTE_ID,
+    title: liveNoteSnapshot.title || prototypeDisplayTitle || '',
+    content: liveNoteSnapshot.content || editorNote.content || '',
+    noteType: typeof editorNote.noteType === 'string' ? editorNote.noteType : 'default',
+    contentEncrypted: false,
+    isPublic: false,
+    isOwnNote: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    startedFromTemplateId: resolvedTemplateProvenance?.id ?? null,
+    startedFromTemplateName: resolvedTemplateProvenance?.name ?? null,
+    threads: [],
+    tags: [],
+  };
+
+  const inspectorNote = isDraft ? draftInspectorNote : note;
 
   const showInspectorDesktop = (inspectorOpen || inspectorExiting) && !isMobileSidebar;
   const showInspectorMobile = (inspectorOpen || inspectorExiting) && isMobileSidebar;
-  // Only reserve editor space when the inspector actually renders. The desktop
-  // inspector is gated on `!isDraft && note` below, so on a draft (a note with no
-  // content yet) or before the note loads, reserving space shrinks the editor for
-  // a panel that never appears — leaving a blank gap on the right.
   // Reserve (dock) only when: inspector open, on desktop (mobile uses a fixed
   // slide-over), and the pane is wide enough. When the pane is narrow the desktop
   // inspector stays mounted but floats over the editor as a quiet overlay.
+  // Drafts can open the inspector for Templates; they float (no dock reserve) so
+  // the empty compose canvas stays full-width until the note persists.
   const inspectorReservesEditorSpace =
     inspectorOpen && !inspectorExiting && !isDraft && !!note && !isMobileSidebar && paneIsWide;
 
   const inspectorFloating =
     inspectorOpen &&
     !inspectorExiting &&
-    !isDraft &&
-    !!note &&
+    !!inspectorNote &&
     !inspectorReservesEditorSpace &&
     (showInspectorDesktop || showInspectorMobile);
 
@@ -915,21 +1557,32 @@ export default function PrototypeNotePage() {
       : null;
 
   const desktopInspectorLayer =
-    showInspectorDesktop && !isDraft && note && rightPanelPortalTarget
+    showInspectorDesktop && inspectorNote && rightPanelPortalTarget
       ? createPortal(
           <div
             className={`proto-inspector-desktop${inspectorExiting ? ' proto-inspector-desktop--exiting' : ''}`}
             role="dialog"
             aria-label="Note details"
           >
-            <PrototypeInspectorPane note={note} spaceId={effectiveSpaceId} />
+            <PrototypeInspectorPane
+              note={inspectorNote}
+              spaceId={effectiveSpaceId}
+              contextSpaceId={contextSpaceId}
+              sharedSpaceId={sharedActionSpaceId}
+              noteAuthorUserId={noteAuthorUserId}
+              noteAuthorDisplayName={noteAuthorDisplayName}
+              onSelectActivity={handleActivitySelectEntry}
+              activeActivityId={activeActivityId}
+              isDraftCompose={isDraft}
+              templates={inspectorTemplates}
+            />
           </div>,
           rightPanelPortalTarget,
         )
       : null;
 
   const mobileInspectorLayer =
-    showInspectorMobile && !isDraft && note && typeof document !== 'undefined'
+    showInspectorMobile && inspectorNote && typeof document !== 'undefined'
       ? createPortal(
           <>
             <div
@@ -943,7 +1596,18 @@ export default function PrototypeNotePage() {
               role="dialog"
               aria-label="Note details"
             >
-              <PrototypeInspectorPane note={note} spaceId={effectiveSpaceId} />
+              <PrototypeInspectorPane
+                note={inspectorNote}
+                spaceId={effectiveSpaceId}
+                contextSpaceId={contextSpaceId}
+                sharedSpaceId={sharedActionSpaceId}
+                noteAuthorUserId={noteAuthorUserId}
+                noteAuthorDisplayName={noteAuthorDisplayName}
+                onSelectActivity={handleActivitySelectEntry}
+                activeActivityId={activeActivityId}
+                isDraftCompose={isDraft}
+                templates={inspectorTemplates}
+              />
             </div>
           </>,
           document.querySelector('.proto-shell') ?? document.body,
@@ -969,14 +1633,77 @@ export default function PrototypeNotePage() {
         <div className="proto-editor-scroll">
           <SubtleContentMount key={editorSessionKey} variant="fade">
             <div className="proto-editor-content-wrap">
-              <div className="proto-editor-paper">
+              <div
+                className="proto-editor-paper"
+                ref={(el) => {
+                  sharedOverlayPaperRef.current = el;
+                  setSharedOverlayContainerEl(el);
+                }}
+              >
+              {isForeignSharedNote ? (
+                <PrototypeSharedNoteReadOnlyBanner
+                  authorDisplayName={foreignNoteAuthor?.displayName ?? note?.authorDisplayName}
+                  authorUserId={foreignNoteAuthor?.userId ?? note?.authorUserId ?? note?.userId}
+                  authorFirstName={foreignNoteAuthor?.firstName}
+                  authorProfileImageUrl={foreignNoteAuthor?.profileImageUrl}
+                  authorColor={foreignNoteAuthor?.userColor}
+                />
+              ) : null}
+              {showSharedHighlightOverlay ? (
+                <SharedStudyHighlightOverlay
+                  editor={sharedOverlayEditor}
+                  containerEl={sharedOverlayContainerEl}
+                  studyThreads={overlayStudyThreads}
+                  layoutRevision={sharedHighlightLayoutRevision}
+                  onSelectEntry={handleOverlaySelectEntry}
+                />
+              ) : null}
+              {isDraft ? (
+                <div className="proto-draft-destination-cue">
+                  <span
+                    className="proto-draft-destination-cue__status pds-caption"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {draftDestinationCue}
+                  </span>
+                  {composeThreadChip.state !== 'hidden' ? (
+                    <button
+                      type="button"
+                      className={`proto-draft-destination-cue__chip${
+                        composeThreadChip.state === 'active' ? ' proto-draft-destination-cue__chip--active' : ''
+                      }`}
+                      aria-pressed={composeThreadChip.state === 'active'}
+                      aria-label={
+                        composeThreadChip.state === 'active'
+                          ? `Remove from ${composeThreadChip.threadTitle}`
+                          : `Add to ${composeThreadChip.threadTitle}`
+                      }
+                      disabled={composeThreadToggleBusy}
+                      onClick={toggleComposeThread}
+                    >
+                      <Icon
+                        name={composeThreadChip.state === 'active' ? 'arrow-right-arrow-left' : 'plus'}
+                        size={9}
+                        aria-hidden
+                      />
+                      <span className="proto-draft-destination-cue__chip-label">
+                        {composeThreadChip.state === 'active'
+                          ? composeThreadChip.threadTitle
+                          : `Add to ${composeThreadChip.threadTitle}`}
+                      </span>
+                      {composeThreadChip.state === 'active' ? <Icon name="xmark" size={9} aria-hidden /> : null}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
               <CardFullEditable
                 title={prototypeDisplayTitle}
                 content={editorNote.content ?? ''}
                 date={formattedDate}
                 noteId={noteId}
                 noteType={(editorNote.noteType || 'default') as 'default' | 'scripture' | 'resource'}
-                version={editorNote.version}
+                version={typeof editorNote.version === 'string' ? editorNote.version : undefined}
                 resourceTitle={editorNote.resourceTitle ?? undefined}
                 resourceDescription={editorNote.resourceDescription ?? undefined}
                 resourceImage={editorNote.resourceImage ?? undefined}
@@ -985,8 +1712,21 @@ export default function PrototypeNotePage() {
                 isEditable={isEditable}
                 onSave={handleNoteSave}
                 onPrototypeEditorUnmount={handlePrototypeEditorUnmount}
-                readOnlyLikeScripture={isOnboardingReadonly}
+                onPrototypeLiveChange={handlePrototypeLiveChange}
+                readOnlyLikeScripture={readOnlyLikeScripture}
+                foreignSharedAnnotationMode={foreignSharedAnnotationMode}
+                onSharedAnnotationCreated={noteInSharedSpace ? refreshSharedAnnotations : undefined}
+                highlightOpenRequest={highlightOpenRequest}
+                onHighlightOpenRequestConsumed={onHighlightOpenRequestConsumed}
+                onActiveHighlightEntryChange={setActiveActivityId}
+                sharedOverlayPmRanges={sharedOverlayPmRanges}
+                onEditorInstanceReady={(editor) => {
+                  setSharedOverlayEditor(editor as typeof sharedOverlayEditor);
+                }}
                 spaceId={effectiveSpaceId ?? undefined}
+                mentionSource={readOnlyInSharedSpace ? undefined : mentionSource}
+                onMentionPillClick={onMentionPillClick}
+                contextSpaceId={contextSpaceId}
                 editorChromeMode="prototypeNative"
                 formatToolbarPortalTarget={formatToolbarHostEl}
                 studyDockCarouselPortalTarget={studyDockCarouselHostEl}
@@ -1012,7 +1752,6 @@ export default function PrototypeNotePage() {
                 prototypeDraftPersistRemount={draftPersistRemountRef.current}
                 prototypeDraftPersistRemountTick={draftPersistRemountTick}
                 noteCreatedAtIso={editorNote.createdAt ?? null}
-                studyThreads={note?.studyThreads ?? []}
               />
               </div>
             </div>

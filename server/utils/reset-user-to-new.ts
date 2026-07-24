@@ -18,6 +18,8 @@ import {
   Spaces,
   Members,
   SpaceInvitations,
+  SpaceMemberships,
+  SpaceInvites,
   Tags,
   eq,
   inArray,
@@ -43,9 +45,15 @@ export async function resetUserToNew(userId: string): Promise<void> {
   const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, userId));
   const spaceIds = userSpaces.map((s) => s.id);
   if (spaceIds.length > 0) {
+    await db.delete(SpaceMemberships).where(inArray(SpaceMemberships.spaceId, spaceIds));
+    await db.delete(SpaceInvites).where(inArray(SpaceInvites.spaceId, spaceIds));
+    // Hygiene deletes on the frozen v1 tables (kept until they are dropped)
     await db.delete(Members).where(inArray(Members.spaceId, spaceIds));
     await db.delete(SpaceInvitations).where(inArray(SpaceInvitations.spaceId, spaceIds));
   }
+  // Own membership rows in spaces owned by other people.
+  await db.delete(SpaceMemberships).where(eq(SpaceMemberships.userId, userId));
+  await db.delete(Members).where(eq(Members.userId, userId));
   await db.delete(Spaces).where(eq(Spaces.userId, userId));
   await db.delete(Tags).where(eq(Tags.userId, userId));
   await db.delete(UserMetadata).where(eq(UserMetadata.userId, userId));

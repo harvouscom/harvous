@@ -6,7 +6,7 @@ import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 import { pushNavStack } from '@/utils/nav-stack';
-import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink, stripNoteLinksToNoteId, isTiptapViewReady } from '@/utils/tiptap-helpers';
+import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink, stripNoteLinksToNoteId } from '@/utils/tiptap-helpers';
 import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
@@ -171,6 +171,16 @@ interface CardFullEditableProps {
   inBottomSheet?: boolean;
   /** Welcome-thread pack notes (system): same as scripture — no title/body editing in the card. */
   readOnlyLikeScripture?: boolean;
+  /** Shared-space foreign note: body read-only but text selection + highlight annotations enabled. */
+  foreignSharedAnnotationMode?: boolean;
+  /** Called after shared annotations change (create/delete) — refresh overlay. */
+  onSharedAnnotationCreated?: () => void;
+  /** ProseMirror ranges covered by shared highlight overlays — suppress in-body mark underline there. */
+  sharedOverlayPmRanges?: { from: number; to: number }[];
+  /** Fired after a runtime highlight-open request (overlay tap) is consumed. */
+  onHighlightOpenRequestConsumed?: () => void;
+  /** Active highlight dock entry, or null after close/context reset. */
+  onActiveHighlightEntryChange?: (entryId: string | null) => void;
   /** Prototype-only: native-like editor chrome (format vs scripture vs note action bar). */
   editorChromeMode?: 'default' | 'prototypeNative';
   /** Shown when prototype bottom mode is `noteActions` (below editor, above save/cancel).
@@ -224,6 +234,16 @@ interface CardFullEditableProps {
     /** Study-thread snapshot for opening the dock when the note mark is not ready yet. */
     metadata?: HighlightDockOpenMetadata;
   } | null;
+  /**
+   * Prototype-only: open highlight dock at runtime (e.g. tapping a shared overlay mark).
+   * Fires whenever `requestKey` changes.
+   */
+  highlightOpenRequest?: {
+    studyThreadEntryId: string;
+    requestKey?: string;
+    metadata?: HighlightDockOpenMetadata;
+    range?: { from: number; to: number } | null;
+  } | null;
   /** Prototype-only: called after a highlight deep-link dock handoff completes (strip URL search keys). */
   onHighlightDeepLinkHandoff?: () => void;
   /** Prototype-only: called after a scripture deep-link dock handoff completes (strip URL search keys). */
@@ -252,6 +272,9 @@ interface CardFullEditableProps {
   alwaysEditing?: boolean;
   /** Prototype-only: fired on editor unmount with live title/body so the parent can discard empty notes. */
   onPrototypeEditorUnmount?: (snapshot: { noteId: string; title: string; content: string }) => void;
+  /** Prototype-only: live title/body for quiet chrome (e.g. note templates empty detection). */
+  onPrototypeLiveChange?: (snapshot: { title: string; content: string }) => void;
+  onEditorInstanceReady?: (editor: unknown) => void;
   /**
    * Prototype-only: stable identity for the body editor across the /n/new → /n/<id>
    * draft→persist swap. The parent keeps this constant for one compose session so the
@@ -266,8 +289,12 @@ interface CardFullEditableProps {
   noteCreatedAtIso?: string | null;
   /** Space the note belongs to — passed to TiptapEditor for connect-from-selection. */
   spaceId?: string;
-  /** Study-thread rows from note details — rehydrate body highlight marks missing from saved HTML. */
-  studyThreads?: import('@/utils/study-thread-highlight-rehydrate').StudyThreadRehydrateRow[];
+  /** Enables @ mention pills in the body editor. Absent → the @ typeahead never triggers. */
+  mentionSource?: (query: string) => import('./mention-pill-types').MentionPickerItem[] | Promise<import('./mention-pill-types').MentionPickerItem[]>;
+  /** Tap/click on a mention pill (editable and read-only content-html views). */
+  onMentionPillClick?: (payload: import('./mention-pill-types').MentionPillClickPayload) => void;
+  /** Explicit shared-space read context. My Home remains context-free. */
+  contextSpaceId?: string | null;
 }
 
 export default function CardFullEditable({ 
@@ -290,6 +317,11 @@ export default function CardFullEditable({
   isAuthenticated,
   inBottomSheet = false,
   readOnlyLikeScripture = false,
+  foreignSharedAnnotationMode = false,
+  onSharedAnnotationCreated,
+  sharedOverlayPmRanges = [],
+  onHighlightOpenRequestConsumed,
+  onActiveHighlightEntryChange,
   editorChromeMode = 'default',
   prototypeNoteActionBar,
   formatToolbarPortalTarget,
@@ -310,6 +342,7 @@ export default function CardFullEditable({
   initialScriptureDock = null,
   initialCrossRefTarget = null,
   initialHighlightDock = null,
+  highlightOpenRequest = null,
   onHighlightDeepLinkHandoff,
   onScriptureDeepLinkHandoff,
   onReferenceDeepLinkHandoff,
@@ -317,24 +350,28 @@ export default function CardFullEditable({
   collectionNavContext = DEFAULT_COLLECTION_NAV_CONTEXT,
   alwaysEditing = false,
   onPrototypeEditorUnmount,
+  onPrototypeLiveChange,
+  onEditorInstanceReady,
   prototypeBodyMountId = null,
   prototypeDraftPersistRemount = null,
   prototypeDraftPersistRemountTick = 0,
   noteCreatedAtIso = null,
   spaceId,
-  studyThreads = [],
+  mentionSource,
+  onMentionPillClick,
+  contextSpaceId = null,
 }: CardFullEditableProps) {
   const effectivePrototypeNoteActionsChrome =
     editorChromeMode === 'prototypeNative'
       ? (prototypeNoteActionsChrome ?? !!(noteActionsPortalTarget || prototypeNoteActionBar))
       : false;
-  const eagerTiptap = editorChromeMode === 'prototypeNative' && alwaysEditing;
+  const eagerTiptap = editorChromeMode === 'prototypeNative' && alwaysEditing && !isMobileDevice();
   const TiptapEditorComponent = eagerTiptap ? TiptapEditorEager : TiptapEditorLazy;
   const prototypeAlwaysEditing =
     editorChromeMode === 'prototypeNative' &&
     alwaysEditing &&
     noteType !== 'scripture' &&
-    !readOnlyLikeScripture;
+    (!readOnlyLikeScripture || foreignSharedAnnotationMode);
   // Stable identity for the body TipTap so the same instance survives the draft→persist
   // id swap (parent holds `prototypeBodyMountId` constant for one compose session).
   // Distinct settled notes still get distinct ids and remount normally.
@@ -348,14 +385,18 @@ export default function CardFullEditable({
   // Override isEditable for scripture notes, onboarding pack notes, and offline (create-only mode)
   const isCurrentlyOffline = useIsOffline();
   const effectiveIsEditable =
-    noteType === 'scripture' || readOnlyLikeScripture || isCurrentlyOffline ? false : isEditable;
+    noteType === 'scripture' || readOnlyLikeScripture || isCurrentlyOffline || foreignSharedAnnotationMode
+      ? false
+      : isEditable;
   const effectiveIsEditableRef = useRef(effectiveIsEditable);
   effectiveIsEditableRef.current = effectiveIsEditable;
   const resolvedScriptureVersion = noteType === 'scripture'
     ? (version || getCachedProfileData()?.defaultTranslation || 'NET')
     : undefined;
   
-  const [isTitleEditing, setIsTitleEditing] = useState(() => prototypeAlwaysEditing);
+  const [isTitleEditing, setIsTitleEditing] = useState(
+    () => prototypeAlwaysEditing && !foreignSharedAnnotationMode,
+  );
   const [isContentEditing, setIsContentEditing] = useState(() => prototypeAlwaysEditing);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
@@ -427,6 +468,8 @@ export default function CardFullEditable({
   const bodyInteractionRef = useRef(false);
   const onPrototypeEditorUnmountRef = useRef(onPrototypeEditorUnmount);
   onPrototypeEditorUnmountRef.current = onPrototypeEditorUnmount;
+  const onPrototypeLiveChangeRef = useRef(onPrototypeLiveChange);
+  onPrototypeLiveChangeRef.current = onPrototypeLiveChange;
   const isMountedRef = useRef(true);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
@@ -443,6 +486,7 @@ export default function CardFullEditable({
     studyThreadEntryId: string;
     requestKey?: string;
     metadata?: HighlightDockOpenMetadata;
+    range?: { from: number; to: number } | null;
   } | null>(null);
   const onPrototypeChromeModeChangeRef = useRef(onPrototypeChromeModeChange);
   useEffect(() => {
@@ -577,10 +621,32 @@ export default function CardFullEditable({
     });
   }, [editorChromeMode, initialHighlightDock, noteId]);
 
+  // Runtime highlight open (shared overlay tap, etc.) — fires on each distinct requestKey.
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative') return;
+    if (!highlightOpenRequest) return;
+    const key =
+      highlightOpenRequest.requestKey ??
+      `${noteId}|${highlightOpenRequest.studyThreadEntryId}|runtime`;
+    setPrototypeHighlightOpenRequest({
+      studyThreadEntryId: highlightOpenRequest.studyThreadEntryId,
+      requestKey: key,
+      metadata: highlightOpenRequest.metadata,
+      range: highlightOpenRequest.range ?? null,
+    });
+  }, [editorChromeMode, highlightOpenRequest, noteId]);
+
+  useEffect(() => {
+    setPrototypeHighlightOpenRequest(null);
+    initialHighlightDockFiredRef.current = null;
+  }, [contextSpaceId]);
+
   // Reset proto save tracking on note switch so first edit always triggers a save
   useEffect(() => {
     const prev = prevNoteIdForProtoResetRef.current;
     prevNoteIdForProtoResetRef.current = noteId;
+    setPrototypeHighlightOpenRequest(null);
+    initialHighlightDockFiredRef.current = null;
     const isDraftPersistSwap =
       editorChromeMode === 'prototypeNative' &&
       alwaysEditing &&
@@ -615,8 +681,9 @@ export default function CardFullEditable({
 
   const onPrototypeHighlightOpenRequestConsumed = useCallback(() => {
     setPrototypeHighlightOpenRequest(null);
+    onHighlightOpenRequestConsumed?.();
     onHighlightDeepLinkHandoff?.();
-  }, [onHighlightDeepLinkHandoff]);
+  }, [onHighlightDeepLinkHandoff, onHighlightOpenRequestConsumed]);
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative') return;
@@ -626,6 +693,7 @@ export default function CardFullEditable({
       // recompute/clear the folder. Mirrors the autosave guards (userEditedSinceOpenRef).
       if (!userEditedSinceOpenRef.current) return;
       const prev = collectionChromeRef.current;
+      if (prev.collectionUserOverride && !prev.collectionPinned) return;
       const editing = isTitleEditing || isContentEditing;
       const titleForSuggest = editing ? editTitle : displayTitle;
       let bodyForSuggest: string;
@@ -762,7 +830,8 @@ export default function CardFullEditable({
   );
   // Prototype alwaysEditing: TipTap + title field on first paint (no click-to-edit gate).
   const showTitleEditor =
-    (prototypeAlwaysEditing && !needsPinUnlock && effectiveIsEditable) || isTitleEditing;
+    (prototypeAlwaysEditing && !needsPinUnlock && effectiveIsEditable) ||
+    (isTitleEditing && !foreignSharedAnnotationMode);
   const showBodyEditor =
     (prototypeAlwaysEditing && !needsPinUnlock && effectiveIsEditable) || isContentEditing;
   const cardRootRef = useRef<HTMLDivElement>(null);
@@ -1007,7 +1076,8 @@ export default function CardFullEditable({
   // Prototype route: start in title+body edit (native parity) on note open / unlock — do not depend on title/content
   // props after mount or edits reset on every server refresh. useLayoutEffect seeds before TipTap's first paint.
   useLayoutEffect(() => {
-    if (editorChromeMode !== 'prototypeNative' || !alwaysEditing || !effectiveIsEditable) return;
+    if (editorChromeMode !== 'prototypeNative' || !alwaysEditing) return;
+    if (!effectiveIsEditable && !foreignSharedAnnotationMode) return;
     if (readOnlyLikeScripture || noteType === 'scripture') return;
     if (needsPinUnlock) return;
     if (seededEditorForNoteRef.current === noteId) return;
@@ -1067,12 +1137,27 @@ export default function CardFullEditable({
     editorChromeMode,
     alwaysEditing,
     effectiveIsEditable,
+    foreignSharedAnnotationMode,
     noteType,
     readOnlyLikeScripture,
     needsPinUnlock,
     resourceTitle,
     resourceDescription,
   ]);
+
+  // Foreign shared notes: body loads async after open — keep TipTap in sync with fetched content.
+  useEffect(() => {
+    if (!foreignSharedAnnotationMode || userEditedSinceOpenRef.current) return;
+    const initialTitle =
+      noteType === 'resource'
+        ? (title || resourceTitle || '')
+        : stripServerAutoUntitledNoteTitleForDisplay(title);
+    setDisplayTitle(initialTitle ?? '');
+    setEditTitle(initialTitle ?? '');
+    const repaired = repairHtmlForEditor(content ?? '');
+    setDisplayContent(repaired);
+    setEditContent(repaired);
+  }, [foreignSharedAnnotationMode, title, content, noteId, noteType, resourceTitle]);
 
   // Reset lock state overrides when contentEncrypted prop changes (e.g. from server)
   useEffect(() => {
@@ -1233,7 +1318,7 @@ export default function CardFullEditable({
             const editor = editorInstanceRef.current;
             
             // Check if editor is still valid (not destroyed)
-            if (editor && !editor.isDestroyed && isTiptapViewReady(editor)) {
+            if (editor && !editor.isDestroyed && editor.view && editor.view.docView) {
               // Helper function to apply noteLink mark at a specific position
               const applyNoteLink = (positionFrom: number, positionTo: number): boolean => {
               try {
@@ -1270,7 +1355,8 @@ export default function CardFullEditable({
             const saveUpdatedContent = () => {
               setTimeout(async () => {
                   // Check again if editor is still valid
-                  if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return;
+                  if (!editor || editor.isDestroyed) return;
+                  if (!editor.view || !editor.view.docView) return;
                   
                   try {
                     const updatedContent = editor.getHTML();
@@ -1687,6 +1773,7 @@ export default function CardFullEditable({
     if (!editor) return;
     
     editorInstanceRef.current = editor;
+    onEditorInstanceReady?.(editor);
     // Focus and set cursor at click position when switching from view to edit
     if (shouldFocusEditorRef.current) {
       shouldFocusEditorRef.current = false;
@@ -1695,28 +1782,21 @@ export default function CardFullEditable({
       const savedScroll = scrollPosition;
 
       // Restore scroll first so posAtCoords matches the view the user clicked in
-      let scrollEl: HTMLElement | null = null;
-      if (isTiptapViewReady(editor)) {
-        try {
-          scrollEl = editor.view.dom.closest('.tiptap-content') as HTMLElement | null;
-        } catch {
-          /* ignore pre-mount view access */
-        }
-      }
+      const scrollEl = editor.view?.dom?.closest?.('.tiptap-content') as HTMLElement | null;
       if (scrollEl && savedScroll > 0) {
         scrollEl.scrollTop = savedScroll;
       }
 
       requestAnimationFrame(() => {
         requestAnimationFrame(async () => {
-          if (!editor || editor.isDestroyed || !isTiptapViewReady(editor)) return;
+          if (!editor || editor.isDestroyed || !editor.view?.docView) return;
           try {
             editor.commands.focus();
             keyboardProxyRef.current?.blur();
             const doc = editor.state.doc;
             const maxPos = doc.content.size;
             try {
-              if (coords && scrollEl) {
+              if (coords && scrollEl && editor.view.posAtCoords) {
                 const rect = scrollEl.getBoundingClientRect();
                 const viewportX = rect.left + coords.contentX - scrollEl.scrollLeft;
                 const viewportY = rect.top + coords.contentY - scrollEl.scrollTop;
@@ -2253,6 +2333,18 @@ export default function CardFullEditable({
     return () => window.clearTimeout(timerId);
   }, [editorChromeMode, effectiveIsEditable, editTitle, editContent]);
 
+  // Quiet chrome (templates): parent tracks empty vs typed without polling the DOM.
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative' || !alwaysEditing) return;
+    if (!onPrototypeLiveChangeRef.current) return;
+    const titleNow = editTitleRef.current;
+    const contentNow = noteHtmlForSave(
+      editorInstanceRef.current,
+      liveBodyHtmlRef.current || editContentRef.current,
+    );
+    onPrototypeLiveChangeRef.current({ title: titleNow, content: contentNow });
+  }, [editorChromeMode, alwaysEditing, editTitle, editContent, noteId]);
+
   // Unload-safe flush. The 700ms debounce + unmount cleanup both rely on async
   // fetches that the browser aborts mid-navigation, so a hard refresh / tab close
   // within the debounce window loses the edit. On pagehide / tab-hidden we send a
@@ -2442,7 +2534,7 @@ export default function CardFullEditable({
     liveBodyHtmlRef.current = canonicalizeNoteHtmlLineBreaks(newContent);
   }, []);
 
-  const handleContentChange = (newContent: string, meta?: { programmatic?: boolean; flush?: boolean }) => {
+  const handleContentChange = (newContent: string, meta?: { programmatic?: boolean }) => {
     const isProto = editorChromeMode === 'prototypeNative';
     if (isProto) {
       hasLocalContentUpdate.current = true;
@@ -2480,10 +2572,6 @@ export default function CardFullEditable({
     }
 
     setHasChanges(titleForChanges !== displayTitle || canonical !== displayContent);
-
-    if (isProto && meta?.flush) {
-      void protoSaveAsyncRef.current();
-    }
   };
 
   const resolveThreadContext = (): string => {
@@ -2593,8 +2681,28 @@ export default function CardFullEditable({
   };
 
   const handleContentClick = async (e: React.MouseEvent<HTMLDivElement>) => {
-    // Check if click is on a note-link (highlighted text linking to another note)
     const target = e.target as HTMLElement;
+
+    // Check if click is on a mention pill (@ note/thread/folder) — read-only content-html view.
+    const mentionElement = target.closest('.mention-pill');
+    if (mentionElement) {
+      const kind = mentionElement.getAttribute('data-mention-kind');
+      const entityId = mentionElement.getAttribute('data-mention-id');
+      const mentionSpaceId = mentionElement.getAttribute('data-mention-space-id');
+      if (kind && entityId && onMentionPillClick) {
+        e.preventDefault();
+        e.stopPropagation();
+        onMentionPillClick({
+          kind: kind as 'note' | 'thread' | 'folder',
+          entityId,
+          spaceId: mentionSpaceId,
+          label: mentionElement.textContent || '',
+        });
+      }
+      return;
+    }
+
+    // Check if click is on a note-link (highlighted text linking to another note)
     const noteLinkElement = target.closest('.note-link');
     
     if (noteLinkElement) {
@@ -2763,6 +2871,7 @@ export default function CardFullEditable({
         className={`card-full-editable ${className}`}
         style={{ maxHeight: '100%' }}
         data-card-full-editable
+        {...(foreignSharedAnnotationMode ? { 'data-foreign-shared-annotate': 'true' } : {})}
         {...((showBodyEditor || showTitleEditor) && { 'data-editing': 'true' })}
       >
         <textarea
@@ -2975,10 +3084,16 @@ export default function CardFullEditable({
                         editorChromeMode === 'prototypeNative' ? handleLiveBodyHtmlChange : undefined
                       }
                       scrollPosition={scrollPosition}
-                      enableCreateNoteFromSelection={isContentEditing}
+                      enableCreateNoteFromSelection={isContentEditing || foreignSharedAnnotationMode}
+                      sharedAnnotationOverlayMode={foreignSharedAnnotationMode}
+                      sharedOverlayPmRanges={sharedOverlayPmRanges}
+                      onSharedAnnotationCreated={onSharedAnnotationCreated}
                       parentThreadId={parentThreadId}
                       sourceNoteId={noteId}
                       spaceId={spaceId}
+                      mentionSource={mentionSource}
+                      onMentionPillClick={onMentionPillClick}
+                      contextSpaceId={contextSpaceId}
                       onEditorReady={handleEditorReady}
                       editorChromeMode={editorChromeMode}
                       onPrototypeChromeModeChange={
@@ -3015,8 +3130,8 @@ export default function CardFullEditable({
                         editorChromeMode === 'prototypeNative' ? prototypeHighlightOpenRequest : null
                       }
                       onPrototypeHighlightOpenRequestConsumed={onPrototypeHighlightOpenRequestConsumed}
+                      onPrototypeActiveHighlightEntryChange={onActiveHighlightEntryChange}
                       prototypeNoteActionsChrome={effectivePrototypeNoteActionsChrome}
-                      studyThreads={studyThreads}
                     />,
                     'min-h-[100px]',
                   )}
@@ -3180,6 +3295,7 @@ export default function CardFullEditable({
         className={`card-full-editable ${className}`}
         style={{ maxHeight: '100%', gap: 0, display: 'flex', flexDirection: 'column' }}
         data-card-full-editable
+        {...(foreignSharedAnnotationMode ? { 'data-foreign-shared-annotate': 'true' } : {})}
         {...((showBodyEditor || showTitleEditor) && { 'data-editing': 'true' })}
       >
       <textarea
@@ -3378,10 +3494,16 @@ export default function CardFullEditable({
                       editorChromeMode === 'prototypeNative' ? handleLiveBodyHtmlChange : undefined
                     }
                     scrollPosition={scrollPosition}
-                    enableCreateNoteFromSelection={isContentEditing}
+                    enableCreateNoteFromSelection={isContentEditing || foreignSharedAnnotationMode}
+                    sharedAnnotationOverlayMode={foreignSharedAnnotationMode}
+                    sharedOverlayPmRanges={sharedOverlayPmRanges}
+                    onSharedAnnotationCreated={onSharedAnnotationCreated}
                     parentThreadId={parentThreadId}
                     sourceNoteId={noteId}
                     spaceId={spaceId}
+                    mentionSource={mentionSource}
+                    onMentionPillClick={onMentionPillClick}
+                    contextSpaceId={contextSpaceId}
                     onEditorReady={handleEditorReady}
                     editorChromeMode={editorChromeMode}
                     onPrototypeChromeModeChange={
@@ -3418,8 +3540,8 @@ export default function CardFullEditable({
                       editorChromeMode === 'prototypeNative' ? prototypeHighlightOpenRequest : null
                     }
                     onPrototypeHighlightOpenRequestConsumed={onPrototypeHighlightOpenRequestConsumed}
+                    onPrototypeActiveHighlightEntryChange={onActiveHighlightEntryChange}
                     prototypeNoteActionsChrome={effectivePrototypeNoteActionsChrome}
-                    studyThreads={studyThreads}
                   />,
                   'min-h-[200px]',
                 )}

@@ -1,5 +1,11 @@
 # Sharing System Design
 
+> **Superseded July 2026.** This February/Classic design predates the clean-break Shared Spaces model. The
+> membership, personal-to-public toggle, copy-in, and shared-container ownership proposals below are retired.
+> Retain this file only as history. Use [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md) for current
+> behavior and [SHARED_SPACES_ROADMAP.md](./SHARED_SPACES_ROADMAP.md) for future work. Current user-facing feature
+> language is **Thread** or **Threads**.
+
 ## Two Types of Sharing
 
 ### Type 1: Public Share Links (Copy-Based)

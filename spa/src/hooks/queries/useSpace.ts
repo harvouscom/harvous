@@ -1,6 +1,10 @@
 import { useQuery, useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
+import { isSupabaseRealtimeConfigured } from '@/lib/supabase-client';
+import { getSharedSpaceUnseenSince } from '../useSharedSpaceVisit';
 import { useAuthReady } from '../useAuthReady';
 import { api, APIError } from '../../lib/api';
+import { hasClerkSessionCookieHint } from './useProfile';
 import { normalizeDate } from '../../../../src/utils/sorting';
 import { HARVOUS_SPACE_NOTES_CACHE_PREFIX } from '@/utils/user-cache-keys';
 
@@ -78,9 +82,19 @@ export interface SpaceDetail {
   title: string;
   color: string | null;
   backgroundGradient: string;
+  description?: string | null;
+  coverBgLight?: import('@/utils/space-cover').SpaceCoverBg;
+  coverBgDark?: import('@/utils/space-cover').SpaceCoverBg;
   ownerId: string;
   memberCount: number;
   isPublic: boolean;
+  type?: 'personal' | 'shared' | 'public';
+  orgId?: string | null;
+  isOwner?: boolean;
+  /** Ministry channels: staff-declared publish cadence. */
+  publishCadence?: import('@/utils/channel-publish-cadence').PublishCadence | null;
+  lastCurriculumAt?: string | null;
+  cadenceStale?: boolean;
 }
 
 export interface SpaceItem {
@@ -135,6 +149,13 @@ export interface SpaceNoteRow {
   collectionPinned?: boolean;
   collectionUserOverride?: boolean;
   version?: string;
+  /** Present on shared/public space merged-author queries only. */
+  authorUserId?: string;
+  authorDisplayName?: string;
+  authorColor?: string;
+  isOwnNote?: boolean;
+  /** Shared space list: note updated after the member's prior visit watermark. */
+  isNewSinceVisit?: boolean;
 }
 
 /** Paginated notes-only list from `GET /api/spaces/:spaceId/notes` */
@@ -171,45 +192,58 @@ function setCachedSpaceNotesFirstPage(id: string, page: SpaceNotesPage) {
 }
 
 export function useSpace(spaceId: string) {
-  const authReady = useAuthReady();
   const queryClient = useQueryClient();
   return useQuery({
     queryKey: ['space', spaceId],
     queryFn: async () => {
-      const bootstrap = queryClient.getQueryData<{ space: SpaceDetail; items: SpaceContentItem[] }>(bootstrapQueryKey(spaceId));
-      if (bootstrap?.space) return bootstrap.space;
+      // Always hit the network so cover/color updates aren't stuck on a stale
+      // bootstrap snapshot (About hero, settings, etc.).
       const res = await api.get<{ space: SpaceDetail }>(`/api/spaces/${spaceId}/prefetch`);
       if (res.space === undefined) throw new Error('Space not found');
+      const bootstrap = queryClient.getQueryData<SpaceBootstrapData>(bootstrapQueryKey(spaceId));
+      if (bootstrap) {
+        queryClient.setQueryData(bootstrapQueryKey(spaceId), {
+          ...bootstrap,
+          space: res.space,
+        });
+      }
       return res.space;
     },
-    enabled: authReady && !!spaceId,
-    staleTime: 30_000,
-    retry: (failureCount, error) => {
-      if (error instanceof APIError && error.status === 401) return false;
-      return failureCount < 2;
+    placeholderData: () => {
+      const bootstrap = queryClient.getQueryData<SpaceBootstrapData>(bootstrapQueryKey(spaceId));
+      return bootstrap?.space;
     },
-    retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
+    enabled: !!spaceId,
+    staleTime: 30_000,
   });
 }
 
-export function useSpaceNotes(spaceId: string, limit = 20) {
+export function useSpaceNotes(
+  spaceId: string,
+  limit = 20,
+  options?: { pollWhileActive?: boolean; unseenSince?: string | null },
+) {
   const authReady = useAuthReady();
   const trimmed = (spaceId ?? '').trim();
   const id = trimmed.startsWith('space_') ? trimmed : trimmed ? `space_${trimmed}` : '';
+  const unseenSince = options?.unseenSince ?? (id ? getSharedSpaceUnseenSince(id) : null);
+  const usePollFallback =
+    Boolean(options?.pollWhileActive) && !isSupabaseRealtimeConfigured();
   const cachedFirstPage = id ? getCachedSpaceNotesFirstPage(id) : undefined;
   // Hydrate instantly from the cached first page; `initialDataUpdatedAt: 0` marks it
   // stale so React Query revalidates in the background on mount (instant + fresh).
   const initialData: InfiniteData<SpaceNotesPage, number> | undefined = cachedFirstPage
     ? { pages: [cachedFirstPage], pageParams: [0] }
     : undefined;
-  return useInfiniteQuery({
-    queryKey: ['space', id, 'notes', 'no-legacy-scripture', 'updated'],
+  const query = useInfiniteQuery({
+    queryKey: ['space', id, 'notes', 'no-legacy-scripture', 'updated', unseenSince ?? ''],
     queryFn: async ({ pageParam = 0 }) => {
       const page = await api.get<SpaceNotesPage>(`/api/spaces/${id}/notes`, {
         offset: pageParam,
         limit,
         excludeLegacyScripture: 1,
         sortBy: 'updated',
+        ...(unseenSince ? { unseenSince } : {}),
       });
       if (pageParam === 0 && id) setCachedSpaceNotesFirstPage(id, page);
       return page;
@@ -219,22 +253,76 @@ export function useSpaceNotes(spaceId: string, limit = 20) {
     initialPageParam: 0,
     enabled: authReady && !!id,
     staleTime: 30_000,
+    refetchInterval: usePollFallback ? 45_000 : undefined,
+    refetchIntervalInBackground: false,
     initialData,
     initialDataUpdatedAt: initialData ? 0 : undefined,
     retry: (failureCount, error) => {
-      if (error instanceof APIError && error.status === 401) return false;
+      if (error instanceof APIError && error.status === 401) {
+        return hasClerkSessionCookieHint() && failureCount < 2;
+      }
       return failureCount < 2;
     },
     retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
+
+  const prevAuthReadyRef = useRef(authReady);
+  useEffect(() => {
+    const wasReady = prevAuthReadyRef.current;
+    prevAuthReadyRef.current = authReady;
+    if (!wasReady && authReady && id) {
+      void query.refetch();
+    }
+  }, [authReady, id, query.refetch]);
+
+  return query;
+}
+
+export interface SpaceMemberRow {
+  userId: string;
+  role: 'owner' | 'leader' | 'member';
+  joinedAt: string;
+  firstName: string | null;
+  lastName: string | null;
+  displayName: string;
+  email: string | null;
+  profileImageUrl: string | null;
+  userColor: string;
+}
+
+export interface SpaceMembersResponse {
+  members: SpaceMemberRow[];
+  memberCount: number;
+  isOwner: boolean;
+  limits?: { membersPerSpace: number; ownedSharedSpaces: number };
 }
 
 export function useSpaceMembers(spaceId: string) {
   return useQuery({
     queryKey: ['space', spaceId, 'members'],
-    queryFn: () => api.get<{ members: unknown[] }>(`/api/spaces/${spaceId}/members`),
+    queryFn: () => api.get<SpaceMembersResponse>(`/api/spaces/${spaceId}/members`),
     enabled: !!spaceId,
     staleTime: 30_000,
+  });
+}
+
+export interface SpaceInviteRow {
+  id: string;
+  inviteUrl: string;
+  kind: 'link' | 'email';
+  role: 'leader' | 'member';
+  expiresAt: string | null;
+  maxUses: number | null;
+  useCount: number;
+  createdAt: string;
+}
+
+export function useSpaceInvites(spaceId: string, isOwner: boolean) {
+  return useQuery({
+    queryKey: ['space', spaceId, 'invites'],
+    queryFn: () => api.get<{ invites: SpaceInviteRow[] }>(`/api/spaces/${spaceId}/invites`),
+    enabled: !!spaceId && isOwner,
+    staleTime: 15_000,
   });
 }
 

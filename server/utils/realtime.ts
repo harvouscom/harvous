@@ -51,6 +51,20 @@ export function broadcastInvalidation(userId: string, payload: RealtimeInvalidat
   })();
 }
 
+/** Fan-out invalidation to every member of a shared/public space (plus actor). */
+export async function broadcastInvalidationToSpaceMembers(
+  spaceId: string,
+  payload: RealtimeInvalidationPayload,
+  excludeUserId?: string,
+): Promise<void> {
+  const { getSpaceMemberUserIds } = await import('./shared-space-visit');
+  const memberIds = await getSpaceMemberUserIds(spaceId);
+  for (const userId of memberIds) {
+    if (excludeUserId && userId === excludeUserId) continue;
+    broadcastInvalidation(userId, payload);
+  }
+}
+
 type SyncMutation = {
   entityType?: string;
   operation?: string;

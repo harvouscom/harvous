@@ -1,5 +1,11 @@
 # Sharing System Quick Reference
 
+> **Retired July 2026.** This quick reference describes the February/Classic model and is not a current product
+> or engineering reference. Personal-to-public toggles, `Members`, and copy-in ownership were replaced by
+> dedicated Shared Spaces, `SpaceMemberships`, canonical My Home notes, and reusable `SpaceNotes`. See
+> [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md). Current user-facing feature language is
+> **Thread** or **Threads**.
+
 ## Two Types of Sharing
 
 ### 🌍 Type 1: Public Share Links

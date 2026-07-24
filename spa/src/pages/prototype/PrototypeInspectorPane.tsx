@@ -3,49 +3,167 @@
  * Sections: Info · Tags · Connected Notes · Folders
  * Standalone — no SPA CSS variables or shared styles.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useUser } from '@clerk/clerk-react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo, prototypeSettingsAccountRouteTo } from '@/lib/prototype-path';
 import type { NoteDetail, LinkedNoteRef } from '../../hooks/queries/useNote';
+import type { NoteActivityItem } from '../../lib/shared-note-activity-list';
 import { normalizeNoteAddedBy } from '@/utils/note-added-by-display';
 import { resolveClerkProfileImageUrl } from '../../lib/clerk-profile-image';
 import { storeSettingsOpenerPath } from '../../lib/prototype-settings-opener';
 import { useProfile } from '../../hooks/queries/useProfile';
+import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import Icon from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
+import { useRemoveNoteFromSpace } from '../../hooks/mutations/useSpaceNoteAssociation';
 import { useDisconnectNote } from '../../hooks/mutations/useDisconnectNote';
+import { useNavigationSharedSpaceAccess } from '../../hooks/queries/useNavigation';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import PrototypeConnectNoteSheet from './PrototypeConnectNoteSheet';
 import PrototypeFolderTagEditor from './PrototypeFolderTagEditor';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
+import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
+import SharedNoteActivityPanel from './SharedNoteActivityPanel';
+import PrototypeInspectorTemplatesSection from './PrototypeInspectorTemplatesSection';
+import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
+import { PrototypeSectionHeader } from './design-system';
 import { noteParamSlug } from './proto-route-slugs';
+import { isConfirmedForeignNote } from './proto-note-ownership';
+import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
+import type { ApplyableNoteTemplate } from '../../hooks/queries/useNoteTemplates';
+import {
+  NOTE_TEMPLATE_ICON_NAME,
+  resolveNoteTemplateIconColor,
+} from '@/utils/note-template-icon';
+
+export type PrototypeInspectorTemplatesProps = {
+  spaceId?: string | null;
+  spaceTitle?: string | null;
+  canAttachToSpace?: boolean;
+  showSpaceAttachOption?: boolean;
+  isEmpty: boolean;
+  liveTitle: string;
+  liveContent: string;
+  noteType?: string | null;
+  startedFromTemplateId?: string | null;
+  startedFromTemplateName?: string | null;
+  onApply: (template: ApplyableNoteTemplate) => void;
+  /** Keep note provenance label in sync when the source template is renamed. */
+  onTemplateProvenanceChange?: (provenance: { id: string; name: string }) => void;
+};
 
 interface PrototypeInspectorPaneProps {
   note: NoteDetail;
   spaceId?: string;
+  contextSpaceId?: string | null;
+  sharedSpaceId?: string | null;
+  noteAuthorUserId?: string | null;
+  noteAuthorDisplayName?: string | null;
+  onSelectActivity?: (item: NoteActivityItem) => void;
+  activeActivityId?: string | null;
+  /** Draft compose — light inspector (Templates + muted Info). */
+  isDraftCompose?: boolean;
+  templates?: PrototypeInspectorTemplatesProps | null;
 }
 
-export default function PrototypeInspectorPane({ note, spaceId = '' }: PrototypeInspectorPaneProps) {
+export const REMOVE_NOTE_FROM_SPACE_CONFIRMATION =
+  'Remove this note from this space? The canonical note remains in My Home. This space’s responses are archived and can return if the note is shared here again. Thread and folder placement in this space is removed.';
+
+export const DELETE_CANONICAL_NOTE_CONFIRMATION =
+  'Delete this note everywhere? This permanently deletes the canonical note from My Home and every shared space, including its connections and responses. This can’t be undone.';
+
+export function resolveInspectorNoteAction(input: {
+  sharedSpaceId: string | null;
+  isNoteAuthor: boolean;
+  isSpaceOwner: boolean;
+}): 'remove-from-space' | 'delete-everywhere' | null {
+  if (input.sharedSpaceId) {
+    return input.isNoteAuthor || input.isSpaceOwner ? 'remove-from-space' : null;
+  }
+  return input.isNoteAuthor ? 'delete-everywhere' : null;
+}
+
+export default function PrototypeInspectorPane({
+  note,
+  spaceId = '',
+  contextSpaceId = null,
+  sharedSpaceId = null,
+  noteAuthorUserId = null,
+  noteAuthorDisplayName = null,
+  onSelectActivity,
+  activeActivityId = null,
+  isDraftCompose = false,
+  templates = null,
+}: PrototypeInspectorPaneProps) {
+  const { userId: authUserId } = useAuth();
   const [connectOpen, setConnectOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const deleteAnchorRef = useRef<HTMLElement | null>(null);
   const navigate = useNavigate();
   const { closeInspector, closeDrawer, isMobileSidebar, openStudyThreadPopover } = useProtoShell();
   const deleteNote = useDeleteNote();
+  const removeFromSpace = useRemoveNoteFromSpace();
+  const { access: sharedSpaceAccess } = useNavigationSharedSpaceAccess(sharedSpaceId);
 
-  const onDeleteConfirm = () => {
-    if (!spaceId) return;
+  const isForeignNote = isConfirmedForeignNote(note, authUserId);
+  const isNoteAuthor =
+    note.isOwnNote === true ||
+    Boolean(authUserId && (note.authorUserId ?? note.userId) === authUserId);
+  const destructiveAction = resolveInspectorNoteAction({
+    sharedSpaceId,
+    isNoteAuthor,
+    isSpaceOwner: sharedSpaceAccess?.isOwner === true,
+  });
+  const actionPending = deleteNote.isPending || removeFromSpace.isPending;
+
+  const onActionConfirm = () => {
+    if (destructiveAction === 'remove-from-space' && sharedSpaceId) {
+      removeFromSpace.mutate(
+        { noteId: note.id, spaceId: sharedSpaceId },
+        {
+          onSuccess: () => {
+            setDeleteConfirmOpen(false);
+            closeInspector();
+            if (isForeignNote) {
+              navigate({ to: prototypeHomeRouteTo() as any, replace: true });
+            } else {
+              navigate({
+                to: prototypeNoteRouteTo(),
+                params: { noteId: noteParamSlug(note.id) },
+                search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+                replace: true,
+              });
+            }
+            if (isMobileSidebar) closeDrawer();
+          },
+          onError: (err) => {
+            setDeleteConfirmOpen(false);
+            toast.error(err instanceof Error ? err.message : 'Could not remove note from this space');
+          },
+        },
+      );
+      return;
+    }
+    if (destructiveAction !== 'delete-everywhere' || !spaceId) return;
     deleteNote.mutate(
       { noteId: note.id, spaceId },
       {
         onSuccess: () => {
           setDeleteConfirmOpen(false);
           closeInspector();
-          navigate({ to: prototypeHomeRouteTo(), replace: true });
+          navigate({ to: prototypeHomeRouteTo() as any, replace: true });
           if (isMobileSidebar) closeDrawer();
         },
         onError: (err) => {
@@ -61,7 +179,18 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
   const modifiedSource = note.updatedAt ?? note.createdAt;
   const updatedStr = modifiedSource ? formatDate(new Date(modifiedSource)) : '—';
 
-  const wordCount = estimateWords(note.content ?? '');
+  const wordCount = estimateWords((templates?.liveContent ?? note.content) ?? '');
+  const templateFromId = (
+    templates?.startedFromTemplateId ??
+    note.startedFromTemplateId ??
+    ''
+  ).trim();
+  const templateFromName = (
+    templates?.startedFromTemplateName ??
+    note.startedFromTemplateName ??
+    ''
+  ).trim();
+  const showTemplateFrom = Boolean(templateFromId && templateFromName);
 
   const linkedFromNotes = note.linkedFromNotes ?? [];
   const linkedToNotes = note.linkedToNotes ?? [];
@@ -71,37 +200,91 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
     [linkedFromNotes, linkedToNotes],
   );
 
+  const showActivityPanel = typeof onSelectActivity === 'function';
+
+  const templateFromRow = showTemplateFrom ? (
+    <InspectorRow
+      label="Template"
+      value={
+        <span className="proto-inspector-template-from">
+          <span className="proto-inspector-template-from__icon" aria-hidden>
+            <ProtoSpaceMenuIcon
+              color={resolveNoteTemplateIconColor(templateFromId)}
+              iconName={NOTE_TEMPLATE_ICON_NAME}
+              size={16}
+              radius={4}
+              glyphSize={8}
+            />
+          </span>
+          {templateFromName}
+        </span>
+      }
+    />
+  ) : null;
+
   return (
     <div className="proto-inspector">
-      {/* Info section */}
       <section className="proto-inspector-section">
-        <p className="proto-inspector-section-title">Info</p>
+        <PrototypeSectionHeader>Info</PrototypeSectionHeader>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {note.simpleNoteId != null ? (
-            <InspectorSimpleNoteIdRow simpleNoteId={note.simpleNoteId} />
-          ) : null}
-          <InspectorRow label="Created" value={createdStr} />
-          <InspectorRow label="Added by" value={<InspectorAddedByValue addedBy={note.addedBy} />} />
-          <InspectorRow label="Edited" value={updatedStr} />
-          <InspectorRow label="Words" value={String(wordCount)} />
-          {note.noteType && note.noteType !== 'default' ? (
-            <InspectorRow label="Type" value={capitalize(note.noteType)} />
-          ) : null}
-          {note.isPublic ? (
-            <InspectorRow label="Sharing" value="Anyone with link" />
-          ) : null}
+          {isDraftCompose ? (
+            <>
+              <InspectorRow label="Status" value="Draft" />
+              <InspectorRow label="Words" value={String(wordCount)} />
+              {templateFromRow}
+            </>
+          ) : (
+            <>
+              {note.simpleNoteId != null ? (
+                <InspectorSimpleNoteIdRow simpleNoteId={note.simpleNoteId} />
+              ) : null}
+              <InspectorRow label="Created" value={createdStr} />
+              <InspectorRow
+                label="Added by"
+                value={<InspectorAddedByValue note={note} contextSpaceId={contextSpaceId} />}
+              />
+              <InspectorRow label="Edited" value={updatedStr} />
+              <InspectorRow label="Words" value={String(wordCount)} />
+              {templateFromRow}
+              {note.noteType && note.noteType !== 'default' ? (
+                <InspectorRow label="Type" value={capitalize(note.noteType)} />
+              ) : null}
+              {note.isPublic ? (
+                <InspectorRow label="Sharing" value="Anyone with link" />
+              ) : null}
+            </>
+          )}
         </div>
       </section>
 
+      {templates ? <PrototypeInspectorTemplatesSection {...templates} /> : null}
+
+      {showActivityPanel && !isDraftCompose ? (
+        <SharedNoteActivityPanel
+          noteId={note.id}
+          contextSpaceId={contextSpaceId}
+          noteAuthorUserId={noteAuthorUserId}
+          noteAuthorDisplayName={noteAuthorDisplayName}
+          onSelectActivity={onSelectActivity}
+          activeActivityId={activeActivityId}
+        />
+      ) : null}
+
+      {!isForeignNote && !isDraftCompose ? (
+        <>
       <section className="proto-inspector-section">
-        <p className="proto-inspector-section-title">Tags</p>
-        <PrototypeFolderTagEditor note={note} tagsOnly />
+        <PrototypeSectionHeader>Tags</PrototypeSectionHeader>
+        <PrototypeFolderTagEditor
+          note={note}
+          contextSpaceId={contextSpaceId}
+          tagsOnly
+        />
       </section>
 
       {/* Connected Notes section */}
       <section className="proto-inspector-section">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <p className="proto-inspector-section-title" style={{ marginBottom: 0 }}>Connected Notes</p>
+          <PrototypeSectionHeader style={{ marginBottom: 0 }}>Connected Notes</PrototypeSectionHeader>
           {spaceId ? (
             <button
               type="button"
@@ -123,7 +306,13 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
                   <p className="proto-inspector-connections-sublabel">Linked from</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {linkedFromNotes.map((n) => (
-                      <ConnectedNoteRow key={n.id} note={n} direction="from" currentNoteId={note.id} />
+                      <ConnectedNoteRow
+                        key={n.id}
+                        note={n}
+                        direction="from"
+                        currentNoteId={note.id}
+                        contextSpaceId={contextSpaceId}
+                      />
                     ))}
                   </div>
                 </div>
@@ -133,7 +322,13 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
                   <p className="proto-inspector-connections-sublabel">Links to</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {linkedToNotes.map((n) => (
-                      <ConnectedNoteRow key={n.id} note={n} direction="to" currentNoteId={note.id} />
+                      <ConnectedNoteRow
+                        key={n.id}
+                        note={n}
+                        direction="to"
+                        currentNoteId={note.id}
+                        contextSpaceId={contextSpaceId}
+                      />
                     ))}
                   </div>
                 </div>
@@ -149,13 +344,17 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
             </button>
           </>
         ) : (
-          <p className="proto-inspector-muted">No connections yet.</p>
+          <p className="proto-inspector-muted">Connect a related note.</p>
         )}
       </section>
 
       <section className="proto-inspector-section">
-        <p className="proto-inspector-section-title">Folders</p>
-        <PrototypeFolderTagEditor note={note} folderOnly />
+        <PrototypeSectionHeader>Folders</PrototypeSectionHeader>
+        <PrototypeFolderTagEditor
+          note={note}
+          contextSpaceId={contextSpaceId}
+          folderOnly
+        />
       </section>
 
       {spaceId ? (
@@ -168,20 +367,22 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
           connectedNoteIds={connectedNoteIds}
         />
       ) : null}
+        </>
+      ) : null}
 
-      {spaceId ? (
+      {destructiveAction && !isDraftCompose ? (
         <div className="proto-inspector-delete">
           <button
             type="button"
             className="proto-inspector-delete-btn"
-            disabled={deleteNote.isPending}
+            disabled={actionPending}
             onClick={(e) => {
               deleteAnchorRef.current = e.currentTarget;
               setDeleteConfirmOpen(true);
             }}
           >
-            <Icon name="trash-can" size={12} aria-hidden />
-            Delete note
+            <Icon name={destructiveAction === 'remove-from-space' ? 'minus' : 'trash-can'} size={12} aria-hidden />
+            {destructiveAction === 'remove-from-space' ? 'Remove from this space' : 'Delete note'}
           </button>
         </div>
       ) : null}
@@ -190,11 +391,16 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
         <ProtoConfirmDialog
           anchorEl={deleteAnchorRef.current}
           preferAbove
-          confirmLabel="Delete"
-          busy={deleteNote.isPending}
-          onConfirm={onDeleteConfirm}
+          title={
+            destructiveAction === 'remove-from-space'
+              ? REMOVE_NOTE_FROM_SPACE_CONFIRMATION
+              : DELETE_CANONICAL_NOTE_CONFIRMATION
+          }
+          confirmLabel={destructiveAction === 'remove-from-space' ? 'Remove' : 'Delete everywhere'}
+          busy={actionPending}
+          onConfirm={onActionConfirm}
           onCancel={() => {
-            if (!deleteNote.isPending) {
+            if (!actionPending) {
               setDeleteConfirmOpen(false);
               deleteAnchorRef.current = null;
             }
@@ -209,10 +415,12 @@ function ConnectedNoteRow({
   note,
   direction,
   currentNoteId,
+  contextSpaceId,
 }: {
   note: LinkedNoteRef;
   direction: 'from' | 'to';
   currentNoteId: string;
+  contextSpaceId?: string | null;
 }) {
   const disconnectNote = useDisconnectNote();
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
@@ -246,6 +454,10 @@ function ConnectedNoteRow({
       <Link
         to={prototypeNoteRouteTo()}
         params={{ noteId: noteParamSlug(note.id) }}
+        search={{
+          ...PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+          space: contextSpaceId || undefined,
+        }}
         className="proto-inspector-connected-note"
       >
         <Icon
@@ -279,54 +491,63 @@ function InspectorRow({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function InspectorAddedByValue({ addedBy }: { addedBy?: string | null }) {
+function InspectorAddedByValue({
+  note,
+  contextSpaceId,
+}: {
+  note: NoteDetail;
+  contextSpaceId?: string | null;
+}) {
   const { user } = useUser();
+  const { userId: authUserId } = useAuth();
   const { data: profile } = useProfile();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.searchStr });
-  const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
+  const { foreignNoteAuthor, readOnlyInSharedSpace } = useForeignSharedNote(note.id, contextSpaceId);
 
-  const avatarImageUrl = useMemo(
-    () => resolveClerkProfileImageUrl(user, profile?.profileImageUrl),
-    [user, profile?.profileImageUrl],
-  );
-
-  useEffect(() => {
-    setPhotoLoadFailed(false);
-  }, [avatarImageUrl]);
-
-  if (normalizeNoteAddedBy(addedBy) === 'harvous') {
+  if (normalizeNoteAddedBy(note.addedBy) === 'harvous') {
     return 'Harvous';
   }
 
-  const showProfilePhoto = Boolean(avatarImageUrl) && !photoLoadFailed;
+  const isOwnNote =
+    note.isOwnNote === true ||
+    Boolean(authUserId && (note.authorUserId ?? note.userId) === authUserId);
+
+  if (readOnlyInSharedSpace && foreignNoteAuthor && !isOwnNote) {
+    return (
+      <SharedSpaceNoteAuthorChip
+        displayName={foreignNoteAuthor.displayName}
+        userId={foreignNoteAuthor.userId}
+        firstName={foreignNoteAuthor.firstName}
+        profileImageUrl={foreignNoteAuthor.profileImageUrl}
+        color={foreignNoteAuthor.userColor}
+        isSelf={false}
+      />
+    );
+  }
 
   const openAccountSettings = () => {
     storeSettingsOpenerPath(`${pathname}${searchRaw ?? ''}`);
-    void navigate({ to: prototypeSettingsAccountRouteTo() });
+    void navigate({ to: prototypeSettingsAccountRouteTo() as any });
   };
 
   return (
     <button
       type="button"
-      className="proto-glass-surface proto-home-greeting__chip proto-inspector-added-by-chip"
+      className="proto-inspector-added-by-chip-btn"
       aria-label="Open account settings"
       title="Account settings"
       onClick={openAccountSettings}
     >
-      {showProfilePhoto ? (
-        <img
-          src={avatarImageUrl!}
-          alt=""
-          className="proto-inspector-added-by-chip__photo"
-          aria-hidden
-          onError={() => setPhotoLoadFailed(true)}
-        />
-      ) : (
-        <Icon name="circle-user" size={10} aria-hidden />
-      )}
-      <span>You</span>
+      <SharedSpaceNoteAuthorChip
+        displayName={profile?.firstName ?? user?.firstName ?? 'You'}
+        userId={authUserId ?? ''}
+        firstName={user?.firstName ?? profile?.firstName}
+        profileImageUrl={resolveClerkProfileImageUrl(user, profile?.profileImageUrl)}
+        color={profile?.userColor}
+        isSelf
+      />
     </button>
   );
 }

@@ -7,7 +7,9 @@ import { useCreateHighlight } from '../../hooks/mutations/useCreateHighlight';
 import { navigationQueryKeyPrefix } from '../../hooks/queries/useNavigation';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
+import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { PrototypeAddNotesPicker, type AddNotesCandidate } from './PrototypeAddNotesSheet';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -63,6 +65,7 @@ export default function PrototypeConnectNoteSheet({
   connectedNoteIds = [],
 }: PrototypeConnectNoteSheetProps) {
   const { isMobileSidebar } = useProtoShell();
+  const { mounted, exiting } = useProtoOverlayMotion(open);
   const queryClient = useQueryClient();
   const connectMutation = useConnectNote();
   const createHighlightMutation = useCreateHighlight();
@@ -165,18 +168,17 @@ export default function PrototypeConnectNoteSheet({
     }
   };
 
-  const shouldUsePopover = open && !shouldUseSheetPresentation;
+  const usePopoverPresentation = !shouldUseSheetPresentation;
+  const showPopoverPortal = usePopoverPresentation && mounted;
 
   const { position } = useProtoAnchoredPopoverPosition(
     cardRef,
     { anchorEl, anchorRect },
-    { enabled: shouldUsePopover, strategy: placement },
+    { enabled: showPopoverPortal, strategy: placement },
     [selectedIds.length, connectError],
   );
 
-  useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover);
-
-  if (!open) return null;
+  useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation);
 
   const content = (
     <>
@@ -229,25 +231,34 @@ export default function PrototypeConnectNoteSheet({
     </>
   );
 
-  if (shouldUsePopover && typeof document !== 'undefined') {
+  if (showPopoverPortal && typeof document !== 'undefined') {
     return createPortal(
-      <ProtoPopoverShell
-        ref={cardRef}
-        role="dialog"
-        aria-label="Connect note"
-        className="proto-connect-note-popover"
-        style={{
-          position: 'fixed',
-          top: position?.top ?? -9999,
-          left: position?.left ?? -9999,
-          zIndex: 6000,
-        }}
-      >
-        <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-add-notes-sheet">{content}</div>
-      </ProtoPopoverShell>,
+      <>
+        <ProtoDialogBackdrop
+          exiting={exiting}
+          onDismiss={() => onOpenChange(false)}
+          aria-label="Close connect note dialog"
+        />
+        <ProtoPopoverShell
+          ref={cardRef}
+          role="dialog"
+          aria-label="Connect note"
+          className={portaledDialogShellClassName('proto-connect-note-popover', exiting)}
+          style={{
+            position: 'fixed',
+            top: position?.top ?? -9999,
+            left: position?.left ?? -9999,
+            zIndex: 6000,
+          }}
+        >
+          <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-add-notes-sheet">{content}</div>
+        </ProtoPopoverShell>
+      </>,
       document.body,
     );
   }
+
+  if (!open) return null;
 
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange}>

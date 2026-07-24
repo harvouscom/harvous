@@ -1,5 +1,12 @@
 # Admin Experience for Link-Based Shared Content (Alternative to Inbox)
 
+> **Superseded July 2026 for Shared Spaces.** This historical proposal references retired `shareToken`,
+> `isPublic`, `Members`, and copy-in behavior. Its broader Harvous-publisher idea may still inform future public
+> broadcast spaces, but none of the old membership mechanics are current. See
+> [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md) and
+> [SHARED_SPACES_ROADMAP.md](./SHARED_SPACES_ROADMAP.md). Current user-facing feature language is **Thread** or
+> **Threads**.
+
 This doc describes a Harvous-team admin experience where curated spaces, threads, and notes are created and shared via links so anyone with the link can join a space or add content to their account—positioned as an alternative to the current inbox push model.
 
 ---

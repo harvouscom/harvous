@@ -1,0 +1,73 @@
+{
+  "basePath": "/images/space-covers",
+  "note": "Space / ministry channel covers only — not Settings › Appearance wallpapers. Variant 1 per family is the current canonical pairing.",
+  "families": ["blue", "purple", "orange", "green", "pink"],
+  "variantRoles": {
+    "1": "Canonical (existing)",
+    "2": "Softer / more open negative space",
+    "3": "Richer / deeper saturation",
+    "4": "Diagonal / directional light",
+    "5": "Quiet alternate composition"
+  },
+  "presets": [
+    { "id": "blue-1", "family": "blue", "variant": 1, "label": "Breeze", "file": "space_cover_blue_01.webp", "mode": "light", "legacyAppearanceId": "breeze" },
+    { "id": "blue-2", "family": "blue", "variant": 2, "label": "Breeze Soft", "file": "space_cover_blue_02.webp", "mode": "light" },
+    { "id": "blue-3", "family": "blue", "variant": 3, "label": "Breeze Rich", "file": "space_cover_blue_03.webp", "mode": "light" },
+    { "id": "blue-4", "family": "blue", "variant": 4, "label": "Breeze Sweep", "file": "space_cover_blue_04.webp", "mode": "light" },
+    { "id": "blue-5", "family": "blue", "variant": 5, "label": "Breeze Quiet", "file": "space_cover_blue_05.webp", "mode": "light" },
+
+    { "id": "purple-1", "family": "purple", "variant": 1, "label": "Aurora", "file": "space_cover_purple_01.webp", "mode": "light", "legacyAppearanceId": "aurora" },
+    { "id": "purple-2", "family": "purple", "variant": 2, "label": "Aurora Soft", "file": "space_cover_purple_02.webp", "mode": "light" },
+    { "id": "purple-3", "family": "purple", "variant": 3, "label": "Aurora Rich", "file": "space_cover_purple_03.webp", "mode": "light" },
+    { "id": "purple-4", "family": "purple", "variant": 4, "label": "Aurora Sweep", "file": "space_cover_purple_04.webp", "mode": "light" },
+    { "id": "purple-5", "family": "purple", "variant": 5, "label": "Aurora Quiet", "file": "space_cover_purple_05.webp", "mode": "light" },
+
+    { "id": "orange-1", "family": "orange", "variant": 1, "label": "Drift", "file": "space_cover_orange_01.webp", "mode": "light", "legacyAppearanceId": "drift" },
+    { "id": "orange-2", "family": "orange", "variant": 2, "label": "Drift Soft", "file": "space_cover_orange_02.webp", "mode": "light" },
+    { "id": "orange-3", "family": "orange", "variant": 3, "label": "Drift Rich", "file": "space_cover_orange_03.webp", "mode": "light" },
+    { "id": "orange-4", "family": "orange", "variant": 4, "label": "Drift Sweep", "file": "space_cover_orange_04.webp", "mode": "light" },
+    { "id": "orange-5", "family": "orange", "variant": 5, "label": "Drift Quiet", "file": "space_cover_orange_05.webp", "mode": "light" },
+
+    { "id": "green-1", "family": "green", "variant": 1, "label": "Meadow", "file": "space_cover_green_01.webp", "mode": "light", "legacyAppearanceId": "meadow" },
+    { "id": "green-2", "family": "green", "variant": 2, "label": "Meadow Soft", "file": "space_cover_green_02.webp", "mode": "light" },
+    { "id": "green-3", "family": "green", "variant": 3, "label": "Meadow Rich", "file": "space_cover_green_03.webp", "mode": "light" },
+    { "id": "green-4", "family": "green", "variant": 4, "label": "Meadow Sweep", "file": "space_cover_green_04.webp", "mode": "light" },
+    { "id": "green-5", "family": "green", "variant": 5, "label": "Meadow Quiet", "file": "space_cover_green_05.webp", "mode": "light" },
+
+    { "id": "pink-1", "family": "pink", "variant": 1, "label": "Dawn", "file": "space_cover_pink_01.webp", "mode": "light", "legacyAppearanceId": "dawn" },
+    { "id": "pink-2", "family": "pink", "variant": 2, "label": "Dawn Soft", "file": "space_cover_pink_02.webp", "mode": "light" },
+    { "id": "pink-3", "family": "pink", "variant": 3, "label": "Dawn Rich", "file": "space_cover_pink_03.webp", "mode": "light" },
+    { "id": "pink-4", "family": "pink", "variant": 4, "label": "Dawn Sweep", "file": "space_cover_pink_04.webp", "mode": "light" },
+    { "id": "pink-5", "family": "pink", "variant": 5, "label": "Dawn Quiet", "file": "space_cover_pink_05.webp", "mode": "light" },
+
+    { "id": "blue-1-dark", "family": "blue", "variant": 1, "label": "Cinder", "file": "space_cover_blue_01.webp", "mode": "dark", "legacyAppearanceId": "cinder" },
+    { "id": "blue-2-dark", "family": "blue", "variant": 2, "label": "Cinder Soft", "file": "space_cover_blue_02.webp", "mode": "dark" },
+    { "id": "blue-3-dark", "family": "blue", "variant": 3, "label": "Cinder Rich", "file": "space_cover_blue_03.webp", "mode": "dark" },
+    { "id": "blue-4-dark", "family": "blue", "variant": 4, "label": "Cinder Sweep", "file": "space_cover_blue_04.webp", "mode": "dark" },
+    { "id": "blue-5-dark", "family": "blue", "variant": 5, "label": "Cinder Quiet", "file": "space_cover_blue_05.webp", "mode": "dark" },
+
+    { "id": "purple-1-dark", "family": "purple", "variant": 1, "label": "Ember", "file": "space_cover_purple_01.webp", "mode": "dark", "legacyAppearanceId": "ember" },
+    { "id": "purple-2-dark", "family": "purple", "variant": 2, "label": "Ember Soft", "file": "space_cover_purple_02.webp", "mode": "dark" },
+    { "id": "purple-3-dark", "family": "purple", "variant": 3, "label": "Ember Rich", "file": "space_cover_purple_03.webp", "mode": "dark" },
+    { "id": "purple-4-dark", "family": "purple", "variant": 4, "label": "Ember Sweep", "file": "space_cover_purple_04.webp", "mode": "dark" },
+    { "id": "purple-5-dark", "family": "purple", "variant": 5, "label": "Ember Quiet", "file": "space_cover_purple_05.webp", "mode": "dark" },
+
+    { "id": "orange-1-dark", "family": "orange", "variant": 1, "label": "Caldera", "file": "space_cover_orange_01.webp", "mode": "dark", "legacyAppearanceId": "caldera" },
+    { "id": "orange-2-dark", "family": "orange", "variant": 2, "label": "Caldera Soft", "file": "space_cover_orange_02.webp", "mode": "dark" },
+    { "id": "orange-3-dark", "family": "orange", "variant": 3, "label": "Caldera Rich", "file": "space_cover_orange_03.webp", "mode": "dark" },
+    { "id": "orange-4-dark", "family": "orange", "variant": 4, "label": "Caldera Sweep", "file": "space_cover_orange_04.webp", "mode": "dark" },
+    { "id": "orange-5-dark", "family": "orange", "variant": 5, "label": "Caldera Quiet", "file": "space_cover_orange_05.webp", "mode": "dark" },
+
+    { "id": "green-1-dark", "family": "green", "variant": 1, "label": "Depths", "file": "space_cover_green_01.webp", "mode": "dark", "legacyAppearanceId": "depths" },
+    { "id": "green-2-dark", "family": "green", "variant": 2, "label": "Depths Soft", "file": "space_cover_green_02.webp", "mode": "dark" },
+    { "id": "green-3-dark", "family": "green", "variant": 3, "label": "Depths Rich", "file": "space_cover_green_03.webp", "mode": "dark" },
+    { "id": "green-4-dark", "family": "green", "variant": 4, "label": "Depths Sweep", "file": "space_cover_green_04.webp", "mode": "dark" },
+    { "id": "green-5-dark", "family": "green", "variant": 5, "label": "Depths Quiet", "file": "space_cover_green_05.webp", "mode": "dark" },
+
+    { "id": "pink-1-dark", "family": "pink", "variant": 1, "label": "Flare", "file": "space_cover_pink_01.webp", "mode": "dark", "legacyAppearanceId": "flare" },
+    { "id": "pink-2-dark", "family": "pink", "variant": 2, "label": "Flare Soft", "file": "space_cover_pink_02.webp", "mode": "dark" },
+    { "id": "pink-3-dark", "family": "pink", "variant": 3, "label": "Flare Rich", "file": "space_cover_pink_03.webp", "mode": "dark" },
+    { "id": "pink-4-dark", "family": "pink", "variant": 4, "label": "Flare Sweep", "file": "space_cover_pink_04.webp", "mode": "dark" },
+    { "id": "pink-5-dark", "family": "pink", "variant": 5, "label": "Flare Quiet", "file": "space_cover_pink_05.webp", "mode": "dark" }
+  ]
+}

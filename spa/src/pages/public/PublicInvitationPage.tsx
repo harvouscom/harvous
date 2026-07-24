@@ -9,6 +9,7 @@ import { navigationQueryKeyPrefix } from '../../hooks/queries/useNavigation';
 import { idToUrl } from '@/utils/url-helpers';
 import { prototypeHomePath, prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { PublicTopBar, PublicErrorState } from './public-shared';
+import { writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 
 interface InvitationResponse {
   invitation: {
@@ -72,7 +73,7 @@ export default function PublicInvitationPage() {
 
   const handleAccept = async () => {
     if (!isSignedIn) {
-      try { sessionStorage.setItem('harvous_pending_redirect', window.location.href); } catch { /* ignore */ }
+      writePendingAuthRedirect(window.location.href);
       navigate({ to: `/sign-in?redirect_url=${encodeURIComponent(window.location.href)}` as any });
       return;
     }
@@ -169,7 +170,7 @@ export default function PublicInvitationPage() {
                           href={`/sign-in?redirect_url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}`}
                           className="public-cta-btn"
                           onClick={() => {
-                            try { sessionStorage.setItem('harvous_pending_redirect', window.location.href); } catch { /* ignore */ }
+                            writePendingAuthRedirect(window.location.href);
                           }}
                         >
                           Sign in to accept

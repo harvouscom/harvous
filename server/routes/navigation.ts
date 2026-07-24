@@ -11,8 +11,14 @@ import { Hono } from 'hono';
 import { getAuth } from '../middleware/auth';
 import { getCachedUserData } from '../utils/user-cache';
 import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount, getMemberOfSpaces, getThreadNoteTypeCounts } from '../utils/dashboard-data';
+import { attachMinistryCadenceToSpaces } from '../utils/channel-publish-cadence';
+import { getNewNoteCountsForUser } from '../utils/shared-space-visit';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
+import {
+  isSpaceMembershipsLastVisitedColumnMissing,
+  isSpaceMembershipsTableMissing,
+} from '../utils/pg-undefined-relation';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { ensurePersonalHomeSpace } from '../utils/ensure-personal-home-space';
 import { purgeOnboardingContentForUser } from '../utils/purge-onboarding-content';
@@ -38,6 +44,7 @@ route.get('/api/navigation/data', async (c) => {
     await repairMissingNoteThreadJunctionsForUser(userId);
 
     // Fetch navigation data in parallel
+    let newNoteCounts = new Map<string, number>();
     const [threads, spaces, inboxCount, unorganizedThreadData, unorganizedTypeCounts, memberSpaces] = await Promise.all([
       getAllThreadsWithCounts(userId),
       getSpacesWithCounts(userId),
@@ -46,6 +53,18 @@ route.get('/api/navigation/data', async (c) => {
       getThreadNoteTypeCounts('thread_unorganized', userId),
       getMemberOfSpaces(userId),
     ]);
+
+    try {
+      newNoteCounts = await getNewNoteCountsForUser(userId);
+    } catch (badgeError) {
+      if (
+        !isSpaceMembershipsTableMissing(badgeError) &&
+        !isSpaceMembershipsLastVisitedColumnMissing(badgeError)
+      ) {
+        throw badgeError;
+      }
+      /* Schema not pushed yet — return nav without new-since badges. */
+    }
 
     // Ensure threads and spaces have backgroundGradient property
     const threadsWithGradients = threads.map(thread => ({
@@ -72,14 +91,23 @@ route.get('/api/navigation/data', async (c) => {
       backgroundGradient: unorganizedThreadData.backgroundGradient || getThreadGradientCSS('paper'),
     });
 
-    const spacesWithGradients = spaces.map(space => ({
+    const [spacesWithCadence, memberSpacesWithCadence] = await Promise.all([
+      attachMinistryCadenceToSpaces(spaces),
+      attachMinistryCadenceToSpaces(memberSpaces),
+    ]);
+
+    const spacesWithGradients = spacesWithCadence.map(space => ({
       ...space,
       backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'),
+      ...(space.type === 'shared' || space.type === 'public'
+        ? { newNoteCount: newNoteCounts.get(space.id) ?? 0 }
+        : {}),
     }));
 
-    const memberSpacesWithGradients = memberSpaces.map(space => ({
+    const memberSpacesWithGradients = memberSpacesWithCadence.map(space => ({
       ...space,
       backgroundGradient: getThreadGradientCSS(space.color || 'paper'),
+      newNoteCount: newNoteCounts.get(space.id) ?? 0,
     }));
 
     return c.json(
@@ -90,7 +118,7 @@ route.get('/api/navigation/data', async (c) => {
         inboxCount,
       },
       200,
-      { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
+      { 'Cache-Control': 'private, no-store' },
     );
   } catch (error) {
     try {

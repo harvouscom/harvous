@@ -2,6 +2,8 @@ import { setPwaPromptLastDismissed } from '@/utils/pwa-prompt';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 import { extractIdFromPath } from '@/utils/url-helpers';
 import { ClerkProvider, useAuth, useUser } from '@clerk/clerk-react';
+import { hasClerkSessionCookieHint } from './hooks/queries/useProfile';
+import { syncMarketingSessionHint } from './utils/marketing-session-hint';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { clearUserClientCaches } from '@/utils/clear-user-client-caches';
 import { RouterProvider } from '@tanstack/react-router';
@@ -13,7 +15,7 @@ import { shouldSuppressAppToasts } from '@/utils/should-suppress-app-toasts';
 import { Toaster, toast as sonnerToast } from 'sonner';
 import { WebHaptics } from 'web-haptics';
 import { router } from './router';
-import { APIError, setClerkGetToken } from './lib/api';
+import { APIError } from './lib/api';
 import SpotlightSearch from './components/SpotlightSearch';
 import KeyboardShortcutsInit from '../../src/components/react/KeyboardShortcutsInit';
 import {
@@ -23,6 +25,14 @@ import {
 import { subscribeSheetOverlayInset } from '@/utils/sheet-overlay-inset';
 import { useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 import { SyncCacheBridge } from './lib/sync-cache-bridge';
+import { SharedSpacesEntitlementBridge } from './lib/SharedSpacesEntitlementBridge';
+import {
+  clearPendingAuthRedirect,
+  consumePendingAuthRedirect,
+  peekPendingAuthRedirect,
+  pendingAuthRedirectDecision,
+} from './lib/pending-auth-redirect';
+import { syncPublicRouteHtmlClass } from '@/lib/prototype-path';
 
 const PWA_INSTALL_INSTRUCTIONS_EVENT = 'showPwaInstallInstructions';
 
@@ -91,7 +101,7 @@ const windowToast = {
   },
   upgradePrompt: (message: string, upgradeUrl?: string) => {
     showToast(() => {
-      const url = upgradeUrl || '/upgrade';
+      const url = upgradeUrl || '/addon';
       sonnerToast.error(message, {
         icon: null,
         duration: Infinity,
@@ -239,12 +249,78 @@ function AuthSignedOutCacheCleanup() {
   return null;
 }
 
-function ClerkTokenBridge() {
-  const { getToken } = useAuth();
+/** Parent-domain cookie so harvous.com can show Open app without a credentialed cross-origin fetch. */
+function MarketingSiteSessionHint() {
+  const { isLoaded, isSignedIn } = useAuth();
   useEffect(() => {
-    setClerkGetToken(() => getToken());
-    return () => setClerkGetToken(null);
-  }, [getToken]);
+    if (!isLoaded) return;
+    syncMarketingSessionHint(Boolean(isSignedIn));
+  }, [isLoaded, isSignedIn]);
+  return null;
+}
+
+function PublicRouteClassBridge() {
+  useLayoutEffect(() => {
+    const syncPath = (pathname: string) => {
+      syncPublicRouteHtmlClass(pathname);
+    };
+    syncPath(window.location.pathname);
+    const unsubscribeBeforeNavigate = router.subscribe('onBeforeNavigate', (event) => {
+      syncPath(event.toLocation.pathname);
+    });
+    const unsubscribeResolved = router.subscribe('onResolved', (event) => {
+      syncPath(event.toLocation.pathname);
+    });
+    return () => {
+      unsubscribeBeforeNavigate();
+      unsubscribeResolved();
+    };
+  }, []);
+
+  return null;
+}
+
+function PendingAuthRedirectBridge() {
+  const { isLoaded, isSignedIn } = useAuth();
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+
+    const applyPendingRedirect = () => {
+      const currentUrl = window.location.href;
+      const current = new URL(currentUrl);
+      const isAuthPath =
+        current.pathname === '/sign-in' ||
+        current.pathname.startsWith('/sign-in/') ||
+        current.pathname === '/sign-up' ||
+        current.pathname.startsWith('/sign-up/');
+      const hasExplicitRedirect = isAuthPath && current.searchParams.has('redirect_url');
+      const pendingDestination = peekPendingAuthRedirect();
+      const decision = pendingAuthRedirectDecision({
+        isLoaded,
+        isSignedIn: Boolean(isSignedIn),
+        hasExplicitRedirect,
+        currentDestination: currentUrl,
+        pendingDestination,
+        origin: current.origin,
+      });
+
+      if (decision === 'explicit' || decision === 'at-target' || decision === 'none') {
+        clearPendingAuthRedirect();
+        return;
+      }
+      if (decision !== 'navigate') return;
+
+      const destination = consumePendingAuthRedirect();
+      if (destination) {
+        void router.navigate({ to: destination as any, replace: true });
+      }
+    };
+
+    applyPendingRedirect();
+    return router.subscribe('onResolved', applyPendingRedirect);
+  }, [isLoaded, isSignedIn]);
+
   return null;
 }
 
@@ -259,7 +335,8 @@ function QueryClient401Redirect() {
     const maybeRedirect = (error: unknown) => {
       if (!(error instanceof APIError && error.status === 401)) return;
       if (!isLoadedRef.current) return;
-      // After Clerk has loaded, trust isSignedIn — do not let a stale cookie hint block sign-in.
+      // Clerk may still be restoring session from cookies; avoid bouncing to sign-in.
+      if (hasClerkSessionCookieHint()) return;
       if (isSignedInRef.current) return;
       if (redirecting401) return;
       redirecting401 = true;
@@ -659,16 +736,9 @@ function useInAppLinkInterceptor() {
         return;
       }
 
-      // File downloads (e.g. My Data backup zip via blob: object URLs) must not be
-      // hijacked — preventDefault would cancel the download and router.navigate the
-      // blob path into a bogus route (settings Not Found → Account).
-      if (anchor.hasAttribute('download')) return;
-
       try {
         const url = new URL(anchor.href);
-        if (url.protocol === 'blob:' || url.protocol === 'data:') return;
         if (url.origin !== window.location.origin) return;
-        if (url.pathname.startsWith('/api/')) return;
         if (anchor.target === '_blank' || anchor.rel?.includes('external')) return;
         if (e.ctrlKey || e.metaKey || e.shiftKey) return;
 
@@ -724,8 +794,10 @@ export default function App() {
   return (
     <HarvousClerkProvider>
       <QueryClientProvider client={queryClient}>
-        <ClerkTokenBridge />
         <AuthSignedOutCacheCleanup />
+        <MarketingSiteSessionHint />
+        <PublicRouteClassBridge />
+        <PendingAuthRedirectBridge />
         <QueryClient401Redirect />
         <IosPwaSheetOverlayInset />
         <WebHapticsSetup />
@@ -733,6 +805,7 @@ export default function App() {
         <ToastSetup />
         <UserIdSync />
         <SyncCacheBridge />
+        <SharedSpacesEntitlementBridge />
         <SpaToaster />
         <KeyboardShortcutsInit />
         <SpotlightSearch />

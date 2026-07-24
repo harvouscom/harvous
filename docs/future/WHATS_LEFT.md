@@ -1,5 +1,14 @@
 # What's Left - Collaborative Shared Spaces
 
+> **RETIRED (July 2026) — do not use for release decisions.** This doc
+> describes the February 2026 v1 architecture (`Members`/`SpaceInvitations`,
+> `space-permissions.ts`, Astro DB), which was frozen and superseded by the
+> clean-break foundation (`SpaceMemberships`/`SpaceInvites`,
+> `space-access.ts`, Drizzle/Supabase). Its "complete / ready to ship"
+> claims refer to the retired system. Current release requirements live in
+> [RELEASE_CHECKLIST_SHARED_SPACES.md](../RELEASE_CHECKLIST_SHARED_SPACES.md)
+> and [SHARED_SPACES_LAUNCH_STRATEGY.md](./SHARED_SPACES_LAUNCH_STRATEGY.md).
+
 ## ✅ Shared Spaces v1 — COMPLETE 🎉
 
 **Status (February 2026):** Shared spaces are in a good place and complete for v1. All v1 implementation is done. Next focus: **performance and quality-of-life improvements** across the app. For design and behavior details, see [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md).
