@@ -138,7 +138,11 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 6px 6px 10px;
+  /* Symmetric inset so the CTA pill sits fully inside the glass capsule
+     (longer labels like “Back to my Harvous” looked clipped at 6px). */
+  padding: 5px 5px 5px 10px;
+  max-width: min(100%, calc(100vw - 32px));
+  box-sizing: border-box;
   background: rgba(255, 255, 255, 0.85);
   border: 0.5px solid var(--site-rule);
   border-radius: 999px;
@@ -186,27 +190,40 @@
   color: var(--site-ink);
 }
 
-/* CTA pill ("Open app" / "Sign in") — matches prototype "Not now" dismiss
-   styling; keeps the public nav pill radius (999px). */
+/* CTA pill ("Open app" / "Sign in" / "Back to my Harvous") — site accent,
+   matching public-route-boot critical CSS and the marketing header. Keep
+   boot + bundle in sync so we never get white text on a light hover fill. */
 .public-toolbar__cta {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
   height: 36px;
   padding: 0 14px;
+  border: 0;
   border-radius: 999px;
-  border: 1px solid var(--pds-border-control);
-  background: var(--pds-bg-sidebar-input);
-  box-shadow: var(--pds-glass-rim);
-  font-family: var(--pds-font-body);
+  background: var(--site-accent);
+  box-shadow: none;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
   font-size: 13px;
-  font-weight: 500;
-  color: var(--pds-text-primary);
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  -webkit-text-fill-color: #fff;
   text-decoration: none;
-  transition: background 0.1s;
+  white-space: nowrap;
+  transition: filter 120ms ease;
 }
 .public-toolbar__cta:hover {
-  background: var(--pds-bg-sidebar-input-hover);
+  background: var(--site-accent);
+  filter: brightness(1.06);
+}
+.public-toolbar__cta:focus-visible {
+  outline: 2px solid var(--site-accent);
+  outline-offset: 2px;
 }
 
 /* ─── Body ──────────────────────────────────────────────────────────────── */
