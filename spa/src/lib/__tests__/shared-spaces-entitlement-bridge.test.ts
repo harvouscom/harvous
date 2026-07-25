@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { applySharedSpacesEntitlementSynced, patchSubscriptionStatusCache } from '../shared-spaces-entitlement-bridge';
 import { PANEL_CACHE_KEYS, setCachedPanelData, getCachedPanelData } from '@/utils/panel-data-cache';
+import { UNLIMITED } from '@/lib/billing-plans';
 
 describe('shared-spaces-entitlement-bridge', () => {
   let queryClient: QueryClient;
@@ -16,7 +17,7 @@ describe('shared-spaces-entitlement-bridge', () => {
       hasSharedSpaces: false,
       entitlements: [],
       planKey: null,
-      limits: { ownedSpaces: 0, membersPerSpace: 30 },
+      limits: { ownedSpaces: 0, membersPerSpace: 100 },
       currentCount: 0,
       limit: null,
       sharedSpacesOwnedCount: 0,
@@ -31,7 +32,7 @@ describe('shared-spaces-entitlement-bridge', () => {
       entitlements: string[];
     }>(['subscription', 'status']);
     expect(data?.hasSharedSpaces).toBe(true);
-    expect(data?.sharedSpacesOwnedLimit).toBe(10);
+    expect(data?.sharedSpacesOwnedLimit).toBe(UNLIMITED);
     expect(data?.entitlements).toContain('shared_spaces');
   });
 

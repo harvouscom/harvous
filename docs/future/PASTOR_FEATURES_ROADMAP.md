@@ -2,7 +2,7 @@
 
 **Status:** Design only — no code lands from this doc. Companion to
 [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md) (org model),
-[BILLING_ARCHITECTURE.md](../BILLING_ARCHITECTURE.md) (billing / Paddle),
+[BILLING_ARCHITECTURE.md](../BILLING_ARCHITECTURE.md) (billing / Polar),
 and [CHURCH_CONNECTION_SYSTEM.md](./CHURCH_CONNECTION_SYSTEM.md) (connection flow).
 Written July 2026 alongside the harvous.com `/for/pastors` audience page and
 `sermon-prep` use case, and the church-org schema groundwork on

@@ -1,89 +1,99 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { initializePaddle, type Environments, type Paddle, type PaddleEventData } from '@paddle/paddle-js';
-import { dispatchSharedSpacesEntitlementSynced, syncSharedSpacesBilling } from '@/utils/sync-shared-spaces-billing';
-import { formatPlanPrice, listedPlanForInterval, type PlanInterval } from '@/lib/billing-plans';
-
-/** Class name (not a CSS selector) Paddle's inline checkout mounts into — see FRAME_TARGET_CLASS usage below. */
-const FRAME_TARGET_CLASS = 'upgrade-checkout-frame';
-
-let paddleClientPromise: Promise<Paddle | undefined> | null = null;
-let latestPaddleEventHandler: ((event: PaddleEventData) => void) | null = null;
-
-/** Lazily loads and caches a single Paddle.js client for the page's lifetime. */
-function getPaddleClient(onEvent: (event: PaddleEventData) => void): Promise<Paddle | undefined> {
-  latestPaddleEventHandler = onEvent;
-  if (paddleClientPromise) return paddleClientPromise;
-
-  const token = import.meta.env.VITE_PADDLE_CLIENT_TOKEN as string | undefined;
-  if (!token) {
-    paddleClientPromise = Promise.resolve(undefined);
-    return paddleClientPromise;
-  }
-
-  const environment: Environments = import.meta.env.VITE_PADDLE_ENV === 'production' ? 'production' : 'sandbox';
-  paddleClientPromise = initializePaddle({
-    token,
-    environment,
-    eventCallback: (event) => latestPaddleEventHandler?.(event)
-  });
-  return paddleClientPromise;
-}
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  formatPlanPrice,
+  foundingPlan,
+  planFor,
+  type PlanDefinition,
+} from '@/lib/billing-plans';
 
 interface UpgradeCheckoutButtonProps {
   className?: string;
-  /** Unused with Paddle — kept so callers that still pass a Clerk-era publishable key don't need to change. */
+  /** Unused with Polar — kept so callers that still pass a Clerk-era publishable key don't need to change. */
   publishableKey?: string | null;
   ctaLabel?: string;
   priceMonthlyLabel?: string;
   priceAnnualLabel?: string;
 }
 
-/** Monthly / annual segmented pill — styled to match the sign-in page's form inputs. */
-function IntervalToggle({
-  selectedInterval,
+type FoundingAvailability = {
+  total: number;
+  claimed: number;
+  remaining: number;
+  available: boolean;
+};
+
+type PlanOption = {
+  id: string;
+  productId: string;
+  /** Short chip label, e.g. "$45/yr". */
+  chip: string;
+  /** Full accessible name for the option. */
+  label: string;
+};
+
+/** Segmented chip toggle — short price labels only. */
+function PlanToggle({
+  options,
+  selectedId,
   onSelect,
-  priceMonthlyLabel,
-  priceAnnualLabel,
   disabled = false,
 }: {
-  selectedInterval: PlanInterval;
-  onSelect: (interval: PlanInterval) => void;
-  priceMonthlyLabel: string;
-  priceAnnualLabel: string;
+  options: PlanOption[];
+  selectedId: string;
+  onSelect: (id: string) => void;
   disabled?: boolean;
 }) {
-  const options: Array<[PlanInterval, string]> = [
-    ['month', priceMonthlyLabel],
-    ['year', priceAnnualLabel],
-  ];
-
   return (
-    <div className="upgrade-toggle" role="radiogroup" aria-label="Billing interval">
-      {options.map(([interval, label]) => (
+    <div
+      className={`upgrade-toggle${options.length > 2 ? ' upgrade-toggle--triple' : ''}`}
+      role="radiogroup"
+      aria-label="Plan"
+    >
+      {options.map((option) => (
         <button
-          key={interval}
+          key={option.id}
           type="button"
           role="radio"
-          aria-checked={selectedInterval === interval}
+          aria-checked={selectedId === option.id}
+          aria-label={option.label}
           disabled={disabled}
-          onClick={() => onSelect(interval)}
-          className={`upgrade-toggle__btn${selectedInterval === interval ? ' upgrade-toggle__btn--active' : ''}`}
+          onClick={() => onSelect(option.id)}
+          className={`upgrade-toggle__btn${selectedId === option.id ? ' upgrade-toggle__btn--active' : ''}`}
         >
-          {label}
+          {option.chip}
         </button>
       ))}
     </div>
   );
 }
 
-type CheckoutPhase = 'idle' | 'starting' | 'checkout' | 'syncing' | 'done';
+function preferredTheme(): 'light' | 'dark' {
+  if (typeof document !== 'undefined' && document.documentElement.dataset.theme) {
+    return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+  }
+  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+    return 'dark';
+  }
+  return 'light';
+}
+
+function priceLabel(plan: PlanDefinition | null, suffix: string): string {
+  return plan ? `${formatPlanPrice(plan)} ${suffix}` : '';
+}
+
+function chipLabel(plan: PlanDefinition | null): string {
+  if (!plan) return '';
+  return plan.interval === 'year' ? `${formatPlanPrice(plan)}/yr` : `${formatPlanPrice(plan)}/mo`;
+}
 
 /**
- * Paddle Billing checkout. Fetches a price + customer id from
- * `/api/billing/checkout`, then opens Paddle's inline checkout in a frame
- * mounted inside this card. On `checkout.completed`, reconciles entitlements
- * via `/api/billing/sync` and broadcasts `subscriptionUpgraded` so the rest of
- * the app (space switcher, settings, this page's parent) refreshes.
+ * Polar Billing checkout — same-tab hosted redirect.
+ * Creates a session via `/api/billing/checkout`, then navigates to Polar.
+ * Return to `/upgrade?checkout_id=…` syncs entitlements on UpgradePage.
+ *
+ * Founding availability is fetched rather than derived from the registry: the
+ * cap is a live count, and a page open since before the last slot went must not
+ * offer a price it can no longer honor. The server re-checks at checkout too.
  */
 export default function UpgradeCheckoutButton({
   className = '',
@@ -91,105 +101,127 @@ export default function UpgradeCheckoutButton({
   priceMonthlyLabel,
   priceAnnualLabel,
 }: UpgradeCheckoutButtonProps) {
-  const [selectedInterval, setSelectedInterval] = useState<PlanInterval>('year');
-  const [phase, setPhase] = useState<CheckoutPhase>('idle');
+  const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const mountedRef = useRef(true);
+  const [founding, setFounding] = useState<FoundingAvailability | null>(null);
+
+  const monthPlan = planFor('plus', 'month');
+  const yearPlan = planFor('plus', 'year');
+  const founderPlan = foundingPlan();
+
+  const resolvedMonthlyLabel = priceMonthlyLabel ?? priceLabel(monthPlan, 'per month');
+  const resolvedAnnualLabel = priceAnnualLabel ?? priceLabel(yearPlan, 'per year');
+  const billingConfigured = Boolean(monthPlan?.productId || yearPlan?.productId);
+
+  const loadFounding = useCallback(async () => {
+    try {
+      const res = await fetch('/api/billing/plans', { credentials: 'include', cache: 'no-store' });
+      if (!res.ok) return;
+      const data = (await res.json()) as { founding?: FoundingAvailability };
+      if (data.founding) setFounding(data.founding);
+    } catch {
+      // Availability unknown → founding simply isn't offered. Standard pricing still works.
+    }
+  }, []);
 
   useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+    void loadFounding();
+  }, [loadFounding]);
 
-  const monthPlan = listedPlanForInterval('month');
-  const yearPlan = listedPlanForInterval('year');
-  const resolvedMonthlyLabel = priceMonthlyLabel ?? (monthPlan ? `${formatPlanPrice(monthPlan)} per month` : '');
-  const resolvedAnnualLabel = priceAnnualLabel ?? (yearPlan ? `${formatPlanPrice(yearPlan)} per year` : '');
-  const billingConfigured = Boolean(monthPlan?.priceId || yearPlan?.priceId);
+  const foundingAvailable = Boolean(founding?.available && founderPlan?.productId);
 
-  const runPostCheckoutSync = useCallback(async () => {
-    if (mountedRef.current) setPhase('syncing');
-    try {
-      const result = await syncSharedSpacesBilling();
-      dispatchSharedSpacesEntitlementSynced({
-        hasSharedSpaces: result.hasSharedSpaces,
-        updated: result.updated,
-        entitlements: result.entitlements
-      });
-    } catch (err) {
-      console.error('[UpgradeCheckoutButton] Post-checkout sync failed:', err);
+  // While founding spots remain: Founding + Monthly only. After sell-out:
+  // Monthly + standard Yearly (founding chip is gone; $64/yr takes its place).
+  const options: PlanOption[] = [
+    ...(foundingAvailable && founderPlan
+      ? [
+          {
+            id: 'founding',
+            productId: founderPlan.productId,
+            chip: chipLabel(founderPlan),
+            label: priceLabel(founderPlan, 'per year'),
+          },
+        ]
+      : []),
+    ...(monthPlan
+      ? [
+          {
+            id: 'month',
+            productId: monthPlan.productId,
+            chip: chipLabel(monthPlan),
+            label: resolvedMonthlyLabel,
+          },
+        ]
+      : []),
+    ...(!foundingAvailable && yearPlan
+      ? [
+          {
+            id: 'year',
+            productId: yearPlan.productId,
+            chip: chipLabel(yearPlan),
+            label: resolvedAnnualLabel,
+          },
+        ]
+      : []),
+  ];
+
+  const defaultId = foundingAvailable ? 'founding' : 'year';
+  const [selectedId, setSelectedId] = useState<string>(defaultId);
+
+  // Founding resolves after mount; move the selection onto it once, unless the
+  // user already picked something themselves.
+  const [userPicked, setUserPicked] = useState(false);
+  useEffect(() => {
+    if (userPicked) return;
+    setSelectedId(foundingAvailable ? 'founding' : yearPlan ? 'year' : 'month');
+  }, [foundingAvailable, userPicked, yearPlan]);
+
+  // If founding sells out while the user still had it selected, land on yearly.
+  useEffect(() => {
+    if (foundingAvailable) {
+      if (selectedId === 'year') setSelectedId(userPicked ? 'month' : 'founding');
+      return;
     }
-    window.dispatchEvent(new CustomEvent('subscriptionUpgraded'));
-    if (mountedRef.current) setPhase('done');
-  }, []);
+    if (selectedId === 'founding') setSelectedId(yearPlan ? 'year' : 'month');
+  }, [foundingAvailable, selectedId, userPicked, yearPlan]);
 
-  const handlePaddleEvent = useCallback(
-    (event: PaddleEventData) => {
-      if (event.name === 'checkout.completed') {
-        void runPostCheckoutSync();
-      } else if (event.name === 'checkout.closed') {
-        if (mountedRef.current) setPhase('idle');
-      } else if (event.name === 'checkout.error') {
-        if (mountedRef.current) {
-          setError('Something went wrong opening checkout. Please try again.');
-          setPhase('idle');
-        }
-      }
-    },
-    [runPostCheckoutSync]
-  );
+  const selected = options.find((o) => o.id === selectedId) ?? options[options.length - 1];
 
   const startCheckout = useCallback(async () => {
+    if (!selected) return;
     setError(null);
-    setPhase('starting');
+    setIsStarting(true);
     try {
-      const paddle = await getPaddleClient(handlePaddleEvent);
-      if (!paddle) throw new Error('Billing is not configured');
-
       const res = await fetch('/api/billing/checkout', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ interval: selectedInterval })
+        body: JSON.stringify({ productId: selected.productId }),
       });
 
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+        if (body.code === 'FOUNDING_SOLD_OUT') {
+          // Someone took the last slot while this page was open — fall back cleanly.
+          await loadFounding();
+          setUserPicked(false);
+          setSelectedId('year');
+          throw new Error('The founding price was just claimed. Standard pricing is selected.');
+        }
         throw new Error(body.error || 'Unable to start checkout');
       }
 
-      const { priceId, customerId, customData } = (await res.json()) as {
-        priceId: string;
-        customerId?: string;
-        customData?: Record<string, unknown>;
-      };
+      const { url } = (await res.json()) as { url: string };
+      if (!url) throw new Error('Unable to start checkout');
 
-      if (!mountedRef.current) return;
-      setPhase('checkout');
-      paddle.Checkout.open({
-        items: [{ priceId, quantity: 1 }],
-        customer: customerId ? { id: customerId } : undefined,
-        customData,
-        settings: {
-          displayMode: 'inline',
-          frameTarget: FRAME_TARGET_CLASS,
-          frameInitialHeight: 450,
-          frameStyle: 'width: 100%; min-width: 312px; background-color: transparent; border: none;'
-        }
-      });
+      const checkoutUrl = new URL(url);
+      checkoutUrl.searchParams.set('theme', preferredTheme());
+      window.location.assign(checkoutUrl.toString());
     } catch (err) {
-      if (!mountedRef.current) return;
       setError(err instanceof Error ? err.message : 'Unable to start checkout');
-      setPhase('idle');
+      setIsStarting(false);
     }
-  }, [selectedInterval, handlePaddleEvent]);
-
-  const cancelCheckout = useCallback(() => {
-    void getPaddleClient(handlePaddleEvent).then((paddle) => paddle?.Checkout.close());
-    setPhase('idle');
-  }, [handlePaddleEvent]);
+  }, [loadFounding, selected]);
 
   if (!billingConfigured) {
     return (
@@ -201,44 +233,33 @@ export default function UpgradeCheckoutButton({
     );
   }
 
-  if (phase === 'syncing' || phase === 'done') {
-    return (
-      <div className={className}>
-        <button type="button" disabled className="upgrade-primary-btn upgrade-primary-btn--disabled">
-          {phase === 'syncing' ? 'Just a moment…' : "You're all set"}
-        </button>
-      </div>
-    );
-  }
-
-  if (phase === 'checkout') {
-    return (
-      <div className={className}>
-        <div className={FRAME_TARGET_CLASS} />
-        <button type="button" className="upgrade-secondary-btn" onClick={cancelCheckout}>
-          Cancel
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className={className}>
-      <IntervalToggle
-        selectedInterval={selectedInterval}
-        onSelect={setSelectedInterval}
-        priceMonthlyLabel={resolvedMonthlyLabel}
-        priceAnnualLabel={resolvedAnnualLabel}
-        disabled={phase === 'starting'}
+      <PlanToggle
+        options={options}
+        selectedId={selected?.id ?? defaultId}
+        onSelect={(id) => {
+          setUserPicked(true);
+          setSelectedId(id);
+        }}
+        disabled={isStarting}
       />
       {error ? (
         <p className="upgrade-checkout__error" role="alert">
           {error}
         </p>
       ) : null}
-      <button type="button" className="upgrade-primary-btn" disabled={phase === 'starting'} onClick={() => void startCheckout()}>
-        {phase === 'starting' ? 'Starting checkout…' : ctaLabel}
+      <button
+        type="button"
+        className="upgrade-primary-btn"
+        disabled={isStarting || !selected}
+        onClick={() => void startCheckout()}
+      >
+        {isStarting ? 'Starting checkout…' : ctaLabel}
       </button>
+      <p className="upgrade-checkout__guarantee">
+        30-day money-back guarantee. Cancel anytime.
+      </p>
     </div>
   );
 }

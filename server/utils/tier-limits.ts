@@ -2,7 +2,7 @@
  * Shared Spaces gates — thin wrappers over entitlements + plan limits.
  *
  * Owning shared spaces requires the `shared_spaces` feature (Harvous Plus).
- * Joining is always free. Entitlements live in the Entitlements table (Paddle
+ * Joining is always free. Entitlements live in the Entitlements table (Polar
  * Billing / admin grants); see server/utils/entitlements.ts.
  */
 
@@ -14,20 +14,30 @@ import {
   setFeatureEntitlement,
   limitsForUser,
 } from './entitlements';
+import { UNLIMITED, isUnlimited } from '@/lib/billing-plans';
 
 /**
  * Total people in a type='shared' collaborative space (including owner),
  * enforced at invite redeem + admin add-member. Public/broadcast spaces are
  * uncapped (congregation scale) — they are joined via follow/connect, not
  * invites, and canAddMemberToSpace exempts them.
+ *
+ * This cap — not the space count — is the fence between a personal plan and a
+ * church plan. A congregation hits 100 and the space transfers to the org;
+ * a small group never touches it. Do not raise this to "be generous" without
+ * re-reading that trade: spaces are free to host, seats are the product line.
  */
-export const MEMBERS_PER_SPACE_CAP = 30;
+export const MEMBERS_PER_SPACE_CAP = 100;
 
-/** Owned shared spaces without Plus. */
+/**
+ * Owned shared spaces without Plus. Free is strictly private — the paid line is
+ * hosting, not a quota. Joining someone else's space is always free, which is
+ * how free users experience shared spaces before they ever buy.
+ */
 export const FREE_OWNED_SHARED_SPACES_LIMIT = 0;
 
-/** Max owned shared spaces with Harvous Plus (default; plan registry may raise). */
-export const OWNED_SHARED_SPACES_ADDON_LIMIT = 10;
+/** Owned shared spaces with Harvous Plus — unlimited; the member cap is the fence. */
+export const OWNED_SHARED_SPACES_ADDON_LIMIT = UNLIMITED;
 
 // ─── Shared Spaces entitlement ──────────────────────────────────────────────
 
@@ -94,7 +104,9 @@ export async function canCreateSharedSpace(
       upgradeUrl: '/upgrade',
     };
   }
-  if (currentCount >= ownedLimit) {
+  // Plus is unlimited today; the explicit guard keeps a future capped plan honest
+  // (a plain `currentCount >= ownedLimit` would block everything at UNLIMITED = -1).
+  if (!isUnlimited(ownedLimit) && currentCount >= ownedLimit) {
     return {
       allowed: false,
       reason: `You can own up to ${ownedLimit} shared spaces.`,
@@ -134,7 +146,13 @@ export async function canAddMemberToSpace(
   return { allowed: true, currentCount, limit };
 }
 
-/** Summary for /api/user/limits. */
+/**
+ * Summary for /api/user/limits.
+ *
+ * Unlimited is reported as `UNLIMITED` (-1), never `Infinity`: this payload is
+ * JSON, and `JSON.stringify(Infinity)` is `null` — which a numeric client
+ * compare reads as 0, i.e. "no capacity". Clients must use `isUnlimited()`.
+ */
 export async function getUserLimitsInfo(userId: string, auth: Auth) {
   const [hasPlus, sharedSpacesOwned, limits] = await Promise.all([
     hasSharedSpacesAddOn(auth),
@@ -142,13 +160,16 @@ export async function getUserLimitsInfo(userId: string, auth: Auth) {
     limitsForUser(userId),
   ]);
   const ownedLimit = hasPlus ? limits.ownedSpaces : FREE_OWNED_SHARED_SPACES_LIMIT;
+  const ownedRemaining = isUnlimited(ownedLimit)
+    ? UNLIMITED
+    : Math.max(0, ownedLimit - sharedSpacesOwned);
   return {
     tier: (hasPlus ? 'unlimited' : 'free') as 'free' | 'unlimited',
     hasSharedSpacesAddOn: hasPlus,
     limits: {
-      ownedSharedSpaces: { current: sharedSpacesOwned, limit: ownedLimit, remaining: ownedLimit - sharedSpacesOwned },
+      ownedSharedSpaces: { current: sharedSpacesOwned, limit: ownedLimit, remaining: ownedRemaining },
       membersPerSpace: { limit: limits.membersPerSpace },
-      joinableSpaces: { current: 0, limit: Infinity, remaining: Infinity },
+      joinableSpaces: { current: 0, limit: UNLIMITED, remaining: UNLIMITED },
     },
   };
 }

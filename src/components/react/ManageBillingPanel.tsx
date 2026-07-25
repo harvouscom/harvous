@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import SafeSubscriptionDetailsButton from './SafeSubscriptionDetailsButton';
 import SquareButton from './SquareButton';
 import { getCachedPanelData, setCachedPanelData, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 import SubtleContentMount from './SubtleContentMount';
+import { prototypeHref } from '@/lib/prototype-path';
 
 interface ManageBillingPanelProps {
   onClose?: () => void;
@@ -197,32 +197,34 @@ export default function ManageBillingPanel({
                       </a>
                     ) : null}
 
-                    {/* Manage Payment Method & Billing — only show for Shared Spaces subscribers */}
+                    {/* Manage → Settings › Plan (in-app cancel / Polar for payment method) */}
                     {subscriptionInfo && subscriptionInfo.hasSharedSpaces ? (
-                      <SafeSubscriptionDetailsButton publishableKey={publishableKey}>
-                        <button
-                          type="button"
-                          className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-200 pl-4 w-full"
-                          style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px', margin: 0 }}
-                        >
-                          <div className="panel__list-item">
-                            <div className="panel__list-item-text">
-                              <span className="panel__list-item-label">
-                                Manage Subscription
-                              </span>
-                            </div>
-                            <div className="panel__list-item-icon">
-                              <div className="panel__list-item-icon-wrapper">
-                                <div className="panel__external-icon">
-                                  <svg viewBox="0 0 320 512">
-                                    <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
-                                  </svg>
-                                </div>
+                      <a
+                        href={prototypeHref('settings/addons')}
+                        className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-200 pl-4 w-full"
+                        style={{
+                          backgroundImage: 'var(--color-gradient-gray)',
+                          paddingRight: '8px',
+                          margin: 0,
+                          textDecoration: 'none',
+                          display: 'block',
+                        }}
+                      >
+                        <div className="panel__list-item">
+                          <div className="panel__list-item-text">
+                            <span className="panel__list-item-label">Manage Subscription</span>
+                          </div>
+                          <div className="panel__list-item-icon">
+                            <div className="panel__list-item-icon-wrapper">
+                              <div className="panel__external-icon">
+                                <svg viewBox="0 0 320 512">
+                                  <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z" />
+                                </svg>
                               </div>
                             </div>
                           </div>
-                        </button>
-                      </SafeSubscriptionDetailsButton>
+                        </div>
+                      </a>
                     ) : null}
                   </SubtleContentMount>
                 )}

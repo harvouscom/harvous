@@ -21,7 +21,7 @@ export function dispatchSharedSpacesEntitlementSynced(detail: SharedSpacesEntitl
   window.dispatchEvent(new CustomEvent(SHARED_SPACES_ENTITLEMENT_SYNCED_EVENT, { detail }));
 }
 
-/** Reconcile entitlements from Paddle (purchase → webhook gap) after checkout or on demand. */
+/** Reconcile entitlements from Polar (purchase → webhook gap) after checkout or on demand. */
 export async function syncSharedSpacesBilling(): Promise<SyncSharedSpacesBillingResult> {
   const res = await fetch('/api/billing/sync', {
     method: 'POST',

@@ -1,58 +1,78 @@
 import React, { useCallback, useState } from 'react';
+import { toast } from '@/utils/toast';
 
 interface ManageSubscriptionButtonProps {
   /** Must be a single element (typically a `<button>`) — receives the click handler + disabled state. */
   children: React.ReactElement<{ onClick?: (e: React.MouseEvent) => void; disabled?: boolean }>;
-  /** Unused with Paddle — kept so callers that still pass a Clerk-era publishable key don't need to change. */
+  /** Unused with Polar — kept so callers that still pass a Clerk-era publishable key don't need to change. */
   publishableKey?: string | null;
-  /** Called once focus returns to this tab after the user visits the Paddle customer portal. */
+  /** Unused — Settings manage layer owns cancel/resume; kept for call-site compatibility. */
   onSubscriptionCancel?: () => void;
 }
 
+async function getClerkBearerToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const clerk = (
+      window as unknown as {
+        Clerk?: { session?: { getToken?: () => Promise<string | null> } };
+      }
+    ).Clerk;
+    return (await clerk?.session?.getToken?.()) || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Opens the Paddle customer portal (`GET /api/billing/portal`) in a new tab so the
- * user can manage payment methods or cancel. Paddle Billing has no in-app drawer —
- * when focus returns to this tab, re-check subscription status optimistically.
+ * Opens the Polar hosted portal in the same tab (payment method / invoices).
+ * Plan cancel/resume lives in Settings › Plan — do not use this for full manage.
  */
-export function ManageSubscriptionButton({ children, onSubscriptionCancel }: ManageSubscriptionButtonProps) {
+export function ManageSubscriptionButton({ children }: ManageSubscriptionButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleClick = useCallback(async () => {
     if (isLoading) return;
     setIsLoading(true);
     try {
-      const res = await fetch('/api/billing/portal', { credentials: 'include' });
+      const headers = new Headers();
+      const token = await getClerkBearerToken();
+      if (token) headers.set('Authorization', `Bearer ${token}`);
+
+      const res = await fetch('/api/billing/portal', {
+        credentials: 'include',
+        headers,
+      });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
+        if (res.status === 404) {
+          throw new Error(
+            body.error === 'No billing customer found'
+              ? 'No billing account yet — manage is available after a Polar checkout'
+              : body.error || 'Unable to open billing portal',
+          );
+        }
         throw new Error(body.error || 'Unable to open billing portal');
       }
-      const { url } = (await res.json()) as { url: string };
-      const portalWindow = window.open(url, '_blank', 'noopener,noreferrer');
+      const { url } = (await res.json()) as { url?: string };
+      if (!url) throw new Error('Unable to open billing portal');
 
-      if (portalWindow) {
-        const handleFocus = () => {
-          window.removeEventListener('focus', handleFocus);
-          onSubscriptionCancel?.();
-          window.dispatchEvent(new CustomEvent('subscriptionUpgraded'));
-        };
-        window.addEventListener('focus', handleFocus);
-      } else {
-        window.location.href = url;
-      }
+      window.location.assign(url);
     } catch (error) {
       console.error('[ManageSubscriptionButton] Failed to open billing portal:', error);
-      window.toast?.error('Unable to open billing management. Please try again.');
-    } finally {
+      toast.error(
+        error instanceof Error ? error.message : 'Unable to open billing management Please try again',
+      );
       setIsLoading(false);
     }
-  }, [isLoading, onSubscriptionCancel]);
+  }, [isLoading]);
 
   return React.cloneElement(children, {
     onClick: (e: React.MouseEvent) => {
       children.props.onClick?.(e);
       void handleClick();
     },
-    disabled: isLoading || children.props.disabled
+    disabled: isLoading || children.props.disabled,
   });
 }
 

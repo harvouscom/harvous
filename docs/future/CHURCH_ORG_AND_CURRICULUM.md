@@ -66,7 +66,7 @@ This makes it easy to **share threads and notes from the church** to everyone wh
 | **SHARING_AND_GROUPS_INFRASTRUCTURE.md** | InboxItem + SharedContent with `sharingType='organization'`, orgId, auto-add to org members’ UserInboxItems. |
 | **MONETIZATION_AND_PRICING.md** | Canonical SKUs: Review, Group Sharing, Season Pass, Group Leader, church principles. |
 | **MONETIZATION_SUMMARY.md** | High-level church connection flow and sharing infrastructure. |
-| **CLERK_ARCHITECTURE.md** / **BILLING_ARCHITECTURE.md** | Clerk auth/orgs; Paddle billing + entitlements. |
+| **CLERK_ARCHITECTURE.md** / **BILLING_ARCHITECTURE.md** | Clerk auth/orgs; Polar billing + entitlements. |
 
 This doc adds: **product vision** (church org accounts for curriculum), **two-layer model** (individual shared spaces vs church org distribution), and **MyChurchPanel evolution** (sync with available church organizations from Clerk).
 
@@ -86,7 +86,7 @@ No new schema is proposed here; this doc describes how those pieces support the 
 ## Monetization ladder
 
 Canonical consumer pricing: [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md).
-Church **billing** uses Paddle (same MoR as Harvous Plus); Clerk Organizations stay identity-only — see [BILLING_ARCHITECTURE.md](../BILLING_ARCHITECTURE.md) § church split.
+Church **billing** uses Polar (same MoR as Harvous Plus); Clerk Organizations stay identity-only — see [BILLING_ARCHITECTURE.md](../BILLING_ARCHITECTURE.md) § church split.
 
 | Stage | Who pays | What members get |
 |---|---|---|

@@ -2,15 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { toast as sonnerToast } from 'sonner';
 import UpgradePageContent from '../../../src/components/react/UpgradePageContent';
-import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { PublicTopBar } from './public/public-shared';
 import { loadAuthHeroImage } from '../utils/random-hero-image';
 import { api } from '../lib/api';
 
-// Fixed hero (not randomized) — this is the "Group study" image used for the
-// Shared Spaces use case on harvous.com, so the Shared Spaces upgrade always
-// shows the same art rather than a random auth hero.
-const UPGRADE_HERO_IMAGE = '/images/auth-hero/ai_bg_045.webp';
+// Fixed hero (not randomized) — blue-field atmosphere made for Harvous Plus,
+// sibling to the auth-hero pool (various blues, airy center for the letter).
+const UPGRADE_HERO_IMAGE = '/images/auth-hero/ai_bg_plus.webp';
 
 /**
  * Standalone /upgrade page — Harvous Plus (Shared Spaces hosting), built on
@@ -73,7 +71,19 @@ export default function UpgradePage() {
 
   useEffect(() => {
     sonnerToast.dismiss();
-    void refreshSharedSpacesStatus();
+    void (async () => {
+      try {
+        await refreshSharedSpacesStatus();
+      } finally {
+        // Hosted Polar return: notify the app and drop the checkout query param.
+        const params = new URLSearchParams(window.location.search);
+        if (!params.has('checkout_id')) return;
+        window.dispatchEvent(new CustomEvent('subscriptionUpgraded'));
+        params.delete('checkout_id');
+        const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash}`;
+        window.history.replaceState({}, '', next);
+      }
+    })();
   }, [refreshSharedSpacesStatus]);
 
   useEffect(() => {
@@ -108,18 +118,13 @@ export default function UpgradePage() {
                 style={isHeroReady ? { backgroundImage: `url(${UPGRADE_HERO_IMAGE})` } : undefined}
               />
             </div>
-            {isLoading ? (
-              <div className="page-loading" />
-            ) : (
-              <SubtleContentMount variant="fade">
-                <UpgradePageContent
-                  initialHasSharedSpaces={hasSharedSpaces}
-                  initialSharedSpacesOwnedCount={sharedSpacesOwnedCount}
-                  initialSharedSpacesOwnedLimit={sharedSpacesOwnedLimit}
-                  publishableKey={null}
-                />
-              </SubtleContentMount>
-            )}
+            <UpgradePageContent
+              ready={!isLoading}
+              initialHasSharedSpaces={hasSharedSpaces}
+              initialSharedSpacesOwnedCount={sharedSpacesOwnedCount}
+              initialSharedSpacesOwnedLimit={sharedSpacesOwnedLimit}
+              publishableKey={null}
+            />
           </div>
         </div>
       </div>

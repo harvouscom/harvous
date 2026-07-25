@@ -46,7 +46,7 @@ From the church org, admins/leaders can **create and manage multiple shared spac
 ### Church billing & Clerk org limits
 
 **Split (July 2026):** Clerk Organizations = **identity** (staff roles/memberships). Church **billing**
-joins the same **Paddle** merchant-of-record path as Harvous Plus — see
+joins the same **Polar** merchant-of-record path as Harvous Plus — see
 [`docs/BILLING_ARCHITECTURE.md`](../BILLING_ARCHITECTURE.md). Do not use Clerk Billing for church plans.
 
 Clerk’s free Organizations tier caps at **20 members**. That limit is from Clerk’s **B2B Authentication**

@@ -1,16 +1,37 @@
 # Monetization and Pricing Strategy
 
-Canonical product and pricing model for Harvous paid features. Technical billing (Paddle MoR,
+Canonical product and pricing model for Harvous paid features. Technical billing (Polar MoR,
 entitlements, webhooks) lives in [`docs/BILLING_ARCHITECTURE.md`](../BILLING_ARCHITECTURE.md). Clerk
 auth/orgs: [`docs/CLERK_ARCHITECTURE.md`](../CLERK_ARCHITECTURE.md).
 
-**Status (July 2026):** Ship **one plan — Harvous Plus** (founding **$5/mo · $45/yr**, stepping to
-**$9/mo · $79/yr** when Review + Challenges land). À-la-carte SKUs below are historical derivation;
-they are **not** sold separately at launch. Shared Spaces hosting is the first Plus feature;
-joining spaces stays free.
+**Status (July 2026): three products, one of them free. Simple pricing, 37signals-style — one price
+per product, everything included, no tiers within a product.**
+
+| Product | Price | What's in it |
+|---|---|---|
+| **Free** | $0 | Private study, forever. Unlimited notes, Remember surfaces, Compete free track. **Join** shared spaces — hosting is the paid line. |
+| **Founding** | **$45/yr** | First **99** subscribers · **annual only** · lifetime price lock. |
+| **Harvous Plus** | **$8/mo · $64/yr** | Everything: unlimited shared spaces (**100 people each**), Review, Challenges, **every season**. Annual is "four months free". |
+| **Connector** | **$5/mo · $60/yr** | Separate add-on — CLI/MCP read access. **No annual discount.** Hard paywall, no trial. |
+| **Church** | See §7 | Separate org track — where caps lift and spaces transfer from individuals. |
+
+Plus a **30-day money-back guarantee** on Plus (cancel anytime). There is deliberately **no free
+trial** and **no metered free tier**: free/paid is a categorical line (private vs. shared), not a
+quota.
+
+**Why no Season Pass SKU.** Seasons fold into Plus via `challenges`. Selling them separately meant
+8–11 purchase decisions a year at a price point where the processor takes ~15%, plus a new SKU each
+season. Plus includes every season; free keeps the free track. There is no `season_pass` feature key.
+
+**Why Connector stays separate.** Different buyer (CLI/MCP power users, not small-group hosts).
+Separate *products* are fine; *tiers within a product* are what this model avoids.
 
 **Guiding principle:** Notes and passive **Remember** stay free. **Review** is paid (bundled into
 Plus when it ships). **Compete** stays free to play. Hosting Shared Spaces is Plus; members join free.
+
+> **Historical:** earlier drafts had a "Harvous Complete" tier, then a four-SKU split (Review / Group
+> Sharing / Connector / Season Pass) at $5/$45 founding stepping to $9/$79. Both are superseded by the
+> table above. Sections below marked *historical derivation* are kept for the reasoning, not the prices.
 
 ---
 
@@ -40,20 +61,30 @@ separate pillar — communal program, not personal memory.
 | **Connector** (docs/npm: **Harvous Connector**) | $6 | $50 | Individual — power users, Claude/Cursor, CLI |
 | **Season Pass** | — | $5–8 one-time | Individual (or host bulk codes later) |
 
-Review, Group Sharing, and Connector are **separate, independently stackable subscriptions** — no
-bundle SKU in v1. A user can hold any combination at once and pays for each product independently
-(e.g. all three à la carte = $16/mo).
+> **Superseded — historical derivation only (see Status banner).** Review, Group Sharing and Season
+> Pass are **not** standalone SKUs; they are Plus features. Connector is the only separate paid
+> product, at **$5/mo · $60/yr**. Live prices are in the Status banner and
+> [src/lib/billing-plans.ts](../../src/lib/billing-plans.ts) — that registry is the source of truth,
+> not this table.
 
-### Free tier
+### Free tier — strictly private
+
+Free is **private study**, forever. The paid line is *hosting*, not a quota — nothing to count, nothing
+to explain.
 
 - Unlimited notes
 - Remember surfaces (themes, cross-refs, passages on Home, etc.)
-- Join shared spaces (no cap on memberships)
-- **3 owned shared spaces** (enforced in [server/utils/tier-limits.ts](../../server/utils/tier-limits.ts))
+- **Join** shared spaces — no cap on memberships, always free
+- **0 owned shared spaces** — `FREE_OWNED_SHARED_SPACES_LIMIT = 0`
+  ([server/utils/tier-limits.ts](../../server/utils/tier-limits.ts))
 - Current Compete season — **free track** (play, basic access)
 - Deterministic practice (connection MCQ, etc. from knowledge layer — no LLM)
-- **No free AI Review** (no monthly AI credits). Optional **one-time trial** on signup flagged as open
-  decision below.
+- **No free AI Review**, **no trial**. A 30-day money-back guarantee de-risks Plus instead.
+
+**How free users experience hosting before they buy:** they don't host — they *join*. A Plus host
+brings up to 100 free members in, and those members use shared spaces for weeks before they ever
+consider hosting one. That is the trial, and it is already built. The consequence to accept: the
+**first 99 founders are the hard part**, because the loop has no hosts to seed it yet.
 
 ### Review (paid, individual)
 
@@ -62,36 +93,71 @@ bundle SKU in v1. A user can hold any combination at once and pays for each prod
 - Web-first runtime: **Mistral Small** on server ([SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md))
 - Each subscriber's Review is tied to **their account only** — not shareable via Group Sharing or church org
 
-### Group Sharing (paid)
+### Shared Spaces hosting (in Plus)
 
-- Unlimited owned shared spaces (today: `UserMetadata.tier === 'unlimited'`)
-- 150 members per space cap (invisible, both tiers)
-- Host/admin surface: roster view, optional private cohort view on the active Compete season (future — folded in from the deprecated Group Leader SKU)
-- Members join owned spaces free; each member who wants AI practice from their own notes subscribes to **Review** individually ($4/mo)
+- **Unlimited** owned shared spaces — `PLUS_LIMITS.ownedSpaces = UNLIMITED`
+  ([src/lib/billing-plans.ts](../../src/lib/billing-plans.ts))
+- **100 people per space** — `MEMBERS_PER_SPACE_CAP = 100`
+  ([server/utils/tier-limits.ts](../../server/utils/tier-limits.ts))
+- Host/admin surface: roster view, optional private cohort view on the active Compete season
+- Members join owned spaces free; each member who wants AI practice from their own notes subscribes
+  to **Plus** on their own
+
+**The member cap is the fence between a personal plan and a church plan — the space count is not.**
+Spaces are rows; they cost nothing, so capping them protects no margin. Seats are the product line: a
+congregation hits 100 and the space transfers to the org (see §7), while a small group never touches
+it. 100 is chosen to be a limit real groups don't reach — 30 was small enough that ordinary groups hit
+a wall on a plan they were already paying for. Set this number by "where does a person end and an org
+begin", never by cost.
+
+The theoretical hole (10 spaces × 100 people) is fine: that's ten distinct communities and real work
+to run, and that person is a power user worth having.
 
 **Onboarding copy (principle):** *"Run the group on Harvous. Everyone brings their own Review."*
 
 ---
 
-## 3. Season Pass (Compete)
+## 3. Seasons (Compete) — included in Plus
 
 **Compete** and **Review** are different products:
 
 - **Compete** — Harvous-themed seasons, curated study guides, community leaderboards
 - **Review** — "Quiz me on what *I* wrote" — personal, private
 
-**Season Pass** (one-time per season, ~4–6 weeks):
+**Every season is included in Plus** (via the `challenges` feature key). Each season runs ~4–6 weeks
+and brings a full study guide, bonus modules, archive access, and a completion marker. The current
+season always has a **free track** so the community stays full.
 
-- Full study guide for that theme
-- Bonus modules / archive access for that season
-- Optional badge or completion marker
-- Current season always has a **free track** so the community stays full
+### Why there is no Season Pass SKU
 
-Leaders may bulk-buy Season Pass codes for their group later; that does not include member Review.
+The one-time-per-season model was dropped before launch. Three reasons, in order of weight:
+
+1. **Friction.** Seasons run 4–6 weeks, so a pass is 8–11 separate purchase decisions per year — the
+   least simple thing in the entire model.
+2. **Fee shape.** At the drafted $5–8, the processor takes ~15% of a $5 charge (5% + 50¢ flat). Small
+   one-time prices are the worst possible shape under a per-transaction fee.
+3. **Operational drag.** A new product to create, price, and retire every six weeks, forever.
+
+Folding them in converts 8–11 friction points a year into one reason to *stay* subscribed. Curation
+is a fixed cost that Plus already funds.
+
+There is deliberately **no `season_pass` feature key** — see `FEATURE_KEYS` in
+[src/lib/billing-plans.ts](../../src/lib/billing-plans.ts).
 
 ---
 
-## 4. Connector
+## 4. Connector — $5/mo · $60/yr
+
+**Separate product, not a Plus tier.** Different buyer: a developer wiring notes into Claude/Cursor is
+not a small-group host. Selling distinct products is consistent with simple pricing; tiering *within*
+a product is not.
+
+**No annual discount** — $60/yr is exactly 12 × $5. Discount the product you want commitment in (Plus,
+where annual is four months free); don't lock a lifetime discount into an add-on whose demand is
+unproven. Offering the undiscounted annual is still worth it: one charge instead of twelve saves
+eleven flat processor fees (~$5.50/yr), and some buyers prefer a single line item to expense.
+
+**No trial, hard paywall** — a developer already knows whether they want MCP access.
 
 **Product name:** **Connector** (in-app upgrade page). **External / docs name:** **Harvous Connector**
 — Claude Connectors Directory listing, npm package, MCP manifest. No **Harvous** prefix on the in-app
@@ -170,23 +236,41 @@ Implementation flagged future; rewards should be **access to study**, not cash.
 
 ---
 
-## 6. Technical entitlements (conceptual — not implemented)
+## 6. Technical entitlements — **shipped**
 
-Today: `UserMetadata.tier` is `'free' | 'unlimited'` ([tier-limits.ts](../../server/utils/tier-limits.ts));
-`unlimited` maps to **Group Sharing** only.
+The `Entitlements` table is the source of truth for paid access, not `UserMetadata.tier` (that column
+is retired and inert; see the `@deprecated` block in
+[tier-limits.ts](../../server/utils/tier-limits.ts)). Gates check **feature keys**, never plan names or
+providers — see [entitlements.ts](../../server/utils/entitlements.ts).
 
-**Target shape** (schema decision when Review ships):
+| Feature key | Gates | Granted by |
+|---|---|---|
+| `shared_spaces` | Owning shared spaces (`canCreateSharedSpace`) | Plus |
+| `review` | AI quiz session generation (when Review ships) | Plus |
+| `challenges` | Full seasons, incl. guide + archive | Plus |
+| `connector` | Connector API key, MCP OAuth, `/api/connector/*` + `/mcp` reads | Connector (separate product) |
 
-| Flag / field | Gates |
-|---|---|
-| `hasReview` | AI quiz session generation (`canUseAiFeature`) |
-| `hasGroupSharing` | Unlimited owned shared spaces + host/admin surface (roster, optional cohort Compete) |
-| `hasCliMcpAccess` | Connector API key issuance, MCP OAuth handshake, and all `/api/connector/*` + `/mcp` reads |
-| `seasonPassIds[]` | Active Season Pass entitlements |
-| `reviewSponsor` (optional) | Church bulk seat — still activates **individual** Review on claim |
+There is no `season_pass` key — Plus includes every season via `challenges`.
 
-Stripe / Clerk products: separate plan IDs for Review, Group Sharing, and Connector;
-Season Pass as one-time or annual SKU per season.
+**Plus grants `review` and `challenges` from day one**, before those products exist. Nothing gates on
+them yet, and issuing the rows now means existing subscribers need no backfill when they ship.
+
+**Sources.** `EntitlementSource` is `'billing' | 'admin_grant' | 'church_seat' | 'trial'`, unique on
+`(userId, featureKey, source)`. Provider sync only ever touches `billing` rows, so an `admin_grant`
+(scholarship / comp) survives a Polar reconcile. Grant one with
+`setFeatureEntitlement(userId, key, true, 'admin_grant')`.
+
+> ⚠️ **Known bug — blocks any future trial.** `listActiveFeatureKeys` filters on `status = 'active'`
+> only and never checks `expiresAt`, so a `trial` (or any expiring) entitlement grants access
+> **forever**. Not launch-blocking today because there is no trial, but it must be fixed before one
+> ships, and `church_seat` rows may want expiry too.
+
+**Founding cap.** `FOUNDING_CAP = 99`, enforced by `countFoundingClaims()` — distinct users with a row
+on the founding product, **any status**. Counting canceled rows too is deliberate: the promise is "the
+first 99 people", not "99 at a time", so a founder who churns must not free a lifetime-locked slot.
+Checked at `/api/billing/plans` (UI) and re-checked at `/api/billing/checkout` (a stale page must not
+claim slot 100). Two simultaneous checkouts at slot 99 can both land; selling 101 is not worth a
+distributed lock at launch volume.
 
 ---
 
@@ -229,20 +313,31 @@ Public pricing for standard plans; no sales call required at entry tiers.
 |---|---|---|
 | **Church Connect** | **$0** | Link congregation; limited curriculum (e.g. 2 pushes/quarter); current Compete free track |
 | **Church Study** | **$29–39** | ~3 **leader seats**, up to **150 connected** members, curriculum to inbox / "From your church" |
-| **Church Study Plus** | **$59–79** | ~10 leaders, **500 connected**, unlimited curriculum pushes, **one church-wide Season Pass** per active season |
+| **Church Study Plus** | **$59–79** | ~10 leaders, **500 connected**, unlimited curriculum pushes, **full seasons for all connected members** |
 | **Church Network** | **$99–149** | Up to **20 staff** (Clerk org cap), **1,500+ connected**, engagement analytics, group targeting |
 
 **À la carte add-ons:**
 
 | Add-on | Price (draft) | Notes |
 |---|---|---|
-| **Review seat pack** | **$3/seat/mo** (min 10) | Church pays; each member **claims** individual Review |
+| **Plus seat pack** | **$2–3/seat/mo** (min 10) | Church pays; each member **claims** an individual Plus seat |
 | **Extra leader seat** | **$12–15/mo** | Above tier-included leaders |
-| **Church-wide Season Pass** | **$79–149 once** | Full guide for Lent / Advent / sermon series — all connected members |
-| **Review scholarships** | **$3/seat/mo** | Same mechanics; youth / new believers pool |
+| **Plus scholarships** | **$2–3/seat/mo** | Same mechanics; youth / new believers pool |
 
-**Example MRR per church:** Church Study Plus ($69) + 25 Review seats ($75) = **$144/mo** — org fee
-is high-margin; Review packs carry Mistral cost per active seat.
+**The à-la-carte church-wide Season Pass is removed**, alongside the individual one (§3). It was also
+the one drafted item that was underwater: Church Study Plus at $69/mo (~$828/yr) bundled "one pass per
+active season", and at 8–11 seasons a year against a $79–149 retail pass, that was **$632–1,600 of
+passes inside an $828 tier**. Seasons are now a tier benefit, and the inconsistency disappears with
+the SKU.
+
+**On the seat discount:** retail Plus is $8/mo, so a $2–3 church seat is a 63–75% bulk break. That is
+deliberate — the real per-seat cost is ~$0.10/mo (see §3 fee note and the cost constraint in
+[billing-plans.ts](../../src/lib/billing-plans.ts)), so even $2 holds >90% margin. Church procurement
+responds to a steep, legible break far better than to a 25% one, and discounting *seats* is much
+cheaper than discounting the consumer price.
+
+**Example MRR per church:** Church Study Plus ($69) + 25 Plus seats ($50–75) = **$119–144/mo** — the
+org fee is high-margin; seat packs carry the (small) per-active-seat AI cost.
 
 ### Alternative: leader-based pricing (Option B)
 
@@ -306,8 +401,8 @@ Example: 5 small-group leaders → **$19 + 5×$12 = $79/mo**.
 ## 8. Rollout sequence
 
 1. **Deterministic Compete + Review product** — UX and grounding builder; Mistral Review endpoint
-2. **Review billing** — `hasReview`, upgrade paths
-3. **Season Pass** — first themed season
+2. **Review runtime** — no new billing needed; Plus already grants `review`
+3. **Challenges** — first themed season, included in Plus
 4. **Referral** rewards update
 5. **Church org** — research pricing vs Planning Center; pilot with friendly churches
 
@@ -317,13 +412,26 @@ Example: 5 small-group leaders → **$19 + 5×$12 = $79/mo**.
 
 ## 9. Open decisions (consumer)
 
-- [ ] One-time Review trial on signup (yes/no, length)
-- [ ] Season Pass price per season ($5 vs $8)
-- [ ] Fair-use soft cap on Review sessions for paid tier vs truly unlimited
-- [ ] Grandfather existing Premium (`unlimited`) users when Review launches
+**Closed (July 2026):**
+
+- [x] ~~Trial on signup~~ — **no trial.** 30-day money-back guarantee instead: same de-risking, zero
+      entitlement plumbing, and it sidesteps the `expiresAt` bug in §6.
+- [x] ~~Season Pass price~~ — **no Season Pass.** Folded into Plus via `challenges` (§3).
+- [x] ~~Connector price~~ — **$5/mo · $60/yr**, no annual discount.
+- [x] ~~Founding price / cap~~ — **$45/yr, annual only, first 99**, lifetime lock, then straight to
+      standard with a "all 99 claimed" sold-out state (no second tier).
+
+**Still open:**
+
+- [ ] Fair-use soft cap on Review sessions — hygiene, not economics: at ~$0.001/session a user needs
+      ~4,250 sessions/month to eat one subscription. Decide before Review ships, not before launch.
 - [ ] Connector: exact rate limit numbers (requests/day, requests/min, max page size) before launch
-- [ ] Connector: whether Group Sharing / church tiers get a higher shared limit, or Connector stays purely individual
-- [ ] Connector: final price point ($6/mo vs $8/mo) after gauging niche demand
+- [ ] Connector: whether church tiers get a higher shared limit, or Connector stays purely individual
+- [ ] Whether a **bundle product** is worth adding if Plus + Connector dual-buy turns out common —
+      two subscriptions means two flat processor fees ($1.65 on $13 vs $1.15 as one charge, ~$6/yr per
+      dual customer). Not worth the extra SKU until the data says so.
+- [ ] Fix `listActiveFeatureKeys` to honor `expiresAt` (§6) — not launch-blocking without a trial, but
+      it blocks ever adding one.
 
 ---
 

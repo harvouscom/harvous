@@ -1,4 +1,4 @@
-/* Shared single-row delete confirm — scripture pill + prototype delete floater */
+/* Shared delete confirm — compact pill (short titles) or stacked card (with description) */
 
 .harvous-delete-confirm {
   max-width: 320px;
@@ -14,14 +14,104 @@
 .harvous-delete-confirm.scripture-delete-confirm {
   display: flex;
   align-items: center;
+  gap: 2px;
   min-height: 44px;
 }
 
 .harvous-delete-confirm > .proto-popover-shell__content {
   display: flex;
   align-items: center;
+  gap: 2px;
   min-height: 44px;
   width: 100%;
+}
+
+/* Roomier layout when supporting copy is present — copy above, actions below. */
+.harvous-delete-confirm--stacked {
+  max-width: 300px;
+  border-radius: 16px;
+}
+
+.harvous-delete-confirm--stacked > .proto-popover-shell__content {
+  display: block;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.harvous-delete-confirm__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 10px 8px 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.harvous-delete-confirm__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding-right: 4px;
+}
+
+.harvous-delete-confirm--stacked .harvous-delete-confirm__title {
+  flex: none;
+  padding: 0;
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  overflow: visible;
+}
+
+.harvous-delete-confirm__description {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--color-stone-grey);
+}
+
+.harvous-delete-confirm__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  margin: 0 -2px -2px 0;
+}
+
+/* No hairline dividers at any copy length (compact or stacked). */
+.harvous-delete-confirm__divider {
+  display: none;
+}
+
+/* Stacked: no square hover fills — color shift only. */
+.harvous-delete-confirm--stacked .harvous-delete-confirm__icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  transition: color 0.12s ease, opacity 0.12s ease;
+}
+
+.harvous-delete-confirm--stacked .harvous-delete-confirm__icon-btn:hover:not(:disabled),
+.harvous-delete-confirm--stacked .harvous-delete-confirm__icon-btn:active:not(:disabled) {
+  background: transparent;
+}
+
+.harvous-delete-confirm--stacked .harvous-delete-confirm__icon-btn:hover:not(:disabled) {
+  color: var(--color-charcoal-black);
+}
+
+.harvous-delete-confirm--stacked .harvous-delete-confirm__icon-btn--destructive:hover:not(:disabled),
+.harvous-delete-confirm--stacked .harvous-delete-confirm__icon-btn--destructive:active:not(:disabled) {
+  background: transparent;
+  color: var(--color-red);
+  opacity: 0.85;
+}
+
+.harvous-delete-confirm--stacked .harvous-delete-confirm__icon-btn:focus-visible {
+  outline-offset: 0;
+  border-radius: 50%;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -39,6 +129,12 @@
   font-weight: 600;
   line-height: 1.3;
   color: var(--color-charcoal-black);
+  /* Compact row only — stacked layout clears this clamp. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .harvous-delete-confirm__divider {

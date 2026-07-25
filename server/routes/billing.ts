@@ -4,6 +4,9 @@
  * Endpoints:
  *   POST /api/billing/checkout
  *   GET  /api/billing/portal
+ *   GET  /api/billing/manage
+ *   GET  /api/billing/orders/:orderId/receipt
+ *   POST /api/billing/cancel
  *   POST /api/billing/sync
  *   GET  /api/subscription/status
  *   POST /api/referral/credit
@@ -16,83 +19,114 @@ import { db, first, UserMetadata, UserXP, eq, and, count } from '../db';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
 import { getSubscriptionInfo } from '../utils/subscription';
+import { syncEntitlementsFromProvider, getFoundingAvailability } from '../utils/entitlements';
+import { getPolarClient, isPolarConfigured } from '../utils/polar-client';
 import {
-  getPaddleCustomerId,
-  setPaddleCustomerId,
-  syncEntitlementsFromProvider,
-  hasEntitlementForUserId,
-} from '../utils/entitlements';
-import { getPaddleClient, isPaddleConfigured } from '../utils/paddle-client';
-import { listedPlanForInterval, type PlanInterval } from '@/lib/billing-plans';
+  getPolarBillingManage,
+  getPolarOrderDocumentUrl,
+  setPolarCancelAtPeriodEnd,
+} from '../utils/polar-billing';
+import {
+  foundingPlan,
+  isFoundingProductId,
+  listedPlans,
+  planFor,
+  type PlanInterval,
+  type PlanKey,
+} from '@/lib/billing-plans';
 import { resolveRefToUserId, generateReferralCode } from '../utils/referral-code';
 import { ACTIVITY_TYPES, awardXP, getReferralCreditXpForOrdinal } from '../utils/xp-system';
 import { getCookie, deleteCookie } from 'hono/cookie';
+import { getPublicAppOrigin } from '../utils/public-app-origin';
 
 const app = new Hono();
 
-async function resolveUserEmail(userId: string, metadataEmail?: string | null): Promise<string> {
-  if (metadataEmail?.includes('@')) return metadataEmail;
-  const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-  if (!clerkSecretKey) {
-    throw new Error('Unable to resolve user email for billing');
-  }
-  const response = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
-    headers: { Authorization: `Bearer ${clerkSecretKey}` },
-  });
-  if (!response.ok) {
-    throw new Error('Unable to resolve user email for billing');
-  }
-  const user = (await response.json()) as {
-    email_addresses?: Array<{ email_address?: string; id?: string }>;
-    primary_email_address_id?: string;
-  };
-  const primary = user.email_addresses?.find((e) => e.id === user.primary_email_address_id);
-  const email = primary?.email_address || user.email_addresses?.[0]?.email_address;
-  if (!email) throw new Error('User has no email for billing');
-  return email;
-}
-
-async function ensurePaddleCustomer(userId: string, metadataEmail?: string | null): Promise<string> {
-  const existing = await getPaddleCustomerId(userId);
-  if (existing) return existing;
-
-  const email = await resolveUserEmail(userId, metadataEmail);
-  const paddle = getPaddleClient();
-  const customer = await paddle.customers.create({
-    email,
-    customData: { clerkUserId: userId },
-  });
-  await setPaddleCustomerId(userId, customer.id);
-  return customer.id;
-}
-
 // ─── Billing ────────────────────────────────────────────────────────
 
-/** POST /api/billing/checkout — resolve/create Paddle customer + return price for Paddle.js */
+/**
+ * GET /api/billing/plans — public pricing payload for /upgrade.
+ *
+ * Founding availability is a live count, so the client cannot hardcode it; the
+ * same check is repeated server-side at checkout (a stale page must not be able
+ * to claim slot 100).
+ */
+app.get('/api/billing/plans', async (c) => {
+  try {
+    const founding = await getFoundingAvailability();
+    const plans = listedPlans().map((plan) => ({
+      key: plan.key,
+      name: plan.name,
+      interval: plan.interval,
+      amountCents: plan.amountCents,
+      currencyCode: plan.currencyCode,
+      productId: plan.productId,
+      founding: Boolean(plan.founding),
+      /** Founding disappears from the buy flow once claimed out. */
+      available: plan.founding ? founding.available : true,
+    }));
+    return c.json({ plans, founding }, 200, { 'Cache-Control': 'public, max-age=30' });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/billing/plans', action: 'list_plans' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * POST /api/billing/checkout — create a Polar checkout session for the chosen
+ * product and return its hosted checkout URL (client redirects). The customer
+ * is keyed by `externalCustomerId` = Clerk userId, so no pre-created customer
+ * is needed.
+ *
+ * Accepts `{ productId }` (preferred) or `{ plan, interval }`. Legacy callers
+ * sending only `{ interval }` still resolve to standard Plus.
+ */
 app.post('/api/billing/checkout', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    if (!isPaddleConfigured()) {
+    if (!isPolarConfigured()) {
       return c.json({ error: 'Billing is not configured' }, 503);
     }
 
     const body = (await c.req.json().catch(() => ({}))) as {
       interval?: PlanInterval | 'annual';
-      priceId?: string;
+      plan?: PlanKey;
+      productId?: string;
+      founding?: boolean;
     };
 
-    const interval: PlanInterval =
-      body.interval === 'month' ? 'month' : 'year';
+    const interval: PlanInterval = body.interval === 'month' ? 'month' : 'year';
+    const planKey: PlanKey = body.plan === 'connector' ? 'connector' : 'plus';
 
-    const month = listedPlanForInterval('month');
-    const year = listedPlanForInterval('year');
-    const allowed = new Set([month?.priceId, year?.priceId].filter(Boolean) as string[]);
-    const plan = interval === 'month' ? month : year;
-    const priceId = body.priceId && allowed.has(body.priceId) ? body.priceId : plan?.priceId;
+    const allowed = new Set(listedPlans().map((p) => p.productId));
 
-    if (!priceId || !allowed.has(priceId)) {
-      return c.json({ error: 'Invalid or unconfigured plan price' }, 400);
+    let productId: string | undefined;
+    if (body.productId && allowed.has(body.productId)) {
+      productId = body.productId;
+    } else if (body.founding && planKey === 'plus') {
+      productId = foundingPlan()?.productId;
+    } else {
+      productId = planFor(planKey, interval)?.productId;
+    }
+
+    if (!productId || !allowed.has(productId)) {
+      return c.json({ error: 'Invalid or unconfigured plan product' }, 400);
+    }
+
+    // Re-check the cap server-side: the page may have been open since before
+    // the last slot went. Falls back to standard pricing rather than failing.
+    if (isFoundingProductId(productId)) {
+      const founding = await getFoundingAvailability();
+      if (!founding.available) {
+        return c.json(
+          {
+            error: 'The founding price is fully claimed.',
+            code: 'FOUNDING_SOLD_OUT',
+            founding,
+          },
+          409,
+        );
+      }
     }
 
     const meta = first(
@@ -103,15 +137,25 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
         .limit(1),
     );
 
-    const customerId = await ensurePaddleCustomer(auth.userId, meta?.email);
-    const resolvedInterval: PlanInterval =
-      priceId === month?.priceId ? 'month' : priceId === year?.priceId ? 'year' : interval;
+    // SPA origin (not API :3001) — Vite proxy would otherwise send Polar back to the API host → 404.
+    const origin = getPublicAppOrigin(c);
+    const polar = getPolarClient();
+    const checkout = await polar.checkouts.create({
+      products: [productId],
+      externalCustomerId: auth.userId,
+      ...(meta?.email?.includes('@') ? { customerEmail: meta.email } : {}),
+      // Hosted Polar checkout; return to /upgrade (legacy /addon redirects preserve query).
+      successUrl: `${origin}/upgrade?checkout_id={CHECKOUT_ID}`,
+      metadata: { clerkUserId: auth.userId },
+    });
+
+    const resolved = listedPlans().find((p) => p.productId === productId);
 
     return c.json({
-      priceId,
-      customerId,
-      customData: { clerkUserId: auth.userId },
-      interval: resolvedInterval,
+      url: checkout.url,
+      interval: resolved?.interval ?? interval,
+      plan: resolved?.key ?? planKey,
+      founding: Boolean(resolved?.founding),
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/billing/checkout', action: 'create_checkout_session' });
@@ -119,41 +163,132 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
   }
 });
 
-/** GET /api/billing/portal — Paddle customer portal session URL */
+/** GET /api/billing/portal — Polar hosted portal (payment method / invoices only). */
 app.get('/api/billing/portal', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    if (!isPaddleConfigured()) {
+    if (!isPolarConfigured()) {
       return c.json({ error: 'Billing is not configured' }, 503);
     }
 
-    const customerId = await getPaddleCustomerId(auth.userId);
-    if (!customerId) {
+    const polar = getPolarClient();
+    let session;
+    try {
+      session = await polar.customerSessions.create({ externalCustomerId: auth.userId });
+    } catch {
+      // No Polar customer yet (never purchased) → nothing to manage.
       return c.json({ error: 'No billing customer found' }, 404);
     }
 
-    const paddle = getPaddleClient();
-    const subscriptionIds: string[] = [];
-    for await (const sub of paddle.subscriptions.list({ customerId: [customerId] })) {
-      if (sub.id) subscriptionIds.push(sub.id);
-    }
-
-    const session = await paddle.customerPortalSessions.create(customerId, subscriptionIds);
-    const url = session.urls?.general?.overview;
-    if (!url) {
+    if (!session.customerPortalUrl) {
       console.error('[billing/portal] Unexpected portal session shape:', session);
       return c.json({ error: 'Failed to create portal session' }, 500);
     }
 
-    return c.json({ url });
+    return c.json({ url: session.customerPortalUrl });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/billing/portal', action: 'create_portal_session' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
 
-/** POST /api/billing/sync — reconcile entitlements from Paddle API (purchase→webhook gap) */
+/**
+ * GET /api/billing/manage — in-app Settings › Plan payload (sub + card + orders).
+ * 404 when the user has no Polar-managed Plus subscription.
+ */
+app.get('/api/billing/manage', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    if (!isPolarConfigured()) {
+      return c.json({ error: 'Billing is not configured' }, 503);
+    }
+
+    const manage = await getPolarBillingManage(auth.userId);
+    if (!manage) {
+      return c.json({ error: 'No active subscription found' }, 404);
+    }
+
+    return c.json(manage, 200, { 'Cache-Control': 'private, no-store, max-age=0' });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/billing/manage', action: 'load_billing_manage' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * GET /api/billing/orders/:orderId/receipt — presigned receipt/invoice URL for this user.
+ */
+app.get('/api/billing/orders/:orderId/receipt', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const orderId = c.req.param('orderId')?.trim();
+    if (!orderId) {
+      return c.json({ error: 'Order id is required' }, 400);
+    }
+
+    if (!isPolarConfigured()) {
+      return c.json({ error: 'Billing is not configured' }, 503);
+    }
+
+    const url = await getPolarOrderDocumentUrl(auth.userId, orderId);
+    return c.json({ url });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to load receipt';
+    if (message === 'Order not found' || message === 'Receipt unavailable for this order') {
+      return c.json({ error: message }, message === 'Order not found' ? 404 : 404);
+    }
+    if (message === 'Billing is not configured') {
+      return c.json({ error: message }, 503);
+    }
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/billing/orders/:orderId/receipt',
+      action: 'get_order_receipt',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * POST /api/billing/cancel — schedule cancel at period end, or resume.
+ * Body: `{ cancelAtPeriodEnd: boolean }`. Does not clear Entitlements.
+ */
+app.post('/api/billing/cancel', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    if (!isPolarConfigured()) {
+      return c.json({ error: 'Billing is not configured' }, 503);
+    }
+
+    const body = (await c.req.json().catch(() => ({}))) as {
+      cancelAtPeriodEnd?: boolean;
+      plan?: PlanKey;
+    };
+    if (typeof body.cancelAtPeriodEnd !== 'boolean') {
+      return c.json({ error: 'cancelAtPeriodEnd (boolean) is required' }, 400);
+    }
+
+    // Defaults to Plus; Connector must be named explicitly so a Connector cancel
+    // can never take down someone's Plus subscription.
+    const planKey: PlanKey = body.plan === 'connector' ? 'connector' : 'plus';
+    const billing = await setPolarCancelAtPeriodEnd(auth.userId, body.cancelAtPeriodEnd, planKey);
+    return c.json({ billing, plan: planKey });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to update subscription';
+    if (message === 'No active subscription found') {
+      return c.json({ error: message }, 404);
+    }
+    if (message === 'Billing is not configured') {
+      return c.json({ error: message }, 503);
+    }
+    const standardError = handleAPIError(error, { endpoint: '/api/billing/cancel', action: 'cancel_subscription' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/** POST /api/billing/sync — reconcile entitlements from the Polar API (purchase→webhook gap) */
 app.post('/api/billing/sync', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -180,9 +315,9 @@ app.get('/api/subscription/status', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    if (!(await hasEntitlementForUserId(auth.userId, 'shared_spaces'))) {
-      await syncEntitlementsFromProvider(auth.userId);
-    }
+    // Bidirectional reconcile: promote after checkout gaps, demote when Polar
+    // no longer has an active subscription (e.g. customer deleted in dashboard).
+    await syncEntitlementsFromProvider(auth.userId);
 
     const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
 
@@ -190,8 +325,13 @@ app.get('/api/subscription/status', requireAuth, async (c) => {
       {
         hasUnlimited: subscriptionInfo.hasUnlimited,
         hasSharedSpaces: subscriptionInfo.hasSharedSpaces,
+        hasConnector: subscriptionInfo.hasConnector,
+        isFounding: subscriptionInfo.isFounding,
         entitlements: subscriptionInfo.entitlements,
         planKey: subscriptionInfo.planKey,
+        canManageBilling: subscriptionInfo.canManageBilling,
+        billing: subscriptionInfo.billing,
+        connectorBilling: subscriptionInfo.connectorBilling,
         limits: subscriptionInfo.limits,
         currentCount: subscriptionInfo.currentCount,
         limit: subscriptionInfo.limit,

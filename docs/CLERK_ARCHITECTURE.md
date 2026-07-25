@@ -1,6 +1,6 @@
 # Clerk Architecture (Auth & Organizations)
 
-> **Billing** (Harvous Plus, Paddle MoR, entitlements) lives in [`BILLING_ARCHITECTURE.md`](./BILLING_ARCHITECTURE.md).
+> **Billing** (Harvous Plus, Polar MoR, entitlements) lives in [`BILLING_ARCHITECTURE.md`](./BILLING_ARCHITECTURE.md).
 > **Product pricing / church ladder** lives in [`future/MONETIZATION_AND_PRICING.md`](./future/MONETIZATION_AND_PRICING.md).
 
 Clerk is used for **authentication** and **church Organizations** (identity). Paid access is **not** gated on Clerk Billing plans or JWT feature claims.
@@ -27,6 +27,6 @@ See [`future/CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md`](./future/CLERK_ORGANIZA
 | --- | --- |
 | Individual add-ons in `public_metadata` | Obsolete — `Entitlements` table |
 | Clerk Billing / hand-rolled Stripe webhooks | [`BILLING_ARCHITECTURE.md`](./BILLING_ARCHITECTURE.md) |
-| Church billing rail | Paddle (same doc); identity stays here |
+| Church billing rail | Polar (same doc); identity stays here |
 
 Historical copies: `docs/CLERK_MONETIZATION_ARCHITECTURE.md` and `docs/future/CLERK_MONETIZATION_ARCHITECTURE.md` are stubs pointing here.

@@ -66,11 +66,17 @@ import {
   isPrototypeHomePath,
   isPrototypeNotePath,
   isPrototypeAdminPath,
+  isPrototypeSettingsPath,
   isPrototypeShellPath,
   matchPrototypeNoteId,
   prototypeHomePath,
   prototypeNoteRouteTo,
 } from '@/lib/prototype-path';
+import {
+  clearMainFreezeLayer,
+  freezeMainInnerIntoLayer,
+  FREEZE_MAIN_FOR_SETTINGS_EVENT,
+} from '../lib/prototype-settings-main-keepalive';
 import {
   computePrototypeShouldShowShell,
   shouldRedirectPrototypeToSignIn,
@@ -212,9 +218,14 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const resizeHandleRef = useRef<HTMLDivElement | null>(null);
   const widthRef = useRef(sidebarWidth);
+  const mainInnerRef = useRef<HTMLDivElement | null>(null);
+  const settingsFreezeLayerRef = useRef<HTMLDivElement | null>(null);
 
   const isNoteRoute = isPrototypeNotePath(pathname);
   const isAdminRoute = isPrototypeAdminPath(pathname);
+  const isSettingsRoute = isPrototypeSettingsPath(pathname);
+  /** Desktop modal: keep last main paint under the settings portal. Mobile sheet keeps current Outlet. */
+  const desktopSettingsKeepAlive = isSettingsRoute && !isMobileSidebar;
   /** Shell id is null on My Home / My Church hub; useActiveSpace remaps null → personal home. */
   const sidebarVariant = resolvePrototypeSidebarVariant({
     isAdminRoute,
@@ -233,6 +244,21 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   useEffect(() => {
     widthRef.current = sidebarWidth;
   }, [sidebarWidth]);
+
+  // Capture main-pane DOM before settings Outlet replaces home/note (see settings beforeLoad).
+  useEffect(() => {
+    const onFreeze = () => {
+      if (isMobileSidebar) return;
+      freezeMainInnerIntoLayer(mainInnerRef.current, settingsFreezeLayerRef.current);
+    };
+    document.addEventListener(FREEZE_MAIN_FOR_SETTINGS_EVENT, onFreeze);
+    return () => document.removeEventListener(FREEZE_MAIN_FOR_SETTINGS_EVENT, onFreeze);
+  }, [isMobileSidebar]);
+
+  useEffect(() => {
+    if (desktopSettingsKeepAlive) return;
+    clearMainFreezeLayer(settingsFreezeLayerRef.current);
+  }, [desktopSettingsKeepAlive]);
 
   useEffect(() => {
     if (!isNoteRoute) return;
@@ -625,7 +651,19 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         ) : null}
 
         <main className="proto-shell__main-cell">
-          <div className="proto-shell__main-inner">
+          <div
+            ref={settingsFreezeLayerRef}
+            className="proto-shell__main-inner proto-shell__main-inner--settings-keep"
+            hidden={!desktopSettingsKeepAlive}
+            aria-hidden={desktopSettingsKeepAlive || undefined}
+            inert={desktopSettingsKeepAlive ? true : undefined}
+          />
+          <div
+            ref={mainInnerRef}
+            className="proto-shell__main-inner"
+            hidden={desktopSettingsKeepAlive || undefined}
+            aria-hidden={desktopSettingsKeepAlive || undefined}
+          >
             <Outlet />
           </div>
         </main>

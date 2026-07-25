@@ -162,7 +162,7 @@ export async function clerkAuth(c: Context, next: Next) {
 
     const auth: Auth = {
       userId,
-      // Entitlements are DB-backed (Paddle); JWT feature claims are unused.
+      // Entitlements are DB-backed (Polar billing); JWT feature claims are unused.
       has: () => false,
     };
 

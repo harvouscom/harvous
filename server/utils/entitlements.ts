@@ -1,9 +1,14 @@
 /**
  * Feature entitlements — DB source of truth for paid access.
  *
- * Gates check feature keys via this module. Provider sync (Paddle) promotes
- * entitlements on purchase; cancel clears only `source='billing'` rows.
- * Reconcile-on-read never auto-revokes (matches the prior Clerk sync contract).
+ * Gates check feature keys via this module. Provider sync (Polar) reconciles
+ * `source='billing'` rows both ways: promotes when an active subscription is
+ * found, and cancels billing rows when Polar has none. Admin/church/trial
+ * sources are never touched by sync. Webhooks still apply the same cancel path.
+ *
+ * The provider is keyed by `externalCustomerId` = Clerk userId, so sync and the
+ * portal don't depend on a stored Polar customer id (it's kept opportunistically
+ * as a fallback / audit only).
  */
 
 import {
@@ -13,17 +18,20 @@ import {
   UserMetadata,
   eq,
   and,
+  countDistinct,
 } from '../db';
 import type { Auth } from '../middleware/types';
 import {
   type FeatureKey,
   type PlanLimits,
-  featuresForPriceId,
+  featuresForProductId,
   limitsForFeatures,
-  planForPriceId,
+  planForProductId,
   isFeatureKey,
+  foundingPlan,
+  FOUNDING_CAP,
 } from '@/lib/billing-plans';
-import { getPaddleClient, isPaddleConfigured } from './paddle-client';
+import { getPolarClient, isPolarConfigured } from './polar-client';
 
 export type EntitlementSource = 'billing' | 'admin_grant' | 'church_seat' | 'trial';
 export type EntitlementStatus = 'active' | 'canceled' | 'expired';
@@ -66,17 +74,17 @@ export async function limitsForUser(userId: string): Promise<PlanLimits> {
   return limitsForFeatures(features);
 }
 
-/** Upsert entitlement rows for every feature granted by a price. */
-export async function setEntitlementsForPrice(
+/** Upsert entitlement rows for every feature granted by a Polar product. */
+export async function setEntitlementsForProduct(
   userId: string,
-  priceId: string,
+  productId: string,
   enabled: boolean,
   source: EntitlementSource = 'billing',
   providerRef?: string | null,
 ): Promise<void> {
-  const features = featuresForPriceId(priceId);
+  const features = featuresForProductId(productId);
   if (features.length === 0) {
-    console.warn(`[entitlements] No features mapped for price ${priceId}`);
+    console.warn(`[entitlements] No features mapped for product ${productId}`);
     return;
   }
 
@@ -103,7 +111,7 @@ export async function setEntitlementsForPrice(
         .update(Entitlements)
         .set({
           status,
-          priceId,
+          productId,
           providerRef: providerRef ?? null,
           updatedAt: now,
           ...(enabled ? { expiresAt: null } : {}),
@@ -117,7 +125,7 @@ export async function setEntitlementsForPrice(
         status: ACTIVE,
         source,
         providerRef: providerRef ?? null,
-        priceId,
+        productId,
         grantedAt: now,
         expiresAt: null,
         updatedAt: now,
@@ -169,29 +177,81 @@ export async function setFeatureEntitlement(
     status: ACTIVE,
     source,
     providerRef: null,
-    priceId: null,
+    productId: null,
     grantedAt: now,
     expiresAt: null,
     updatedAt: now,
   });
 }
 
-export async function getPaddleCustomerId(userId: string): Promise<string | null> {
+// ─── Founding cap ───────────────────────────────────────────────────────────
+
+/**
+ * How many people have ever claimed the founding price.
+ *
+ * Counts distinct users with a row on the founding product **regardless of
+ * status** — the promise is "the first 99 people", not "99 at a time". A
+ * founder who cancels must not quietly free a lifetime-locked slot for someone
+ * else, so canceled/expired rows still occupy their claim.
+ */
+export async function countFoundingClaims(): Promise<number> {
+  const plan = foundingPlan();
+  if (!plan?.productId) return 0;
+  try {
+    const row = first(
+      await db
+        .select({ cnt: countDistinct(Entitlements.userId) })
+        .from(Entitlements)
+        .where(eq(Entitlements.productId, plan.productId)),
+    );
+    return Number(row?.cnt ?? 0);
+  } catch (error) {
+    console.error('[entitlements] countFoundingClaims failed:', error);
+    // Fail closed: an unknown count must not hand out an unbounded lifetime price.
+    return FOUNDING_CAP;
+  }
+}
+
+/**
+ * Founding slots left (0 when sold out or unconfigured).
+ *
+ * Known race: two checkouts started at slot 99 can both succeed. Selling 101 of
+ * 99 is not worth a distributed lock at launch volume — honor anyone who got a
+ * checkout open, and let the overshoot stand.
+ */
+export async function getFoundingAvailability(): Promise<{
+  total: number;
+  claimed: number;
+  remaining: number;
+  available: boolean;
+}> {
+  const claimed = await countFoundingClaims();
+  const remaining = Math.max(0, FOUNDING_CAP - claimed);
+  return {
+    total: FOUNDING_CAP,
+    claimed: Math.min(claimed, FOUNDING_CAP),
+    remaining,
+    available: remaining > 0 && Boolean(foundingPlan()?.productId),
+  };
+}
+
+export async function getPolarCustomerId(userId: string): Promise<string | null> {
   const row = first(
     await db
-      .select({ paddleCustomerId: UserMetadata.paddleCustomerId })
+      .select({ polarCustomerId: UserMetadata.polarCustomerId })
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, userId))
       .limit(1),
   );
-  return row?.paddleCustomerId ?? null;
+  return row?.polarCustomerId ?? null;
 }
 
-export async function setPaddleCustomerId(userId: string, customerId: string): Promise<void> {
+/** Store the Polar customer id opportunistically (fallback / audit; not required for sync). */
+export async function setPolarCustomerId(userId: string, customerId: string): Promise<void> {
   const now = new Date();
   const updated = await db
     .update(UserMetadata)
-    .set({ paddleCustomerId: customerId, updatedAt: now })
+    .set({ polarCustomerId: customerId, updatedAt: now })
     .where(eq(UserMetadata.userId, userId))
     .returning({ userId: UserMetadata.userId });
 
@@ -200,7 +260,7 @@ export async function setPaddleCustomerId(userId: string, customerId: string): P
   await db.insert(UserMetadata).values({
     id: crypto.randomUUID(),
     userId,
-    paddleCustomerId: customerId,
+    polarCustomerId: customerId,
     highestSimpleNoteId: 0,
     userColor: 'blue',
     createdAt: now,
@@ -208,42 +268,47 @@ export async function setPaddleCustomerId(userId: string, customerId: string): P
   });
 }
 
-type PaddleSubLike = {
+type PolarSubLike = {
   id?: string;
   status?: string;
-  items?: Array<{ price?: { id?: string }; priceId?: string; price_id?: string }>;
-  customData?: { clerkUserId?: string } | null;
-  custom_data?: { clerkUserId?: string } | null;
+  productId?: string | null;
+  customerId?: string | null;
 };
-
-function priceIdFromSub(sub: PaddleSubLike): string | null {
-  const item = sub.items?.[0];
-  return item?.price?.id ?? item?.priceId ?? item?.price_id ?? null;
-}
 
 function subIsActive(status: string | undefined): boolean {
   return status === 'active' || status === 'trialing' || status === 'past_due';
 }
 
+/** Cancel all active `source='billing'` entitlement rows for a user. */
+async function cancelBillingEntitlements(userId: string): Promise<boolean> {
+  const now = new Date();
+  const updated = await db
+    .update(Entitlements)
+    .set({ status: 'canceled', updatedAt: now })
+    .where(
+      and(
+        eq(Entitlements.userId, userId),
+        eq(Entitlements.source, 'billing'),
+        eq(Entitlements.status, ACTIVE),
+      ),
+    )
+    .returning({ id: Entitlements.id });
+  return updated.length > 0;
+}
+
 /**
- * Reconcile billing entitlements from Paddle. Promotes when an active
- * subscription is found; never auto-revokes (cancel path is webhook / explicit).
+ * Reconcile billing entitlements from Polar.
+ * Promotes when an active known-product subscription is found; cancels
+ * `source='billing'` rows when Polar reports none (customer deleted / fully
+ * canceled). Polar API failures do not revoke. Keyed by externalCustomerId =
+ * userId, so no stored customer id is required.
  */
 export async function syncEntitlementsFromProvider(
   userId: string,
 ): Promise<{ entitlements: FeatureKey[]; updated: boolean; hasSharedSpaces: boolean }> {
   const before = await listActiveFeatureKeys(userId);
 
-  if (!isPaddleConfigured()) {
-    return {
-      entitlements: before,
-      updated: false,
-      hasSharedSpaces: before.includes('shared_spaces'),
-    };
-  }
-
-  const customerId = await getPaddleCustomerId(userId);
-  if (!customerId) {
+  if (!isPolarConfigured()) {
     return {
       entitlements: before,
       updated: false,
@@ -253,29 +318,38 @@ export async function syncEntitlementsFromProvider(
 
   let updated = false;
   try {
-    const paddle = getPaddleClient();
-    const collection = paddle.subscriptions.list({ customerId: [customerId] });
-    const subs: PaddleSubLike[] = [];
-    for await (const sub of collection) {
-      subs.push(sub as PaddleSubLike);
+    const polar = getPolarClient();
+    const collection = await polar.subscriptions.list({ externalCustomerId: [userId], active: true });
+    const subs: PolarSubLike[] = [];
+    for await (const page of collection) {
+      for (const sub of page.result?.items ?? []) {
+        subs.push(sub as PolarSubLike);
+      }
     }
 
+    let grantedFromPolar = false;
     for (const sub of subs) {
       if (!subIsActive(sub.status)) continue;
-      const priceId = priceIdFromSub(sub);
-      if (!priceId || !planForPriceId(priceId)) continue;
+      const productId = sub.productId ?? null;
+      if (!productId || !planForProductId(productId)) continue;
+      grantedFromPolar = true;
       const had = before.includes('shared_spaces');
-      await setEntitlementsForPrice(userId, priceId, true, 'billing', sub.id ?? null);
+      await setEntitlementsForProduct(userId, productId, true, 'billing', sub.id ?? null);
+      if (sub.customerId) await setPolarCustomerId(userId, sub.customerId);
       if (!had) updated = true;
     }
 
-    if (subs.length > 0 && !subs.some((s) => subIsActive(s.status)) && before.includes('shared_spaces')) {
-      console.warn(
-        `[entitlements] DB has shared_spaces but Paddle has no active subscription for ${userId} — not auto-revoking`,
-      );
+    if (!grantedFromPolar) {
+      if (await cancelBillingEntitlements(userId)) {
+        updated = true;
+        console.info(
+          `[entitlements] No active Polar subscription for ${userId} — canceled billing entitlements`,
+        );
+      }
     }
   } catch (error) {
-    console.error('[entitlements] Paddle sync failed:', error);
+    // Fail closed: do not revoke on Polar outages / auth errors.
+    console.error('[entitlements] Polar sync failed:', error);
   }
 
   const after = await listActiveFeatureKeys(userId);
@@ -286,24 +360,20 @@ export async function syncEntitlementsFromProvider(
   };
 }
 
-/** Apply a Paddle subscription event to billing entitlements. */
-export async function applyPaddleSubscriptionEntitlement(options: {
+/** Apply a Polar subscription/order event to billing entitlements. */
+export async function applyPolarSubscriptionEntitlement(options: {
   userId: string;
-  priceId: string | null;
+  productId: string | null;
   subscriptionId: string | null;
   enabled: boolean;
 }): Promise<void> {
-  const { userId, priceId, subscriptionId, enabled } = options;
-  if (!priceId) {
+  const { userId, productId, subscriptionId, enabled } = options;
+  if (!productId) {
     if (!enabled) {
-      // Cancel without price: clear all billing-source rows for the user.
-      const now = new Date();
-      await db
-        .update(Entitlements)
-        .set({ status: 'canceled', updatedAt: now })
-        .where(and(eq(Entitlements.userId, userId), eq(Entitlements.source, 'billing')));
+      // Cancel without product: clear all billing-source rows for the user.
+      await cancelBillingEntitlements(userId);
     }
     return;
   }
-  await setEntitlementsForPrice(userId, priceId, enabled, 'billing', subscriptionId);
+  await setEntitlementsForProduct(userId, productId, enabled, 'billing', subscriptionId);
 }

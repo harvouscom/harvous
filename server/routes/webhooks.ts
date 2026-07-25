@@ -3,22 +3,29 @@
  *
  * Endpoints:
  *   POST /api/webhooks/clerk
- *   POST /api/webhooks/paddle
+ *   POST /api/webhooks/polar
  */
 
 import { Hono } from 'hono';
 import { verifyWebhook } from '@clerk/backend/webhooks';
+import { validateEvent, WebhookVerificationError } from '@polar-sh/sdk/webhooks';
 import { tagAsAppUser } from '@/utils/audienceful';
 import { handleAPIError } from '@/utils/error-handling';
 import { invalidateUserCache } from '../utils/user-cache';
-import { verifyPaddleSignature } from '../utils/paddle-signature';
-import { firstHeaderValue } from '../utils/paddle-client';
+import { firstHeaderValue } from '../utils/polar-client';
 import {
-  applyPaddleSubscriptionEntitlement,
-  setPaddleCustomerId,
-  getPaddleCustomerId,
+  polarBillingIntent,
+  productIdFromPolarData,
+  externalUserIdFromPolarData,
+  customerIdFromPolarData,
+  subscriptionStatusFromPolarData,
+} from '../utils/polar-webhook';
+import {
+  applyPolarSubscriptionEntitlement,
+  setPolarCustomerId,
+  getPolarCustomerId,
 } from '../utils/entitlements';
-import { planForPriceId } from '@/lib/billing-plans';
+import { planForProductId } from '@/lib/billing-plans';
 import { db, first, UserMetadata, eq } from '../db';
 
 const app = new Hono();
@@ -325,127 +332,73 @@ app.post('/api/webhooks/clerk', async (c) => {
   }
 });
 
-// ─── POST /api/webhooks/paddle ────────────────────────────────────────
+// ─── POST /api/webhooks/polar ─────────────────────────────────────────
 
-type PaddleWebhookEvent = {
-  event_id?: string;
-  event_type?: string;
-  data?: {
-    id?: string;
-    status?: string;
-    customer_id?: string;
-    custom_data?: { clerkUserId?: string } | null;
-    items?: Array<{ price?: { id?: string }; price_id?: string }>;
-    subscription_id?: string | null;
-    [key: string]: unknown;
-  };
-};
-
-async function resolveClerkUserIdFromPaddle(data: PaddleWebhookEvent['data']): Promise<string | null> {
-  if (!data) return null;
-  const fromCustom = data.custom_data?.clerkUserId;
-  if (fromCustom) return fromCustom;
-
-  const customerId = data.customer_id;
-  if (!customerId) return null;
-
-  const byCustomer = first(
-    await db
-      .select({ userId: UserMetadata.userId })
-      .from(UserMetadata)
-      .where(eq(UserMetadata.paddleCustomerId, customerId))
-      .limit(1),
-  );
-  return byCustomer?.userId ?? null;
-}
-
-function priceIdFromPaddleData(data: PaddleWebhookEvent['data']): string | null {
-  if (!data?.items?.length) return null;
-  const item = data.items[0];
-  return item?.price?.id ?? item?.price_id ?? null;
-}
-
-app.post('/api/webhooks/paddle', async (c) => {
+app.post('/api/webhooks/polar', async (c) => {
   try {
-    const secret = process.env.PADDLE_WEBHOOK_SECRET;
+    const secret = process.env.POLAR_WEBHOOK_SECRET;
     if (!secret) {
-      console.error('[Paddle webhook] PADDLE_WEBHOOK_SECRET not configured');
+      console.error('[Polar webhook] POLAR_WEBHOOK_SECRET not configured');
       return c.json({ error: 'Webhook secret not configured' }, 500);
     }
 
     const rawBody = await c.req.text();
-    const signature = firstHeaderValue(c.req.header('paddle-signature') ?? c.req.header('Paddle-Signature'));
+    // Standard Webhooks headers; Netlify may duplicate as "v, v" — take the first.
+    const headers: Record<string, string> = {
+      'webhook-id': firstHeaderValue(c.req.header('webhook-id')) ?? '',
+      'webhook-timestamp': firstHeaderValue(c.req.header('webhook-timestamp')) ?? '',
+      'webhook-signature': firstHeaderValue(c.req.header('webhook-signature')) ?? '',
+    };
 
-    if (!verifyPaddleSignature(rawBody, signature, secret)) {
-      console.error('[Paddle webhook] Signature verification failed');
-      return c.json({ error: 'Invalid webhook signature' }, 401);
+    let event: { type: string; data: unknown };
+    try {
+      event = validateEvent(rawBody, headers, secret) as { type: string; data: unknown };
+    } catch (error) {
+      if (error instanceof WebhookVerificationError) {
+        console.error('[Polar webhook] Signature verification failed');
+        return c.json({ error: 'Invalid webhook signature' }, 401);
+      }
+      throw error;
     }
 
-    const event = JSON.parse(rawBody) as PaddleWebhookEvent;
-    const eventType = event.event_type || '';
-    const data = event.data;
-    console.log('[Paddle webhook] Received:', { eventType, eventId: event.event_id });
+    const eventType = event.type;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = event.data as any;
+    console.log('[Polar webhook] Received:', { eventType });
 
-    const userId = await resolveClerkUserIdFromPaddle(data);
-    if (!userId) {
-      console.warn('[Paddle webhook] Could not resolve clerk user id', { eventType, customerId: data?.customer_id });
+    const intent = polarBillingIntent(eventType, subscriptionStatusFromPolarData(data));
+    if (!intent) {
       return c.json({ ok: true, skipped: true });
     }
 
-    if (data?.customer_id) {
-      const existing = await getPaddleCustomerId(userId);
-      if (!existing) await setPaddleCustomerId(userId, data.customer_id);
+    const userId = externalUserIdFromPolarData(data);
+    if (!userId) {
+      console.warn('[Polar webhook] Could not resolve user id (no external_customer_id)', { eventType });
+      return c.json({ ok: true, skipped: true });
     }
 
-    const priceId = priceIdFromPaddleData(data);
-    const subscriptionId = data?.id?.startsWith('sub_') ? data.id : data?.subscription_id ?? null;
+    // Opportunistically store the Polar customer id for fallback/audit.
+    const customerId = customerIdFromPolarData(data);
+    if (customerId) {
+      const existing = await getPolarCustomerId(userId);
+      if (!existing) await setPolarCustomerId(userId, customerId);
+    }
 
-    switch (eventType) {
-      case 'subscription.activated':
-      case 'subscription.updated':
-      case 'transaction.completed': {
-        const enabled =
-          eventType === 'transaction.completed'
-            ? Boolean(priceId && planForPriceId(priceId))
-            : data?.status === 'active' || data?.status === 'trialing' || data?.status === 'past_due';
-        if (priceId && planForPriceId(priceId)) {
-          await applyPaddleSubscriptionEntitlement({
-            userId,
-            priceId,
-            subscriptionId,
-            enabled: enabled || eventType === 'subscription.activated',
-          });
-        }
-        break;
+    const productId = productIdFromPolarData(data);
+    const subscriptionId = typeof data?.id === 'string' ? data.id : null;
+
+    if (intent === 'enable') {
+      if (productId && planForProductId(productId)) {
+        await applyPolarSubscriptionEntitlement({ userId, productId, subscriptionId, enabled: true });
       }
-      case 'subscription.canceled': {
-        await applyPaddleSubscriptionEntitlement({
-          userId,
-          priceId,
-          subscriptionId,
-          enabled: false,
-        });
-        break;
-      }
-      case 'subscription.past_due': {
-        // Keep entitlement during past_due (dunning); status stays active in our model.
-        if (priceId && planForPriceId(priceId)) {
-          await applyPaddleSubscriptionEntitlement({
-            userId,
-            priceId,
-            subscriptionId,
-            enabled: true,
-          });
-        }
-        break;
-      }
-      default:
-        console.log('[Paddle webhook] Unhandled event type:', eventType);
+    } else {
+      // disable — clear this product's rows, or all billing rows if no product on the event.
+      await applyPolarSubscriptionEntitlement({ userId, productId, subscriptionId, enabled: false });
     }
 
     return c.json({ ok: true });
   } catch (error: any) {
-    console.error('[Paddle webhook] Error:', error?.message || error);
+    console.error('[Polar webhook] Error:', error?.message || error);
     return c.json({ error: 'Internal server error' }, 500);
   }
 });

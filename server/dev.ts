@@ -15,17 +15,18 @@
 import { config } from 'dotenv';
 import { resolve } from 'path';
 
-// Load .env from project root
+// Load .env BEFORE importing the app. ESM hoists static imports above this
+// call, so app + routes are pulled in via dynamic import after dotenv runs.
 config({ path: resolve(import.meta.dirname || __dirname, '..', '.env') });
-
-import { serve } from '@hono/node-server';
-import app from './app';
-import { warmPostgresConnection } from './db/client';
-import { resetUserToNew } from './utils/reset-user-to-new';
 
 const port = parseInt(process.env.API_PORT || '3001', 10);
 
 async function main() {
+  const { serve } = await import('@hono/node-server');
+  const { default: app } = await import('./app');
+  const { warmPostgresConnection } = await import('./db/client');
+  const { resetUserToNew } = await import('./utils/reset-user-to-new');
+
   if (process.env.NODE_ENV !== 'production' && process.env.DEV_RESET_USER_ID) {
     try {
       await resetUserToNew(process.env.DEV_RESET_USER_ID);

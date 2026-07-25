@@ -6,6 +6,7 @@ import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { prototypeSettingsAccountRouteTo, prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { readSettingsOpenerPath } from '../../../lib/prototype-settings-opener';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
+import { prefetchSettingsCategoryChunks } from './prefetch-settings-chunks';
 import { SETTINGS_CATEGORIES } from './settingsCategories';
 
 function isSettingsIndexPath(pathname: string) {
@@ -36,6 +37,10 @@ export default function PrototypeSettingsLayout() {
   const goToSettingsList = useCallback(() => {
     navigate({ to: prototypeSettingsRouteTo(), replace: true });
   }, [navigate]);
+
+  useEffect(() => {
+    prefetchSettingsCategoryChunks();
+  }, []);
 
   useEffect(() => {
     if (isMobileSidebar) return undefined;

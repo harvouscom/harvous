@@ -12,12 +12,16 @@ import SimplifiedPrototypeLayout from './layouts/SimplifiedPrototypeLayout';
 import PrototypeHomePage from './pages/prototype/PrototypeHomePage';
 import PrototypeNotePage from './pages/prototype/PrototypeNotePage';
 import PrototypeRouteErrorState from './pages/prototype/PrototypeRouteErrorState';
+import PrototypeSettingsLayout from './pages/prototype/settings/PrototypeSettingsLayout';
+import PrototypeSettingsIndex from './pages/prototype/settings/PrototypeSettingsIndex';
+import PrototypeAccountPage from './pages/prototype/settings/PrototypeAccountPage';
 import PublicJoinSpacePage from './pages/public/PublicJoinSpacePage';
 import PublicSharedNotePage from './pages/public/PublicSharedNotePage';
 import PublicSharedThreadPage from './pages/public/PublicSharedThreadPage';
 import PublicInvitationPage from './pages/public/PublicInvitationPage';
 import { noteParamSlug, normalizeNoteIdFromParam } from './pages/prototype/proto-route-slugs';
 import { normalizePrototypeApiSpaceId } from './utils/prototype-space-api-id';
+import { requestFreezeMainForSettings } from './lib/prototype-settings-main-keepalive';
 
 export type PrototypeNoteSearch = {
   studyThread?: string;
@@ -260,22 +264,28 @@ function buildPrototypeRouteBranch() {
     },
   });
 
+  // Settings shell + Account are eager so the modal paints without a lazy-chunk gap
+  // (opening settings replaces the shell Outlet; lag felt like a full reload).
   const prototypeSettingsRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'settings',
-    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSettingsLayout')),
+    component: PrototypeSettingsLayout,
+    beforeLoad: () => {
+      // Snapshot main content while the previous Outlet is still in the DOM.
+      requestFreezeMainForSettings();
+    },
   });
 
   const prototypeSettingsIndexRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: '/',
-    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSettingsIndex')),
+    component: PrototypeSettingsIndex,
   });
 
   const prototypeSettingsAccountRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: 'account',
-    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeAccountPage')),
+    component: PrototypeAccountPage,
   });
 
   const prototypeSettingsTranslationRoute = createRoute({

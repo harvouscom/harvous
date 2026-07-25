@@ -101,6 +101,7 @@ export function SettingsRow({
   badge,
   leadingIcon,
   leadingAccent,
+  leadingClassName,
   onClick,
   destructive = false,
   disabled = false,
@@ -115,27 +116,28 @@ export function SettingsRow({
   leadingIcon?: IconName;
   /** Glyph color for the leading icon tile (defaults to secondary text). */
   leadingAccent?: string;
+  /** Extra class on the leading tile (e.g. branded Plus swatch). */
+  leadingClassName?: string;
   onClick?: () => void;
   destructive?: boolean;
   disabled?: boolean;
   trailing?: 'chevron' | 'none';
 }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={
-        destructive
-          ? 'proto-note-row proto-note-row--destructive'
-          : disabled
-            ? 'proto-note-row proto-note-row--disabled'
-            : 'proto-note-row'
-      }
-    >
+  const interactive = typeof onClick === 'function' && !disabled;
+  const className = [
+    'proto-note-row',
+    destructive ? 'proto-note-row--destructive' : null,
+    disabled ? 'proto-note-row--disabled' : null,
+    !interactive ? 'proto-note-row--static' : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const body = (
+    <>
       {leadingIcon ? (
         <span
-          className="proto-settings-list-row__leading"
+          className={['proto-settings-list-row__leading', leadingClassName].filter(Boolean).join(' ')}
           style={leadingAccent ? { color: leadingAccent } : undefined}
           aria-hidden
         >
@@ -171,6 +173,20 @@ export function SettingsRow({
           </span>
         ) : null}
       </span>
+    </>
+  );
+
+  if (!interactive) {
+    return (
+      <div className={className} role="group">
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} className={className}>
+      {body}
     </button>
   );
 }

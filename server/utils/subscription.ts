@@ -11,7 +11,15 @@ import {
   FREE_OWNED_SHARED_SPACES_LIMIT,
 } from './tier-limits';
 import { getActiveEntitlements, limitsForUser } from './entitlements';
-import { planForPriceId, type FeatureKey, type PlanKey } from '@/lib/billing-plans';
+import {
+  isFoundingProductId,
+  planForProductId,
+  type FeatureKey,
+  type PlanKey,
+} from '@/lib/billing-plans';
+import { getPolarBillingSummaries, type BillingSubscriptionSummary } from './polar-billing';
+
+export type { BillingSubscriptionSummary };
 
 export async function getUserNoteCount(userId: string): Promise<number> {
   try {
@@ -71,10 +79,36 @@ export async function canCreateNote(
   return { allowed: true };
 }
 
-async function resolvePlanKey(userId: string): Promise<PlanKey | null> {
+/**
+ * Active billing-sourced product ids. A user can hold Plus and Connector at
+ * once, so this returns all of them rather than picking one arbitrarily.
+ */
+async function activeBillingProductIds(userId: string): Promise<string[]> {
+  const rows = await db
+    .select({ productId: Entitlements.productId })
+    .from(Entitlements)
+    .where(
+      and(
+        eq(Entitlements.userId, userId),
+        eq(Entitlements.status, 'active'),
+        eq(Entitlements.source, 'billing'),
+      ),
+    );
+  return rows.map((row) => row.productId).filter((id): id is string => Boolean(id));
+}
+
+/** Primary plan for the account — Plus wins when both are held. */
+function resolvePlanKeyFromProducts(productIds: string[]): PlanKey | null {
+  const keys = productIds.map((id) => planForProductId(id)?.key).filter(Boolean) as PlanKey[];
+  if (keys.includes('plus')) return 'plus';
+  return keys[0] ?? null;
+}
+
+/** True when Plus (or any feature) was granted via Polar checkout — portal can open. */
+async function hasBillingManagedEntitlement(userId: string): Promise<boolean> {
   const row = first(
     await db
-      .select({ priceId: Entitlements.priceId })
+      .select({ id: Entitlements.id })
       .from(Entitlements)
       .where(
         and(
@@ -85,8 +119,7 @@ async function resolvePlanKey(userId: string): Promise<PlanKey | null> {
       )
       .limit(1),
   );
-  const plan = planForPriceId(row?.priceId);
-  return plan?.key ?? null;
+  return Boolean(row);
 }
 
 export async function getSubscriptionInfo(userId: string, auth: Auth) {
@@ -98,7 +131,8 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
     sharedSpacesOwnedCount,
     entitlements,
     limits,
-    planKey,
+    billingProductIds,
+    canManageBilling,
   ] = await Promise.all([
     hasUnlimitedNotes(auth),
     hasSharedSpacesAddOn(auth),
@@ -107,16 +141,31 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
     getSharedSpacesOwnedCount(userId),
     getActiveEntitlements(userId),
     limitsForUser(userId),
-    resolvePlanKey(userId),
+    activeBillingProductIds(userId),
+    hasBillingManagedEntitlement(userId),
   ]);
 
+  const planKey = resolvePlanKeyFromProducts(billingProductIds);
   const sharedSpacesOwnedLimit = hasSharedSpaces ? limits.ownedSpaces : FREE_OWNED_SHARED_SPACES_LIMIT;
+  const summaries = canManageBilling ? await getPolarBillingSummaries(userId) : {};
 
   return {
     hasUnlimited,
     hasSharedSpaces,
+    /** Connector is a separate product with its own subscription. */
+    hasConnector: (entitlements as FeatureKey[]).includes('connector'),
+    /**
+     * On the capped founding price ($45/yr, first 99) — drives the "Founding"
+     * badge. Read from the product actually purchased, never from the plan key,
+     * because founding and standard Plus share `key: 'plus'`.
+     */
+    isFounding: billingProductIds.some((id) => isFoundingProductId(id)),
     entitlements: entitlements as FeatureKey[],
     planKey,
+    /** Polar checkout exists — in-app manage + payment portal. False for admin_grant / trial. */
+    canManageBilling,
+    billing: summaries.plus ?? null,
+    connectorBilling: summaries.connector ?? null,
     limits: {
       ownedSpaces: sharedSpacesOwnedLimit,
       membersPerSpace: limits.membersPerSpace,

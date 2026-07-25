@@ -9692,8 +9692,8 @@ var UserMetadata = pgTable("UserMetadata", {
    * live in `Entitlements`.
    */
   tier: text("tier").notNull().default("free"),
-  /** Paddle customer id (`ctm_…`) for portal sessions and subscription sync. */
-  paddleCustomerId: text("paddleCustomerId"),
+  /** Polar customer id for portal sessions and subscription sync. */
+  polarCustomerId: text("polarCustomerId"),
   createdAt: ts("createdAt").notNull(),
   updatedAt: ts("updatedAt")
 }, (table) => [
@@ -9701,7 +9701,7 @@ var UserMetadata = pgTable("UserMetadata", {
   // backfill into broadcast spaces). Cheap to add now; a lock under load later.
   index("UserMetadata_connectedChurchIdIndex").on(table.connectedChurchId),
   index("UserMetadata_hmcChurchIdIndex").on(table.hmcChurchId),
-  index("UserMetadata_paddleCustomerIdIndex").on(table.paddleCustomerId)
+  index("UserMetadata_polarCustomerIdIndex").on(table.polarCustomerId)
 ]);
 var Entitlements = pgTable(
   "Entitlements",
@@ -9713,10 +9713,10 @@ var Entitlements = pgTable(
     // active | canceled | expired
     source: text("source").notNull().default("billing"),
     // billing | admin_grant | church_seat | trial
-    /** Provider subscription id (Paddle `sub_…`) when source=billing. */
+    /** Provider subscription id (Polar subscription id) when source=billing. */
     providerRef: text("providerRef"),
-    /** Paddle price id (`pri_…`) that granted this row. */
-    priceId: text("priceId"),
+    /** Polar product id that granted this row. */
+    productId: text("productId"),
     grantedAt: ts("grantedAt").notNull(),
     expiresAt: ts("expiresAt"),
     updatedAt: ts("updatedAt")

@@ -5,10 +5,10 @@ import {
   type SharedSpacesEntitlementSyncedDetail
 } from '@/utils/sync-shared-spaces-billing';
 import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
-import { OWNED_SHARED_SPACES_ADDON_LIMIT } from '@/lib/shared-spaces-limits';
+import { OWNED_SHARED_SPACES_ADDON_LIMIT, MEMBERS_PER_SPACE_CAP } from '@/lib/shared-spaces-limits';
 
 const FREE_OWNED_SHARED_SPACES_LIMIT = 0;
-const DEFAULT_MEMBERS_PER_SPACE = 30;
+const DEFAULT_MEMBERS_PER_SPACE = MEMBERS_PER_SPACE_CAP;
 
 type SubscriptionStatusResponse = {
   hasUnlimited: boolean;
