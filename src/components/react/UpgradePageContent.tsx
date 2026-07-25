@@ -259,7 +259,7 @@ export default function UpgradePageContent({
             <div className="public-addon-letter__cta">
               {hasSharedSpaces ? (
                 <>
-                  <a href="/" className="upgrade-primary-btn">
+                  <a href="/" className="upgrade-secondary-btn">
                     Back to My Harvous
                   </a>
                   <a href={prototypeHref('settings/addons')} className="upgrade-secondary-btn">
@@ -275,7 +275,7 @@ export default function UpgradePageContent({
                   priceAnnualLabel={PRICE_ANNUAL_LABEL}
                 />
               ) : (
-                <a href={signInHref} className="upgrade-primary-btn">
+                <a href={signInHref} className="upgrade-secondary-btn">
                   Sign in to add
                 </a>
               )}

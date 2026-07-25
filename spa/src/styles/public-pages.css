@@ -190,9 +190,9 @@
   color: var(--site-ink);
 }
 
-/* CTA pill ("Open app" / "Sign in" / "Back to my Harvous") — site accent,
-   matching public-route-boot critical CSS and the marketing header. Keep
-   boot + bundle in sync so we never get white text on a light hover fill. */
+/* CTA pill ("Open app" / "Sign in" / "Back to my Harvous") — secondary
+   control (light fill + ink text), same recipe as `.upgrade-secondary-btn`.
+   Keep boot critical CSS in sync to avoid white-on-light FOUC. */
 .public-toolbar__cta {
   display: inline-flex;
   align-items: center;
@@ -202,24 +202,24 @@
   box-sizing: border-box;
   height: 36px;
   padding: 0 14px;
-  border: 0;
+  border: 1px solid var(--pds-border-control, var(--site-rule));
   border-radius: 999px;
-  background: var(--site-accent);
-  box-shadow: none;
+  background: var(--pds-bg-sidebar-input, #ffffff);
+  box-shadow: var(--pds-glass-rim, none);
   font-family:
     "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1;
-  color: #fff;
-  -webkit-text-fill-color: #fff;
+  color: var(--pds-text-primary, var(--site-ink));
+  -webkit-text-fill-color: var(--pds-text-primary, var(--site-ink));
   text-decoration: none;
   white-space: nowrap;
-  transition: filter 120ms ease;
+  transition: background 0.1s ease;
 }
 .public-toolbar__cta:hover {
-  background: var(--site-accent);
-  filter: brightness(1.06);
+  background: var(--pds-bg-sidebar-input-hover, color-mix(in srgb, var(--site-ink) 4%, #ffffff));
+  filter: none;
 }
 .public-toolbar__cta:focus-visible {
   outline: 2px solid var(--site-accent);

@@ -27,10 +27,10 @@ export function writePublicToolbarPendingRedirect(destination: string): boolean 
 
 /**
  * Floating navbar pill rendered on every public/shared page. Contains the
- * app icon and a CTA pill at the right ("Open app" when signed in,
+ * app icon and a secondary CTA pill at the right ("Open app" when signed in,
  * "Sign in" when not — the shared-page equivalent of the site's "Try free").
  * Pass `signedInCtaLabel` to override the signed-in copy (e.g. "Back to
- * Harvous" on /upgrade, where the visitor is already inside the app).
+ * my Harvous" on /upgrade). All labels share `.public-toolbar__cta`.
  */
 export function PublicTopBar({
   isSignedIn,
