@@ -19,7 +19,7 @@ test.describe('Shared Spaces entitlement cache', () => {
     await grantSharedSpacesAddon(userAContext.request, true);
   });
 
-  test('space switcher hides Add-on badge after entitlement sync event', async ({ userAContext }) => {
+  test('space switcher hides Plus badge after entitlement sync event', async ({ userAContext }) => {
     await grantSharedSpacesAddon(userAContext.request, false);
 
     const page = await userAContext.newPage();
@@ -32,6 +32,9 @@ test.describe('Shared Spaces entitlement cache', () => {
         body: JSON.stringify({
           hasUnlimited: false,
           hasSharedSpaces: false,
+          entitlements: [],
+          planKey: null,
+          limits: { ownedSpaces: 0, membersPerSpace: 30 },
           currentCount: 0,
           limit: null,
           sharedSpacesOwnedCount: 0,
@@ -45,12 +48,12 @@ test.describe('Shared Spaces entitlement cache', () => {
 
     await openSpaceSwitcherMenu(page);
     const newSharedItem = page.getByRole('menuitem', { name: 'New shared space' });
-    await expect(newSharedItem.locator('.proto-menu-item__badge')).toHaveText('Add-on');
+    await expect(newSharedItem.locator('.proto-menu-item__badge')).toHaveText('Plus');
 
     await page.evaluate(() => {
       window.dispatchEvent(
         new CustomEvent('sharedSpacesEntitlementSynced', {
-          detail: { hasSharedSpaces: true, updated: true },
+          detail: { hasSharedSpaces: true, updated: true, entitlements: ['shared_spaces'] },
         }),
       );
     });

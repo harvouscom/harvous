@@ -4,13 +4,12 @@
  * are a segmented chip toggle; otherwise only My Home appears as a row. Below that:
  * personal Shared Spaces in one list (hosted + joined, drag-reorder preference),
  * or church spaces in My Church mode. "New shared space" gated on the add-on.
- * Ministry channels live under My Church — not in this list.
+ * In My Church, staff can create a church Shared Space or ministry channel.
  * Create opens CreateSharedSpaceSheet (dialog/sheet), not an inline form.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
-import { useAuth } from '@clerk/clerk-react';
 import Icon from '@/components/react/Icon';
 import ProtoHouseIcon from './ProtoHouseIcon';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
@@ -20,8 +19,10 @@ import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import { useNavigation, type NavSpace } from '../../hooks/queries/useNavigation';
 import { useSubscriptionStatus } from '../../hooks/queries/useSubscriptionStatus';
 import { useProfile } from '../../hooks/queries/useProfile';
+import { useChurchStaffStatus } from '../../hooks/queries/useChurchStaffStatus';
 import { isMinistryBroadcastSpace } from '../../lib/shared-space-capabilities';
 import {
+  canCreateChurchOrgContent,
   churchHubSpacesForOrg,
   isPersonalSharedSpace,
   resolveMyChurchFromNav,
@@ -30,22 +31,17 @@ import {
   normalizeSharedSpaceSwitcherId,
   orderPersonalSharedSpaces,
 } from '../../lib/shared-space-switcher-order';
-import {
-  dispatchSharedSpacesEntitlementSynced,
-  syncSharedSpacesBilling,
-} from '@/utils/sync-shared-spaces-billing';
 import { useSharedSpaceSwitcherDragReorder } from '../../hooks/useSharedSpaceSwitcherDragReorder';
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import ProtoPopoverShell from './ProtoPopoverShell';
-import CreateSharedSpaceSheet from './CreateSharedSpaceSheet';
+import CreateSharedSpaceSheet, { type CreateSpaceSheetKind } from './CreateSharedSpaceSheet';
 import { PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE, PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
 
 function normalizeSpaceId(id: string): string {
   return id.startsWith('space_') ? id : `space_${id}`;
 }
 
-/** Mirror server OWNED_SHARED_SPACES_ADDON_LIMIT — used when API cache is stale (limit still 0). */
-const OWNED_SHARED_SPACES_ADDON_LIMIT = 10;
+import { UNLIMITED, isUnlimited } from '@/lib/shared-spaces-limits';
 
 export default function SpaceSwitcherMenu({
   homeSpaceId,
@@ -58,7 +54,6 @@ export default function SpaceSwitcherMenu({
   iconOnly?: boolean;
 }) {
   const navigate = useNavigate();
-  const { isLoaded, isSignedIn, has } = useAuth();
   const {
     sidebarLayer,
     setSidebarLayer,
@@ -74,34 +69,15 @@ export default function SpaceSwitcherMenu({
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   /** Captured when opening the create sheet so My Church mode survives menu close. */
   const [createOrgId, setCreateOrgId] = useState<string | null>(null);
-  const [createSyncBilling, setCreateSyncBilling] = useState(false);
+  const [createKind, setCreateKind] = useState<CreateSpaceSheetKind>('shared');
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [anchorPos, setAnchorPos] = useState<{ top: number; left: number } | null>(null);
   const { data: nav } = useNavigation();
   const { data: profile } = useProfile();
   const { data: subscription } = useSubscriptionStatus();
-  const backgroundSyncStarted = useRef(false);
 
-  const clerkEntitled = isLoaded && isSignedIn && has({ feature: 'shared_spaces' });
-  const apiHasSharedSpaces = Boolean(subscription?.hasSharedSpaces);
-  const hasSharedSpaces = apiHasSharedSpaces || clerkEntitled;
-
-  useEffect(() => {
-    if (!clerkEntitled || apiHasSharedSpaces || backgroundSyncStarted.current) return;
-    backgroundSyncStarted.current = true;
-    void syncSharedSpacesBilling()
-      .then((result) => {
-        dispatchSharedSpacesEntitlementSynced({
-          hasSharedSpaces: result.hasSharedSpaces,
-          updated: result.updated,
-        });
-      })
-      .catch((error) => {
-        console.error('[SpaceSwitcherMenu] Shared Spaces billing sync failed:', error);
-        backgroundSyncStarted.current = false;
-      });
-  }, [clerkEntitled, apiHasSharedSpaces]);
+  const hasSharedSpaces = Boolean(subscription?.hasSharedSpaces);
 
   const normalizedActive = useMemo(
     () => (homeSpaceId == null ? null : normalizeSpaceId(homeSpaceId)),
@@ -113,8 +89,18 @@ export default function SpaceSwitcherMenu({
         spaces: nav?.spaces,
         memberOfSpaces: nav?.memberOfSpaces,
         connectedOrgId: profile?.connectedOrgId,
+        churchName: profile?.churchName,
+        churchCity: profile?.churchCity,
+        churchState: profile?.churchState,
       }),
-    [nav?.spaces, nav?.memberOfSpaces, profile?.connectedOrgId],
+    [
+      nav?.spaces,
+      nav?.memberOfSpaces,
+      profile?.connectedOrgId,
+      profile?.churchName,
+      profile?.churchCity,
+      profile?.churchState,
+    ],
   );
   const inMyChurchMode = Boolean(activeChurchOrgId);
   /** My Church: that church’s spaces (owned + joined). */
@@ -142,6 +128,26 @@ export default function SpaceSwitcherMenu({
     () => personalSharedSpaces.map((s) => normalizeSharedSpaceSwitcherId(s.id)),
     [personalSharedSpaces],
   );
+  const { isStaff: isActiveChurchStaff } = useChurchStaffStatus(
+    inMyChurchMode ? activeChurchOrgId : null,
+  );
+  const canCreateChurchContent = useMemo(
+    () =>
+      canCreateChurchOrgContent({
+        navigation: nav,
+        orgId: activeChurchOrgId,
+        connectedOrgId: profile?.connectedOrgId,
+        isHomeChurchStaff: profile?.isHomeChurchStaff,
+        isOrgStaff: isActiveChurchStaff,
+      }),
+    [
+      nav,
+      activeChurchOrgId,
+      profile?.connectedOrgId,
+      profile?.isHomeChurchStaff,
+      isActiveChurchStaff,
+    ],
+  );
   const spaceDrag = useSharedSpaceSwitcherDragReorder({
     orderedSpaceIds: personalSharedIds,
     enabled: !inMyChurchMode && open,
@@ -160,15 +166,21 @@ export default function SpaceSwitcherMenu({
       .filter((s): s is NavSpace => Boolean(s));
   }, [inMyChurchMode, personalSpacesById, spaceDrag.displayOrderedIds]);
 
+  // Plus is unlimited; a stale cache can still report the old numeric limit (or 0),
+  // so anything non-positive resolves to unlimited rather than locking the user out.
+  const rawOwnedLimit = subscription?.sharedSpacesOwnedLimit;
   const ownedLimit = hasSharedSpaces
-    ? Math.max(subscription?.sharedSpacesOwnedLimit ?? OWNED_SHARED_SPACES_ADDON_LIMIT, OWNED_SHARED_SPACES_ADDON_LIMIT)
+    ? typeof rawOwnedLimit === 'number' && rawOwnedLimit > 0
+      ? rawOwnedLimit
+      : UNLIMITED
     : 0;
   /** Personal Shared Spaces only — church-scoped (orgId) do not burn the add-on quota. */
   const ownedCount = useMemo(
     () => (nav?.spaces ?? []).filter((s) => isPersonalSharedSpace(s)).length,
     [nav?.spaces],
   );
-  const atOwnedLimit = hasSharedSpaces && ownedLimit > 0 && ownedCount >= ownedLimit;
+  const atOwnedLimit =
+    hasSharedSpaces && !isUnlimited(ownedLimit) && ownedLimit > 0 && ownedCount >= ownedLimit;
   const activeIsMinistry = Boolean(space && isMinistryBroadcastSpace(space));
 
   useLayoutEffect(() => {
@@ -260,17 +272,21 @@ export default function SpaceSwitcherMenu({
     ensureSidebarExpanded();
   }
 
-  function openCreateSheet() {
+  function openCreateSheet(kind: CreateSpaceSheetKind = 'shared') {
     if (!inMyChurchMode) {
       if (atOwnedLimit) return;
       if (!hasSharedSpaces) {
         setOpen(false);
-        void navigate({ to: '/addon' as any });
+        void navigate({ to: '/upgrade' as any });
         return;
       }
+      setCreateOrgId(null);
+      setCreateKind('shared');
+    } else {
+      if (!activeChurchOrgId || !canCreateChurchContent) return;
+      setCreateOrgId(activeChurchOrgId);
+      setCreateKind(kind);
     }
-    setCreateOrgId(inMyChurchMode ? activeChurchOrgId : null);
-    setCreateSyncBilling(Boolean(clerkEntitled && !apiHasSharedSpaces));
     setOpen(false);
     setCreateSheetOpen(true);
   }
@@ -445,24 +461,49 @@ export default function SpaceSwitcherMenu({
             </div>
           ) : null}
 
-          {(inMyChurchMode ? Boolean(activeChurchOrgId) : true) ? (
+          {inMyChurchMode && activeChurchOrgId && canCreateChurchContent ? (
+            <div className="proto-menu-section" role="group" aria-label="Create church content">
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item"
+                onClick={() => openCreateSheet('shared')}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="plus" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span className="proto-menu-item__label">New church shared space</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item"
+                onClick={() => openCreateSheet('ministry')}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="plus" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span className="proto-menu-item__label">New ministry channel</span>
+              </button>
+            </div>
+          ) : null}
+
+          {!inMyChurchMode ? (
             <div className="proto-menu-section" role="group">
               <button
                 type="button"
                 role="menuitem"
                 className="proto-menu-item"
-                disabled={!inMyChurchMode && atOwnedLimit}
-                aria-disabled={!inMyChurchMode && atOwnedLimit}
-                onClick={openCreateSheet}
+                disabled={atOwnedLimit}
+                aria-disabled={atOwnedLimit}
+                onClick={() => openCreateSheet('shared')}
               >
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="plus" size={PROTO_TOOLBAR_ICON_SIZE} />
                 </span>
-                <span className="proto-menu-item__label">
-                  {inMyChurchMode ? 'New church Shared Space' : 'New shared space'}
-                </span>
-                {!inMyChurchMode && !hasSharedSpaces ? (
-                  <span className="proto-menu-item__badge">Add-on</span>
+                <span className="proto-menu-item__label">New shared space</span>
+                {!hasSharedSpaces ? (
+                  <span className="proto-menu-item__badge">Plus</span>
                 ) : null}
               </button>
             </div>
@@ -522,7 +563,7 @@ export default function SpaceSwitcherMenu({
         open={createSheetOpen}
         onOpenChange={setCreateSheetOpen}
         orgId={createOrgId}
-        syncBillingBeforeCreate={createSyncBilling}
+        kind={createKind}
         onCreated={(spaceId) => selectSpace(spaceId, { keepChurch: Boolean(createOrgId) })}
       />
     </div>

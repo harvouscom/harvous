@@ -3,6 +3,7 @@
  * Uses production tokens + primitives — edit linked files; HMR updates here.
  */
 import { useState } from 'react';
+import DeleteConfirmBar from '@/components/react/DeleteConfirmBar';
 import Icon from '@/components/react/Icon';
 import {
   PrototypeListEmptyState,
@@ -242,9 +243,20 @@ function PopoverScene() {
           </button>
         </div>
       </ProtoPopoverShell>
+      <ProtoPopoverShell
+        className="harvous-delete-confirm harvous-delete-confirm--stacked"
+        style={{ position: 'relative', zIndex: 'var(--pds-z-popover)' as unknown as number, maxWidth: 300 }}
+      >
+        <DeleteConfirmBar
+          title='Delete “Triple C”?'
+          description="Restore within 30 days; notes stay in My Home."
+          onConfirm={() => undefined}
+          onCancel={() => undefined}
+        />
+      </ProtoPopoverShell>
       <p className="pds-caption">
         Use <code>usePopoverDismiss</code> + <code>ProtoPopoverShell</code> for menus. Destructive confirms use{' '}
-        <code>ProtoConfirmDialog</code>.
+        <code>ProtoConfirmDialog</code> (stacked when <code>description</code> is set; no hairline dividers).
       </p>
     </div>
   );

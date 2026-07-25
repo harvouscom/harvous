@@ -15,6 +15,7 @@ import { storeSettingsOpenerPath } from '../../lib/prototype-settings-opener';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { updateCachedProfile, useProfile } from '../../hooks/queries/useProfile';
 import { usePopoverDismiss } from '../../hooks/usePopoverDismiss';
+import { prefetchSettingsOpenPath } from './settings/prefetch-settings-chunks';
 import ProtoPopoverShell from './ProtoPopoverShell';
 
 export default function AccountMenu({ iconSize, disabled = false }: { iconSize: number; disabled?: boolean }) {
@@ -96,6 +97,8 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               type="button"
               role="menuitem"
               className="proto-menu-item"
+              onPointerEnter={prefetchSettingsOpenPath}
+              onFocus={prefetchSettingsOpenPath}
               onClick={() => {
                 setOpen(false);
                 storeSettingsOpenerPath(`${pathname}${searchRaw ?? ''}`);

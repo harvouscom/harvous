@@ -496,7 +496,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                 message: errorJson.error || errorMessage,
                 type: 'error',
                 code: 'SHARED_SPACE_LIMIT_EXCEEDED',
-                upgradeUrl: errorJson.upgradeUrl || '/addon',
+                upgradeUrl: errorJson.upgradeUrl || '/upgrade',
               },
             })
           );

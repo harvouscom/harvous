@@ -20,6 +20,26 @@ html.harvous-prototype-route [class*='proto-'] button * {
   font-family: var(--pds-font-body) !important;
 }
 
+/* Search clear (circle-xmark) — tertiary like select chevrons; beat blanket button * primary */
+html.harvous-prototype-route button.hmc-church-picker__clear,
+html.harvous-prototype-route button.hmc-church-picker__clear *,
+html.harvous-prototype-route button.proto-sidebar-search__clear,
+html.harvous-prototype-route button.proto-sidebar-search__clear * {
+  color: var(--pds-text-tertiary, var(--pds-text-secondary)) !important;
+}
+
+html.harvous-prototype-route button.hmc-church-picker__clear:hover:not(:disabled),
+html.harvous-prototype-route button.hmc-church-picker__clear:hover:not(:disabled) *,
+html.harvous-prototype-route button.proto-sidebar-search__clear:hover:not(:disabled),
+html.harvous-prototype-route button.proto-sidebar-search__clear:hover:not(:disabled) * {
+  color: var(--pds-text-secondary) !important;
+}
+
+html.harvous-prototype-route button.hmc-church-picker__clear path,
+html.harvous-prototype-route button.proto-sidebar-search__clear path {
+  fill: currentColor !important;
+}
+
 /* Sidebar list view + toolbar folder chip — GSF axes inside buttons */
 html.harvous-prototype-route button.proto-sidebar-list-view__trigger,
 html.harvous-prototype-route button.proto-sidebar-list-view__trigger .proto-sidebar-list-view__label,
@@ -207,6 +227,15 @@ html.harvous-prototype-route [class*='proto-'] button .proto-accent-check-orb sv
 html.harvous-prototype-route [class*='proto-'] button .proto-accent-check-orb path {
   color: var(--pds-on-accent) !important;
   fill: var(--pds-on-accent) !important;
+}
+
+/* Settings › Plan — true-blue Plus glyph (beats blanket button svg/path rules) */
+html.harvous-prototype-route [class*='proto-'] button .proto-settings-list-row__leading--plus,
+html.harvous-prototype-route [class*='proto-'] button .proto-settings-list-row__leading--plus *,
+html.harvous-prototype-route [class*='proto-'] button .proto-settings-list-row__leading--plus svg,
+html.harvous-prototype-route [class*='proto-'] button .proto-settings-list-row__leading--plus path {
+  color: color-mix(in oklab, var(--pds-thread-blue) 45%, var(--pds-accent-gradient-end)) !important;
+  fill: currentColor !important;
 }
 
 /* Account edit-photo badge — white pencil on the accent dot (beats blanket button + svg/path rules) */

@@ -9,43 +9,65 @@ import {
 describe('formatOwnedSharedSpacesFeatureBullet', () => {
   it('shows full capacity when none are created yet', () => {
     expect(formatOwnedSharedSpacesFeatureBullet({ ownedCount: 0, ownedLimit: 10 })).toBe(
-      'You can create up to 10 shared spaces included with your add-on and invite others to study with you',
+      'You can create up to 10 shared spaces included with your plan and invite others to study with you',
     );
   });
 
   it('shows remaining count when some spaces are created', () => {
     expect(formatOwnedSharedSpacesFeatureBullet({ ownedCount: 3, ownedLimit: 10 })).toBe(
-      'You can create 7 more of the 10 shared spaces included with your add-on',
+      'You can create 7 more of the 10 shared spaces\u00A0included with your plan',
     );
   });
 
   it('uses singular copy for one space left', () => {
     expect(formatOwnedSharedSpacesFeatureBullet({ ownedCount: 9, ownedLimit: 10 })).toBe(
-      'You can create 1 more of the 10 shared spaces included with your add-on',
+      'You can create 1 more of the 10 shared spaces\u00A0included with your plan',
     );
   });
 
   it('shows at-limit copy when all included spaces are created', () => {
     expect(formatOwnedSharedSpacesFeatureBullet({ ownedCount: 10, ownedLimit: 10 })).toBe(
-      "You've created all 10 shared spaces included with your add-on",
+      "You've created all 10 shared spaces included with your plan",
     );
+  });
+});
+
+describe('unlimited owned spaces (Plus)', () => {
+  it('uses unlimited purchase copy when nothing is created yet', () => {
+    expect(
+      formatOwnedSharedSpacesFeatureBullet({ ownedCount: 0, ownedLimit: OWNED_SHARED_SPACES_ADDON_LIMIT }),
+    ).toBe('Unlimited shared spaces');
+  });
+
+  it('counts up instead of down when the limit is unlimited', () => {
+    expect(
+      formatOwnedSharedSpacesFeatureBullet({ ownedCount: 3, ownedLimit: OWNED_SHARED_SPACES_ADDON_LIMIT }),
+    ).toBe("You've created 3 shared spaces — your plan includes\u00A0unlimited");
+  });
+
+  it('uses singular copy for a single created space', () => {
+    expect(
+      formatOwnedSharedSpacesFeatureBullet({ ownedCount: 1, ownedLimit: OWNED_SHARED_SPACES_ADDON_LIMIT }),
+    ).toBe("You've created 1 shared space — your plan includes\u00A0unlimited");
   });
 });
 
 describe('getSharedSpacesAddonFeatureBullets', () => {
   it('returns purchase copy when the add-on is inactive', () => {
     const bullets = getSharedSpacesAddonFeatureBullets({ hasAddOn: false });
-    expect(bullets[0]).toContain(`Create up to ${OWNED_SHARED_SPACES_ADDON_LIMIT} shared spaces`);
-    expect(bullets).toHaveLength(3);
+    expect(bullets[0]).toBe('Everything in free');
+    expect(bullets[1]).toBe('Unlimited shared spaces');
+    expect(bullets).toHaveLength(4);
   });
 
-  it('returns dynamic first bullet when the add-on is active', () => {
+  it('keeps Everything in free and swaps the owned-spaces bullet when active', () => {
     const bullets = getSharedSpacesAddonFeatureBullets({
       hasAddOn: true,
       ownedCount: 2,
       ownedLimit: 10,
     });
-    expect(bullets[0]).toBe('You can create 8 more of the 10 shared spaces included with your add-on');
+    expect(bullets[0]).toBe('Everything in free');
+    expect(bullets[1]).toBe('You can create 8 more of the 10 shared spaces\u00A0included with your plan');
   });
 });
 

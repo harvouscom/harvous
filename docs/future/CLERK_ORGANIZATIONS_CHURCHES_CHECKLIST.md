@@ -45,19 +45,15 @@ From the church org, admins/leaders can **create and manage multiple shared spac
 
 ### Church billing & Clerk org limits
 
-Clerk’s **free plan for organizations is limited to 20 people**. So for churches (which often exceed that), we need **paid church plans** and will need to set up additional features in **Clerk billing** to support them. For v1, Church Starter effectively lives at this 20-person cap; we should add a **lower plan** (e.g. for very small churches or trial) that fits the 20-person limit before or alongside Starter.
+**Split (July 2026):** Clerk Organizations = **identity** (staff roles/memberships). Church **billing**
+joins the same **Polar** merchant-of-record path as Harvous Plus — see
+[`docs/BILLING_ARCHITECTURE.md`](../BILLING_ARCHITECTURE.md). Do not use Clerk Billing for church plans.
 
-- **Lower plan (TBD name, v1)** — fits 20-person Clerk limit; for small churches or trial. Details TBD.
-- **Church Starter**
-  - **Monthly:** $19 / org · **Annual (20% off):** $182 / org
-  - **Intended size (guideline):** Up to ~75 active adults (v1 may cap at 20 until Clerk billing is in place)
-  - **Included:** Unlimited shared spaces, PCO sync, MyChurchPanel content, uploads (PDFs/docs/links), 1–2 admins
-- **Church Growth**
-  - **Monthly:** $39 / org · **Annual (20% off):** $374 / org
-  - **Intended size (guideline):** ~75–300 active adults
-  - **Included:** Everything in Church Starter, plus richer analytics, 3–5 admins, priority email support
-
-**Principle:** Unlimited spaces and unlimited notes inside an org; pricing scales by **church size**, not by feature gates. Implementation will require configuring Clerk billing (plans, limits, webhooks) for these church tiers.
+Clerk’s free Organizations tier caps at **20 members**. That limit is from Clerk’s **B2B Authentication**
+product (what Harvous pays Clerk), not from Clerk Billing. Orgs hold **staff** only; congregants
+connect via `UserMetadata.connectedChurchId` (see `MONETIZATION_AND_PRICING.md` §7). Only churches
+with >20 staff on Harvous need the B2B Auth add-on. Plan shapes (Starter/Growth, seats) still apply;
+`Churches.billingPlan` is the DB field for the paid tier once church checkout ships.
 
 ### Planning Center (PCO) integration
 

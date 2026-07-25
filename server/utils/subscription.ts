@@ -1,20 +1,25 @@
 /**
- * Subscription utilities — Drizzle port of src/utils/subscription.ts
- *
- * Note creation is unlimited for all users. `hasUnlimited` still reflects Clerk
- * `unlimited_notes` (used for shared-space tier and billing UI). `limit` is
- * always null for notes.
+ * Subscription utilities — note stats + entitlement summary for the SPA.
  */
 
-import { db, first, UserMetadata, Notes, eq, and, isNotNull, desc } from '../db';
+import { db, first, UserMetadata, Notes, Entitlements, eq, and, isNotNull, desc } from '../db';
 import type { Auth } from '../middleware/types';
-import { getTierForAuth, getSharedSpacesOwnedCount, hasSharedSpacesAddOn, OWNED_SHARED_SPACES_ADDON_LIMIT, FREE_OWNED_SHARED_SPACES_LIMIT } from './tier-limits';
+import {
+  getTierForAuth,
+  getSharedSpacesOwnedCount,
+  hasSharedSpacesAddOn,
+  FREE_OWNED_SHARED_SPACES_LIMIT,
+} from './tier-limits';
+import { getActiveEntitlements, limitsForUser } from './entitlements';
+import {
+  isFoundingProductId,
+  planForProductId,
+  type FeatureKey,
+  type PlanKey,
+} from '@/lib/billing-plans';
+import { getPolarBillingSummaries, type BillingSubscriptionSummary } from './polar-billing';
 
-/** Clerk Billing plan for the Shared Spaces add-on (feature slug `shared_spaces`). */
-export const SHARED_SPACES_PLAN_ID = process.env.CLERK_SHARED_SPACES_PLAN_ID || '';
-
-/** @deprecated The Unlimited plan is retired (zero subscribers, archived in Clerk). */
-export const UNLIMITED_PLAN_ID = process.env.CLERK_UNLIMITED_PLAN_ID || 'cplan_37aJweoipC2wY2Pa94o7zMdoIyw';
+export type { BillingSubscriptionSummary };
 
 export async function getUserNoteCount(userId: string): Promise<number> {
   try {
@@ -24,7 +29,7 @@ export async function getUserNoteCount(userId: string): Promise<number> {
         .from(UserMetadata)
         .where(eq(UserMetadata.userId, userId))
         .limit(1)
-        .then(rows => first(rows)),
+        .then((rows) => first(rows)),
       db
         .select({ simpleNoteId: Notes.simpleNoteId })
         .from(Notes)
@@ -74,23 +79,101 @@ export async function canCreateNote(
   return { allowed: true };
 }
 
+/**
+ * Active billing-sourced product ids. A user can hold Plus and Connector at
+ * once, so this returns all of them rather than picking one arbitrarily.
+ */
+async function activeBillingProductIds(userId: string): Promise<string[]> {
+  const rows = await db
+    .select({ productId: Entitlements.productId })
+    .from(Entitlements)
+    .where(
+      and(
+        eq(Entitlements.userId, userId),
+        eq(Entitlements.status, 'active'),
+        eq(Entitlements.source, 'billing'),
+      ),
+    );
+  return rows.map((row) => row.productId).filter((id): id is string => Boolean(id));
+}
+
+/** Primary plan for the account — Plus wins when both are held. */
+function resolvePlanKeyFromProducts(productIds: string[]): PlanKey | null {
+  const keys = productIds.map((id) => planForProductId(id)?.key).filter(Boolean) as PlanKey[];
+  if (keys.includes('plus')) return 'plus';
+  return keys[0] ?? null;
+}
+
+/** True when Plus (or any feature) was granted via Polar checkout — portal can open. */
+async function hasBillingManagedEntitlement(userId: string): Promise<boolean> {
+  const row = first(
+    await db
+      .select({ id: Entitlements.id })
+      .from(Entitlements)
+      .where(
+        and(
+          eq(Entitlements.userId, userId),
+          eq(Entitlements.status, 'active'),
+          eq(Entitlements.source, 'billing'),
+        ),
+      )
+      .limit(1),
+  );
+  return Boolean(row);
+}
+
 export async function getSubscriptionInfo(userId: string, auth: Auth) {
-  const [hasUnlimited, hasSharedSpaces, currentCount, referralBonusNotes, sharedSpacesOwnedCount] = await Promise.all([
+  const [
+    hasUnlimited,
+    hasSharedSpaces,
+    currentCount,
+    referralBonusNotes,
+    sharedSpacesOwnedCount,
+    entitlements,
+    limits,
+    billingProductIds,
+    canManageBilling,
+  ] = await Promise.all([
     hasUnlimitedNotes(auth),
     hasSharedSpacesAddOn(auth),
     getUserNoteCount(userId),
     getReferralBonusNotes(userId),
     getSharedSpacesOwnedCount(userId),
+    getActiveEntitlements(userId),
+    limitsForUser(userId),
+    activeBillingProductIds(userId),
+    hasBillingManagedEntitlement(userId),
   ]);
 
+  const planKey = resolvePlanKeyFromProducts(billingProductIds);
+  const sharedSpacesOwnedLimit = hasSharedSpaces ? limits.ownedSpaces : FREE_OWNED_SHARED_SPACES_LIMIT;
+  const summaries = canManageBilling ? await getPolarBillingSummaries(userId) : {};
+
   return {
-    /** @deprecated inert — the Unlimited plan is retired. */
     hasUnlimited,
     hasSharedSpaces,
+    /** Connector is a separate product with its own subscription. */
+    hasConnector: (entitlements as FeatureKey[]).includes('connector'),
+    /**
+     * On the capped founding price ($45/yr, first 99) — drives the "Founding"
+     * badge. Read from the product actually purchased, never from the plan key,
+     * because founding and standard Plus share `key: 'plus'`.
+     */
+    isFounding: billingProductIds.some((id) => isFoundingProductId(id)),
+    entitlements: entitlements as FeatureKey[],
+    planKey,
+    /** Polar checkout exists — in-app manage + payment portal. False for admin_grant / trial. */
+    canManageBilling,
+    billing: summaries.plus ?? null,
+    connectorBilling: summaries.connector ?? null,
+    limits: {
+      ownedSpaces: sharedSpacesOwnedLimit,
+      membersPerSpace: limits.membersPerSpace,
+    },
     currentCount,
     limit: null as number | null,
     referralBonusNotes,
     sharedSpacesOwnedCount,
-    sharedSpacesOwnedLimit: hasSharedSpaces ? OWNED_SHARED_SPACES_ADDON_LIMIT : FREE_OWNED_SHARED_SPACES_LIMIT,
+    sharedSpacesOwnedLimit,
   };
 }

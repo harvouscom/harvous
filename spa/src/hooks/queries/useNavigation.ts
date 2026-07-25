@@ -41,6 +41,8 @@ export interface NavSpace {
   publishCadence?: import('@/utils/channel-publish-cadence').PublishCadence | null;
   /** True when observed curriculum lag exceeds 2× the declared interval. */
   cadenceStale?: boolean;
+  /** Ministry channels: ISO timestamp of latest curriculum note (if any). */
+  lastCurriculumAt?: string | null;
 }
 
 export interface NavigationData {

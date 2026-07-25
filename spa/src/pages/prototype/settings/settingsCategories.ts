@@ -58,10 +58,10 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     key: 'addons',
-    title: 'Add-ons',
+    title: 'Plan & add-ons',
     route: prototypeHref('settings/addons'),
-    icon: 'layer-group',
-    footnote: 'Shared Spaces, Review, Challenges.',
+    icon: 'plus',
+    footnote: 'Your plan, what it includes, and add-ons.',
   },
   {
     key: 'data',

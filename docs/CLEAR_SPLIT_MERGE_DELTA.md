@@ -46,6 +46,7 @@ So “something happened again” is: **the branch that was merged had a product
 
 3. **Pre-merge checklist**
    - [ ] `npm run build:api` succeeds.
+   - [ ] If billing/env changed: `npm run billing:verify` against the target Polar env (sandbox or live) so product ids match the registry.
    - [ ] Deploy to staging (or test the built function in a Netlify-like context) and hit `/api/health` (and optionally `/api/debug/me` when logged in).
    - [ ] Confirm no dev-only behavior (e.g. dev-reset) runs in production.
 

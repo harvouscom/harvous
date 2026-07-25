@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { applySharedSpacesEntitlementSynced, patchSubscriptionStatusCache } from '../shared-spaces-entitlement-bridge';
 import { PANEL_CACHE_KEYS, setCachedPanelData, getCachedPanelData } from '@/utils/panel-data-cache';
+import { UNLIMITED } from '@/lib/billing-plans';
 
 describe('shared-spaces-entitlement-bridge', () => {
   let queryClient: QueryClient;
@@ -14,25 +15,35 @@ describe('shared-spaces-entitlement-bridge', () => {
     queryClient.setQueryData(['subscription', 'status'], {
       hasUnlimited: false,
       hasSharedSpaces: false,
+      entitlements: [],
+      planKey: null,
+      limits: { ownedSpaces: 0, membersPerSpace: 100 },
       currentCount: 0,
       limit: null,
       sharedSpacesOwnedCount: 0,
       sharedSpacesOwnedLimit: 0,
     });
 
-    patchSubscriptionStatusCache(queryClient, true);
+    patchSubscriptionStatusCache(queryClient, true, ['shared_spaces']);
 
-    const data = queryClient.getQueryData<{ hasSharedSpaces: boolean; sharedSpacesOwnedLimit: number }>([
-      'subscription',
-      'status',
-    ]);
+    const data = queryClient.getQueryData<{
+      hasSharedSpaces: boolean;
+      sharedSpacesOwnedLimit: number;
+      entitlements: string[];
+    }>(['subscription', 'status']);
     expect(data?.hasSharedSpaces).toBe(true);
-    expect(data?.sharedSpacesOwnedLimit).toBe(10);
+    expect(data?.sharedSpacesOwnedLimit).toBe(UNLIMITED);
+    expect(data?.entitlements).toContain('shared_spaces');
   });
 
   it('invalidates panel subscription cache on entitlement sync', () => {
     setCachedPanelData(PANEL_CACHE_KEYS.subscription, { hasSharedSpaces: false });
-    applySharedSpacesEntitlementSynced(queryClient, { hasSharedSpaces: true, updated: true });
+    applySharedSpacesEntitlementSynced(queryClient, {
+      hasSharedSpaces: true,
+      updated: true,
+      entitlements: ['shared_spaces'],
+    });
     expect(getCachedPanelData(PANEL_CACHE_KEYS.subscription)).toBeNull();
   });
 });
+

@@ -78,11 +78,17 @@ interface PrototypeInspectorPaneProps {
   templates?: PrototypeInspectorTemplatesProps | null;
 }
 
-export const REMOVE_NOTE_FROM_SPACE_CONFIRMATION =
-  'Remove this note from this space? The canonical note remains in My Home. This space’s responses are archived and can return if the note is shared here again. Thread and folder placement in this space is removed.';
+export const REMOVE_NOTE_FROM_SPACE_CONFIRMATION = {
+  title: 'Remove this note from this space?',
+  description:
+    'The canonical note remains in My Home. This space’s responses are archived and can return if the note is shared here again. Thread and folder placement in this space is removed.',
+} as const;
 
-export const DELETE_CANONICAL_NOTE_CONFIRMATION =
-  'Delete this note everywhere? This permanently deletes the canonical note from My Home and every shared space, including its connections and responses. This can’t be undone.';
+export const DELETE_CANONICAL_NOTE_CONFIRMATION = {
+  title: 'Delete this note everywhere?',
+  description:
+    'This permanently deletes the canonical note from My Home and every shared space, including its connections and responses. This can’t be undone.',
+} as const;
 
 export function resolveInspectorNoteAction(input: {
   sharedSpaceId: string | null;
@@ -393,8 +399,13 @@ export default function PrototypeInspectorPane({
           preferAbove
           title={
             destructiveAction === 'remove-from-space'
-              ? REMOVE_NOTE_FROM_SPACE_CONFIRMATION
-              : DELETE_CANONICAL_NOTE_CONFIRMATION
+              ? REMOVE_NOTE_FROM_SPACE_CONFIRMATION.title
+              : DELETE_CANONICAL_NOTE_CONFIRMATION.title
+          }
+          description={
+            destructiveAction === 'remove-from-space'
+              ? REMOVE_NOTE_FROM_SPACE_CONFIRMATION.description
+              : DELETE_CANONICAL_NOTE_CONFIRMATION.description
           }
           confirmLabel={destructiveAction === 'remove-from-space' ? 'Remove' : 'Delete everywhere'}
           busy={actionPending}

@@ -2,15 +2,40 @@ import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouterState } from '@tanstack/react-router';
 import { api } from '../../lib/api';
+import type { FeatureKey, PlanKey, PlanLimits } from '@/lib/billing-plans';
 import {
   applySharedSpacesEntitlementSynced,
   SHARED_SPACES_ENTITLEMENT_SYNCED_EVENT,
 } from '../../lib/shared-spaces-entitlement-bridge';
 import type { SharedSpacesEntitlementSyncedDetail } from '@/utils/sync-shared-spaces-billing';
 
+export type BillingSubscriptionSummary = {
+  subscriptionId: string;
+  status: string;
+  interval: 'month' | 'year';
+  amountCents: number;
+  currency: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  canceledAt: string | null;
+};
+
 export interface SubscriptionStatusResponse {
   hasUnlimited: boolean;
   hasSharedSpaces: boolean;
+  /** Connector — a separate product with its own subscription, not a Plus tier. */
+  hasConnector?: boolean;
+  /** On the capped founding price ($45/yr, first 99). Founding and standard Plus share planKey 'plus'. */
+  isFounding?: boolean;
+  entitlements: FeatureKey[];
+  planKey: PlanKey | null;
+  /** Polar-managed subscription — in-app manage available. False for admin grants. */
+  canManageBilling?: boolean;
+  /** Present when Polar checkout manages Plus; omitted for admin grants. */
+  billing?: BillingSubscriptionSummary | null;
+  /** Connector's own subscription summary — billed and canceled independently. */
+  connectorBilling?: BillingSubscriptionSummary | null;
+  limits: PlanLimits;
   currentCount: number;
   limit: number | null;
   sharedSpacesOwnedCount: number;
@@ -42,7 +67,7 @@ export function useSubscriptionStatus() {
   }, [queryClient]);
 
   useEffect(() => {
-    if (prevPathRef.current === '/addon' && pathname === '/') {
+    if ((prevPathRef.current === '/upgrade' || prevPathRef.current === '/addon') && pathname === '/') {
       void queryClient.invalidateQueries({ queryKey: ['subscription', 'status'] });
     }
     prevPathRef.current = pathname;

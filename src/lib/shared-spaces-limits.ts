@@ -3,42 +3,61 @@
  * Keep in sync with server/utils/tier-limits.ts.
  */
 
-/** Max owned shared spaces with the Shared Spaces add-on. */
-export const OWNED_SHARED_SPACES_ADDON_LIMIT = 10;
+import { UNLIMITED, isUnlimited } from './billing-plans';
+
+export { UNLIMITED, isUnlimited };
+
+/** Owned shared spaces with Harvous Plus — unlimited; the member cap is the fence. */
+export const OWNED_SHARED_SPACES_ADDON_LIMIT = UNLIMITED;
 
 /** Total people in a space (including owner). */
-export const MEMBERS_PER_SPACE_CAP = 30;
+export const MEMBERS_PER_SPACE_CAP = 100;
 
-/** Feature bullets on /addon (Shared Spaces upgrade page) — purchase / inactive copy. */
+/** Feature bullets on /upgrade and Settings › Plan — purchase / inactive copy. Keep short. */
 export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
-  `Create up to ${OWNED_SHARED_SPACES_ADDON_LIMIT} shared spaces and invite others to study with you`,
-  `Up to ${MEMBERS_PER_SPACE_CAP} people in each space — everyone contributes notes together`,
-  'Joining a space is always free',
+  'Everything in free',
+  'Unlimited shared spaces',
+  `Up to ${MEMBERS_PER_SPACE_CAP} people per space`,
+  'Joining is always free',
 ] as const;
 
-/** First feature bullet when the add-on is active — reflects spaces left to create. */
+/** Purchase-copy line for owned spaces (index 1 — after “Everything in Free”). */
+const OWNED_SPACES_PURCHASE_BULLET = SHARED_SPACES_ADDON_FEATURE_BULLETS[1];
+
+/** Owned-spaces bullet when the add-on is active — reflects spaces left to create. */
 export function formatOwnedSharedSpacesFeatureBullet(options: {
   ownedCount: number;
   ownedLimit: number;
 }): string {
   const ownedCount = Math.max(0, options.ownedCount);
+
+  if (isUnlimited(options.ownedLimit)) {
+    if (ownedCount === 0) {
+      return OWNED_SPACES_PURCHASE_BULLET;
+    }
+    const spaceWord = ownedCount === 1 ? 'space' : 'spaces';
+    // Non-breaking space keeps “unlimited” off a line of its own, as elsewhere in this file.
+    return `You've created ${ownedCount} shared ${spaceWord} — your plan includes\u00A0unlimited`;
+  }
+
   const ownedLimit = Math.max(0, options.ownedLimit);
   const remaining = Math.max(0, ownedLimit - ownedCount);
 
   if (ownedLimit === 0) {
-    return SHARED_SPACES_ADDON_FEATURE_BULLETS[0];
+    return OWNED_SPACES_PURCHASE_BULLET;
   }
 
   if (remaining === 0) {
-    return `You've created all ${ownedLimit} shared spaces included with your add-on`;
+    return `You've created all ${ownedLimit} shared spaces included with your plan`;
   }
 
   if (ownedCount === 0) {
-    return `You can create up to ${ownedLimit} shared spaces included with your add-on and invite others to study with you`;
+    return `You can create up to ${ownedLimit} shared spaces included with your plan and invite others to study with you`;
   }
 
   const moreWord = remaining === 1 ? '1 more' : `${remaining} more`;
-  return `You can create ${moreWord} of the ${ownedLimit} shared spaces included with your add-on`;
+  // Prefer a break before “included…” so the last line isn’t a lone orphan word.
+  return `You can create ${moreWord} of the ${ownedLimit} shared spaces\u00A0included with your plan`;
 }
 
 export function getSharedSpacesAddonFeatureBullets(options?: {
@@ -46,20 +65,24 @@ export function getSharedSpacesAddonFeatureBullets(options?: {
   ownedCount?: number | null;
   ownedLimit?: number | null;
 }): readonly string[] {
-  const staticTail = SHARED_SPACES_ADDON_FEATURE_BULLETS.slice(1);
-
   if (!options?.hasAddOn) {
     return SHARED_SPACES_ADDON_FEATURE_BULLETS;
   }
 
+  const includesFree = SHARED_SPACES_ADDON_FEATURE_BULLETS[0];
+  const staticTail = SHARED_SPACES_ADDON_FEATURE_BULLETS.slice(2);
   const ownedLimit = options.ownedLimit ?? OWNED_SHARED_SPACES_ADDON_LIMIT;
   const ownedCount = options.ownedCount;
 
   if (ownedCount == null) {
-    return [SHARED_SPACES_ADDON_FEATURE_BULLETS[0], ...staticTail];
+    return [includesFree, OWNED_SPACES_PURCHASE_BULLET, ...staticTail];
   }
 
-  return [formatOwnedSharedSpacesFeatureBullet({ ownedCount, ownedLimit }), ...staticTail];
+  return [
+    includesFree,
+    formatOwnedSharedSpacesFeatureBullet({ ownedCount, ownedLimit }),
+    ...staticTail,
+  ];
 }
 
 export interface SpaceMembersCapacityCopy {

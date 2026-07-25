@@ -174,16 +174,20 @@ describe('canonical shared-note action contracts', () => {
         isSpaceOwner: false,
       }),
     ).toBe('delete-everywhere');
-    expect(REMOVE_NOTE_FROM_SPACE_CONFIRMATION).toContain('canonical note remains in My Home');
-    expect(REMOVE_NOTE_FROM_SPACE_CONFIRMATION).toContain('responses are archived');
-    expect(DELETE_CANONICAL_NOTE_CONFIRMATION).toContain('every shared space');
-    expect(REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION).toContain('Thread and folder placement');
-    expect(DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION).toContain('permanently deletes');
+    expect(REMOVE_NOTE_FROM_SPACE_CONFIRMATION.description).toContain(
+      'canonical note remains in My Home',
+    );
+    expect(REMOVE_NOTE_FROM_SPACE_CONFIRMATION.description).toContain('responses are archived');
+    expect(DELETE_CANONICAL_NOTE_CONFIRMATION.description).toContain('every shared space');
+    expect(REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION.description).toContain(
+      'Thread and folder placement',
+    );
+    expect(DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION.description).toContain('permanently deletes');
   });
 
   it('requires explicit acknowledgment before an association can reactivate responses', () => {
-    expect(RESHARE_NOTE_CONFIRMATION).toContain('prior responses can return');
-    expect(RESHARE_NOTE_CONFIRMATION).toContain('will not return');
+    expect(RESHARE_NOTE_CONFIRMATION.description).toContain('prior responses can return');
+    expect(RESHARE_NOTE_CONFIRMATION.description).toContain('will not return');
   });
 });
 
@@ -261,10 +265,10 @@ describe('shared panel retry and destination contracts', () => {
       displayName: 'Sarah',
       isSelf: false,
     });
-    expect(leave).toContain('canonical notes remain in My Home');
-    expect(leave).toContain('responses on other members’ notes remain attributed');
-    expect(remove).toContain('authored note associations');
-    expect(remove).toContain('remain attributed to them');
+    expect(leave.title).toContain('Leave this space?');
+    expect(leave.description).toContain('Your notes stay in My Home');
+    expect(remove.title).toContain('Remove Sarah?');
+    expect(remove.description).toContain('Their notes stay in My Home');
   });
 });
 

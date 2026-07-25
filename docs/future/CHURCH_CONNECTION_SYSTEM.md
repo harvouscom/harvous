@@ -226,14 +226,14 @@ Decided with the staff pilot; do not reopen casually. **No schema/UI in v0** —
 | **Home church** | Exactly **one** home church among those memberships. |
 | **Home UI** | **"From your church" = home church only.** Other churches appear in Settings — not on the Home feed. |
 | **Shell modes** | Top-level **My Home** vs **My Church**. My Church is always the **home church** (A). An in-mode church picker (**B**) is a later enhancement — do not build yet. |
-| **My Church catalog** | Two lanes: **Shared Spaces** (church-scoped; same name/styling as personal) and **ministry channels** (staff followable feeds). Full comparison: [CHURCH_ORG_AND_CURRICULUM — distinction](./CHURCH_ORG_AND_CURRICULUM.md#church-shared-spaces-vs-ministry-channels-locked-distinction). |
+| **My Church catalog** | Two lanes: **Shared Spaces** (church-scoped; same name/styling as personal) and **ministry channels** (staff followable feeds). Full comparison: [CHURCH_ORG_AND_CURRICULUM — distinction](./CHURCH_ORG_AND_CURRICULUM.md#church-shared-spaces-vs-ministry-channels-locked-distinction). Sidebar scope (core vs later vs anti-goals): [MY_CHURCH_SIDEBAR.md](./MY_CHURCH_SIDEBAR.md). |
 | **Shared under both** | Personal Shared Spaces under My Home (`orgId` null, owner-pays). Church Shared Spaces under My Church (`orgId` set) — **create-at-church or migrate** from a member (UI later). Church-sponsored; leave personal owned-count on migrate. Collaborative compose; 30-person cap. |
 | **Ministry channels** | Followable church feed (`type='public'` + `orgId`) — curriculum and other staff-authored study info. Staff write; followers read + copy. Distinct UI/icon (RSS preferred); never called Shared Spaces. |
 | **First connect** | First accepted membership becomes home automatically. |
 | **Change home** | Allowed anytime among current memberships (settings). |
 | **Leave home** | If other memberships remain, user must pick a new home in the leave flow; if a choice cannot be collected (e.g. church deactivated), auto-promote the earliest remaining membership. If none remain, clear home. |
 | **Clerk org** | Unchanged: staff/volunteers ≤20; congregants never Clerk org members. |
-| **Staff pilot** | My Church lists ministry channels (and later church Shared Spaces) for the home church; staff bridge when home not connected; ministry channel open stays read-only for now. |
+| **Staff pilot** | My Church lists ministry channels **and** church Shared Spaces for the home church; staff bridge when home not connected; ministry channel open stays read-only for now. See [MY_CHURCH_SIDEBAR.md](./MY_CHURCH_SIDEBAR.md) Layer 1. |
 
 **Schema direction (document only — no migration yet):**
 

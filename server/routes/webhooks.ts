@@ -3,15 +3,30 @@
  *
  * Endpoints:
  *   POST /api/webhooks/clerk
+ *   POST /api/webhooks/polar
  */
 
 import { Hono } from 'hono';
 import { verifyWebhook } from '@clerk/backend/webhooks';
+import { validateEvent, WebhookVerificationError } from '@polar-sh/sdk/webhooks';
 import { tagAsAppUser } from '@/utils/audienceful';
 import { handleAPIError } from '@/utils/error-handling';
 import { invalidateUserCache } from '../utils/user-cache';
-import { SHARED_SPACES_PLAN_ID } from '../utils/subscription';
-import { setSharedSpacesAddOnForUserId } from '../utils/tier-limits';
+import { firstHeaderValue } from '../utils/polar-client';
+import {
+  polarBillingIntent,
+  productIdFromPolarData,
+  externalUserIdFromPolarData,
+  customerIdFromPolarData,
+  subscriptionStatusFromPolarData,
+} from '../utils/polar-webhook';
+import {
+  applyPolarSubscriptionEntitlement,
+  setPolarCustomerId,
+  getPolarCustomerId,
+} from '../utils/entitlements';
+import { planForProductId } from '@/lib/billing-plans';
+import { db, first, UserMetadata, eq } from '../db';
 
 const app = new Hono();
 
@@ -51,24 +66,7 @@ interface ClerkEmailWebhookEvent {
   timestamp?: number;
 }
 
-type ClerkWebhookEvent = ClerkUserWebhookEvent | ClerkEmailWebhookEvent | ClerkSubscriptionItemWebhookEvent;
-
-interface ClerkSubscriptionItemWebhookEvent {
-  type:
-    | 'subscriptionItem.active'
-    | 'subscriptionItem.canceled'
-    | 'subscriptionItem.ended'
-    | 'subscriptionItem.expired';
-  data: {
-    plan?: { id?: string; slug?: string };
-    plan_id?: string | null;
-    payer?: { user_id?: string; organization_id?: string };
-    status?: string;
-    [key: string]: any;
-  };
-  object: 'event';
-  timestamp?: number;
-}
+type ClerkWebhookEvent = ClerkUserWebhookEvent | ClerkEmailWebhookEvent;
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -226,35 +224,6 @@ async function handleUserDeleted(event: ClerkUserWebhookEvent): Promise<void> {
   console.log('User deleted in Clerk:', event.data.id);
 }
 
-function getSubscriptionItemPlanId(data: ClerkSubscriptionItemWebhookEvent['data']): string | null {
-  return data.plan?.id ?? data.plan_id ?? null;
-}
-
-/** Sync Shared Spaces add-on entitlement from Clerk billing subscription item events. */
-async function handleSubscriptionItemBilling(
-  event: ClerkSubscriptionItemWebhookEvent,
-  enabled: boolean,
-): Promise<void> {
-  if (!SHARED_SPACES_PLAN_ID) {
-    console.warn('[Webhook] CLERK_SHARED_SPACES_PLAN_ID not configured; skipping subscriptionItem sync');
-    return;
-  }
-
-  const planId = getSubscriptionItemPlanId(event.data);
-  if (planId !== SHARED_SPACES_PLAN_ID) {
-    return;
-  }
-
-  const userId = event.data.payer?.user_id;
-  if (!userId) {
-    console.warn('[Webhook] subscriptionItem event missing payer.user_id:', { type: event.type, planId });
-    return;
-  }
-
-  await setSharedSpacesAddOnForUserId(userId, enabled);
-  console.log('[Webhook] Shared Spaces add-on updated:', { userId, enabled, eventType: event.type });
-}
-
 // ─── POST /api/webhooks/clerk ─────────────────────────────────────────
 
 app.post('/api/webhooks/clerk', async (c) => {
@@ -298,8 +267,6 @@ app.post('/api/webhooks/clerk', async (c) => {
     try {
       if (event.type === 'emailAddress.created') {
         userId = (event as ClerkEmailWebhookEvent).data.user_id || '';
-      } else if (event.type.startsWith('subscriptionItem.')) {
-        userId = (event as ClerkSubscriptionItemWebhookEvent).data.payer?.user_id || '';
       } else {
         userId = (event as ClerkUserWebhookEvent).data.id || '';
       }
@@ -325,14 +292,6 @@ app.post('/api/webhooks/clerk', async (c) => {
         case 'user.deleted':
           await handleUserDeleted(event as ClerkUserWebhookEvent);
           break;
-        case 'subscriptionItem.active':
-          await handleSubscriptionItemBilling(event as ClerkSubscriptionItemWebhookEvent, true);
-          break;
-        case 'subscriptionItem.canceled':
-        case 'subscriptionItem.ended':
-        case 'subscriptionItem.expired':
-          await handleSubscriptionItemBilling(event as ClerkSubscriptionItemWebhookEvent, false);
-          break;
         default:
           console.log('[Webhook] Unhandled event type:', (event as any).type);
       }
@@ -346,8 +305,6 @@ app.post('/api/webhooks/clerk', async (c) => {
       try {
         if (event.type === 'emailAddress.created') {
           errorUserId = (event as ClerkEmailWebhookEvent).data?.user_id || 'unknown';
-        } else if (event.type.startsWith('subscriptionItem.')) {
-          errorUserId = (event as ClerkSubscriptionItemWebhookEvent).data?.payer?.user_id || 'unknown';
         } else {
           errorUserId = (event as ClerkUserWebhookEvent).data?.id || 'unknown';
         }
@@ -372,6 +329,77 @@ app.post('/api/webhooks/clerk', async (c) => {
     }
 
     return c.json({ error: 'Internal server error', message: error?.message || 'An unexpected error occurred' }, 500);
+  }
+});
+
+// ─── POST /api/webhooks/polar ─────────────────────────────────────────
+
+app.post('/api/webhooks/polar', async (c) => {
+  try {
+    const secret = process.env.POLAR_WEBHOOK_SECRET;
+    if (!secret) {
+      console.error('[Polar webhook] POLAR_WEBHOOK_SECRET not configured');
+      return c.json({ error: 'Webhook secret not configured' }, 500);
+    }
+
+    const rawBody = await c.req.text();
+    // Standard Webhooks headers; Netlify may duplicate as "v, v" — take the first.
+    const headers: Record<string, string> = {
+      'webhook-id': firstHeaderValue(c.req.header('webhook-id')) ?? '',
+      'webhook-timestamp': firstHeaderValue(c.req.header('webhook-timestamp')) ?? '',
+      'webhook-signature': firstHeaderValue(c.req.header('webhook-signature')) ?? '',
+    };
+
+    let event: { type: string; data: unknown };
+    try {
+      event = validateEvent(rawBody, headers, secret) as { type: string; data: unknown };
+    } catch (error) {
+      if (error instanceof WebhookVerificationError) {
+        console.error('[Polar webhook] Signature verification failed');
+        return c.json({ error: 'Invalid webhook signature' }, 401);
+      }
+      throw error;
+    }
+
+    const eventType = event.type;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = event.data as any;
+    console.log('[Polar webhook] Received:', { eventType });
+
+    const intent = polarBillingIntent(eventType, subscriptionStatusFromPolarData(data));
+    if (!intent) {
+      return c.json({ ok: true, skipped: true });
+    }
+
+    const userId = externalUserIdFromPolarData(data);
+    if (!userId) {
+      console.warn('[Polar webhook] Could not resolve user id (no external_customer_id)', { eventType });
+      return c.json({ ok: true, skipped: true });
+    }
+
+    // Opportunistically store the Polar customer id for fallback/audit.
+    const customerId = customerIdFromPolarData(data);
+    if (customerId) {
+      const existing = await getPolarCustomerId(userId);
+      if (!existing) await setPolarCustomerId(userId, customerId);
+    }
+
+    const productId = productIdFromPolarData(data);
+    const subscriptionId = typeof data?.id === 'string' ? data.id : null;
+
+    if (intent === 'enable') {
+      if (productId && planForProductId(productId)) {
+        await applyPolarSubscriptionEntitlement({ userId, productId, subscriptionId, enabled: true });
+      }
+    } else {
+      // disable — clear this product's rows, or all billing rows if no product on the event.
+      await applyPolarSubscriptionEntitlement({ userId, productId, subscriptionId, enabled: false });
+    }
+
+    return c.json({ ok: true });
+  } catch (error: any) {
+    console.error('[Polar webhook] Error:', error?.message || error);
+    return c.json({ error: 'Internal server error' }, 500);
   }
 });
 

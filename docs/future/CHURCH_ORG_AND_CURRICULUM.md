@@ -12,7 +12,7 @@ A day when **churches have organization accounts** on Harvous for **education an
 
 ### Layer 1: Individual (current)
 
-- **Shared spaces:** User creates a space, gets a link, invites people. Free: 3 shared spaces; paid: unlimited. One simple metric. Invisible cap of 150 people per space.
+- **Shared spaces:** User creates a space, gets a link, invites people. Free: 0 owned shared spaces; Harvous Plus: 10 owned, 30 people/space. Joining is always free.
 - **Use case:** “I’m leading a small group and want to share a space with them.”
 - **Docs:** [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md), [FEATURES.md](../FEATURES.md).
 
@@ -66,7 +66,7 @@ This makes it easy to **share threads and notes from the church** to everyone wh
 | **SHARING_AND_GROUPS_INFRASTRUCTURE.md** | InboxItem + SharedContent with `sharingType='organization'`, orgId, auto-add to org members’ UserInboxItems. |
 | **MONETIZATION_AND_PRICING.md** | Canonical SKUs: Review, Group Sharing, Season Pass, Group Leader, church principles. |
 | **MONETIZATION_SUMMARY.md** | High-level church connection flow and sharing infrastructure. |
-| **CLERK_MONETIZATION_ARCHITECTURE.md** | Clerk Organizations, feature gating, Stripe, technical architecture. |
+| **CLERK_ARCHITECTURE.md** / **BILLING_ARCHITECTURE.md** | Clerk auth/orgs; Polar billing + entitlements. |
 
 This doc adds: **product vision** (church org accounts for curriculum), **two-layer model** (individual shared spaces vs church org distribution), and **MyChurchPanel evolution** (sync with available church organizations from Clerk).
 
@@ -86,6 +86,7 @@ No new schema is proposed here; this doc describes how those pieces support the 
 ## Monetization ladder
 
 Canonical consumer pricing: [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md).
+Church **billing** uses Polar (same MoR as Harvous Plus); Clerk Organizations stay identity-only — see [BILLING_ARCHITECTURE.md](../BILLING_ARCHITECTURE.md) § church split.
 
 | Stage | Who pays | What members get |
 |---|---|---|

@@ -919,8 +919,6 @@ async function processScriptureReferencesInternal(
               highestSimpleNoteId: highestExistingId,
               userColor: 'blue',
               currentSeason: season,
-              sharedSpacesAddOn: false,
-              sharedSpacesAddOnUpdatedAt: null,
               createdAt: new Date()
             });
             userMetadata = {
@@ -938,8 +936,6 @@ async function processScriptureReferencesInternal(
               churchState: null,
               churchCountry: null,
               currentSeason: season,
-              sharedSpacesAddOn: false,
-              sharedSpacesAddOnUpdatedAt: null,
               lastMonthlyVisit: null,
               churchAddedAt: null,
               connectedChurchId: null,
@@ -1318,8 +1314,6 @@ async function processScriptureReferencesInternal(
                 highestSimpleNoteId: highestExistingId,
                 userColor: 'blue',
                 currentSeason: season,
-                sharedSpacesAddOn: false,
-                sharedSpacesAddOnUpdatedAt: null,
                 createdAt: new Date()
               });
               userMetadata = {
@@ -1337,8 +1331,6 @@ async function processScriptureReferencesInternal(
                 churchState: null,
                 churchCountry: null,
                 currentSeason: season,
-                sharedSpacesAddOn: false,
-                sharedSpacesAddOnUpdatedAt: null,
                 lastMonthlyVisit: null,
                 churchAddedAt: null,
                 connectedChurchId: null,

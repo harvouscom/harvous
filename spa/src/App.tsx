@@ -100,7 +100,7 @@ const windowToast = {
   },
   upgradePrompt: (message: string, upgradeUrl?: string) => {
     showToast(() => {
-      const url = upgradeUrl || '/addon';
+      const url = upgradeUrl || '/upgrade';
       sonnerToast.error(message, {
         icon: null,
         duration: Infinity,

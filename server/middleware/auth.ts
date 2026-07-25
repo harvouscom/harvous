@@ -17,7 +17,6 @@ import { first } from '../db/helpers';
 import { nowISO } from '../db/dates';
 import { ClerkUserMapping } from '../db/schema';
 import { mergeDevUserIntoLive } from '../utils/merge-user-into-live';
-import { jwtHasFeature } from '../utils/clerk-jwt-features';
 import { HTTPException } from 'hono/http-exception';
 import type { Auth, AuthenticatedAuth } from './types';
 
@@ -163,7 +162,8 @@ export async function clerkAuth(c: Context, next: Next) {
 
     const auth: Auth = {
       userId,
-      has: (check: { feature: string }) => jwtHasFeature(payload as Record<string, unknown>, check.feature),
+      // Entitlements are DB-backed (Polar billing); JWT feature claims are unused.
+      has: () => false,
     };
 
     c.set('auth', auth);

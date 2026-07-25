@@ -1292,12 +1292,12 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   border: none;
   background: transparent;
   cursor: pointer;
-  color: var(--pds-text-secondary);
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
   line-height: 0;
 }
 
 .proto-sidebar-search__clear:hover {
-  color: var(--pds-text-primary);
+  color: var(--pds-text-secondary);
 }
 
 .proto-sidebar-search__clear:focus-visible {
@@ -4091,6 +4091,139 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   box-sizing: border-box;
 }
 
+/* Settings › Plan — body inset matches `.proto-note-row` padding (12px) so
+   feature rows + CTA share the Plus-tile / manage-button horizontal bounds. */
+.proto-settings-plan__body {
+  padding: 0 12px;
+}
+
+.proto-settings-plan__cta {
+  margin-top: 28px;
+}
+
+.proto-settings-plan__cta .proto-settings-btn {
+  width: 100%;
+}
+
+/* In-app billing manage (plan / payment / history / cancel) under Plan features. */
+.proto-settings-plan__manage {
+  margin-top: 28px;
+}
+
+.proto-settings-plan__manage .proto-settings-plan__section-label {
+  margin: 20px 0 10px;
+  padding: 0 12px;
+}
+
+.proto-settings-plan__manage .proto-settings-plan__section-label:first-child {
+  margin-top: 0;
+}
+
+.proto-settings-plan__cancel-wrap {
+  display: block;
+}
+
+/* Settings › Plan — Connector add-on block. A separate product with its own
+   subscription, so it gets its own section rather than sitting inside Plus. */
+.proto-settings-plan__addon {
+  margin-top: 32px;
+  padding-top: 28px;
+  border-top: 1px solid var(--pds-border-soft);
+}
+
+.proto-settings-plan__addon .proto-settings-plan__section-label {
+  margin: 0 0 10px;
+  padding: 0 12px;
+}
+
+.proto-settings-plan__addon .proto-settings-plan__body {
+  margin-bottom: 20px;
+}
+
+/* Settings › Plan — upgrade-style check orbs + coming-soon section */
+.proto-settings-plan-features {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.proto-settings-plan-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Match upgrade letter checks (`.public-addon-letter__check` / public accent), 16px. */
+.proto-settings-plan-features .proto-accent-check-orb {
+  width: 16px;
+  height: 16px;
+  margin-top: 0.125rem;
+  background: linear-gradient(171deg, #5b8cff 7%, #3869e6 93%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 24px -10px rgba(0, 110, 255, 0.6);
+  color: #fff !important;
+}
+
+.proto-settings-plan-features .proto-accent-check-orb svg {
+  width: 9px;
+  height: 9px;
+}
+
+.proto-settings-plan-features .proto-accent-check-orb svg,
+.proto-settings-plan-features .proto-accent-check-orb svg path {
+  color: #fff !important;
+  fill: #fff !important;
+}
+
+/* Keep the upgrade blue gradient in dark mode (do not flatten to selection yellow). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme='light']) .proto-settings-plan-features .proto-accent-check-orb {
+    background: linear-gradient(171deg, #5b8cff 7%, #3869e6 93%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      0 10px 24px -10px rgba(0, 110, 255, 0.6);
+  }
+}
+
+:root[data-color-scheme='dark'] .proto-settings-plan-features .proto-accent-check-orb {
+  background: linear-gradient(171deg, #5b8cff 7%, #3869e6 93%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 24px -10px rgba(0, 110, 255, 0.6);
+}
+
+.proto-settings-plan-features__text {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--pds-text-secondary);
+  /* Prefer balanced last lines — avoid orphan words like “add-on”. */
+  text-wrap: pretty;
+}
+
+.proto-settings-plan-features__coming-label {
+  margin: 18px 0 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-settings-plan-features--coming {
+  margin-top: 10px;
+}
+
+.proto-settings-plan-features--coming .proto-accent-check-orb {
+  opacity: 0.55;
+}
+
 .proto-settings__nav {
   display: flex;
   flex-direction: column;
@@ -4253,6 +4386,15 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   box-shadow: none;
 }
 
+/* Status-only rows (e.g. Plus grant with no Polar portal) — not a control. */
+.proto-settings__content .proto-note-row--static,
+.proto-settings__content .proto-note-row--static:hover,
+.proto-settings__content .proto-note-row--static:focus-visible {
+  cursor: default;
+  background: transparent;
+  box-shadow: none;
+}
+
 .proto-settings__content .proto-note-row--disabled,
 .proto-settings__content .proto-note-row--disabled:hover,
 .proto-settings__content .proto-note-row--disabled:focus-visible {
@@ -4286,6 +4428,22 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   background: var(--pds-bg-input);
   border: 0.5px solid var(--pds-border);
   color: var(--pds-text-secondary);
+}
+
+/* Harvous Plus — soft sky-blue gradient swatch + plus mark
+   (cooler/softer than the accent check-orb #2bb5ff→#006eff). */
+.proto-settings-list-row__leading--plus {
+  /* Glyph: true blue (not sky/teal). Fill stays a soft sky wash. */
+  color: color-mix(in oklab, var(--pds-thread-blue) 45%, var(--pds-accent-gradient-end));
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--pds-highlight-sky-blue) 12%, var(--pds-bg-page)),
+    color-mix(in oklab, var(--pds-highlight-sky-blue) 24%, var(--pds-bg-page))
+  );
+  border: 0.5px solid color-mix(in oklab, var(--pds-highlight-sky-blue) 30%, var(--pds-border));
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--pds-highlight-sky-blue) 14%, transparent),
+    inset 0 1px 0 color-mix(in oklab, #fff 55%, transparent);
 }
 
 .proto-settings-list-row__trailing {
@@ -4710,6 +4868,14 @@ a.proto-copy-row__value:hover {
   gap: 12px;
   min-width: 0;
   padding: 12px;
+}
+
+/* Space accent tile fills the leading slot — no gray settings tile behind it. */
+.proto-sharing-deleted__space-icon {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
 }
 
 .proto-sharing-deleted__row + .proto-sharing-deleted__row {
@@ -6332,6 +6498,16 @@ html.harvous-prototype-route .harvous-delete-confirm__title {
   color: var(--pds-text-primary);
 }
 
+html.harvous-prototype-route .harvous-delete-confirm--stacked {
+  border-radius: var(--pds-radius-scripture);
+}
+
+html.harvous-prototype-route .harvous-delete-confirm__description {
+  font-family: var(--pds-font-body);
+  font-variation-settings: var(--pds-font-body-variation);
+  color: var(--pds-text-secondary);
+}
+
 html.harvous-prototype-route .harvous-delete-confirm__divider {
   background: var(--pds-border-control-medium);
 }
@@ -6355,6 +6531,23 @@ html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive {
 
 html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive:hover:not(:disabled) {
   background: var(--pds-destructive-bg);
+  color: var(--pds-destructive);
+}
+
+html.harvous-prototype-route .harvous-delete-confirm--stacked .harvous-delete-confirm__icon-btn:hover:not(:disabled),
+html.harvous-prototype-route .harvous-delete-confirm--stacked .harvous-delete-confirm__icon-btn:active:not(:disabled),
+html.harvous-prototype-route
+  .harvous-delete-confirm--stacked
+  .harvous-delete-confirm__icon-btn--destructive:hover:not(:disabled),
+html.harvous-prototype-route
+  .harvous-delete-confirm--stacked
+  .harvous-delete-confirm__icon-btn--destructive:active:not(:disabled) {
+  background: transparent;
+}
+
+html.harvous-prototype-route
+  .harvous-delete-confirm--stacked
+  .harvous-delete-confirm__icon-btn--destructive:hover:not(:disabled) {
   color: var(--pds-destructive);
 }
 
@@ -8817,6 +9010,7 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 }
 
 .proto-church-hub__list .proto-home-card__icon-orb {
+  position: relative;
   width: 28px;
   height: 28px;
   opacity: 1;
@@ -8841,16 +9035,139 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   line-height: 1.25;
 }
 
+.proto-church-hub__create-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.proto-church-hub__lane-action {
+  margin-top: 8px;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--pds-text-accent, var(--pds-accent));
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+}
+
+.proto-church-hub__list .proto-space-switcher-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+}
+
 .hmc-church-picker {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
+/* Match sidebar search clear (`circle-xmark`) — hide native search cancel. */
+.hmc-church-picker__select-wrap {
+  position: relative;
+  display: block;
+  margin-top: 6px;
+}
+
+.hmc-church-picker__select {
+  margin-top: 0 !important;
+  padding-right: 32px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: none;
+}
+
+.hmc-church-picker__select::-ms-expand {
+  display: none;
+}
+
+.hmc-church-picker__select-chevron {
+  position: absolute;
+  right: 10px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  line-height: 0;
+}
+
+.hmc-church-picker__select:disabled + .hmc-church-picker__select-chevron {
+  opacity: 0.45;
+}
+
+.hmc-church-picker__search {
+  position: relative;
+  display: block;
+  margin-top: 6px;
+}
+
+.hmc-church-picker__search-input {
+  margin-top: 0 !important;
+  padding-right: 36px;
+}
+
+.hmc-church-picker__search-input::-webkit-search-decoration,
+.hmc-church-picker__search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.hmc-church-picker__clear {
+  position: absolute;
+  right: 8px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  /* Match state select chevron; route-overrides beat blanket button * primary. */
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  line-height: 0;
+}
+
+.hmc-church-picker__clear:hover:not(:disabled) {
+  color: var(--pds-text-secondary);
+}
+
+.hmc-church-picker__clear:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.hmc-church-picker__clear:focus-visible {
+  outline: none;
+  border-radius: 999px;
+}
+
 .hmc-church-picker__status {
   margin: 0;
+  display: flex;
+  align-items: center;
+  min-height: 20px;
   font-size: 12px;
   opacity: 0.72;
+}
+
+.hmc-church-picker__status .load-more-indicator {
+  color: var(--pds-text-tertiary, var(--color-stone-grey));
+}
+
+.hmc-church-picker__status .load-more-indicator__dot {
+  background-color: currentColor;
 }
 
 .hmc-church-picker__error {
@@ -8903,12 +9220,20 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   opacity: 0.72;
 }
 
+.hmc-church-picker__manual-links {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 4px;
+}
+
 .hmc-church-picker__manual-link {
   appearance: none;
   border: 0;
   background: transparent;
-  padding: 4px 0 0;
-  margin: 2px 0 0;
+  padding: 0;
+  margin: 0;
   align-self: flex-start;
   font: inherit;
   font-size: 13px;

@@ -1,482 +1,265 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { CheckoutButton } from '@clerk/clerk-react/experimental';
-import { ClerkProvider, SignedIn, useAuth } from '@clerk/clerk-react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  dispatchSharedSpacesEntitlementSynced,
-  syncSharedSpacesBilling,
-} from '@/utils/sync-shared-spaces-billing';
-import { isClerkCheckoutDrawerOpen, whenClerkCheckoutDrawerClosed } from '@/utils/wait-for-clerk-drawer-close';
-import SafeSubscriptionDetailsButton from './SafeSubscriptionDetailsButton';
-import { CLERK_BILLING_DRAWER_APPEARANCE } from '@/lib/clerk-billing-drawer-appearance';
-
-const CHECKOUT_SUCCESS_TITLE = "You're all set";
-const CHECKOUT_SUCCESS_DESCRIPTION =
-  'Shared Spaces is on your account — tap Continue to get started.';
-
-const CHECKOUT_SUCCESS_TITLE_KEYS = [
-  'billing.checkout.title__paymentSuccessful',
-  'billing.checkout.title__subscriptionSuccessful',
-  'commerce.checkout.title__paymentSuccessful',
-  'commerce.checkout.title__subscriptionSuccessful',
-];
-
-const CHECKOUT_SUCCESS_DESCRIPTION_KEYS = [
-  'billing.checkout.description__paymentSuccessful',
-  'billing.checkout.description__subscriptionSuccessful',
-  'commerce.checkout.description__paymentSuccessful',
-  'commerce.checkout.description__subscriptionSuccessful',
-];
-
-/**
- * The checkout drawer is portaled to `document.body`, above `.public-page`'s
- * whole React tree — see CLERK_BILLING_DRAWER_APPEARANCE.
- */
-const CHECKOUT_DRAWER_APPEARANCE = CLERK_BILLING_DRAWER_APPEARANCE;
+  formatPlanPrice,
+  foundingPlan,
+  planFor,
+  type PlanDefinition,
+} from '@/lib/billing-plans';
 
 interface UpgradeCheckoutButtonProps {
   className?: string;
+  /** Unused with Polar — kept so callers that still pass a Clerk-era publishable key don't need to change. */
   publishableKey?: string | null;
-  /** Clerk plan id to check out. */
-  planId?: string;
-  /** @deprecated alias for planId — the Unlimited plan is retired; kept for callers not yet migrated. */
-  unlimitedPlanId?: string;
-  /** Button + skeleton copy. */
   ctaLabel?: string;
   priceMonthlyLabel?: string;
   priceAnnualLabel?: string;
 }
 
-/** Monthly / annual segmented pill — styled to match the sign-in page's form inputs. */
-function IntervalToggle({
-  selectedInterval,
+type FoundingAvailability = {
+  total: number;
+  claimed: number;
+  remaining: number;
+  available: boolean;
+};
+
+type PlanOption = {
+  id: string;
+  productId: string;
+  /** Short chip label, e.g. "$45/yr". */
+  chip: string;
+  /** Full accessible name for the option. */
+  label: string;
+};
+
+/** Segmented chip toggle — short price labels only. */
+function PlanToggle({
+  options,
+  selectedId,
   onSelect,
-  priceMonthlyLabel,
-  priceAnnualLabel,
   disabled = false,
 }: {
-  selectedInterval: 'month' | 'year';
-  onSelect: (interval: 'month' | 'year') => void;
-  priceMonthlyLabel: string;
-  priceAnnualLabel: string;
+  options: PlanOption[];
+  selectedId: string;
+  onSelect: (id: string) => void;
   disabled?: boolean;
 }) {
-  const options: Array<['month' | 'year', string]> = [
-    ['month', priceMonthlyLabel],
-    ['year', priceAnnualLabel],
-  ];
-
   return (
-    <div className="upgrade-toggle" role="radiogroup" aria-label="Billing interval">
-      {options.map(([interval, label]) => (
+    <div
+      className={`upgrade-toggle${options.length > 2 ? ' upgrade-toggle--triple' : ''}`}
+      role="radiogroup"
+      aria-label="Plan"
+    >
+      {options.map((option) => (
         <button
-          key={interval}
+          key={option.id}
           type="button"
           role="radio"
-          aria-checked={selectedInterval === interval}
+          aria-checked={selectedId === option.id}
+          aria-label={option.label}
           disabled={disabled}
-          onClick={() => onSelect(interval)}
-          className={`upgrade-toggle__btn${selectedInterval === interval ? ' upgrade-toggle__btn--active' : ''}`}
+          onClick={() => onSelect(option.id)}
+          className={`upgrade-toggle__btn${selectedId === option.id ? ' upgrade-toggle__btn--active' : ''}`}
         >
-          {label}
+          {option.chip}
         </button>
       ))}
     </div>
   );
 }
 
+function preferredTheme(): 'light' | 'dark' {
+  if (typeof document !== 'undefined' && document.documentElement.dataset.theme) {
+    return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+  }
+  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+    return 'dark';
+  }
+  return 'light';
+}
+
+function priceLabel(plan: PlanDefinition | null, suffix: string): string {
+  return plan ? `${formatPlanPrice(plan)} ${suffix}` : '';
+}
+
+function chipLabel(plan: PlanDefinition | null): string {
+  if (!plan) return '';
+  return plan.interval === 'year' ? `${formatPlanPrice(plan)}/yr` : `${formatPlanPrice(plan)}/mo`;
+}
+
 /**
- * Inner component that uses Clerk hooks - must be inside ClerkProvider
+ * Polar Billing checkout — same-tab hosted redirect.
+ * Creates a session via `/api/billing/checkout`, then navigates to Polar.
+ * Return to `/upgrade?checkout_id=…` syncs entitlements on UpgradePage.
+ *
+ * Founding availability is fetched rather than derived from the registry: the
+ * cap is a live count, and a page open since before the last slot went must not
+ * offer a price it can no longer honor. The server re-checks at checkout too.
  */
-function UpgradeCheckoutButtonInner({
-  className,
-  planId,
-  remountKey,
-  ctaLabel,
+export default function UpgradeCheckoutButton({
+  className = '',
+  ctaLabel = 'Upgrade',
   priceMonthlyLabel,
   priceAnnualLabel,
-  publishableKey,
-}: {
-  className: string;
-  planId: string;
-  remountKey: number;
-  ctaLabel: string;
-  priceMonthlyLabel: string;
-  priceAnnualLabel: string;
-  publishableKey?: string | null;
-}) {
-  const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('month');
-  const { isLoaded, isSignedIn, has } = useAuth();
-  const [isClient, setIsClient] = useState(false);
-  const [checkoutKey, setCheckoutKey] = useState<number>(Date.now());
-  const [entitlementSyncing, setEntitlementSyncing] = useState(false);
-  const [checkoutDrawerOpen, setCheckoutDrawerOpen] = useState(false);
-  const entitlementSyncStarted = useRef(false);
+}: UpgradeCheckoutButtonProps) {
+  const [isStarting, setIsStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [founding, setFounding] = useState<FoundingAvailability | null>(null);
 
-  const clerkHasSharedSpaces = isLoaded && isSignedIn ? has({ feature: 'shared_spaces' }) : false;
-  const blockCheckout = clerkHasSharedSpaces && !checkoutDrawerOpen;
+  const monthPlan = planFor('plus', 'month');
+  const yearPlan = planFor('plus', 'year');
+  const founderPlan = foundingPlan();
 
-  const runPostCheckoutSync = useCallback(async () => {
-    entitlementSyncStarted.current = true;
+  const resolvedMonthlyLabel = priceMonthlyLabel ?? priceLabel(monthPlan, 'per month');
+  const resolvedAnnualLabel = priceAnnualLabel ?? priceLabel(yearPlan, 'per year');
+  const billingConfigured = Boolean(monthPlan?.productId || yearPlan?.productId);
+
+  const loadFounding = useCallback(async () => {
     try {
-      const result = await syncSharedSpacesBilling();
-      dispatchSharedSpacesEntitlementSynced({
-        hasSharedSpaces: result.hasSharedSpaces,
-        updated: result.updated,
-      });
-    } catch (error) {
-      console.error('[UpgradeCheckoutButton] Shared Spaces billing sync failed:', error);
+      const res = await fetch('/api/billing/plans', { credentials: 'include', cache: 'no-store' });
+      if (!res.ok) return;
+      const data = (await res.json()) as { founding?: FoundingAvailability };
+      if (data.founding) setFounding(data.founding);
+    } catch {
+      // Availability unknown → founding simply isn't offered. Standard pricing still works.
     }
-
-    // Keep the success drawer mounted until the user dismisses it — reloading
-    // the session or flipping parent UI mid-drawer crashes Clerk (`Invalid state`).
-    await whenClerkCheckoutDrawerClosed();
-    window.dispatchEvent(new CustomEvent('subscriptionUpgraded'));
   }, []);
 
-  // Clerk already shows an active subscription on return visits — reconcile DB
-  // before opening checkout again. Skip while a drawer is open (post-payment).
   useEffect(() => {
-    if (!blockCheckout || entitlementSyncStarted.current) return;
-    entitlementSyncStarted.current = true;
-    setEntitlementSyncing(true);
-    void runPostCheckoutSync().finally(() => setEntitlementSyncing(false));
-  }, [blockCheckout, runPostCheckoutSync]);
+    void loadFounding();
+  }, [loadFounding]);
 
+  const foundingAvailable = Boolean(founding?.available && founderPlan?.productId);
+
+  // While founding spots remain: Founding + Monthly only. After sell-out:
+  // Monthly + standard Yearly (founding chip is gone; $64/yr takes its place).
+  const options: PlanOption[] = [
+    ...(foundingAvailable && founderPlan
+      ? [
+          {
+            id: 'founding',
+            productId: founderPlan.productId,
+            chip: chipLabel(founderPlan),
+            label: priceLabel(founderPlan, 'per year'),
+          },
+        ]
+      : []),
+    ...(monthPlan
+      ? [
+          {
+            id: 'month',
+            productId: monthPlan.productId,
+            chip: chipLabel(monthPlan),
+            label: resolvedMonthlyLabel,
+          },
+        ]
+      : []),
+    ...(!foundingAvailable && yearPlan
+      ? [
+          {
+            id: 'year',
+            productId: yearPlan.productId,
+            chip: chipLabel(yearPlan),
+            label: resolvedAnnualLabel,
+          },
+        ]
+      : []),
+  ];
+
+  const defaultId = foundingAvailable ? 'founding' : 'year';
+  const [selectedId, setSelectedId] = useState<string>(defaultId);
+
+  // Founding resolves after mount; move the selection onto it once, unless the
+  // user already picked something themselves.
+  const [userPicked, setUserPicked] = useState(false);
   useEffect(() => {
-    const syncCheckoutDrawerOpen = () => setCheckoutDrawerOpen(isClerkCheckoutDrawerOpen());
-    const observer = new MutationObserver(syncCheckoutDrawerOpen);
-    observer.observe(document.body, { childList: true, subtree: true });
-    syncCheckoutDrawerOpen();
-    return () => observer.disconnect();
-  }, []);
+    if (userPicked) return;
+    setSelectedId(foundingAvailable ? 'founding' : yearPlan ? 'year' : 'month');
+  }, [foundingAvailable, userPicked, yearPlan]);
 
-  // Ensure we're on the client before rendering Clerk components
+  // If founding sells out while the user still had it selected, land on yearly.
   useEffect(() => {
-    setIsClient(true);
-  }, []);
+    if (foundingAvailable) {
+      if (selectedId === 'year') setSelectedId(userPicked ? 'month' : 'founding');
+      return;
+    }
+    if (selectedId === 'founding') setSelectedId(yearPlan ? 'year' : 'month');
+  }, [foundingAvailable, selectedId, userPicked, yearPlan]);
 
-  // Force CheckoutButton remount on View Transitions navigation
-  useEffect(() => {
-    const handleViewTransition = () => setCheckoutKey(Date.now());
-    document.addEventListener('app:route-change', handleViewTransition);
-    return () => document.removeEventListener('app:route-change', handleViewTransition);
-  }, []);
+  const selected = options.find((o) => o.id === selectedId) ?? options[options.length - 1];
 
-  // Rename drawer title + success copy when Clerk checkout opens or completes.
-  useEffect(() => {
-    const updateCheckoutDrawerCopy = () => {
-      const checkoutTitle = document.querySelector('.cl-drawerTitle[data-localization-key="billing.checkout.title"]');
-      if (checkoutTitle && checkoutTitle.textContent !== 'Add-on') {
-        checkoutTitle.textContent = 'Add-on';
-      }
+  const startCheckout = useCallback(async () => {
+    if (!selected) return;
+    setError(null);
+    setIsStarting(true);
+    try {
+      const res = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: selected.productId }),
+      });
 
-      for (const key of CHECKOUT_SUCCESS_TITLE_KEYS) {
-        const title = document.querySelector(`[data-localization-key="${key}"]`);
-        if (title && title.textContent !== CHECKOUT_SUCCESS_TITLE) {
-          title.textContent = CHECKOUT_SUCCESS_TITLE;
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+        if (body.code === 'FOUNDING_SOLD_OUT') {
+          // Someone took the last slot while this page was open — fall back cleanly.
+          await loadFounding();
+          setUserPicked(false);
+          setSelectedId('year');
+          throw new Error('The founding price was just claimed. Standard pricing is selected.');
         }
+        throw new Error(body.error || 'Unable to start checkout');
       }
 
-      for (const key of CHECKOUT_SUCCESS_DESCRIPTION_KEYS) {
-        const description = document.querySelector(`[data-localization-key="${key}"]`);
-        if (description && description.textContent !== CHECKOUT_SUCCESS_DESCRIPTION) {
-          description.textContent = CHECKOUT_SUCCESS_DESCRIPTION;
-        }
-      }
+      const { url } = (await res.json()) as { url: string };
+      if (!url) throw new Error('Unable to start checkout');
 
-      const titleByClass = document.querySelector('.cl-drawerBody .cl-checkoutSuccessTitle');
-      if (titleByClass && titleByClass.textContent !== CHECKOUT_SUCCESS_TITLE) {
-        titleByClass.textContent = CHECKOUT_SUCCESS_TITLE;
-      }
+      const checkoutUrl = new URL(url);
+      checkoutUrl.searchParams.set('theme', preferredTheme());
+      window.location.assign(checkoutUrl.toString());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to start checkout');
+      setIsStarting(false);
+    }
+  }, [loadFounding, selected]);
 
-      const descriptionByClass = document.querySelector('.cl-drawerBody .cl-checkoutSuccessDescription');
-      if (descriptionByClass && descriptionByClass.textContent !== CHECKOUT_SUCCESS_DESCRIPTION) {
-        descriptionByClass.textContent = CHECKOUT_SUCCESS_DESCRIPTION;
-      }
-    };
-
-    const observer = new MutationObserver(updateCheckoutDrawerCopy);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
-    updateCheckoutDrawerCopy();
-
-    return () => observer.disconnect();
-  }, []);
-
-  // Clerk drawer "already active" alert — sync entitlement and refresh the page state.
-  useEffect(() => {
-    let handled = false;
-
-    const observer = new MutationObserver(() => {
-      if (handled) return;
-      const alerts = document.querySelectorAll('.cl-alert, [role="alert"]');
-      for (const el of alerts) {
-        const text = el.textContent?.toLowerCase() ?? '';
-        if (text.includes('already active')) {
-          handled = true;
-          void runPostCheckoutSync();
-          break;
-        }
-      }
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
-    return () => observer.disconnect();
-  }, [runPostCheckoutSync]);
-
-  if (!isClient || !isLoaded) {
+  if (!billingConfigured) {
     return (
       <div className={className}>
-        <IntervalToggle
-          selectedInterval={selectedInterval}
-          onSelect={setSelectedInterval}
-          priceMonthlyLabel={priceMonthlyLabel}
-          priceAnnualLabel={priceAnnualLabel}
-          disabled
-        />
         <button type="button" disabled className="upgrade-primary-btn upgrade-primary-btn--disabled">
-          Loading…
+          Billing unavailable
         </button>
-      </div>
-    );
-  }
-
-  if (!isSignedIn) {
-    return (
-      <div className={className}>
-        <IntervalToggle
-          selectedInterval={selectedInterval}
-          onSelect={setSelectedInterval}
-          priceMonthlyLabel={priceMonthlyLabel}
-          priceAnnualLabel={priceAnnualLabel}
-        />
-        <button type="button" disabled className="upgrade-primary-btn upgrade-primary-btn--disabled">
-          Sign in first
-        </button>
-      </div>
-    );
-  }
-
-  if (blockCheckout) {
-    return (
-      <div className={className}>
-        <IntervalToggle
-          selectedInterval={selectedInterval}
-          onSelect={setSelectedInterval}
-          priceMonthlyLabel={priceMonthlyLabel}
-          priceAnnualLabel={priceAnnualLabel}
-          disabled
-        />
-        <button type="button" disabled className="upgrade-primary-btn upgrade-primary-btn--disabled">
-          {entitlementSyncing ? 'Just a moment…' : "You're all set"}
-        </button>
-        {!entitlementSyncing && (
-          <SafeSubscriptionDetailsButton
-            publishableKey={publishableKey}
-            onSubscriptionCancel={() => {
-              window.dispatchEvent(new CustomEvent('subscriptionUpgraded'));
-            }}
-          >
-            <button type="button" className="upgrade-secondary-btn">
-              Manage Add-On
-            </button>
-          </SafeSubscriptionDetailsButton>
-        )}
       </div>
     );
   }
 
   return (
     <div className={className}>
-      <IntervalToggle
-        selectedInterval={selectedInterval}
-        onSelect={setSelectedInterval}
-        priceMonthlyLabel={priceMonthlyLabel}
-        priceAnnualLabel={priceAnnualLabel}
-      />
-
-      <CheckoutButton
-        key={`checkout-${selectedInterval}-${remountKey}-${checkoutKey}`}
-        planId={planId}
-        planPeriod={selectedInterval === 'year' ? 'annual' : 'month'}
-        checkoutProps={{ appearance: CHECKOUT_DRAWER_APPEARANCE }}
-        onSubscriptionComplete={() => {
-          void runPostCheckoutSync();
+      <PlanToggle
+        options={options}
+        selectedId={selected?.id ?? defaultId}
+        onSelect={(id) => {
+          setUserPicked(true);
+          setSelectedId(id);
         }}
+        disabled={isStarting}
+      />
+      {error ? (
+        <p className="upgrade-checkout__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <button
+        type="button"
+        className="upgrade-primary-btn"
+        disabled={isStarting || !selected}
+        onClick={() => void startCheckout()}
       >
-        <button type="button" className="upgrade-primary-btn">
-          {ctaLabel}
-        </button>
-      </CheckoutButton>
-    </div>
-  );
-}
-
-/**
- * React component that handles Clerk billing checkout.
- * Uses CheckoutButton from @clerk/clerk-react/experimental.
- * React Islands are isolated, so this component provides its own ClerkProvider.
- */
-export default function UpgradeCheckoutButton({
-  className = '',
-  publishableKey = null,
-  planId,
-  unlimitedPlanId = '',
-  ctaLabel = 'Upgrade',
-  priceMonthlyLabel = '$6 per month',
-  priceAnnualLabel = '$48 per year',
-}: UpgradeCheckoutButtonProps) {
-  const effectivePlanId = planId || unlimitedPlanId;
-  const [effectiveKey, setEffectiveKey] = useState<string | null>(publishableKey);
-
-  // Get publishableKey from props or window global (for View Transitions compatibility)
-  useEffect(() => {
-    const key = publishableKey || (typeof window !== 'undefined' ? (window as any).CLERK_PUBLISHABLE_KEY : null);
-    setEffectiveKey(key);
-  }, [publishableKey]);
-
-  // Re-check after View Transitions navigation
-  useEffect(() => {
-    const handlePageLoad = () => {
-      const key = publishableKey || (typeof window !== 'undefined' ? (window as any).CLERK_PUBLISHABLE_KEY : null);
-      setEffectiveKey(key);
-    };
-
-    document.addEventListener('app:route-change', handlePageLoad);
-    return () => document.removeEventListener('app:route-change', handlePageLoad);
-  }, [publishableKey]);
-
-  // If no plan ID configured, don't expose checkout (plan ID must come from env)
-  if (!effectivePlanId) {
-    return (
-      <div className={className}>
-        <button type="button" disabled className="upgrade-primary-btn upgrade-primary-btn--disabled">
-          Billing unavailable
-        </button>
-      </div>
-    );
-  }
-
-  // If no publishable key AND not in SPA mode, render disabled button
-  if (!effectiveKey && publishableKey !== null) {
-    return (
-      <div className={className}>
-        <button type="button" disabled className="upgrade-primary-btn upgrade-primary-btn--disabled">
-          Billing unavailable
-        </button>
-      </div>
-    );
-  }
-
-  // Get domain and URLs for ClerkProvider configuration
-  const getClerkConfig = () => {
-    if (typeof window === 'undefined') {
-      return {
-        publishableKey: effectiveKey,
-        domain: undefined,
-        afterSignInUrl: undefined,
-        afterSignUpUrl: undefined,
-      };
-    }
-
-    return {
-      publishableKey: effectiveKey,
-      domain: window.location.hostname,
-      afterSignInUrl: window.location.origin,
-      afterSignUpUrl: window.location.origin,
-    };
-  };
-
-  const clerkConfig = getClerkConfig();
-  const [pathname, setPathname] = useState<string>('');
-  const [remountKey, setRemountKey] = useState<number>(Date.now());
-  const [isVisible, setIsVisible] = useState<boolean>(true);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Track pathname and update remount key on each navigation to force ClerkProvider remount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setPathname(window.location.pathname);
-      setRemountKey(Date.now());
-    }
-
-    const handlePageLoad = () => {
-      if (typeof window !== 'undefined') {
-        setPathname(window.location.pathname);
-        setRemountKey(Date.now());
-      }
-    };
-
-    document.addEventListener('app:route-change', handlePageLoad);
-    return () => document.removeEventListener('app:route-change', handlePageLoad);
-  }, []);
-
-  // Visibility detection using IntersectionObserver to force remount when component becomes visible
-  useEffect(() => {
-    if (typeof window === 'undefined' || !containerRef.current) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const wasVisible = isVisible;
-          const nowVisible = entry.isIntersecting;
-
-          if (!wasVisible && nowVisible) {
-            setRemountKey(Date.now());
-          }
-
-          setIsVisible(nowVisible);
-        });
-      },
-      { threshold: 0.1, rootMargin: '0px' }
-    );
-
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, [isVisible]);
-
-  // In the SPA, ClerkProvider is already provided by App.tsx — skip creating a nested one.
-  if (publishableKey === null) {
-    return (
-      <div ref={containerRef}>
-        <SignedIn>
-          <UpgradeCheckoutButtonInner
-            key={`checkout-inner-${remountKey}`}
-            className={className}
-            planId={effectivePlanId}
-            remountKey={remountKey}
-            ctaLabel={ctaLabel}
-            priceMonthlyLabel={priceMonthlyLabel}
-            priceAnnualLabel={priceAnnualLabel}
-            publishableKey={publishableKey}
-          />
-        </SignedIn>
-      </div>
-    );
-  }
-
-  return (
-    <div ref={containerRef}>
-      {/* @ts-expect-error Clerk's ClerkProviderProps discriminated union requires isSatellite/proxyUrl with domain */}
-      <ClerkProvider
-        key={`clerk-provider-${pathname}-${remountKey}`}
-        publishableKey={clerkConfig.publishableKey!}
-        domain={clerkConfig.domain}
-        afterSignInUrl={clerkConfig.afterSignInUrl}
-        afterSignUpUrl={clerkConfig.afterSignUpUrl}
-      >
-        <SignedIn>
-          <UpgradeCheckoutButtonInner
-            key={`checkout-inner-${remountKey}`}
-            className={className}
-            planId={effectivePlanId}
-            remountKey={remountKey}
-            ctaLabel={ctaLabel}
-            priceMonthlyLabel={priceMonthlyLabel}
-            priceAnnualLabel={priceAnnualLabel}
-            publishableKey={publishableKey}
-          />
-        </SignedIn>
-      </ClerkProvider>
+        {isStarting ? 'Starting checkout…' : ctaLabel}
+      </button>
+      <p className="upgrade-checkout__guarantee">
+        30-day money-back guarantee. Cancel anytime.
+      </p>
     </div>
   );
 }

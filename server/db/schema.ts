@@ -580,19 +580,13 @@ export const UserMetadata = pgTable('UserMetadata', {
   /** Last applied onboarding markdown pack version (see ONBOARDING_PACK_VERSION). */
   onboardingPackVersionApplied: integer('onboardingPackVersionApplied').notNull().default(0),
   /**
-   * Billing tier — DB source of truth (`free` | `unlimited`). Phase 1 of the
-   * Clerk→Stripe migration: tier reads come from here, not the Clerk JWT/Billing
-   * API. Written by the Stripe webhook (future) / admin grant / backfill script.
-   * See docs/native-prototype/PHASE_0_DATA_MODEL_ADR.md and tier-limits.ts.
+   * Legacy notes-tier label (`free` | `unlimited`) — retired for gating; kept for
+   * admin support/usage stats until those surfaces move off it. Paid features
+   * live in `Entitlements`.
    */
   tier: text('tier').notNull().default('free'),
-  /**
-   * Shared Spaces paid add-on (owner-pays). DB source of truth; the Clerk JWT
-   * `shared_spaces` feature is a fallback for freshly-purchased sessions until
-   * the billing webhook lands. The retired 'unlimited' tier grants nothing.
-   */
-  sharedSpacesAddOn: boolean('sharedSpacesAddOn').notNull().default(false),
-  sharedSpacesAddOnUpdatedAt: ts('sharedSpacesAddOnUpdatedAt'),
+  /** Polar customer id for portal sessions and subscription sync. */
+  polarCustomerId: text('polarCustomerId'),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 }, (table) => [
@@ -600,7 +594,40 @@ export const UserMetadata = pgTable('UserMetadata', {
   // backfill into broadcast spaces). Cheap to add now; a lock under load later.
   index('UserMetadata_connectedChurchIdIndex').on(table.connectedChurchId),
   index('UserMetadata_hmcChurchIdIndex').on(table.hmcChurchId),
+  index('UserMetadata_polarCustomerIdIndex').on(table.polarCustomerId),
 ]);
+
+/**
+ * Feature entitlements — DB source of truth for paid (and grant) access.
+ * Multiple sources can coexist per feature (e.g. personal billing + church seat)
+ * without clobbering each other. Unique on (userId, featureKey, source).
+ */
+export const Entitlements = pgTable(
+  'Entitlements',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId').notNull(),
+    featureKey: text('featureKey').notNull(),
+    status: text('status').notNull().default('active'), // active | canceled | expired
+    source: text('source').notNull().default('billing'), // billing | admin_grant | church_seat | trial
+    /** Provider subscription id (Polar subscription id) when source=billing. */
+    providerRef: text('providerRef'),
+    /** Polar product id that granted this row. */
+    productId: text('productId'),
+    grantedAt: ts('grantedAt').notNull(),
+    expiresAt: ts('expiresAt'),
+    updatedAt: ts('updatedAt'),
+  },
+  (table) => [
+    index('Entitlements_userIdIndex').on(table.userId),
+    index('Entitlements_userId_featureKeyIndex').on(table.userId, table.featureKey),
+    uniqueIndex('Entitlements_userId_featureKey_sourceUnique').on(
+      table.userId,
+      table.featureKey,
+      table.source,
+    ),
+  ],
+);
 
 // ─── ClerkUserMapping (pk_live → pk_test read-time resolution) ─────────────────
 

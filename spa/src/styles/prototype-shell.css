@@ -366,6 +366,14 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   overflow: hidden;
 }
 
+/* The `hidden` attribute's UA `display:none` (specificity 0,0,1) loses to the
+   `.proto-shell__main-inner { display:flex }` rule above (0,1,0), so a hidden
+   main-inner / settings freeze-layer would still take `flex:1` and push real
+   content off-center. This attribute+class selector (0,1,1) restores it. */
+.proto-shell__main-inner[hidden] {
+  display: none;
+}
+
 /* Right-panel overlay — shares the main column cell, stacks above study docks. */
 @media (min-width: 900px) {
   .proto-shell__right-panel-host {

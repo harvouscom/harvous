@@ -143,7 +143,7 @@ export const toast = {
 
   // Persistent upgrade prompt: message + Upgrade (primary) and Not now (secondary). Stays open until user acts.
   upgradePrompt: (message: string, upgradeUrl?: string) => {
-    const url = upgradeUrl || '/addon';
+    const url = upgradeUrl || '/upgrade';
     safeToast(() => sonnerToast.error(message, {
       icon: null,
       duration: Infinity,

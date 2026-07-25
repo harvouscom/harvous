@@ -5,7 +5,7 @@
  *   POST /api/test/reset-to-new-user — Clear all current user data + UserMetadata so
  *        on refresh the app treats them as new (empty content).
  *        Dev only. No auth required: pass { "userId": "user_xxx" } in body, or omit to use session.
- *   POST /api/test/set-shared-spaces-addon — Dev only; toggle UserMetadata.sharedSpacesAddOn.
+ *   POST /api/test/set-shared-spaces-addon — Dev only; toggle shared_spaces Entitlements.
  *   POST /api/test/seed-sample-votd — Localhost only; sample VOTD row for today (UTC).
  *   POST /api/test/seed-sample-featured — Localhost only; VOTD plus sample carousel cards. Response includes featuredItemIds
  *        for clearing localStorage dismissed_featured_* keys.
@@ -82,9 +82,9 @@ app.post('/api/test/set-shared-spaces-addon', async (c) => {
 
     const enabled = body.enabled === true;
     await setSharedSpacesAddOnForUserId(userId, enabled);
-    console.log(`✅ Set sharedSpacesAddOn=${enabled} for user ${userId}`);
+    console.log(`✅ Set shared_spaces entitlement=${enabled} for user ${userId}`);
 
-    return c.json({ success: true, hasSharedSpaces: enabled });
+    return c.json({ success: true, hasSharedSpaces: enabled, entitlements: enabled ? ['shared_spaces'] : [] });
   } catch (error: any) {
     console.error('Set shared spaces add-on error:', error);
     return c.json({ error: error.message || 'Failed to update Shared Spaces add-on' }, 500);

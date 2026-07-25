@@ -7,7 +7,7 @@
 
 export interface Auth {
   userId: string | null;
-  /** Check if the user has a specific Clerk feature (e.g., 'unlimited_notes'). */
+  /** Legacy Clerk feature check — always false; entitlements are DB-backed. */
   has: (check: { feature: string }) => boolean;
 }
 

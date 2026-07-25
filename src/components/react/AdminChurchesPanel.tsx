@@ -252,9 +252,12 @@ function CreateChurchSpaceForm({ churchId }: { churchId: string }) {
         className="admin-publish__input"
         value={ownerUserId}
         onChange={(e) => setOwnerUserId(e.target.value)}
-        placeholder="Owner userId (staff member, user_…)"
+        placeholder="Owner Clerk userId (must be in the org — yours: user_…)"
         required
       />
+      <p style={{ margin: 0, fontSize: 12, opacity: 0.72 }}>
+        Must be a Clerk org member. Sync staff first if create fails with “not in organization.”
+      </p>
       <select
         className="admin-publish__select"
         value={color}

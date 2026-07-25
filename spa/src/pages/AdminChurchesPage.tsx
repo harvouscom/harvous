@@ -13,18 +13,14 @@ function PrototypeAdminChurchesPage() {
   const admin = useHarvousAdminCheck();
 
   useEffect(() => {
+    // Only leave after a definitive non-admin result — not while auth/admin check is in flight.
     if (admin.isError || (admin.isSuccess && admin.data && !admin.data.isAdmin)) {
       navigate({ to: '/' });
     }
   }, [admin.isError, admin.isSuccess, admin.data, navigate]);
 
-  if (admin.isLoading) {
-    return (
-      <>
-        <AdminShell title="Churches">{null}</AdminShell>
-        <ProtoStatusChip visible variant="syncing" label="Loading…" />
-      </>
-    );
+  if (admin.isLoading || !admin.isSuccess) {
+    return <ProtoStatusChip visible variant="syncing" label="Loading…" />;
   }
 
   if (!admin.data?.isAdmin) {
@@ -48,17 +44,8 @@ function ClassicAdminChurchesPage() {
     }
   }, [admin.isError, admin.isSuccess, admin.data, navigate]);
 
-  if (admin.isLoading) {
-    return (
-      <>
-        <div className="page-flex-column">
-          <div className="page-flex-column__main">
-            <CardStack title="Churches" centerTitle />
-          </div>
-        </div>
-        <ProtoStatusChip visible variant="syncing" label="Loading…" />
-      </>
-    );
+  if (admin.isLoading || !admin.isSuccess) {
+    return <ProtoStatusChip visible variant="syncing" label="Loading…" />;
   }
 
   if (!admin.data?.isAdmin) {

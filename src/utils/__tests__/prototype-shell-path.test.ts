@@ -49,10 +49,11 @@ describe('prototype shell note paths', () => {
 });
 
 describe('public app paths', () => {
-  it('treats join, shared, invitation, and add-on as public marketing routes', () => {
+  it('treats join, shared, invitation, and upgrade as public marketing routes', () => {
     expect(isPublicAppPath('/spaces/join/abc')).toBe(true);
     expect(isPublicAppPath('/shared/note/abc')).toBe(true);
     expect(isPublicAppPath('/invitations/abc')).toBe(true);
+    expect(isPublicAppPath('/upgrade')).toBe(true);
     expect(isPublicAppPath('/addon')).toBe(true);
     expect(isPublicAppPath('/')).toBe(false);
     expect(isPublicAppPath('/settings/addons')).toBe(false);
@@ -76,8 +77,8 @@ describe('public route html class synchronization', () => {
     expect(document.documentElement.classList.contains(PUBLIC_ROUTE_HTML_CLASS)).toBe(true);
   });
 
-  it('adds public styling for /addon', () => {
-    syncPublicRouteHtmlClass('/addon');
+  it('adds public styling for /upgrade', () => {
+    syncPublicRouteHtmlClass('/upgrade');
     expect(document.documentElement.classList.contains(PUBLIC_ROUTE_HTML_CLASS)).toBe(true);
   });
 });
