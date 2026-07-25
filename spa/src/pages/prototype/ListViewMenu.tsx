@@ -11,12 +11,15 @@ import {
   PROTO_TOOLBAR_ORB_ICON_SIZE,
   PROTO_TOOLBAR_POPOVER_OFFSET,
 } from './proto-toolbar-tokens';
+import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import { SIDEBAR_LIST_MODES } from './proto-sidebar-list-modes';
 
 const MENU_Z_INDEX = 6000;
+const LIST_VIEW_POPOVER_WIDTH = 260;
+const LIST_VIEW_POPOVER_FALLBACK_HEIGHT = 220;
 
 function listModeShortLabel(mode: SidebarListMode): string {
   switch (mode) {
@@ -106,7 +109,16 @@ export default function ListViewMenu({
     const update = () => {
       const rect = triggerRef.current?.getBoundingClientRect();
       if (!rect) return;
-      setAnchorPos({ top: rect.bottom + PROTO_TOOLBAR_POPOVER_OFFSET, left: rect.left });
+      const measured = popoverRef.current?.getBoundingClientRect();
+      const width = measured?.width || LIST_VIEW_POPOVER_WIDTH;
+      const height = measured?.height || LIST_VIEW_POPOVER_FALLBACK_HEIGHT;
+      const pos = computeRightAnchoredPopoverPosition(
+        rect,
+        width,
+        height,
+        PROTO_TOOLBAR_POPOVER_OFFSET,
+      );
+      setAnchorPos({ top: pos.top, left: pos.left });
     };
 
     update();

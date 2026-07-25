@@ -113,7 +113,7 @@ export default function PrototypeSharedThreadDrilldown({
   });
 
   const openNote = (noteId: string) => {
-    if (isMobileSidebar) closeDrawer();
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     navigate(sharedThreadNoteNavigation(noteId, spaceId));
   };
 

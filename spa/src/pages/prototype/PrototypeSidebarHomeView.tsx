@@ -934,7 +934,7 @@ export default function PrototypeSidebarHomeView({
   const startDraftNote = useCallback(
     async (opts: { title?: string; contentHtml?: string }) => {
       if (!homeSpaceId) return;
-      if (isMobileSidebar) closeDrawer();
+      if (isMobileSidebar) closeDrawer({ preserveHistory: true });
       try {
         const res = await createDraftNote.mutateAsync({
           spaceId: homeSpaceId,
@@ -958,7 +958,7 @@ export default function PrototypeSidebarHomeView({
 
   const openCrossRefGap = useCallback(
     (gap: CrossRefGap) => {
-      if (isMobileSidebar) closeDrawer();
+      if (isMobileSidebar) closeDrawer({ preserveHistory: true });
       const candidates = [
         gap.fromNoteId?.trim(),
         findMostRecentNoteForScriptureReference(scriptureBooks, gap.from.displayRef)?.id,
@@ -1419,7 +1419,7 @@ export default function PrototypeSidebarHomeView({
 
   const onCreateFirstNote = useCallback(() => {
     if (!homeSpaceId) return;
-    if (isMobileSidebar) closeDrawer();
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     beginPrototypeComposeSession({ targetSpaceId: homeSpaceId });
     navigate({
       to: prototypeNoteRouteTo(),

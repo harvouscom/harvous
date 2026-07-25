@@ -35,13 +35,16 @@ import { useSharedSpaceSwitcherDragReorder } from '../../hooks/useSharedSpaceSwi
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import CreateSharedSpaceSheet, { type CreateSpaceSheetKind } from './CreateSharedSpaceSheet';
+import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
 import { PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE, PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
+import { UNLIMITED, isUnlimited } from '@/lib/shared-spaces-limits';
+
+const SPACE_SWITCHER_POPOVER_WIDTH = 260;
+const SPACE_SWITCHER_POPOVER_FALLBACK_HEIGHT = 180;
 
 function normalizeSpaceId(id: string): string {
   return id.startsWith('space_') ? id : `space_${id}`;
 }
-
-import { UNLIMITED, isUnlimited } from '@/lib/shared-spaces-limits';
 
 export default function SpaceSwitcherMenu({
   homeSpaceId,
@@ -191,7 +194,16 @@ export default function SpaceSwitcherMenu({
     const update = () => {
       const rect = triggerRef.current?.getBoundingClientRect();
       if (!rect) return;
-      setAnchorPos({ top: rect.bottom + PROTO_TOOLBAR_POPOVER_OFFSET, left: rect.left });
+      const measured = popoverRef.current?.getBoundingClientRect();
+      const width = measured?.width || SPACE_SWITCHER_POPOVER_WIDTH;
+      const height = measured?.height || SPACE_SWITCHER_POPOVER_FALLBACK_HEIGHT;
+      const pos = computeRightAnchoredPopoverPosition(
+        rect,
+        width,
+        height,
+        PROTO_TOOLBAR_POPOVER_OFFSET,
+      );
+      setAnchorPos({ top: pos.top, left: pos.left });
     };
     update();
     window.addEventListener('resize', update);

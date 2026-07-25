@@ -66,7 +66,7 @@ export default function PrototypeDailyPassagePill({
   }, [votd.reference, votd.translation]);
 
   const afterNav = useCallback(() => {
-    if (isMobileSidebar) closeDrawer();
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
   }, [closeDrawer, isMobileSidebar]);
 
   const openNote = useCallback(

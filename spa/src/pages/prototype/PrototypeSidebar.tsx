@@ -824,7 +824,7 @@ function PrototypeSidebarNoteRow({
           const deletedId = normalizeNoteIdFromParam(row.id);
           if (activeNoteFullId && deletedId === normalizeNoteIdFromParam(activeNoteFullId)) {
             navigate({ to: prototypeHomeRouteTo(), replace: true });
-            if (isMobileSidebar) closeDrawer();
+            if (isMobileSidebar) closeDrawer({ preserveHistory: true });
           }
         },
         onError: (err) => {
@@ -2036,7 +2036,7 @@ export default function PrototypeSidebar({
   );
 
   const afterNav = useCallback(() => {
-    if (isMobileSidebar) closeDrawer();
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
   }, [closeDrawer, isMobileSidebar]);
 
   const onNoteRow = (row: SpaceNoteRow) => {
@@ -2148,7 +2148,7 @@ export default function PrototypeSidebar({
 
   const composeInSharedThread = (threadId: string) => {
     if (!homeSpaceId) return;
-    if (isMobileSidebar) closeDrawer();
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     beginComposeInGroupThread(homeSpaceId, threadId, beginPrototypeComposeSession);
     navigate({
       to: prototypeNoteRouteTo(),

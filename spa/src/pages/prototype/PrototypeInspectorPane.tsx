@@ -152,7 +152,7 @@ export default function PrototypeInspectorPane({
                 replace: true,
               });
             }
-            if (isMobileSidebar) closeDrawer();
+            if (isMobileSidebar) closeDrawer({ preserveHistory: true });
           },
           onError: (err) => {
             setDeleteConfirmOpen(false);
@@ -170,7 +170,7 @@ export default function PrototypeInspectorPane({
           setDeleteConfirmOpen(false);
           closeInspector();
           navigate({ to: prototypeHomeRouteTo() as any, replace: true });
-          if (isMobileSidebar) closeDrawer();
+          if (isMobileSidebar) closeDrawer({ preserveHistory: true });
         },
         onError: (err) => {
           setDeleteConfirmOpen(false);

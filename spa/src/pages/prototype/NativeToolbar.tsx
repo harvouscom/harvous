@@ -219,7 +219,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
 
   const onCompose = () => {
     if (!visibleComposeTarget || !canComposeInContext) return;
-    if (isMobileSidebar) closeDrawer();
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     beginPrototypeComposeSession({ targetSpaceId: visibleComposeTarget });
     navigate({
       to: prototypeNoteRouteTo(),
@@ -281,7 +281,10 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
 
   const showCollapsedSidebarControls =
     !isUnified && (desktopSidebarCollapsed || sidebarExiting);
-  const showToolbarSpaceSwitcher = isUnified || showCollapsedSidebarControls;
+  /** Mobile drawer header owns the space orb while open — avoid twin home orbs. */
+  const showToolbarSpaceSwitcher =
+    (isUnified || showCollapsedSidebarControls) &&
+    !(isMobileSidebar && drawerOpen && !sidebarExiting);
 
   return (
     <div className="proto-toolbar-inner">

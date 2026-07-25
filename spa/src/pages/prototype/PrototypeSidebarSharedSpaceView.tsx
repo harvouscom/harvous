@@ -354,7 +354,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
 
   const composeInSharedSpace = (threadId?: string) => {
     if (!activeSpaceId) return;
-    if (isMobileSidebar) closeDrawer();
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     if (threadId) {
       beginComposeInGroupThread(activeSpaceId, threadId, beginPrototypeComposeSession);
     } else {

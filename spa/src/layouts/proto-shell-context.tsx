@@ -160,7 +160,8 @@ type ProtoShellContextValue = {
   drawerOpen: boolean;
   toggleDrawer: () => void;
   openDrawer: () => void;
-  closeDrawer: () => void;
+  /** Close the mobile drawer. Pass `preserveHistory: true` when navigating away so swipe-back reopens it. */
+  closeDrawer: (options?: { preserveHistory?: boolean }) => void;
   isMobileSidebar: boolean;
   /** Desktop only: hides the pinned sidebar column (toolbar toggle ⌘\ equivalent). */
   desktopSidebarCollapsed: boolean;
@@ -280,6 +281,13 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   /** Skips the next popstate collapse when we called history.back() from collapse/close. */
   const threadPanelHistorySkipRef = useRef(false);
   const THREAD_PANEL_HISTORY_FLAG = 'protoThreadPanelExpanded';
+  /** Skips the next popstate when we called history.back() from an explicit drawer dismiss. */
+  const drawerHistorySkipRef = useRef(false);
+  const MOBILE_DRAWER_HISTORY_FLAG = 'protoMobileDrawerOpen';
+  const drawerOpenRef = useRef(drawerOpen);
+  drawerOpenRef.current = drawerOpen;
+  const threadPanelExpandedRef = useRef(threadPanelExpanded);
+  threadPanelExpandedRef.current = threadPanelExpanded;
   const [sidebarExiting, setSidebarExiting] = useState(false);
   const sidebarExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>(readStoredSidebarListMode);
@@ -316,17 +324,26 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
+    const clearMobileDrawerHistoryFlag = () => {
+      const state = window.history.state as Record<string, unknown> | null;
+      if (!state?.[MOBILE_DRAWER_HISTORY_FLAG]) return;
+      const next = { ...state };
+      delete next[MOBILE_DRAWER_HISTORY_FLAG];
+      window.history.replaceState(next, '');
+    };
     const mq = window.matchMedia(MOBILE_MQ);
     const sync = () => {
       const mobile = mq.matches;
       setIsMobileSidebar(mobile);
       if (mobile) {
+        clearMobileDrawerHistoryFlag();
         setDrawerOpen(false);
         setDesktopSidebarCollapsed(false);
         if (sidebarExitTimerRef.current) clearTimeout(sidebarExitTimerRef.current);
         sidebarExitTimerRef.current = null;
         setSidebarExiting(false);
       } else {
+        clearMobileDrawerHistoryFlag();
         setDrawerOpen(true);
       }
     };
@@ -354,13 +371,33 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const closeDrawer = useCallback(() => {
-    setDrawerOpen((prev) => {
-      if (!prev) return false;
-      beginSidebarClose(() => setDrawerOpen(false));
-      return true;
-    });
-  }, [beginSidebarClose]);
+  const pushMobileDrawerHistory = useCallback(() => {
+    if (typeof window === 'undefined' || !isMobileSidebar) return;
+    const state = window.history.state as Record<string, unknown> | null;
+    if (state?.[MOBILE_DRAWER_HISTORY_FLAG]) return;
+    window.history.pushState({ ...(state ?? {}), [MOBILE_DRAWER_HISTORY_FLAG]: true }, '');
+  }, [isMobileSidebar]);
+
+  const popMobileDrawerHistory = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const state = window.history.state as Record<string, unknown> | null;
+    if (!state?.[MOBILE_DRAWER_HISTORY_FLAG]) return;
+    drawerHistorySkipRef.current = true;
+    window.history.back();
+  }, []);
+
+  const closeDrawer = useCallback(
+    (options?: { preserveHistory?: boolean }) => {
+      if (!drawerOpenRef.current) return;
+      if (!options?.preserveHistory) popMobileDrawerHistory();
+      setDrawerOpen((prev) => {
+        if (!prev) return false;
+        beginSidebarClose(() => setDrawerOpen(false));
+        return true;
+      });
+    },
+    [beginSidebarClose, popMobileDrawerHistory],
+  );
   const collapseDesktopSidebar = useCallback(() => {
     if (desktopSidebarCollapsed || sidebarExiting) return;
     /* Collapse grid immediately so main/editor ease in sync with the panel exit. */
@@ -595,32 +632,45 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   ]);
 
   const toggleDrawer = useCallback(() => {
-    if (!drawerOpen) dismissMobileRightPanels();
-    setDrawerOpen((prev) => {
-      if (prev) {
-        beginSidebarClose(() => setDrawerOpen(false));
-        return true;
-      }
+    if (!drawerOpen) {
+      dismissMobileRightPanels();
       cancelSidebarExit();
+      pushMobileDrawerHistory();
+      setDrawerOpen(true);
+      return;
+    }
+    popMobileDrawerHistory();
+    setDrawerOpen((prev) => {
+      if (!prev) return false;
+      beginSidebarClose(() => setDrawerOpen(false));
       return true;
     });
-  }, [beginSidebarClose, cancelSidebarExit, dismissMobileRightPanels, drawerOpen]);
+  }, [
+    beginSidebarClose,
+    cancelSidebarExit,
+    dismissMobileRightPanels,
+    drawerOpen,
+    popMobileDrawerHistory,
+    pushMobileDrawerHistory,
+  ]);
 
   const openDrawer = useCallback(() => {
     dismissMobileRightPanels();
     cancelSidebarExit();
+    pushMobileDrawerHistory();
     setDrawerOpen(true);
-  }, [cancelSidebarExit, dismissMobileRightPanels]);
+  }, [cancelSidebarExit, dismissMobileRightPanels, pushMobileDrawerHistory]);
 
   const ensureSidebarExpanded = useCallback(() => {
     cancelSidebarExit();
     if (isMobileSidebar) {
       dismissMobileRightPanels();
+      pushMobileDrawerHistory();
       setDrawerOpen(true);
     } else {
       setDesktopSidebarCollapsed(false);
     }
-  }, [cancelSidebarExit, dismissMobileRightPanels, isMobileSidebar]);
+  }, [cancelSidebarExit, dismissMobileRightPanels, isMobileSidebar, pushMobileDrawerHistory]);
 
   const openSidebarTagSearch = useCallback(
     (intent: SidebarTagSearchIntent) => {
@@ -651,15 +701,35 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const onPopState = () => {
+      if (drawerHistorySkipRef.current) {
+        drawerHistorySkipRef.current = false;
+        return;
+      }
       if (threadPanelHistorySkipRef.current) {
         threadPanelHistorySkipRef.current = false;
         return;
       }
-      backFromThreadPanelToInspector({ popHistory: false });
+      const state = window.history.state as Record<string, unknown> | null;
+      if (state?.[MOBILE_DRAWER_HISTORY_FLAG]) {
+        cancelSidebarExit();
+        setDrawerOpen(true);
+      } else if (drawerOpenRef.current) {
+        setDrawerOpen((prev) => {
+          if (!prev) return false;
+          beginSidebarClose(() => setDrawerOpen(false));
+          return true;
+        });
+      }
+      if (
+        threadPanelExpandedRef.current &&
+        !state?.[THREAD_PANEL_HISTORY_FLAG]
+      ) {
+        backFromThreadPanelToInspector({ popHistory: false });
+      }
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [backFromThreadPanelToInspector]);
+  }, [backFromThreadPanelToInspector, beginSidebarClose, cancelSidebarExit]);
 
   const toggleInspector = useCallback(() => {
     setInspectorOpen((prev) => {

@@ -727,7 +727,7 @@ function PrototypeShortcutBridge() {
       sidebarListSpaceScope,
     });
     if (!targetSpaceId) return;
-    if (isMobileSidebar) closeDrawer();
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     beginPrototypeComposeSession({ targetSpaceId });
     navigate.navigate({
       to: prototypeNoteRouteTo(),
