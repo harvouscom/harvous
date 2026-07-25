@@ -95,10 +95,20 @@ export function buildChannelCadenceFields(
   };
 }
 
-/** Attach publishCadence + cadenceStale onto ministry spaces for nav payloads. */
+/** Attach publishCadence + cadenceStale + lastCurriculumAt onto ministry spaces for nav payloads. */
 export async function attachMinistryCadenceToSpaces<
   T extends { id: string; type?: string | null; orgId?: string | null; publishCadence?: string | null },
->(spaces: T[]): Promise<Array<T & { publishCadence: PublishCadence | null; cadenceStale?: boolean }>> {
+>(
+  spaces: T[],
+): Promise<
+  Array<
+    T & {
+      publishCadence: PublishCadence | null;
+      cadenceStale?: boolean;
+      lastCurriculumAt?: string | null;
+    }
+  >
+> {
   const ministryIds = spaces.filter((s) => isMinistryBroadcastSpaceRow(s)).map((s) => s.id);
   const lastById = await getLastCurriculumAtBySpaceIds(ministryIds);
   const now = new Date();
@@ -112,6 +122,7 @@ export async function attachMinistryCadenceToSpaces<
     return {
       ...space,
       publishCadence,
+      lastCurriculumAt: lastAt ? lastAt.toISOString() : null,
       cadenceStale: isCadenceStale(lastAt, publishCadence, now),
     };
   });

@@ -9,6 +9,15 @@ const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf
  * fully dark). These guard the invariants that keep the slice invisible to
  * users and safe next to the shared-spaces release surface.
  */
+describe('staff ministry channel create contract', () => {
+  it('exposes staff-gated create-ministry-channel beside church-shared', () => {
+    const spaces = source('server/routes/spaces.ts');
+    expect(spaces).toContain("/api/spaces/create-ministry-channel");
+    expect(spaces).toContain('assertCanCreateMinistryChannel');
+    expect(spaces).toContain("type: 'public'");
+  });
+});
+
 describe('church admin route contracts', () => {
   const route = () => source('server/routes/churches.ts');
 

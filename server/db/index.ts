@@ -82,6 +82,7 @@ export {
   asc,
   desc,
   count,
+  countDistinct,
   sum,
   avg,
   min,

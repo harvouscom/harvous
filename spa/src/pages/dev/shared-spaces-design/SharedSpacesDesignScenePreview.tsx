@@ -746,7 +746,17 @@ function CopyMenuScene() {
   );
 }
 
-function ConfirmScene({ label }: { label: string }) {
+function ConfirmScene({
+  label,
+  title,
+  description,
+  confirmLabel,
+}: {
+  label: string;
+  title: string;
+  description: string;
+  confirmLabel: string;
+}) {
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
   useLayoutEffect(() => {
@@ -760,7 +770,9 @@ function ConfirmScene({ label }: { label: string }) {
       {rect ? (
         <ProtoConfirmDialog
           anchorRect={rect}
-          confirmLabel={label.includes('Delete') ? 'Delete' : label.includes('Leave') ? 'Leave' : 'Turn off'}
+          title={title}
+          description={description}
+          confirmLabel={confirmLabel}
           onConfirm={() => {}}
           onCancel={() => {}}
         />
@@ -809,11 +821,32 @@ export default function SharedSpacesDesignScenePreview({ scene }: { scene: Share
     case '14-copy-menu':
       return <CopyMenuScene />;
     case '15-revoke-confirm':
-      return <ConfirmScene label="Turn off invite link?" />;
+      return (
+        <ConfirmScene
+          label="Turn off invite link?"
+          title="Turn off invite link?"
+          description="It will stop working."
+          confirmLabel="Turn off"
+        />
+      );
     case '16-leave-confirm':
-      return <ConfirmScene label="Leave this space?" />;
+      return (
+        <ConfirmScene
+          label="Leave this space?"
+          title="Leave this space?"
+          description="Your notes stay in My Home."
+          confirmLabel="Leave"
+        />
+      );
     case '17-delete-confirm':
-      return <ConfirmScene label="Delete this space?" />;
+      return (
+        <ConfirmScene
+          label="Delete this space?"
+          title='Delete "Triple C"?'
+          description="Restore within 30 days; notes stay in My Home."
+          confirmLabel="Delete"
+        />
+      );
     case '18-full-dashboard':
       return (
         <ProtoChrome width={360}>

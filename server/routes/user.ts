@@ -15,6 +15,7 @@
  *   POST /api/user/update-profile
  *   GET  /api/user/xp
  *   GET  /api/user/get-profile
+ *   GET  /api/user/church-staff-status
  *   POST /api/user/update-shared-space-switcher-order
  *   POST /api/user/migrate-to-prototype
  *   GET  /api/user/migrate-to-prototype/status
@@ -45,7 +46,11 @@ import {
   hmcSearchChurches,
   hmcSubmitUnlistedUsChurch,
 } from '../utils/hmc-partner';
-import { isUsChurchLocation, normalizeUsStateCode } from '@/utils/us-states';
+import {
+  isUnitedStatesCountryLabel,
+  isUsChurchLocation,
+  normalizeUsStateCode,
+} from '@/utils/us-states';
 
 // Server-ported utilities
 import { getCachedUserData, invalidateUserCache } from '../utils/user-cache';
@@ -57,6 +62,8 @@ import {
 import { calculateSessionXP, type SessionData } from '../utils/session-tracker';
 import { canCreateSharedSpace, getUserLimitsInfo, getSpaceMemberCount } from '../utils/tier-limits';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
+import { connectionFieldsForHmcChurchId } from '../utils/church-connection';
+import { isChurchStaffForOrg } from '../utils/church-staff';
 
 // Pure @/utils (no astro:db)
 import { getSeasonDisplayName, getCurrentSeason } from '@/utils/season-helpers';
@@ -393,6 +400,13 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       'churchState' in body ||
       'churchCountry' in body;
 
+    const intentRaw = typeof body.intent === 'string' ? body.intent.trim() : '';
+    const intent =
+      intentRaw === 'outside_us' || intentRaw === 'unlisted_us' ? intentRaw : undefined;
+    if (intentRaw && !intent) {
+      return c.json({ error: 'Invalid church intent', code: 'CHURCH_INTENT_INVALID' }, 400);
+    }
+
     const readOptionalString = (value: unknown): string | null => {
       if (typeof value === 'string') return value.trim() || null;
       if (value === null) return null;
@@ -407,6 +421,12 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
     let applyChurchUpdate = false;
 
     if (hmcChurchIdRaw) {
+      if (intent) {
+        return c.json(
+          { error: 'Church intent cannot be combined with a directory pick', code: 'CHURCH_INTENT_MISMATCH' },
+          400,
+        );
+      }
       const hmc = await hmcGetChurchById(hmcChurchIdRaw);
       if (!hmc) {
         return c.json({ error: 'Here’s My Church record not found', code: 'HMC_CHURCH_NOT_FOUND' }, 404);
@@ -419,6 +439,12 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       normalizedChurchCountry = null;
       applyChurchUpdate = true;
     } else if (hmcChurchIdRaw === null && !hasManualKeys) {
+      if (intent) {
+        return c.json(
+          { error: 'Church intent cannot be combined with clear', code: 'CHURCH_INTENT_MISMATCH' },
+          400,
+        );
+      }
       // Explicit clear — wipe HMC link and denorm fields.
       normalizedHmcChurchId = null;
       normalizedChurchName = null;
@@ -426,8 +452,76 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       normalizedChurchState = null;
       normalizedChurchCountry = null;
       applyChurchUpdate = true;
+    } else if (intent === 'outside_us') {
+      // Explicit outside-U.S. path — Harvous DB only, never HMC.
+      normalizedHmcChurchId = null;
+      normalizedChurchName = readOptionalString(body.churchName);
+      normalizedChurchCity = readOptionalString(body.churchCity);
+      normalizedChurchState = readOptionalString(body.churchState);
+      normalizedChurchCountry = readOptionalString(body.churchCountry);
+      if (!normalizedChurchName) {
+        return c.json({ error: 'Church name is required', code: 'CHURCH_NAME_REQUIRED' }, 400);
+      }
+      if (!normalizedChurchCountry) {
+        return c.json({ error: 'Country is required', code: 'CHURCH_COUNTRY_REQUIRED' }, 400);
+      }
+      if (isUnitedStatesCountryLabel(normalizedChurchCountry)) {
+        return c.json(
+          {
+            error: 'Use the U.S. directory or “Not in the directory” for U.S. churches',
+            code: 'CHURCH_INTENT_MISMATCH',
+          },
+          400,
+        );
+      }
+      applyChurchUpdate = true;
+    } else if (intent === 'unlisted_us') {
+      // Explicit unlisted U.S. path — attempt HMC submit, then save.
+      normalizedHmcChurchId = null;
+      normalizedChurchName = readOptionalString(body.churchName);
+      normalizedChurchCity = readOptionalString(body.churchCity);
+      const usState = normalizeUsStateCode(readOptionalString(body.churchState));
+      const countryHint = readOptionalString(body.churchCountry);
+      if (countryHint && !isUnitedStatesCountryLabel(countryHint)) {
+        return c.json(
+          { error: 'Unlisted U.S. churches cannot include a non-U.S. country', code: 'CHURCH_INTENT_MISMATCH' },
+          400,
+        );
+      }
+      if (!normalizedChurchName) {
+        return c.json({ error: 'Church name is required', code: 'CHURCH_NAME_REQUIRED' }, 400);
+      }
+      if (!normalizedChurchCity) {
+        return c.json({ error: 'City is required for U.S. churches', code: 'CHURCH_CITY_REQUIRED' }, 400);
+      }
+      if (!usState) {
+        return c.json({ error: 'Select a U.S. state', code: 'CHURCH_STATE_REQUIRED' }, 400);
+      }
+      normalizedChurchState = usState;
+      normalizedChurchCountry = null;
+      try {
+        const submitted = await hmcSubmitUnlistedUsChurch({
+          name: normalizedChurchName,
+          city: normalizedChurchCity,
+          state: usState,
+        });
+        if (submitted) {
+          const denorm = hmcDenormFields(submitted);
+          normalizedHmcChurchId = submitted.id;
+          normalizedChurchName = denorm.name;
+          normalizedChurchCity = denorm.city;
+          normalizedChurchState = denorm.state;
+          normalizedChurchCountry = null;
+        }
+      } catch (error) {
+        if (error instanceof HmcPartnerError && error.code === 'HMC_RATE_LIMITED') {
+          return c.json({ error: error.message, code: error.code }, 429);
+        }
+        // Geocode / add failures fall through to free-text save.
+      }
+      applyChurchUpdate = true;
     } else if (hasManualKeys) {
-      // Manual entry: outside-US free-text, or U.S. unlisted (also submits to HMC).
+      // Legacy manual entry (no intent): outside-US free-text, or U.S. unlisted (HMC).
       normalizedHmcChurchId = null;
       normalizedChurchName = readOptionalString(body.churchName);
       normalizedChurchCity = readOptionalString(body.churchCity);
@@ -503,13 +597,25 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
           churchCity: existing?.churchCity ?? null,
           churchState: existing?.churchState ?? null,
           churchCountry: existing?.churchCountry ?? null,
+          connectedChurchId: existing?.connectedChurchId ?? null,
+          connectedOrgId: existing?.connectedOrgId ?? null,
+          connectedChurchAt: existing?.connectedChurchAt ?? null,
         },
       });
     }
 
+    const nextHmc = normalizedHmcChurchId ?? null;
+    const connection = await connectionFieldsForHmcChurchId(nextHmc);
+    const existing = existingRecord[0];
+    if (
+      connection.connectedChurchId &&
+      existing?.connectedChurchId === connection.connectedChurchId &&
+      existing.connectedChurchAt
+    ) {
+      connection.connectedChurchAt = existing.connectedChurchAt;
+    }
+
     if (existingRecord.length > 0) {
-      const existing = existingRecord[0];
-      const nextHmc = normalizedHmcChurchId ?? null;
       const isFirstTimeAddingChurch =
         !existing.hmcChurchId &&
         !existing.churchName &&
@@ -527,11 +633,14 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       await db
         .update(UserMetadata)
         .set({
-          hmcChurchId: normalizedHmcChurchId ?? null,
+          hmcChurchId: nextHmc,
           churchName: normalizedChurchName ?? null,
           churchCity: normalizedChurchCity ?? null,
           churchState: normalizedChurchState ?? null,
           churchCountry: normalizedChurchCountry ?? null,
+          connectedChurchId: connection.connectedChurchId,
+          connectedOrgId: connection.connectedOrgId,
+          connectedChurchAt: connection.connectedChurchAt,
           churchAddedAt: isFirstTimeAddingChurch ? nowISO() : existing.churchAddedAt,
           updatedAt: nowISO(),
         })
@@ -542,7 +651,7 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       }
     } else {
       const hasChurchData =
-        normalizedHmcChurchId ||
+        nextHmc ||
         normalizedChurchName ||
         normalizedChurchCity ||
         normalizedChurchState ||
@@ -550,11 +659,14 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       await db.insert(UserMetadata).values({
         id: crypto.randomUUID(),
         userId: auth.userId,
-        hmcChurchId: normalizedHmcChurchId ?? null,
+        hmcChurchId: nextHmc,
         churchName: normalizedChurchName ?? null,
         churchCity: normalizedChurchCity ?? null,
         churchState: normalizedChurchState ?? null,
         churchCountry: normalizedChurchCountry ?? null,
+        connectedChurchId: connection.connectedChurchId,
+        connectedOrgId: connection.connectedOrgId,
+        connectedChurchAt: connection.connectedChurchAt,
         churchAddedAt: hasChurchData ? nowISO() : null,
         highestSimpleNoteId: 0,
         userColor: 'blue',
@@ -568,11 +680,14 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       success: true,
       message: 'Church information updated',
       church: {
-        hmcChurchId: normalizedHmcChurchId ?? null,
+        hmcChurchId: nextHmc,
         churchName: normalizedChurchName ?? null,
         churchCity: normalizedChurchCity ?? null,
         churchState: normalizedChurchState ?? null,
         churchCountry: normalizedChurchCountry ?? null,
+        connectedChurchId: connection.connectedChurchId,
+        connectedOrgId: connection.connectedOrgId,
+        connectedChurchAt: connection.connectedChurchAt,
       },
     });
   } catch (error) {
@@ -763,6 +878,25 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
         defaultTranslation = um.defaultTranslation ?? 'NET';
         appearanceSettings = um.appearanceSettings ?? null;
         sharedSpaceSwitcherOrder = parseSharedSpaceSwitcherOrder(um.sharedSpaceSwitcherOrder);
+
+        // Reconcile: user picked HMC before the church was registered on Harvous.
+        if (churchData.hmcChurchId && !churchData.connectedOrgId) {
+          try {
+            const connection = await connectionFieldsForHmcChurchId(churchData.hmcChurchId);
+            if (connection.connectedOrgId) {
+              await db
+                .update(UserMetadata)
+                .set({
+                  connectedChurchId: connection.connectedChurchId,
+                  connectedOrgId: connection.connectedOrgId,
+                  connectedChurchAt: connection.connectedChurchAt,
+                  updatedAt: nowISO(),
+                })
+                .where(eq(UserMetadata.userId, auth.userId));
+              churchData = { ...churchData, ...connection };
+            }
+          } catch (_) { /* non-fatal reconcile */ }
+        }
       }
     } catch (_) { /* non-fatal */ }
 
@@ -772,6 +906,13 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
         .from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
       hasLockPinSet = !!(lockMeta?.lockPinHash);
     } catch (_) { /* non-fatal */ }
+
+    let isHomeChurchStaff = false;
+    if (churchData.connectedOrgId) {
+      try {
+        isHomeChurchStaff = await isChurchStaffForOrg(auth.userId, churchData.connectedOrgId);
+      } catch (_) { /* non-fatal */ }
+    }
 
     let emailVerified = false;
     try {
@@ -797,6 +938,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       connectedChurchId: churchData.connectedChurchId,
       connectedOrgId: churchData.connectedOrgId,
       connectedChurchAt: churchData.connectedChurchAt,
+      isHomeChurchStaff,
       defaultTranslation,
       appearanceSettings,
       sharedSpaceSwitcherOrder,
@@ -804,6 +946,26 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
     });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/get-profile', action: 'get_user_profile' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── GET /api/user/church-staff-status ───────────────────────────────────────
+/** Live staff check for a church org (createdBy, space staff, or Clerk org member). */
+app.get('/api/user/church-staff-status', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const orgId = (c.req.query('orgId') ?? '').trim();
+    if (!orgId) {
+      return c.json({ error: 'orgId is required', code: 'ORG_ID_REQUIRED' }, 400);
+    }
+    const isStaff = await isChurchStaffForOrg(auth.userId, orgId);
+    return c.json({ orgId, isStaff });
+  } catch (error) {
+    const e = handleAPIError(error, {
+      endpoint: '/api/user/church-staff-status',
+      action: 'church_staff_status',
+    });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

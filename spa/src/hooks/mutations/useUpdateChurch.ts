@@ -3,9 +3,13 @@ import { useAuth } from '@clerk/clerk-react';
 import { api } from '../../lib/api';
 import { updateCachedProfile } from '../queries/useProfile';
 
+export type UpdateChurchIntent = 'outside_us' | 'unlisted_us';
+
 export interface UpdateChurchVariables {
   /** Set to link/refresh from Here’s My Church; `null` clears. */
   hmcChurchId?: string | null;
+  /** Explicit manual path — required for outside_us / unlisted_us saves. */
+  intent?: UpdateChurchIntent;
   /** Manual fallback only when not sending hmcChurchId. */
   churchName?: string | null;
   churchCity?: string | null;
@@ -21,6 +25,9 @@ interface UpdateChurchResponse {
     churchCity: string | null;
     churchState: string | null;
     churchCountry: string | null;
+    connectedChurchId?: string | null;
+    connectedOrgId?: string | null;
+    connectedChurchAt?: string | null;
   };
   error?: string;
 }
@@ -44,6 +51,7 @@ export function useUpdateChurch() {
       if (vars.hmcChurchId !== undefined) {
         payload.hmcChurchId = vars.hmcChurchId;
       }
+      if (vars.intent !== undefined) payload.intent = vars.intent;
       if (vars.churchName !== undefined) payload.churchName = clean(vars.churchName) ?? null;
       if (vars.churchCity !== undefined) payload.churchCity = clean(vars.churchCity) ?? null;
       if (vars.churchState !== undefined) payload.churchState = clean(vars.churchState) ?? null;
@@ -64,6 +72,9 @@ export function useUpdateChurch() {
         churchCity: church.churchCity,
         churchState: church.churchState,
         churchCountry: church.churchCountry,
+        connectedChurchId: church.connectedChurchId ?? null,
+        connectedOrgId: church.connectedOrgId ?? null,
+        connectedChurchAt: church.connectedChurchAt ?? null,
       });
       void queryClient.invalidateQueries({ queryKey: ['profile', userId ?? 'none'] });
     },

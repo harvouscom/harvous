@@ -36,14 +36,23 @@ interface CachedSpaceNotesPage {
   notes?: { id: string; isPinned?: boolean }[];
 }
 
-export const RESHARE_NOTE_CONFIRMATION =
-  'Add this note to the selected space? If it was shared there before, prior responses can return. Previous Thread, folder, pin, and order placement will not return.';
+export const RESHARE_NOTE_CONFIRMATION = {
+  title: 'Add this note to the selected space?',
+  description:
+    'If it was shared there before, prior responses can return. Previous Thread, folder, pin, and order placement will not return.',
+} as const;
 
-export const REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION =
-  'Remove this note from this space? The canonical note remains in My Home. Responses in this space are archived and can return if the note is shared here again. Thread and folder placement is removed.';
+export const REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION = {
+  title: 'Remove this note from this space?',
+  description:
+    'The canonical note remains in My Home. Responses in this space are archived and can return if the note is shared here again. Thread and folder placement is removed.',
+} as const;
 
-export const DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION =
-  'Delete this note everywhere? This permanently deletes the canonical note from My Home and every shared space, including its connections and responses. This can’t be undone.';
+export const DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION = {
+  title: 'Delete this note everywhere?',
+  description:
+    'This permanently deletes the canonical note from My Home and every shared space, including its connections and responses. This can’t be undone.',
+} as const;
 
 function readNotePinnedFromCache(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -521,7 +530,8 @@ export default function PrototypeNoteMoreMenu({
       {deleteConfirmOpen && deleteAnchorRect ? (
         <ProtoConfirmDialog
           anchorRect={deleteAnchorRect}
-          title={DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION}
+          title={DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION.title}
+          description={DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION.description}
           confirmLabel="Delete everywhere"
           busy={deleteNote.isPending}
           onConfirm={onDeleteConfirm}
@@ -536,7 +546,8 @@ export default function PrototypeNoteMoreMenu({
       {pendingAddTarget ? (
         <ProtoConfirmDialog
           anchorRect={pendingAddTarget.anchorRect}
-          title={RESHARE_NOTE_CONFIRMATION}
+          title={RESHARE_NOTE_CONFIRMATION.title}
+          description={RESHARE_NOTE_CONFIRMATION.description}
           confirmLabel="Add to space"
           cancelLabel="Cancel"
           busy={associateWithSpace.isPending}
@@ -549,7 +560,8 @@ export default function PrototypeNoteMoreMenu({
       {removeConfirmRect ? (
         <ProtoConfirmDialog
           anchorRect={removeConfirmRect}
-          title={REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION}
+          title={REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION.title}
+          description={REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION.description}
           confirmLabel="Remove"
           cancelLabel="Keep"
           busy={removeFromSpace.isPending}

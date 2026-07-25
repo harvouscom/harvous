@@ -25,6 +25,7 @@ import {
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import { useCreateSharedSpace } from '../../hooks/mutations/useCreateSharedSpace';
 import { useCreateChurchSharedSpace } from '../../hooks/mutations/useCreateChurchSharedSpace';
+import { useCreateMinistryChannel } from '../../hooks/mutations/useCreateMinistryChannel';
 import { getNavigationQueryKey } from '../../hooks/queries/useNavigation';
 import { APIError } from '../../lib/api';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -38,11 +39,15 @@ import PublicJoinSpaceHero from '../public/PublicJoinSpaceHero';
 
 type CoverPickerMode = 'none' | 'color' | 'image';
 
+export type CreateSpaceSheetKind = 'shared' | 'ministry';
+
 export interface CreateSharedSpaceSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** When set, creates a church-scoped Shared Space under this org. */
+  /** When set, creates under this church org (shared or ministry). */
   orgId?: string | null;
+  /** Church org create mode — ignored without orgId. Default church Shared Space. */
+  kind?: CreateSpaceSheetKind;
   /** After create — typically select the new space in the shell. */
   onCreated?: (spaceId: string) => void;
 }
@@ -51,6 +56,7 @@ export default function CreateSharedSpaceSheet({
   open,
   onOpenChange,
   orgId = null,
+  kind = 'shared',
   onCreated,
 }: CreateSharedSpaceSheetProps) {
   const navigate = useNavigate();
@@ -71,8 +77,13 @@ export default function CreateSharedSpaceSheet({
 
   const createSharedSpace = useCreateSharedSpace();
   const createChurchSharedSpace = useCreateChurchSharedSpace();
-  const pending = createSharedSpace.isPending || createChurchSharedSpace.isPending;
+  const createMinistryChannel = useCreateMinistryChannel();
+  const pending =
+    createSharedSpace.isPending ||
+    createChurchSharedSpace.isPending ||
+    createMinistryChannel.isPending;
   const churchScoped = Boolean(orgId?.trim());
+  const ministryChannel = churchScoped && kind === 'ministry';
   const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
 
   useEffect(() => {
@@ -84,7 +95,7 @@ export default function CreateSharedSpaceSheet({
     setPickerMode('none');
     setError(null);
     setShowAddonLink(false);
-  }, [open, orgId]);
+  }, [open, orgId, kind]);
 
   const cover = spaceCoverFromThreadColor(color, coverVariant);
   const heroSpace = {
@@ -147,12 +158,18 @@ export default function CreateSharedSpaceSheet({
         description: description.trim() || null,
       };
 
-      const result = churchScoped
-        ? await createChurchSharedSpace.mutateAsync({ ...payload, orgId: orgId!.trim() })
-        : await createSharedSpace.mutateAsync(payload);
+      const result = ministryChannel
+        ? await createMinistryChannel.mutateAsync({ ...payload, orgId: orgId!.trim() })
+        : churchScoped
+          ? await createChurchSharedSpace.mutateAsync({ ...payload, orgId: orgId!.trim() })
+          : await createSharedSpace.mutateAsync(payload);
 
       if (!result.space?.id) {
-        setError('Shared space was created but the response was incomplete. Try refreshing.');
+        setError(
+          ministryChannel
+            ? 'Ministry channel was created but the response was incomplete. Try refreshing.'
+            : 'Shared space was created but the response was incomplete. Try refreshing.',
+        );
         return;
       }
 
@@ -170,13 +187,22 @@ export default function CreateSharedSpaceSheet({
       } else if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError('Could not create shared space. Try again.');
+        setError(ministryChannel ? 'Could not create ministry channel. Try again.' : 'Could not create shared space. Try again.');
       }
     }
   }
 
-  const headerTitle = churchScoped ? 'New church Shared Space' : 'New shared space';
-  const titlePlaceholder = churchScoped ? 'Church space name' : 'Space name';
+  const headerTitle = ministryChannel
+    ? 'New ministry channel'
+    : churchScoped
+      ? 'New church shared space'
+      : 'New shared space';
+  const titlePlaceholder = ministryChannel
+    ? 'Channel name'
+    : churchScoped
+      ? 'Church space name'
+      : 'Space name';
+  const tileIconName = ministryChannel ? 'rss' : 'user-group';
 
   const content = (
     <>
@@ -194,9 +220,6 @@ export default function CreateSharedSpaceSheet({
             onClick={() => toggleMode('image')}
           >
             <PublicJoinSpaceHero space={heroSpace} />
-            <span className="proto-create-shared-space__edit-badge" aria-hidden>
-              <Icon name="pen-to-square" size={11} />
-            </span>
           </button>
           <button
             type="button"
@@ -228,10 +251,7 @@ export default function CreateSharedSpaceSheet({
                 title="Choose color"
                 onClick={() => toggleMode('color')}
               >
-                <Icon name="user-group" size={22} />
-                <span className="proto-create-shared-space__edit-badge" aria-hidden>
-                  <Icon name="pen-to-square" size={9} />
-                </span>
+                <Icon name={tileIconName} size={22} />
               </button>
               <input
                 type="text"
@@ -241,7 +261,7 @@ export default function CreateSharedSpaceSheet({
                 autoFocus
                 data-proto-dialog-initial-focus
                 placeholder={titlePlaceholder}
-                aria-label="Space name"
+                aria-label={ministryChannel ? 'Channel name' : 'Space name'}
                 onChange={(e) => {
                   setTitle(e.target.value);
                   if (error) {
@@ -322,7 +342,7 @@ export default function CreateSharedSpaceSheet({
 
             {pickerMode === 'none' ? (
               <p className="proto-caption proto-create-shared-space__hint">
-                Tap the cover or color tile to customize
+                Tap the color block or image to customize
               </p>
             ) : null}
 

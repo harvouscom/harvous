@@ -9,6 +9,7 @@ import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 
 const CARD_MIN_WIDTH = 200;
 const CARD_MAX_WIDTH = 320;
+const CARD_MAX_WIDTH_STACKED = 300;
 const CARD_MIN_HEIGHT = 44;
 const Z_INDEX = 6000;
 
@@ -22,6 +23,8 @@ export type ProtoConfirmDialogProps = {
   /** When true, positions above the anchor instead of flipping below when space allows. */
   preferAbove?: boolean;
   title?: string;
+  /** Supporting copy under the title — uses a roomier stacked layout. */
+  description?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   busy?: boolean;
@@ -30,8 +33,8 @@ export type ProtoConfirmDialogProps = {
 };
 
 /**
- * Anchored destructive confirmation — single-row delete bar parity for prototype.
- * Portaled near the trigger; Escape and outside click cancel.
+ * Anchored destructive confirmation — compact pill for short titles, stacked
+ * card when `description` is set. Portaled near the trigger; Escape / outside cancel.
  */
 export default function ProtoConfirmDialog({
   placement = 'anchor',
@@ -39,6 +42,7 @@ export default function ProtoConfirmDialog({
   anchorRect = null,
   preferAbove = false,
   title,
+  description,
   confirmLabel = 'Delete',
   cancelLabel = 'Keep',
   busy = false,
@@ -47,11 +51,14 @@ export default function ProtoConfirmDialog({
 }: ProtoConfirmDialogProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const descriptionId = useId();
   const anchorElRef = useRef(anchorEl);
   const anchorRectRef = useRef(anchorRect);
   anchorElRef.current = anchorEl;
   anchorRectRef.current = anchorRect;
   const isFixedMainColumn = placement === 'main-column-top-right';
+  const stacked = Boolean(description?.trim());
+  const cardMaxWidth = stacked ? CARD_MAX_WIDTH_STACKED : CARD_MAX_WIDTH;
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   const sync = useCallback(() => {
@@ -135,13 +142,14 @@ export default function ProtoConfirmDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? titleId : undefined}
+      aria-describedby={stacked ? descriptionId : undefined}
       aria-label={title ? undefined : 'Confirm delete'}
-      className="harvous-delete-confirm floating-picker-enter"
+      className={`harvous-delete-confirm floating-picker-enter${stacked ? ' harvous-delete-confirm--stacked' : ''}`}
       style={{
         position: 'fixed',
         top: pos?.top ?? -9999,
         left: pos?.left ?? -9999,
-        maxWidth: CARD_MAX_WIDTH,
+        maxWidth: cardMaxWidth,
         zIndex: Z_INDEX,
         pointerEvents: 'auto',
       }}
@@ -149,7 +157,9 @@ export default function ProtoConfirmDialog({
     >
       <DeleteConfirmBar
         title={title}
+        description={description}
         titleId={titleId}
+        descriptionId={descriptionId}
         confirmLabel={confirmLabel}
         cancelLabel={cancelLabel}
         busy={busy}

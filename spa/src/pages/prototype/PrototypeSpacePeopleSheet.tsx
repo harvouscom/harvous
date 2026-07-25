@@ -63,11 +63,20 @@ export type PendingRemoveMember = {
   isSelf: boolean;
 };
 
-export function membershipRemovalConfirmationCopy(member: PendingRemoveMember): string {
+export function membershipRemovalConfirmationCopy(member: PendingRemoveMember): {
+  title: string;
+  description: string;
+} {
   if (member.isSelf) {
-    return 'Leave this space? Your authored note associations and their Thread and folder placements leave this space. Your canonical notes remain in My Home, and your responses on other members’ notes remain attributed to you.';
+    return {
+      title: 'Leave this space?',
+      description: 'Your notes stay in My Home.',
+    };
   }
-  return `Remove ${member.displayName}? Their authored note associations and Thread and folder placements leave this space. Their canonical notes remain in My Home, and their responses on other members’ notes remain attributed to them.`;
+  return {
+    title: `Remove ${member.displayName}?`,
+    description: 'Their notes stay in My Home.',
+  };
 }
 
 export function resolvePeopleQueryState(input: {
@@ -628,7 +637,7 @@ export default function PrototypeSpacePeopleSheet({
       {pendingRemoveMember && removeConfirmAnchor ? (
         <ProtoConfirmDialog
           anchorRect={removeConfirmAnchor}
-          title={membershipRemovalConfirmationCopy(pendingRemoveMember)}
+          {...membershipRemovalConfirmationCopy(pendingRemoveMember)}
           confirmLabel={pendingRemoveMember.isSelf ? 'Leave' : 'Remove'}
           cancelLabel="Cancel"
           busy={removeMember.isPending}
@@ -644,7 +653,8 @@ export default function PrototypeSpacePeopleSheet({
       {pendingRevokeInviteId && revokeConfirmAnchor ? (
         <ProtoConfirmDialog
           anchorRect={revokeConfirmAnchor}
-          title="Turn off invite link? It will stop working."
+          title="Turn off invite link?"
+          description="It will stop working."
           confirmLabel="Turn off"
           cancelLabel="Keep"
           busy={revokeInvite.isPending}
@@ -660,7 +670,8 @@ export default function PrototypeSpacePeopleSheet({
       {deleteConfirmOpen && deleteConfirmAnchor ? (
         <ProtoConfirmDialog
           anchorRect={deleteConfirmAnchor}
-          title={`Delete "${spaceTitle}"? Access is removed now. As the owner, you can restore the space for 30 days, and each author's notes remain in My Home.`}
+          title={`Delete "${spaceTitle}"?`}
+          description="Restore within 30 days; notes stay in My Home."
           confirmLabel="Delete"
           cancelLabel="Keep"
           busy={deleteSpace.isPending}

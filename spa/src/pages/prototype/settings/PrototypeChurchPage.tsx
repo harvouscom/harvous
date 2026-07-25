@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { useNavigate } from '@tanstack/react-router';
-import { prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { useProfile } from '../../../hooks/queries/useProfile';
 import { useNavigation } from '../../../hooks/queries/useNavigation';
 import { useUpdateChurch } from '../../../hooks/mutations/useUpdateChurch';
@@ -10,11 +8,7 @@ import { ErrorText } from './account/accountShared';
 import HmcChurchPicker, { type HmcChurchPick } from '@/components/react/HmcChurchPicker';
 import Icon from '@/components/react/Icon';
 import { api } from '../../../lib/api';
-import {
-  US_STATE_OPTIONS,
-  isUnitedStatesCountryLabel,
-  isUsChurchLocation,
-} from '@/utils/us-states';
+import { US_STATE_OPTIONS, isUnitedStatesCountryLabel } from '@/utils/us-states';
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
@@ -48,10 +42,9 @@ async function searchUserHmcChurches(q: string, state: string): Promise<HmcChurc
   return data.results ?? [];
 }
 
-type EntryMode = 'directory' | 'manual';
+type EntryMode = 'directory' | 'outside_us' | 'unlisted_us';
 
 export default function PrototypeChurchPage() {
-  const navigate = useNavigate();
   const { data: profile } = useProfile();
   const { data: nav } = useNavigation();
   const updateChurch = useUpdateChurch();
@@ -93,24 +86,67 @@ export default function PrototypeChurchPage() {
 
   const hasChurch = Boolean(hmcChurchId || name);
 
-  const openManual = () => {
+  const openDraft = (mode: 'outside_us' | 'unlisted_us') => {
     setDraftName('');
     setDraftCity('');
     setDraftRegion('');
     setDraftCountry('');
-    setEntryMode('manual');
+    setEntryMode(mode);
+  };
+
+  const applyChurchFromResponse = (
+    data: {
+      church?: {
+        hmcChurchId?: string | null;
+        churchName?: string | null;
+        churchCity?: string | null;
+        churchState?: string | null;
+        churchCountry?: string | null;
+      };
+    },
+    fallback: {
+      hmcChurchId?: string | null;
+      name: string;
+      city: string;
+      state: string;
+      country: string;
+    },
+  ) => {
+    setHmcChurchId(data.church?.hmcChurchId ?? fallback.hmcChurchId ?? null);
+    setName(data.church?.churchName ?? fallback.name);
+    setCity(data.church?.churchCity ?? fallback.city);
+    setState(data.church?.churchState ?? fallback.state);
+    setCountry(data.church?.churchCountry ?? fallback.country);
+    setEntryMode('directory');
   };
 
   const handlePick = (pick: HmcChurchPick) => {
+    // Show the pick immediately — search already returned denorm fields; save
+    // still validates via HMC + DB in the background.
+    setHmcChurchId(pick.id);
+    setName(pick.name);
+    setCity(pick.city);
+    setState(pick.state);
+    setCountry('');
+    setEntryMode('directory');
     updateChurch.mutate(
       { hmcChurchId: pick.id },
       {
         onSuccess: (data) => {
-          setHmcChurchId(data.church?.hmcChurchId ?? pick.id);
-          setName(data.church?.churchName ?? pick.name);
-          setCity(data.church?.churchCity ?? pick.city);
-          setState(data.church?.churchState ?? pick.state);
-          setCountry(data.church?.churchCountry ?? '');
+          applyChurchFromResponse(data, {
+            hmcChurchId: pick.id,
+            name: pick.name,
+            city: pick.city,
+            state: pick.state,
+            country: '',
+          });
+        },
+        onError: () => {
+          setHmcChurchId(null);
+          setName('');
+          setCity('');
+          setState('');
+          setCountry('');
           setEntryMode('directory');
         },
       },
@@ -133,19 +169,17 @@ export default function PrototypeChurchPage() {
     );
   };
 
-  const manualIsUs =
-    !draftCountry.trim() || isUnitedStatesCountryLabel(draftCountry);
-
-  const handleManualSave = (event: FormEvent) => {
+  const handleOutsideUsSave = (event: FormEvent) => {
     event.preventDefault();
     const churchName = draftName.trim();
-    if (!churchName) return;
+    const churchCountry = draftCountry.trim();
+    if (!churchName || !churchCountry) return;
+    if (isUnitedStatesCountryLabel(churchCountry)) return;
     const churchCity = draftCity.trim() || null;
     const churchState = draftRegion.trim() || null;
-    const churchCountry = draftCountry.trim() || null;
-    if (isUsChurchLocation({ churchState, churchCountry }) && !churchCity) return;
     updateChurch.mutate(
       {
+        intent: 'outside_us',
         churchName,
         churchCity,
         churchState,
@@ -153,24 +187,61 @@ export default function PrototypeChurchPage() {
       },
       {
         onSuccess: (data) => {
-          setHmcChurchId(data.church?.hmcChurchId ?? null);
-          setName(data.church?.churchName ?? churchName);
-          setCity(data.church?.churchCity ?? churchCity ?? '');
-          setState(data.church?.churchState ?? churchState ?? '');
-          setCountry(data.church?.churchCountry ?? churchCountry ?? '');
-          setEntryMode('directory');
+          applyChurchFromResponse(data, {
+            hmcChurchId: null,
+            name: churchName,
+            city: churchCity ?? '',
+            state: churchState ?? '',
+            country: churchCountry,
+          });
         },
       },
     );
   };
 
+  const handleUnlistedUsSave = (event: FormEvent) => {
+    event.preventDefault();
+    const churchName = draftName.trim();
+    const churchCity = draftCity.trim();
+    const churchState = draftRegion.trim();
+    if (!churchName || !churchCity || !churchState) return;
+    updateChurch.mutate(
+      {
+        intent: 'unlisted_us',
+        churchName,
+        churchCity,
+        churchState,
+        churchCountry: null,
+      },
+      {
+        onSuccess: (data) => {
+          applyChurchFromResponse(data, {
+            hmcChurchId: null,
+            name: churchName,
+            city: churchCity,
+            state: churchState,
+            country: '',
+          });
+        },
+      },
+    );
+  };
+
+  const introCopy =
+    entryMode === 'outside_us' && !hasChurch
+      ? 'Saved to your Harvous profile only.'
+      : entryMode === 'unlisted_us' && !hasChurch
+        ? 'We’ll suggest this church to Here’s My Church and save it to your profile.'
+        : 'Pick your church from our directory (U.S. for now). Can’t find it? Use the links below.';
+
+  const outsideCountryLooksUs =
+    Boolean(draftCountry.trim()) && isUnitedStatesCountryLabel(draftCountry);
+
   return (
     <SettingsShell fillHeight>
       <SectionLabel>My church</SectionLabel>
       <p className="proto-caption" style={{ margin: '0 0 12px', color: 'var(--pds-text-secondary)' }}>
-        {entryMode === 'manual' && !hasChurch
-          ? 'Enter your church if it’s outside the U.S. or not in our directory yet.'
-          : 'Pick your church from our directory (U.S. for now). Outside the U.S., or not listed? Enter it manually.'}
+        {introCopy}
       </p>
 
       {hasChurch ? (
@@ -186,26 +257,17 @@ export default function PrototypeChurchPage() {
               disabled
             />
           </SettingsGroup>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <button
-              type="button"
-              className="proto-settings-btn proto-settings-btn--secondary"
-              disabled={updateChurch.isPending}
-              onClick={handleClear}
-            >
-              Clear church
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate({ to: prototypeSettingsRouteTo() })}
-              className="proto-settings-btn"
-            >
-              Done
-            </button>
-          </div>
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--secondary"
+            disabled={updateChurch.isPending}
+            onClick={handleClear}
+          >
+            Clear church
+          </button>
         </>
-      ) : entryMode === 'manual' ? (
-        <form onSubmit={handleManualSave}>
+      ) : entryMode === 'outside_us' ? (
+        <form onSubmit={handleOutsideUsSave}>
           <label className="proto-settings-field">
             <span className="proto-settings-field__label">Church name</span>
             <input
@@ -225,22 +287,80 @@ export default function PrototypeChurchPage() {
               type="text"
               value={draftCountry}
               disabled={updateChurch.isPending}
-              onChange={(e) => {
-                setDraftCountry(e.target.value);
-                // Leaving the U.S. clears a US state code so we don't mis-route to HMC.
-                if (e.target.value.trim() && !isUnitedStatesCountryLabel(e.target.value)) {
-                  setDraftRegion('');
-                }
-              }}
+              onChange={(e) => setDraftCountry(e.target.value)}
               autoComplete="country-name"
-              placeholder="Leave blank for United States"
+              required
             />
           </label>
-          {manualIsUs ? (
-            <label className="proto-settings-field">
-              <span className="proto-settings-field__label">State</span>
+          {outsideCountryLooksUs ? (
+            <p className="proto-caption" style={{ margin: '0 0 12px', color: 'var(--pds-destructive, #b42318)' }}>
+              For U.S. churches, go back and use the directory or “Not in the directory (U.S.).”
+            </p>
+          ) : null}
+          <label className="proto-settings-field">
+            <span className="proto-settings-field__label">City</span>
+            <input
+              className="proto-settings-field__input proto-create-folder-sheet__name-input"
+              type="text"
+              value={draftCity}
+              disabled={updateChurch.isPending}
+              onChange={(e) => setDraftCity(e.target.value)}
+              autoComplete="address-level2"
+            />
+          </label>
+          <label className="proto-settings-field">
+            <span className="proto-settings-field__label">State / region</span>
+            <input
+              className="proto-settings-field__input proto-create-folder-sheet__name-input"
+              type="text"
+              value={draftRegion}
+              disabled={updateChurch.isPending}
+              onChange={(e) => setDraftRegion(e.target.value)}
+              autoComplete="address-level1"
+            />
+          </label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button
+              type="submit"
+              className="proto-settings-btn"
+              disabled={
+                updateChurch.isPending ||
+                !draftName.trim() ||
+                !draftCountry.trim() ||
+                outsideCountryLooksUs
+              }
+            >
+              Save church
+            </button>
+            <button
+              type="button"
+              className="proto-settings-btn proto-settings-btn--secondary"
+              disabled={updateChurch.isPending}
+              onClick={() => setEntryMode('directory')}
+            >
+              Back to U.S. directory
+            </button>
+          </div>
+        </form>
+      ) : entryMode === 'unlisted_us' ? (
+        <form onSubmit={handleUnlistedUsSave}>
+          <label className="proto-settings-field">
+            <span className="proto-settings-field__label">Church name</span>
+            <input
+              className="proto-settings-field__input proto-create-folder-sheet__name-input"
+              type="text"
+              value={draftName}
+              disabled={updateChurch.isPending}
+              onChange={(e) => setDraftName(e.target.value)}
+              autoComplete="organization"
+              required
+            />
+          </label>
+          <label className="proto-settings-field">
+            <span className="proto-settings-field__label">State</span>
+            <div className="hmc-church-picker__select-wrap">
               <select
-                className="proto-settings-field__input proto-create-folder-sheet__name-input"
+                className="proto-settings-field__input proto-create-folder-sheet__name-input hmc-church-picker__select"
                 value={draftRegion}
                 disabled={updateChurch.isPending}
                 onChange={(e) => setDraftRegion(e.target.value)}
@@ -253,20 +373,11 @@ export default function PrototypeChurchPage() {
                   </option>
                 ))}
               </select>
-            </label>
-          ) : (
-            <label className="proto-settings-field">
-              <span className="proto-settings-field__label">State / region</span>
-              <input
-                className="proto-settings-field__input proto-create-folder-sheet__name-input"
-                type="text"
-                value={draftRegion}
-                disabled={updateChurch.isPending}
-                onChange={(e) => setDraftRegion(e.target.value)}
-                autoComplete="address-level1"
-              />
-            </label>
-          )}
+              <span className="hmc-church-picker__select-chevron" aria-hidden>
+                <Icon name="chevron-down" size={11} />
+              </span>
+            </div>
+          </label>
           <label className="proto-settings-field">
             <span className="proto-settings-field__label">City</span>
             <input
@@ -276,7 +387,7 @@ export default function PrototypeChurchPage() {
               disabled={updateChurch.isPending}
               onChange={(e) => setDraftCity(e.target.value)}
               autoComplete="address-level2"
-              required={manualIsUs}
+              required
             />
           </label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -286,10 +397,11 @@ export default function PrototypeChurchPage() {
               disabled={
                 updateChurch.isPending ||
                 !draftName.trim() ||
-                (manualIsUs && (!draftRegion || !draftCity.trim()))
+                !draftRegion ||
+                !draftCity.trim()
               }
             >
-              Save church
+              Submit and save
             </button>
             <button
               type="button"
@@ -306,7 +418,8 @@ export default function PrototypeChurchPage() {
           variant="settings"
           onSearch={searchHmc}
           onPick={handlePick}
-          onRequestManual={openManual}
+          onRequestOutsideUs={() => openDraft('outside_us')}
+          onRequestUnlistedUs={() => openDraft('unlisted_us')}
           disabled={updateChurch.isPending}
         />
       )}
@@ -335,52 +448,63 @@ export default function PrototypeChurchPage() {
       <aside
         aria-label="About Here’s My Church"
         style={{
+          // Stick to bottom when space allows, but keep a real gap above the card
+          // when the form fills the column (margin-top: auto alone collapses to 0).
           marginTop: 'auto',
-          padding: 14,
-          border: '0.5px solid var(--pds-border)',
-          borderRadius: 'var(--pds-radius-menu)',
-          background: 'var(--pds-bg-subtle)',
-          display: 'flex',
-          gap: 12,
-          alignItems: 'flex-start',
+          paddingTop: 28,
         }}
       >
-        <img
-          src="/images/heresmychurch-app-icon.png"
-          alt=""
-          width={40}
-          height={40}
-          style={{ borderRadius: 10, flexShrink: 0 }}
-        />
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <p
-            className="pds-list-title"
-            style={{ margin: '0 0 4px', fontSize: '0.9375rem', fontWeight: 700 }}
-          >
-            Here’s My Church
-          </p>
-          <p className="proto-caption" style={{ margin: '0 0 10px', color: 'var(--pds-text-secondary)', lineHeight: 1.45 }}>
-            Our open-source map of Christian churches across the U.S. — free to use, no account
-            required.
-          </p>
-          <a
-            href="https://heresmychurch.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="proto-settings-btn proto-settings-btn--secondary"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              textDecoration: 'none',
-              width: 'auto',
-              padding: '8px 12px',
-              fontSize: '0.8125rem',
-            }}
-          >
-            Visit heresmychurch.com
-            <Icon name="arrow-up-right-from-square" size={12} aria-hidden />
-          </a>
+        <div
+          style={{
+            padding: 14,
+            border: '0.5px solid var(--pds-border)',
+            borderRadius: 'var(--pds-radius-menu)',
+            background: 'var(--pds-bg-subtle)',
+            display: 'flex',
+            gap: 12,
+            alignItems: 'flex-start',
+          }}
+        >
+          <img
+            src="/images/heresmychurch-app-icon.png"
+            alt=""
+            width={40}
+            height={40}
+            style={{ borderRadius: 10, flexShrink: 0 }}
+          />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <p
+              className="pds-list-title"
+              style={{ margin: '0 0 4px', fontSize: '0.9375rem', fontWeight: 700 }}
+            >
+              Here’s My Church
+            </p>
+            <p
+              className="proto-caption"
+              style={{ margin: '0 0 10px', color: 'var(--pds-text-secondary)', lineHeight: 1.45 }}
+            >
+              Our open-source map of Christian churches across the U.S. — free to use, no account
+              required.
+            </p>
+            <a
+              href="https://heresmychurch.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="proto-settings-btn proto-settings-btn--secondary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                textDecoration: 'none',
+                width: 'auto',
+                padding: '8px 12px',
+                fontSize: '0.8125rem',
+              }}
+            >
+              Visit heresmychurch.com
+              <Icon name="arrow-up-right-from-square" size={12} aria-hidden />
+            </a>
+          </div>
         </div>
       </aside>
     </SettingsShell>

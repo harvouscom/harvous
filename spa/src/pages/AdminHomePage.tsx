@@ -16,13 +16,8 @@ function PrototypeAdminHomePage() {
     }
   }, [admin.isError, admin.isSuccess, admin.data, navigate]);
 
-  if (admin.isLoading) {
-    return (
-      <>
-        <PrototypeMainPaneShell>{null}</PrototypeMainPaneShell>
-        <ProtoStatusChip visible variant="syncing" label="Loading…" />
-      </>
-    );
+  if (admin.isLoading || !admin.isSuccess) {
+    return <ProtoStatusChip visible variant="syncing" label="Loading…" />;
   }
 
   if (!admin.data?.isAdmin) {

@@ -181,6 +181,8 @@ export interface UserProfile {
   /** Denormalized Clerk org id for My Church mode (home church). */
   connectedOrgId?: string | null;
   connectedChurchAt?: string | null;
+  /** True when the viewer is staff for their connected home church org. */
+  isHomeChurchStaff?: boolean;
   /** Whether an account lock PIN is set (the hash itself is never sent to clients). */
   hasLockPinSet?: boolean;
   /** Preferred Bible translation (e.g. ESV, NET); from UserMetadata via get-profile */
@@ -225,6 +227,7 @@ export function useProfile() {
             connectedChurchId?: string | null;
             connectedOrgId?: string | null;
             connectedChurchAt?: string | null;
+            isHomeChurchStaff?: boolean;
             hasLockPinSet?: boolean;
             defaultTranslation?: string;
             sharedSpaceSwitcherOrder?: string[] | null;
@@ -254,6 +257,7 @@ export function useProfile() {
             connectedChurchId: data.connectedChurchId ?? null,
             connectedOrgId: data.connectedOrgId ?? null,
             connectedChurchAt: data.connectedChurchAt ?? null,
+            isHomeChurchStaff: Boolean(data.isHomeChurchStaff),
             sharedSpaceSwitcherOrder: Array.isArray(data.sharedSpaceSwitcherOrder)
               ? data.sharedSpaceSwitcherOrder
               : null,
