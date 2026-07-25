@@ -97,6 +97,7 @@ import {
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { createInitialNoteVersion } from '../utils/note-version-service';
 import { buildLegacyAnchorMigrationPatch } from '../utils/durable-note-anchor';
+import { enrichImportedNote } from '../utils/import-enrichment';
 
 const app = new Hono();
 
@@ -1390,7 +1391,9 @@ app.post('/api/user/import', requireAuth, async (c) => {
     }
 
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
+    const defaultTranslation = userMetadata.defaultTranslation?.trim() || 'NET';
     let notesImported = 0, threadsCreated = 0, tagsCreated = 0, duplicatesSkipped = 0, highlightsImported = 0;
+    let scriptureProcessed = 0, autoTagsApplied = 0;
     const errors: string[] = [];
     const createdThreadIds = new Set<string>();
     const createdFolders = new Set<string>();
@@ -1404,6 +1407,7 @@ app.post('/api/user/import', requireAuth, async (c) => {
         let tags: string[] = [], createdDate: Date = new Date();
         let scriptureReference: string | null = null, scriptureTranslation: string | null = null;
         let sourceId: string | null = null;
+        let portableRefs: string[] = [];
         // Folders come from frontmatter/directory structure (resolved in parseImportFiles).
         const threadName: string | null = primaryCollection;
 
@@ -1429,6 +1433,9 @@ app.post('/api/user/import', requireAuth, async (c) => {
           createdDate = parseExportDate(mdNote.createdDate);
           scriptureReference = mdNote.scriptureReference || null;
           scriptureTranslation = mdNote.scriptureTranslation || null;
+          portableRefs = Array.isArray(mdNote.portable?.meta?.refs)
+            ? mdNote.portable!.meta.refs!.filter((r): r is string => typeof r === 'string' && r.trim().length > 0)
+            : [];
         }
 
         const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
@@ -1570,6 +1577,31 @@ app.post('/api/user/import', requireAuth, async (c) => {
           catch (tagError) { errors.push(`Failed to attach tags for note ${i + 1}`); }
         }
 
+        // Match create/update: auto-tags + scripture pills (body + portable refs). Non-fatal.
+        try {
+          const enrichment = await enrichImportedNote({
+            noteId: newNote.id,
+            userId: auth.userId,
+            threadId,
+            title: capitalizedTitle,
+            content: capitalizedContent,
+            noteType,
+            primaryCollection: primaryCollection || null,
+            secondaryCollections,
+            manualTagNames: tags,
+            additionalReferences: portableRefs,
+            defaultTranslation: scriptureTranslation || defaultTranslation,
+          });
+          autoTagsApplied += enrichment.autoTagsApplied;
+          scriptureProcessed += enrichment.scriptureResultCount;
+        } catch (enrichErr) {
+          errors.push(
+            `Failed to enrich note ${i + 1} (tags/scripture): ${
+              enrichErr instanceof Error ? enrichErr.message : 'Unknown error'
+            }`,
+          );
+        }
+
         notesImported++;
       } catch (noteError) {
         errors.push(`Failed to import note ${i + 1}: ${noteError instanceof Error ? noteError.message : 'Unknown error'}`);
@@ -1599,7 +1631,19 @@ app.post('/api/user/import', requireAuth, async (c) => {
       }
     }
 
-    return c.json({ success: true, notesImported, threadsCreated, tagsCreated, foldersCreated: createdFolders.size, duplicatesSkipped, highlightsImported, connectionsImported, errors: errors.length > 0 ? errors : undefined });
+    return c.json({
+      success: true,
+      notesImported,
+      threadsCreated,
+      tagsCreated,
+      foldersCreated: createdFolders.size,
+      duplicatesSkipped,
+      highlightsImported,
+      connectionsImported,
+      scriptureProcessed,
+      autoTagsApplied,
+      errors: errors.length > 0 ? errors : undefined,
+    });
   } catch (error: any) {
     console.error('Import error:', error);
     return c.json({ error: error.message || 'Failed to import data' }, 500);

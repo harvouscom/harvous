@@ -303875,6 +303875,59 @@ init_pg_undefined_relation();
 init_html_stripper();
 init_note_version_service();
 init_durable_note_anchor();
+
+// server/utils/import-enrichment.ts
+init_bible_study_concept_overlaps();
+init_tag_helpers();
+function autoTagExcludeOptionsForImport(note) {
+  const folderLabels = folderLabelsForTagExclusion(
+    note.primaryCollection ?? null,
+    note.secondaryCollections ?? []
+  );
+  const dismissed = dismissedAutoTagsForNote({ dismissedAutoTags: note.dismissedAutoTags ?? null });
+  const manual = (note.manualTagNames ?? []).map((t) => t.trim()).filter(Boolean);
+  const excludeTagNames = autoTagExcludeNames(folderLabels, [...dismissed, ...manual]);
+  return { excludeLabels: folderLabels, excludeTagNames };
+}
+async function enrichImportedNote(input) {
+  let autoTagsApplied = 0;
+  let scriptureResultCount = 0;
+  if (input.noteType !== "resource") {
+    const excludes = autoTagExcludeOptionsForImport({
+      primaryCollection: input.primaryCollection,
+      secondaryCollections: input.secondaryCollections,
+      manualTagNames: input.manualTagNames
+    });
+    const manualNormalized = input.manualTagNames.map((n) => normalizeTagName(n)).filter(Boolean);
+    const excludeTagNames = [
+      ...excludes.excludeTagNames,
+      ...manualNormalized.filter((n) => !excludes.excludeTagNames.some((e) => normalizeTagName(e) === n))
+    ];
+    const r = await generateAutoTags(input.title || "", input.content, input.userId, 0.7, {
+      excludeLabels: excludes.excludeLabels,
+      excludeTagNames
+    });
+    if (r.suggestions.length > 0) {
+      const applied = await applyAutoTags(input.noteId, r.suggestions, input.userId);
+      autoTagsApplied = applied.applied;
+    }
+  }
+  const scriptureThreadId = input.threadId && input.threadId !== "thread_unorganized" ? input.threadId : void 0;
+  const scriptureResult = await processScriptureReferences(
+    input.noteId,
+    input.userId,
+    scriptureThreadId,
+    input.content,
+    input.defaultTranslation || "NET",
+    {
+      additionalReferences: input.additionalReferences?.length ? input.additionalReferences : void 0
+    }
+  );
+  scriptureResultCount = scriptureResult.results?.length ?? 0;
+  return { autoTagsApplied, scriptureResultCount };
+}
+
+// server/routes/user.ts
 var app2 = new Hono2();
 app2.get("/api/user/achievements", requireAuth, async (c) => {
   try {
@@ -304907,7 +304960,9 @@ app2.post("/api/user/import", requireAuth, async (c) => {
       userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
     }
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
+    const defaultTranslation = userMetadata.defaultTranslation?.trim() || "NET";
     let notesImported = 0, threadsCreated = 0, tagsCreated = 0, duplicatesSkipped = 0, highlightsImported = 0;
+    let scriptureProcessed = 0, autoTagsApplied = 0;
     const errors = [];
     const createdThreadIds = /* @__PURE__ */ new Set();
     const createdFolders = /* @__PURE__ */ new Set();
@@ -304919,6 +304974,7 @@ app2.post("/api/user/import", requireAuth, async (c) => {
         let tags = [], createdDate = /* @__PURE__ */ new Date();
         let scriptureReference = null, scriptureTranslation = null;
         let sourceId = null;
+        let portableRefs = [];
         const threadName = primaryCollection;
         if (format3 === "csv-threads") {
           const csvNote = parsedNote;
@@ -304943,6 +304999,7 @@ app2.post("/api/user/import", requireAuth, async (c) => {
           createdDate = parseExportDate(mdNote.createdDate);
           scriptureReference = mdNote.scriptureReference || null;
           scriptureTranslation = mdNote.scriptureTranslation || null;
+          portableRefs = Array.isArray(mdNote.portable?.meta?.refs) ? mdNote.portable.meta.refs.filter((r) => typeof r === "string" && r.trim().length > 0) : [];
         }
         const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
         const capitalizedTitle = title ? title.charAt(0).toUpperCase() + title.slice(1) : null;
@@ -305092,6 +305149,27 @@ app2.post("/api/user/import", requireAuth, async (c) => {
             errors.push(`Failed to attach tags for note ${i + 1}`);
           }
         }
+        try {
+          const enrichment = await enrichImportedNote({
+            noteId: newNote.id,
+            userId: auth.userId,
+            threadId,
+            title: capitalizedTitle,
+            content: capitalizedContent,
+            noteType,
+            primaryCollection: primaryCollection || null,
+            secondaryCollections,
+            manualTagNames: tags,
+            additionalReferences: portableRefs,
+            defaultTranslation: scriptureTranslation || defaultTranslation
+          });
+          autoTagsApplied += enrichment.autoTagsApplied;
+          scriptureProcessed += enrichment.scriptureResultCount;
+        } catch (enrichErr) {
+          errors.push(
+            `Failed to enrich note ${i + 1} (tags/scripture): ${enrichErr instanceof Error ? enrichErr.message : "Unknown error"}`
+          );
+        }
         notesImported++;
       } catch (noteError) {
         errors.push(`Failed to import note ${i + 1}: ${noteError instanceof Error ? noteError.message : "Unknown error"}`);
@@ -305126,7 +305204,19 @@ app2.post("/api/user/import", requireAuth, async (c) => {
         }
       }
     }
-    return c.json({ success: true, notesImported, threadsCreated, tagsCreated, foldersCreated: createdFolders.size, duplicatesSkipped, highlightsImported, connectionsImported, errors: errors.length > 0 ? errors : void 0 });
+    return c.json({
+      success: true,
+      notesImported,
+      threadsCreated,
+      tagsCreated,
+      foldersCreated: createdFolders.size,
+      duplicatesSkipped,
+      highlightsImported,
+      connectionsImported,
+      scriptureProcessed,
+      autoTagsApplied,
+      errors: errors.length > 0 ? errors : void 0
+    });
   } catch (error) {
     console.error("Import error:", error);
     return c.json({ error: error.message || "Failed to import data" }, 500);

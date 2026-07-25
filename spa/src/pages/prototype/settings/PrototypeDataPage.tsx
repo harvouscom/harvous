@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, apiUrl } from '../../../lib/api';
@@ -8,9 +8,7 @@ import {
   downloadUserBackupZip,
 } from '@/utils/download-user-export';
 import { refreshClientData } from '../../../lib/refresh-client-data';
-import { clearStuckSyncQueue } from '@/utils/sync-manager';
-import { getPersistedUserId } from '@/utils/user-id';
-import { SettingsGroup, SettingsRow, SettingsShell } from './SettingsShell';
+import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
 
 type ExportFormat = 'markdown' | 'csv-threads';
 type Busy =
@@ -21,7 +19,6 @@ type Busy =
   | 'import'
   | 'import-preview'
   | 'clear'
-  | 'clear-sync'
   | 'delete';
 
 interface ImportPreviewDoc {
@@ -33,6 +30,14 @@ interface ImportPreviewDoc {
   sourceType: string;
   primaryCollection?: string | null;
   secondaryCollections?: string[];
+}
+
+function SettingsSectionLabel({ children }: { children: ReactNode }) {
+  return <div className="pds-inspector-label proto-settings-section-label">{children}</div>;
+}
+
+function SettingsSectionHint({ children }: { children: ReactNode }) {
+  return <p className="pds-caption proto-settings-section-hint">{children}</p>;
 }
 
 export default function PrototypeDataPage() {
@@ -49,9 +54,12 @@ export default function PrototypeDataPage() {
   const [importSelected, setImportSelected] = useState<Set<number>>(new Set());
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
   // Two-step inline confirmation for destructive actions (no dialog framework).
-  const [confirming, setConfirming] = useState<null | 'clear' | 'delete' | 'clear-sync'>(null);
+  const [confirming, setConfirming] = useState<null | 'clear' | 'delete'>(null);
 
-  const resetStatus = () => { setMessage(null); setError(null); };
+  const resetStatus = () => {
+    setMessage(null);
+    setError(null);
+  };
 
   const handleExport = async (format: ExportFormat) => {
     resetStatus();
@@ -75,8 +83,8 @@ export default function PrototypeDataPage() {
     try {
       const filename = await downloadUserBackupZip(import.meta.env.VITE_API_BASE_URL || '');
       setMessage(`Backup downloaded (${filename}).`);
-    } catch {
-      setError("Couldn't create your backup. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't create your backup. Please try again.");
     } finally {
       setBusy(null);
     }
@@ -150,6 +158,8 @@ export default function PrototypeDataPage() {
         highlightsImported?: number;
         foldersCreated?: number;
         duplicatesSkipped?: number;
+        scriptureProcessed?: number;
+        autoTagsApplied?: number;
       };
       if (!res.ok || data.error) throw new Error(data.error || `Import failed (${res.status})`);
       const parts: string[] = [];
@@ -159,6 +169,12 @@ export default function PrototypeDataPage() {
       }
       if (data.foldersCreated != null && data.foldersCreated > 0) {
         parts.push(`${data.foldersCreated} folder${data.foldersCreated === 1 ? '' : 's'}`);
+      }
+      if (data.scriptureProcessed != null && data.scriptureProcessed > 0) {
+        parts.push(`${data.scriptureProcessed} scripture ref${data.scriptureProcessed === 1 ? '' : 's'}`);
+      }
+      if (data.autoTagsApplied != null && data.autoTagsApplied > 0) {
+        parts.push(`${data.autoTagsApplied} auto-tag${data.autoTagsApplied === 1 ? '' : 's'}`);
       }
       if (data.duplicatesSkipped != null && data.duplicatesSkipped > 0) {
         parts.push(`${data.duplicatesSkipped} duplicate${data.duplicatesSkipped === 1 ? '' : 's'} skipped`);
@@ -179,31 +195,6 @@ export default function PrototypeDataPage() {
     setImportSelected(new Set());
     setImportWarnings([]);
     pendingImportFilesRef.current = [];
-  };
-
-  const handleClearStuckSyncQueue = async () => {
-    setBusy('clear-sync');
-    resetStatus();
-    const userId = getPersistedUserId();
-    if (!userId) {
-      setError("Couldn't clear the save queue. Please sign in again.");
-      setBusy(null);
-      setConfirming(null);
-      return;
-    }
-    try {
-      const removed = await clearStuckSyncQueue(userId, { entireQueue: true });
-      setMessage(
-        removed > 0
-          ? `Cleared ${removed} stuck save${removed === 1 ? '' : 's'} from this device.`
-          : 'Nothing was waiting to save on this device.',
-      );
-    } catch {
-      setError("Couldn't clear the save queue. Please try again.");
-    } finally {
-      setBusy(null);
-      setConfirming(null);
-    }
   };
 
   const handleClearData = async () => {
@@ -233,6 +224,22 @@ export default function PrototypeDataPage() {
     }
   };
 
+  const importBusy = busy === 'import-preview' || busy === 'import';
+  const reviewSummary = importPreview
+    ? (() => {
+        const totalHighlights = importPreview.reduce((s, d) => s + (d.highlightCount || 0), 0);
+        const folders = new Set(importPreview.map((d) => d.primaryCollection || 'Unsorted'));
+        return [
+          `${importPreview.length} note${importPreview.length === 1 ? '' : 's'}`,
+          totalHighlights > 0 ? `${totalHighlights} highlight${totalHighlights === 1 ? '' : 's'}` : null,
+          `${folders.size} folder${folders.size === 1 ? '' : 's'}`,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+      })()
+    : '';
+  const allImportSelected = Boolean(importPreview && importSelected.size === importPreview.length);
+
   return (
     <SettingsShell>
       <input
@@ -254,136 +261,149 @@ export default function PrototypeDataPage() {
         onChange={(e) => handleImportFiles(e.target.files)}
       />
 
-      <div className="pds-inspector-label" style={{ padding: '0 12px 6px', textTransform: 'uppercase', color: 'var(--pds-text-tertiary)' }}>
-        Export
-      </div>
-      <SettingsGroup>
-        <SettingsRow label="Full backup (.zip)" trailing="none" onClick={handleBackupExport} value={busy === 'export-backup' ? '…' : undefined} />
-        <SettingsRow label="Export as Markdown" trailing="none" onClick={() => handleExport('markdown')} value={busy === 'export-md' ? '…' : undefined} />
-        <SettingsRow label="Export as CSV" trailing="none" onClick={() => handleExport('csv-threads')} value={busy === 'export-csv' ? '…' : undefined} />
-      </SettingsGroup>
-      <p className="pds-caption" style={{ color: 'var(--pds-text-tertiary)', padding: '6px 12px 0', margin: 0 }}>
-        Full backup keeps everything — notes, folders, highlights, annotations, and connections — and re-imports cleanly.
-        Markdown is per-note with highlights; CSV is a flat spreadsheet summary.
-      </p>
+      <SettingsIntro>Export, import, or delete your data.</SettingsIntro>
 
-      <div className="pds-inspector-label" style={{ padding: '16px 12px 6px', textTransform: 'uppercase', color: 'var(--pds-text-tertiary)' }}>
-        Import
-      </div>
+      <SettingsSectionLabel>Export</SettingsSectionLabel>
+      <SettingsSectionHint>Recommended for leaving Harvous or switching devices.</SettingsSectionHint>
       <SettingsGroup>
-        <SettingsRow label="Import files (Markdown, Word, HTML, PDF, .zip)" trailing="none" onClick={() => handlePickImport('markdown')} value={busy === 'import-preview' || busy === 'import' ? '…' : undefined} />
-        <SettingsRow label="Import a folder" trailing="none" onClick={handlePickFolderImport} />
-        <SettingsRow label="Import CSV file" trailing="none" onClick={() => handlePickImport('csv-threads')} />
+        <SettingsRow
+          label="Full backup (.zip)"
+          sublabel="Notes, folders, highlights, and connections — re-imports cleanly."
+          trailing="none"
+          onClick={handleBackupExport}
+          value={busy === 'export-backup' ? '…' : undefined}
+        />
+        <SettingsRow
+          label="Markdown (.md)"
+          sublabel="One Markdown file of all notes with highlights. Good for reading or archives."
+          trailing="none"
+          onClick={() => handleExport('markdown')}
+          value={busy === 'export-md' ? '…' : undefined}
+        />
+        <SettingsRow
+          label="CSV spreadsheet"
+          sublabel="Flat table of notes for Excel or Sheets. Not a full backup."
+          trailing="none"
+          onClick={() => handleExport('csv-threads')}
+          value={busy === 'export-csv' ? '…' : undefined}
+        />
       </SettingsGroup>
-      <p className="pds-caption" style={{ color: 'var(--pds-text-tertiary)', padding: '6px 12px 0', margin: 0 }}>
-        Importing a folder keeps your structure: each subfolder becomes a folder in Harvous.
-      </p>
+
+      <SettingsSectionLabel>Import</SettingsSectionLabel>
+      <SettingsGroup>
+        <SettingsRow
+          label="Import files"
+          sublabel="Markdown, text, Word, HTML, PDF, Evernote (.enex), or a Harvous backup zip."
+          trailing="none"
+          onClick={() => handlePickImport('markdown')}
+          value={importBusy ? '…' : undefined}
+        />
+        <SettingsRow
+          label="Import a folder"
+          sublabel="Keeps structure — each subfolder becomes a folder in Harvous."
+          trailing="none"
+          onClick={handlePickFolderImport}
+          value={importBusy ? '…' : undefined}
+        />
+        <SettingsRow
+          label="Import CSV"
+          sublabel="Spreadsheet of notes (folder, title, content, tags)."
+          trailing="none"
+          onClick={() => handlePickImport('csv-threads')}
+          value={importBusy ? '…' : undefined}
+        />
+      </SettingsGroup>
 
       {importPreview && importPreview.length > 0 ? (
-        <div style={{ marginTop: 16, padding: '0 12px' }}>
-          <p className="pds-subheadline" style={{ margin: '0 0 4px' }}>Review import</p>
-          {(() => {
-            const totalHighlights = importPreview.reduce((s, d) => s + (d.highlightCount || 0), 0);
-            const folders = new Set(importPreview.map((d) => d.primaryCollection || 'Unsorted'));
-            const summary = [
-              `${importPreview.length} note${importPreview.length === 1 ? '' : 's'}`,
-              totalHighlights > 0 ? `${totalHighlights} highlight${totalHighlights === 1 ? '' : 's'}` : null,
-              `${folders.size} folder${folders.size === 1 ? '' : 's'}`,
-            ].filter(Boolean).join(' · ');
-            const allSelected = importSelected.size === importPreview.length;
-            return (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 8px' }}>
-                <span className="pds-caption" style={{ color: 'var(--pds-text-secondary)' }}>{summary}</span>
-                <button
-                  type="button"
-                  className="proto-settings-btn proto-settings-btn--secondary"
-                  style={{ padding: '2px 8px', fontSize: '0.75rem' }}
-                  onClick={() =>
-                    setImportSelected(allSelected ? new Set() : new Set(importPreview.map((d) => d.index)))
-                  }
-                >
-                  {allSelected ? 'Select none' : 'Select all'}
-                </button>
-              </div>
-            );
-          })()}
-          {importWarnings.length > 0 ? (
-            <ul className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 8px', paddingLeft: 18 }}>
-              {importWarnings.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ul>
-          ) : null}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 280, overflowY: 'auto' }}>
-            {importPreview.map((doc) => {
-              const meta = [
-                `→ ${doc.primaryCollection || 'Unsorted'}`,
-                doc.highlightCount > 0 ? `${doc.highlightCount} highlight${doc.highlightCount === 1 ? '' : 's'}` : null,
-                doc.tagCount > 0 ? `${doc.tagCount} tag${doc.tagCount === 1 ? '' : 's'}` : null,
-                doc.sourceType,
-              ].filter(Boolean).join(' · ');
-              return (
-                <label key={doc.index} className="proto-note-row" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={importSelected.has(doc.index)}
-                    onChange={(e) => {
-                      setImportSelected((prev) => {
-                        const next = new Set(prev);
-                        if (e.target.checked) next.add(doc.index);
-                        else next.delete(doc.index);
-                        return next;
-                      });
-                    }}
-                  />
-                  <span>
-                    <span className="pds-list-title" style={{ display: 'block' }}>{doc.title}</span>
-                    <span className="pds-caption" style={{ color: 'var(--pds-text-secondary)' }}>{meta}</span>
-                  </span>
-                </label>
-              );
-            })}
+        <>
+          <SettingsSectionLabel>Review import</SettingsSectionLabel>
+          <div className="proto-settings-import-review">
+            <div className="proto-settings-import-review__toolbar">
+              <span className="pds-caption" style={{ color: 'var(--pds-text-secondary)' }}>
+                {reviewSummary}
+              </span>
+              <button
+                type="button"
+                className="proto-settings-btn proto-settings-btn--secondary proto-settings-import-review__select-all"
+                onClick={() =>
+                  setImportSelected(
+                    allImportSelected ? new Set() : new Set(importPreview.map((d) => d.index)),
+                  )
+                }
+              >
+                {allImportSelected ? 'Select none' : 'Select all'}
+              </button>
+            </div>
+            {importWarnings.length > 0 ? (
+              <ul className="pds-caption proto-settings-import-review__warnings">
+                {importWarnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="proto-settings-import-review__list">
+              <SettingsGroup>
+                {importPreview.map((doc) => {
+                  const meta = [
+                    `→ ${doc.primaryCollection || 'Unsorted'}`,
+                    doc.highlightCount > 0
+                      ? `${doc.highlightCount} highlight${doc.highlightCount === 1 ? '' : 's'}`
+                      : null,
+                    doc.tagCount > 0 ? `${doc.tagCount} tag${doc.tagCount === 1 ? '' : 's'}` : null,
+                    doc.sourceType,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ');
+                  return (
+                    <label key={doc.index} className="proto-note-row proto-settings-import-review__row">
+                      <input
+                        type="checkbox"
+                        checked={importSelected.has(doc.index)}
+                        onChange={(e) => {
+                          setImportSelected((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(doc.index);
+                            else next.delete(doc.index);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span className="proto-settings-list-row__main">
+                        <span className="pds-list-title" style={{ display: 'block' }}>
+                          {doc.title}
+                        </span>
+                        <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>
+                          {meta}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </SettingsGroup>
+            </div>
+            <div className="proto-settings-import-review__actions">
+              <button
+                type="button"
+                className="proto-settings-btn"
+                disabled={busy === 'import' || importSelected.size === 0}
+                onClick={handleConfirmImport}
+              >
+                {busy === 'import' ? 'Importing…' : `Import ${importSelected.size} selected`}
+              </button>
+              <button
+                type="button"
+                className="proto-settings-btn proto-settings-btn--secondary"
+                disabled={busy === 'import'}
+                onClick={cancelImportReview}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="button" className="proto-settings-btn" disabled={busy === 'import' || importSelected.size === 0} onClick={handleConfirmImport}>
-              {busy === 'import' ? 'Importing…' : `Import ${importSelected.size} selected`}
-            </button>
-            <button type="button" className="proto-settings-btn proto-settings-btn--secondary" disabled={busy === 'import'} onClick={cancelImportReview}>
-              Cancel
-            </button>
-          </div>
-        </div>
+        </>
       ) : null}
 
-      <div className="pds-inspector-label" style={{ padding: '16px 12px 6px', textTransform: 'uppercase', color: 'var(--pds-text-tertiary)' }}>
-        Troubleshooting
-      </div>
-      <SettingsGroup>
-        {confirming === 'clear-sync' ? (
-          <ConfirmRow
-            prompt="Clear the local save queue on this device? Your notes on the server are not deleted."
-            busy={busy === 'clear-sync'}
-            onConfirm={handleClearStuckSyncQueue}
-            onCancel={() => setConfirming(null)}
-          />
-        ) : (
-          <SettingsRow
-            label="Clear stuck save queue"
-            trailing="none"
-            onClick={() => {
-              resetStatus();
-              setConfirming('clear-sync');
-            }}
-          />
-        )}
-      </SettingsGroup>
-      <p className="pds-caption" style={{ color: 'var(--pds-text-tertiary)', padding: '6px 12px 0', margin: 0 }}>
-        Use if saves seem stuck or you see a save warning. This only clears unsent changes waiting on this device.
-      </p>
-
-      <div className="pds-inspector-label" style={{ padding: '16px 12px 6px', textTransform: 'uppercase', color: 'var(--pds-text-tertiary)' }}>
-        Danger zone
-      </div>
+      <SettingsSectionLabel>Danger zone</SettingsSectionLabel>
       <SettingsGroup>
         {confirming === 'clear' ? (
           <ConfirmRow
@@ -393,7 +413,15 @@ export default function PrototypeDataPage() {
             onCancel={() => setConfirming(null)}
           />
         ) : (
-          <SettingsRow label="Clear all data" destructive trailing="none" onClick={() => { resetStatus(); setConfirming('clear'); }} />
+          <SettingsRow
+            label="Clear all data"
+            destructive
+            trailing="none"
+            onClick={() => {
+              resetStatus();
+              setConfirming('clear');
+            }}
+          />
         )}
         {confirming === 'delete' ? (
           <ConfirmRow
@@ -403,12 +431,20 @@ export default function PrototypeDataPage() {
             onCancel={() => setConfirming(null)}
           />
         ) : (
-          <SettingsRow label="Delete account" destructive trailing="none" onClick={() => { resetStatus(); setConfirming('delete'); }} />
+          <SettingsRow
+            label="Delete account"
+            destructive
+            trailing="none"
+            onClick={() => {
+              resetStatus();
+              setConfirming('delete');
+            }}
+          />
         )}
       </SettingsGroup>
 
-      {message ? <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', padding: '0 12px' }}>{message}</p> : null}
-      {error ? <p style={{ color: 'var(--pds-destructive)', fontSize: '0.8125rem', padding: '0 12px' }}>{error}</p> : null}
+      {message ? <p className="pds-caption proto-settings-status">{message}</p> : null}
+      {error ? <p className="proto-settings-status proto-settings-status--error">{error}</p> : null}
     </SettingsShell>
   );
 }
@@ -425,9 +461,11 @@ function ConfirmRow({
   onCancel: () => void;
 }) {
   return (
-    <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <span className="pds-caption" style={{ color: 'var(--pds-text-primary)' }}>{prompt}</span>
-      <div style={{ display: 'flex', gap: 8 }}>
+    <div className="proto-settings-confirm-row">
+      <span className="pds-caption" style={{ color: 'var(--pds-text-primary)' }}>
+        {prompt}
+      </span>
+      <div className="proto-settings-confirm-row__actions">
         <button
           type="button"
           onClick={onConfirm}
