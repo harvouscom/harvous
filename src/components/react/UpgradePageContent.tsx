@@ -13,6 +13,7 @@ import {
 } from '@/lib/billing-plans';
 import UpgradeCheckoutButton from './UpgradeCheckoutButton';
 import { prototypeHref } from '@/lib/prototype-path';
+import { writePendingAuthRedirect } from '@/lib/pending-auth-redirect';
 
 interface SubscriptionStatusSnapshot {
   hasSharedSpaces: boolean;
@@ -43,7 +44,7 @@ const PRICE_MONTHLY_LABEL = monthPlan ? `${formatPlanPrice(monthPlan)} per month
 const PRICE_ANNUAL_LABEL = yearPlan ? `${formatPlanPrice(yearPlan)} per year` : '';
 
 const ACTIVE_TAGLINE = `${PLAN_NAME} is active on your account. Here's a reminder of what it includes:`;
-const PURCHASE_TAGLINE = 'For when Bible study needs more than a private notebook.';
+const PURCHASE_TAGLINE = 'For when Bible study needs more than a private study Bible.';
 
 type FoundingAvailability = {
   total: number;
@@ -199,9 +200,22 @@ export default function UpgradePageContent({
     };
   }, [designPreview, showActiveCopy]);
 
-  const redirectUrl =
-    typeof window !== 'undefined' ? encodeURIComponent(window.location.href) : encodeURIComponent('/upgrade');
-  const signInHref = `/sign-in?redirect_url=${redirectUrl}`;
+  /** Prefer path so sign-in ↔ sign-up switches keep a stable return target. */
+  const upgradeReturnPath =
+    typeof window !== 'undefined'
+      ? `${window.location.pathname}${window.location.search}${window.location.hash}` || '/upgrade'
+      : '/upgrade';
+  const upgradeReturnDestination =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}${upgradeReturnPath.startsWith('/') ? upgradeReturnPath : `/${upgradeReturnPath}`}`
+      : '/upgrade';
+  const redirectParam = encodeURIComponent(upgradeReturnDestination);
+  const signInHref = `/sign-in?redirect_url=${redirectParam}`;
+  const signUpHref = `/sign-up?redirect_url=${redirectParam}`;
+
+  const rememberUpgradeReturn = () => {
+    writePendingAuthRedirect(upgradeReturnDestination);
+  };
 
   return (
     <>
@@ -275,9 +289,22 @@ export default function UpgradePageContent({
                   priceAnnualLabel={PRICE_ANNUAL_LABEL}
                 />
               ) : (
-                <a href={signInHref} className="upgrade-secondary-btn">
-                  Sign in to add
-                </a>
+                <>
+                  <a
+                    href={signUpHref}
+                    className="upgrade-primary-btn"
+                    onClick={rememberUpgradeReturn}
+                  >
+                    Sign up to continue
+                  </a>
+                  <a
+                    href={signInHref}
+                    className="upgrade-secondary-btn"
+                    onClick={rememberUpgradeReturn}
+                  >
+                    Sign in
+                  </a>
+                </>
               )}
             </div>
           </div>

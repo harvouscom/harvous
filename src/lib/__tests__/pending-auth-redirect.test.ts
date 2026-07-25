@@ -20,13 +20,16 @@ function memoryStorage() {
 const origin = 'https://app.harvous.com';
 
 describe('pending auth redirect validation', () => {
-  it('allows same-origin join, invitation, and public-share paths with query and hash intact', () => {
+  it('allows same-origin join, invitation, public-share, and upgrade paths with query and hash intact', () => {
     expect(validatePendingAuthDestination(`${origin}/spaces/join/AbC123?from=email#accept`, origin)).toBe(
       '/spaces/join/AbC123?from=email#accept',
     );
     expect(validatePendingAuthDestination('/invitations/invite_123', origin)).toBe('/invitations/invite_123');
     expect(validatePendingAuthDestination('/shared/note/AbC123', origin)).toBe('/shared/note/AbC123');
     expect(validatePendingAuthDestination('/shared/thread/AbC123', origin)).toBe('/shared/thread/AbC123');
+    expect(validatePendingAuthDestination(`${origin}/upgrade`, origin)).toBe('/upgrade');
+    expect(validatePendingAuthDestination('/upgrade?from=pricing', origin)).toBe('/upgrade?from=pricing');
+    expect(validatePendingAuthDestination('/addon', origin)).toBe('/addon');
   });
 
   it.each([

@@ -14,4 +14,11 @@ describe('public toolbar pending auth redirect', () => {
     expect(writePublicToolbarPendingRedirect(`${window.location.origin}/settings`)).toBe(false);
     expect(peekPendingAuthRedirect()).toBeNull();
   });
+
+  it('persists /upgrade so pricing → auth → checkout can resume', () => {
+    window.history.replaceState({}, '', '/upgrade?from=pricing');
+
+    expect(writePublicToolbarPendingRedirect(window.location.href)).toBe(true);
+    expect(peekPendingAuthRedirect()).toBe('/upgrade?from=pricing');
+  });
 });
