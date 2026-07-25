@@ -12,6 +12,7 @@ import { noteParamSlug } from '../proto-route-slugs';
 import { useDeletedSpaces, type DeletedSpaceItem } from '../../../hooks/queries/useDeletedSpaces';
 import { useRestoreSpace } from '../../../hooks/mutations/useRestoreSpace';
 import { APIError } from '../../../lib/api';
+import ProtoSpaceMenuIcon from '../ProtoSpaceMenuIcon';
 
 type SharedItemKind = 'note' | 'thread' | 'space';
 
@@ -53,7 +54,7 @@ function SharingCardHeader({
         aria-label={label}
         title={label}
       >
-        <Icon name={icon} size={20} />
+        <Icon name={icon} size={18} />
       </span>
       <div className="proto-sharing-card__header-main">
         <Link
@@ -203,85 +204,87 @@ export default function PrototypeSharingPage() {
         </p>
       ) : null}
 
-      {notes.map((note) => {
-        const isRefreshing = refreshingId === note.id;
-        const isConfirmingRefresh = confirmRefreshId === note.id;
-        const isRowBusy = disablingId === note.id || isRefreshing;
-        const rel = protoRelativeCaptionAbbrev(note.updatedAt ?? note.createdAt ?? null);
-        const preview = note.preview?.trim() || undefined;
+      {notes.length > 0 ? (
+        <SettingsGroup>
+          {notes.map((note) => {
+            const isRefreshing = refreshingId === note.id;
+            const isConfirmingRefresh = confirmRefreshId === note.id;
+            const isRowBusy = disablingId === note.id || isRefreshing;
+            const rel = protoRelativeCaptionAbbrev(note.updatedAt ?? note.createdAt ?? null);
+            const preview = note.preview?.trim() || undefined;
 
-        return (
-          <SettingsGroup key={note.id}>
-            <div className="proto-sharing-card">
-              <SharingCardHeader
-                kind="note"
-                title={note.title || 'Untitled note'}
-                noteId={note.id}
-                rel={rel || undefined}
-                preview={preview}
-              />
+            return (
+              <div key={note.id} className="proto-sharing-card">
+                <SharingCardHeader
+                  kind="note"
+                  title={note.title || 'Untitled note'}
+                  noteId={note.id}
+                  rel={rel || undefined}
+                  preview={preview}
+                />
 
-              <SettingsCopyRow
-                value={truncateShareUrl(note.shareUrl)}
-                copyValue={note.shareUrl}
-                href={note.shareUrl}
-                hrefTarget="_blank"
-                title={displayShareUrl(note.shareUrl)}
-                mono
-                layout="field"
-                copyLabel="Copy link"
-                copyErrorMessage="Could not copy link"
-                disabled={isRowBusy}
-              />
+                <SettingsCopyRow
+                  value={truncateShareUrl(note.shareUrl)}
+                  copyValue={note.shareUrl}
+                  href={note.shareUrl}
+                  hrefTarget="_blank"
+                  title={displayShareUrl(note.shareUrl)}
+                  mono
+                  layout="field"
+                  copyLabel="Copy link"
+                  copyErrorMessage="Could not copy link"
+                  disabled={isRowBusy}
+                />
 
-              {isConfirmingRefresh ? (
-                <div className="proto-sharing-card__confirm">
-                  <p className="proto-sharing-card__confirm-prompt">
-                    Create a new link? The old link will stop working.
-                  </p>
+                {isConfirmingRefresh ? (
+                  <div className="proto-sharing-card__confirm">
+                    <p className="proto-sharing-card__confirm-prompt">
+                      Create a new link? The old link will stop working.
+                    </p>
+                    <div className="proto-sharing-card__actions">
+                      <button
+                        type="button"
+                        className="proto-thread-review__dismiss"
+                        disabled={isRowBusy}
+                        onClick={() => setConfirmRefreshId(null)}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="proto-thread-review__btn proto-thread-review__btn--primary"
+                        disabled={isRowBusy}
+                        onClick={() => handleRefreshNote(note)}
+                      >
+                        {isRefreshing ? 'Working…' : 'Get new link'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                   <div className="proto-sharing-card__actions">
+                    <button
+                      type="button"
+                      className="proto-thread-review__dismiss proto-thread-review__dismiss--danger"
+                      disabled={isRowBusy}
+                      onClick={() => handleDisableNote(note)}
+                    >
+                      {disablingId === note.id ? 'Working…' : 'Stop sharing'}
+                    </button>
                     <button
                       type="button"
                       className="proto-thread-review__dismiss"
                       disabled={isRowBusy}
-                      onClick={() => setConfirmRefreshId(null)}
+                      onClick={() => setConfirmRefreshId(note.id)}
                     >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="proto-thread-review__btn proto-thread-review__btn--primary"
-                      disabled={isRowBusy}
-                      onClick={() => handleRefreshNote(note)}
-                    >
-                      {isRefreshing ? 'Working…' : 'Get new link'}
+                      Get a new link
                     </button>
                   </div>
-                </div>
-              ) : (
-                <div className="proto-sharing-card__actions">
-                  <button
-                    type="button"
-                    className="proto-thread-review__dismiss proto-thread-review__dismiss--danger"
-                    disabled={isRowBusy}
-                    onClick={() => handleDisableNote(note)}
-                  >
-                    {disablingId === note.id ? 'Working…' : 'Stop sharing'}
-                  </button>
-                  <button
-                    type="button"
-                    className="proto-thread-review__dismiss"
-                    disabled={isRowBusy}
-                    onClick={() => setConfirmRefreshId(note.id)}
-                  >
-                    Get a new link
-                  </button>
-                </div>
-              )}
-            </div>
-          </SettingsGroup>
-        );
-      })}
+                )}
+              </div>
+            );
+          })}
+        </SettingsGroup>
+      ) : null}
 
       {deletedSectionState !== 'hidden' ? (
         <section className="proto-sharing-deleted" aria-labelledby="proto-sharing-deleted-title">
@@ -315,8 +318,16 @@ export default function PrototypeSharingPage() {
                   const isRestoring = restoreSpace.isPending && restoreSpace.variables === space.id;
                   return (
                     <div key={space.id} className="proto-sharing-deleted__row">
-                      <span className="proto-settings-list-row__leading" aria-hidden>
-                        <Icon name="trash-can" size={18} />
+                      <span
+                        className="proto-settings-list-row__leading proto-sharing-deleted__space-icon"
+                        aria-hidden
+                      >
+                        <ProtoSpaceMenuIcon
+                          color={space.color || 'paper'}
+                          size={40}
+                          radius={10}
+                          glyphSize={18}
+                        />
                       </span>
                       <span className="proto-sharing-deleted__main">
                         <span className="pds-list-title">{space.title}</span>
