@@ -9,6 +9,9 @@ import { fetchWithTimeout } from './fetch-helpers';
 
 const AUDIENCEFUL_API_BASE = 'https://app.audienceful.com/api';
 
+/** Segment marker for actual app users (must match Audienceful tag spelling). */
+export const APP_USER_TAG = 'User';
+
 interface AudiencefulPersonRequest {
   email: string;
   tags?: string; // Comma-separated string of tags
@@ -71,7 +74,13 @@ async function audiencefulRequest(
     options.body = JSON.stringify(body);
   }
 
-  const response = await fetchWithTimeout(url, options);
+  let response = await fetchWithTimeout(url, options);
+
+  // Audienceful rate-limits aggressively; one short wait covers most 429s.
+  if (response.status === 429) {
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    response = await fetchWithTimeout(url, options);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -92,28 +101,29 @@ async function audiencefulRequest(
 /**
  * Find a subscriber by email
  * Returns the subscriber if found, null otherwise
+ *
+ * Note: Audienceful's `?email=` query is ignored (returns an unfiltered page).
+ * Use `?search=` and require an exact email match on the result.
  */
 export async function findSubscriberByEmail(
   email: string
 ): Promise<AudiencefulPersonResponse | null> {
+  const normalized = email.trim().toLowerCase();
+
   try {
-    // GET /people/ with email filter
     const response = await audiencefulRequest(
-      `/people/?email=${encodeURIComponent(email)}`,
+      `/people/?search=${encodeURIComponent(email)}`,
       'GET'
     );
 
-    // API returns paginated results
-    if (response && response.results && Array.isArray(response.results)) {
-      return response.results.length > 0 ? response.results[0] : null;
-    }
+    const results: AudiencefulPersonResponse[] = Array.isArray(response?.results)
+      ? response.results
+      : response?.email
+        ? [response]
+        : [];
 
-    // Handle direct result
-    if (response && response.email === email) {
-      return response;
-    }
-
-    return null;
+    const match = results.find((person) => person.email?.trim().toLowerCase() === normalized);
+    return match ?? null;
   } catch (error: any) {
     // If 404, subscriber doesn't exist
     if (error.message.includes('404')) {
@@ -152,27 +162,37 @@ export async function updateSubscriber(
  */
 function tagsToString(tags: Array<{ name: string }> | undefined): string {
   if (!tags || tags.length === 0) return '';
-  return tags.map(t => t.name).join(', ');
+  return tags.map((t) => t.name).join(', ');
 }
 
 /**
- * Merge existing tags with new tags
+ * Merge tag strings (case-insensitive). When a tag already exists under a
+ * different casing, keep the existing spelling; new tags use the requested name.
  */
 function mergeTags(existingTags: string, newTags: string): string {
   if (!existingTags) return newTags;
   if (!newTags) return existingTags;
 
-  const existing = existingTags.split(',').map(t => t.trim()).filter(t => t);
-  const newTagsArray = newTags.split(',').map(t => t.trim()).filter(t => t);
-  const merged = Array.from(new Set([...existing, ...newTagsArray]));
+  const byLower = new Map<string, string>();
+  for (const tag of existingTags.split(',').map((t) => t.trim()).filter(Boolean)) {
+    byLower.set(tag.toLowerCase(), tag);
+  }
+  for (const tag of newTags.split(',').map((t) => t.trim()).filter(Boolean)) {
+    const key = tag.toLowerCase();
+    if (!byLower.has(key)) byLower.set(key, tag);
+  }
 
-  return merged.join(', ');
+  return Array.from(byLower.values()).join(', ');
+}
+
+function hasAudiencefulIdentity(person: AudiencefulPersonResponse | null): boolean {
+  return Boolean(person && (person.id != null || person.uid));
 }
 
 /**
  * Tag a user as an app user in Audienceful
- * Adds "User" tag and stores Clerk user ID
- * Creates subscriber if they don't exist
+ * Ensures "User" tag is present (merges with existing tags) and stores Clerk user ID.
+ * Creates subscriber if they don't exist.
  */
 export async function tagAsAppUser(
   email: string,
@@ -214,35 +234,32 @@ export async function tagAsAppUser(
   if (firstName) extraData.first_name = firstName;
   if (lastName) extraData.last_name = lastName;
 
-  if (existing && existing.id) {
-    // Update existing subscriber
-    // Replace tags with just "User" (removes any existing tags like "pending")
-    // Audienceful API PATCH replaces tags when provided, so this is safe
-    const existingTagsString = tagsToString(existing.tags);
+  if (hasAudiencefulIdentity(existing)) {
+    const existingTagsString = tagsToString(existing!.tags);
+    const mergedTags = mergeTags(existingTagsString, APP_USER_TAG);
 
     console.log('[Audienceful] Updating existing subscriber:', {
       email,
-      existingId: existing.id,
+      existingId: existing!.id ?? existing!.uid,
       existingTags: existingTagsString,
-      newTags: 'User',
+      mergedTags,
     });
 
-    // Merge extra_data
     const mergedExtraData = {
-      ...existing.extra_data,
+      ...existing!.extra_data,
       ...extraData,
     };
 
     try {
       const result = await updateSubscriber(email, {
-        tags: 'User', // Replace with just "User" tag, removing any existing tags
+        tags: mergedTags,
         extra_data: mergedExtraData,
       });
 
       console.log('[Audienceful] Successfully updated subscriber:', {
         email,
         audiencefulId: result.id || result.uid,
-        tags: 'User',
+        tags: mergedTags,
       });
 
       return result;
@@ -253,10 +270,9 @@ export async function tagAsAppUser(
           email,
         });
 
-        // Person was not found, create them instead
         const result = await createSubscriber({
           email,
-          tags: 'User', // Just "User" tag for new subscribers
+          tags: APP_USER_TAG,
           extra_data: mergedExtraData,
           double_opt_in: 'not_required',
           trigger_automations: false,
@@ -269,19 +285,17 @@ export async function tagAsAppUser(
 
         return result;
       }
-      // Re-throw other errors
       throw error;
     }
   } else {
-    // Create new subscriber
     console.log('[Audienceful] Creating new subscriber:', {
       email,
-      tags: 'User',
+      tags: APP_USER_TAG,
     });
 
     const result = await createSubscriber({
       email,
-      tags: 'User',
+      tags: APP_USER_TAG,
       extra_data: extraData,
       double_opt_in: 'not_required',
       trigger_automations: false,

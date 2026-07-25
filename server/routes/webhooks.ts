@@ -53,6 +53,10 @@ interface ClerkUserWebhookEvent {
   timestamp?: number;
 }
 
+/**
+ * Legacy Clerk event (older instances). Prefer user.created / user.updated —
+ * current Clerk event catalogs no longer list emailAddress.created.
+ */
 interface ClerkEmailWebhookEvent {
   type: 'emailAddress.created';
   data: {
@@ -114,61 +118,56 @@ function getPrimaryEmail(event: ClerkUserWebhookEvent): string | null {
 }
 
 async function handleEmailCreated(event: ClerkEmailWebhookEvent): Promise<void> {
+  console.log(`[Webhook] Processing ${event.type} event`);
+
+  if (!event.data) throw new Error('Event data is missing');
+
+  const email_address = event.data.email_address;
+  const user_id = event.data.user_id;
+
+  if (!email_address) {
+    console.warn('[Webhook] Event missing email_address, skipping Audienceful sync');
+    return;
+  }
+  if (!user_id) {
+    console.error('[Webhook] Event missing user_id');
+    throw new Error('Event missing user_id');
+  }
+
+  let firstName: string | undefined;
+  let lastName: string | undefined;
+
   try {
-    console.log(`[Webhook] Processing ${event.type} event`);
+    const { createClerkClient } = await import('@clerk/backend');
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
 
-    if (!event.data) throw new Error('Event data is missing');
-
-    const email_address = event.data.email_address;
-    const user_id = event.data.user_id;
-
-    if (!email_address) {
-      console.error('[Webhook] Event missing email_address');
-      return;
-    }
-    if (!user_id) {
-      console.error('[Webhook] Event missing user_id');
-      return;
-    }
-
-    try {
-      const { createClerkClient } = await import('@clerk/backend');
-      const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-
-      if (!clerkSecretKey) {
-        console.error('[Webhook] CLERK_SECRET_KEY not configured');
-        await tagAsAppUser(email_address, user_id);
-        return;
-      }
-
+    if (clerkSecretKey) {
       const clerkClient = createClerkClient({ secretKey: clerkSecretKey });
       const user = await clerkClient.users.getUser(user_id);
-      const firstName = user.firstName || undefined;
-      const lastName = user.lastName || undefined;
-
-      try {
-        const result = await tagAsAppUser(email_address, user_id, firstName, lastName);
-        console.log('[Webhook] Tagged user in Audienceful (emailAddress.created):', {
-          email: email_address,
-          clerkUserId: user_id,
-          audiencefulId: result.id || result.uid,
-        });
-      } catch (error: any) {
-        console.error('[Webhook] Failed to tag user in Audienceful (emailAddress.created):', error.message);
-        handleAPIError(error, { endpoint: '/api/webhooks/clerk', action: 'tag_audienceful_user', userId: user_id, email: email_address });
-      }
-    } catch (error: any) {
-      console.error('[Webhook] Failed to fetch user details from Clerk:', error.message);
-      try {
-        await tagAsAppUser(email_address, user_id);
-        console.log('[Webhook] Tagged user in Audienceful (fallback, no name)');
-      } catch (audiencefulError: any) {
-        console.error('[Webhook] Failed to tag user in Audienceful (fallback):', audiencefulError.message);
-        handleAPIError(audiencefulError, { endpoint: '/api/webhooks/clerk', action: 'tag_audienceful_user_fallback', userId: user_id, email: email_address });
-      }
+      firstName = user.firstName || undefined;
+      lastName = user.lastName || undefined;
+    } else {
+      console.warn('[Webhook] CLERK_SECRET_KEY not configured; syncing without name');
     }
   } catch (error: any) {
-    console.error('[Webhook] Error in handleEmailCreated:', error.message);
+    console.warn('[Webhook] Failed to fetch user details from Clerk; syncing without name:', error.message);
+  }
+
+  try {
+    const result = await tagAsAppUser(email_address, user_id, firstName, lastName);
+    console.log('[Webhook] Tagged user in Audienceful (emailAddress.created):', {
+      email: email_address,
+      clerkUserId: user_id,
+      audiencefulId: result.id || result.uid,
+    });
+  } catch (error: any) {
+    console.error('[Webhook] Failed to tag user in Audienceful (emailAddress.created):', error.message);
+    handleAPIError(error, {
+      endpoint: '/api/webhooks/clerk',
+      action: 'tag_audienceful_user',
+      userId: user_id,
+      email: email_address,
+    });
     throw error;
   }
 }
@@ -190,6 +189,7 @@ async function handleUserCreated(event: ClerkUserWebhookEvent): Promise<void> {
   } catch (error: any) {
     console.error('[Webhook] Failed to tag user in Audienceful:', error.message);
     handleAPIError(error, { endpoint: '/api/webhooks/clerk', action: 'tag_audienceful_user', userId: clerkUserId, email });
+    throw error;
   }
 }
 
@@ -217,6 +217,7 @@ async function handleUserUpdated(event: ClerkUserWebhookEvent): Promise<void> {
   } catch (error: any) {
     console.error('[Webhook] Failed to update user in Audienceful:', error.message);
     handleAPIError(error, { endpoint: '/api/webhooks/clerk', action: 'update_audienceful_user', userId: clerkUserId, email });
+    throw error;
   }
 }
 
@@ -246,9 +247,9 @@ app.post('/api/webhooks/clerk', async (c) => {
       return c.json({ error: 'Webhook secret not configured' }, 500);
     }
 
-    const audiencefulKey = process.env.AUDIENCEFUL_API_KEY;
-    if (!audiencefulKey) {
-      console.warn('[Webhook] AUDIENCEFUL_API_KEY not configured');
+    if (!process.env.AUDIENCEFUL_API_KEY) {
+      console.error('[Webhook] AUDIENCEFUL_API_KEY not configured');
+      return c.json({ error: 'Audienceful API key not configured' }, 500);
     }
 
     // Verify the webhook signature (after stripping Netlify's occasional header duplication)
@@ -277,7 +278,8 @@ app.post('/api/webhooks/clerk', async (c) => {
 
     console.log('[Webhook] Received event:', { type: event.type, userId });
 
-    // Process the event
+    // Process the event. Audienceful failures return 5xx so Clerk retries.
+    // Intentional skips (no email) still return 200.
     try {
       switch (event.type) {
         case 'emailAddress.created':
@@ -296,7 +298,7 @@ app.post('/api/webhooks/clerk', async (c) => {
           console.log('[Webhook] Unhandled event type:', (event as any).type);
       }
     } catch (error: any) {
-      console.error('[Webhook] Error processing event (webhook will still succeed):', {
+      console.error('[Webhook] Error processing event (returning 500 for Clerk retry):', {
         eventType: event.type,
         error: error.message,
       });
@@ -313,9 +315,12 @@ app.post('/api/webhooks/clerk', async (c) => {
       }
 
       handleAPIError(error, { endpoint: '/api/webhooks/clerk', action: `process_${event.type}`, userId: errorUserId });
+      return c.json(
+        { error: 'Audienceful sync failed', message: error?.message || 'Sync failed', eventType: event.type },
+        500
+      );
     }
 
-    // Always return success to Clerk
     const duration = Date.now() - startTime;
     console.log('[Webhook] Complete:', { eventType: event.type, durationMs: duration });
 

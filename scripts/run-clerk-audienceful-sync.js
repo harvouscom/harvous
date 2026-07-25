@@ -31,8 +31,8 @@ const options = {
 };
 
 // Determine base URL
-const baseUrl = options.local 
-  ? 'http://localhost:4321'
+const baseUrl = options.local
+  ? 'http://localhost:3001'
   : 'https://app.harvous.com';
 
 // Build URL with query parameters

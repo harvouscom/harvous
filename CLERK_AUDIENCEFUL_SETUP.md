@@ -1,15 +1,36 @@
 # Clerk to Audienceful Integration Setup
 
-This integration automatically tags users in Audienceful when they sign up for Harvous via Clerk authentication.
+This integration upserts people in Audienceful when they sign up for Harvous via Clerk, and ensures they have the **`User`** tag so you can segment actual app users vs newsletter-only subscribers.
+
+## Production restore checklist
+
+Do this on the **production** Clerk instance (`pk_live_…` / app.harvous.com), not the development instance:
+
+1. Deploy this repo so Netlify runs the fixed Audienceful lookup (`?search=` + exact email match) and tag merge.
+2. Confirm Netlify env: `AUDIENCEFUL_API_KEY`, `CLERK_WEBHOOK_SECRET`, `CLERK_SECRET_KEY`, `MIGRATION_KEY`.
+3. Clerk Dashboard → **Webhooks** → Add Endpoint  
+   - URL: `https://app.harvous.com/api/webhooks/clerk`  
+   - Events: `user.created`, `user.updated`  
+   - Copy signing secret → set Netlify `CLERK_WEBHOOK_SECRET` if rotated → redeploy.
+4. Sign up a test user on production; confirm Audienceful has tag **`User`** (other tags preserved) and `clerk_user_id`.
+5. Backfill missed users (dry-run first):
+
+```bash
+curl -X POST "https://app.harvous.com/api/migrations/sync-clerk-to-audienceful?dryRun=true" \
+  -H "Authorization: Bearer $MIGRATION_KEY"
+curl -X POST "https://app.harvous.com/api/migrations/sync-clerk-to-audienceful" \
+  -H "Authorization: Bearer $MIGRATION_KEY"
+```
+
+Local smoke (API on port 3001): `npx tsx scripts/verify-audienceful-upsert.ts` and `node scripts/run-clerk-audienceful-sync.js --local --dry-run`.
 
 ## What It Does
 
 When someone signs up for Harvous:
-1. Clerk triggers an `emailAddress.created` webhook (PRIMARY) or `user.created` webhook (fallback)
+1. Clerk triggers a `user.created` webhook (PRIMARY) or `user.updated` (name/email changes)
 2. The webhook endpoint receives the event data
-3. For `emailAddress.created` events, we fetch full user details from Clerk API
-4. The user is automatically added/updated in Audienceful with:
-   - Tag: `User` (replaces any existing tags, removing tags like "pending")
+3. The person is **created or updated** in Audienceful with:
+   - Tag: `User` (merged with any existing tags — other tags like `pending` are kept)
    - Custom field: `clerk_user_id` (their Clerk user ID)
    - First and last name (if provided)
 
@@ -31,45 +52,36 @@ This allows you to segment in Audienceful between email subscribers and actual a
 
 1. Go to your [Clerk Dashboard](https://dashboard.clerk.com)
 2. Navigate to **Webhooks** in the sidebar
-3. Click **Add Endpoint**
+3. Click **Add Endpoint** (or re-enable an existing one)
 4. Configure the webhook:
    - **Endpoint URL**: `https://your-domain.com/api/webhooks/clerk`
      - For production: `https://app.harvous.com/api/webhooks/clerk`
-     - For development/testing: Use [ngrok](https://ngrok.com) or similar to expose your local server
+     - For development/testing: Use [ngrok](https://ngrok.com) or similar to expose your local API (port **3001**)
    - **Subscribe to events**: Select the following events:
-     - ✅ `emailAddress.created` (REQUIRED - most reliable for new signups)
-     - ✅ `user.created` (optional - fallback if emailAddress.created not available)
-     - ✅ `user.updated` (optional - updates user info)
+     - ✅ `user.created` (REQUIRED — primary signup sync)
+     - ✅ `user.updated` (REQUIRED — keeps `User` tag / name / email in sync)
      - ⬜ `user.deleted` (optional - currently just logs, doesn't remove from Audienceful)
-     
-   **Why emailAddress.created?** This event fires when an email is actually created, ensuring we have the email address available. `user.created` may fire before the email is fully set up, which can cause sync failures.
+
+   **Note:** Older docs mentioned `emailAddress.created`. Current Clerk event catalogs use `user.created` / `user.updated` for people sync. Do **not** subscribe to `email.created` — that is for Clerk email *delivery*, not contact sync. The handler still accepts legacy `emailAddress.created` if an old instance emits it.
 5. Click **Create**
 6. Copy the **Signing Secret** (starts with `whsec_...`)
-7. Add it to your `.env` file:
+7. Add it to your `.env` / Netlify env:
    ```
    CLERK_WEBHOOK_SECRET=whsec_your_signing_secret_here
    ```
 
 ### 3. Deploy Your Changes
 
-1. Make sure both environment variables are set in your production environment:
+1. Make sure these environment variables are set in Netlify (production):
    ```
    CLERK_WEBHOOK_SECRET=whsec_...
    AUDIENCEFUL_API_KEY=...
+   CLERK_SECRET_KEY=...
    ```
 
-2. **Important for Netlify deployments:** Ensure `netlify.toml` has the redirect configured to exclude `/api/*` routes:
-   ```toml
-   [[redirects]]
-     from = "/*"
-     to = "/index.html"
-     status = 200
-     force = false  # This ensures API routes aren't redirected
-   ```
+2. API routes are served by the Netlify function via `public/_redirects` (`/api/*` → `/.netlify/functions/api/:splat`). Do **not** add a catch-all that steals `/api/*` for the SPA.
 
-3. Deploy your application with the new webhook endpoint
-
-4. The endpoint is now available at: `/api/webhooks/clerk`
+3. Deploy, then confirm the endpoint is live at: `/api/webhooks/clerk`
 
 ### 4. Test the Integration
 
@@ -77,8 +89,8 @@ This allows you to segment in Audienceful between email subscribers and actual a
 
 1. Sign up a new test user in your Clerk authentication
 2. Check the webhook logs in Clerk Dashboard > Webhooks > [Your Endpoint] > Logs
-3. Verify the webhook was delivered successfully (should see 200 status)
-4. Check Audienceful to confirm the user was tagged with `User`
+3. Verify delivery succeeded (**200**). If Audienceful fails, expect **500** and Clerk retries.
+4. Check Audienceful: person has tag **`User`**, prior tags still present, and `clerk_user_id` set
 
 #### Option B: Test with Clerk's Webhook Testing Tool
 
@@ -86,22 +98,18 @@ This allows you to segment in Audienceful between email subscribers and actual a
 2. Click the **Testing** tab
 3. Select `user.created` event
 4. Click **Send Example**
-5. Check the response - should see **200 OK** with message "Webhook processed successfully"
-6. **Note:** The test example data doesn't include an email address, so you'll see a warning in the logs about skipping Audienceful sync. This is expected - the webhook still succeeds.
-7. To test the full flow including Audienceful sync, use Option A (real user signup) instead
+5. Example payloads often lack an email — expect a skip (still **200**) and no Audienceful row. Use Option A for a full end-to-end check.
 
 ### 5. Verify in Audienceful
 
 1. Go to [Audienceful People](https://app.audienceful.com/people)
 2. Search for a user who signed up
 3. Verify they have:
-   - ✅ Tag: `User`
+   - ✅ Tag: `User` (plus any tags they already had)
    - ✅ Custom field: `clerk_user_id` with their Clerk ID
    - ✅ First/last name (if provided during signup)
 
 ## Using the Segmentation
-
-Now you can create audience segments in Audienceful:
 
 ### Email Subscribers Only
 - Filter: Does NOT have tag `User`
@@ -117,13 +125,13 @@ Now you can create audience segments in Audienceful:
 
 ## Technical Details
 
-### Files Created/Modified
+### Files
 
-- `src/utils/audienceful.ts` - Audienceful API integration helper
-- `src/pages/api/webhooks/clerk.ts` - Clerk webhook endpoint (uses `verifyWebhook` from `@clerk/backend/webhooks`)
-- `src/middleware.ts` - Added webhook endpoint to public routes
-- `netlify.toml` - Configured redirects to exclude `/api/*` routes
-- `.env.example` - Added required environment variables
+- [`src/utils/audienceful.ts`](src/utils/audienceful.ts) — Audienceful API helper (`tagAsAppUser`, tag merge)
+- [`server/routes/webhooks.ts`](server/routes/webhooks.ts) — Hono `POST /api/webhooks/clerk` (Svix `verifyWebhook` + Netlify header dedupe)
+- [`server/routes/migrations.ts`](server/routes/migrations.ts) — Backfill `POST /api/migrations/sync-clerk-to-audienceful`
+- [`scripts/run-clerk-audienceful-sync.js`](scripts/run-clerk-audienceful-sync.js) — CLI wrapper for the migration
+- [`.env.example`](.env.example) — `AUDIENCEFUL_API_KEY`, `CLERK_WEBHOOK_SECRET`
 
 ### API Endpoints
 
@@ -131,44 +139,43 @@ Now you can create audience segments in Audienceful:
 - Base URL: `https://app.audienceful.com/api`
 - Authentication: `X-Api-Key` header
 - Endpoints used:
-  - `GET /people/?email={email}` - Find subscriber by email
-  - `POST /people/` - Create new subscriber
-  - `PATCH /people/{id}` - Update existing subscriber
+  - `GET /people/?search={email}` — Find subscriber by email (exact match in results; do not use `?email=` — it is ignored)
+  - `POST /people/` — Create new subscriber
+  - `PATCH /people/` — Update existing subscriber (email in body)
 
 **Webhook Endpoint**
 - URL: `/api/webhooks/clerk`
 - Method: POST
 - Authentication: Svix signature verification via `verifyWebhook()` from `@clerk/backend/webhooks`
-- Events handled: `emailAddress.created` (primary), `user.created` (fallback), `user.updated`, `user.deleted`
-- Returns: 200 OK on success (even if Audienceful sync fails), 401 on signature verification failure, 500 on unexpected errors
+- Events handled: `user.created` (primary), `user.updated`, legacy `emailAddress.created`, `user.deleted` (log only)
+- Returns:
+  - **200** on success or intentional skip (no email)
+  - **401** on signature verification failure
+  - **500** if `CLERK_WEBHOOK_SECRET` / `AUDIENCEFUL_API_KEY` missing, or Audienceful sync fails (so Clerk retries)
 
 ### Security
 
-The webhook endpoint includes:
-- ✅ Signature verification using Clerk's `verifyWebhook` function from `@clerk/backend/webhooks`
-- ✅ Automatic Svix header validation (`svix-id`, `svix-timestamp`, `svix-signature`)
-- ✅ Server-side only (not exposed to client)
-- ✅ Added to public routes in middleware (uses webhook secret for auth, not Clerk session)
-- ✅ Proper error handling ensures webhook always returns a response (prevents infinite retries)
+- Signature verification via Clerk's `verifyWebhook` (Svix headers)
+- Netlify may duplicate `svix-*` headers; the handler de-duplicates before verify
+- Webhook path is CSRF-exempt; auth is the signing secret, not a Clerk session
+- Server-side only (API key never exposed to the client)
 
 ### Error Handling
 
-- If Audienceful is down or returns an error, the webhook still succeeds (returns 200)
-- Errors are logged to console and PostHog (via `handleAPIError`)
-- This prevents Clerk from retrying the webhook endlessly
-- The user is successfully created in Clerk regardless of Audienceful status
-- Users without email addresses are skipped (logged as warning, webhook still succeeds)
-- All errors are caught and handled gracefully to ensure webhook always returns a valid response
+- Missing email → skip Audienceful, return **200** (Clerk should not retry forever)
+- Audienceful API / network / missing API key → **500** so Clerk retries with backoff
+- Errors are logged (and via `handleAPIError` where applicable)
+- Clerk user creation is independent of Audienceful availability
 
 ## Backfilling Existing Users
 
-The webhook only works for NEW signups going forward. To sync all your existing Clerk users to Audienceful, run the migration script:
+The webhook only covers new events going forward. To sync existing Clerk users:
 
 ### Running the Migration
 
 1. **Set up MIGRATION_KEY** (optional but recommended):
    ```bash
-   # In your .env file
+   # In your .env / Netlify env
    MIGRATION_KEY=your_secure_random_key_here
    ```
 
@@ -177,144 +184,86 @@ The webhook only works for NEW signups going forward. To sync all your existing 
    openssl rand -base64 32
    ```
 
-2. **Test with dry run first** (recommended):
+2. **Dry run** (recommended):
    ```bash
    curl -X POST "https://app.harvous.com/api/migrations/sync-clerk-to-audienceful?dryRun=true" \
      -H "Authorization: Bearer your_migration_key_here"
    ```
 
-   This will show you what would happen without making any changes.
+   Or locally (API on port 3001):
+   ```bash
+   node scripts/run-clerk-audienceful-sync.js --local --dry-run --key="$MIGRATION_KEY"
+   ```
 
-3. **Run the actual migration**:
+3. **Apply**:
    ```bash
    curl -X POST "https://app.harvous.com/api/migrations/sync-clerk-to-audienceful" \
      -H "Authorization: Bearer your_migration_key_here"
    ```
 
+   For large lists, use batched [`scripts/sync-clerk-audienceful-batch.js`](scripts/sync-clerk-audienceful-batch.js).
+
 ### Migration Options
 
-You can pass query parameters to control the migration:
-
-- `dryRun=true` - Preview without making changes
-- `limit=50` - Only process first 50 users (for testing)
-- `offset=100` - Skip first 100 users (for resuming if interrupted)
-
-Example with options:
-```bash
-curl -X POST "https://app.harvous.com/api/migrations/sync-clerk-to-audienceful?limit=10&dryRun=true" \
-  -H "Authorization: Bearer your_migration_key_here"
-```
-
-### Response Format
-
-The migration will return a summary:
-```json
-{
-  "success": true,
-  "message": "Migration complete",
-  "results": {
-    "totalUsers": 150,
-    "successful": 148,
-    "failed": 0,
-    "skipped": 2,
-    "errorCount": 0,
-    "errors": [],
-    "durationSeconds": 45.3,
-    "dryRun": false
-  }
-}
-```
+- `dryRun=true` — Preview without making changes
+- `limit=50` — Only process first 50 users
+- `offset=100` — Skip first 100 users (resume)
 
 ### Important Notes
 
-- The migration processes users in batches of 100
+- Processes users in batches of 100
 - Users without email addresses are skipped
-- If a user is already in Audienceful, their tags will be **replaced** with just "User" (removes any existing tags like "pending")
+- Existing Audienceful people get **`User` merged in**; other tags are preserved
 - Failed syncs are reported but don't stop the migration
-- You can run this multiple times safely - it's idempotent
+- Safe to re-run (idempotent upsert + tag merge)
 
 ## Troubleshooting
 
 ### Webhook not triggering
 
 1. Check Clerk Dashboard > Webhooks > [Your Endpoint] > Logs
-2. Verify the endpoint URL is correct
-3. Make sure the endpoint is publicly accessible (not localhost)
-4. Check that `user.created` event is selected
+2. Verify the endpoint URL is `https://app.harvous.com/api/webhooks/clerk`
+3. Make sure the endpoint is publicly accessible
+4. Confirm `user.created` and `user.updated` are selected
 
-### 404: Not Found Error
+### 404: Not Found
 
-If Clerk's webhook delivery shows a **404: Not Found** error:
+1. Confirm production deploy includes the Hono API bundle (`netlify/functions/api.cjs` from `npm run build:api`)
+2. Confirm `public/_redirects` maps `/api/*` to the Netlify function
+3. Webhook URL must be `https://app.harvous.com/api/webhooks/clerk` (not the marketing site)
+4. Check Netlify function logs for routing errors
 
-1. **Test endpoint accessibility:**
-   ```bash
-   # Should return 200 with status info (not 404)
-   curl https://app.harvous.com/api/webhooks/clerk
-   ```
-
-2. **Check Netlify routing:**
-   - Ensure `netlify.toml` excludes `/api/*` routes from the SPA redirect
-   - The redirect should have conditions excluding API paths
-
-3. **Verify deployment:**
-   - Confirm the endpoint file exists: `src/pages/api/webhooks/clerk.ts`
-   - Check Netlify build logs to ensure the function is created
-   - Verify the endpoint is deployed to production
-
-4. **Check webhook URL in Clerk Dashboard:**
-   - Should be: `https://app.harvous.com/api/webhooks/clerk` (NOT `https://harvous.com`)
-   - Ensure there are no trailing slashes or typos
-
-5. **Review Netlify function logs:**
-   - Go to Netlify Dashboard > Functions
-   - Check if requests are reaching the endpoint
-   - Look for routing or deployment errors
+Note: There is no GET health handler on this route — only POST. A GET may 404; that does not mean the webhook is broken.
 
 ### Signature verification failing
 
-1. Verify `CLERK_WEBHOOK_SECRET` is set correctly in `.env`
-2. Make sure it starts with `whsec_`
-3. Copy the secret again from Clerk Dashboard (it's easy to copy it wrong)
-4. Restart your server after updating environment variables
+1. Verify `CLERK_WEBHOOK_SECRET` in Netlify matches the Clerk endpoint signing secret (`whsec_...`)
+2. Redeploy / restart after rotating secrets
+3. Netlify duplicate `svix-*` headers are handled in code; if 401 persists, re-copy the secret from Clerk
 
-### User not appearing in Audienceful
+### User not appearing in Audienceful / missing `User` tag
 
-1. Check the webhook logs in Clerk Dashboard - did it succeed?
-2. Check your server logs for errors
-3. Verify `AUDIENCEFUL_API_KEY` is set correctly
-4. Test the Audienceful API directly:
+1. Clerk delivery status: **500** means sync failed (check Netlify logs / Audienceful API key)
+2. **200** with no person → often no email on the event (test payloads)
+3. Verify `AUDIENCEFUL_API_KEY`
+4. Smoke-test Audienceful:
    ```bash
-   curl -X GET "https://app.audienceful.com/api/people/?email=test@example.com" \
+   curl -X GET "https://app.audienceful.com/api/people/?search=test@example.com" \
      -H "X-Api-Key: your_api_key"
    ```
 
 ### User has no email
 
-- If a user signs up without an email address (e.g., test users, phone-only signups):
-  - The webhook will log a **warning** (not an error): "User has no email address, skipping Audienceful sync"
-  - The user won't be added to Audienceful (email is required for Audienceful)
-  - The webhook will still return **200 OK** (doesn't block user creation in Clerk)
-  - This is expected behavior - only users with email addresses are synced to Audienceful
-  - **Note:** Clerk's test webhook tool sends example data without email, so this warning is normal during testing
+- Skipped with a warning; webhook returns **200**
+- Only users with email addresses are synced
+- Clerk's example webhook payloads often omit email — expected during Testing tab use
 
 ## Future Enhancements
 
-Possible improvements:
-- Add custom field for user signup date
-- Track user's last login date in Audienceful
-- Add tags based on subscription tier (free/paid)
-- Implement user deletion sync (remove `User` tag when user deletes account)
-- Add retry logic for Audienceful API failures
-- Queue failed syncs for later retry
-
-## Status
-
-✅ **Integration is live and working!**
-
-- Webhook endpoint is deployed and accessible at `https://app.harvous.com/api/webhooks/clerk`
-- Signature verification is working correctly
-- Users with email addresses are automatically synced to Audienceful
-- Webhook returns 200 OK on successful processing
+- Signup / last-login custom fields
+- Subscription-tier tags
+- On delete: remove `User` tag (optional)
+- Persistent retry queue beyond Clerk's delivery retries
 
 ## Support
 
