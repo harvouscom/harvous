@@ -79,7 +79,6 @@ import PrototypeSidebarHomeView from './PrototypeSidebarHomeView';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeListEmptyState, { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
 import { SIDEBAR_NO_MATCH_COPY } from './sidebar-no-match-copy';
-import PrototypeMigrationBanner from './PrototypeMigrationBanner';
 import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
 import {
   applyFolderPinOrdering,
@@ -3229,10 +3228,6 @@ export default function PrototypeSidebar({
 
           </>
         )}
-      </div>
-
-      <div className="proto-sidebar-floating-stack">
-        <PrototypeMigrationBanner />
       </div>
 
       {highlightDeleteTarget ? (
