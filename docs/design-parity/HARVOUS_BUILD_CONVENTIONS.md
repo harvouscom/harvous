@@ -88,7 +88,7 @@ Web layers (all OKLCH, see `prototype-tokens.css`): `--pds-bg-page`, `--pds-bg-t
 ### Spacing / icons / layers / motion (web + native)
 - **Spacing:** `HarvousSpacing.space1…12` ↔ `--pds-space-1…12` (4pt base). Prefer these over ad-hoc paddings in new UI.
 - **Icons:** `HarvousIconSize` ↔ `--pds-icon-xs|sm|md|lg|xl`.
-- **Layers (web):** `--pds-z-sticky` (80), `--pds-z-dropdown` (100), `--pds-z-popover` (6000), `--pds-z-modal` (9800), `--pds-z-toast` (10000). Do not invent new z-index literals.
+- **Layers (web):** `--pds-z-sticky` (80), `--pds-z-dropdown` (100), `--pds-z-popover` (6000), `--pds-z-modal` (9800), `--pds-z-settings` (9950), `--pds-z-modal-popover` (9960; confirms/menus over Settings/modals), `--pds-z-toast` (10000). Do not invent new z-index literals.
 - **Motion (web):** `--pds-duration-press|popover|sheet|panel` must stay in lockstep with `spa/src/layouts/proto-motion.ts`.
 
 ### Light / dark / wallpaper

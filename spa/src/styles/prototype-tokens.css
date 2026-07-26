@@ -332,6 +332,9 @@
   --pds-z-dropdown: 100;
   --pds-z-popover: 6000;
   --pds-z-modal: 9800;
+  --pds-z-settings: 9950;
+  /* Confirms/menus that must stack above Settings and other modals. */
+  --pds-z-modal-popover: 9960;
   --pds-z-toast: 10000;
 
   /* Breakpoints (documented; media queries still use literal px) */

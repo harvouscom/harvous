@@ -4523,7 +4523,7 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 .proto-settings-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9950;
+  z-index: var(--pds-z-settings);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4600,7 +4600,7 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
 
 /* ─── Settings sheet (narrow) ─────────────────────────────────────────────── */
 .proto-settings-sheet-overlay {
-  z-index: 9950 !important;
+  z-index: var(--pds-z-settings) !important;
 }
 
 .proto-settings-sheet.proto-settings-sheet {

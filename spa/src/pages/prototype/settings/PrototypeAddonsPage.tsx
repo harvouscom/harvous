@@ -415,6 +415,7 @@ export default function PrototypeAddonsPage() {
             anchorEl={
               isConnector ? connectorCancelAnchorRef.current : cancelAnchorRef.current
             }
+            preferAbove
             title={`Cancel ${isConnector ? CONNECTOR_NAME : PLAN_NAME}?`}
             description={
               isConnector

@@ -11,7 +11,8 @@ const CARD_MIN_WIDTH = 200;
 const CARD_MAX_WIDTH = 320;
 const CARD_MAX_WIDTH_STACKED = 300;
 const CARD_MIN_HEIGHT = 44;
-const Z_INDEX = 6000;
+/** Above settings/modals (`--pds-z-modal-popover`); below toasts. */
+const Z_INDEX = 'var(--pds-z-modal-popover)';
 
 export type ProtoConfirmDialogProps = {
   /** `main-column-top-right` for fixed-slot flows; default `anchor` for trigger-anchored confirms. */
