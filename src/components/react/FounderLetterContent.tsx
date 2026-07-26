@@ -68,7 +68,17 @@ export default function FounderLetterContent({
                   className="proto-founder-letter__signature"
                 />
                 <div className="proto-founder-letter__byline">
-                  <img src="/derek-avatar.jpeg" alt="Derek Castelli" className="proto-founder-letter__avatar" />
+                  <picture>
+                    <source srcSet="/derek-avatar.webp" type="image/webp" />
+                    <img
+                      src="/derek-avatar.jpeg"
+                      alt="Derek Castelli"
+                      className="proto-founder-letter__avatar"
+                      width={44}
+                      height={44}
+                      decoding="async"
+                    />
+                  </picture>
                   <div>
                     <div className="proto-founder-letter__name">Derek Castelli</div>
                     <div className="proto-founder-letter__title">Founder of Harvous</div>

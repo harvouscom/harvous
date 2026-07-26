@@ -4633,7 +4633,7 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
   margin: 0;
   font-family: var(--pds-font-display);
   font-size: 1.05rem;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.25;
   color: var(--pds-text-primary);
   text-align: center;
@@ -8306,11 +8306,19 @@ button.proto-appearance-hero__card {
   margin-top: 12px;
 }
 
+.proto-founder-letter__byline > picture {
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  line-height: 0;
+}
+
 .proto-founder-letter__avatar {
   width: 2.75rem;
   height: 2.75rem;
   border-radius: 999px;
   object-fit: cover;
+  display: block;
 }
 
 .proto-founder-letter__name {
@@ -8426,6 +8434,7 @@ button.proto-appearance-hero__card {
     height: 2.75rem;
   }
 
+  .proto-founder-letter-sheet .proto-founder-letter__byline > picture,
   .proto-founder-letter-sheet .proto-founder-letter__avatar {
     width: 2.25rem;
     height: 2.25rem;
@@ -8446,12 +8455,20 @@ button.proto-appearance-hero__card {
   min-width: 0;
 }
 
+.proto-support-founder > picture {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  line-height: 0;
+}
+
 .proto-support-founder__avatar {
   width: 52px;
   height: 52px;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
+  display: block;
 }
 
 .proto-support-founder__text {
@@ -8537,8 +8554,42 @@ button.proto-appearance-hero__card {
   border-color: var(--pds-text-tertiary);
 }
 
-.proto-support-version.scripture-pill-chrome__attribution {
+.proto-support-version {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-top: 24px;
+  padding-top: 14px;
+  border-top: 0.5px solid var(--pds-border);
+  min-width: 0;
+}
+
+.proto-support-version__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-support-version__link {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--pds-font-body);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--pds-text-tertiary);
+  text-decoration: none;
+}
+
+.proto-support-version__link:hover {
+  color: var(--pds-text-secondary);
 }
 
 /* ── Recall carousel (Home resurfacing) ─────────────────────────────────── */

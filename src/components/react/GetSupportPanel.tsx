@@ -95,11 +95,18 @@ export default function GetSupportPanel({
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
               <div className="panel__content-scroll">
                 <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 20, padding: '0 4px', minWidth: 0 }}>
-                  <img
-                    src="/derek-avatar.jpeg"
-                    alt="Derek Castelli"
-                    style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                  />
+                  <picture style={{ flexShrink: 0, width: 52, height: 52, lineHeight: 0 }}>
+                    <source srcSet="/derek-avatar.webp" type="image/webp" />
+                    <img
+                      src="/derek-avatar.jpeg"
+                      alt="Derek Castelli"
+                      width={52}
+                      height={52}
+                      decoding="async"
+                      fetchPriority="high"
+                      style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+                    />
+                  </picture>
                   <div style={{ minWidth: 0, flex: '1 1 0' }}>
                     <p style={{ margin: '0 0 8px', fontSize: '0.9375rem', lineHeight: 1.45, color: 'var(--color-medium-grey)', overflowWrap: 'anywhere' }}>
                       I&apos;m Derek, the founder. Questions, bugs, ideas — I read everything myself. Let me know how I can help.

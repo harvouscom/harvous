@@ -1,4 +1,3 @@
-import '@/styles/scripture-pill-chrome.css';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import Icon from '@/components/react/Icon';
@@ -13,9 +12,10 @@ function appVersionRaw(): string | undefined {
   return (window as unknown as { __APP_VERSION__?: string }).__APP_VERSION__;
 }
 
-function appVersionLabel(): string {
-  const v = appVersionRaw();
-  return v ? `Version ${v}` : '';
+/** Matches harvous.com `versionToSlug` → `/release-notes/v2-3-10/`. */
+function releaseNotesUrlForVersion(version: string): string {
+  const slug = `v${version.replace(/\./g, '-').toLowerCase()}`;
+  return `https://harvous.com/release-notes/${slug}/`;
 }
 
 type Props = {
@@ -28,7 +28,9 @@ export default function PrototypeSupportForm({ initialTopic }: Props) {
   const [sent, setSent] = useState(false);
   const [pending, setPending] = useState(false);
 
-  const versionLabel = appVersionLabel();
+  const version = appVersionRaw();
+  const versionLabel = version ? `Version ${version}` : '';
+  const releaseNotesHref = version ? releaseNotesUrlForVersion(version) : null;
   const canSend = message.trim().length > 0 && !pending;
 
   const handleSend = async () => {
@@ -54,7 +56,18 @@ export default function PrototypeSupportForm({ initialTopic }: Props) {
   return (
     <>
       <div className="proto-support-founder">
-        <img src="/derek-avatar.jpeg" alt="Derek Castelli" className="proto-support-founder__avatar" />
+        <picture>
+          <source srcSet="/derek-avatar.webp" type="image/webp" />
+          <img
+            src="/derek-avatar.jpeg"
+            alt="Derek Castelli"
+            className="proto-support-founder__avatar"
+            width={52}
+            height={52}
+            decoding="async"
+            fetchPriority="high"
+          />
+        </picture>
         <div className="proto-support-founder__text">
           <p className="proto-support-founder__intro">
             I&apos;m Derek, the founder. Questions, bugs, ideas — I read everything myself. Let me know how I can help.
@@ -117,9 +130,19 @@ export default function PrototypeSupportForm({ initialTopic }: Props) {
       </div>
 
       {versionLabel ? (
-        <footer className="proto-support-version scripture-pill-chrome__attribution">
-          <Icon name="circle-info" size={9} className="scripture-pill-chrome__attribution-icon" aria-hidden />
-          <p className="scripture-pill-chrome__attribution-copyright">{versionLabel}</p>
+        <footer className="proto-support-version">
+          <p className="proto-support-version__label">{versionLabel}</p>
+          {releaseNotesHref ? (
+            <a
+              className="proto-support-version__link"
+              href={releaseNotesHref}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Release note
+              <Icon name="arrow-up-right-from-square" size={10} aria-hidden />
+            </a>
+          ) : null}
         </footer>
       ) : null}
     </>
