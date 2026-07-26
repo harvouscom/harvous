@@ -65,7 +65,7 @@ Identify which task type this is:
 ### Blog / editorial (harvous.com)
 - Load and obey `.claude/agents/marketing.blog-strategy.md`
 - Lead with educators (teachers, group leaders, pastors who teach); frameworks over inspiration
-- Soft product CTAs only; never describe Shared Spaces / church org curriculum as shipped
+- Soft product CTAs only; Shared Spaces are live (Plus hosting, join free) — soft CTAs OK. Never describe church org / curriculum as shipped
 - Prefer writing into the harvous.com repo `src/content/blog/` when that workspace is available; otherwise draft inline for the human to place
 - Update `marketing.blog-strategy.md` “Current blog state” / Last Updated if publishing changes the inventory
 - Add sparse `<mark>` highlights on must-stick phrases (≈2–5 per post; short fragments; site marker style) — see blog strategy “Inline highlights”

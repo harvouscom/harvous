@@ -240,9 +240,11 @@ export default function PrototypeChurchPage() {
   return (
     <SettingsShell fillHeight>
       <SectionLabel>My church</SectionLabel>
-      <p className="proto-caption" style={{ margin: '0 0 12px', color: 'var(--pds-text-secondary)' }}>
-        {introCopy}
-      </p>
+      {!hasChurch ? (
+        <p className="proto-caption" style={{ margin: '0 0 12px', color: 'var(--pds-text-secondary)' }}>
+          {introCopy}
+        </p>
+      ) : null}
 
       {hasChurch ? (
         <>
