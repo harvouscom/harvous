@@ -9498,15 +9498,36 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   color: var(--pds-text-primary);
 }
 
+/* PublicJoinSpaceHero reuses `.upgrade-hero-section` (sticky + -260px bleed for
+   /upgrade). Reset that recipe so the cover fills this 140px band flush to the
+   dialog top — otherwise the image sits shifted down with a white gap. */
 .proto-shared-space-about__hero .upgrade-hero-section {
-  height: 100%;
+  position: absolute;
+  inset: 0;
+  top: 0;
+  height: auto;
   min-height: 0;
+  margin: 0;
+  flex: none;
+  border-radius: 0;
+  pointer-events: none;
+}
+
+/* Upgrade page fades the tall sticky hero into paper; here the letter already
+   overlaps the band — keep the fade off so the cover isn't washed into a
+   floating mid strip with white above/below. */
+.proto-shared-space-about__hero .upgrade-hero-section::after {
+  content: none;
+  display: none;
 }
 
 .proto-shared-space-about__hero .upgrade-hero-bg {
+  inset: 0;
+  width: 100%;
   height: 100%;
   background-size: cover;
-  background-position: center;
+  /* Short band: bias past the airy top of v1 covers so color reaches the top edge. */
+  background-position: center 80%;
 }
 
 .proto-shared-space-about__letter {
@@ -9568,14 +9589,15 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 .proto-create-shared-space__hero-hit {
   appearance: none;
   display: block;
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
   margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
-  position: relative;
   outline: none;
 }
 

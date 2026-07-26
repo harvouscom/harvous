@@ -39,12 +39,11 @@ export default function PublicJoinSpaceHero({ space }: { space: PublicJoinSpaceH
     };
   }, [heroImageUrl, colorScheme]);
 
+  // Position/size come from CSS (`.upgrade-hero-bg`, about-dialog overrides) so
+  // short heroes can bias the crop — don't pin `backgroundPosition` inline.
   const imageStyle: CSSProperties | undefined = imageReady
     ? {
         backgroundImage: `url("${heroImageUrl}")`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
       }
     : undefined;
 
