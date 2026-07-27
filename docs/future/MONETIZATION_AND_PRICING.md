@@ -11,7 +11,7 @@ per product, everything included, no tiers within a product.**
 |---|---|---|
 | **Free** | $0 | Private study, forever. Unlimited notes, Remember surfaces, Compete free track. **Join** shared spaces — hosting is the paid line. |
 | **Founding** | **$45/yr** | First **99** subscribers · **annual only** · lifetime price lock. |
-| **Harvous Plus** | **$8/mo · $64/yr** | Everything: unlimited shared spaces (**100 people each**), Review, Challenges, **every season**. Annual is "four months free". |
+| **Harvous Plus** | **$8/mo · $64/yr** | Everything: unlimited shared spaces (**50 people each**), Review, Challenges, **every season**. Annual is "four months free". |
 | **Connector** | **$5/mo · $60/yr** | Separate add-on — CLI/MCP read access. **No annual discount.** Hard paywall, no trial. |
 | **Church** | See §7 | Separate org track — where caps lift and spaces transfer from individuals. |
 
@@ -82,7 +82,7 @@ to explain.
 - **No free AI Review**, **no trial**. A 30-day money-back guarantee de-risks Plus instead.
 
 **How free users experience hosting before they buy:** they don't host — they *join*. A Plus host
-brings up to 100 free members in, and those members use shared spaces for weeks before they ever
+brings up to 50 free members in, and those members use shared spaces for weeks before they ever
 consider hosting one. That is the trial, and it is already built. The consequence to accept: the
 **first 99 founders are the hard part**, because the loop has no hosts to seed it yet.
 
@@ -97,7 +97,7 @@ consider hosting one. That is the trial, and it is already built. The consequenc
 
 - **Unlimited** owned shared spaces — `PLUS_LIMITS.ownedSpaces = UNLIMITED`
   ([src/lib/billing-plans.ts](../../src/lib/billing-plans.ts))
-- **100 people per space** — `MEMBERS_PER_SPACE_CAP = 100`
+- **50 people per space** — `MEMBERS_PER_SPACE_CAP = 50`
   ([server/utils/tier-limits.ts](../../server/utils/tier-limits.ts))
 - Host/admin surface: roster view, optional private cohort view on the active Compete season
 - Members join owned spaces free; each member who wants AI practice from their own notes subscribes
@@ -105,12 +105,12 @@ consider hosting one. That is the trial, and it is already built. The consequenc
 
 **The member cap is the fence between a personal plan and a church plan — the space count is not.**
 Spaces are rows; they cost nothing, so capping them protects no margin. Seats are the product line: a
-congregation hits 100 and the space transfers to the org (see §7), while a small group never touches
-it. 100 is chosen to be a limit real groups don't reach — 30 was small enough that ordinary groups hit
-a wall on a plan they were already paying for. Set this number by "where does a person end and an org
-begin", never by cost.
+congregation hits 50 and the space transfers to the org (see §7), while a small group rarely touches
+it. 50 is generous for groups and still below most churches — large enough that ordinary groups don't
+hit a wall on a plan they were already paying for, small enough that oversized personal spaces migrate
+to a church org. Set this number by "where does a person end and an org begin", never by cost.
 
-The theoretical hole (10 spaces × 100 people) is fine: that's ten distinct communities and real work
+The theoretical hole (10 spaces × 50 people) is fine: that's ten distinct communities and real work
 to run, and that person is a power user worth having.
 
 **Onboarding copy (principle):** *"Run the group on Harvous. Everyone brings their own Review."*

@@ -111,7 +111,7 @@ export const RATE_LIMITS = {
     maxRequests: 20,
     windowMs: 60 * 1000 // 1 minute
   },
-  // Space invite: higher limit so owners can onboard larger spaces (e.g. 100 members)
+  // Space invite: higher limit so owners can onboard larger spaces (e.g. 50 members)
   INVITE: {
     maxRequests: 60,
     windowMs: 60 * 1000 // 1 minute

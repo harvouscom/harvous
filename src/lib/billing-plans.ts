@@ -90,17 +90,18 @@ const PLUS_FEATURES = ['shared_spaces', 'review', 'challenges'] as const satisfi
 const CONNECTOR_FEATURES = ['connector'] as const satisfies readonly FeatureKey[];
 
 /**
- * Unlimited spaces, 100 people each.
+ * Unlimited spaces, 50 people each.
  *
  * The member cap — not the space count — is what keeps a congregation from
- * running off one personal plan; at 100 they hit the wall and the church
+ * running off one personal plan; at 50 they hit the wall and the church
  * conversation starts, which is the space-transfer path. Set this number by
  * "where does a person end and an org begin", never by cost (spaces are rows;
- * they cost nothing). 100 is chosen to be a limit small groups never reach.
+ * they cost nothing). 50 is generous for small groups and still below most
+ * churches, so oversized personal spaces migrate to a church org.
  */
 const PLUS_LIMITS: PlanLimits = {
   ownedSpaces: UNLIMITED,
-  membersPerSpace: 100,
+  membersPerSpace: 50,
 };
 
 /** Free tier is strictly private: no hosting. Joining someone else's space is always free. */

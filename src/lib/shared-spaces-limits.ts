@@ -11,7 +11,7 @@ export { UNLIMITED, isUnlimited };
 export const OWNED_SHARED_SPACES_ADDON_LIMIT = UNLIMITED;
 
 /** Total people in a space (including owner). */
-export const MEMBERS_PER_SPACE_CAP = 100;
+export const MEMBERS_PER_SPACE_CAP = 50;
 
 /** Feature bullets on /upgrade and Settings › Plan — purchase / inactive copy. Keep short. */
 export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [

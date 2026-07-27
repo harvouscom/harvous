@@ -9,7 +9,7 @@ describe('never-evict downgrade semantics (limits)', () => {
   it('plus grants unlimited owned spaces; the member cap is the fence', () => {
     const plus = limitsForFeatures(['shared_spaces']);
     expect(isUnlimited(plus.ownedSpaces)).toBe(true);
-    expect(plus.membersPerSpace).toBe(100);
+    expect(plus.membersPerSpace).toBe(50);
   });
 
   it('unlimited is a negative sentinel, never Infinity (JSON-safe over the wire)', () => {
