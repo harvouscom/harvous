@@ -234,6 +234,91 @@ describe('hmcAddChurch', () => {
       church: { id: 'IA-99' },
     });
   });
+
+  it('binds best similar match when HMC returns needsConfirmation', async () => {
+    setEnv();
+    globalThis.fetch = vi.fn(async (_input, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { confirmAdd?: boolean };
+      expect(body.confirmAdd).toBeUndefined();
+      return new Response(
+        JSON.stringify({
+          needsConfirmation: true,
+          similar: [
+            {
+              id: 'IA-42',
+              shortId: '00000042',
+              name: 'Grace Fellowship',
+              city: 'Ames',
+              state: 'IA',
+              address: '100 Main',
+            },
+            {
+              id: 'IA-43',
+              shortId: '00000043',
+              name: 'Grace Other',
+              city: 'Ames',
+              state: 'IA',
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+
+    await expect(
+      hmcAddChurch({
+        name: 'Grace Fellowship Church',
+        city: 'Ames',
+        state: 'IA',
+        lat: 42,
+        lng: -93,
+      }),
+    ).resolves.toMatchObject({
+      isDuplicate: true,
+      church: {
+        id: 'IA-42',
+        name: 'Grace Fellowship',
+        city: 'Ames',
+        state: 'IA',
+        address: '100 Main',
+      },
+    });
+  });
+
+  it('sends confirmAdd when requested', async () => {
+    setEnv();
+    globalThis.fetch = vi.fn(async (_input, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { confirmAdd?: boolean };
+      expect(body.confirmAdd).toBe(true);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          church: {
+            id: 'community-IA-2',
+            shortId: '2',
+            name: 'Brand New',
+            city: 'Ames',
+            state: 'IA',
+          },
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+
+    await expect(
+      hmcAddChurch({
+        name: 'Brand New',
+        city: 'Ames',
+        state: 'IA',
+        lat: 42,
+        lng: -93,
+        confirmAdd: true,
+      }),
+    ).resolves.toMatchObject({
+      isDuplicate: false,
+      church: { id: 'community-IA-2' },
+    });
+  });
 });
 
 describe('hmcSubmitUnlistedUsChurch', () => {

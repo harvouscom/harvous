@@ -235,6 +235,10 @@ export async function hmcGeocodeUsPlace(options: {
 /**
  * Submit a missing U.S. church to Here’s My Church (community add).
  * Uses the edge-function write route (not partner `/v1`).
+ *
+ * HMC may return HTTP 200 `{ needsConfirmation: true, similar: [...] }` when
+ * near-duplicates exist. Without a confirmation UI, we bind the best similar
+ * match (`isDuplicate: true`) instead of force-creating with `confirmAdd`.
  */
 export async function hmcAddChurch(options: {
   name: string;
@@ -243,6 +247,8 @@ export async function hmcAddChurch(options: {
   lat: number;
   lng: number;
   address?: string | null;
+  /** Force-create even when similar matches exist (HMC confirmAdd). */
+  confirmAdd?: boolean;
 }): Promise<HmcAddChurchResult> {
   const name = options.name.trim();
   const city = options.city.trim();
@@ -263,6 +269,16 @@ export async function hmcAddChurch(options: {
   const config = readHmcConfig();
   const edgeRoot = readHmcEdgeRoot();
   const url = `${edgeRoot}/churches/add`;
+  const payload: Record<string, unknown> = {
+    name,
+    city,
+    state,
+    lat: options.lat,
+    lng: options.lng,
+    address: (options.address ?? '').trim(),
+  };
+  if (options.confirmAdd) payload.confirmAdd = true;
+
   let response: Response;
   try {
     response = await fetch(url, {
@@ -271,14 +287,7 @@ export async function hmcAddChurch(options: {
         ...partnerHeaders(config),
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        name,
-        city,
-        state,
-        lat: options.lat,
-        lng: options.lng,
-        address: (options.address ?? '').trim(),
-      }),
+      body: JSON.stringify(payload),
     });
   } catch (error) {
     throw new HmcPartnerError(
@@ -299,6 +308,8 @@ export async function hmcAddChurch(options: {
     error?: string;
     success?: boolean;
     isDuplicate?: boolean;
+    needsConfirmation?: boolean;
+    similar?: unknown[];
     church?: unknown;
     existingChurch?: unknown;
   };
@@ -317,6 +328,13 @@ export async function hmcAddChurch(options: {
   const existing = normalizeLeanChurch(body.existingChurch);
   if (existing) {
     return { church: existing, isDuplicate: true };
+  }
+  // Near-duplicate gate (HMC v2): bind best similar match for silent auto-submit.
+  if (body.needsConfirmation && Array.isArray(body.similar)) {
+    for (const row of body.similar) {
+      const similar = normalizeLeanChurch(row);
+      if (similar) return { church: similar, isDuplicate: true };
+    }
   }
   throw new HmcPartnerError('Here’s My Church add returned no church', 'HMC_UPSTREAM_ERROR', 502);
 }
