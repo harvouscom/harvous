@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/clerk-react';
 import { api } from '../../lib/api';
-import { updateCachedProfile } from '../queries/useProfile';
+import { updateCachedProfile, type UserProfile } from '../queries/useProfile';
 
 /** outside_directory = not in HMC’s 19 countries; unlisted = in-directory country, missing listing. */
 export type UpdateChurchIntent = 'outside_directory' | 'unlisted' | 'outside_us' | 'unlisted_us';
@@ -47,6 +47,7 @@ function clean(v: string | null | undefined): string | null | undefined {
 export function useUpdateChurch() {
   const queryClient = useQueryClient();
   const { userId } = useAuth();
+  const profileKey = ['profile', userId ?? 'none'] as const;
 
   return useMutation({
     mutationFn: async (vars: UpdateChurchVariables) => {
@@ -70,7 +71,7 @@ export function useUpdateChurch() {
         churchState: clean(vars.churchState) ?? null,
         churchCountry: clean(vars.churchCountry) ?? null,
       };
-      updateCachedProfile({
+      const patch = {
         hmcChurchId: church.hmcChurchId ?? null,
         churchName: church.churchName,
         churchCity: church.churchCity,
@@ -79,8 +80,14 @@ export function useUpdateChurch() {
         connectedChurchId: church.connectedChurchId ?? null,
         connectedOrgId: church.connectedOrgId ?? null,
         connectedChurchAt: church.connectedChurchAt ?? null,
-      });
-      void queryClient.invalidateQueries({ queryKey: ['profile', userId ?? 'none'] });
+      };
+      // Patch RQ + sessionStorage before invalidate — Settings remounts hydrate from
+      // profile cache; without this, a stale empty profile re-shows the add form.
+      queryClient.setQueryData<UserProfile>(profileKey, (prev) =>
+        prev ? { ...prev, ...patch } : prev,
+      );
+      updateCachedProfile(patch);
+      void queryClient.invalidateQueries({ queryKey: profileKey });
     },
   });
 }

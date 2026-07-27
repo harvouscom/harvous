@@ -262,9 +262,21 @@ export async function hmcFetchChurchChanges(options: {
   };
 }
 
+/** Nominatim can hang; never block My Church saves on a stuck geocode. */
+const NOMINATIM_TIMEOUT_MS = 2500;
+
+function nominatimSignal(): AbortSignal | undefined {
+  try {
+    return AbortSignal.timeout(NOMINATIM_TIMEOUT_MS);
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Many HMC OSM rows have street + lat/lng but an empty city. Fill city via
  * Nominatim reverse geocode so Harvous can show “City, ST”.
+ * Best-effort only — timeout/failure returns the church unchanged.
  */
 export async function hmcFillMissingCity(church: HmcLeanChurch): Promise<HmcLeanChurch> {
   if (church.city?.trim()) return church;
@@ -285,6 +297,7 @@ export async function hmcFillMissingCity(church: HmcLeanChurch): Promise<HmcLean
         Accept: 'application/json',
         'User-Agent': 'Harvous/1.0 (Bible study notes; https://harvous.com)',
       },
+      signal: nominatimSignal(),
     });
     if (!response.ok) return church;
     const data = (await response.json()) as { address?: NominatimAddress };
@@ -393,6 +406,7 @@ export async function hmcGeocodeAddress(options: {
         Accept: 'application/json',
         'User-Agent': 'Harvous/1.0 (Bible study notes; https://harvous.com)',
       },
+      signal: nominatimSignal(),
     });
     if (!response.ok) return null;
     const data = (await response.json()) as Array<{
@@ -461,6 +475,7 @@ export async function hmcGeocodePlace(options: {
         Accept: 'application/json',
         'User-Agent': 'Harvous/1.0 (Bible study notes; https://harvous.com)',
       },
+      signal: nominatimSignal(),
     });
     if (!response.ok) return null;
     const data = (await response.json()) as Array<{ lat?: string; lon?: string }>;

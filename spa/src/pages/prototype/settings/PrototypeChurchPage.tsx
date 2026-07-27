@@ -14,6 +14,7 @@ import {
   isHmcDirectoryCountry,
   matchesHmcDirectoryCountry,
 } from '@/utils/hmc-directory';
+import { resolveDefaultHmcCountry } from '@/utils/hmc-default-country';
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
@@ -65,19 +66,46 @@ export default function PrototypeChurchPage() {
   const [draftCity, setDraftCity] = useState('');
   const [draftRegion, setDraftRegion] = useState('');
   const [draftAddress, setDraftAddress] = useState('');
-  const [draftCountry, setDraftCountry] = useState('US');
+  const [draftCountry, setDraftCountry] = useState(() => resolveDefaultHmcCountry());
 
   const ledSharedSpaces = useMemo(() => staffedChurchSharedSpaces(nav), [nav]);
 
   useEffect(() => {
-    if (hydrated || !profile) return;
-    setHmcChurchId(profile.hmcChurchId ?? null);
-    setName(profile.churchName ?? '');
-    setCity(profile.churchCity ?? '');
-    setState(profile.churchState ?? '');
-    setCountry(profile.churchCountry ?? '');
-    setHydrated(true);
-  }, [profile, hydrated]);
+    if (!profile || updateChurch.isPending) return;
+    const nextHmc = profile.hmcChurchId ?? null;
+    const nextName = profile.churchName ?? '';
+    const nextCity = profile.churchCity ?? '';
+    const nextState = profile.churchState ?? '';
+    const nextCountry = profile.churchCountry ?? '';
+
+    if (!hydrated) {
+      setHmcChurchId(nextHmc);
+      setName(nextName);
+      setCity(nextCity);
+      setState(nextState);
+      setCountry(nextCountry);
+      setHydrated(true);
+      return;
+    }
+
+    // First paint can hydrate from a stale empty profile cache; adopt church when
+    // the refetch (or mutation patch) arrives with data and local form is still empty.
+    const localEmpty = !hmcChurchId && !name;
+    const profileHasChurch = Boolean(nextHmc || nextName);
+    if (localEmpty && profileHasChurch) {
+      setHmcChurchId(nextHmc);
+      setName(nextName);
+      setCity(nextCity);
+      setState(nextState);
+      setCountry(nextCountry);
+    }
+  }, [
+    profile,
+    hydrated,
+    hmcChurchId,
+    name,
+    updateChurch.isPending,
+  ]);
 
   const searchHmc = useCallback((q: string, region: string) => searchUserHmcChurches(q, region), []);
 
@@ -95,7 +123,11 @@ export default function PrototypeChurchPage() {
   const openUnlisted = (countryCode: string) => {
     setDraftName('');
     setDraftAddress('');
-    setDraftCountry(isHmcDirectoryCountry(countryCode) ? countryCode.toUpperCase() : 'US');
+    setDraftCountry(
+      isHmcDirectoryCountry(countryCode)
+        ? countryCode.toUpperCase()
+        : resolveDefaultHmcCountry(),
+    );
     setEntryMode('unlisted');
   };
 

@@ -9,6 +9,10 @@ import {
   getHmcCountry,
   getHmcRegionsForCountry,
 } from '@/utils/hmc-directory';
+import {
+  resolveDefaultHmcCountry,
+  setLastHmcPickerCountry,
+} from '@/utils/hmc-default-country';
 
 export type HmcChurchPick = {
   id: string;
@@ -47,13 +51,13 @@ export default function HmcChurchPicker({
   onRequestUnlisted,
   onRequestOutsideUs,
   onRequestUnlistedUs,
-  initialCountry = 'US',
+  initialCountry,
   initialRegion = '',
   disabled = false,
   variant = 'settings',
 }: Props) {
   const listId = useId();
-  const [country, setCountry] = useState(initialCountry || 'US');
+  const [country, setCountry] = useState(() => resolveDefaultHmcCountry(initialCountry));
   const [region, setRegion] = useState(initialRegion);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<HmcChurchPick[]>([]);
@@ -133,7 +137,11 @@ export default function HmcChurchPicker({
             className={`${selectClass} hmc-church-picker__select`}
             value={country}
             disabled={disabled}
-            onChange={(e) => setCountry(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setCountry(next);
+              setLastHmcPickerCountry(next);
+            }}
           >
             {HMC_COUNTRIES.map((opt) => (
               <option key={opt.code} value={opt.code}>
