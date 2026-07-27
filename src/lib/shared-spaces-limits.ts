@@ -24,7 +24,7 @@ export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
 /** Purchase-copy line for owned spaces (index 1 — after “Everything in Free”). */
 const OWNED_SPACES_PURCHASE_BULLET = SHARED_SPACES_ADDON_FEATURE_BULLETS[1];
 
-/** Owned-spaces bullet when the add-on is active — reflects spaces left to create. */
+/** Owned-spaces bullet when the add-on is active — usage vs plan allotment. */
 export function formatOwnedSharedSpacesFeatureBullet(options: {
   ownedCount: number;
   ownedLimit: number;
@@ -35,29 +35,17 @@ export function formatOwnedSharedSpacesFeatureBullet(options: {
     if (ownedCount === 0) {
       return OWNED_SPACES_PURCHASE_BULLET;
     }
-    const spaceWord = ownedCount === 1 ? 'space' : 'spaces';
-    // Non-breaking space keeps “unlimited” off a line of its own, as elsewhere in this file.
-    return `You've created ${ownedCount} shared ${spaceWord} — your plan includes\u00A0unlimited`;
+    // Non-breaking space keeps “unlimited” from orphaning on its own line.
+    return `${ownedCount} out of\u00A0unlimited shared spaces`;
   }
 
   const ownedLimit = Math.max(0, options.ownedLimit);
-  const remaining = Math.max(0, ownedLimit - ownedCount);
-
   if (ownedLimit === 0) {
     return OWNED_SPACES_PURCHASE_BULLET;
   }
 
-  if (remaining === 0) {
-    return `You've created all ${ownedLimit} shared spaces included with your plan`;
-  }
-
-  if (ownedCount === 0) {
-    return `You can create up to ${ownedLimit} shared spaces included with your plan and invite others to study with you`;
-  }
-
-  const moreWord = remaining === 1 ? '1 more' : `${remaining} more`;
-  // Prefer a break before “included…” so the last line isn’t a lone orphan word.
-  return `You can create ${moreWord} of the ${ownedLimit} shared spaces\u00A0included with your plan`;
+  const spaceWord = ownedLimit === 1 ? 'space' : 'spaces';
+  return `${ownedCount} out of ${ownedLimit} shared ${spaceWord}`;
 }
 
 export function getSharedSpacesAddonFeatureBullets(options?: {

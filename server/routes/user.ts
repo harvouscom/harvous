@@ -42,10 +42,17 @@ import { nowISO } from '../db/dates';
 import {
   HmcPartnerError,
   hmcDenormFields,
-  hmcGetChurchById,
+  hmcFillMissingCity,
+  hmcGetChurchByIdForDenorm,
   hmcSearchChurches,
-  hmcSubmitUnlistedUsChurch,
+  hmcSubmitUnlistedChurch,
 } from '../utils/hmc-partner';
+import {
+  getHmcCountry,
+  hmcCountryForRegion,
+  matchesHmcDirectoryCountry,
+  normalizeHmcRegionCode,
+} from '@/utils/hmc-directory';
 import {
   isUnitedStatesCountryLabel,
   isUsChurchLocation,
@@ -402,8 +409,13 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       'churchCountry' in body;
 
     const intentRaw = typeof body.intent === 'string' ? body.intent.trim() : '';
+    // Legacy aliases: outside_us → outside_directory, unlisted_us → unlisted.
     const intent =
-      intentRaw === 'outside_us' || intentRaw === 'unlisted_us' ? intentRaw : undefined;
+      intentRaw === 'outside_directory' || intentRaw === 'outside_us'
+        ? 'outside_directory'
+        : intentRaw === 'unlisted' || intentRaw === 'unlisted_us'
+          ? 'unlisted'
+          : undefined;
     if (intentRaw && !intent) {
       return c.json({ error: 'Invalid church intent', code: 'CHURCH_INTENT_INVALID' }, 400);
     }
@@ -428,7 +440,7 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
           400,
         );
       }
-      const hmc = await hmcGetChurchById(hmcChurchIdRaw);
+      const hmc = await hmcGetChurchByIdForDenorm(hmcChurchIdRaw);
       if (!hmc) {
         return c.json({ error: 'Here’s My Church record not found', code: 'HMC_CHURCH_NOT_FOUND' }, 404);
       }
@@ -437,7 +449,7 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       normalizedChurchName = denorm.name;
       normalizedChurchCity = denorm.city;
       normalizedChurchState = denorm.state;
-      normalizedChurchCountry = null;
+      normalizedChurchCountry = denorm.country;
       applyChurchUpdate = true;
     } else if (hmcChurchIdRaw === null && !hasManualKeys) {
       if (intent) {
@@ -453,8 +465,8 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       normalizedChurchState = null;
       normalizedChurchCountry = null;
       applyChurchUpdate = true;
-    } else if (intent === 'outside_us') {
-      // Explicit outside-U.S. path — Harvous DB only, never HMC.
+    } else if (intent === 'outside_directory') {
+      // Country not in HMC’s directory — Harvous DB only, never HMC.
       normalizedHmcChurchId = null;
       normalizedChurchName = readOptionalString(body.churchName);
       normalizedChurchCity = readOptionalString(body.churchCity);
@@ -466,53 +478,81 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       if (!normalizedChurchCountry) {
         return c.json({ error: 'Country is required', code: 'CHURCH_COUNTRY_REQUIRED' }, 400);
       }
-      if (isUnitedStatesCountryLabel(normalizedChurchCountry)) {
+      if (matchesHmcDirectoryCountry(normalizedChurchCountry)) {
         return c.json(
           {
-            error: 'Use the U.S. directory or “Not in the directory” for U.S. churches',
+            error: 'Use the directory or “Not in the directory” for countries Here’s My Church covers',
             code: 'CHURCH_INTENT_MISMATCH',
           },
           400,
         );
       }
       applyChurchUpdate = true;
-    } else if (intent === 'unlisted_us') {
-      // Explicit unlisted U.S. path — attempt HMC submit, then save.
+    } else if (intent === 'unlisted') {
+      // Unlisted church in a directory country — name + freeform address (city/region inside).
       normalizedHmcChurchId = null;
       normalizedChurchName = readOptionalString(body.churchName);
-      normalizedChurchCity = readOptionalString(body.churchCity);
-      const usState = normalizeUsStateCode(readOptionalString(body.churchState));
+      const churchAddress = readOptionalString(body.churchAddress);
+      const legacyCity = readOptionalString(body.churchCity);
+      const legacyRegion = normalizeHmcRegionCode(readOptionalString(body.churchState));
       const countryHint = readOptionalString(body.churchCountry);
-      if (countryHint && !isUnitedStatesCountryLabel(countryHint)) {
+      const hintCode =
+        countryHint && getHmcCountry(countryHint)
+          ? countryHint.trim().toUpperCase()
+          : countryHint && matchesHmcDirectoryCountry(countryHint)
+            ? hmcCountryForRegion(legacyRegion)
+            : null;
+      const countryCode = hintCode || hmcCountryForRegion(legacyRegion);
+      if (
+        countryHint &&
+        !matchesHmcDirectoryCountry(countryHint) &&
+        !isUnitedStatesCountryLabel(countryHint)
+      ) {
         return c.json(
-          { error: 'Unlisted U.S. churches cannot include a non-U.S. country', code: 'CHURCH_INTENT_MISMATCH' },
+          {
+            error: 'Unlisted churches must use a Here’s My Church directory country',
+            code: 'CHURCH_INTENT_MISMATCH',
+          },
           400,
         );
       }
       if (!normalizedChurchName) {
         return c.json({ error: 'Church name is required', code: 'CHURCH_NAME_REQUIRED' }, 400);
       }
-      if (!normalizedChurchCity) {
-        return c.json({ error: 'City is required for U.S. churches', code: 'CHURCH_CITY_REQUIRED' }, 400);
+      if (!countryCode) {
+        return c.json({ error: 'Select a directory country', code: 'CHURCH_COUNTRY_REQUIRED' }, 400);
       }
-      if (!usState) {
-        return c.json({ error: 'Select a U.S. state', code: 'CHURCH_STATE_REQUIRED' }, 400);
+      if (!churchAddress && !(legacyCity && legacyRegion)) {
+        return c.json(
+          { error: 'Address is required (include city and region)', code: 'CHURCH_ADDRESS_REQUIRED' },
+          400,
+        );
       }
-      normalizedChurchState = usState;
-      normalizedChurchCountry = null;
+
+      normalizedChurchCountry = countryCode;
+      normalizedChurchCity = churchAddress || legacyCity;
+      normalizedChurchState = legacyRegion;
+
       try {
-        const submitted = await hmcSubmitUnlistedUsChurch({
+        const submitted = await hmcSubmitUnlistedChurch({
           name: normalizedChurchName,
-          city: normalizedChurchCity,
-          state: usState,
+          country: countryCode,
+          address: churchAddress,
+          city: legacyCity,
+          state: legacyRegion,
         });
-        if (submitted) {
-          const denorm = hmcDenormFields(submitted);
-          normalizedHmcChurchId = submitted.id;
+        if (submitted.church) {
+          const enriched = await hmcFillMissingCity(submitted.church);
+          const denorm = hmcDenormFields(enriched);
+          normalizedHmcChurchId = enriched.id;
           normalizedChurchName = denorm.name;
           normalizedChurchCity = denorm.city;
           normalizedChurchState = denorm.state;
-          normalizedChurchCountry = null;
+          normalizedChurchCountry = denorm.country;
+        } else if (submitted.place) {
+          normalizedChurchCity = submitted.place.city;
+          normalizedChurchState = submitted.place.state;
+          normalizedChurchCountry = submitted.place.country;
         }
       } catch (error) {
         if (error instanceof HmcPartnerError && error.code === 'HMC_RATE_LIMITED') {
@@ -559,21 +599,22 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
           );
         }
         normalizedChurchState = usState;
-        // Empty / "United States" — directory SoT is HMC; don't store country label.
-        normalizedChurchCountry = null;
+        normalizedChurchCountry = 'US';
         try {
-          const submitted = await hmcSubmitUnlistedUsChurch({
+          const submitted = await hmcSubmitUnlistedChurch({
             name: normalizedChurchName,
             city: normalizedChurchCity,
             state: usState,
+            country: 'US',
           });
-          if (submitted) {
-            const denorm = hmcDenormFields(submitted);
-            normalizedHmcChurchId = submitted.id;
+          if (submitted.church) {
+            const enriched = await hmcFillMissingCity(submitted.church);
+            const denorm = hmcDenormFields(enriched);
+            normalizedHmcChurchId = enriched.id;
             normalizedChurchName = denorm.name;
             normalizedChurchCity = denorm.city;
             normalizedChurchState = denorm.state;
-            normalizedChurchCountry = null;
+            normalizedChurchCountry = denorm.country;
           }
         } catch (error) {
           if (error instanceof HmcPartnerError && error.code === 'HMC_RATE_LIMITED') {

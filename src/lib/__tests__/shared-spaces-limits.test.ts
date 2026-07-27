@@ -7,27 +7,21 @@ import {
 } from '../shared-spaces-limits';
 
 describe('formatOwnedSharedSpacesFeatureBullet', () => {
-  it('shows full capacity when none are created yet', () => {
+  it('shows usage against a finite allotment', () => {
     expect(formatOwnedSharedSpacesFeatureBullet({ ownedCount: 0, ownedLimit: 10 })).toBe(
-      'You can create up to 10 shared spaces included with your plan and invite others to study with you',
+      '0 out of 10 shared spaces',
     );
-  });
-
-  it('shows remaining count when some spaces are created', () => {
     expect(formatOwnedSharedSpacesFeatureBullet({ ownedCount: 3, ownedLimit: 10 })).toBe(
-      'You can create 7 more of the 10 shared spaces\u00A0included with your plan',
+      '3 out of 10 shared spaces',
     );
-  });
-
-  it('uses singular copy for one space left', () => {
-    expect(formatOwnedSharedSpacesFeatureBullet({ ownedCount: 9, ownedLimit: 10 })).toBe(
-      'You can create 1 more of the 10 shared spaces\u00A0included with your plan',
-    );
-  });
-
-  it('shows at-limit copy when all included spaces are created', () => {
     expect(formatOwnedSharedSpacesFeatureBullet({ ownedCount: 10, ownedLimit: 10 })).toBe(
-      "You've created all 10 shared spaces included with your plan",
+      '10 out of 10 shared spaces',
+    );
+  });
+
+  it('uses singular copy when the allotment is one space', () => {
+    expect(formatOwnedSharedSpacesFeatureBullet({ ownedCount: 1, ownedLimit: 1 })).toBe(
+      '1 out of 1 shared space',
     );
   });
 });
@@ -39,16 +33,16 @@ describe('unlimited owned spaces (Plus)', () => {
     ).toBe('Unlimited shared spaces');
   });
 
-  it('counts up instead of down when the limit is unlimited', () => {
+  it('counts created spaces against unlimited', () => {
     expect(
       formatOwnedSharedSpacesFeatureBullet({ ownedCount: 3, ownedLimit: OWNED_SHARED_SPACES_ADDON_LIMIT }),
-    ).toBe("You've created 3 shared spaces — your plan includes\u00A0unlimited");
+    ).toBe('3 out of\u00A0unlimited shared spaces');
   });
 
-  it('uses singular copy for a single created space', () => {
+  it('keeps plural spaces when one is created against unlimited', () => {
     expect(
       formatOwnedSharedSpacesFeatureBullet({ ownedCount: 1, ownedLimit: OWNED_SHARED_SPACES_ADDON_LIMIT }),
-    ).toBe("You've created 1 shared space — your plan includes\u00A0unlimited");
+    ).toBe('1 out of\u00A0unlimited shared spaces');
   });
 });
 
@@ -67,7 +61,7 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
       ownedLimit: 10,
     });
     expect(bullets[0]).toBe('Everything in free');
-    expect(bullets[1]).toBe('You can create 8 more of the 10 shared spaces\u00A0included with your plan');
+    expect(bullets[1]).toBe('2 out of 10 shared spaces');
   });
 });
 

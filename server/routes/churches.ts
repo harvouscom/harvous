@@ -47,7 +47,7 @@ import { handleAPIError } from '@/utils/error-handling';
 import {
   HmcPartnerError,
   hmcDenormFields,
-  hmcGetChurchById,
+  hmcGetChurchByIdForDenorm,
   hmcSearchChurches,
 } from '../utils/hmc-partner';
 import { listHmcChurchInterest } from '../utils/hmc-church-interest';
@@ -195,7 +195,7 @@ app.post('/api/admin/churches', async (c) => {
     let name = typeof body.name === 'string' ? body.name.trim() : '';
     let city = typeof body.city === 'string' ? body.city.trim() || null : null;
     let state = typeof body.state === 'string' ? body.state.trim() || null : null;
-    const country = typeof body.country === 'string' ? body.country.trim() || null : null;
+    let country = typeof body.country === 'string' ? body.country.trim() || null : null;
     let hmcChurchId: string | null = null;
 
     if (!isValidClerkOrgId(orgId)) {
@@ -203,13 +203,14 @@ app.post('/api/admin/churches', async (c) => {
     }
 
     if (hmcChurchIdRaw) {
-      const hmc = await hmcGetChurchById(hmcChurchIdRaw);
+      const hmc = await hmcGetChurchByIdForDenorm(hmcChurchIdRaw);
       if (!hmc) return c.json({ error: 'Here’s My Church record not found', code: 'HMC_CHURCH_NOT_FOUND' }, 404);
       const denorm = hmcDenormFields(hmc);
       hmcChurchId = hmc.id;
       name = denorm.name;
       city = denorm.city;
       state = denorm.state;
+      country = denorm.country;
     }
 
     const titleValidation = validateTitle(name, true);
@@ -254,7 +255,7 @@ app.post('/api/admin/churches', async (c) => {
       name,
       city,
       state,
-      country: hmcChurchId ? null : country,
+      country,
       createdBy,
       billingPlan: null,
       isActive: true,
@@ -306,7 +307,7 @@ app.post('/api/admin/churches/:churchId/update', async (c) => {
         (typeof body.hmcChurchId === 'string' && body.hmcChurchId.trim() === ''));
 
     if (linkingHmc) {
-      const hmc = await hmcGetChurchById(String(body.hmcChurchId).trim());
+      const hmc = await hmcGetChurchByIdForDenorm(String(body.hmcChurchId).trim());
       if (!hmc) return c.json({ error: 'Here’s My Church record not found', code: 'HMC_CHURCH_NOT_FOUND' }, 404);
       const taken = first(
         await db
@@ -326,7 +327,7 @@ app.post('/api/admin/churches/:churchId/update', async (c) => {
       patch.name = denorm.name;
       patch.city = denorm.city;
       patch.state = denorm.state;
-      patch.country = null;
+      patch.country = denorm.country;
     } else if (unlinkingHmc) {
       patch.hmcChurchId = null;
     }
@@ -406,7 +407,7 @@ app.post('/api/admin/churches/:churchId/refresh-hmc', async (c) => {
       return c.json({ error: 'Church is not linked to Here’s My Church', code: 'HMC_NOT_LINKED' }, 400);
     }
 
-    const hmc = await hmcGetChurchById(existing.hmcChurchId);
+    const hmc = await hmcGetChurchByIdForDenorm(existing.hmcChurchId);
     if (!hmc) return c.json({ error: 'Here’s My Church record not found', code: 'HMC_CHURCH_NOT_FOUND' }, 404);
     const denorm = hmcDenormFields(hmc);
     const church = first(
@@ -417,6 +418,7 @@ app.post('/api/admin/churches/:churchId/refresh-hmc', async (c) => {
           name: denorm.name,
           city: denorm.city,
           state: denorm.state,
+          country: denorm.country,
           updatedAt: nowISO(),
         })
         .where(eq(Churches.id, churchId))

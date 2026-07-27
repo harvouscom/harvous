@@ -1,9 +1,14 @@
 /**
- * State-scoped Here’s My Church typeahead (calls Harvous proxy — no partner key in browser).
+ * Country- and region-scoped Here’s My Church typeahead
+ * (calls Harvous proxy — no partner key in browser).
  */
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import Icon from '@/components/react/Icon';
-import { US_STATE_OPTIONS } from '@/utils/us-states';
+import {
+  HMC_COUNTRIES,
+  getHmcCountry,
+  getHmcRegionsForCountry,
+} from '@/utils/hmc-directory';
 
 export type HmcChurchPick = {
   id: string;
@@ -12,17 +17,24 @@ export type HmcChurchPick = {
   city: string;
   state: string;
   address?: string | null;
+  /** ISO country when known (from picker selection). */
+  country?: string | null;
 };
 
 type Props = {
   /** Search via Harvous API (admin or user proxy). */
-  onSearch: (q: string, state: string) => Promise<HmcChurchPick[]>;
+  onSearch: (q: string, region: string) => Promise<HmcChurchPick[]>;
   onPick: (church: HmcChurchPick) => void;
-  /** Outside-U.S. free-text path (settings). */
+  /** Country not in the HMC directory → free-text path (settings). */
+  onRequestOutsideDirectory?: () => void;
+  /** Unlisted church in a directory country → HMC submit path (settings). */
+  onRequestUnlisted?: (countryCode: string) => void;
+  /** @deprecated Prefer onRequestOutsideDirectory */
   onRequestOutsideUs?: () => void;
-  /** Unlisted U.S. church → HMC submit path (settings). */
+  /** @deprecated Prefer onRequestUnlisted */
   onRequestUnlistedUs?: () => void;
-  initialState?: string;
+  initialCountry?: string;
+  initialRegion?: string;
   disabled?: boolean;
   /** Optional class prefix for admin vs settings styling. */
   variant?: 'admin' | 'settings';
@@ -31,21 +43,39 @@ type Props = {
 export default function HmcChurchPicker({
   onSearch,
   onPick,
+  onRequestOutsideDirectory,
+  onRequestUnlisted,
   onRequestOutsideUs,
   onRequestUnlistedUs,
-  initialState = '',
+  initialCountry = 'US',
+  initialRegion = '',
   disabled = false,
   variant = 'settings',
 }: Props) {
   const listId = useId();
-  const [state, setState] = useState(initialState);
+  const [country, setCountry] = useState(initialCountry || 'US');
+  const [region, setRegion] = useState(initialRegion);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<HmcChurchPick[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const countryConfig = getHmcCountry(country);
+  const regions = useMemo(() => getHmcRegionsForCountry(country), [country]);
+  const regionNoun = countryConfig?.regionNoun.one ?? 'region';
+  const regionNounTitle = regionNoun.charAt(0).toUpperCase() + regionNoun.slice(1);
+
   useEffect(() => {
-    if (!state || query.trim().length < 2) {
+    // Drop region when it doesn’t belong to the newly selected country.
+    if (region && !regions.some((r) => r.code === region)) {
+      setRegion('');
+      setQuery('');
+      setResults([]);
+    }
+  }, [country, region, regions]);
+
+  useEffect(() => {
+    if (!region || query.trim().length < 2) {
       setResults([]);
       setError(null);
       return;
@@ -54,7 +84,7 @@ export default function HmcChurchPicker({
     const handle = window.setTimeout(() => {
       setLoading(true);
       setError(null);
-      void onSearch(query.trim(), state)
+      void onSearch(query.trim(), region)
         .then((rows) => {
           if (!cancelled) setResults(rows);
         })
@@ -72,7 +102,7 @@ export default function HmcChurchPicker({
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [query, state, onSearch]);
+  }, [query, region, onSearch]);
 
   const inputClass =
     variant === 'admin'
@@ -83,26 +113,55 @@ export default function HmcChurchPicker({
       ? 'admin-publish__select'
       : 'proto-settings-field__input proto-create-folder-sheet__name-input';
 
-  const showManualLinks = Boolean(onRequestOutsideUs || onRequestUnlistedUs);
+  const requestOutside = onRequestOutsideDirectory ?? onRequestOutsideUs;
+  const requestUnlisted = onRequestUnlisted
+    ? () => onRequestUnlisted(country)
+    : onRequestUnlistedUs
+      ? () => onRequestUnlistedUs()
+      : undefined;
+  const showManualLinks = Boolean(requestOutside || requestUnlisted);
 
   return (
     <div className={`hmc-church-picker hmc-church-picker--${variant}`}>
       <label className={variant === 'admin' ? 'admin-publish__field' : 'proto-settings-field'}>
         <span className={variant === 'admin' ? 'admin-publish__label' : 'proto-settings-field__label'}>
-          State
+          Country
         </span>
         <div className="hmc-church-picker__select-wrap">
           <select
-            id={`${listId}-state`}
+            id={`${listId}-country`}
             className={`${selectClass} hmc-church-picker__select`}
-            value={state}
+            value={country}
             disabled={disabled}
-            onChange={(e) => setState(e.target.value)}
+            onChange={(e) => setCountry(e.target.value)}
           >
-            <option value="">Select state…</option>
-            {US_STATE_OPTIONS.map((opt) => (
+            {HMC_COUNTRIES.map((opt) => (
               <option key={opt.code} value={opt.code}>
-                {opt.code} — {opt.label}
+                {opt.name}
+              </option>
+            ))}
+          </select>
+          <span className="hmc-church-picker__select-chevron" aria-hidden>
+            <Icon name="chevron-down" size={11} />
+          </span>
+        </div>
+      </label>
+      <label className={variant === 'admin' ? 'admin-publish__field' : 'proto-settings-field'}>
+        <span className={variant === 'admin' ? 'admin-publish__label' : 'proto-settings-field__label'}>
+          {regionNounTitle}
+        </span>
+        <div className="hmc-church-picker__select-wrap">
+          <select
+            id={`${listId}-region`}
+            className={`${selectClass} hmc-church-picker__select`}
+            value={region}
+            disabled={disabled || !country}
+            onChange={(e) => setRegion(e.target.value)}
+          >
+            <option value="">Select {regionNoun}…</option>
+            {regions.map((opt) => (
+              <option key={opt.code} value={opt.code}>
+                {opt.code.length <= 3 ? `${opt.code} — ${opt.label}` : opt.label}
               </option>
             ))}
           </select>
@@ -121,8 +180,8 @@ export default function HmcChurchPicker({
             className={`${inputClass} hmc-church-picker__search-input`}
             type="search"
             value={query}
-            disabled={disabled || !state}
-            placeholder={state ? 'Type at least 2 characters…' : 'Choose a state first'}
+            disabled={disabled || !region}
+            placeholder={region ? 'Type at least 2 characters…' : `Choose a ${regionNoun} first`}
             onChange={(e) => setQuery(e.target.value)}
             autoComplete="off"
           />
@@ -131,7 +190,7 @@ export default function HmcChurchPicker({
               type="button"
               className="hmc-church-picker__clear"
               aria-label="Clear search"
-              disabled={disabled || !state}
+              disabled={disabled || !region}
               onClick={() => {
                 setQuery('');
                 setResults([]);
@@ -163,44 +222,47 @@ export default function HmcChurchPicker({
                 className="hmc-church-picker__result"
                 disabled={disabled}
                 onClick={() => {
-                  onPick(row);
+                  onPick({ ...row, country });
                   setQuery('');
                   setResults([]);
                 }}
               >
                 <span className="hmc-church-picker__result-name">{row.name}</span>
                 <span className="hmc-church-picker__result-meta">
-                  {[row.city, row.state].filter(Boolean).join(', ')}
-                  {row.address ? ` · ${row.address}` : ''}
+                  {row.city
+                    ? [row.city, row.state].filter(Boolean).join(', ')
+                    : [row.address, row.state].filter(Boolean).join(', ')}
                 </span>
               </button>
             </li>
           ))}
         </ul>
       ) : null}
-      {!loading && !error && state && query.trim().length >= 2 && results.length === 0 ? (
-        <p className="hmc-church-picker__status">No matches for “{query.trim()}” in {state}.</p>
+      {!loading && !error && region && query.trim().length >= 2 && results.length === 0 ? (
+        <p className="hmc-church-picker__status">
+          No matches for “{query.trim()}” in {regions.find((r) => r.code === region)?.label ?? region}.
+        </p>
       ) : null}
       {showManualLinks ? (
         <div className="hmc-church-picker__manual-links">
-          {onRequestUnlistedUs ? (
+          {requestUnlisted ? (
             <button
               type="button"
               className="hmc-church-picker__manual-link"
               disabled={disabled}
-              onClick={onRequestUnlistedUs}
+              onClick={requestUnlisted}
             >
-              Not in the directory (U.S.)
+              Not in the directory
             </button>
           ) : null}
-          {onRequestOutsideUs ? (
+          {requestOutside ? (
             <button
               type="button"
               className="hmc-church-picker__manual-link"
               disabled={disabled}
-              onClick={onRequestOutsideUs}
+              onClick={requestOutside}
             >
-              Outside the U.S.
+              Country not listed
             </button>
           ) : null}
         </div>

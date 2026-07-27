@@ -1,8 +1,17 @@
 import type { NavSpace, NavigationData } from '../hooks/queries/useNavigation';
 import { isMinistryBroadcastSpace } from './shared-space-capabilities';
+import { getHmcCountry } from '@/utils/hmc-directory';
 import { isUnitedStatesCountryLabel } from '@/utils/us-states';
 import { getRelativeTime } from '@/utils/date-formatting';
 import { cadenceShortLabel, type PublishCadence } from '@/utils/channel-publish-cadence';
+
+/** Expand ISO directory codes (CA, GB, …) to display names; leave free-text as-is. */
+function displayCountryLabel(country: string): string {
+  const trimmed = country.trim();
+  const fromDirectory = getHmcCountry(trimmed);
+  if (fromDirectory) return fromDirectory.name;
+  return trimmed;
+}
 
 export type StaffChurchSummary = {
   orgId: string;
@@ -25,8 +34,10 @@ export function formatChurchLocation(church: {
 
   if (locality && country) {
     // US directory rows already show state; don't append "United States".
-    if (isUnitedStatesCountryLabel(country) && state) return locality;
-    return `${locality}, ${country}`;
+    if ((isUnitedStatesCountryLabel(country) || country.toUpperCase() === 'US') && state) {
+      return locality;
+    }
+    return `${locality}, ${displayCountryLabel(country)}`;
   }
   if (locality) return locality;
   if (country) return country;

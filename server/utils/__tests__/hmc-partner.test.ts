@@ -102,6 +102,16 @@ describe('hmcSearchChurches', () => {
       },
     ]);
   });
+
+  it('accepts longer international region abbrevs', async () => {
+    setEnv();
+    globalThis.fetch = vi.fn(async (input) => {
+      expect(String(input)).toContain('state=AUNSW');
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    await expect(hmcSearchChurches({ q: 'Grace', state: 'AUNSW' })).resolves.toEqual([]);
+  });
 });
 
 describe('hmcGetChurchById', () => {
@@ -141,7 +151,7 @@ describe('hmcGetChurchById', () => {
 });
 
 describe('hmcDenormFields', () => {
-  it('trims empty city/state to null', () => {
+  it('trims empty city/state to null and derives country', () => {
     expect(
       hmcDenormFields({
         id: 'TX-1',
@@ -150,7 +160,24 @@ describe('hmcDenormFields', () => {
         city: '  ',
         state: 'TX',
       }),
-    ).toEqual({ name: 'Hope', city: null, state: 'TX' });
+    ).toEqual({ name: 'Hope', city: null, state: 'TX', country: 'US' });
+  });
+
+  it('derives non-US country from region abbrev', () => {
+    expect(
+      hmcDenormFields({
+        id: 'CA-PE-1',
+        shortId: '1',
+        name: 'Grace',
+        city: 'Charlottetown',
+        state: 'PE',
+      }),
+    ).toEqual({
+      name: 'Grace',
+      city: 'Charlottetown',
+      state: 'PE',
+      country: 'CA',
+    });
   });
 });
 
@@ -322,7 +349,7 @@ describe('hmcAddChurch', () => {
 });
 
 describe('hmcSubmitUnlistedUsChurch', () => {
-  it('returns null when geocode finds nothing', async () => {
+  it('returns null church when geocode finds nothing', async () => {
     setEnv();
     globalThis.fetch = vi.fn(async (input) => {
       if (String(input).includes('nominatim')) {
@@ -334,5 +361,61 @@ describe('hmcSubmitUnlistedUsChurch', () => {
     await expect(
       hmcSubmitUnlistedUsChurch({ name: 'Hope', city: 'Nowhere', state: 'IA' }),
     ).resolves.toBeNull();
+  });
+});
+
+describe('matchHmcRegionInCountry via address geocode path', () => {
+  it('accepts freeform address and maps Nominatim ISO to region', async () => {
+    const { hmcSubmitUnlistedChurch } = await import('../hmc-partner');
+    setEnv();
+    globalThis.fetch = vi.fn(async (input) => {
+      if (String(input).includes('nominatim')) {
+        return new Response(
+          JSON.stringify([
+            {
+              lat: '41.59',
+              lon: '-93.62',
+              address: {
+                house_number: '100',
+                road: 'Main St',
+                city: 'Des Moines',
+                state: 'Iowa',
+                state_code: 'IA',
+                'ISO3166-2-lvl4': 'US-IA',
+                country_code: 'us',
+              },
+            },
+          ]),
+          { status: 200 },
+        );
+      }
+      if (String(input).includes('/churches/add')) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            church: {
+              id: 'community-IA-9',
+              shortId: '9',
+              name: 'New Hope',
+              city: 'Des Moines',
+              state: 'IA',
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      throw new Error(`unexpected fetch ${String(input)}`);
+    }) as unknown as typeof fetch;
+
+    await expect(
+      hmcSubmitUnlistedChurch({
+        name: 'New Hope',
+        country: 'US',
+        address: '100 Main St, Des Moines, IA',
+      }),
+    ).resolves.toMatchObject({
+      church: { id: 'community-IA-9', state: 'IA' },
+      place: { city: 'Des Moines', state: 'IA', country: 'US' },
+    });
   });
 });

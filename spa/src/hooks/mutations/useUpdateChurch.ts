@@ -3,18 +3,21 @@ import { useAuth } from '@clerk/clerk-react';
 import { api } from '../../lib/api';
 import { updateCachedProfile } from '../queries/useProfile';
 
-export type UpdateChurchIntent = 'outside_us' | 'unlisted_us';
+/** outside_directory = not in HMC’s 19 countries; unlisted = in-directory country, missing listing. */
+export type UpdateChurchIntent = 'outside_directory' | 'unlisted' | 'outside_us' | 'unlisted_us';
 
 export interface UpdateChurchVariables {
   /** Set to link/refresh from Here’s My Church; `null` clears. */
   hmcChurchId?: string | null;
-  /** Explicit manual path — required for outside_us / unlisted_us saves. */
+  /** Explicit manual path — required for outside_directory / unlisted saves. */
   intent?: UpdateChurchIntent;
   /** Manual fallback only when not sending hmcChurchId. */
   churchName?: string | null;
   churchCity?: string | null;
   churchState?: string | null;
   churchCountry?: string | null;
+  /** Freeform address for unlisted (street, city, region in one field). */
+  churchAddress?: string | null;
 }
 
 interface UpdateChurchResponse {
@@ -56,6 +59,7 @@ export function useUpdateChurch() {
       if (vars.churchCity !== undefined) payload.churchCity = clean(vars.churchCity) ?? null;
       if (vars.churchState !== undefined) payload.churchState = clean(vars.churchState) ?? null;
       if (vars.churchCountry !== undefined) payload.churchCountry = clean(vars.churchCountry) ?? null;
+      if (vars.churchAddress !== undefined) payload.churchAddress = clean(vars.churchAddress) ?? null;
       return api.post<UpdateChurchResponse>('/api/user/update-church', payload);
     },
     onSuccess: (data, vars) => {
