@@ -5,8 +5,17 @@
  * @see heresmychurch/docs/future/public-api.md Step 7b
  */
 
-import { getStore } from '@netlify/blobs';
-import { and, Churches, db, eq, inArray, isNotNull, nowISO, UserMetadata } from '../db';
+import {
+  and,
+  AppSyncCursors,
+  Churches,
+  db,
+  eq,
+  inArray,
+  isNotNull,
+  nowISO,
+  UserMetadata,
+} from '../db';
 import {
   hmcDenormFields,
   hmcFetchChurchChanges,
@@ -15,8 +24,7 @@ import {
   type HmcLeanChurch,
 } from './hmc-partner';
 
-const BLOB_STORE = 'hmc-partner-sync';
-const CURSOR_KEY = 'cursor';
+export const HMC_SYNC_CURSOR_KEY = 'hmc-church-changes';
 
 /** First-run lookback when no watermark exists (within HMC’s 30-day max). */
 export const HMC_SYNC_DEFAULT_LOOKBACK_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -48,25 +56,30 @@ export type HmcSyncCursorStore = {
   set(cursor: string): Promise<void>;
 };
 
-export function createNetlifyHmcSyncCursorStore(): HmcSyncCursorStore {
+/** Durable watermark in Postgres (works in the bundled Netlify api function). */
+export function createPostgresHmcSyncCursorStore(
+  key: string = HMC_SYNC_CURSOR_KEY,
+): HmcSyncCursorStore {
   return {
     async get() {
-      try {
-        const store = getStore({ name: BLOB_STORE });
-        const value = await store.get(CURSOR_KEY, { type: 'text' });
-        const trimmed = typeof value === 'string' ? value.trim() : '';
-        return trimmed || null;
-      } catch (error) {
-        console.warn(
-          '[hmc-denorm-sync] cursor read failed',
-          error instanceof Error ? error.message : error,
-        );
-        return null;
-      }
+      const rows = await db
+        .select({ value: AppSyncCursors.value })
+        .from(AppSyncCursors)
+        .where(eq(AppSyncCursors.key, key))
+        .limit(1);
+      const trimmed = rows[0]?.value?.trim() ?? '';
+      return trimmed || null;
     },
     async set(cursor: string) {
-      const store = getStore({ name: BLOB_STORE });
-      await store.set(CURSOR_KEY, cursor.trim());
+      const value = cursor.trim();
+      const stamp = nowISO();
+      await db
+        .insert(AppSyncCursors)
+        .values({ key, value, updatedAt: stamp })
+        .onConflictDoUpdate({
+          target: AppSyncCursors.key,
+          set: { value, updatedAt: stamp },
+        });
     },
   };
 }
@@ -143,7 +156,7 @@ type SyncDeps = {
  * Harvous rows that reference dirty church ids.
  */
 export async function runHmcDenormSync(deps?: Partial<SyncDeps>): Promise<HmcDenormSyncResult> {
-  const cursorStore = deps?.cursorStore ?? createNetlifyHmcSyncCursorStore();
+  const cursorStore = deps?.cursorStore ?? createPostgresHmcSyncCursorStore();
   const fetchChanges = deps?.fetchChanges ?? hmcFetchChurchChanges;
   const getChurchById = deps?.getChurchById ?? hmcGetChurchByIdForDenorm;
   const now = deps?.now ?? Date.now;

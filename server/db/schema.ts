@@ -1205,3 +1205,15 @@ export const AdminMonthlyReports = pgTable(
   },
   (table) => [uniqueIndex('AdminMonthlyReports_month_unique').on(table.month)],
 );
+
+// ─── AppSyncCursors (durable cron watermarks) ─────────────────────────────────
+
+/**
+ * Key/value watermarks for scheduled partner sync jobs (e.g. HMC change feed).
+ * Prefer this over Netlify Blobs — the bundled api.cjs function often lacks Blobs context.
+ */
+export const AppSyncCursors = pgTable('AppSyncCursors', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: ts('updatedAt').notNull(),
+});

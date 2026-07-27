@@ -65,6 +65,7 @@ export {
   VotdPublishHistory,
   MonthlyAnalytics,
   AdminMonthlyReports,
+  AppSyncCursors,
 } from './schema';
 
 // Common Drizzle operators (mirrors what astro:db re-exports)
