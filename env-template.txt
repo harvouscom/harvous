@@ -27,6 +27,8 @@ VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL=
 HERESMYCHURCH_API_BASE=
 HERESMYCHURCH_ANON_KEY=
 HERESMYCHURCH_PARTNER_API_KEY=
+# Cron Bearer for POST /api/admin/hmc/sync-denorm (GitHub Actions ↔ Netlify). Admins can also run without it.
+HMC_SYNC_CRON_SECRET=
 # TURSO_DATABASE_URL=""
 # TURSO_AUTH_TOKEN=""
 # Webflow CMS API token for syncing inbox items (inbox/webhook operations)

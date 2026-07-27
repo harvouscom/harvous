@@ -1,0 +1,39 @@
+name: HMC Denorm Sync
+
+on:
+  schedule:
+    # Every 2 hours — poll Here’s My Church change feed and refresh linked denorm
+    - cron: '15 */2 * * *'
+  workflow_dispatch:
+
+jobs:
+  hmc-sync-denorm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync HMC denormalized church snapshots
+        env:
+          SITE_URL: ${{ secrets.VOTD_PUBLISH_SITE_URL || 'https://app.harvous.com' }}
+          SECRET_TOKEN: ${{ secrets.HMC_SYNC_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          SECRET_TOKEN="$(printf '%s' "${SECRET_TOKEN:-}" | tr -d '\r\n')"
+          echo "Calling HMC sync-denorm: ${SITE_URL}/api/admin/hmc/sync-denorm"
+          if [ -z "$SECRET_TOKEN" ]; then
+            echo "::error::GitHub secret HMC_SYNC_CRON_SECRET is empty. Add it under Settings → Secrets (same value as Netlify HMC_SYNC_CRON_SECRET)."
+            exit 1
+          fi
+
+          response_file="$(mktemp)"
+          code="$(
+            curl -sS -o "$response_file" -w '%{http_code}' -X POST "${SITE_URL}/api/admin/hmc/sync-denorm" \
+              -H "Authorization: Bearer ${SECRET_TOKEN}"
+          )"
+          body="$(cat "$response_file")"
+          rm -f "$response_file"
+          echo "$body"
+          echo "$code"
+
+          if [ "$code" != "200" ]; then
+            echo "::error::HMC sync-denorm failed with HTTP $code. Body above. On Netlify: set HMC_SYNC_CRON_SECRET for Production and match GitHub."
+            exit 1
+          fi

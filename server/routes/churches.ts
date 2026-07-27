@@ -14,6 +14,7 @@
  *   POST /api/admin/churches                          — register a church (optional hmcChurchId link)
  *   POST /api/admin/churches/:churchId/update         — edit details / link or unlink HMC
  *   POST /api/admin/churches/:churchId/refresh-hmc    — refresh denorm name/city/state from HMC
+ *   POST /api/admin/hmc/sync-denorm                   — poll HMC change feed; refresh linked denorm
  *   POST /api/admin/churches/:churchId/deactivate     — flip isActive off (inert kill-switch; spaces untouched)
  *   POST /api/admin/churches/:churchId/reactivate     — flip isActive on
  *   POST /api/admin/churches/:churchId/spaces         — create an org-owned broadcast space (type='public' + orgId)
@@ -44,10 +45,12 @@ import { serializeSpaceCoverForDb, spaceCoverFromThreadColor } from '@/utils/spa
 import { validateTitle, validateColor } from '@/utils/validation';
 import { generateSpaceId } from '@/utils/ids';
 import { handleAPIError } from '@/utils/error-handling';
+import { runHmcDenormSync } from '../utils/hmc-denorm-sync';
 import {
   HmcPartnerError,
   hmcDenormFields,
   hmcGetChurchByIdForDenorm,
+  isHmcConfigured,
   hmcSearchChurches,
 } from '../utils/hmc-partner';
 import { listHmcChurchInterest } from '../utils/hmc-church-interest';
@@ -435,6 +438,42 @@ app.post('/api/admin/churches/:churchId/refresh-hmc', async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+
+// ─── POST/GET /api/admin/hmc/sync-denorm ─────────────────────────────────────
+// Cron (Bearer HMC_SYNC_CRON_SECRET) or Harvous admin: poll HMC change feed and
+// refresh UserMetadata / Churches denorm for linked dirty ids.
+async function handleHmcSyncDenorm(c: any) {
+  const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '')
+    .split(',')[0]
+    .trim();
+  const expectedToken = process.env.HMC_SYNC_CRON_SECRET?.trim();
+  const hasValidToken = !!expectedToken && authHeader === `Bearer ${expectedToken}`;
+
+  if (!hasValidToken) {
+    const gate = await requireHarvousAdmin(c);
+    if (gate) return gate;
+  }
+
+  if (!isHmcConfigured()) {
+    return c.json(
+      { error: 'Here’s My Church partner API is not configured', code: 'HMC_NOT_CONFIGURED' },
+      503,
+    );
+  }
+
+  try {
+    const result = await runHmcDenormSync();
+    return c.json({ success: true, ...result });
+  } catch (error: unknown) {
+    const hmc = hmcErrorResponse(c, error);
+    if (hmc) return hmc;
+    console.error('[admin hmc sync-denorm]', error);
+    return c.json({ error: 'Failed to sync HMC denorm' }, 500);
+  }
+}
+
+app.post('/api/admin/hmc/sync-denorm', handleHmcSyncDenorm);
+app.get('/api/admin/hmc/sync-denorm', handleHmcSyncDenorm);
 
 // ─── POST /api/admin/churches/:churchId/deactivate | /reactivate ────────────
 async function setChurchActive(c: any, active: boolean) {

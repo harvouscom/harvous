@@ -198,6 +198,70 @@ export async function hmcGetChurchById(id: string): Promise<HmcLeanChurch | null
   }
 }
 
+/** Partner change-feed row from `GET /v1/churches/changes`. */
+export type HmcChurchChange = {
+  churchId: string;
+  action: 'field_updated' | 'church_removed' | 'church_added' | string;
+  field?: string | null;
+  at: string;
+};
+
+export type HmcChurchChangesPage = {
+  changes: HmcChurchChange[];
+  nextSince: string;
+  hasMore: boolean;
+};
+
+/**
+ * Pollable HMC change feed (watermark-friendly). `since` is exclusive;
+ * max lookback is 30 days on the HMC side.
+ */
+export async function hmcFetchChurchChanges(options: {
+  since: string;
+  limit?: number;
+}): Promise<HmcChurchChangesPage> {
+  const since = options.since.trim();
+  if (!since) {
+    throw new HmcPartnerError('since is required', 'HMC_INVALID_SINCE', 400);
+  }
+  const limit = Math.min(Math.max(options.limit ?? 100, 1), 500);
+  const params = new URLSearchParams({
+    since,
+    limit: String(limit),
+  });
+  const data = await hmcFetchJson<{
+    changes?: unknown[];
+    nextSince?: unknown;
+    hasMore?: unknown;
+  }>(`/churches/changes?${params.toString()}`);
+
+  const changes: HmcChurchChange[] = [];
+  for (const raw of data.changes ?? []) {
+    if (!raw || typeof raw !== 'object') continue;
+    const row = raw as Record<string, unknown>;
+    const churchId = typeof row.churchId === 'string' ? row.churchId.trim() : '';
+    const action = typeof row.action === 'string' ? row.action.trim() : '';
+    const at = typeof row.at === 'string' ? row.at.trim() : '';
+    if (!churchId || !action || !at) continue;
+    changes.push({
+      churchId,
+      action,
+      field: typeof row.field === 'string' ? row.field : null,
+      at,
+    });
+  }
+
+  const nextSince =
+    typeof data.nextSince === 'string' && data.nextSince.trim()
+      ? data.nextSince.trim()
+      : since;
+  return {
+    changes,
+    nextSince,
+    hasMore: data.hasMore === true,
+  };
+}
+
 /**
  * Many HMC OSM rows have street + lat/lng but an empty city. Fill city via
  * Nominatim reverse geocode so Harvous can show “City, ST”.

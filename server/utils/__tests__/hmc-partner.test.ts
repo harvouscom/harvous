@@ -3,6 +3,7 @@ import {
   HmcPartnerError,
   hmcAddChurch,
   hmcDenormFields,
+  hmcFetchChurchChanges,
   hmcGetChurchById,
   hmcSearchChurches,
   hmcSubmitUnlistedUsChurch,
@@ -416,6 +417,49 @@ describe('matchHmcRegionInCountry via address geocode path', () => {
     ).resolves.toMatchObject({
       church: { id: 'community-IA-9', state: 'IA' },
       place: { city: 'Des Moines', state: 'IA', country: 'US' },
+    });
+  });
+});
+
+describe('hmcFetchChurchChanges', () => {
+  it('maps change feed pages and sends partner headers', async () => {
+    setEnv();
+    globalThis.fetch = vi.fn(async (input, init) => {
+      expect(String(input)).toContain('/churches/changes?');
+      expect(String(input)).toContain('since=2026-07-01');
+      expect(String(input)).toContain('limit=100');
+      const headers = new Headers(init?.headers);
+      expect(headers.get('x-partner-key')).toBe('partner-test');
+      return new Response(
+        JSON.stringify({
+          changes: [
+            {
+              churchId: 'TX-1',
+              action: 'field_updated',
+              field: 'name',
+              at: '2026-07-27T19:00:00.000Z',
+            },
+          ],
+          nextSince: '2026-07-27T19:00:00.000Z',
+          hasMore: false,
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+
+    await expect(
+      hmcFetchChurchChanges({ since: '2026-07-01T00:00:00.000Z' }),
+    ).resolves.toEqual({
+      changes: [
+        {
+          churchId: 'TX-1',
+          action: 'field_updated',
+          field: 'name',
+          at: '2026-07-27T19:00:00.000Z',
+        },
+      ],
+      nextSince: '2026-07-27T19:00:00.000Z',
+      hasMore: false,
     });
   });
 });
