@@ -10,8 +10,8 @@ per product, everything included, no tiers within a product.**
 | Product | Price | What's in it |
 |---|---|---|
 | **Free** | $0 | Private study, forever. Unlimited notes, Remember surfaces, Compete free track. **Join** shared spaces — hosting is the paid line. |
-| **Founding** | **$45/yr** | First **99** subscribers · **annual only** · lifetime price lock. |
-| **Harvous Plus** | **$5/mo** | Shared Spaces hosting now; Review, Challenges, and seasons fold in later. Standard annual ($60 = 12 × $5) is unlisted — Founding is the yearly offer. |
+| **Founding** | **$30/yr** | First **99** subscribers · **annual only** · lifetime price lock. |
+| **Harvous Plus** | **$5/mo** | Shared Spaces hosting now; Review, Challenges, and seasons fold in later. Standard annual ($45) is unlisted — Founding is the yearly offer. |
 | **Connector** | **$5/mo · $60/yr** | Separate add-on — CLI/MCP read access. **No annual discount.** Hard paywall, no trial. |
 | **Church** | See §7 | Separate org track — where caps lift and spaces transfer from individuals. |
 
@@ -418,11 +418,10 @@ Example: 5 small-group leaders → **$19 + 5×$12 = $79/mo**.
       entitlement plumbing, and it sidesteps the `expiresAt` bug in §6.
 - [x] ~~Season Pass price~~ — **no Season Pass.** Folded into Plus via `challenges` (§3).
 - [x] ~~Connector price~~ — **$5/mo · $60/yr**, no annual discount.
-- [x] ~~Founding price / cap~~ — **$45/yr, annual only, first 99**, lifetime lock, then straight to
+- [x] ~~Founding price / cap~~ — **$30/yr, annual only, first 99**, lifetime lock, then straight to
       standard with a "all 99 claimed" sold-out state (no second tier).
 - [x] ~~Plus interim list price~~ — **$5/mo** while Shared Spaces is the live paid surface; standard
-      annual is **$60** (12 × $5, no discount) and stays unlisted. Founding is the only yearly offer
-      for now.
+      annual is **$45** (unlisted). Founding is the only yearly offer for now.
 
 **Still open:**
 

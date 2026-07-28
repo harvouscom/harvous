@@ -33,7 +33,7 @@ const DESIRED: DesiredProduct[] = [
   {
     name: 'Harvous Plus — Founding',
     interval: 'year',
-    amountCents: 4500,
+    amountCents: 3000,
     envVar: 'POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL',
   },
   {
@@ -45,7 +45,7 @@ const DESIRED: DesiredProduct[] = [
   {
     name: 'Harvous Plus (Annual)',
     interval: 'year',
-    amountCents: 6000,
+    amountCents: 4500,
     envVar: 'POLAR_PLUS_PRODUCT_ANNUAL',
   },
   {

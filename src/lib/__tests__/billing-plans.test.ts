@@ -66,16 +66,16 @@ describe('pricing model', () => {
   const connector = (interval: 'month' | 'year') =>
     plans.find((p) => p.key === 'connector' && p.interval === interval);
 
-  it('prices Plus at $5/mo; standard annual stays unlisted at $60', () => {
+  it('prices Plus at $5/mo; standard annual stays unlisted at $45', () => {
     expect(plus('month')?.amountCents).toBe(500);
     expect(plus('month')?.listed).toBe(true);
-    expect(plus('year')?.amountCents).toBe(6000);
+    expect(plus('year')?.amountCents).toBe(4500);
     expect(plus('year')?.listed).toBe(false);
   });
 
-  it('prices founding at $45/yr, annual only', () => {
+  it('prices founding at $30/yr, annual only', () => {
     const founder = plus('year', true);
-    expect(founder?.amountCents).toBe(4500);
+    expect(founder?.amountCents).toBe(3000);
     expect(founder?.interval).toBe('year');
     expect(founder?.listed).toBe(true);
     expect(plans.filter((p) => p.founding && p.interval === 'month')).toHaveLength(0);
@@ -85,6 +85,7 @@ describe('pricing model', () => {
     const monthly = plus('month')!.amountCents * 12;
     const founding = plus('year', true)!.amountCents;
     expect(founding).toBeLessThan(monthly);
+    expect(founding).toBeLessThan(plus('year')!.amountCents);
   });
 
   it('prices Connector at $5/mo with NO annual discount', () => {
@@ -130,14 +131,14 @@ describe('founding vs standard product resolution', () => {
     }
   });
 
-  it('founding resolves to the $45 annual product', () => {
+  it('founding resolves to the $30 annual product', () => {
     const founder = foundingPlan();
-    expect(founder?.amountCents).toBe(4500);
+    expect(founder?.amountCents).toBe(3000);
     expect(founder?.productId).toBe('prod_polar_plus_product_founding_annual');
     expect(isFoundingProductId(founder!.productId)).toBe(true);
   });
 
-  it('planFor never returns founding or the unlisted $60 annual — only listed monthly', () => {
+  it('planFor never returns founding or the unlisted $45 annual — only listed monthly', () => {
     expect(planFor('plus', 'year')).toBeNull();
     const standardMonth = planFor('plus', 'month');
     expect(standardMonth?.amountCents).toBe(500);

@@ -155,7 +155,7 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
     /** Connector is a separate product with its own subscription. */
     hasConnector: (entitlements as FeatureKey[]).includes('connector'),
     /**
-     * On the capped founding price ($45/yr, first 99) — drives the "Founding"
+     * On the capped founding price ($30/yr, first 99) — drives the "Founding"
      * badge. Read from the product actually purchased, never from the plan key,
      * because founding and standard Plus share `key: 'plus'`.
      */

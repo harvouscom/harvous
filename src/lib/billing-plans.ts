@@ -20,13 +20,13 @@
  * | Plan                | Price            | Notes                                  |
  * |---------------------|------------------|----------------------------------------|
  * | Free                | $0               | Private study only — cannot host        |
- * | Founding            | $45/yr           | First 99 · annual only · lifetime lock  |
- * | Plus                | $5/mo · Founding $45/yr | Hosting now; Review/Challenges later |
+ * | Founding            | $30/yr           | First 99 · annual only · lifetime lock  |
+ * | Plus                | $5/mo · Founding $30/yr | Hosting now; Review/Challenges later |
  * | Connector           | $5/mo · $60/yr          | Separate add-on; NO annual discount  |
  *
  * Interim list price: Plus is $5/mo while Shared Spaces is the live paid
- * surface. Standard annual is $60 (12 × $5, no discount) and stays unlisted —
- * Founding ($45/yr, first 99) is the only yearly offer for now.
+ * surface. Standard annual is $45 (unlisted) — Founding ($30/yr, first 99)
+ * is the only yearly offer for now.
  *
  * Two deliberate asymmetries, so they don't read as mistakes later:
  * - **Plus discounts annual via Founding, Connector does not.** Discount the
@@ -129,7 +129,7 @@ function envProduct(name: string, viteName: string): string {
   return '';
 }
 
-/** Founding Harvous Plus — $45/yr, annual only, first 99 subscribers. */
+/** Founding Harvous Plus — $30/yr, annual only, first 99 subscribers. */
 export function getPlusProductFoundingAnnualId(): string {
   return envProduct('POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL', 'VITE_POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL');
 }
@@ -139,7 +139,7 @@ export function getPlusProductMonthlyId(): string {
   return envProduct('POLAR_PLUS_PRODUCT_MONTHLY', 'VITE_POLAR_PLUS_PRODUCT_MONTHLY');
 }
 
-/** Standard Harvous Plus annual ($60 = 12 × $5 — unlisted; Founding is the yearly path). */
+/** Standard Harvous Plus annual ($45 — unlisted; Founding is the yearly path). */
 export function getPlusProductAnnualId(): string {
   return envProduct('POLAR_PLUS_PRODUCT_ANNUAL', 'VITE_POLAR_PLUS_PRODUCT_ANNUAL');
 }
@@ -166,7 +166,7 @@ export function getPlans(): PlanDefinition[] {
       key: 'plus',
       name: 'Harvous Plus',
       interval: 'year',
-      amountCents: 4500,
+      amountCents: 3000,
       currencyCode: 'USD',
       features: PLUS_FEATURES,
       limits: PLUS_LIMITS,
@@ -189,7 +189,7 @@ export function getPlans(): PlanDefinition[] {
       key: 'plus',
       name: 'Harvous Plus',
       interval: 'year',
-      amountCents: 6000,
+      amountCents: 4500,
       currencyCode: 'USD',
       features: PLUS_FEATURES,
       limits: PLUS_LIMITS,
@@ -316,5 +316,5 @@ export const PLUS_COMING_SOON_FEATURE_BULLETS = [
   'Challenges — guided study seasons',
 ] as const;
 
-/** Short label for the capped founding price lock ($45/yr). */
+/** Short label for the capped founding price lock ($30/yr). */
 export const PLUS_FOUNDING_BADGE = 'Founding';
