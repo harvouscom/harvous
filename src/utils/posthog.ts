@@ -88,6 +88,8 @@ export function identifyUser(userId: string, userData?: {
   name?: string;
   displayName?: string;
   userColor?: string;
+  signedUpAt?: string;
+  plan?: string;
 }) {
   if (typeof window === 'undefined' || !window.posthog) {
     return;
@@ -99,6 +101,8 @@ export function identifyUser(userId: string, userData?: {
       email: userData?.email,
       name: userData?.name || userData?.displayName,
       user_color: userData?.userColor,
+      signed_up_at: userData?.signedUpAt,
+      plan: userData?.plan,
       // Don't send sensitive data
     });
   } catch (error) {

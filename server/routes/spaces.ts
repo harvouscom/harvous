@@ -64,6 +64,7 @@ import {
   broadcastNoteInvalidation,
 } from '../utils/broadcast-shared-space-note';
 import { broadcastInvalidation } from '../utils/realtime';
+import { queueAudiencefulProductFlagsForUser } from '../utils/audienceful-product-flags';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import {
   getSpacesWithCounts,
@@ -381,6 +382,7 @@ route.post('/api/spaces/create-shared', requireAuth, rateLimit('write'), async (
     });
 
     awardCreationBonusXP(auth.userId, 'space').catch(() => {});
+    queueAudiencefulProductFlagsForUser(auth.userId, { has_created_space: true });
 
     return c.json({ success: 'Shared space created!', space: newSpace });
   } catch (error: any) {
@@ -462,6 +464,7 @@ route.post('/api/spaces/create-church-shared', requireAuth, rateLimit('write'), 
     });
 
     awardCreationBonusXP(auth.userId, 'space').catch(() => {});
+    queueAudiencefulProductFlagsForUser(auth.userId, { has_created_space: true });
 
     return c.json({ success: 'Church Shared Space created!', space: newSpace });
   } catch (error: any) {
@@ -546,6 +549,7 @@ route.post('/api/spaces/create-ministry-channel', requireAuth, rateLimit('write'
     });
 
     awardCreationBonusXP(auth.userId, 'space').catch(() => {});
+    queueAudiencefulProductFlagsForUser(auth.userId, { has_created_space: true });
 
     return c.json({ success: 'Ministry channel created!', space: newSpace });
   } catch (error: any) {
@@ -3212,6 +3216,8 @@ route.post('/api/spaces/invites/:token/redeem', requireAuth, rateLimit('write'),
     if (outcome === 'already-member') {
       return c.json({ success: true, alreadyMember: true, spaceId: space.id, spaceName: space.title });
     }
+
+    queueAudiencefulProductFlagsForUser(auth.userId, { has_joined_space: true });
 
     return c.json({ success: true, spaceId: space.id, spaceName: space.title, redirectUrl: '/' });
   } catch (error: any) {

@@ -32,10 +32,18 @@ export function PostHogBridge() {
       user.emailAddresses?.[0]?.emailAddress ||
       undefined;
 
+    const signedUpAt =
+      user.createdAt instanceof Date
+        ? user.createdAt.toISOString()
+        : typeof user.createdAt === 'number'
+          ? new Date(user.createdAt).toISOString()
+          : undefined;
+
     identifyUser(user.id, {
       email: primaryEmail,
       name: user.fullName || undefined,
       displayName: user.fullName || user.firstName || undefined,
+      signedUpAt,
     });
     identifiedIdRef.current = user.id;
   }, [isLoaded, isSignedIn, user]);

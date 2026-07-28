@@ -4,6 +4,7 @@ import { api } from '../../lib/api';
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
 import { spaceGroupThreadsQueryKey, type SpaceGroupStudyThread } from '../queries/useSpaceGroupThreads';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
+import { trackThreadCreated } from '@/utils/analytics';
 
 export type CreateSharedThreadInput = {
   spaceId: string;
@@ -46,7 +47,12 @@ export function useCreateSharedThread() {
       if (!response.thread?.id) throw new Error('Thread creation did not return a Thread');
       return response.thread;
     },
-    onSuccess: (_thread, variables) => {
+    onSuccess: (thread, variables) => {
+      trackThreadCreated({
+        threadId: thread.id,
+        spaceId: variables.spaceId,
+        hasNotes: false,
+      });
       const spaceId = normalizePrototypeApiSpaceId(variables.spaceId);
       queryClient.invalidateQueries({ queryKey: spaceGroupThreadsQueryKey(spaceId) });
       if (spaceId) queryClient.invalidateQueries({ queryKey: ['space', spaceId, 'bootstrap'] });

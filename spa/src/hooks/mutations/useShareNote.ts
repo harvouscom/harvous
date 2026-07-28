@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { mySharingQueryKey } from '../queries/useMySharing';
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
+import { trackShareCreated } from '@/utils/analytics';
 
 export type ShareNoteAction = 'enable' | 'disable' | 'refresh';
 
@@ -54,6 +55,13 @@ export function useShareNote() {
       return api.post<ShareNoteResponse>(request.url, request.body);
     },
     onSuccess: (data, variables) => {
+      if (
+        (variables.action === 'enable' || variables.action === 'refresh') &&
+        data.isPublic &&
+        data.shareToken
+      ) {
+        trackShareCreated({ noteId: variables.noteId, shareType: 'note' });
+      }
       // Optimistically patch the cached note so the UI reflects the new state
       // before the invalidation refetch lands — otherwise the toggle flickers
       // off-then-on (or the URL appears blank for a beat).

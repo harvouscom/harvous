@@ -14,6 +14,9 @@
 [functions."purge-shared-spaces"]
   schedule = "@daily"
 
+[functions."audienceful-activity-sync"]
+  schedule = "@daily"
+
 # Chromium screenshot OG images — prebuilt og-image.cjs (see build:api).
 # Include @sparticuz/chromium AND its runtime deps (node_bundler=none does not
 # hoist package.json dependencies into the function zip).

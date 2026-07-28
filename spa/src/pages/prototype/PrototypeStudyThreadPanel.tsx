@@ -16,6 +16,7 @@ import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteParamSlug } from './proto-route-slugs';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { studyThreadDisplayTitle } from '../../utils/study-thread-display-title';
+import { trackThreadOpened } from '@/utils/analytics';
 
 interface PrototypeStudyThreadPanelProps {
   noteId: string;
@@ -34,6 +35,14 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
   const { data: thread, isLoading, isError } = usePrototypeStudyThread(noteId, effectiveSpaceId);
 
   const [connectOpen, setConnectOpen] = useState(false);
+
+  useEffect(() => {
+    if (isLoading || isError || !thread) return;
+    trackThreadOpened({
+      threadId: thread.repNoteId ?? noteId,
+      spaceId: effectiveSpaceId ?? undefined,
+    });
+  }, [isLoading, isError, thread, noteId, effectiveSpaceId]);
 
   const openNote = (id: string) => {
     navigate({ to: prototypeNoteRouteTo(), params: { noteId: noteParamSlug(id) } });

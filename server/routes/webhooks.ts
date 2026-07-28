@@ -105,6 +105,14 @@ async function dedupeSvixHeaders(req: Request): Promise<Request> {
   return new Request(req.url, { method: req.method, headers, body });
 }
 
+function activityFromClerkUserData(data: ClerkUserWebhookEvent['data']) {
+  return {
+    signedUpAt: data.created_at ?? null,
+    lastSignInAt: data.last_sign_in_at ?? null,
+    lastActiveAt: data.last_active_at ?? data.updated_at ?? null,
+  };
+}
+
 function getPrimaryEmail(event: ClerkUserWebhookEvent): string | null {
   const { data } = event;
   if (!data.email_addresses || data.email_addresses.length === 0) return null;
@@ -136,6 +144,13 @@ async function handleEmailCreated(event: ClerkEmailWebhookEvent): Promise<void> 
 
   let firstName: string | undefined;
   let lastName: string | undefined;
+  let activity:
+    | {
+        signedUpAt: number | null;
+        lastSignInAt: number | null;
+        lastActiveAt: number | null;
+      }
+    | undefined;
 
   try {
     const { createClerkClient } = await import('@clerk/backend');
@@ -146,6 +161,11 @@ async function handleEmailCreated(event: ClerkEmailWebhookEvent): Promise<void> 
       const user = await clerkClient.users.getUser(user_id);
       firstName = user.firstName || undefined;
       lastName = user.lastName || undefined;
+      activity = {
+        signedUpAt: user.createdAt ?? null,
+        lastSignInAt: user.lastSignInAt ?? null,
+        lastActiveAt: user.lastActiveAt ?? user.updatedAt ?? null,
+      };
     } else {
       console.warn('[Webhook] CLERK_SECRET_KEY not configured; syncing without name');
     }
@@ -154,7 +174,7 @@ async function handleEmailCreated(event: ClerkEmailWebhookEvent): Promise<void> 
   }
 
   try {
-    const result = await tagAsAppUser(email_address, user_id, firstName, lastName);
+    const result = await tagAsAppUser(email_address, user_id, firstName, lastName, activity);
     console.log('[Webhook] Tagged user in Audienceful (emailAddress.created):', {
       email: email_address,
       clerkUserId: user_id,
@@ -184,7 +204,13 @@ async function handleUserCreated(event: ClerkUserWebhookEvent): Promise<void> {
   }
 
   try {
-    const result = await tagAsAppUser(email, clerkUserId, first_name || undefined, last_name || undefined);
+    const result = await tagAsAppUser(
+      email,
+      clerkUserId,
+      first_name || undefined,
+      last_name || undefined,
+      activityFromClerkUserData(event.data),
+    );
     console.log('[Webhook] Tagged user in Audienceful:', { email, clerkUserId, audiencefulId: result.id || result.uid });
   } catch (error: any) {
     console.error('[Webhook] Failed to tag user in Audienceful:', error.message);
@@ -212,7 +238,13 @@ async function handleUserUpdated(event: ClerkUserWebhookEvent): Promise<void> {
   }
 
   try {
-    const result = await tagAsAppUser(email, clerkUserId, first_name || undefined, last_name || undefined);
+    const result = await tagAsAppUser(
+      email,
+      clerkUserId,
+      first_name || undefined,
+      last_name || undefined,
+      activityFromClerkUserData(event.data),
+    );
     console.log('[Webhook] Updated user in Audienceful:', { email, clerkUserId, audiencefulId: result.id || result.uid });
   } catch (error: any) {
     console.error('[Webhook] Failed to update user in Audienceful:', error.message);

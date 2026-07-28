@@ -12,6 +12,93 @@ const AUDIENCEFUL_API_BASE = 'https://app.audienceful.com/api';
 /** Segment marker for actual app users (must match Audienceful tag spelling). */
 export const APP_USER_TAG = 'User';
 
+export type AudiencefulActivityStatus = 'active' | 'cooling' | 'dormant' | 'unknown';
+
+export interface AudiencefulActivityFields {
+  signedUpAt?: string | null;
+  lastSignInAt?: string | null;
+  lastActiveAt?: string | null;
+}
+
+/** Coarse product-behavior flags for email segments (booleans only; never content). */
+export const AUDIENCEFUL_PRODUCT_FLAG_KEYS = [
+  'has_created_note',
+  'has_opened_note',
+  'has_created_thread',
+  'has_shared',
+  'has_created_space',
+  'has_joined_space',
+  'upgrade_viewed',
+  'checkout_started',
+] as const;
+
+export type AudiencefulProductFlagKey = (typeof AUDIENCEFUL_PRODUCT_FLAG_KEYS)[number];
+
+export type AudiencefulProductFlags = Partial<Record<AudiencefulProductFlagKey, boolean>>;
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function isAudiencefulTruthy(value: unknown): boolean {
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+/**
+ * Monotonic merge: only promote missing/false → true. Never clears a true flag.
+ */
+export function mergeProductFlagsIntoExtraData(
+  existing: Record<string, unknown> | null | undefined,
+  flags: AudiencefulProductFlags | null | undefined,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...(existing ?? {}) };
+  if (!flags) return out;
+  for (const key of AUDIENCEFUL_PRODUCT_FLAG_KEYS) {
+    if (flags[key] !== true) continue;
+    out[key] = true;
+  }
+  return out;
+}
+
+/** True when at least one flag is being set to true. */
+export function hasTruthyProductFlags(flags: AudiencefulProductFlags | null | undefined): boolean {
+  if (!flags) return false;
+  return AUDIENCEFUL_PRODUCT_FLAG_KEYS.some((key) => flags[key] === true);
+}
+
+/** Convert Clerk ms timestamps or ISO strings to ISO for Audienceful extra_data. */
+export function toAudiencefulIsoTimestamp(value: string | number | Date | null | undefined): string | null {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+  if (typeof value === 'number') {
+    const ms = value < 1e12 ? value * 1000 : value;
+    const d = new Date(ms);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/**
+ * Derive email segment status from the most recent of last_sign_in / last_active.
+ * active: within 7 days; cooling: 7–30 days; dormant: older than 30 days.
+ */
+export function computeActivityStatus(
+  lastSignInAt?: string | null,
+  lastActiveAt?: string | null,
+  nowMs: number = Date.now(),
+): AudiencefulActivityStatus {
+  const candidates = [lastSignInAt, lastActiveAt]
+    .map((v) => (v ? Date.parse(v) : NaN))
+    .filter((t) => !Number.isNaN(t));
+  if (candidates.length === 0) return 'unknown';
+  const latest = Math.max(...candidates);
+  const ageDays = (nowMs - latest) / MS_PER_DAY;
+  if (ageDays <= 7) return 'active';
+  if (ageDays <= 30) return 'cooling';
+  return 'dormant';
+}
+
 interface AudiencefulPersonRequest {
   email: string;
   tags?: string; // Comma-separated string of tags
@@ -191,14 +278,17 @@ function hasAudiencefulIdentity(person: AudiencefulPersonResponse | null): boole
 
 /**
  * Tag a user as an app user in Audienceful
- * Ensures "User" tag is present (merges with existing tags) and stores Clerk user ID.
+ * Ensures "User" tag is present (merges with existing tags) and stores Clerk user ID
+ * plus optional activity fields for email segmentation.
  * Creates subscriber if they don't exist.
  */
 export async function tagAsAppUser(
   email: string,
   clerkUserId: string,
   firstName?: string,
-  lastName?: string
+  lastName?: string,
+  activity?: AudiencefulActivityFields,
+  productFlags?: AudiencefulProductFlags,
 ): Promise<AudiencefulPersonResponse> {
   console.log('[Audienceful] Starting tagAsAppUser:', {
     email,
@@ -226,6 +316,11 @@ export async function tagAsAppUser(
   // Try to find existing subscriber
   const existing = await findSubscriberByEmail(email);
 
+  const signedUpAt = toAudiencefulIsoTimestamp(activity?.signedUpAt) ?? undefined;
+  const lastSignInAt = toAudiencefulIsoTimestamp(activity?.lastSignInAt) ?? undefined;
+  const lastActiveAt = toAudiencefulIsoTimestamp(activity?.lastActiveAt) ?? undefined;
+  const activityStatus = computeActivityStatus(lastSignInAt ?? null, lastActiveAt ?? null);
+
   // Prepare extra_data with custom fields
   const extraData: { [key: string]: any } = {
     clerk_user_id: clerkUserId,
@@ -233,6 +328,12 @@ export async function tagAsAppUser(
 
   if (firstName) extraData.first_name = firstName;
   if (lastName) extraData.last_name = lastName;
+  if (signedUpAt) extraData.signed_up_at = signedUpAt;
+  if (lastSignInAt) extraData.last_sign_in_at = lastSignInAt;
+  if (lastActiveAt) extraData.last_active_at = lastActiveAt;
+  if (activityStatus !== 'unknown' || lastSignInAt || lastActiveAt) {
+    extraData.activity_status = activityStatus;
+  }
 
   if (hasAudiencefulIdentity(existing)) {
     const existingTagsString = tagsToString(existing!.tags);
@@ -243,12 +344,16 @@ export async function tagAsAppUser(
       existingId: existing!.id ?? existing!.uid,
       existingTags: existingTagsString,
       mergedTags,
+      activityStatus,
     });
 
-    const mergedExtraData = {
-      ...existing!.extra_data,
-      ...extraData,
-    };
+    const mergedExtraData = mergeProductFlagsIntoExtraData(
+      {
+        ...existing!.extra_data,
+        ...extraData,
+      },
+      productFlags,
+    );
 
     try {
       const result = await updateSubscriber(email, {
@@ -296,7 +401,7 @@ export async function tagAsAppUser(
     const result = await createSubscriber({
       email,
       tags: APP_USER_TAG,
-      extra_data: extraData,
+      extra_data: mergeProductFlagsIntoExtraData(extraData, productFlags),
       double_opt_in: 'not_required',
       trigger_automations: false,
     });
@@ -308,4 +413,75 @@ export async function tagAsAppUser(
 
     return result;
   }
+}
+
+/**
+ * Merge product-behavior flags onto an Audienceful person (User tag + clerk_user_id).
+ * Creates the subscriber if missing. Only sets flags to true (monotonic).
+ */
+export async function markAudiencefulProductFlags(options: {
+  email: string;
+  clerkUserId: string;
+  flags: AudiencefulProductFlags;
+}): Promise<AudiencefulPersonResponse | null> {
+  const { email, clerkUserId, flags } = options;
+  if (!hasTruthyProductFlags(flags)) return null;
+
+  const existing = await findSubscriberByEmail(email);
+  const baseExtra = mergeProductFlagsIntoExtraData(
+    {
+      ...(existing?.extra_data ?? {}),
+      clerk_user_id: clerkUserId,
+    },
+    flags,
+  );
+
+  if (hasAudiencefulIdentity(existing)) {
+    const mergedTags = mergeTags(tagsToString(existing!.tags), APP_USER_TAG);
+    try {
+      return await updateSubscriber(email, {
+        tags: mergedTags,
+        extra_data: baseExtra,
+      });
+    } catch (error: any) {
+      if (!(error.message && error.message.includes('404'))) throw error;
+    }
+  }
+
+  return createSubscriber({
+    email,
+    tags: APP_USER_TAG,
+    extra_data: baseExtra,
+    double_opt_in: 'not_required',
+    trigger_automations: false,
+  });
+}
+
+/**
+ * Fire-and-forget product flag write. Never throws into the request path.
+ * Skips quietly when AUDIENCEFUL_API_KEY is unset.
+ */
+export function queueAudiencefulProductFlags(options: {
+  email: string;
+  clerkUserId: string;
+  flags: AudiencefulProductFlags;
+}): void {
+  if (!hasTruthyProductFlags(options.flags)) return;
+  if (!process.env?.AUDIENCEFUL_API_KEY) return;
+
+  void markAudiencefulProductFlags(options).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[Audienceful] queueAudiencefulProductFlags failed:', {
+      clerkUserId: options.clerkUserId,
+      message,
+    });
+  });
+}
+
+/** Whether an Audienceful extra_data value already represents true. */
+export function audiencefulFlagAlreadyTrue(
+  extraData: Record<string, unknown> | null | undefined,
+  key: AudiencefulProductFlagKey,
+): boolean {
+  return isAudiencefulTruthy(extraData?.[key]);
 }

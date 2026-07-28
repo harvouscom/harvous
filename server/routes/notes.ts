@@ -86,6 +86,7 @@ import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id
 import { extractArticleContent } from '@/utils/content-extractor';
 import { sortByLastVisited } from '@/utils/sorting';
 import { broadcastInvalidation } from '../utils/realtime';
+import { queueAudiencefulProductFlagsForUser } from '../utils/audienceful-product-flags';
 import {
   broadcastCanonicalNoteInvalidation,
   broadcastNoteInvalidation,
@@ -791,6 +792,11 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
         )
       : null;
 
+    queueAudiencefulProductFlagsForUser(auth.userId, {
+      has_created_note: true,
+      ...(shouldAutoShare && shareToken ? { has_shared: true } : {}),
+    });
+
     return c.json({
       success: 'Note created!',
       note: noteJsonWithParsedSecondaries(newNote as { secondaryCollections?: string | null }),
@@ -1194,6 +1200,11 @@ route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c)
       clusterCountAfter,
       parentNoteId,
     ).catch(() => {});
+
+    if (clusterCountAfter > clusterCountBefore) {
+      // New 2.0 study Thread cluster (not a folder).
+      queueAudiencefulProductFlagsForUser(auth.userId, { has_created_thread: true });
+    }
 
     try {
       const { graph } = await collectStudyThreadGraphForScope(parentNoteId, auth.userId, {
@@ -3368,6 +3379,10 @@ route.post('/api/notes/:noteId/share', requireAuth, rateLimit('write'), async (c
       };
     });
     if ('error' in result) return c.json({ error: result.error, code: result.code }, result.status);
+
+    if ((action === 'enable' || action === 'refresh') && result.shareToken) {
+      queueAudiencefulProductFlagsForUser(auth.userId, { has_shared: true });
+    }
 
     const origin = new URL(c.req.url).origin;
     const shareUrl = result.shareToken ? `${origin}/shared/note/${result.shareToken}` : null;

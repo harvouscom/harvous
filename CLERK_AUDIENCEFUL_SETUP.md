@@ -33,8 +33,52 @@ When someone signs up for Harvous:
    - Tag: `User` (merged with any existing tags — other tags like `pending` are kept)
    - Custom field: `clerk_user_id` (their Clerk user ID)
    - First and last name (if provided)
+   - Activity fields (when Clerk provides them): `signed_up_at`, `last_sign_in_at`, `last_active_at`, `activity_status`
 
-This allows you to segment in Audienceful between email subscribers and actual app users.
+This allows you to segment in Audienceful between email subscribers and actual app users, and by recent auth activity.
+
+## Audienceful custom fields
+
+Create these custom fields in Audienceful (Settings → Custom fields / people fields) if they do not already exist. Use these exact `data_name` values:
+
+| data_name | Purpose |
+|---|---|
+| `clerk_user_id` | Join key to Clerk |
+| `signed_up_at` | ISO signup time |
+| `last_sign_in_at` | ISO last Clerk sign-in |
+| `last_active_at` | ISO last Clerk activity |
+| `activity_status` | `active` (≤7d), `cooling` (7–30d), `dormant` (>30d), or `unknown` |
+| `has_created_note` | Ever created a note |
+| `has_opened_note` | Ever opened a note in the app |
+| `has_created_thread` | Ever created a **2.0 study/conversation Thread** (not a folder) |
+| `has_shared` | Ever enabled a public share link |
+| `has_created_space` | Ever created a shared space |
+| `has_joined_space` | Ever joined a shared space (non-owner) |
+| `upgrade_viewed` | Visited the upgrade page |
+| `checkout_started` | Started Polar checkout |
+
+**Thread ≠ folder:** In Harvous 2.0, folders replaced Classic thread piles. `has_created_thread` is set only for study Threads (My Home connected-note clusters via `NoteConnections`, or shared-space Start Thread). Folder create does **not** set this flag.
+
+Flags are **monotonic** (only ever set to `true`). See [docs/AUDIENCEFUL_EMAIL_AUTOMATIONS.md](docs/AUDIENCEFUL_EMAIL_AUTOMATIONS.md) for safe email copy boundaries.
+
+### Product flag write paths
+
+1. **Immediate** — fire-and-forget after successful API mutations (note create, connect-link study Thread, share enable, shared space create/join).
+2. **Milestones** — `POST /api/user/audienceful-milestones` with `{ milestones: ['note_opened' | 'upgrade_viewed' | 'checkout_started'] }` (auth required). Used for client-only signals.
+3. **Nightly** — same `@daily` job reconciles DB-derivable `has_*` flags (not upgrade/checkout) alongside Clerk activity fields.
+
+## Nightly activity refresh
+
+A Netlify scheduled function runs `@daily`:
+
+- Source: [`server/netlify-audienceful-activity-sync.ts`](server/netlify-audienceful-activity-sync.ts)
+- Bundle: `netlify/functions/audienceful-activity-sync.cjs` (via `npm run build:api`)
+- Schedule: [`netlify.toml`](netlify.toml) `[functions."audienceful-activity-sync"]`
+- Uses `CLERK_SECRET_KEY` + `AUDIENCEFUL_API_KEY` (no public HTTP / `MIGRATION_KEY`)
+- Paginates Clerk users, upserts Audienceful with rate-limit delays, logs summary counts
+- Also merges product-behavior flags derived from Postgres (2.0 Thread criteria)
+
+Webhook keeps signup/`User` instant; nightly keeps activity + product segments honest for email.
 
 ## Setup Instructions
 

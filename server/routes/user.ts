@@ -26,6 +26,7 @@
  *   GET  /api/user/can-join-space
  *   GET  /api/user/limits
  *   POST /api/user/import
+ *   POST /api/user/audienceful-milestones
  *   GET  /api/profile/my-sharing
  *   GET  /api/profile/my-shared-spaces
  */
@@ -76,6 +77,8 @@ import { isChurchStaffForOrg } from '../utils/church-staff';
 import { getSeasonDisplayName, getCurrentSeason } from '@/utils/season-helpers';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit, tryConsumeNoteCreates, getClientIP } from '@/utils/rate-limit';
+import { queueAudiencefulProductFlagsForUser } from '../utils/audienceful-product-flags';
+import type { AudiencefulProductFlags } from '@/utils/audienceful';
 import { validateName, validateColor } from '@/utils/validation';
 import { hashPinNew, validatePinFormat, verifyPin } from '@/utils/lock-pin-server';
 import { matchDuplicateNoteId } from '../utils/import-dedupe';
@@ -848,6 +851,38 @@ app.post('/api/user/update-profile', requireAuth, rateLimit('write'), async (c) 
     });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/update-profile', action: 'update_profile' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── POST /api/user/audienceful-milestones ───────────────────────────────────
+// Client-only product signals (note opened, upgrade viewed, checkout started).
+
+const AUDIENCEFUL_MILESTONE_TO_FLAG = {
+  note_opened: 'has_opened_note',
+  upgrade_viewed: 'upgrade_viewed',
+  checkout_started: 'checkout_started',
+} as const;
+
+type AudiencefulMilestone = keyof typeof AUDIENCEFUL_MILESTONE_TO_FLAG;
+
+app.post('/api/user/audienceful-milestones', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as { milestones?: unknown };
+    const raw = Array.isArray(body.milestones) ? body.milestones : [];
+    const flags: AudiencefulProductFlags = {};
+
+    for (const item of raw) {
+      if (typeof item !== 'string') continue;
+      const flagKey = AUDIENCEFUL_MILESTONE_TO_FLAG[item as AudiencefulMilestone];
+      if (flagKey) flags[flagKey] = true;
+    }
+
+    queueAudiencefulProductFlagsForUser(auth.userId, flags);
+    return c.json({ success: true }, 200);
+  } catch (error: any) {
+    const e = handleAPIError(error, { endpoint: '/api/user/audienceful-milestones', action: 'audienceful_milestones' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

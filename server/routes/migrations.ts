@@ -141,7 +141,11 @@ app.post('/api/migrations/retry-failed-users', async (c) => {
         if (!primaryEmail) { results.skipped++; continue; }
         const email = primaryEmail.emailAddress;
         try {
-          await tagAsAppUser(email, userId, user.firstName || undefined, user.lastName || undefined);
+          await tagAsAppUser(email, userId, user.firstName || undefined, user.lastName || undefined, {
+            signedUpAt: user.createdAt ?? null,
+            lastSignInAt: user.lastSignInAt ?? null,
+            lastActiveAt: user.lastActiveAt ?? user.updatedAt ?? null,
+          });
           results.successful++;
         } catch (error: any) {
           results.failed++;
@@ -161,7 +165,11 @@ app.post('/api/migrations/retry-failed-users', async (c) => {
         if (users.length === 0) { results.skipped++; results.errors.push({ userId: 'unknown', email, error: 'Not found in Clerk' }); continue; }
         const user = users[0];
         try {
-          await tagAsAppUser(email, user.id, user.firstName || undefined, user.lastName || undefined);
+          await tagAsAppUser(email, user.id, user.firstName || undefined, user.lastName || undefined, {
+            signedUpAt: user.createdAt ?? null,
+            lastSignInAt: user.lastSignInAt ?? null,
+            lastActiveAt: user.lastActiveAt ?? user.updatedAt ?? null,
+          });
           results.successful++;
         } catch (error: any) {
           results.failed++;
@@ -229,7 +237,11 @@ app.post('/api/migrations/sync-clerk-to-audienceful', async (c) => {
         if (dryRun) { results.successful++; continue; }
 
         try {
-          await tagAsAppUser(email, user.id, user.firstName || undefined, user.lastName || undefined);
+          await tagAsAppUser(email, user.id, user.firstName || undefined, user.lastName || undefined, {
+            signedUpAt: user.createdAt ?? null,
+            lastSignInAt: user.lastSignInAt ?? null,
+            lastActiveAt: user.lastActiveAt ?? user.updatedAt ?? null,
+          });
           results.successful++;
         } catch (error: any) {
           results.failed++;

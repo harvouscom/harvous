@@ -20,6 +20,7 @@ import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getPersistedUserId } from '@/utils/user-id';
 import { isOfflineModeEnabled } from '@/utils/offline-mode';
 import { trackSessionContentCreated } from '@/utils/session-xp-client';
+import { trackNoteCreated } from '@/utils/analytics';
 
 /** Sentinel the mutationFn returns when the create couldn't reach the server and was queued offline. */
 type OfflineQueuedCreate = { offlineQueued: true };
@@ -268,6 +269,14 @@ export function useCreateSimpleNote() {
           /* ignore */
         }
         trackSessionContentCreated(noteId);
+        trackNoteCreated({
+          noteId,
+          threadId: variables.threadId,
+          spaceId: sid,
+          hasContent: Boolean((created.content ?? variables.content ?? '').replace(/<[^>]+>/g, '').trim()),
+          contentLength: (created.content ?? variables.content ?? '').length,
+          offline: false,
+        });
       }
       for (const targetSpaceId of targetSpaceIds) {
         queryClient.invalidateQueries({ queryKey: spaceNotesQueryKey(targetSpaceId) });

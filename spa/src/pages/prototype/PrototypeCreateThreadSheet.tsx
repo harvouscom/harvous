@@ -12,6 +12,7 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import { PrototypeAddNotesPicker } from './PrototypeAddNotesSheet';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
+import { trackThreadCreated } from '@/utils/analytics';
 
 const MIN_THREAD_NOTES = 2;
 
@@ -94,6 +95,11 @@ export default function PrototypeCreateThreadSheet({
       });
       onOpenChange(false);
       onCreated(first);
+      trackThreadCreated({
+        threadId: first,
+        spaceId,
+        hasNotes: selectedIds.length > 0,
+      });
       try {
         window.toast?.success('Thread created');
       } catch {

@@ -17,6 +17,7 @@ import {
   recentSearchesUpdatedEvent,
 } from '@/utils/recent-search-storage';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
+import { trackSearchPerformed } from '@/utils/analytics';
 import { idToUrl } from '@/utils/url-helpers';
 import { appendSpaceQueryParam, getSpaceIdForPersistentNavLinks } from '@/utils/current-space-for-links';
 import { getSelectedSpaceId } from '@/components/react/navigation/selectedSpace';
@@ -161,6 +162,11 @@ export default function SpotlightSearch() {
       if (q !== d) return;
       if (d !== trimmed) return;
       addRecentSearchTerm(null, d, { resultCount });
+      trackSearchPerformed({
+        query: d,
+        resultsCount: resultCount,
+        contentType: 'all',
+      });
     }, RECENT_SEARCH_COMMIT_IDLE_MS);
     return () => window.clearTimeout(timer);
   }, [isOpen, debouncedQuery, query, isLoading, results.length]);

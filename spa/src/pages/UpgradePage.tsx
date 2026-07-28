@@ -5,6 +5,8 @@ import UpgradePageContent from '../../../src/components/react/UpgradePageContent
 import { PublicTopBar } from './public/public-shared';
 import { loadAuthHeroImage } from '../utils/random-hero-image';
 import { api } from '../lib/api';
+import { trackUpgradeViewed } from '@/utils/analytics';
+import { recordAudiencefulMilestoneOnce } from '@/utils/audienceful-milestones-client';
 
 // Fixed hero (not randomized) — blue-field atmosphere made for Harvous Plus,
 // sibling to the auth-hero pool (various blues, airy center for the letter).
@@ -68,6 +70,11 @@ export default function UpgradePage() {
       }
     }
   }, [isSignedIn]);
+
+  useEffect(() => {
+    trackUpgradeViewed({ source: 'upgrade_page' });
+    recordAudiencefulMilestoneOnce('upgrade_viewed');
+  }, []);
 
   useEffect(() => {
     sonnerToast.dismiss();

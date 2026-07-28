@@ -73,6 +73,8 @@ import {
 import { validComposeThreadSelection } from './PrototypeGroupStudyThreadPicker';
 import { selectCurrentSpaceThread, useSpaceGroupThreads } from '../../hooks/queries/useSpaceGroupThreads';
 import { trackSessionNoteOpen } from '@/utils/session-xp-client';
+import { trackNoteOpened } from '@/utils/analytics';
+import { recordAudiencefulMilestoneOnce } from '@/utils/audienceful-milestones-client';
 import type { NoteActivityItem } from '../../lib/shared-note-activity-list';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import { api, APIError } from '../../lib/api';
@@ -500,7 +502,12 @@ export default function PrototypeNotePage() {
   useEffect(() => {
     if (isDraft || isLoading || isError || !note) return;
     trackSessionNoteOpen(noteId);
-  }, [isDraft, isLoading, isError, note, noteId]);
+    trackNoteOpened({
+      noteId,
+      spaceId: contextSpaceId || (typeof note.spaceId === 'string' ? note.spaceId : undefined),
+    });
+    recordAudiencefulMilestoneOnce('note_opened');
+  }, [isDraft, isLoading, isError, note, noteId, contextSpaceId]);
 
   const resolvedSpaceFromNote =
     typeof note?.spaceId === 'string' && note.spaceId.trim().length > 0 ? note.spaceId : null;

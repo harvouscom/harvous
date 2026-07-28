@@ -50,6 +50,7 @@ import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 import { deleteNotesCascadeForUser } from '../utils/delete-note-cascade';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import { broadcastInvalidation } from '../utils/realtime';
+import { queueAudiencefulProductFlagsForUser } from '../utils/audienceful-product-flags';
 
 const route = new Hono();
 
@@ -402,6 +403,16 @@ route.post('/api/threads/create', requireAuth, rateLimit('write'), async (c) => 
 
     awardCreationBonusXP(auth.userId, 'thread').catch(() => {});
     awardThreadCreatedXP(auth.userId, newThread.id, capitalizedTitle, null).catch(() => {});
+
+    // 2.0 study Thread: shared-space Start Thread only (not Classic personal piles / folders).
+    if (finalSpaceAccess && finalSpaceAccess.space.type !== 'personal') {
+      queueAudiencefulProductFlagsForUser(auth.userId, {
+        has_created_thread: true,
+        ...(shareToken ? { has_shared: true } : {}),
+      });
+    } else if (shareToken) {
+      queueAudiencefulProductFlagsForUser(auth.userId, { has_shared: true });
+    }
 
     broadcastInvalidation(auth.userId, { type: 'thread:updated', id: newThread.id });
     return c.json({ success: 'Thread created!', thread: newThread });
@@ -938,6 +949,10 @@ route.post('/api/threads/:threadId/share', requireAuth, async (c) => {
       isPublic = true;
       await db.update(Threads).set({ shareToken: newShareToken, shareTokenCreatedAt: now, updatedAt: now })
         .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    }
+
+    if ((action === 'enable' || action === 'refresh') && newShareToken) {
+      queueAudiencefulProductFlagsForUser(auth.userId, { has_shared: true });
     }
 
     const origin = new URL(c.req.url).origin;

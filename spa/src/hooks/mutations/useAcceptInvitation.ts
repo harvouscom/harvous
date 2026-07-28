@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { trackSpaceJoined } from '@/utils/analytics';
 
 interface AcceptInvitationResult {
   success: boolean;
@@ -18,5 +19,10 @@ export function useAcceptInvitation() {
   return useMutation({
     mutationFn: (token: string) =>
       api.post<AcceptInvitationResult>(`/api/invitations/${token}/accept`, {}),
+    onSuccess: (data) => {
+      if (data.success && data.space?.id) {
+        trackSpaceJoined({ spaceId: data.space.id, method: 'invite' });
+      }
+    },
   });
 }

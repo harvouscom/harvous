@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { trackSpaceJoined } from '@/utils/analytics';
 
 interface JoinSpaceResult {
   success: boolean;
@@ -20,5 +21,10 @@ export function useJoinSpace() {
   return useMutation({
     mutationFn: (token: string) =>
       api.post<JoinSpaceResult>(`/api/spaces/invites/${token}/redeem`, {}),
+    onSuccess: (data) => {
+      if (data.success && data.spaceId && !data.alreadyMember) {
+        trackSpaceJoined({ spaceId: data.spaceId, method: 'join_link' });
+      }
+    },
   });
 }

@@ -5,6 +5,8 @@ import {
   planFor,
   type PlanDefinition,
 } from '@/lib/billing-plans';
+import { trackCheckoutStarted } from '@/utils/analytics';
+import { recordAudiencefulMilestoneOnce } from '@/utils/audienceful-milestones-client';
 
 interface UpgradeCheckoutButtonProps {
   className?: string;
@@ -192,6 +194,12 @@ export default function UpgradeCheckoutButton({
     setError(null);
     setIsStarting(true);
     try {
+      trackCheckoutStarted({
+        plan: selected.id === 'founding' ? 'founding' : 'plus',
+        interval: selected.id === 'month' ? 'month' : 'year',
+        productId: selected.productId,
+      });
+      recordAudiencefulMilestoneOnce('checkout_started');
       const res = await fetch('/api/billing/checkout', {
         method: 'POST',
         credentials: 'include',

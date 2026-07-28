@@ -5,6 +5,7 @@ import {
   appendOwnedSpaceToNavCache,
   navigationQueryKeyPrefix,
 } from '../queries/useNavigation';
+import { trackSpaceCreated } from '@/utils/analytics';
 
 export interface CreateSharedSpaceBody {
   title: string;
@@ -29,6 +30,7 @@ export function useCreateSharedSpace() {
     onSuccess: (data) => {
       if (userId && data.space) {
         appendOwnedSpaceToNavCache(queryClient, userId, data.space);
+        trackSpaceCreated({ spaceId: data.space.id });
       }
       queryClient.invalidateQueries({ queryKey: navigationQueryKeyPrefix });
     },
