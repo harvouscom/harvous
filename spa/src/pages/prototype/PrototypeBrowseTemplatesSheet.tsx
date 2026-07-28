@@ -1,7 +1,7 @@
 /**
- * Browse / apply note templates — Connect-note dialog/sheet shell + Add Notes list chrome.
- * Search first; chip tabs filter: All → Included → Saved → {space} (Church/org later).
- * List scrolls in `.proto-add-notes-sheet__scoped-list-body` (same as Add Notes).
+ * Browse / apply note templates — same dialog chrome as Add Notes:
+ * scope chips outside the gray card; search + list inside.
+ * Chip tabs: All → Included → Saved → {space} (Church/org later).
  * Saved / space rows: ⋮ Edit / Delete (edit closes browse → inspector panel).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -27,6 +27,7 @@ import {
   useProtoAnchoredPopoverPosition,
   type ProtoAnchoredPopoverStrategy,
 } from './useProtoAnchoredPopoverPosition';
+import ProtoChipBar, { type ProtoChipOption } from './components/ProtoChipBar';
 import PrototypeSearchInput from './components/PrototypeSearchInput';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { PrototypeListEmptyState, PrototypeListNoMatchEmptyState } from './design-system';
@@ -71,18 +72,11 @@ export interface PrototypeBrowseTemplatesSheetProps {
   anchorRect?: DOMRect | null;
 }
 
-function TemplatesScopeChipBar({
-  selectedId,
-  onSelect,
-  spaceLabel,
-  showSpaceTab,
-}: {
-  selectedId: TemplateScopeTab;
-  onSelect: (id: TemplateScopeTab) => void;
-  spaceLabel: string;
-  showSpaceTab: boolean;
-}) {
-  const options: { id: TemplateScopeTab; label: string }[] = [
+function templateScopeOptions(
+  spaceLabel: string,
+  showSpaceTab: boolean,
+): ProtoChipOption<TemplateScopeTab>[] {
+  const options: ProtoChipOption<TemplateScopeTab>[] = [
     { id: 'all', label: 'All' },
     { id: 'builtIn', label: 'Included' },
     { id: 'personal', label: 'Saved' },
@@ -90,27 +84,7 @@ function TemplatesScopeChipBar({
   if (showSpaceTab) {
     options.push({ id: 'space', label: spaceLabel });
   }
-  return (
-    <div className="proto-sidebar-search-scope proto-add-notes-sheet__scope">
-      <div className="proto-chip-bar" role="tablist" aria-label="Filter templates">
-        {options.map((opt) => {
-          const selected = selectedId === opt.id;
-          return (
-            <button
-              key={opt.id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              className={`proto-chip${selected ? ' proto-chip--selected' : ''}`}
-              onClick={() => onSelect(opt.id)}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
+  return options;
 }
 
 function TemplateListRow({
@@ -484,71 +458,75 @@ export default function PrototypeBrowseTemplatesSheet({
         </button>
       </div>
 
-      <div className="proto-add-notes-sheet__scoped-list">
-        {/* Same chrome as Add Notes: fixed search/chips, list scrolls in scoped-list-body. */}
-        <div className="proto-connect-note-sheet__search-wrap proto-add-notes-sheet__search-in-panel">
-          <PrototypeSearchInput
-            value={searchInput}
-            onChange={setSearchInput}
-            placeholder="Search templates…"
+      <div className="proto-add-notes-sheet__picker">
+        <div className="proto-sidebar-search-scope proto-add-notes-sheet__scope">
+          <ProtoChipBar
+            ariaLabel="Filter templates"
+            options={templateScopeOptions(spaceTabLabel, showSpaceSection)}
+            selectedId={scopeTab}
+            onSelect={setScopeTab}
           />
         </div>
-        <TemplatesScopeChipBar
-          selectedId={scopeTab}
-          onSelect={setScopeTab}
-          spaceLabel={spaceTabLabel}
-          showSpaceTab={showSpaceSection}
-        />
-        <div
-          className="proto-add-notes-sheet__scoped-list-body"
-          role="tabpanel"
-          aria-label={tabPanelLabel}
-        >
-          {isLoading && !data ? (
-            <p className="proto-inspector-muted proto-connect-note-sheet__status">Loading…</p>
-          ) : (
-            <>
-              {showApiErrorHint ? (
-                <p className="proto-inspector-muted proto-connect-note-sheet__status">
-                  Couldn’t reach saved templates — showing included ones.
-                </p>
-              ) : null}
-              {activeItems.length > 0 ? (
-                <ul className="proto-browse-templates-sheet__list">
-                  {activeItems.map((t) => {
-                    const rowKey = `${t.section}-${t.id}`;
-                    return (
-                      <TemplateListRow
-                        key={rowKey}
-                        template={t}
-                        showActions={rowCanShowActions(t)}
-                        menuOpen={openMenuId === rowKey}
-                        onToggleMenu={() =>
-                          setOpenMenuId((cur) => (cur === rowKey ? null : rowKey))
-                        }
-                        onCloseMenu={() => setOpenMenuId(null)}
-                        onApply={handleApply}
-                        onEdit={handleEdit}
-                        onRequestDelete={handleRequestDelete}
-                      />
-                    );
-                  })}
-                </ul>
-              ) : showNoMatch ? (
-                <div className="proto-browse-templates-sheet__empty">
-                  <PrototypeListNoMatchEmptyState title="No matching templates" />
-                </div>
-              ) : showCategoryEmpty ? (
-                <div className="proto-browse-templates-sheet__empty">
-                  <PrototypeListEmptyState
-                    iconName={categoryEmpty.iconName}
-                    title={categoryEmpty.title}
-                    description={categoryEmpty.description}
-                  />
-                </div>
-              ) : null}
-            </>
-          )}
+        <div className="proto-add-notes-sheet__scoped-list">
+          <div className="proto-sidebar-search proto-add-notes-sheet__search-in-panel">
+            <PrototypeSearchInput
+              value={searchInput}
+              onChange={setSearchInput}
+              placeholder="Search"
+              ariaLabel="Search templates"
+            />
+          </div>
+          <div
+            className="proto-add-notes-sheet__scoped-list-body"
+            role="tabpanel"
+            aria-label={tabPanelLabel}
+          >
+            {isLoading && !data ? (
+              <p className="proto-inspector-muted proto-connect-note-sheet__status">Loading…</p>
+            ) : (
+              <>
+                {showApiErrorHint ? (
+                  <p className="proto-inspector-muted proto-connect-note-sheet__status">
+                    Couldn’t reach saved templates — showing included ones.
+                  </p>
+                ) : null}
+                {activeItems.length > 0 ? (
+                  <ul className="proto-browse-templates-sheet__list">
+                    {activeItems.map((t) => {
+                      const rowKey = `${t.section}-${t.id}`;
+                      return (
+                        <TemplateListRow
+                          key={rowKey}
+                          template={t}
+                          showActions={rowCanShowActions(t)}
+                          menuOpen={openMenuId === rowKey}
+                          onToggleMenu={() =>
+                            setOpenMenuId((cur) => (cur === rowKey ? null : rowKey))
+                          }
+                          onCloseMenu={() => setOpenMenuId(null)}
+                          onApply={handleApply}
+                          onEdit={handleEdit}
+                          onRequestDelete={handleRequestDelete}
+                        />
+                      );
+                    })}
+                  </ul>
+                ) : showNoMatch ? (
+                  <div className="proto-browse-templates-sheet__empty">
+                    <PrototypeListNoMatchEmptyState title="No matching templates" />
+                  </div>
+                ) : showCategoryEmpty ? (
+                  <div className="proto-browse-templates-sheet__empty">
+                    <PrototypeListEmptyState
+                      iconName={categoryEmpty.iconName}
+                      title={categoryEmpty.title}
+                      description={categoryEmpty.description}
+                    />
+                  </div>
+                ) : null}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </>

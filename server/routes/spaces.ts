@@ -42,7 +42,7 @@ import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../mid
 import {
   db, Spaces, Notes, Threads, NoteThreads, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, SpaceNotes, UserMetadata, ResourceMetadata, ScriptureMetadata,
   StudyThreadEntries, NoteConnections,
-  eq, and, ne, count, inArray, desc, asc, sql, isNull, isNotNull, gt, gte, or,
+  eq, and, ne, count, inArray, notInArray, desc, asc, sql, isNull, isNotNull, gt, gte, or,
   first,
 } from '../db';
 import { nowISO } from '../db/dates';
@@ -1993,17 +1993,35 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
 
     const q = (c.req.query('q') ?? '').trim();
     const excludeNoteIdRaw = (c.req.query('excludeNoteId') ?? '').trim();
+    const excludeNoteIdsRaw = (c.req.query('excludeNoteIds') ?? '').trim();
+    const source = (c.req.query('source') ?? '').trim();
+    const useMyHomeSource = source === 'my-home' && access.space.type !== 'personal';
 
     const limitParsed = parseInt(c.req.query('limit') || '15', 10);
     const limit = Math.min(Number.isFinite(limitParsed) ? limitParsed : 15, 30);
 
-    const baseFilters = [
-      ...(access.space.type === 'personal'
-        ? [eq(Notes.userId, auth.userId), eq(Notes.spaceId, spaceIdNorm)]
-        : [activeSpaceNotePredicate(spaceIdNorm), eq(Notes.contentEncrypted, false)]),
-      eq(Notes.noteType, 'default'),
-    ];
-    if (excludeNoteIdRaw) baseFilters.push(ne(Notes.id, excludeNoteIdRaw));
+    const baseFilters = useMyHomeSource
+      ? [
+          eq(Notes.userId, auth.userId),
+          eq(Notes.contentEncrypted, false),
+          eq(Notes.noteType, 'default'),
+        ]
+      : [
+          ...(access.space.type === 'personal'
+            ? [eq(Notes.userId, auth.userId), eq(Notes.spaceId, spaceIdNorm)]
+            : [activeSpaceNotePredicate(spaceIdNorm), eq(Notes.contentEncrypted, false)]),
+          eq(Notes.noteType, 'default'),
+        ];
+    const excludeIds = [
+      ...new Set(
+        [
+          excludeNoteIdRaw,
+          ...excludeNoteIdsRaw.split(',').map((id) => id.trim()),
+        ].filter(Boolean),
+      ),
+    ].slice(0, 50);
+    if (excludeIds.length === 1) baseFilters.push(ne(Notes.id, excludeIds[0]!));
+    else if (excludeIds.length > 1) baseFilters.push(notInArray(Notes.id, excludeIds));
 
     const filters = q.length >= 1
       ? [...baseFilters, sql`COALESCE(${Notes.title}, '') ILIKE ${'%' + q + '%'}`]
@@ -2024,6 +2042,22 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
       .orderBy(desc(Notes.updatedAt))
       .limit(limit);
 
+    let associatedIds = new Set<string>();
+    if (access.space.type !== 'personal' && rows.length > 0) {
+      const noteIds = rows.map((r) => r.id);
+      const associations = await db
+        .select({ noteId: SpaceNotes.noteId })
+        .from(SpaceNotes)
+        .where(
+          and(
+            eq(SpaceNotes.spaceId, spaceIdNorm),
+            inArray(SpaceNotes.noteId, noteIds),
+            isNull(SpaceNotes.removedAt),
+          ),
+        );
+      associatedIds = new Set(associations.map((row) => row.noteId));
+    }
+
     return c.json({
       notes: rows.map((r) => ({
         id: r.id,
@@ -2033,7 +2067,8 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
         createdAt: r.createdAt ? r.createdAt.toISOString() : null,
         content: r.content ? stripHtmlForListPreview(r.content, 80) : '',
         isOwnNote: r.userId === auth.userId,
-        isAssociatedWithTarget: access.space.type !== 'personal',
+        isAssociatedWithTarget:
+          access.space.type === 'personal' ? true : associatedIds.has(r.id),
       })),
     });
   } catch (error: any) {

@@ -1213,6 +1213,16 @@ html.harvous-proto-wallpaper-color .proto-sidebar-list-view__trigger[aria-expand
 }
 
 /* ─── Sidebar search input ───────────────────────────────────────────────── */
+/* This space / My Home — sits above `.proto-sidebar-search` (list chrome). */
+.proto-sidebar-list-scope {
+  flex-shrink: 0;
+  padding: 0 14px 6px;
+}
+
+.proto-sidebar-list-scope .proto-chip-bar {
+  margin: 0;
+}
+
 .proto-sidebar-search {
   flex-shrink: 0;
   padding: 8px 14px 8px;
@@ -2168,6 +2178,20 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   flex-shrink: 0;
 }
 
+/* Same picker chrome as Add Notes: chips outside, search + list in the gray card. */
+.proto-browse-templates-sheet .proto-add-notes-sheet__picker {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 0;
+}
+
+.proto-browse-templates-sheet .proto-add-notes-sheet__picker > .proto-add-notes-sheet__scope {
+  flex-shrink: 0;
+  padding: 8px 14px;
+}
+
 .proto-browse-templates-sheet .proto-add-notes-sheet__scoped-list {
   display: flex;
   flex-direction: column;
@@ -2178,17 +2202,15 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   height: auto;
   border: 0.5px solid var(--pds-border-control);
   border-radius: var(--pds-radius-menu, 12px);
-  margin: 10px 14px 14px;
+  margin: 0 14px 14px;
   overflow: hidden;
   background: var(--pds-bg-ghost);
 }
 
-/*
- * Same stack as Add Notes: search/chips are siblings above the scroll body with
- * padding only — no tuck, z-index, or opaque skirt under the pill.
- * (Search is first here; Add Notes puts chips first.)
- */
-.proto-browse-templates-sheet .proto-add-notes-sheet__scoped-list .proto-add-notes-sheet__search-in-panel {
+.proto-browse-templates-sheet .proto-add-notes-sheet__scoped-list .proto-add-notes-sheet__search-in-panel,
+.proto-browse-templates-sheet
+  .proto-add-notes-sheet__scoped-list
+  .proto-sidebar-search.proto-add-notes-sheet__search-in-panel {
   flex-shrink: 0;
   width: 100%;
   max-width: 100%;
@@ -2197,16 +2219,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   margin: 0;
 }
 
-.proto-browse-templates-sheet .proto-add-notes-sheet__scoped-list .proto-add-notes-sheet__scope {
-  flex-shrink: 0;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  padding: 0 8px 6px;
-  margin: 0;
-}
-
-.proto-browse-templates-sheet .proto-add-notes-sheet__scoped-list .proto-chip-bar,
+.proto-browse-templates-sheet .proto-add-notes-sheet__picker .proto-chip-bar,
 .proto-browse-templates-sheet .proto-chip-bar {
   display: flex;
   width: 100%;
@@ -3738,14 +3751,26 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   padding: 10px 14px 6px;
 }
 
-.proto-create-folder-sheet .proto-add-notes-sheet__scope,
-.proto-create-thread-sheet .proto-add-notes-sheet__scope,
-/* Browse templates keeps scoped-list chip inset (search / list already pad 8px). */
-.proto-add-notes-sheet:not(.proto-create-folder-sheet):not(.proto-create-thread-sheet):not(
-    .proto-browse-templates-sheet
-  )
-  .proto-add-notes-sheet__scope {
-  padding: 0;
+/* Picker column: scope chips outside the gray card, then search + list inside. */
+.proto-add-notes-sheet__picker {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.proto-add-notes-sheet__picker > .proto-add-notes-sheet__scope {
+  flex-shrink: 0;
+  padding: 8px 14px;
+}
+
+.proto-create-folder-sheet .proto-add-notes-sheet__picker > .proto-add-notes-sheet__scope,
+.proto-create-thread-sheet .proto-add-notes-sheet__picker > .proto-add-notes-sheet__scope {
+  padding: 8px 14px;
+}
+
+.proto-add-notes-sheet__picker .proto-add-notes-sheet__scope .proto-chip-bar {
+  margin: 0;
 }
 
 .proto-add-notes-sheet__scoped-list {
@@ -3762,20 +3787,23 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   background: var(--pds-bg-ghost);
 }
 
-/* Connect note / add-notes — body is only the scoped panel; breathe below header */
+/* Connect note / add-notes — breathe below header when no outer picker chips */
 .proto-add-notes-sheet:not(.proto-create-folder-sheet):not(.proto-create-thread-sheet)
-  > .proto-add-notes-sheet__scoped-list {
+  > .proto-add-notes-sheet__scoped-list,
+.proto-add-notes-sheet:not(.proto-create-folder-sheet):not(.proto-create-thread-sheet)
+  > .proto-add-notes-sheet__picker {
   margin-top: 10px;
 }
 
-.proto-add-notes-sheet__scoped-list .proto-add-notes-sheet__scope {
-  flex-shrink: 0;
-  padding: 8px 8px 6px;
+.proto-add-notes-sheet:not(.proto-create-folder-sheet):not(.proto-create-thread-sheet)
+  > .proto-add-notes-sheet__picker:has(> .proto-add-notes-sheet__scope) {
+  margin-top: 0;
 }
 
-.proto-add-notes-sheet__scoped-list .proto-add-notes-sheet__search-in-panel {
+.proto-add-notes-sheet__scoped-list .proto-add-notes-sheet__search-in-panel,
+.proto-add-notes-sheet__scoped-list .proto-sidebar-search.proto-add-notes-sheet__search-in-panel {
   flex-shrink: 0;
-  padding: 0 8px 6px;
+  padding: 8px 8px 6px;
 }
 
 .proto-add-notes-sheet__scoped-list .proto-chip-bar {
@@ -3794,6 +3822,8 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   padding: 16px 12px 20px;
 }
 
+.proto-create-folder-sheet .proto-add-notes-sheet__picker,
+.proto-create-thread-sheet .proto-add-notes-sheet__picker,
 .proto-create-folder-sheet .proto-add-notes-sheet__scoped-list,
 .proto-create-thread-sheet .proto-add-notes-sheet__scoped-list {
   flex: 1;
@@ -3801,10 +3831,9 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   max-height: 260px;
 }
 
-.proto-create-folder-sheet .proto-add-notes-sheet__scope .proto-chip-bar,
-.proto-create-thread-sheet .proto-add-notes-sheet__scope .proto-chip-bar,
-.proto-add-notes-sheet .proto-add-notes-sheet__scope .proto-chip-bar {
-  margin: 0;
+.proto-create-folder-sheet .proto-add-notes-sheet__picker .proto-add-notes-sheet__scoped-list,
+.proto-create-thread-sheet .proto-add-notes-sheet__picker .proto-add-notes-sheet__scoped-list {
+  max-height: none;
 }
 
 .proto-create-folder-sheet .proto-connect-note-sheet__scroll,

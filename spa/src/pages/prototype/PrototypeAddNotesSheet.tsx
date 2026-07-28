@@ -8,6 +8,7 @@ import { useAddNotesToFolder } from '../../hooks/mutations/useAddNotesToFolder';
 import { useAddNotesToThreadCluster } from '../../hooks/mutations/useAddNotesToThreadCluster';
 import Icon from '@/components/react/Icon';
 import PrototypeSearchInput from './components/PrototypeSearchInput';
+import ProtoChipBar from './components/ProtoChipBar';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -33,6 +34,9 @@ import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highli
 
 export type AddNotesListScope = 'unsorted' | 'all';
 
+/** Shared-space picker: notes already in the target vs authored My Home notes not yet associated. */
+export type AddNotesOriginScope = 'this-space' | 'my-home';
+
 export interface AddNotesCandidate {
   id: string;
   title: string;
@@ -42,6 +46,20 @@ export interface AddNotesCandidate {
   content: string | null;
   isOwnNote?: boolean;
   isAssociatedWithTarget?: boolean;
+}
+
+/** Split My Home API results into This space vs My Home chip pools. */
+export function filterCandidatesByOriginScope(
+  notes: AddNotesCandidate[],
+  origin: AddNotesOriginScope,
+  options?: { ownNotesOnly?: boolean },
+): AddNotesCandidate[] {
+  const ownOnly = options?.ownNotesOnly === true;
+  return notes.filter((note) => {
+    if (ownOnly && note.isOwnNote === false) return false;
+    if (origin === 'this-space') return note.isAssociatedWithTarget === true;
+    return note.isAssociatedWithTarget !== true;
+  });
 }
 
 interface ConnectNoteCandidatesResponse {
@@ -131,39 +149,15 @@ function noteMatchesPickerSearch(candidate: AddNotesCandidate, query: string): b
   return title.includes(t) || preview.includes(t);
 }
 
-function AddNotesScopeChipBar({
-  selectedId,
-  onSelect,
-}: {
-  selectedId: AddNotesListScope;
-  onSelect: (id: AddNotesListScope) => void;
-}) {
-  const options: { id: AddNotesListScope; label: string }[] = [
-    { id: 'unsorted', label: 'Unsorted' },
-    { id: 'all', label: 'All notes' },
-  ];
-  return (
-    <div className="proto-sidebar-search-scope proto-add-notes-sheet__scope">
-      <div className="proto-chip-bar" role="tablist" aria-label="Note list">
-        {options.map((opt) => {
-          const selected = selectedId === opt.id;
-          return (
-            <button
-              key={opt.id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              className={`proto-chip${selected ? ' proto-chip--selected' : ''}`}
-              onClick={() => onSelect(opt.id)}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+const ADD_NOTES_LIST_SCOPE_OPTIONS: { id: AddNotesListScope; label: string }[] = [
+  { id: 'unsorted', label: 'Unsorted' },
+  { id: 'all', label: 'All notes' },
+];
+
+const ADD_NOTES_ORIGIN_OPTIONS: { id: AddNotesOriginScope; label: string; iconName?: 'house' }[] = [
+  { id: 'this-space', label: 'This space' },
+  { id: 'my-home', label: 'My Home', iconName: 'house' },
+];
 
 function AddNotesListBody({
   notes,
@@ -264,6 +258,8 @@ function AddNotesListBody({
   );
 }
 
+export type AddNotesCandidateSource = 'space' | 'my-home';
+
 export function PrototypeAddNotesPicker({
   spaceId,
   spaceNotes = [],
@@ -271,6 +267,7 @@ export function PrototypeAddNotesPicker({
   selectedIds,
   onSelectedIdsChange,
   onSelectedNoteChange,
+  onPoolChange,
   showListScopeToggle = false,
   defaultListScope = 'unsorted',
   selectionMode = 'multiple',
@@ -278,6 +275,10 @@ export function PrototypeAddNotesPicker({
   isPending = false,
   localOnly = false,
   localEmptyHint,
+  candidateSource = 'space',
+  showOriginFilter = false,
+  defaultOriginScope = 'this-space',
+  ownNotesOnly = false,
 }: {
   spaceId: string;
   /** Loaded space notes — primary list source (unsorted / all). */
@@ -287,6 +288,8 @@ export function PrototypeAddNotesPicker({
   onSelectedIdsChange: (ids: string[]) => void;
   /** Fires when the selected note changes (single-select / last toggled in multi). */
   onSelectedNoteChange?: (candidate: AddNotesCandidate | null) => void;
+  /** Latest visible candidate pool (for resolving My Home picks into mutation rows). */
+  onPoolChange?: (candidates: AddNotesCandidate[]) => void;
   showListScopeToggle?: boolean;
   defaultListScope?: AddNotesListScope;
   selectionMode?: 'single' | 'multiple';
@@ -295,24 +298,50 @@ export function PrototypeAddNotesPicker({
   /** Never fall back to broad server candidates; the supplied rows are the authorization boundary. */
   localOnly?: boolean;
   localEmptyHint?: string;
+  /** When not using origin filter, fixed candidate API source. */
+  candidateSource?: AddNotesCandidateSource;
+  /** Shared-space flows: top chips for This space vs My Home. */
+  showOriginFilter?: boolean;
+  defaultOriginScope?: AddNotesOriginScope;
+  /** Thread attach: only viewer-authored notes. */
+  ownNotesOnly?: boolean;
 }) {
   const { input: searchInput, setInput: setSearchInput, debounced } = useDebouncedSearchState(280);
   const [listScope, setListScope] = useState<AddNotesListScope>(defaultListScope);
+  const [originScope, setOriginScope] = useState<AddNotesOriginScope>(defaultOriginScope);
   const sidPath = normalizedSpacePathId(spaceId);
   const debouncedTrim = debounced.trim();
   const excludeSet = useMemo(() => new Set(excludeNoteIds), [excludeNoteIds]);
+  const activeSource: AddNotesCandidateSource = showOriginFilter
+    ? originScope === 'my-home'
+      ? 'my-home'
+      : 'space'
+    : candidateSource;
+  const useMyHomeSource = activeSource === 'my-home';
 
-  const useLocalNotes = localOnly || spaceNotes.length > 0;
-  const excludeNoteId = excludeNoteIds[0];
+  const useLocalNotes = !showOriginFilter && !useMyHomeSource && (localOnly || spaceNotes.length > 0);
+  const excludeNoteIdsKey = excludeNoteIds.slice(0, 50).join(',');
   const { data, isLoading, isFetching, isError, refetch } = useQuery({
-    queryKey: ['connectNoteCandidates', sidPath, 'add-notes', debouncedTrim, excludeNoteId ?? ''] as const,
+    queryKey: [
+      'connectNoteCandidates',
+      sidPath,
+      'add-notes',
+      useMyHomeSource ? 'my-home' : 'space',
+      debouncedTrim,
+      excludeNoteIdsKey,
+    ] as const,
     queryFn: () =>
       api.get<ConnectNoteCandidatesResponse>(`/api/spaces/${encodeURIComponent(sidPath)}/connect-note-candidates`, {
         q: debouncedTrim,
         limit: 20,
-        ...(excludeNoteId ? { excludeNoteId } : {}),
+        ...(excludeNoteIdsKey
+          ? excludeNoteIds.length === 1
+            ? { excludeNoteId: excludeNoteIds[0]! }
+            : { excludeNoteIds: excludeNoteIdsKey }
+          : {}),
+        ...(useMyHomeSource ? { source: 'my-home' } : {}),
       }),
-    enabled: !localOnly && (!useLocalNotes || debouncedTrim.length > 0),
+    enabled: !localOnly && (showOriginFilter || useMyHomeSource || !useLocalNotes || debouncedTrim.length > 0),
     staleTime: 10_000,
   });
 
@@ -352,20 +381,65 @@ export function PrototypeAddNotesPicker({
       ).map(spaceNoteToCandidate);
     } else {
       pool = (data?.notes ?? []).filter((n) => !excludeSet.has(n.id));
+      if (showOriginFilter) {
+        // This space API already returns associated rows; My Home API is filtered to unassociated.
+        pool = filterCandidatesByOriginScope(
+          useMyHomeSource
+            ? pool
+            : pool.map((n) => ({ ...n, isAssociatedWithTarget: n.isAssociatedWithTarget ?? true })),
+          useMyHomeSource ? 'my-home' : 'this-space',
+          { ownNotesOnly },
+        );
+      } else if (ownNotesOnly) {
+        pool = pool.filter((n) => n.isOwnNote !== false);
+      }
     }
     return pool;
-  }, [useLocalNotes, spaceNotes, debouncedTrim, excludeSet, listScope, data?.notes]);
+  }, [
+    useLocalNotes,
+    spaceNotes,
+    debouncedTrim,
+    excludeSet,
+    listScope,
+    data?.notes,
+    showOriginFilter,
+    useMyHomeSource,
+    ownNotesOnly,
+  ]);
+
+  useEffect(() => {
+    onPoolChange?.(notes);
+  }, [notes, onPoolChange]);
+
+  const selectOrigin = (next: AddNotesOriginScope) => {
+    if (next === originScope) return;
+    setOriginScope(next);
+    onSelectedIdsChange([]);
+    onSelectedNoteChange?.(null);
+  };
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const isSearching = debouncedTrim.length >= 1 && (isLoading || isFetching) && notes.length === 0 && !useLocalNotes;
   const showEmpty = !isSearching && notes.length === 0;
   const emptyHint =
     localEmptyHint ??
-    (useLocalNotes
-      ? listScope === 'unsorted'
-        ? 'No unsorted notes — everything is already in a folder.'
-        : 'No notes in this space yet.'
-      : 'No notes available to connect.');
+    (showOriginFilter
+      ? originScope === 'my-home'
+        ? debouncedTrim
+          ? 'No matching notes in My Home.'
+          : 'No notes in My Home to add yet.'
+        : debouncedTrim
+          ? 'No matching notes in this space.'
+          : 'No notes in this space yet.'
+      : useMyHomeSource
+        ? debouncedTrim
+          ? 'No matching notes in My Home.'
+          : 'No notes in My Home yet.'
+        : useLocalNotes
+          ? listScope === 'unsorted'
+            ? 'No unsorted notes — everything is already in a folder.'
+            : 'No notes in this space yet.'
+          : 'No notes available to connect.');
 
   const toggle = (id: string) => {
     const candidate = notes.find((n) => n.id === id) ?? null;
@@ -403,36 +477,73 @@ export function PrototypeAddNotesPicker({
     />
   );
 
-  const useScopedShell = listShell === 'scoped' || (showListScopeToggle && debouncedTrim.length === 0);
+  const useScopedShell =
+    listShell === 'scoped' || showOriginFilter || (showListScopeToggle && debouncedTrim.length === 0);
+
+  // Scope chips sit outside the gray card; search + list stay inside (sidebar list chrome).
+  const scopeChips =
+    showOriginFilter ? (
+      <div className="proto-sidebar-list-scope proto-add-notes-sheet__scope">
+        <ProtoChipBar
+          ariaLabel="List scope"
+          options={ADD_NOTES_ORIGIN_OPTIONS}
+          selectedId={originScope}
+          onSelect={selectOrigin}
+        />
+      </div>
+    ) : showListScopeToggle && debouncedTrim.length === 0 ? (
+      <div className="proto-sidebar-search-scope proto-add-notes-sheet__scope">
+        <ProtoChipBar
+          ariaLabel="Note list"
+          options={ADD_NOTES_LIST_SCOPE_OPTIONS}
+          selectedId={listScope}
+          onSelect={setListScope}
+        />
+      </div>
+    ) : null;
 
   return (
     <>
       {useScopedShell ? (
-        <div className="proto-add-notes-sheet__scoped-list">
-          {showListScopeToggle && debouncedTrim.length === 0 ? (
-            <AddNotesScopeChipBar selectedId={listScope} onSelect={setListScope} />
-          ) : null}
-          <div className="proto-connect-note-sheet__search-wrap proto-add-notes-sheet__search-in-panel">
-            <PrototypeSearchInput value={searchInput} onChange={setSearchInput} placeholder="Search notes…" />
-          </div>
-          <div
-            className="proto-add-notes-sheet__scoped-list-body"
-            role="region"
-            aria-label={
-              showListScopeToggle && debouncedTrim.length === 0
-                ? listScope === 'unsorted'
-                  ? 'Unsorted notes'
-                  : 'All notes'
-                : 'Notes to connect'
-            }
-          >
-            {listBody}
+        <div className="proto-add-notes-sheet__picker">
+          {scopeChips}
+          <div className="proto-add-notes-sheet__scoped-list">
+            <div className="proto-sidebar-search proto-add-notes-sheet__search-in-panel">
+              <PrototypeSearchInput
+                value={searchInput}
+                onChange={setSearchInput}
+                placeholder="Search"
+                ariaLabel="Search"
+              />
+            </div>
+            <div
+              className="proto-add-notes-sheet__scoped-list-body"
+              role="region"
+              aria-label={
+                showOriginFilter
+                  ? originScope === 'my-home'
+                    ? 'My Home notes'
+                    : 'Notes in this space'
+                  : showListScopeToggle && debouncedTrim.length === 0
+                    ? listScope === 'unsorted'
+                      ? 'Unsorted notes'
+                      : 'All notes'
+                    : 'Notes to connect'
+              }
+            >
+              {listBody}
+            </div>
           </div>
         </div>
       ) : (
         <>
-          <div className="proto-connect-note-sheet__search-wrap">
-            <PrototypeSearchInput value={searchInput} onChange={setSearchInput} placeholder="Search notes…" />
+          <div className="proto-sidebar-search proto-connect-note-sheet__search-wrap">
+            <PrototypeSearchInput
+              value={searchInput}
+              onChange={setSearchInput}
+              placeholder="Search"
+              ariaLabel="Search"
+            />
           </div>
           <div className="proto-connect-note-sheet__scroll" role="region" aria-label="Notes to add">
             {listBody}
@@ -443,17 +554,40 @@ export function PrototypeAddNotesPicker({
   );
 }
 
+/** Build a space-organization row from a picker candidate (My Home → associate-then-organize). */
+export function candidateToSpaceNoteRow(candidate: AddNotesCandidate): SpaceNoteRow {
+  return {
+    id: candidate.id,
+    title: candidate.title,
+    content: candidate.content,
+    noteType: candidate.noteType,
+    updatedAt: candidate.updatedAt,
+    createdAt: candidate.createdAt ?? undefined,
+    isOwnNote: candidate.isOwnNote ?? true,
+    isPinned: false,
+    primaryCollection: null,
+    secondaryCollections: [],
+    collectionPinned: false,
+    collectionUserOverride: false,
+    contentEncrypted: false,
+  };
+}
+
 /** Resolve selected note ids to rows for folder/thread mutations. */
 export function resolveSelectedNoteRows(
   selectedIds: string[],
   notesById: Map<string, SpaceNoteRow>,
   spaceNotes: SpaceNoteRow[] = [],
+  candidates: AddNotesCandidate[] = [],
 ): SpaceNoteRow[] {
   return selectedIds
     .map((id) => {
       const cached = notesById.get(id);
       if (cached) return cached;
-      return spaceNotes.find((n) => n.id === id) ?? null;
+      const fromSpace = spaceNotes.find((n) => n.id === id);
+      if (fromSpace) return fromSpace;
+      const candidate = candidates.find((n) => n.id === id);
+      return candidate ? candidateToSpaceNoteRow(candidate) : null;
     })
     .filter((row): row is SpaceNoteRow => row != null);
 }
@@ -489,12 +623,16 @@ export default function PrototypeAddNotesSheet({
   const headingId = useId();
   const [actionError, setActionError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [candidatePool, setCandidatePool] = useState<AddNotesCandidate[]>([]);
   const [saveCopyRequiredNoteId, setSaveCopyRequiredNoteId] = useState<string | null>(null);
+  /** Shared organize + Add existing: search My Home authored notes (includes own notes already in this space). */
+  const useMyHomeCandidates = spaceKind === 'shared';
 
   useEffect(() => {
     if (!open) {
       setActionError(null);
       setSelectedIds([]);
+      setCandidatePool([]);
       setSaveCopyRequiredNoteId(null);
     }
   }, [open]);
@@ -543,7 +681,7 @@ export default function PrototypeAddNotesSheet({
   const handleSubmit = async () => {
     setActionError(null);
     setSaveCopyRequiredNoteId(null);
-    const rows = resolveSelectedNoteRows(selectedIds, notesById, spaceNotes);
+    const rows = resolveSelectedNoteRows(selectedIds, notesById, spaceNotes, candidatePool);
     if (rows.length === 0) {
       setActionError('Could not resolve selected notes.');
       return;
@@ -551,9 +689,11 @@ export default function PrototypeAddNotesSheet({
     try {
       if (spaceKind === 'shared') {
         for (const row of rows) {
+          const candidate = candidatePool.find((c) => c.id === row.id);
           const requestPlan = planSharedAddNotesRequest({
-            isAlreadyAssociated: associatedNoteIds.has(row.id),
-            isOwnNote: row.isOwnNote !== false,
+            isAlreadyAssociated:
+              associatedNoteIds.has(row.id) || candidate?.isAssociatedWithTarget === true,
+            isOwnNote: row.isOwnNote !== false && candidate?.isOwnNote !== false,
             isSpaceOwner: viewerIsSpaceOwner,
           });
           if (requestPlan === 'organize-associated') continue;
@@ -688,12 +828,16 @@ export default function PrototypeAddNotesSheet({
           excludeNoteIds={excludeNoteIds}
           selectedIds={selectedIds}
           onSelectedIdsChange={setSelectedIds}
-          showListScopeToggle={mode !== 'current-thread'}
-          defaultListScope={mode === 'current-thread' ? 'all' : 'unsorted'}
-          localOnly={mode === 'current-thread'}
+          onPoolChange={setCandidatePool}
+          showListScopeToggle={!useMyHomeCandidates}
+          defaultListScope={useMyHomeCandidates ? 'all' : 'unsorted'}
+          localOnly={false}
+          showOriginFilter={useMyHomeCandidates}
+          defaultOriginScope="this-space"
+          ownNotesOnly={mode === 'current-thread'}
           localEmptyHint={
             mode === 'current-thread'
-              ? 'No eligible notes. Only your active, unencrypted notes that are not already in this Thread appear here.'
+              ? 'No eligible notes for this Thread yet.'
               : undefined
           }
         />

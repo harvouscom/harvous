@@ -13,7 +13,13 @@ import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
-import { PrototypeAddNotesPicker, resolveSelectedNoteRows } from './PrototypeAddNotesSheet';
+import {
+  PrototypeAddNotesPicker,
+  planSharedAddNotesRequest,
+  resolveSelectedNoteRows,
+  type AddNotesCandidate,
+} from './PrototypeAddNotesSheet';
+import { useAssociateNoteWithSpace } from '../../hooks/mutations/useSpaceNoteAssociation';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 
 export interface PrototypeCreateFolderSheetProps {
@@ -39,20 +45,24 @@ export default function PrototypeCreateFolderSheet({
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const createFolder = useCreateFolderRegistryLabel();
   const addNotes = useAddNotesToFolder();
+  const associateNote = useAssociateNoteWithSpace();
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [folderName, setFolderName] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [candidatePool, setCandidatePool] = useState<AddNotesCandidate[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
+  const useMyHomeCandidates = spaceKind === 'shared';
 
   useEffect(() => {
     if (!open) {
       setFolderName('');
       setSelectedIds([]);
+      setCandidatePool([]);
       setActionError(null);
     }
   }, [open]);
 
-  const isPending = createFolder.isPending || addNotes.isPending;
+  const isPending = createFolder.isPending || addNotes.isPending || associateNote.isPending;
   const canSubmit = folderName.trim().length > 0 && !isPending;
 
   const shouldUseSheetPresentation =
@@ -80,7 +90,24 @@ export default function PrototypeCreateFolderSheet({
     try {
       await createFolder.mutateAsync({ spaceId, folderName: name });
       if (selectedIds.length > 0) {
-        const rows = resolveSelectedNoteRows(selectedIds, notesById, spaceNotes);
+        const rows = resolveSelectedNoteRows(selectedIds, notesById, spaceNotes, candidatePool);
+        const associatedNoteIds = new Set(spaceNotes.map((row) => row.id));
+        if (spaceKind === 'shared') {
+          for (const row of rows) {
+            const candidate = candidatePool.find((c) => c.id === row.id);
+            const plan = planSharedAddNotesRequest({
+              isAlreadyAssociated:
+                associatedNoteIds.has(row.id) || candidate?.isAssociatedWithTarget === true,
+              isOwnNote: row.isOwnNote !== false && candidate?.isOwnNote !== false,
+              isSpaceOwner: true,
+            });
+            if (plan === 'associate-then-organize') {
+              await associateNote.mutateAsync({ spaceId, noteId: row.id });
+            } else if (plan === 'save-copy-required' || plan === 'forbidden') {
+              throw new Error('Only your own notes can be added to this folder.');
+            }
+          }
+        }
         if (rows.length > 0) {
           await addNotes.mutateAsync({
             rows,
@@ -148,8 +175,11 @@ export default function PrototypeCreateFolderSheet({
         spaceNotes={spaceNotes}
         selectedIds={selectedIds}
         onSelectedIdsChange={setSelectedIds}
-        showListScopeToggle
-        defaultListScope="unsorted"
+        onPoolChange={setCandidatePool}
+        showListScopeToggle={!useMyHomeCandidates}
+        defaultListScope={useMyHomeCandidates ? 'all' : 'unsorted'}
+        showOriginFilter={useMyHomeCandidates}
+        defaultOriginScope="this-space"
       />
 
       {actionError ? (

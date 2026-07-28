@@ -3,6 +3,7 @@ import { useAuth } from '@clerk/clerk-react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
+import ProtoChipBar from './components/ProtoChipBar';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
@@ -2347,7 +2348,8 @@ export default function PrototypeSidebar({
         id: sidebarThreadDrilldownId,
         title: 'Thread',
         isPinned: false,
-      } as Pick<SpaceGroupStudyThread, 'id' | 'title' | 'isPinned'>);
+        color: null,
+      } as Pick<SpaceGroupStudyThread, 'id' | 'title' | 'isPinned' | 'color'>);
     return (
       <>
         <PrototypeSharedThreadDrilldown
@@ -2375,7 +2377,7 @@ export default function PrototypeSidebar({
                       id: drilled.id,
                       title: drilled.title,
                       subtitle: null,
-                      color: null,
+                      color: drilled.color ?? null,
                       spaceId: homeSpaceId,
                       isPinned: drilled.isPinned,
                       createdAt: '',
@@ -2433,27 +2435,15 @@ export default function PrototypeSidebar({
       ) : null}
       {showListSpaceScopeBar && !isHomeLayer ? (
         <div className="proto-sidebar-list-scope">
-          <div className="proto-chip-bar" role="tablist" aria-label="List scope">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={sidebarListSpaceScope === 'space'}
-              className={`proto-chip${sidebarListSpaceScope === 'space' ? ' proto-chip--selected' : ''}`}
-              onClick={() => setSidebarListSpaceScope('space')}
-            >
-              This space
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={sidebarListSpaceScope === 'my-home'}
-              className={`proto-chip${sidebarListSpaceScope === 'my-home' ? ' proto-chip--selected' : ''}`}
-              onClick={() => setSidebarListSpaceScope('my-home')}
-            >
-              <Icon name="house" size={11} aria-hidden />
-              My Home
-            </button>
-          </div>
+          <ProtoChipBar
+            ariaLabel="List scope"
+            options={[
+              { id: 'space' as const, label: 'This space' },
+              { id: 'my-home' as const, label: 'My Home', iconName: 'house' },
+            ]}
+            selectedId={sidebarListSpaceScope === 'my-home' ? 'my-home' : 'space'}
+            onSelect={(id) => setSidebarListSpaceScope(id)}
+          />
         </div>
       ) : null}
       {!isHomeLayer && !sidebarThreadProposal ? (

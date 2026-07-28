@@ -13,7 +13,12 @@ import { buildSaveNoteCopyRequest } from '../../../hooks/mutations/useCopyNotesT
 import { buildShareNoteRequest } from '../../../hooks/mutations/useShareNote';
 import { createNoteCacheSpaceIds } from '../../../hooks/mutations/useCreateSimpleNote';
 import { APIError } from '../../../lib/api';
-import { planSharedAddNotesRequest } from '../PrototypeAddNotesSheet';
+import {
+  candidateToSpaceNoteRow,
+  filterCandidatesByOriginScope,
+  planSharedAddNotesRequest,
+  resolveSelectedNoteRows,
+} from '../PrototypeAddNotesSheet';
 import { validComposeThreadSelection } from '../PrototypeGroupStudyThreadPicker';
 import {
   canOrganizeSharedSpaceNote,
@@ -315,6 +320,72 @@ describe('shared Add Notes request planning', () => {
         isSpaceOwner: true,
       }),
     ).toBe('save-copy-required');
+  });
+
+  it('resolves My Home picker candidates into organize rows', () => {
+    const candidate = {
+      id: 'note_home',
+      title: 'From Home',
+      noteType: 'default',
+      updatedAt: '2026-07-28T12:00:00.000Z',
+      createdAt: '2026-07-28T12:00:00.000Z',
+      content: '<p>Body</p>',
+      isOwnNote: true,
+      isAssociatedWithTarget: false,
+    };
+    expect(candidateToSpaceNoteRow(candidate)).toMatchObject({
+      id: 'note_home',
+      title: 'From Home',
+      isOwnNote: true,
+      primaryCollection: null,
+      secondaryCollections: [],
+    });
+    expect(resolveSelectedNoteRows(['note_home'], new Map(), [], [candidate])).toEqual([
+      candidateToSpaceNoteRow(candidate),
+    ]);
+  });
+
+  it('splits picker candidates into This space vs My Home chips', () => {
+    const notes = [
+      {
+        id: 'in-space',
+        title: 'In space',
+        noteType: 'default',
+        updatedAt: null,
+        createdAt: null,
+        content: null,
+        isOwnNote: true,
+        isAssociatedWithTarget: true,
+      },
+      {
+        id: 'home-only',
+        title: 'Home only',
+        noteType: 'default',
+        updatedAt: null,
+        createdAt: null,
+        content: null,
+        isOwnNote: true,
+        isAssociatedWithTarget: false,
+      },
+      {
+        id: 'foreign-space',
+        title: 'Foreign',
+        noteType: 'default',
+        updatedAt: null,
+        createdAt: null,
+        content: null,
+        isOwnNote: false,
+        isAssociatedWithTarget: true,
+      },
+    ];
+    expect(filterCandidatesByOriginScope(notes, 'this-space').map((n) => n.id)).toEqual([
+      'in-space',
+      'foreign-space',
+    ]);
+    expect(filterCandidatesByOriginScope(notes, 'my-home').map((n) => n.id)).toEqual(['home-only']);
+    expect(
+      filterCandidatesByOriginScope(notes, 'this-space', { ownNotesOnly: true }).map((n) => n.id),
+    ).toEqual(['in-space']);
   });
 });
 

@@ -5,7 +5,6 @@ import { useAuth } from '@clerk/clerk-react';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
-import Icon from '@/components/react/Icon';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
 import {
@@ -65,13 +64,9 @@ import {
   type PendingComposeUrlReplace,
 } from '@/utils/prototype-compose-url';
 import { isPrototypeDraftNoteSlug, noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
-import {
-  draftDestinationChipModel,
-  getComposeGroupThreadId,
-  setComposeGroupThreadId,
-} from '../../lib/compose-group-thread';
+import { getComposeGroupThreadId } from '../../lib/compose-group-thread';
 import { validComposeThreadSelection } from './PrototypeGroupStudyThreadPicker';
-import { selectCurrentSpaceThread, useSpaceGroupThreads } from '../../hooks/queries/useSpaceGroupThreads';
+import { useSpaceGroupThreads } from '../../hooks/queries/useSpaceGroupThreads';
 import { trackSessionNoteOpen } from '@/utils/session-xp-client';
 import { trackNoteOpened } from '@/utils/analytics';
 import { recordAudiencefulMilestoneOnce } from '@/utils/audienceful-milestones-client';
@@ -181,7 +176,7 @@ export default function PrototypeNotePage() {
   // from the persisted selection (see composeTargetSpaceId below), not from the
   // nav-validated activeSpaceId, so a brand-new draft never races the navigation
   // query and land in My Home while a shared space is active.
-  const { homeSpaceId: personalHomeSpaceId, spaceTitle: activeSpaceTitle } = useActiveSpace();
+  const { homeSpaceId: personalHomeSpaceId } = useActiveSpace();
   const { userId: authUserId } = useAuth();
   const navigate = useNavigate();
 
@@ -327,14 +322,11 @@ export default function PrototypeNotePage() {
     }
   }, [isDraft, composeTargetSpaceIdOverride, clearComposeTargetSpaceIdOverride]);
 
-  // A fresh shared-space draft saves to the space only by default. When the space has a
-  // pinned current Thread, the destination cue shows an opt-in chip instead of a blocking
-  // dialog; composing from the Thread drilldown arrives with the Thread preselected
-  // (beginComposeInGroupThread), which just renders the chip active.
+  // Shared-space drafts save to the compose target space. Thread attachment comes from
+  // session selection (beginComposeInGroupThread) — no in-editor destination cue.
   const isSharedComposeTarget = isDraft && !!composeTargetSpaceId && composeTargetSpaceId !== personalHomeSpaceId;
   const composeGroupThreadsQuery = useSpaceGroupThreads(isSharedComposeTarget ? composeTargetSpaceId : undefined);
   const composeGroupThreads = composeGroupThreadsQuery.data ?? [];
-  const pinnedComposeThread = isSharedComposeTarget ? selectCurrentSpaceThread(composeGroupThreads) : null;
   const [composeThreadSelection, setComposeThreadSelection] = useState<string | null>(() =>
     getComposeGroupThreadId(),
   );
@@ -344,52 +336,8 @@ export default function PrototypeNotePage() {
   const resolvedComposeThreadId = isSharedComposeTarget
     ? validComposeThreadSelection(composeThreadSelection, composeGroupThreads, composeGroupThreadsQuery.isLoading)
     : null;
-  const resolvedComposeThread = resolvedComposeThreadId
-    ? composeGroupThreads.find((thread) => thread.id === resolvedComposeThreadId) ?? null
-    : null;
   const resolvedComposeThreadIdRef = useRef(resolvedComposeThreadId);
   resolvedComposeThreadIdRef.current = resolvedComposeThreadId;
-
-  const [composeThreadToggleBusy, setComposeThreadToggleBusy] = useState(false);
-  const toggleComposeThread = useCallback(() => {
-    if (!pinnedComposeThread || composeThreadToggleBusy) return;
-    const threadId = pinnedComposeThread.id;
-    const wasActive = resolvedComposeThreadIdRef.current === threadId;
-    const next = wasActive ? null : threadId;
-    setComposeGroupThreadId(next);
-    setComposeThreadSelection(next);
-    // Before the draft persists, the selection rides into the create call. After, the
-    // note is real — reconcile membership through the thread endpoints (awaiting any
-    // in-flight create so a toggle mid-save still lands on the final note).
-    if (!persistedDraftIdRef.current && !draftPersistPromiseRef.current) return;
-    setComposeThreadToggleBusy(true);
-    (async () => {
-      const noteId = persistedDraftIdRef.current ?? (await draftPersistPromiseRef.current);
-      if (!noteId) return;
-      try {
-        await api.post(`/api/notes/${noteId}/${next ? 'add-thread' : 'remove-thread'}`, { threadId });
-      } catch (err) {
-        // Removing a membership the create never wrote is fine; anything else reverts
-        // the chip so the cue never lies about where the note lives.
-        if (!(err instanceof APIError && err.status === 404 && !next)) throw err;
-      }
-      queryClient.invalidateQueries({ queryKey: ['thread', threadId, 'notes'] });
-      queryClient.invalidateQueries({ queryKey: ['note', noteId] });
-      if (composeTargetSpaceId) {
-        queryClient.invalidateQueries({ queryKey: ['space', composeTargetSpaceId, 'group-threads'] });
-      }
-    })()
-      .catch(() => {
-        setComposeGroupThreadId(wasActive ? threadId : null);
-        setComposeThreadSelection(wasActive ? threadId : null);
-      })
-      .finally(() => setComposeThreadToggleBusy(false));
-  }, [pinnedComposeThread, composeThreadToggleBusy, queryClient, composeTargetSpaceId]);
-
-  const composeThreadChip = draftDestinationChipModel({
-    pinnedThread: pinnedComposeThread,
-    resolvedThreadId: resolvedComposeThreadId,
-  });
 
   const onHighlightOpenRequestConsumed = useCallback(() => {
     setHighlightOpenRequest(null);
@@ -526,13 +474,6 @@ export default function PrototypeNotePage() {
     contextSpaceId ||
     foreignSharedSpaceId ||
     (personalHomeSpaceId && effectiveSpaceId !== personalHomeSpaceId ? effectiveSpaceId : null);
-  const draftDestinationCue = draftSaveDestinationLabel({
-    targetSpaceId: composeTargetSpaceId,
-    homeSpaceId: personalHomeSpaceId,
-    targetSpaceTitle: activeSpaceTitle,
-    threadTitle: resolvedComposeThread?.title ?? null,
-  });
-
   const effectiveSpaceIdRef = useRef(effectiveSpaceId);
   effectiveSpaceIdRef.current = effectiveSpaceId;
 
@@ -1677,45 +1618,6 @@ export default function PrototypeNotePage() {
                   layoutRevision={sharedHighlightLayoutRevision}
                   onSelectEntry={handleOverlaySelectEntry}
                 />
-              ) : null}
-              {isDraft ? (
-                <div className="proto-draft-destination-cue">
-                  <span
-                    className="proto-draft-destination-cue__status pds-caption"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    {draftDestinationCue}
-                  </span>
-                  {composeThreadChip.state !== 'hidden' ? (
-                    <button
-                      type="button"
-                      className={`proto-draft-destination-cue__chip${
-                        composeThreadChip.state === 'active' ? ' proto-draft-destination-cue__chip--active' : ''
-                      }`}
-                      aria-pressed={composeThreadChip.state === 'active'}
-                      aria-label={
-                        composeThreadChip.state === 'active'
-                          ? `Remove from ${composeThreadChip.threadTitle}`
-                          : `Add to ${composeThreadChip.threadTitle}`
-                      }
-                      disabled={composeThreadToggleBusy}
-                      onClick={toggleComposeThread}
-                    >
-                      <Icon
-                        name={composeThreadChip.state === 'active' ? 'arrow-right-arrow-left' : 'plus'}
-                        size={9}
-                        aria-hidden
-                      />
-                      <span className="proto-draft-destination-cue__chip-label">
-                        {composeThreadChip.state === 'active'
-                          ? composeThreadChip.threadTitle
-                          : `Add to ${composeThreadChip.threadTitle}`}
-                      </span>
-                      {composeThreadChip.state === 'active' ? <Icon name="xmark" size={9} aria-hidden /> : null}
-                    </button>
-                  ) : null}
-                </div>
               ) : null}
               <CardFullEditable
                 title={prototypeDisplayTitle}

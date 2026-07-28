@@ -1,6 +1,6 @@
 /**
  * Prototype inspector pane — mirrors native NoteInspectorView.
- * Sections: Info · Tags · Connected Notes · Folders
+ * Sections: Info · Tags · Thread · Folders
  * Standalone — no SPA CSS variables or shared styles.
  */
 import {
@@ -287,20 +287,20 @@ export default function PrototypeInspectorPane({
         />
       </section>
 
-      {/* Connected Notes section */}
+      {/* Thread — My Home connection cluster for this note */}
       <section className="proto-inspector-section">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <PrototypeSectionHeader style={{ marginBottom: 0 }}>Connected Notes</PrototypeSectionHeader>
+          <PrototypeSectionHeader style={{ marginBottom: 0 }}>Thread</PrototypeSectionHeader>
           {spaceId ? (
             <button
               type="button"
               className="proto-inspector-connect-btn"
-              title="Connect another note"
-              aria-label="Connect another note"
+              title="Add another note to this Thread"
+              aria-label="Add another note to this Thread"
               onClick={() => setConnectOpen(true)}
             >
               <Icon name="plus" size={12} aria-hidden />
-              Connect
+              Add
             </button>
           ) : null}
         </div>
@@ -346,11 +346,11 @@ export default function PrototypeInspectorPane({
               onClick={() => openStudyThreadPopover()}
             >
               <Icon name="arrow-right-arrow-left" size={11} aria-hidden />
-              <span>Open thread</span>
+              <span>Open Thread</span>
             </button>
           </>
         ) : (
-          <p className="proto-inspector-muted">Connect a related note.</p>
+          <p className="proto-inspector-muted">Add a related note to start a Thread.</p>
         )}
       </section>
 

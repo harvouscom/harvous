@@ -56,6 +56,7 @@ import {
 } from '../dev/shared-spaces-design/shared-space-dashboard-fixture-mode';
 import SharedSpaceDashboardFixtureView from '../dev/shared-spaces-design/SharedSpaceDashboardFixtureView';
 import PrototypeCreateSharedThreadSheet from './PrototypeCreateSharedThreadSheet';
+import PrototypeChangeSharedThreadSheet from './PrototypeChangeSharedThreadSheet';
 import PrototypeSharedThreadDrilldown, {
   type SharedThreadDrillTarget,
 } from './PrototypeSharedThreadDrilldown';
@@ -226,6 +227,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [createThreadOpen, setCreateThreadOpen] = useState(false);
+  const [changeThreadOpen, setChangeThreadOpen] = useState(false);
   const [drilledThread, setDrilledThread] = useState<SharedThreadDrillTarget | null>(null);
   const [threadPinError, setThreadPinError] = useState<string | null>(null);
 
@@ -496,6 +498,9 @@ function PrototypeSidebarSharedSpaceViewLive() {
         onBack={() => setDrilledThread(null)}
         onCompose={() => composeInSharedSpace(drilledThread.id)}
         onSetCurrent={makeThreadCurrent}
+        onThreadUpdated={(patch) => {
+          setDrilledThread((current) => (current ? { ...current, ...patch } : current));
+        }}
       />
     );
   }
@@ -613,7 +618,18 @@ function PrototypeSidebarSharedSpaceViewLive() {
 
           {!isMinistryChannel ? (
             <div className="proto-home-section">
-              <p className="proto-caption proto-home-section__eyebrow">Current Thread</p>
+              <div className="proto-shared-thread-current-header">
+                <p className="proto-caption proto-home-section__eyebrow">Current Thread</p>
+                {canManageThreads && threadDashboard.currentThread ? (
+                  <button
+                    type="button"
+                    className="proto-shared-thread-action"
+                    onClick={() => setChangeThreadOpen(true)}
+                  >
+                    Change
+                  </button>
+                ) : null}
+              </div>
               {threadDashboard.currentThread ? (
                 <button
                   type="button"
@@ -817,7 +833,27 @@ function PrototypeSidebarSharedSpaceViewLive() {
         isOwner={isSpaceOwner}
         onPinFailure={() => groupThreadsQuery.refetch()}
         onCreated={(thread) => {
-          setDrilledThread({ id: thread.id, title: thread.title, isPinned: true });
+          setDrilledThread({
+            id: thread.id,
+            title: thread.title,
+            isPinned: true,
+            color: thread.color ?? null,
+          });
+        }}
+      />
+      <PrototypeChangeSharedThreadSheet
+        open={changeThreadOpen}
+        onOpenChange={setChangeThreadOpen}
+        spaceId={activeSpaceId}
+        currentThreadId={threadDashboard.currentThread?.id ?? null}
+        otherThreads={threadDashboard.otherThreads}
+        isOwner={isSpaceOwner}
+        onStartThread={() => setCreateThreadOpen(true)}
+        onChanged={(threadId) => {
+          setDrilledThread((current) =>
+            current?.id === threadId ? { ...current, isPinned: true } : current,
+          );
+          setThreadPinError(null);
         }}
       />
     </div>

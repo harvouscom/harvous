@@ -1,8 +1,8 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
-import { useCreateSharedThread, type CreatedSharedThread } from '../../hooks/mutations/useCreateSharedThread';
+import type { SpaceGroupStudyThread } from '../../hooks/queries/useSpaceGroupThreads';
 import { useSetCurrentSpaceThread } from '../../hooks/mutations/useSetCurrentSpaceThread';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
@@ -11,56 +11,37 @@ import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
+import PrototypeListEmptyState from './PrototypeListEmptyState';
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   spaceId: string;
-  spaceColor?: string | null;
+  currentThreadId: string | null;
+  otherThreads: SpaceGroupStudyThread[];
   isOwner: boolean;
-  onCreated: (thread: CreatedSharedThread) => void;
-  onPinFailure?: () => Promise<unknown> | unknown;
+  onStartThread: () => void;
+  onChanged?: (threadId: string) => void;
 };
 
-export function sharedThreadSubmitMode(
-  createdThreadId: string | null,
-  title: string,
-  isPending: boolean,
-): 'create' | 'retry-pin' | null {
-  if (isPending) return null;
-  if (createdThreadId) return 'retry-pin';
-  return title.trim() ? 'create' : null;
-}
-
-export default function PrototypeCreateSharedThreadSheet({
+export default function PrototypeChangeSharedThreadSheet({
   open,
   onOpenChange,
   spaceId,
-  spaceColor,
+  currentThreadId,
+  otherThreads,
   isOwner,
-  onCreated,
-  onPinFailure,
+  onStartThread,
+  onChanged,
 }: Props) {
   const { isMobileSidebar } = useProtoShell();
-  const createThread = useCreateSharedThread();
   const setCurrent = useSetCurrentSpaceThread();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const titleInputRef = useRef<HTMLInputElement | null>(null);
   const headingId = useId();
-  const [title, setTitle] = useState('');
-  const [createdThread, setCreatedThread] = useState<CreatedSharedThread | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (open) return;
-    setTitle('');
-    setActionError(null);
-  }, [open, createdThread]);
-
-  const isPending = createThread.isPending || setCurrent.isPending;
-  const submitMode = sharedThreadSubmitMode(createdThread?.id ?? null, title, isPending);
-  const canSubmit = submitMode !== null;
+  const isPending = setCurrent.isPending;
   const shouldUseSheetPresentation =
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
   const usePopoverPresentation = !shouldUseSheetPresentation;
@@ -73,51 +54,23 @@ export default function PrototypeCreateSharedThreadSheet({
       strategy: 'centered',
       topVhFraction: 0.18,
       fallbackWidth: 360,
-      fallbackHeight: 260,
+      fallbackHeight: 280,
     },
-    [title, actionError, createdThread?.id],
+    [actionError, otherThreads.length],
   );
 
-  const pinCreatedThread = async (thread: CreatedSharedThread) => {
-    try {
-      await setCurrent.mutateAsync({ spaceId, threadId: thread.id });
-      setCreatedThread(null);
-      setTitle('');
+  const makeCurrent = async (threadId: string) => {
+    if (threadId === currentThreadId) {
       onOpenChange(false);
-      onCreated({ ...thread, isPinned: true });
-      try {
-        window.toast?.success('Thread created');
-      } catch {
-        /* ignore */
-      }
-    } catch (error) {
-      setCreatedThread(thread);
-      setActionError(
-        error instanceof Error
-          ? `Thread created, but it could not be set as current: ${error.message}`
-          : 'Thread created, but it could not be set as current.',
-      );
-      try {
-        await onPinFailure?.();
-      } catch {
-        /* The inline retry remains available even if refetch also failed. */
-      }
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!canSubmit) return;
-    setActionError(null);
-    if (submitMode === 'retry-pin' && createdThread) {
-      await pinCreatedThread(createdThread);
       return;
     }
+    setActionError(null);
     try {
-      const thread = await createThread.mutateAsync({ spaceId, title, color: spaceColor });
-      setCreatedThread(thread);
-      await pinCreatedThread(thread);
+      await setCurrent.mutateAsync({ spaceId, threadId });
+      onChanged?.(threadId);
+      onOpenChange(false);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Could not start this Thread.');
+      setActionError(error instanceof Error ? error.message : 'Could not set this Thread as current.');
     }
   };
 
@@ -127,7 +80,6 @@ export default function PrototypeCreateSharedThreadSheet({
   useProtoDialogFocus({
     open: open && showPopoverPortal,
     dialogRef: cardRef,
-    initialFocusRef: titleInputRef,
     onDismiss: () => {
       if (!isPending) onOpenChange(false);
     },
@@ -141,7 +93,7 @@ export default function PrototypeCreateSharedThreadSheet({
         <div className="proto-study-thread-popover__title-row">
           <Icon name="arrow-right-arrow-left" size={13} aria-hidden />
           <span id={headingId} className="proto-study-thread-popover__title" role="heading" aria-level={2}>
-            Start a Thread
+            Change current Thread
           </span>
         </div>
         <button
@@ -155,43 +107,58 @@ export default function PrototypeCreateSharedThreadSheet({
         </button>
       </div>
 
-      <div className="proto-create-shared-thread__field">
-        <label className="proto-inspector-section-title" htmlFor="proto-create-shared-thread-title">
-          Thread title
-        </label>
-        <input
-          ref={titleInputRef}
-          id="proto-create-shared-thread-title"
-          className="proto-create-folder-sheet__name-input"
-          value={title}
-          onChange={(event) => {
-            setTitle(event.target.value);
-            setActionError(null);
-          }}
-          placeholder="What are you exploring?"
-          autoFocus={open}
-          disabled={isPending || createdThread !== null}
-        />
+      <div className="proto-change-shared-thread__body">
+        {otherThreads.length > 0 ? (
+          <ul className="proto-shared-thread-list">
+            {otherThreads.map((thread) => (
+              <li key={thread.id} className="proto-glass-surface proto-shared-thread-list-row">
+                <button
+                  type="button"
+                  className="proto-shared-thread-list-row__open pds-list-title"
+                  disabled={isPending}
+                  onClick={() => void makeCurrent(thread.id)}
+                >
+                  {thread.title}
+                </button>
+                <button
+                  type="button"
+                  className="proto-shared-thread-action"
+                  disabled={isPending}
+                  onClick={() => void makeCurrent(thread.id)}
+                >
+                  Set current
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="proto-change-shared-thread__empty">
+            <PrototypeListEmptyState
+              iconName="arrow-right-arrow-left"
+              title="No other Threads yet"
+              description="Start a new Thread to switch what’s current for this space."
+            />
+          </div>
+        )}
+
+        {actionError ? (
+          <p className="proto-connect-note-sheet__error" role="alert">
+            {actionError}
+          </p>
+        ) : null}
       </div>
-
-      {createdThread ? (
-        <p className="proto-caption">“{createdThread.title}” was created. Retry setting this same Thread as current.</p>
-      ) : null}
-
-      {actionError ? (
-        <p className="proto-connect-note-sheet__error" role="alert">
-          {actionError}
-        </p>
-      ) : null}
 
       <div className="proto-add-notes-sheet__footer">
         <button
           type="button"
           className="proto-share-popover__primary"
-          disabled={!canSubmit}
-          onClick={() => void handleSubmit()}
+          disabled={isPending}
+          onClick={() => {
+            onOpenChange(false);
+            onStartThread();
+          }}
         >
-          {isPending ? 'Starting…' : createdThread ? 'Retry setting current' : 'Start Thread'}
+          Start a Thread
         </button>
       </div>
     </>
@@ -203,7 +170,7 @@ export default function PrototypeCreateSharedThreadSheet({
         <ProtoDialogBackdrop
           exiting={exiting}
           onDismiss={() => onOpenChange(false)}
-          aria-label="Close Start a Thread dialog"
+          aria-label="Close Change current Thread dialog"
         />
         <ProtoPopoverShell
           ref={cardRef}
@@ -211,7 +178,7 @@ export default function PrototypeCreateSharedThreadSheet({
           aria-modal="true"
           aria-labelledby={headingId}
           className={portaledDialogShellClassName(
-            'proto-connect-note-popover proto-create-shared-thread-popover',
+            'proto-connect-note-popover proto-change-shared-thread-popover',
             exiting,
           )}
           style={{
@@ -221,7 +188,7 @@ export default function PrototypeCreateSharedThreadSheet({
             zIndex: 6000,
           }}
         >
-          <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-create-shared-thread">
+          <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-change-shared-thread">
             {content}
           </div>
         </ProtoPopoverShell>
@@ -238,7 +205,7 @@ export default function PrototypeCreateSharedThreadSheet({
           if (!isPending) onOpenChange(false);
         }}
         overlayClassName="proto-connect-note-sheet-overlay"
-        className="proto-connect-note-sheet proto-create-shared-thread"
+        className="proto-connect-note-sheet proto-change-shared-thread"
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}

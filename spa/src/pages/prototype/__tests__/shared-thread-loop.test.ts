@@ -5,6 +5,7 @@ import {
   buildCreateSharedThreadFormData,
   validSharedThreadColor,
 } from '../../../hooks/mutations/useCreateSharedThread';
+import { buildUpdateSharedThreadFormData } from '../../../hooks/mutations/useUpdateSharedThread';
 import {
   buildSetCurrentSpaceThreadRequest,
   createThenSetCurrentThread,
@@ -87,6 +88,20 @@ describe('shared Thread create and pin contracts', () => {
       selectedNoteIds: '[]',
     });
     expect(validSharedThreadColor('not-a-color')).toBe('paper');
+  });
+
+  it('submits the shared-space update payload with id, trimmed title, and color', () => {
+    const form = buildUpdateSharedThreadFormData({
+      spaceId: 'shared',
+      threadId: 'thread_1',
+      title: '  Joy  ',
+      color: 'blue',
+    });
+    expect(Object.fromEntries(form.entries())).toEqual({
+      id: 'thread_1',
+      title: 'Joy',
+      color: 'blue',
+    });
   });
 
   it('creates before pinning and propagates pin failures', async () => {

@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import Icon from '@/components/react/Icon';
 import { useSearch } from '@/hooks/useSearch';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import type { StudyThreadCluster } from '../../hooks/queries/usePrototypeStudyThreads';
+import ProtoChipBar, { type ProtoChipOption } from './components/ProtoChipBar';
 import { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
 import PrototypeSidebarSearchResultItem from './PrototypeSidebarSearchResultItem';
 import { SIDEBAR_NO_MATCH_COPY } from './sidebar-no-match-copy';
@@ -26,7 +26,7 @@ import {
   type UniversalSearchData,
 } from './sidebar-universal-search';
 
-const HIGHLIGHT_KIND_OPTIONS: { id: HighlightKindFilter; label: string; iconName?: string }[] = [
+const HIGHLIGHT_KIND_OPTIONS: ProtoChipOption<HighlightKindFilter>[] = [
   { id: 'all', label: 'All' },
   { id: 'notes', label: 'Notes', iconName: 'note-sticky' },
   { id: 'connected', label: 'Connected', iconName: 'arrow-right-arrow-left' },
@@ -54,39 +54,6 @@ export type PrototypeSidebarSearchResultsProps = {
   myHomeNotesById?: Map<string, SpaceNoteRow>;
   myHomeHighlightsById?: Map<string, PrototypeHighlightStudyThreadRow>;
 };
-
-function SearchFilterChipBar<T extends string>({
-  ariaLabel,
-  options,
-  selectedId,
-  onSelect,
-}: {
-  ariaLabel: string;
-  options: { id: T; label: string; iconName?: string }[];
-  selectedId: T;
-  onSelect: (id: T) => void;
-}) {
-  return (
-    <div className="proto-chip-bar" role="tablist" aria-label={ariaLabel}>
-      {options.map((opt) => {
-        const selected = selectedId === opt.id;
-        return (
-          <button
-            key={opt.id}
-            type="button"
-            role="tab"
-            aria-selected={selected}
-            className={`proto-chip${selected ? ' proto-chip--selected' : ''}`}
-            onClick={() => onSelect(opt.id)}
-          >
-            {opt.iconName ? <Icon name={opt.iconName} size={11} aria-hidden /> : null}
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 function SearchResultSection({
   results,
@@ -234,7 +201,7 @@ export default function PrototypeSidebarSearchResults({
   return (
     <div className="proto-sidebar-search-results">
       <div className="proto-sidebar-search-scope">
-        <SearchFilterChipBar
+        <ProtoChipBar
           ariaLabel="Search scope"
           options={scopeOptions}
           selectedId={searchScope}
@@ -243,7 +210,7 @@ export default function PrototypeSidebarSearchResults({
       </div>
 
       {showHighlightKindBar ? (
-        <SearchFilterChipBar
+        <ProtoChipBar
           ariaLabel="Highlight kind"
           options={HIGHLIGHT_KIND_OPTIONS}
           selectedId={highlightKindFilter}
@@ -252,7 +219,7 @@ export default function PrototypeSidebarSearchResults({
       ) : null}
 
       {showElsewhereTypeBar ? (
-        <SearchFilterChipBar
+        <ProtoChipBar
           ariaLabel="Elsewhere result type"
           options={SIDEBAR_ELSEWHERE_TYPE_OPTIONS}
           selectedId={elsewhereTypeFilter}
