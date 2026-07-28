@@ -133,7 +133,7 @@ export default function UpgradeCheckoutButton({
   const foundingAvailable = Boolean(founding?.available && founderPlan?.productId);
 
   // While founding spots remain: Founding + Monthly. After sell-out: Monthly
-  // only (standard $64/yr stays unlisted until the full Plus raise).
+  // only (standard $60/yr stays unlisted while Founding is the yearly path).
   const options: PlanOption[] = [
     ...(foundingAvailable && founderPlan
       ? [

@@ -66,10 +66,10 @@ describe('pricing model', () => {
   const connector = (interval: 'month' | 'year') =>
     plans.find((p) => p.key === 'connector' && p.interval === interval);
 
-  it('prices Plus at $5/mo; standard annual stays unlisted at $64', () => {
+  it('prices Plus at $5/mo; standard annual stays unlisted at $60', () => {
     expect(plus('month')?.amountCents).toBe(500);
     expect(plus('month')?.listed).toBe(true);
-    expect(plus('year')?.amountCents).toBe(6400);
+    expect(plus('year')?.amountCents).toBe(6000);
     expect(plus('year')?.listed).toBe(false);
   });
 
@@ -137,7 +137,7 @@ describe('founding vs standard product resolution', () => {
     expect(isFoundingProductId(founder!.productId)).toBe(true);
   });
 
-  it('planFor never returns founding or the unlisted $64 annual — only listed monthly', () => {
+  it('planFor never returns founding or the unlisted $60 annual — only listed monthly', () => {
     expect(planFor('plus', 'year')).toBeNull();
     const standardMonth = planFor('plus', 'month');
     expect(standardMonth?.amountCents).toBe(500);

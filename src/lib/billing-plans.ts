@@ -25,8 +25,8 @@
  * | Connector           | $5/mo · $60/yr          | Separate add-on; NO annual discount  |
  *
  * Interim list price: Plus is $5/mo while Shared Spaces is the live paid
- * surface. Standard annual ($64) stays in the registry unlisted for a later
- * raise; Founding ($45/yr, first 99) is the only yearly offer for now.
+ * surface. Standard annual is $60 (12 × $5, no discount) and stays unlisted —
+ * Founding ($45/yr, first 99) is the only yearly offer for now.
  *
  * Two deliberate asymmetries, so they don't read as mistakes later:
  * - **Plus discounts annual via Founding, Connector does not.** Discount the
@@ -139,7 +139,7 @@ export function getPlusProductMonthlyId(): string {
   return envProduct('POLAR_PLUS_PRODUCT_MONTHLY', 'VITE_POLAR_PLUS_PRODUCT_MONTHLY');
 }
 
-/** Standard Harvous Plus annual ($64 — unlisted until price raise / full Plus). */
+/** Standard Harvous Plus annual ($60 = 12 × $5 — unlisted; Founding is the yearly path). */
 export function getPlusProductAnnualId(): string {
   return envProduct('POLAR_PLUS_PRODUCT_ANNUAL', 'VITE_POLAR_PLUS_PRODUCT_ANNUAL');
 }
@@ -189,7 +189,7 @@ export function getPlans(): PlanDefinition[] {
       key: 'plus',
       name: 'Harvous Plus',
       interval: 'year',
-      amountCents: 6400,
+      amountCents: 6000,
       currencyCode: 'USD',
       features: PLUS_FEATURES,
       limits: PLUS_LIMITS,
