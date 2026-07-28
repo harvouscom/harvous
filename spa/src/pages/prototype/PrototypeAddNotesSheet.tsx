@@ -31,6 +31,8 @@ import { useNavigate } from '@tanstack/react-router';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteParamSlug } from './proto-route-slugs';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
+import { fuzzyMatches } from './fuzzy-search';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
 
 export type AddNotesListScope = 'unsorted' | 'all';
 
@@ -46,6 +48,8 @@ export interface AddNotesCandidate {
   content: string | null;
   isOwnNote?: boolean;
   isAssociatedWithTarget?: boolean;
+  /** Tag names when known (local fuzzy search); API matches tags server-side. */
+  tagNames?: string[];
 }
 
 /** Split My Home API results into This space vs My Home chip pools. */
@@ -141,12 +145,14 @@ function spaceNoteToCandidate(row: SpaceNoteRow): AddNotesCandidate {
   };
 }
 
-function noteMatchesPickerSearch(candidate: AddNotesCandidate, query: string): boolean {
-  const t = query.trim().toLowerCase();
+/** Local picker filter — Fuse fuzzy over title, body preview, and tag names (sidebar parity). */
+export function noteMatchesPickerSearch(candidate: AddNotesCandidate, query: string): boolean {
+  const t = query.trim();
   if (!t) return true;
-  const title = (candidate.title ?? '').toLowerCase();
-  const preview = stripHtmlForListPreview(candidate.content ?? '', 800).toLowerCase();
-  return title.includes(t) || preview.includes(t);
+  const title = stripServerAutoUntitledNoteTitleForDisplay(candidate.title ?? '') || 'New Note';
+  const body = stripHtmlForListPreview(candidate.content ?? '', 800);
+  const tags = (candidate.tagNames ?? []).join(' ');
+  return fuzzyMatches(t, title, body, tags);
 }
 
 const ADD_NOTES_LIST_SCOPE_OPTIONS: { id: AddNotesListScope; label: string }[] = [
@@ -195,10 +201,10 @@ function AddNotesListBody({
     );
   }
   if (isLoading && notes.length === 0) {
-    return <p className="proto-inspector-muted proto-connect-note-sheet__status">Loading…</p>;
+    return <ProtoSpaceLoading label="Loading notes" />;
   }
   if (isSearching) {
-    return <p className="proto-inspector-muted proto-connect-note-sheet__status">Searching…</p>;
+    return <ProtoSpaceLoading label="Searching notes" />;
   }
   if (showEmpty) {
     return (
@@ -319,7 +325,11 @@ export function PrototypeAddNotesPicker({
     : candidateSource;
   const useMyHomeSource = activeSource === 'my-home';
 
-  const useLocalNotes = !showOriginFilter && !useMyHomeSource && (localOnly || spaceNotes.length > 0);
+  // Prefer the connect-note-candidates API when searching so title/body/tags are covered;
+  // keep the preloaded list only for browsing (or localOnly authorization boundaries).
+  const preferLocalBrowse =
+    !showOriginFilter && !useMyHomeSource && (localOnly || spaceNotes.length > 0);
+  const useLocalNotes = preferLocalBrowse && (localOnly || debouncedTrim.length === 0);
   const excludeNoteIdsKey = excludeNoteIds.slice(0, 50).join(',');
   const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: [
@@ -341,7 +351,7 @@ export function PrototypeAddNotesPicker({
           : {}),
         ...(useMyHomeSource ? { source: 'my-home' } : {}),
       }),
-    enabled: !localOnly && (showOriginFilter || useMyHomeSource || !useLocalNotes || debouncedTrim.length > 0),
+    enabled: !localOnly && (showOriginFilter || useMyHomeSource || !preferLocalBrowse || debouncedTrim.length > 0),
     staleTime: 10_000,
   });
 

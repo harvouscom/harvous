@@ -279,7 +279,11 @@
   --pds-radius-format:    8px;
   --pds-radius-menu:     12px;
   --pds-radius-menu-item: 6px;
-  --pds-radius-scripture: 14px;
+  /* Capsule ends for inline scripture / mention / URL pills */
+  --pds-radius-scripture: 999px;
+  /* Inline scripture / mention / URL pills — pad stays in-layout (inline-flex) so tops aren’t clipped. */
+  --pds-inline-pill-pad-block: 5px;
+  --pds-inline-pill-pad-inline: 0.7em;
   /* Inline pill reference label — native `kRefSize` 15pt @ 16px compose body (`ScripturePillAttachment`). */
   --pds-scripture-pill-font-scale: 0.9375;
   /* Native ScripturePillInnerStrokeLikeConnectionsCapsule — blurred perimeter (multiply / softLight). */

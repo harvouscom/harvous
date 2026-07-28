@@ -11,45 +11,66 @@
   --mention-pill-tint: var(--study-dock-scripture-pill-neutral);
 }
 
+/* Geometry mirrors scripture pills: inline-flex keeps pad in-layout so tops aren’t clipped. */
 .proto-editor-surface .card-full-editable__content-html .mention-pill,
 .proto-editor-surface .ProseMirror .mention-pill,
 #shared-note-content .card-full-editable__content-html .mention-pill,
 #shared-thread-content .card-full-editable__content-html .mention-pill,
 .shared-page__card-container .card-full-editable__content-html .mention-pill,
 .public-note-card .card-full-editable__content-html .mention-pill {
+  position: relative !important;
   display: inline-flex !important;
-  align-items: center !important;
-  gap: 4px;
-  border-radius: var(--pds-radius-scripture, 12px) !important;
+  align-items: baseline !important;
+  box-sizing: border-box !important;
+  border-radius: var(--pds-radius-scripture, 999px) !important;
   margin: 0 0.12em !important;
-  padding: 2px 10px !important;
+  /* Extra left pad for the absolutely-positioned kind icon. */
+  padding: var(--pds-inline-pill-pad-block, 5px) var(--pds-inline-pill-pad-inline, 0.7em)
+    var(--pds-inline-pill-pad-block, 5px) 1.55em !important;
   font-family: inherit !important;
   font-size: calc(1em * var(--pds-scripture-pill-font-scale, 0.9375)) !important;
   font-weight: 500 !important;
-  line-height: inherit !important;
+  line-height: 1 !important;
+  vertical-align: baseline !important;
   color: var(--pds-text-primary, var(--color-deep-grey)) !important;
   text-decoration: none !important;
   cursor: pointer;
   background-color: color-mix(in srgb, var(--mention-pill-tint) var(--mention-pill-fill-mix), transparent);
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--mention-pill-tint) 10%, transparent),
+    color-mix(in srgb, var(--mention-pill-tint) 6.5%, transparent)
+  );
   border: 0.5px solid color-mix(in srgb, var(--mention-pill-tint) var(--mention-pill-border-mix), transparent);
+  box-shadow: var(--scripture-pill-inner-shadow, inset 0 0 3px rgba(0, 0, 0, 0.042));
+  -webkit-user-select: none;
+  user-select: none;
+  white-space: normal;
 }
 
 .proto-editor-surface .ProseMirror .mention-pill {
-  margin: 0 !important;
+  margin-inline: 0 !important;
 }
 
 .proto-editor-surface .card-full-editable__content-html .mention-pill:hover,
 .proto-editor-surface .ProseMirror .mention-pill:hover {
   background-color: color-mix(in srgb, var(--mention-pill-tint) var(--mention-pill-fill-hover-mix), transparent);
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--mention-pill-tint) 12.5%, transparent),
+    color-mix(in srgb, var(--mention-pill-tint) 6.5%, transparent)
+  );
 }
 
-/* Kind icon via CSS mask so the stored HTML stays a plain styled span. */
+/* Kind icon via CSS mask — absolute so it cannot enlarge the line box (unlike a flex child). */
 .mention-pill::before {
   content: '';
-  display: inline-block;
-  width: 0.78em;
-  height: 0.78em;
-  flex: none;
+  position: absolute;
+  left: 0.42em;
+  top: 50%;
+  width: 0.72em;
+  height: 0.72em;
+  transform: translateY(-50%);
   background-color: currentColor;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
@@ -57,6 +78,7 @@
   mask-position: center;
   -webkit-mask-size: contain;
   mask-size: contain;
+  pointer-events: none;
 }
 
 .mention-pill[data-mention-kind="note"]::before {
@@ -77,54 +99,171 @@
 /* ─── @ mention typeahead picker ─────────────────────────────────────────── */
 
 .mention-picker {
-  padding: 6px 0;
-  border-radius: 10px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: max-content;
+  max-width: 100%;
+  padding: 0;
+  border-radius: var(--pds-radius-menu, 12px);
   background: var(--pds-bg-popover-solid, var(--pds-bg-page));
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16), 0 4px 16px rgba(0, 0, 0, 0.12);
+  border: 0.5px solid var(--pds-border-control, transparent);
+  box-shadow: var(
+    --pds-shadow-popover,
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 8px 24px rgba(0, 0, 0, 0.12)
+  );
   overflow: hidden;
+  box-sizing: border-box;
+}
+
+.mention-picker__header {
+  flex-shrink: 0;
+  width: max-content;
+  max-width: 100%;
+  padding: 8px 8px 7px;
+  background: var(--pds-bg-popover-solid, var(--pds-bg-page));
+  border-bottom: 0.5px solid var(--pds-border-control, transparent);
 }
 
 .mention-picker__tabs {
-  margin: 4px 8px 4px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 2px;
+  gap: 1px;
+}
+
+.mention-picker__tab {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 5px 9px;
+  font-size: 11.5px;
+  gap: 4px;
+}
+
+.mention-picker__tab:first-child {
+  padding-inline: 10px;
+}
+
+.mention-picker__list-wrap {
+  position: relative;
+  /* Size the menu from the chip row; truncate long titles instead of widening. */
+  width: 0;
+  min-width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: calc(320px - 72px);
+  box-sizing: border-box;
+}
+
+.mention-picker__list-wrap::before,
+.mention-picker__list-wrap::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 20px;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.mention-picker__list-wrap::before {
+  top: 0;
+  background: linear-gradient(
+    to bottom,
+    var(--pds-bg-popover-solid, var(--pds-bg-page)) 0%,
+    transparent 100%
+  );
+}
+
+.mention-picker__list-wrap::after {
+  bottom: 0;
+  background: linear-gradient(
+    to top,
+    var(--pds-bg-popover-solid, var(--pds-bg-page)) 0%,
+    transparent 100%
+  );
+}
+
+.mention-picker__list-wrap--fade-top::before,
+.mention-picker__list-wrap--fade-bottom::after {
+  opacity: 1;
 }
 
 .mention-picker__list {
-  max-height: calc(288px - 40px);
+  height: 100%;
+  max-height: inherit;
   overflow-y: auto;
+  padding: 6px 6px 8px;
+  scrollbar-width: thin;
+  box-sizing: border-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mention-picker__list-wrap::before,
+  .mention-picker__list-wrap::after {
+    transition: none;
+  }
 }
 
 .mention-picker__empty {
-  padding: 10px 12px;
-  font-size: 12px;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 22px 14px;
+  text-align: center;
+}
+
+.mention-picker__empty-title {
+  font-family: var(--pds-font-body, inherit);
+  font-size: 13px;
+  font-weight: 500;
   color: var(--pds-text-secondary);
 }
 
+.mention-picker__empty-hint {
+  font-family: var(--pds-font-body, inherit);
+  font-size: 12px;
+  color: var(--pds-text-tertiary);
+}
+
 .mention-picker__section-label {
-  padding: 6px 12px 2px;
+  padding: 8px 8px 4px;
+  font-family: var(--pds-font-body, inherit);
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--pds-text-tertiary);
+}
+
+.mention-picker__section-label:first-child {
+  padding-top: 2px;
 }
 
 .mention-picker__row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   width: 100%;
-  padding: 6px 12px;
+  margin: 0;
+  padding: 7px 8px;
   border: none;
+  border-radius: var(--pds-radius-menu-item, 8px);
   background: none;
   text-align: left;
   cursor: pointer;
   color: var(--pds-text-primary) !important;
+  transition: background 0.12s ease;
 }
 
 /* Beat global.css `button * { color: var(--color-deep-grey) !important }` — row title/subtitle
    are direct descendants of the `.mention-picker__row` button. */
 .mention-picker__row * {
-  color: var(--pds-text-primary) !important;
+  color: inherit;
 }
 
 .mention-picker__row-icon {
@@ -132,31 +271,106 @@
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 16px;
-  height: 16px;
-  opacity: 0.7;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--pds-bg-control, var(--pds-bg-chip));
+  color: var(--pds-text-secondary) !important;
+}
+
+.mention-picker__row-icon svg {
+  color: inherit !important;
 }
 
 .mention-picker__row-text {
   display: flex;
   flex-direction: column;
+  gap: 1px;
   min-width: 0;
+  flex: 1;
 }
 
 .mention-picker__row-title {
+  font-family: var(--pds-font-body, inherit);
   font-size: 13px;
   font-weight: 500;
+  line-height: 1.25;
+  color: var(--pds-text-primary) !important;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .mention-picker__row-subtitle {
+  font-family: var(--pds-font-body, inherit);
   font-size: 11px;
+  line-height: 1.3;
   color: var(--pds-text-secondary) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mention-picker__row:hover {
+  background: var(--pds-bg-subtle, var(--pds-bg-row-hover));
 }
 
 .mention-picker__row--active,
-.mention-picker__row:hover {
+.mention-picker__row--active:hover {
   background: var(--pds-bg-chip-hover, var(--pds-bg-row-hover));
+}
+
+.mention-picker__match {
+  margin: 0;
+  padding: 0;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--pds-text-primary) 10%, transparent);
+  color: inherit;
+  font: inherit;
+}
+
+.mention-picker__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 8px;
+  flex-shrink: 0;
+  padding: 6px 8px 7px;
+  border-top: 0.5px solid var(--pds-border-control, transparent);
+  font-family: var(--pds-font-body, inherit);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--pds-text-tertiary);
+  background: var(--pds-bg-popover-solid, var(--pds-bg-page));
+}
+
+.mention-picker__footer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.mention-picker__kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  border: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-control, var(--pds-bg-chip));
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--pds-text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mention-picker__row {
+    transition: none;
+  }
 }

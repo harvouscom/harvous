@@ -3622,6 +3622,11 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   text-align: center;
 }
 
+.proto-connect-note-sheet .proto-home-loading,
+.proto-add-notes-sheet__scoped-list-body .proto-home-loading {
+  padding: 16px 14px;
+}
+
 .proto-connect-note-sheet__hint {
   margin: 8px 0 0;
   font-family: var(--pds-font-body);

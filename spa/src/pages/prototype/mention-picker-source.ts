@@ -11,6 +11,7 @@ import { fuzzyFilter } from './fuzzy-search';
 import { buildFoldersFromNotes, mergeFoldersWithRegistry, type FolderBucket } from './sidebar-universal-search';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import type { MentionPickerItem } from '@/components/react/mention-pill-types';
+import { protoRelativeCaptionAbbrev } from './proto-time';
 
 export const MENTION_ITEMS_PER_KIND = 6;
 const ITEMS_PER_KIND = MENTION_ITEMS_PER_KIND;
@@ -22,6 +23,15 @@ export function noteTitle(note: { title?: string | null }): string {
 
 export function threadTitle(cluster: StudyThreadCluster): string {
   return (cluster.title ?? cluster.suggestedTitle ?? '').trim() || 'Untitled thread';
+}
+
+export function noteMentionSubtitle(note: Pick<SpaceNoteRow, 'updatedAt' | 'createdAt' | 'lastUpdated'>): string | undefined {
+  const caption = protoRelativeCaptionAbbrev(note.updatedAt ?? note.lastUpdated ?? note.createdAt);
+  return caption || undefined;
+}
+
+export function threadMentionSubtitle(noteCount: number): string {
+  return `${noteCount} note${noteCount === 1 ? '' : 's'}`;
 }
 
 function flattenNotePages(pages: { notes: SpaceNoteRow[] }[] | undefined): SpaceNoteRow[] {
@@ -37,6 +47,7 @@ export function notesToItems(notes: SpaceNoteRow[], query: string, spaceId: stri
     entityId: note.id,
     spaceId,
     title,
+    subtitle: noteMentionSubtitle(note),
   }));
 }
 
@@ -48,6 +59,7 @@ export function threadsToItems(threads: StudyThreadCluster[], query: string, spa
     entityId: cluster.id,
     spaceId,
     title,
+    subtitle: threadMentionSubtitle(cluster.noteCount),
   }));
 }
 
@@ -164,7 +176,13 @@ export function useMentionSource(scope: MentionSourceScope): (query: string) => 
             );
             ftsNotes = results
               .filter((r) => r.type === 'note')
-              .map((r) => ({ kind: 'note' as const, entityId: r.id, spaceId, title: r.title || 'New Note' }));
+              .map((r) => ({
+                kind: 'note' as const,
+                entityId: r.id,
+                spaceId,
+                title: r.title || 'New Note',
+                subtitle: noteMentionSubtitle({ lastUpdated: r.lastUpdated }),
+              }));
           } catch {
             /* search endpoint unavailable — client-side notes still show */
           }
@@ -189,6 +207,7 @@ export function useMentionSource(scope: MentionSourceScope): (query: string) => 
               entityId: r.id,
               spaceId: r.spaceId || homeSpaceId,
               title: r.title || 'New Note',
+              subtitle: noteMentionSubtitle({ lastUpdated: r.lastUpdated }),
             }));
           notes = dedupeNoteItemsById([...notes, ...ftsNotes]);
         } catch {

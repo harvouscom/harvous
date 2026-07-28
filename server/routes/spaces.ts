@@ -41,7 +41,7 @@ import { getTableColumns } from 'drizzle-orm';
 import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Spaces, Notes, Threads, NoteThreads, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, SpaceNotes, UserMetadata, ResourceMetadata, ScriptureMetadata,
-  StudyThreadEntries, NoteConnections,
+  StudyThreadEntries, NoteConnections, Tags, NoteTags,
   eq, and, ne, count, inArray, notInArray, desc, asc, sql, isNull, isNotNull, gt, gte, or,
   first,
 } from '../db';
@@ -2023,9 +2023,24 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
     if (excludeIds.length === 1) baseFilters.push(ne(Notes.id, excludeIds[0]!));
     else if (excludeIds.length > 1) baseFilters.push(notInArray(Notes.id, excludeIds));
 
-    const filters = q.length >= 1
-      ? [...baseFilters, sql`COALESCE(${Notes.title}, '') ILIKE ${'%' + q + '%'}`]
-      : baseFilters;
+    // Title, body, and tag names (substring ILIKE — same family as short /api/search queries).
+    const searchPattern = `%${q}%`;
+    const filters =
+      q.length >= 1
+        ? [
+            ...baseFilters,
+            or(
+              sql`COALESCE(${Notes.title}, '') ILIKE ${searchPattern}`,
+              sql`COALESCE(${Notes.content}, '') ILIKE ${searchPattern}`,
+              sql`EXISTS (
+                SELECT 1 FROM ${NoteTags}
+                INNER JOIN ${Tags} ON ${Tags.id} = ${NoteTags.tagId}
+                WHERE ${NoteTags.noteId} = ${Notes.id}
+                  AND ${Tags.name} ILIKE ${searchPattern}
+              )`,
+            ),
+          ]
+        : baseFilters;
 
     const rows = await db
       .select({

@@ -16,6 +16,7 @@ import { APIError } from '../../../lib/api';
 import {
   candidateToSpaceNoteRow,
   filterCandidatesByOriginScope,
+  noteMatchesPickerSearch,
   planSharedAddNotesRequest,
   resolveSelectedNoteRows,
 } from '../PrototypeAddNotesSheet';
@@ -386,6 +387,22 @@ describe('shared Add Notes request planning', () => {
     expect(
       filterCandidatesByOriginScope(notes, 'this-space', { ownNotesOnly: true }).map((n) => n.id),
     ).toEqual(['in-space']);
+  });
+
+  it('fuzzy-matches Add notes candidates by title, body, and tags', () => {
+    const note = {
+      id: 'n1',
+      title: 'Joy in Christ',
+      noteType: 'default',
+      updatedAt: null,
+      createdAt: null,
+      content: '<p>Steadfast hope in suffering</p>',
+      tagNames: ['perseverance', 'romans'],
+    };
+    expect(noteMatchesPickerSearch(note, 'joy')).toBe(true);
+    expect(noteMatchesPickerSearch(note, 'steadfst')).toBe(true);
+    expect(noteMatchesPickerSearch(note, 'persever')).toBe(true);
+    expect(noteMatchesPickerSearch(note, 'zzzz-nope')).toBe(false);
   });
 });
 

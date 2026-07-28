@@ -22,7 +22,10 @@ import { DOMSerializer } from '@tiptap/pm/model';
 import { NoteLink } from './TiptapNoteLink';
 import { ScripturePill } from './TiptapScripturePill';
 import { MentionPill } from './TiptapMentionPill';
-import MentionPickerPanel, { type MentionKindFilter } from './MentionPickerPanel';
+import MentionPickerPanel, {
+  cycleMentionKindFilter,
+  type MentionKindFilter,
+} from './MentionPickerPanel';
 import type { MentionPickerItem, MentionPillClickPayload } from './mention-pill-types';
 import { findMentionTrigger } from '@/utils/mention-trigger';
 import {
@@ -684,15 +687,17 @@ function visibleMentionItems(state: MentionPickerState): MentionPickerItem[] {
 
 /** Fixed-position style for the mention picker: below the caret, clamped to the viewport, flipped above when the keyboard/viewport bottom is too close. */
 function mentionPickerPortalStyle(rect: MentionPickerState['rect']): React.CSSProperties {
-  const maxHeight = 288;
-  const width = 264;
+  const maxHeight = 320;
+  /** Content-sized menu; clamp so it never spills past the viewport edge. */
+  const maxWidth = Math.min(320, Math.max(160, window.innerWidth - 16));
   const openAbove =
     rect.bottom + 6 + maxHeight > window.innerHeight - 12 && rect.top > maxHeight + 12;
-  const left = Math.min(Math.max(8, rect.left), Math.max(8, window.innerWidth - width - 8));
+  const left = Math.min(Math.max(8, rect.left), Math.max(8, window.innerWidth - maxWidth - 8));
   const style: React.CSSProperties = {
     position: 'fixed',
     left,
-    width,
+    width: 'max-content',
+    maxWidth,
     maxHeight,
     zIndex: 99999,
     pointerEvents: 'auto',
@@ -4823,6 +4828,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             mentionDismissedAtRef.current = mentionState.range.from;
             mentionPickerRef.current = null;
             setMentionPicker(null);
+            return true;
+          }
+          // Shift+← / Shift+→ cycle kind filters — same gesture as sidebar list mode.
+          if (event.shiftKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+            event.preventDefault();
+            const step = event.key === 'ArrowRight' ? 1 : -1;
+            const next = {
+              ...mentionState,
+              kindFilter: cycleMentionKindFilter(mentionState.kindFilter, step),
+              activeIndex: 0,
+            };
+            mentionPickerRef.current = next;
+            setMentionPicker(next);
             return true;
           }
           const visible = visibleMentionItems(mentionState);
@@ -9258,6 +9276,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               items={visibleMentionItems(mentionPicker)}
               activeIndex={mentionPicker.activeIndex}
               kindFilter={mentionPicker.kindFilter}
+              query={mentionPicker.query}
               onKindFilterChange={(kind) => {
                 const state = mentionPickerRef.current;
                 if (!state || state.kindFilter === kind) return;

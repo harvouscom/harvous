@@ -23,6 +23,7 @@ import { noteParamSlug } from './proto-route-slugs';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { studyThreadDisplayTitle } from '../../utils/study-thread-display-title';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
 
 // ─── Main popover ─────────────────────────────────────────────────────────────
 
@@ -154,7 +155,7 @@ export default function PrototypeStudyThreadPopover({
       {/* Scrollable body */}
       <div className="proto-study-thread-popover__body">
         {isLoading && !thread ? (
-          <p className="proto-inspector-muted" style={{ padding: '8px 14px' }}>Loading…</p>
+          <ProtoSpaceLoading label="Loading Thread" />
         ) : isError || !thread?.success ? (
           <p className="proto-inspector-muted" style={{ padding: '8px 14px' }}>Could not load thread.</p>
         ) : (

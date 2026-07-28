@@ -29,6 +29,7 @@ import {
 } from './useProtoAnchoredPopoverPosition';
 import ProtoChipBar, { type ProtoChipOption } from './components/ProtoChipBar';
 import PrototypeSearchInput from './components/PrototypeSearchInput';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { PrototypeListEmptyState, PrototypeListNoMatchEmptyState } from './design-system';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
@@ -482,7 +483,7 @@ export default function PrototypeBrowseTemplatesSheet({
             aria-label={tabPanelLabel}
           >
             {isLoading && !data ? (
-              <p className="proto-inspector-muted proto-connect-note-sheet__status">Loading…</p>
+              <ProtoSpaceLoading label="Loading templates" />
             ) : (
               <>
                 {showApiErrorHint ? (

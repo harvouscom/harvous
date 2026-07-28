@@ -265,32 +265,35 @@
 }
 
 /* ─── Scripture pill (prototype editor) — native mac geometry; accent surface in scripture-pill-accent.css ─ */
+/* inline-flex keeps pad in-layout (no paint-outside-line-box clip) and baseline-aligns text with prose. */
 .proto-editor-surface .scripture-pill {
   display: inline-flex !important;
-  align-items: center !important;
+  align-items: baseline !important;
+  box-sizing: border-box !important;
   border-radius: var(--pds-radius-scripture) !important;
   margin: 0 0.12em !important;
-  padding: 2px 11px !important;
+  padding: var(--pds-inline-pill-pad-block) var(--pds-inline-pill-pad-inline) !important;
   font-family: inherit !important;
   font-size: calc(1em * var(--pds-scripture-pill-font-scale, 0.9375)) !important;
   font-weight: 500 !important;
-  line-height: inherit !important;
+  line-height: 1 !important;
+  vertical-align: baseline !important;
   color: var(--pds-text-primary) !important;
   text-decoration: none !important;
   cursor: pointer;
 }
 
-/* Edit surface: document spacers handle separation; avoid double gap with auto-inserted spaces */
+/* Edit surface: document spacers handle horizontal separation. */
 .proto-editor-surface .ProseMirror .scripture-pill {
-  margin: 0 !important;
+  margin-inline: 0 !important;
 }
 
 /* ─── Inline edit-mode (draft) scripture pill — in-progress, confirm to commit ─ */
 .proto-editor-surface .scripture-pill-draft {
   background: var(--pds-accent-subtle-bg) !important;
   border: 1px dashed var(--pds-accent-subtle-border) !important;
-  /* keep total box geometry aligned with the committed pill despite the 1px border */
-  padding: 1px 10px !important;
+  /* 1px dashed border: match committed outer size */
+  padding: calc(var(--pds-inline-pill-pad-block) - 0.5px) calc(var(--pds-inline-pill-pad-inline) - 0.5px) !important;
   color: var(--pds-text-primary) !important;
   cursor: text !important;
 }
@@ -345,7 +348,7 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
   box-shadow: none;
 }
 
-/* Translation suffix (e.g. NET) — smaller, vertically centered with reference via flex parent */
+/* Translation suffix (e.g. NET) — smaller, shares baseline with reference */
 .proto-editor-surface .scripture-pill[data-scripture-translation-label]::after,
 .proto-editor-surface .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after {
   font-size: 0.68em !important;
@@ -354,20 +357,23 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
   letter-spacing: 0.02em !important;
   color: var(--pds-text-secondary) !important;
   line-height: 1 !important;
+  vertical-align: baseline !important;
 }
 
 /* ─── URL link pill (prototype editor) — matches scripture pill visual style ── */
 .proto-editor-surface .url-link-pill {
   display: inline-flex !important;
-  align-items: center !important;
+  align-items: baseline !important;
   gap: 4px !important;
+  box-sizing: border-box !important;
   border-radius: var(--pds-radius-scripture) !important;
-  padding: 2px 11px !important;
+  padding: var(--pds-inline-pill-pad-block) var(--pds-inline-pill-pad-inline) !important;
   font-family: inherit !important;
   font-size: calc(1em * var(--pds-scripture-pill-font-scale, 0.9375)) !important;
   font-weight: 500 !important;
   font-variation-settings: "ROND" 0, "wght" 500 !important;
-  line-height: inherit !important;
+  line-height: 1 !important;
+  vertical-align: baseline !important;
   background: var(--pds-bg-section) !important;
   color: var(--pds-text-primary) !important;
   border: none !important;
@@ -393,7 +399,7 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
 
 /* Beat global.css `* { user-select: none }` so Cmd+C preserves block structure if the browser handles copy. */
 .proto-editor-surface .ProseMirror,
-.proto-editor-surface .ProseMirror *:not(.scripture-pill):not(.scripture-pill *) {
+.proto-editor-surface .ProseMirror *:not(.scripture-pill):not(.scripture-pill *):not(.mention-pill):not(.mention-pill *) {
   user-select: text;
   -webkit-user-select: text;
 }

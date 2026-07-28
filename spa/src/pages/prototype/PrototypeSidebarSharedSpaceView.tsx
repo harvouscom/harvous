@@ -495,6 +495,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
         spaceId={activeSpaceId}
         isOwner={canManageThreads}
         canCompose={canComposeHere}
+        backLabel={spaceTitle}
         onBack={() => setDrilledThread(null)}
         onCompose={() => composeInSharedSpace(drilledThread.id)}
         onSetCurrent={makeThreadCurrent}

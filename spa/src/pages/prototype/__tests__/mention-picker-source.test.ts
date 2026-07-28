@@ -11,17 +11,17 @@ import type { StudyThreadCluster } from '../../../hooks/queries/usePrototypeStud
 import type { FolderBucket } from '../sidebar-universal-search';
 import type { MentionPickerItem } from '@/components/react/mention-pill-types';
 
-function note(id: string, title: string): SpaceNoteRow {
-  return { id, title };
+function note(id: string, title: string, updatedAt?: string): SpaceNoteRow {
+  return { id, title, updatedAt };
 }
 
-function thread(id: string, title: string): StudyThreadCluster {
+function thread(id: string, title: string, noteCount = 1): StudyThreadCluster {
   return {
     id,
     title,
     suggestedTitle: null,
     hasCustomTitle: true,
-    noteCount: 1,
+    noteCount,
     updatedAt: null,
     memberIds: [],
   };
@@ -65,6 +65,17 @@ describe('grouping / caps', () => {
     const notes = [note('note_1', 'Romans Study'), note('note_2', 'Genesis Study')];
     const items = notesToItems(notes, 'romans', 'space_1');
     expect(items.map((i) => i.entityId)).toEqual(['note_1']);
+  });
+
+  it('adds a relative-date subtitle for notes and a note-count subtitle for threads', () => {
+    const noteItems = notesToItems(
+      [note('note_1', 'Romans Study', '2026-07-28T12:00:00.000Z')],
+      '',
+      'space_1',
+    );
+    expect(noteItems[0]?.subtitle).toBeTruthy();
+    expect(threadsToItems([thread('t1', 'Joy', 3)], '', 'space_1')[0]?.subtitle).toBe('3 notes');
+    expect(threadsToItems([thread('t2', 'Peace', 1)], '', 'space_1')[0]?.subtitle).toBe('1 note');
   });
 });
 

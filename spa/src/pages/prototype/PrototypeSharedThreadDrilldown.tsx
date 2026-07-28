@@ -76,6 +76,7 @@ export default function PrototypeSharedThreadDrilldown({
   spaceId,
   isOwner,
   canCompose = true,
+  backLabel = 'Shared space',
   onBack,
   onCompose,
   onSetCurrent,
@@ -87,6 +88,8 @@ export default function PrototypeSharedThreadDrilldown({
   isOwner: boolean;
   /** When false (ministry broadcast channels), hide compose / add-existing. */
   canCompose?: boolean;
+  /** Parent destination for the back control (space title). */
+  backLabel?: string;
   onBack: () => void;
   onCompose: () => void;
   onSetCurrent: (threadId: string) => Promise<unknown>;
@@ -213,10 +216,14 @@ export default function PrototypeSharedThreadDrilldown({
     <div className="proto-sidebar-root proto-shared-thread-drilldown">
       {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
       <div className="proto-sidebar-back-row">
-        <button type="button" className="proto-sidebar-back-row__button" onClick={onBack}>
+        <button
+          type="button"
+          className="proto-sidebar-back-row__button"
+          onClick={onBack}
+          aria-label={`Back to ${backLabel}`}
+        >
           <Icon name="caret-left" size={13} className="proto-sidebar-back-row__chevron" aria-hidden />
-          <span className="proto-sidebar-back-row__kind">Thread</span>
-          <span className="proto-sidebar-back-row__label">{thread.title}</span>
+          <span className="proto-sidebar-back-row__label">{backLabel}</span>
         </button>
       </div>
 

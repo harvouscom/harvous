@@ -17,6 +17,7 @@ import { noteParamSlug } from './proto-route-slugs';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { studyThreadDisplayTitle } from '../../utils/study-thread-display-title';
 import { trackThreadOpened } from '@/utils/analytics';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
 
 interface PrototypeStudyThreadPanelProps {
   noteId: string;
@@ -144,7 +145,7 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
 
       <div className="proto-side-panel__body">
         {isLoading && !thread ? (
-          <p className="proto-inspector-muted" style={{ padding: '12px 14px' }}>Loading…</p>
+          <ProtoSpaceLoading label="Loading Thread" />
         ) : isError || !thread?.success ? (
           <p className="proto-inspector-muted" style={{ padding: '12px 14px' }}>Could not load thread.</p>
         ) : (

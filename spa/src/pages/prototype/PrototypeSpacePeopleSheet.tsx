@@ -28,6 +28,7 @@ import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useSpaceMembers, useSpaceInvites } from '../../hooks/queries/useSpace';
 import { useCreateSpaceInvite, useRevokeSpaceInvite } from '../../hooks/mutations/useSpaceInviteActions';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
 import { useRemoveSpaceMember } from '../../hooks/mutations/useRemoveSpaceMember';
 import { isDeletedSpaceUnavailableError, useDeleteSharedSpace } from '../../hooks/mutations/useDeleteSharedSpace';
 
@@ -308,7 +309,7 @@ export default function PrototypeSpacePeopleSheet({
   });
   const memberList =
     memberListState === 'loading' ? (
-      <p className="proto-inspector-section-title">Loading…</p>
+      <ProtoSpaceLoading label="Loading people" />
     ) : memberListState === 'error' ? (
       <div className="proto-shared-thread-state" role="alert">
         <p>Could not load people.</p>
@@ -456,7 +457,7 @@ export default function PrototypeSpacePeopleSheet({
             </button>
           </div>
         ) : invitesQuery.isLoading ? (
-          <p className="proto-inspector-muted proto-connect-note-sheet__status">Loading…</p>
+          <ProtoSpaceLoading label="Loading invite links" />
         ) : invites.length === 0 ? (
           <div className="proto-shared-invite-empty">
             <PrototypeListEmptyState

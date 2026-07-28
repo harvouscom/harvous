@@ -2360,6 +2360,7 @@ export default function PrototypeSidebar({
             type: activeSharedSpace?.type,
             orgId: activeSharedSpace?.orgId,
           })}
+          backLabel={activeSharedSpace?.title?.trim() || 'Shared space'}
           onBack={() => {
             setSidebarThreadDrilldownId(undefined);
             setQ('');
