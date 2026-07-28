@@ -25,6 +25,7 @@ import { subscribeSheetOverlayInset } from '@/utils/sheet-overlay-inset';
 import { useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 import { SyncCacheBridge } from './lib/sync-cache-bridge';
 import { SharedSpacesEntitlementBridge } from './lib/SharedSpacesEntitlementBridge';
+import { PostHogBridge } from './components/PostHogBridge';
 import {
   clearPendingAuthRedirect,
   consumePendingAuthRedirect,
@@ -787,6 +788,7 @@ export default function App() {
         <PublicRouteClassBridge />
         <PendingAuthRedirectBridge />
         <QueryClient401Redirect />
+        <PostHogBridge />
         <IosPwaSheetOverlayInset />
         <WebHapticsSetup />
         <DevApiHealthBanner />

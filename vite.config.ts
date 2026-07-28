@@ -15,6 +15,8 @@ export default defineConfig({
   publicDir: path.resolve(__dirname, 'public'),
   // Load .env from the project root (not spa/) where all env vars live
   envDir: path.resolve(__dirname),
+  // VITE_* for SPA config; PUBLIC_* keeps PostHog (and legacy Astro-style) keys available to the client
+  envPrefix: ['VITE_', 'PUBLIC_'],
   build: {
     outDir: '../dist-spa',
     emptyOutDir: true,

@@ -18,6 +18,16 @@ declare global {
   }
 }
 
+function getPostHogKey(): string | undefined {
+  const env = import.meta.env as Record<string, string | undefined>;
+  return env.VITE_PUBLIC_POSTHOG_KEY || env.PUBLIC_POSTHOG_KEY || undefined;
+}
+
+function getPostHogHost(): string {
+  const env = import.meta.env as Record<string, string | undefined>;
+  return env.VITE_PUBLIC_POSTHOG_HOST || env.PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
+}
+
 /**
  * Initialize PostHog (client-side only)
  * Should be called after page load to avoid blocking initial render
@@ -33,10 +43,13 @@ export function initPostHog() {
     return;
   }
 
-  const posthogKey = import.meta.env.PUBLIC_POSTHOG_KEY;
-  const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST || 'https://app.posthog.com';
+  const posthogKey = getPostHogKey();
+  const posthogHost = getPostHogHost();
 
   if (!posthogKey) {
+    if (import.meta.env.DEV) {
+      console.warn('[PostHog] Missing PUBLIC_POSTHOG_KEY / VITE_PUBLIC_POSTHOG_KEY — analytics disabled');
+    }
     return;
   }
 
@@ -45,7 +58,8 @@ export function initPostHog() {
       api_host: posthogHost,
       // Privacy-first settings
       autocapture: false, // Disable automatic capture for privacy
-      capture_pageview: true, // But still capture pageviews
+      // SPA: capture initial load + history API / back-forward navigations
+      capture_pageview: 'history_change' as const,
       capture_pageleave: true,
       // Respect Do Not Track
       respect_dnt: true,
@@ -54,21 +68,12 @@ export function initPostHog() {
       // Mask sensitive data
       mask_all_text: false,
       mask_all_element_attributes: false,
-      // Performance optimizations
-      loaded: (posthog) => {
-        // Make posthog available globally for feature flags
-        window.posthog = posthog;
-        
-        // Ensure pageview is captured (in case it wasn't automatic)
-        try {
-          posthog.capture('$pageview');
-        } catch (error) {
-          // Ignore errors - pageview might already be captured
-        }
+      loaded: (instance) => {
+        window.posthog = instance;
       },
-      // Error handling
-      ...({ _capture_metrics: true } as any),
     });
+    // Available immediately for identify / capture (loaded may race)
+    window.posthog = posthog;
   } catch (error) {
     console.error('[PostHog] Initialization error:', error);
   }

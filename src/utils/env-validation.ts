@@ -29,8 +29,10 @@ export function validateEnvironmentVariables(): ValidationResult {
   if (!dbUrl || String(dbUrl).trim() === '') missing.push('SUPABASE_DATABASE_URL');
 
   // Recommended but optional variables
+  const posthogKey =
+    import.meta.env.VITE_PUBLIC_POSTHOG_KEY || import.meta.env.PUBLIC_POSTHOG_KEY;
   const recommended = {
-    PUBLIC_POSTHOG_KEY: import.meta.env.PUBLIC_POSTHOG_KEY,
+    PUBLIC_POSTHOG_KEY: posthogKey,
     WEBFLOW_INBOX_API_TOKEN: import.meta.env.WEBFLOW_INBOX_API_TOKEN,
   };
 
