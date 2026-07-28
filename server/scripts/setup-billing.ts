@@ -39,7 +39,7 @@ const DESIRED: DesiredProduct[] = [
   {
     name: 'Harvous Plus (Monthly)',
     interval: 'month',
-    amountCents: 800,
+    amountCents: 500,
     envVar: 'POLAR_PLUS_PRODUCT_MONTHLY',
   },
   {

@@ -11,7 +11,7 @@ per product, everything included, no tiers within a product.**
 |---|---|---|
 | **Free** | $0 | Private study, forever. Unlimited notes, Remember surfaces, Compete free track. **Join** shared spaces — hosting is the paid line. |
 | **Founding** | **$45/yr** | First **99** subscribers · **annual only** · lifetime price lock. |
-| **Harvous Plus** | **$8/mo · $64/yr** | Everything: unlimited shared spaces (**50 people each**), Review, Challenges, **every season**. Annual is "four months free". |
+| **Harvous Plus** | **$5/mo** | Shared Spaces hosting now; Review, Challenges, and seasons fold in later. Standard annual ($64) is unlisted until that raise. |
 | **Connector** | **$5/mo · $60/yr** | Separate add-on — CLI/MCP read access. **No annual discount.** Hard paywall, no trial. |
 | **Church** | See §7 | Separate org track — where caps lift and spaces transfer from individuals. |
 
@@ -153,7 +153,7 @@ not a small-group host. Selling distinct products is consistent with simple pric
 a product is not.
 
 **No annual discount** — $60/yr is exactly 12 × $5. Discount the product you want commitment in (Plus,
-where annual is four months free); don't lock a lifetime discount into an add-on whose demand is
+where annual is discounted via Founding); don't lock a lifetime discount into an add-on whose demand is
 unproven. Offering the undiscounted annual is still worth it: one charge instead of twelve saves
 eleven flat processor fees (~$5.50/yr), and some buyers prefer a single line item to expense.
 
@@ -330,7 +330,7 @@ active season", and at 8–11 seasons a year against a $79–149 retail pass, th
 passes inside an $828 tier**. Seasons are now a tier benefit, and the inconsistency disappears with
 the SKU.
 
-**On the seat discount:** retail Plus is $8/mo, so a $2–3 church seat is a 63–75% bulk break. That is
+**On the seat discount:** retail Plus is $5/mo (interim), so a $2–3 church seat is a 40–60% bulk break. That is
 deliberate — the real per-seat cost is ~$0.10/mo (see §3 fee note and the cost constraint in
 [billing-plans.ts](../../src/lib/billing-plans.ts)), so even $2 holds >90% margin. Church procurement
 responds to a steep, legible break far better than to a 25% one, and discounting *seats* is much
@@ -420,6 +420,9 @@ Example: 5 small-group leaders → **$19 + 5×$12 = $79/mo**.
 - [x] ~~Connector price~~ — **$5/mo · $60/yr**, no annual discount.
 - [x] ~~Founding price / cap~~ — **$45/yr, annual only, first 99**, lifetime lock, then straight to
       standard with a "all 99 claimed" sold-out state (no second tier).
+- [x] ~~Plus interim list price~~ — **$5/mo** while Shared Spaces is the live paid surface; standard
+      annual ($64) stays unlisted until Review/Challenges justify the raise. Founding is the only
+      yearly offer for now.
 
 **Still open:**
 

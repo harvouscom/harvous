@@ -21,14 +21,18 @@
  * |---------------------|------------------|----------------------------------------|
  * | Free                | $0               | Private study only — cannot host        |
  * | Founding            | $45/yr           | First 99 · annual only · lifetime lock  |
- * | Plus                | $8/mo · $64/yr   | Everything; annual is "4 months free"   |
- * | Connector           | $5/mo · $60/yr   | Separate add-on; NO annual discount     |
+ * | Plus                | $5/mo · Founding $45/yr | Hosting now; Review/Challenges later |
+ * | Connector           | $5/mo · $60/yr          | Separate add-on; NO annual discount  |
+ *
+ * Interim list price: Plus is $5/mo while Shared Spaces is the live paid
+ * surface. Standard annual ($64) stays in the registry unlisted for a later
+ * raise; Founding ($45/yr, first 99) is the only yearly offer for now.
  *
  * Two deliberate asymmetries, so they don't read as mistakes later:
- * - **Plus discounts annual, Connector does not.** Discount the product you
- *   want commitment in; don't lock a discount into an unproven add-on. An
- *   undiscounted annual is still worth offering — one charge instead of twelve
- *   saves eleven flat processor fees.
+ * - **Plus discounts annual via Founding, Connector does not.** Discount the
+ *   product you want commitment in; don't lock a discount into an unproven
+ *   add-on. An undiscounted annual is still worth offering — one charge
+ *   instead of twelve saves eleven flat processor fees.
  * - **Connector is a separate product, not a Plus tier.** Different buyer
  *   (CLI/MCP power users, not small-group hosts). Separate products are fine;
  *   tiers within one product are what we avoid.
@@ -130,12 +134,12 @@ export function getPlusProductFoundingAnnualId(): string {
   return envProduct('POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL', 'VITE_POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL');
 }
 
-/** Standard Harvous Plus monthly ($8). */
+/** Standard Harvous Plus monthly ($5). */
 export function getPlusProductMonthlyId(): string {
   return envProduct('POLAR_PLUS_PRODUCT_MONTHLY', 'VITE_POLAR_PLUS_PRODUCT_MONTHLY');
 }
 
-/** Standard Harvous Plus annual ($64 — four months free). */
+/** Standard Harvous Plus annual ($64 — unlisted until price raise / full Plus). */
 export function getPlusProductAnnualId(): string {
   return envProduct('POLAR_PLUS_PRODUCT_ANNUAL', 'VITE_POLAR_PLUS_PRODUCT_ANNUAL');
 }
@@ -174,7 +178,7 @@ export function getPlans(): PlanDefinition[] {
       key: 'plus',
       name: 'Harvous Plus',
       interval: 'month',
-      amountCents: 800,
+      amountCents: 500,
       currencyCode: 'USD',
       features: PLUS_FEATURES,
       limits: PLUS_LIMITS,
@@ -189,7 +193,8 @@ export function getPlans(): PlanDefinition[] {
       currencyCode: 'USD',
       features: PLUS_FEATURES,
       limits: PLUS_LIMITS,
-      listed: true,
+      // Not for sale while Plus is hosting-only — Founding is the yearly path.
+      listed: false,
       productId: getPlusProductAnnualId(),
     },
     {
@@ -301,7 +306,7 @@ export function isFeatureKey(value: string): value is FeatureKey {
  * COST CONSTRAINT — do not break this without re-running the pricing math:
  * every Plus feature must stay fixed-cost or near-zero-marginal. Review is
  * budgeted on a small model (~$0.001/session, so even a heavy user costs
- * pennies against ~$7.10 net on the $8 plan). Moving Review to a frontier model
+ * pennies against ~$4.25 net on the $5 plan). Moving Review to a frontier model
  * is a 30–100x jump that would put heavy users underwater at every price in
  * this file — and founding subscribers are locked in for life. If that swap is
  * ever proposed, the price has to move first.

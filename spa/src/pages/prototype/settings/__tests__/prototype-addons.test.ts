@@ -29,7 +29,7 @@ describe('plan manage status copy', () => {
   it('distinguishes renew vs end for Settings Plan sublabel', () => {
     const billing = {
       interval: 'month' as const,
-      amountCents: 800,
+      amountCents: 500,
       currency: 'USD',
       currentPeriodEnd: '2026-08-01T00:00:00.000Z',
       cancelAtPeriodEnd: false,

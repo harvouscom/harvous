@@ -66,23 +66,25 @@ describe('pricing model', () => {
   const connector = (interval: 'month' | 'year') =>
     plans.find((p) => p.key === 'connector' && p.interval === interval);
 
-  it('prices Plus at $8/mo and $64/yr', () => {
-    expect(plus('month')?.amountCents).toBe(800);
+  it('prices Plus at $5/mo; standard annual stays unlisted at $64', () => {
+    expect(plus('month')?.amountCents).toBe(500);
+    expect(plus('month')?.listed).toBe(true);
     expect(plus('year')?.amountCents).toBe(6400);
+    expect(plus('year')?.listed).toBe(false);
   });
 
   it('prices founding at $45/yr, annual only', () => {
     const founder = plus('year', true);
     expect(founder?.amountCents).toBe(4500);
     expect(founder?.interval).toBe('year');
+    expect(founder?.listed).toBe(true);
     expect(plans.filter((p) => p.founding && p.interval === 'month')).toHaveLength(0);
   });
 
-  it('gives Plus annual a real discount (four months free)', () => {
+  it('Founding annual is cheaper than twelve months of Plus', () => {
     const monthly = plus('month')!.amountCents * 12;
-    const annual = plus('year')!.amountCents;
-    expect(annual).toBe(monthly - plus('month')!.amountCents * 4);
-    expect(annual).toBeLessThan(monthly);
+    const founding = plus('year', true)!.amountCents;
+    expect(founding).toBeLessThan(monthly);
   });
 
   it('prices Connector at $5/mo with NO annual discount', () => {
@@ -135,11 +137,12 @@ describe('founding vs standard product resolution', () => {
     expect(isFoundingProductId(founder!.productId)).toBe(true);
   });
 
-  it('planFor never returns the founding product — standard annual is $64', () => {
-    const standardAnnual = planFor('plus', 'year');
-    expect(standardAnnual?.amountCents).toBe(6400);
-    expect(standardAnnual?.founding).toBeUndefined();
-    expect(isFoundingProductId(standardAnnual!.productId)).toBe(false);
+  it('planFor never returns founding or the unlisted $64 annual — only listed monthly', () => {
+    expect(planFor('plus', 'year')).toBeNull();
+    const standardMonth = planFor('plus', 'month');
+    expect(standardMonth?.amountCents).toBe(500);
+    expect(standardMonth?.founding).toBeUndefined();
+    expect(isFoundingProductId(standardMonth!.productId)).toBe(false);
   });
 
   it('standard Plus products are not mistaken for founding', () => {
@@ -158,7 +161,7 @@ describe('founding vs standard product resolution', () => {
 
   it('the founding product grants the same features as standard Plus', () => {
     expect(featuresForProductId(foundingPlan()!.productId)).toEqual(
-      featuresForProductId(planFor('plus', 'year')!.productId),
+      featuresForProductId(planFor('plus', 'month')!.productId),
     );
   });
 });

@@ -132,8 +132,8 @@ export default function UpgradeCheckoutButton({
 
   const foundingAvailable = Boolean(founding?.available && founderPlan?.productId);
 
-  // While founding spots remain: Founding + Monthly only. After sell-out:
-  // Monthly + standard Yearly (founding chip is gone; $64/yr takes its place).
+  // While founding spots remain: Founding + Monthly. After sell-out: Monthly
+  // only (standard $64/yr stays unlisted until the full Plus raise).
   const options: PlanOption[] = [
     ...(foundingAvailable && founderPlan
       ? [
@@ -167,7 +167,7 @@ export default function UpgradeCheckoutButton({
       : []),
   ];
 
-  const defaultId = foundingAvailable ? 'founding' : 'year';
+  const defaultId = foundingAvailable ? 'founding' : yearPlan ? 'year' : 'month';
   const [selectedId, setSelectedId] = useState<string>(defaultId);
 
   // Founding resolves after mount; move the selection onto it once, unless the
