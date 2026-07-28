@@ -1074,10 +1074,13 @@ export default function PrototypeNotePage() {
   }, [contextSpaceId, noteId, parentThread, effectiveSpaceId]);
 
   const reprocessAttemptsRef = useRef<Map<string, number>>(new Map());
+  /** Bumped when the editor loses focus so a focus-bailed open-time reprocess can retry. */
+  const [scriptureReprocessFocusTick, setScriptureReprocessFocusTick] = useState(0);
 
   useEffect(() => {
     if (isDraft || !note || isLoading || note.contentEncrypted) return;
-    if (isPrototypeNoteEditorFocused()) return;
+    // Never process list-truncated HTML — that can persist a truncated body to the DB.
+    if (note.__contentIsPreview) return;
     const content = note.content ?? '';
     if (!content || typeof content !== 'string') return;
     if ((reprocessAttemptsRef.current.get(noteId) ?? 0) >= MAX_SCRIPTURE_REPROCESS_ATTEMPTS) return;
@@ -1086,31 +1089,41 @@ export default function PrototypeNotePage() {
     const hasPendingPills = /data-note-id\s*=\s*["']pending["']/.test(content);
     if (hasPills && !hasPendingPills) return;
 
-    const runReprocess = () => {
-      // Count every attempt (including failures) toward the cap. We intentionally
-      // do NOT reset on error — that's what previously let a persistent failure
-      // loop on each refetch.
-      const attempts = reprocessAttemptsRef.current;
-      attempts.set(noteId, (attempts.get(noteId) ?? 0) + 1);
-      const threads = note.threads ?? [];
-      const parentThreadForApi = threads[0];
-      const threadId = parentThreadForApi?.id ?? 'thread_unorganized';
-      processScriptureMutation.mutate({ noteId, contentOverride: content, threadId });
-    };
+    const needsPlainRefScan = !hasPills;
+    let plainHasRefs = hasPendingPills;
+    if (needsPlainRefScan) {
+      const plainText = content
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      plainHasRefs = detectScriptureReferences(plainText).length > 0;
+    }
+    if (!hasPendingPills && !plainHasRefs) return;
 
-    if (hasPendingPills) {
-      runReprocess();
-      return;
+    // Don't count focus-bail as an attempt — retry after the editor actually blurs.
+    if (isPrototypeNoteEditorFocused()) {
+      const onFocusOut = () => {
+        // focusout fires before activeElement settles; check on the next frame.
+        requestAnimationFrame(() => {
+          if (!isPrototypeNoteEditorFocused()) {
+            setScriptureReprocessFocusTick((t) => t + 1);
+          }
+        });
+      };
+      document.addEventListener('focusout', onFocusOut);
+      return () => document.removeEventListener('focusout', onFocusOut);
     }
 
-    const plainText = content
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    const refs = detectScriptureReferences(plainText);
-    if (refs.length === 0) return;
-    runReprocess();
-  }, [isDraft, note, noteId, isLoading, processScriptureMutation]);
+    // Count every attempt (including failures) toward the cap. We intentionally
+    // do NOT reset on error — that's what previously let a persistent failure
+    // loop on each refetch.
+    const attempts = reprocessAttemptsRef.current;
+    attempts.set(noteId, (attempts.get(noteId) ?? 0) + 1);
+    const threads = note.threads ?? [];
+    const parentThreadForApi = threads[0];
+    const threadId = parentThreadForApi?.id ?? 'thread_unorganized';
+    processScriptureMutation.mutate({ noteId, contentOverride: content, threadId });
+  }, [isDraft, note, noteId, isLoading, processScriptureMutation, scriptureReprocessFocusTick]);
 
   const persistDraftNote = useCallback(
     async (
@@ -1716,6 +1729,7 @@ export default function PrototypeNotePage() {
                 resourceImage={editorNote.resourceImage ?? undefined}
                 resourceUrl={editorNote.resourceUrl ?? undefined}
                 contentEncrypted={editorNote.contentEncrypted ?? false}
+                contentIsPreview={!!note?.__contentIsPreview}
                 isEditable={isEditable}
                 onSave={handleNoteSave}
                 onPrototypeEditorUnmount={handlePrototypeEditorUnmount}

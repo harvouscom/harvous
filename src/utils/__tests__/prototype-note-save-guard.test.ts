@@ -36,6 +36,30 @@ describe('shouldForcePrototypeNoteBodyHydrate', () => {
     ).toBe(false);
   });
 
+  it('hydrates non-empty editor when preview→full upgrade is allowed', () => {
+    expect(
+      shouldForcePrototypeNoteBodyHydrate({
+        editorChromeMode: 'prototypeNative',
+        editorId: 'edit-note-content',
+        editorIsEmpty: false,
+        incomingContent: '<p>Full body after details</p>',
+        allowPreviewToFullUpgrade: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('does not preview→full upgrade when incoming body is empty', () => {
+    expect(
+      shouldForcePrototypeNoteBodyHydrate({
+        editorChromeMode: 'prototypeNative',
+        editorId: 'edit-note-content',
+        editorIsEmpty: false,
+        incomingContent: '<p></p>',
+        allowPreviewToFullUpgrade: true,
+      }),
+    ).toBe(false);
+  });
+
   it('does not hydrate classic chrome', () => {
     expect(
       shouldForcePrototypeNoteBodyHydrate({

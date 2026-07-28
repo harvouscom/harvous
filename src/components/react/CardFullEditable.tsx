@@ -100,6 +100,7 @@ import { shouldInjectProcessedNoteContent } from '@/utils/prototype-editor-save'
 import { contentSyncWouldClobberScripturePillAccent } from '@/utils/scripture-pill-accent-sync';
 import { saveNoteDraft, getNoteDraft, clearNoteDraft } from '@/utils/note-draft-store';
 import { shouldSkipPrototypeUnloadSave } from '@/utils/prototype-note-save-guard';
+import { shouldUpgradePrototypeBodyFromServer } from '@/utils/prototype-note-body-upgrade';
 
 /** TipTap body HTML for editing — empty notes use `<p></p>` so the caret stays on line 1. */
 function repairHtmlForEditor(html: string): string {
@@ -150,6 +151,11 @@ interface CardFullEditableProps {
   resourceImage?: string;
   resourceUrl?: string;
   contentEncrypted?: boolean;
+  /**
+   * True when `content` was seeded from a list payload (truncated preview). When this
+   * flips false after GET …/details, prototype TipTap upgrades the body once.
+   */
+  contentIsPreview?: boolean;
   className?: string;
   isEditable?: boolean;
   onSave?: (
@@ -309,6 +315,7 @@ export default function CardFullEditable({
   resourceImage,
   resourceUrl,
   contentEncrypted = false,
+  contentIsPreview = false,
   className = '',
   isEditable = true,
   onSave,
@@ -802,6 +809,9 @@ export default function CardFullEditable({
 
   // Track if we've updated content locally (e.g., with a highlight)
   const hasLocalContentUpdate = useRef(false);
+  /** Note opened with list-truncated body — allow one upgrade when full details arrive. */
+  const seededFromPreviewRef = useRef(false);
+  const [forceBodyReplaceRevision, setForceBodyReplaceRevision] = useState(0);
   // Skip next init-effect overwrite when we just set decrypted content from pinEntryComplete (avoids race where effect runs with stale lockStateOverride and overwrites with encrypted content)
   const skipNextContentSyncRef = useRef(false);
   // Local lock state override when user locks/unlocks via dialog (avoids full page refresh)
@@ -951,7 +961,14 @@ export default function CardFullEditable({
     userEditedSinceOpenRef.current = false;
     seededEditorForNoteRef.current = null;
     bodyInteractionRef.current = false;
+    seededFromPreviewRef.current = false;
+    setForceBodyReplaceRevision(0);
   }, [noteId, editorChromeMode, alwaysEditing]);
+
+  // Remember list-preview seed so we can upgrade TipTap when details arrive.
+  useEffect(() => {
+    if (contentIsPreview) seededFromPreviewRef.current = true;
+  }, [contentIsPreview, noteId]);
 
   // Parent signals first draft persist (/n/new → /n/<id>). With a stable
   // `prototypeBodyMountId`, the TipTap instance survives the swap, so keep its live
@@ -1111,18 +1128,27 @@ export default function CardFullEditable({
       !isEffectivelyEmptyPrototypeNote(draft.title, draft.content) &&
       (repairHtmlForEditor(draft.content) !== initialContent || draft.title !== initialTitle)
     ) {
-      hasLocalContentUpdate.current = true;
-      userEditedSinceOpenRef.current = true;
-      setEditTitle(draft.title);
-      setEditContent(repairHtmlForEditor(draft.content));
-      setIsTitleEditing(true);
-      setIsContentEditing(true);
-      setHasChanges(true);
-      window.dispatchEvent(new CustomEvent('toast', {
-        detail: { message: 'Restored unsaved changes', type: 'info' },
-      }));
-      seededEditorForNoteRef.current = noteId ?? null;
-      return;
+      const draftBody = repairHtmlForEditor(draft.content);
+      // List preview seed can also land in the draft store. Restoring that snapshot
+      // marks the session user-edited and blocks the preview→full TipTap upgrade.
+      const draftLooksLikeListPreview =
+        contentIsPreview &&
+        draftBody.length <= initialContent.length &&
+        draft.title === initialTitle;
+      if (!draftLooksLikeListPreview) {
+        hasLocalContentUpdate.current = true;
+        userEditedSinceOpenRef.current = true;
+        setEditTitle(draft.title);
+        setEditContent(draftBody);
+        setIsTitleEditing(true);
+        setIsContentEditing(true);
+        setHasChanges(true);
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: { message: 'Restored unsaved changes', type: 'info' },
+        }));
+        seededEditorForNoteRef.current = noteId ?? null;
+        return;
+      }
     }
 
     setEditTitle(initialTitle);
@@ -1143,6 +1169,7 @@ export default function CardFullEditable({
     needsPinUnlock,
     resourceTitle,
     resourceDescription,
+    contentIsPreview,
   ]);
 
   // Foreign shared notes: body loads async after open — keep TipTap in sync with fetched content.
@@ -1155,9 +1182,56 @@ export default function CardFullEditable({
     setDisplayTitle(initialTitle ?? '');
     setEditTitle(initialTitle ?? '');
     const repaired = repairHtmlForEditor(content ?? '');
+    const bodyChanged = repaired !== editContentRef.current;
     setDisplayContent(repaired);
     setEditContent(repaired);
+    editContentRef.current = repaired;
+    // TipTap refuses non-empty prop sync in prototypeNative — force one replace.
+    if (bodyChanged && !isTiptapBodyEmpty(repaired)) {
+      setForceBodyReplaceRevision((r) => r + 1);
+    }
   }, [foreignSharedAnnotationMode, title, content, noteId, noteType, resourceTitle]);
+
+  // Own notes: upgrade TipTap when list preview→full details or open-time scripture
+  // processing lands, as long as the user has not typed. Do not dirty / autosave.
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative' || !alwaysEditing) return;
+    if (foreignSharedAnnotationMode) return;
+    if (readOnlyLikeScripture || noteType === 'scripture') return;
+    if (needsPinUnlock) return;
+    if (userEditedSinceOpenRef.current) return;
+
+    const repaired = repairHtmlForEditor(content ?? '');
+    const current = editContentRef.current;
+    if (
+      !shouldUpgradePrototypeBodyFromServer({
+        currentHtml: current,
+        incomingHtml: repaired,
+        contentIsPreview,
+        seededFromPreview: seededFromPreviewRef.current,
+      })
+    ) {
+      return;
+    }
+
+    if (repaired !== current) {
+      setDisplayContent(repaired);
+      setEditContent(repaired);
+      editContentRef.current = repaired;
+    }
+    setForceBodyReplaceRevision((r) => r + 1);
+    if (seededFromPreviewRef.current) seededFromPreviewRef.current = false;
+  }, [
+    content,
+    contentIsPreview,
+    noteId,
+    editorChromeMode,
+    alwaysEditing,
+    foreignSharedAnnotationMode,
+    readOnlyLikeScripture,
+    noteType,
+    needsPinUnlock,
+  ]);
 
   // Reset lock state overrides when contentEncrypted prop changes (e.g. from server)
   useEffect(() => {
@@ -3096,6 +3170,9 @@ export default function CardFullEditable({
                       contextSpaceId={contextSpaceId}
                       onEditorReady={handleEditorReady}
                       editorChromeMode={editorChromeMode}
+                      forceBodyReplaceFromProps={
+                        editorChromeMode === 'prototypeNative' ? forceBodyReplaceRevision : 0
+                      }
                       onPrototypeChromeModeChange={
                         editorChromeMode === 'prototypeNative' ? setPrototypeBottomChromeMode : undefined
                       }
@@ -3506,6 +3583,9 @@ export default function CardFullEditable({
                     contextSpaceId={contextSpaceId}
                     onEditorReady={handleEditorReady}
                     editorChromeMode={editorChromeMode}
+                    forceBodyReplaceFromProps={
+                      editorChromeMode === 'prototypeNative' ? forceBodyReplaceRevision : 0
+                    }
                     onPrototypeChromeModeChange={
                       editorChromeMode === 'prototypeNative' ? setPrototypeBottomChromeMode : undefined
                     }

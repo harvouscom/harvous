@@ -41,7 +41,7 @@ export function useProcessScriptureRefs() {
         // view/backfill path (opening a note), and the server intentionally does NOT bump updatedAt
         // there. Overwriting it here would optimistically reorder the note just for being viewed.
         queryClient.setQueryData<NoteDetail | undefined>(['note', variables.noteId], (old) =>
-          old ? { ...old, content: updated } : old
+          old ? { ...old, content: updated, __contentIsPreview: false } : old
         );
       }
       void fetchAndMergeNoteTagsInCache(queryClient, variables.noteId);

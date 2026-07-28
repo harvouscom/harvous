@@ -249,6 +249,11 @@ interface TiptapEditorProps {
    * is focused (unless scripture picker/confirm is open), and the parent can show a note action bar when not.
    */
   editorChromeMode?: 'default' | 'prototypeNative';
+  /**
+   * Prototype edit-note-content: bump to force one body replace from props (list preview →
+   * full GET …/details). Consumed once per revision so later prop syncs stay non-clobbering.
+   */
+  forceBodyReplaceFromProps?: number;
   onPrototypeChromeModeChange?: (
     mode: 'format' | 'scripture' | 'noteActions' | 'highlight' | 'reference' | 'hidden',
   ) => void;
@@ -3946,6 +3951,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   onEditorInstanceReady,
   inBottomSheet = false,
   editorChromeMode = 'default',
+  forceBodyReplaceFromProps = 0,
   onPrototypeChromeModeChange,
   prototypeNoteActionsChrome = false,
   formatToolbarPortalTarget,
@@ -4088,6 +4094,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const lastInBodySelectionRef = useRef<FormatToolbarSelectionRange | null>(null);
   /** True for the duration of a format-toolbar press — blocks stale selection snapshots + content sync. */
   const formatToolbarPointerDownRef = useRef(false);
+  /** Last consumed `forceBodyReplaceFromProps` revision (preview→full body upgrade). */
+  const lastAppliedForceBodyReplaceRef = useRef(0);
   /** Grace window after toolbar use so RAF-deferred parent content sync cannot clobber the editor. */
   const formatToolbarInteractionUntilRef = useRef(0);
   /** Pointer start for the active toolbar-button press — used to tell a tap from a horizontal scroll. */
@@ -5924,21 +5932,34 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       return;
     }
 
-    if (editorChromeMode === 'prototypeNative' && studyDockStackHasEntries(studyDockStackRef.current)) {
-      return;
-    }
-
     const isNewNoteEditor = id === 'new-note-content';
+    const forceReplaceRevision =
+      typeof forceBodyReplaceFromProps === 'number' ? forceBodyReplaceFromProps : 0;
+    const pendingForceReplace =
+      forceReplaceRevision > 0 &&
+      forceReplaceRevision !== lastAppliedForceBodyReplaceRef.current;
     const shouldForceHydratePrefill = shouldForcePrototypeNoteBodyHydrate({
       editorChromeMode,
       editorId: id,
       editorIsEmpty: editor.isEmpty,
       incomingContent: content,
+      allowPreviewToFullUpgrade: pendingForceReplace,
     });
+
+    // Study dock normally freezes prop sync so open cards aren't rewritten underneath.
+    // Preview→full / empty hydrate must still apply or truncated list HTML can stick.
+    if (
+      editorChromeMode === 'prototypeNative' &&
+      studyDockStackHasEntries(studyDockStackRef.current) &&
+      !shouldForceHydratePrefill
+    ) {
+      return;
+    }
 
     // Prototype always-editing note body: remount on note switch (CardFullEditable key).
     // editContent is a downstream mirror — never rewind live ProseMirror from stale props,
-    // except one-time hydrate when the editor is still empty and props have the saved body.
+    // except one-time hydrate when the editor is still empty and props have the saved body,
+    // or one preview→full upgrade signaled by forceBodyReplaceFromProps.
     if (editorChromeMode === 'prototypeNative' && id === 'edit-note-content' && !shouldForceHydratePrefill) {
       return;
     }
@@ -5961,7 +5982,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
 
     editor.commands.setContent(normalizedContent, { emitUpdate: false });
-
+    if (pendingForceReplace) {
+      lastAppliedForceBodyReplaceRef.current = forceReplaceRevision;
+    }
     const needsCursorAfterScripturePill =
       isNewNoteEditor && content.includes('scripture-pill');
 
@@ -5995,7 +6018,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       clearTimeout(cursorTimeout);
       clearTimeout(conversionTimeout);
     };
-  }, [editor, content, id, editorChromeMode]);
+  }, [editor, content, id, editorChromeMode, forceBodyReplaceFromProps]);
 
   // When Settings default translation changes, update in-editor pills that still carry NET / prior default.
   useEffect(() => {

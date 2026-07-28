@@ -488,6 +488,8 @@ export function getNoteQueryOptions(noteId: string, contextSpaceId?: string | nu
       const organization = res.context?.organization ?? res.note.organization ?? null;
       const note = {
         ...res.note,
+        // Full body from GET …/details — clear list-seed preview marker so the editor can upgrade.
+        __contentIsPreview: false,
         currentVersion:
           typeof res.currentVersion === 'number'
             ? res.currentVersion
