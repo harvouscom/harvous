@@ -2,7 +2,6 @@
 // Simple, reliable caching with stale-while-revalidate strategy
 
 const CACHE_NAME = 'harvous-cache-v2-8-2';
-const NAV_API_CACHE = 'harvous-nav-api-v10';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
 const CRITICAL_ASSETS = [
@@ -29,14 +28,12 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate event
+// Activate event — drop obsolete NAV_API_CACHE (authenticated JSON must not linger)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.filter((name) => {
-          return name !== CACHE_NAME && name !== NAV_API_CACHE;
-        }).map((name) => caches.delete(name))
+        cacheNames.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))
       );
     }).then(() => self.clients.claim())
   );
@@ -195,71 +192,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Cacheable API endpoints
-  const cacheableApiEndpoints = [
-    '/api/navigation/data',
-    '/api/spaces/items',
-    '/api/notes/recent',
-    '/api/threads/'
-  ];
-
-  const isCacheableApi = cacheableApiEndpoints.some(endpoint => {
-    if (endpoint === '/api/notes/recent') {
-      return url.pathname === '/api/notes/recent';
-    }
-    if (endpoint === '/api/threads/') {
-      return url.pathname.startsWith('/api/threads/');
-    }
-    return url.pathname === endpoint;
-  });
-
-  if (isCacheableApi && event.request.method === 'GET') {
-    event.respondWith(
-      caches.open(NAV_API_CACHE).then((cache) => {
-        return fetch(event.request)
-          .then((response) => {
-            if (shouldCacheResponse(response)) {
-              const timestamped = addCacheTimestamp(response);
-              const timestampedClone = timestamped.clone();
-              safeCachePut(cache, event.request, timestampedClone);
-            }
-            return response;
-          })
-          .catch(() => {
-            return cache.match(event.request).then((cached) => {
-              if (cached) {
-                return cached;
-              }
-              if (url.pathname === '/api/navigation/data') {
-                return new Response(
-                  JSON.stringify({ threads: [], spaces: [], inboxCount: 0 }),
-                  { status: 200, headers: { 'Content-Type': 'application/json' } }
-                );
-              }
-              if (url.pathname === '/api/spaces/items') {
-                return new Response(
-                  JSON.stringify({ notes: [], threads: [] }),
-                  { status: 200, headers: { 'Content-Type': 'application/json' } }
-                );
-              }
-              if (url.pathname === '/api/notes/recent') {
-                return new Response(
-                  JSON.stringify([]),
-                  { status: 200, headers: { 'Content-Type': 'application/json' } }
-                );
-              }
-              return new Response(
-                JSON.stringify({ error: 'Network error' }),
-                { status: 503, headers: { 'Content-Type': 'application/json' } }
-              );
-            });
-          });
-      })
-    );
-    return;
-  }
-  
-  // Other API endpoints - no caching
+  // Authenticated API responses must not be cached in Cache Storage (shared-device /
+  // account-switch leakage). Network-only for all /api/* requests.
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(event.request).catch(() => {

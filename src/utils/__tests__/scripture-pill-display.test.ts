@@ -110,4 +110,12 @@ describe('sanitizeScripturePillHtml', () => {
     const html = '<p>Just prose, no pills.</p>';
     expect(sanitizeScripturePillHtml(html)).toBe(html);
   });
+
+  it('strips event-handler XSS before DOM parse when pills are present', () => {
+    const html =
+      '<p><img src=x onerror="window.__xss=1"><span data-scripture-reference="John 3:16" data-note-id="note_1" class="scripture-pill">John 3:16</span></p>';
+    const out = sanitizeScripturePillHtml(html);
+    expect(out).not.toMatch(/onerror/i);
+    expect(out).toContain('data-scripture-reference="John 3:16"');
+  });
 });

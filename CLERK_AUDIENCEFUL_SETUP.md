@@ -217,7 +217,7 @@ The webhook only covers new events going forward. To sync existing Clerk users:
 
 ### Running the Migration
 
-1. **Set up MIGRATION_KEY** (optional but recommended):
+1. **Set up MIGRATION_KEY** (required — migration HTTP routes fail closed without it):
    ```bash
    # In your .env / Netlify env
    MIGRATION_KEY=your_secure_random_key_here

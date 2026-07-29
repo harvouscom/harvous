@@ -1028,11 +1028,19 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       }
     }
 
-    // Update resource image
+    // Update resource image (allow clear; otherwise require a safe http(s) URL)
     if (existingNote.noteType === 'resource' && resourceImage !== undefined) {
       try {
+        let nextImage: string | null = null;
+        if (typeof resourceImage === 'string' && resourceImage.trim()) {
+          const imageValidation = validateResourceUrl(resourceImage);
+          if (!imageValidation.isValid || !imageValidation.normalizedUrl) {
+            return c.json({ error: imageValidation.error || 'Invalid resource image URL', code: imageValidation.code || 'INVALID_URL' }, 400);
+          }
+          nextImage = imageValidation.normalizedUrl;
+        }
         const rm = first(await db.select().from(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId)).limit(1));
-        if (rm) await db.update(ResourceMetadata).set({ sourceImage: resourceImage || null }).where(eq(ResourceMetadata.noteId, noteId));
+        if (rm) await db.update(ResourceMetadata).set({ sourceImage: nextImage }).where(eq(ResourceMetadata.noteId, noteId));
       } catch {}
     }
 

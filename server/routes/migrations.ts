@@ -8,6 +8,7 @@
  */
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { db, Notes, Threads, isNull, eq } from '../db';
 import { nowISO } from '../db/dates';
 import { createClerkClient } from '@clerk/backend';
@@ -15,17 +16,28 @@ import { tagAsAppUser } from '@/utils/audienceful';
 
 const app = new Hono();
 
+/** Fail-closed: MIGRATION_KEY must be set and match Authorization Bearer. */
+function requireMigrationKey(c: Context) {
+  const migrationKey = process.env.MIGRATION_KEY;
+  if (!migrationKey) {
+    return c.json(
+      { error: 'Service Unavailable', message: 'MIGRATION_KEY is not configured.' },
+      503
+    );
+  }
+  const authHeader = c.req.header('Authorization');
+  if (authHeader !== `Bearer ${migrationKey}`) {
+    return c.json({ error: 'Unauthorized', message: 'Valid migration key required.' }, 401);
+  }
+  return null;
+}
+
 // ─── POST /api/migrations/backfill-last-visited ───────────────────────
 
 app.post('/api/migrations/backfill-last-visited', async (c) => {
   try {
-    const authHeader = c.req.header('Authorization');
-    const migrationKey = process.env.MIGRATION_KEY;
-    const isAuthorized = !migrationKey || authHeader === `Bearer ${migrationKey}`;
-
-    if (!isAuthorized) {
-      return c.json({ error: 'Unauthorized', message: 'Valid migration key required.' }, 401);
-    }
+    const unauthorized = requireMigrationKey(c);
+    if (unauthorized) return unauthorized;
 
     const results = { notesUpdated: 0, threadsUpdated: 0, errors: [] as string[], startTime: Date.now() };
     console.log('[Migration] Starting lastVisited backfill...');
@@ -106,10 +118,8 @@ app.post('/api/migrations/backfill-last-visited', async (c) => {
 
 app.post('/api/migrations/retry-failed-users', async (c) => {
   try {
-    const authHeader = c.req.header('Authorization');
-    const migrationKey = process.env.MIGRATION_KEY;
-    const isAuthorized = !migrationKey || authHeader === `Bearer ${migrationKey}`;
-    if (!isAuthorized) return c.json({ error: 'Unauthorized' }, 401);
+    const unauthorized = requireMigrationKey(c);
+    if (unauthorized) return unauthorized;
 
     let body: any;
     try {
@@ -197,10 +207,8 @@ app.post('/api/migrations/retry-failed-users', async (c) => {
 
 app.post('/api/migrations/sync-clerk-to-audienceful', async (c) => {
   try {
-    const authHeader = c.req.header('Authorization');
-    const migrationKey = process.env.MIGRATION_KEY;
-    const isAuthorized = !migrationKey || authHeader === `Bearer ${migrationKey}`;
-    if (!isAuthorized) return c.json({ error: 'Unauthorized' }, 401);
+    const unauthorized = requireMigrationKey(c);
+    if (unauthorized) return unauthorized;
 
     const limitParam = c.req.query('limit');
     const offsetParam = c.req.query('offset');

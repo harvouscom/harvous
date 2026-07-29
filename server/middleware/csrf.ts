@@ -25,7 +25,6 @@ const CSRF_EXEMPT_PREFIXES = [
   '/api/webhooks/',
   '/api/admin/',
   '/api/migrations/',
-  '/api/webflow/',
 ];
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);

@@ -39,15 +39,13 @@ POST /api/inbox/auto-delete
 GET /api/inbox/auto-delete  (also supported for easy testing)
 ```
 
-### Security (Optional)
+### Security (Required for cron / global scope)
 
-If you set `AUTO_ARCHIVE_SECRET_TOKEN` in your environment variables, both endpoints will require authentication:
+`AUTO_ARCHIVE_SECRET_TOKEN` must be set for unauthenticated cron callers. Without it, global archive/delete returns `503`. Authenticated users may still run the endpoints scoped to their own inbox items.
 
 ```bash
 Authorization: Bearer YOUR_SECRET_TOKEN
 ```
-
-If the token is not set, the endpoints are publicly accessible (use with caution in production).
 
 ## Setting Up Scheduled Execution
 
@@ -63,7 +61,7 @@ GitHub Actions offers free scheduled workflows for public repositories. The work
    - Open `.github/workflows/auto-archive.yml`
    - Update the default URL on line 15 if your Netlify site URL is different from `https://harvous.netlify.app`
 
-2. **Add GitHub Secrets** (Optional but recommended):
+2. **Add GitHub Secrets** (required for scheduled cron):
    - See **[AUTO_ARCHIVE_SECRET_SETUP.md](./AUTO_ARCHIVE_SECRET_SETUP.md)** for detailed step-by-step instructions
    - Quick version: Add `AUTO_ARCHIVE_SECRET_TOKEN` to GitHub Secrets and Netlify environment variables
 

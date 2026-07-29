@@ -141,7 +141,7 @@ app.post('/api/resource/check-duplicate', requireAuth, async (c) => {
 });
 
 /** POST /api/resource/metadata */
-app.post('/api/resource/metadata', async (c) => {
+app.post('/api/resource/metadata', requireAuth, rateLimit('write'), async (c) => {
   try {
     const body = await c.req.json();
     const { url, metadata, extractContent } = body;

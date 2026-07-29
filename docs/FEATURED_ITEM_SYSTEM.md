@@ -15,7 +15,7 @@ This system was built with external editorial publishing in mind — Webflow as 
 - **UI was hidden**: The inbox panel UI was never shipped to users because the experience wasn't fully defined.
 - **No content-type extensibility**: `InboxItems` used `webflowItemId` as a required unique key, making it structurally tied to Webflow.
 
-The system still exists and is untouched. Its auto-archive and auto-delete jobs continue to run. But it is no longer the primary notification path.
+The legacy Webflow sync/webhook API routes have been removed. Leftover `InboxItems` / `UserInboxItems` rows and auto-archive / auto-delete jobs may still exist; those cron endpoints require `AUTO_ARCHIVE_SECRET_TOKEN` (fail-closed when unset). Prefer Featured Items for all new notification work.
 
 ---
 

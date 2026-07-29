@@ -17,6 +17,19 @@ declare module '@tiptap/core' {
 // Match bare http(s) URLs as a whole token. Paste rule converts them to url-link marks.
 const URL_REGEX = /(https?:\/\/[^\s<>"']+)/g;
 
+/** Only allow http(s) external URLs — rejects javascript:, data:, etc. */
+export function isAllowedExternalHref(href: string | null | undefined): href is string {
+  if (!href) return false;
+  const trimmed = href.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return false;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * External URL link mark. Distinct from `noteLink` (internal note refs) and `scripturePill`
  * (scripture refs). Renders as <span data-url-link="..."> so the editor's hover hook can
@@ -39,8 +52,12 @@ export const UrlLink = Mark.create<UrlLinkOptions>({
     return {
       href: {
         default: null,
-        parseHTML: (element) => element.getAttribute('data-url-link') || element.getAttribute('href'),
-        renderHTML: (attributes) => (attributes.href ? { 'data-url-link': attributes.href } : {}),
+        parseHTML: (element) => {
+          const href = element.getAttribute('data-url-link') || element.getAttribute('href');
+          return isAllowedExternalHref(href) ? href.trim() : null;
+        },
+        renderHTML: (attributes) =>
+          isAllowedExternalHref(attributes.href) ? { 'data-url-link': attributes.href } : {},
       },
       title: {
         default: null,
@@ -61,15 +78,19 @@ export const UrlLink = Mark.create<UrlLinkOptions>({
       {
         tag: 'span[data-url-link]',
         priority: 50,
+        getAttrs: (el) => {
+          const href = (el as HTMLElement).getAttribute('data-url-link');
+          if (!isAllowedExternalHref(href)) return false;
+          return { href: href.trim() };
+        },
       },
       {
         tag: 'a[href]:not([data-note-id]):not([data-scripture-reference])',
         priority: 40,
         getAttrs: (el) => {
           const href = (el as HTMLElement).getAttribute('href');
-          if (!href) return false;
-          if (!/^https?:\/\//i.test(href)) return false;
-          return { href };
+          if (!isAllowedExternalHref(href)) return false;
+          return { href: href.trim() };
         },
       },
     ];
@@ -92,9 +113,15 @@ export const UrlLink = Mark.create<UrlLinkOptions>({
 
   addCommands() {
     return {
-      setUrlLink: (attributes) => ({ chain }) => chain().setMark(this.name, attributes).run(),
+      setUrlLink: (attributes) => ({ chain }) => {
+        if (!isAllowedExternalHref(attributes.href)) return false;
+        return chain().setMark(this.name, { ...attributes, href: attributes.href.trim() }).run();
+      },
       unsetUrlLink: () => ({ chain }) => chain().unsetMark(this.name).run(),
-      updateUrlLink: (attributes) => ({ commands }) => commands.updateAttributes(this.name, attributes),
+      updateUrlLink: (attributes) => ({ commands }) => {
+        if (!isAllowedExternalHref(attributes.href)) return false;
+        return commands.updateAttributes(this.name, { href: attributes.href.trim() });
+      },
     };
   },
 

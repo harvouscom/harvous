@@ -769,9 +769,13 @@ async function handleAutoArchive(c: any) {
     const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
     const auth = getAuth(c);
     const isAuthenticated = !!auth?.userId;
-    const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
+    const hasValidToken = !!expectedToken && authHeader === `Bearer ${expectedToken}`;
 
-    if (expectedToken && !hasValidToken && !isAuthenticated) {
+    // Cron/global scope requires a configured secret. Authenticated users may scope to self.
+    if (!hasValidToken && !isAuthenticated) {
+      if (!expectedToken) {
+        return c.json({ error: 'Service Unavailable', message: 'AUTO_ARCHIVE_SECRET_TOKEN is not configured.' }, 503);
+      }
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
@@ -784,7 +788,7 @@ async function handleAutoArchive(c: any) {
       lt(UserInboxItems.createdAt, fourteenDaysAgo),
     ];
 
-    if (isAuthenticated && !hasValidToken) {
+    if (!hasValidToken) {
       conditions.push(eq(UserInboxItems.userId, auth.userId!));
     }
 
@@ -833,9 +837,13 @@ async function handleAutoDelete(c: any) {
     const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
     const auth = getAuth(c);
     const isAuthenticated = !!auth?.userId;
-    const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
+    const hasValidToken = !!expectedToken && authHeader === `Bearer ${expectedToken}`;
 
-    if (expectedToken && !hasValidToken && !isAuthenticated) {
+    // Cron/global scope requires a configured secret. Authenticated users may scope to self.
+    if (!hasValidToken && !isAuthenticated) {
+      if (!expectedToken) {
+        return c.json({ error: 'Service Unavailable', message: 'AUTO_ARCHIVE_SECRET_TOKEN is not configured.' }, 503);
+      }
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
@@ -851,7 +859,7 @@ async function handleAutoDelete(c: any) {
       eq(UserInboxItems.status, 'archived'),
       isNull(UserInboxItems.archivedAt),
     ];
-    if (isAuthenticated && !hasValidToken) {
+    if (!hasValidToken) {
       backfillConditions.push(eq(UserInboxItems.userId, auth.userId!));
     }
 
@@ -877,7 +885,7 @@ async function handleAutoDelete(c: any) {
         and(isNull(UserInboxItems.archivedAt), lt(UserInboxItems.createdAt, fortyFourDaysAgo))
       ),
     ];
-    if (isAuthenticated && !hasValidToken) {
+    if (!hasValidToken) {
       deleteConditions.push(eq(UserInboxItems.userId, auth.userId!));
     }
 
@@ -913,56 +921,16 @@ app.post('/api/inbox/auto-delete', handleAutoDelete);
 app.get('/api/inbox/auto-delete', handleAutoDelete);
 
 // ─── POST /api/inbox/assign-to-users ──────────────────────────────────
+// Retired with Webflow inbox; Featured Items is the notification path.
 
-app.post('/api/inbox/assign-to-users', requireAuth, async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-
-    const allInboxItems = await db.select().from(InboxItems).where(eq(InboxItems.isActive, true));
-    const allUsers = await db.select().from(UserMetadata);
-
-    let totalAssigned = 0;
-    const results: string[] = [];
-
-    for (const inboxItem of allInboxItems) {
-      if (inboxItem.targetAudience !== 'all_users') continue;
-
-      let assignedCount = 0;
-      for (const user of allUsers) {
-        const existing = first(await db.select().from(UserInboxItems)
-          .where(and(eq(UserInboxItems.userId, user.userId), eq(UserInboxItems.inboxItemId, inboxItem.id)))
-          .limit(1));
-
-        if (!existing) {
-          await db.insert(UserInboxItems).values({
-            id: `user_inbox_${user.userId}_${inboxItem.id}_${Date.now()}`,
-            userId: user.userId,
-            inboxItemId: inboxItem.id,
-            status: 'inbox',
-            createdAt: nowISO(),
-          });
-          assignedCount++;
-        }
-      }
-
-      if (assignedCount > 0) {
-        results.push(`${inboxItem.title}: assigned to ${assignedCount} user(s)`);
-        totalAssigned += assignedCount;
-      }
-    }
-
-    return c.json({
-      success: true,
-      message: 'Assigned inbox items to users',
-      totalAssigned,
-      itemsProcessed: allInboxItems.length,
-      usersProcessed: allUsers.length,
-      results,
-    });
-  } catch (error: any) {
-    console.error('Error assigning inbox items:', error);
-    return c.json({ error: 'Failed to assign inbox items', details: error.message }, 500);
-  }
+app.post('/api/inbox/assign-to-users', async (c) => {
+  return c.json(
+    {
+      error: 'Gone',
+      message: 'Webflow inbox assignment is retired. Use the Featured Item system instead.',
+    },
+    410
+  );
 });
 
 // ─── POST/GET /api/inbox/reset-all-users ──────────────────────────────
@@ -973,7 +941,10 @@ app.post('/api/inbox/reset-all-users', async (c) => {
     const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '').split(',')[0].trim();
     const expectedToken = process.env.INBOX_RESET_SECRET_TOKEN;
 
-    if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
+    if (!expectedToken) {
+      return c.json({ error: 'Service Unavailable', message: 'INBOX_RESET_SECRET_TOKEN is not configured.' }, 503);
+    }
+    if (authHeader !== `Bearer ${expectedToken}`) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
@@ -1083,7 +1054,7 @@ app.get('/api/inbox/reset-all-users', async (c) => {
     message: 'Use POST method to reset inbox items',
     endpoint: '/api/inbox/reset-all-users',
     method: 'POST',
-    note: 'Optional: Set INBOX_RESET_SECRET_TOKEN environment variable for authentication',
+    note: 'Requires Authorization: Bearer <INBOX_RESET_SECRET_TOKEN>',
   });
 });
 

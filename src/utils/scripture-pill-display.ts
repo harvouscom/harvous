@@ -1,9 +1,18 @@
+import DOMPurify from 'isomorphic-dompurify';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import {
   matchAnchoredTrailingTranslationAbbreviation,
   detectScriptureReferences,
 } from '@/utils/scripture-detector';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
+
+/**
+ * Sanitize untrusted note HTML before any DOM parse / `innerHTML` assignment.
+ * DOMPurify strips scripts and event handlers while keeping scripture pill data-* attrs.
+ */
+function sanitizeBeforeDomParse(html: string): string {
+  return DOMPurify.sanitize(html);
+}
 
 // The injected pill's own reference (e.g. "Proverbs 23") is often just a prefix/substring of the
 // quote's full reference (e.g. "Proverbs 23:1-35") — so the corruption can leave literal text
@@ -43,8 +52,9 @@ export function sanitizeScripturePillHtml(html: string): string {
     return html;
   }
 
+  const sanitized = sanitizeBeforeDomParse(html);
   const wrap = document.createElement('div');
-  wrap.innerHTML = html;
+  wrap.innerHTML = sanitized;
   let modified = false;
 
   // (B) Unwrap pill spans whose reference attr or visible text isn't a real reference.
@@ -88,7 +98,7 @@ export function sanitizeScripturePillHtml(html: string): string {
     }
   }
 
-  return modified ? wrap.innerHTML : html;
+  return modified ? wrap.innerHTML : sanitized;
 }
 
 /** Sets `data-scripture-translation-label` on pills that only have canonical id (legacy HTML, server-rendered content). */
@@ -112,8 +122,9 @@ export function withScripturePillDisplayLabels(html: string): string {
   if (typeof document === 'undefined') {
     return html;
   }
+  const sanitized = sanitizeBeforeDomParse(html);
   const wrap = document.createElement('div');
-  wrap.innerHTML = html;
+  wrap.innerHTML = sanitized;
   ensureScripturePillDisplayLabels(wrap);
   return wrap.innerHTML;
 }
@@ -136,8 +147,9 @@ export function repairScripturePillTranslationsInHtml(
   if (typeof document === 'undefined') return html;
 
   const effectiveDefault = defaultTranslation ?? getEffectiveDefaultTranslation();
+  const sanitized = sanitizeBeforeDomParse(html);
   const wrap = document.createElement('div');
-  wrap.innerHTML = html;
+  wrap.innerHTML = sanitized;
 
   let modified = false;
 
@@ -181,5 +193,5 @@ export function repairScripturePillTranslationsInHtml(
     }
   });
 
-  return modified ? wrap.innerHTML : html;
+  return modified ? wrap.innerHTML : sanitized;
 }

@@ -476,9 +476,16 @@ export function validateResourceUrl(url: string | null | undefined): UrlValidati
   }
 
   // Block localhost/internal hosts (SSRF protection)
-  const hostname = parsedUrl.hostname.toLowerCase();
-  const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1'];
-  if (blockedHosts.includes(hostname) || hostname.endsWith('.local')) {
+  const hostname = parsedUrl.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  const blockedHosts = [
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0',
+    '::1',
+    'metadata.google.internal',
+    'metadata',
+  ];
+  if (blockedHosts.includes(hostname) || hostname.endsWith('.local') || hostname.endsWith('.internal')) {
     return {
       isValid: false,
       error: 'Local URLs are not supported',
@@ -486,12 +493,42 @@ export function validateResourceUrl(url: string | null | undefined): UrlValidati
     };
   }
 
-  // Block private IP ranges (SSRF protection)
+  // Block private / link-local / cloud-metadata IP ranges (SSRF protection)
   const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (ipv4Match) {
-    const [, a, b] = ipv4Match.map(Number);
-    // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
-    if (a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)) {
+    const octets = ipv4Match.slice(1).map(Number);
+    const [a, b] = octets;
+    // 10.0.0.0/8, 127.0.0.0/8, 169.254.0.0/16 (incl. cloud metadata),
+    // 172.16.0.0/12, 192.168.0.0/16, 0.0.0.0/8
+    if (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168)
+    ) {
+      return {
+        isValid: false,
+        error: 'Private network URLs are not supported',
+        code: 'PRIVATE_IP'
+      };
+    }
+  }
+
+  // Block IPv6 loopback, ULA (fc/fd), and link-local (fe80)
+  if (hostname.includes(':')) {
+    const compact = hostname.toLowerCase();
+    if (
+      compact === '::1' ||
+      compact.startsWith('fc') ||
+      compact.startsWith('fd') ||
+      compact.startsWith('fe80:') ||
+      compact.startsWith('::ffff:169.254.') ||
+      compact.startsWith('::ffff:127.') ||
+      compact.startsWith('::ffff:10.') ||
+      compact.startsWith('::ffff:192.168.')
+    ) {
       return {
         isValid: false,
         error: 'Private network URLs are not supported',

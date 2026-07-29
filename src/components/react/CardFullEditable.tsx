@@ -9,6 +9,7 @@ import { pushNavStack } from '@/utils/nav-stack';
 import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink, stripNoteLinksToNoteId } from '@/utils/tiptap-helpers';
 import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
+import { validateResourceUrl } from '@/utils/validation';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
 import { getTranslation, getTranslationAbbreviationDisplay } from '@/data/translations';
 import { withScripturePillDisplayLabels, repairScripturePillTranslationsInHtml, sanitizeScripturePillHtml, repairCorruptedScriptureQuoteAttributes } from '@/utils/scripture-pill-display';
@@ -2963,11 +2964,15 @@ export default function CardFullEditable({
         />
         <div className="card-image-link" style={{ gap: '1rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
           {/* Full-width image at top */}
-          {resourceImage && !imageRemoved && (
+          {(() => {
+            const imageValidation = resourceImage && !imageRemoved ? validateResourceUrl(resourceImage) : null;
+            const safeResourceImageUrl =
+              imageValidation?.isValid && imageValidation.normalizedUrl ? imageValidation.normalizedUrl : null;
+            return safeResourceImageUrl ? (
             <div 
               className="card-image-link__image"
               style={{ 
-                backgroundImage: `url('${resourceImage}')`,
+                backgroundImage: `url(${JSON.stringify(safeResourceImageUrl)})`,
                 minHeight: '180px',
                 flexShrink: 0,
                 position: 'relative'
@@ -3056,7 +3061,8 @@ export default function CardFullEditable({
                 />
               </div> */}
             </div>
-          )}
+            ) : null;
+          })()}
           
           {/* Header with title and newspaper icon */}
           <div className="card-image-link__header" style={{ flexShrink: 0 }}>

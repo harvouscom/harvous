@@ -83,7 +83,7 @@ import {
   type ReferenceProvider,
   type EastonsIndex,
 } from './TiptapReferenceSuggestion';
-import { UrlLink } from './TiptapUrlLink';
+import { UrlLink, isAllowedExternalHref } from './TiptapUrlLink';
 import { TextIndent } from './TiptapTextIndent';
 import { normalizeScriptureReference, detectScriptureReferences, matchTrailingTranslationAbbreviation, matchAnchoredTrailingTranslationAbbreviation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
 import {
@@ -5600,7 +5600,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const p = hoverPreview.payload;
     if (hoverPreview.kind === 'url' && p.href) {
       dismissHoverPreview();
-      window.open(p.href, '_blank', 'noopener,noreferrer');
+      if (isAllowedExternalHref(p.href)) {
+        window.open(p.href, '_blank', 'noopener,noreferrer');
+      }
       return;
     }
     const rawNoteId = p.noteId || p.scriptureNoteId;
