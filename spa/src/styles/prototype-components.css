@@ -8764,6 +8764,11 @@ button.proto-appearance-hero__card {
 
 /* Feedback toasts (copy, migration, shared space) — wrap long copy inside the pill */
 .proto-feedback-toast {
+  /* Fixed usable width: inline-flex + min-width:0 on the label otherwise shrinks
+     the message to ~1ch (overflow-wrap:anywhere then shows "C" / "o.."). */
+  width: min(420px, calc(100vw - 32px));
+  max-width: min(420px, calc(100vw - 32px));
+  box-sizing: border-box;
   border-radius: 14px;
   align-items: center;
   padding-top: 11px;
@@ -8774,11 +8779,47 @@ button.proto-appearance-hero__card {
 .proto-feedback-toast .proto-update-toast__label {
   white-space: normal;
   line-height: 1.35;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
+  min-width: 8rem;
+  flex: 1 1 auto;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   overflow: hidden;
+}
+
+/* Error + Support: put the message on its own row so Support/dismiss never crush it */
+.proto-feedback-toast--error:has(.proto-update-toast__action) {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    'icon message dismiss'
+    'action action action';
+  column-gap: 10px;
+  row-gap: 10px;
+  align-items: center;
+}
+
+.proto-feedback-toast--error:has(.proto-update-toast__action) .proto-feedback-toast__icon {
+  grid-area: icon;
+}
+
+.proto-feedback-toast--error:has(.proto-update-toast__action) .proto-update-toast__label {
+  grid-area: message;
+  min-width: 0;
+  -webkit-line-clamp: 4;
+}
+
+.proto-feedback-toast--error:has(.proto-update-toast__action) .proto-side-panel__action-btn {
+  grid-area: dismiss;
+}
+
+.proto-feedback-toast--error:has(.proto-update-toast__action) .proto-update-toast__action {
+  grid-area: action;
+  justify-self: stretch;
+  width: 100%;
+  justify-content: center;
 }
 
 .proto-feedback-toast--error {
