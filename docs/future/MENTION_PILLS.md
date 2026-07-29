@@ -66,4 +66,6 @@ See `SHARED_SPACES_DEV_NOTES.md` → "Cross-space reference rules". As built:
 
 - [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md) — cross-space reference rules this design
   must honor.
+- [RESOURCE_LIBRARY.md](./RESOURCE_LIBRARY.md) — future `library` / `libraryItem` mention kind and
+  Library tab in the picker (same mark shape; church/school catalog assets).
 - Memory: `react19_innerhtml_selection`, floating UI pattern, scripture pill mark-boundary lessons.

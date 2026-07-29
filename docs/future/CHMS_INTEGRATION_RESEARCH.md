@@ -11,6 +11,7 @@
 | Doc | Relationship |
 |-----|--------------|
 | [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md) | Layer 2 church org + curriculum push — ChMS is the roster/distribution pipe |
+| [RESOURCE_LIBRARY.md](./RESOURCE_LIBRARY.md) | Study-native Resource Library vs PCO Groups Resources; optional later import of PCO resource links |
 | [CHURCH_CONNECTION_SYSTEM.md](./CHURCH_CONNECTION_SYSTEM.md) | `connectedChurchId`, matching — ChMS adds auto-provision from group roster |
 | [CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md](./CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md) | Clerk org patterns for church staff (≤20) |
 | [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md) | v1 shared spaces — ChMS groups map to auto-provisioned spaces |

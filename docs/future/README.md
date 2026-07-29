@@ -98,6 +98,12 @@ These were designed here and are now live. The stub files in this folder point t
   - How curriculum flows (publish to org → inbox / “From your church” for org members)
   - References CHURCH_CONNECTION_SYSTEM, SHARING_AND_GROUPS_INFRASTRUCTURE
 
+- **`RESOURCE_LIBRARY.md`** - Church (then school) Resource Library vs Planning Center Groups Resources
+  - Study-native catalog: browse, pin, copy, and `@` mention library items inside notes
+  - Org-owned library with space/ministry scopes; complements ministry broadcast channels
+  - Naming: Library / LibraryItem (distinct from existing `noteType: 'resource'` bookmark notes)
+  - Phases: space-local links → org files → library mentions → schools / ChMS import
+
 - **`CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md`** - Implementation checklist for Clerk Organizations for churches
   - What to think through: church sign-up, users joining (new/existing), MyChurchPanel evolution
   - Product flows, schema, auth/backend, invites/join, edge cases, UI/UX, migration
@@ -108,6 +114,7 @@ These were designed here and are now live. The stub files in this folder point t
   - Roster sync, curriculum push, bidirectional attendance/progress, youth COPPA
   - UX spec: `/settings/church` expansion, church admin dashboard, program templates
   - ChurchSoftware.com partner outreach brief; gap analysis and phased roadmap
+  - Resource Library complements PCO Groups Resources (see RESOURCE_LIBRARY.md)
 
 ### Sharing & Collaboration (✅ Implemented)
 

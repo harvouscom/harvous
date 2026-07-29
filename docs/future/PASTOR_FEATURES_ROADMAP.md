@@ -29,9 +29,11 @@ Written July 2026 alongside the harvous.com `/for/pastors` audience page and
   owner-pays philosophy as the personal Shared Spaces add-on. Org-owned spaces
   never count against a person's owned-space limit. Review stays individual,
   always.
-- **Planning Center split:** Shared Spaces ↔ PCO **Groups**; ministry broadcast
-  ↔ PCO **Resources** (utilize or replace). Details in
-  [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md).
+- **Planning Center split:** Shared Spaces ↔ PCO **Groups**; ministry broadcast +
+  **Resource Library** ↔ PCO **Resources** (utilize or replace). Curriculum feed
+  details in [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md);
+  study-native catalog, `@` mentions, and PCO Resources competition in
+  [RESOURCE_LIBRARY.md](./RESOURCE_LIBRARY.md).
 
 **The ladder** (product + pricing + marketing aligned):
 
@@ -39,7 +41,7 @@ Written July 2026 alongside the harvous.com `/for/pastors` audience page and
 |---|---|---|---|
 | Solo pastor | free | personal spaces, threads, pills, Recall | `/for/pastors` + `sermon-prep` |
 | Pastor + team / group leader | leader (Shared Spaces add-on) | `type='shared'` spaces, `leader` role (PCO Groups lane) | `/for/group-leaders` |
-| Church org | church | ministry broadcast spaces + connect (PCO Resources lane) | `/for/churches` |
+| Church org | church | ministry broadcast + Resource Library + connect (PCO Resources lane) | `/for/churches` |
 
 **v0 product lock** (before congregant surfaces): staff-only pilot — ministry
 spaces appear for staff who own/lead them; connect / Home "From your church" /

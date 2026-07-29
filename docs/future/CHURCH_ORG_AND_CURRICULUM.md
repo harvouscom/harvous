@@ -64,6 +64,7 @@ This makes it easy to **share threads and notes from the church** to everyone wh
 |-----|-----------------|
 | **CHURCH_CONNECTION_SYSTEM.md** | Church creates Clerk org, matching algorithm (name/city/state), connection requests, accept flow, UserMetadata `connectedChurchId` / `connectedOrgId`, inbox push to connected members. |
 | **SHARING_AND_GROUPS_INFRASTRUCTURE.md** | InboxItem + SharedContent with `sharingType='organization'`, orgId, auto-add to org members’ UserInboxItems. |
+| **RESOURCE_LIBRARY.md** | Org/space Resource Library (browse, pin, copy, `@` mention) as the study-native answer to PCO Groups Resources; complements ministry broadcast channels in this doc. |
 | **MONETIZATION_AND_PRICING.md** | Canonical SKUs: Review, Group Sharing, Season Pass, Group Leader, church principles. |
 | **MONETIZATION_SUMMARY.md** | High-level church connection flow and sharing infrastructure. |
 | **CLERK_ARCHITECTURE.md** / **BILLING_ARCHITECTURE.md** | Clerk auth/orgs; Polar billing + entitlements. |
