@@ -73,12 +73,13 @@ describe('prototype shell note paths', () => {
 });
 
 describe('public app paths', () => {
-  it('treats join, shared, invitation, and upgrade as public marketing routes', () => {
+  it('treats join, shared, invitation, upgrade, and status as public marketing routes', () => {
     expect(isPublicAppPath('/spaces/join/abc')).toBe(true);
     expect(isPublicAppPath('/shared/note/abc')).toBe(true);
     expect(isPublicAppPath('/invitations/abc')).toBe(true);
     expect(isPublicAppPath('/upgrade')).toBe(true);
     expect(isPublicAppPath('/addon')).toBe(true);
+    expect(isPublicAppPath('/status')).toBe(true);
     expect(isPublicAppPath('/')).toBe(false);
     expect(isPublicAppPath('/settings/addons')).toBe(false);
   });

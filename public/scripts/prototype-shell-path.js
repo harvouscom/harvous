@@ -72,6 +72,10 @@
 
   function isPublicAppPath(pathname) {
     var logical = prototypeLogicalPath(pathname);
+    if (isStatusHost(typeof location !== 'undefined' ? location.hostname : '') &&
+        (logical === '/' || logical === '')) {
+      return true;
+    }
     return isNonPrototypeAppPath(logical) &&
       (logical.indexOf('/spaces/join') === 0 ||
         logical.indexOf('/shared/') === 0 ||
@@ -79,7 +83,9 @@
         logical === '/upgrade' ||
         logical.indexOf('/upgrade/') === 0 ||
         logical === '/addon' ||
-        logical.indexOf('/addon/') === 0);
+        logical.indexOf('/addon/') === 0 ||
+        logical === '/status' ||
+        logical.indexOf('/status/') === 0);
   }
 
   function isPrototypeNotePath(pathname, hostname) {

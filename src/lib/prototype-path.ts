@@ -54,9 +54,11 @@ function isNonPrototypeAppPath(logical: string): boolean {
   return NON_PROTOTYPE_PREFIXES.some((p) => logical === p || logical.startsWith(p));
 }
 
-/** Join, shared note/thread, invitation, and add-on pages (public marketing-style shell). */
+/** Join, shared note/thread, invitation, add-on, and status pages (public marketing-style shell). */
 export function isPublicAppPath(pathname: string): boolean {
   const logical = prototypeLogicalPath(pathname);
+  // status.harvous.com serves the status UI at `/` (and `/status`).
+  if (isStatusHost() && (logical === '/' || logical === '')) return true;
   return (
     (logical.startsWith('/spaces/join') ||
       logical.startsWith('/shared/') ||
@@ -64,7 +66,9 @@ export function isPublicAppPath(pathname: string): boolean {
       logical === '/upgrade' ||
       logical.startsWith('/upgrade/') ||
       logical === '/addon' ||
-      logical.startsWith('/addon/')) &&
+      logical.startsWith('/addon/') ||
+      logical === '/status' ||
+      logical.startsWith('/status/')) &&
     isNonPrototypeAppPath(logical)
   );
 }
