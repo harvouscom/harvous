@@ -14,6 +14,7 @@ import {
   prototypeNoteRouteTo,
   prototypeSettingsAccountRouteTo,
 } from '@/lib/prototype-path';
+import { isStatusHost } from '@/lib/status-page-host';
 import AuthLayout from './layouts/AuthLayout';
 import SignInPage from './pages/SignInPage';
 import SignUpPage from './pages/SignUpPage';
@@ -180,6 +181,27 @@ const invitationRoute = createRoute({
   path: '/invitations/$token',
   component: PublicInvitationPage,
 });
+
+const publicStatusPageComponent = lazyRouteComponent(() => import('./pages/public/PublicStatusPage'));
+
+const statusRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/status',
+  component: publicStatusPageComponent,
+});
+
+/** status.harvous.com serves the status page at root (no app shell / no /prototype redirect). */
+function buildStatusHostRoutes() {
+  if (!isStatusHost()) return [];
+
+  return [
+    createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/',
+      component: publicStatusPageComponent,
+    }),
+  ];
+}
 
 const designSystemGalleryRoute = import.meta.env.DEV
   ? createRoute({
@@ -503,15 +525,17 @@ function buildPrototypeRouteBranch() {
 
 /** Redirect legacy Classic URLs to the prototype shell on all hosts. */
 function buildClassicRedirectRoutes() {
-  const classicRootRedirect = !isDedicatedPrototypeHost()
-    ? createRoute({
-        getParentRoute: () => rootRoute,
-        path: '/',
-        beforeLoad: () => {
-          throw redirect({ to: '/prototype/', replace: true });
-        },
-      })
-    : null;
+  // status.harvous.com owns `/` for the public status page — never send it to /prototype.
+  const classicRootRedirect =
+    !isDedicatedPrototypeHost() && !isStatusHost()
+      ? createRoute({
+          getParentRoute: () => rootRoute,
+          path: '/',
+          beforeLoad: () => {
+            throw redirect({ to: '/prototype/', replace: true });
+          },
+        })
+      : null;
 
   const classicDashboardRedirect = createRoute({
     getParentRoute: () => rootRoute,
@@ -593,6 +617,14 @@ const notFoundRoute = createRoute({
 });
 
 function buildRouteTree() {
+  if (isStatusHost()) {
+    return rootRoute.addChildren([
+      ...buildStatusHostRoutes(),
+      statusRoute,
+      notFoundRoute,
+    ]);
+  }
+
   return rootRoute.addChildren([
     authLayoutRoute.addChildren([
       signInRoute.addChildren([signInSplatRoute]),
@@ -605,6 +637,7 @@ function buildRouteTree() {
     sharedNoteRoute,
     sharedThreadRoute,
     invitationRoute,
+    statusRoute,
     ...(designSystemGalleryRoute ? [designSystemGalleryRoute] : []),
     ...(sharedSpacesDesignGalleryRoute ? [sharedSpacesDesignGalleryRoute] : []),
     ...(churchDesignGalleryRoute ? [churchDesignGalleryRoute] : []),
