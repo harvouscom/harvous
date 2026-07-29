@@ -112,6 +112,7 @@ import {
   shouldSchedulePassiveScriptureDetection,
 } from '@/utils/scripture-pill-position';
 import { sanitizeScripturePillHtml } from '@/utils/scripture-pill-display';
+import { safeRenderHtml } from '@/utils/content-renderer';
 import {
   findScripturePillBoundariesInDoc,
   insertScriptureQuoteAt,
@@ -4317,7 +4318,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         showOnlyCurrent: true,
       }),
     ],
-    content: normalizeEmptyBodyHtmlForEditor(sanitizeScripturePillHtml(content)) || '<p></p>',
+    content: normalizeEmptyBodyHtmlForEditor(sanitizeScripturePillHtml(safeRenderHtml(content))) || '<p></p>',
     onCreate: ({ editor }) => {
       if (onEditorReady) {
         onEditorReady(editor);
@@ -5936,7 +5937,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     if (!isEditorValid(editor)) return;
 
-    const normalizedContent = normalizeEmptyBodyHtmlForEditor(sanitizeScripturePillHtml(content));
+    const normalizedContent = normalizeEmptyBodyHtmlForEditor(sanitizeScripturePillHtml(safeRenderHtml(content)));
     const currentContent = editor.getHTML();
 
     if (currentContent === normalizedContent) {

@@ -1,4 +1,3 @@
-import DOMPurify from 'isomorphic-dompurify';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import {
   matchAnchoredTrailingTranslationAbbreviation,
@@ -7,11 +6,16 @@ import {
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 
 /**
- * Sanitize untrusted note HTML before any DOM parse / `innerHTML` assignment.
- * DOMPurify strips scripts and event handlers while keeping scripture pill data-* attrs.
+ * Strip scripts / inline event handlers before any DOM parse / `innerHTML` assignment.
+ *
+ * Do NOT import isomorphic-dompurify here — this module is pulled into the Netlify API
+ * via html-stripper, and jsdom crashes the function (`ENOENT ... default-stylesheet.css`).
+ * Full DOMPurify still runs in client `safeRenderHtml` before read-only render.
  */
 function sanitizeBeforeDomParse(html: string): string {
-  return DOMPurify.sanitize(html);
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
 }
 
 // The injected pill's own reference (e.g. "Proverbs 23") is often just a prefix/substring of the

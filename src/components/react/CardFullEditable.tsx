@@ -105,22 +105,21 @@ import { shouldUpgradePrototypeBodyFromServer } from '@/utils/prototype-note-bod
 
 /** TipTap body HTML for editing — empty notes use `<p></p>` so the caret stays on line 1. */
 function repairHtmlForEditor(html: string): string {
+  // Sanitize before pill DOM transforms (never assign untrusted HTML to innerHTML first).
+  const sanitized = safeRenderHtml(repairCorruptedScriptureQuoteAttributes(html ?? ''));
   return normalizeEmptyBodyHtmlForEditor(
     sanitizeScripturePillHtml(
-      repairScripturePillTranslationsInHtml(
-        repairCorruptedScriptureQuoteAttributes(html ?? ''),
-        getEffectiveDefaultTranslation(),
-      ),
+      repairScripturePillTranslationsInHtml(sanitized, getEffectiveDefaultTranslation()),
     ),
   );
 }
 
 /** Read-only note body HTML — canonicalize blank lines before pill labels / highlight strip. */
 function prepareReadOnlyNoteBodyHtml(html: string): string {
+  // Sanitize before pill DOM transforms; callers may safeRenderHtml again (idempotent).
+  const sanitized = safeRenderHtml(repairCorruptedScriptureQuoteAttributes(html));
   return stripStudyHighlightMarkInlineBackground(
-    withScripturePillDisplayLabels(
-      canonicalizeNoteHtmlLineBreaks(repairCorruptedScriptureQuoteAttributes(html)),
-    ),
+    withScripturePillDisplayLabels(canonicalizeNoteHtmlLineBreaks(sanitized)),
   );
 }
 
