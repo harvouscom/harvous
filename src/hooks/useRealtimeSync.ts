@@ -31,6 +31,8 @@ function isPrototypeOpenNoteEditorFocused(noteId: string): boolean {
 export type UseRealtimeSyncOptions = {
   /** Home space for `/prototype` list refresh (optional). */
   homeSpaceId?: string | null;
+  /** Active shared/public space — skip optimistic new-note bumps while focused here. */
+  activeSpaceId?: string | null;
 };
 
 /**
@@ -78,11 +80,16 @@ async function patchNoteInCaches(
   }
 }
 
+function normalizeSpaceIdForCompare(spaceId: string): string {
+  return spaceId.startsWith('space_') ? spaceId : `space_${spaceId}`;
+}
+
 async function applyInvalidation(
   queryClient: QueryClient,
   payload: RealtimeInvalidationPayload,
   userId: string,
   homeSpaceId?: string | null,
+  activeSpaceId?: string | null,
 ): Promise<void> {
   const { type, id } = payload;
 
@@ -95,10 +102,20 @@ async function applyInvalidation(
 
   if (type === 'note:created' && payload.note?.spaceId && isPrototypeShellRoute()) {
     const spaceId = payload.note.spaceId;
-    const { bumpNavSpaceNewNoteCount } = await import('@/lib/shared-space-nav-cache');
-    bumpNavSpaceNewNoteCount(queryClient, userId, spaceId, 1);
+    // Do not optimistic-bump nav new-note counts:
+    // - this channel also receives the actor's own creates
+    // - note.spaceId is often canonical home, not the SpaceNotes association
+    // - never badge the space the viewer is already in
+    // Server recount via navigation invalidate stays authoritative.
+    const focused =
+      activeSpaceId &&
+      normalizeSpaceIdForCompare(activeSpaceId) === normalizeSpaceIdForCompare(spaceId);
     await queryClient.invalidateQueries({ queryKey: ['space', spaceId, 'notes'] });
     await queryClient.invalidateQueries({ queryKey: ['space', spaceId, 'activity-preview'] });
+    if (!focused) {
+      const { navigationQueryKeyPrefix } = await import('../../spa/src/hooks/queries/useNavigation');
+      await queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
+    }
     if (id) await queryClient.invalidateQueries({ queryKey: ['note', id] });
     return;
   }
@@ -215,6 +232,8 @@ export function useRealtimeSync(userId: string | undefined, options?: UseRealtim
   const queryClient = useQueryClient();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const homeSpaceId = options?.homeSpaceId;
+  const activeSpaceIdRef = useRef(options?.activeSpaceId);
+  activeSpaceIdRef.current = options?.activeSpaceId;
 
   const channelRef = useRef<ReturnType<NonNullable<ReturnType<typeof getSupabaseBrowserClient>>['channel']> | null>(null);
 
@@ -247,7 +266,13 @@ export function useRealtimeSync(userId: string | undefined, options?: UseRealtim
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
           debounceRef.current = null;
-          void applyInvalidation(queryClient, payload, userId, homeSpaceId);
+          void applyInvalidation(
+            queryClient,
+            payload,
+            userId,
+            homeSpaceId,
+            activeSpaceIdRef.current,
+          );
         }, DEBOUNCE_MS);
       });
 

@@ -6,13 +6,13 @@
  */
 import { useCallback, useEffect, useRef } from 'react';
 import { useToolbarAnchoredPopover } from '../../hooks/useToolbarAnchoredPopover';
-import { useNavigate, useRouterState, useSearch } from '@tanstack/react-router';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import SpaceSwitcherMenu from './SpaceSwitcherMenu';
 import { useNote } from '../../hooks/queries/useNote';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
-import { PROTOTYPE_DRAFT_NOTE_SLUG, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
+import { normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
 import {
   resolveVisibleComposeTarget,
   useProtoShell,
@@ -33,7 +33,12 @@ import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import PrototypeNoteMoreMenu from './PrototypeNoteMoreMenu';
 import SplitColumnToggleIcon from './SplitColumnToggleIcon';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
-import { isPrototypeNotePath, matchPrototypeNoteId, prototypeNoteRouteTo } from '@/lib/prototype-path';
+import {
+  isPrototypeHomePath,
+  isPrototypeNotePath,
+  matchPrototypeNoteId,
+  prototypeHomeRouteTo,
+} from '@/lib/prototype-path';
 import { prototypeToolbarNoteDetailsAvailable } from './prototype-toolbar-note-details';
 import {
   canOrganizeSharedSpaceNote,
@@ -97,10 +102,18 @@ export function resolveNativeToolbarContextCapabilities(options: {
 
 export default function NativeToolbar({ variant = 'detail' }: { variant?: NativeToolbarVariant }) {
   const navigate = useNavigate();
+  // Select primitives only — object literals from `select` cause max-update-depth loops.
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { space: contextSpaceId } = useSearch({ strict: false }) as {
-    space?: string;
-  };
+  const spaceSearchParam = useRouterState({
+    select: (s) => {
+      const search = s.location.search as Record<string, unknown>;
+      if (typeof search.space === 'string' || typeof search.space === 'number') {
+        return String(search.space);
+      }
+      return undefined;
+    },
+  });
+  const contextSpaceId = normalizeToolbarSpaceId(spaceSearchParam) ?? undefined;
 
   const findButtonRef = useRef<HTMLButtonElement | null>(null);
   const overflowMenuButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -114,6 +127,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   const prototypeFolderChip = usePrototypeFolderChip();
   const {
     composePersistedNoteId,
+    composeDraftActive,
     beginPrototypeComposeSession,
     isMobileSidebar,
     drawerOpen,
@@ -134,13 +148,17 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
 
   const isUnified = variant === 'unified';
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
-  const isDraftNoteRoute = noteSlugFromPath != null && isPrototypeDraftNoteSlug(noteSlugFromPath);
+  const isDraftNoteRoute =
+    composeDraftActive ||
+    (noteSlugFromPath != null && isPrototypeDraftNoteSlug(noteSlugFromPath));
   const toolbarNoteId = resolvePrototypeToolbarNoteId(
     composePersistedNoteId,
     noteSlugFromPath,
     isDraftNoteRoute,
     normalizeNoteIdFromParam,
   );
+  const isOnNotePage =
+    isPrototypeNotePath(pathname) || (composeDraftActive && isPrototypeHomePath(pathname));
 
   const { data: toolbarNote, isLoading: toolbarNoteLoading } = useNote(
     toolbarNoteId ?? '',
@@ -179,8 +197,6 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     isOwnNote: !readOnlyForeignNote,
     isSpaceOwner: isContextSpaceOwner,
   });
-
-  const isOnNotePage = isPrototypeNotePath(pathname);
 
   const useShellFolderChip =
     isOnNotePage &&
@@ -221,10 +237,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     if (!visibleComposeTarget || !canComposeInContext) return;
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     beginPrototypeComposeSession({ targetSpaceId: visibleComposeTarget });
-    navigate({
-      to: prototypeNoteRouteTo(),
-      params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
-    });
+    navigate({ to: prototypeHomeRouteTo() });
   };
 
   const onSidebarButton = () => {

@@ -63,13 +63,13 @@ backup + quiesce writers first):
 5. `shared-spaces:db:push` (review dry-run) → `-- --apply`  ← also creates
    `Churches` + `NoteTemplates` and reconciles RLS
 6. `shared-spaces:verify` again
-7. Deploy, smoke `/` and `/n/{id}`, resume writers
+7. Deploy, smoke `/` and `/{id}`, resume writers
 
 Generic `npm run db:push` is NOT approved for the cutover.
 
 ## 5. Manual product smoke (post-deploy)
 
-- [ ] `/` and `/n/{id}` load
+- [ ] `/` and `/{id}` load
 - [ ] Compose: My Home vs This-space destination cue + opt-in thread chip
 - [ ] Note Activity panel (avatar rows, space colors)
 - [ ] Thread permissions (owner/leader structure vs member compose)

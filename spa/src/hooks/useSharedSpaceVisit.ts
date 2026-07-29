@@ -42,6 +42,16 @@ export interface SharedSpaceVisitResult {
   totalNoteCount: number;
 }
 
+const emptyVisit = (): SharedSpaceVisitResult => ({
+  previousVisitedAt: null,
+  newNoteCount: 0,
+  totalNoteCount: 0,
+});
+
+export function sharedSpaceLastVisitQueryKey(spaceId: string) {
+  return ['space', normalizeSpaceId(spaceId), 'last-visit'] as const;
+}
+
 export function useSharedSpaceActivityPreview(spaceId: string | null) {
   const id = spaceId ? normalizeSpaceId(spaceId) : '';
   return useQuery({
@@ -52,7 +62,27 @@ export function useSharedSpaceActivityPreview(spaceId: string | null) {
   });
 }
 
-export function useSharedSpaceVisit(spaceId: string | null) {
+/**
+ * Read the cached POST /visit result (catch-up count against the prior watermark).
+ * Populated by {@link useSharedSpaceVisitStamp}.
+ */
+export function useSharedSpaceLastVisit(spaceId: string | null) {
+  const queryClient = useQueryClient();
+  const id = spaceId ? normalizeSpaceId(spaceId) : '';
+  return useQuery({
+    queryKey: sharedSpaceLastVisitQueryKey(id || '_'),
+    queryFn: () => queryClient.getQueryData<SharedSpaceVisitResult>(sharedSpaceLastVisitQueryKey(id)) ?? emptyVisit(),
+    enabled: !!id,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+}
+
+/**
+ * Stamp membership lastVisitedAt once per space entry in this shell mount chain.
+ * Mount from a parent that survives dashboard ↔ notes-list toggles (layout chrome).
+ */
+export function useSharedSpaceVisitStamp(spaceId: string | null) {
   const { userId } = useAuth();
   const queryClient = useQueryClient();
   const id = spaceId ? normalizeSpaceId(spaceId) : '';
@@ -61,6 +91,7 @@ export function useSharedSpaceVisit(spaceId: string | null) {
   const visitMutation = useMutation({
     mutationFn: () => api.post<SharedSpaceVisitResult>(`/api/spaces/${id}/visit`),
     onSuccess: (data) => {
+      queryClient.setQueryData(sharedSpaceLastVisitQueryKey(id), data);
       if (data.previousVisitedAt) {
         setSharedSpaceUnseenSince(id, data.previousVisitedAt);
       } else {
@@ -77,11 +108,19 @@ export function useSharedSpaceVisit(spaceId: string | null) {
     stampedRef.current = id;
     visitMutation.mutate();
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps -- once per space entry
+}
 
+/**
+ * @deprecated Prefer {@link useSharedSpaceVisitStamp} in layout + {@link useSharedSpaceLastVisit} for banner data.
+ * Kept as a convenience that both stamps and returns counts (dashboard-only callers).
+ */
+export function useSharedSpaceVisit(spaceId: string | null) {
+  useSharedSpaceVisitStamp(spaceId);
+  const { data } = useSharedSpaceLastVisit(spaceId);
   return {
-    visitResult: visitMutation.data,
-    isVisiting: visitMutation.isPending,
-    newNoteCount: visitMutation.data?.newNoteCount ?? 0,
-    previousVisitedAt: visitMutation.data?.previousVisitedAt ?? null,
+    visitResult: data,
+    isVisiting: false,
+    newNoteCount: data?.newNoteCount ?? 0,
+    previousVisitedAt: data?.previousVisitedAt ?? null,
   };
 }

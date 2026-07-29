@@ -99,7 +99,20 @@ const NON_PROTOTYPE_PREFIXES = [
   '/status',
   '/api/',
 ];
-const RESERVED_PROTOTYPE_SEGMENTS = new Set(['settings', 'space', 'search']);
+const RESERVED_PROTOTYPE_SEGMENTS = new Set([
+  'settings',
+  'space',
+  'search',
+  'admin',
+  'n',
+  'new',
+  'compose',
+  'church',
+  'challenges',
+  'compete',
+  'learn',
+  'org',
+]);
 
 function prototypeLogicalPath(pathname) {
   if (pathname.startsWith('/prototype')) {
@@ -126,6 +139,8 @@ const isPrototypeNoteSlugPath = (pathname, hostname) => {
 const isNoteOrThreadPage = (pathname, hostname) => {
   if (/^\/\d+$/.test(pathname)) return true;
   if (/^\/(note|thread)\//.test(pathname)) return true;
+  // Legacy `/n/{id}` and flat `/{id}` on dedicated hosts.
+  if (/^\/n\/[^/]+\/?$/.test(pathname)) return true;
   if (isPrototypeNoteSlugPath(pathname, hostname)) return true;
   return false;
 };

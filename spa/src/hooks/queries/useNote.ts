@@ -478,7 +478,10 @@ export function seedNoteFromCreateResponse(
 }
 
 export function getNoteQueryOptions(noteId: string, contextSpaceId?: string | null) {
-  const context = contextSpaceId?.trim() || null;
+  const trimmed = contextSpaceId?.trim() || null;
+  // Accept bare URL ids (`1785…`) or `space_*` — API expects the prefixed form.
+  const context =
+    trimmed == null ? null : trimmed.startsWith('space_') ? trimmed : `space_${trimmed}`;
   const queryKey = context ? (['note', noteId, context] as const) : (['note', noteId] as const);
   return {
     queryKey,
@@ -544,7 +547,9 @@ export function getNoteQueryOptions(noteId: string, contextSpaceId?: string | nu
 export function useNote(noteId: string, contextSpaceId?: string | null) {
   const context = contextSpaceId?.trim() || null;
   const options = getNoteQueryOptions(noteId, context);
-  const cachedDetail = noteId && !context ? getCachedNoteDetail(noteId) : undefined;
+  // Prefer session snapshot for unscoped reads; for shared-context reads, still paint
+  // instantly from the unscoped/list seed while the scoped GET …/details runs.
+  const cachedDetail = noteId ? getCachedNoteDetail(noteId) : undefined;
   /**
    * Session snapshots from incomplete list seed (or older builds) may omit `simpleNoteId` entirely.
    * Treat that as maximally stale so GET …/details runs; explicit `simpleNoteId: null` (legacy DB) stays normal stale window.
@@ -552,8 +557,8 @@ export function useNote(noteId: string, contextSpaceId?: string | null) {
   const initialDataUpdatedAt =
     cachedDetail == null
       ? undefined
-      : cachedDetail.__contentIsPreview
-        ? 0 // content is a truncated list preview — force GET …/details for the full body
+      : cachedDetail.__contentIsPreview || context
+        ? 0 // preview or shared-context — force GET …/details; still show seed immediately
         : typeof cachedDetail.simpleNoteId === 'number'
           ? Date.now() - 5_000
           : 'simpleNoteId' in cachedDetail

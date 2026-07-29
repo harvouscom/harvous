@@ -12,7 +12,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import Icon, { type IconName } from '@/components/react/Icon';
-import { prototypeNoteRouteTo } from '@/lib/prototype-path';
+import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
@@ -109,7 +109,7 @@ import type { CrossRefGap } from '../../hooks/queries/useCrossRefGaps';
 import { useConnectSuggestions } from '../../hooks/queries/useConnectSuggestions';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
-import { PROTOTYPE_DRAFT_NOTE_SLUG, noteParamSlug } from './proto-route-slugs';
+import { noteParamSlug } from './proto-route-slugs';
 import { bibleBookChapterCounts } from '@/utils/bible-book-chapters';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { useCreateSimpleNote, alertCreateNoteFailure } from '../../hooks/mutations/useCreateSimpleNote';
@@ -1421,11 +1421,7 @@ export default function PrototypeSidebarHomeView({
     if (!homeSpaceId) return;
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     beginPrototypeComposeSession({ targetSpaceId: homeSpaceId });
-    navigate({
-      to: prototypeNoteRouteTo(),
-      params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
-      search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
-    });
+    navigate({ to: prototypeHomeRouteTo() });
   }, [beginPrototypeComposeSession, closeDrawer, homeSpaceId, isMobileSidebar, navigate]);
 
   if (!contentReady) {

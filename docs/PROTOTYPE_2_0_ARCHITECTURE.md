@@ -26,10 +26,13 @@ On dedicated hosts (`localhost`, `new.harvous.com`, and `app.harvous.com`) the p
 
 **Current routing** (`spa/src/router.tsx` and `src/lib/prototype-path.ts`):
 
-- **`/`** — My Home or the selected shared-space dashboard.
-- **`/n/$noteId`** — canonical note editor (`PrototypeNotePage`).
-- **`/search`** — note search within explicit list scope.
-- **`?space=$spaceId`** — explicit shared-space read/organization context for a canonical note.
+- **`/`** — My Home or the selected shared-space dashboard. Compose starts here as a shell session (no `/new` path); after first persist the URL idle-replaces to `/{id}`.
+- **`/$noteId`** — canonical note editor (`PrototypeNotePage`). Notes own the bare first path segment.
+- **`/n/$noteId`** — forever redirect to `/$noteId` (search preserved).
+- **`/settings/…`, `/admin/…`** (and future product folders) — nested namespaces only. Reserved first segments never open as notes (`settings`, `search`, `admin`, `space`, `n`, `new`, `compose`, `church`, `challenges`, `compete`, `learn`, `org`, plus auth/share prefixes).
+- **`?space=$spaceId`** — explicit shared-space read/organization context for a canonical note (bare id).
+
+**URL rule:** notes are first-class at `/{id}`. Every new product surface adds a **folder**, not a flat id.
 
 URLs remain note-centric. Space membership and note ownership are not encoded by moving notes between route
 trees.
@@ -121,7 +124,7 @@ context; My Home exposes the same responses through Note Activity grouped by spa
   My Home.
 - **Lifecycle:** leave/removal archives authored associations but preserves responses on other authors' notes;
   deleted spaces are recoverable for 30 days.
-- **URLs:** dedicated hosts use `/` and `/n/{id}` with optional `?space=`.
+- **URLs:** dedicated hosts use `/` and `/{id}` with optional `?space=`. Legacy `/n/{id}` forever-redirects.
 
 **Native users:** Visual alignment with the web shell is intentional; full canonical-association, response,
 Thread, lifecycle, and offline parity still requires deliberate shared-API migration.
@@ -203,7 +206,7 @@ flowchart LR
 | `PrototypeNotePage.tsx` | Note editor shell around `CardFullEditable`, inspector, bottom chrome hosts. |
 | `PrototypeSearchPage.tsx` | Space-scoped note search. |
 | `PrototypeSearchResultsList.tsx` | Result list wiring. |
-| `PrototypeSidebar.tsx` | Notes / folders / highlights / scripture / Threads lists; contextual organization and navigation to `/n/...`. |
+| `PrototypeSidebar.tsx` | Notes / folders / highlights / scripture / Threads lists; contextual organization and navigation to `/{id}`. |
 | `PrototypeInspectorPane.tsx` | Read-mostly metadata (collections, tags, info). |
 | `PrototypeNoteActionBar.tsx` | Note-level actions in prototype chrome. |
 | `PrototypeConnectNoteSheet.tsx` | Connect / link flows used from prototype. |

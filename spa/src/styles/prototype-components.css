@@ -10857,16 +10857,23 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 
 .proto-space-switcher-badge {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  background: var(--pds-accent, #3d7de8);
-  color: #fff;
+  background: var(--pds-bg-control);
+  color: var(--pds-text-tertiary);
   font-size: 11px;
-  font-weight: 700;
-  line-height: 18px;
+  font-weight: 600;
+  line-height: 1;
   text-align: center;
+}
+
+.proto-menu-item:hover .proto-space-switcher-badge {
+  background: var(--pds-bg-control-hover);
 }
 
 .proto-space-switcher-dot {
@@ -10876,7 +10883,7 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--pds-accent, #3d7de8);
+  background: var(--pds-text-tertiary);
   box-shadow: 0 0 0 1.5px var(--pds-bg-surface, #fff);
 }
 

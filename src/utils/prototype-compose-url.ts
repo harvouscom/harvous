@@ -1,4 +1,4 @@
-/** Idle delay before replacing `/n/new` with `/n/<id>` while the user is still typing. */
+/** Idle delay before replacing compose-on-`/` with `/{id}` while the user is still typing. */
 export const COMPOSE_URL_IDLE_MS = 2000;
 
 export type PendingComposeUrlReplace = {

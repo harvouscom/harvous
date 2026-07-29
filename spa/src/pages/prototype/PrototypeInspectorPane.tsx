@@ -15,6 +15,7 @@ import {
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo, prototypeSettingsAccountRouteTo } from '@/lib/prototype-path';
+import { toPrototypeSpaceSearchParam } from '../../utils/prototype-space-api-id';
 import type { NoteDetail, LinkedNoteRef } from '../../hooks/queries/useNote';
 import type { NoteActivityItem } from '../../lib/shared-note-activity-list';
 import { normalizeNoteAddedBy } from '@/utils/note-added-by-display';
@@ -467,7 +468,7 @@ function ConnectedNoteRow({
         params={{ noteId: noteParamSlug(note.id) }}
         search={{
           ...PROTOTYPE_NOTE_LIST_NAV_SEARCH,
-          space: contextSpaceId || undefined,
+          space: toPrototypeSpaceSearchParam(contextSpaceId),
         }}
         className="proto-inspector-connected-note"
       >

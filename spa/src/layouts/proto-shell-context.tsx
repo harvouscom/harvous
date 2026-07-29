@@ -232,10 +232,16 @@ type ProtoShellContextValue = {
   /** Expanded thread → inspector (note details); does not leave a docked thread panel. */
   backFromThreadPanelToInspector: (options?: { popHistory?: boolean }) => void;
   setPrototypeFolderChip: (value: PrototypeFolderChip | null) => void;
-  /** Backend note id after first autosave on `/n/new` — before URL replace. */
+  /** Backend note id after first autosave during compose-on-home — before URL replace. */
   composePersistedNoteId: string | null;
   setComposePersistedNoteId: (noteId: string | null) => void;
-  /** Bumped on each explicit compose action so `/n/new` gets a fresh editor session. */
+  /**
+   * True while composing a draft on `/` (no note path). Cleared when the idle
+   * replace lands on `/{slug}` or the user leaves the compose session.
+   */
+  composeDraftActive: boolean;
+  clearComposeDraftActive: () => void;
+  /** Bumped on each explicit compose action so compose-on-home gets a fresh editor session. */
   composeSessionEpoch: number;
   /** When set, the next draft compose targets this space instead of the active shared space. */
   composeTargetSpaceIdOverride: string | null;
@@ -312,6 +318,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [sidebarTagSearchIntent, setSidebarTagSearchIntent] = useState<SidebarTagSearchIntent | null>(null);
   const [prototypeFolderChip, setPrototypeFolderChipState] = useState<PrototypeFolderChip | null>(null);
   const [composePersistedNoteId, setComposePersistedNoteIdState] = useState<string | null>(null);
+  const [composeDraftActive, setComposeDraftActive] = useState(false);
   const [composeTargetSpaceIdOverride, setComposeTargetSpaceIdOverrideState] = useState<string | null>(null);
   const [composeSessionEpoch, setComposeSessionEpoch] = useState(0);
   const [standaloneScripturePassage, setStandaloneScripturePassage] = useState<StandaloneScripturePassageState | null>(
@@ -764,8 +771,12 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const clearComposeTargetSpaceIdOverride = useCallback(() => {
     setComposeTargetSpaceIdOverrideState(null);
   }, []);
+  const clearComposeDraftActive = useCallback(() => {
+    setComposeDraftActive(false);
+  }, []);
   const beginPrototypeComposeSession = useCallback((options?: { targetSpaceId?: string }) => {
     setComposePersistedNoteIdState(null);
+    setComposeDraftActive(true);
     const target = options?.targetSpaceId?.trim();
     setComposeGroupThreadId(null);
     setComposeTargetSpaceIdOverrideState(
@@ -840,6 +851,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setPrototypeFolderChip,
       composePersistedNoteId,
       setComposePersistedNoteId,
+      composeDraftActive,
+      clearComposeDraftActive,
       composeSessionEpoch,
       composeTargetSpaceIdOverride,
       clearComposeTargetSpaceIdOverride,
@@ -907,6 +920,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setPrototypeFolderChip,
       composePersistedNoteId,
       setComposePersistedNoteId,
+      composeDraftActive,
+      clearComposeDraftActive,
       composeSessionEpoch,
       composeTargetSpaceIdOverride,
       clearComposeTargetSpaceIdOverride,

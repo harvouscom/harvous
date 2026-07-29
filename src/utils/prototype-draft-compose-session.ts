@@ -20,7 +20,7 @@ export function isDraftComposeAdoptionTransition(
   return nextId === adoptedComposeId;
 }
 
-/** Stable editor mount key for one compose session (`/n/new` through first persist). */
+/** Stable editor mount key for one compose session (compose-on-home through first persist). */
 export function prototypeComposeEditorKey(
   draftNoteId: string = PROTOTYPE_DRAFT_NOTE_ID,
   composeSessionEpoch: number,

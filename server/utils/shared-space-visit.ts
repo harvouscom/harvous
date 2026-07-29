@@ -1,5 +1,6 @@
 /**
  * Per-membership "new since you were here" helpers for shared/public spaces.
+ * Counts exclude the viewer’s own notes — badges mean others’ activity, not your edits.
  */
 import { db, first, Notes, SpaceNotes, SpaceMemberships, Spaces, eq, and, count, gt, ne, isNull } from '../db';
 import { nowISO } from '../db/dates';
@@ -12,18 +13,30 @@ export interface SharedSpaceVisitResult {
   totalNoteCount: number;
 }
 
+/** Prefer last visit; fall back to join so new members can catch up before first stamp. */
 function visitWatermark(membership: { lastVisitedAt: Date | null; joinedAt: Date }): Date | null {
-  return membership.lastVisitedAt ?? null;
+  return membership.lastVisitedAt ?? membership.joinedAt ?? null;
 }
 
-export async function countNewNotesInSpaceSince(spaceId: string, sinceIso: Date): Promise<number> {
+/** Notes updated after `sinceIso`, excluding the viewer’s own authorship. */
+export async function countNewNotesInSpaceSince(
+  spaceId: string,
+  sinceIso: Date,
+  viewerUserId: string,
+): Promise<number> {
   const row = first(
     await db
       .select({ value: count() })
       .from(SpaceNotes)
       .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
       .where(
-        and(eq(SpaceNotes.spaceId, spaceId), isNull(SpaceNotes.removedAt), eq(Notes.contentEncrypted, false), gt(Notes.updatedAt, sinceIso)),
+        and(
+          eq(SpaceNotes.spaceId, spaceId),
+          isNull(SpaceNotes.removedAt),
+          eq(Notes.contentEncrypted, false),
+          gt(Notes.updatedAt, sinceIso),
+          ne(Notes.userId, viewerUserId),
+        ),
       ),
   );
   return Number(row?.value ?? 0);
@@ -57,10 +70,11 @@ export async function recordSharedSpaceVisit(spaceId: string, userId: string): P
     return { previousVisitedAt: null, newNoteCount: 0, totalNoteCount: 0 };
   }
 
-  const previousVisitedAt = membership.lastVisitedAt ?? null;
+  // Watermark for catch-up count (last visit, or join time on first open).
+  const previousVisitedAt = visitWatermark(membership);
   let newNoteCount = 0;
   if (previousVisitedAt) {
-    newNoteCount = await countNewNotesInSpaceSince(spaceId, previousVisitedAt);
+    newNoteCount = await countNewNotesInSpaceSince(spaceId, previousVisitedAt, userId);
   }
 
   const totalRow = first(
@@ -88,7 +102,7 @@ export async function getSharedSpaceActivityPreview(spaceId: string, userId: str
   let newNoteCount = 0;
   const watermark = membership ? visitWatermark(membership) : null;
   if (watermark) {
-    newNoteCount = await countNewNotesInSpaceSince(spaceId, watermark);
+    newNoteCount = await countNewNotesInSpaceSince(spaceId, watermark, userId);
   }
 
   const { notes, total } = await getNotesForSharedSpace(spaceId, userId, 3, 0, {
@@ -104,6 +118,7 @@ export async function getSharedSpaceActivityPreview(spaceId: string, userId: str
     });
     const byAuthor = new Map<string, { displayName: string; noteCount: number }>();
     for (const note of sampleForActivity) {
+      if (note.authorUserId && note.authorUserId === userId) continue;
       const updated = note.lastUpdated ?? note.updatedAt;
       if (!updated || new Date(updated).getTime() <= watermark.getTime()) continue;
       const key = note.authorUserId ?? note.authorDisplayName ?? 'member';
@@ -146,7 +161,7 @@ export async function getNewNoteCountsForUser(userId: string): Promise<Map<strin
         result.set(m.spaceId, 0);
         return;
       }
-      const cnt = await countNewNotesInSpaceSince(m.spaceId, watermark);
+      const cnt = await countNewNotesInSpaceSince(m.spaceId, watermark, userId);
       if (cnt > 0) result.set(m.spaceId, cnt);
     }),
   );

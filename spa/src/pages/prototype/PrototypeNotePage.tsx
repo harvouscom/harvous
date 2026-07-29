@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
-import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
+import {
+  matchPrototypeNoteId,
+  prototypeHomeRouteTo,
+  prototypeNoteRouteTo,
+} from '@/lib/prototype-path';
+import {
+  normalizePrototypeApiSpaceId,
+  toPrototypeSpaceSearchParam,
+} from '../../utils/prototype-space-api-id';
 import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
@@ -63,7 +71,12 @@ import {
   COMPOSE_URL_IDLE_MS,
   type PendingComposeUrlReplace,
 } from '@/utils/prototype-compose-url';
-import { isPrototypeDraftNoteSlug, noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
+import {
+  isPrototypeDraftNoteSlug,
+  noteParamSlug,
+  normalizeNoteIdFromParam,
+  PROTOTYPE_DRAFT_NOTE_SLUG,
+} from './proto-route-slugs';
 import { getComposeGroupThreadId } from '../../lib/compose-group-thread';
 import { validComposeThreadSelection } from './PrototypeGroupStudyThreadPicker';
 import { useSpaceGroupThreads } from '../../hooks/queries/useSpaceGroupThreads';
@@ -124,28 +137,97 @@ function sharedContextForSave(
 const MAX_SCRIPTURE_REPROCESS_ATTEMPTS = 3;
 
 export default function PrototypeNotePage() {
-  const { noteId: noteSlugParam } = useParams({ strict: false }) as { noteId: string };
-  const isDraft = isPrototypeDraftNoteSlug(noteSlugParam);
-  const noteId = isDraft ? DRAFT_NOTE_ID : normalizeNoteIdFromParam(noteSlugParam);
+  /**
+   * Shell-hosted (not the `$noteId` route component): `useParams`/`useSearch` with
+   * `strict: false` resolve the *nearest* match — the layout — which has no noteId.
+   * Read identity from the location instead.
+   * Select string primitives only — object literals from `select` re-render forever.
+   */
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const initialReferenceWord = useRouterState({
+    select: (s) => {
+      const v = (s.location.search as Record<string, unknown>).reference;
+      return typeof v === 'string' ? v : undefined;
+    },
+  });
+  const initialScriptureRef = useRouterState({
+    select: (s) => {
+      const v = (s.location.search as Record<string, unknown>).scriptureRef;
+      return typeof v === 'string' ? v : undefined;
+    },
+  });
+  const initialScriptureTranslation = useRouterState({
+    select: (s) => {
+      const v = (s.location.search as Record<string, unknown>).scriptureTranslation;
+      return typeof v === 'string' ? v : undefined;
+    },
+  });
+  const initialStudyThread = useRouterState({
+    select: (s) => {
+      const v = (s.location.search as Record<string, unknown>).studyThread;
+      return typeof v === 'string' ? v : undefined;
+    },
+  });
+  const initialHighlightThread = useRouterState({
+    select: (s) => {
+      const v = (s.location.search as Record<string, unknown>).highlight;
+      return typeof v === 'string' ? v : undefined;
+    },
+  });
+  const dockReq = useRouterState({
+    select: (s) => {
+      const v = (s.location.search as Record<string, unknown>).dockReq;
+      return typeof v === 'string' ? v : undefined;
+    },
+  });
+  const initialCrossRefTargetSearch = useRouterState({
+    select: (s) => {
+      const v = (s.location.search as Record<string, unknown>).crossRefTarget;
+      return typeof v === 'string' ? v : undefined;
+    },
+  });
+  const spaceSearchParam = useRouterState({
+    select: (s) => {
+      const v = (s.location.search as Record<string, unknown>).space;
+      return typeof v === 'string' || typeof v === 'number' ? String(v) : undefined;
+    },
+  });
   const {
-    reference: initialReferenceWord,
-    scriptureRef: initialScriptureRef,
-    scriptureTranslation: initialScriptureTranslation,
-    studyThread: initialStudyThread,
-    highlight: initialHighlightThread,
-    dockReq,
-    crossRefTarget: initialCrossRefTargetSearch,
-    space: contextSpaceId,
-  } = useSearch({ strict: false }) as {
-    reference?: string;
-    scriptureRef?: string;
-    scriptureTranslation?: string;
-    studyThread?: string;
-    highlight?: string;
-    dockReq?: string;
-    crossRefTarget?: string;
-    space?: string;
-  };
+    activeSpaceId: selectedSpaceId,
+    inspectorOpen,
+    inspectorExiting,
+    isMobileSidebar,
+    closeInspector,
+    setPrototypeFolderChip,
+    setComposePersistedNoteId,
+    composeDraftActive,
+    composeSessionEpoch,
+    composeTargetSpaceIdOverride,
+    clearComposeTargetSpaceIdOverride,
+    dismissStandaloneScripturePassage,
+    openStandaloneScripturePassage,
+    formatToolbarHostEl,
+    studyDockCarouselHostEl,
+    setEditorChromeMode,
+    studyThreadPopoverOpen,
+    closeStudyThreadPopover,
+    setActiveSpaceId,
+    setSidebarListMode,
+    setSidebarThreadDrilldownId,
+    setSidebarFolderDrilldown,
+    setSidebarLayer,
+    ensureSidebarExpanded,
+    openDrawer,
+  } = useProtoShell();
+  const noteSlugFromPath = matchPrototypeNoteId(pathname);
+  // Compose-on-home has no note segment — treat as draft slug while the shell session is active.
+  const noteSlugParam =
+    noteSlugFromPath ?? (composeDraftActive ? PROTOTYPE_DRAFT_NOTE_SLUG : '');
+  const isDraft =
+    isPrototypeDraftNoteSlug(noteSlugParam) || (!noteSlugFromPath && composeDraftActive);
+  const noteId = isDraft ? DRAFT_NOTE_ID : normalizeNoteIdFromParam(noteSlugParam);
+  // URL uses bare ids (`?space=1785…`); APIs / shell expect `space_*`.
+  const contextSpaceId = normalizePrototypeApiSpaceId(spaceSearchParam);
   // Stable object so CardFullEditable's open-on-load effect doesn't refire each render.
   // `requestKey` (dockReq nonce from sidebar) makes each home tap re-open the dock even when
   // it targets the note already on screen or the dock entry already exists in the carousel.
@@ -221,7 +303,7 @@ export default function PrototypeNotePage() {
   const draftPersistPromiseRef = useRef<Promise<string | null> | null>(null);
   const persistedDraftIdRef = useRef<string | null>(null);
   // The note id a draft compose persisted into. Unlike `persistedDraftIdRef` (reset
-  // on every slug change), this survives the /n/new → /n/<id> swap so the editor
+  // on every slug change), this survives the compose-on-home → /{id} swap so the editor
   // subtree key can stay stable across that single transition (no remount mid-typing).
   const [adoptedComposeId, setAdoptedComposeId] = useState<string | null>(null);
   const adoptedComposeIdRef = useRef<string | null>(null);
@@ -231,32 +313,6 @@ export default function PrototypeNotePage() {
   const draftPersistRemountRef = useRef<{ content: string } | null>(null);
   const [draftPersistRemountTick, setDraftPersistRemountTick] = useState(0);
   const processScriptureMutation = useProcessScriptureRefs();
-  const {
-    activeSpaceId: selectedSpaceId,
-    inspectorOpen,
-    inspectorExiting,
-    isMobileSidebar,
-    closeInspector,
-    setPrototypeFolderChip,
-    setComposePersistedNoteId,
-    composeSessionEpoch,
-    composeTargetSpaceIdOverride,
-    clearComposeTargetSpaceIdOverride,
-    dismissStandaloneScripturePassage,
-    openStandaloneScripturePassage,
-    formatToolbarHostEl,
-    studyDockCarouselHostEl,
-    setEditorChromeMode,
-    studyThreadPopoverOpen,
-    closeStudyThreadPopover,
-    setActiveSpaceId,
-    setSidebarListMode,
-    setSidebarThreadDrilldownId,
-    setSidebarFolderDrilldown,
-    setSidebarLayer,
-    ensureSidebarExpanded,
-    openDrawer,
-  } = useProtoShell();
 
   // New-note compose target. Trust the persisted space selection directly (it's
   // set synchronously when the user picks a space and restored from localStorage
@@ -355,7 +411,10 @@ export default function PrototypeNotePage() {
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: noteSlugParam },
-      search: { ...PROTOTYPE_NOTE_LIST_NAV_SEARCH, space: contextSpaceId },
+      search: {
+        ...PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+        space: toPrototypeSpaceSearchParam(contextSpaceId),
+      },
       replace: true,
     });
   }, [navigate, noteSlugParam, initialHighlightThread, contextSpaceId]);
@@ -365,7 +424,10 @@ export default function PrototypeNotePage() {
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: noteSlugParam },
-      search: { ...PROTOTYPE_NOTE_LIST_NAV_SEARCH, space: contextSpaceId },
+      search: {
+        ...PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+        space: toPrototypeSpaceSearchParam(contextSpaceId),
+      },
       replace: true,
     });
   }, [navigate, noteSlugParam, initialScriptureRef, contextSpaceId]);
@@ -375,7 +437,10 @@ export default function PrototypeNotePage() {
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: noteSlugParam },
-      search: { ...PROTOTYPE_NOTE_LIST_NAV_SEARCH, space: contextSpaceId },
+      search: {
+        ...PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+        space: toPrototypeSpaceSearchParam(contextSpaceId),
+      },
       replace: true,
     });
   }, [navigate, noteSlugParam, initialReferenceWord, contextSpaceId]);
@@ -588,7 +653,10 @@ export default function PrototypeNotePage() {
             params: { noteId: noteParamSlug(createdId) },
             search: {
               ...PROTOTYPE_NOTE_LIST_NAV_SEARCH,
-              space: spaceId === personalHomeSpaceId ? undefined : spaceId,
+              space:
+                spaceId === personalHomeSpaceId
+                  ? undefined
+                  : toPrototypeSpaceSearchParam(spaceId),
             },
           });
         }
@@ -652,10 +720,11 @@ export default function PrototypeNotePage() {
         space:
           composeTargetSpaceId === personalHomeSpaceId
             ? undefined
-            : composeTargetSpaceId || undefined,
+            : toPrototypeSpaceSearchParam(composeTargetSpaceId),
       },
       replace: true,
     });
+    // composeDraftActive clears in the shell when pathname leaves `/`.
   }, [composeTargetSpaceId, navigate, personalHomeSpaceId, setComposePersistedNoteId]);
 
   const scheduleComposeUrlIdleReplace = useCallback(() => {
@@ -761,9 +830,9 @@ export default function PrototypeNotePage() {
 
   useEffect(() => {
     if (isDraft || !note) {
-      if (!isDraft || !adoptedComposeIdRef.current) {
-        setPrototypeFolderChip(null);
-      }
+      // Keep the toolbar folder chip across compose persist → note query settle.
+      if (adoptedComposeIdRef.current) return;
+      setPrototypeFolderChip(null);
       return;
     }
     if (isPrototypeNoteEditorFocused() && !note.collectionUserOverride) return;
@@ -1360,12 +1429,14 @@ export default function PrototypeNotePage() {
   }
 
   const useComposeEditorStub = isDraft && !!adoptedComposeId;
+  const usePersistedDraftStub =
+    useComposeEditorStub || isDraft || (!note && keepEditorDuringPersistedDraftLoad);
 
-  const editorNote =
-    useComposeEditorStub || isDraft || (!note && keepEditorDuringPersistedDraftLoad)
+  const editorNote = usePersistedDraftStub
     ? {
-        title: templatePrefill?.title ?? '',
-        content: templatePrefill?.content ?? '',
+        // Prefer live typing / template over empty props so adoption doesn't blank TipTap.
+        title: templatePrefill?.title ?? liveNoteSnapshot.title ?? '',
+        content: templatePrefill?.content ?? liveNoteSnapshot.content ?? '',
         noteType: (templatePrefill?.noteType || 'default') as 'default' | 'scripture' | 'resource',
         version: undefined as number | undefined,
         resourceTitle: undefined as string | undefined,
@@ -1373,13 +1444,19 @@ export default function PrototypeNotePage() {
         resourceImage: undefined as string | undefined,
         resourceUrl: undefined as string | undefined,
         contentEncrypted: false,
-        primaryCollection: null as string | null,
+        primaryCollection: liveFolderLabelRef.current,
         secondaryCollections: [] as string[],
         collectionPinned: false,
         collectionUserOverride: false,
         collectionLastAutoUpdatedAt: null as string | null,
         createdAt: null as string | null,
-        threads: [] as { id: string; title?: string; backgroundGradient?: string; count?: number; spaceId?: string | null }[],
+        threads: [] as {
+          id: string;
+          title?: string;
+          backgroundGradient?: string;
+          count?: number;
+          spaceId?: string | null;
+        }[],
       }
     : templatePrefill
       ? {
@@ -1405,7 +1482,7 @@ export default function PrototypeNotePage() {
 
   // Stable key for the editor subtree. The draft route and the note it persists into
   // are ONE editing session, so they share a key — this prevents a destructive
-  // CardFullEditable + TipTap remount mid-typing when /n/new → /n/<id>. A new
+  // CardFullEditable + TipTap remount mid-typing when compose-on-home → /{id}. A new
   // compose bumps composeSessionEpoch so distinct compose sessions never share an instance.
   // templateApplyEpoch remounts after "Start from a template" so TipTap seeds the HTML.
   const composeEditorKey = prototypeComposeEditorKey(DRAFT_NOTE_ID, composeSessionEpoch);
@@ -1483,7 +1560,9 @@ export default function PrototypeNotePage() {
     tags: [],
   };
 
-  const inspectorNote = isDraft ? draftInspectorNote : note;
+  // During compose → /{id} adoption, keep the draft inspector until the note query lands.
+  const inspectorNote =
+    isDraft || (!note && !!adoptedComposeId) ? draftInspectorNote : note;
 
   const showInspectorDesktop = (inspectorOpen || inspectorExiting) && !isMobileSidebar;
   const showInspectorMobile = (inspectorOpen || inspectorExiting) && isMobileSidebar;
@@ -1493,7 +1572,12 @@ export default function PrototypeNotePage() {
   // Drafts can open the inspector for Templates; they float (no dock reserve) so
   // the empty compose canvas stays full-width until the note persists.
   const inspectorReservesEditorSpace =
-    inspectorOpen && !inspectorExiting && !isDraft && !!note && !isMobileSidebar && paneIsWide;
+    inspectorOpen &&
+    !inspectorExiting &&
+    !isDraft &&
+    !!inspectorNote &&
+    !isMobileSidebar &&
+    paneIsWide;
 
   const inspectorFloating =
     inspectorOpen &&

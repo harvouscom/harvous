@@ -38,7 +38,7 @@ Compose follows the scope the user can see:
   copy in My Home. The copy stores source note/version/author attribution.
 
 The native-like shell is served at `/` on dedicated hosts, including `http://localhost:4322/`. Canonical note
-routes are `/n/{id}`. An explicit `?space={spaceId}` context selects the shared-space read and organization
+routes are `/{id}` (legacy `/n/{id}` forever-redirects). An explicit `?space={spaceId}` context selects the shared-space read and organization
 context without changing note ownership.
 
 ## Note Activity and space activity
@@ -187,7 +187,7 @@ After taking and verifying a backup, quiesce note/Thread/shared-space writers. F
 5. `npm run shared-spaces:db:push`, review its dry-run, then
    `npm run shared-spaces:db:push -- --apply` for final schema reconciliation and RLS;
 6. `npm run shared-spaces:verify -- --batch-size=200` again;
-7. deploy, smoke-test `/` and `/n/{id}`, then resume writers.
+7. deploy, smoke-test `/` and `/{id}`, then resume writers.
 
 Generic `npm run db:push` remains general project tooling and is not approved for the Shared Spaces cutover.
 Never run destructive E2E setup against production. The E2E preflight requires an explicitly marked disposable

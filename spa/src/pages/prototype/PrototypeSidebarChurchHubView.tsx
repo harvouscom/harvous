@@ -66,7 +66,10 @@ function ChurchHubSpaceButton({
             ) : null}
           </div>
           {badge ? (
-            <span className="proto-space-switcher-badge" aria-label={`${badge} new notes`}>
+            <span
+              className="proto-space-switcher-badge"
+              aria-label={badge === '1' ? '1 new note' : `${badge} new notes`}
+            >
               {badge}
             </span>
           ) : null}

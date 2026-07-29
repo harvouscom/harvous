@@ -3,6 +3,7 @@ import {
   isPrototypeNotePath,
   isPrototypeShellPath,
   isPublicAppPath,
+  isReservedPrototypeSegment,
   matchPrototypeNoteId,
   PUBLIC_ROUTE_HTML_CLASS,
   prototypeHref,
@@ -16,19 +17,42 @@ afterEach(() => {
 });
 
 describe('prototype shell note paths', () => {
-  it('uses /n/$noteId as the dedicated-host canonical route', () => {
-    expect(prototypeNoteRouteTo('localhost')).toBe('/n/$noteId');
-    expect(prototypeNoteRouteTo('new.harvous.com')).toBe('/n/$noteId');
-    expect(prototypeNoteRouteTo('app.harvous.com')).toBe('/n/$noteId');
+  it('uses /$noteId as the dedicated-host canonical route', () => {
+    expect(prototypeNoteRouteTo('localhost')).toBe('/$noteId');
+    expect(prototypeNoteRouteTo('new.harvous.com')).toBe('/$noteId');
+    expect(prototypeNoteRouteTo('app.harvous.com')).toBe('/$noteId');
     expect(prototypeNoteRoutePaths('localhost')).toEqual({
-      canonicalChildPath: 'n/$noteId',
-      compatibilityChildPath: '$noteId',
+      canonicalChildPath: '$noteId',
+      compatibilityChildPath: 'n/$noteId',
     });
-    expect(prototypeHref('fXvv5uY', 'localhost')).toBe('/n/fXvv5uY');
+    expect(prototypeHref('fXvv5uY', 'localhost')).toBe('/fXvv5uY');
     expect(prototypeHref('settings/account', 'localhost')).toBe('/settings/account');
-    expect(isPrototypeShellPath('/n/fXvv5uY')).toBe(true);
+    expect(isPrototypeShellPath('/fXvv5uY')).toBe(true);
+    expect(isPrototypeNotePath('/fXvv5uY')).toBe(true);
+    expect(matchPrototypeNoteId('/fXvv5uY')).toBe('fXvv5uY');
     expect(isPrototypeNotePath('/n/fXvv5uY')).toBe(true);
     expect(matchPrototypeNoteId('/n/fXvv5uY')).toBe('fXvv5uY');
+  });
+
+  it('rejects reserved first segments as note ids', () => {
+    for (const seg of [
+      'settings',
+      'search',
+      'admin',
+      'space',
+      'n',
+      'new',
+      'compose',
+      'church',
+      'challenges',
+      'compete',
+      'learn',
+      'org',
+    ]) {
+      expect(isReservedPrototypeSegment(seg)).toBe(true);
+      expect(isPrototypeNotePath(`/${seg}`)).toBe(false);
+      expect(matchPrototypeNoteId(`/${seg}`)).toBeNull();
+    }
   });
 
   it('excludes auth and shared routes on dedicated host', () => {
@@ -65,7 +89,7 @@ describe('public route html class synchronization', () => {
     syncPublicRouteHtmlClass('/shared/note/abc');
     expect(document.documentElement.classList.contains(PUBLIC_ROUTE_HTML_CLASS)).toBe(true);
 
-    syncPublicRouteHtmlClass('/n/note_1');
+    syncPublicRouteHtmlClass('/note_1');
     expect(document.documentElement.classList.contains(PUBLIC_ROUTE_HTML_CLASS)).toBe(false);
   });
 

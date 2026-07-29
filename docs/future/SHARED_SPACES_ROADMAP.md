@@ -32,6 +32,10 @@ must degrade to plain text rather than leak or imply access.
 Presence and unread indicators must not redefine Note Activity. Note Activity remains the per-note response index;
 space freshness remains a separate space-level concern.
 
+Product follow-ups from the freshness audit (solo greeting copy, new-vs-updated semantics, hub/switcher
+unification, and related nicks) live in
+[SHARED_SPACES_FRESHNESS_FOLLOWUPS.md](./SHARED_SPACES_FRESHNESS_FOLLOWUPS.md).
+
 ## v2 — leadership, distribution, and commerce
 
 - Activate the `leader` role and leader-management UI.

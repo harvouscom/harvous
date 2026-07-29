@@ -33,6 +33,7 @@ import PrototypeSidebarChurchHubView from '../pages/prototype/PrototypeSidebarCh
 import PrototypeAdminSidebar from '../pages/prototype/PrototypeAdminSidebar';
 import AdminToolbar from '@/components/react/AdminToolbar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
+import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
 import '../styles/prototype-tokens.css';
 import '../styles/prototype-shell.css';
 import '../styles/prototype-components.css';
@@ -41,15 +42,17 @@ import '../styles/prototype-route-overrides.css';
 import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
 import { useActiveSpace } from '../hooks/useActiveSpace';
+import { useSharedSpaceVisitStamp } from '../hooks/useSharedSpaceVisit';
 import { resolvePrototypeSidebarVariant } from './resolve-prototype-sidebar-variant';
 import { updateStudyDockExpandedMaxHeight } from '@/utils/study-dock-layout';
-import { noteParamSlug, PROTOTYPE_DRAFT_NOTE_SLUG, isPrototypeDraftNoteSlug, normalizeNoteIdFromParam } from '../pages/prototype/proto-route-slugs';
+import { isPrototypeDraftNoteSlug, normalizeNoteIdFromParam } from '../pages/prototype/proto-route-slugs';
 import { prototypeToolbarNoteDetailsAvailable } from '../pages/prototype/prototype-toolbar-note-details';
 import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
 import { useNote } from '../hooks/queries/useNote';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
 import { ProtoMigrationProvider } from './proto-migration-context';
 import { ProtoShellProvider, resolveVisibleComposeTarget, useProtoShell } from './proto-shell-context';
+import { consumePendingComposeSession } from '../lib/pending-compose-session';
 import {
   applyBackgroundWithImageTint,
   applyColorSchemePreference,
@@ -70,7 +73,7 @@ import {
   isPrototypeShellPath,
   matchPrototypeNoteId,
   prototypeHomePath,
-  prototypeNoteRouteTo,
+  prototypeHomeRouteTo,
 } from '@/lib/prototype-path';
 import {
   clearMainFreezeLayer,
@@ -194,7 +197,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const queryClient = useQueryClient();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const { isSharedSpace, activeSpaceId: resolvedActiveSpaceId } = useActiveSpace();
-  useRealtimeSync(userId, { homeSpaceId });
+  useRealtimeSync(userId, { homeSpaceId, activeSpaceId: isSharedSpace ? resolvedActiveSpaceId : null });
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const {
     isMobileSidebar,
@@ -214,14 +217,42 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     sidebarListSpaceScope,
     activeSpaceId: shellActiveSpaceId,
     activeChurchOrgId,
+    composeDraftActive,
+    clearComposeDraftActive,
+    beginPrototypeComposeSession,
   } = useProtoShell();
+  // Stamp visit for dashboard and notes-list alike (survives layer toggles).
+  useSharedSpaceVisitStamp(isSharedSpace ? (shellActiveSpaceId ?? resolvedActiveSpaceId) : null);
   const shellRef = useRef<HTMLDivElement | null>(null);
   const resizeHandleRef = useRef<HTMLDivElement | null>(null);
   const widthRef = useRef(sidebarWidth);
   const mainInnerRef = useRef<HTMLDivElement | null>(null);
   const settingsFreezeLayerRef = useRef<HTMLDivElement | null>(null);
 
-  const isNoteRoute = isPrototypeNotePath(pathname);
+  // Compat redirects (`/n/new`, `/new`) mark a pending session before landing on `/`.
+  useEffect(() => {
+    if (!consumePendingComposeSession()) return;
+    beginPrototypeComposeSession();
+  }, [pathname, beginPrototypeComposeSession]);
+
+  // End compose-on-home only after leaving `/` (idle-replace to `/{id}`, settings, etc.).
+  // Do not clear when compose starts on a note path before navigate-to-home lands.
+  const prevPathnameForComposeRef = useRef(pathname);
+  useEffect(() => {
+    const prev = prevPathnameForComposeRef.current;
+    prevPathnameForComposeRef.current = pathname;
+    if (!composeDraftActive) return;
+    if (isPrototypeHomePath(prev) && !isPrototypeHomePath(pathname)) {
+      clearComposeDraftActive();
+    }
+  }, [pathname, composeDraftActive, clearComposeDraftActive]);
+
+  const isNoteRoute = isPrototypeNotePath(pathname) || (composeDraftActive && isPrototypeHomePath(pathname));
+  /**
+   * Host the note editor in the shell (not the route Outlet) so compose-on-`/` →
+   * `/{slug}` keeps one PrototypeNotePage instance — no TipTap/inspector remount flash.
+   */
+  const hostNoteInLayout = isNoteRoute;
   const isAdminRoute = isPrototypeAdminPath(pathname);
   const isSettingsRoute = isPrototypeSettingsPath(pathname);
   /** Desktop modal: keep last main paint under the settings portal. Mobile sheet keeps current Outlet. */
@@ -664,7 +695,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
             hidden={desktopSettingsKeepAlive || undefined}
             aria-hidden={desktopSettingsKeepAlive || undefined}
           >
-            <Outlet />
+            {hostNoteInLayout ? <PrototypeNotePage /> : <Outlet />}
           </div>
         </main>
 
@@ -698,12 +729,15 @@ function PrototypeShortcutBridge() {
     setSidebarListMode,
     beginPrototypeComposeSession,
     composePersistedNoteId,
+    composeDraftActive,
     activeSpaceId,
     sidebarListSpaceScope,
   } = useProtoShell();
 
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
-  const isDraftNoteRoute = noteSlugFromPath != null && isPrototypeDraftNoteSlug(noteSlugFromPath);
+  const isDraftNoteRoute =
+    composeDraftActive ||
+    (noteSlugFromPath != null && isPrototypeDraftNoteSlug(noteSlugFromPath));
   const toolbarNoteId = resolvePrototypeToolbarNoteId(
     composePersistedNoteId,
     noteSlugFromPath,
@@ -712,7 +746,8 @@ function PrototypeShortcutBridge() {
   );
   const { data: toolbarNote, isLoading: toolbarNoteLoading } = useNote(toolbarNoteId ?? '');
   const showNoteDetailsOrb = prototypeToolbarNoteDetailsAvailable({
-    isOnNotePage: isPrototypeNotePath(pathname),
+    isOnNotePage:
+      isPrototypeNotePath(pathname) || (composeDraftActive && isPrototypeHomePath(pathname)),
     toolbarNoteId,
     toolbarNoteLoading,
     hasToolbarNote: !!toolbarNote,
@@ -729,10 +764,7 @@ function PrototypeShortcutBridge() {
     if (!targetSpaceId) return;
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     beginPrototypeComposeSession({ targetSpaceId });
-    navigate.navigate({
-      to: prototypeNoteRouteTo(),
-      params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
-    });
+    navigate.navigate({ to: prototypeHomeRouteTo() });
   }, [
     activeSpaceId,
     beginPrototypeComposeSession,

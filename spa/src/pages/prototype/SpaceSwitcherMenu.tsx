@@ -305,13 +305,8 @@ export default function SpaceSwitcherMenu({
 
   function renderSpaceRow(row: NavSpace, options?: { reorderIndex?: number; allowReorder?: boolean }) {
     const checked = activeSpaceId === normalizeSpaceId(row.id);
+    // Active space: no new affordance (you're already there). Inactive: subtle dot only.
     const hasUnseen = !checked && Boolean(row.newNoteCount && row.newNoteCount > 0);
-    const badge =
-      checked && row.newNoteCount && row.newNoteCount > 0
-        ? row.newNoteCount > 9
-          ? '9+'
-          : String(row.newNoteCount)
-        : null;
     const ministry = isMinistryBroadcastSpace(row);
     const spaceId = normalizeSharedSpaceSwitcherId(row.id);
     const allowReorder = Boolean(options?.allowReorder && spaceDrag.showDragHandle);
@@ -369,11 +364,6 @@ export default function SpaceSwitcherMenu({
             {hasUnseen ? <span className="proto-space-switcher-dot" aria-hidden /> : null}
           </span>
           <span className="proto-menu-item__label">{row.title}</span>
-          {badge ? (
-            <span className="proto-space-switcher-badge" aria-label={`${badge} new notes`}>
-              {badge}
-            </span>
-          ) : null}
           <span className="proto-menu-item__check" aria-hidden>
             {checked ? <Icon name="check" size={12} /> : null}
           </span>

@@ -20,12 +20,13 @@ import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototyp
 import {
   getSharedSpaceUnseenSince,
   useSharedSpaceActivityPreview,
-  useSharedSpaceVisit,
+  useSharedSpaceLastVisit,
 } from '../../hooks/useSharedSpaceVisit';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import type { SidebarListMode } from '../../layouts/proto-shell-context';
-import { prototypeNoteRouteTo } from '@/lib/prototype-path';
-import { noteParamSlug, PROTOTYPE_DRAFT_NOTE_SLUG } from './proto-route-slugs';
+import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
+import { toPrototypeSpaceSearchParam } from '../../utils/prototype-space-api-id';
+import { noteParamSlug } from './proto-route-slugs';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
@@ -238,7 +239,8 @@ function PrototypeSidebarSharedSpaceViewLive() {
   const groupThreadsQuery = useSpaceGroupThreads(activeSpaceId ?? undefined);
   const scriptureQuery = usePrototypeSpaceScriptureIndex(activeSpaceId ?? undefined);
   const setCurrentThread = useSetCurrentSpaceThread();
-  const { newNoteCount: visitNewCount } = useSharedSpaceVisit(activeSpaceId);
+  const { data: lastVisit } = useSharedSpaceLastVisit(activeSpaceId);
+  const visitNewCount = lastVisit?.newNoteCount ?? 0;
 
   const space = spaceQuery.data;
   const members = membersQuery.data?.members ?? [];
@@ -345,7 +347,10 @@ function PrototypeSidebarSharedSpaceViewLive() {
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: noteParamSlug(note.id) },
-      search: { ...PROTOTYPE_NOTE_LIST_NAV_SEARCH, space: activeSpaceId ?? undefined },
+      search: {
+        ...PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+        space: toPrototypeSpaceSearchParam(activeSpaceId),
+      },
     });
   };
 
@@ -362,10 +367,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
     } else {
       beginPrototypeComposeSession({ targetSpaceId: activeSpaceId });
     }
-    navigate({
-      to: prototypeNoteRouteTo(),
-      params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
-    });
+    navigate({ to: prototypeHomeRouteTo() });
   };
 
   const makeThreadCurrent = async (threadId: string) => {

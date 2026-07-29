@@ -7,6 +7,7 @@ import {
   useProtoShell,
 } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 
 interface PrototypeShareButtonProps {
   noteId: string;
@@ -39,7 +40,9 @@ export default function PrototypeShareButton({
     sidebarListSpaceScope,
   });
   const routeContextSpaceId =
-    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('space') : null;
+    typeof window !== 'undefined'
+      ? normalizePrototypeApiSpaceId(new URLSearchParams(window.location.search).get('space'))
+      : undefined;
   const sharedContext = isVisiblePrototypeSharedContext({
     explicitContextSpaceId: routeContextSpaceId,
     visibleTargetSpaceId: visibleTarget,

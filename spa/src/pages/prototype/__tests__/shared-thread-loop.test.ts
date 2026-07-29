@@ -156,7 +156,7 @@ describe('shared Thread drilldown and compose contracts', () => {
   it('navigates by the real note id with shared context', () => {
     const navigation = sharedThreadNoteNavigation('note_real', 'space_shared');
     expect(navigation.params).toEqual({ noteId: 'real' });
-    expect(navigation.search.space).toBe('space_shared');
+    expect(navigation.search.space).toBe('shared');
   });
 
   it('keys note loading by the real Thread id and shared space', () => {

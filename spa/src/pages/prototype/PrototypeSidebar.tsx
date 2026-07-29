@@ -119,7 +119,7 @@ import SharedSpaceOwnerCollectionEmptyDescription from './SharedSpaceOwnerCollec
 
 
 import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
-import { noteParamSlug, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug, PROTOTYPE_DRAFT_NOTE_SLUG } from './proto-route-slugs';
+import { noteParamSlug, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
 import {
   PROTOTYPE_NOTE_LIST_NAV_SEARCH,
   prototypeNoteListNavigationSearch,
@@ -2151,10 +2151,7 @@ export default function PrototypeSidebar({
     if (!homeSpaceId) return;
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     beginComposeInGroupThread(homeSpaceId, threadId, beginPrototypeComposeSession);
-    navigate({
-      to: prototypeNoteRouteTo(),
-      params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
-    });
+    navigate({ to: prototypeHomeRouteTo() });
   };
 
   const onRequestDeleteHighlight = (r: PrototypeHighlightStudyThreadRow, anchorRect: DOMRect) => {

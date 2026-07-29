@@ -81,7 +81,7 @@ Same logic as browser tests 2–4 and 6, without auth — [`src/utils/__tests__/
 
 ### Manual repro steps (when Clerk auth works)
 
-1. **Basic loop:** DevTools → Network → Offline. Open `/n/new`, type a title, blur editor. Chip: “You're offline — saved on this device”. Go online → “Saving…” → “All caught up”. Note appears in sidebar after push.
+1. **Basic loop:** DevTools → Network → Offline. Start compose (toolbar or `/n/new` → `/`), type a title, blur editor. Chip: “You're offline — saved on this device”. Go online → “Saving…” → “All caught up”. Note appears in sidebar after push; URL idle-replaces to `/{id}`.
 2. **Thread create:** Offline → create thread with a note (sidebar “New thread”). Reconnect → note appears under thread.
 3. **Folder move:** Offline → move note to folder. Reconnect → folder label should persist on server.
 4. **Race:** Offline → create note in thread → delete before reconnect. Inspect IDB `syncQueue` — no orphan `noteThread` create should remain.

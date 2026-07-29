@@ -84,7 +84,7 @@ public/                      # Static assets, sw.js, manifest.json
 - **CRITICAL — Production = SPA + Hono API.** For UI changes that must appear in production, edit `spa/src/` or shared `src/components/react/`.
 - **Netlify build**: `npm run build` = inject SW + build:api + build:spa. Publish directory is `dist-spa/`.
 - **Production routing** (`public/_redirects`): List SPA routes (e.g. `/`, `/note/*`, `/thread/*`, `/dashboard`, …) → `/index.html` 200. Include the root `/` so the dashboard at `/` loads the SPA. Do **not** add a rule for `/api/*` — leave it unmatched so the Netlify SSR function (path: `/*`) handles API requests. A catch-all `/*` → `/index.html` would make API calls return HTML and break the app.
-- **Routing**: TanStack Router in `spa/src/router.tsx`. Use `router.navigate()`. Shared code that calls `safeNavigate()` uses the shim in `spa/src/shims/astro-transitions.ts` to drive the router. **Simplified prototype** (native-like shell): on dedicated hosts (`localhost`, `new.harvous.com`, `app.harvous.com`) routes live at **`/`** (e.g. `/`, `/n/{id}`, `/settings`) — **not** `/prototype`. Local dev: open `http://localhost:4322/`. Legacy `/prototype` prefix remains only on non-dedicated hosts; see `src/lib/prototype-path.ts`. Architecture: [docs/SIMPLIFIED_WEB_PROTOTYPE.md](docs/SIMPLIFIED_WEB_PROTOTYPE.md), [docs/PROTOTYPE_2_0_ARCHITECTURE.md](docs/PROTOTYPE_2_0_ARCHITECTURE.md).
+- **Routing**: TanStack Router in `spa/src/router.tsx`. Use `router.navigate()`. Shared code that calls `safeNavigate()` uses the shim in `spa/src/shims/astro-transitions.ts` to drive the router. **Simplified prototype** (native-like shell): on dedicated hosts (`localhost`, `new.harvous.com`, `app.harvous.com`) routes live at **`/`** (e.g. `/`, `/{id}`, `/settings`) — **not** `/prototype`. Compose stays on `/` until first persist, then idle-replaces to `/{id}`. Legacy `/n/{id}` forever-redirects to `/{id}`. Local dev: open `http://localhost:4322/`. Legacy `/prototype` prefix remains only on non-dedicated hosts; see `src/lib/prototype-path.ts`. Architecture: [docs/SIMPLIFIED_WEB_PROTOTYPE.md](docs/SIMPLIFIED_WEB_PROTOTYPE.md), [docs/PROTOTYPE_2_0_ARCHITECTURE.md](docs/PROTOTYPE_2_0_ARCHITECTURE.md).
 - **Data fetching**: React Query hooks in `spa/src/hooks/queries/`. API calls via `spa/src/lib/api.ts`.
 - **Note IDs**: Never reuse deleted IDs; track highest via `UserMetadata.highestSimpleNoteId`.
 - **Events**: CustomEvents for cross-component updates (e.g. `noteAddedToThread`).
@@ -129,8 +129,8 @@ The protected Shared Spaces release specs are `e2e/shared-space-join.spec.ts`,
 - **Clerk test identity:** two distinct test users via `TEST_USER_A_EMAIL`, `TEST_USER_A_CLERK_ID`,
   `TEST_USER_B_EMAIL`, and `TEST_USER_B_CLERK_ID`, plus test-instance `CLERK_SECRET_KEY` and
   `PUBLIC_CLERK_PUBLISHABLE_KEY`.
-- **Routes:** verify the native-like shell at `http://localhost:4322/` and notes at `/n/{id}`, never
-  `/prototype` on localhost.
+- **Routes:** verify the native-like shell at `http://localhost:4322/` and notes at `/{id}`, never
+ `/prototype` on localhost.
 
 ## Shared Spaces migration
 
@@ -159,7 +159,7 @@ backup, quiesce note/Thread/shared-space writers, then run this exact order:
 5. `npm run shared-spaces:db:push`, review its dry-run, then
    `npm run shared-spaces:db:push -- --apply` for final schema reconciliation and RLS;
 6. `npm run shared-spaces:verify -- --batch-size=200` again;
-7. deploy, smoke-test `/` and `/n/{id}`, then resume writers.
+7. deploy, smoke-test `/` and `/{id}`, then resume writers.
 
 ## Database
 

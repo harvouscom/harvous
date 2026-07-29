@@ -1,6 +1,15 @@
-import { createRouter, createRoute, createRootRoute, redirect, lazyRouteComponent, Outlet } from '@tanstack/react-router';
+import {
+  createRouter,
+  createRoute,
+  createRootRoute,
+  redirect,
+  lazyRouteComponent,
+  Outlet,
+  stringifySearchWith,
+} from '@tanstack/react-router';
 import {
   isDedicatedPrototypeHost,
+  isReservedPrototypeSegment,
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
   prototypeSettingsAccountRouteTo,
@@ -10,7 +19,6 @@ import SignInPage from './pages/SignInPage';
 import SignUpPage from './pages/SignUpPage';
 import SimplifiedPrototypeLayout from './layouts/SimplifiedPrototypeLayout';
 import PrototypeHomePage from './pages/prototype/PrototypeHomePage';
-import PrototypeNotePage from './pages/prototype/PrototypeNotePage';
 import PrototypeRouteErrorState from './pages/prototype/PrototypeRouteErrorState';
 import PrototypeSettingsLayout from './pages/prototype/settings/PrototypeSettingsLayout';
 import PrototypeSettingsIndex from './pages/prototype/settings/PrototypeSettingsIndex';
@@ -19,9 +27,52 @@ import PublicJoinSpacePage from './pages/public/PublicJoinSpacePage';
 import PublicSharedNotePage from './pages/public/PublicSharedNotePage';
 import PublicSharedThreadPage from './pages/public/PublicSharedThreadPage';
 import PublicInvitationPage from './pages/public/PublicInvitationPage';
-import { noteParamSlug, normalizeNoteIdFromParam } from './pages/prototype/proto-route-slugs';
-import { normalizePrototypeApiSpaceId } from './utils/prototype-space-api-id';
+import {
+  isPrototypeDraftNoteSlug,
+  noteParamSlug,
+  normalizeNoteIdFromParam,
+} from './pages/prototype/proto-route-slugs';
+import {
+  normalizePrototypeApiSpaceId,
+  toPrototypeSpaceSearchParam,
+} from './utils/prototype-space-api-id';
 import { requestFreezeMainForSettings } from './lib/prototype-settings-main-keepalive';
+import { markPendingComposeSession } from './lib/pending-compose-session';
+
+/**
+ * Default TanStack search decode coerces bare digits to numbers (bad for space ids)
+ * and stringify JSON-quotes numeric-looking strings (`space=%221785%22`).
+ * Keep flat string params bare and un-coerced; still JSON-encode objects/arrays.
+ */
+function parsePrototypeSearch(searchStr: string): Record<string, unknown> {
+  const raw = searchStr.startsWith('?') ? searchStr.slice(1) : searchStr;
+  const params = new URLSearchParams(raw);
+  const result: Record<string, unknown> = Object.create(null);
+  for (const [key, value] of params.entries()) {
+    if (value === 'true') {
+      result[key] = true;
+      continue;
+    }
+    if (value === 'false') {
+      result[key] = false;
+      continue;
+    }
+    if (
+      (value.startsWith('{') && value.endsWith('}')) ||
+      (value.startsWith('[') && value.endsWith(']')) ||
+      (value.startsWith('"') && value.endsWith('"'))
+    ) {
+      try {
+        result[key] = JSON.parse(value);
+        continue;
+      } catch {
+        /* keep string */
+      }
+    }
+    result[key] = value;
+  }
+  return result;
+}
 
 export type PrototypeNoteSearch = {
   studyThread?: string;
@@ -31,6 +82,7 @@ export type PrototypeNoteSearch = {
   highlight?: string;
   dockReq?: string;
   crossRefTarget?: string;
+  /** Bare space id in the URL (`?space=1785…`); normalize with {@link normalizePrototypeApiSpaceId} for APIs. */
   space?: string;
 };
 
@@ -40,7 +92,7 @@ export function legacySpaceNoteRedirectSearch(
 ): PrototypeNoteSearch {
   return {
     ...search,
-    space: normalizePrototypeApiSpaceId(spaceId),
+    space: toPrototypeSpaceSearchParam(normalizePrototypeApiSpaceId(spaceId)),
   };
 }
 
@@ -200,7 +252,11 @@ function buildPrototypeRouteBranch() {
     highlight: typeof search.highlight === 'string' ? search.highlight : undefined,
     dockReq: typeof search.dockReq === 'string' ? search.dockReq : undefined,
     crossRefTarget: typeof search.crossRefTarget === 'string' ? search.crossRefTarget : undefined,
-    space: typeof search.space === 'string' ? search.space : undefined,
+    // Accept legacy `?space=space_…` / JSON-quoted bookmarks; store bare ids in the address bar.
+    space:
+      typeof search.space === 'string' || typeof search.space === 'number'
+        ? toPrototypeSpaceSearchParam(String(search.space))
+        : undefined,
   });
 
   const prototypeLegacySpaceNoteRedirectRoute = createRoute({
@@ -217,40 +273,48 @@ function buildPrototypeRouteBranch() {
     },
   });
 
+  /** Legacy `/n/{id}` → forever redirect to flat `/{id}`; `/n/new` starts compose on `/`. */
   const prototypeNoteNestedRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'n/$noteId',
     validateSearch: validatePrototypeNoteSearch,
-    ...(onDedicatedHost
-      ? { component: PrototypeNotePage }
-      : {
-          beforeLoad: ({ params, search }) => {
-            throw redirect({
-              to: prototypeNoteRouteTo(),
-              params: { noteId: noteParamSlug(normalizeNoteIdFromParam(params.noteId)) },
-              search,
-              replace: true,
-            });
-          },
-        }),
+    beforeLoad: ({ params, search }) => {
+      if (isPrototypeDraftNoteSlug(params.noteId) || params.noteId === 'compose') {
+        markPendingComposeSession();
+        throw redirect({
+          to: prototypeHomeRouteTo(),
+          replace: true,
+        });
+      }
+      throw redirect({
+        to: prototypeNoteRouteTo(),
+        params: { noteId: noteParamSlug(normalizeNoteIdFromParam(params.noteId)) },
+        search,
+        replace: true,
+      });
+    },
   });
 
+  /**
+   * Canonical note path. The shell layout hosts `PrototypeNotePage` so compose-on-`/`
+   * → `/{id}` does not remount the editor; this route only owns params/search.
+   */
   const prototypeNoteFlatRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: '$noteId',
     validateSearch: validatePrototypeNoteSearch,
-    ...(onDedicatedHost
-      ? {
-          beforeLoad: ({ params, search }) => {
-            throw redirect({
-              to: prototypeNoteRouteTo(),
-              params: { noteId: noteParamSlug(normalizeNoteIdFromParam(params.noteId)) },
-              search,
-              replace: true,
-            });
-          },
-        }
-      : { component: PrototypeNotePage }),
+    beforeLoad: ({ params }) => {
+      const segment = params.noteId;
+      if (!isReservedPrototypeSegment(segment)) return;
+      if (isPrototypeDraftNoteSlug(segment) || segment === 'compose') {
+        markPendingComposeSession();
+      }
+      throw redirect({
+        to: prototypeHomeRouteTo(),
+        replace: true,
+      });
+    },
+    component: () => null,
   });
 
   const prototypeLegacySpaceRedirectRoute = createRoute({
@@ -552,6 +616,9 @@ function buildRouteTree() {
 export const router = createRouter({
   routeTree: buildRouteTree(),
   defaultErrorComponent: PrototypeRouteErrorState,
+  parseSearch: parsePrototypeSearch,
+  // No parser arg → do not JSON-quote flat string values (avoids %22 around space ids).
+  stringifySearch: stringifySearchWith(JSON.stringify),
 });
 
 declare module '@tanstack/react-router' {

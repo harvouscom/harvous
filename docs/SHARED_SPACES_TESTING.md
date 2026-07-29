@@ -79,7 +79,7 @@ safety boundary.
 The native-like prototype runs at:
 
 - `http://localhost:4322/`
-- note routes such as `http://localhost:4322/n/{id}`
+- note routes such as `http://localhost:4322/{id}`
 
 Do not use `/prototype` for local verification on the dedicated localhost host.
 
@@ -155,7 +155,7 @@ npm run shared-spaces:db:push -- --apply
 # 7. Verify the final constrained/RLS-enabled state again.
 npm run shared-spaces:verify -- --batch-size=200
 
-# 8. Deploy, smoke-test / and /n/{id}, then resume writers.
+# 8. Deploy, smoke-test / and /{id}, then resume writers.
 ```
 
 Every migration command validates the same dedicated URL, environment, expected ref, known production ref, and

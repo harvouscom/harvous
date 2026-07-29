@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
+import { toPrototypeSpaceSearchParam } from '../../utils/prototype-space-api-id';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import {
@@ -47,7 +48,10 @@ export function sharedThreadNoteNavigation(noteId: string, spaceId: string) {
   return {
     to: prototypeNoteRouteTo(),
     params: { noteId: noteParamSlug(noteId) },
-    search: { ...PROTOTYPE_NOTE_LIST_NAV_SEARCH, space: spaceId },
+    search: {
+      ...PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+      space: toPrototypeSpaceSearchParam(spaceId),
+    },
   };
 }
 

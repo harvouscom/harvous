@@ -783,7 +783,8 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     top: calc(var(--pds-toolbar-h) + 8px);
     right: 8px;
     bottom: 8px;
-    width: min(340px, calc(92vw - 16px));
+    /* Match desktop inspector (`--pds-inspector-w` 260) — not a wider mobile-only size. */
+    width: min(var(--pds-inspector-w), calc(92vw - 16px));
     z-index: 160;
     border-radius: var(--pds-shell-frame-radius);
     box-shadow: var(--pds-shadow-drawer);
@@ -841,7 +842,7 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     top: calc(var(--pds-toolbar-h) + 8px);
     right: 8px;
     bottom: 8px;
-    width: min(340px, calc(92vw - 16px));
+    width: min(var(--pds-inspector-w), calc(92vw - 16px));
     z-index: 160;
     border-radius: var(--pds-shell-frame-radius);
     background: var(--pds-bg-page);
@@ -858,7 +859,7 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   }
 
   .proto-side-panel-mobile--docked {
-    width: min(340px, calc(92vw - 16px));
+    width: min(var(--pds-inspector-w), calc(92vw - 16px));
   }
 
   .proto-side-panel-mobile--exiting {

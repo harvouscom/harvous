@@ -955,10 +955,15 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
       ? await getNotesForSpace(spaceId, auth.userId, limit, offset, queryOptions)
       : await getNotesForSharedSpace(spaceId, auth.userId, limit, offset, queryOptions);
     const notes = unseenSince && accessInfo.space.type !== 'personal'
-      ? result.notes.map((n) => ({
-          ...n,
-          isNewSinceVisit: isNoteNewSinceVisit(n.updatedAt ?? n.lastUpdated, unseenSince),
-        }))
+      ? result.notes.map((n) => {
+          const authorId = n.authorUserId ?? n.userId;
+          const isOwn = authorId != null && authorId === auth.userId;
+          return {
+            ...n,
+            // “New since visit” is others’ activity — don’t mark your own notes/edits.
+            isNewSinceVisit: !isOwn && isNoteNewSinceVisit(n.updatedAt ?? n.lastUpdated, unseenSince),
+          };
+        })
       : result.notes;
     return c.json({ notes, hasMore: result.hasMore, total: result.total, offset, limit });
   } catch (error: any) {

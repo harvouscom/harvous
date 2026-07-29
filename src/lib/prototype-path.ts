@@ -19,17 +19,9 @@ export function getPrototypeBasePath(hostname?: string): string {
 
 /** href for in-app navigation (e.g. a note slug or `settings/account`). */
 export function prototypeHref(subpath = '', hostname?: string): string {
-  const dedicated = isDedicatedPrototypeHost(hostname);
   const base = getPrototypeBasePath(hostname);
   const normalized = subpath.replace(/^\//, '');
   if (!normalized) return base || '/';
-  if (
-    dedicated &&
-    !normalized.includes('/') &&
-    !RESERVED_PROTOTYPE_SEGMENTS.has(normalized)
-  ) {
-    return `/n/${normalized}`;
-  }
   return base ? `${base}/${normalized}` : `/${normalized}`;
 }
 
@@ -92,9 +84,28 @@ export function syncPublicRouteHtmlClass(
 }
 
 /**
- * Single-segment shell children that are NOT compatibility note slugs.
+ * Single-segment shell children that are NOT note slugs.
+ * Notes own the bare first path segment; product surfaces use nested namespaces.
+ * `n` stays reserved forever so `/n/{id}` can redirect to `/{id}`.
  */
-const RESERVED_PROTOTYPE_SEGMENTS = new Set(['settings', 'space', 'search', 'admin', 'n']);
+export const RESERVED_PROTOTYPE_SEGMENTS = new Set([
+  'settings',
+  'space',
+  'search',
+  'admin',
+  'n',
+  'new',
+  'compose',
+  'church',
+  'challenges',
+  'compete',
+  'learn',
+  'org',
+]);
+
+export function isReservedPrototypeSegment(segment: string): boolean {
+  return RESERVED_PROTOTYPE_SEGMENTS.has(segment);
+}
 
 /**
  * The lone path segment of a prototype-shell URL, or null when the path is the
@@ -124,6 +135,7 @@ export function isPrototypeHomePath(pathname: string): boolean {
 
 export function isPrototypeNotePath(pathname: string): boolean {
   const logical = prototypeLogicalPath(pathname);
+  // Legacy `/n/{id}` still counts as a note path (redirects to flat).
   if (/^\/n\/[^/]+\/?$/.test(logical)) return true;
   const seg = singlePrototypeSegment(pathname);
   return seg != null && !RESERVED_PROTOTYPE_SEGMENTS.has(seg);
@@ -179,8 +191,10 @@ export function prototypeAdminChurchesRouteTo(): '/admin/churches' | '/prototype
 }
 
 export function matchPrototypeNoteId(pathname: string): string | null {
-  const canonical = prototypeLogicalPath(pathname).match(/^\/n\/([^/]+)\/?$/);
-  if (canonical?.[1]) return canonical[1];
+  const logical = prototypeLogicalPath(pathname);
+  // Prefer flat `/{id}`; still recognize legacy `/n/{id}` while redirects exist.
+  const legacy = logical.match(/^\/n\/([^/]+)\/?$/);
+  if (legacy?.[1]) return legacy[1];
   const seg = singlePrototypeSegment(pathname);
   if (seg == null || RESERVED_PROTOTYPE_SEGMENTS.has(seg)) return null;
   return seg;
@@ -192,17 +206,17 @@ export function matchLegacyPrototypeSpaceId(pathname: string): string | null {
 }
 
 export function prototypeNoteRoutePaths(hostname?: string): {
-  canonicalChildPath: 'n/$noteId' | '$noteId';
-  compatibilityChildPath: '$noteId' | 'n/$noteId';
+  canonicalChildPath: '$noteId' | 'n/$noteId';
+  compatibilityChildPath: 'n/$noteId' | '$noteId';
 } {
   return isDedicatedPrototypeHost(hostname)
-    ? { canonicalChildPath: 'n/$noteId', compatibilityChildPath: '$noteId' }
+    ? { canonicalChildPath: '$noteId', compatibilityChildPath: 'n/$noteId' }
     : { canonicalChildPath: '$noteId', compatibilityChildPath: 'n/$noteId' };
 }
 
 /** TanStack Router `to` for the canonical note route on the current host. */
-export function prototypeNoteRouteTo(hostname?: string): '/n/$noteId' | '/prototype/$noteId' {
-  return isDedicatedPrototypeHost(hostname) ? '/n/$noteId' : '/prototype/$noteId';
+export function prototypeNoteRouteTo(hostname?: string): '/$noteId' | '/prototype/$noteId' {
+  return isDedicatedPrototypeHost(hostname) ? '/$noteId' : '/prototype/$noteId';
 }
 
 export function prototypeSettingsRouteTo(): '/settings' | '/prototype/settings' {

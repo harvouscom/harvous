@@ -5,6 +5,7 @@ import { useNavigation } from './queries/useNavigation';
 import { useSpaceMembers } from './queries/useSpace';
 import { useActiveSpace } from './useActiveSpace';
 import { usePrototypeHomeSpaceId } from './usePrototypeHomeSpaceId';
+import { normalizePrototypeApiSpaceId } from '../utils/prototype-space-api-id';
 
 /** True when viewing another member's note inside a shared space (read-only). */
 export function useForeignSharedNote(
@@ -14,9 +15,10 @@ export function useForeignSharedNote(
   const { userId: authUserId } = useAuth();
   const routeContextSpaceId =
     typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search).get('space')
-      : null;
-  const explicitContextSpaceId = contextSpaceId?.trim() || routeContextSpaceId?.trim() || null;
+      ? normalizePrototypeApiSpaceId(new URLSearchParams(window.location.search).get('space'))
+      : undefined;
+  const explicitContextSpaceId =
+    normalizePrototypeApiSpaceId(contextSpaceId) ?? routeContextSpaceId ?? null;
   const { data: note } = useNote(noteId ?? '', explicitContextSpaceId);
   const { data: nav } = useNavigation();
   const { homeSpaceId } = usePrototypeHomeSpaceId();

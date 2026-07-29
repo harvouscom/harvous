@@ -16,7 +16,20 @@
     '/status',
     '/api/',
   ];
-  var RESERVED_SEGMENTS = { settings: 1, space: 1, search: 1 };
+  var RESERVED_SEGMENTS = {
+    settings: 1,
+    space: 1,
+    search: 1,
+    admin: 1,
+    n: 1,
+    new: 1,
+    compose: 1,
+    church: 1,
+    challenges: 1,
+    compete: 1,
+    learn: 1,
+    org: 1,
+  };
 
   function isStatusHost(hostname) {
     return (hostname || '') === STATUS_HOST;
@@ -70,6 +83,8 @@
   }
 
   function isPrototypeNotePath(pathname, hostname) {
+    var logical = prototypeLogicalPath(pathname);
+    if (/^\/n\/[^/]+\/?$/.test(logical)) return true;
     var seg = singlePrototypeSegment(pathname, hostname);
     return seg != null && !RESERVED_SEGMENTS[seg];
   }

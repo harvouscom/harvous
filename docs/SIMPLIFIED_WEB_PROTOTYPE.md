@@ -7,13 +7,14 @@ Native-like web layout for Harvous — the **sole authenticated web client** (Cl
 
 ## Routes (current)
 
-- **`/prototype` / `/prototype/`** — Home: empty main pane + “new note”; **sidebar lists notes for My Home** only (`usePrototypeHomeSpaceId` from `/api/navigation/data` merged spaces list).
-- **`/prototype/n/{noteId}`** — TipTap note editor via shared `CardFullEditable` (same save + scripture processing as production `NotePage`, without `?thread=` in the URL). Optional `?studyThread=` for dock/chrome alignment.
-- **`/prototype/search`** — Pick a space, then FTS **notes only** (`type=notes` + `spaceId`); results link to `/prototype/n/...` (no thread query params).
-- **Legacy bookmarks:** `/prototype/space/{spaceId}` redirects to `/prototype/`; `/prototype/space/{spaceId}/n/{noteId}` redirects to `/prototype/n/{noteId}`.
-- **Legacy Classic URLs:** `/thread/*`, `/note/*`, `/space/*`, `/profile`, `/search`, `/dashboard` redirect to prototype routes (see [`spa/src/router.tsx`](../spa/src/router.tsx)).
+On dedicated hosts (`localhost`, `new.harvous.com`, `app.harvous.com`), routes live at `/` (not `/prototype`):
 
-On dedicated hosts (`localhost`, `new.harvous.com`, `app.harvous.com`), routes live at `/` instead of `/prototype`.
+- **`/`** — Home dashboard; compose is a shell session here (no `/new` path) until first persist idle-replaces to `/{id}`.
+- **`/{noteId}`** — TipTap note editor via shared `CardFullEditable`. Optional `?space=` / `?studyThread=` for shared context and dock alignment.
+- **`/n/{noteId}`** — forever redirect to `/{noteId}` (search preserved). `/n/new` and `/new` start compose on `/`.
+- **`/settings/…`, `/admin/…`** — nested product namespaces (reserved first segments are never notes).
+
+On non-dedicated hosts, the same tree is under `/prototype` (flat `/{noteId}` under that prefix). See [PROTOTYPE_2_0_ARCHITECTURE.md](./PROTOTYPE_2_0_ARCHITECTURE.md).
 
 ## Scope: My Home in the sidebar
 

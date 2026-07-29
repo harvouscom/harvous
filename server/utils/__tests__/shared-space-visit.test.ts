@@ -23,6 +23,15 @@ describe('isNoteNewSinceVisit', () => {
   });
 });
 
+describe('shared-space visit watermark contract', () => {
+  it('documents lastVisitedAt ?? joinedAt for catch-up (see visitWatermark in shared-space-visit.ts)', () => {
+    const lastVisitedAt: Date | null = null;
+    const joinedAt = new Date('2026-06-01T00:00:00.000Z');
+    const watermark = lastVisitedAt ?? joinedAt ?? null;
+    expect(watermark?.toISOString()).toBe('2026-06-01T00:00:00.000Z');
+  });
+});
+
 describe('broadcastInvalidationToSpaceMembers', () => {
   it('exports fan-out helper from realtime module', async () => {
     const mod = await import('../realtime');

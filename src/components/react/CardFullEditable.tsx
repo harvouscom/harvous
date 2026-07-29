@@ -282,7 +282,7 @@ interface CardFullEditableProps {
   onPrototypeLiveChange?: (snapshot: { title: string; content: string }) => void;
   onEditorInstanceReady?: (editor: unknown) => void;
   /**
-   * Prototype-only: stable identity for the body editor across the /n/new → /n/<id>
+   * Prototype-only: stable identity for the body editor across the compose-on-home → /{id}
    * draft→persist swap. The parent keeps this constant for one compose session so the
    * TipTap instance survives the swap (no remount mid-typing); falls back to `noteId`.
    */
@@ -970,7 +970,7 @@ export default function CardFullEditable({
     if (contentIsPreview) seededFromPreviewRef.current = true;
   }, [contentIsPreview, noteId]);
 
-  // Parent signals first draft persist (/n/new → /n/<id>). With a stable
+  // Parent signals first draft persist (compose-on-home → /{id}). With a stable
   // `prototypeBodyMountId`, the TipTap instance survives the swap, so keep its live
   // content and focus in place — do NOT force a remount (that's what dropped typing
   // and desynced ProseMirror before). Only remount as a fallback if the editor is gone.

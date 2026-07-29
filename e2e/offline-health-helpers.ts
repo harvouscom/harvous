@@ -92,8 +92,12 @@ export async function getHomeSpaceId(page: Page): Promise<string> {
 }
 
 export async function composeDraftNoteOffline(page: Page, title: string): Promise<void> {
+  // Compat `/n/new` redirects to `/` and starts a compose-on-home session.
   await page.goto('/n/new');
-  await page.waitForURL(/\/n\/new/, { timeout: 15_000 });
+  await page.waitForURL((url) => {
+    const path = url.pathname.replace(/\/+$/, '') || '/';
+    return path === '/';
+  }, { timeout: 15_000 });
   const editor = page.locator('.ProseMirror').first();
   await editor.waitFor({ state: 'visible', timeout: 15_000 });
   await editor.click();

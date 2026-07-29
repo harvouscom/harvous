@@ -164,7 +164,7 @@ test.describe('Shared Spaces two-user collaboration contract', () => {
 
     const ownerPage = await userAContext.newPage();
     const noteSlug = ownerNoteId.replace(/^note_/, '');
-    await ownerPage.goto(`/n/${noteSlug}?space=${fixture.spaceId}`);
+    await ownerPage.goto(`/${noteSlug}?space=${fixture.spaceId}`);
     await ownerPage.getByRole('button', { name: 'Show note details' }).click();
     const activityRow = ownerPage
       .getByRole('button', { name: new RegExp(`.* responded on ${anchorQuote}`) })
@@ -177,7 +177,7 @@ test.describe('Shared Spaces two-user collaboration contract', () => {
     );
 
     const spaceBPage = await userAContext.newPage();
-    await spaceBPage.goto(`/n/${noteSlug}?space=${secondSpaceId}`);
+    await spaceBPage.goto(`/${noteSlug}?space=${secondSpaceId}`);
     await spaceBPage.getByRole('button', { name: 'Show note details' }).click();
     await expect(
       spaceBPage.getByRole('button', {
@@ -192,7 +192,7 @@ test.describe('Shared Spaces two-user collaboration contract', () => {
   }) => {
     const ownerPage = await userAContext.newPage();
     const noteSlug = ownerNoteId.replace(/^note_/, '');
-    await ownerPage.goto(`/n/${noteSlug}`);
+    await ownerPage.goto(`/${noteSlug}`);
     const body = await focusNoteBodyEditor(ownerPage);
     const updateResponse = ownerPage.waitForResponse(
       (response) =>
@@ -208,7 +208,7 @@ test.describe('Shared Spaces two-user collaboration contract', () => {
       [userBContext, fixture.spaceId],
     ] as const) {
       const page = await context.newPage();
-      await page.goto(`/n/${noteSlug}?space=${spaceId}`);
+      await page.goto(`/${noteSlug}?space=${spaceId}`);
       await expect(page.locator('.ProseMirror').first()).toContainText(ownerEditedText);
       await page.close();
     }

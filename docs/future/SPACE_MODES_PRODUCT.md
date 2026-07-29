@@ -88,7 +88,7 @@ watermark. Future unread work must preserve this separation.
 ## Routing
 
 On dedicated native-like hosts, including localhost, the authenticated shell is rooted at `/`; note routes are
-`/n/{id}`. An optional `?space={spaceId}` carries explicit shared context. `/prototype` is legacy-only on
+`/{id}`. An optional `?space={spaceId}` carries explicit shared context. `/prototype` is legacy-only on
 non-dedicated hosts.
 
 ## Related documents
