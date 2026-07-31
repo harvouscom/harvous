@@ -17,6 +17,20 @@ import { recordDeletedEntities } from './sync-deletion-log';
 import { broadcastInvalidation } from './realtime';
 import { createInitialNoteVersion, updateCanonicalNoteInTransaction } from './note-version-service';
 
+/**
+ * The note the scripture pass was asked to enrich no longer exists (deleted mid-flight,
+ * or never existed). Carries `status` so routes re-emit a 404 instead of a bare 500 —
+ * mirrors SharedSpaceLifecycleError / handleStudyThreadAccessError.
+ */
+export class ScriptureNoteNotFoundError extends Error {
+  readonly code = 'NOTE_NOT_FOUND';
+  readonly status = 404 as const;
+  constructor(readonly noteId: string) {
+    super('Note not found');
+    this.name = 'ScriptureNoteNotFoundError';
+  }
+}
+
 export interface ProcessingResult {
   action: 'created' | 'added' | 'unorganized' | 'skipped';
   noteId: string;
@@ -397,7 +411,7 @@ async function processScriptureReferencesInternal(
     .limit(1));
 
   if (!note) {
-    throw new Error('Note not found');
+    throw new ScriptureNoteNotFoundError(noteId);
   }
 
   const pillsOnly = options?.pillsOnly ?? note.noteType === 'default';

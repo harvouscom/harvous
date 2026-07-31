@@ -57,6 +57,8 @@ export function resolveSpaceSwitcherToolbarState(options: {
   space: NavSpace | null;
   spaceTitle: string | null;
   hasHome: boolean;
+  /** Navigation fetch has settled. When false, a missing home space means "loading", not "absent". */
+  navReady?: boolean;
   /** My Church hub (no space selected) or channel under church mode. */
   myChurchMode?: boolean;
   myChurchName?: string | null;
@@ -84,7 +86,12 @@ export function resolveSpaceSwitcherToolbarState(options: {
       ? label
       : options.hasHome
         ? 'My Home'
-        : 'No My Home yet — finish setup in the classic app';
+        // "No My Home" is a real account-setup state, but before navigation settles it is
+        // just "not loaded yet" — and telling someone to go finish setup in the classic app
+        // when nothing is wrong is alarming. Only claim it once nav has actually resolved.
+        : options.navReady === false
+          ? 'My Home'
+          : 'No My Home yet — finish setup in the classic app';
   return { showSharedSpaceToolbar, label, triggerTitle };
 }
 

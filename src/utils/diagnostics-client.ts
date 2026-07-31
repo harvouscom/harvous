@@ -63,6 +63,17 @@ function isClerkLoadFailure(message: string): boolean {
   return message.includes('failed_to_load_clerk_js') || message.includes('Failed to load Clerk');
 }
 
+/**
+ * Clerk lazily loads its own UI chunks from its CDN. The service worker skips cross-origin
+ * requests entirely (public/sw.js), so these failures are Clerk-side or network-side and
+ * there is nothing in this codebase to fix — they were pure noise in the issue list.
+ * Our own chunk failures (app.harvous.com/assets/*) are still reported.
+ */
+function isThirdPartyChunkFailure(message: string): boolean {
+  if (!/Loading chunk\s|dynamically imported module/i.test(message)) return false;
+  return /https?:\/\/[^\s)]*clerk\.[^\s)]*/i.test(message);
+}
+
 function buildClientErrorMetadata(message: string): Record<string, unknown> | null {
   if (!isClerkLoadFailure(message)) return null;
   return {
@@ -72,13 +83,31 @@ function buildClientErrorMetadata(message: string): Record<string, unknown> | nu
 }
 
 function shouldIgnoreError(error: Error | string): boolean {
-  if (typeof error === 'string') {
-    return isBenignErrorMessage(error);
+  const message = typeof error === 'string' ? error : error.message ?? '';
+  if (isThirdPartyChunkFailure(message)) return true;
+  return isBenignErrorMessage(message);
+}
+
+/**
+ * Collapse repeats of the same failure into one event.
+ *
+ * React Query retries queries up to 3 attempts (spa/src/App.tsx), and every attempt runs
+ * through the same reporting path — so one failed load used to store three events and the
+ * admin counts read ~3x high. The window comfortably covers the retry backoff while still
+ * recording a genuinely recurring failure later in the session.
+ */
+const REPEAT_DEDUPE_MS = 15_000;
+const recentReports = new Map<string, number>();
+
+function isDuplicateReport(key: string): boolean {
+  const now = Date.now();
+  for (const [k, at] of recentReports) {
+    if (now - at > REPEAT_DEDUPE_MS) recentReports.delete(k);
   }
-  if (error.name === 'AbortError' || error.name === 'DOMException') {
-    return isBenignErrorMessage(error.message ?? '');
-  }
-  return isBenignErrorMessage(error.message ?? '');
+  const last = recentReports.get(key);
+  if (last != null && now - last < REPEAT_DEDUPE_MS) return true;
+  recentReports.set(key, now);
+  return false;
 }
 
 function randomId(): string {
@@ -194,6 +223,8 @@ export function reportClientError(
   if (shouldIgnoreError(error)) return;
   const message = typeof error === 'string' ? error : error.message || 'Unknown error';
   const stack = typeof error === 'string' ? null : error.stack ?? null;
+  // A failed dynamic import can surface as both an unhandledrejection and a window error.
+  if (isDuplicateReport(`client|${source}|${message}`)) return;
   rememberError(message, stack);
   reportDiagnosticEvent({
     source,
@@ -211,6 +242,8 @@ export function reportApiDiagnostic(path: string, status: number, message: strin
   if (status < 500) return;
   // Service worker offline fallback (public/sw.js) returns synthetic 503 with this exact message.
   if (status === 503 && message === 'Network error') return;
+  // One event per logical failure — not one per React Query retry attempt.
+  if (isDuplicateReport(`api|${path}|${status}|${message}`)) return;
   rememberError(message, null);
   reportDiagnosticEvent({
     source: 'client_api',

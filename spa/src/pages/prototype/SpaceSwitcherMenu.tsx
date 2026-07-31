@@ -66,7 +66,7 @@ export default function SpaceSwitcherMenu({
     setActiveChurchOrgId,
     ensureSidebarExpanded,
   } = useProtoShell();
-  const { isSharedSpace, space, spaceTitle } = useActiveSpace();
+  const { isSharedSpace, space, spaceTitle, navReady } = useActiveSpace();
   const showShiftHints = usePrototypeShiftHints();
   const [open, setOpen] = useState(false);
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
@@ -243,6 +243,7 @@ export default function SpaceSwitcherMenu({
     space,
     spaceTitle,
     hasHome,
+    navReady,
     myChurchMode: inMyChurchMode,
     myChurchName: myChurch?.churchName ?? null,
   });

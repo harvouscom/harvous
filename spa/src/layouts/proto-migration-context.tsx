@@ -59,13 +59,19 @@ export function ProtoMigrationProvider({ children }: { children: ReactNode }) {
 
       const result = await migrate.mutateAsync();
       setLastResult(result);
-      await refreshPrototypeLists(queryClient, homeSpaceId);
 
       const stillNeedsBackfill = result.needsCollectionBackfill ?? false;
       if (!stillNeedsBackfill) {
         writeMigrationDoneFlag();
       }
 
+      // Outside the try below by design: the migration has already succeeded at this point,
+      // so a cache-refresh hiccup must not tell the user their folder update failed.
+      try {
+        await refreshPrototypeLists(queryClient, homeSpaceId);
+      } catch (refreshError) {
+        console.warn('[proto-migration] list refresh after migration failed:', refreshError);
+      }
     } catch (error) {
       if (error instanceof APIError && (error.status === 503 || error.code === 'SCHEMA_NOT_READY')) {
         return;

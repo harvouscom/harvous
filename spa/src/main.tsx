@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { initDiagnosticCapture } from '@/utils/diagnostics-client';
-import { showPrototypeAppUpdateNotice } from '@/utils/prototype-app-update-notice';
+import { clearAppCachesThen, showPrototypeAppUpdateNotice } from '@/utils/prototype-app-update-notice';
 import {
   REDUCE_MOTION_APP_PREFERENCE_ENABLED,
   REDUCE_MOTION_STORAGE_KEY,
@@ -28,7 +28,9 @@ window.addEventListener('vite:preloadError', () => {
 
   if (!sessionStorage.getItem(KEY)) {
     sessionStorage.setItem(KEY, '1');
-    window.location.reload();
+    // Clear Cache Storage first — the SW serves `/` stale-while-revalidate, so a bare
+    // reload just gets the same stale index.html and fails again.
+    clearAppCachesThen(() => window.location.reload());
   } else {
     // Second failure — show recovery UI rather than staying blank
     sessionStorage.removeItem(KEY);

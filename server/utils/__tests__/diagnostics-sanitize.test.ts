@@ -4,7 +4,11 @@ import {
   sanitizeDiagnosticPayload,
   topStackFrame,
 } from '../diagnostics-sanitize';
-import { redactDiagnosticRoute, scrubDiagnosticText } from '@/utils/diagnostics-route';
+import {
+  normalizeDiagnosticMessageForSignature,
+  redactDiagnosticRoute,
+  scrubDiagnosticText,
+} from '@/utils/diagnostics-route';
 
 describe('redactDiagnosticRoute', () => {
   it('redacts note and token segments', () => {
@@ -13,6 +17,40 @@ describe('redactDiagnosticRoute', () => {
     expect(redactDiagnosticRoute('/spaces/join/abcdef0123456789abcdef0123456789')).toBe(
       '/spaces/join/:token',
     );
+  });
+
+  it('redacts flat note slugs at the root but keeps reserved segments', () => {
+    // Notes are first-class at /{base62}; without this the slug is stored verbatim and
+    // one error across N notes becomes N issue rows.
+    expect(redactDiagnosticRoute('/fWdqYzt')).toBe('/:id');
+    expect(redactDiagnosticRoute('/settings')).toBe('/settings');
+    expect(redactDiagnosticRoute('/upgrade')).toBe('/upgrade');
+    expect(redactDiagnosticRoute('/settings/support')).toBe('/settings/support');
+    expect(redactDiagnosticRoute('/')).toBe('/');
+  });
+});
+
+describe('normalizeDiagnosticMessageForSignature', () => {
+  it('collapses build hashes so one chunk failure is one issue', () => {
+    const a = normalizeDiagnosticMessageForSignature(
+      'Failed to fetch dynamically imported module: https://app.harvous.com/assets/PrototypeSupportPage-CJECPRhB.js',
+    );
+    const b = normalizeDiagnosticMessageForSignature(
+      'Failed to fetch dynamically imported module: https://app.harvous.com/assets/PrototypeSupportPage-Dt9ieVmR.js',
+    );
+    expect(a).toBe(b);
+  });
+
+  it('collapses chunk ids and package versions', () => {
+    const a = normalizeDiagnosticMessageForSignature('Loading chunk 9573 failed. (@clerk/clerk-js@5.127.1)');
+    const b = normalizeDiagnosticMessageForSignature('Loading chunk 1192 failed. (@clerk/clerk-js@5.128.0)');
+    expect(a).toBe(b);
+  });
+
+  it('drops the SQL params tail', () => {
+    expect(
+      normalizeDiagnosticMessageForSignature('Failed query: select "id" from "Entitlements"\nparams: [user],active'),
+    ).toBe('Failed query: select "id" from "Entitlements"');
   });
 });
 
@@ -32,6 +70,34 @@ describe('computeIssueSignature', () => {
     const b = computeIssueSignature('TypeError: x is null', '/n/:id', 'at foo (bar.js:1:1)');
     expect(a).toBe(b);
     expect(a).toHaveLength(32);
+  });
+
+  it('groups the same fault seen on different routes', () => {
+    // route is a facet (topRoute on the summary), not part of issue identity — it was
+    // splitting one error into a row per route.
+    const home = computeIssueSignature('TypeError: x is null', '/', 'at foo (bar.js:1:1)');
+    const settings = computeIssueSignature('TypeError: x is null', '/settings', 'at foo (bar.js:1:1)');
+    expect(home).toBe(settings);
+  });
+
+  it('groups the same chunk failure across deploys', () => {
+    const before = computeIssueSignature(
+      'Failed to fetch dynamically imported module: https://app.harvous.com/assets/PrototypeChurchPage-BXQxzH_e.js',
+      '/settings',
+      null,
+    );
+    const after = computeIssueSignature(
+      'Failed to fetch dynamically imported module: https://app.harvous.com/assets/PrototypeChurchPage-DARCVtjk.js',
+      '/settings/church',
+      null,
+    );
+    expect(before).toBe(after);
+  });
+
+  it('still separates genuinely different errors', () => {
+    const a = computeIssueSignature('TypeError: x is null', '/', null);
+    const b = computeIssueSignature('TypeError: y is undefined', '/', null);
+    expect(a).not.toBe(b);
   });
 });
 

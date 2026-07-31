@@ -80,6 +80,28 @@ export async function canCreateNote(
 }
 
 /**
+ * Read-only fallback for the *display* path (`getSubscriptionInfo`).
+ *
+ * That handler fans nine queries out through `Promise.all`, so one transient DB fault
+ * rejected the whole thing and turned a Settings page load into a 500 — with the raw
+ * Drizzle "Failed query: select …" text reaching the client. Every sibling read there
+ * already degrades this way; these are the three that didn't.
+ *
+ * Gates (`canCreateSharedSpace`, `limitsForUser`) must NOT use this — they stay strict so a
+ * blip can never fail open and let someone exceed a paid limit.
+ */
+async function softRead<T>(label: string, read: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    // Log the driver error, not Drizzle's SQL-text wrapper.
+    const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : null;
+    console.error(`[subscription] ${label} degraded:`, cause ?? (error instanceof Error ? error.message : error));
+    return fallback;
+  }
+}
+
+/**
  * Active billing-sourced product ids. A user can hold Plus and Connector at
  * once, so this returns all of them rather than picking one arbitrarily.
  */
@@ -138,11 +160,11 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
     hasSharedSpacesAddOn(auth),
     getUserNoteCount(userId),
     getReferralBonusNotes(userId),
-    getSharedSpacesOwnedCount(userId),
+    softRead('sharedSpacesOwnedCount', () => getSharedSpacesOwnedCount(userId), 0),
     getActiveEntitlements(userId),
     limitsForUser(userId),
-    activeBillingProductIds(userId),
-    hasBillingManagedEntitlement(userId),
+    softRead('activeBillingProductIds', () => activeBillingProductIds(userId), [] as string[]),
+    softRead('hasBillingManagedEntitlement', () => hasBillingManagedEntitlement(userId), false),
   ]);
 
   const planKey = resolvePlanKeyFromProducts(billingProductIds);

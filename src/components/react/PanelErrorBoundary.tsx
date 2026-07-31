@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import type { ReactNode } from 'react';
 import { captureException } from '@/utils/posthog';
+import { reportClientError } from '@/utils/diagnostics-client';
 
 interface PanelErrorBoundaryProps {
   children: ReactNode;
@@ -40,7 +41,11 @@ export default class PanelErrorBoundary extends Component<
         }
       });
     }
-    
+
+    // A panel crash is a real user-visible failure, but it never reached the admin
+    // diagnostics list — only PostHog. Report it like route-boundary errors already are.
+    reportClientError(error, 'client_js', { panelErrorBoundary: true });
+
     // Also log to console for debugging
     console.error('PanelErrorBoundary caught an error:', error, errorInfo);
   }

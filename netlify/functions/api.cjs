@@ -18162,6 +18162,7 @@ var init_postgres_js = __esm({
 var schema_exports = {};
 __export(schema_exports, {
   AdminMonthlyReports: () => AdminMonthlyReports,
+  AppSyncCursors: () => AppSyncCursors,
   BiblePeople: () => BiblePeople,
   BiblePlaces: () => BiblePlaces,
   BibleTranslations: () => BibleTranslations,
@@ -18217,7 +18218,7 @@ __export(schema_exports, {
   VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports;
+var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -19233,6 +19234,11 @@ var init_schema2 = __esm({
       },
       (table) => [uniqueIndex("AdminMonthlyReports_month_unique").on(table.month)]
     );
+    AppSyncCursors = pgTable("AppSyncCursors", {
+      key: text("key").primaryKey(),
+      value: text("value").notNull(),
+      updatedAt: ts("updatedAt").notNull()
+    });
   }
 });
 
@@ -30843,6 +30849,9 @@ var init_profile_cache = __esm({
 });
 
 // src/utils/scripture-pill-display.ts
+function sanitizeBeforeDomParse(html) {
+  return html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "").replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+}
 function shouldAdoptTranslationOnPill(current) {
   if (!current) return true;
   if (current === "NET") return true;
@@ -30852,8 +30861,9 @@ function repairScripturePillTranslationsInHtml(html, defaultTranslation) {
   if (!html.includes("data-scripture-reference")) return html;
   if (typeof document === "undefined") return html;
   const effectiveDefault = defaultTranslation ?? getEffectiveDefaultTranslation();
+  const sanitized = sanitizeBeforeDomParse(html);
   const wrap2 = document.createElement("div");
-  wrap2.innerHTML = html;
+  wrap2.innerHTML = sanitized;
   let modified = false;
   wrap2.querySelectorAll("[data-scripture-reference]").forEach((node) => {
     const span = node;
@@ -30891,7 +30901,7 @@ function repairScripturePillTranslationsInHtml(html, defaultTranslation) {
       modified = true;
     }
   });
-  return modified ? wrap2.innerHTML : html;
+  return modified ? wrap2.innerHTML : sanitized;
 }
 var init_scripture_pill_display = __esm({
   "src/utils/scripture-pill-display.ts"() {
@@ -47259,12 +47269,18 @@ __export(shared_space_visit_exports, {
   recordSharedSpaceVisit: () => recordSharedSpaceVisit
 });
 function visitWatermark(membership) {
-  return membership.lastVisitedAt ?? null;
+  return membership.lastVisitedAt ?? membership.joinedAt ?? null;
 }
-async function countNewNotesInSpaceSince(spaceId, sinceIso) {
+async function countNewNotesInSpaceSince(spaceId, sinceIso, viewerUserId) {
   const row = first(
     await db.select({ value: count() }).from(SpaceNotes).innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId)).where(
-      and(eq(SpaceNotes.spaceId, spaceId), isNull(SpaceNotes.removedAt), eq(Notes.contentEncrypted, false), gt(Notes.updatedAt, sinceIso))
+      and(
+        eq(SpaceNotes.spaceId, spaceId),
+        isNull(SpaceNotes.removedAt),
+        eq(Notes.contentEncrypted, false),
+        gt(Notes.updatedAt, sinceIso),
+        ne(Notes.userId, viewerUserId)
+      )
     )
   );
   return Number(row?.value ?? 0);
@@ -47286,10 +47302,10 @@ async function recordSharedSpaceVisit(spaceId, userId) {
   if (!membership) {
     return { previousVisitedAt: null, newNoteCount: 0, totalNoteCount: 0 };
   }
-  const previousVisitedAt = membership.lastVisitedAt ?? null;
+  const previousVisitedAt = visitWatermark(membership);
   let newNoteCount = 0;
   if (previousVisitedAt) {
-    newNoteCount = await countNewNotesInSpaceSince(spaceId, previousVisitedAt);
+    newNoteCount = await countNewNotesInSpaceSince(spaceId, previousVisitedAt, userId);
   }
   const totalRow = first(
     await db.select({ value: count() }).from(SpaceNotes).innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId)).where(and(eq(SpaceNotes.spaceId, spaceId), isNull(SpaceNotes.removedAt), eq(Notes.contentEncrypted, false)))
@@ -47305,7 +47321,7 @@ async function getSharedSpaceActivityPreview(spaceId, userId) {
   let newNoteCount = 0;
   const watermark = membership ? visitWatermark(membership) : null;
   if (watermark) {
-    newNoteCount = await countNewNotesInSpaceSince(spaceId, watermark);
+    newNoteCount = await countNewNotesInSpaceSince(spaceId, watermark, userId);
   }
   const { notes, total } = await getNotesForSharedSpace(spaceId, userId, 3, 0, {
     sortByLastUpdated: true,
@@ -47319,6 +47335,7 @@ async function getSharedSpaceActivityPreview(spaceId, userId) {
     });
     const byAuthor = /* @__PURE__ */ new Map();
     for (const note of sampleForActivity) {
+      if (note.authorUserId && note.authorUserId === userId) continue;
       const updated = note.lastUpdated ?? note.updatedAt;
       if (!updated || new Date(updated).getTime() <= watermark.getTime()) continue;
       const key2 = note.authorUserId ?? note.authorDisplayName ?? "member";
@@ -47351,7 +47368,7 @@ async function getNewNoteCountsForUser(userId) {
         result.set(m2.spaceId, 0);
         return;
       }
-      const cnt = await countNewNotesInSpaceSince(m2.spaceId, watermark);
+      const cnt = await countNewNotesInSpaceSince(m2.spaceId, watermark, userId);
       if (cnt > 0) result.set(m2.spaceId, cnt);
     })
   );
@@ -236264,9 +236281,9 @@ __export(netlify_exports, {
 module.exports = __toCommonJS(netlify_exports);
 
 // node_modules/hono/dist/adapter/netlify/handler.js
-var handle = (app18) => {
+var handle = (app17) => {
   return (req, context2) => {
-    return app18.fetch(req, { context: context2 });
+    return app17.fetch(req, { context: context2 });
   };
 };
 
@@ -237429,14 +237446,14 @@ var Hono = class _Hono {
    * app.route("/api", app2) // GET /api/user
    * ```
    */
-  route(path10, app18) {
+  route(path10, app17) {
     const subApp = this.basePath(path10);
-    app18.routes.map((r) => {
+    app17.routes.map((r) => {
       let handler5;
-      if (app18.errorHandler === errorHandler) {
+      if (app17.errorHandler === errorHandler) {
         handler5 = r.handler;
       } else {
-        handler5 = async (c, next) => (await compose([], app18.errorHandler)(c, () => r.handler(c, next))).res;
+        handler5 = async (c, next) => (await compose([], app17.errorHandler)(c, () => r.handler(c, next))).res;
         handler5[COMPOSED_HANDLER] = r.handler;
       }
       subApp.#addRoute(r.method, r.path, handler5);
@@ -238984,6 +239001,9 @@ function createError(message, code, context2) {
     timestamp: Date.now()
   };
 }
+function isInternalQueryText(message) {
+  return /^Failed query:/i.test(message.trim());
+}
 function handleAPIError(error, context2) {
   let errorMessage = "An unexpected error occurred";
   let errorCode;
@@ -238999,7 +239019,9 @@ function handleAPIError(error, context2) {
     errorMessage = String(errorObj.message || "An unexpected error occurred");
     errorCode = errorObj.code;
   }
-  const standardError = createError(errorMessage, errorCode, context2);
+  const clientMessage = isInternalQueryText(errorMessage) ? "A database error occurred" : errorMessage;
+  const clientCode = isInternalQueryText(errorMessage) ? errorCode ?? "DB_ERROR" : errorCode;
+  const standardError = createError(clientMessage, clientCode, context2);
   if (typeof window === "undefined") {
     console.error(JSON.stringify({
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
@@ -240607,7 +240629,7 @@ var RATE_LIMITS = {
     windowMs: 60 * 1e3
     // 1 minute
   },
-  // Space invite: higher limit so owners can onboard larger spaces (e.g. 100 members)
+  // Space invite: higher limit so owners can onboard larger spaces (e.g. 50 members)
   INVITE: {
     maxRequests: 60,
     windowMs: 60 * 1e3
@@ -242995,9 +243017,16 @@ function validateResourceUrl(url) {
       code: "INVALID_FORMAT"
     };
   }
-  const hostname = parsedUrl.hostname.toLowerCase();
-  const blockedHosts = ["localhost", "127.0.0.1", "0.0.0.0", "::1"];
-  if (blockedHosts.includes(hostname) || hostname.endsWith(".local")) {
+  const hostname = parsedUrl.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  const blockedHosts = [
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "::1",
+    "metadata.google.internal",
+    "metadata"
+  ];
+  if (blockedHosts.includes(hostname) || hostname.endsWith(".local") || hostname.endsWith(".internal")) {
     return {
       isValid: false,
       error: "Local URLs are not supported",
@@ -243006,8 +243035,19 @@ function validateResourceUrl(url) {
   }
   const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (ipv4Match) {
-    const [, a, b3] = ipv4Match.map(Number);
-    if (a === 10 || a === 172 && b3 >= 16 && b3 <= 31 || a === 192 && b3 === 168) {
+    const octets = ipv4Match.slice(1).map(Number);
+    const [a, b3] = octets;
+    if (a === 0 || a === 10 || a === 127 || a === 169 && b3 === 254 || a === 172 && b3 >= 16 && b3 <= 31 || a === 192 && b3 === 168) {
+      return {
+        isValid: false,
+        error: "Private network URLs are not supported",
+        code: "PRIVATE_IP"
+      };
+    }
+  }
+  if (hostname.includes(":")) {
+    const compact = hostname.toLowerCase();
+    if (compact === "::1" || compact.startsWith("fc") || compact.startsWith("fd") || compact.startsWith("fe80:") || compact.startsWith("::ffff:169.254.") || compact.startsWith("::ffff:127.") || compact.startsWith("::ffff:10.") || compact.startsWith("::ffff:192.168.")) {
       return {
         isValid: false,
         error: "Private network URLs are not supported",
@@ -243115,6 +243155,354 @@ function invalidationFromMutation(m2) {
     default:
       return null;
   }
+}
+
+// src/utils/fetch-helpers.ts
+async function fetchWithTimeout(url, options = {}) {
+  const {
+    timeout: timeout2 = 1e4,
+    // 10 seconds default
+    retries = 2,
+    retryTimeout = 5e3,
+    // 5 seconds for retries
+    ...fetchOptions
+  } = options;
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const currentTimeout = attempt === 0 ? timeout2 : retryTimeout;
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, currentTimeout);
+    try {
+      const response = await fetch(url, {
+        ...fetchOptions,
+        signal: abortController.signal
+      });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      lastError = error;
+      if (error.name === "AbortError" || abortController.signal.aborted) {
+        if (attempt === retries) {
+          throw new Error(
+            `Request timeout after ${currentTimeout}ms (attempt ${attempt + 1} of ${retries + 1})`
+          );
+        }
+        continue;
+      }
+      if (attempt === retries) {
+        throw new Error(
+          `Network error: ${error.message || "Failed to fetch"}`
+        );
+      }
+    }
+  }
+  throw lastError || new Error("Unknown error occurred");
+}
+
+// src/utils/audienceful.ts
+var AUDIENCEFUL_API_BASE = "https://app.audienceful.com/api";
+var APP_USER_TAG = "User";
+var AUDIENCEFUL_PRODUCT_FLAG_KEYS = [
+  "has_created_note",
+  "has_opened_note",
+  "has_created_thread",
+  "has_shared",
+  "has_created_space",
+  "has_joined_space",
+  "upgrade_viewed",
+  "checkout_started"
+];
+var MS_PER_DAY2 = 24 * 60 * 60 * 1e3;
+function mergeProductFlagsIntoExtraData(existing, flags) {
+  const out = { ...existing ?? {} };
+  if (!flags) return out;
+  for (const key2 of AUDIENCEFUL_PRODUCT_FLAG_KEYS) {
+    if (flags[key2] !== true) continue;
+    out[key2] = true;
+  }
+  return out;
+}
+function hasTruthyProductFlags(flags) {
+  if (!flags) return false;
+  return AUDIENCEFUL_PRODUCT_FLAG_KEYS.some((key2) => flags[key2] === true);
+}
+function toAudiencefulIsoTimestamp(value) {
+  if (value == null || value === "") return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+  if (typeof value === "number") {
+    const ms = value < 1e12 ? value * 1e3 : value;
+    const d2 = new Date(ms);
+    return Number.isNaN(d2.getTime()) ? null : d2.toISOString();
+  }
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+function computeActivityStatus(lastSignInAt, lastActiveAt, nowMs = Date.now()) {
+  const candidates = [lastSignInAt, lastActiveAt].map((v2) => v2 ? Date.parse(v2) : NaN).filter((t) => !Number.isNaN(t));
+  if (candidates.length === 0) return "unknown";
+  const latest = Math.max(...candidates);
+  const ageDays = (nowMs - latest) / MS_PER_DAY2;
+  if (ageDays <= 7) return "active";
+  if (ageDays <= 30) return "cooling";
+  return "dormant";
+}
+function getApiKey() {
+  const apiKey = process.env?.AUDIENCEFUL_API_KEY;
+  if (!apiKey) {
+    throw new Error("AUDIENCEFUL_API_KEY environment variable is not set");
+  }
+  return apiKey;
+}
+async function audiencefulRequest(endpoint, method, body) {
+  const apiKey = getApiKey();
+  const url = `${AUDIENCEFUL_API_BASE}${endpoint}`;
+  const options = {
+    method,
+    headers: {
+      "X-Api-Key": apiKey,
+      "Content-Type": "application/json"
+    },
+    timeout: 1e4,
+    // 10 second timeout
+    retries: 2
+  };
+  if (body && method !== "GET") {
+    options.body = JSON.stringify(body);
+  }
+  let response = await fetchWithTimeout(url, options);
+  if (response.status === 429) {
+    await new Promise((resolve5) => setTimeout(resolve5, 1100));
+    response = await fetchWithTimeout(url, options);
+  }
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Audienceful API error (${response.status}): ${errorText}`
+    );
+  }
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    return await response.json();
+  }
+  return null;
+}
+async function findSubscriberByEmail(email2) {
+  const normalized = email2.trim().toLowerCase();
+  try {
+    const response = await audiencefulRequest(
+      `/people/?search=${encodeURIComponent(email2)}`,
+      "GET"
+    );
+    const results = Array.isArray(response?.results) ? response.results : response?.email ? [response] : [];
+    const match4 = results.find((person) => person.email?.trim().toLowerCase() === normalized);
+    return match4 ?? null;
+  } catch (error) {
+    if (error.message.includes("404")) {
+      return null;
+    }
+    throw error;
+  }
+}
+async function createSubscriber(data) {
+  return await audiencefulRequest("/people/", "POST", data);
+}
+async function updateSubscriber(email2, data) {
+  const updateData = {
+    email: email2,
+    ...data
+  };
+  return await audiencefulRequest("/people/", "PATCH", updateData);
+}
+function tagsToString(tags) {
+  if (!tags || tags.length === 0) return "";
+  return tags.map((t) => t.name).join(", ");
+}
+function mergeTags(existingTags, newTags) {
+  if (!existingTags) return newTags;
+  if (!newTags) return existingTags;
+  const byLower = /* @__PURE__ */ new Map();
+  for (const tag of existingTags.split(",").map((t) => t.trim()).filter(Boolean)) {
+    byLower.set(tag.toLowerCase(), tag);
+  }
+  for (const tag of newTags.split(",").map((t) => t.trim()).filter(Boolean)) {
+    const key2 = tag.toLowerCase();
+    if (!byLower.has(key2)) byLower.set(key2, tag);
+  }
+  return Array.from(byLower.values()).join(", ");
+}
+function hasAudiencefulIdentity(person) {
+  return Boolean(person && (person.id != null || person.uid));
+}
+async function tagAsAppUser(email2, clerkUserId, firstName, lastName, activity, productFlags) {
+  console.log("[Audienceful] Starting tagAsAppUser:", {
+    email: email2,
+    clerkUserId,
+    firstName: firstName || null,
+    lastName: lastName || null,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString()
+  });
+  try {
+    const apiKey = process.env?.AUDIENCEFUL_API_KEY;
+    if (!apiKey) {
+      throw new Error("AUDIENCEFUL_API_KEY environment variable is not set");
+    }
+  } catch (error) {
+    console.error("[Audienceful] API key not configured:", {
+      error: error.message,
+      email: email2,
+      clerkUserId
+    });
+    throw error;
+  }
+  const existing = await findSubscriberByEmail(email2);
+  const signedUpAt = toAudiencefulIsoTimestamp(activity?.signedUpAt) ?? void 0;
+  const lastSignInAt = toAudiencefulIsoTimestamp(activity?.lastSignInAt) ?? void 0;
+  const lastActiveAt = toAudiencefulIsoTimestamp(activity?.lastActiveAt) ?? void 0;
+  const activityStatus = computeActivityStatus(lastSignInAt ?? null, lastActiveAt ?? null);
+  const extraData = {
+    clerk_user_id: clerkUserId
+  };
+  if (firstName) extraData.first_name = firstName;
+  if (lastName) extraData.last_name = lastName;
+  if (signedUpAt) extraData.signed_up_at = signedUpAt;
+  if (lastSignInAt) extraData.last_sign_in_at = lastSignInAt;
+  if (lastActiveAt) extraData.last_active_at = lastActiveAt;
+  if (activityStatus !== "unknown" || lastSignInAt || lastActiveAt) {
+    extraData.activity_status = activityStatus;
+  }
+  if (hasAudiencefulIdentity(existing)) {
+    const existingTagsString = tagsToString(existing.tags);
+    const mergedTags = mergeTags(existingTagsString, APP_USER_TAG);
+    console.log("[Audienceful] Updating existing subscriber:", {
+      email: email2,
+      existingId: existing.id ?? existing.uid,
+      existingTags: existingTagsString,
+      mergedTags,
+      activityStatus
+    });
+    const mergedExtraData = mergeProductFlagsIntoExtraData(
+      {
+        ...existing.extra_data,
+        ...extraData
+      },
+      productFlags
+    );
+    try {
+      const result = await updateSubscriber(email2, {
+        tags: mergedTags,
+        extra_data: mergedExtraData
+      });
+      console.log("[Audienceful] Successfully updated subscriber:", {
+        email: email2,
+        audiencefulId: result.id || result.uid,
+        tags: mergedTags
+      });
+      return result;
+    } catch (error) {
+      if (error.message && error.message.includes("404")) {
+        console.log("[Audienceful] Subscriber not found during update, creating new:", {
+          email: email2
+        });
+        const result = await createSubscriber({
+          email: email2,
+          tags: APP_USER_TAG,
+          extra_data: mergedExtraData,
+          double_opt_in: "not_required",
+          trigger_automations: false
+        });
+        console.log("[Audienceful] Successfully created subscriber (fallback):", {
+          email: email2,
+          audiencefulId: result.id || result.uid
+        });
+        return result;
+      }
+      throw error;
+    }
+  } else {
+    console.log("[Audienceful] Creating new subscriber:", {
+      email: email2,
+      tags: APP_USER_TAG
+    });
+    const result = await createSubscriber({
+      email: email2,
+      tags: APP_USER_TAG,
+      extra_data: mergeProductFlagsIntoExtraData(extraData, productFlags),
+      double_opt_in: "not_required",
+      trigger_automations: false
+    });
+    console.log("[Audienceful] Successfully created subscriber:", {
+      email: email2,
+      audiencefulId: result.id || result.uid
+    });
+    return result;
+  }
+}
+async function markAudiencefulProductFlags(options) {
+  const { email: email2, clerkUserId, flags } = options;
+  if (!hasTruthyProductFlags(flags)) return null;
+  const existing = await findSubscriberByEmail(email2);
+  const baseExtra = mergeProductFlagsIntoExtraData(
+    {
+      ...existing?.extra_data ?? {},
+      clerk_user_id: clerkUserId
+    },
+    flags
+  );
+  if (hasAudiencefulIdentity(existing)) {
+    const mergedTags = mergeTags(tagsToString(existing.tags), APP_USER_TAG);
+    try {
+      return await updateSubscriber(email2, {
+        tags: mergedTags,
+        extra_data: baseExtra
+      });
+    } catch (error) {
+      if (!(error.message && error.message.includes("404"))) throw error;
+    }
+  }
+  return createSubscriber({
+    email: email2,
+    tags: APP_USER_TAG,
+    extra_data: baseExtra,
+    double_opt_in: "not_required",
+    trigger_automations: false
+  });
+}
+function queueAudiencefulProductFlags(options) {
+  if (!hasTruthyProductFlags(options.flags)) return;
+  if (!process.env?.AUDIENCEFUL_API_KEY) return;
+  void markAudiencefulProductFlags(options).catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[Audienceful] queueAudiencefulProductFlags failed:", {
+      clerkUserId: options.clerkUserId,
+      message
+    });
+  });
+}
+
+// server/utils/audienceful-product-flags.ts
+init_db2();
+function queueAudiencefulProductFlagsForUser(userId, flags) {
+  if (!hasTruthyProductFlags(flags)) return;
+  if (!process.env.AUDIENCEFUL_API_KEY) return;
+  void (async () => {
+    const meta2 = first(
+      await db.select({ email: UserMetadata.email }).from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1)
+    );
+    const email2 = meta2?.email?.trim();
+    if (!email2) {
+      console.warn("[Audienceful] skip product flags \u2014 no email in UserMetadata", { userId });
+      return;
+    }
+    queueAudiencefulProductFlags({ email: email2, clerkUserId: userId, flags });
+  })().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[Audienceful] queueAudiencefulProductFlagsForUser failed:", { userId, message });
+  });
 }
 
 // server/routes/threads.ts
@@ -243378,6 +243766,14 @@ route9.post("/api/threads/create", requireAuth, rateLimit("write"), async (c) =>
     });
     awardThreadCreatedXP(auth.userId, newThread.id, capitalizedTitle, null).catch(() => {
     });
+    if (finalSpaceAccess && finalSpaceAccess.space.type !== "personal") {
+      queueAudiencefulProductFlagsForUser(auth.userId, {
+        has_created_thread: true,
+        ...shareToken ? { has_shared: true } : {}
+      });
+    } else if (shareToken) {
+      queueAudiencefulProductFlagsForUser(auth.userId, { has_shared: true });
+    }
     broadcastInvalidation(auth.userId, { type: "thread:updated", id: newThread.id });
     return c.json({ success: "Thread created!", thread: newThread });
   } catch (error) {
@@ -243815,6 +244211,9 @@ route9.post("/api/threads/:threadId/share", requireAuth, async (c) => {
       newShareToken = generateShareToken();
       isPublic = true;
       await db.update(Threads).set({ shareToken: newShareToken, shareTokenCreatedAt: now2, updatedAt: now2 }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    }
+    if ((action === "enable" || action === "refresh") && newShareToken) {
+      queueAudiencefulProductFlagsForUser(auth.userId, { has_shared: true });
     }
     const origin = new URL(c.req.url).origin;
     const shareUrl = newShareToken ? `${origin}/shared/thread/${newShareToken}` : null;
@@ -245331,6 +245730,15 @@ async function fetchVerseText(reference, translation = "NET") {
 init_delete_note_cascade();
 init_sync_deletion_log();
 init_note_version_service();
+var ScriptureNoteNotFoundError = class extends Error {
+  constructor(noteId) {
+    super("Note not found");
+    this.noteId = noteId;
+    this.name = "ScriptureNoteNotFoundError";
+  }
+  code = "NOTE_NOT_FOUND";
+  status = 404;
+};
 async function createCanonicalScriptureChild(input) {
   return db.transaction(async (tx) => {
     const metadata = first(
@@ -245556,7 +245964,7 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
 async function processScriptureReferencesInternal(noteId, userId, threadId, contentOverride, translation = "NET", options) {
   const note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, userId))).limit(1));
   if (!note) {
-    throw new Error("Note not found");
+    throw new ScriptureNoteNotFoundError(noteId);
   }
   const pillsOnly = options?.pillsOnly ?? note.noteType === "default";
   let noteContent = contentOverride || note.content;
@@ -249840,6 +250248,10 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
         )
       ).limit(1)
     ) : null;
+    queueAudiencefulProductFlagsForUser(auth.userId, {
+      has_created_note: true,
+      ...shouldAutoShare && shareToken ? { has_shared: true } : {}
+    });
     return c.json({
       success: "Note created!",
       note: noteJsonWithParsedSecondaries(newNote),
@@ -249865,6 +250277,9 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
     if (mapped) return c.json({ error: mapped.message, code: mapped.code, ...mapped.details ?? {} }, mapped.status);
     if (error instanceof SpaceNoteAssociationError) {
       return c.json({ error: error.message, code: error.code }, 400);
+    }
+    if (error instanceof ScriptureNoteNotFoundError) {
+      return c.json({ error: error.message, code: error.code }, error.status);
     }
     return c.json({ error: error.message || "Failed to create note" }, 500);
   }
@@ -250023,8 +250438,16 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     }
     if (existingNote.noteType === "resource" && resourceImage !== void 0) {
       try {
+        let nextImage = null;
+        if (typeof resourceImage === "string" && resourceImage.trim()) {
+          const imageValidation = validateResourceUrl(resourceImage);
+          if (!imageValidation.isValid || !imageValidation.normalizedUrl) {
+            return c.json({ error: imageValidation.error || "Invalid resource image URL", code: imageValidation.code || "INVALID_URL" }, 400);
+          }
+          nextImage = imageValidation.normalizedUrl;
+        }
         const rm2 = first(await db.select().from(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId)).limit(1));
-        if (rm2) await db.update(ResourceMetadata).set({ sourceImage: resourceImage || null }).where(eq(ResourceMetadata.noteId, noteId));
+        if (rm2) await db.update(ResourceMetadata).set({ sourceImage: nextImage }).where(eq(ResourceMetadata.noteId, noteId));
       } catch {
       }
     }
@@ -250034,7 +250457,7 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
       try {
         const scriptureResult = await processScriptureReferences(
           noteId,
-          auth.userId,
+          updatedNote.userId,
           void 0,
           updatedNote.content,
           scriptureVersion || "NET",
@@ -250045,7 +250468,7 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
         processedContent = updatedNote.content;
       } catch (err) {
         console.error("[api/notes/update] Scripture processing failed:", err?.message ?? err);
-        throw err;
+        processedContent = updatedNote.content;
       }
     }
     let updateTags = [];
@@ -250165,6 +250588,9 @@ route11.post("/api/notes/connect-link", requireAuth, rateLimit("write"), async (
       parentNoteId
     ).catch(() => {
     });
+    if (clusterCountAfter > clusterCountBefore) {
+      queueAudiencefulProductFlagsForUser(auth.userId, { has_created_thread: true });
+    }
     try {
       const { graph } = await collectStudyThreadGraphForScope(parentNoteId, auth.userId, {
         preferredSpaceId: spaceId ?? void 0,
@@ -251402,9 +251828,13 @@ route11.post("/api/notes/:id/update-content", requireAuth, rateLimit("write"), a
       })
     );
     if (!versioned.note.contentEncrypted) {
-      await processScriptureReferences(id, auth.userId, void 0, versioned.note.content, "NET", {
-        persistParentContent: false
-      });
+      try {
+        await processScriptureReferences(id, versioned.note.userId, void 0, versioned.note.content, "NET", {
+          persistParentContent: false
+        });
+      } catch (err) {
+        console.error("[api/notes/update-content] Scripture processing failed:", err?.message ?? err);
+      }
     }
     await broadcastCanonicalNoteInvalidation(auth.userId, id, { type: "note:updated", id });
     return c.json({
@@ -251699,6 +252129,9 @@ route11.post("/api/notes/:id/process-scripture-references", requireAuth, rateLim
       ...readContext.isShared ? {} : { currentVersionId: finalNote?.currentVersionId ?? null }
     });
   } catch (error) {
+    if (error instanceof ScriptureNoteNotFoundError) {
+      return c.json({ error: error.message, code: error.code }, error.status);
+    }
     console.error("Error processing scripture references:", error);
     return c.json({ error: error.message || "Error processing scripture references" }, 500);
   }
@@ -251858,6 +252291,9 @@ route11.post("/api/notes/:noteId/share", requireAuth, rateLimit("write"), async 
       };
     });
     if ("error" in result) return c.json({ error: result.error, code: result.code }, result.status);
+    if ((action === "enable" || action === "refresh") && result.shareToken) {
+      queueAudiencefulProductFlagsForUser(auth.userId, { has_shared: true });
+    }
     const origin = new URL(c.req.url).origin;
     const shareUrl = result.shareToken ? `${origin}/shared/note/${result.shareToken}` : null;
     return c.json({ success: true, ...result, shareUrl });
@@ -252419,7 +252855,7 @@ var PLUS_FEATURES = ["shared_spaces", "review", "challenges"];
 var CONNECTOR_FEATURES = ["connector"];
 var PLUS_LIMITS = {
   ownedSpaces: UNLIMITED,
-  membersPerSpace: 100
+  membersPerSpace: 50
 };
 var FREE_LIMITS = {
   ownedSpaces: 0,
@@ -252457,7 +252893,7 @@ function getPlans() {
       key: "plus",
       name: "Harvous Plus",
       interval: "year",
-      amountCents: 4500,
+      amountCents: 3e3,
       currencyCode: "USD",
       features: PLUS_FEATURES,
       limits: PLUS_LIMITS,
@@ -252469,7 +252905,7 @@ function getPlans() {
       key: "plus",
       name: "Harvous Plus",
       interval: "month",
-      amountCents: 800,
+      amountCents: 500,
       currencyCode: "USD",
       features: PLUS_FEATURES,
       limits: PLUS_LIMITS,
@@ -252480,11 +252916,12 @@ function getPlans() {
       key: "plus",
       name: "Harvous Plus",
       interval: "year",
-      amountCents: 6400,
+      amountCents: 4500,
       currencyCode: "USD",
       features: PLUS_FEATURES,
       limits: PLUS_LIMITS,
-      listed: true,
+      // Not for sale while Plus is hosting-only — Founding is the yearly path.
+      listed: false,
       productId: getPlusProductAnnualId()
     },
     {
@@ -291761,7 +292198,9 @@ async function cancelBillingEntitlements(userId) {
   ).returning({ id: Entitlements.id });
   return updated.length > 0;
 }
-async function syncEntitlementsFromProvider(userId) {
+var RECONCILE_THROTTLE_MS = 5 * 60 * 1e3;
+var lastReconcileAt = /* @__PURE__ */ new Map();
+async function syncEntitlementsFromProvider(userId, options) {
   const before2 = await listActiveFeatureKeys(userId);
   if (!isPolarConfigured()) {
     return {
@@ -291769,6 +292208,17 @@ async function syncEntitlementsFromProvider(userId) {
       updated: false,
       hasSharedSpaces: before2.includes("shared_spaces")
     };
+  }
+  if (options?.throttle) {
+    const last2 = lastReconcileAt.get(userId) ?? 0;
+    if (Date.now() - last2 < RECONCILE_THROTTLE_MS) {
+      return {
+        entitlements: before2,
+        updated: false,
+        hasSharedSpaces: before2.includes("shared_spaces")
+      };
+    }
+    lastReconcileAt.set(userId, Date.now());
   }
   let updated = false;
   try {
@@ -291821,7 +292271,7 @@ async function applyPolarSubscriptionEntitlement(options) {
 }
 
 // server/utils/tier-limits.ts
-var MEMBERS_PER_SPACE_CAP = 100;
+var MEMBERS_PER_SPACE_CAP = 50;
 var FREE_OWNED_SHARED_SPACES_LIMIT = 0;
 var OWNED_SHARED_SPACES_ADDON_LIMIT = UNLIMITED;
 async function hasSharedSpacesAddOn(auth) {
@@ -293073,6 +293523,7 @@ route12.post("/api/spaces/create-shared", requireAuth, rateLimit("write"), async
     });
     awardCreationBonusXP(auth.userId, "space").catch(() => {
     });
+    queueAudiencefulProductFlagsForUser(auth.userId, { has_created_space: true });
     return c.json({ success: "Shared space created!", space: newSpace });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/spaces/create-shared", action: "create_shared_space" });
@@ -293131,6 +293582,7 @@ route12.post("/api/spaces/create-church-shared", requireAuth, rateLimit("write")
     });
     awardCreationBonusXP(auth.userId, "space").catch(() => {
     });
+    queueAudiencefulProductFlagsForUser(auth.userId, { has_created_space: true });
     return c.json({ success: "Church Shared Space created!", space: newSpace });
   } catch (error) {
     const standardError = handleAPIError(error, {
@@ -293192,6 +293644,7 @@ route12.post("/api/spaces/create-ministry-channel", requireAuth, rateLimit("writ
     });
     awardCreationBonusXP(auth.userId, "space").catch(() => {
     });
+    queueAudiencefulProductFlagsForUser(auth.userId, { has_created_space: true });
     return c.json({ success: "Ministry channel created!", space: newSpace });
   } catch (error) {
     const standardError = handleAPIError(error, {
@@ -293515,10 +293968,15 @@ route12.get("/api/spaces/:spaceId/notes", requireAuth, async (c) => {
       sortByLastUpdated
     };
     const result = accessInfo.space.type === "personal" ? await getNotesForSpace(spaceId, auth.userId, limit, offset, queryOptions) : await getNotesForSharedSpace(spaceId, auth.userId, limit, offset, queryOptions);
-    const notes = unseenSince && accessInfo.space.type !== "personal" ? result.notes.map((n) => ({
-      ...n,
-      isNewSinceVisit: isNoteNewSinceVisit(n.updatedAt ?? n.lastUpdated, unseenSince)
-    })) : result.notes;
+    const notes = unseenSince && accessInfo.space.type !== "personal" ? result.notes.map((n) => {
+      const authorId = n.authorUserId ?? n.userId;
+      const isOwn = authorId != null && authorId === auth.userId;
+      return {
+        ...n,
+        // “New since visit” is others’ activity — don’t mark your own notes/edits.
+        isNewSinceVisit: !isOwn && isNoteNewSinceVisit(n.updatedAt ?? n.lastUpdated, unseenSince)
+      };
+    }) : result.notes;
     return c.json({ notes, hasMore: result.hasMore, total: result.total, offset, limit });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/spaces/[spaceId]/notes", action: "get_space_notes" });
@@ -294320,14 +294778,43 @@ route12.get("/api/spaces/:spaceId/connect-note-candidates", requireAuth, async (
     }
     const q2 = (c.req.query("q") ?? "").trim();
     const excludeNoteIdRaw = (c.req.query("excludeNoteId") ?? "").trim();
+    const excludeNoteIdsRaw = (c.req.query("excludeNoteIds") ?? "").trim();
+    const source2 = (c.req.query("source") ?? "").trim();
+    const useMyHomeSource = source2 === "my-home" && access.space.type !== "personal";
     const limitParsed = parseInt(c.req.query("limit") || "15", 10);
     const limit = Math.min(Number.isFinite(limitParsed) ? limitParsed : 15, 30);
-    const baseFilters = [
+    const baseFilters = useMyHomeSource ? [
+      eq(Notes.userId, auth.userId),
+      eq(Notes.contentEncrypted, false),
+      eq(Notes.noteType, "default")
+    ] : [
       ...access.space.type === "personal" ? [eq(Notes.userId, auth.userId), eq(Notes.spaceId, spaceIdNorm)] : [activeSpaceNotePredicate(spaceIdNorm), eq(Notes.contentEncrypted, false)],
       eq(Notes.noteType, "default")
     ];
-    if (excludeNoteIdRaw) baseFilters.push(ne(Notes.id, excludeNoteIdRaw));
-    const filters2 = q2.length >= 1 ? [...baseFilters, sql`COALESCE(${Notes.title}, '') ILIKE ${"%" + q2 + "%"}`] : baseFilters;
+    const excludeIds = [
+      ...new Set(
+        [
+          excludeNoteIdRaw,
+          ...excludeNoteIdsRaw.split(",").map((id) => id.trim())
+        ].filter(Boolean)
+      )
+    ].slice(0, 50);
+    if (excludeIds.length === 1) baseFilters.push(ne(Notes.id, excludeIds[0]));
+    else if (excludeIds.length > 1) baseFilters.push(notInArray(Notes.id, excludeIds));
+    const searchPattern = `%${q2}%`;
+    const filters2 = q2.length >= 1 ? [
+      ...baseFilters,
+      or(
+        sql`COALESCE(${Notes.title}, '') ILIKE ${searchPattern}`,
+        sql`COALESCE(${Notes.content}, '') ILIKE ${searchPattern}`,
+        sql`EXISTS (
+                SELECT 1 FROM ${NoteTags}
+                INNER JOIN ${Tags} ON ${Tags.id} = ${NoteTags.tagId}
+                WHERE ${NoteTags.noteId} = ${Notes.id}
+                  AND ${Tags.name} ILIKE ${searchPattern}
+              )`
+      )
+    ] : baseFilters;
     const rows = await db.select({
       id: Notes.id,
       title: Notes.title,
@@ -294337,6 +294824,18 @@ route12.get("/api/spaces/:spaceId/connect-note-candidates", requireAuth, async (
       content: Notes.content,
       userId: Notes.userId
     }).from(Notes).where(and(...filters2)).orderBy(desc(Notes.updatedAt)).limit(limit);
+    let associatedIds = /* @__PURE__ */ new Set();
+    if (access.space.type !== "personal" && rows.length > 0) {
+      const noteIds = rows.map((r) => r.id);
+      const associations = await db.select({ noteId: SpaceNotes.noteId }).from(SpaceNotes).where(
+        and(
+          eq(SpaceNotes.spaceId, spaceIdNorm),
+          inArray(SpaceNotes.noteId, noteIds),
+          isNull(SpaceNotes.removedAt)
+        )
+      );
+      associatedIds = new Set(associations.map((row) => row.noteId));
+    }
     return c.json({
       notes: rows.map((r) => ({
         id: r.id,
@@ -294346,7 +294845,7 @@ route12.get("/api/spaces/:spaceId/connect-note-candidates", requireAuth, async (
         createdAt: r.createdAt ? r.createdAt.toISOString() : null,
         content: r.content ? stripHtmlForListPreview(r.content, 80) : "",
         isOwnNote: r.userId === auth.userId,
-        isAssociatedWithTarget: access.space.type !== "personal"
+        isAssociatedWithTarget: access.space.type === "personal" ? true : associatedIds.has(r.id)
       }))
     });
   } catch (error) {
@@ -295343,6 +295842,7 @@ route12.post("/api/spaces/invites/:token/redeem", requireAuth, rateLimit("write"
     if (outcome === "already-member") {
       return c.json({ success: true, alreadyMember: true, spaceId: space.id, spaceName: space.title });
     }
+    queueAudiencefulProductFlagsForUser(auth.userId, { has_joined_space: true });
     return c.json({ success: true, spaceId: space.id, spaceName: space.title, redirectUrl: "/" });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/spaces/invites/[token]/redeem", action: "redeem_invite" });
@@ -295486,6 +295986,1216 @@ var spaces_default = route12;
 init_auth();
 init_db2();
 init_dates();
+
+// src/utils/hmc-directory.ts
+var HMC_COUNTRIES = [
+  { code: "US", name: "United States", regionNoun: { one: "state", many: "states" } },
+  { code: "CA", name: "Canada", regionNoun: { one: "province", many: "provinces and territories" } },
+  { code: "GB", name: "United Kingdom", regionNoun: { one: "region", many: "regions" } },
+  { code: "IE", name: "Ireland", regionNoun: { one: "county", many: "counties" } },
+  { code: "FR", name: "France", regionNoun: { one: "department", many: "departments" } },
+  { code: "DE", name: "Germany", regionNoun: { one: "state", many: "states" } },
+  { code: "NL", name: "Netherlands", regionNoun: { one: "province", many: "provinces" } },
+  { code: "BE", name: "Belgium", regionNoun: { one: "province", many: "provinces" } },
+  { code: "ES", name: "Spain", regionNoun: { one: "province", many: "provinces" } },
+  { code: "IT", name: "Italy", regionNoun: { one: "province", many: "provinces" } },
+  { code: "PT", name: "Portugal", regionNoun: { one: "district", many: "districts" } },
+  { code: "AT", name: "Austria", regionNoun: { one: "state", many: "states" } },
+  { code: "CH", name: "Switzerland", regionNoun: { one: "canton", many: "cantons" } },
+  { code: "SE", name: "Sweden", regionNoun: { one: "county", many: "counties" } },
+  { code: "NO", name: "Norway", regionNoun: { one: "county", many: "counties" } },
+  { code: "DK", name: "Denmark", regionNoun: { one: "region", many: "regions" } },
+  { code: "FI", name: "Finland", regionNoun: { one: "region", many: "regions" } },
+  { code: "PL", name: "Poland", regionNoun: { one: "voivodeship", many: "voivodeships" } },
+  { code: "AU", name: "Australia", regionNoun: { one: "state", many: "states" } }
+];
+var HMC_COUNTRY_CODES = new Set(HMC_COUNTRIES.map((c) => c.code));
+var REGION_TO_COUNTRY = {
+  "AL": "US",
+  "AK": "US",
+  "AZ": "US",
+  "AR": "US",
+  "CA": "US",
+  "CO": "US",
+  "CT": "US",
+  "DE": "US",
+  "DC": "US",
+  "FL": "US",
+  "GA": "US",
+  "HI": "US",
+  "ID": "US",
+  "IL": "US",
+  "IN": "US",
+  "IA": "US",
+  "KS": "US",
+  "KY": "US",
+  "LA": "US",
+  "ME": "US",
+  "MD": "US",
+  "MA": "US",
+  "MI": "US",
+  "MN": "US",
+  "MS": "US",
+  "MO": "US",
+  "MT": "US",
+  "NE": "US",
+  "NV": "US",
+  "NH": "US",
+  "NJ": "US",
+  "NM": "US",
+  "NY": "US",
+  "NC": "US",
+  "ND": "US",
+  "OH": "US",
+  "OK": "US",
+  "OR": "US",
+  "PA": "US",
+  "RI": "US",
+  "SC": "US",
+  "SD": "US",
+  "TN": "US",
+  "TX": "US",
+  "UT": "US",
+  "VT": "US",
+  "VA": "US",
+  "WA": "US",
+  "WV": "US",
+  "WI": "US",
+  "WY": "US",
+  "AB": "CA",
+  "BC": "CA",
+  "MB": "CA",
+  "NB": "CA",
+  "NL": "CA",
+  "NS": "CA",
+  "NT": "CA",
+  "NU": "CA",
+  "ON": "CA",
+  "PE": "CA",
+  "QC": "CA",
+  "SK": "CA",
+  "YT": "CA",
+  "EAST": "GB",
+  "EASTMIDLANDS": "GB",
+  "GREATERLONDON": "GB",
+  "NORTHEAST": "GB",
+  "NORTHWEST": "GB",
+  "NORTHERNIRELAND": "GB",
+  "SCOTLAND": "GB",
+  "SOUTHEAST": "GB",
+  "SOUTHWEST": "GB",
+  "WALES": "GB",
+  "WESTMIDLANDS": "GB",
+  "YORKSHIREANDTHEHUMBER": "GB",
+  "IECE": "IE",
+  "IECN": "IE",
+  "IECO": "IE",
+  "IECW": "IE",
+  "IED": "IE",
+  "IEDL": "IE",
+  "IEG": "IE",
+  "IEKE": "IE",
+  "IEKK": "IE",
+  "IEKY": "IE",
+  "IELD": "IE",
+  "IELH": "IE",
+  "IELK": "IE",
+  "IELM": "IE",
+  "IELS": "IE",
+  "IEMH": "IE",
+  "IEMN": "IE",
+  "IEMO": "IE",
+  "IEOY": "IE",
+  "IERN": "IE",
+  "IESO": "IE",
+  "IETA": "IE",
+  "IEWD": "IE",
+  "IEWH": "IE",
+  "IEWW": "IE",
+  "IEWX": "IE",
+  "FR01": "FR",
+  "FR02": "FR",
+  "FR03": "FR",
+  "FR04": "FR",
+  "FR05": "FR",
+  "FR06": "FR",
+  "FR07": "FR",
+  "FR08": "FR",
+  "FR09": "FR",
+  "FR10": "FR",
+  "FR11": "FR",
+  "FR12": "FR",
+  "FR13": "FR",
+  "FR14": "FR",
+  "FR15": "FR",
+  "FR16": "FR",
+  "FR17": "FR",
+  "FR18": "FR",
+  "FR19": "FR",
+  "FR21": "FR",
+  "FR22": "FR",
+  "FR23": "FR",
+  "FR24": "FR",
+  "FR25": "FR",
+  "FR26": "FR",
+  "FR27": "FR",
+  "FR28": "FR",
+  "FR29": "FR",
+  "FR2A": "FR",
+  "FR2B": "FR",
+  "FR30": "FR",
+  "FR31": "FR",
+  "FR32": "FR",
+  "FR33": "FR",
+  "FR34": "FR",
+  "FR35": "FR",
+  "FR36": "FR",
+  "FR37": "FR",
+  "FR38": "FR",
+  "FR39": "FR",
+  "FR40": "FR",
+  "FR41": "FR",
+  "FR42": "FR",
+  "FR43": "FR",
+  "FR44": "FR",
+  "FR45": "FR",
+  "FR46": "FR",
+  "FR47": "FR",
+  "FR48": "FR",
+  "FR49": "FR",
+  "FR50": "FR",
+  "FR51": "FR",
+  "FR52": "FR",
+  "FR53": "FR",
+  "FR54": "FR",
+  "FR55": "FR",
+  "FR56": "FR",
+  "FR57": "FR",
+  "FR58": "FR",
+  "FR59": "FR",
+  "FR60": "FR",
+  "FR61": "FR",
+  "FR62": "FR",
+  "FR63": "FR",
+  "FR64": "FR",
+  "FR65": "FR",
+  "FR66": "FR",
+  "FR67": "FR",
+  "FR68": "FR",
+  "FR69": "FR",
+  "FR70": "FR",
+  "FR71": "FR",
+  "FR72": "FR",
+  "FR73": "FR",
+  "FR74": "FR",
+  "FR75": "FR",
+  "FR76": "FR",
+  "FR77": "FR",
+  "FR78": "FR",
+  "FR79": "FR",
+  "FR80": "FR",
+  "FR81": "FR",
+  "FR82": "FR",
+  "FR83": "FR",
+  "FR84": "FR",
+  "FR85": "FR",
+  "FR86": "FR",
+  "FR87": "FR",
+  "FR88": "FR",
+  "FR89": "FR",
+  "FR90": "FR",
+  "FR91": "FR",
+  "FR92": "FR",
+  "FR93": "FR",
+  "FR94": "FR",
+  "FR95": "FR",
+  "DEBB": "DE",
+  "DEBE": "DE",
+  "DEBW": "DE",
+  "DEBY": "DE",
+  "DEHB": "DE",
+  "DEHE": "DE",
+  "DEHH": "DE",
+  "DEMV": "DE",
+  "DENI": "DE",
+  "DENW": "DE",
+  "DERP": "DE",
+  "DESH": "DE",
+  "DESL": "DE",
+  "DESN": "DE",
+  "DEST": "DE",
+  "DETH": "DE",
+  "NLDR": "NL",
+  "NLFL": "NL",
+  "NLFR": "NL",
+  "NLGE": "NL",
+  "NLGR": "NL",
+  "NLLI": "NL",
+  "NLNB": "NL",
+  "NLNH": "NL",
+  "NLOV": "NL",
+  "NLUT": "NL",
+  "NLZE": "NL",
+  "NLZH": "NL",
+  "BEBRU": "BE",
+  "BEVAN": "BE",
+  "BEVBR": "BE",
+  "BEVLI": "BE",
+  "BEVOV": "BE",
+  "BEVWV": "BE",
+  "BEWBR": "BE",
+  "BEWHT": "BE",
+  "BEWLG": "BE",
+  "BEWLX": "BE",
+  "BEWNA": "BE",
+  "ESA": "ES",
+  "ESAB": "ES",
+  "ESAL": "ES",
+  "ESAV": "ES",
+  "ESB": "ES",
+  "ESBA": "ES",
+  "ESBI": "ES",
+  "ESBU": "ES",
+  "ESC": "ES",
+  "ESCA": "ES",
+  "ESCC": "ES",
+  "ESCE": "ES",
+  "ESCO": "ES",
+  "ESCR": "ES",
+  "ESCS": "ES",
+  "ESCU": "ES",
+  "ESGC": "ES",
+  "ESGI": "ES",
+  "ESGR": "ES",
+  "ESGU": "ES",
+  "ESH": "ES",
+  "ESHU": "ES",
+  "ESJ": "ES",
+  "ESL": "ES",
+  "ESLE": "ES",
+  "ESLO": "ES",
+  "ESLU": "ES",
+  "ESM": "ES",
+  "ESMA": "ES",
+  "ESML": "ES",
+  "ESMU": "ES",
+  "ESNA": "ES",
+  "ESO": "ES",
+  "ESOR": "ES",
+  "ESP": "ES",
+  "ESPM": "ES",
+  "ESPO": "ES",
+  "ESS": "ES",
+  "ESSA": "ES",
+  "ESSE": "ES",
+  "ESSG": "ES",
+  "ESSO": "ES",
+  "ESSS": "ES",
+  "EST": "ES",
+  "ESTE": "ES",
+  "ESTF": "ES",
+  "ESTO": "ES",
+  "ESV": "ES",
+  "ESVA": "ES",
+  "ESVI": "ES",
+  "ESZ": "ES",
+  "ESZA": "ES",
+  "ITAG": "IT",
+  "ITAL": "IT",
+  "ITAN": "IT",
+  "ITAO": "IT",
+  "ITAP": "IT",
+  "ITAQ": "IT",
+  "ITAR": "IT",
+  "ITAT": "IT",
+  "ITAV": "IT",
+  "ITBA": "IT",
+  "ITBG": "IT",
+  "ITBI": "IT",
+  "ITBL": "IT",
+  "ITBN": "IT",
+  "ITBO": "IT",
+  "ITBR": "IT",
+  "ITBS": "IT",
+  "ITBT": "IT",
+  "ITBZ": "IT",
+  "ITCA": "IT",
+  "ITCB": "IT",
+  "ITCE": "IT",
+  "ITCH": "IT",
+  "ITCI": "IT",
+  "ITCL": "IT",
+  "ITCN": "IT",
+  "ITCO": "IT",
+  "ITCR": "IT",
+  "ITCS": "IT",
+  "ITCT": "IT",
+  "ITCZ": "IT",
+  "ITEN": "IT",
+  "ITFC": "IT",
+  "ITFE": "IT",
+  "ITFG": "IT",
+  "ITFI": "IT",
+  "ITFM": "IT",
+  "ITFR": "IT",
+  "ITGE": "IT",
+  "ITGO": "IT",
+  "ITGR": "IT",
+  "ITIM": "IT",
+  "ITIS": "IT",
+  "ITKR": "IT",
+  "ITLC": "IT",
+  "ITLE": "IT",
+  "ITLI": "IT",
+  "ITLO": "IT",
+  "ITLT": "IT",
+  "ITLU": "IT",
+  "ITMB": "IT",
+  "ITMC": "IT",
+  "ITME": "IT",
+  "ITMI": "IT",
+  "ITMN": "IT",
+  "ITMO": "IT",
+  "ITMS": "IT",
+  "ITMT": "IT",
+  "ITNA": "IT",
+  "ITNO": "IT",
+  "ITNU": "IT",
+  "ITOG": "IT",
+  "ITOR": "IT",
+  "ITOT": "IT",
+  "ITPA": "IT",
+  "ITPC": "IT",
+  "ITPD": "IT",
+  "ITPE": "IT",
+  "ITPG": "IT",
+  "ITPI": "IT",
+  "ITPN": "IT",
+  "ITPO": "IT",
+  "ITPR": "IT",
+  "ITPT": "IT",
+  "ITPU": "IT",
+  "ITPV": "IT",
+  "ITPZ": "IT",
+  "ITRA": "IT",
+  "ITRC": "IT",
+  "ITRE": "IT",
+  "ITRG": "IT",
+  "ITRI": "IT",
+  "ITRM": "IT",
+  "ITRN": "IT",
+  "ITRO": "IT",
+  "ITSA": "IT",
+  "ITSI": "IT",
+  "ITSO": "IT",
+  "ITSP": "IT",
+  "ITSR": "IT",
+  "ITSS": "IT",
+  "ITSV": "IT",
+  "ITTA": "IT",
+  "ITTE": "IT",
+  "ITTN": "IT",
+  "ITTO": "IT",
+  "ITTP": "IT",
+  "ITTR": "IT",
+  "ITTS": "IT",
+  "ITTV": "IT",
+  "ITUD": "IT",
+  "ITVA": "IT",
+  "ITVB": "IT",
+  "ITVC": "IT",
+  "ITVE": "IT",
+  "ITVI": "IT",
+  "ITVR": "IT",
+  "ITVS": "IT",
+  "ITVT": "IT",
+  "ITVV": "IT",
+  "PT01": "PT",
+  "PT02": "PT",
+  "PT03": "PT",
+  "PT04": "PT",
+  "PT05": "PT",
+  "PT06": "PT",
+  "PT07": "PT",
+  "PT08": "PT",
+  "PT09": "PT",
+  "PT10": "PT",
+  "PT11": "PT",
+  "PT12": "PT",
+  "PT13": "PT",
+  "PT14": "PT",
+  "PT15": "PT",
+  "PT16": "PT",
+  "PT17": "PT",
+  "PT18": "PT",
+  "PT20": "PT",
+  "PT30": "PT",
+  "AT1": "AT",
+  "AT2": "AT",
+  "AT3": "AT",
+  "AT4": "AT",
+  "AT5": "AT",
+  "AT6": "AT",
+  "AT7": "AT",
+  "AT8": "AT",
+  "AT9": "AT",
+  "CHAG": "CH",
+  "CHAI": "CH",
+  "CHAR": "CH",
+  "CHBE": "CH",
+  "CHBL": "CH",
+  "CHBS": "CH",
+  "CHFR": "CH",
+  "CHGE": "CH",
+  "CHGL": "CH",
+  "CHGR": "CH",
+  "CHJU": "CH",
+  "CHLU": "CH",
+  "CHNE": "CH",
+  "CHNW": "CH",
+  "CHOW": "CH",
+  "CHSG": "CH",
+  "CHSH": "CH",
+  "CHSO": "CH",
+  "CHSZ": "CH",
+  "CHTG": "CH",
+  "CHTI": "CH",
+  "CHUR": "CH",
+  "CHVD": "CH",
+  "CHVS": "CH",
+  "CHZG": "CH",
+  "CHZH": "CH",
+  "SEAB": "SE",
+  "SEAC": "SE",
+  "SEBD": "SE",
+  "SEC": "SE",
+  "SED": "SE",
+  "SEE": "SE",
+  "SEF": "SE",
+  "SEG": "SE",
+  "SEH": "SE",
+  "SEI": "SE",
+  "SEK": "SE",
+  "SEM": "SE",
+  "SEN": "SE",
+  "SEO": "SE",
+  "SES": "SE",
+  "SET": "SE",
+  "SEU": "SE",
+  "SEW": "SE",
+  "SEX": "SE",
+  "SEY": "SE",
+  "SEZ": "SE",
+  "NO01": "NO",
+  "NO02": "NO",
+  "NO03": "NO",
+  "NO04": "NO",
+  "NO05": "NO",
+  "NO06": "NO",
+  "NO07": "NO",
+  "NO08": "NO",
+  "NO09": "NO",
+  "NO10": "NO",
+  "NO11": "NO",
+  "NO12": "NO",
+  "NO14": "NO",
+  "NO15": "NO",
+  "NO16": "NO",
+  "NO17": "NO",
+  "NO18": "NO",
+  "NO19": "NO",
+  "NO20": "NO",
+  "NO21": "NO",
+  "DK81": "DK",
+  "DK82": "DK",
+  "DK83": "DK",
+  "DK84": "DK",
+  "DK85": "DK",
+  "FI02": "FI",
+  "FI03": "FI",
+  "FI04": "FI",
+  "FI05": "FI",
+  "FI06": "FI",
+  "FI07": "FI",
+  "FI08": "FI",
+  "FI09": "FI",
+  "FI10": "FI",
+  "FI11": "FI",
+  "FI12": "FI",
+  "FI13": "FI",
+  "FI14": "FI",
+  "FI15": "FI",
+  "FI16": "FI",
+  "FI17": "FI",
+  "FI18": "FI",
+  "FI19": "FI",
+  "PLDS": "PL",
+  "PLKP": "PL",
+  "PLLB": "PL",
+  "PLLD": "PL",
+  "PLLU": "PL",
+  "PLMA": "PL",
+  "PLMZ": "PL",
+  "PLOP": "PL",
+  "PLPD": "PL",
+  "PLPK": "PL",
+  "PLPM": "PL",
+  "PLSK": "PL",
+  "PLSL": "PL",
+  "PLWN": "PL",
+  "PLWP": "PL",
+  "PLZP": "PL",
+  "AUACT": "AU",
+  "AUNSW": "AU",
+  "AUNT": "AU",
+  "AUQLD": "AU",
+  "AUSA": "AU",
+  "AUTAS": "AU",
+  "AUVIC": "AU",
+  "AUWA": "AU"
+};
+var HMC_REGIONS_BY_COUNTRY = {
+  "US": [
+    { code: "AL", label: "Alabama" },
+    { code: "AK", label: "Alaska" },
+    { code: "AZ", label: "Arizona" },
+    { code: "AR", label: "Arkansas" },
+    { code: "CA", label: "California" },
+    { code: "CO", label: "Colorado" },
+    { code: "CT", label: "Connecticut" },
+    { code: "DE", label: "Delaware" },
+    { code: "DC", label: "District of Columbia" },
+    { code: "FL", label: "Florida" },
+    { code: "GA", label: "Georgia" },
+    { code: "HI", label: "Hawaii" },
+    { code: "ID", label: "Idaho" },
+    { code: "IL", label: "Illinois" },
+    { code: "IN", label: "Indiana" },
+    { code: "IA", label: "Iowa" },
+    { code: "KS", label: "Kansas" },
+    { code: "KY", label: "Kentucky" },
+    { code: "LA", label: "Louisiana" },
+    { code: "ME", label: "Maine" },
+    { code: "MD", label: "Maryland" },
+    { code: "MA", label: "Massachusetts" },
+    { code: "MI", label: "Michigan" },
+    { code: "MN", label: "Minnesota" },
+    { code: "MS", label: "Mississippi" },
+    { code: "MO", label: "Missouri" },
+    { code: "MT", label: "Montana" },
+    { code: "NE", label: "Nebraska" },
+    { code: "NV", label: "Nevada" },
+    { code: "NH", label: "New Hampshire" },
+    { code: "NJ", label: "New Jersey" },
+    { code: "NM", label: "New Mexico" },
+    { code: "NY", label: "New York" },
+    { code: "NC", label: "North Carolina" },
+    { code: "ND", label: "North Dakota" },
+    { code: "OH", label: "Ohio" },
+    { code: "OK", label: "Oklahoma" },
+    { code: "OR", label: "Oregon" },
+    { code: "PA", label: "Pennsylvania" },
+    { code: "RI", label: "Rhode Island" },
+    { code: "SC", label: "South Carolina" },
+    { code: "SD", label: "South Dakota" },
+    { code: "TN", label: "Tennessee" },
+    { code: "TX", label: "Texas" },
+    { code: "UT", label: "Utah" },
+    { code: "VT", label: "Vermont" },
+    { code: "VA", label: "Virginia" },
+    { code: "WA", label: "Washington" },
+    { code: "WV", label: "West Virginia" },
+    { code: "WI", label: "Wisconsin" },
+    { code: "WY", label: "Wyoming" }
+  ],
+  "CA": [
+    { code: "AB", label: "Alberta" },
+    { code: "BC", label: "British Columbia" },
+    { code: "MB", label: "Manitoba" },
+    { code: "NB", label: "New Brunswick" },
+    { code: "NL", label: "Newfoundland and Labrador" },
+    { code: "NT", label: "Northwest Territories" },
+    { code: "NS", label: "Nova Scotia" },
+    { code: "NU", label: "Nunavut" },
+    { code: "ON", label: "Ontario" },
+    { code: "PE", label: "Prince Edward Island" },
+    { code: "QC", label: "Qu\xE9bec" },
+    { code: "SK", label: "Saskatchewan" },
+    { code: "YT", label: "Yukon" }
+  ],
+  "GB": [
+    { code: "EAST", label: "East" },
+    { code: "EASTMIDLANDS", label: "East Midlands" },
+    { code: "GREATERLONDON", label: "Greater London" },
+    { code: "NORTHEAST", label: "North East" },
+    { code: "NORTHWEST", label: "North West" },
+    { code: "NORTHERNIRELAND", label: "Northern Ireland" },
+    { code: "SCOTLAND", label: "Scotland" },
+    { code: "SOUTHEAST", label: "South East" },
+    { code: "SOUTHWEST", label: "South West" },
+    { code: "WALES", label: "Wales" },
+    { code: "WESTMIDLANDS", label: "West Midlands" },
+    { code: "YORKSHIREANDTHEHUMBER", label: "Yorkshire and the Humber" }
+  ],
+  "IE": [
+    { code: "IECW", label: "Carlow" },
+    { code: "IECN", label: "Cavan" },
+    { code: "IECE", label: "Clare" },
+    { code: "IECO", label: "Cork" },
+    { code: "IEDL", label: "Donegal" },
+    { code: "IED", label: "Dublin" },
+    { code: "IEG", label: "Galway" },
+    { code: "IEKY", label: "Kerry" },
+    { code: "IEKE", label: "Kildare" },
+    { code: "IEKK", label: "Kilkenny" },
+    { code: "IELS", label: "Laoighis" },
+    { code: "IELM", label: "Leitrim" },
+    { code: "IELK", label: "Limerick" },
+    { code: "IELD", label: "Longford" },
+    { code: "IELH", label: "Louth" },
+    { code: "IEMO", label: "Mayo" },
+    { code: "IEMH", label: "Meath" },
+    { code: "IEMN", label: "Monaghan" },
+    { code: "IETA", label: "North Tipperary" },
+    { code: "IEOY", label: "Offaly" },
+    { code: "IERN", label: "Roscommon" },
+    { code: "IESO", label: "Sligo" },
+    { code: "IEWD", label: "Waterford" },
+    { code: "IEWH", label: "Westmeath" },
+    { code: "IEWX", label: "Wexford" },
+    { code: "IEWW", label: "Wicklow" }
+  ],
+  "FR": [
+    { code: "FR01", label: "Ain" },
+    { code: "FR02", label: "Aisne" },
+    { code: "FR03", label: "Allier" },
+    { code: "FR04", label: "Alpes-de-Haute-Provence" },
+    { code: "FR06", label: "Alpes-Maritimes" },
+    { code: "FR07", label: "Ard\xE8che" },
+    { code: "FR08", label: "Ardennes" },
+    { code: "FR09", label: "Ari\xE8ge" },
+    { code: "FR10", label: "Aube" },
+    { code: "FR11", label: "Aude" },
+    { code: "FR12", label: "Aveyron" },
+    { code: "FR67", label: "Bas-Rhin" },
+    { code: "FR13", label: "Bouches-du-Rh\xF4ne" },
+    { code: "FR14", label: "Calvados" },
+    { code: "FR15", label: "Cantal" },
+    { code: "FR16", label: "Charente" },
+    { code: "FR17", label: "Charente-Maritime" },
+    { code: "FR18", label: "Cher" },
+    { code: "FR19", label: "Corr\xE8ze" },
+    { code: "FR2A", label: "Corse-du-Sud" },
+    { code: "FR21", label: "C\xF4te-d'Or" },
+    { code: "FR22", label: "C\xF4tes-d'Armor" },
+    { code: "FR23", label: "Creuse" },
+    { code: "FR79", label: "Deux-S\xE8vres" },
+    { code: "FR24", label: "Dordogne" },
+    { code: "FR25", label: "Doubs" },
+    { code: "FR26", label: "Dr\xF4me" },
+    { code: "FR91", label: "Essonne" },
+    { code: "FR27", label: "Eure" },
+    { code: "FR28", label: "Eure-et-Loir" },
+    { code: "FR29", label: "Finist\xE8re" },
+    { code: "FR30", label: "Gard" },
+    { code: "FR32", label: "Gers" },
+    { code: "FR33", label: "Gironde" },
+    { code: "FR2B", label: "Haute-Corse" },
+    { code: "FR31", label: "Haute-Garonne" },
+    { code: "FR43", label: "Haute-Loire" },
+    { code: "FR52", label: "Haute-Marne" },
+    { code: "FR68", label: "Haute-Rhin" },
+    { code: "FR70", label: "Haute-Sa\xF4ne" },
+    { code: "FR74", label: "Haute-Savoie" },
+    { code: "FR87", label: "Haute-Vienne" },
+    { code: "FR05", label: "Hautes-Alpes" },
+    { code: "FR65", label: "Hautes-Pyr\xE9n\xE9es" },
+    { code: "FR92", label: "Hauts-de-Seine" },
+    { code: "FR34", label: "H\xE9rault" },
+    { code: "FR35", label: "Ille-et-Vilaine" },
+    { code: "FR36", label: "Indre" },
+    { code: "FR37", label: "Indre-et-Loire" },
+    { code: "FR38", label: "Is\xE8re" },
+    { code: "FR39", label: "Jura" },
+    { code: "FR40", label: "Landes" },
+    { code: "FR41", label: "Loir-et-Cher" },
+    { code: "FR42", label: "Loire" },
+    { code: "FR44", label: "Loire-Atlantique" },
+    { code: "FR45", label: "Loiret" },
+    { code: "FR46", label: "Lot" },
+    { code: "FR47", label: "Lot-et-Garonne" },
+    { code: "FR48", label: "Loz\xE8re" },
+    { code: "FR49", label: "Maine-et-Loire" },
+    { code: "FR50", label: "Manche" },
+    { code: "FR51", label: "Marne" },
+    { code: "FR53", label: "Mayenne" },
+    { code: "FR54", label: "Meurthe-et-Moselle" },
+    { code: "FR55", label: "Meuse" },
+    { code: "FR56", label: "Morbihan" },
+    { code: "FR57", label: "Moselle" },
+    { code: "FR58", label: "Ni\xE8vre" },
+    { code: "FR59", label: "Nord" },
+    { code: "FR60", label: "Oise" },
+    { code: "FR61", label: "Orne" },
+    { code: "FR75", label: "Paris" },
+    { code: "FR62", label: "Pas-de-Calais" },
+    { code: "FR63", label: "Puy-de-D\xF4me" },
+    { code: "FR64", label: "Pyr\xE9n\xE9es-Atlantiques" },
+    { code: "FR66", label: "Pyr\xE9n\xE9es-Orientales" },
+    { code: "FR69", label: "Rh\xF4ne" },
+    { code: "FR71", label: "Sa\xF4ne-et-Loire" },
+    { code: "FR72", label: "Sarthe" },
+    { code: "FR73", label: "Savoie" },
+    { code: "FR77", label: "Seien-et-Marne" },
+    { code: "FR76", label: "Seine-Maritime" },
+    { code: "FR93", label: "Seine-Saint-Denis" },
+    { code: "FR80", label: "Somme" },
+    { code: "FR81", label: "Tarn" },
+    { code: "FR82", label: "Tarn-et-Garonne" },
+    { code: "FR90", label: "Territoire de Belfort" },
+    { code: "FR95", label: "Val-d'Oise" },
+    { code: "FR94", label: "Val-de-Marne" },
+    { code: "FR83", label: "Var" },
+    { code: "FR84", label: "Vaucluse" },
+    { code: "FR85", label: "Vend\xE9e" },
+    { code: "FR86", label: "Vienne" },
+    { code: "FR88", label: "Vosges" },
+    { code: "FR89", label: "Yonne" },
+    { code: "FR78", label: "Yvelines" }
+  ],
+  "DE": [
+    { code: "DEBW", label: "Baden-W\xFCrttemberg" },
+    { code: "DEBY", label: "Bayern" },
+    { code: "DEBE", label: "Berlin" },
+    { code: "DEBB", label: "Brandenburg" },
+    { code: "DEHB", label: "Bremen" },
+    { code: "DEHH", label: "Hamburg" },
+    { code: "DEHE", label: "Hessen" },
+    { code: "DEMV", label: "Mecklenburg-Vorpommern" },
+    { code: "DENI", label: "Niedersachsen" },
+    { code: "DENW", label: "Nordrhein-Westfalen" },
+    { code: "DERP", label: "Rheinland-Pfalz" },
+    { code: "DESL", label: "Saarland" },
+    { code: "DESN", label: "Sachsen" },
+    { code: "DEST", label: "Sachsen-Anhalt" },
+    { code: "DESH", label: "Schleswig-Holstein" },
+    { code: "DETH", label: "Th\xFCringen" }
+  ],
+  "NL": [
+    { code: "NLDR", label: "Drenthe" },
+    { code: "NLFL", label: "Flevoland" },
+    { code: "NLFR", label: "Friesland" },
+    { code: "NLGE", label: "Gelderland" },
+    { code: "NLGR", label: "Groningen" },
+    { code: "NLLI", label: "Limburg" },
+    { code: "NLNB", label: "Noord-Brabant" },
+    { code: "NLNH", label: "Noord-Holland" },
+    { code: "NLOV", label: "Overijssel" },
+    { code: "NLUT", label: "Utrecht" },
+    { code: "NLZE", label: "Zeeland" },
+    { code: "NLZH", label: "Zuid-Holland" }
+  ],
+  "BE": [
+    { code: "BEVAN", label: "Antwerp" },
+    { code: "BEBRU", label: "Brussels" },
+    { code: "BEVOV", label: "East Flanders" },
+    { code: "BEVBR", label: "Flemish Brabant" },
+    { code: "BEWHT", label: "Hainaut" },
+    { code: "BEWLG", label: "Liege" },
+    { code: "BEVLI", label: "Limburg" },
+    { code: "BEWLX", label: "Luxembourg" },
+    { code: "BEWNA", label: "Namur" },
+    { code: "BEWBR", label: "Walloon Brabant" },
+    { code: "BEVWV", label: "West Flanders" }
+  ],
+  "ES": [
+    { code: "ESVI", label: "\xC1lava" },
+    { code: "ESAB", label: "Albacete" },
+    { code: "ESA", label: "Alicante" },
+    { code: "ESAL", label: "Almer\xEDa" },
+    { code: "ESO", label: "Asturias" },
+    { code: "ESAV", label: "\xC1vila" },
+    { code: "ESBA", label: "Badajoz" },
+    { code: "ESPM", label: "Baleares" },
+    { code: "ESB", label: "Barcelona" },
+    { code: "ESBI", label: "Bizkaia" },
+    { code: "ESBU", label: "Burgos" },
+    { code: "ESCC", label: "C\xE1ceres" },
+    { code: "ESCA", label: "C\xE1diz" },
+    { code: "ESS", label: "Cantabria" },
+    { code: "ESCS", label: "Castell\xF3n" },
+    { code: "ESCE", label: "Ceuta" },
+    { code: "ESCR", label: "Ciudad Real" },
+    { code: "ESCO", label: "C\xF3rdoba" },
+    { code: "ESCU", label: "Cuenca" },
+    { code: "ESGI", label: "Gerona" },
+    { code: "ESSS", label: "Gipuzkoa" },
+    { code: "ESGR", label: "Granada" },
+    { code: "ESGU", label: "Guadalajara" },
+    { code: "ESH", label: "Huelva" },
+    { code: "ESHU", label: "Huesca" },
+    { code: "ESJ", label: "Ja\xE9n" },
+    { code: "ESC", label: "La Coru\xF1a" },
+    { code: "ESLO", label: "La Rioja" },
+    { code: "ESGC", label: "Las Palmas" },
+    { code: "ESLE", label: "Le\xF3n" },
+    { code: "ESL", label: "L\xE9rida" },
+    { code: "ESLU", label: "Lugo" },
+    { code: "ESM", label: "Madrid" },
+    { code: "ESMA", label: "M\xE1laga" },
+    { code: "ESML", label: "Melilla" },
+    { code: "ESMU", label: "Murcia" },
+    { code: "ESNA", label: "Navarra" },
+    { code: "ESOR", label: "Orense" },
+    { code: "ESP", label: "Palencia" },
+    { code: "ESPO", label: "Pontevedra" },
+    { code: "ESSA", label: "Salamanca" },
+    { code: "ESTF", label: "Santa Cruz de Tenerife" },
+    { code: "ESSG", label: "Segovia" },
+    { code: "ESSE", label: "Sevilla" },
+    { code: "ESSO", label: "Soria" },
+    { code: "EST", label: "Tarragona" },
+    { code: "ESTE", label: "Teruel" },
+    { code: "ESTO", label: "Toledo" },
+    { code: "ESV", label: "Valencia" },
+    { code: "ESVA", label: "Valladolid" },
+    { code: "ESZA", label: "Zamora" },
+    { code: "ESZ", label: "Zaragoza" }
+  ],
+  "IT": [
+    { code: "ITAG", label: "Agrigento" },
+    { code: "ITAL", label: "Alessandria" },
+    { code: "ITAN", label: "Ancona" },
+    { code: "ITAO", label: "Aoste" },
+    { code: "ITAR", label: "Arezzo" },
+    { code: "ITAP", label: "Ascoli Piceno" },
+    { code: "ITAT", label: "Asti" },
+    { code: "ITAV", label: "Avellino" },
+    { code: "ITBA", label: "Bari" },
+    { code: "ITBT", label: "Barletta-Andria Trani" },
+    { code: "ITBL", label: "Belluno" },
+    { code: "ITBN", label: "Benevento" },
+    { code: "ITBG", label: "Bergamo" },
+    { code: "ITBI", label: "Biella" },
+    { code: "ITBO", label: "Bologna" },
+    { code: "ITBZ", label: "Bozen" },
+    { code: "ITBS", label: "Brescia" },
+    { code: "ITBR", label: "Brindisi" },
+    { code: "ITCA", label: "Cagliari" },
+    { code: "ITCL", label: "Caltanissetta" },
+    { code: "ITCB", label: "Campobasso" },
+    { code: "ITCI", label: "Carbonia-Iglesias" },
+    { code: "ITCE", label: "Caserta" },
+    { code: "ITCT", label: "Catania" },
+    { code: "ITCZ", label: "Catanzaro" },
+    { code: "ITCH", label: "Chieti" },
+    { code: "ITCO", label: "Como" },
+    { code: "ITCS", label: "Cosenza" },
+    { code: "ITCR", label: "Cremona" },
+    { code: "ITKR", label: "Crotene" },
+    { code: "ITCN", label: "Cuneo" },
+    { code: "ITEN", label: "Enna" },
+    { code: "ITFM", label: "Fermo" },
+    { code: "ITFE", label: "Ferrara" },
+    { code: "ITFI", label: "Firenze" },
+    { code: "ITFG", label: "Foggia" },
+    { code: "ITFC", label: "Forl\xEC-Cesena" },
+    { code: "ITFR", label: "Frosinone" },
+    { code: "ITGE", label: "Genova" },
+    { code: "ITGO", label: "Gorizia" },
+    { code: "ITGR", label: "Grosseto" },
+    { code: "ITIM", label: "Imperia" },
+    { code: "ITIS", label: "Isernia" },
+    { code: "ITAQ", label: "L'Aquila" },
+    { code: "ITSP", label: "La Spezia" },
+    { code: "ITLT", label: "Latina" },
+    { code: "ITLE", label: "Lecce" },
+    { code: "ITLC", label: "Lecco" },
+    { code: "ITLI", label: "Livorno" },
+    { code: "ITLO", label: "Lodi" },
+    { code: "ITLU", label: "Lucca" },
+    { code: "ITMC", label: "Macerata" },
+    { code: "ITMN", label: "Mantova" },
+    { code: "ITMS", label: "Massa-Carrara" },
+    { code: "ITMT", label: "Matera" },
+    { code: "ITVS", label: "Medio Campidano" },
+    { code: "ITME", label: "Messina" },
+    { code: "ITMI", label: "Milano" },
+    { code: "ITMO", label: "Modena" },
+    { code: "ITMB", label: "Monza e Brianza" },
+    { code: "ITNA", label: "Napoli" },
+    { code: "ITNO", label: "Novara" },
+    { code: "ITNU", label: "Nuoro" },
+    { code: "ITOG", label: "Ogliastra" },
+    { code: "ITOT", label: "Olbia-Tempio" },
+    { code: "ITOR", label: "Oristrano" },
+    { code: "ITPD", label: "Padova" },
+    { code: "ITPA", label: "Palermo" },
+    { code: "ITPR", label: "Parma" },
+    { code: "ITPV", label: "Pavia" },
+    { code: "ITPG", label: "Perugia" },
+    { code: "ITPU", label: "Pesaro e Urbino" },
+    { code: "ITPE", label: "Pescara" },
+    { code: "ITPC", label: "Piacenza" },
+    { code: "ITPI", label: "Pisa" },
+    { code: "ITPT", label: "Pistoia" },
+    { code: "ITPN", label: "Pordenone" },
+    { code: "ITPZ", label: "Potenza" },
+    { code: "ITPO", label: "Prato" },
+    { code: "ITRG", label: "Ragusa" },
+    { code: "ITRA", label: "Ravenna" },
+    { code: "ITRC", label: "Reggio Calabria" },
+    { code: "ITRE", label: "Reggio Emilia" },
+    { code: "ITRI", label: "Rieti" },
+    { code: "ITRN", label: "Rimini" },
+    { code: "ITRM", label: "Roma" },
+    { code: "ITRO", label: "Rovigo" },
+    { code: "ITSA", label: "Salerno" },
+    { code: "ITSS", label: "Sassari" },
+    { code: "ITSV", label: "Savona" },
+    { code: "ITSI", label: "Siena" },
+    { code: "ITSR", label: "Siracusa" },
+    { code: "ITSO", label: "Sondrio" },
+    { code: "ITTA", label: "Taranto" },
+    { code: "ITTE", label: "Teramo" },
+    { code: "ITTR", label: "Terni" },
+    { code: "ITTP", label: "Trapani" },
+    { code: "ITTN", label: "Trento" },
+    { code: "ITTV", label: "Treviso" },
+    { code: "ITTS", label: "Trieste" },
+    { code: "ITTO", label: "Turin" },
+    { code: "ITUD", label: "Udine" },
+    { code: "ITVA", label: "Varese" },
+    { code: "ITVE", label: "Venezia" },
+    { code: "ITVB", label: "Verbano-Cusio-Ossola" },
+    { code: "ITVC", label: "Vercelli" },
+    { code: "ITVR", label: "Verona" },
+    { code: "ITVV", label: "Vibo Valentia" },
+    { code: "ITVI", label: "Vicenza" },
+    { code: "ITVT", label: "Viterbo" }
+  ],
+  "PT": [
+    { code: "PT01", label: "Aveiro" },
+    { code: "PT20", label: "Azores" },
+    { code: "PT02", label: "Beja" },
+    { code: "PT03", label: "Braga" },
+    { code: "PT04", label: "Bragan\xE7a" },
+    { code: "PT05", label: "Castelo Branco" },
+    { code: "PT06", label: "Coimbra" },
+    { code: "PT07", label: "\xC9vora" },
+    { code: "PT08", label: "Faro" },
+    { code: "PT09", label: "Guarda" },
+    { code: "PT10", label: "Leiria" },
+    { code: "PT11", label: "Lisboa" },
+    { code: "PT30", label: "Madeira" },
+    { code: "PT12", label: "Portalegre" },
+    { code: "PT13", label: "Porto" },
+    { code: "PT14", label: "Santar\xE9m" },
+    { code: "PT15", label: "Set\xFAbal" },
+    { code: "PT16", label: "Viana do Castelo" },
+    { code: "PT17", label: "Vila Real" },
+    { code: "PT18", label: "Viseu" }
+  ],
+  "AT": [
+    { code: "AT1", label: "Burgenland" },
+    { code: "AT2", label: "K\xE4rnten" },
+    { code: "AT3", label: "Nieder\xF6sterreich" },
+    { code: "AT4", label: "Ober\xF6sterreich" },
+    { code: "AT5", label: "Salzburg" },
+    { code: "AT6", label: "Steiermark" },
+    { code: "AT7", label: "Tirol" },
+    { code: "AT8", label: "Vorarlberg" },
+    { code: "AT9", label: "Wien" }
+  ],
+  "CH": [
+    { code: "CHAG", label: "Aargau" },
+    { code: "CHAR", label: "Appenzell Ausserrhoden" },
+    { code: "CHAI", label: "Appenzell Innerrhoden" },
+    { code: "CHBL", label: "Basel-Landschaft" },
+    { code: "CHBS", label: "Basel-Stadt" },
+    { code: "CHBE", label: "Bern" },
+    { code: "CHFR", label: "Fribourg" },
+    { code: "CHGE", label: "Gen\xE8ve" },
+    { code: "CHGL", label: "Glarus" },
+    { code: "CHGR", label: "Graub\xFCnden" },
+    { code: "CHJU", label: "Jura" },
+    { code: "CHLU", label: "Lucerne" },
+    { code: "CHNE", label: "Neuch\xE2tel" },
+    { code: "CHNW", label: "Nidwalden" },
+    { code: "CHOW", label: "Obwalden" },
+    { code: "CHSG", label: "Sankt Gallen" },
+    { code: "CHSH", label: "Schaffhausen" },
+    { code: "CHSZ", label: "Schwyz" },
+    { code: "CHSO", label: "Solothurn" },
+    { code: "CHTG", label: "Thurgau" },
+    { code: "CHTI", label: "Ticino" },
+    { code: "CHUR", label: "Uri" },
+    { code: "CHVS", label: "Valais" },
+    { code: "CHVD", label: "Vaud" },
+    { code: "CHZG", label: "Zug" },
+    { code: "CHZH", label: "Z\xFCrich" }
+  ],
+  "SE": [
+    { code: "SEK", label: "Blekinge" },
+    { code: "SEW", label: "Dalarna" },
+    { code: "SEX", label: "G\xE4vleborg" },
+    { code: "SEI", label: "Gotland" },
+    { code: "SEN", label: "Halland" },
+    { code: "SEZ", label: "J\xE4mtland" },
+    { code: "SEF", label: "J\xF6nk\xF6ping" },
+    { code: "SEH", label: "Kalmar" },
+    { code: "SEG", label: "Kronoberg" },
+    { code: "SEBD", label: "Norrbotten" },
+    { code: "SET", label: "Orebro" },
+    { code: "SEE", label: "\xD6sterg\xF6tland" },
+    { code: "SEM", label: "Sk\xE5ne" },
+    { code: "SED", label: "S\xF6dermanland" },
+    { code: "SEAB", label: "Stockholm" },
+    { code: "SEC", label: "Uppsala" },
+    { code: "SES", label: "V\xE4rmland" },
+    { code: "SEAC", label: "V\xE4sterbotten" },
+    { code: "SEY", label: "V\xE4sternorrland" },
+    { code: "SEU", label: "V\xE4stmanland" },
+    { code: "SEO", label: "V\xE4stra G\xF6taland" }
+  ],
+  "NO": [
+    { code: "NO02", label: "Akershus" },
+    { code: "NO09", label: "Aust-Agder" },
+    { code: "NO06", label: "Buskerud" },
+    { code: "NO20", label: "Finnmark" },
+    { code: "NO04", label: "Hedmark" },
+    { code: "NO12", label: "Hordaland" },
+    { code: "NO15", label: "M\xF8re og Romsdal" },
+    { code: "NO17", label: "Nord-Tr\xF8ndelag" },
+    { code: "NO18", label: "Nordland" },
+    { code: "NO05", label: "Oppland" },
+    { code: "NO03", label: "Oslo" },
+    { code: "NO01", label: "\xD8stfold" },
+    { code: "NO11", label: "Rogaland" },
+    { code: "NO14", label: "Sogn og Fjordane" },
+    { code: "NO16", label: "S\xF8r-Tr\xF8ndelag" },
+    { code: "NO21", label: "Svalbard" },
+    { code: "NO08", label: "Telemark" },
+    { code: "NO19", label: "Troms" },
+    { code: "NO10", label: "Vest-Agder" },
+    { code: "NO07", label: "Vestfold" }
+  ],
+  "DK": [
+    { code: "DK84", label: "Hovedstaden" },
+    { code: "DK82", label: "Midtjylland" },
+    { code: "DK81", label: "Nordjylland" },
+    { code: "DK85", label: "Sja\xE6lland" },
+    { code: "DK83", label: "Syddanmark" }
+  ],
+  "FI": [
+    { code: "FI08", label: "Central Finland" },
+    { code: "FI07", label: "Central Ostrobothnia" },
+    { code: "FI19", label: "Finland Proper" },
+    { code: "FI05", label: "Kainuu" },
+    { code: "FI09", label: "Kymenlaakso" },
+    { code: "FI10", label: "Lapland" },
+    { code: "FI13", label: "North Karelia" },
+    { code: "FI14", label: "Northern Ostrobothnia" },
+    { code: "FI15", label: "Northern Savonia" },
+    { code: "FI12", label: "Ostrobothnia" },
+    { code: "FI16", label: "P\xE4ij\xE4t-H\xE4me" },
+    { code: "FI11", label: "Pirkanmaa" },
+    { code: "FI17", label: "Satakunta" },
+    { code: "FI02", label: "South Karelia" },
+    { code: "FI03", label: "Southern Ostrobothnia" },
+    { code: "FI04", label: "Southern Savonia" },
+    { code: "FI06", label: "Tavastia Proper" },
+    { code: "FI18", label: "Uusimaa" }
+  ],
+  "PL": [
+    { code: "PLWP", label: "Greater Poland" },
+    { code: "PLKP", label: "Kuyavian-Pomeranian" },
+    { code: "PLMA", label: "Lesser Poland" },
+    { code: "PLLD", label: "\u0141\xF3d\u017A" },
+    { code: "PLDS", label: "Lower Silesian" },
+    { code: "PLLU", label: "Lublin" },
+    { code: "PLLB", label: "Lubusz" },
+    { code: "PLMZ", label: "Masovian" },
+    { code: "PLOP", label: "Opole" },
+    { code: "PLPD", label: "Podlachian" },
+    { code: "PLPM", label: "Pomeranian" },
+    { code: "PLSL", label: "Silesian" },
+    { code: "PLPK", label: "Subcarpathian" },
+    { code: "PLSK", label: "\u015Awi\u0119tokrzyskie" },
+    { code: "PLWN", label: "Warmian-Masurian" },
+    { code: "PLZP", label: "West Pomeranian" }
+  ],
+  "AU": [
+    { code: "AUACT", label: "Australian Capital Territory" },
+    { code: "AUNSW", label: "New South Wales" },
+    { code: "AUNT", label: "Northern Territory" },
+    { code: "AUQLD", label: "Queensland" },
+    { code: "AUSA", label: "South Australia" },
+    { code: "AUTAS", label: "Tasmania" },
+    { code: "AUVIC", label: "Victoria" },
+    { code: "AUWA", label: "Western Australia" }
+  ]
+};
+function getHmcCountry(code) {
+  const k2 = (code ?? "").trim().toUpperCase();
+  return HMC_COUNTRIES.find((c) => c.code === k2);
+}
+function getHmcRegionsForCountry(countryCode) {
+  const k2 = (countryCode ?? "").trim().toUpperCase();
+  return HMC_REGIONS_BY_COUNTRY[k2] ?? [];
+}
+function hmcCountryForRegion(regionAbbrev) {
+  const k2 = (regionAbbrev ?? "").trim().toUpperCase();
+  return REGION_TO_COUNTRY[k2] ?? null;
+}
+function normalizeHmcRegionCode(region) {
+  const k2 = (region ?? "").trim().toUpperCase();
+  if (!k2 || !REGION_TO_COUNTRY[k2]) return null;
+  return k2;
+}
+function matchesHmcDirectoryCountry(value) {
+  const raw2 = (value ?? "").trim();
+  if (!raw2) return false;
+  if (getHmcCountry(raw2)) return true;
+  const lower = raw2.toLowerCase();
+  return HMC_COUNTRIES.some((c) => c.name.toLowerCase() === lower);
+}
+function matchHmcRegionInCountry(countryCode, hints) {
+  const cc = (countryCode ?? "").trim().toUpperCase();
+  if (!cc || !HMC_COUNTRY_CODES.has(cc)) return null;
+  const regions2 = getHmcRegionsForCountry(cc);
+  const iso = (hints.iso3166 ?? "").trim().toUpperCase();
+  if (iso) {
+    const parts = iso.split("-");
+    if (parts.length >= 2) {
+      const isoCc = parts[0];
+      const isoRegion = parts.slice(1).join("-");
+      if (isoCc === cc) {
+        const byCode = normalizeHmcRegionCode(isoRegion);
+        if (byCode && hmcCountryForRegion(byCode) === cc) return byCode;
+        const direct = regions2.find((r) => r.code === isoRegion);
+        if (direct) return direct.code;
+      }
+    }
+  }
+  const stateCode = (hints.stateCode ?? "").trim().toUpperCase();
+  if (stateCode) {
+    const byCode = normalizeHmcRegionCode(stateCode);
+    if (byCode && hmcCountryForRegion(byCode) === cc) return byCode;
+    const inCountry = regions2.find((r) => r.code === stateCode);
+    if (inCountry) return inCountry.code;
+  }
+  const stateName = (hints.stateName ?? "").trim().toLowerCase();
+  if (stateName) {
+    const exact = regions2.find((r) => r.label.toLowerCase() === stateName);
+    if (exact) return exact.code;
+    const starts = regions2.find(
+      (r) => stateName.startsWith(r.label.toLowerCase()) || r.label.toLowerCase().startsWith(stateName)
+    );
+    if (starts) return starts.code;
+  }
+  return null;
+}
 
 // src/utils/us-states.ts
 var US_STATE_OPTIONS = [
@@ -295657,12 +297367,23 @@ function isHmcConfigured() {
     return false;
   }
 }
+function normalizePartnerRegion(raw2) {
+  const fromRegistry = normalizeHmcRegionCode(raw2);
+  if (fromRegistry) return fromRegistry;
+  const k2 = raw2.trim().toUpperCase();
+  if (/^[A-Z][A-Z0-9]{1,31}$/.test(k2)) return k2;
+  return null;
+}
 async function hmcSearchChurches(options) {
   const q2 = options.q.trim();
-  const state = options.state.trim().toUpperCase();
+  const state = normalizePartnerRegion(options.state);
   if (q2.length < 2) return [];
-  if (!/^[A-Z]{2}$/.test(state)) {
-    throw new HmcPartnerError("state must be a 2-letter US abbreviation", "HMC_INVALID_STATE", 400);
+  if (!state) {
+    throw new HmcPartnerError(
+      "state must be a Here\u2019s My Church region abbreviation",
+      "HMC_INVALID_STATE",
+      400
+    );
   }
   const limit = Math.min(50, Math.max(1, Math.round(options.limit ?? 20)));
   const params = new URLSearchParams({
@@ -295687,31 +297408,120 @@ async function hmcGetChurchById(id) {
     throw error;
   }
 }
-function hmcDenormFields(church) {
+async function hmcFetchChurchChanges(options) {
+  const since = options.since.trim();
+  if (!since) {
+    throw new HmcPartnerError("since is required", "HMC_INVALID_SINCE", 400);
+  }
+  const limit = Math.min(Math.max(options.limit ?? 100, 1), 500);
+  const params = new URLSearchParams({
+    since,
+    limit: String(limit)
+  });
+  const data = await hmcFetchJson(`/churches/changes?${params.toString()}`);
+  const changes = [];
+  for (const raw2 of data.changes ?? []) {
+    if (!raw2 || typeof raw2 !== "object") continue;
+    const row = raw2;
+    const churchId = typeof row.churchId === "string" ? row.churchId.trim() : "";
+    const action = typeof row.action === "string" ? row.action.trim() : "";
+    const at = typeof row.at === "string" ? row.at.trim() : "";
+    if (!churchId || !action || !at) continue;
+    changes.push({
+      churchId,
+      action,
+      field: typeof row.field === "string" ? row.field : null,
+      at
+    });
+  }
+  const nextSince = typeof data.nextSince === "string" && data.nextSince.trim() ? data.nextSince.trim() : since;
   return {
-    name: church.name,
-    city: church.city?.trim() || null,
-    state: church.state?.trim() || null
+    changes,
+    nextSince,
+    hasMore: data.hasMore === true
   };
 }
-async function hmcGeocodeUsPlace(options) {
-  const city = options.city.trim();
-  const state = normalizeUsStateCode(options.state);
-  const street = (options.address ?? "").trim();
-  if (!city || !state) return null;
-  const q2 = street ? `${street}, ${city}, ${state}, USA` : `${city}, ${state}, USA`;
-  const url = `https://nominatim.openstreetmap.org/search?${new URLSearchParams({
-    q: q2,
+var NOMINATIM_TIMEOUT_MS = 2500;
+function nominatimSignal() {
+  try {
+    return AbortSignal.timeout(NOMINATIM_TIMEOUT_MS);
+  } catch {
+    return void 0;
+  }
+}
+async function hmcFillMissingCity(church) {
+  if (church.city?.trim()) return church;
+  const lat = church.lat;
+  const lng = church.lng;
+  if (typeof lat !== "number" || typeof lng !== "number") return church;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return church;
+  const url = `https://nominatim.openstreetmap.org/reverse?${new URLSearchParams({
+    lat: String(lat),
+    lon: String(lng),
     format: "json",
-    limit: "1",
-    countrycodes: "us"
+    addressdetails: "1"
   })}`;
   try {
     const response = await fetch(url, {
       headers: {
         Accept: "application/json",
         "User-Agent": "Harvous/1.0 (Bible study notes; https://harvous.com)"
-      }
+      },
+      signal: nominatimSignal()
+    });
+    if (!response.ok) return church;
+    const data = await response.json();
+    const city = cityFromNominatim(data.address);
+    if (!city) return church;
+    return { ...church, city };
+  } catch {
+    return church;
+  }
+}
+async function hmcGetChurchByIdForDenorm(id) {
+  const church = await hmcGetChurchById(id);
+  if (!church) return null;
+  return hmcFillMissingCity(church);
+}
+function hmcDenormFields(church) {
+  const state = church.state?.trim() || null;
+  return {
+    name: church.name,
+    city: church.city?.trim() || null,
+    state,
+    country: hmcCountryForRegion(state)
+  };
+}
+function cityFromNominatim(addr) {
+  if (!addr) return "";
+  return (addr.city || addr.town || addr.village || addr.municipality || addr.suburb || addr.county || "").trim();
+}
+function streetFromNominatim(addr) {
+  if (!addr) return null;
+  const road = (addr.road || "").trim();
+  if (!road) return null;
+  const num = (addr.house_number || "").trim();
+  return num ? `${num} ${road}` : road;
+}
+async function hmcGeocodeAddress(options) {
+  const address = options.address.trim();
+  const country = options.country.trim().toUpperCase();
+  if (!address || address.length < 3) return null;
+  if (!getHmcCountry(country)) return null;
+  const url = `https://nominatim.openstreetmap.org/search?${new URLSearchParams({
+    q: address,
+    format: "json",
+    limit: "1",
+    addressdetails: "1",
+    countrycodes: country.toLowerCase()
+  })}`;
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Harvous/1.0 (Bible study notes; https://harvous.com)"
+      },
+      signal: nominatimSignal()
     });
     if (!response.ok) return null;
     const data = await response.json();
@@ -295720,7 +297530,55 @@ async function hmcGeocodeUsPlace(options) {
     const lat = Number.parseFloat(first3.lat);
     const lng = Number.parseFloat(first3.lon);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-    if (lat < 18 || lat > 72 || lng < -180 || lng > -65) return null;
+    const addr = first3.address;
+    const region = matchHmcRegionInCountry(country, {
+      iso3166: addr?.["ISO3166-2-lvl4"] || addr?.["ISO3166-2-lvl6"],
+      stateCode: addr?.state_code,
+      stateName: addr?.state
+    });
+    if (!region) return null;
+    const city = cityFromNominatim(addr);
+    if (!city) return null;
+    return {
+      lat,
+      lng,
+      city,
+      state: region,
+      country,
+      address: streetFromNominatim(addr) || address
+    };
+  } catch {
+    return null;
+  }
+}
+async function hmcGeocodePlace(options) {
+  const city = options.city.trim();
+  const region = normalizeHmcRegionCode(options.state) ?? normalizeUsStateCode(options.state);
+  const country = (options.country ?? "").trim().toUpperCase() || hmcCountryForRegion(region) || "US";
+  const street = (options.address ?? "").trim();
+  if (!city || !region) return null;
+  const q2 = street ? `${street}, ${city}, ${region}, ${country}` : `${city}, ${region}, ${country}`;
+  const url = `https://nominatim.openstreetmap.org/search?${new URLSearchParams({
+    q: q2,
+    format: "json",
+    limit: "1",
+    countrycodes: country.toLowerCase()
+  })}`;
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Harvous/1.0 (Bible study notes; https://harvous.com)"
+      },
+      signal: nominatimSignal()
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const first3 = Array.isArray(data) ? data[0] : null;
+    if (!first3?.lat || !first3?.lon) return null;
+    const lat = Number.parseFloat(first3.lat);
+    const lng = Number.parseFloat(first3.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
     return { lat, lng };
   } catch {
     return null;
@@ -295729,22 +297587,35 @@ async function hmcGeocodeUsPlace(options) {
 async function hmcAddChurch(options) {
   const name = options.name.trim();
   const city = options.city.trim();
-  const state = normalizeUsStateCode(options.state);
+  const state = normalizeHmcRegionCode(options.state) ?? normalizeUsStateCode(options.state);
   if (!name || name.length < 2) {
     throw new HmcPartnerError("Church name is required", "HMC_INVALID_NAME", 400);
   }
   if (!city) {
-    throw new HmcPartnerError("City is required to add a U.S. church", "HMC_INVALID_CITY", 400);
+    throw new HmcPartnerError("City is required to add a church", "HMC_INVALID_CITY", 400);
   }
   if (!state) {
-    throw new HmcPartnerError("state must be a 2-letter US abbreviation", "HMC_INVALID_STATE", 400);
+    throw new HmcPartnerError(
+      "state must be a Here\u2019s My Church region abbreviation",
+      "HMC_INVALID_STATE",
+      400
+    );
   }
   if (!Number.isFinite(options.lat) || !Number.isFinite(options.lng)) {
-    throw new HmcPartnerError("Valid US coordinates are required", "HMC_INVALID_COORDS", 400);
+    throw new HmcPartnerError("Valid coordinates are required", "HMC_INVALID_COORDS", 400);
   }
   const config3 = readHmcConfig();
   const edgeRoot = readHmcEdgeRoot();
   const url = `${edgeRoot}/churches/add`;
+  const payload = {
+    name,
+    city,
+    state,
+    lat: options.lat,
+    lng: options.lng,
+    address: (options.address ?? "").trim()
+  };
+  if (options.confirmAdd) payload.confirmAdd = true;
   let response;
   try {
     response = await fetch(url, {
@@ -295753,14 +297624,7 @@ async function hmcAddChurch(options) {
         ...partnerHeaders(config3),
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        name,
-        city,
-        state,
-        lat: options.lat,
-        lng: options.lng,
-        address: (options.address ?? "").trim()
-      })
+      body: JSON.stringify(payload)
     });
   } catch (error) {
     throw new HmcPartnerError(
@@ -295791,30 +297655,56 @@ async function hmcAddChurch(options) {
   if (existing) {
     return { church: existing, isDuplicate: true };
   }
+  if (body.needsConfirmation && Array.isArray(body.similar)) {
+    for (const row of body.similar) {
+      const similar = normalizeLeanChurch(row);
+      if (similar) return { church: similar, isDuplicate: true };
+    }
+  }
   throw new HmcPartnerError("Here\u2019s My Church add returned no church", "HMC_UPSTREAM_ERROR", 502);
 }
-async function hmcSubmitUnlistedUsChurch(options) {
-  if (!isHmcConfigured()) return null;
-  const coords = await hmcGeocodeUsPlace({
-    city: options.city,
-    state: options.state,
-    address: options.address
-  });
-  if (!coords) return null;
+async function hmcSubmitUnlistedChurch(options) {
+  if (!isHmcConfigured()) return { church: null, place: null };
+  const country = (options.country ?? "").trim().toUpperCase() || hmcCountryForRegion(options.state) || "US";
+  const freeform = (options.address ?? "").trim();
+  let place = null;
+  if (freeform) {
+    place = await hmcGeocodeAddress({ address: freeform, country });
+  }
+  if (!place) {
+    const city = (options.city ?? "").trim();
+    const state = (options.state ?? "").trim();
+    if (!city || !state) return { church: null, place: null };
+    const coords = await hmcGeocodePlace({
+      city,
+      state,
+      country,
+      address: freeform || null
+    });
+    if (!coords) return { church: null, place: null };
+    place = {
+      lat: coords.lat,
+      lng: coords.lng,
+      city,
+      state: normalizeHmcRegionCode(state) ?? state,
+      country,
+      address: freeform || null
+    };
+  }
   try {
     const result = await hmcAddChurch({
       name: options.name,
-      city: options.city,
-      state: options.state,
-      address: options.address,
-      lat: coords.lat,
-      lng: coords.lng
+      city: place.city,
+      state: place.state,
+      address: place.address,
+      lat: place.lat,
+      lng: place.lng
     });
-    return result.church;
+    return { church: result.church, place };
   } catch (error) {
     if (error instanceof HmcPartnerError && error.code === "HMC_RATE_LIMITED") throw error;
-    console.warn("[hmcSubmitUnlistedUsChurch]", error instanceof Error ? error.message : error);
-    return null;
+    console.warn("[hmcSubmitUnlistedChurch]", error instanceof Error ? error.message : error);
+    return { church: null, place };
   }
 }
 
@@ -304156,7 +306046,7 @@ app2.post("/api/user/update-church", requireAuth, rateLimit("write"), async (c) 
     const hmcChurchIdRaw = body.hmcChurchId === null ? null : typeof body.hmcChurchId === "string" ? body.hmcChurchId.trim() || null : void 0;
     const hasManualKeys = "churchName" in body || "churchCity" in body || "churchState" in body || "churchCountry" in body;
     const intentRaw = typeof body.intent === "string" ? body.intent.trim() : "";
-    const intent = intentRaw === "outside_us" || intentRaw === "unlisted_us" ? intentRaw : void 0;
+    const intent = intentRaw === "outside_directory" || intentRaw === "outside_us" ? "outside_directory" : intentRaw === "unlisted" || intentRaw === "unlisted_us" ? "unlisted" : void 0;
     if (intentRaw && !intent) {
       return c.json({ error: "Invalid church intent", code: "CHURCH_INTENT_INVALID" }, 400);
     }
@@ -304178,7 +306068,7 @@ app2.post("/api/user/update-church", requireAuth, rateLimit("write"), async (c) 
           400
         );
       }
-      const hmc = await hmcGetChurchById(hmcChurchIdRaw);
+      const hmc = await hmcGetChurchByIdForDenorm(hmcChurchIdRaw);
       if (!hmc) {
         return c.json({ error: "Here\u2019s My Church record not found", code: "HMC_CHURCH_NOT_FOUND" }, 404);
       }
@@ -304187,7 +306077,7 @@ app2.post("/api/user/update-church", requireAuth, rateLimit("write"), async (c) 
       normalizedChurchName = denorm.name;
       normalizedChurchCity = denorm.city;
       normalizedChurchState = denorm.state;
-      normalizedChurchCountry = null;
+      normalizedChurchCountry = denorm.country;
       applyChurchUpdate = true;
     } else if (hmcChurchIdRaw === null && !hasManualKeys) {
       if (intent) {
@@ -304202,7 +306092,7 @@ app2.post("/api/user/update-church", requireAuth, rateLimit("write"), async (c) 
       normalizedChurchState = null;
       normalizedChurchCountry = null;
       applyChurchUpdate = true;
-    } else if (intent === "outside_us") {
+    } else if (intent === "outside_directory") {
       normalizedHmcChurchId = null;
       normalizedChurchName = readOptionalString(body.churchName);
       normalizedChurchCity = readOptionalString(body.churchCity);
@@ -304214,52 +306104,69 @@ app2.post("/api/user/update-church", requireAuth, rateLimit("write"), async (c) 
       if (!normalizedChurchCountry) {
         return c.json({ error: "Country is required", code: "CHURCH_COUNTRY_REQUIRED" }, 400);
       }
-      if (isUnitedStatesCountryLabel(normalizedChurchCountry)) {
+      if (matchesHmcDirectoryCountry(normalizedChurchCountry)) {
         return c.json(
           {
-            error: "Use the U.S. directory or \u201CNot in the directory\u201D for U.S. churches",
+            error: "Use the directory or \u201CNot in the directory\u201D for countries Here\u2019s My Church covers",
             code: "CHURCH_INTENT_MISMATCH"
           },
           400
         );
       }
       applyChurchUpdate = true;
-    } else if (intent === "unlisted_us") {
+    } else if (intent === "unlisted") {
       normalizedHmcChurchId = null;
       normalizedChurchName = readOptionalString(body.churchName);
-      normalizedChurchCity = readOptionalString(body.churchCity);
-      const usState = normalizeUsStateCode(readOptionalString(body.churchState));
+      const churchAddress = readOptionalString(body.churchAddress);
+      const legacyCity = readOptionalString(body.churchCity);
+      const legacyRegion = normalizeHmcRegionCode(readOptionalString(body.churchState));
       const countryHint = readOptionalString(body.churchCountry);
-      if (countryHint && !isUnitedStatesCountryLabel(countryHint)) {
+      const hintCode = countryHint && getHmcCountry(countryHint) ? countryHint.trim().toUpperCase() : countryHint && matchesHmcDirectoryCountry(countryHint) ? hmcCountryForRegion(legacyRegion) : null;
+      const countryCode = hintCode || hmcCountryForRegion(legacyRegion);
+      if (countryHint && !matchesHmcDirectoryCountry(countryHint) && !isUnitedStatesCountryLabel(countryHint)) {
         return c.json(
-          { error: "Unlisted U.S. churches cannot include a non-U.S. country", code: "CHURCH_INTENT_MISMATCH" },
+          {
+            error: "Unlisted churches must use a Here\u2019s My Church directory country",
+            code: "CHURCH_INTENT_MISMATCH"
+          },
           400
         );
       }
       if (!normalizedChurchName) {
         return c.json({ error: "Church name is required", code: "CHURCH_NAME_REQUIRED" }, 400);
       }
-      if (!normalizedChurchCity) {
-        return c.json({ error: "City is required for U.S. churches", code: "CHURCH_CITY_REQUIRED" }, 400);
+      if (!countryCode) {
+        return c.json({ error: "Select a directory country", code: "CHURCH_COUNTRY_REQUIRED" }, 400);
       }
-      if (!usState) {
-        return c.json({ error: "Select a U.S. state", code: "CHURCH_STATE_REQUIRED" }, 400);
+      if (!churchAddress && !(legacyCity && legacyRegion)) {
+        return c.json(
+          { error: "Address is required (include city and region)", code: "CHURCH_ADDRESS_REQUIRED" },
+          400
+        );
       }
-      normalizedChurchState = usState;
-      normalizedChurchCountry = null;
+      normalizedChurchCountry = countryCode;
+      normalizedChurchCity = churchAddress || legacyCity;
+      normalizedChurchState = legacyRegion;
       try {
-        const submitted = await hmcSubmitUnlistedUsChurch({
+        const submitted = await hmcSubmitUnlistedChurch({
           name: normalizedChurchName,
-          city: normalizedChurchCity,
-          state: usState
+          country: countryCode,
+          address: churchAddress,
+          city: legacyCity,
+          state: legacyRegion
         });
-        if (submitted) {
-          const denorm = hmcDenormFields(submitted);
-          normalizedHmcChurchId = submitted.id;
+        if (submitted.church) {
+          const enriched = await hmcFillMissingCity(submitted.church);
+          const denorm = hmcDenormFields(enriched);
+          normalizedHmcChurchId = enriched.id;
           normalizedChurchName = denorm.name;
           normalizedChurchCity = denorm.city;
           normalizedChurchState = denorm.state;
-          normalizedChurchCountry = null;
+          normalizedChurchCountry = denorm.country;
+        } else if (submitted.place) {
+          normalizedChurchCity = submitted.place.city;
+          normalizedChurchState = submitted.place.state;
+          normalizedChurchCountry = submitted.place.country;
         }
       } catch (error) {
         if (error instanceof HmcPartnerError && error.code === "HMC_RATE_LIMITED") {
@@ -304295,20 +306202,22 @@ app2.post("/api/user/update-church", requireAuth, rateLimit("write"), async (c) 
           );
         }
         normalizedChurchState = usState;
-        normalizedChurchCountry = null;
+        normalizedChurchCountry = "US";
         try {
-          const submitted = await hmcSubmitUnlistedUsChurch({
+          const submitted = await hmcSubmitUnlistedChurch({
             name: normalizedChurchName,
             city: normalizedChurchCity,
-            state: usState
+            state: usState,
+            country: "US"
           });
-          if (submitted) {
-            const denorm = hmcDenormFields(submitted);
-            normalizedHmcChurchId = submitted.id;
+          if (submitted.church) {
+            const enriched = await hmcFillMissingCity(submitted.church);
+            const denorm = hmcDenormFields(enriched);
+            normalizedHmcChurchId = enriched.id;
             normalizedChurchName = denorm.name;
             normalizedChurchCity = denorm.city;
             normalizedChurchState = denorm.state;
-            normalizedChurchCountry = null;
+            normalizedChurchCountry = denorm.country;
           }
         } catch (error) {
           if (error instanceof HmcPartnerError && error.code === "HMC_RATE_LIMITED") {
@@ -304501,6 +306410,29 @@ app2.post("/api/user/update-profile", requireAuth, rateLimit("write"), async (c)
     });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: "/api/user/update-profile", action: "update_profile" });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+var AUDIENCEFUL_MILESTONE_TO_FLAG = {
+  note_opened: "has_opened_note",
+  upgrade_viewed: "upgrade_viewed",
+  checkout_started: "checkout_started"
+};
+app2.post("/api/user/audienceful-milestones", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const raw2 = Array.isArray(body.milestones) ? body.milestones : [];
+    const flags = {};
+    for (const item of raw2) {
+      if (typeof item !== "string") continue;
+      const flagKey = AUDIENCEFUL_MILESTONE_TO_FLAG[item];
+      if (flagKey) flags[flagKey] = true;
+    }
+    queueAudiencefulProductFlagsForUser(auth.userId, flags);
+    return c.json({ success: true }, 200);
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: "/api/user/audienceful-milestones", action: "audienceful_milestones" });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
@@ -306693,6 +308625,15 @@ async function getReferralBonusNotes(userId) {
 async function hasUnlimitedNotes(auth) {
   return await getTierForAuth(auth) === "unlimited";
 }
+async function softRead(label, read, fallback) {
+  try {
+    return await read();
+  } catch (error) {
+    const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : null;
+    console.error(`[subscription] ${label} degraded:`, cause ?? (error instanceof Error ? error.message : error));
+    return fallback;
+  }
+}
 async function activeBillingProductIds(userId) {
   const rows = await db.select({ productId: Entitlements.productId }).from(Entitlements).where(
     and(
@@ -306736,11 +308677,11 @@ async function getSubscriptionInfo(userId, auth) {
     hasSharedSpacesAddOn(auth),
     getUserNoteCount(userId),
     getReferralBonusNotes(userId),
-    getSharedSpacesOwnedCount(userId),
+    softRead("sharedSpacesOwnedCount", () => getSharedSpacesOwnedCount(userId), 0),
     getActiveEntitlements(userId),
     limitsForUser(userId),
-    activeBillingProductIds(userId),
-    hasBillingManagedEntitlement(userId)
+    softRead("activeBillingProductIds", () => activeBillingProductIds(userId), []),
+    softRead("hasBillingManagedEntitlement", () => hasBillingManagedEntitlement(userId), false)
   ]);
   const planKey = resolvePlanKeyFromProducts(billingProductIds);
   const sharedSpacesOwnedLimit = hasSharedSpaces ? limits.ownedSpaces : FREE_OWNED_SHARED_SPACES_LIMIT;
@@ -306751,7 +308692,7 @@ async function getSubscriptionInfo(userId, auth) {
     /** Connector is a separate product with its own subscription. */
     hasConnector: entitlements.includes("connector"),
     /**
-     * On the capped founding price ($45/yr, first 99) — drives the "Founding"
+     * On the capped founding price ($30/yr, first 99) — drives the "Founding"
      * badge. Read from the product actually purchased, never from the plan key,
      * because founding and standard Plus share `key: 'plus'`.
      */
@@ -307115,7 +309056,7 @@ app5.post("/api/billing/sync", requireAuth, async (c) => {
 app5.get("/api/subscription/status", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    await syncEntitlementsFromProvider(auth.userId);
+    await syncEntitlementsFromProvider(auth.userId, { throttle: true });
     const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
     return c.json(
       {
@@ -307138,8 +309079,11 @@ app5.get("/api/subscription/status", requireAuth, async (c) => {
       { "Cache-Control": "private, no-store, max-age=0" }
     );
   } catch (error) {
-    console.error("Error checking subscription status:", error);
-    return c.json({ error: error.message || "Failed to check subscription status", hasUnlimited: false }, 500);
+    handleAPIError(error, { endpoint: "/api/subscription/status", action: "check_subscription_status" });
+    return c.json(
+      { error: "Failed to check subscription status", code: "SUBSCRIPTION_STATUS_UNAVAILABLE", hasUnlimited: false },
+      500
+    );
   }
 });
 app5.post("/api/referral/credit", requireAuth, async (c) => {
@@ -307306,7 +309250,7 @@ app6.post("/api/resource/check-duplicate", requireAuth, async (c) => {
     return c.json({ error: "Failed to check for duplicates", code: "CHECK_FAILED" }, 500);
   }
 });
-app6.post("/api/resource/metadata", async (c) => {
+app6.post("/api/resource/metadata", requireAuth, rateLimit("write"), async (c) => {
   try {
     const body = await c.req.json();
     const { url, metadata, extractContent } = body;
@@ -308041,8 +309985,11 @@ async function handleAutoArchive(c) {
     const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
     const auth = getAuth(c);
     const isAuthenticated = !!auth?.userId;
-    const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
-    if (expectedToken && !hasValidToken && !isAuthenticated) {
+    const hasValidToken = !!expectedToken && authHeader === `Bearer ${expectedToken}`;
+    if (!hasValidToken && !isAuthenticated) {
+      if (!expectedToken) {
+        return c.json({ error: "Service Unavailable", message: "AUTO_ARCHIVE_SECRET_TOKEN is not configured." }, 503);
+      }
       return c.json({ error: "Unauthorized" }, 401);
     }
     const fourteenDaysAgo = /* @__PURE__ */ new Date();
@@ -308053,7 +310000,7 @@ async function handleAutoArchive(c) {
       eq(InboxItems.isActive, true),
       lt(UserInboxItems.createdAt, fourteenDaysAgo)
     ];
-    if (isAuthenticated && !hasValidToken) {
+    if (!hasValidToken) {
       conditions.push(eq(UserInboxItems.userId, auth.userId));
     }
     const itemsToArchive = await db.select({ userInboxItem: UserInboxItems, inboxItem: InboxItems }).from(UserInboxItems).innerJoin(InboxItems, eq(UserInboxItems.inboxItemId, InboxItems.id)).where(and(...conditions));
@@ -308087,8 +310034,11 @@ async function handleAutoDelete(c) {
     const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
     const auth = getAuth(c);
     const isAuthenticated = !!auth?.userId;
-    const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
-    if (expectedToken && !hasValidToken && !isAuthenticated) {
+    const hasValidToken = !!expectedToken && authHeader === `Bearer ${expectedToken}`;
+    if (!hasValidToken && !isAuthenticated) {
+      if (!expectedToken) {
+        return c.json({ error: "Service Unavailable", message: "AUTO_ARCHIVE_SECRET_TOKEN is not configured." }, 503);
+      }
       return c.json({ error: "Unauthorized" }, 401);
     }
     const thirtyDaysAgo = /* @__PURE__ */ new Date();
@@ -308101,7 +310051,7 @@ async function handleAutoDelete(c) {
       eq(UserInboxItems.status, "archived"),
       isNull(UserInboxItems.archivedAt)
     ];
-    if (isAuthenticated && !hasValidToken) {
+    if (!hasValidToken) {
       backfillConditions.push(eq(UserInboxItems.userId, auth.userId));
     }
     const itemsToBackfill = await db.select().from(UserInboxItems).where(and(...backfillConditions));
@@ -308121,7 +310071,7 @@ async function handleAutoDelete(c) {
         and(isNull(UserInboxItems.archivedAt), lt(UserInboxItems.createdAt, fortyFourDaysAgo))
       )
     ];
-    if (isAuthenticated && !hasValidToken) {
+    if (!hasValidToken) {
       deleteConditions.push(eq(UserInboxItems.userId, auth.userId));
     }
     const itemsToDelete = await db.select().from(UserInboxItems).where(and(...deleteConditions));
@@ -308150,52 +310100,23 @@ async function handleAutoDelete(c) {
 }
 app7.post("/api/inbox/auto-delete", handleAutoDelete);
 app7.get("/api/inbox/auto-delete", handleAutoDelete);
-app7.post("/api/inbox/assign-to-users", requireAuth, async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    const allInboxItems = await db.select().from(InboxItems).where(eq(InboxItems.isActive, true));
-    const allUsers = await db.select().from(UserMetadata);
-    let totalAssigned = 0;
-    const results = [];
-    for (const inboxItem of allInboxItems) {
-      if (inboxItem.targetAudience !== "all_users") continue;
-      let assignedCount = 0;
-      for (const user of allUsers) {
-        const existing = first(await db.select().from(UserInboxItems).where(and(eq(UserInboxItems.userId, user.userId), eq(UserInboxItems.inboxItemId, inboxItem.id))).limit(1));
-        if (!existing) {
-          await db.insert(UserInboxItems).values({
-            id: `user_inbox_${user.userId}_${inboxItem.id}_${Date.now()}`,
-            userId: user.userId,
-            inboxItemId: inboxItem.id,
-            status: "inbox",
-            createdAt: nowISO()
-          });
-          assignedCount++;
-        }
-      }
-      if (assignedCount > 0) {
-        results.push(`${inboxItem.title}: assigned to ${assignedCount} user(s)`);
-        totalAssigned += assignedCount;
-      }
-    }
-    return c.json({
-      success: true,
-      message: "Assigned inbox items to users",
-      totalAssigned,
-      itemsProcessed: allInboxItems.length,
-      usersProcessed: allUsers.length,
-      results
-    });
-  } catch (error) {
-    console.error("Error assigning inbox items:", error);
-    return c.json({ error: "Failed to assign inbox items", details: error.message }, 500);
-  }
+app7.post("/api/inbox/assign-to-users", async (c) => {
+  return c.json(
+    {
+      error: "Gone",
+      message: "Webflow inbox assignment is retired. Use the Featured Item system instead."
+    },
+    410
+  );
 });
 app7.post("/api/inbox/reset-all-users", async (c) => {
   try {
     const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
     const expectedToken = process.env.INBOX_RESET_SECRET_TOKEN;
-    if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
+    if (!expectedToken) {
+      return c.json({ error: "Service Unavailable", message: "INBOX_RESET_SECRET_TOKEN is not configured." }, 503);
+    }
+    if (authHeader !== `Bearer ${expectedToken}`) {
       return c.json({ error: "Unauthorized" }, 401);
     }
     const allUserInboxItems = await db.select().from(UserInboxItems);
@@ -308290,572 +310211,10 @@ app7.get("/api/inbox/reset-all-users", async (c) => {
     message: "Use POST method to reset inbox items",
     endpoint: "/api/inbox/reset-all-users",
     method: "POST",
-    note: "Optional: Set INBOX_RESET_SECRET_TOKEN environment variable for authentication"
+    note: "Requires Authorization: Bearer <INBOX_RESET_SECRET_TOKEN>"
   });
 });
 var inbox_default = app7;
-
-// server/routes/webflow.ts
-init_db2();
-init_dates();
-var app8 = new Hono2();
-var COLOR_MAP = {
-  "blue": "blessed-blue",
-  "yellow": "graceful-gold",
-  "orange": "pleasant-peach",
-  "pink": "peaceful-pink",
-  "purple": "lovely-lavender",
-  "green": "mindful-mint",
-  "paper": "paper"
-};
-var THREADS_COLLECTION_ID = "690ed2f0edd9bab40a4eb397";
-async function transformWebflowItem(item, webflowToken) {
-  const transformed = {
-    _id: item.id,
-    "is-draft": item.isDraft || false,
-    "published-on": item.lastPublished || void 0
-  };
-  transformed["content-type"] = "thread";
-  if (item.fieldData) {
-    transformed.title = item.fieldData.name;
-    let rawContent = item.fieldData.content || item.fieldData["Content"] || item.fieldData["content-html"] || item.fieldData["content-html-2"] || item.fieldData.description || item.fieldData.body || null;
-    if (rawContent && typeof rawContent === "object") {
-      rawContent = rawContent.html || rawContent.richText || rawContent.content || JSON.stringify(rawContent);
-    }
-    transformed.content = rawContent;
-    if (item.fieldData["color-2"]) {
-      try {
-        const colorResponse = await fetch(
-          `https://api.webflow.com/v2/collections/6915354840aef29a7530463c/items/${item.fieldData["color-2"]}`,
-          {
-            headers: {
-              "Authorization": `Bearer ${webflowToken}`,
-              "Accept-Version": "1.0.0"
-            }
-          }
-        );
-        if (colorResponse.ok) {
-          const colorData = await colorResponse.json();
-          const colorItem = colorData.items?.[0] || colorData;
-          const colorSlug = colorItem.fieldData?.slug || colorItem.fieldData?.name?.toLowerCase();
-          transformed.color = COLOR_MAP[colorSlug] || "blessed-blue";
-        }
-      } catch (error) {
-        console.error("Error fetching color:", error);
-        transformed.color = "blessed-blue";
-      }
-    }
-    if (item.fieldData.notes && Array.isArray(item.fieldData.notes)) {
-      transformed["thread-notes"] = item.fieldData.notes;
-    }
-    if (item.fieldData.image) {
-      if (typeof item.fieldData.image === "string") {
-        transformed["image-url"] = item.fieldData.image;
-      } else if (item.fieldData.image.url) {
-        transformed["image-url"] = item.fieldData.image.url;
-      }
-    }
-    let threadTypeField = null;
-    if (item.fieldData["thread-type"]) {
-      threadTypeField = item.fieldData["thread-type"];
-    } else if (item.fieldData.threadType) {
-      threadTypeField = item.fieldData.threadType;
-    } else if (item.fieldData["Thread Type"]) {
-      threadTypeField = item.fieldData["Thread Type"];
-    } else {
-      const fieldKeys = Object.keys(item.fieldData);
-      const threadTypeKey = fieldKeys.find(
-        (key2) => key2.toLowerCase().includes("thread") && key2.toLowerCase().includes("type")
-      );
-      if (threadTypeKey) {
-        threadTypeField = item.fieldData[threadTypeKey];
-      }
-    }
-    if (threadTypeField) {
-      if (typeof threadTypeField === "object" && threadTypeField !== null) {
-        transformed["thread-type"] = "Default";
-      } else if (typeof threadTypeField === "string" && threadTypeField.trim() !== "") {
-        transformed["thread-type"] = "Default";
-      }
-    }
-    transformed["target-audience"] = "all_users";
-    transformed["is-active"] = !item.isArchived;
-  }
-  return transformed;
-}
-async function upsertInboxItem(webflowItem, webflowToken) {
-  const webflowItemId = webflowItem._id;
-  let imageUrl;
-  if (webflowItem["image-url"]) {
-    if (typeof webflowItem["image-url"] === "string") {
-      imageUrl = webflowItem["image-url"];
-    } else if (webflowItem["image-url"]?.url) {
-      imageUrl = webflowItem["image-url"].url;
-    }
-  }
-  const existingItem = first(await db.select().from(InboxItems).where(eq(InboxItems.webflowItemId, webflowItemId)).limit(1));
-  const inboxItemId = existingItem?.id || `inbox_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  if (existingItem) {
-    await db.update(InboxItems).set({
-      webflowItemId,
-      contentType: "thread",
-      title: webflowItem.title || "Untitled",
-      subtitle: webflowItem.subtitle || null,
-      content: webflowItem.content || null,
-      imageUrl: imageUrl || null,
-      color: webflowItem.color || null,
-      threadType: webflowItem["thread-type"] || null,
-      targetAudience: webflowItem["target-audience"] || "all_users",
-      isActive: webflowItem["is-active"] !== false,
-      updatedAt: nowISO()
-    }).where(eq(InboxItems.id, inboxItemId));
-  } else {
-    await db.insert(InboxItems).values({
-      id: inboxItemId,
-      webflowItemId,
-      contentType: "thread",
-      title: webflowItem.title || "Untitled",
-      subtitle: webflowItem.subtitle || null,
-      content: webflowItem.content || null,
-      imageUrl: imageUrl || null,
-      color: webflowItem.color || null,
-      threadType: webflowItem["thread-type"] || null,
-      targetAudience: webflowItem["target-audience"] || "all_users",
-      isActive: webflowItem["is-active"] !== false,
-      createdAt: nowISO(),
-      updatedAt: nowISO()
-    });
-  }
-  if (webflowItem["thread-notes"] && Array.isArray(webflowItem["thread-notes"])) {
-    await db.delete(InboxItemNotes).where(eq(InboxItemNotes.inboxItemId, inboxItemId));
-    const notesCollectionId = "690ed346b73a1ff102283b32";
-    const noteItems = await Promise.all(
-      webflowItem["thread-notes"].map(async (noteId, index2) => {
-        try {
-          const noteResponse = await fetch(
-            `https://api.webflow.com/v2/collections/${notesCollectionId}/items/${noteId}`,
-            {
-              headers: {
-                "Authorization": `Bearer ${webflowToken}`,
-                "Accept-Version": "1.0.0"
-              }
-            }
-          );
-          if (noteResponse.ok) {
-            const noteData = await noteResponse.json();
-            const note = noteData.items?.[0] || noteData;
-            return { title: note.fieldData?.name || null, content: note.fieldData?.content || "", order: index2 };
-          }
-        } catch (error) {
-          console.error(`Error fetching note ${noteId}:`, error);
-        }
-        return { title: null, content: "", order: index2 };
-      })
-    );
-    for (let i = 0; i < noteItems.length; i++) {
-      const note = noteItems[i];
-      await db.insert(InboxItemNotes).values({
-        id: `inbox_note_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
-        inboxItemId,
-        title: note.title || null,
-        content: note.content || "",
-        order: note.order || i,
-        createdAt: nowISO()
-      });
-    }
-  }
-  const targetAudience = webflowItem["target-audience"] || "all_users";
-  if (targetAudience === "all_users") {
-    try {
-      const allUsers = await db.select().from(UserMetadata);
-      for (const user of allUsers) {
-        const existingUserInboxItem = first(await db.select().from(UserInboxItems).where(and(eq(UserInboxItems.userId, user.userId), eq(UserInboxItems.inboxItemId, inboxItemId))).limit(1));
-        if (!existingUserInboxItem) {
-          await db.insert(UserInboxItems).values({
-            id: `user_inbox_${user.userId}_${inboxItemId}_${Date.now()}`,
-            userId: user.userId,
-            inboxItemId,
-            status: "inbox",
-            createdAt: nowISO()
-          });
-        }
-      }
-    } catch (assignError) {
-      console.error(`Error assigning inbox item ${inboxItemId} to users:`, assignError);
-    }
-  }
-  return inboxItemId;
-}
-async function markInactiveByWebflowId(webflowItemId) {
-  const existingItem = first(await db.select().from(InboxItems).where(eq(InboxItems.webflowItemId, webflowItemId)).limit(1));
-  if (existingItem) {
-    await db.update(InboxItems).set({ isActive: false, updatedAt: nowISO() }).where(eq(InboxItems.id, existingItem.id));
-    return true;
-  }
-  return false;
-}
-function normalizeWebflowPayload(rawPayload) {
-  if (rawPayload.payload) {
-    const payload = rawPayload.payload;
-    if (payload.item) {
-      return {
-        triggerType: rawPayload.triggerType,
-        collection: payload.collectionId || rawPayload.collection || "",
-        site: payload.siteId || rawPayload.site || rawPayload.siteId || "",
-        item: {
-          ...payload.item,
-          cmsLocaleId: payload.item.cmsLocaleId || "",
-          lastUpdated: payload.item.lastUpdated || (/* @__PURE__ */ new Date()).toISOString(),
-          createdOn: payload.item.createdOn || (/* @__PURE__ */ new Date()).toISOString(),
-          isArchived: payload.item.isArchived || false,
-          isDraft: payload.item.isDraft || false,
-          fieldData: payload.item.fieldData || {}
-        }
-      };
-    } else if (payload.id) {
-      return {
-        triggerType: rawPayload.triggerType,
-        collection: payload.collectionId || rawPayload.collection || "",
-        site: payload.siteId || rawPayload.site || rawPayload.siteId || "",
-        item: {
-          id: payload.id,
-          cmsLocaleId: "",
-          lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
-          createdOn: (/* @__PURE__ */ new Date()).toISOString(),
-          isArchived: false,
-          isDraft: false,
-          fieldData: {}
-        }
-      };
-    }
-  }
-  if (rawPayload.item) {
-    return {
-      triggerType: rawPayload.triggerType,
-      collection: rawPayload.collection || rawPayload.collectionId || "",
-      site: rawPayload.site || rawPayload.siteId || "",
-      item: rawPayload.item
-    };
-  }
-  return {
-    triggerType: rawPayload.triggerType,
-    collection: rawPayload.collection || rawPayload.collectionId || "",
-    site: rawPayload.site || rawPayload.siteId || "",
-    item: {
-      id: "",
-      cmsLocaleId: "",
-      lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
-      createdOn: (/* @__PURE__ */ new Date()).toISOString(),
-      isArchived: false,
-      isDraft: false,
-      fieldData: {}
-    }
-  };
-}
-async function handleSyncInbox(c, items, collectionId, siteId, hardRefresh) {
-  const webflowToken = process.env.WEBFLOW_INBOX_API_TOKEN;
-  if (!webflowToken) {
-    return c.json({ error: "Webflow API token not configured" }, 500);
-  }
-  if (collectionId === "690ed346b73a1ff102283b32") {
-    return c.json({ error: "Notes collection sync is not supported. Only Threads collection can be synced to inbox." }, 400);
-  }
-  if (hardRefresh === true) {
-    try {
-      const allUserInboxItems = await db.select().from(UserInboxItems);
-      for (const userInboxItem of allUserInboxItems) {
-        await db.delete(UserInboxItems).where(eq(UserInboxItems.id, userInboxItem.id));
-      }
-      const allInboxItems = await db.select().from(InboxItems);
-      for (const inboxItem of allInboxItems) {
-        await db.update(InboxItems).set({ isActive: false, updatedAt: nowISO() }).where(eq(InboxItems.id, inboxItem.id));
-      }
-    } catch (error) {
-      console.error("Error during hard refresh cleanup:", error);
-    }
-  }
-  let webflowNativeItems = items || [];
-  if (!items && collectionId && siteId) {
-    const response = await fetch(
-      `https://api-cdn.webflow.com/v2/collections/${collectionId}/items`,
-      {
-        headers: {
-          "Authorization": `Bearer ${webflowToken}`,
-          "Accept-Version": "1.0.0"
-        }
-      }
-    );
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Webflow API error:", errorText);
-      return c.json({ error: "Failed to fetch from Webflow API", details: errorText }, response.status);
-    }
-    const data = await response.json();
-    webflowNativeItems = data.items || [];
-  }
-  const webflowItems = await Promise.all(
-    webflowNativeItems.filter((item) => item.fieldData?.active === true).map(async (item) => {
-      const transformed = await transformWebflowItem(
-        { id: item.id, fieldData: item.fieldData, isDraft: item.isDraft, lastPublished: item.lastPublished, isArchived: item.isArchived },
-        webflowToken
-      );
-      return transformed;
-    })
-  );
-  if (!webflowItems || webflowItems.length === 0) {
-    return c.json({ error: "No items provided" }, 400);
-  }
-  const syncedItems = [];
-  const errors = [];
-  const verificationResults = { checked: 0, markedInactive: 0, reactivated: 0, details: [] };
-  try {
-    const allInboxItems = await db.select().from(InboxItems);
-    verificationResults.checked = allInboxItems.length;
-    for (const inboxItem of allInboxItems) {
-      if (!inboxItem.webflowItemId) continue;
-      try {
-        const verifyResponse = await fetch(
-          `https://api.webflow.com/v2/collections/${collectionId}/items/${inboxItem.webflowItemId}`,
-          { headers: { "Authorization": `Bearer ${webflowToken}`, "Accept-Version": "1.0.0" } }
-        );
-        if (verifyResponse.status === 404) {
-          if (inboxItem.isActive) {
-            await db.update(InboxItems).set({ isActive: false, updatedAt: nowISO() }).where(eq(InboxItems.id, inboxItem.id));
-            verificationResults.markedInactive++;
-            verificationResults.details.push(`Deleted: ${inboxItem.title || inboxItem.id}`);
-          }
-        } else if (verifyResponse.ok) {
-          const itemData = await verifyResponse.json();
-          const fullItem = itemData.items?.[0] || itemData.item || itemData;
-          const isDraft = fullItem.isDraft || !fullItem.lastPublished;
-          const isArchived = fullItem.isArchived || false;
-          const toggleOff = fullItem.fieldData?.active !== true;
-          if ((isDraft || isArchived || toggleOff) && inboxItem.isActive) {
-            await db.update(InboxItems).set({ isActive: false, updatedAt: nowISO() }).where(eq(InboxItems.id, inboxItem.id));
-            verificationResults.markedInactive++;
-            const reason = isDraft ? "draft" : isArchived ? "archived" : "toggle off";
-            verificationResults.details.push(`${reason}: ${inboxItem.title || inboxItem.id}`);
-          } else if (!isDraft && !isArchived && !toggleOff && !inboxItem.isActive) {
-            await db.update(InboxItems).set({ isActive: true, updatedAt: nowISO() }).where(eq(InboxItems.id, inboxItem.id));
-            verificationResults.reactivated++;
-            verificationResults.details.push(`Reactivated: ${inboxItem.title || inboxItem.id}`);
-          }
-        }
-      } catch (error) {
-        console.error(`Error verifying item ${inboxItem.id}:`, error);
-      }
-    }
-  } catch (error) {
-    console.error("Error during inbox verification:", error);
-  }
-  for (const webflowItem of webflowItems) {
-    try {
-      if (webflowItem["is-draft"] || !webflowItem["published-on"]) continue;
-      if ((webflowItem["content-type"] || "thread") !== "thread") {
-        errors.push(`Invalid content type for item ${webflowItem._id}. Only threads are supported.`);
-        continue;
-      }
-      const inboxItemId = await upsertInboxItem(webflowItem, webflowToken);
-      syncedItems.push(inboxItemId);
-    } catch (error) {
-      console.error(`Error syncing item ${webflowItem._id}:`, error);
-      errors.push(`Failed to sync item ${webflowItem._id}: ${error.message}`);
-    }
-  }
-  const result = {
-    success: true,
-    synced: syncedItems.length,
-    items: syncedItems,
-    verification: {
-      checked: verificationResults.checked,
-      markedInactive: verificationResults.markedInactive,
-      reactivated: verificationResults.reactivated,
-      details: verificationResults.details
-    },
-    errors: errors.length > 0 ? errors : void 0,
-    message: `Synced ${syncedItems.length} item(s). Verified ${verificationResults.checked} existing items: ${verificationResults.markedInactive} marked inactive, ${verificationResults.reactivated} reactivated.`
-  };
-  const acceptHeader = c.req.header("accept") || "";
-  if (acceptHeader.includes("text/html")) {
-    const html = `<!DOCTYPE html><html><head><title>Inbox Sync Complete</title><style>body{font-family:system-ui,-apple-system,sans-serif;max-width:800px;margin:50px auto;padding:20px}.success{color:#059669}.info{background:#f0f9ff;padding:15px;border-radius:8px;margin:20px 0}.details{background:#f9fafb;padding:10px;border-radius:6px;margin:10px 0}ul{margin:10px 0;padding-left:20px}.error{color:#dc2626}</style></head><body><h1 class="success">Inbox Sync Complete</h1><div class="info"><h2>Summary</h2><p><strong>Synced:</strong> ${result.synced} item(s)</p><p><strong>Verified:</strong> ${result.verification.checked} existing items</p><p><strong>Marked Inactive:</strong> ${result.verification.markedInactive} item(s)</p><p><strong>Reactivated:</strong> ${result.verification.reactivated} item(s)</p></div>${result.verification.details.length > 0 ? `<div class="details"><h3>Details:</h3><ul>${result.verification.details.map((d) => `<li>${d}</li>`).join("")}</ul></div>` : ""}${result.errors && result.errors.length > 0 ? `<div class="error"><h3>Errors:</h3><ul>${result.errors.map((e) => `<li>${e}</li>`).join("")}</ul></div>` : ""}<p><a href="/">Back to Dashboard</a></p></body></html>`;
-    return c.html(html);
-  }
-  return c.json(result);
-}
-app8.post("/api/webflow/sync-inbox", async (c) => {
-  try {
-    const body = await c.req.json();
-    const { items, collectionId, siteId, hardRefresh } = body;
-    return handleSyncInbox(c, items, collectionId, siteId, hardRefresh);
-  } catch (error) {
-    console.error("Error syncing inbox items:", error);
-    return c.json({ error: "Failed to sync inbox items", details: error.message }, 500);
-  }
-});
-app8.get("/api/webflow/sync-inbox", async (c) => {
-  try {
-    const webflowToken = process.env.WEBFLOW_INBOX_API_TOKEN;
-    if (!webflowToken) {
-      return c.json({ error: "Webflow API token not configured" }, 500);
-    }
-    const collectionId = c.req.query("collectionId");
-    const siteId = c.req.query("siteId");
-    const hardRefresh = c.req.query("hardRefresh") === "true";
-    if (!collectionId || !siteId) {
-      return c.json({ error: "collectionId and siteId are required" }, 400);
-    }
-    if (collectionId === "690ed346b73a1ff102283b32") {
-      return c.json({ error: "Notes collection sync is not supported. Only Threads collection can be synced to inbox." }, 400);
-    }
-    const response = await fetch(
-      `https://api-cdn.webflow.com/v2/collections/${collectionId}/items`,
-      { headers: { "Authorization": `Bearer ${webflowToken}`, "Accept-Version": "1.0.0" } }
-    );
-    if (!response.ok) {
-      const errorText = await response.text();
-      return c.json({ error: "Failed to fetch from Webflow API", details: errorText }, response.status);
-    }
-    const data = await response.json();
-    const items = data.items || [];
-    return handleSyncInbox(c, items, collectionId, siteId, hardRefresh);
-  } catch (error) {
-    console.error("Error fetching from Webflow:", error);
-    return c.json({ error: "Failed to fetch from Webflow", details: error.message }, 500);
-  }
-});
-app8.post("/api/webflow/webhook", async (c) => {
-  try {
-    const webflowToken = process.env.WEBFLOW_INBOX_API_TOKEN;
-    const webflowWebhookSecret = process.env.WEBFLOW_WEBHOOK_SECRET;
-    if (!webflowToken) {
-      console.error("Webflow API token not configured");
-      return c.json({ error: "Webflow API token not configured" }, 500);
-    }
-    const rawBody = await c.req.text();
-    if (webflowWebhookSecret) {
-      const signature = c.req.header("x-webflow-signature");
-      if (!signature) {
-        console.error("Webhook signature missing");
-        return c.json({ error: "Missing webhook signature" }, 401);
-      }
-      const secrets = webflowWebhookSecret.split(",").map((s2) => s2.trim()).filter((s2) => s2);
-      const crypto5 = await import("crypto");
-      const receivedSignature = signature.replace("sha256=", "");
-      let signatureValid = false;
-      for (const secret of secrets) {
-        const expectedSignature = crypto5.createHmac("sha256", secret).update(rawBody).digest("hex");
-        if (receivedSignature === expectedSignature) {
-          signatureValid = true;
-          break;
-        }
-      }
-      if (!signatureValid) {
-        console.error("Webhook signature verification failed");
-      }
-    }
-    let rawPayload;
-    try {
-      rawPayload = JSON.parse(rawBody);
-    } catch (parseError3) {
-      console.error("Failed to parse webhook payload:", parseError3.message);
-      return c.json({ error: "Invalid JSON payload", details: parseError3.message }, 400);
-    }
-    let normalizedPayload = normalizeWebflowPayload(rawPayload);
-    const hasEmptyFieldData = !normalizedPayload.item.fieldData || Object.keys(normalizedPayload.item.fieldData || {}).length === 0;
-    if (normalizedPayload.item.id && hasEmptyFieldData) {
-      try {
-        const itemResponse = await fetch(
-          `https://api.webflow.com/v2/collections/${normalizedPayload.collection}/items/${normalizedPayload.item.id}`,
-          { headers: { "Authorization": `Bearer ${webflowToken}`, "Accept-Version": "1.0.0" } }
-        );
-        if (itemResponse.ok) {
-          const itemData = await itemResponse.json();
-          const fullItem = itemData.items?.[0] || itemData.item || itemData;
-          normalizedPayload.item = {
-            id: fullItem.id || normalizedPayload.item.id,
-            cmsLocaleId: fullItem.cmsLocaleId || "",
-            lastPublished: fullItem.lastPublished,
-            lastUpdated: fullItem.lastUpdated || (/* @__PURE__ */ new Date()).toISOString(),
-            createdOn: fullItem.createdOn || (/* @__PURE__ */ new Date()).toISOString(),
-            isArchived: fullItem.isArchived || false,
-            isDraft: fullItem.isDraft || false,
-            fieldData: fullItem.fieldData || {}
-          };
-        } else if (itemResponse.status === 404) {
-          const found = await markInactiveByWebflowId(normalizedPayload.item.id);
-          return c.json({ message: "Item deleted - marked as inactive", itemId: normalizedPayload.item.id, found });
-        } else {
-          console.error("Failed to fetch item from Webflow API:", itemResponse.status);
-        }
-      } catch (error) {
-        console.error("Error fetching item from Webflow API:", error);
-      }
-    }
-    if (normalizedPayload.collection !== THREADS_COLLECTION_ID) {
-      return c.json({ message: "Ignored - not from Threads collection", collection: normalizedPayload.collection });
-    }
-    if (normalizedPayload.triggerType === "collection_item.unpublished" || normalizedPayload.triggerType === "collection_item.deleted") {
-      if (normalizedPayload.item?.id) {
-        await markInactiveByWebflowId(normalizedPayload.item.id);
-      }
-      return c.json({
-        message: "Item marked as inactive",
-        triggerType: normalizedPayload.triggerType,
-        itemId: normalizedPayload.item?.id
-      });
-    }
-    if (normalizedPayload.item?.isArchived) {
-      if (normalizedPayload.item.id) {
-        await markInactiveByWebflowId(normalizedPayload.item.id);
-      }
-      return c.json({ message: "Item archived - marked as inactive", itemId: normalizedPayload.item?.id });
-    }
-    if (!normalizedPayload.item?.fieldData?.active) {
-      if (normalizedPayload.item?.id) {
-        await markInactiveByWebflowId(normalizedPayload.item.id);
-      }
-      return c.json({ message: "Toggle not enabled - marked as inactive if existed", itemId: normalizedPayload.item?.id });
-    }
-    if (!normalizedPayload.item || normalizedPayload.item.isDraft || !normalizedPayload.item.lastPublished) {
-      if (normalizedPayload.item?.id) {
-        const existingItem = first(await db.select().from(InboxItems).where(eq(InboxItems.webflowItemId, normalizedPayload.item.id)).limit(1));
-        if (existingItem && existingItem.isActive) {
-          await db.update(InboxItems).set({ isActive: false, updatedAt: nowISO() }).where(eq(InboxItems.id, existingItem.id));
-        }
-      }
-      return c.json({ message: "Ignored - item is draft or not published", itemId: normalizedPayload.item?.id });
-    }
-    const webflowItem = await transformWebflowItem(
-      {
-        id: normalizedPayload.item.id,
-        fieldData: normalizedPayload.item.fieldData,
-        isDraft: normalizedPayload.item.isDraft,
-        lastPublished: normalizedPayload.item.lastPublished,
-        isArchived: normalizedPayload.item.isArchived
-      },
-      webflowToken
-    );
-    if (!webflowItem) {
-      return c.json({ success: false, message: "Failed to transform item" });
-    }
-    if (webflowItem["is-draft"] || !webflowItem["published-on"]) {
-      return c.json({ success: false, message: "Item is draft or not published" });
-    }
-    const syncedId = await upsertInboxItem(webflowItem, webflowToken);
-    return c.json({
-      success: true,
-      message: "Webhook processed",
-      triggerType: normalizedPayload.triggerType,
-      itemId: normalizedPayload.item.id,
-      synced: !!syncedId,
-      note: syncedId ? "Item synced to inbox" : "Item processing failed"
-    });
-  } catch (error) {
-    console.error("Error processing webhook:", error);
-    return c.json({ error: "Failed to process webhook", details: error.message }, 500);
-  }
-});
-var webflow_default = app8;
 
 // node_modules/@clerk/backend/dist/webhooks.mjs
 init_chunk_YBVFDYDR();
@@ -309047,215 +310406,6 @@ var validateEvent = (body, headers, secret) => {
   }
 };
 
-// src/utils/fetch-helpers.ts
-async function fetchWithTimeout(url, options = {}) {
-  const {
-    timeout: timeout2 = 1e4,
-    // 10 seconds default
-    retries = 2,
-    retryTimeout = 5e3,
-    // 5 seconds for retries
-    ...fetchOptions
-  } = options;
-  let lastError = null;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const currentTimeout = attempt === 0 ? timeout2 : retryTimeout;
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => {
-      abortController.abort();
-    }, currentTimeout);
-    try {
-      const response = await fetch(url, {
-        ...fetchOptions,
-        signal: abortController.signal
-      });
-      clearTimeout(timeoutId);
-      return response;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      lastError = error;
-      if (error.name === "AbortError" || abortController.signal.aborted) {
-        if (attempt === retries) {
-          throw new Error(
-            `Request timeout after ${currentTimeout}ms (attempt ${attempt + 1} of ${retries + 1})`
-          );
-        }
-        continue;
-      }
-      if (attempt === retries) {
-        throw new Error(
-          `Network error: ${error.message || "Failed to fetch"}`
-        );
-      }
-    }
-  }
-  throw lastError || new Error("Unknown error occurred");
-}
-
-// src/utils/audienceful.ts
-var AUDIENCEFUL_API_BASE = "https://app.audienceful.com/api";
-function getApiKey() {
-  const apiKey = process.env?.AUDIENCEFUL_API_KEY;
-  if (!apiKey) {
-    throw new Error("AUDIENCEFUL_API_KEY environment variable is not set");
-  }
-  return apiKey;
-}
-async function audiencefulRequest(endpoint, method, body) {
-  const apiKey = getApiKey();
-  const url = `${AUDIENCEFUL_API_BASE}${endpoint}`;
-  const options = {
-    method,
-    headers: {
-      "X-Api-Key": apiKey,
-      "Content-Type": "application/json"
-    },
-    timeout: 1e4,
-    // 10 second timeout
-    retries: 2
-  };
-  if (body && method !== "GET") {
-    options.body = JSON.stringify(body);
-  }
-  const response = await fetchWithTimeout(url, options);
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Audienceful API error (${response.status}): ${errorText}`
-    );
-  }
-  const contentType = response.headers.get("content-type");
-  if (contentType && contentType.includes("application/json")) {
-    return await response.json();
-  }
-  return null;
-}
-async function findSubscriberByEmail(email2) {
-  try {
-    const response = await audiencefulRequest(
-      `/people/?email=${encodeURIComponent(email2)}`,
-      "GET"
-    );
-    if (response && response.results && Array.isArray(response.results)) {
-      return response.results.length > 0 ? response.results[0] : null;
-    }
-    if (response && response.email === email2) {
-      return response;
-    }
-    return null;
-  } catch (error) {
-    if (error.message.includes("404")) {
-      return null;
-    }
-    throw error;
-  }
-}
-async function createSubscriber(data) {
-  return await audiencefulRequest("/people/", "POST", data);
-}
-async function updateSubscriber(email2, data) {
-  const updateData = {
-    email: email2,
-    ...data
-  };
-  return await audiencefulRequest("/people/", "PATCH", updateData);
-}
-function tagsToString(tags) {
-  if (!tags || tags.length === 0) return "";
-  return tags.map((t) => t.name).join(", ");
-}
-async function tagAsAppUser(email2, clerkUserId, firstName, lastName) {
-  console.log("[Audienceful] Starting tagAsAppUser:", {
-    email: email2,
-    clerkUserId,
-    firstName: firstName || null,
-    lastName: lastName || null,
-    timestamp: (/* @__PURE__ */ new Date()).toISOString()
-  });
-  try {
-    const apiKey = process.env?.AUDIENCEFUL_API_KEY;
-    if (!apiKey) {
-      throw new Error("AUDIENCEFUL_API_KEY environment variable is not set");
-    }
-  } catch (error) {
-    console.error("[Audienceful] API key not configured:", {
-      error: error.message,
-      email: email2,
-      clerkUserId
-    });
-    throw error;
-  }
-  const existing = await findSubscriberByEmail(email2);
-  const extraData = {
-    clerk_user_id: clerkUserId
-  };
-  if (firstName) extraData.first_name = firstName;
-  if (lastName) extraData.last_name = lastName;
-  if (existing && existing.id) {
-    const existingTagsString = tagsToString(existing.tags);
-    console.log("[Audienceful] Updating existing subscriber:", {
-      email: email2,
-      existingId: existing.id,
-      existingTags: existingTagsString,
-      newTags: "User"
-    });
-    const mergedExtraData = {
-      ...existing.extra_data,
-      ...extraData
-    };
-    try {
-      const result = await updateSubscriber(email2, {
-        tags: "User",
-        // Replace with just "User" tag, removing any existing tags
-        extra_data: mergedExtraData
-      });
-      console.log("[Audienceful] Successfully updated subscriber:", {
-        email: email2,
-        audiencefulId: result.id || result.uid,
-        tags: "User"
-      });
-      return result;
-    } catch (error) {
-      if (error.message && error.message.includes("404")) {
-        console.log("[Audienceful] Subscriber not found during update, creating new:", {
-          email: email2
-        });
-        const result = await createSubscriber({
-          email: email2,
-          tags: "User",
-          // Just "User" tag for new subscribers
-          extra_data: mergedExtraData,
-          double_opt_in: "not_required",
-          trigger_automations: false
-        });
-        console.log("[Audienceful] Successfully created subscriber (fallback):", {
-          email: email2,
-          audiencefulId: result.id || result.uid
-        });
-        return result;
-      }
-      throw error;
-    }
-  } else {
-    console.log("[Audienceful] Creating new subscriber:", {
-      email: email2,
-      tags: "User"
-    });
-    const result = await createSubscriber({
-      email: email2,
-      tags: "User",
-      extra_data: extraData,
-      double_opt_in: "not_required",
-      trigger_automations: false
-    });
-    console.log("[Audienceful] Successfully created subscriber:", {
-      email: email2,
-      audiencefulId: result.id || result.uid
-    });
-    return result;
-  }
-}
-
 // server/utils/polar-webhook.ts
 var ACTIVE_STATUSES = /* @__PURE__ */ new Set(["active", "trialing", "past_due"]);
 function polarBillingIntent(eventType, subscriptionStatus) {
@@ -309293,7 +310443,7 @@ function subscriptionStatusFromPolarData(data) {
 }
 
 // server/routes/webhooks.ts
-var app9 = new Hono2();
+var app8 = new Hono2();
 var SVIX_HEADER_NAMES = ["svix-id", "svix-timestamp", "svix-signature"];
 async function dedupeSvixHeaders(req) {
   const headers = new Headers(req.headers);
@@ -309309,6 +310459,13 @@ async function dedupeSvixHeaders(req) {
   const body = await req.clone().arrayBuffer();
   return new Request(req.url, { method: req.method, headers, body });
 }
+function activityFromClerkUserData(data) {
+  return {
+    signedUpAt: data.created_at ?? null,
+    lastSignInAt: data.last_sign_in_at ?? null,
+    lastActiveAt: data.last_active_at ?? data.updated_at ?? null
+  };
+}
 function getPrimaryEmail(event) {
   const { data } = event;
   if (!data.email_addresses || data.email_addresses.length === 0) return null;
@@ -309319,54 +310476,55 @@ function getPrimaryEmail(event) {
   return data.email_addresses[0].email_address;
 }
 async function handleEmailCreated(event) {
+  console.log(`[Webhook] Processing ${event.type} event`);
+  if (!event.data) throw new Error("Event data is missing");
+  const email_address = event.data.email_address;
+  const user_id = event.data.user_id;
+  if (!email_address) {
+    console.warn("[Webhook] Event missing email_address, skipping Audienceful sync");
+    return;
+  }
+  if (!user_id) {
+    console.error("[Webhook] Event missing user_id");
+    throw new Error("Event missing user_id");
+  }
+  let firstName;
+  let lastName;
+  let activity;
   try {
-    console.log(`[Webhook] Processing ${event.type} event`);
-    if (!event.data) throw new Error("Event data is missing");
-    const email_address = event.data.email_address;
-    const user_id = event.data.user_id;
-    if (!email_address) {
-      console.error("[Webhook] Event missing email_address");
-      return;
-    }
-    if (!user_id) {
-      console.error("[Webhook] Event missing user_id");
-      return;
-    }
-    try {
-      const { createClerkClient: createClerkClient2 } = await Promise.resolve().then(() => (init_dist(), dist_exports));
-      const clerkSecretKey2 = process.env.CLERK_SECRET_KEY;
-      if (!clerkSecretKey2) {
-        console.error("[Webhook] CLERK_SECRET_KEY not configured");
-        await tagAsAppUser(email_address, user_id);
-        return;
-      }
+    const { createClerkClient: createClerkClient2 } = await Promise.resolve().then(() => (init_dist(), dist_exports));
+    const clerkSecretKey2 = process.env.CLERK_SECRET_KEY;
+    if (clerkSecretKey2) {
       const clerkClient = createClerkClient2({ secretKey: clerkSecretKey2 });
       const user = await clerkClient.users.getUser(user_id);
-      const firstName = user.firstName || void 0;
-      const lastName = user.lastName || void 0;
-      try {
-        const result = await tagAsAppUser(email_address, user_id, firstName, lastName);
-        console.log("[Webhook] Tagged user in Audienceful (emailAddress.created):", {
-          email: email_address,
-          clerkUserId: user_id,
-          audiencefulId: result.id || result.uid
-        });
-      } catch (error) {
-        console.error("[Webhook] Failed to tag user in Audienceful (emailAddress.created):", error.message);
-        handleAPIError(error, { endpoint: "/api/webhooks/clerk", action: "tag_audienceful_user", userId: user_id, email: email_address });
-      }
-    } catch (error) {
-      console.error("[Webhook] Failed to fetch user details from Clerk:", error.message);
-      try {
-        await tagAsAppUser(email_address, user_id);
-        console.log("[Webhook] Tagged user in Audienceful (fallback, no name)");
-      } catch (audiencefulError) {
-        console.error("[Webhook] Failed to tag user in Audienceful (fallback):", audiencefulError.message);
-        handleAPIError(audiencefulError, { endpoint: "/api/webhooks/clerk", action: "tag_audienceful_user_fallback", userId: user_id, email: email_address });
-      }
+      firstName = user.firstName || void 0;
+      lastName = user.lastName || void 0;
+      activity = {
+        signedUpAt: user.createdAt ?? null,
+        lastSignInAt: user.lastSignInAt ?? null,
+        lastActiveAt: user.lastActiveAt ?? user.updatedAt ?? null
+      };
+    } else {
+      console.warn("[Webhook] CLERK_SECRET_KEY not configured; syncing without name");
     }
   } catch (error) {
-    console.error("[Webhook] Error in handleEmailCreated:", error.message);
+    console.warn("[Webhook] Failed to fetch user details from Clerk; syncing without name:", error.message);
+  }
+  try {
+    const result = await tagAsAppUser(email_address, user_id, firstName, lastName, activity);
+    console.log("[Webhook] Tagged user in Audienceful (emailAddress.created):", {
+      email: email_address,
+      clerkUserId: user_id,
+      audiencefulId: result.id || result.uid
+    });
+  } catch (error) {
+    console.error("[Webhook] Failed to tag user in Audienceful (emailAddress.created):", error.message);
+    handleAPIError(error, {
+      endpoint: "/api/webhooks/clerk",
+      action: "tag_audienceful_user",
+      userId: user_id,
+      email: email_address
+    });
     throw error;
   }
 }
@@ -309379,11 +310537,18 @@ async function handleUserCreated(event) {
     return;
   }
   try {
-    const result = await tagAsAppUser(email2, clerkUserId, first_name || void 0, last_name || void 0);
+    const result = await tagAsAppUser(
+      email2,
+      clerkUserId,
+      first_name || void 0,
+      last_name || void 0,
+      activityFromClerkUserData(event.data)
+    );
     console.log("[Webhook] Tagged user in Audienceful:", { email: email2, clerkUserId, audiencefulId: result.id || result.uid });
   } catch (error) {
     console.error("[Webhook] Failed to tag user in Audienceful:", error.message);
     handleAPIError(error, { endpoint: "/api/webhooks/clerk", action: "tag_audienceful_user", userId: clerkUserId, email: email2 });
+    throw error;
   }
 }
 async function handleUserUpdated(event) {
@@ -309401,17 +310566,24 @@ async function handleUserUpdated(event) {
     return;
   }
   try {
-    const result = await tagAsAppUser(email2, clerkUserId, first_name || void 0, last_name || void 0);
+    const result = await tagAsAppUser(
+      email2,
+      clerkUserId,
+      first_name || void 0,
+      last_name || void 0,
+      activityFromClerkUserData(event.data)
+    );
     console.log("[Webhook] Updated user in Audienceful:", { email: email2, clerkUserId, audiencefulId: result.id || result.uid });
   } catch (error) {
     console.error("[Webhook] Failed to update user in Audienceful:", error.message);
     handleAPIError(error, { endpoint: "/api/webhooks/clerk", action: "update_audienceful_user", userId: clerkUserId, email: email2 });
+    throw error;
   }
 }
 async function handleUserDeleted(event) {
   console.log("User deleted in Clerk:", event.data.id);
 }
-app9.post("/api/webhooks/clerk", async (c) => {
+app8.post("/api/webhooks/clerk", async (c) => {
   const startTime = Date.now();
   try {
     console.log("[Webhook] Webhook request received:", {
@@ -309428,9 +310600,9 @@ app9.post("/api/webhooks/clerk", async (c) => {
       console.error("[Webhook] CLERK_WEBHOOK_SECRET not configured");
       return c.json({ error: "Webhook secret not configured" }, 500);
     }
-    const audiencefulKey = process.env.AUDIENCEFUL_API_KEY;
-    if (!audiencefulKey) {
-      console.warn("[Webhook] AUDIENCEFUL_API_KEY not configured");
+    if (!process.env.AUDIENCEFUL_API_KEY) {
+      console.error("[Webhook] AUDIENCEFUL_API_KEY not configured");
+      return c.json({ error: "Audienceful API key not configured" }, 500);
     }
     let event;
     try {
@@ -309471,7 +310643,7 @@ app9.post("/api/webhooks/clerk", async (c) => {
           console.log("[Webhook] Unhandled event type:", event.type);
       }
     } catch (error) {
-      console.error("[Webhook] Error processing event (webhook will still succeed):", {
+      console.error("[Webhook] Error processing event (returning 500 for Clerk retry):", {
         eventType: event.type,
         error: error.message
       });
@@ -309486,6 +310658,10 @@ app9.post("/api/webhooks/clerk", async (c) => {
         errorUserId = "unknown";
       }
       handleAPIError(error, { endpoint: "/api/webhooks/clerk", action: `process_${event.type}`, userId: errorUserId });
+      return c.json(
+        { error: "Audienceful sync failed", message: error?.message || "Sync failed", eventType: event.type },
+        500
+      );
     }
     const duration3 = Date.now() - startTime;
     console.log("[Webhook] Complete:", { eventType: event.type, durationMs: duration3 });
@@ -309499,7 +310675,7 @@ app9.post("/api/webhooks/clerk", async (c) => {
     return c.json({ error: "Internal server error", message: error?.message || "An unexpected error occurred" }, 500);
   }
 });
-app9.post("/api/webhooks/polar", async (c) => {
+app8.post("/api/webhooks/polar", async (c) => {
   try {
     const secret = process.env.POLAR_WEBHOOK_SECRET;
     if (!secret) {
@@ -309554,7 +310730,7 @@ app9.post("/api/webhooks/polar", async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-var webhooks_default = app9;
+var webhooks_default = app8;
 
 // server/routes/sync.ts
 init_auth();
@@ -309583,7 +310759,7 @@ init_note_version_service();
 init_shared_space_lifecycle();
 init_shared_note_serializer();
 init_space_note_associations();
-var app10 = new Hono2();
+var app9 = new Hono2();
 var processedMutations = /* @__PURE__ */ new Map();
 var MUTATION_CACHE_TTL = 5 * 60 * 1e3;
 setInterval(() => {
@@ -310222,7 +311398,7 @@ async function processNoteMutation(userId, operation, entityId, data, clientMuta
     });
     if (!versioned.note.contentEncrypted && typeof data.content === "string" && data.content.trim().length > 0) {
       try {
-        await processScriptureReferences(entityId, userId, void 0, versioned.note.content, "NET", {
+        await processScriptureReferences(entityId, versioned.note.userId, void 0, versioned.note.content, "NET", {
           pillsOnly: versioned.note.noteType !== "scripture",
           persistParentContent: false
         });
@@ -310499,7 +311675,7 @@ async function processStudyThreadEntryMutation(userId, operation, entityId, data
   }
   return { success: false, error: `Unknown operation: ${operation}` };
 }
-app10.post("/api/sync/push", requireAuth, async (c) => {
+app9.post("/api/sync/push", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { mutations } = await c.req.json();
@@ -310578,7 +311754,7 @@ app10.post("/api/sync/push", requireAuth, async (c) => {
   }
 });
 var SYNC_NOTE_PAGE_LIMIT = 1e3;
-app10.get("/api/sync/bootstrap", requireAuth, async (c) => {
+app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const [spaces, threads, notes, noteThreads, noteConnections, tags, noteTags, studyThreadEntries, userMetadataRows] = await Promise.all([
@@ -310781,7 +311957,7 @@ app10.get("/api/sync/bootstrap", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app10.get("/api/sync/changes", requireAuth, async (c) => {
+app9.get("/api/sync/changes", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const sinceParam = c.req.query("since");
@@ -311006,20 +312182,30 @@ app10.get("/api/sync/changes", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var sync_default2 = app10;
+var sync_default2 = app9;
 
 // server/routes/migrations.ts
 init_db2();
 init_dist();
-var app11 = new Hono2();
-app11.post("/api/migrations/backfill-last-visited", async (c) => {
+var app10 = new Hono2();
+function requireMigrationKey(c) {
+  const migrationKey = process.env.MIGRATION_KEY;
+  if (!migrationKey) {
+    return c.json(
+      { error: "Service Unavailable", message: "MIGRATION_KEY is not configured." },
+      503
+    );
+  }
+  const authHeader = c.req.header("Authorization");
+  if (authHeader !== `Bearer ${migrationKey}`) {
+    return c.json({ error: "Unauthorized", message: "Valid migration key required." }, 401);
+  }
+  return null;
+}
+app10.post("/api/migrations/backfill-last-visited", async (c) => {
   try {
-    const authHeader = c.req.header("Authorization");
-    const migrationKey = process.env.MIGRATION_KEY;
-    const isAuthorized = !migrationKey || authHeader === `Bearer ${migrationKey}`;
-    if (!isAuthorized) {
-      return c.json({ error: "Unauthorized", message: "Valid migration key required." }, 401);
-    }
+    const unauthorized = requireMigrationKey(c);
+    if (unauthorized) return unauthorized;
     const results = { notesUpdated: 0, threadsUpdated: 0, errors: [], startTime: Date.now() };
     console.log("[Migration] Starting lastVisited backfill...");
     try {
@@ -311084,12 +312270,10 @@ app11.post("/api/migrations/backfill-last-visited", async (c) => {
     return c.json({ success: false, error: "Migration failed", message: error.message }, 500);
   }
 });
-app11.post("/api/migrations/retry-failed-users", async (c) => {
+app10.post("/api/migrations/retry-failed-users", async (c) => {
   try {
-    const authHeader = c.req.header("Authorization");
-    const migrationKey = process.env.MIGRATION_KEY;
-    const isAuthorized = !migrationKey || authHeader === `Bearer ${migrationKey}`;
-    if (!isAuthorized) return c.json({ error: "Unauthorized" }, 401);
+    const unauthorized = requireMigrationKey(c);
+    if (unauthorized) return unauthorized;
     let body;
     try {
       body = await c.req.json();
@@ -311117,7 +312301,11 @@ app11.post("/api/migrations/retry-failed-users", async (c) => {
         }
         const email2 = primaryEmail.emailAddress;
         try {
-          await tagAsAppUser(email2, userId, user.firstName || void 0, user.lastName || void 0);
+          await tagAsAppUser(email2, userId, user.firstName || void 0, user.lastName || void 0, {
+            signedUpAt: user.createdAt ?? null,
+            lastSignInAt: user.lastSignInAt ?? null,
+            lastActiveAt: user.lastActiveAt ?? user.updatedAt ?? null
+          });
           results.successful++;
         } catch (error) {
           results.failed++;
@@ -311139,7 +312327,11 @@ app11.post("/api/migrations/retry-failed-users", async (c) => {
         }
         const user = users[0];
         try {
-          await tagAsAppUser(email2, user.id, user.firstName || void 0, user.lastName || void 0);
+          await tagAsAppUser(email2, user.id, user.firstName || void 0, user.lastName || void 0, {
+            signedUpAt: user.createdAt ?? null,
+            lastSignInAt: user.lastSignInAt ?? null,
+            lastActiveAt: user.lastActiveAt ?? user.updatedAt ?? null
+          });
           results.successful++;
         } catch (error) {
           results.failed++;
@@ -311161,12 +312353,10 @@ app11.post("/api/migrations/retry-failed-users", async (c) => {
     return c.json({ error: "Retry failed", message: error.message }, 500);
   }
 });
-app11.post("/api/migrations/sync-clerk-to-audienceful", async (c) => {
+app10.post("/api/migrations/sync-clerk-to-audienceful", async (c) => {
   try {
-    const authHeader = c.req.header("Authorization");
-    const migrationKey = process.env.MIGRATION_KEY;
-    const isAuthorized = !migrationKey || authHeader === `Bearer ${migrationKey}`;
-    if (!isAuthorized) return c.json({ error: "Unauthorized" }, 401);
+    const unauthorized = requireMigrationKey(c);
+    if (unauthorized) return unauthorized;
     const limitParam = c.req.query("limit");
     const offsetParam = c.req.query("offset");
     const dryRunParam = c.req.query("dryRun");
@@ -311199,7 +312389,11 @@ app11.post("/api/migrations/sync-clerk-to-audienceful", async (c) => {
           continue;
         }
         try {
-          await tagAsAppUser(email2, user.id, user.firstName || void 0, user.lastName || void 0);
+          await tagAsAppUser(email2, user.id, user.firstName || void 0, user.lastName || void 0, {
+            signedUpAt: user.createdAt ?? null,
+            lastSignInAt: user.lastSignInAt ?? null,
+            lastActiveAt: user.lastActiveAt ?? user.updatedAt ?? null
+          });
           results.successful++;
         } catch (error) {
           results.failed++;
@@ -311222,7 +312416,7 @@ app11.post("/api/migrations/sync-clerk-to-audienceful", async (c) => {
     return c.json({ error: "Migration failed", message: error.message, isTimeout }, isTimeout ? 504 : 500);
   }
 });
-var migrations_default = app11;
+var migrations_default = app10;
 
 // node_modules/@netlify/runtime-utils/dist/main.js
 var getString = (input) => typeof input === "string" ? input : JSON.stringify(input);
@@ -315050,8 +316244,8 @@ async function bulkUpdateDiagnosticIssueTriage(issueSignatures, status, adminNot
 }
 
 // server/routes/admin.ts
-var app12 = new Hono2();
-app12.get("/api/admin/usage/overview", async (c) => {
+var app11 = new Hono2();
+app11.get("/api/admin/usage/overview", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -315063,7 +316257,7 @@ app12.get("/api/admin/usage/overview", async (c) => {
     return c.json({ error: "Failed to load usage overview" }, 500);
   }
 });
-app12.get("/api/admin/usage/trends", async (c) => {
+app11.get("/api/admin/usage/trends", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -315075,7 +316269,7 @@ app12.get("/api/admin/usage/trends", async (c) => {
     return c.json({ error: "Failed to load usage trends" }, 500);
   }
 });
-app12.get("/api/admin/usage/discovery", async (c) => {
+app11.get("/api/admin/usage/discovery", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -315087,7 +316281,7 @@ app12.get("/api/admin/usage/discovery", async (c) => {
     return c.json({ error: "Failed to load usage discovery" }, 500);
   }
 });
-app12.get("/api/admin/pulse", async (c) => {
+app11.get("/api/admin/pulse", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -315099,7 +316293,7 @@ app12.get("/api/admin/pulse", async (c) => {
     return c.json({ error: "Failed to load pulse" }, 500);
   }
 });
-app12.get("/api/admin/reports/catalog", async (c) => {
+app11.get("/api/admin/reports/catalog", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -315110,7 +316304,7 @@ app12.get("/api/admin/reports/catalog", async (c) => {
     return c.json({ error: "Failed to load reports catalog" }, 500);
   }
 });
-app12.post("/api/admin/reports/generate", async (c) => {
+app11.post("/api/admin/reports/generate", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const month = c.req.query("month");
@@ -315129,7 +316323,7 @@ app12.post("/api/admin/reports/generate", async (c) => {
     return c.json({ error: "Failed to generate report", details }, 500);
   }
 });
-app12.get("/api/admin/reports/season/:seasonId", async (c) => {
+app11.get("/api/admin/reports/season/:seasonId", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const seasonId = c.req.param("seasonId");
@@ -315163,7 +316357,7 @@ app12.get("/api/admin/reports/season/:seasonId", async (c) => {
     return c.json({ error: "Failed to load season report" }, 500);
   }
 });
-app12.get("/api/admin/reports/year/:year", async (c) => {
+app11.get("/api/admin/reports/year/:year", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const yearParam = c.req.param("year");
@@ -315209,7 +316403,7 @@ app12.get("/api/admin/reports/year/:year", async (c) => {
     return c.json({ error: "Failed to load year report" }, 500);
   }
 });
-app12.get("/api/admin/reports/:month", async (c) => {
+app11.get("/api/admin/reports/:month", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const month = c.req.param("month");
@@ -315326,11 +316520,11 @@ async function handleAggregateAnalytics(c) {
     message: reportGenerated ? `Analytics and monthly report generated for ${targetMonth}` : `Analytics aggregated for ${targetMonth} (before reports launch; no report snapshot)`
   });
 }
-app12.post("/api/admin/aggregate-analytics", handleAggregateAnalytics);
-app12.get("/api/admin/aggregate-analytics", handleAggregateAnalytics);
+app11.post("/api/admin/aggregate-analytics", handleAggregateAnalytics);
+app11.get("/api/admin/aggregate-analytics", handleAggregateAnalytics);
 var BACKUP_STORE_NAME = "user-exports";
 var DEFAULT_RETENTION_DAYS = 30;
-app12.post("/api/admin/backup-exports", async (c) => {
+app11.post("/api/admin/backup-exports", async (c) => {
   try {
     const secret = process.env.BACKUP_CRON_SECRET;
     const authHeader = c.req.header("authorization")?.split(",")[0]?.trim();
@@ -315382,7 +316576,7 @@ app12.post("/api/admin/backup-exports", async (c) => {
     return c.json({ error: error.message || "Backup failed", success: false }, 500);
   }
 });
-app12.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
+app11.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -315397,7 +316591,7 @@ app12.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
     );
   }
 });
-app12.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
+app11.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -315412,7 +316606,7 @@ app12.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
     );
   }
 });
-app12.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
+app11.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const dryRun = c.req.query("dryRun") === "true";
@@ -315520,7 +316714,7 @@ app12.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
-app12.get("/api/admin/debug-thread-counts", requireAuth, async (c) => {
+app11.get("/api/admin/debug-thread-counts", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const threadId = c.req.query("threadId");
@@ -315555,7 +316749,7 @@ app12.get("/api/admin/debug-thread-counts", requireAuth, async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
-app12.get("/api/admin/list-threads", requireAuth, async (c) => {
+app11.get("/api/admin/list-threads", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const threads = await db.select().from(Threads).where(eq(Threads.userId, auth.userId));
@@ -315570,7 +316764,7 @@ app12.get("/api/admin/list-threads", requireAuth, async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
-app12.get("/api/admin/content/spaces", async (c) => {
+app11.get("/api/admin/content/spaces", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -315583,7 +316777,7 @@ app12.get("/api/admin/content/spaces", async (c) => {
     return c.json({ error: "Failed to load curated spaces" }, 500);
   }
 });
-app12.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
+app11.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -315598,7 +316792,7 @@ app12.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
     return c.json({ error: "Failed to load threads" }, 500);
   }
 });
-app12.post("/api/admin/spaces", async (c) => {
+app11.post("/api/admin/spaces", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -315643,7 +316837,7 @@ app12.post("/api/admin/spaces", async (c) => {
     return c.json({ error: error.message || "Error creating space" }, 500);
   }
 });
-app12.post("/api/admin/spaces/:spaceId/threads", async (c) => {
+app11.post("/api/admin/spaces/:spaceId/threads", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -315684,7 +316878,7 @@ app12.post("/api/admin/spaces/:spaceId/threads", async (c) => {
     return c.json({ error: error.message || "Error creating thread" }, 500);
   }
 });
-app12.post("/api/admin/spaces/:spaceId/members", async (c) => {
+app11.post("/api/admin/spaces/:spaceId/members", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -315732,7 +316926,7 @@ app12.post("/api/admin/spaces/:spaceId/members", async (c) => {
     return c.json({ error: error.message || "Error adding member" }, 500);
   }
 });
-app12.post("/api/admin/threads/:threadId/notes", async (c) => {
+app11.post("/api/admin/threads/:threadId/notes", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -315836,7 +317030,7 @@ app12.post("/api/admin/threads/:threadId/notes", async (c) => {
     return c.json({ error: error.message || "Error creating note" }, 500);
   }
 });
-app12.post("/api/admin/regenerate-note-tags", async (c) => {
+app11.post("/api/admin/regenerate-note-tags", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -315882,7 +317076,7 @@ app12.post("/api/admin/regenerate-note-tags", async (c) => {
     );
   }
 });
-app12.post("/api/admin/backfill-auto-tags", async (c) => {
+app11.post("/api/admin/backfill-auto-tags", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -315963,7 +317157,7 @@ app12.post("/api/admin/backfill-auto-tags", async (c) => {
     );
   }
 });
-app12.get("/api/admin/support/tickets", async (c) => {
+app11.get("/api/admin/support/tickets", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -315979,7 +317173,7 @@ app12.get("/api/admin/support/tickets", async (c) => {
     return c.json({ error: "Failed to load support tickets" }, 500);
   }
 });
-app12.get("/api/admin/support/tickets/:id", async (c) => {
+app11.get("/api/admin/support/tickets/:id", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -315993,7 +317187,7 @@ app12.get("/api/admin/support/tickets/:id", async (c) => {
     return c.json({ error: "Failed to load support ticket" }, 500);
   }
 });
-app12.patch("/api/admin/support/tickets/:id", async (c) => {
+app11.patch("/api/admin/support/tickets/:id", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316011,7 +317205,7 @@ app12.patch("/api/admin/support/tickets/:id", async (c) => {
   }
 });
 var MAX_SUPPORT_NOTE_LENGTH = 2e3;
-app12.post("/api/admin/support/tickets/:id/notes", async (c) => {
+app11.post("/api/admin/support/tickets/:id/notes", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316051,9 +317245,9 @@ async function handleSupportNotifyCheck(c) {
     return c.json({ error: "Failed to run notify-check" }, 500);
   }
 }
-app12.post("/api/admin/support/notify-check", handleSupportNotifyCheck);
-app12.get("/api/admin/support/notify-check", handleSupportNotifyCheck);
-app12.get("/api/admin/diagnostics/issues", async (c) => {
+app11.post("/api/admin/support/notify-check", handleSupportNotifyCheck);
+app11.get("/api/admin/support/notify-check", handleSupportNotifyCheck);
+app11.get("/api/admin/diagnostics/issues", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316071,7 +317265,7 @@ app12.get("/api/admin/diagnostics/issues", async (c) => {
     return c.json({ error: "Failed to load diagnostic issues" }, 500);
   }
 });
-app12.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
+app11.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316086,7 +317280,7 @@ app12.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
     return c.json({ error: "Failed to load diagnostic events" }, 500);
   }
 });
-app12.patch("/api/admin/diagnostics/issues/bulk", async (c) => {
+app11.patch("/api/admin/diagnostics/issues/bulk", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316108,7 +317302,7 @@ app12.patch("/api/admin/diagnostics/issues/bulk", async (c) => {
     return c.json({ error: "Failed to update triage" }, 500);
   }
 });
-app12.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
+app11.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316127,7 +317321,7 @@ app12.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
     return c.json({ error: "Failed to update triage" }, 500);
   }
 });
-var admin_default = app12;
+var admin_default = app11;
 
 // server/routes/churches.ts
 init_db2();
@@ -316135,6 +317329,172 @@ init_harvous_admin();
 init_auth();
 init_colors();
 init_ids();
+
+// server/utils/hmc-denorm-sync.ts
+init_db2();
+var HMC_SYNC_CURSOR_KEY = "hmc-church-changes";
+var HMC_SYNC_DEFAULT_LOOKBACK_MS = 6 * 60 * 60 * 1e3;
+function coalesceHmcChurchChanges(changes) {
+  const out = /* @__PURE__ */ new Map();
+  for (const row of changes) {
+    const id = row.churchId.trim();
+    if (!id) continue;
+    out.set(id, row.action === "church_removed" ? "removed" : "refresh");
+  }
+  return out;
+}
+function defaultHmcSyncSince(nowMs = Date.now()) {
+  return new Date(nowMs - HMC_SYNC_DEFAULT_LOOKBACK_MS).toISOString();
+}
+function createPostgresHmcSyncCursorStore(key2 = HMC_SYNC_CURSOR_KEY) {
+  return {
+    async get() {
+      const rows = await db.select({ value: AppSyncCursors.value }).from(AppSyncCursors).where(eq(AppSyncCursors.key, key2)).limit(1);
+      const trimmed = rows[0]?.value?.trim() ?? "";
+      return trimmed || null;
+    },
+    async set(cursor) {
+      const value = cursor.trim();
+      const stamp = nowISO();
+      await db.insert(AppSyncCursors).values({ key: key2, value, updatedAt: stamp }).onConflictDoUpdate({
+        target: AppSyncCursors.key,
+        set: { value, updatedAt: stamp }
+      });
+    }
+  };
+}
+async function drainHmcChurchChangeFeed(options) {
+  const fetchChanges = options.fetchChanges ?? hmcFetchChurchChanges;
+  const maxPages = Math.max(1, options.maxPages ?? 20);
+  let since = options.since;
+  const initialSince = since;
+  let nextSince = since;
+  let pages = 0;
+  let changeEvents = 0;
+  let stalled = false;
+  const dirty = /* @__PURE__ */ new Map();
+  for (let i = 0; i < maxPages; i++) {
+    const page = await fetchChanges({ since, limit: 500 });
+    pages += 1;
+    changeEvents += page.changes.length;
+    for (const [id, action] of coalesceHmcChurchChanges(page.changes)) {
+      dirty.set(id, action);
+    }
+    nextSince = page.nextSince;
+    if (!page.hasMore) break;
+    if (page.nextSince === since) {
+      stalled = true;
+      break;
+    }
+    since = page.nextSince;
+  }
+  return { initialSince, nextSince, pages, changeEvents, dirty, stalled };
+}
+async function runHmcDenormSync(deps) {
+  const cursorStore = deps?.cursorStore ?? createPostgresHmcSyncCursorStore();
+  const fetchChanges = deps?.fetchChanges ?? hmcFetchChurchChanges;
+  const getChurchById = deps?.getChurchById ?? hmcGetChurchByIdForDenorm;
+  const now2 = deps?.now ?? Date.now;
+  const maxPages = deps?.maxPages;
+  const stored = await cursorStore.get();
+  const startSince = stored ?? defaultHmcSyncSince(now2());
+  const drain = await drainHmcChurchChangeFeed({
+    since: startSince,
+    fetchChanges,
+    maxPages
+  });
+  const dirtyIds = [...drain.dirty.keys()];
+  const errors = [];
+  if (drain.stalled) {
+    errors.push("change feed stalled (nextSince did not advance)");
+  }
+  let linkedIds = 0;
+  let refreshedUsers = 0;
+  let refreshedChurches = 0;
+  let unlinkedUsers = 0;
+  let unlinkedChurches = 0;
+  let missingOnHmc = 0;
+  if (dirtyIds.length > 0) {
+    const [userRows, churchRows] = await Promise.all([
+      db.select({ hmcChurchId: UserMetadata.hmcChurchId }).from(UserMetadata).where(and(isNotNull(UserMetadata.hmcChurchId), inArray(UserMetadata.hmcChurchId, dirtyIds))),
+      db.select({ hmcChurchId: Churches.hmcChurchId }).from(Churches).where(and(isNotNull(Churches.hmcChurchId), inArray(Churches.hmcChurchId, dirtyIds)))
+    ]);
+    const linked = /* @__PURE__ */ new Set();
+    for (const row of userRows) {
+      if (row.hmcChurchId) linked.add(row.hmcChurchId);
+    }
+    for (const row of churchRows) {
+      if (row.hmcChurchId) linked.add(row.hmcChurchId);
+    }
+    linkedIds = linked.size;
+    const stamp = nowISO();
+    for (const hmcId of linked) {
+      const action = drain.dirty.get(hmcId) ?? "refresh";
+      try {
+        if (action === "removed") {
+          const userResult2 = await db.update(UserMetadata).set({ hmcChurchId: null, updatedAt: stamp }).where(eq(UserMetadata.hmcChurchId, hmcId)).returning({ id: UserMetadata.id });
+          unlinkedUsers += userResult2.length;
+          const churchResult2 = await db.update(Churches).set({ hmcChurchId: null, updatedAt: stamp }).where(eq(Churches.hmcChurchId, hmcId)).returning({ id: Churches.id });
+          unlinkedChurches += churchResult2.length;
+          continue;
+        }
+        const hmc = await getChurchById(hmcId);
+        if (!hmc) {
+          missingOnHmc += 1;
+          const userResult2 = await db.update(UserMetadata).set({ hmcChurchId: null, updatedAt: stamp }).where(eq(UserMetadata.hmcChurchId, hmcId)).returning({ id: UserMetadata.id });
+          unlinkedUsers += userResult2.length;
+          const churchResult2 = await db.update(Churches).set({ hmcChurchId: null, updatedAt: stamp }).where(eq(Churches.hmcChurchId, hmcId)).returning({ id: Churches.id });
+          unlinkedChurches += churchResult2.length;
+          continue;
+        }
+        const denorm = hmcDenormFields(hmc);
+        const userResult = await db.update(UserMetadata).set({
+          hmcChurchId: hmc.id,
+          churchName: denorm.name,
+          churchCity: denorm.city,
+          churchState: denorm.state,
+          churchCountry: denorm.country,
+          updatedAt: stamp
+        }).where(eq(UserMetadata.hmcChurchId, hmcId)).returning({ id: UserMetadata.id });
+        refreshedUsers += userResult.length;
+        const churchResult = await db.update(Churches).set({
+          hmcChurchId: hmc.id,
+          name: denorm.name,
+          city: denorm.city,
+          state: denorm.state,
+          country: denorm.country,
+          updatedAt: stamp
+        }).where(eq(Churches.hmcChurchId, hmcId)).returning({ id: Churches.id });
+        refreshedChurches += churchResult.length;
+      } catch (error) {
+        errors.push(`${hmcId}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
+  if (!drain.stalled) {
+    try {
+      await cursorStore.set(drain.nextSince);
+    } catch (error) {
+      errors.push(
+        `cursor write failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+  return {
+    since: drain.initialSince,
+    nextSince: drain.nextSince,
+    pages: drain.pages,
+    changeEvents: drain.changeEvents,
+    dirtyIds: dirtyIds.length,
+    linkedIds,
+    refreshedUsers,
+    refreshedChurches,
+    unlinkedUsers,
+    unlinkedChurches,
+    missingOnHmc,
+    errors
+  };
+}
 
 // server/utils/hmc-church-interest.ts
 init_db2();
@@ -316189,7 +317549,7 @@ async function listHmcChurchInterest() {
 }
 
 // server/routes/churches.ts
-var app13 = new Hono2();
+var app12 = new Hono2();
 function hmcErrorResponse(c, error) {
   if (error instanceof HmcPartnerError) {
     return c.json({ error: error.message, code: error.code }, error.status);
@@ -316208,7 +317568,7 @@ function clerkErrorResponse(c, error) {
   }
   return null;
 }
-app13.get("/api/admin/churches", async (c) => {
+app12.get("/api/admin/churches", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316225,7 +317585,7 @@ app13.get("/api/admin/churches", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.get("/api/admin/churches/hmc-interest", async (c) => {
+app12.get("/api/admin/churches/hmc-interest", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316239,7 +317599,7 @@ app13.get("/api/admin/churches/hmc-interest", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.get("/api/admin/churches/hmc/search", async (c) => {
+app12.get("/api/admin/churches/hmc/search", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316262,7 +317622,7 @@ app13.get("/api/admin/churches/hmc/search", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.get("/api/admin/churches/clerk-orgs", async (c) => {
+app12.get("/api/admin/churches/clerk-orgs", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316286,7 +317646,7 @@ app13.get("/api/admin/churches/clerk-orgs", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.post("/api/admin/churches", async (c) => {
+app12.post("/api/admin/churches", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316296,19 +317656,20 @@ app13.post("/api/admin/churches", async (c) => {
     let name = typeof body.name === "string" ? body.name.trim() : "";
     let city = typeof body.city === "string" ? body.city.trim() || null : null;
     let state = typeof body.state === "string" ? body.state.trim() || null : null;
-    const country = typeof body.country === "string" ? body.country.trim() || null : null;
+    let country = typeof body.country === "string" ? body.country.trim() || null : null;
     let hmcChurchId = null;
     if (!isValidClerkOrgId(orgId)) {
       return c.json({ error: "orgId must be a Clerk organization id (org_\u2026)", code: "INVALID_ORG_ID" }, 400);
     }
     if (hmcChurchIdRaw) {
-      const hmc = await hmcGetChurchById(hmcChurchIdRaw);
+      const hmc = await hmcGetChurchByIdForDenorm(hmcChurchIdRaw);
       if (!hmc) return c.json({ error: "Here\u2019s My Church record not found", code: "HMC_CHURCH_NOT_FOUND" }, 404);
       const denorm = hmcDenormFields(hmc);
       hmcChurchId = hmc.id;
       name = denorm.name;
       city = denorm.city;
       state = denorm.state;
+      country = denorm.country;
     }
     const titleValidation = validateTitle(name, true);
     if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
@@ -316340,7 +317701,7 @@ app13.post("/api/admin/churches", async (c) => {
       name,
       city,
       state,
-      country: hmcChurchId ? null : country,
+      country,
       createdBy,
       billingPlan: null,
       isActive: true,
@@ -316355,7 +317716,7 @@ app13.post("/api/admin/churches", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.post("/api/admin/churches/:churchId/update", async (c) => {
+app12.post("/api/admin/churches/:churchId/update", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316367,7 +317728,7 @@ app13.post("/api/admin/churches/:churchId/update", async (c) => {
     const linkingHmc = body.hmcChurchId !== void 0 && typeof body.hmcChurchId === "string" && body.hmcChurchId.trim() !== "";
     const unlinkingHmc = body.hmcChurchId !== void 0 && (body.hmcChurchId === null || typeof body.hmcChurchId === "string" && body.hmcChurchId.trim() === "");
     if (linkingHmc) {
-      const hmc = await hmcGetChurchById(String(body.hmcChurchId).trim());
+      const hmc = await hmcGetChurchByIdForDenorm(String(body.hmcChurchId).trim());
       if (!hmc) return c.json({ error: "Here\u2019s My Church record not found", code: "HMC_CHURCH_NOT_FOUND" }, 404);
       const taken = first(
         await db.select({ id: Churches.id }).from(Churches).where(and(eq(Churches.hmcChurchId, hmc.id), ne(Churches.id, churchId))).limit(1)
@@ -316383,7 +317744,7 @@ app13.post("/api/admin/churches/:churchId/update", async (c) => {
       patch.name = denorm.name;
       patch.city = denorm.city;
       patch.state = denorm.state;
-      patch.country = null;
+      patch.country = denorm.country;
     } else if (unlinkingHmc) {
       patch.hmcChurchId = null;
     }
@@ -316434,7 +317795,7 @@ app13.post("/api/admin/churches/:churchId/update", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.post("/api/admin/churches/:churchId/refresh-hmc", async (c) => {
+app12.post("/api/admin/churches/:churchId/refresh-hmc", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316444,7 +317805,7 @@ app13.post("/api/admin/churches/:churchId/refresh-hmc", async (c) => {
     if (!existing.hmcChurchId) {
       return c.json({ error: "Church is not linked to Here\u2019s My Church", code: "HMC_NOT_LINKED" }, 400);
     }
-    const hmc = await hmcGetChurchById(existing.hmcChurchId);
+    const hmc = await hmcGetChurchByIdForDenorm(existing.hmcChurchId);
     if (!hmc) return c.json({ error: "Here\u2019s My Church record not found", code: "HMC_CHURCH_NOT_FOUND" }, 404);
     const denorm = hmcDenormFields(hmc);
     const church = first(
@@ -316453,6 +317814,7 @@ app13.post("/api/admin/churches/:churchId/refresh-hmc", async (c) => {
         name: denorm.name,
         city: denorm.city,
         state: denorm.state,
+        country: denorm.country,
         updatedAt: nowISO()
       }).where(eq(Churches.id, churchId)).returning()
     );
@@ -316467,6 +317829,32 @@ app13.post("/api/admin/churches/:churchId/refresh-hmc", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+async function handleHmcSyncDenorm(c) {
+  const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
+  const expectedToken = process.env.HMC_SYNC_CRON_SECRET?.trim();
+  const hasValidToken = !!expectedToken && authHeader === `Bearer ${expectedToken}`;
+  if (!hasValidToken) {
+    const gate = await requireHarvousAdmin(c);
+    if (gate) return gate;
+  }
+  if (!isHmcConfigured()) {
+    return c.json(
+      { error: "Here\u2019s My Church partner API is not configured", code: "HMC_NOT_CONFIGURED" },
+      503
+    );
+  }
+  try {
+    const result = await runHmcDenormSync();
+    return c.json({ success: true, ...result });
+  } catch (error) {
+    const hmc = hmcErrorResponse(c, error);
+    if (hmc) return hmc;
+    console.error("[admin hmc sync-denorm]", error);
+    return c.json({ error: "Failed to sync HMC denorm" }, 500);
+  }
+}
+app12.post("/api/admin/hmc/sync-denorm", handleHmcSyncDenorm);
+app12.get("/api/admin/hmc/sync-denorm", handleHmcSyncDenorm);
 async function setChurchActive(c, active) {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
@@ -316480,9 +317868,9 @@ async function setChurchActive(c, active) {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 }
-app13.post("/api/admin/churches/:churchId/deactivate", (c) => setChurchActive(c, false));
-app13.post("/api/admin/churches/:churchId/reactivate", (c) => setChurchActive(c, true));
-app13.post("/api/admin/churches/:churchId/spaces", async (c) => {
+app12.post("/api/admin/churches/:churchId/deactivate", (c) => setChurchActive(c, false));
+app12.post("/api/admin/churches/:churchId/reactivate", (c) => setChurchActive(c, true));
+app12.post("/api/admin/churches/:churchId/spaces", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316552,7 +317940,7 @@ app13.post("/api/admin/churches/:churchId/spaces", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.post("/api/admin/churches/:churchId/sync-staff", async (c) => {
+app12.post("/api/admin/churches/:churchId/sync-staff", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316639,7 +318027,7 @@ app13.post("/api/admin/churches/:churchId/sync-staff", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var churches_default = app13;
+var churches_default = app12;
 
 // server/routes/featured.ts
 init_db2();
@@ -316721,8 +318109,8 @@ function isTestRoutesForbidden() {
 
 // server/routes/featured.ts
 init_note_version_service();
-var app14 = new Hono2();
-app14.get("/api/featured/items", async (c) => {
+var app13 = new Hono2();
+app13.get("/api/featured/items", async (c) => {
   try {
     const auth = getAuth(c);
     if (!auth.userId) {
@@ -316918,7 +318306,7 @@ app14.get("/api/featured/items", async (c) => {
     return c.json({ error: message }, 500);
   }
 });
-app14.post("/api/featured/erase", requireAuth, async (c) => {
+app13.post("/api/featured/erase", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -316943,7 +318331,7 @@ app14.post("/api/featured/erase", requireAuth, async (c) => {
   });
   return c.json({ success: true });
 });
-app14.post("/api/featured/dismiss", requireAuth, async (c) => {
+app13.post("/api/featured/dismiss", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -316977,7 +318365,7 @@ app14.post("/api/featured/dismiss", requireAuth, async (c) => {
   }
   return c.json({ success: true });
 });
-app14.get("/api/featured/dismissed", requireAuth, async (c) => {
+app13.get("/api/featured/dismissed", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const dismissedConditions = [
     eq(UserFeaturedItems.userId, auth.userId),
@@ -317013,12 +318401,12 @@ app14.get("/api/featured/dismissed", requireAuth, async (c) => {
     }))
   );
 });
-app14.get("/api/admin/check", async (c) => {
+app13.get("/api/admin/check", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   return c.json({ isAdmin: true });
 });
-app14.get("/api/admin/featured/by-space/:shareToken", async (c) => {
+app13.get("/api/admin/featured/by-space/:shareToken", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const shareToken = c.req.param("shareToken")?.trim() ?? "";
@@ -317028,7 +318416,7 @@ app14.get("/api/admin/featured/by-space/:shareToken", async (c) => {
   );
   return c.json(item ?? null);
 });
-app14.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
+app13.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const shareToken = c.req.param("shareToken")?.trim() ?? "";
@@ -317038,7 +318426,7 @@ app14.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
   );
   return c.json(item ?? null);
 });
-app14.post("/api/admin/featured", async (c) => {
+app13.post("/api/admin/featured", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -317082,7 +318470,7 @@ app14.post("/api/admin/featured", async (c) => {
   );
   return c.json(inserted ?? { success: true });
 });
-app14.patch("/api/admin/featured/:id", async (c) => {
+app13.patch("/api/admin/featured/:id", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
@@ -317099,7 +318487,7 @@ app14.patch("/api/admin/featured/:id", async (c) => {
   if (!updated) return c.json({ error: "Not found" }, 404);
   return c.json(updated);
 });
-app14.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
+app13.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -317243,7 +318631,7 @@ app14.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
   });
   return c.json({ success: true, noteId: newNote.id });
 });
-app14.get("/api/featured/space", async (c) => {
+app13.get("/api/featured/space", async (c) => {
   try {
     const systemUserId = getHarvousSystemUserId();
     const space = first(
@@ -317280,7 +318668,7 @@ app14.get("/api/featured/space", async (c) => {
     return c.json(null);
   }
 });
-var featured_default = app14;
+var featured_default = app13;
 
 // server/routes/votd.ts
 init_db2();
@@ -318078,7 +319466,7 @@ function pickPoolVerseForPreview(dateStr, usedRefs, avoidBook) {
 }
 
 // server/routes/votd.ts
-var app15 = new Hono2();
+var app14 = new Hono2();
 async function requireVotdAuth(c) {
   if (c.get("cronAuthed")) return null;
   const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
@@ -318170,7 +319558,7 @@ async function publishVotdCore(params) {
   });
   return { featuredItemId };
 }
-app15.post("/api/admin/votd/schedule", async (c) => {
+app14.post("/api/admin/votd/schedule", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -318210,13 +319598,13 @@ app15.post("/api/admin/votd/schedule", async (c) => {
   );
   return c.json(inserted ?? { success: true }, 201);
 });
-app15.get("/api/admin/votd/schedule", async (c) => {
+app14.get("/api/admin/votd/schedule", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const rows = await db.select().from(VotdSchedule).orderBy(desc(VotdSchedule.createdAt));
   return c.json(rows);
 });
-app15.delete("/api/admin/votd/schedule/:id", async (c) => {
+app14.delete("/api/admin/votd/schedule/:id", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
@@ -318287,7 +319675,7 @@ async function publishForDate(dateStr) {
   });
   return { alreadyPublished: false, featuredItemId: result.featuredItemId, reference: pick2.reference, source: pick2.source };
 }
-app15.post("/api/admin/votd/publish-daily", async (c) => {
+app14.post("/api/admin/votd/publish-daily", async (c) => {
   const unauthorized = await requireVotdAuth(c);
   if (unauthorized) return unauthorized;
   const target = c.req.query("target");
@@ -318350,7 +319738,7 @@ function daysBetweenUtcInclusive(start, end) {
   const msPerDay = 24 * 60 * 60 * 1e3;
   return Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
 }
-app15.get("/api/admin/votd/preview", async (c) => {
+app14.get("/api/admin/votd/preview", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const monthParam = c.req.query("month")?.trim();
@@ -318509,7 +319897,7 @@ app15.get("/api/admin/votd/preview", async (c) => {
   }
   return c.json({ days: out });
 });
-app15.post("/api/admin/votd/override", async (c) => {
+app14.post("/api/admin/votd/override", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -318553,7 +319941,7 @@ app15.post("/api/admin/votd/override", async (c) => {
   );
   return c.json(inserted ?? { success: true });
 });
-app15.post("/api/admin/votd/refresh", async (c) => {
+app14.post("/api/admin/votd/refresh", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -318618,7 +320006,7 @@ app15.post("/api/admin/votd/refresh", async (c) => {
   );
   return c.json({ success: true, reference: normalizedRef, row: inserted });
 });
-app15.delete("/api/admin/votd/override/:date", async (c) => {
+app14.delete("/api/admin/votd/override/:date", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const dateStr = c.req.param("date")?.trim() ?? "";
@@ -318628,7 +320016,7 @@ app15.delete("/api/admin/votd/override/:date", async (c) => {
   await db.delete(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, dateStr), eq(VotdSchedule.isPublished, false)));
   return c.json({ success: true });
 });
-app15.post("/api/votd/record-engagement", requireAuth, async (c) => {
+app14.post("/api/votd/record-engagement", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const action = body.action?.trim();
@@ -318644,7 +320032,7 @@ app15.post("/api/votd/record-engagement", requireAuth, async (c) => {
   }
   return c.json({ success: true, featuredItemId: result.featuredItemId });
 });
-var votd_default = app15;
+var votd_default = app14;
 
 // server/routes/test.ts
 init_auth();
@@ -318684,8 +320072,8 @@ async function resetUserToNew(userId) {
 init_db2();
 init_dates();
 init_schema2();
-var app16 = new Hono2();
-app16.post("/api/test/reset-to-new-user", async (c) => {
+var app15 = new Hono2();
+app15.post("/api/test/reset-to-new-user", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -318710,7 +320098,7 @@ app16.post("/api/test/reset-to-new-user", async (c) => {
     return c.json({ error: error.message || "Failed to reset user" }, 500);
   }
 });
-app16.post("/api/test/set-shared-spaces-addon", async (c) => {
+app15.post("/api/test/set-shared-spaces-addon", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -318733,7 +320121,7 @@ app16.post("/api/test/set-shared-spaces-addon", async (c) => {
     return c.json({ error: error.message || "Failed to update Shared Spaces add-on" }, 500);
   }
 });
-app16.post("/api/test/reset-featured", async (c) => {
+app15.post("/api/test/reset-featured", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -318755,7 +320143,7 @@ app16.post("/api/test/reset-featured", async (c) => {
     return c.json({ error: error.message || "Failed to reset featured items" }, 500);
   }
 });
-app16.post("/api/test/seed-sample-votd", async (c) => {
+app15.post("/api/test/seed-sample-votd", async (c) => {
   const seedBlock = featuredSampleSeedForbiddenResponse(c);
   if (seedBlock) return seedBlock;
   try {
@@ -318820,7 +320208,7 @@ app16.post("/api/test/seed-sample-votd", async (c) => {
     return c.json({ error: error.message || "Failed to seed sample VOTD" }, 500);
   }
 });
-app16.post("/api/test/seed-sample-featured", async (c) => {
+app15.post("/api/test/seed-sample-featured", async (c) => {
   const seedBlock = featuredSampleSeedForbiddenResponse(c);
   if (seedBlock) return seedBlock;
   try {
@@ -318964,7 +320352,7 @@ app16.post("/api/test/seed-sample-featured", async (c) => {
     return c.json({ error: error.message || "Failed to seed sample featured items" }, 500);
   }
 });
-var test_default = app16;
+var test_default = app15;
 
 // server/data/dictionaries/eastons-slug-index.json
 var eastons_slug_index_default = [
@@ -366729,22 +368117,60 @@ init_pg_undefined_relation();
 // server/utils/diagnostics-sanitize.ts
 var import_crypto5 = require("crypto");
 
+// src/lib/prototype-path.ts
+var RESERVED_PROTOTYPE_SEGMENTS = /* @__PURE__ */ new Set([
+  "settings",
+  "space",
+  "search",
+  "admin",
+  "n",
+  "new",
+  "compose",
+  "church",
+  "challenges",
+  "compete",
+  "learn",
+  "org"
+]);
+
 // src/utils/diagnostics-route.ts
 var NOTE_ID_RE = /\bnote_[a-zA-Z0-9_-]+\b/gi;
 var THREAD_ID_RE = /\bthread_[a-zA-Z0-9_-]+\b/gi;
 var SPACE_ID_RE = /\bspace_[a-zA-Z0-9_-]+\b/gi;
+var RESERVED_ROOT_SEGMENTS = /* @__PURE__ */ new Set([
+  ...RESERVED_PROTOTYPE_SEGMENTS,
+  "sign-in",
+  "sign-up",
+  "spaces",
+  "shared",
+  "invitations",
+  "addon",
+  "upgrade",
+  "status",
+  "api",
+  "prototype",
+  "note",
+  "thread",
+  "assets"
+]);
 function redactDiagnosticRoute(path10) {
   const withoutQuery = path10.split("?")[0]?.split("#")[0] ?? path10;
   const segments = withoutQuery.split("/").filter(Boolean);
-  const redacted = segments.map((seg) => {
+  const redacted = segments.map((seg, index2) => {
     if (/^user_[a-zA-Z0-9]+$/.test(seg)) return ":id";
     if (/^(note|thread|space)_[a-zA-Z0-9_-]+$/i.test(seg)) return ":id";
     if (/^[a-f0-9]{20,}$/i.test(seg)) return ":token";
     if (/^\d+$/.test(seg)) return ":id";
     if (seg.length > 40) return ":id";
+    if (index2 === 0 && segments.length === 1 && !RESERVED_ROOT_SEGMENTS.has(seg.toLowerCase()) && /^[0-9A-Za-z]{4,}$/.test(seg)) {
+      return ":id";
+    }
     return seg;
   });
   return "/" + redacted.join("/");
+}
+function normalizeDiagnosticMessageForSignature(message) {
+  return message.replace(/\s*params:.*$/is, "").replace(/-[A-Za-z0-9_-]{8,}\.(js|mjs|css)\b/g, "-[hash].$1").replace(/\bchunk\s+\d+\b/gi, "chunk [id]").replace(/@\d+\.\d+\.\d+\b/g, "@[version]").replace(/\b[0-9a-f]{8,}\b/gi, "[hash]").replace(/\s+/g, " ").trim();
 }
 function scrubDiagnosticText(text3) {
   return text3.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "[email]").replace(/\buser_[a-zA-Z0-9]+\b/g, "[user]").replace(NOTE_ID_RE, "[note]").replace(THREAD_ID_RE, "[thread]").replace(SPACE_ID_RE, "[space]").replace(/\b[0-9a-f]{24,}\b/gi, "[token]").trim();
@@ -366768,10 +368194,9 @@ function topStackFrame(stack) {
   const frame = lines.find((l) => l.startsWith("at ")) ?? lines[1] ?? lines[0] ?? "";
   return scrubDiagnosticText(truncate2(frame, 200));
 }
-function computeIssueSignature(message, route18, stack) {
+function computeIssueSignature(message, _route, stack) {
   const normalized = [
-    scrubDiagnosticText(message).toLowerCase(),
-    route18 ?? "",
+    normalizeDiagnosticMessageForSignature(scrubDiagnosticText(message)).toLowerCase(),
     topStackFrame(stack)
   ].join("::");
   return (0, import_crypto5.createHash)("sha256").update(normalized).digest("hex").slice(0, 32);
@@ -367153,50 +368578,49 @@ route17.get("/api/status/public", async (c) => {
 var status_public_default = route17;
 
 // server/app.ts
-var app17 = new Hono2();
-app17.use("/api/*", requestId());
-app17.use("/api/*", cors());
-app17.use("/api/*", clerkAuth);
-app17.use("/api/*", async (c, next) => {
+var app16 = new Hono2();
+app16.use("/api/*", requestId());
+app16.use("/api/*", cors());
+app16.use("/api/*", clerkAuth);
+app16.use("/api/*", async (c, next) => {
   await next();
   if (c.req.method === "GET" && !c.res.headers.has("Cache-Control")) {
     c.res.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
   }
 });
-app17.route("/", health_default);
-app17.route("/", navigation_default);
-app17.route("/", debug_default);
-app17.route("/", about_default);
-app17.route("/", og_default);
-app17.route("/", stats_default);
-app17.route("/", search_default);
-app17.route("/", content_default);
-app17.route("/", threads_default);
-app17.route("/", notes_default);
-app17.route("/", note_templates_default);
-app17.route("/", study_threads_default);
-app17.route("/", spaces_default);
-app17.route("/", user_default);
-app17.route("/", tags_scripture_default);
-app17.route("/", shared_default);
-app17.route("/", billing_default);
-app17.route("/", resource_default);
-app17.route("/", inbox_default);
-app17.route("/", webflow_default);
-app17.route("/", webhooks_default);
-app17.route("/", sync_default2);
-app17.route("/", migrations_default);
-app17.route("/", admin_default);
-app17.route("/", churches_default);
-app17.route("/", featured_default);
-app17.route("/", votd_default);
-app17.route("/", test_default);
-app17.route("/", dictionary_default);
-app17.route("/", recall_default);
-app17.route("/", support_default);
-app17.route("/", diagnostics_default);
-app17.route("/", status_public_default);
-var app_default = app17;
+app16.route("/", health_default);
+app16.route("/", navigation_default);
+app16.route("/", debug_default);
+app16.route("/", about_default);
+app16.route("/", og_default);
+app16.route("/", stats_default);
+app16.route("/", search_default);
+app16.route("/", content_default);
+app16.route("/", threads_default);
+app16.route("/", notes_default);
+app16.route("/", note_templates_default);
+app16.route("/", study_threads_default);
+app16.route("/", spaces_default);
+app16.route("/", user_default);
+app16.route("/", tags_scripture_default);
+app16.route("/", shared_default);
+app16.route("/", billing_default);
+app16.route("/", resource_default);
+app16.route("/", inbox_default);
+app16.route("/", webhooks_default);
+app16.route("/", sync_default2);
+app16.route("/", migrations_default);
+app16.route("/", admin_default);
+app16.route("/", churches_default);
+app16.route("/", featured_default);
+app16.route("/", votd_default);
+app16.route("/", test_default);
+app16.route("/", dictionary_default);
+app16.route("/", recall_default);
+app16.route("/", support_default);
+app16.route("/", diagnostics_default);
+app16.route("/", status_public_default);
+var app_default = app16;
 
 // server/netlify.ts
 init_client();

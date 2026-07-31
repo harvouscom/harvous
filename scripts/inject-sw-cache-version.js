@@ -1,9 +1,18 @@
 #!/usr/bin/env node
 
 /**
- * Injects package.json version into public/sw.js CACHE_NAME so each deploy
- * invalidates the PWA cache and users get fresh HTML/CSS/JS (including layout updates).
+ * Injects package.json version + the CI build id into public/sw.js CACHE_NAME so each
+ * deploy invalidates the PWA cache and users get fresh HTML/CSS/JS (including layout updates).
  * Run before build (e.g. prebuild) so the built site ships with the correct cache key.
+ *
+ * The build id matters: version alone means a deploy without a `chore: bump version` commit
+ * ships a byte-identical sw.js. The browser then sees no update, never re-runs install/activate,
+ * and keeps serving the previous deploy's cached index.html — whose hashed chunk URLs Netlify
+ * has already deleted. Appending the commit ref makes every deploy roll the cache.
+ *
+ * Only appended in CI so local builds stay deterministic and don't churn the tracked file.
+ * `extractVersionFromCacheName` in service-worker-manager.js matches the v<maj>-<min>-<patch>
+ * prefix with an unanchored regex, so the suffix is safe for major-update detection.
  */
 
 import { readFileSync, writeFileSync } from 'fs';
@@ -19,7 +28,13 @@ const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
 const version = pkg.version || '0.0.0';
 // e.g. "1.132.0" -> "v1-132-0"
 const cacheVersion = 'v' + version.replace(/\./g, '-');
-const cacheName = `harvous-cache-${cacheVersion}`;
+// Netlify sets COMMIT_REF (and DEPLOY_ID) on every build, including redeploys of the same commit.
+const buildId = (process.env.COMMIT_REF || process.env.DEPLOY_ID || '')
+  .replace(/[^a-zA-Z0-9]/g, '')
+  .slice(0, 8);
+const cacheName = buildId
+  ? `harvous-cache-${cacheVersion}-${buildId}`
+  : `harvous-cache-${cacheVersion}`;
 
 let sw = readFileSync(swPath, 'utf8');
 const pattern = /const CACHE_NAME = '[^']+';/;

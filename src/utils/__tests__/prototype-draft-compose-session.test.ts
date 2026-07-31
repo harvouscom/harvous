@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   PROTOTYPE_DRAFT_NOTE_ID,
+  isAdoptedComposeSessionActive,
   isDraftComposeAdoptionTransition,
   prototypeComposeEditorKey,
   shouldKeepEditorDuringPersistedDraftLoad,
@@ -50,5 +51,23 @@ describe('shouldKeepEditorDuringPersistedDraftLoad', () => {
     expect(shouldKeepEditorDuringPersistedDraftLoad(true, 'note_draft', 'note_abc123')).toBe(false);
     expect(shouldKeepEditorDuringPersistedDraftLoad(false, 'note_other', 'note_abc123')).toBe(false);
     expect(shouldKeepEditorDuringPersistedDraftLoad(false, 'note_abc123', null)).toBe(false);
+  });
+});
+
+describe('isAdoptedComposeSessionActive', () => {
+  it('stays active on the draft route and on the note the draft persisted into', () => {
+    expect(isAdoptedComposeSessionActive(true, 'note_draft', 'note_abc123')).toBe(true);
+    expect(isAdoptedComposeSessionActive(false, 'note_abc123', 'note_abc123')).toBe(true);
+  });
+
+  it('goes inactive once the URL moves to a different note', () => {
+    // The regression: a stale adoptedComposeId used to pin editorSessionKey to the compose
+    // mount for every later note, so switching notes showed the previous body until reload.
+    expect(isAdoptedComposeSessionActive(false, 'note_other', 'note_abc123')).toBe(false);
+  });
+
+  it('is inactive with no adopted id', () => {
+    expect(isAdoptedComposeSessionActive(false, 'note_abc123', null)).toBe(false);
+    expect(isAdoptedComposeSessionActive(true, 'note_draft', null)).toBe(false);
   });
 });

@@ -144,19 +144,6 @@
         return;
       }
 
-      // Prototype shell: avoid cache-clear + reload loops on iOS PWA (WebKit process kill).
-      // The page already runs the new worker.
-      if (isPrototypeShellPage()) {
-        reloadingForUpdate = false;
-        return;
-      }
-
-      // Auth / shared / join pages: never reload mid-flow (preserves in-progress sign-in email).
-      if (isNoUpdateToastPath()) {
-        reloadingForUpdate = false;
-        return;
-      }
-
       function clearCachesAndReload() {
         caches.keys()
           .then(function(names) {
@@ -166,23 +153,32 @@
           .catch(function() { window.location.reload(); });
       }
 
-      // Only show toast on app layout pages (Layout.astro has .app-layout); suppress on sign-in, sign-up, shared, etc.
-      var isAppLayoutPage = document.querySelector('.app-layout') !== null;
-
-      // Minor/patch update - show toast on app layout only, then auto-reload
-      if (isAppLayoutPage && !isNoUpdateToastPath() && window.toast && typeof window.toast.info === 'function') {
-        try {
-          window.toast.info('Updating Harvous for you');
-          // Wait 1600ms (matches toast duration) before reloading
-          setTimeout(clearCachesAndReload, 1600);
-        } catch (error) {
-          console.log('Toast notification failed, reloading immediately:', error);
-          clearCachesAndReload();
+      // Prototype shell (the whole authenticated app): never force a reload — that caused
+      // loops on iOS PWA (WebKit process kill) — but do NOT stay silent either. The new
+      // worker has already claimed this client and deleted the old cache, so the running
+      // document's lazily-imported chunk URLs are gone from the CDN and any route the user
+      // hasn't visited yet will fail. Offer the reload and let them take it.
+      if (isPrototypeShellPage()) {
+        reloadingForUpdate = false;
+        if (!isNoUpdateToastPath()) {
+          if (typeof window.__harvousShowAppUpdateNotice === 'function') {
+            window.__harvousShowAppUpdateNotice({ needsReload: true });
+          } else {
+            window.dispatchEvent(new CustomEvent('harvous-prototype-app-update', {
+              detail: { mode: 'reload' }
+            }));
+          }
         }
-      } else {
-        // Non-app layout or toast not available - reload immediately without toast
-        clearCachesAndReload();
+        return;
       }
+
+      // Auth / shared / join pages: never reload mid-flow (preserves in-progress sign-in email).
+      if (isNoUpdateToastPath()) {
+        reloadingForUpdate = false;
+        return;
+      }
+
+      clearCachesAndReload();
     });
 
     // Function to check for service worker updates and handle them
@@ -263,21 +259,14 @@
             }
           });
           
-          // Periodically check for updates (every hour)
+          // Periodically check for updates (every hour). The on-visible check lives in the
+          // single consolidated visibilitychange handler below — registering a second one
+          // here meant every tab focus fired two update() requests for the same worker.
           setInterval(() => {
             registration.update().catch(err => {
               console.log('Service Worker update check failed:', err);
             });
           }, 60 * 60 * 1000); // 1 hour
-          
-          // Also check for updates when page becomes visible (after being hidden)
-          document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) {
-              registration.update().catch(err => {
-                console.log('Service Worker update check failed:', err);
-              });
-            }
-          });
         })
         .catch(error => {
           console.log('ServiceWorker registration failed:', error);
@@ -326,32 +315,29 @@
       visibilityEvent = "webkitvisibilitychange";
     }
     
-    // When the app becomes visible after being hidden (returned from background)
+    /**
+     * THE on-visible handler for the service worker. Everything the app does when a tab
+     * comes back to the foreground belongs here — there used to be three separate
+     * visibilitychange listeners (two in this file, one in pwa-startup.js), so a single
+     * focus fired two registration.update() calls, two 'warmup' messages, /api/health
+     * twice, plus /api/threads/list and /api/navigation/data that React Query already
+     * refetches itself via refetchOnWindowFocus.
+     *
+     * pwa-startup.js keeps only its standalone-specific work (shell watchdog, WebKit repaint).
+     */
     document.addEventListener(visibilityEvent, () => {
-      if (!isHidden()) {
-        // App is visible again - warm up
-        if (navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage('warmup');
-        }
-        
-        // Preload critical UI components
-        if ('requestIdleCallback' in window) {
-          window.requestIdleCallback(() => {
-            // Prefetch common navigation paths when idle
-            const prefetcher = document.createElement('link');
-            prefetcher.rel = 'prefetch';
-            prefetcher.href = '/';
-            document.head.appendChild(prefetcher);
-          });
-        } else {
-          // Fallback for browsers that don't support requestIdleCallback
-          setTimeout(() => {
-            const prefetcher = document.createElement('link');
-            prefetcher.rel = 'prefetch';
-            prefetcher.href = '/';
-            document.head.appendChild(prefetcher);
-          }, 1000);
-        }
+      if (isHidden()) return;
+
+      // One update check…
+      if (registrationRef) {
+        registrationRef.update().catch(err => {
+          console.log('Service Worker update check failed:', err);
+        });
+      }
+
+      // …and one warmup ping (the SW answers this with a single /api/health fetch).
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage('warmup');
       }
     });
     

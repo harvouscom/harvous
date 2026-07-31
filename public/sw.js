@@ -56,10 +56,33 @@ const isSignInPageResponse = async (response) => {
   }
 };
 
-const shouldCacheResponse = (response) => {
+/**
+ * True when the response body is obviously not what the URL asked for — the SPA catch-all
+ * answering a deleted /assets/*.js with index.html at 200. Status alone can't catch that,
+ * and caching it would serve HTML as JS for the life of this cache version.
+ */
+const isMistypedAssetResponse = (request, response) => {
+  if (!request || !response) return false;
+  let pathname;
+  try {
+    pathname = new URL(request.url).pathname;
+  } catch (_) {
+    return false;
+  }
+  if (!/\.(js|mjs|css)$/i.test(pathname)) return false;
+  const contentType = (response.headers.get('content-type') || '').toLowerCase();
+  return contentType.includes('text/html');
+};
+
+const shouldCacheResponse = (response, request) => {
   if (!response) return false;
   const status = response.status;
-  return status >= 200 && status < 300 && status !== 206;
+  if (!(status >= 200 && status < 300 && status !== 206)) return false;
+  if (isMistypedAssetResponse(request, response)) {
+    console.warn(`Service Worker: refusing to cache HTML for ${request.url}`);
+    return false;
+  }
+  return true;
 };
 
 const addCacheTimestamp = (response) => {
@@ -219,7 +242,7 @@ self.addEventListener('fetch', (event) => {
       caches.match(event.request).then((cached) => {
         if (cached) {
           fetch(event.request).then((response) => {
-            if (shouldCacheResponse(response)) {
+            if (shouldCacheResponse(response, event.request)) {
               caches.open(CACHE_NAME).then((cache) => {
                 safeCachePut(cache, event.request, addCacheTimestamp(response.clone()));
               });
@@ -229,7 +252,7 @@ self.addEventListener('fetch', (event) => {
         }
         
         return fetch(event.request).then((response) => {
-          if (shouldCacheResponse(response)) {
+          if (shouldCacheResponse(response, event.request)) {
             const timestamped = addCacheTimestamp(response.clone());
             const responseToCache = timestamped.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -238,9 +261,13 @@ self.addEventListener('fetch', (event) => {
             return timestamped;
           }
           return response;
-        }).catch(() => {
-          return caches.match(event.request);
-        });
+        }).catch(() =>
+          // `caches.match` resolves undefined on a miss, and respondWith(undefined) throws —
+          // which would turn a transient network blip into a hard failure for this asset.
+          caches.match(event.request).then((fallback) =>
+            fallback || new Response('', { status: 504, statusText: 'Asset unavailable' })
+          )
+        );
       })
     );
     return;
@@ -253,7 +280,7 @@ self.addEventListener('fetch', (event) => {
       caches.match(event.request).then((cached) => {
         if (cached) {
           fetch(event.request).then((response) => {
-            if (shouldCacheResponse(response)) {
+            if (shouldCacheResponse(response, event.request)) {
               caches.open(CACHE_NAME).then((cache) => {
                 safeCachePut(cache, event.request, addCacheTimestamp(response.clone()));
               });
@@ -263,7 +290,7 @@ self.addEventListener('fetch', (event) => {
         }
         
         return fetch(event.request).then((response) => {
-          if (shouldCacheResponse(response)) {
+          if (shouldCacheResponse(response, event.request)) {
             const timestamped = addCacheTimestamp(response.clone());
             const responseToCache = timestamped.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -272,9 +299,13 @@ self.addEventListener('fetch', (event) => {
             return timestamped;
           }
           return response;
-        }).catch(() => {
-          return caches.match(event.request);
-        });
+        }).catch(() =>
+          // `caches.match` resolves undefined on a miss, and respondWith(undefined) throws —
+          // which would turn a transient network blip into a hard failure for this asset.
+          caches.match(event.request).then((fallback) =>
+            fallback || new Response('', { status: 504, statusText: 'Asset unavailable' })
+          )
+        );
       })
     );
     return;
@@ -286,7 +317,7 @@ self.addEventListener('fetch', (event) => {
       caches.match(event.request).then((cached) => {
         if (cached) {
           fetch(event.request).then((response) => {
-            if (shouldCacheResponse(response)) {
+            if (shouldCacheResponse(response, event.request)) {
               const timestamped = addCacheTimestamp(response);
               const timestampedClone = timestamped.clone();
               caches.open(CACHE_NAME).then((cache) => {
@@ -298,7 +329,7 @@ self.addEventListener('fetch', (event) => {
         }
         
         return fetch(event.request).then((response) => {
-          if (shouldCacheResponse(response)) {
+          if (shouldCacheResponse(response, event.request)) {
             const timestamped = addCacheTimestamp(response.clone());
             const responseToCache = timestamped.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -307,9 +338,13 @@ self.addEventListener('fetch', (event) => {
             return timestamped;
           }
           return response;
-        }).catch(() => {
-          return caches.match(event.request);
-        });
+        }).catch(() =>
+          // `caches.match` resolves undefined on a miss, and respondWith(undefined) throws —
+          // which would turn a transient network blip into a hard failure for this asset.
+          caches.match(event.request).then((fallback) =>
+            fallback || new Response('', { status: 504, statusText: 'Asset unavailable' })
+          )
+        );
       })
     );
     return;
@@ -321,7 +356,7 @@ self.addEventListener('fetch', (event) => {
       caches.match(event.request).then((cached) => {
         if (cached) {
           fetch(event.request).then((response) => {
-            if (shouldCacheResponse(response)) {
+            if (shouldCacheResponse(response, event.request)) {
               const timestamped = addCacheTimestamp(response);
               const timestampedClone = timestamped.clone();
               caches.open(CACHE_NAME).then((cache) => {
@@ -333,7 +368,7 @@ self.addEventListener('fetch', (event) => {
         }
 
         return fetch(event.request).then((response) => {
-          if (shouldCacheResponse(response)) {
+          if (shouldCacheResponse(response, event.request)) {
             const timestamped = addCacheTimestamp(response.clone());
             const responseToCache = timestamped.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -342,9 +377,13 @@ self.addEventListener('fetch', (event) => {
             return timestamped;
           }
           return response;
-        }).catch(() => {
-          return caches.match(event.request);
-        });
+        }).catch(() =>
+          // `caches.match` resolves undefined on a miss, and respondWith(undefined) throws —
+          // which would turn a transient network blip into a hard failure for this asset.
+          caches.match(event.request).then((fallback) =>
+            fallback || new Response('', { status: 504, statusText: 'Asset unavailable' })
+          )
+        );
       })
     );
     return;
@@ -373,7 +412,7 @@ self.addEventListener('fetch', (event) => {
           if (cachedOk) {
             fetch(event.request, { cache: 'no-cache' })
               .then(async (response) => {
-                if (shouldCacheResponse(response)) {
+                if (shouldCacheResponse(response, event.request)) {
                   const isSignIn = await isSignInPageResponse(response.clone());
                   if (!isSignIn) {
                     const timestamped = addCacheTimestamp(response);
@@ -390,7 +429,7 @@ self.addEventListener('fetch', (event) => {
 
           return fetch(event.request, { cache: 'no-cache' })
             .then(async (response) => {
-              if (shouldCacheResponse(response)) {
+              if (shouldCacheResponse(response, event.request)) {
                 const isSignIn = await isSignInPageResponse(response.clone());
                 if (!isSignIn) {
                   const timestamped = addCacheTimestamp(response);
@@ -474,7 +513,7 @@ self.addEventListener('fetch', (event) => {
         event.respondWith(
           fetch(event.request, { cache: 'no-cache' }).then(async (response) => {
             // Cache for offline use
-            if (shouldCacheResponse(response)) {
+            if (shouldCacheResponse(response, event.request)) {
               const isSignIn = await isSignInPageResponse(response.clone());
               if (!isSignIn) {
                 const timestamped = addCacheTimestamp(response);
@@ -621,7 +660,7 @@ self.addEventListener('fetch', (event) => {
         
         const networkPromise = fetch(event.request, { cache: 'no-cache' })
           .then(async (response) => {
-            if (shouldCacheResponse(response)) {
+            if (shouldCacheResponse(response, event.request)) {
               const isSignIn = await isSignInPageResponse(response.clone());
               if (!isSignIn) {
                 const timestamped = addCacheTimestamp(response);
@@ -807,7 +846,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request, { cache: 'no-cache' })
       .then((response) => {
-        if (shouldCacheResponse(response)) {
+        if (shouldCacheResponse(response, event.request)) {
           const timestamped = addCacheTimestamp(response.clone());
           const responseToReturn = timestamped.clone();
           caches.open(CACHE_NAME).then((cache) => {

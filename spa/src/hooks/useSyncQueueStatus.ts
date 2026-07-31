@@ -165,11 +165,16 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
       }
     };
 
-    const POLL_MS_HEALTHY = 5000;
+    // Idle cadence only drives a status chip — 5s meant an IndexedDB read twelve times a
+    // minute forever, which is most of what "the app is always doing something" looked like.
+    // Anything with queued work still polls at 1s, and a fresh check runs on focus/online.
+    const POLL_MS_HEALTHY = 30000;
     const POLL_MS_PENDING = 1000;
     let intervalMs = POLL_MS_HEALTHY;
 
     const checkAndReschedule = async () => {
+      // Nothing to show while the tab is hidden; the visibility handler re-checks on return.
+      if (typeof document !== 'undefined' && document.hidden) return;
       await check();
       const nextMs = prevPendingRef.current > 0 ? POLL_MS_PENDING : POLL_MS_HEALTHY;
       if (nextMs !== intervalMs) {
@@ -183,6 +188,11 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
 
     checkRef.current = checkAndReschedule;
     void checkAndReschedule();
+
+    const handleVisible = () => {
+      if (!document.hidden) void checkAndReschedule();
+    };
+    document.addEventListener('visibilitychange', handleVisible);
 
     const handleOnline = async () => {
       // Re-arm the one-shot self-heal so reconnecting always gets a fresh auto-retry of any
@@ -205,6 +215,7 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
       checkRef.current = null;
       clearInterval(interval);
       window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisible);
     };
   }, [userId]);
 

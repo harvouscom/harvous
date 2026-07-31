@@ -296,15 +296,29 @@ async function cancelBillingEntitlements(userId: string): Promise<boolean> {
   return updated.length > 0;
 }
 
+/** Per-user watermark for opportunistic (`throttle: true`) reconciles. */
+const RECONCILE_THROTTLE_MS = 5 * 60 * 1000;
+const lastReconcileAt = new Map<string, number>();
+
 /**
  * Reconcile billing entitlements from Polar.
  * Promotes when an active known-product subscription is found; cancels
  * `source='billing'` rows when Polar reports none (customer deleted / fully
  * canceled). Polar API failures do not revoke. Keyed by externalCustomerId =
  * userId, so no stored customer id is required.
+ *
+ * Pass `throttle: true` for opportunistic reconciles on hot read paths (see
+ * GET /api/subscription/status, which the sidebar mounts for every session with a 30s
+ * staleTime plus refetch-on-focus — that was a live Polar round-trip per read). Webhooks
+ * remain the primary path, so a skipped reconcile only delays reconciliation, and any
+ * explicit user action (checkout return, POST /api/billing/sync) must omit the flag.
+ *
+ * The watermark is per Lambda instance, so this bounds rather than eliminates the calls —
+ * it collapses a warm instance's repeat reads, which is where the volume was.
  */
 export async function syncEntitlementsFromProvider(
   userId: string,
+  options?: { throttle?: boolean },
 ): Promise<{ entitlements: FeatureKey[]; updated: boolean; hasSharedSpaces: boolean }> {
   const before = await listActiveFeatureKeys(userId);
 
@@ -314,6 +328,18 @@ export async function syncEntitlementsFromProvider(
       updated: false,
       hasSharedSpaces: before.includes('shared_spaces'),
     };
+  }
+
+  if (options?.throttle) {
+    const last = lastReconcileAt.get(userId) ?? 0;
+    if (Date.now() - last < RECONCILE_THROTTLE_MS) {
+      return {
+        entitlements: before,
+        updated: false,
+        hasSharedSpaces: before.includes('shared_spaces'),
+      };
+    }
+    lastReconcileAt.set(userId, Date.now());
   }
 
   let updated = false;

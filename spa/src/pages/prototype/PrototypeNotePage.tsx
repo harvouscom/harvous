@@ -62,6 +62,7 @@ import {
 } from '@/utils/prototype-editor-focused';
 import { clearNoteDraft } from '@/utils/note-draft-store';
 import {
+  isAdoptedComposeSessionActive,
   isDraftComposeAdoptionTransition,
   prototypeComposeEditorKey,
   shouldKeepEditorDuringPersistedDraftLoad,
@@ -822,7 +823,12 @@ export default function PrototypeNotePage() {
   }, []);
 
   useEffect(() => {
-    if (!isDraft && adoptedComposeId && note && noteId === adoptedComposeId) {
+    if (isDraft || !adoptedComposeId) return;
+    // Normal end of a compose session: we landed on the adopted note and it loaded.
+    // Also clear when the URL moved to a *different* note — the session is over either
+    // way, and leaving the id set would pin editorSessionKey to the compose mount for
+    // every subsequent note (stale body until a reload).
+    if (noteId !== adoptedComposeId || note) {
       adoptedComposeIdRef.current = null;
       setAdoptedComposeId(null);
     }
@@ -1486,8 +1492,11 @@ export default function PrototypeNotePage() {
   // compose bumps composeSessionEpoch so distinct compose sessions never share an instance.
   // templateApplyEpoch remounts after "Start from a template" so TipTap seeds the HTML.
   const composeEditorKey = prototypeComposeEditorKey(DRAFT_NOTE_ID, composeSessionEpoch);
+  // Gate on the session still owning THIS note — `adoptedComposeId` alone would keep the
+  // compose key after navigating to an unrelated note, so the editor never remounts.
+  const composeSessionActive = isAdoptedComposeSessionActive(isDraft, noteId, adoptedComposeId);
   const editorSessionKey =
-    (isDraft || !!adoptedComposeId ? composeEditorKey : noteId) +
+    (isDraft || composeSessionActive ? composeEditorKey : noteId) +
     (templateApplyEpoch > 0 ? `:tpl-${templateApplyEpoch}` : '');
 
   const noteIsEffectivelyEmpty = isEffectivelyEmptyPrototypeNote(
@@ -1561,8 +1570,9 @@ export default function PrototypeNotePage() {
   };
 
   // During compose → /{id} adoption, keep the draft inspector until the note query lands.
+  // Scoped to the active session so an unrelated note still loading doesn't show the draft.
   const inspectorNote =
-    isDraft || (!note && !!adoptedComposeId) ? draftInspectorNote : note;
+    isDraft || (!note && composeSessionActive) ? draftInspectorNote : note;
 
   const showInspectorDesktop = (inspectorOpen || inspectorExiting) && !isMobileSidebar;
   const showInspectorMobile = (inspectorOpen || inspectorExiting) && isMobileSidebar;

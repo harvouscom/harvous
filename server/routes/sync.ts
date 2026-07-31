@@ -958,7 +958,9 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     // row for this note is resolved (multi-thread), matching the direct update path.
     if (!versioned.note.contentEncrypted && typeof data.content === 'string' && data.content.trim().length > 0) {
       try {
-        await processScriptureReferences(entityId, userId, undefined, versioned.note.content, 'NET', {
+        // Owner-scoped: a shared-space collaborator's queued edit must not fail the
+        // util's ownership lookup (see PUT /api/notes/update).
+        await processScriptureReferences(entityId, versioned.note.userId, undefined, versioned.note.content, 'NET', {
           pillsOnly: versioned.note.noteType !== 'scripture',
           persistParentContent: false,
         });

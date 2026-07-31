@@ -5,6 +5,13 @@
 # API routes → Hono Netlify Function
 /api/*  /.netlify/functions/api/:splat  200
 
+# Hashed build assets must NEVER fall through to the SPA catch-all below. Each deploy
+# publishes a fresh dist-spa, so the previous deploy's /assets/*-<hash>.js are gone; without
+# this rule Netlify answers them with index.html at 200 text/html, which (a) fails the module
+# MIME check as "Failed to fetch dynamically imported module" and (b) gets cached by the
+# service worker under the .js URL, making the failure permanent. 404 is the honest answer.
+/assets/*  /assets/:splat  404
+
 # SPA catch-all — everything else serves index.html (React Router handles routing)
 # Static assets (JS, CSS, images, fonts) are served directly by Netlify before this rule applies.
 /*  /index.html  200

@@ -71,6 +71,7 @@ import { generateAutoTags, applyAutoTags, removeAutoTags, regenerateAutoTags } f
 import {
   processScriptureReferences,
   transformCanonicalScriptureContent,
+  ScriptureNoteNotFoundError,
 } from '../utils/process-scripture-references';
 import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
 import { formatNoteDefaultTitle } from '@/utils/date-formatting';
@@ -823,6 +824,9 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
     if (error instanceof SpaceNoteAssociationError) {
       return c.json({ error: error.message, code: error.code }, 400);
     }
+    if (error instanceof ScriptureNoteNotFoundError) {
+      return c.json({ error: error.message, code: error.code }, error.status);
+    }
     return c.json({ error: error.message || 'Failed to create note' }, 500);
   }
 });
@@ -1048,9 +1052,11 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     let processedContent: string | null = null;
     if (!updatedNote.contentEncrypted) {
       try {
+        // Scope to the note's OWNER, not the actor — a shared-space collaborator editing
+        // someone else's note would otherwise fail the util's ownership lookup and 500.
         const scriptureResult = await processScriptureReferences(
           noteId,
-          auth.userId,
+          updatedNote.userId,
           undefined,
           updatedNote.content,
           scriptureVersion || 'NET',
@@ -1061,8 +1067,10 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
           typeof scriptureResult?.updatedContent === 'string' ? scriptureResult.updatedContent : null;
         processedContent = updatedNote.content;
       } catch (err: any) {
+        // The note body is already committed above; pill enrichment is best-effort and
+        // must not turn a successful save into a 500 (and a lost edit) for the client.
         console.error('[api/notes/update] Scripture processing failed:', err?.message ?? err);
-        throw err;
+        processedContent = updatedNote.content;
       }
     }
 
@@ -2808,9 +2816,14 @@ route.post('/api/notes/:id/update-content', requireAuth, rateLimit('write'), asy
       }),
     );
     if (!versioned.note.contentEncrypted) {
-      await processScriptureReferences(id, auth.userId, undefined, versioned.note.content, 'NET', {
-        persistParentContent: false,
-      });
+      try {
+        // Owner-scoped (see PUT /api/notes/update) so shared-space edits don't 500.
+        await processScriptureReferences(id, versioned.note.userId, undefined, versioned.note.content, 'NET', {
+          persistParentContent: false,
+        });
+      } catch (err: any) {
+        console.error('[api/notes/update-content] Scripture processing failed:', err?.message ?? err);
+      }
     }
     await broadcastCanonicalNoteInvalidation(auth.userId, id, { type: 'note:updated', id });
     return c.json({
@@ -3187,6 +3200,9 @@ route.post('/api/notes/:id/process-scripture-references', requireAuth, rateLimit
       ...(readContext.isShared ? {} : { currentVersionId: finalNote?.currentVersionId ?? null }),
     });
   } catch (error: any) {
+    if (error instanceof ScriptureNoteNotFoundError) {
+      return c.json({ error: error.message, code: error.code }, error.status);
+    }
     console.error('Error processing scripture references:', error);
     return c.json({ error: error.message || 'Error processing scripture references' }, 500);
   }

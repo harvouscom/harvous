@@ -9,7 +9,11 @@ import {
   type DiagnosticSource,
   type DiagnosticSourceEnv,
 } from '@/utils/diagnostic-sources';
-import { redactDiagnosticRoute, scrubDiagnosticText } from '@/utils/diagnostics-route';
+import {
+  normalizeDiagnosticMessageForSignature,
+  redactDiagnosticRoute,
+  scrubDiagnosticText,
+} from '@/utils/diagnostics-route';
 
 const MAX_MESSAGE = 500;
 const MAX_STACK = 2000;
@@ -46,10 +50,17 @@ export function topStackFrame(stack: string | null | undefined): string {
   return scrubDiagnosticText(truncate(frame, 200));
 }
 
-export function computeIssueSignature(message: string, route: string | null, stack: string | null): string {
+/**
+ * Group key for an issue. Deliberately excludes `route`: the same fault seen on two routes
+ * is one issue, and route is already surfaced as the `topRoute` facet on the summary.
+ * The message is normalized so build hashes / chunk ids / versions don't fragment groups.
+ *
+ * Changing this orphans existing DiagnosticIssueTriage rows (keyed by the old hash), so
+ * previously-resolved issues reappear as Open once. Sweep with "Resolve all open" after deploy.
+ */
+export function computeIssueSignature(message: string, _route: string | null, stack: string | null): string {
   const normalized = [
-    scrubDiagnosticText(message).toLowerCase(),
-    route ?? '',
+    normalizeDiagnosticMessageForSignature(scrubDiagnosticText(message)).toLowerCase(),
     topStackFrame(stack),
   ].join('::');
   return createHash('sha256').update(normalized).digest('hex').slice(0, 32);

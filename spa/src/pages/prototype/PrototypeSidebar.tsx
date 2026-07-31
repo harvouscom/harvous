@@ -2178,8 +2178,14 @@ export default function PrototypeSidebar({
   const onHighlightRow = (r: PrototypeHighlightStudyThreadRow) => {
     if (!homeSpaceId) return;
     if (!r.parentNoteId) return;
+    // Same space scoping as onNoteRow — a note reachable only through a shared space 404s
+    // ("Note not found") if the dock deep-link drops `?space=`.
+    const navSearch = prototypeNoteListNavigationSearch({
+      isScopedSharedSpace,
+      spaceId: homeSpaceId,
+    });
     if (r.parentNoteId) {
-      void queryClient.prefetchQuery(getNoteQueryOptions(r.parentNoteId)).catch(() => {});
+      void queryClient.prefetchQuery(getNoteQueryOptions(r.parentNoteId, navSearch.space)).catch(() => {});
     }
     if (isScripturePassageHighlightRow(r)) {
       const canon = (r.scriptureReference ?? '').trim();
@@ -2193,6 +2199,7 @@ export default function PrototypeSidebar({
             to: prototypeNoteRouteTo(),
             params: { noteId: noteParamSlug(r.parentNoteId) },
             search: {
+              ...navSearch,
               scriptureRef: canon,
               scriptureTranslation: trans,
               studyThread: r.id,
@@ -2223,8 +2230,8 @@ export default function PrototypeSidebar({
       // Reference rows open the reference dock (via `reference`); all other highlight kinds open the
       // highlight dock (via `highlight`), so the tap lands on a dock rather than just the note.
       search: isReferenceRow
-        ? { studyThread: r.id, reference: r.sourceSnippet || '', dockReq: String(Date.now()) }
-        : { highlight: r.id, dockReq: String(Date.now()) },
+        ? { ...navSearch, studyThread: r.id, reference: r.sourceSnippet || '', dockReq: String(Date.now()) }
+        : { ...navSearch, highlight: r.id, dockReq: String(Date.now()) },
     });
     afterNav();
   };

@@ -317,7 +317,9 @@ app.get('/api/subscription/status', requireAuth, async (c) => {
 
     // Bidirectional reconcile: promote after checkout gaps, demote when Polar
     // no longer has an active subscription (e.g. customer deleted in dashboard).
-    await syncEntitlementsFromProvider(auth.userId);
+    // Throttled — this endpoint is read on every session and refetched on focus; webhooks
+    // are the primary path. POST /api/billing/sync stays unthrottled for explicit syncs.
+    await syncEntitlementsFromProvider(auth.userId, { throttle: true });
 
     const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
 
@@ -342,8 +344,14 @@ app.get('/api/subscription/status', requireAuth, async (c) => {
       { 'Cache-Control': 'private, no-store, max-age=0' }
     );
   } catch (error: any) {
-    console.error('Error checking subscription status:', error);
-    return c.json({ error: error.message || 'Failed to check subscription status', hasUnlimited: false }, 500);
+    // Never return `error.message` here: for a DrizzleQueryError that string is the raw SQL
+    // plus params, and the client reports 5xx bodies to the anonymous diagnostics endpoint.
+    // handleAPIError logs the unwrapped driver error (incl. `cause`) server-side instead.
+    handleAPIError(error, { endpoint: '/api/subscription/status', action: 'check_subscription_status' });
+    return c.json(
+      { error: 'Failed to check subscription status', code: 'SUBSCRIPTION_STATUS_UNAVAILABLE', hasUnlimited: false },
+      500,
+    );
   }
 });
 

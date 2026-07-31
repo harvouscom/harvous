@@ -41,3 +41,21 @@ export function shouldKeepEditorDuringPersistedDraftLoad(
 ): boolean {
   return !isDraft && adoptedComposeId != null && adoptedComposeId === noteId;
 }
+
+/**
+ * True while an adopted compose session still owns what's on screen — either we're still
+ * on the draft route, or the URL is the note the draft persisted into.
+ *
+ * Anything keyed on the compose session (the editor mount key, the draft inspector
+ * fallback) MUST gate on this rather than on `adoptedComposeId` alone. The id only clears
+ * once the adopted note's query resolves, so navigating away first — or that query 404ing
+ * — would otherwise leave it set and pin the editor to one mount for every later note.
+ */
+export function isAdoptedComposeSessionActive(
+  isDraft: boolean,
+  noteId: string,
+  adoptedComposeId: string | null,
+): boolean {
+  if (adoptedComposeId == null) return false;
+  return isDraft || adoptedComposeId === noteId;
+}

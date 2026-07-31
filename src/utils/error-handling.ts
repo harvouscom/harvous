@@ -41,6 +41,16 @@ export function createError(
  * Handle API errors consistently
  * Logs error and optionally shows user-friendly message
  */
+/**
+ * Drizzle wraps driver errors as `Failed query: <sql>\nparams: <values>`, so `error.message`
+ * is raw SQL. Callers put the returned StandardError straight into a 5xx response body, and
+ * the SPA forwards 5xx bodies to the anonymous diagnostics endpoint — which is how full
+ * queries ended up stored in DiagnosticEvents. Detail still goes to the server log below.
+ */
+function isInternalQueryText(message: string): boolean {
+  return /^Failed query:/i.test(message.trim());
+}
+
 export function handleAPIError(
   error: unknown,
   context?: ErrorContext
@@ -66,7 +76,11 @@ export function handleAPIError(
     errorCode = errorObj.code;
   }
 
-  const standardError = createError(errorMessage, errorCode, context);
+  // What callers may safely expose; `errorMessage` remains the detailed one for logging.
+  const clientMessage = isInternalQueryText(errorMessage) ? 'A database error occurred' : errorMessage;
+  const clientCode = isInternalQueryText(errorMessage) ? errorCode ?? 'DB_ERROR' : errorCode;
+
+  const standardError = createError(clientMessage, clientCode, context);
 
   // Server-side: emit structured JSON log for Netlify function log aggregation
   if (typeof window === 'undefined') {

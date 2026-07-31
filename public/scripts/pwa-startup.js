@@ -49,23 +49,19 @@ function prefetchRoutes() {
 }
 
 /**
- * Warm up API endpoints to reduce cold start latency
+ * Warm up the API to reduce cold-start latency on first load.
+ *
+ * Only /api/health. /api/threads/list and /api/navigation/data used to be warmed here too,
+ * but React Query owns both and refetches them on window focus (App.tsx
+ * `refetchOnWindowFocus: true`) — warming them duplicated every request and made the app
+ * look permanently busy in the network tab.
  */
 function warmUpAPI() {
-  // Warm up critical API endpoints in parallel
-  const endpoints = [
-    '/api/health',           // Lightweight health check
-    '/api/threads/list',     // Thread list (common first load)
-    '/api/navigation/data',  // Navigation structure
-  ];
-
-  endpoints.forEach(endpoint => {
-    fetch(endpoint, {
-      method: 'GET',
-      credentials: 'include'
-    }).catch(() => {
-      // Silently fail - this is just a warmup
-    });
+  fetch('/api/health', {
+    method: 'GET',
+    credentials: 'include'
+  }).catch(() => {
+    // Silently fail - this is just a warmup
   });
 }
 
@@ -186,12 +182,12 @@ function initPWA() {
   // Touch event optimization
   document.addEventListener('touchstart', () => {}, { passive: true });
   
-  // Warm up when app becomes visible (returning from background)
+  // Standalone-only work when the app becomes visible (returning from background).
+  // The service-worker warmup and update check live in the single consolidated handler in
+  // service-worker-manager.js — re-running warmUpApp()/warmUpAPI() here duplicated the
+  // 'warmup' postMessage and the /api/health fetch on every focus.
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
-      isWarmedUp = false;
-      warmUpApp();
-      warmUpAPI();
       if (isStandalone) {
         onShellMaybeReady();
         scheduleShellWatchdog();
