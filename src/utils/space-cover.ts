@@ -275,12 +275,29 @@ export function appearanceIconGlyphColor(
   return `var(--color-${color || 'paper'})`;
 }
 
+/**
+ * Thread hues that have a dark ramp in the design-system tokens. The legacy
+ * `--color-*` set is light-only, so it can't be the dark-mode fallback.
+ */
+const DARK_AWARE_THREAD_TOKENS = new Set(['blue', 'yellow', 'green', 'pink', 'orange', 'purple']);
+
 /** Join letter + menu row — appearance accent hex for the tile background. */
 export function spaceIconAccentHex(
   color: string | null | undefined,
   mode: 'light' | 'dark',
 ): string {
-  return appearanceAccentForThreadColor(color, mode) ?? `var(--color-${color || 'paper'})`;
+  const preset = appearanceAccentForThreadColor(color, mode);
+  if (preset) return preset;
+  const key = (color || 'paper').toLowerCase();
+  // Yellow is excluded from the space picker (see SPACE_COVER_PICKER_COLORS), so it
+  // has no paired appearance preset and lands here — as do any pre-existing spaces
+  // on a retired hue. `--color-*` never darkens, which made a yellow tile glare as a
+  // near-white block in dark mode. `--pds-thread-*` carries the proper dark ramp;
+  // keep the legacy token as the fallback for surfaces that don't load pds tokens.
+  if (DARK_AWARE_THREAD_TOKENS.has(key)) {
+    return `var(--pds-thread-${key}, var(--color-${key}))`;
+  }
+  return `var(--color-${key})`;
 }
 
 /** @deprecated Prefer `spaceIconAccentHex` + `.space-icon-tile` CSS for glyph color. */

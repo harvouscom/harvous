@@ -1,15 +1,23 @@
 import { useHardwareKeyboard } from '@/hooks/useHardwareKeyboard';
 import PrototypePaneEmptyState from './PrototypePaneEmptyState';
 import ProtoKbdChord from './ProtoKbdChord';
+import { useActiveSpace } from '../../hooks/useActiveSpace';
 
 /** Editor detail empty state — Mac-like on desktop; touch-first copy on mobile (native parity). */
 export default function PrototypeEditorEmptyState() {
   const showKeyboardShortcuts = useHardwareKeyboard();
+  const { isSharedSpace, spaceTitle } = useActiveSpace();
+  // Naming the space matters right after a space switch closed a note the new
+  // space can't hold — otherwise the empty pane reads as a note that went missing.
+  const title =
+    isSharedSpace && spaceTitle?.trim()
+      ? `Nothing open in ${spaceTitle.trim()}`
+      : 'Pick a note to open';
 
   return (
     <PrototypePaneEmptyState
       icon="note-sticky"
-      title="Pick a note to open"
+      title={title}
       description={
         showKeyboardShortcuts ? (
           <>

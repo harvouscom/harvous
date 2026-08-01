@@ -157,6 +157,11 @@ These were designed here and are now live. The stub files in this folder point t
 
 - **`QUESTION_HIGHLIGHT_SUGGESTIONS_NATIVE.md`** - Interrogative sentences: wavy inline suggestion + tap to create anchored study highlight (native TextKit exploration; implementation reverted — doc only)
 
+- **`NATIVE_SPACE_CONTEXT_FOLLOWUPS.md`** - Native parity backlog for space context + co-editing (web shipped Aug 2026)
+  - Highest priority: the author is locked out of their own note in My Home, because native renders from the `coEditEnabled` OR-mirror instead of the per-space association
+  - Two-stage fix: scope the flag via `activeSharedAssociations`, then implement the pen lease (native has none today)
+  - Also: whether the space picker orphans the open note, add-to-space (doesn't exist natively yet), and compose destination
+
 - **`OFFLINE_MODE_IMPLEMENTATION.md`** - Offline mode architecture reference (✅ implemented)
   - Full offline read/write support with IndexedDB, sync queues, and conflict resolution
 

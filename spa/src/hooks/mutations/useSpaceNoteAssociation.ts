@@ -2,12 +2,14 @@ import { useMutation, useQueryClient, type InfiniteData, type QueryClient } from
 import { api, APIError } from '../../lib/api';
 import {
   findSpaceNoteRowInCache,
+  patchSpaceNotesInfiniteCache,
   prependSpaceNoteToCache,
   removeSpaceNoteFromCache,
   spaceNotesQueryKey,
   type SpaceNotesPage,
 } from '../../lib/space-notes-cache';
 import { invalidatePrototypeSpaceDerivedQueries } from '../../lib/prototype-space-query-keys';
+import { usePrototypeHomeSpaceId } from '../usePrototypeHomeSpaceId';
 import type { SpaceNoteRow } from '../queries/useSpace';
 
 export function normalizeAssociationSpaceId(spaceId: string): string {
@@ -56,8 +58,19 @@ export function invalidateSpaceNoteAssociationQueries(
   queryClient: QueryClient,
   spaceId: string,
   noteId: string,
+  /** Keeps the My Home row's shared badge in step; without it the count lags a refetch. */
+  options?: { homeSpaceId?: string | null; sharedCountDelta?: number },
 ): void {
   const sid = normalizeAssociationSpaceId(spaceId);
+  const homeSpaceId = options?.homeSpaceId;
+  const delta = options?.sharedCountDelta;
+  if (homeSpaceId && delta) {
+    patchSpaceNotesInfiniteCache(queryClient, homeSpaceId, (note) =>
+      note.id === noteId
+        ? { ...note, sharedSpaceCount: Math.max(0, (note.sharedSpaceCount ?? 0) + delta) }
+        : note,
+    );
+  }
   void queryClient.invalidateQueries({ queryKey: ['note', noteId] });
   void queryClient.invalidateQueries({ queryKey: ['note', noteId, 'activity'] });
   void queryClient.invalidateQueries({ queryKey: spaceNotesQueryKey(sid) });
@@ -75,23 +88,31 @@ type AssociationResponse = {
   noteId: string;
   associationId?: string;
   reactivated?: boolean;
+  /** Server no-op: the note was already live in this space. Don't claim it was added. */
+  alreadyAssociated?: boolean;
 };
 
 /** Associate an authored canonical note with a shared space without duplicating it. */
 export function useAssociateNoteWithSpace() {
   const queryClient = useQueryClient();
+  const { homeSpaceId } = usePrototypeHomeSpaceId();
   return useMutation({
     mutationFn: (input: AssociationInput) => {
       const request = buildAssociateNoteRequest(input.spaceId, input.noteId);
       return api.post<AssociationResponse>(request.url, request.body);
     },
-    onSuccess: (_response, input) => {
+    onSuccess: (response, input) => {
       const sid = normalizeAssociationSpaceId(input.spaceId);
       const source = findSpaceNoteRowInCache(queryClient, input.noteId);
       if (source) {
         prependSpaceNoteToCache(queryClient, sid, buildOptimisticAssociatedSpaceNote(source));
       }
-      invalidateSpaceNoteAssociationQueries(queryClient, sid, input.noteId);
+      invalidateSpaceNoteAssociationQueries(queryClient, sid, input.noteId, {
+        homeSpaceId,
+        // The server no-ops when the association is already live, so only count a
+        // genuinely new or reactivated one.
+        sharedCountDelta: response.alreadyAssociated === true ? 0 : 1,
+      });
     },
   });
 }
@@ -105,6 +126,7 @@ type RemoveAssociationResponse = {
 /** Archive only the shared-space association; the canonical My Home note remains. */
 export function useRemoveNoteFromSpace() {
   const queryClient = useQueryClient();
+  const { homeSpaceId } = usePrototypeHomeSpaceId();
   return useMutation({
     mutationFn: async (input: AssociationInput) => {
       const request = buildRemoveNoteAssociationRequest(input.spaceId, input.noteId);
@@ -124,7 +146,10 @@ export function useRemoveNoteFromSpace() {
       if (context) queryClient.setQueryData(context.key, context.previous);
     },
     onSuccess: (_response, input) => {
-      invalidateSpaceNoteAssociationQueries(queryClient, input.spaceId, input.noteId);
+      invalidateSpaceNoteAssociationQueries(queryClient, input.spaceId, input.noteId, {
+        homeSpaceId,
+        sharedCountDelta: -1,
+      });
     },
   });
 }

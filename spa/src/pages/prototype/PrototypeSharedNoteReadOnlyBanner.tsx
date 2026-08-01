@@ -12,8 +12,6 @@ import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 export type SharedNoteEditStatus =
   /** Not co-editable: the author's note, read-only to everyone else. */
   | { kind: 'read-only' }
-  /** Read-only because the viewer is offline, not because of permission. */
-  | { kind: 'offline' }
   /** Co-editable and nobody is writing — type to take the pen. */
   | { kind: 'available' }
   /** Someone else is writing. */
@@ -25,8 +23,6 @@ export type SharedNoteEditStatus =
 
 function statusCopy(status: SharedNoteEditStatus): { icon: string; label: string } {
   switch (status.kind) {
-    case 'offline':
-      return { icon: 'eye', label: "Editing is off — you're offline" };
     case 'available':
       return { icon: 'pen', label: 'Open for editing' };
     case 'held':
@@ -91,7 +87,7 @@ export default function PrototypeSharedNoteReadOnlyBanner({
             firstName={authorFirstName}
             profileImageUrl={authorProfileImageUrl}
             color={authorColor}
-            isSelf={false}
+            isSelf={isAuthorSelf}
             showAvatar={false}
           />
         ) : null}

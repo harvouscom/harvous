@@ -22,6 +22,10 @@ import { useNavigation, type NavSpace } from '../../hooks/queries/useNavigation'
 import { useProfile } from '../../hooks/queries/useProfile';
 import { isPersonalSharedSpace } from '../../lib/church-settings';
 import {
+  noteSpaceBlockedReasonLabel,
+  resolveNoteSpaceMembershipRows,
+} from '../../lib/shared-note-membership';
+import {
   normalizeSharedSpaceSwitcherId,
   orderPersonalSharedSpaces,
 } from '../../lib/shared-space-switcher-order';
@@ -86,6 +90,12 @@ export interface PrototypeNoteMoreMenuProps {
   currentSharedSpaceTitle?: string;
   canRemoveFromCurrentSpace?: boolean;
   canPin?: boolean;
+  /** The note's live associations (`note.spaces`) — decides added vs addable. */
+  noteSpaces?: { id: string; title: string }[];
+  /** Non-authors must save an attributed copy instead of sharing onward. */
+  isOwnNote?: boolean;
+  /** Locked notes are refused by the server; don't offer them as addable. */
+  contentEncrypted?: boolean;
   onFind?: () => void;
   onShare?: () => void;
   menuButtonRef?: RefObject<HTMLButtonElement | null>;
@@ -103,6 +113,9 @@ export default function PrototypeNoteMoreMenu({
   currentSharedSpaceTitle,
   canRemoveFromCurrentSpace = false,
   canPin = true,
+  noteSpaces,
+  isOwnNote = true,
+  contentEncrypted = false,
   onFind,
   onShare,
   menuButtonRef,
@@ -141,23 +154,41 @@ export default function PrototypeNoteMoreMenu({
     return orderPersonalSharedSpaces([...byId.values()], profile?.sharedSpaceSwitcherOrder);
   }, [nav?.spaces, nav?.memberOfSpaces, profile?.sharedSpaceSwitcherOrder]);
 
-  const sharedSpaceTargets = useMemo(() => {
-    const current = currentSharedSpaceId
-      ? normalizeSharedSpaceSwitcherId(currentSharedSpaceId)
-      : null;
-    return personalSharedTargets.filter(
-      (space) => normalizeSharedSpaceSwitcherId(space.id) !== current,
-    );
-  }, [currentSharedSpaceId, personalSharedTargets]);
+  /**
+   * Split candidates by real membership. Previously every personal shared space
+   * was offered as a target regardless of whether the note was already in it, so
+   * picking one hit a server no-op and still toasted "Added to …".
+   */
+  const membershipRows = useMemo(
+    () =>
+      resolveNoteSpaceMembershipRows({
+        candidateSpaces: personalSharedTargets,
+        associatedSpaceIds: (noteSpaces ?? []).map((s) => s.id),
+        currentSharedSpaceId,
+        isOwnNote,
+        contentEncrypted,
+      }),
+    [personalSharedTargets, noteSpaces, currentSharedSpaceId, isOwnNote, contentEncrypted],
+  );
 
-  const showCopySpaceSearch = sharedSpaceTargets.length > 5;
+  const sharedSpaceTargets = membershipRows;
+  const showCopySpaceSearch = membershipRows.length > 5;
   const [copySpaceFilter, setCopySpaceFilter] = useState('');
 
   const filteredSharedTargets = useMemo(() => {
     const q = copySpaceFilter.trim().toLowerCase();
-    if (!q) return sharedSpaceTargets;
-    return sharedSpaceTargets.filter((s) => s.title.toLowerCase().includes(q));
-  }, [copySpaceFilter, sharedSpaceTargets]);
+    if (!q) return membershipRows;
+    return membershipRows.filter((row) => row.space.title.toLowerCase().includes(q));
+  }, [copySpaceFilter, membershipRows]);
+
+  const addedRows = useMemo(
+    () => filteredSharedTargets.filter((row) => row.state === 'added'),
+    [filteredSharedTargets],
+  );
+  const addableRows = useMemo(
+    () => filteredSharedTargets.filter((row) => row.state !== 'added'),
+    [filteredSharedTargets],
+  );
 
   const pinnedFromCache = useMemo(
     () => readNotePinnedFromCache(queryClient, spaceId, noteId),
@@ -188,10 +219,19 @@ export default function PrototypeNoteMoreMenu({
     associateWithSpace.mutate(
       { spaceId: targetSpaceId, noteId },
       {
-        onSuccess: () => {
+        onSuccess: (response) => {
           setPendingAddTarget(null);
           setCopySpaceFilter('');
-          toast.success(targetTitle ? `Added to ${targetTitle}` : 'Added to space');
+          const where = targetTitle ?? 'space';
+          // Report what actually happened. The endpoint is idempotent, so a repeat
+          // pick used to claim success for work the server skipped.
+          if (response?.alreadyAssociated) {
+            toast.success(`Already shared with ${where}`);
+          } else if (response?.reactivated) {
+            toast.success(`Added back to ${where} — earlier responses are back`);
+          } else {
+            toast.success(targetTitle ? `Added to ${targetTitle}` : 'Added to space');
+          }
         },
         onError: (err) => {
           setPendingAddTarget(null);
@@ -393,7 +433,7 @@ export default function PrototypeNoteMoreMenu({
                       <span className="proto-menu-item__icon" aria-hidden>
                         <Icon name="minus" size={iconSize} />
                       </span>
-                      <span className="proto-menu-item__label">Remove from this space</span>
+                      <span className="proto-menu-item__label">{currentSharedSpaceTitle ? `Remove from ${currentSharedSpaceTitle}` : "Remove from this space"}</span>
                     </button>
                   ) : null}
                 </>
@@ -420,7 +460,7 @@ export default function PrototypeNoteMoreMenu({
                       <span className="proto-menu-item__icon" aria-hidden>
                         <Icon name="caret-left" size={iconSize} />
                       </span>
-                      <span className="proto-menu-item__label">Add to space…</span>
+                      <span className="proto-menu-item__label">Share to a space…</span>
                     </button>
                     {showCopySpaceSearch ? (
                       <div style={{ padding: '4px 10px 6px' }}>
@@ -442,24 +482,53 @@ export default function PrototypeNoteMoreMenu({
                         />
                       </div>
                     ) : null}
-                    {filteredSharedTargets.map((space) => (
+                    {addedRows.length > 0 ? (
+                      <p className="proto-menu-section-label">Shared with</p>
+                    ) : null}
+                    {addedRows.map(({ space }) => (
                       <button
                         key={space.id}
                         type="button"
                         role="menuitem"
                         className="proto-menu-item"
-                        title={space.title}
-                        disabled={associateWithSpace.isPending}
-                        onClick={(e) =>
-                          requestAddToSpace(e.currentTarget.getBoundingClientRect(), space.id, space.title)
-                        }
+                        title={`${space.title} — already shared here`}
+                        disabled
                       >
                         <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
                           <ProtoSpaceMenuIcon color={space.color || 'paper'} />
                         </span>
                         <span className="proto-menu-item__label">{space.title}</span>
+                        <span className="proto-menu-item__trail" aria-hidden>
+                          <Icon name="check" size={iconSize} />
+                        </span>
                       </button>
                     ))}
+                    {addedRows.length > 0 && addableRows.length > 0 ? (
+                      <p className="proto-menu-section-label">Add to</p>
+                    ) : null}
+                    {addableRows.map(({ space, state, reason }) => {
+                      const blocked = state === 'blocked';
+                      return (
+                        <button
+                          key={space.id}
+                          type="button"
+                          role="menuitem"
+                          className="proto-menu-item"
+                          title={
+                            blocked && reason ? noteSpaceBlockedReasonLabel(reason) : space.title
+                          }
+                          disabled={blocked || associateWithSpace.isPending}
+                          onClick={(e) =>
+                            requestAddToSpace(e.currentTarget.getBoundingClientRect(), space.id, space.title)
+                          }
+                        >
+                          <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
+                            <ProtoSpaceMenuIcon color={space.color || 'paper'} />
+                          </span>
+                          <span className="proto-menu-item__label">{space.title}</span>
+                        </button>
+                      );
+                    })}
                     {showCopySpaceSearch && copySpaceFilter.trim() && filteredSharedTargets.length === 0 ? (
                       <p className="proto-space-switcher__empty-hint">No spaces match your search.</p>
                     ) : null}
@@ -474,7 +543,7 @@ export default function PrototypeNoteMoreMenu({
                     <span className="proto-menu-item__icon" aria-hidden>
                       <Icon name="copy" size={iconSize} />
                     </span>
-                    <span className="proto-menu-item__label">Add to space…</span>
+                    <span className="proto-menu-item__label">Share to a space…</span>
                   </button>
                 )
               ) : (
@@ -482,7 +551,7 @@ export default function PrototypeNoteMoreMenu({
                   <span className="proto-menu-item__icon" aria-hidden>
                     <Icon name="copy" size={iconSize} />
                   </span>
-                  <span className="proto-menu-item__label">Add to space…</span>
+                  <span className="proto-menu-item__label">Share to a space…</span>
                 </button>
               )}
               {currentSharedSpaceId && canRemoveFromCurrentSpace ? (
@@ -499,7 +568,7 @@ export default function PrototypeNoteMoreMenu({
                   <span className="proto-menu-item__icon" aria-hidden>
                     <Icon name="minus" size={iconSize} />
                   </span>
-                  <span className="proto-menu-item__label">Remove from this space</span>
+                  <span className="proto-menu-item__label">{currentSharedSpaceTitle ? `Remove from ${currentSharedSpaceTitle}` : "Remove from this space"}</span>
                 </button>
               ) : null}
               {!currentSharedSpaceId ? (

@@ -884,6 +884,15 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   letter-spacing: 0.03em;
 }
 
+/* Trailing checkmark on an already-shared space row. */
+.proto-menu-item__trail {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--pds-text-tertiary);
+}
+
 .proto-menu-item {
   display: flex;
   align-items: center;
@@ -1216,7 +1225,9 @@ html.harvous-proto-wallpaper-color .proto-sidebar-list-view__trigger[aria-expand
 /* This space / My Home — sits above `.proto-sidebar-search` (list chrome). */
 .proto-sidebar-list-scope {
   flex-shrink: 0;
-  padding: 0 14px 6px;
+  /* Top inset clears the sidebar's rounded corner — as the first element in the
+     shared-space list, flush chips read as clipped by the panel edge. */
+  padding: 10px 14px 6px;
 }
 
 .proto-sidebar-list-scope .proto-chip-bar {
@@ -1552,6 +1563,21 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   justify-content: center;
   color: var(--pds-text-tertiary);
   opacity: 0.92;
+}
+
+/* My Home row: this note is also published to a shared space. Quiet by design —
+   the list should read as private until something is actually shared. */
+.proto-note-row__shared {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: 5px;
+  color: var(--pds-text-tertiary);
+  opacity: 0.8;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 /* Native StudyHighlightFeedRow kind glyph (edgePt 11, secondary). */
@@ -3554,49 +3580,6 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   opacity: 1;
   background: var(--color-error-faint, rgba(192, 57, 43, 0.08));
   color: var(--color-error, #c0392b);
-}
-
-/* ─── Footer space pill ──────────────────────────────────────────────────── */
-.proto-footer-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-family: var(--pds-font-body);
-  padding: 2px 0;
-  text-decoration: none;
-  color: var(--pds-text-primary);
-}
-
-.proto-footer-pill:hover .proto-footer-pill__label {
-  text-decoration: underline;
-}
-
-.proto-footer-pill__tiles {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  width: 16px;
-  height: 16px;
-  border-radius: 3.5px;
-  overflow: hidden;
-  background: var(--pds-accent);
-  flex-shrink: 0;
-}
-
-.proto-footer-pill[data-color='purple'] .proto-footer-pill__tiles { background: rgb(140, 69, 235); }
-.proto-footer-pill[data-color='teal']   .proto-footer-pill__tiles { background: rgb(0, 148, 158); }
-.proto-footer-pill[data-color='green']  .proto-footer-pill__tiles { background: rgb(51, 158, 89); }
-.proto-footer-pill[data-color='orange'] .proto-footer-pill__tiles { background: rgb(242, 115, 26); }
-.proto-footer-pill[data-color='rose']   .proto-footer-pill__tiles { background: rgb(229, 71, 102); }
-.proto-footer-pill[data-color='indigo'] .proto-footer-pill__tiles { background: rgb(74, 82, 191); }
-
-.proto-footer-pill__label {
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1;
 }
 
 /* ─── Quiet link / button utilities ──────────────────────────────────────── */
@@ -9140,6 +9123,33 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 .proto-shared-readonly-banner__icon {
   flex-shrink: 0;
   opacity: 0.55;
+}
+
+/* Quiet register: the note is shared, but nobody is in it. Same slot and height as
+ * the loud banner so escalating mid-typing never shifts the body. */
+.proto-shared-readonly-banner--quiet {
+  border-bottom-color: transparent;
+}
+
+.proto-shared-readonly-banner__audience {
+  max-width: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+}
+
+.proto-shared-readonly-banner__audience:hover {
+  color: var(--pds-text-secondary);
+}
+
+.proto-shared-readonly-banner__audience-chevron {
+  flex-shrink: 0;
+  opacity: 0.4;
 }
 
 /* One trailing slot for Done or the author chip — same height either way. */

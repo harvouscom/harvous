@@ -16,6 +16,7 @@ import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { resolveSpaceSwitcherToolbarState, useActiveSpace } from '../../hooks/useActiveSpace';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
+import { useSwitchToSpace } from '../../hooks/useSwitchToSpace';
 import { useNavigation, type NavSpace } from '../../hooks/queries/useNavigation';
 import { useSubscriptionStatus } from '../../hooks/queries/useSubscriptionStatus';
 import { useProfile } from '../../hooks/queries/useProfile';
@@ -61,11 +62,14 @@ export default function SpaceSwitcherMenu({
     sidebarLayer,
     setSidebarLayer,
     activeSpaceId,
-    setActiveSpaceId,
     activeChurchOrgId,
     setActiveChurchOrgId,
     ensureSidebarExpanded,
   } = useProtoShell();
+  // Switching from the switcher is navigation: it closes an open note the
+  // destination space can't hold. Plain setActiveSpaceId stays for silent,
+  // non-navigational updates (stale-id repair, cross-space mention handoff).
+  const switchToSpace = useSwitchToSpace();
   const { isSharedSpace, space, spaceTitle, navReady } = useActiveSpace();
   const showShiftHints = usePrototypeShiftHints();
   const [open, setOpen] = useState(false);
@@ -265,7 +269,7 @@ export default function SpaceSwitcherMenu({
 
   function selectHome(options?: { keepOpen?: boolean }) {
     if (!options?.keepOpen) setOpen(false);
-    setActiveSpaceId(null);
+    switchToSpace(null);
     ensureSidebarExpanded();
   }
 
@@ -281,7 +285,7 @@ export default function SpaceSwitcherMenu({
     if (!options?.keepChurch) {
       setActiveChurchOrgId(null);
     }
-    setActiveSpaceId(normalizeSpaceId(spaceId));
+    switchToSpace(normalizeSpaceId(spaceId));
     ensureSidebarExpanded();
   }
 

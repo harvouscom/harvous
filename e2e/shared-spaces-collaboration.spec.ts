@@ -454,6 +454,69 @@ test.describe('Shared Spaces two-user collaboration contract', () => {
     );
   });
 
+  // ── Per-space co-edit scoping ─────────────────────────────────────────────
+  //
+  // `Notes.coEditEnabled` is an OR-mirror across every shared association, so it
+  // can't be rendered from directly: doing so made My Home show live co-editing
+  // chrome for a note nobody was touching. These pin the per-space truth and the
+  // quiet-in-Home behaviour that depends on it.
+
+  test('per-space co-edit does not leak across spaces', async ({ userAContext }) => {
+    await jsonResponse(
+      await userAContext.request.post(`/api/spaces/${secondSpaceId}/add-note`, {
+        data: { noteId: ownerNoteId },
+      }),
+      'associate note with the second space',
+    );
+
+    const scoped = await jsonResponse<{
+      note?: { coEditEnabled?: boolean };
+      activeSharedAssociations?: Array<{ spaceId: string; coEditEnabled?: boolean }>;
+    }>(
+      await userAContext.request.get(
+        `/api/notes/${ownerNoteId}/details?spaceId=${secondSpaceId}`,
+      ),
+      'author reads note in the second space',
+    );
+
+    // The mirror is on (co-edit is enabled in the first space) but this space's
+    // own association is not — the UI must render from the association.
+    expect(scoped.note?.coEditEnabled).toBe(true);
+    expect(scoped.activeSharedAssociations?.[0]?.spaceId).toBe(secondSpaceId);
+    expect(scoped.activeSharedAssociations?.[0]?.coEditEnabled).toBe(false);
+  });
+
+  test('the author reading in My Home sees no pen chrome', async ({ userAContext }) => {
+    const homePage = await userAContext.newPage();
+    const noteSlug = ownerNoteId.replace(/^note_/, '');
+    // No `?space=` — a plain My Home read of a note that IS co-editable elsewhere.
+    await homePage.goto(`/${noteSlug}`);
+    await expect(homePage.locator('.ProseMirror').first()).toBeVisible();
+
+    await expect(homePage.getByText('Open for editing')).toBeHidden();
+    await expect(homePage.getByText("You're editing")).toBeHidden();
+    await expect(homePage.getByText('Reconnecting', { exact: false })).toBeHidden();
+
+    // Quiet instead: the audience, and the Share action still available.
+    await expect(homePage.getByText('Shared with', { exact: false }).first()).toBeVisible();
+    await expect(homePage.locator('[title="Share note"]')).toBeVisible();
+  });
+
+  test('adding a note to a space it is already in is reported as a no-op', async ({
+    userAContext,
+  }) => {
+    const repeat = await jsonResponse<{ alreadyAssociated?: boolean; reactivated?: boolean }>(
+      await userAContext.request.post(`/api/spaces/${secondSpaceId}/add-note`, {
+        data: { noteId: ownerNoteId },
+      }),
+      're-add an already-associated note',
+    );
+    // Without this the client cannot tell a real add from a server no-op, and
+    // used to toast "Added to …" either way.
+    expect(repeat.alreadyAssociated).toBe(true);
+    expect(repeat.reactivated).toBe(false);
+  });
+
   test('an opted-in note is writable by a member, and the author stays the author', async ({
     userAContext,
     userBContext,

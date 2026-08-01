@@ -51,7 +51,18 @@ export function ProtoMigrationProvider({ children }: { children: ReactNode }) {
   const runMigrationIfNeeded = useCallback(async () => {
     setMigrating(true);
     try {
-      const status = await fetchPrototypeMigrationStatus();
+      // Probe first, and never let its failure reach the migration catch below.
+      // A transient GET failure on boot (cold start, DB blip, dropped connection)
+      // is not a failed folder update — nothing has been attempted yet — but it
+      // used to raise the same alarming toast. Skip the session instead.
+      let status: Awaited<ReturnType<typeof fetchPrototypeMigrationStatus>>;
+      try {
+        status = await fetchPrototypeMigrationStatus();
+      } catch (statusError) {
+        console.warn('[proto-migration] status probe failed; skipping this session:', statusError);
+        return;
+      }
+
       if (!status.needsCollectionBackfill) {
         writeMigrationDoneFlag();
         return;
@@ -73,6 +84,8 @@ export function ProtoMigrationProvider({ children }: { children: ReactNode }) {
         console.warn('[proto-migration] list refresh after migration failed:', refreshError);
       }
     } catch (error) {
+      // Only the migration write can reach here — the status probe handles its own
+      // failure above, so this toast always refers to work actually attempted.
       if (error instanceof APIError && (error.status === 503 || error.code === 'SCHEMA_NOT_READY')) {
         return;
       }

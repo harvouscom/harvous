@@ -304,6 +304,42 @@ test.describe('Shared Spaces UI screenshot tour', () => {
     await pageA.getByRole('button', { name: 'Cancel' }).click();
   });
 
+  // The space switcher is navigation and outranks the open note: if a note is on
+  // screen, the switcher names a space it belongs to. Switching resolves a
+  // disagreement by closing the note, so membership stops being something the
+  // user has to infer.
+  test('19b — Switching spaces closes a note the destination cannot hold (User A)', async ({
+    userAContext,
+  }) => {
+    const homeSpaceId = await getPersonalHomeSpaceId(userAContext.request);
+    const privateNoteId = await createNoteInSpaceViaApi(
+      userAContext.request,
+      homeSpaceId,
+      '<p>Private to My Home</p>',
+      'E2E private note',
+    );
+
+    const page = await userAContext.newPage();
+    await waitForAppShell(page);
+    await page.goto(`/${privateNoteId.replace(/^note_/, '')}`);
+    await expect(page.locator('.ProseMirror').first()).toBeVisible();
+    // Share stays available on a My Home note — it used to vanish once the
+    // switcher drifted the note into a shared context it had no association with.
+    await expect(page.locator('[title="Share note"]')).toBeVisible();
+
+    await selectSpaceInSwitcher(page, spaceTitle);
+
+    // The note is gone and the empty state names where we landed, so this reads
+    // as an intentional context change rather than a lost note.
+    await page.waitForURL((url) => url.pathname === '/', { timeout: 15_000 });
+    await expect(page.getByText(`Nothing open in ${spaceTitle}`)).toBeVisible();
+
+    // Back returns to the note, and the switcher follows it home.
+    await page.goBack();
+    await expect(page.locator('.ProseMirror').first()).toBeVisible();
+    await expect(page.locator('[title="Share note"]')).toBeVisible();
+  });
+
   test('20 — Delete space redirects to My Home (User A)', async ({ userAContext }) => {
     const page = await userAContext.newPage();
     await waitForAppShell(page);

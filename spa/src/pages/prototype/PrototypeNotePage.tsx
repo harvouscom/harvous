@@ -38,11 +38,16 @@ import PrototypeStudyThreadPopover from './PrototypeStudyThreadPopover';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypePaneEmptyState from './PrototypePaneEmptyState';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
-import PrototypeSharedNoteReadOnlyBanner, {
-  type SharedNoteEditStatus,
-} from './PrototypeSharedNoteReadOnlyBanner';
+import { type SharedNoteEditStatus } from './PrototypeSharedNoteReadOnlyBanner';
+import PrototypeNoteAudienceBar from './PrototypeNoteAudienceBar';
+import {
+  noteAudienceLabel,
+  resolveCoEditFollower,
+  resolveNoteEditStatusVisibility,
+} from '../../lib/note-audience';
 import SharedStudyHighlightOverlay from './SharedStudyHighlightOverlay';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
+import { useNavigation } from '../../hooks/queries/useNavigation';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { useNoteEditLease } from '@/hooks/useNoteEditLease';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
@@ -216,6 +221,7 @@ export default function PrototypeNotePage() {
     setEditorChromeMode,
     studyThreadPopoverOpen,
     closeStudyThreadPopover,
+    openInspector,
     setActiveSpaceId,
     setSidebarListMode,
     setSidebarThreadDrilldownId,
@@ -264,6 +270,7 @@ export default function PrototypeNotePage() {
   // nav-validated activeSpaceId, so a brand-new draft never races the navigation
   // query and land in My Home while a shared space is active.
   const { homeSpaceId: personalHomeSpaceId } = useActiveSpace();
+  const { data: nav } = useNavigation();
   const { userId: authUserId } = useAuth();
   const { user: clerkUser } = useUser();
   const navigate = useNavigate();
@@ -294,6 +301,9 @@ export default function PrototypeNotePage() {
     isCoEditable,
     canCoEdit,
     contributors: coEditContributors,
+    coEditEnabledInContext,
+    audienceScope,
+    audience: noteAudience,
   } = useForeignSharedNote(isDraft ? null : noteId, isDraft ? null : contextSpaceId, {
     holdsPen: pen.holding,
     // Pen free → editable; first keystroke/selection claims (no Start editing).
@@ -360,6 +370,60 @@ export default function PrototypeNotePage() {
   }, [composeTargetSpaceIdOverride, selectedSpaceId, personalHomeSpaceId]);
   const prevComposeSessionEpochRef = useRef(composeSessionEpoch);
 
+  /**
+   * Keep the space switcher and the open note in agreement.
+   *
+   * Switching spaces resolves a disagreement by closing the note (useSwitchToSpace);
+   * opening a note resolves it by moving the switcher. Both directions preserve one
+   * invariant: **if a note is on screen, the switcher names a space it belongs to.**
+   * Without this, a deep link or a browser-back left the nav pointing at a space the
+   * note isn't in — which is the ambiguity this whole change exists to remove.
+   *
+   * Uses setActiveSpaceId (silent) rather than switchToSpace on purpose: this is a
+   * sync, not a navigation, and must never close the note it just landed on.
+   */
+  // Stable dep: setActiveSpaceId resets sidebar drill-downs unconditionally, so this
+  // effect must not re-run on a fresh array identity every render.
+  const noteAssociationKey = note?.spaces
+    ? note.spaces.map((space) => space.id).sort().join(',')
+    : null;
+  useEffect(() => {
+    if (isDraft) return;
+    const normalizedActive = selectedSpaceId
+      ? selectedSpaceId.startsWith('space_')
+        ? selectedSpaceId
+        : `space_${selectedSpaceId}`
+      : null;
+
+    // `?space=` names the context this note was opened in — follow it.
+    if (contextSpaceId) {
+      if (normalizedActive !== contextSpaceId) setActiveSpaceId(contextSpaceId);
+      return;
+    }
+
+    // No `?space=`: a Home read. Only correct the switcher once we positively know
+    // the note has no association with the active space — never on unloaded data.
+    if (!normalizedActive || noteAssociationKey === null) return;
+    const home = personalHomeSpaceId
+      ? personalHomeSpaceId.startsWith('space_')
+        ? personalHomeSpaceId
+        : `space_${personalHomeSpaceId}`
+      : null;
+    if (normalizedActive === home) return;
+    const associated = noteAssociationKey
+      .split(',')
+      .filter(Boolean)
+      .some((id) => (id.startsWith('space_') ? id : `space_${id}`) === normalizedActive);
+    if (!associated) setActiveSpaceId(null);
+  }, [
+    isDraft,
+    contextSpaceId,
+    selectedSpaceId,
+    noteAssociationKey,
+    personalHomeSpaceId,
+    setActiveSpaceId,
+  ]);
+
   const [liveNoteSnapshot, setLiveNoteSnapshot] = useState({ title: '', content: '' });
   const [templatePrefill, setTemplatePrefill] = useState<{
     title: string;
@@ -425,6 +489,39 @@ export default function PrototypeNotePage() {
     : null;
   const resolvedComposeThreadIdRef = useRef(resolvedComposeThreadId);
   resolvedComposeThreadIdRef.current = resolvedComposeThreadId;
+
+  /**
+   * Where this draft will land, stated up front. `draftSaveDestinationLabel` has
+   * existed (and been unit-tested) without ever being rendered, which is why "which
+   * space is this going to?" had no answer until after saving.
+   */
+  const composeTargetTitle = useMemo(() => {
+    if (!composeTargetSpaceId) return null;
+    const match = [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])].find(
+      (s) => (s.id.startsWith('space_') ? s.id : `space_${s.id}`) === composeTargetSpaceId,
+    );
+    return match?.title ?? null;
+  }, [composeTargetSpaceId, nav?.spaces, nav?.memberOfSpaces]);
+
+  const draftDestinationLabel = useMemo(
+    () =>
+      isDraft
+        ? draftSaveDestinationLabel({
+            targetSpaceId: composeTargetSpaceId,
+            homeSpaceId: personalHomeSpaceId,
+            targetSpaceTitle: composeTargetTitle,
+            threadTitle: composeGroupThreads.find((t) => t.id === resolvedComposeThreadId)?.title,
+          })
+        : null,
+    [
+      isDraft,
+      composeTargetSpaceId,
+      personalHomeSpaceId,
+      composeTargetTitle,
+      composeGroupThreads,
+      resolvedComposeThreadId,
+    ],
+  );
 
   const onHighlightOpenRequestConsumed = useCallback(() => {
     setHighlightOpenRequest(null);
@@ -951,12 +1048,14 @@ export default function PrototypeNotePage() {
    * non-editable. When the pen is free, allowed writers keep an editable editor
    * and claim by interacting (no Start editing button).
    */
-  const coEditFollower =
-    isCoEditable &&
-    !isOnboardingReadonly &&
-    pen.leaseActive &&
-    Boolean(pen.heldBy) &&
-    (isOwnNote || canCoEdit);
+  const coEditFollower = resolveCoEditFollower({
+    coEditEnabledAnywhere: isCoEditable,
+    isOnboardingReadonly,
+    leaseActive: pen.leaseActive,
+    penHeldByOther: Boolean(pen.heldBy),
+    isOwnNote,
+    canCoEdit,
+  });
 
   const onCoEditEditorActivity = useCallback(() => {
     if (!isCoEditable || !pen.leaseActive || pen.heldBy) return;
@@ -969,15 +1068,23 @@ export default function PrototypeNotePage() {
   }, [pen.leaseActive, pen.holding, pen.noteEditorBlur]);
 
   const sharedNoteEditStatus = useMemo((): SharedNoteEditStatus => {
-    if (!isCoEditable) return { kind: 'read-only' };
+    // Pen state stays on the note-level mirror: the lease is per-note, so a holder
+    // must surface even when reading from Home. Everything else is per-space.
     if (pen.holding) return { kind: 'holding' };
     if (pen.heldBy) return { kind: 'held', holderName: pen.heldBy.displayName };
+    if (!coEditEnabledInContext) return { kind: 'read-only' };
     // Only the author and authorized members see co-edit status; anyone else is looking.
     if (!isOwnNote && !canCoEdit) return { kind: 'read-only' };
-    if (!pen.leaseActive || pen.disconnected) return { kind: 'reconnecting' };
+    // "Reconnecting" belongs to a shared context. On your own note in My Home there
+    // is nothing to reconnect *to* until someone else shows up, and the warning read
+    // as though a private note were at risk.
+    if (audienceScope !== 'home' && (!pen.leaseActive || pen.disconnected)) {
+      return { kind: 'reconnecting' };
+    }
     return { kind: 'available' };
   }, [
-    isCoEditable,
+    coEditEnabledInContext,
+    audienceScope,
     pen.holding,
     pen.heldBy,
     pen.disconnected,
@@ -985,6 +1092,45 @@ export default function PrototypeNotePage() {
     isOwnNote,
     canCoEdit,
   ]);
+
+  /**
+   * Quiet in Home, loud on conflict. `isFollower`/`penHeldByOther` force `loud`
+   * even in Home — coEditFollower below has already made the editor non-editable,
+   * and a locked editor with no visible reason is worse than the noise we're cutting.
+   */
+  const audienceBarMode = useMemo(
+    () =>
+      resolveNoteEditStatusVisibility({
+        scope: audienceScope,
+        coEditEnabledInContext,
+        isForeignSharedNote,
+        penHeldByOther: Boolean(pen.heldBy),
+        isFollower: coEditFollower,
+        isHolding: pen.holding,
+        sharedCount: noteAudience.sharedSpaces.length,
+        channelCount: noteAudience.channels.length,
+      }),
+    [
+      audienceScope,
+      coEditEnabledInContext,
+      isForeignSharedNote,
+      pen.heldBy,
+      coEditFollower,
+      pen.holding,
+      noteAudience.sharedSpaces.length,
+      noteAudience.channels.length,
+    ],
+  );
+
+  const audienceLabel = useMemo(
+    () =>
+      noteAudienceLabel({
+        sharedCount: noteAudience.sharedSpaces.length,
+        channelCount: noteAudience.channels.length,
+        firstSpaceTitle: noteAudience.sharedSpaces[0]?.title,
+      }),
+    [noteAudience.sharedSpaces, noteAudience.channels.length],
+  );
 
   const sharedOverlayPaperRef = useRef<HTMLDivElement>(null);
   const [sharedOverlayContainerEl, setSharedOverlayContainerEl] = useState<HTMLElement | null>(null);
@@ -1769,20 +1915,22 @@ export default function PrototypeNotePage() {
                   setSharedOverlayContainerEl(el);
                 }}
               >
-              {/* Also shown on the author's own co-edited note — otherwise they'd
-                  have no way to see that someone else currently has the pen. */}
-              {isForeignSharedNote || isCoEditable ? (
-                <PrototypeSharedNoteReadOnlyBanner
-                  authorDisplayName={foreignNoteAuthor?.displayName ?? note?.authorDisplayName}
-                  authorUserId={foreignNoteAuthor?.userId ?? note?.authorUserId ?? note?.userId}
-                  authorFirstName={foreignNoteAuthor?.firstName}
-                  authorProfileImageUrl={foreignNoteAuthor?.profileImageUrl}
-                  authorColor={foreignNoteAuthor?.userColor}
-                  isAuthorSelf={isOwnNote}
-                  status={sharedNoteEditStatus}
-                  onReleasePen={pen.release}
-                />
-              ) : null}
+              {/* Quiet "Shared with …" in My Home; the full pen banner inside a
+                  shared space or the moment someone else starts writing. */}
+              <PrototypeNoteAudienceBar
+                mode={audienceBarMode}
+                audienceLabel={audienceLabel}
+                draftDestinationLabel={draftDestinationLabel}
+                onOpenAudience={openInspector}
+                authorDisplayName={foreignNoteAuthor?.displayName ?? note?.authorDisplayName}
+                authorUserId={foreignNoteAuthor?.userId ?? note?.authorUserId ?? note?.userId}
+                authorFirstName={foreignNoteAuthor?.firstName}
+                authorProfileImageUrl={foreignNoteAuthor?.profileImageUrl}
+                authorColor={foreignNoteAuthor?.userColor}
+                isAuthorSelf={isOwnNote}
+                status={sharedNoteEditStatus}
+                onReleasePen={pen.release}
+              />
               {showSharedHighlightOverlay ? (
                 <SharedStudyHighlightOverlay
                   editor={sharedOverlayEditor}

@@ -201,3 +201,4 @@ Supabase project and rejects a declared production target.
 - [future/SHARED_SPACES_ROADMAP.md](./future/SHARED_SPACES_ROADMAP.md) — post-v1 sequence.
 - [future/SPACE_COVER_IMAGE_VARIANTS.md](./future/SPACE_COVER_IMAGE_VARIANTS.md) — 5×5×light/dark cover catalog (space covers only).
 - [future/MENTION_PILLS.md](./future/MENTION_PILLS.md) — future mention rules.
+- [future/NATIVE_SPACE_CONTEXT_FOLLOWUPS.md](./future/NATIVE_SPACE_CONTEXT_FOLLOWUPS.md) — native parity backlog for space context + co-editing. Read this before touching `Note.coEditEnabled` in Swift: it is an OR-mirror across associations and native currently renders from it directly, which locks the author out of their own note in My Home.

@@ -72,15 +72,7 @@ describe('visible compose target', () => {
     ).toBe(activeSpaceId);
   });
 
-  it('targets My Home from its overlay and normal Home', () => {
-    expect(
-      resolveVisibleComposeTarget({
-        homeSpaceId,
-        activeSpaceId,
-        sidebarLayer: 'list',
-        sidebarListSpaceScope: 'my-home',
-      }),
-    ).toBe(homeSpaceId);
+  it('targets My Home only when My Home is the active space', () => {
     expect(
       resolveVisibleComposeTarget({
         homeSpaceId,
@@ -89,6 +81,20 @@ describe('visible compose target', () => {
         sidebarListSpaceScope: 'space',
       }),
     ).toBe(homeSpaceId);
+  });
+
+  it('ignores the list scope — placement follows the space you are in', () => {
+    // Deliberate change: browsing My Home notes while inside a shared space used to
+    // silently land the new note in My Home. The list scope filters what you're
+    // reading; it does not decide where new work belongs.
+    expect(
+      resolveVisibleComposeTarget({
+        homeSpaceId,
+        activeSpaceId,
+        sidebarLayer: 'list',
+        sidebarListSpaceScope: 'my-home',
+      }),
+    ).toBe(activeSpaceId);
   });
 });
 
@@ -418,11 +424,62 @@ describe('shared permission and Thread picker policies', () => {
     expect(canPinSharedSpaceItem({ isSpaceOwner: false })).toBe(false);
   });
 
+  it('never lets the active space alone create a context the note has no association with', () => {
+    // Regression: switching the switcher used to re-context an open My Home note,
+    // which hid Share (shared contexts set canShare false) and offered a
+    // "Remove from this space" that 404'd.
+    expect(
+      resolveNativeToolbarSharedContextId({
+        activeSpaceId: 'space_A',
+        noteSharedSpaceIds: [],
+        homeSpaceId: 'space_home',
+      }),
+    ).toBeNull();
+    expect(
+      resolveNativeToolbarSharedContextId({
+        activeSpaceId: 'space_A',
+        noteSharedSpaceIds: ['space_B'],
+        homeSpaceId: 'space_home',
+      }),
+    ).toBeNull();
+  });
+
+  it('fails closed until the note’s associations have loaded', () => {
+    expect(
+      resolveNativeToolbarSharedContextId({
+        activeSpaceId: 'space_A',
+        noteSharedSpaceIds: undefined,
+        homeSpaceId: 'space_home',
+      }),
+    ).toBeNull();
+  });
+
+  it('matches bare active ids against prefixed association ids', () => {
+    expect(
+      resolveNativeToolbarSharedContextId({
+        activeSpaceId: 'A',
+        noteSharedSpaceIds: ['space_A'],
+        homeSpaceId: 'space_home',
+      }),
+    ).toBe('space_A');
+  });
+
+  it('restores full Home capabilities when there is no shared context', () => {
+    expect(
+      resolveNativeToolbarContextCapabilities({
+        hasSharedContext: false,
+        contextualAccessKnown: true,
+        isOwnNote: true,
+        isSpaceOwner: false,
+      }),
+    ).toEqual({ canOrganize: true, canPin: true, canRemove: false, canShare: true });
+  });
+
   it('uses explicit-context membership instead of active-shell ownership', () => {
     expect(
       resolveNativeToolbarSharedContextId({
-        explicitContextSpaceId: 'space_B',
-        visibleTargetSpaceId: 'space_A',
+        activeSpaceId: 'space_B',
+        noteSharedSpaceIds: ['space_B'],
         homeSpaceId: 'space_home',
       }),
     ).toBe('space_B');
@@ -444,8 +501,8 @@ describe('shared permission and Thread picker policies', () => {
   it('fails closed for an unknown contextual role and keeps Home non-contextual', () => {
     expect(
       resolveNativeToolbarSharedContextId({
-        explicitContextSpaceId: 'space_home',
-        visibleTargetSpaceId: 'space_A',
+        activeSpaceId: 'space_home',
+        noteSharedSpaceIds: ['space_A'],
         homeSpaceId: 'space_home',
       }),
     ).toBeNull();

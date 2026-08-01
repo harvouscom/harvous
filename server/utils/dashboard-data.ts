@@ -721,6 +721,48 @@ export async function getThreadsWithCountsLimited(userId: string, limit?: number
   }
 }
 
+// ─── Shared-space membership counts ─────────────────────────────────────────────
+
+/**
+ * How many live shared spaces / channels each note is published to.
+ *
+ * My Home list rows carry no membership signal today, so a note you've shared
+ * looks identical to a private one — the list stays silent while the editor shows
+ * full co-editing chrome. This is the quiet indicator that closes that gap.
+ *
+ * Scoped to spaces the viewer still belongs to, so a membership you've lost never
+ * inflates the count. Served by `SpaceNotes_noteId_removedAtIndex`.
+ */
+export async function getSharedSpaceCountsForNotesBatch(
+  noteIds: string[], userId: string
+): Promise<Map<string, number>> {
+  if (noteIds.length === 0) return new Map();
+  try {
+    const rows = await db.select({ noteId: SpaceNotes.noteId })
+      .from(SpaceNotes)
+      .innerJoin(Spaces, eq(SpaceNotes.spaceId, Spaces.id))
+      .innerJoin(
+        SpaceMemberships,
+        and(eq(SpaceMemberships.spaceId, Spaces.id), eq(SpaceMemberships.userId, userId)),
+      )
+      .where(and(
+        inArray(SpaceNotes.noteId, noteIds),
+        isNull(SpaceNotes.removedAt),
+        isNull(Spaces.deletedAt),
+        inArray(Spaces.type, ['shared', 'public']),
+      ));
+
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      counts.set(row.noteId, (counts.get(row.noteId) ?? 0) + 1);
+    }
+    return counts;
+  } catch (_) {
+    // Never fail a notes list over a decorative count.
+    return new Map();
+  }
+}
+
 // ─── Thread colors ──────────────────────────────────────────────────────────────
 
 export async function getThreadColorsForNotesBatch(
@@ -1736,7 +1778,7 @@ export async function getNotesForSpace(
     const scriptureNoteIds = sortedNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];
     const noteIds = sortedNotes.map(n => n.id).filter(Boolean) as string[];
 
-    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap] = await Promise.all([
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap, sharedSpaceCountsMap] = await Promise.all([
       (async (): Promise<Record<string, any>> => {
         if (resourceNoteIds.length === 0) return {};
         try {
@@ -1763,11 +1805,17 @@ export async function getNotesForSpace(
         } catch (_) { return {}; }
       })(),
       getThreadColorsForNotesBatch(noteIds, userId),
+      // Only My Home needs it: inside a shared space every row is by definition
+      // in that space, so a "shared" badge there would be noise on every row.
+      isMyHomeAggregate
+        ? getSharedSpaceCountsForNotesBatch(noteIds, userId)
+        : Promise.resolve(new Map<string, number>()),
     ]);
 
     const notesWithMeta = sortedNotes.map(note => {
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
+      const sharedSpaceCount = sharedSpaceCountsMap.get(note.id) ?? 0;
       const version = note.noteType === 'scripture'
         ? (scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? 'NET')
         : undefined;
@@ -1783,6 +1831,7 @@ export async function getNotesForSpace(
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+        sharedSpaceCount: sharedSpaceCount > 0 ? sharedSpaceCount : undefined,
         version,
       };
     });

@@ -2375,10 +2375,16 @@ route.post('/api/spaces/:spaceId/add-note', requireAuth, rateLimit('write'), asy
     });
     return c.json({
       success: true,
-      message: result.reactivated ? 'Note restored to space' : 'Note added to space',
+      message: result.alreadyAssociated
+        ? 'Note is already in this space'
+        : result.reactivated
+          ? 'Note restored to space'
+          : 'Note added to space',
       noteId,
       associationId: (result.association as any)?.id,
       reactivated: result.reactivated,
+      /** Idempotent no-op — the note was already live in this space. */
+      alreadyAssociated: result.alreadyAssociated,
     });
   } catch (error: any) {
     if (error instanceof SharedSpaceLifecycleError) {

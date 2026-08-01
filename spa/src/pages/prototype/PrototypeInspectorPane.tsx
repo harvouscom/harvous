@@ -331,7 +331,9 @@ export default function PrototypeInspectorPane({
 
       {showSpacesSection ? (
         <section className="proto-inspector-section">
-          <PrototypeSectionHeader>Spaces</PrototypeSectionHeader>
+          {/* "Shared with", not "Spaces": a space is an audience this note is
+              published to, not a folder it lives in. */}
+          <PrototypeSectionHeader>Shared with</PrototypeSectionHeader>
           <ul className="proto-inspector-space-list">
             {coEditSpaces.map((space) => (
               <li key={space.spaceId} className="proto-inspector-space-list__entry">

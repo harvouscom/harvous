@@ -3,9 +3,9 @@ import { useAuth } from '@clerk/clerk-react';
 import { useNote } from './queries/useNote';
 import { useNavigation } from './queries/useNavigation';
 import { useSpaceMembers } from './queries/useSpace';
-import { useActiveSpace } from './useActiveSpace';
 import { usePrototypeHomeSpaceId } from './usePrototypeHomeSpaceId';
 import { normalizePrototypeApiSpaceId } from '../utils/prototype-space-api-id';
+import { resolveNoteAudience } from '../lib/note-audience';
 
 /**
  * True when viewing another member's note inside a shared space (read-only).
@@ -29,7 +29,9 @@ export function useForeignSharedNote(
   const { data: note } = useNote(noteId ?? '', explicitContextSpaceId);
   const { data: nav } = useNavigation();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
-  const { isSharedSpace, activeSpaceId } = useActiveSpace();
+  // Deliberately does NOT read useActiveSpace: the switcher's selection must not
+  // decide whether *this note* is in a shared space. Only `?space=` and the note's
+  // own associations do.
 
   const resolvedSpaceFromNote =
     typeof note?.spaceId === 'string' && note.spaceId.trim().length > 0 ? note.spaceId : null;
@@ -40,15 +42,32 @@ export function useForeignSharedNote(
       (resolvedSpaceFromNote != null
         ? resolvedSpaceFromNote
         : resolvedSpaceFromThread) ??
-      (isSharedSpace ? activeSpaceId : homeSpaceId) ??
+      // Never fall back to the switcher's space: that made a My Home note adopt
+      // whichever space happened to be selected. Home is the honest default.
+      homeSpaceId ??
       ''
     : '';
 
+  /**
+   * True only when this note is genuinely being read inside one of its own shared
+   * spaces. Previously any active shared space made this true, so switching the
+   * switcher flipped a private note into shared mode (scoped @-mentions, shared
+   * annotations, read-only checks) with no association behind it.
+   */
   const noteInSharedSpace = useMemo(() => {
-    if (explicitContextSpaceId) return true;
-    if (isSharedSpace) return true;
-    if (!effectiveSpaceId || !nav) return false;
-    const normalized = effectiveSpaceId.startsWith('space_') ? effectiveSpaceId : `space_${effectiveSpaceId}`;
+    if (!effectiveSpaceId) return false;
+    const normalized = effectiveSpaceId.startsWith('space_')
+      ? effectiveSpaceId
+      : `space_${effectiveSpaceId}`;
+    // The note's own associations are authoritative once loaded.
+    if (note?.spaces) {
+      return note.spaces.some(
+        (s) => (s.id.startsWith('space_') ? s.id : `space_${s.id}`) === normalized,
+      );
+    }
+    // Associations not loaded yet — fall back to "is this a shared space at all",
+    // which is what an explicit `?space=` context implies.
+    if (!explicitContextSpaceId || !nav) return Boolean(explicitContextSpaceId);
     const owned = (nav.spaces ?? []).some(
       (s) => (s.id.startsWith('space_') ? s.id : `space_${s.id}`) === normalized && s.type === 'shared',
     );
@@ -56,7 +75,7 @@ export function useForeignSharedNote(
       (s) => (s.id.startsWith('space_') ? s.id : `space_${s.id}`) === normalized,
     );
     return owned || memberOf;
-  }, [explicitContextSpaceId, isSharedSpace, effectiveSpaceId, nav]);
+  }, [explicitContextSpaceId, effectiveSpaceId, nav, note?.spaces]);
 
   const membersQuery = useSpaceMembers(noteInSharedSpace && effectiveSpaceId ? effectiveSpaceId : '');
 
@@ -73,8 +92,26 @@ export function useForeignSharedNote(
   const holdsPen = opts?.holdsPen === true;
   const penFree = opts?.penFree === true;
 
-  /** True once the author has opened this note to its shared spaces. */
+  /**
+   * The `Notes.coEditEnabled` OR-mirror across every shared association.
+   *
+   * Kept as-is because the plumbing depends on it: it gates the presence lease
+   * and the offline-queue bypass in useUpdateNote. Render from
+   * `coEditEnabledInContext` instead — this flag has no space context, so using
+   * it for UI is what made My Home show co-editing chrome.
+   */
   const isCoEditable = useMemo(() => note?.coEditEnabled === true, [note?.coEditEnabled]);
+
+  const audience = useMemo(
+    () =>
+      resolveNoteAudience({
+        // Only a space the note actually belongs to counts as its context.
+        contextSpaceId: noteInSharedSpace ? effectiveSpaceId : null,
+        spaces: note?.spaces,
+        noteCoEditEnabled: note?.coEditEnabled,
+      }),
+    [noteInSharedSpace, effectiveSpaceId, note?.spaces, note?.coEditEnabled],
+  );
 
   /**
    * Read-only in shared space until ownership is confirmed, or — for a co-edited
@@ -109,5 +146,10 @@ export function useForeignSharedNote(
     /** Server's verdict that this viewer may write the body if they take the pen. */
     canCoEdit: note?.canEdit === true && isCoEditable,
     contributors: note?.contributors ?? [],
+    /** Per-space co-edit — render from this, not `isCoEditable`. */
+    coEditEnabledInContext: audience.coEditEnabledInContext,
+    /** `'home' | 'space' | 'unknown'`; `'unknown'` until associations load. */
+    audienceScope: audience.scope,
+    audience,
   };
 }

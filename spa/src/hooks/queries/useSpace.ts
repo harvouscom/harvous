@@ -156,6 +156,12 @@ export interface SpaceNoteRow {
   isOwnNote?: boolean;
   /** Shared space list: note updated after the member's prior visit watermark. */
   isNewSinceVisit?: boolean;
+  /**
+   * How many live shared spaces / channels this note is published to. Sent only for
+   * the My Home aggregate — inside a shared space every row is in that space, so a
+   * badge there would be noise. Absent/0 means private.
+   */
+  sharedSpaceCount?: number;
 }
 
 /** Paginated notes-only list from `GET /api/spaces/:spaceId/notes` */

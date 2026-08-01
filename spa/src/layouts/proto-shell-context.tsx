@@ -43,8 +43,10 @@ export type SidebarLayer = 'space' | 'list';
 export type VisibleComposeTargetInput = {
   homeSpaceId: string | null | undefined;
   activeSpaceId: string | null | undefined;
-  sidebarLayer: SidebarLayer;
-  sidebarListSpaceScope: SidebarListSpaceScope;
+  /** @deprecated No longer affects placement — kept so call sites need no edit. */
+  sidebarLayer?: SidebarLayer;
+  /** @deprecated No longer affects placement — kept so call sites need no edit. */
+  sidebarListSpaceScope?: SidebarListSpaceScope;
 };
 
 function normalizeComposeSpaceId(spaceId: string | null | undefined): string | null {
@@ -53,19 +55,23 @@ function normalizeComposeSpaceId(spaceId: string | null | undefined): string | n
   return trimmed.startsWith('space_') ? trimmed : `space_${trimmed}`;
 }
 
-/** Resolve new-note placement from the sidebar scope the user can currently see. */
+/**
+ * New-note placement: the space you are in, full stop.
+ *
+ * This used to also key off `sidebarLayer` / `sidebarListSpaceScope`, so a note
+ * composed while a shared space was active could silently land in My Home just
+ * because the list happened to be scoped there. Once the switcher is authoritative
+ * navigation, "compose where you're looking" is the bug rather than the feature —
+ * the list scope is a filter over what you're browsing, not a statement about
+ * where new work belongs.
+ */
 export function resolveVisibleComposeTarget({
   homeSpaceId,
   activeSpaceId,
-  sidebarLayer,
-  sidebarListSpaceScope,
 }: VisibleComposeTargetInput): string | null {
   const home = normalizeComposeSpaceId(homeSpaceId);
   const active = normalizeComposeSpaceId(activeSpaceId);
-  const showingSharedSpace =
-    Boolean(active && active !== home) &&
-    (sidebarLayer === 'space' || sidebarListSpaceScope === 'space');
-  return showingSharedSpace ? active : home;
+  return active ?? home;
 }
 
 export function isVisiblePrototypeSharedContext(options: {
@@ -246,6 +252,8 @@ type ProtoShellContextValue = {
   /** When set, the next draft compose targets this space instead of the active shared space. */
   composeTargetSpaceIdOverride: string | null;
   clearComposeTargetSpaceIdOverride: () => void;
+  /** Retarget an in-progress draft to a different space. */
+  setComposeTargetSpaceId: (spaceId: string | null) => void;
   beginPrototypeComposeSession: (options?: { targetSpaceId?: string }) => number;
   standaloneScripturePassage: StandaloneScripturePassageState | null;
   openStandaloneScripturePassage: (value: StandaloneScripturePassageState) => void;
@@ -771,6 +779,17 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const clearComposeTargetSpaceIdOverride = useCallback(() => {
     setComposeTargetSpaceIdOverrideState(null);
   }, []);
+  /**
+   * Change an in-progress draft's destination. Needed so the compose header's
+   * destination control is a real choice, and so a draft retargets on a space
+   * switch rather than being closed like a saved note.
+   */
+  const setComposeTargetSpaceId = useCallback((spaceId: string | null) => {
+    const target = spaceId?.trim();
+    setComposeTargetSpaceIdOverrideState(
+      target ? (target.startsWith('space_') ? target : `space_${target}`) : null,
+    );
+  }, []);
   const clearComposeDraftActive = useCallback(() => {
     setComposeDraftActive(false);
   }, []);
@@ -856,6 +875,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       composeSessionEpoch,
       composeTargetSpaceIdOverride,
       clearComposeTargetSpaceIdOverride,
+      setComposeTargetSpaceId,
       beginPrototypeComposeSession,
       standaloneScripturePassage,
       openStandaloneScripturePassage,
@@ -925,6 +945,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       composeSessionEpoch,
       composeTargetSpaceIdOverride,
       clearComposeTargetSpaceIdOverride,
+      setComposeTargetSpaceId,
       beginPrototypeComposeSession,
       standaloneScripturePassage,
       openStandaloneScripturePassage,

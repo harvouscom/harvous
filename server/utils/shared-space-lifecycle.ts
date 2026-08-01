@@ -379,7 +379,9 @@ export async function associateAuthoredNoteWithSpace(
   ) as typeof SpaceNotes.$inferSelect | undefined;
   if (existing) {
     if (!existing.removedAt) {
-      return { association: existing, reactivated: false };
+      // Idempotent no-op. Callers need this distinct from a fresh add so the UI
+      // doesn't claim "Added to …" for work that didn't happen.
+      return { association: existing, reactivated: false, alreadyAssociated: true };
     }
     const association = first(
       await tx
@@ -388,7 +390,7 @@ export async function associateAuthoredNoteWithSpace(
         .where(eq(SpaceNotes.id, existing.id))
         .returning(),
     );
-    return { association, reactivated: true };
+    return { association, reactivated: true, alreadyAssociated: false };
   }
 
   const association = first(
@@ -405,7 +407,7 @@ export async function associateAuthoredNoteWithSpace(
       )
       .returning(),
   ) as typeof SpaceNotes.$inferSelect | undefined;
-  return { association, reactivated: false };
+  return { association, reactivated: false, alreadyAssociated: false };
 }
 
 export async function archiveNoteFromSpace(

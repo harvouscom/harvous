@@ -751,6 +751,13 @@ function PrototypeSidebarNoteRow({
   const title = rowTitle;
   const pinned = row.isPinned === true;
   const showAuthorChip = isScopedSharedSpace && Boolean(row.authorDisplayName);
+  /**
+   * My Home only. Inside a shared space every row is in that space, so the badge
+   * would be noise on every row. Icon-only at one space keeps the list quiet — the
+   * count appears only when it actually disambiguates.
+   */
+  const sharedSpaceCount = row.sharedSpaceCount ?? 0;
+  const showSharedIndicator = !isScopedSharedSpace && sharedSpaceCount > 0;
   const mayOrganize = !isScopedSharedSpace || canOrganizeSharedSpaceNote({
     isOwnNote: row.isOwnNote !== false,
     isSpaceOwner: viewerIsSpaceOwner,
@@ -878,6 +885,15 @@ function PrototypeSidebarNoteRow({
               })}
             />
           ) : null}
+          {showSharedIndicator ? (
+            <span
+              className="proto-note-row__shared"
+              aria-label={`Shared with ${sharedSpaceCount} ${sharedSpaceCount === 1 ? 'space' : 'spaces'}`}
+            >
+              <Icon name="user-group" size={11} aria-hidden />
+              {sharedSpaceCount > 1 ? sharedSpaceCount : null}
+            </span>
+          ) : null}
           {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
           {rel && preview ? '  ' : null}
           {preview ? <span>{preview}</span> : null}
@@ -893,6 +909,15 @@ function PrototypeSidebarNoteRow({
                 isSelf: row.isOwnNote === true,
               })}
             />
+          ) : null}
+          {showSharedIndicator ? (
+            <span
+              className="proto-note-row__shared"
+              aria-label={`Shared with ${sharedSpaceCount} ${sharedSpaceCount === 1 ? 'space' : 'spaces'}`}
+            >
+              <Icon name="user-group" size={11} aria-hidden />
+              {sharedSpaceCount > 1 ? sharedSpaceCount : null}
+            </span>
           ) : null}
           {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
           {rel && preview ? '  ' : null}

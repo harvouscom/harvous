@@ -37,34 +37,24 @@ import ProtoSpaceLoading from './ProtoSpaceLoading';
 export type AddNotesListScope = 'unsorted' | 'all';
 
 /** Shared-space picker: notes already in the target vs authored My Home notes not yet associated. */
-export type AddNotesOriginScope = 'this-space' | 'my-home';
+/**
+ * Membership rules live in `lib/shared-note-membership` so the note→spaces menu
+ * resolves through the same logic. Re-exported here for existing importers.
+ */
+import {
+  filterCandidatesByOriginScope,
+  planSharedAddNotesRequest,
+  type AddNotesCandidate,
+  type AddNotesOriginScope,
+} from '../../lib/shared-note-membership';
 
-export interface AddNotesCandidate {
-  id: string;
-  title: string;
-  noteType: string;
-  updatedAt: string | null;
-  createdAt: string | null;
-  content: string | null;
-  isOwnNote?: boolean;
-  isAssociatedWithTarget?: boolean;
-  /** Tag names when known (local fuzzy search); API matches tags server-side. */
-  tagNames?: string[];
-}
-
-/** Split My Home API results into This space vs My Home chip pools. */
-export function filterCandidatesByOriginScope(
-  notes: AddNotesCandidate[],
-  origin: AddNotesOriginScope,
-  options?: { ownNotesOnly?: boolean },
-): AddNotesCandidate[] {
-  const ownOnly = options?.ownNotesOnly === true;
-  return notes.filter((note) => {
-    if (ownOnly && note.isOwnNote === false) return false;
-    if (origin === 'this-space') return note.isAssociatedWithTarget === true;
-    return note.isAssociatedWithTarget !== true;
-  });
-}
+export {
+  filterCandidatesByOriginScope,
+  planSharedAddNotesRequest,
+  type AddNotesCandidate,
+  type AddNotesOriginScope,
+  type SharedAddNotesRequestPlan,
+} from '../../lib/shared-note-membership';
 
 interface ConnectNoteCandidatesResponse {
   notes: AddNotesCandidate[];
@@ -102,21 +92,6 @@ export interface PrototypeAddNotesSheetProps {
   viewerIsSpaceOwner?: boolean;
   candidateSourceError?: boolean;
   onRetryCandidates?: () => void;
-}
-
-export type SharedAddNotesRequestPlan =
-  'organize-associated' | 'associate-then-organize' | 'save-copy-required' | 'forbidden';
-
-/** Decide whether a shared-space candidate needs association, organization, or an explicit copy flow. */
-export function planSharedAddNotesRequest(options: {
-  isAlreadyAssociated: boolean;
-  isOwnNote: boolean;
-  isSpaceOwner: boolean;
-}): SharedAddNotesRequestPlan {
-  if (options.isAlreadyAssociated) {
-    return options.isOwnNote || options.isSpaceOwner ? 'organize-associated' : 'forbidden';
-  }
-  return options.isOwnNote ? 'associate-then-organize' : 'save-copy-required';
 }
 
 /** Current Thread candidates are active, viewer-authored, unencrypted, and not already attached. */

@@ -55,16 +55,33 @@ function normalizeToolbarSpaceId(spaceId: string | null | undefined): string | n
   return trimmed.startsWith('space_') ? trimmed : `space_${trimmed}`;
 }
 
+/**
+ * The shared space this note is being read *in*, or null for a plain My Home read.
+ *
+ * Intersection, never fallback: a space only becomes the note's context when the
+ * note actually has a live association with it. Falling back to whatever the
+ * switcher held meant opening a My Home note and switching spaces silently
+ * re-contexted it — which hid the Share button (shared contexts set canShare
+ * false), offered "Remove from this space", and 404'd on organize.
+ *
+ * Fails closed while `noteSharedSpaceIds` is undefined: callers gate on
+ * `contextualAccessKnown` and must not act on an unresolved context.
+ */
 export function resolveNativeToolbarSharedContextId(options: {
-  explicitContextSpaceId?: string | null;
-  visibleTargetSpaceId?: string | null;
+  /** `?space=` when present, else the active space from the switcher. */
+  activeSpaceId?: string | null;
+  /** `note.spaces[].id`. `undefined` = associations not loaded yet. */
+  noteSharedSpaceIds?: string[] | undefined;
   homeSpaceId?: string | null;
 }): string | null {
-  const explicit = normalizeToolbarSpaceId(options.explicitContextSpaceId);
-  const visible = normalizeToolbarSpaceId(options.visibleTargetSpaceId);
+  const active = normalizeToolbarSpaceId(options.activeSpaceId);
   const home = normalizeToolbarSpaceId(options.homeSpaceId);
-  if (explicit) return explicit === home ? null : explicit;
-  return visible && visible !== home ? visible : null;
+  if (!active || active === home) return null;
+  if (!options.noteSharedSpaceIds) return null;
+  const associated = options.noteSharedSpaceIds.some(
+    (id) => normalizeToolbarSpaceId(id) === active,
+  );
+  return associated ? active : null;
 }
 
 export function resolveNativeToolbarContextCapabilities(options: {
@@ -176,9 +193,13 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     sidebarLayer,
     sidebarListSpaceScope,
   });
+  const noteSharedSpaceIds = toolbarNote?.spaces?.map((space) => space.id);
   const currentSharedSpaceId = resolveNativeToolbarSharedContextId({
-    explicitContextSpaceId: contextSpaceId,
-    visibleTargetSpaceId: visibleComposeTarget,
+    // `?space=` wins while it's on the URL (deep links, back-nav); otherwise the
+    // switcher says where we are. Either way the note's own associations decide
+    // whether that space is actually this note's context.
+    activeSpaceId: contextSpaceId ?? activeSpaceId,
+    noteSharedSpaceIds,
     homeSpaceId,
   });
   const { access: contextualSpaceAccess } = useNavigationSharedSpaceAccess(currentSharedSpaceId);
@@ -191,6 +212,12 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     type: contextualSpaceAccess?.space.type,
     orgId: contextualSpaceAccess?.space.orgId,
   });
+  // Name the destination up front — "New note" never said where it would land.
+  const activeSpaceTitle = contextualSpaceAccess?.space.title?.trim();
+  const composeDestinationLabel =
+    visibleComposeTarget && visibleComposeTarget !== homeSpaceId && activeSpaceTitle
+      ? `New note in ${activeSpaceTitle}`
+      : 'New note in My Home';
   const contextualCapabilities = resolveNativeToolbarContextCapabilities({
     hasSharedContext: isSharedContext,
     contextualAccessKnown,
@@ -339,8 +366,12 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
           <button
             type="button"
             className="proto-toolbar-icon-btn"
-            title={canComposeInContext ? 'New note' : 'Composing is not available in this channel yet'}
-            aria-label={canComposeInContext ? 'New note' : 'New note unavailable'}
+            title={
+              canComposeInContext
+                ? composeDestinationLabel
+                : 'Composing is not available in this channel yet'
+            }
+            aria-label={canComposeInContext ? composeDestinationLabel : 'New note unavailable'}
             disabled={!homeSpaceId || !canComposeInContext}
             onClick={onCompose}
           >
@@ -456,6 +487,9 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                 }
                 canRemoveFromCurrentSpace={contextualCapabilities.canRemove}
                 canPin={contextualCapabilities.canPin}
+                noteSpaces={toolbarNote?.spaces}
+                isOwnNote={toolbarNote?.isOwnNote !== false}
+                contentEncrypted={toolbarNote?.contentEncrypted === true}
                 overflowActions={isMobileSidebar}
                 isPublic={!!toolbarNote?.isPublic}
                 readOnlyForeign={readOnlyForeignNote}

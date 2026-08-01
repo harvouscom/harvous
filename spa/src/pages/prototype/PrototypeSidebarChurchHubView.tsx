@@ -6,6 +6,7 @@
 import { useMemo, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useSwitchToSpace } from '../../hooks/useSwitchToSpace';
 import { useNavigation } from '../../hooks/queries/useNavigation';
 import { useProfile } from '../../hooks/queries/useProfile';
 import { useChurchStaffStatus } from '../../hooks/queries/useChurchStaffStatus';
@@ -83,7 +84,8 @@ function ChurchHubSpaceButton({
 }
 
 export default function PrototypeSidebarChurchHubView() {
-  const { isMobileSidebar, activeChurchOrgId, setActiveSpaceId, ensureSidebarExpanded } = useProtoShell();
+  const { isMobileSidebar, activeChurchOrgId, ensureSidebarExpanded } = useProtoShell();
+  const switchToSpace = useSwitchToSpace();
   const { data: nav } = useNavigation();
   const { data: profile } = useProfile();
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
@@ -146,7 +148,7 @@ export default function PrototypeSidebarChurchHubView() {
 
   const openSpace = (spaceId: string) => {
     ensureSidebarExpanded();
-    setActiveSpaceId(normalizeSpaceId(spaceId));
+    switchToSpace(normalizeSpaceId(spaceId));
   };
 
   return (

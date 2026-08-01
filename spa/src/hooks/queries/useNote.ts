@@ -393,6 +393,21 @@ export function seedNoteFromList(
     if ('collectionPinned' in prev) merged.collectionPinned = !!prev.collectionPinned;
     if ('collectionUserOverride' in prev) merged.collectionUserOverride = !!prev.collectionUserOverride;
     if (typeof prev.spaceId === 'string' && prev.spaceId.length > 0) merged.spaceId = prev.spaceId;
+    // Shared-space membership + co-edit authority are detail-only (list payloads have
+    // no equivalent), so a plain merge would wipe them on every list refresh. Callers
+    // read `spaces` to decide audience UI and whether a space switch orphans the note;
+    // losing it mid-session makes those surfaces blink and mis-decide. Keep `spaces`
+    // `undefined` when we've never loaded detail — that's "unknown", not "none".
+    if (prev.spaces) merged.spaces = prev.spaces;
+    if (typeof prev.coEditEnabled === 'boolean') merged.coEditEnabled = prev.coEditEnabled;
+    if (typeof prev.canEdit === 'boolean') merged.canEdit = prev.canEdit;
+    if (prev.contributors?.length) merged.contributors = prev.contributors;
+    if (typeof prev.authorUserId === 'string' && prev.authorUserId.length > 0) {
+      merged.authorUserId = prev.authorUserId;
+    }
+    if (typeof merged.isOwnNote !== 'boolean' && typeof prev.isOwnNote === 'boolean') {
+      merged.isOwnNote = prev.isOwnNote;
+    }
   }
   queryClient.setQueryData(['note', listNote.id], merged);
   setCachedNoteDetail(listNote.id, merged);
