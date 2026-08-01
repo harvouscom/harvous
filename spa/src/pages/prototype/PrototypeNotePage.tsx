@@ -296,6 +296,8 @@ export default function PrototypeNotePage() {
     contributors: coEditContributors,
   } = useForeignSharedNote(isDraft ? null : noteId, isDraft ? null : contextSpaceId, {
     holdsPen: pen.holding,
+    // Pen free → editable; first keystroke/selection claims (no Start editing).
+    penFree: pen.leaseActive && pen.available,
   });
 
   // Deep-link to a highlight's dock (Home "revisit" card → text / mini-note / connected highlight).
@@ -941,26 +943,48 @@ export default function PrototypeNotePage() {
   // it forces effectiveIsEditable false and would leave the holder unable to type.
   // A follower keeps it: read the live text, highlight it, respond to it, as today.
   const foreignSharedAnnotationMode =
-    isForeignSharedNote && !isOnboardingReadonly && !pen.holding;
+    isForeignSharedNote && !isOnboardingReadonly && readOnlyInSharedSpace;
   const isEditable = !readOnlyInSharedSpace && !isOnboardingReadonly;
   const isOwnNote = note?.isOwnNote === true;
   /**
-   * Watching rather than writing a co-edited note. Covers the author too — when a
-   * collaborator has the pen, the author is a follower on their own note.
+   * Someone else holds the pen — TipTap follows live body updates and stays
+   * non-editable. When the pen is free, allowed writers keep an editable editor
+   * and claim by interacting (no Start editing button).
    */
   const coEditFollower =
-    isCoEditable && !isOnboardingReadonly && !pen.holding && (isOwnNote || canCoEdit);
+    isCoEditable &&
+    !isOnboardingReadonly &&
+    pen.leaseActive &&
+    Boolean(pen.heldBy) &&
+    (isOwnNote || canCoEdit);
+
+  const onCoEditEditorActivity = useCallback(() => {
+    if (!isCoEditable || !pen.leaseActive || pen.heldBy) return;
+    pen.noteUserActivity();
+  }, [isCoEditable, pen.leaseActive, pen.heldBy, pen.noteUserActivity]);
+
+  const onCoEditEditorBlur = useCallback(() => {
+    if (!pen.leaseActive || !pen.holding) return;
+    pen.noteEditorBlur();
+  }, [pen.leaseActive, pen.holding, pen.noteEditorBlur]);
 
   const sharedNoteEditStatus = useMemo((): SharedNoteEditStatus => {
     if (!isCoEditable) return { kind: 'read-only' };
     if (pen.holding) return { kind: 'holding' };
     if (pen.heldBy) return { kind: 'held', holderName: pen.heldBy.displayName };
-    // Only the author and authorized members get an actionable state; anyone else
-    // reading a co-edited note is simply looking at it.
+    // Only the author and authorized members see co-edit status; anyone else is looking.
     if (!isOwnNote && !canCoEdit) return { kind: 'read-only' };
-    if (pen.disconnected) return { kind: 'reconnecting' };
+    if (!pen.leaseActive || pen.disconnected) return { kind: 'reconnecting' };
     return { kind: 'available' };
-  }, [isCoEditable, pen.holding, pen.heldBy, pen.disconnected, isOwnNote, canCoEdit]);
+  }, [
+    isCoEditable,
+    pen.holding,
+    pen.heldBy,
+    pen.disconnected,
+    pen.leaseActive,
+    isOwnNote,
+    canCoEdit,
+  ]);
 
   const sharedOverlayPaperRef = useRef<HTMLDivElement>(null);
   const [sharedOverlayContainerEl, setSharedOverlayContainerEl] = useState<HTMLElement | null>(null);
@@ -1755,7 +1779,6 @@ export default function PrototypeNotePage() {
                   authorProfileImageUrl={foreignNoteAuthor?.profileImageUrl}
                   authorColor={foreignNoteAuthor?.userColor}
                   status={sharedNoteEditStatus}
-                  onTakePen={pen.claim}
                   onReleasePen={pen.release}
                 />
               ) : null}
@@ -1788,6 +1811,8 @@ export default function PrototypeNotePage() {
                 readOnlyLikeScripture={readOnlyLikeScripture}
                 foreignSharedAnnotationMode={foreignSharedAnnotationMode}
                 coEditFollower={coEditFollower}
+                onCoEditEditorActivity={isCoEditable ? onCoEditEditorActivity : undefined}
+                onCoEditEditorBlur={isCoEditable ? onCoEditEditorBlur : undefined}
                 currentVersion={note?.currentVersion}
                 onSharedAnnotationCreated={noteInSharedSpace ? refreshSharedAnnotations : undefined}
                 highlightOpenRequest={highlightOpenRequest}

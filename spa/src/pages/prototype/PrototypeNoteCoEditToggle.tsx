@@ -5,12 +5,18 @@
  * SpaceNotes.coEditEnabled; Notes.coEditEnabled is the server's OR-mirror.
  */
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 
 export interface CoEditSpaceRef {
   spaceId: string;
   spaceTitle: string;
   coEditEnabled: boolean;
+}
+
+/** Visible label: what the current toggle state means. */
+export function coEditStateLabel(enabled: boolean): string {
+  return enabled ? 'Others can edit' : 'Read only';
 }
 
 /** Tooltip / a11y copy for the per-space switch. */
@@ -35,6 +41,7 @@ export default function PrototypeNoteCoEditToggle({
   contentEncrypted: boolean;
   onChanged?: (enabled: boolean, noteCoEditEnabled: boolean) => void;
 }) {
+  const queryClient = useQueryClient();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
@@ -60,6 +67,8 @@ export default function PrototypeNoteCoEditToggle({
         noteCoEditEnabled?: boolean;
       }>(`/api/notes/${noteId}/co-edit`, { enabled: next, spaceId });
       onChanged?.(next, res.noteCoEditEnabled === true);
+      // Keep note-level OR-mirror (isCoEditable / pen lease) in sync with the association.
+      void queryClient.invalidateQueries({ queryKey: ['note', noteId] });
     } catch (err) {
       setOptimistic(null);
       onChanged?.(previous, previous);
@@ -73,7 +82,7 @@ export default function PrototypeNoteCoEditToggle({
     <div className="proto-inspector-space-co-edit">
       <div className="proto-inspector-space-co-edit__control">
         <span className="proto-inspector-space-co-edit__label" title={helper}>
-          Let others edit
+          {coEditStateLabel(enabled)}
         </span>
         <span
           className="proto-fte-switch"

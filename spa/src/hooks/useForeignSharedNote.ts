@@ -10,14 +10,14 @@ import { normalizePrototypeApiSpaceId } from '../utils/prototype-space-api-id';
 /**
  * True when viewing another member's note inside a shared space (read-only).
  *
- * `holdsPen` comes from the caller's useNoteEditLease. When the author has opened
- * a note for co-editing, `note.canEdit` (the server's own verdict — never
- * re-derived here) plus holding the pen is what makes a foreign note writable.
+ * Pen opts come from the caller's useNoteEditLease. When co-edit is on,
+ * `note.canEdit` plus either holding the pen or the pen being free (claim by
+ * typing) makes a foreign note writable.
  */
 export function useForeignSharedNote(
   noteId: string | null | undefined,
   contextSpaceId?: string | null,
-  opts?: { holdsPen?: boolean },
+  opts?: { holdsPen?: boolean; penFree?: boolean },
 ) {
   const { userId: authUserId } = useAuth();
   const routeContextSpaceId =
@@ -71,21 +71,22 @@ export function useForeignSharedNote(
   }, [note, authUserId]);
 
   const holdsPen = opts?.holdsPen === true;
+  const penFree = opts?.penFree === true;
 
   /** True once the author has opened this note to its shared spaces. */
   const isCoEditable = useMemo(() => note?.coEditEnabled === true, [note?.coEditEnabled]);
 
   /**
    * Read-only in shared space until ownership is confirmed, or — for a co-edited
-   * note — until this viewer both may write it and holds the pen. Fail-closed at
-   * every step: unknown ownership and unknown capability both mean read-only.
+   * note — until this viewer may write and either holds the pen or the pen is
+   * free (interaction claims it). Fail-closed at every step.
    */
   const readOnlyInSharedSpace = useMemo(() => {
     if (!noteInSharedSpace || !noteId || !note) return false;
     if (isOwnNoteConfirmed === true) return false;
     if (note.canEdit !== true) return true;
-    return !holdsPen;
-  }, [noteInSharedSpace, noteId, note, isOwnNoteConfirmed, holdsPen]);
+    return !(holdsPen || penFree);
+  }, [noteInSharedSpace, noteId, note, isOwnNoteConfirmed, holdsPen, penFree]);
 
   const isForeignSharedNote = useMemo(
     () => noteInSharedSpace && !!note && isOwnNoteConfirmed === false,

@@ -180,11 +180,15 @@ interface CardFullEditableProps {
   /** Shared-space foreign note: body read-only but text selection + highlight annotations enabled. */
   foreignSharedAnnotationMode?: boolean;
   /**
-   * Co-edited note whose pen is held by someone else (or nobody). Read-only, but
-   * unlike a plain foreign note the body updates live as the holder types — which
-   * also covers the author watching a collaborator write.
+   * Co-edited note whose pen is held by someone else. Read-only, but unlike a
+   * plain foreign note the body updates live as the holder types — which also
+   * covers the author watching a collaborator write.
    */
   coEditFollower?: boolean;
+  /** Claim / refresh pen idle clock on real editor interaction. */
+  onCoEditEditorActivity?: () => void;
+  /** Start blur-grace release when the editor loses focus. */
+  onCoEditEditorBlur?: () => void;
   /** Canonical optimistic-concurrency version, for the keepalive unload flush. */
   currentVersion?: number;
   /** Called after shared annotations change (create/delete) — refresh overlay. */
@@ -334,6 +338,8 @@ export default function CardFullEditable({
   readOnlyLikeScripture = false,
   foreignSharedAnnotationMode = false,
   coEditFollower = false,
+  onCoEditEditorActivity,
+  onCoEditEditorBlur,
   currentVersion,
   onSharedAnnotationCreated,
   sharedOverlayPmRanges = [],
@@ -412,6 +418,30 @@ export default function CardFullEditable({
     coEditFollower
       ? false
       : isEditable;
+
+  const handleCoEditActivity = useCallback(() => {
+    onCoEditEditorActivity?.();
+  }, [onCoEditEditorActivity]);
+
+  const handleCoEditFocusOut = useCallback(
+    (e: React.FocusEvent<HTMLDivElement>) => {
+      if (!onCoEditEditorBlur) return;
+      const next = e.relatedTarget as Node | null;
+      if (next && e.currentTarget.contains(next)) return;
+      onCoEditEditorBlur();
+    },
+    [onCoEditEditorBlur],
+  );
+
+  const coEditInteractionProps =
+    onCoEditEditorActivity || onCoEditEditorBlur
+      ? {
+          onKeyDownCapture: handleCoEditActivity,
+          onPointerDownCapture: handleCoEditActivity,
+          onFocusCapture: handleCoEditActivity,
+          onBlurCapture: handleCoEditFocusOut,
+        }
+      : {};
   const effectiveIsEditableRef = useRef(effectiveIsEditable);
   effectiveIsEditableRef.current = effectiveIsEditable;
   const resolvedScriptureVersion = noteType === 'scripture'
@@ -2995,6 +3025,7 @@ export default function CardFullEditable({
         data-card-full-editable
         {...(foreignSharedAnnotationMode ? { 'data-foreign-shared-annotate': 'true' } : {})}
         {...((showBodyEditor || showTitleEditor) && { 'data-editing': 'true' })}
+        {...coEditInteractionProps}
       >
         <textarea
           ref={keyboardProxyRef}
@@ -3428,6 +3459,7 @@ export default function CardFullEditable({
         data-card-full-editable
         {...(foreignSharedAnnotationMode ? { 'data-foreign-shared-annotate': 'true' } : {})}
         {...((showBodyEditor || showTitleEditor) && { 'data-editing': 'true' })}
+        {...coEditInteractionProps}
       >
       <textarea
         ref={keyboardProxyRef}

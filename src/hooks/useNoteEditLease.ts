@@ -9,11 +9,8 @@
  * conflicts rare and legible — so that in practice one person writes at a time
  * and everyone else can see who — not to make them impossible.
  *
- * That's deliberate. A lease we can't honestly enforce shouldn't pretend to be a
- * lock: the keepalive unload flush fires exactly as the pen is being released,
- * and native clients don't participate at all. Presence gives us free eviction on
- * tab close, sleep, and network drop, which a DB lease would have to buy with a
- * heartbeat loop and expiry sweep — and would still get wrong.
+ * Claim by interacting with the editor (type / select / focus). Idle and blur
+ * grace release the pen; Done can release early. No separate "Start editing".
  *
  * Modeled on useSpacePresence. The channel carries no note content (see
  * noteChannelName) — only display names already visible to space members.
@@ -47,12 +44,19 @@ export interface NotePenState {
   heldBy: NotePenPresence | null;
   /** Free, and this viewer is allowed to take it. */
   available: boolean;
-  /** Channel is not subscribed — degrade to read-only rather than guess. */
+  /** Channel is not subscribed — degrade rather than guess. */
   disconnected: boolean;
+  /**
+   * Presence lease path is actually running (Realtime configured + subscribed path).
+   * When false, do not force follower-lock or show a fake "available" claim UI.
+   */
+  leaseActive: boolean;
   claim: () => void;
   release: () => void;
-  /** Call on every real user keystroke to defer the idle release. */
+  /** Call on every real user keystroke / selection to defer idle release (and claim if free). */
   noteUserActivity: () => void;
+  /** Editor blurred — start grace timer before releasing. */
+  noteEditorBlur: () => void;
 }
 
 export function parseNotePenPresence(raw: unknown): NotePenPresence | null {
@@ -89,9 +93,11 @@ const IDLE_STATE: NotePenState = {
   heldBy: null,
   available: false,
   disconnected: false,
+  leaseActive: false,
   claim: () => {},
   release: () => {},
   noteUserActivity: () => {},
+  noteEditorBlur: () => {},
 };
 
 export function useNoteEditLease(
@@ -109,6 +115,7 @@ export function useNoteEditLease(
   > | null>(null);
   const claimedAtRef = useRef(0);
   const lastActivityRef = useRef(0);
+  const blurTimerRef = useRef<number | null>(null);
 
   const normalizedNoteId = useMemo(() => {
     const trimmed = (noteId ?? '').trim();
@@ -124,12 +131,20 @@ export function useNoteEditLease(
   const selfDisplayName = self?.displayName ?? '';
   const selfColor = self?.color ?? '';
 
+  const clearBlurTimer = useCallback(() => {
+    if (blurTimerRef.current != null) {
+      window.clearTimeout(blurTimerRef.current);
+      blurTimerRef.current = null;
+    }
+  }, []);
+
   // Subscribe + mirror presence.
   useEffect(() => {
     if (!active) {
       setEntries((prev) => (prev.length === 0 ? prev : []));
       setSubscribed(false);
       setWantsPen(false);
+      clearBlurTimer();
       return;
     }
     const supabase = getSupabaseBrowserClient();
@@ -185,12 +200,13 @@ export function useNoteEditLease(
       const channel = channelRef.current;
       channelRef.current = null;
       claimedAtRef.current = 0;
+      clearBlurTimer();
       setEntries([]);
       setSubscribed(false);
       setWantsPen(false);
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [active, normalizedNoteId, userId, selfDisplayName, selfColor, getToken]);
+  }, [active, normalizedNoteId, userId, selfDisplayName, selfColor, getToken, clearBlurTimer]);
 
   const winner = useMemo(() => resolvePenHolder(entries), [entries]);
   const holding = Boolean(winner && userId && winner.userId === userId);
@@ -217,17 +233,31 @@ export function useNoteEditLease(
   }, [wantsPen, winner, userId]);
 
   const claim = useCallback(() => {
+    clearBlurTimer();
     lastActivityRef.current = Date.now();
     setWantsPen(true);
-  }, []);
+  }, [clearBlurTimer]);
 
   const release = useCallback(() => {
+    clearBlurTimer();
     setWantsPen(false);
-  }, []);
+  }, [clearBlurTimer]);
 
+  /** Interaction in the editor: claim if free, else refresh idle clock while holding. */
   const noteUserActivity = useCallback(() => {
+    clearBlurTimer();
     lastActivityRef.current = Date.now();
-  }, []);
+    setWantsPen(true);
+  }, [clearBlurTimer]);
+
+  const noteEditorBlur = useCallback(() => {
+    if (!wantsPen) return;
+    clearBlurTimer();
+    blurTimerRef.current = window.setTimeout(() => {
+      blurTimerRef.current = null;
+      setWantsPen(false);
+    }, LEASE_BLUR_GRACE_MS);
+  }, [wantsPen, clearBlurTimer]);
 
   // Idle release. Polls rather than resetting a timer per keystroke — typing
   // shouldn't churn timers, and a ~5s granularity is well inside the 45s window.
@@ -249,15 +279,34 @@ export function useNoteEditLease(
   }, [holding]);
 
   return useMemo(() => {
-    if (!active) return IDLE_STATE;
+    if (!active) {
+      // Co-edit opted in but lease can't run (missing Realtime) — never pretend available.
+      if (opts.enabled) {
+        return { ...IDLE_STATE, disconnected: true, leaseActive: false };
+      }
+      return IDLE_STATE;
+    }
     return {
       holding,
       heldBy,
       available: subscribed && !winner,
       disconnected: !subscribed,
+      leaseActive: true,
       claim,
       release,
       noteUserActivity,
+      noteEditorBlur,
     };
-  }, [active, holding, heldBy, subscribed, winner, claim, release, noteUserActivity]);
+  }, [
+    active,
+    opts.enabled,
+    holding,
+    heldBy,
+    subscribed,
+    winner,
+    claim,
+    release,
+    noteUserActivity,
+    noteEditorBlur,
+  ]);
 }
