@@ -2802,13 +2802,6 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   white-space: nowrap;
 }
 
-.proto-inspector-space-list__hint {
-  margin: 8px 0 0;
-  font-size: 11px;
-  line-height: 1.35;
-  color: var(--pds-text-tertiary, var(--pds-text-secondary));
-}
-
 .proto-inspector-space-co-edit {
   display: flex;
   flex-direction: column;

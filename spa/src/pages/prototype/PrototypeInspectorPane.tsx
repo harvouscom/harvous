@@ -352,13 +352,6 @@ export default function PrototypeInspectorPane({
               </li>
             ))}
           </ul>
-          {!note.contentEncrypted ? (
-            <p className="proto-inspector-space-list__hint">
-              Let others edit — one person at a time.
-            </p>
-          ) : (
-            <p className="proto-inspector-space-list__hint">Locked notes stay private.</p>
-          )}
         </section>
       ) : null}
 
