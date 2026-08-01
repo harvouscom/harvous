@@ -5,11 +5,21 @@
  * Every channel is opened with {@link REALTIME_PRIVATE_CHANNEL_CONFIG}. RLS on
  * `realtime.messages` (see supabase/realtime-authorization.sql) is what scopes
  * access; channel names alone are not enough.
+ *
+ * Private channels need a Clerk session JWT with `role: authenticated`. Register
+ * {@link setSupabaseRealtimeAccessTokenGetter} from inside ClerkProvider so
+ * tokens refresh before they expire (otherwise joins fail "after a while").
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 let browserClient: SupabaseClient | null = null;
+type AccessTokenGetter = () => Promise<string | null>;
+let accessTokenGetter: AccessTokenGetter | null = null;
+let authRefreshTimer: ReturnType<typeof setInterval> | null = null;
+
+/** How often to push a fresh Clerk JWT into Realtime (session tokens are short-lived). */
+const REALTIME_AUTH_REFRESH_MS = 45_000;
 
 /** Passed to every `supabase.channel(...)` so Realtime enforces RLS. */
 export const REALTIME_PRIVATE_CHANNEL_CONFIG = {
@@ -22,12 +32,57 @@ export function isSupabaseRealtimeConfigured(): boolean {
   return Boolean(url && String(url).trim() && key && String(key).trim());
 }
 
+async function pushRealtimeAccessToken(): Promise<void> {
+  const client = browserClient;
+  const getter = accessTokenGetter;
+  if (!client || !getter) return;
+  try {
+    const token = await getter();
+    if (token) await client.realtime.setAuth(token);
+  } catch {
+    /* next refresh retries */
+  }
+}
+
+function ensureAuthRefreshLoop(): void {
+  if (typeof window === 'undefined' || authRefreshTimer != null) return;
+  authRefreshTimer = setInterval(() => {
+    void pushRealtimeAccessToken();
+  }, REALTIME_AUTH_REFRESH_MS);
+}
+
+/**
+ * Provide Clerk `getToken` (default session — native Supabase integration).
+ * Call from a component under `<ClerkProvider>`; clears on sign-out.
+ */
+export function setSupabaseRealtimeAccessTokenGetter(fn: AccessTokenGetter | null): void {
+  accessTokenGetter = fn;
+  if (!fn) {
+    if (authRefreshTimer != null) {
+      clearInterval(authRefreshTimer);
+      authRefreshTimer = null;
+    }
+    return;
+  }
+  ensureAuthRefreshLoop();
+  void pushRealtimeAccessToken();
+}
+
 export function getSupabaseBrowserClient(): SupabaseClient | null {
   if (!isSupabaseRealtimeConfigured()) return null;
   if (!browserClient) {
-    browserClient = createClient(String(import.meta.env.VITE_SUPABASE_URL).trim(), String(import.meta.env.VITE_SUPABASE_ANON_KEY).trim(), {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    browserClient = createClient(
+      String(import.meta.env.VITE_SUPABASE_URL).trim(),
+      String(import.meta.env.VITE_SUPABASE_ANON_KEY).trim(),
+      {
+        auth: { persistSession: false, autoRefreshToken: false },
+        accessToken: async () => {
+          if (!accessTokenGetter) return null;
+          return accessTokenGetter();
+        },
+      },
+    );
+    ensureAuthRefreshLoop();
   }
   return browserClient;
 }

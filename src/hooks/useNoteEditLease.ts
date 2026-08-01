@@ -12,8 +12,10 @@
  * Claim by interacting with the editor (type / select / focus). Idle and blur
  * grace release the pen; Done can release early. No separate "Start editing".
  *
- * Modeled on useSpacePresence. The channel carries no note content (see
- * noteChannelName) — only display names already visible to space members.
+ * Private Realtime channels need a fresh Clerk JWT — see
+ * setSupabaseRealtimeAccessTokenGetter. This hook also avoids tearing the
+ * channel down when Clerk recreates getToken, and debounces "disconnected"
+ * so brief rejoins don't flash reconnecting.
  */
 import { useAuth } from '@clerk/clerk-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -28,6 +30,8 @@ import {
 export const LEASE_BLUR_GRACE_MS = 5_000;
 /** Released after this long without a real keystroke, so an idle tab frees the pen. */
 export const LEASE_IDLE_RELEASE_MS = 45_000;
+/** Don't show reconnecting until the channel has been down this long. */
+export const LEASE_DISCONNECT_GRACE_MS = 2_500;
 
 export interface NotePenPresence {
   userId: string;
@@ -108,6 +112,7 @@ export function useNoteEditLease(
   const { userId, getToken, isSignedIn } = useAuth();
   const [entries, setEntries] = useState<NotePenPresence[]>([]);
   const [subscribed, setSubscribed] = useState(false);
+  const [disconnectedHard, setDisconnectedHard] = useState(false);
   const [wantsPen, setWantsPen] = useState(false);
 
   const channelRef = useRef<ReturnType<
@@ -116,6 +121,13 @@ export function useNoteEditLease(
   const claimedAtRef = useRef(0);
   const lastActivityRef = useRef(0);
   const blurTimerRef = useRef<number | null>(null);
+  const disconnectTimerRef = useRef<number | null>(null);
+  const wantsPenRef = useRef(false);
+  const selfRef = useRef(self);
+  const getTokenRef = useRef(getToken);
+  selfRef.current = self;
+  getTokenRef.current = getToken;
+  wantsPenRef.current = wantsPen;
 
   const normalizedNoteId = useMemo(() => {
     const trimmed = (noteId ?? '').trim();
@@ -128,9 +140,6 @@ export function useNoteEditLease(
     Boolean(normalizedNoteId && userId && isSignedIn && self) &&
     isSupabaseRealtimeConfigured();
 
-  const selfDisplayName = self?.displayName ?? '';
-  const selfColor = self?.color ?? '';
-
   const clearBlurTimer = useCallback(() => {
     if (blurTimerRef.current != null) {
       window.clearTimeout(blurTimerRef.current);
@@ -138,28 +147,65 @@ export function useNoteEditLease(
     }
   }, []);
 
-  // Subscribe + mirror presence.
+  const markSubscribed = useCallback((isSubscribed: boolean) => {
+    setSubscribed(isSubscribed);
+    if (isSubscribed) {
+      if (disconnectTimerRef.current != null) {
+        window.clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+      }
+      setDisconnectedHard(false);
+      return;
+    }
+    if (disconnectTimerRef.current != null) return;
+    disconnectTimerRef.current = window.setTimeout(() => {
+      disconnectTimerRef.current = null;
+      setDisconnectedHard(true);
+    }, LEASE_DISCONNECT_GRACE_MS);
+  }, []);
+
+  // Subscribe + mirror presence. Deps intentionally exclude getToken / display
+  // name identity — those change often and were tearing the channel down.
   useEffect(() => {
     if (!active) {
       setEntries((prev) => (prev.length === 0 ? prev : []));
       setSubscribed(false);
+      setDisconnectedHard(false);
       setWantsPen(false);
       clearBlurTimer();
+      if (disconnectTimerRef.current != null) {
+        window.clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+      }
       return;
     }
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
 
     let cancelled = false;
+    let retryTimer: number | null = null;
 
-    const setup = async () => {
+    const presenceSelf = () => ({
+      userId: userId!,
+      displayName: selfRef.current?.displayName ?? 'Someone',
+      color: selfRef.current?.color ?? 'blue',
+      holding: wantsPenRef.current,
+      claimedAt: wantsPenRef.current ? claimedAtRef.current || Date.now() : 0,
+    });
+
+    const attach = async () => {
       try {
-        const token = await getToken();
+        const token = await getTokenRef.current();
         if (token && !cancelled) await supabase.realtime.setAuth(token);
       } catch {
-        /* presence may still connect on public channels */
+        /* refresh loop / retry will try again */
       }
       if (cancelled) return;
+
+      if (channelRef.current) {
+        void supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
 
       const channel = supabase.channel(noteChannelName(normalizedNoteId), REALTIME_PRIVATE_CHANNEL_CONFIG);
       channelRef.current = channel;
@@ -173,44 +219,59 @@ export function useNoteEditLease(
             if (parsed) seen.push(parsed);
           }
         }
-        // One entry per person — a second tab shouldn't read as a second member.
         setEntries([...new Map(seen.map((entry) => [entry.userId, entry])).values()]);
       });
 
       channel.subscribe(async (status) => {
         if (cancelled) return;
-        const isSubscribed = status === 'SUBSCRIBED';
-        setSubscribed(isSubscribed);
-        if (isSubscribed) {
-          await channel.track({
-            userId,
-            displayName: selfDisplayName,
-            color: selfColor,
-            holding: false,
-            claimedAt: 0,
-          });
+        if (status === 'SUBSCRIBED') {
+          markSubscribed(true);
+          if (wantsPenRef.current && claimedAtRef.current === 0) {
+            claimedAtRef.current = Date.now();
+          }
+          await channel.track(presenceSelf());
+          return;
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          markSubscribed(false);
+          try {
+            const token = await getTokenRef.current();
+            if (token && !cancelled) await supabase.realtime.setAuth(token);
+          } catch {
+            /* ignore */
+          }
+          if (!cancelled && retryTimer == null) {
+            retryTimer = window.setTimeout(() => {
+              retryTimer = null;
+              if (!cancelled) void attach();
+            }, 1_500);
+          }
         }
       });
     };
 
-    void setup();
+    void attach();
 
     return () => {
       cancelled = true;
+      if (retryTimer != null) window.clearTimeout(retryTimer);
       const channel = channelRef.current;
       channelRef.current = null;
       claimedAtRef.current = 0;
       clearBlurTimer();
+      if (disconnectTimerRef.current != null) {
+        window.clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+      }
       setEntries([]);
       setSubscribed(false);
+      setDisconnectedHard(false);
       setWantsPen(false);
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [active, normalizedNoteId, userId, selfDisplayName, selfColor, getToken, clearBlurTimer]);
+  }, [active, normalizedNoteId, userId, clearBlurTimer, markSubscribed]);
 
   const winner = useMemo(() => resolvePenHolder(entries), [entries]);
-  // Someone else clearly has the pen (presence). Local Done/release must win
-  // immediately — don't keep `holding` true off a stale self-entry or Done looks broken.
   const heldBy = winner && userId && winner.userId !== userId ? winner : null;
   const holding = Boolean(wantsPen && userId && !heldBy);
   const available = Boolean(subscribed && !heldBy && !wantsPen);
@@ -223,14 +284,13 @@ export function useNoteEditLease(
     if (!wantsPen) claimedAtRef.current = 0;
     void channel.track({
       userId,
-      displayName: selfDisplayName,
-      color: selfColor,
+      displayName: selfRef.current?.displayName ?? 'Someone',
+      color: selfRef.current?.color ?? 'blue',
       holding: wantsPen,
       claimedAt: claimedAtRef.current,
     });
-  }, [wantsPen, subscribed, userId, selfDisplayName, selfColor]);
+  }, [wantsPen, subscribed, userId]);
 
-  // Lost a tie-break: stand down so the winner is unambiguous everywhere.
   useEffect(() => {
     if (wantsPen && heldBy) setWantsPen(false);
   }, [wantsPen, heldBy]);
@@ -244,7 +304,6 @@ export function useNoteEditLease(
   const release = useCallback(() => {
     clearBlurTimer();
     setWantsPen(false);
-    // Drop our local claim immediately so UI doesn't wait on presence sync.
     if (userId) {
       setEntries((prev) =>
         prev.map((entry) =>
@@ -254,7 +313,6 @@ export function useNoteEditLease(
     }
   }, [clearBlurTimer, userId]);
 
-  /** Interaction in the editor: claim if free, else refresh idle clock while holding. */
   const noteUserActivity = useCallback(() => {
     clearBlurTimer();
     lastActivityRef.current = Date.now();
@@ -270,8 +328,6 @@ export function useNoteEditLease(
     }, LEASE_BLUR_GRACE_MS);
   }, [wantsPen, clearBlurTimer]);
 
-  // Idle release. Polls rather than resetting a timer per keystroke — typing
-  // shouldn't churn timers, and a ~5s granularity is well inside the 45s window.
   useEffect(() => {
     if (!holding) return;
     const interval = window.setInterval(() => {
@@ -280,8 +336,6 @@ export function useNoteEditLease(
     return () => window.clearInterval(interval);
   }, [holding]);
 
-  // Give up the pen when the tab goes away rather than making everyone else wait
-  // for the presence eviction window.
   useEffect(() => {
     if (!holding) return;
     const drop = () => setWantsPen(false);
@@ -291,7 +345,6 @@ export function useNoteEditLease(
 
   return useMemo(() => {
     if (!active) {
-      // Co-edit opted in but lease can't run (missing Realtime) — never pretend available.
       if (opts.enabled) {
         return { ...IDLE_STATE, disconnected: true, leaseActive: false };
       }
@@ -301,7 +354,7 @@ export function useNoteEditLease(
       holding,
       heldBy,
       available,
-      disconnected: !subscribed,
+      disconnected: disconnectedHard,
       leaseActive: true,
       claim,
       release,
@@ -314,7 +367,7 @@ export function useNoteEditLease(
     holding,
     heldBy,
     available,
-    subscribed,
+    disconnectedHard,
     claim,
     release,
     noteUserActivity,

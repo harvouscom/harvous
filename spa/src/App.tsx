@@ -33,6 +33,7 @@ import {
   pendingAuthRedirectDecision,
 } from './lib/pending-auth-redirect';
 import { syncPublicRouteHtmlClass } from '@/lib/prototype-path';
+import { setSupabaseRealtimeAccessTokenGetter } from '@/lib/supabase-client';
 
 const PWA_INSTALL_INSTRUCTIONS_EVENT = 'showPwaInstallInstructions';
 
@@ -246,6 +247,24 @@ function AuthSignedOutCacheCleanup() {
     if (!isLoaded || isSignedIn) return;
     clearUserClientCaches(queryClient);
   }, [isLoaded, isSignedIn, queryClient]);
+  return null;
+}
+
+/**
+ * Keep Supabase Realtime authorized with a fresh Clerk session JWT.
+ * Private channels fail "after a while" when the short-lived token expires
+ * and setAuth is never refreshed.
+ */
+function SupabaseRealtimeAuthBridge() {
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) {
+      setSupabaseRealtimeAccessTokenGetter(null);
+      return;
+    }
+    setSupabaseRealtimeAccessTokenGetter(() => getToken());
+    return () => setSupabaseRealtimeAccessTokenGetter(null);
+  }, [isLoaded, isSignedIn, getToken]);
   return null;
 }
 
@@ -785,6 +804,7 @@ export default function App() {
     <HarvousClerkProvider>
       <QueryClientProvider client={queryClient}>
         <AuthSignedOutCacheCleanup />
+        <SupabaseRealtimeAuthBridge />
         <PublicRouteClassBridge />
         <PendingAuthRedirectBridge />
         <QueryClient401Redirect />
