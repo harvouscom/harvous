@@ -56,12 +56,13 @@ export default function PrototypeSharedNoteReadOnlyBanner({
   authorFirstName?: string | null;
   authorProfileImageUrl?: string | null;
   authorColor?: string | null;
-  /** When the note author is the signed-in viewer, the chip reads "You". */
+  /** When the note author is the signed-in viewer, omit the chip (redundant). */
   isAuthorSelf?: boolean;
   status?: SharedNoteEditStatus;
   onReleasePen?: () => void;
 }) {
-  const hasAuthor = Boolean(authorDisplayName && authorUserId);
+  // Attribution is for someone else's note. On your own, the status line is enough.
+  const showAuthorChip = Boolean(authorDisplayName && authorUserId) && !isAuthorSelf;
   const { icon, label } = statusCopy(status);
 
   return (
@@ -83,14 +84,14 @@ export default function PrototypeSharedNoteReadOnlyBanner({
           >
             Done
           </button>
-        ) : hasAuthor ? (
+        ) : showAuthorChip ? (
           <SharedSpaceNoteAuthorChip
             displayName={authorDisplayName!}
             userId={authorUserId!}
             firstName={authorFirstName}
             profileImageUrl={authorProfileImageUrl}
             color={authorColor}
-            isSelf={isAuthorSelf}
+            isSelf={false}
             showAvatar={false}
           />
         ) : null}
