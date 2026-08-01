@@ -24,7 +24,8 @@ describe('shared Thread loop contracts', () => {
     const ui = [dashboard, create, drilldown].join('\n');
     expect(ui).not.toMatch(/Study Thread|group study|Current group/i);
     expect(drilldown).toContain('<SharedSpaceNoteAuthorChip');
-    expect(drilldown).toContain('isOwner && !thread.isPinned');
+    // Owner menu now also shows on a pinned thread when a delete handler is supplied.
+    expect(drilldown).toContain('isOwner && (!thread.isPinned || Boolean(onRequestDelete))');
     expect(create).toContain('if (!isOwner) return null');
   });
 });

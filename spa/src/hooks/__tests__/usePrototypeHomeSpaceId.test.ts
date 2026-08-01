@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NavigationData, NavSpace } from '../queries/useNavigation';
 import {
-  computePrototypeShellAuthReady,
+  computePrototypeAuthReady,
   resolvePrototypeHomeSpaceId,
   shouldRepairStaleNavForPersistedSharedSpace,
 } from '../usePrototypeHomeSpaceId';
@@ -33,17 +33,17 @@ const navHomeOnly: NavigationData = {
   inboxCount: 0,
 };
 
-describe('computePrototypeShellAuthReady', () => {
+describe('computePrototypeAuthReady', () => {
   it('is true when Clerk is loaded and signed in', () => {
-    expect(computePrototypeShellAuthReady(true, true, 'user_1', false, undefined)).toBe(true);
+    expect(computePrototypeAuthReady(true, true, 'user_1', false, undefined)).toBe(true);
   });
 
   it('is true from session cookie hint before Clerk loads', () => {
-    expect(computePrototypeShellAuthReady(false, false, undefined, true, 'user_cached')).toBe(true);
+    expect(computePrototypeAuthReady(false, false, undefined, true, 'user_cached')).toBe(true);
   });
 
   it('is false with no session signal', () => {
-    expect(computePrototypeShellAuthReady(false, false, undefined, false, undefined)).toBe(false);
+    expect(computePrototypeAuthReady(false, false, undefined, false, undefined)).toBe(false);
   });
 });
 

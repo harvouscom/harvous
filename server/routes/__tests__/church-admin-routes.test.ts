@@ -24,17 +24,24 @@ describe('church admin route contracts', () => {
   it('gates every endpoint with requireHarvousAdmin', () => {
     const endpoints = route().match(/app\.(get|post|put|delete|patch)\(/g) ?? [];
     const gates = route().match(/const gate = await requireHarvousAdmin\(c\);\s*\n\s*if \(gate\) return gate;/g) ?? [];
-    // deactivate/reactivate share one gated handler (setChurchActive); HMC + update add more routes
-    expect(endpoints.length).toBe(11);
+    // deactivate/reactivate share one gated handler (setChurchActive); HMC + update add more
+    // routes. hmc/sync-denorm (get+post) added a cron-callable pair: the gate call is still
+    // present, just conditional on a missing/invalid cron secret (see handleHmcSyncDenorm),
+    // so it isn't matched by the literal always-runs `gates` regex above — hence the >= below.
+    expect(endpoints.length).toBe(13);
     expect(gates.length).toBeGreaterThanOrEqual(10);
     expect(route()).not.toContain('requireAuth');
   });
 
-  it('keeps every path under /api/admin/churches', () => {
+  it('keeps every path under /api/admin/churches or /api/admin/hmc', () => {
     const paths = [...route().matchAll(/app\.(?:get|post|put|delete|patch)\(\s*'([^']+)'/g)].map((m) => m[1]);
     expect(paths.length).toBeGreaterThanOrEqual(5);
     for (const path of paths) {
-      expect(path.startsWith('/api/admin/churches')).toBe(true);
+      // hmc/sync-denorm is a deliberate sibling surface: a cron-callable admin utility
+      // (bearer-token OR requireHarvousAdmin), not a churches-record endpoint.
+      expect(
+        path.startsWith('/api/admin/churches') || path.startsWith('/api/admin/hmc'),
+      ).toBe(true);
     }
   });
 

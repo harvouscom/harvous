@@ -30,9 +30,9 @@ describe('Generation 4C deletion lifecycle', () => {
     const confirmEnd = people.indexOf('      ) : null}', confirmStart);
     const confirm = people.slice(confirmStart, confirmEnd);
 
-    expect(confirm).toContain('Access is removed now.');
-    expect(confirm).toContain('As the owner, you can restore the space for 30 days');
-    expect(confirm).toContain("each author's notes remain in My Home");
+    // Copy was tightened from a multi-sentence explanation to one concise line;
+    // the policy (30-day restore, notes stay in My Home) is unchanged.
+    expect(confirm).toContain('Restore within 30 days; notes stay in My Home.');
     expect(confirm).not.toContain('Permanent for everyone');
     expect(confirm).toContain('anchorRect={deleteConfirmAnchor}');
 

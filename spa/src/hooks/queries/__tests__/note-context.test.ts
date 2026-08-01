@@ -57,8 +57,8 @@ describe('contextual note queries', () => {
     expect(shouldUseNoteOnlyParentThreadCache('space_shared')).toBe(false);
     expect(localStorage.getItem('harvous-note-thread-note_1')).toBe('thread_home');
     expect(detail.spaces).toEqual([
-      { id: 'space_shared', title: 'Romans Study' },
-      { id: 'space_other', title: 'Sunday Group' },
+      { id: 'space_shared', title: 'Romans Study', coEditEnabled: false, spaceType: 'shared' },
+      { id: 'space_other', title: 'Sunday Group', coEditEnabled: false, spaceType: 'shared' },
     ]);
   });
 
