@@ -1778,6 +1778,7 @@ export default function PrototypeNotePage() {
                   authorFirstName={foreignNoteAuthor?.firstName}
                   authorProfileImageUrl={foreignNoteAuthor?.profileImageUrl}
                   authorColor={foreignNoteAuthor?.userColor}
+                  isAuthorSelf={isOwnNote}
                   status={sharedNoteEditStatus}
                   onReleasePen={pen.release}
                 />

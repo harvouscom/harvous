@@ -47,6 +47,7 @@ export default function PrototypeSharedNoteReadOnlyBanner({
   authorFirstName,
   authorProfileImageUrl,
   authorColor,
+  isAuthorSelf = false,
   status = { kind: 'read-only' },
   onReleasePen,
 }: {
@@ -55,6 +56,8 @@ export default function PrototypeSharedNoteReadOnlyBanner({
   authorFirstName?: string | null;
   authorProfileImageUrl?: string | null;
   authorColor?: string | null;
+  /** When the note author is the signed-in viewer, the chip reads "You". */
+  isAuthorSelf?: boolean;
   status?: SharedNoteEditStatus;
   onReleasePen?: () => void;
 }) {
@@ -87,7 +90,7 @@ export default function PrototypeSharedNoteReadOnlyBanner({
             firstName={authorFirstName}
             profileImageUrl={authorProfileImageUrl}
             color={authorColor}
-            isSelf={false}
+            isSelf={isAuthorSelf}
             showAvatar={false}
           />
         ) : null}
