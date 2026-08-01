@@ -337,19 +337,28 @@ export default function PrototypeInspectorPane({
               <li key={space.spaceId} className="proto-inspector-space-list__entry">
                 <div className="proto-inspector-space-list__item">
                   <Icon name="user-group" size={12} aria-hidden />
-                  <span>{space.spaceTitle.trim() || 'Shared space'}</span>
+                  <span className="proto-inspector-space-list__title">
+                    {space.spaceTitle.trim() || 'Shared space'}
+                  </span>
+                  <PrototypeNoteCoEditToggle
+                    noteId={note.id}
+                    spaceId={space.spaceId}
+                    spaceTitle={space.spaceTitle}
+                    coEditEnabled={spaceCoEditById[space.spaceId] ?? space.coEditEnabled}
+                    contentEncrypted={note.contentEncrypted}
+                    onChanged={(enabled) => onSpaceCoEditChanged(space.spaceId, enabled)}
+                  />
                 </div>
-                <PrototypeNoteCoEditToggle
-                  noteId={note.id}
-                  spaceId={space.spaceId}
-                  spaceTitle={space.spaceTitle}
-                  coEditEnabled={spaceCoEditById[space.spaceId] ?? space.coEditEnabled}
-                  contentEncrypted={note.contentEncrypted}
-                  onChanged={(enabled) => onSpaceCoEditChanged(space.spaceId, enabled)}
-                />
               </li>
             ))}
           </ul>
+          {!note.contentEncrypted ? (
+            <p className="proto-inspector-space-list__hint">
+              Let others edit — one person at a time.
+            </p>
+          ) : (
+            <p className="proto-inspector-space-list__hint">Locked notes stay private.</p>
+          )}
         </section>
       ) : null}
 

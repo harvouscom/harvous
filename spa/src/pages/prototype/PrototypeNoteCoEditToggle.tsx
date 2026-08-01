@@ -1,7 +1,7 @@
 /**
  * Author opt-in for co-editing on one shared-space association.
  *
- * Mounted per space row in the inspector Spaces section. The PATCH targets
+ * Compact switch for a Spaces list row. The PATCH targets
  * SpaceNotes.coEditEnabled; Notes.coEditEnabled is the server's OR-mirror.
  */
 import { useState } from 'react';
@@ -13,11 +13,11 @@ export interface CoEditSpaceRef {
   coEditEnabled: boolean;
 }
 
-/** Per-association helper — the flag is scoped to this space only. */
+/** Tooltip / a11y copy for the per-space switch. */
 export function coEditHelperTextForSpace(enabled: boolean, spaceTitle: string): string {
   const name = spaceTitle.trim() || 'this space';
-  if (!enabled) return `Members of ${name} can read this note.`;
-  return `Members of ${name} can edit this note, one person at a time.`;
+  if (!enabled) return `Members of ${name} can read this note. Turn on to let them edit.`;
+  return `Members of ${name} can edit, one person at a time.`;
 }
 
 export default function PrototypeNoteCoEditToggle({
@@ -71,29 +71,29 @@ export default function PrototypeNoteCoEditToggle({
 
   return (
     <div className="proto-inspector-space-co-edit">
-      <div className="proto-inspector-space-co-edit__row">
-        <span className="proto-inspector-space-co-edit__label">Let others edit</span>
-        <span
-          className="proto-fte-switch"
-          data-on={enabled ? 'true' : 'false'}
-          role="switch"
-          aria-checked={enabled}
-          aria-disabled={disabled}
-          aria-label={`Let others edit in ${spaceTitle.trim() || 'this space'}`}
-          title={helper}
-          tabIndex={disabled ? -1 : 0}
-          onClick={() => void toggle()}
-          onKeyDown={(e) => {
-            if (e.key === ' ' || e.key === 'Enter') {
-              e.preventDefault();
-              void toggle();
-            }
-          }}
-        >
-          <span className="proto-fte-switch__thumb" />
-        </span>
-      </div>
-      <p className="proto-fte-lock__hint">{helper}</p>
+      <span
+        className="proto-fte-switch"
+        data-on={enabled ? 'true' : 'false'}
+        role="switch"
+        aria-checked={enabled}
+        aria-disabled={disabled}
+        aria-label={`Let others edit in ${spaceTitle.trim() || 'this space'}`}
+        title={helper}
+        tabIndex={disabled ? -1 : 0}
+        onClick={(e) => {
+          e.stopPropagation();
+          void toggle();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
+            void toggle();
+          }
+        }}
+      >
+        <span className="proto-fte-switch__thumb" />
+      </span>
       {error ? (
         <p className="proto-connect-note-sheet__error" role="alert">
           {error}
