@@ -71,6 +71,16 @@ describe('shared Thread dashboard policy', () => {
     expect(owner.emptyLabel).toBe('No thread yet.');
     expect(member.emptyLabel).toBe('Waiting for the owner to start one.');
   });
+
+  it('hides the Current Thread block from members who have no Thread to see', () => {
+    // A member can't start one, so an empty block is noise. Owners keep the CTA,
+    // and anyone with a current Thread keeps the card.
+    expect(sharedThreadDashboardModel([], false).showCurrentThreadBlock).toBe(false);
+    expect(sharedThreadDashboardModel([], true).showCurrentThreadBlock).toBe(true);
+    expect(
+      sharedThreadDashboardModel([thread('thread_current', true)], false).showCurrentThreadBlock,
+    ).toBe(true);
+  });
 });
 
 describe('shared Thread create and pin contracts', () => {

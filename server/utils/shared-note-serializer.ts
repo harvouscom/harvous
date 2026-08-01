@@ -239,6 +239,16 @@ export function serializeSharedCanonicalNote(input: SharedNoteSerializationInput
     authorDisplayName: input.authorDisplayName?.trim() || 'Member',
     authorColor: input.authorColor ?? 'blue',
     isOwnNote: Boolean(input.isOwnNote),
+    /** Author opted this note into co-editing for its shared spaces. */
+    coEditEnabled: Boolean(input.coEditEnabled),
+    /**
+     * The server's own verdict on whether this viewer may write the body. The
+     * client must render from this rather than re-deriving from role + flags, so
+     * editability can never drift from authorization.
+     */
+    canEdit: Boolean(input.canEdit),
+    /** Everyone who has saved a checkpoint, author first. */
+    contributors: Array.isArray(input.contributors) ? input.contributors : [],
     version: input.version,
     resourceTitle: input.resourceTitle ?? null,
     resourceDescription: input.resourceDescription ?? null,

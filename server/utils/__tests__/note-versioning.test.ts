@@ -36,8 +36,31 @@ describe('note versioning', () => {
       contentEncrypted: false,
       source: 'migration-baseline',
       authorId: 'user_author',
+      editedBy: 'user_author',
       createdAt,
     });
+  });
+
+  it('lets an authorized collaborator checkpoint without becoming the author', () => {
+    const createdAt = new Date('2026-07-09T12:00:00Z');
+    const base = {
+      id: 'nver_2',
+      noteId: 'note_1',
+      noteAuthorId: 'user_author',
+      actorId: 'user_collaborator',
+      version: 2,
+      content: { title: 'Title', content: 'Their edit', contentEncrypted: false },
+      createdAt,
+    };
+
+    // Without the role the strict assert still guards every existing caller.
+    expect(() => buildNoteVersionSnapshot(base)).toThrowError(NoteVersionAccessError);
+
+    const snapshot = buildNoteVersionSnapshot({ ...base, actorRole: 'collaborator' });
+    // authorId stays the permanent author — history access and the
+    // currentVersion integrity check both depend on it.
+    expect(snapshot.authorId).toBe('user_author');
+    expect(snapshot.editedBy).toBe('user_collaborator');
   });
 
   it('increments monotonically from the greatest valid version', () => {
@@ -68,6 +91,7 @@ describe('note versioning', () => {
       contentEncrypted: false,
       source: 'save',
       authorId: 'user_author',
+      editedBy: 'user_author',
       createdAt: new Date('2026-07-09T12:00:00Z'),
     };
     const changed = { title: 'Title', content: 'New body', contentEncrypted: false };

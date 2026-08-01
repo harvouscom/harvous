@@ -33,3 +33,13 @@ export function spaceChannelName(spaceId: string): string {
   const id = spaceId.startsWith('space_') ? spaceId : `space_${spaceId}`;
   return `space-${id}`;
 }
+
+/**
+ * Per-note "pass the pen" channel. Carries presence only — who has the note open
+ * and who holds the pen. Never put note content on it: Realtime Authorization is
+ * not enabled yet, so channel names are the only scoping (docs/SUPABASE_REALTIME_SETUP.md).
+ */
+export function noteChannelName(noteId: string): string {
+  const id = noteId.startsWith('note_') ? noteId : `note_${noteId}`;
+  return `note-${id}`;
+}

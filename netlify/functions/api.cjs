@@ -18357,6 +18357,14 @@ var init_schema2 = __esm({
         dismissedAutoTags: text("dismissedAutoTags"),
         /** Latest immutable NoteVersions checkpoint for the canonical note. */
         currentVersionId: text("currentVersionId"),
+        /**
+         * Author opt-in: members of any shared space this note is associated with may
+         * edit the body ("pass the pen"). Off by default — authorship is otherwise
+         * exclusive. Never true for encrypted notes; cleared when the last shared
+         * association is removed. userId stays the author regardless.
+         */
+        coEditEnabled: boolean("coEditEnabled").notNull().default(false),
+        coEditEnabledAt: ts("coEditEnabledAt"),
         /** Source lineage for an independent copy of another author's note. */
         copiedFromNoteId: text("copiedFromNoteId"),
         copiedFromVersionId: text("copiedFromVersionId"),
@@ -18390,6 +18398,12 @@ var init_schema2 = __esm({
         source: text("source").notNull().default("save"),
         /** Permanent note author; only this user may list, inspect, create, or restore versions. */
         authorId: text("authorId").notNull(),
+        /**
+         * Who actually saved this checkpoint. Equals authorId for solo notes and is
+         * null on rows written before co-editing — read it as `editedBy ?? authorId`.
+         * authorId must stay the permanent author; this is the contributor signal.
+         */
+        editedBy: text("editedBy"),
         createdAt: ts("createdAt").notNull()
       },
       (table) => [
@@ -31485,7 +31499,9 @@ function nextNoteVersionNumber(versions) {
   return currentMax + 1;
 }
 function buildNoteVersionSnapshot(input) {
-  assertCanAccessNoteVersions(input.noteAuthorId, input.actorId);
+  if (input.actorRole !== "collaborator") {
+    assertCanAccessNoteVersions(input.noteAuthorId, input.actorId);
+  }
   if (!Number.isInteger(input.version) || input.version < 1) {
     throw new RangeError("Note version must be a positive integer");
   }
@@ -31498,6 +31514,7 @@ function buildNoteVersionSnapshot(input) {
     contentEncrypted: input.content.contentEncrypted,
     source: input.source ?? "save",
     authorId: input.noteAuthorId,
+    editedBy: input.actorId,
     createdAt: input.createdAt
   };
 }
@@ -44537,7 +44554,9 @@ async function updateCanonicalNoteInTransaction(tx, input) {
     await tx.select().from(Notes).where(eq(Notes.id, input.noteId)).for("update").limit(1)
   );
   if (!note) throw new NoteVersionNotFoundError();
-  assertCanAccessNoteVersions(note.userId, input.actorId);
+  if (input.actorRole !== "collaborator") {
+    assertCanAccessNoteVersions(note.userId, input.actorId);
+  }
   const { patch: resolvedPatch, nextContent: resolvedNextContent } = resolveLockedCanonicalMutation(note, input);
   if (resolvedNextContent.contentEncrypted) {
     const activeAssociation = first(
@@ -44576,7 +44595,8 @@ async function updateCanonicalNoteInTransaction(tx, input) {
       version: await allocateVersionNumber(tx, note.id),
       content: resolvedNextContent,
       source: input.source ?? "save",
-      createdAt: input.now
+      createdAt: input.now,
+      actorRole: input.actorRole
     });
     nextVersion = first(
       await tx.insert(NoteVersions).values(snapshot).returning()
@@ -44588,9 +44608,9 @@ async function updateCanonicalNoteInTransaction(tx, input) {
       title: resolvedNextContent.title,
       content: resolvedNextContent.content,
       contentEncrypted: resolvedNextContent.contentEncrypted,
-      ...resolvedNextContent.contentEncrypted ? { isPublic: false, shareToken: null, shareTokenCreatedAt: null } : {},
+      ...resolvedNextContent.contentEncrypted ? { isPublic: false, shareToken: null, shareTokenCreatedAt: null, coEditEnabled: false, coEditEnabledAt: null } : {},
       ...shouldCheckpoint ? { currentVersionId: nextVersion.id } : {}
-    }).where(and(eq(Notes.id, note.id), eq(Notes.userId, input.actorId))).returning()
+    }).where(eq(Notes.id, note.id)).returning()
   );
   if (!updated) throw new Error("Failed to update note");
   if (shouldCheckpoint) {
@@ -44623,7 +44643,13 @@ async function restoreCanonicalNoteVersionInTransaction(tx, input) {
       content: historical.content,
       contentEncrypted: historical.contentEncrypted,
       updatedAt: input.now,
-      ...historical.contentEncrypted ? { isPublic: false, shareToken: null, shareTokenCreatedAt: null } : {}
+      ...historical.contentEncrypted ? {
+        isPublic: false,
+        shareToken: null,
+        shareTokenCreatedAt: null,
+        coEditEnabled: false,
+        coEditEnabledAt: null
+      } : {}
     },
     nextContent: buildRestoreVersionContent(historical),
     source: "restore",
@@ -45026,6 +45052,16 @@ function serializeSharedCanonicalNote(input) {
     authorDisplayName: input.authorDisplayName?.trim() || "Member",
     authorColor: input.authorColor ?? "blue",
     isOwnNote: Boolean(input.isOwnNote),
+    /** Author opted this note into co-editing for its shared spaces. */
+    coEditEnabled: Boolean(input.coEditEnabled),
+    /**
+     * The server's own verdict on whether this viewer may write the body. The
+     * client must render from this rather than re-deriving from role + flags, so
+     * editability can never drift from authorization.
+     */
+    canEdit: Boolean(input.canEdit),
+    /** Everyone who has saved a checkpoint, author first. */
+    contributors: Array.isArray(input.contributors) ? input.contributors : [],
     version: input.version,
     resourceTitle: input.resourceTitle ?? null,
     resourceDescription: input.resourceDescription ?? null,
@@ -45314,6 +45350,21 @@ function buildAssociationRemovalPatch(actorId, now2) {
     order: 0
   };
 }
+async function revokeCoEditForUnsharedNotes(tx, noteIds) {
+  if (noteIds.length === 0) return;
+  const stillShared = await tx.select({ noteId: SpaceNotes.noteId }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).where(
+    and(
+      inArray(SpaceNotes.noteId, noteIds),
+      isNull(SpaceNotes.removedAt),
+      isNull(Spaces.deletedAt),
+      eq(Spaces.type, "shared")
+    )
+  );
+  const stillSharedIds = new Set(stillShared.map((row) => row.noteId));
+  const orphaned = noteIds.filter((noteId) => !stillSharedIds.has(noteId));
+  if (orphaned.length === 0) return;
+  await tx.update(Notes).set({ coEditEnabled: false, coEditEnabledAt: null }).where(and(inArray(Notes.id, orphaned), eq(Notes.coEditEnabled, true)));
+}
 function buildAssociationReactivationPatch(actorId, now2) {
   return {
     addedBy: actorId,
@@ -45422,6 +45473,7 @@ async function archiveNoteFromSpace(tx, input) {
     throw new SharedSpaceLifecycleError("No permission to remove this note", "FORBIDDEN", 403);
   }
   await tx.update(SpaceNotes).set(buildAssociationRemovalPatch(input.actorId, input.now)).where(eq(SpaceNotes.id, association.id));
+  await revokeCoEditForUnsharedNotes(tx, [input.noteId]);
   const spaceThreads = await tx.select({ id: Threads.id }).from(Threads).where(eq(Threads.spaceId, input.spaceId));
   if (spaceThreads.length > 0) {
     await tx.delete(NoteThreads).where(
@@ -45443,6 +45495,10 @@ async function removeMemberPreservingResponses(tx, input) {
   );
   if (authoredAssociations.length > 0) {
     await tx.update(SpaceNotes).set(buildAssociationRemovalPatch(input.actorId, input.now)).where(inArray(SpaceNotes.id, authoredAssociations.map((row) => row.id)));
+    await revokeCoEditForUnsharedNotes(
+      tx,
+      authoredAssociations.map((row) => row.noteId)
+    );
     const spaceThreads = await tx.select({ id: Threads.id }).from(Threads).where(eq(Threads.spaceId, input.spaceId));
     if (spaceThreads.length > 0) {
       await tx.delete(NoteThreads).where(
@@ -249095,6 +249151,67 @@ async function broadcastCanonicalNoteInvalidation(actorUserId, noteId, payload) 
 // server/routes/notes.ts
 init_delete_note_cascade();
 init_purge_onboarding_content();
+
+// server/utils/note-collaboration.ts
+init_db2();
+init_purge_onboarding_content();
+function canEditNoteAsCollaborator(input) {
+  const { note, actorId, sharedSpaceIdsActorBelongsTo } = input;
+  if (isOnboardingSystemNote(note)) return { allowed: false, code: "ONBOARDING" };
+  if (note.userId === actorId) return { allowed: true, role: "author", viaSpaceId: null };
+  if (note.contentEncrypted) return { allowed: false, code: "ENCRYPTED" };
+  if (note.coEditEnabled !== true) return { allowed: false, code: "NOT_AUTHOR" };
+  if (sharedSpaceIdsActorBelongsTo.length === 0) return { allowed: false, code: "NO_SHARED_SPACE" };
+  return { allowed: true, role: "collaborator", viaSpaceId: sharedSpaceIdsActorBelongsTo[0] };
+}
+async function resolveSharedSpacesGrantingEdit(noteId, actorId) {
+  const rows = await db.select({ spaceId: SpaceNotes.spaceId }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).innerJoin(
+    SpaceMemberships,
+    and(eq(SpaceMemberships.spaceId, Spaces.id), eq(SpaceMemberships.userId, actorId))
+  ).where(
+    and(
+      eq(SpaceNotes.noteId, noteId),
+      isNull(SpaceNotes.removedAt),
+      isNull(Spaces.deletedAt),
+      eq(Spaces.type, "shared")
+    )
+  );
+  return rows.map((row) => row.spaceId);
+}
+async function resolveNoteEditAuthorization(noteId, actorId) {
+  const note = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
+  if (!note) return null;
+  const needsSpaceLookup = note.userId !== actorId && note.coEditEnabled === true && !note.contentEncrypted;
+  const sharedSpaceIdsActorBelongsTo = needsSpaceLookup ? await resolveSharedSpacesGrantingEdit(noteId, actorId) : [];
+  return {
+    note,
+    decision: canEditNoteAsCollaborator({ note, actorId, sharedSpaceIdsActorBelongsTo })
+  };
+}
+async function resolveNoteContributorIds(noteId, authorId) {
+  const rows = await db.select({ editedBy: NoteVersions.editedBy, authorId: NoteVersions.authorId }).from(NoteVersions).where(eq(NoteVersions.noteId, noteId));
+  const ids = /* @__PURE__ */ new Set([authorId]);
+  for (const row of rows) {
+    const savedBy = row.editedBy ?? row.authorId;
+    if (savedBy) ids.add(savedBy);
+  }
+  return [authorId, ...[...ids].filter((id) => id !== authorId)];
+}
+async function noteHasLiveSharedSpaceAssociation(noteId) {
+  const row = first(
+    await db.select({ id: SpaceNotes.id }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).where(
+      and(
+        eq(SpaceNotes.noteId, noteId),
+        isNull(SpaceNotes.removedAt),
+        isNull(Spaces.deletedAt),
+        eq(Spaces.type, "shared")
+      )
+    ).limit(1)
+  );
+  return Boolean(row);
+}
+
+// server/routes/notes.ts
 init_sync_deletion_log();
 init_note_fingerprint();
 
@@ -250309,11 +250426,16 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     if (!noteId) return c.json({ error: "Note ID is required" }, 400);
     const contentValidation = validateContent(content, true);
     if (!contentValidation.isValid) return c.json({ error: contentValidation.error, code: contentValidation.code }, 400);
-    const existingNote = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
-    if (!existingNote) return c.json({ error: "Note not found" }, 404);
-    if (isOnboardingSystemNote(existingNote)) {
-      return c.json({ error: "This note is read-only.", code: "ONBOARDING_NOTE_READ_ONLY" }, 400);
+    const editAuth = await resolveNoteEditAuthorization(noteId, auth.userId);
+    if (!editAuth) return c.json({ error: "Note not found" }, 404);
+    if (!editAuth.decision.allowed) {
+      if (editAuth.decision.code === "ONBOARDING") {
+        return c.json({ error: "This note is read-only.", code: "ONBOARDING_NOTE_READ_ONLY" }, 400);
+      }
+      return c.json({ error: "Note not found" }, 404);
     }
+    const existingNote = editAuth.note;
+    const actorRole = editAuth.decision.role;
     const targetEncrypted = typeof contentEncrypted === "boolean" ? contentEncrypted : existingNote.contentEncrypted;
     const contentForStore = targetEncrypted ? content : canonicalizeNoteHtmlLineBreaks(typeof content === "string" ? content : "");
     let capitalizedContent = targetEncrypted ? contentForStore : contentForStore.charAt(0).toUpperCase() + contentForStore.slice(1);
@@ -250415,10 +250537,22 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
           )
         }),
         source: "save",
-        now: nowISO()
+        now: nowISO(),
+        actorRole
       })
     );
     const updatedNote = versionedUpdate.note;
+    if (actorRole === "collaborator") {
+      console.log(
+        "[co-edit] collaborator save",
+        JSON.stringify({
+          noteId,
+          actorId: auth.userId,
+          authorId: updatedNote.userId,
+          viaSpaceId: editAuth.decision.allowed ? editAuth.decision.viaSpaceId : null
+        })
+      );
+    }
     const noteThreads = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, noteId));
     const threadIdsToTouch = noteThreads.map((nt2) => nt2.threadId);
     if (shouldBumpUpdatedAt && threadIdsToTouch.length > 0) {
@@ -250427,10 +250561,10 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     if (!updatedNote.contentEncrypted && shouldBumpUpdatedAt && (titleChanged || contentChanged)) {
       try {
         const tagExcludes = autoTagExcludeOptionsForNote(updatedNote);
-        const r = await generateAutoTags(updatedNote.title || "", updatedNote.content, auth.userId, 0.7, tagExcludes);
+        const r = await generateAutoTags(updatedNote.title || "", updatedNote.content, updatedNote.userId, 0.7, tagExcludes);
         if (r.suggestions.length > 0) {
           await removeAutoTags(noteId);
-          await applyAutoTags(noteId, r.suggestions, auth.userId);
+          await applyAutoTags(noteId, r.suggestions, updatedNote.userId);
         }
       } catch (err) {
         console.error("[auto-tag] Failed to re-tag note:", noteId, err);
@@ -250464,7 +250598,6 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
           { persistParentContent: false }
         );
         scriptureResults = scriptureResult?.results ?? [];
-        processedContent = typeof scriptureResult?.updatedContent === "string" ? scriptureResult.updatedContent : null;
         processedContent = updatedNote.content;
       } catch (err) {
         console.error("[api/notes/update] Scripture processing failed:", err?.message ?? err);
@@ -250474,7 +250607,7 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     let updateTags = [];
     if (!updatedNote.contentEncrypted) {
       try {
-        updateTags = await fetchNoteTagsForResponse(noteId, auth.userId);
+        updateTags = await fetchNoteTagsForResponse(noteId, updatedNote.userId);
       } catch (err) {
         console.error("[auto-tag] Failed to load tags for update response:", noteId, err);
       }
@@ -250785,6 +250918,46 @@ route11.patch("/api/notes/:id/thread/member-order", requireAuth, rateLimit("writ
       action: "update_thread_member_order"
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route11.patch("/api/notes/:id/co-edit", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = normalizeServerNoteId(requireParam(c, "id"));
+    const body = await c.req.json().catch(() => ({}));
+    if (typeof body.enabled !== "boolean") {
+      return c.json({ success: false, error: "`enabled` must be a boolean" }, 400);
+    }
+    const enabled = body.enabled;
+    const note = first(
+      await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1)
+    );
+    if (!note) return c.json({ success: false, error: "Note not found" }, 404);
+    if (isOnboardingSystemNote(note)) {
+      return c.json({ success: false, error: "This note is read-only.", code: "ONBOARDING_NOTE_READ_ONLY" }, 400);
+    }
+    if (enabled && note.contentEncrypted) {
+      return c.json(
+        { success: false, error: "Locked notes stay private.", code: "CO_EDIT_LOCKED_NOTE" },
+        400
+      );
+    }
+    if (enabled && !await noteHasLiveSharedSpaceAssociation(noteId)) {
+      return c.json(
+        {
+          success: false,
+          error: "Share this note to a shared space before opening it for editing.",
+          code: "CO_EDIT_REQUIRES_SHARED_SPACE"
+        },
+        400
+      );
+    }
+    await db.update(Notes).set({ coEditEnabled: enabled, coEditEnabledAt: enabled ? nowISO() : null }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+    await broadcastCanonicalNoteInvalidation(auth.userId, noteId, { type: "note:updated", id: noteId });
+    return c.json({ success: true, coEditEnabled: enabled });
+  } catch (error) {
+    console.error("Error updating note co-edit setting:", error);
+    return c.json({ success: false, error: "Failed to update co-editing" }, 500);
   }
 });
 route11.patch("/api/notes/:id/study-thread-title", requireAuth, rateLimit("write"), async (c) => {
@@ -251567,6 +251740,18 @@ route11.get("/api/notes/:id/details", requireAuth, async (c) => {
       order: readContext.association.order
     } : null;
     const detailAuthor = readContext.isShared ? (await batchAuthorAttribution([note.userId]))[note.userId] : null;
+    const detailEditAuth = await resolveNoteEditAuthorization(note.id, auth.userId);
+    const detailCanEdit = detailEditAuth?.decision.allowed === true;
+    let detailContributors = [];
+    if (note.coEditEnabled) {
+      const contributorIds = await resolveNoteContributorIds(note.id, note.userId);
+      const contributorPeople = await batchAuthorAttribution(contributorIds);
+      detailContributors = contributorIds.map((userId) => ({
+        userId,
+        displayName: contributorPeople[userId]?.displayName ?? "Member",
+        color: contributorPeople[userId]?.userColor ?? "blue"
+      }));
+    }
     const detailNote = readContext.isShared ? serializeSharedCanonicalNote({
       id: note.id,
       simpleNoteId: note.simpleNoteId,
@@ -251583,6 +251768,9 @@ route11.get("/api/notes/:id/details", requireAuth, async (c) => {
       authorDisplayName: detailAuthor?.displayName ?? "Member",
       authorColor: detailAuthor?.userColor ?? "blue",
       isOwnNote: note.userId === auth.userId,
+      coEditEnabled: note.coEditEnabled,
+      canEdit: detailCanEdit,
+      contributors: detailContributors,
       version: version6,
       resourceTitle,
       resourceDescription,
@@ -251594,6 +251782,9 @@ route11.get("/api/notes/:id/details", requireAuth, async (c) => {
       noteType: note.noteType || "default",
       addedBy: note.addedBy || "user",
       isOwnNote: !isMemberView && note.userId === auth.userId,
+      coEditEnabled: note.coEditEnabled,
+      canEdit: detailCanEdit,
+      contributors: detailContributors,
       version: version6,
       resourceTitle,
       resourceDescription,
@@ -251785,11 +251976,16 @@ route11.post("/api/notes/:id/update-content", requireAuth, rateLimit("write"), a
     const id = requireParam(c, "id");
     const { content, contentEncrypted, expectedVersion } = await c.req.json();
     if (!content || typeof content !== "string") return c.json({ success: false, error: "Content is required" }, 400);
-    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).limit(1));
-    if (!note) return c.json({ success: false, error: "Note not found" }, 404);
-    if (isOnboardingSystemNote(note)) {
-      return c.json({ success: false, error: "This note is read-only.", code: "ONBOARDING_NOTE_READ_ONLY" }, 400);
+    const editAuth = await resolveNoteEditAuthorization(id, auth.userId);
+    if (!editAuth) return c.json({ success: false, error: "Note not found" }, 404);
+    if (!editAuth.decision.allowed) {
+      if (editAuth.decision.code === "ONBOARDING") {
+        return c.json({ success: false, error: "This note is read-only.", code: "ONBOARDING_NOTE_READ_ONLY" }, 400);
+      }
+      return c.json({ success: false, error: "Note not found" }, 404);
     }
+    const note = editAuth.note;
+    const actorRole = editAuth.decision.role;
     const targetEncrypted = typeof contentEncrypted === "boolean" ? contentEncrypted : note.contentEncrypted;
     let contentForStore = targetEncrypted ? content : canonicalizeNoteHtmlLineBreaks(content);
     if (!targetEncrypted) {
@@ -251807,6 +252003,8 @@ route11.post("/api/notes/:id/update-content", requireAuth, rateLimit("write"), a
         updateData.isPublic = false;
         updateData.shareToken = null;
         updateData.shareTokenCreatedAt = null;
+        updateData.coEditEnabled = false;
+        updateData.coEditEnabledAt = null;
       }
     }
     const versioned = await db.transaction(
@@ -251824,7 +252022,8 @@ route11.post("/api/notes/:id/update-content", requireAuth, rateLimit("write"), a
           )
         }),
         source: "save",
-        now: nowISO()
+        now: nowISO(),
+        actorRole
       })
     );
     if (!versioned.note.contentEncrypted) {
@@ -311200,6 +311399,15 @@ async function processNoteMutation(userId, operation, entityId, data, clientMuta
     });
     return { success: true, entityId, serverId: newNote.id, data: { currentVersion: 1 } };
   } else if (operation === "update") {
+    const anyOwnerNote = first(
+      await db.select({ userId: Notes.userId, coEditEnabled: Notes.coEditEnabled }).from(Notes).where(eq(Notes.id, entityId)).limit(1)
+    );
+    if (anyOwnerNote?.coEditEnabled && anyOwnerNote.userId !== userId) {
+      return {
+        success: false,
+        error: "CO_EDIT_HTTP_REQUIRED: co-edited notes must be saved via PUT /api/notes/update"
+      };
+    }
     const existing = first(await db.select().from(Notes).where(and(eq(Notes.id, entityId), eq(Notes.userId, userId))).limit(1));
     if (!existing) return { success: false, error: "Note not found" };
     if (syncCanonicalUpdateRequiresExpectedVersion(data) && !Number.isInteger(data.expectedVersion)) {

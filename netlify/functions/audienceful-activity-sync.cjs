@@ -16956,6 +16956,14 @@ var Notes = pgTable(
     dismissedAutoTags: text("dismissedAutoTags"),
     /** Latest immutable NoteVersions checkpoint for the canonical note. */
     currentVersionId: text("currentVersionId"),
+    /**
+     * Author opt-in: members of any shared space this note is associated with may
+     * edit the body ("pass the pen"). Off by default — authorship is otherwise
+     * exclusive. Never true for encrypted notes; cleared when the last shared
+     * association is removed. userId stays the author regardless.
+     */
+    coEditEnabled: boolean("coEditEnabled").notNull().default(false),
+    coEditEnabledAt: ts("coEditEnabledAt"),
     /** Source lineage for an independent copy of another author's note. */
     copiedFromNoteId: text("copiedFromNoteId"),
     copiedFromVersionId: text("copiedFromVersionId"),
@@ -16989,6 +16997,12 @@ var NoteVersions = pgTable(
     source: text("source").notNull().default("save"),
     /** Permanent note author; only this user may list, inspect, create, or restore versions. */
     authorId: text("authorId").notNull(),
+    /**
+     * Who actually saved this checkpoint. Equals authorId for solo notes and is
+     * null on rows written before co-editing — read it as `editedBy ?? authorId`.
+     * authorId must stay the permanent author; this is the contributor signal.
+     */
+    editedBy: text("editedBy"),
     createdAt: ts("createdAt").notNull()
   },
   (table) => [

@@ -129,11 +129,34 @@ export async function rollbackFailedNoteUpdate(
   error: unknown,
   noteId: string,
   context?: UpdateNoteMutationContext,
+  attempted?: { title?: string | null; content?: string | null },
 ): Promise<void> {
   for (const [queryKey, note] of context?.previousNotes ?? []) {
     queryClient.setQueryData(queryKey, note);
   }
   if (error instanceof APIError && error.status === 409) {
+    // Someone else's save landed first. The refetch below replaces the body, so
+    // the text this device typed has to be preserved *before* it disappears —
+    // otherwise a co-editing conflict silently eats an edit.
+    if (typeof attempted?.content === 'string') {
+      try {
+        const { saveNoteDraft } = await import('@/utils/note-draft-store');
+        saveNoteDraft(noteId, {
+          title: attempted.title ?? '',
+          content: attempted.content,
+        });
+        window.dispatchEvent(
+          new CustomEvent('toast', {
+            detail: {
+              message: 'Someone saved first. Your version is saved as a draft.',
+              type: 'info',
+            },
+          }),
+        );
+      } catch {
+        /* the refetch below still needs to run */
+      }
+    }
     await queryClient.invalidateQueries({
       queryKey: ['note', noteId],
       refetchType: 'all',
@@ -200,7 +223,13 @@ export function useUpdateNote() {
         throw error;
       }
       const body = buildUpdateNoteBody(input, expectedVersion);
-      if (input.contextSpaceId?.trim()) {
+      // A co-edited note must never sit in the offline queue: the queued write
+      // carries a version that will be stale by the time it flushes, so it would
+      // 409 on reconnect with nobody around to recover the text. Surface the
+      // failure now instead. (The contextSpaceId branch already bypasses the queue;
+      // this makes the co-edit case explicit rather than incidental.)
+      const skipOfflineQueue = Boolean(input.contextSpaceId?.trim()) || cached?.coEditEnabled === true;
+      if (skipOfflineQueue) {
         const online = await api.put<UpdateNoteResponse>('/api/notes/update', body as any);
         return { online, queued: false, localId: null };
       }
@@ -244,7 +273,10 @@ export function useUpdateNote() {
       return { previousNotes };
     },
     onError: (error, variables, context) => {
-      return rollbackFailedNoteUpdate(queryClient, error, variables.noteId, context);
+      return rollbackFailedNoteUpdate(queryClient, error, variables.noteId, context, {
+        title: variables.title,
+        content: variables.content,
+      });
     },
     onSuccess: (outcome, variables) => {
       const data = outcome.online;

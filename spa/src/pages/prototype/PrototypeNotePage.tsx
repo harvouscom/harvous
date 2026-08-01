@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import {
   matchPrototypeNoteId,
   prototypeHomeRouteTo,
@@ -38,10 +38,14 @@ import PrototypeStudyThreadPopover from './PrototypeStudyThreadPopover';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypePaneEmptyState from './PrototypePaneEmptyState';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
-import PrototypeSharedNoteReadOnlyBanner from './PrototypeSharedNoteReadOnlyBanner';
+import PrototypeSharedNoteReadOnlyBanner, {
+  type SharedNoteEditStatus,
+} from './PrototypeSharedNoteReadOnlyBanner';
 import SharedStudyHighlightOverlay from './SharedStudyHighlightOverlay';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
+import { useNoteEditLease } from '@/hooks/useNoteEditLease';
+import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import { useNavigationSharedSpaceAccess } from '../../hooks/queries/useNavigation';
 import type { ApplyableNoteTemplate } from '../../hooks/queries/useNoteTemplates';
 import { useMentionSource } from './mention-picker-source';
@@ -261,14 +265,38 @@ export default function PrototypeNotePage() {
   // query and land in My Home while a shared space is active.
   const { homeSpaceId: personalHomeSpaceId } = useActiveSpace();
   const { userId: authUserId } = useAuth();
+  const { user: clerkUser } = useUser();
   const navigate = useNavigate();
 
   const { data: note, isLoading, isError, error: noteQueryError, refetch: refetchNote } = useNote(
     isDraft ? '' : noteId,
     isDraft ? null : contextSpaceId,
   );
-  const { readOnlyInSharedSpace, isForeignSharedNote, noteInSharedSpace, effectiveSpaceId: foreignSharedSpaceId, foreignNoteAuthor } =
-    useForeignSharedNote(isDraft ? null : noteId, isDraft ? null : contextSpaceId);
+  // Two-pass by design: the lease needs to know whether this note is co-editable
+  // (which comes from the note query), and read-only-ness needs to know whether we
+  // hold the pen. Read the capability first, then feed the pen back in.
+  const coEditProbe = useForeignSharedNote(isDraft ? null : noteId, isDraft ? null : contextSpaceId);
+  const penSelf = useMemo(
+    () => ({ displayName: resolveProfileFirstName(clerkUser, null) || 'Someone', color: 'blue' }),
+    [clerkUser],
+  );
+  const pen = useNoteEditLease(isDraft ? null : noteId, penSelf, {
+    // Only contend for the pen where it means something: an opted-in note this
+    // viewer is actually allowed to write.
+    enabled: coEditProbe.canCoEdit && !isDraft,
+  });
+  const {
+    readOnlyInSharedSpace,
+    isForeignSharedNote,
+    noteInSharedSpace,
+    effectiveSpaceId: foreignSharedSpaceId,
+    foreignNoteAuthor,
+    isCoEditable,
+    canCoEdit,
+    contributors: coEditContributors,
+  } = useForeignSharedNote(isDraft ? null : noteId, isDraft ? null : contextSpaceId, {
+    holdsPen: pen.holding,
+  });
 
   // Deep-link to a highlight's dock (Home "revisit" card → text / mini-note / connected highlight).
   const initialHighlightDock = useMemo(() => {
@@ -909,8 +937,30 @@ export default function PrototypeNotePage() {
   );
 
   const readOnlyLikeScripture = isOnboardingReadonly;
-  const foreignSharedAnnotationMode = isForeignSharedNote && !isOnboardingReadonly;
+  // Holding the pen means normal editing, so annotation mode has to stand down —
+  // it forces effectiveIsEditable false and would leave the holder unable to type.
+  // A follower keeps it: read the live text, highlight it, respond to it, as today.
+  const foreignSharedAnnotationMode =
+    isForeignSharedNote && !isOnboardingReadonly && !pen.holding;
   const isEditable = !readOnlyInSharedSpace && !isOnboardingReadonly;
+  const isOwnNote = note?.isOwnNote === true;
+  /**
+   * Watching rather than writing a co-edited note. Covers the author too — when a
+   * collaborator has the pen, the author is a follower on their own note.
+   */
+  const coEditFollower =
+    isCoEditable && !isOnboardingReadonly && !pen.holding && (isOwnNote || canCoEdit);
+
+  const sharedNoteEditStatus = useMemo((): SharedNoteEditStatus => {
+    if (!isCoEditable) return { kind: 'read-only' };
+    if (pen.holding) return { kind: 'holding' };
+    if (pen.heldBy) return { kind: 'held', holderName: pen.heldBy.displayName };
+    // Only the author and authorized members get an actionable state; anyone else
+    // reading a co-edited note is simply looking at it.
+    if (!isOwnNote && !canCoEdit) return { kind: 'read-only' };
+    if (pen.disconnected) return { kind: 'reconnecting' };
+    return { kind: 'available' };
+  }, [isCoEditable, pen.holding, pen.heldBy, pen.disconnected, isOwnNote, canCoEdit]);
 
   const sharedOverlayPaperRef = useRef<HTMLDivElement>(null);
   const [sharedOverlayContainerEl, setSharedOverlayContainerEl] = useState<HTMLElement | null>(null);
@@ -1695,13 +1745,18 @@ export default function PrototypeNotePage() {
                   setSharedOverlayContainerEl(el);
                 }}
               >
-              {isForeignSharedNote ? (
+              {/* Also shown on the author's own co-edited note — otherwise they'd
+                  have no way to see that someone else currently has the pen. */}
+              {isForeignSharedNote || isCoEditable ? (
                 <PrototypeSharedNoteReadOnlyBanner
                   authorDisplayName={foreignNoteAuthor?.displayName ?? note?.authorDisplayName}
                   authorUserId={foreignNoteAuthor?.userId ?? note?.authorUserId ?? note?.userId}
                   authorFirstName={foreignNoteAuthor?.firstName}
                   authorProfileImageUrl={foreignNoteAuthor?.profileImageUrl}
                   authorColor={foreignNoteAuthor?.userColor}
+                  status={sharedNoteEditStatus}
+                  onTakePen={pen.claim}
+                  onReleasePen={pen.release}
                 />
               ) : null}
               {showSharedHighlightOverlay ? (
@@ -1732,6 +1787,8 @@ export default function PrototypeNotePage() {
                 onPrototypeLiveChange={handlePrototypeLiveChange}
                 readOnlyLikeScripture={readOnlyLikeScripture}
                 foreignSharedAnnotationMode={foreignSharedAnnotationMode}
+                coEditFollower={coEditFollower}
+                currentVersion={note?.currentVersion}
                 onSharedAnnotationCreated={noteInSharedSpace ? refreshSharedAnnotations : undefined}
                 highlightOpenRequest={highlightOpenRequest}
                 onHighlightOpenRequestConsumed={onHighlightOpenRequestConsumed}

@@ -14,8 +14,17 @@ export type NoteVersionRecord = NoteVersionContent & {
   version: number;
   source: string;
   authorId: string;
+  /** Who saved this checkpoint; null on rows predating co-editing. */
+  editedBy: string | null;
   createdAt: Date;
 };
+
+/**
+ * 'author' is the note's owner; 'collaborator' is a shared-space member writing
+ * an opted-in note. Version *history* stays author-only — this only relaxes the
+ * write asserts. See server/utils/note-collaboration.ts.
+ */
+export type NoteVersionActorRole = 'author' | 'collaborator';
 
 export class NoteVersionAccessError extends Error {
   readonly code = 'NOT_NOTE_AUTHOR';
@@ -80,8 +89,15 @@ export function buildNoteVersionSnapshot(input: {
   content: NoteVersionContent;
   source?: string;
   createdAt: Date;
+  /** Defaults to 'author' so every pre-existing caller keeps the strict assert. */
+  actorRole?: NoteVersionActorRole;
 }): NoteVersionRecord {
-  assertCanAccessNoteVersions(input.noteAuthorId, input.actorId);
+  // A co-editing collaborator writes checkpoints on someone else's note. authorId
+  // still records the permanent author (integrity checks and history access depend
+  // on that); editedBy is what records who actually typed.
+  if (input.actorRole !== 'collaborator') {
+    assertCanAccessNoteVersions(input.noteAuthorId, input.actorId);
+  }
   if (!Number.isInteger(input.version) || input.version < 1) {
     throw new RangeError('Note version must be a positive integer');
   }
@@ -95,6 +111,7 @@ export function buildNoteVersionSnapshot(input: {
     contentEncrypted: input.content.contentEncrypted,
     source: input.source ?? 'save',
     authorId: input.noteAuthorId,
+    editedBy: input.actorId,
     createdAt: input.createdAt,
   };
 }

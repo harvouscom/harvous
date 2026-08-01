@@ -5,6 +5,7 @@ import {
   assertCanAccessNoteVersions,
   buildNoteVersionSnapshot,
   nextNoteVersionNumber,
+  type NoteVersionActorRole,
   type NoteVersionContent,
   type NoteVersionRecord,
 } from './note-versioning';
@@ -406,13 +407,21 @@ export async function updateCanonicalNoteInTransaction(
       | ((lockedNote: typeof Notes.$inferSelect) => NoteVersionContent);
     source?: 'save' | 'restore' | 'copy' | string;
     now: Date;
+    /**
+     * 'collaborator' relaxes the author-only assert for co-edited notes. Defaults
+     * to 'author', so every existing caller keeps today's strict behavior — the
+     * route is responsible for having run resolveNoteEditAuthorization first.
+     */
+    actorRole?: NoteVersionActorRole;
   },
 ): Promise<CanonicalNoteMutationResult> {
   const note = first(
     await tx.select().from(Notes).where(eq(Notes.id, input.noteId)).for('update').limit(1),
   ) as typeof Notes.$inferSelect | undefined;
   if (!note) throw new NoteVersionNotFoundError();
-  assertCanAccessNoteVersions(note.userId, input.actorId);
+  if (input.actorRole !== 'collaborator') {
+    assertCanAccessNoteVersions(note.userId, input.actorId);
+  }
   const { patch: resolvedPatch, nextContent: resolvedNextContent } =
     resolveLockedCanonicalMutation(note, input);
 
@@ -462,6 +471,7 @@ export async function updateCanonicalNoteInTransaction(
       content: resolvedNextContent,
       source: input.source ?? 'save',
       createdAt: input.now,
+      actorRole: input.actorRole,
     });
     nextVersion = first(
       await tx.insert(NoteVersions).values(snapshot).returning(),
@@ -477,11 +487,14 @@ export async function updateCanonicalNoteInTransaction(
         content: resolvedNextContent.content,
         contentEncrypted: resolvedNextContent.contentEncrypted,
         ...(resolvedNextContent.contentEncrypted
-          ? { isPublic: false, shareToken: null, shareTokenCreatedAt: null }
+          ? { isPublic: false, shareToken: null, shareTokenCreatedAt: null, coEditEnabled: false, coEditEnabledAt: null }
           : {}),
         ...(shouldCheckpoint ? { currentVersionId: nextVersion.id } : {}),
       })
-      .where(and(eq(Notes.id, note.id), eq(Notes.userId, input.actorId)))
+      // Scoped by id alone: the row is already FOR UPDATE-locked above and the
+      // actor was authorized above. A userId predicate here would silently drop
+      // authorized collaborator writes on co-edited notes.
+      .where(eq(Notes.id, note.id))
       .returning(),
   ) as typeof Notes.$inferSelect | undefined;
   if (!updated) throw new Error('Failed to update note');
@@ -532,7 +545,13 @@ export async function restoreCanonicalNoteVersionInTransaction(
       contentEncrypted: historical.contentEncrypted,
       updatedAt: input.now,
       ...(historical.contentEncrypted
-        ? { isPublic: false, shareToken: null, shareTokenCreatedAt: null }
+        ? {
+            isPublic: false,
+            shareToken: null,
+            shareTokenCreatedAt: null,
+            coEditEnabled: false,
+            coEditEnabledAt: null,
+          }
         : {}),
     },
     nextContent: buildRestoreVersionContent(historical),

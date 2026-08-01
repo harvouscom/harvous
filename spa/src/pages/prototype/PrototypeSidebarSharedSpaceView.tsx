@@ -84,6 +84,9 @@ export function sharedThreadDashboardModel(
     currentThread,
     otherThreads: threads.filter((thread) => thread.id !== currentThread?.id),
     canStartThread: canStart && currentThread === null,
+    // Members can't start a Thread — an empty Current Thread block is pure noise
+    // for them, so hide the whole section rather than explain the absence.
+    showCurrentThreadBlock: currentThread !== null || canStart,
     emptyLabel:
       currentThread === null
         ? canStart
@@ -619,7 +622,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
             </div>
           ) : null}
 
-          {!isMinistryChannel ? (
+          {!isMinistryChannel && threadDashboard.showCurrentThreadBlock ? (
             <div className="proto-home-section">
               <div className="proto-shared-thread-current-header">
                 <p className="proto-caption proto-home-section__eyebrow">Current Thread</p>

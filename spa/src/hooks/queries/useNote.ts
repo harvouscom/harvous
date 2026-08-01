@@ -117,6 +117,16 @@ export interface NoteDetail {
   } | null;
   /** Shared space list seed — note belongs to the viewer. */
   isOwnNote?: boolean;
+  /** Author has opened this note for co-editing by its shared spaces. */
+  coEditEnabled?: boolean;
+  /**
+   * The server's verdict on whether this viewer may write the body. Render from
+   * this — never re-derive from role + flags, or the UI can drift from what the
+   * write endpoint will actually accept.
+   */
+  canEdit?: boolean;
+  /** Everyone who has saved a checkpoint of this note, author first. */
+  contributors?: { userId: string; displayName: string; color: string }[];
   createdAt: string;
   updatedAt: string;
   threads: { id: string; title: string; color: string | null; backgroundGradient?: string }[];

@@ -9040,6 +9040,24 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   opacity: 0.55;
 }
 
+/* Take/release the co-editing pen. Sits where the author chip otherwise sits, so
+   the banner keeps one trailing slot rather than growing a second row. */
+.proto-shared-readonly-banner__action {
+  flex-shrink: 0;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-button);
+  padding: 5px 10px;
+  background: var(--pds-bg-glass-medium);
+  color: var(--pds-text-primary);
+  font: 600 11px/1 var(--pds-font-body);
+  cursor: pointer;
+}
+
+.proto-shared-readonly-banner__action:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .proto-shared-readonly-banner .proto-shared-author-chip {
   margin-right: 0;
   flex-shrink: 1;

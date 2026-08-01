@@ -95,6 +95,11 @@ import {
 import { stripHtml } from '@/utils/html-stripper';
 import { deleteNotesCascadeForUser, deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
 import { isOnboardingSystemNote } from '../utils/purge-onboarding-content';
+import {
+  noteHasLiveSharedSpaceAssociation,
+  resolveNoteContributorIds,
+  resolveNoteEditAuthorization,
+} from '../utils/note-collaboration';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import { getUserNoteFingerprints } from '../utils/note-fingerprint';
 import { getCrossRefGaps } from '../utils/crossref-gaps';
@@ -860,11 +865,19 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     const contentValidation = validateContent(content, true);
     if (!contentValidation.isValid) return c.json({ error: contentValidation.error, code: contentValidation.code }, 400);
 
-    const existingNote = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
-    if (!existingNote) return c.json({ error: 'Note not found' }, 404);
-    if (isOnboardingSystemNote(existingNote)) {
-      return c.json({ error: 'This note is read-only.', code: 'ONBOARDING_NOTE_READ_ONLY' }, 400);
+    // Authorship is the default, but an author can opt a note into co-editing for
+    // members of its shared spaces. The verdict covers both; anything other than
+    // the onboarding case answers 404 so note existence never leaks.
+    const editAuth = await resolveNoteEditAuthorization(noteId, auth.userId);
+    if (!editAuth) return c.json({ error: 'Note not found' }, 404);
+    if (!editAuth.decision.allowed) {
+      if (editAuth.decision.code === 'ONBOARDING') {
+        return c.json({ error: 'This note is read-only.', code: 'ONBOARDING_NOTE_READ_ONLY' }, 400);
+      }
+      return c.json({ error: 'Note not found' }, 404);
     }
+    const existingNote = editAuth.note;
+    const actorRole = editAuth.decision.role;
 
     const targetEncrypted =
       typeof contentEncrypted === 'boolean' ? contentEncrypted : existingNote.contentEncrypted;
@@ -1005,14 +1018,29 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
         }),
         source: 'save',
         now: nowISO(),
+        actorRole,
       }),
     );
     const updatedNote = versionedUpdate.note;
+    if (actorRole === 'collaborator') {
+      console.log(
+        '[co-edit] collaborator save',
+        JSON.stringify({
+          noteId,
+          actorId: auth.userId,
+          authorId: updatedNote.userId,
+          viaSpaceId: editAuth.decision.allowed ? editAuth.decision.viaSpaceId : null,
+        }),
+      );
+    }
 
     // Update thread timestamps — single bulk UPDATE instead of N sequential round trips.
     const noteThreads = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, noteId));
     const threadIdsToTouch = noteThreads.map((nt) => nt.threadId);
     if (shouldBumpUpdatedAt && threadIdsToTouch.length > 0) {
+      // Intentionally actor-scoped: a collaborator editing someone else's note
+      // matches zero rows here, which is correct — their save must not re-stamp
+      // the author's private threads.
       await db.update(Threads).set({ updatedAt: nowISO() })
         .where(and(inArray(Threads.id, threadIdsToTouch), eq(Threads.userId, auth.userId)));
     }
@@ -1021,11 +1049,13 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     // normalization-only) — folder/pin edits and non-bumping saves must not churn tags.
     if (!updatedNote.contentEncrypted && shouldBumpUpdatedAt && (titleChanged || contentChanged)) {
       try {
+        // Tags belong to the note's OWNER, not the actor. A collaborator saving a
+        // co-edited note must not stamp their own userId onto the author's tags.
         const tagExcludes = autoTagExcludeOptionsForNote(updatedNote);
-        const r = await generateAutoTags(updatedNote.title || '', updatedNote.content, auth.userId, 0.7, tagExcludes);
+        const r = await generateAutoTags(updatedNote.title || '', updatedNote.content, updatedNote.userId, 0.7, tagExcludes);
         if (r.suggestions.length > 0) {
           await removeAutoTags(noteId);
-          await applyAutoTags(noteId, r.suggestions, auth.userId);
+          await applyAutoTags(noteId, r.suggestions, updatedNote.userId);
         }
       } catch (err) {
         console.error('[auto-tag] Failed to re-tag note:', noteId, err);
@@ -1063,8 +1093,10 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
           { persistParentContent: false },
         );
         scriptureResults = scriptureResult?.results ?? [];
-        processedContent =
-          typeof scriptureResult?.updatedContent === 'string' ? scriptureResult.updatedContent : null;
+        // The stored body already carries pills — transformCanonicalScriptureContent
+        // ran before the write — so the committed content is what the client (and
+        // any co-editing follower) should render. scriptureResult is only consulted
+        // for the per-reference results list above.
         processedContent = updatedNote.content;
       } catch (err: any) {
         // The note body is already committed above; pill enrichment is best-effort and
@@ -1077,7 +1109,9 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     let updateTags: Awaited<ReturnType<typeof fetchNoteTagsForResponse>> = [];
     if (!updatedNote.contentEncrypted) {
       try {
-        updateTags = await fetchNoteTagsForResponse(noteId, auth.userId);
+        // Owner-scoped for the same reason the re-tag above is: the tags on this
+        // note are the author's, whoever happened to save it.
+        updateTags = await fetchNoteTagsForResponse(noteId, updatedNote.userId);
       } catch (err) {
         console.error('[auto-tag] Failed to load tags for update response:', noteId, err);
       }
@@ -1476,6 +1510,66 @@ route.patch('/api/notes/:id/thread/member-order', requireAuth, rateLimit('write'
 
 // ─── PATCH /api/notes/:id/study-thread-title ────────────────────────────────
 // Sets (or clears) the custom study-thread name on the representative note.
+/**
+ * Author opt-in for co-editing ("pass the pen"). Author-only by design — a
+ * collaborator can write the body but can never widen or revoke who else may.
+ * Metadata only: no version checkpoint, and updatedAt is untouched so flipping
+ * the switch doesn't reorder anyone's lists.
+ */
+route.patch('/api/notes/:id/co-edit', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = normalizeServerNoteId(requireParam(c, 'id'));
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    if (typeof body.enabled !== 'boolean') {
+      return c.json({ success: false, error: '`enabled` must be a boolean' }, 400);
+    }
+    const enabled = body.enabled;
+
+    const note = first(
+      await db
+        .select()
+        .from(Notes)
+        .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)))
+        .limit(1),
+    ) as typeof Notes.$inferSelect | undefined;
+    if (!note) return c.json({ success: false, error: 'Note not found' }, 404);
+
+    if (isOnboardingSystemNote(note)) {
+      return c.json({ success: false, error: 'This note is read-only.', code: 'ONBOARDING_NOTE_READ_ONLY' }, 400);
+    }
+    if (enabled && note.contentEncrypted) {
+      return c.json(
+        { success: false, error: 'Locked notes stay private.', code: 'CO_EDIT_LOCKED_NOTE' },
+        400,
+      );
+    }
+    if (enabled && !(await noteHasLiveSharedSpaceAssociation(noteId))) {
+      return c.json(
+        {
+          success: false,
+          error: 'Share this note to a shared space before opening it for editing.',
+          code: 'CO_EDIT_REQUIRES_SHARED_SPACE',
+        },
+        400,
+      );
+    }
+
+    await db
+      .update(Notes)
+      .set({ coEditEnabled: enabled, coEditEnabledAt: enabled ? nowISO() : null })
+      .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+
+    // Members with the note open need to pick up (or lose) the capability.
+    await broadcastCanonicalNoteInvalidation(auth.userId, noteId, { type: 'note:updated', id: noteId });
+
+    return c.json({ success: true, coEditEnabled: enabled });
+  } catch (error) {
+    console.error('Error updating note co-edit setting:', error);
+    return c.json({ success: false, error: 'Failed to update co-editing' }, 500);
+  }
+});
+
 route.patch('/api/notes/:id/study-thread-title', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -2503,6 +2597,23 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     const detailAuthor = readContext.isShared
       ? (await batchAuthorAttribution([note.userId]))[note.userId]
       : null;
+
+    // Same helper the write path uses, so what the client renders as editable and
+    // what the server will actually accept can never disagree.
+    const detailEditAuth = await resolveNoteEditAuthorization(note.id, auth.userId);
+    const detailCanEdit = detailEditAuth?.decision.allowed === true;
+    let detailContributors: Array<{ userId: string; displayName: string; color: string }> = [];
+    if (note.coEditEnabled) {
+      const contributorIds = await resolveNoteContributorIds(note.id, note.userId);
+      const contributorPeople = await batchAuthorAttribution(contributorIds);
+      // Map over the ordered ids, not the lookup, so the author stays first.
+      detailContributors = contributorIds.map((userId) => ({
+        userId,
+        displayName: contributorPeople[userId]?.displayName ?? 'Member',
+        color: contributorPeople[userId]?.userColor ?? 'blue',
+      }));
+    }
+
     const detailNote = readContext.isShared
       ? serializeSharedCanonicalNote({
           id: note.id,
@@ -2520,6 +2631,9 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
           authorDisplayName: detailAuthor?.displayName ?? 'Member',
           authorColor: detailAuthor?.userColor ?? 'blue',
           isOwnNote: note.userId === auth.userId,
+          coEditEnabled: note.coEditEnabled,
+          canEdit: detailCanEdit,
+          contributors: detailContributors,
           version,
           resourceTitle,
           resourceDescription,
@@ -2532,6 +2646,9 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
           noteType: note.noteType || 'default',
           addedBy: note.addedBy || 'user',
           isOwnNote: !isMemberView && note.userId === auth.userId,
+          coEditEnabled: note.coEditEnabled,
+          canEdit: detailCanEdit,
+          contributors: detailContributors,
           version,
           resourceTitle,
           resourceDescription,
@@ -2769,11 +2886,16 @@ route.post('/api/notes/:id/update-content', requireAuth, rateLimit('write'), asy
     const { content, contentEncrypted, expectedVersion } = await c.req.json();
     if (!content || typeof content !== 'string') return c.json({ success: false, error: 'Content is required' }, 400);
 
-    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).limit(1));
-    if (!note) return c.json({ success: false, error: 'Note not found' }, 404);
-    if (isOnboardingSystemNote(note)) {
-      return c.json({ success: false, error: 'This note is read-only.', code: 'ONBOARDING_NOTE_READ_ONLY' }, 400);
+    const editAuth = await resolveNoteEditAuthorization(id, auth.userId);
+    if (!editAuth) return c.json({ success: false, error: 'Note not found' }, 404);
+    if (!editAuth.decision.allowed) {
+      if (editAuth.decision.code === 'ONBOARDING') {
+        return c.json({ success: false, error: 'This note is read-only.', code: 'ONBOARDING_NOTE_READ_ONLY' }, 400);
+      }
+      return c.json({ success: false, error: 'Note not found' }, 404);
     }
+    const note = editAuth.note;
+    const actorRole = editAuth.decision.role;
 
     const targetEncrypted =
       typeof contentEncrypted === 'boolean' ? contentEncrypted : note.contentEncrypted;
@@ -2791,7 +2913,7 @@ route.post('/api/notes/:id/update-content', requireAuth, rateLimit('write'), asy
     const updateData: any = { content: contentForStore, updatedAt: nowISO() };
     if (typeof contentEncrypted === 'boolean') {
       updateData.contentEncrypted = contentEncrypted;
-      if (contentEncrypted === true) { updateData.isPublic = false; updateData.shareToken = null; updateData.shareTokenCreatedAt = null; }
+      if (contentEncrypted === true) { updateData.isPublic = false; updateData.shareToken = null; updateData.shareTokenCreatedAt = null; updateData.coEditEnabled = false; updateData.coEditEnabledAt = null; }
     }
 
     const versioned = await db.transaction((tx) =>
@@ -2813,6 +2935,7 @@ route.post('/api/notes/:id/update-content', requireAuth, rateLimit('write'), asy
         }),
         source: 'save',
         now: nowISO(),
+        actorRole,
       }),
     );
     if (!versioned.note.contentEncrypted) {

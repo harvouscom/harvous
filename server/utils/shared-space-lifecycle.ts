@@ -275,6 +275,38 @@ export function buildAssociationRemovalPatch(actorId: string, now: Date) {
   };
 }
 
+/**
+ * Co-editing is granted by shared-space membership, so a note that has left every
+ * shared space must lose the flag — otherwise it would silently reactivate the
+ * moment it's shared again, without the author consenting a second time.
+ */
+export async function revokeCoEditForUnsharedNotes(
+  tx: Executor,
+  noteIds: string[],
+): Promise<void> {
+  if (noteIds.length === 0) return;
+  const stillShared = await tx
+    .select({ noteId: SpaceNotes.noteId })
+    .from(SpaceNotes)
+    .innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId))
+    .where(
+      and(
+        inArray(SpaceNotes.noteId, noteIds),
+        isNull(SpaceNotes.removedAt),
+        isNull(Spaces.deletedAt),
+        eq(Spaces.type, 'shared'),
+      ),
+    );
+  const stillSharedIds = new Set(stillShared.map((row: { noteId: string }) => row.noteId));
+  const orphaned = noteIds.filter((noteId) => !stillSharedIds.has(noteId));
+  if (orphaned.length === 0) return;
+
+  await tx
+    .update(Notes)
+    .set({ coEditEnabled: false, coEditEnabledAt: null })
+    .where(and(inArray(Notes.id, orphaned), eq(Notes.coEditEnabled, true)));
+}
+
 export function buildAssociationReactivationPatch(actorId: string, now: Date) {
   return {
     addedBy: actorId,
@@ -420,6 +452,7 @@ export async function archiveNoteFromSpace(
     .update(SpaceNotes)
     .set(buildAssociationRemovalPatch(input.actorId, input.now))
     .where(eq(SpaceNotes.id, association.id));
+  await revokeCoEditForUnsharedNotes(tx, [input.noteId]);
   const spaceThreads = await tx
     .select({ id: Threads.id })
     .from(Threads)
@@ -463,6 +496,10 @@ export async function removeMemberPreservingResponses(
       .update(SpaceNotes)
       .set(buildAssociationRemovalPatch(input.actorId, input.now))
       .where(inArray(SpaceNotes.id, authoredAssociations.map((row: { id: string }) => row.id)));
+    await revokeCoEditForUnsharedNotes(
+      tx,
+      authoredAssociations.map((row: { noteId: string }) => row.noteId),
+    );
     const spaceThreads = await tx
       .select({ id: Threads.id })
       .from(Threads)

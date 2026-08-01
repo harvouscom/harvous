@@ -250,6 +250,9 @@ export default function SharedSpaceDashboardFixtureView({
             </div>
           ) : null}
 
+          {/* Mirrors sharedThreadDashboardModel().showCurrentThreadBlock — members with
+              no current Thread see nothing here rather than an empty-state apology. */}
+          {currentThread || isOwner ? (
           <div className="proto-home-section">
             <p className="proto-caption proto-home-section__eyebrow">Current Thread</p>
             {currentThread ? (
@@ -271,18 +274,14 @@ export default function SharedSpaceDashboardFixtureView({
               </button>
             ) : (
               <div className="proto-list-create-empty">
-                <PrototypeListEmptyState
-                  iconName="arrow-right-arrow-left"
-                  title={isOwner ? 'No thread yet.' : 'Waiting for the owner to start one.'}
-                />
-                {isOwner ? (
-                  <button type="button" className="proto-shared-thread-action proto-shared-thread-action--primary">
-                    Start a Thread
-                  </button>
-                ) : null}
+                <PrototypeListEmptyState iconName="arrow-right-arrow-left" title="No thread yet." />
+                <button type="button" className="proto-shared-thread-action proto-shared-thread-action--primary">
+                  Start a Thread
+                </button>
               </div>
             )}
           </div>
+          ) : null}
 
           {spotlightThread ? (
             <div className="proto-home-section">

@@ -410,4 +410,128 @@ test.describe('Shared Spaces two-user collaboration contract', () => {
     );
     expect(threadNotes.notes?.map((note) => note.id)).not.toContain(memberThreadNoteId);
   });
+
+  // ── Co-editing ("pass the pen") ───────────────────────────────────────────
+  //
+  // The first test here is the important one: it pins that nothing changed for
+  // notes nobody opted in. Everything after it only matters if that holds.
+
+  test('co-editing is off by default — a member sees a read-only body', async ({
+    userBContext,
+  }) => {
+    const memberPage = await userBContext.newPage();
+    const noteSlug = ownerNoteId.replace(/^note_/, '');
+    await memberPage.goto(`/${noteSlug}?space=${fixture.spaceId}`);
+
+    await expect(memberPage.getByText('Editing is off')).toBeVisible();
+    await expect(memberPage.locator('.ProseMirror').first()).toHaveAttribute(
+      'contenteditable',
+      'false',
+    );
+
+    // And the server agrees — the UI is not the only thing standing in the way.
+    const blocked = await userBContext.request.put('/api/notes/update', {
+      data: { noteId: ownerNoteId, title: 'Member overwrite', content: '<p>nope</p>' },
+    });
+    expect(blocked.status()).toBe(404);
+  });
+
+  test('only the author may open a note for co-editing', async ({
+    userAContext,
+    userBContext,
+  }) => {
+    const memberAttempt = await userBContext.request.patch(
+      `/api/notes/${ownerNoteId}/co-edit`,
+      { data: { enabled: true } },
+    );
+    expect(memberAttempt.status()).toBe(404);
+
+    await jsonResponse(
+      await userAContext.request.patch(`/api/notes/${ownerNoteId}/co-edit`, {
+        data: { enabled: true },
+      }),
+      'author opens note for co-editing',
+    );
+  });
+
+  test('an opted-in note is writable by a member, and the author stays the author', async ({
+    userAContext,
+    userBContext,
+  }) => {
+    const details = await jsonResponse<{ note?: { canEdit?: boolean; coEditEnabled?: boolean } }>(
+      await userBContext.request.get(
+        `/api/notes/${ownerNoteId}/details?spaceId=${fixture.spaceId}`,
+      ),
+      'member reads co-editable note',
+    );
+    expect(details.note?.coEditEnabled).toBe(true);
+    expect(details.note?.canEdit).toBe(true);
+
+    const version = await jsonResponse<{ note?: { currentVersion?: number } }>(
+      await userBContext.request.get(`/api/notes/${ownerNoteId}/details`),
+      'read version before collaborator save',
+    );
+
+    const coEditedText = `Member co-edit ${runLabel}`;
+    await jsonResponse(
+      await userBContext.request.put('/api/notes/update', {
+        data: {
+          noteId: ownerNoteId,
+          title: ownerNoteText,
+          content: `<p>${coEditedText}</p>`,
+          expectedVersion: version.note?.currentVersion,
+        },
+      }),
+      'collaborator saves co-edited note',
+    );
+
+    // Ownership is unchanged — co-editing grants write access, not authorship.
+    const after = await jsonResponse<{
+      note?: { isOwnNote?: boolean; content?: string; contributors?: unknown[] };
+    }>(
+      await userAContext.request.get(
+        `/api/notes/${ownerNoteId}/details?spaceId=${fixture.spaceId}`,
+      ),
+      'author reads note after collaborator save',
+    );
+    expect(after.note?.isOwnNote).toBe(true);
+    expect(after.note?.content).toContain(coEditedText);
+    expect((after.note?.contributors ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+
+  test('a stale save conflicts instead of silently overwriting', async ({ userBContext }) => {
+    const conflict = await userBContext.request.put('/api/notes/update', {
+      data: {
+        noteId: ownerNoteId,
+        title: ownerNoteText,
+        content: '<p>Stale overwrite</p>',
+        expectedVersion: 1,
+      },
+    });
+    expect(conflict.status()).toBe(409);
+  });
+
+  test('delete stays author-only on a co-edited note', async ({ userBContext }) => {
+    const attempt = await userBContext.request.post('/api/notes/delete', {
+      data: { noteId: ownerNoteId },
+    });
+    expect(attempt.ok()).toBe(false);
+  });
+
+  test('turning co-editing back off revokes the member immediately', async ({
+    userAContext,
+    userBContext,
+  }) => {
+    await jsonResponse(
+      await userAContext.request.patch(`/api/notes/${ownerNoteId}/co-edit`, {
+        data: { enabled: false },
+      }),
+      'author closes co-editing',
+    );
+
+    const blocked = await userBContext.request.put('/api/notes/update', {
+      data: { noteId: ownerNoteId, title: ownerNoteText, content: '<p>after revoke</p>' },
+    });
+    expect(blocked.status()).toBe(404);
+  });
 });

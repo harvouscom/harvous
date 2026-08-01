@@ -229,6 +229,8 @@ interface TiptapEditorProps {
   enableCreateNoteFromSelection?: boolean;
   /** Foreign shared note: selection + highlight dock without mutating the read-only body. */
   sharedAnnotationOverlayMode?: boolean;
+  /** Co-edited note where someone else holds the pen — watch the body, don't type in it. */
+  coEditFollower?: boolean;
   /** Ranges where a shared overlay covers in-body marks — hide underline so only the fill shows. */
   sharedOverlayPmRanges?: { from: number; to: number }[];
   onSharedAnnotationCreated?: () => void;
@@ -3945,6 +3947,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   scrollPosition,
   enableCreateNoteFromSelection = false,
   sharedAnnotationOverlayMode = false,
+  coEditFollower = false,
   sharedOverlayPmRanges = [],
   onSharedAnnotationCreated,
   parentThreadId,
@@ -4547,7 +4550,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }
       });
     },
-    editable: !sharedAnnotationOverlayMode,
+    // Creation-time value only — tiptap never syncs `editable` from options after
+    // mount (its setOptions path explicitly preserves editor.isEditable). The
+    // effect below is what actually drives editability over time.
+    editable: !sharedAnnotationOverlayMode && !coEditFollower,
     editorProps: {
       clipboardTextSerializer: (slice) => noteClipboardPlainTextFromFragment(slice.content),
       attributes: {
@@ -5184,6 +5190,23 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     // immediatelyRender:false leaves paragraph nodeViews desynced after draft→persist nav.
     immediatelyRender: editorChromeMode === 'prototypeNative',
   }, [viewRepairGeneration]);
+
+  // Editability has to change *live* for pass-the-pen, and the options path can't
+  // do it: `useEditor` has a non-empty deps array, so tiptap takes the
+  // destroy-and-recreate branch rather than setOptions — and setOptions wouldn't
+  // propagate `editable` anyway. Adding coEditFollower to those deps would rebuild
+  // the editor from the `content` prop on every handoff, which in prototypeNative
+  // is a downstream mirror that can lag live ProseMirror (see the reconciliation
+  // effect below) — i.e. it would drop in-flight text. setEditable touches one
+  // ProseMirror prop and leaves doc, selection, plugins, and refs alone.
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    const nextEditable = !sharedAnnotationOverlayMode && !coEditFollower;
+    if (editor.isEditable === nextEditable) return;
+    // emitUpdate=false: the default fires onUpdate, which would dirty the note and
+    // queue a no-op autosave every time the pen changes hands.
+    editor.setEditable(nextEditable, false);
+  }, [editor, sharedAnnotationOverlayMode, coEditFollower]);
 
   // Self-heal prototype editor when ProseMirror state and DOM diverge (regression from 8fdb3a10).
   useLayoutEffect(() => {

@@ -670,6 +670,25 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     });
     return { success: true, entityId, serverId: newNote.id, data: { currentVersion: 1 } };
   } else if (operation === 'update') {
+    // Co-edited notes are HTTP-only. This path has no pen-lease awareness and no way
+    // to surface a 409 to the person typing, and the offline queue must never hold a
+    // write against a note someone else may have moved on. Answer before the
+    // owner-scoped lookup below so a collaborator gets a legible error instead of
+    // "Note not found" (which native treats as "recreate this as my own note").
+    const anyOwnerNote = first(
+      await db
+        .select({ userId: Notes.userId, coEditEnabled: Notes.coEditEnabled })
+        .from(Notes)
+        .where(eq(Notes.id, entityId))
+        .limit(1),
+    ) as { userId: string; coEditEnabled: boolean } | undefined;
+    if (anyOwnerNote?.coEditEnabled && anyOwnerNote.userId !== userId) {
+      return {
+        success: false,
+        error: 'CO_EDIT_HTTP_REQUIRED: co-edited notes must be saved via PUT /api/notes/update',
+      };
+    }
+
     const existing = first(await db.select().from(Notes).where(and(eq(Notes.id, entityId), eq(Notes.userId, userId))).limit(1));
     if (!existing) return { success: false, error: 'Note not found' };
     if (

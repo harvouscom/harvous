@@ -7,10 +7,17 @@ import { useActiveSpace } from './useActiveSpace';
 import { usePrototypeHomeSpaceId } from './usePrototypeHomeSpaceId';
 import { normalizePrototypeApiSpaceId } from '../utils/prototype-space-api-id';
 
-/** True when viewing another member's note inside a shared space (read-only). */
+/**
+ * True when viewing another member's note inside a shared space (read-only).
+ *
+ * `holdsPen` comes from the caller's useNoteEditLease. When the author has opened
+ * a note for co-editing, `note.canEdit` (the server's own verdict — never
+ * re-derived here) plus holding the pen is what makes a foreign note writable.
+ */
 export function useForeignSharedNote(
   noteId: string | null | undefined,
   contextSpaceId?: string | null,
+  opts?: { holdsPen?: boolean },
 ) {
   const { userId: authUserId } = useAuth();
   const routeContextSpaceId =
@@ -63,11 +70,22 @@ export function useForeignSharedNote(
     return null;
   }, [note, authUserId]);
 
-  /** Read-only in shared space until ownership is confirmed as the viewer's own note. */
+  const holdsPen = opts?.holdsPen === true;
+
+  /** True once the author has opened this note to its shared spaces. */
+  const isCoEditable = useMemo(() => note?.coEditEnabled === true, [note?.coEditEnabled]);
+
+  /**
+   * Read-only in shared space until ownership is confirmed, or — for a co-edited
+   * note — until this viewer both may write it and holds the pen. Fail-closed at
+   * every step: unknown ownership and unknown capability both mean read-only.
+   */
   const readOnlyInSharedSpace = useMemo(() => {
     if (!noteInSharedSpace || !noteId || !note) return false;
-    return isOwnNoteConfirmed !== true;
-  }, [noteInSharedSpace, noteId, note, isOwnNoteConfirmed]);
+    if (isOwnNoteConfirmed === true) return false;
+    if (note.canEdit !== true) return true;
+    return !holdsPen;
+  }, [noteInSharedSpace, noteId, note, isOwnNoteConfirmed, holdsPen]);
 
   const isForeignSharedNote = useMemo(
     () => noteInSharedSpace && !!note && isOwnNoteConfirmed === false,
@@ -86,5 +104,9 @@ export function useForeignSharedNote(
     foreignNoteAuthor,
     noteInSharedSpace,
     effectiveSpaceId,
+    isCoEditable,
+    /** Server's verdict that this viewer may write the body if they take the pen. */
+    canCoEdit: note?.canEdit === true && isCoEditable,
+    contributors: note?.contributors ?? [],
   };
 }

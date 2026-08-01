@@ -82,3 +82,36 @@ export function canOrganizeSharedSpaceNote(options: {
 export function canPinSharedSpaceItem(options: { isSpaceOwner: boolean }): boolean {
   return options.isSpaceOwner;
 }
+
+export interface NoteContributor {
+  userId: string;
+  displayName: string;
+  color: string;
+}
+
+/**
+ * Byline for a co-edited note. The author never stops being the author — the
+ * server keeps Notes.userId fixed — so the line always starts with them and
+ * everyone else is credited as an editor.
+ *
+ * Returns null when there's nothing worth saying (solo note, or no data yet).
+ */
+export function formatNoteContributors(
+  contributors: NoteContributor[],
+  authorUserId: string | null | undefined,
+  selfUserId?: string | null,
+): string | null {
+  if (contributors.length === 0) return null;
+  const author = contributors.find((person) => person.userId === authorUserId) ?? contributors[0];
+  const editors = contributors.filter((person) => person.userId !== author.userId);
+
+  const name = (person: NoteContributor) =>
+    selfUserId && person.userId === selfUserId ? 'you' : person.displayName;
+
+  if (editors.length === 0) return null;
+  if (editors.length === 1) return `Started by ${name(author)} · edited by ${name(editors[0])}`;
+  if (editors.length === 2) {
+    return `Started by ${name(author)} · edited by ${name(editors[0])} and ${name(editors[1])}`;
+  }
+  return `Started by ${name(author)} · edited by ${name(editors[0])} and ${editors.length - 1} others`;
+}

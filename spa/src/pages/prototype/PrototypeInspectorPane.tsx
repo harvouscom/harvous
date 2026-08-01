@@ -13,7 +13,10 @@ import {
   type ReactNode,
 } from 'react';
 import { useAuth, useUser } from '@clerk/clerk-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
+import PrototypeInspectorCoEditSection from './PrototypeInspectorCoEditSection';
+import { formatNoteContributors } from '../../lib/shared-space-capabilities';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo, prototypeSettingsAccountRouteTo } from '@/lib/prototype-path';
 import { toPrototypeSpaceSearchParam } from '../../utils/prototype-space-api-id';
 import type { NoteDetail, LinkedNoteRef } from '../../hooks/queries/useNote';
@@ -115,6 +118,7 @@ export default function PrototypeInspectorPane({
   templates = null,
 }: PrototypeInspectorPaneProps) {
   const { userId: authUserId } = useAuth();
+  const queryClient = useQueryClient();
   const [connectOpen, setConnectOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const deleteAnchorRef = useRef<HTMLElement | null>(null);
@@ -187,6 +191,17 @@ export default function PrototypeInspectorPane({
   const updatedStr = modifiedSource ? formatDate(new Date(modifiedSource)) : '—';
 
   const wordCount = estimateWords((templates?.liveContent ?? note.content) ?? '');
+  // Null unless someone other than the author has actually saved a checkpoint, so
+  // an opted-in note nobody has touched yet stays quiet.
+  const contributorsLine = useMemo(
+    () =>
+      formatNoteContributors(
+        note.contributors ?? [],
+        note.authorUserId ?? note.userId ?? null,
+        authUserId,
+      ),
+    [note.contributors, note.authorUserId, note.userId, authUserId],
+  );
   const templateFromId = (
     templates?.startedFromTemplateId ??
     note.startedFromTemplateId ??
@@ -251,6 +266,9 @@ export default function PrototypeInspectorPane({
                 value={<InspectorAddedByValue note={note} contextSpaceId={contextSpaceId} />}
               />
               <InspectorRow label="Edited" value={updatedStr} />
+              {contributorsLine ? (
+                <InspectorRow label="Written by" value={contributorsLine} />
+              ) : null}
               <InspectorRow label="Words" value={String(wordCount)} />
               {templateFromRow}
               {note.noteType && note.noteType !== 'default' ? (
@@ -274,6 +292,23 @@ export default function PrototypeInspectorPane({
           noteAuthorDisplayName={noteAuthorDisplayName}
           onSelectActivity={onSelectActivity}
           activeActivityId={activeActivityId}
+        />
+      ) : null}
+
+      {/* Author-only, and only where co-editing can mean anything: a note that is
+          actually in a shared space and isn't locked. */}
+      {!isForeignNote && !isDraftCompose && (note.spaces?.length ?? 0) > 0 ? (
+        <PrototypeInspectorCoEditSection
+          noteId={note.id}
+          coEditEnabled={note.coEditEnabled === true}
+          contentEncrypted={note.contentEncrypted}
+          sharedSpaces={(note.spaces ?? []).map((space) => ({
+            spaceId: space.id,
+            spaceTitle: space.title,
+          }))}
+          onChanged={() => {
+            void queryClient.invalidateQueries({ queryKey: ['note', note.id] });
+          }}
         />
       ) : null}
 

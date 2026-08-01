@@ -179,6 +179,14 @@ interface CardFullEditableProps {
   readOnlyLikeScripture?: boolean;
   /** Shared-space foreign note: body read-only but text selection + highlight annotations enabled. */
   foreignSharedAnnotationMode?: boolean;
+  /**
+   * Co-edited note whose pen is held by someone else (or nobody). Read-only, but
+   * unlike a plain foreign note the body updates live as the holder types — which
+   * also covers the author watching a collaborator write.
+   */
+  coEditFollower?: boolean;
+  /** Canonical optimistic-concurrency version, for the keepalive unload flush. */
+  currentVersion?: number;
   /** Called after shared annotations change (create/delete) — refresh overlay. */
   onSharedAnnotationCreated?: () => void;
   /** ProseMirror ranges covered by shared highlight overlays — suppress in-body mark underline there. */
@@ -325,6 +333,8 @@ export default function CardFullEditable({
   inBottomSheet = false,
   readOnlyLikeScripture = false,
   foreignSharedAnnotationMode = false,
+  coEditFollower = false,
+  currentVersion,
   onSharedAnnotationCreated,
   sharedOverlayPmRanges = [],
   onHighlightOpenRequestConsumed,
@@ -389,10 +399,17 @@ export default function CardFullEditable({
     [eagerTiptap],
   );
 
-  // Override isEditable for scripture notes, onboarding pack notes, and offline (create-only mode)
+  // Override isEditable for scripture notes, onboarding pack notes, offline
+  // (create-only mode), and co-edited notes whose pen is held elsewhere. This
+  // single flag also gates the 700ms autosave, the durable-draft backstop, and the
+  // keepalive unload flush — so a follower silently stops writing on all paths.
   const isCurrentlyOffline = useIsOffline();
   const effectiveIsEditable =
-    noteType === 'scripture' || readOnlyLikeScripture || isCurrentlyOffline || foreignSharedAnnotationMode
+    noteType === 'scripture' ||
+    readOnlyLikeScripture ||
+    isCurrentlyOffline ||
+    foreignSharedAnnotationMode ||
+    coEditFollower
       ? false
       : isEditable;
   const effectiveIsEditableRef = useRef(effectiveIsEditable);
@@ -450,6 +467,11 @@ export default function CardFullEditable({
   editorChromeModeRef.current = editorChromeMode;
   const readOnlyLikeScriptureRef = useRef(readOnlyLikeScripture);
   readOnlyLikeScriptureRef.current = readOnlyLikeScripture;
+
+  // Live for the unload closure, which is created once and must not capture a
+  // stale version from the render that installed it.
+  const expectedVersionRef = useRef(currentVersion);
+  expectedVersionRef.current = currentVersion;
 
   // Prototype-specific save state — entirely ref-based, bypasses hasChanges state machine
   const protoLastSavedRef = useRef<{ title: string; content: string; collectionKey: string } | null>(null);
@@ -1173,8 +1195,15 @@ export default function CardFullEditable({
   ]);
 
   // Foreign shared notes: body loads async after open — keep TipTap in sync with fetched content.
+  //
+  // This is also the live-follow path for co-editing: while someone else holds the
+  // pen, their saves arrive through the `content` prop (Realtime invalidate →
+  // refetch) and have to be pushed into a ProseMirror that would otherwise ignore
+  // them. `coEditFollower` covers the case this effect misses on its own — the
+  // *author* watching a collaborator type, where the note isn't foreign at all.
   useEffect(() => {
-    if (!foreignSharedAnnotationMode || userEditedSinceOpenRef.current) return;
+    if (!foreignSharedAnnotationMode && !coEditFollower) return;
+    if (userEditedSinceOpenRef.current) return;
     const initialTitle =
       noteType === 'resource'
         ? (title || resourceTitle || '')
@@ -1188,9 +1217,20 @@ export default function CardFullEditable({
     editContentRef.current = repaired;
     // TipTap refuses non-empty prop sync in prototypeNative — force one replace.
     if (bodyChanged && !isTiptapBodyEmpty(repaired)) {
+      // setContent reflows the whole doc and resets scroll. A follower reading
+      // halfway down a long note must not get yanked to the top on every save.
+      const scroller = typeof document !== 'undefined'
+        ? document.querySelector<HTMLElement>('.proto-editor-scroll')
+        : null;
+      const savedScrollTop = scroller?.scrollTop ?? 0;
       setForceBodyReplaceRevision((r) => r + 1);
+      if (scroller && savedScrollTop > 0) {
+        requestAnimationFrame(() => {
+          if (scroller.isConnected) scroller.scrollTop = savedScrollTop;
+        });
+      }
     }
-  }, [foreignSharedAnnotationMode, title, content, noteId, noteType, resourceTitle]);
+  }, [foreignSharedAnnotationMode, coEditFollower, title, content, noteId, noteType, resourceTitle]);
 
   // Own notes: upgrade TipTap when list preview→full details or open-time scripture
   // processing lands, as long as the user has not typed. Do not dirty / autosave.
@@ -2492,6 +2532,14 @@ export default function CardFullEditable({
           secondaryCollections: chromeForSave.secondaryCollections,
           collectionPinned: chromeForSave.collectionPinned,
           collectionUserOverride: chromeForSave.collectionUserOverride,
+          // Without this the unload write is an unconditional last-write-wins —
+          // true even between one author's own two tabs. On a co-edited note it
+          // would silently overwrite whoever saved while this tab was closing. If
+          // it 409s the write is simply dropped, and saveNoteDraft above (called
+          // synchronously, before this fetch) is the recovery path.
+          ...(typeof expectedVersionRef.current === 'number'
+            ? { expectedVersion: expectedVersionRef.current }
+            : {}),
         });
         const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) || '';
         void fetch(`${baseUrl}/api/notes/update`, {
@@ -3165,6 +3213,7 @@ export default function CardFullEditable({
                       scrollPosition={scrollPosition}
                       enableCreateNoteFromSelection={isContentEditing || foreignSharedAnnotationMode}
                       sharedAnnotationOverlayMode={foreignSharedAnnotationMode}
+                      coEditFollower={coEditFollower}
                       sharedOverlayPmRanges={sharedOverlayPmRanges}
                       onSharedAnnotationCreated={onSharedAnnotationCreated}
                       parentThreadId={parentThreadId}
@@ -3578,6 +3627,7 @@ export default function CardFullEditable({
                     scrollPosition={scrollPosition}
                     enableCreateNoteFromSelection={isContentEditing || foreignSharedAnnotationMode}
                     sharedAnnotationOverlayMode={foreignSharedAnnotationMode}
+                    coEditFollower={coEditFollower}
                     sharedOverlayPmRanges={sharedOverlayPmRanges}
                     onSharedAnnotationCreated={onSharedAnnotationCreated}
                     parentThreadId={parentThreadId}
