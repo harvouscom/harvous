@@ -9,7 +9,6 @@ function note(overrides: Partial<Record<string, unknown>> = {}) {
     id: 'note_1',
     userId: AUTHOR,
     contentEncrypted: false,
-    coEditEnabled: false,
     threadId: 'thread_1',
     addedBy: 'user',
     ...overrides,
@@ -17,64 +16,66 @@ function note(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 describe('canEditNoteAsCollaborator', () => {
-  it('lets the author write their own note, opted in or not', () => {
-    for (const coEditEnabled of [false, true]) {
-      expect(
-        canEditNoteAsCollaborator({
-          note: note({ coEditEnabled }),
-          actorId: AUTHOR,
-          sharedSpaceIdsActorBelongsTo: [],
-        }),
-      ).toEqual({ allowed: true, role: 'author', viaSpaceId: null });
-    }
-  });
-
-  it('denies a non-author until the note is opted in', () => {
+  it('lets the author write their own note whether or not any space grants edit', () => {
     expect(
       canEditNoteAsCollaborator({
         note: note(),
-        actorId: MEMBER,
-        sharedSpaceIdsActorBelongsTo: ['space_a'],
+        actorId: AUTHOR,
+        sharedSpaceIdsActorBelongsTo: [],
       }),
-    ).toEqual({ allowed: false, code: 'NOT_AUTHOR' });
-  });
-
-  it('grants a member of a shared space the note lives in', () => {
+    ).toEqual({ allowed: true, role: 'author', viaSpaceId: null });
     expect(
       canEditNoteAsCollaborator({
-        note: note({ coEditEnabled: true }),
-        actorId: MEMBER,
-        sharedSpaceIdsActorBelongsTo: ['space_a', 'space_b'],
+        note: note(),
+        actorId: AUTHOR,
+        sharedSpaceIdsActorBelongsTo: ['space_family'],
       }),
-    ).toEqual({ allowed: true, role: 'collaborator', viaSpaceId: 'space_a' });
+    ).toEqual({ allowed: true, role: 'author', viaSpaceId: null });
   });
 
-  it('denies when the actor shares no space with the note', () => {
-    // The caller resolves the intersection; an empty list is how "removed
-    // association", "left the space", and "soft-deleted space" all arrive here.
+  it('denies a member when no association grants them edit', () => {
+    // Caller only passes spaces where SpaceNotes.coEditEnabled is true AND the
+    // actor is a member — empty means Family OFF / left the space / etc.
     expect(
       canEditNoteAsCollaborator({
-        note: note({ coEditEnabled: true }),
+        note: note(),
         actorId: MEMBER,
         sharedSpaceIdsActorBelongsTo: [],
       }),
     ).toEqual({ allowed: false, code: 'NO_SHARED_SPACE' });
   });
 
-  it('never lets a collaborator touch a locked note', () => {
-    // Locked notes are end-to-end encrypted; co-editing them is not a policy
-    // choice we could make, it's cryptographically meaningless.
+  it('grants a member of a space where co-edit is on', () => {
     expect(
       canEditNoteAsCollaborator({
-        note: note({ coEditEnabled: true, contentEncrypted: true }),
+        note: note(),
         actorId: MEMBER,
-        sharedSpaceIdsActorBelongsTo: ['space_a'],
+        sharedSpaceIdsActorBelongsTo: ['space_family'],
+      }),
+    ).toEqual({ allowed: true, role: 'collaborator', viaSpaceId: 'space_family' });
+  });
+
+  it('uses the first granting space as viaSpaceId when several are on', () => {
+    expect(
+      canEditNoteAsCollaborator({
+        note: note(),
+        actorId: MEMBER,
+        sharedSpaceIdsActorBelongsTo: ['space_family', 'space_group'],
+      }),
+    ).toEqual({ allowed: true, role: 'collaborator', viaSpaceId: 'space_family' });
+  });
+
+  it('never lets a collaborator touch a locked note', () => {
+    expect(
+      canEditNoteAsCollaborator({
+        note: note({ contentEncrypted: true }),
+        actorId: MEMBER,
+        sharedSpaceIdsActorBelongsTo: ['space_family'],
       }),
     ).toEqual({ allowed: false, code: 'ENCRYPTED' });
   });
 
   it('keeps the author writing their own locked note', () => {
-    // Encryption blocks collaborators, not the person holding the key.
     expect(
       canEditNoteAsCollaborator({
         note: note({ contentEncrypted: true }),
@@ -95,9 +96,9 @@ describe('canEditNoteAsCollaborator', () => {
     ).toEqual({ allowed: false, code: 'ONBOARDING' });
     expect(
       canEditNoteAsCollaborator({
-        note: { ...onboarding, coEditEnabled: true },
+        note: onboarding,
         actorId: MEMBER,
-        sharedSpaceIdsActorBelongsTo: ['space_a'],
+        sharedSpaceIdsActorBelongsTo: ['space_family'],
       }),
     ).toEqual({ allowed: false, code: 'ONBOARDING' });
   });

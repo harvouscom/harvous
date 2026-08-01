@@ -96,9 +96,11 @@ import { stripHtml } from '@/utils/html-stripper';
 import { deleteNotesCascadeForUser, deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
 import { isOnboardingSystemNote } from '../utils/purge-onboarding-content';
 import {
-  noteHasLiveSharedSpaceAssociation,
+  clearAllCoEditForNote,
+  findLiveSharedSpaceAssociation,
   resolveNoteContributorIds,
   resolveNoteEditAuthorization,
+  syncNoteCoEditMirror,
 } from '../utils/note-collaboration';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import { getUserNoteFingerprints } from '../utils/note-fingerprint';
@@ -1511,10 +1513,10 @@ route.patch('/api/notes/:id/thread/member-order', requireAuth, rateLimit('write'
 // ─── PATCH /api/notes/:id/study-thread-title ────────────────────────────────
 // Sets (or clears) the custom study-thread name on the representative note.
 /**
- * Author opt-in for co-editing ("pass the pen"). Author-only by design — a
- * collaborator can write the body but can never widen or revoke who else may.
- * Metadata only: no version checkpoint, and updatedAt is untouched so flipping
- * the switch doesn't reorder anyone's lists.
+ * Author opt-in for co-editing ("pass the pen") on one shared-space association.
+ * Author-only by design — a collaborator can write the body but can never widen
+ * or revoke who else may. Metadata only: no version checkpoint, and note
+ * updatedAt is untouched so flipping the switch doesn't reorder anyone's lists.
  */
 route.patch('/api/notes/:id/co-edit', requireAuth, rateLimit('write'), async (c) => {
   try {
@@ -1524,6 +1526,11 @@ route.patch('/api/notes/:id/co-edit', requireAuth, rateLimit('write'), async (c)
     if (typeof body.enabled !== 'boolean') {
       return c.json({ success: false, error: '`enabled` must be a boolean' }, 400);
     }
+    const spaceIdRaw = typeof body.spaceId === 'string' ? body.spaceId.trim() : '';
+    if (!spaceIdRaw) {
+      return c.json({ success: false, error: '`spaceId` is required' }, 400);
+    }
+    const spaceId = spaceIdRaw.startsWith('space_') ? spaceIdRaw : `space_${spaceIdRaw}`;
     const enabled = body.enabled;
 
     const note = first(
@@ -1544,11 +1551,13 @@ route.patch('/api/notes/:id/co-edit', requireAuth, rateLimit('write'), async (c)
         400,
       );
     }
-    if (enabled && !(await noteHasLiveSharedSpaceAssociation(noteId))) {
+
+    const association = await findLiveSharedSpaceAssociation(noteId, spaceId);
+    if (!association) {
       return c.json(
         {
           success: false,
-          error: 'Share this note to a shared space before opening it for editing.',
+          error: 'Share this note to that shared space before opening it for editing.',
           code: 'CO_EDIT_REQUIRES_SHARED_SPACE',
         },
         400,
@@ -1556,14 +1565,24 @@ route.patch('/api/notes/:id/co-edit', requireAuth, rateLimit('write'), async (c)
     }
 
     await db
-      .update(Notes)
-      .set({ coEditEnabled: enabled, coEditEnabledAt: enabled ? nowISO() : null })
-      .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+      .update(SpaceNotes)
+      .set({
+        coEditEnabled: enabled,
+        coEditEnabledAt: enabled ? nowISO() : null,
+      })
+      .where(eq(SpaceNotes.id, association.id));
+
+    const noteCoEditEnabled = await syncNoteCoEditMirror(db, noteId);
 
     // Members with the note open need to pick up (or lose) the capability.
     await broadcastCanonicalNoteInvalidation(auth.userId, noteId, { type: 'note:updated', id: noteId });
 
-    return c.json({ success: true, coEditEnabled: enabled });
+    return c.json({
+      success: true,
+      spaceId,
+      coEditEnabled: enabled,
+      noteCoEditEnabled,
+    });
   } catch (error) {
     console.error('Error updating note co-edit setting:', error);
     return c.json({ success: false, error: 'Failed to update co-editing' }, 500);
@@ -2541,6 +2560,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
         spaceId: SpaceNotes.spaceId,
         spaceTitle: Spaces.title,
         spaceType: Spaces.type,
+        coEditEnabled: SpaceNotes.coEditEnabled,
         isPinned: SpaceNotes.isPinned,
         primaryCollection: SpaceNotes.primaryCollection,
         secondaryCollections: SpaceNotes.secondaryCollections,
@@ -2666,7 +2686,16 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
         organization: contextOrganization,
       },
       activeSharedAssociations: readContext.isShared
-        ? [{ spaceId: readContext.space.id, spaceTitle: readContext.space.title, spaceType: readContext.space.type }]
+        ? [
+            {
+              spaceId: readContext.space.id,
+              spaceTitle: readContext.space.title,
+              spaceType: readContext.space.type,
+              coEditEnabled:
+                activeAssociationRows.find((row) => row.spaceId === readContext.space.id)
+                  ?.coEditEnabled === true,
+            },
+          ]
         : activeAssociationRows.map((row) => ({
             ...row,
             secondaryCollections: parseNoteSecondaryCollections(row.secondaryCollections),

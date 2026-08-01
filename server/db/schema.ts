@@ -154,10 +154,10 @@ export const Notes = pgTable(
     /** Latest immutable NoteVersions checkpoint for the canonical note. */
     currentVersionId: text('currentVersionId'),
     /**
-     * Author opt-in: members of any shared space this note is associated with may
-     * edit the body ("pass the pen"). Off by default — authorship is otherwise
-     * exclusive. Never true for encrypted notes; cleared when the last shared
-     * association is removed. userId stays the author regardless.
+     * Derived mirror: true iff any live shared SpaceNotes association has
+     * coEditEnabled. Source of truth is SpaceNotes.coEditEnabled (per space).
+     * Kept for native / broadcast / clients that only read the note-level field.
+     * Never true for encrypted notes; cleared when no association grants remain.
      */
     coEditEnabled: boolean('coEditEnabled').notNull().default(false),
     coEditEnabledAt: ts('coEditEnabledAt'),
@@ -232,6 +232,13 @@ export const SpaceNotes = pgTable(
     collectionPinned: boolean('collectionPinned').notNull().default(false),
     collectionUserOverride: boolean('collectionUserOverride').notNull().default(false),
     order: integer('order').notNull().default(0),
+    /**
+     * Author opt-in for this association: members of this shared space may edit
+     * the note body ("pass the pen"). Off by default. Notes.coEditEnabled is the
+     * OR-mirror across live associations.
+     */
+    coEditEnabled: boolean('coEditEnabled').notNull().default(false),
+    coEditEnabledAt: ts('coEditEnabledAt'),
   },
   (table) => [
     uniqueIndex('SpaceNotes_space_note_unique').on(table.spaceId, table.noteId),

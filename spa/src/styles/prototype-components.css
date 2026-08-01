@@ -2766,25 +2766,16 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   word-break: break-word;
 }
 
-/* Co-edit toggle in Info — switch right-aligned like a value, not a fat block. */
-.proto-note-co-edit-toggle--row {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  width: 100%;
-  min-height: 20px;
-}
-
-.proto-note-co-edit-toggle--row .proto-fte-switch[aria-disabled='true'] {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
 .proto-inspector-space-list {
   list-style: none;
-  margin: 0 0 8px;
+  margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.proto-inspector-space-list__entry {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -2804,15 +2795,30 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   flex-shrink: 0;
 }
 
-.proto-inspector-space-list__hint {
-  margin: 0;
+.proto-inspector-space-co-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 0.5px solid var(--pds-border-control);
 }
 
-/* Stack variant under Spaces shouldn't repeat the Folders lock top-rule. */
-.proto-inspector-section .proto-note-co-edit-toggle--stack {
-  padding-top: 10px;
-  margin-top: 4px;
-  border-top: 0.5px solid var(--pds-border-control);
+.proto-inspector-space-co-edit__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.proto-inspector-space-co-edit__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+}
+
+.proto-inspector-space-co-edit .proto-fte-switch[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .proto-inspector-added-by-chip-btn {

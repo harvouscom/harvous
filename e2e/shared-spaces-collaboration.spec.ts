@@ -442,13 +442,13 @@ test.describe('Shared Spaces two-user collaboration contract', () => {
   }) => {
     const memberAttempt = await userBContext.request.patch(
       `/api/notes/${ownerNoteId}/co-edit`,
-      { data: { enabled: true } },
+      { data: { enabled: true, spaceId: fixture.spaceId } },
     );
     expect(memberAttempt.status()).toBe(404);
 
     await jsonResponse(
       await userAContext.request.patch(`/api/notes/${ownerNoteId}/co-edit`, {
-        data: { enabled: true },
+        data: { enabled: true, spaceId: fixture.spaceId },
       }),
       'author opens note for co-editing',
     );
@@ -524,7 +524,7 @@ test.describe('Shared Spaces two-user collaboration contract', () => {
   }) => {
     await jsonResponse(
       await userAContext.request.patch(`/api/notes/${ownerNoteId}/co-edit`, {
-        data: { enabled: false },
+        data: { enabled: false, spaceId: fixture.spaceId },
       }),
       'author closes co-editing',
     );

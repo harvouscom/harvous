@@ -54,6 +54,8 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'collectionPinned',
     'collectionUserOverride',
     'order',
+    'coEditEnabled',
+    'coEditEnabledAt',
   ],
   StudyThreadEntries: [
     'spaceId',

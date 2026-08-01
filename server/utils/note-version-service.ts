@@ -10,6 +10,7 @@ import {
   type NoteVersionRecord,
 } from './note-versioning';
 import { buildDurableAnchorReresolutionPatch } from './durable-note-anchor';
+import { clearAllCoEditForNote } from './note-collaboration';
 
 type Transaction = any;
 
@@ -452,6 +453,11 @@ export async function updateCanonicalNoteInTransaction(
   }
 
   assertExpectedNoteVersion(input.expectedVersion, current.version);
+
+  // Locking clears every per-space grant + the note OR-mirror.
+  if (resolvedNextContent.contentEncrypted && !note.contentEncrypted) {
+    await clearAllCoEditForNote(tx, note.id);
+  }
 
   const latest = asVersionRecord(current);
   const shouldCheckpoint = shouldAdvanceCanonicalVersion({
