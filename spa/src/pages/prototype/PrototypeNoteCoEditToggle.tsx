@@ -3,9 +3,11 @@
  *
  * Compact switch for a Spaces list row. The PATCH targets
  * SpaceNotes.coEditEnabled; Notes.coEditEnabled is the server's OR-mirror.
+ * Failures use the app toast — never inline error text in the row.
  */
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from '@/utils/toast';
 import { api } from '../../lib/api';
 
 export interface CoEditSpaceRef {
@@ -43,7 +45,6 @@ export default function PrototypeNoteCoEditToggle({
 }) {
   const queryClient = useQueryClient();
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
 
   const enabled = optimistic ?? coEditEnabled;
@@ -58,7 +59,6 @@ export default function PrototypeNoteCoEditToggle({
     const previous = enabled;
     const next = !enabled;
     setPending(true);
-    setError(null);
     setOptimistic(next);
     try {
       const res = await api.patch<{
@@ -72,7 +72,7 @@ export default function PrototypeNoteCoEditToggle({
     } catch (err) {
       setOptimistic(null);
       onChanged?.(previous, previous);
-      setError(err instanceof Error ? err.message : 'Could not change this setting.');
+      toast.error(err instanceof Error ? err.message : 'Could not change this setting');
     } finally {
       setPending(false);
     }
@@ -80,39 +80,32 @@ export default function PrototypeNoteCoEditToggle({
 
   return (
     <div className="proto-inspector-space-co-edit">
-      <div className="proto-inspector-space-co-edit__control">
-        <span className="proto-inspector-space-co-edit__label" title={helper}>
-          {coEditStateLabel(enabled)}
-        </span>
-        <span
-          className="proto-fte-switch"
-          data-on={enabled ? 'true' : 'false'}
-          role="switch"
-          aria-checked={enabled}
-          aria-disabled={disabled}
-          aria-label={`Let others edit in ${spaceTitle.trim() || 'this space'}`}
-          title={helper}
-          tabIndex={disabled ? -1 : 0}
-          onClick={(e) => {
+      <span className="proto-inspector-space-co-edit__label" title={helper}>
+        {coEditStateLabel(enabled)}
+      </span>
+      <span
+        className="proto-fte-switch"
+        data-on={enabled ? 'true' : 'false'}
+        role="switch"
+        aria-checked={enabled}
+        aria-disabled={disabled}
+        aria-label={`Let others edit in ${spaceTitle.trim() || 'this space'}`}
+        title={helper}
+        tabIndex={disabled ? -1 : 0}
+        onClick={(e) => {
+          e.stopPropagation();
+          void toggle();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault();
             e.stopPropagation();
             void toggle();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === ' ' || e.key === 'Enter') {
-              e.preventDefault();
-              e.stopPropagation();
-              void toggle();
-            }
-          }}
-        >
-          <span className="proto-fte-switch__thumb" />
-        </span>
-      </div>
-      {error ? (
-        <p className="proto-connect-note-sheet__error" role="alert">
-          {error}
-        </p>
-      ) : null}
+          }
+        }}
+      >
+        <span className="proto-fte-switch__thumb" />
+      </span>
     </div>
   );
 }

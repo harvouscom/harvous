@@ -2796,25 +2796,20 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 
 .proto-inspector-space-list__title {
   flex: 1 1 auto;
-  min-width: 0;
+  /* Keep enough room that short names like "Family" aren't crushed to "F…" */
+  min-width: 4.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .proto-inspector-space-co-edit {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  flex-shrink: 0;
-  margin-left: 8px;
-  gap: 4px;
-}
-
-.proto-inspector-space-co-edit__control {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
+  margin-left: 8px;
   gap: 6px;
+  max-width: 55%;
 }
 
 .proto-inspector-space-co-edit__label {
@@ -2823,17 +2818,17 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   color: var(--pds-text-secondary);
   white-space: nowrap;
   line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proto-inspector-space-co-edit .proto-fte-switch {
+  flex-shrink: 0;
 }
 
 .proto-inspector-space-co-edit .proto-fte-switch[aria-disabled='true'] {
   opacity: 0.45;
   cursor: not-allowed;
-}
-
-.proto-inspector-space-co-edit .proto-connect-note-sheet__error {
-  max-width: 160px;
-  text-align: right;
-  font-size: 11px;
 }
 
 .proto-inspector-added-by-chip-btn {
