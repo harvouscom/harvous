@@ -6,7 +6,7 @@ import { toast } from '@/utils/toast';
 import { useShareNote } from '../../../hooks/mutations/useShareNote';
 import { mySharingQueryKey, useMySharing, type SharedNoteItem } from '../../../hooks/queries/useMySharing';
 import { useQueryClient } from '@tanstack/react-query';
-import { SettingsCopyRow, SettingsGroup, SettingsShell } from './SettingsShell';
+import { SettingsGroup, SettingsShell } from './SettingsShell';
 import { protoRelativeCaptionAbbrev } from '../proto-time';
 import { noteParamSlug } from '../proto-route-slugs';
 import { useDeletedSpaces, type DeletedSpaceItem } from '../../../hooks/queries/useDeletedSpaces';
@@ -32,70 +32,20 @@ export function resolveSharedItemLeadingMeta(kind: SharedItemKind): {
   }
 }
 
-function SharingCardHeader({
-  kind,
-  title,
-  noteId,
-  rel,
-  preview,
-}: {
-  kind: SharedItemKind;
-  title: string;
-  noteId: string;
-  rel?: string;
-  preview?: string;
-}) {
-  const { icon, label } = resolveSharedItemLeadingMeta(kind);
-
-  return (
-    <div className="proto-sharing-card__header">
-      <span
-        className="proto-settings-list-row__leading"
-        aria-label={label}
-        title={label}
-      >
-        <Icon name={icon} size={18} />
-      </span>
-      <div className="proto-sharing-card__header-main">
-        <Link
-          to={prototypeNoteRouteTo()}
-          params={{ noteId: noteParamSlug(noteId) }}
-          search={{}}
-          className="proto-sharing-card__title pds-list-title"
-        >
-          {title}
-        </Link>
-        <SharingNoteRecencyLine rel={rel} preview={preview} />
-      </div>
-    </div>
-  );
-}
-
-function SharingNoteRecencyLine({ rel, preview }: { rel?: string; preview?: string }) {
-  if (!rel && !preview) return null;
-  return (
-    <div className="pds-list-preview proto-note-row__preview proto-sharing-card__preview">
-      {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
-      {rel && preview ? '  ' : null}
-      {preview ? <span>{preview}</span> : null}
-    </div>
-  );
-}
-
 /** Share links in settings omit the protocol prefix. */
 function displayShareUrl(url: string): string {
   return url.replace(/^https?:\/\//, '');
 }
 
 /** Middle-truncate long share URLs for one-line list preview. */
-function truncateShareUrl(url: string, maxLength = 48): string {
+function truncateShareUrl(url: string, maxLength = 42): string {
   const displayUrl = displayShareUrl(url);
   if (displayUrl.length <= maxLength) return displayUrl;
   try {
     const parsed = new URL(url);
     const tail = parsed.pathname + parsed.search;
     const prefix = `${parsed.host}${tail.slice(0, 8)}`;
-    const suffix = tail.slice(-16);
+    const suffix = tail.slice(-14);
     return `${prefix}…${suffix}`;
   } catch {
     return `${displayUrl.slice(0, maxLength - 1)}…`;
@@ -129,10 +79,21 @@ function deletedSpaceRecoveryLabel(space: DeletedSpaceItem): string {
   return `Recoverable until ${date} · ${daysLabel}`;
 }
 
+async function copyShareLink(url: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(url);
+    return true;
+  } catch {
+    toast.error('Could not copy link');
+    return false;
+  }
+}
+
 export default function PrototypeSharingPage() {
   const [disablingId, setDisablingId] = useState<string | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [confirmRefreshId, setConfirmRefreshId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const sharingQuery = useMySharing();
   const deletedSpacesQuery = useDeletedSpaces();
   const shareNote = useShareNote();
@@ -175,6 +136,15 @@ export default function PrototypeSharingPage() {
     }
   };
 
+  const handleCopyNote = async (note: SharedNoteItem) => {
+    const ok = await copyShareLink(note.shareUrl);
+    if (!ok) return;
+    setCopiedId(note.id);
+    window.setTimeout(() => {
+      setCopiedId((current) => (current === note.id ? null : current));
+    }, 1400);
+  };
+
   const handleRestoreSpace = async (space: DeletedSpaceItem) => {
     try {
       await restoreSpace.mutateAsync(space.id);
@@ -206,83 +176,120 @@ export default function PrototypeSharingPage() {
 
       {notes.length > 0 ? (
         <SettingsGroup>
-          {notes.map((note) => {
-            const isRefreshing = refreshingId === note.id;
-            const isConfirmingRefresh = confirmRefreshId === note.id;
-            const isRowBusy = disablingId === note.id || isRefreshing;
-            const rel = protoRelativeCaptionAbbrev(note.updatedAt ?? note.createdAt ?? null);
-            const preview = note.preview?.trim() || undefined;
+          <div className="proto-sharing-list">
+            {notes.map((note) => {
+              const isRefreshing = refreshingId === note.id;
+              const isConfirmingRefresh = confirmRefreshId === note.id;
+              const isRowBusy = disablingId === note.id || isRefreshing;
+              const rel = protoRelativeCaptionAbbrev(note.updatedAt ?? note.createdAt ?? null);
+              const preview = note.preview?.trim() || undefined;
+              const { icon, label } = resolveSharedItemLeadingMeta('note');
+              const metaParts = [rel || undefined, preview].filter(Boolean) as string[];
 
-            return (
-              <div key={note.id} className="proto-sharing-card">
-                <SharingCardHeader
-                  kind="note"
-                  title={note.title || 'Untitled note'}
-                  noteId={note.id}
-                  rel={rel || undefined}
-                  preview={preview}
-                />
+              return (
+                <div key={note.id} className="proto-sharing-card">
+                  <span
+                    className="proto-settings-list-row__leading"
+                    aria-label={label}
+                    title={label}
+                  >
+                    <Icon name={icon} size={18} />
+                  </span>
 
-                <SettingsCopyRow
-                  value={truncateShareUrl(note.shareUrl)}
-                  copyValue={note.shareUrl}
-                  href={note.shareUrl}
-                  hrefTarget="_blank"
-                  title={displayShareUrl(note.shareUrl)}
-                  mono
-                  layout="field"
-                  copyLabel="Copy link"
-                  copyErrorMessage="Could not copy link"
-                  disabled={isRowBusy}
-                />
-
-                {isConfirmingRefresh ? (
-                  <div className="proto-sharing-card__confirm">
-                    <p className="proto-sharing-card__confirm-prompt">
-                      Create a new link? The old link will stop working.
-                    </p>
-                    <div className="proto-sharing-card__actions">
-                      <button
-                        type="button"
-                        className="proto-thread-review__dismiss"
-                        disabled={isRowBusy}
-                        onClick={() => setConfirmRefreshId(null)}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        className="proto-thread-review__btn proto-thread-review__btn--primary"
-                        disabled={isRowBusy}
-                        onClick={() => handleRefreshNote(note)}
-                      >
-                        {isRefreshing ? 'Working…' : 'Get new link'}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="proto-sharing-card__actions">
-                    <button
-                      type="button"
-                      className="proto-thread-review__dismiss proto-thread-review__dismiss--danger"
-                      disabled={isRowBusy}
-                      onClick={() => handleDisableNote(note)}
+                  <div className="proto-sharing-card__main">
+                    <Link
+                      to={prototypeNoteRouteTo()}
+                      params={{ noteId: noteParamSlug(note.id) }}
+                      search={{}}
+                      className="proto-sharing-card__title pds-list-title"
                     >
-                      {disablingId === note.id ? 'Working…' : 'Stop sharing'}
-                    </button>
-                    <button
-                      type="button"
-                      className="proto-thread-review__dismiss"
-                      disabled={isRowBusy}
-                      onClick={() => setConfirmRefreshId(note.id)}
+                      {note.title || 'Untitled note'}
+                    </Link>
+
+                    {metaParts.length > 0 ? (
+                      <span className="pds-list-preview proto-sharing-card__meta">
+                        {metaParts.map((part, index) => (
+                          <span key={`${note.id}-meta-${index}`}>
+                            {index > 0 ? ' · ' : null}
+                            {index === 0 && rel ? (
+                              <span className="pds-list-timestamp">{part}</span>
+                            ) : (
+                              part
+                            )}
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
+
+                    <a
+                      className="proto-sharing-card__url"
+                      href={note.shareUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={displayShareUrl(note.shareUrl)}
                     >
-                      Get a new link
-                    </button>
+                      {truncateShareUrl(note.shareUrl)}
+                    </a>
+
+                    {isConfirmingRefresh ? (
+                      <div className="proto-sharing-card__confirm">
+                        <span className="proto-sharing-card__confirm-prompt">
+                          Create a new link? The old one will stop working.
+                        </span>
+                        <span className="proto-sharing-card__inline-actions">
+                          <button
+                            type="button"
+                            className="proto-sharing-card__text-action"
+                            disabled={isRowBusy}
+                            onClick={() => setConfirmRefreshId(null)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="proto-sharing-card__text-action proto-sharing-card__text-action--accent"
+                            disabled={isRowBusy}
+                            onClick={() => void handleRefreshNote(note)}
+                          >
+                            {isRefreshing ? 'Working…' : 'Get new link'}
+                          </button>
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="proto-sharing-card__inline-actions">
+                        <button
+                          type="button"
+                          className="proto-sharing-card__text-action proto-sharing-card__text-action--danger"
+                          disabled={isRowBusy}
+                          onClick={() => void handleDisableNote(note)}
+                        >
+                          {disablingId === note.id ? 'Working…' : 'Stop sharing'}
+                        </button>
+                        <button
+                          type="button"
+                          className="proto-sharing-card__text-action"
+                          disabled={isRowBusy}
+                          onClick={() => setConfirmRefreshId(note.id)}
+                        >
+                          Get a new link
+                        </button>
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
+
+                  <button
+                    type="button"
+                    className="proto-thread-review__dismiss"
+                    disabled={isRowBusy}
+                    onClick={() => void handleCopyNote(note)}
+                    aria-label={copiedId === note.id ? 'Copied' : 'Copy link'}
+                  >
+                    {copiedId === note.id ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </SettingsGroup>
       ) : null}
 
