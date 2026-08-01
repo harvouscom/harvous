@@ -67,28 +67,31 @@ export default function PrototypeSharedNoteReadOnlyBanner({
         <Icon name={icon} size={11} className="proto-shared-readonly-banner__icon" aria-hidden />
         {label}
       </span>
-      {status.kind === 'holding' && onReleasePen ? (
-        <button
-          type="button"
-          className="proto-shared-readonly-banner__action"
-          // Don't steal focus from the editor — blur/focus races were
-          // re-claiming the pen right after Done on later presses.
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={onReleasePen}
-        >
-          Done
-        </button>
-      ) : hasAuthor ? (
-        <SharedSpaceNoteAuthorChip
-          displayName={authorDisplayName!}
-          userId={authorUserId!}
-          firstName={authorFirstName}
-          profileImageUrl={authorProfileImageUrl}
-          color={authorColor}
-          isSelf={false}
-          showAvatar={false}
-        />
-      ) : null}
+      {/* Fixed-height trail so Done vs author chip doesn't shift the note body. */}
+      <span className="proto-shared-readonly-banner__trail">
+        {status.kind === 'holding' && onReleasePen ? (
+          <button
+            type="button"
+            className="proto-shared-readonly-banner__action"
+            // Don't steal focus from the editor — blur/focus races were
+            // re-claiming the pen right after Done on later presses.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onReleasePen}
+          >
+            Done
+          </button>
+        ) : hasAuthor ? (
+          <SharedSpaceNoteAuthorChip
+            displayName={authorDisplayName!}
+            userId={authorUserId!}
+            firstName={authorFirstName}
+            profileImageUrl={authorProfileImageUrl}
+            color={authorColor}
+            isSelf={false}
+            showAvatar={false}
+          />
+        ) : null}
+      </span>
     </div>
   );
 }
