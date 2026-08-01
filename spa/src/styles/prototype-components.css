@@ -2807,8 +2807,22 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   flex-direction: column;
   align-items: flex-end;
   flex-shrink: 0;
-  margin-left: auto;
+  margin-left: 8px;
   gap: 4px;
+}
+
+.proto-inspector-space-co-edit__control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.proto-inspector-space-co-edit__label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .proto-inspector-space-co-edit .proto-fte-switch[aria-disabled='true'] {
@@ -2817,7 +2831,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 }
 
 .proto-inspector-space-co-edit .proto-connect-note-sheet__error {
-  max-width: 140px;
+  max-width: 160px;
   text-align: right;
   font-size: 11px;
 }

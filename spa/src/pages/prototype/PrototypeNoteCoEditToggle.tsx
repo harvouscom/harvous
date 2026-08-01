@@ -71,29 +71,34 @@ export default function PrototypeNoteCoEditToggle({
 
   return (
     <div className="proto-inspector-space-co-edit">
-      <span
-        className="proto-fte-switch"
-        data-on={enabled ? 'true' : 'false'}
-        role="switch"
-        aria-checked={enabled}
-        aria-disabled={disabled}
-        aria-label={`Let others edit in ${spaceTitle.trim() || 'this space'}`}
-        title={helper}
-        tabIndex={disabled ? -1 : 0}
-        onClick={(e) => {
-          e.stopPropagation();
-          void toggle();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === ' ' || e.key === 'Enter') {
-            e.preventDefault();
+      <div className="proto-inspector-space-co-edit__control">
+        <span className="proto-inspector-space-co-edit__label" title={helper}>
+          Let others edit
+        </span>
+        <span
+          className="proto-fte-switch"
+          data-on={enabled ? 'true' : 'false'}
+          role="switch"
+          aria-checked={enabled}
+          aria-disabled={disabled}
+          aria-label={`Let others edit in ${spaceTitle.trim() || 'this space'}`}
+          title={helper}
+          tabIndex={disabled ? -1 : 0}
+          onClick={(e) => {
             e.stopPropagation();
             void toggle();
-          }
-        }}
-      >
-        <span className="proto-fte-switch__thumb" />
-      </span>
+          }}
+          onKeyDown={(e) => {
+            if (e.key === ' ' || e.key === 'Enter') {
+              e.preventDefault();
+              e.stopPropagation();
+              void toggle();
+            }
+          }}
+        >
+          <span className="proto-fte-switch__thumb" />
+        </span>
+      </div>
       {error ? (
         <p className="proto-connect-note-sheet__error" role="alert">
           {error}
