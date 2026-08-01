@@ -71,6 +71,9 @@ export default function PrototypeSharedNoteReadOnlyBanner({
         <button
           type="button"
           className="proto-shared-readonly-banner__action"
+          // Don't steal focus from the editor — blur/focus races were
+          // re-claiming the pen right after Done on later presses.
+          onMouseDown={(e) => e.preventDefault()}
           onClick={onReleasePen}
         >
           Done

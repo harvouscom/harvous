@@ -209,8 +209,11 @@ export function useNoteEditLease(
   }, [active, normalizedNoteId, userId, selfDisplayName, selfColor, getToken, clearBlurTimer]);
 
   const winner = useMemo(() => resolvePenHolder(entries), [entries]);
-  const holding = Boolean(winner && userId && winner.userId === userId);
+  // Someone else clearly has the pen (presence). Local Done/release must win
+  // immediately — don't keep `holding` true off a stale self-entry or Done looks broken.
   const heldBy = winner && userId && winner.userId !== userId ? winner : null;
+  const holding = Boolean(wantsPen && userId && !heldBy);
+  const available = Boolean(subscribed && !heldBy && !wantsPen);
 
   // Broadcast our intent whenever it changes, then let the synced state decide.
   useEffect(() => {
@@ -229,8 +232,8 @@ export function useNoteEditLease(
 
   // Lost a tie-break: stand down so the winner is unambiguous everywhere.
   useEffect(() => {
-    if (wantsPen && winner && userId && winner.userId !== userId) setWantsPen(false);
-  }, [wantsPen, winner, userId]);
+    if (wantsPen && heldBy) setWantsPen(false);
+  }, [wantsPen, heldBy]);
 
   const claim = useCallback(() => {
     clearBlurTimer();
@@ -241,7 +244,15 @@ export function useNoteEditLease(
   const release = useCallback(() => {
     clearBlurTimer();
     setWantsPen(false);
-  }, [clearBlurTimer]);
+    // Drop our local claim immediately so UI doesn't wait on presence sync.
+    if (userId) {
+      setEntries((prev) =>
+        prev.map((entry) =>
+          entry.userId === userId ? { ...entry, holding: false, claimedAt: 0 } : entry,
+        ),
+      );
+    }
+  }, [clearBlurTimer, userId]);
 
   /** Interaction in the editor: claim if free, else refresh idle clock while holding. */
   const noteUserActivity = useCallback(() => {
@@ -289,7 +300,7 @@ export function useNoteEditLease(
     return {
       holding,
       heldBy,
-      available: subscribed && !winner,
+      available,
       disconnected: !subscribed,
       leaseActive: true,
       claim,
@@ -302,8 +313,8 @@ export function useNoteEditLease(
     opts.enabled,
     holding,
     heldBy,
+    available,
     subscribed,
-    winner,
     claim,
     release,
     noteUserActivity,
