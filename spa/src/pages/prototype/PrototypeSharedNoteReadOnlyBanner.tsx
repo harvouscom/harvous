@@ -34,7 +34,7 @@ function statusCopy(status: SharedNoteEditStatus): { icon: string; label: string
     case 'holding':
       return { icon: 'pen', label: "You're editing" };
     case 'reconnecting':
-      return { icon: 'eye', label: "Can't connect to live editing" };
+      return { icon: 'eye', label: 'Reconnecting — your note is safe' };
     case 'read-only':
     default:
       return { icon: 'eye', label: 'Editing is off' };
