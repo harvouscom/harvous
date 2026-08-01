@@ -1452,6 +1452,10 @@ final class HarvousEditorScrollView: NSScrollView {
 
 struct HarvousEditor: NSViewRepresentable {
     var state: EditorState
+    /// Read-only body. Selection, scripture pills, and highlights all stay live —
+    /// only typing is off. Used for shared-space notes open for co-editing, which
+    /// this client can read but never write (see HarvousSyncService.flushNoteUpdate).
+    var isEditable: Bool = true
     var proxy: EditorProxy? = nil
     /// When set, a change forces body text to match `state` (e.g. switching notes while the view is still “editing”).
     var noteID: UUID? = nil
@@ -1537,7 +1541,7 @@ struct HarvousEditor: NSViewRepresentable {
         textView.textColor = NSColor.labelColor
         textView.drawsBackground = false
         textView.backgroundColor = .clear
-        textView.isEditable = true
+        textView.isEditable = isEditable
         textView.isSelectable = true
         textView.allowsUndo = true
         textView.isContinuousSpellCheckingEnabled = false
@@ -1598,6 +1602,10 @@ struct HarvousEditor: NSViewRepresentable {
         // note-switch `editorState = EditorState(...)` reassignment can't leave it writing into a stale
         // object (the previous `@Binding` always read through to the live `@State`).
         context.coordinator.state = state
+        // Editability changes while the view is alive (a note is opened for
+        // co-editing, or closed again), so it has to be re-applied here, not only
+        // at construction.
+        if textView.isEditable != isEditable { textView.isEditable = isEditable }
         syncComposeTypographyForDynamicTypeIfNeeded(in: textView, context: context)
         let previousTheme = context.coordinator.scriptureTheme
         context.coordinator.scriptureTheme = scriptureTheme
@@ -3059,6 +3067,8 @@ private func activeScripturePillFromUITextViewSelection(_ tv: UITextView) -> Act
 
 struct HarvousEditor: UIViewRepresentable {
     var state: EditorState
+    /// Read-only body — see the macOS `HarvousEditor.isEditable` note.
+    var isEditable: Bool = true
     var noteID: UUID? = nil
     var documentBody: String = ""
     var placeholder: String = "What are you studying?"
@@ -3127,7 +3137,7 @@ struct HarvousEditor: UIViewRepresentable {
         tv.font = bodyFont
         tv.textColor = .label
         tv.backgroundColor = .clear
-        tv.isEditable = true
+        tv.isEditable = isEditable
         tv.isSelectable = true
         tv.allowsEditingTextAttributes = true
         tv.autocorrectionType = .yes
@@ -3201,6 +3211,9 @@ struct HarvousEditor: UIViewRepresentable {
         // `EditorState` is a reference type now; re-point the coordinator to the current instance (see
         // the macOS `updateNSView` note) so a note-switch reassignment can't leave it writing stale state.
         context.coordinator.state = state
+        // Re-applied every update: a note can be opened for co-editing (or closed
+        // again) while this view is on screen.
+        if textView.isEditable != isEditable { textView.isEditable = isEditable }
         syncComposeTypographyForDynamicTypeIfNeeded(in: textView, context: context)
         applyIPadSplitInputAssistantSuppression(to: textView)
         var didSyncBodyFromState = false

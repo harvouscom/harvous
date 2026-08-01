@@ -52,6 +52,13 @@ final class Note {
     var shareToken: String? = nil
     /// Server flag — note body is encrypted at rest (`Notes.contentEncrypted`).
     var contentEncrypted: Bool = false
+    /// Canonical optimistic-concurrency version from the server, sent back as
+    /// `expectedVersion` on the next push. `nil` until the first pull carries it;
+    /// a push without it is an unconditional last-write-wins.
+    var currentVersion: Int? = nil
+    /// Author opened this note for co-editing by a shared space's members. Native
+    /// has no pen lease, so these notes are read-only here and never pushed.
+    var coEditEnabled: Bool = false
     /// Last TipTap HTML received from the server for this note. Retained so an
     /// unchanged note flushes back the original rich HTML verbatim (preserving
     /// web-authored formatting the plain-text `body` cannot represent) instead of

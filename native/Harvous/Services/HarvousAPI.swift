@@ -563,6 +563,13 @@ struct APINote: Codable, Identifiable, Sendable {
     let simpleNoteId: Int?
     let noteType: String?
     let addedBy: String?
+    /// Canonical optimistic-concurrency version. The server has always returned
+    /// this in bootstrap and changes; without storing it our writes were an
+    /// unconditional last-write-wins over web and other devices.
+    let currentVersion: Int?
+    /// Author opened this note for co-editing in a shared space. Native does not
+    /// participate in the pen lease, so it must not write these.
+    let coEditEnabled: Bool?
 }
 
 struct APIListNotesResponse: Codable {

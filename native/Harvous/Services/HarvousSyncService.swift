@@ -643,6 +643,13 @@ final class HarvousSyncService {
                 if let userOverride = api.collectionUserOverride { existing.isFolderUserOverride = userOverride }
                 if let dismissed = api.dismissedAutoTags { existing.dismissedAutoTags = dismissed }
                 if let simpleId = api.simpleNoteId { existing.simpleNoteId = simpleId } // ADR D3c: server-authoritative label
+                existing.coEditEnabled = api.coEditEnabled ?? false
+                // Deliberately NOT taking the server's currentVersion here. This note
+                // has an unflushed local edit, so the version we hold is the one that
+                // edit was made against. Advancing it would let the pending push
+                // overwrite whatever moved the server ahead — exactly the silent
+                // last-write-wins this field exists to stop. Keeping it stale makes the
+                // push 409, and the next pull rebases.
                 return
             }
             if let title = api.title { existing.title = title }
@@ -662,6 +669,10 @@ final class HarvousSyncService {
             if let userOverride = api.collectionUserOverride { existing.isFolderUserOverride = userOverride }
             if let dismissed = api.dismissedAutoTags { existing.dismissedAutoTags = dismissed }
             if let simpleId = api.simpleNoteId, existing.simpleNoteId == nil { existing.simpleNoteId = simpleId }
+            // Clean local note: we just took the server copy wholesale, so the
+            // server's version is the one our next edit will be made against.
+            if let version = api.currentVersion { existing.currentVersion = version }
+            existing.coEditEnabled = api.coEditEnabled ?? false
             if let serverUpdated = Self.parseISO8601(api.updatedAt) {
                 existing.updatedAt = serverUpdated
             }
@@ -684,6 +695,8 @@ final class HarvousSyncService {
             note.contentEncrypted = api.contentEncrypted ?? false
             note.simpleNoteId = api.simpleNoteId
             note.addedBy = api.addedBy ?? "user"
+            note.currentVersion = api.currentVersion
+            note.coEditEnabled = api.coEditEnabled ?? false
             if let serverCreated = Self.parseISO8601(api.createdAt) {
                 note.createdAt = serverCreated
             }
@@ -894,6 +907,14 @@ final class HarvousSyncService {
     /// Returns `true` when the note was updated on the server.
     private func flushNoteUpdate(_ note: Note, context: ModelContext) async -> Bool {
         guard let serverId = note.serverId else { return false }
+        // Co-edited notes are coordinated by a presence lease this client does not
+        // join, so it cannot know whether someone else is mid-sentence. Read-only
+        // here; the web editor is the only place they're written.
+        if note.coEditEnabled {
+            note.needsSync = false
+            Logger.app.info("flush note update \(serverId, privacy: .public) skipped — note is open for co-editing.")
+            return true
+        }
         let body = UpdateNotePayload(
             noteId: serverId,
             title: note.title,
@@ -903,13 +924,32 @@ final class HarvousSyncService {
             secondaryCollections: note.secondaryFolders.isEmpty ? nil : note.secondaryFolders,
             collectionPinned: note.isFolderPinned,
             collectionUserOverride: note.isFolderUserOverride,
-            dismissedAutoTags: note.normalizedDismissedAutoTags().isEmpty ? nil : note.normalizedDismissedAutoTags()
+            dismissedAutoTags: note.normalizedDismissedAutoTags().isEmpty ? nil : note.normalizedDismissedAutoTags(),
+            expectedVersion: note.currentVersion
         )
         do {
             let _: NoteEnvelope = try await api.put("/api/notes/update", body: body)
             note.needsSync = false
             note.syncError = nil
             isWriteOffline = false
+            return true
+        } catch HarvousAPIError.http(let status, _) where status == 409 {
+            // The server moved ahead of the version this edit was made against —
+            // the same note was edited on web or another device since our last pull.
+            //
+            // Must be caught before isPermanentClientError below, which treats every
+            // 4xx except 408/429 as terminal and would leave syncError set forever.
+            //
+            // Resolution is server-wins: clear needsSync so the next pull takes the
+            // clean branch and rebases both the body and currentVersion. Keeping the
+            // note dirty instead would deadlock — the pull's dirty branch deliberately
+            // preserves local content and holds the stale version, so every retry
+            // would 409 again. Before this existed the push carried no version at all
+            // and silently clobbered the other device, so one edit was always lost;
+            // this at least makes it the older one, and says so in the log.
+            note.needsSync = false
+            note.syncError = nil
+            Logger.app.notice("flush note update \(serverId, privacy: .public) conflicted (409) — server copy is newer, rebasing on next pull.")
             return true
         } catch HarvousAPIError.http(let status, _) where status == 404 {
             note.serverId = nil
@@ -1079,6 +1119,9 @@ private struct UpdateNotePayload: Encodable {
     let collectionPinned: Bool?
     let collectionUserOverride: Bool?
     let dismissedAutoTags: [String]?
+    /// Optimistic concurrency. Omitted only when we've never pulled a version for
+    /// this note; the server then falls back to last-write-wins, as before.
+    let expectedVersion: Int?
 }
 
 private struct CreateNotePayload: Encodable {

@@ -1244,6 +1244,8 @@ struct NoteEditorView: View {
                             .textInputAutocapitalization(.sentences)
                             .submitLabel(.next)
 #endif
+                            // Co-edited notes are read-only on native (no pen lease).
+                            .disabled(note.coEditEnabled)
                             .focused($titleFocused)
                             .onSubmit {
                                 moveFocusFromTitleToBody()
@@ -1276,6 +1278,7 @@ struct NoteEditorView: View {
                         #if os(macOS)
                         HarvousEditor(
                             state: editorState,
+                            isEditable: note.coEditEnabled == false,
                             proxy: proxy,
                             noteID: note.id,
                             documentBody: note.body,
@@ -1316,6 +1319,7 @@ struct NoteEditorView: View {
                         #else
                         HarvousEditor(
                             state: editorState,
+                            isEditable: note.coEditEnabled == false,
                             noteID: note.id,
                             documentBody: note.body,
                             placeholder: "Start writing…",
@@ -3116,6 +3120,9 @@ struct NoteEditorView: View {
 
     private func scheduleAutosave(_ note: Note) {
         guard !isNoteTransition else { return }
+        // Native never holds the pen; don't mark a co-edited note dirty from
+        // remote title/body refreshes that land via syncFromNote onChange.
+        guard !note.coEditEnabled else { return }
         let nextTitle = title
         let nextBody = editorState.plainText
         let allowPrimaryUpdate = shouldAllowPrimaryFolderUpdate(
@@ -3287,7 +3294,8 @@ struct NoteEditorView: View {
         if !force, HarvousEditorSyncGuard.shouldSkipNonForceSync(
             titleFocused: titleFocused,
             bodyFirstResponder: proxy.isBodyFirstResponder,
-            hasPendingAutosave: autosave.hasPendingAutosave
+            hasPendingAutosave: autosave.hasPendingAutosave,
+            isCoEditFollower: note?.coEditEnabled == true
         ) {
             return
         }

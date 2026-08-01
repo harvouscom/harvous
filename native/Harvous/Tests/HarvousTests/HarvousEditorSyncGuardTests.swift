@@ -46,4 +46,17 @@ final class HarvousEditorSyncGuardTests: XCTestCase {
             )
         )
     }
+
+    func testNeverSkipsForCoEditFollower() {
+        // Native is read-only on co-edited notes, so there are no local edits to
+        // protect — and the follower is open precisely to watch remote writes.
+        XCTAssertFalse(
+            HarvousEditorSyncGuard.shouldSkipNonForceSync(
+                titleFocused: true,
+                bodyFirstResponder: true,
+                hasPendingAutosave: true,
+                isCoEditFollower: true
+            )
+        )
+    }
 }

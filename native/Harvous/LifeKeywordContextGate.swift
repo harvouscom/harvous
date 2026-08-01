@@ -29,7 +29,7 @@ enum LifeKeywordContextGate {
             if range(matchRange, isInsidePattern: churchFellowshipPattern, in: textLower) { return true }
         }
 
-        if (key == "family", needleLower.contains("family")) {
+        if key == "family", needleLower.contains("family") {
             if range(matchRange, isInsidePattern: familyChurchAttendancePattern, in: textLower) { return true }
             if range(matchRange, isInsidePattern: familyWentToChurchPattern, in: textLower) { return true }
         }

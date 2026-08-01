@@ -17,11 +17,17 @@ enum HarvousEditorSyncGuard {
     ///   - titleFocused: The title text field currently holds focus.
     ///   - bodyFirstResponder: The body text view currently holds first responder.
     ///   - hasPendingAutosave: A debounced autosave is scheduled but not yet flushed.
+    ///   - isCoEditFollower: The note is open for co-editing in a shared space. Native
+    ///     is read-only on these, so there are no local edits to protect — and the
+    ///     whole point of having it open is to watch someone else write. Skipping the
+    ///     refresh would freeze the follower on a stale copy.
     static func shouldSkipNonForceSync(
         titleFocused: Bool,
         bodyFirstResponder: Bool,
-        hasPendingAutosave: Bool
+        hasPendingAutosave: Bool,
+        isCoEditFollower: Bool = false
     ) -> Bool {
-        titleFocused || bodyFirstResponder || hasPendingAutosave
+        if isCoEditFollower { return false }
+        return titleFocused || bodyFirstResponder || hasPendingAutosave
     }
 }

@@ -5,7 +5,10 @@ enum FolderSubjectEnrichment {
     private static let maxSecondaries = 3
     private static let maxPassageSubjects = 3
 
-    private static var chapterSubjects: [String: [String: [String]]] = {
+    // `let` (not `var`): loaded once from the bundle and never mutated. A `var`
+    // here trips Swift 6's "nonisolated global shared mutable state" check even
+    // though the dictionary is only ever read after init.
+    private static let chapterSubjects: [String: [String: [String]]] = {
         guard let url = Bundle.main.url(forResource: "chapter-subjects", withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let decoded = try? JSONDecoder().decode([String: [String: [String]]].self, from: data) else {
@@ -35,7 +38,7 @@ enum FolderSubjectEnrichment {
                   let current = nextPrimary,
                   BibleStudyTagSuggester.isNonDefiningBookPrimary(title: title, body: body, primary: current) {
             let narrativePassage = passageSubs.first(where: isNarrativeSubject)
-            let contentTheme = contentSubs.first { !$0.caseInsensitiveCompare(current).equals(.orderedSame) }
+            let contentTheme = contentSubs.first { $0.caseInsensitiveCompare(current) != .orderedSame }
             nextPrimary = narrativePassage ?? contentTheme ?? passageSubs.first ?? nextPrimary
         }
 
