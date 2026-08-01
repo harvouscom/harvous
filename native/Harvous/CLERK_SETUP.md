@@ -88,7 +88,7 @@ first successful sync (`HarvousSyncService.pullAll`) populates them.
 
 ## Supabase Realtime (instant cross-device sync)
 
-Set `HARVOUS_SUPABASE_URL` and `HARVOUS_SUPABASE_ANON_KEY` in the active signing xcconfig (see `Configuration/Harvous-Env.xcconfig`). Create Clerk JWT template **`supabase`** (see [docs/SUPABASE_REALTIME_SETUP.md](../../docs/SUPABASE_REALTIME_SETUP.md)). `HarvousRealtimeSync` subscribes on sign-in and triggers a debounced pull when the API broadcasts `invalidate`.
+Set `HARVOUS_SUPABASE_URL` and `HARVOUS_SUPABASE_ANON_KEY` in the active signing xcconfig (see `Configuration/Harvous-Env.xcconfig`). Activate Clerk’s native Supabase integration (see [docs/SUPABASE_REALTIME_SETUP.md](../../docs/SUPABASE_REALTIME_SETUP.md)) so the default session JWT has `role: authenticated`. `HarvousRealtimeSync` subscribes on sign-in and triggers a debounced pull when the API broadcasts `invalidate`.
 
 Edits made offline flag rows with `needsSync = true` (see `markDirty()` on
 each model). The next flush uploads them; on success `serverId` is written

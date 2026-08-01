@@ -21,8 +21,6 @@ import { isPrototypeShellRoute } from '@/utils/sync-init';
 import { syncNow } from '@/utils/sync-manager';
 import { matchPrototypeNoteId } from '@/lib/prototype-path';
 
-const CLERK_SUPABASE_JWT_TEMPLATE = 'supabase';
-
 /** True when the open prototype note editor has focus (skip detail refetch mid-edit). */
 function isPrototypeOpenNoteEditorFocused(noteId: string): boolean {
   if (typeof document === 'undefined' || typeof window === 'undefined') return false;
@@ -257,12 +255,13 @@ export function useRealtimeSync(userId: string | undefined, options?: UseRealtim
 
     const setup = async () => {
       try {
-        const token = await getToken({ template: CLERK_SUPABASE_JWT_TEMPLATE });
+        // Native Clerk↔Supabase integration: default session JWT includes role=authenticated
+        const token = await getToken();
         if (token && !cancelled) {
           await supabase.realtime.setAuth(token);
         }
       } catch (err) {
-        console.warn('[useRealtimeSync] Clerk Supabase JWT unavailable; Realtime may not connect:', err);
+        console.warn('[useRealtimeSync] Clerk session JWT unavailable; Realtime may not connect:', err);
       }
 
       if (cancelled) return;

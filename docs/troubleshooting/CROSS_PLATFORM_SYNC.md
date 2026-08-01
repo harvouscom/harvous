@@ -26,7 +26,7 @@ Native shows an orange footnote under Settings → My Data → Sync when connect
 
 ## Supabase Realtime (Phase 1)
 
-When `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (API) and `VITE_SUPABASE_*` / `HARVOUS_SUPABASE_*` (clients) are set, the API broadcasts `invalidate` on channel `sync-{userId}` after writes. Web runs `useRealtimeSync` (React Query + optional IndexedDB `syncNow`); native runs `HarvousRealtimeSync` → `scheduleRealtimePull()` (~500ms). Requires Clerk JWT template **`supabase`** for client subscribe. Setup: [SUPABASE_REALTIME_SETUP.md](../SUPABASE_REALTIME_SETUP.md).
+When `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (API) and `VITE_SUPABASE_*` / `HARVOUS_SUPABASE_*` (clients) are set, the API broadcasts `invalidate` on channel `sync-{userId}` after writes. Web runs `useRealtimeSync` (React Query + optional IndexedDB `syncNow`); native runs `HarvousRealtimeSync` → `scheduleRealtimePull()` (~500ms). Requires Clerk’s native Supabase integration so the default session JWT has `role: authenticated`. Setup: [SUPABASE_REALTIME_SETUP.md](../SUPABASE_REALTIME_SETUP.md).
 
 ## Structural behavior (native)
 

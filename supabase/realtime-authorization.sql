@@ -12,8 +12,8 @@
 -- ROLLOUT (strict order — do not reverse)
 -- --------------------------------------
 -- 1. Run this SQL against the Supabase project (SQL editor or psql).
--- 2. Confirm the Clerk JWT template named `supabase` includes
---    `"role": "authenticated"` and `"sub": "{{user.id}}"` (see
+-- 2. Confirm Clerk's native Supabase integration is active so the default
+--    session JWT includes `"role": "authenticated"` (see
 --    docs/SUPABASE_REALTIME_SETUP.md). Without `role`, `TO authenticated`
 --    policies never match and every private subscribe fails.
 -- 3. Deploy the client/server that pass `private: true` on every channel.

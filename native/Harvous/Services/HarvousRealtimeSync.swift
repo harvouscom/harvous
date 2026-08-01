@@ -35,7 +35,7 @@ final class HarvousRealtimeSync {
         if let token = await HarvousClerkBridge.shared.supabaseRealtimeToken() {
             await client.realtimeV2.setAuth(token)
         } else {
-            Logger.app.warning("Supabase Realtime: no Clerk supabase JWT; subscription may fail until template is configured")
+            Logger.app.warning("Supabase Realtime: no Clerk session JWT; subscription may fail until signed in")
         }
 
         let channelName = HarvousSupabaseConfig.syncChannelName(userId: userId)

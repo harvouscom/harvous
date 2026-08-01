@@ -27,8 +27,6 @@ import {
   REALTIME_PRIVATE_CHANNEL_CONFIG,
 } from '@/lib/supabase-client';
 
-const CLERK_SUPABASE_JWT_TEMPLATE = 'supabase';
-
 /** How long the pen survives the editor losing focus (portaled toolbars, sheets). */
 export const LEASE_BLUR_GRACE_MS = 5_000;
 /** Released after this long without a real keystroke, so an idle tab frees the pen. */
@@ -141,7 +139,7 @@ export function useNoteEditLease(
 
     const setup = async () => {
       try {
-        const token = await getToken({ template: CLERK_SUPABASE_JWT_TEMPLATE });
+        const token = await getToken();
         if (token && !cancelled) await supabase.realtime.setAuth(token);
       } catch {
         /* presence may still connect on public channels */

@@ -10,8 +10,6 @@ import {
   spaceChannelName,
 } from '@/lib/supabase-client';
 
-const CLERK_SUPABASE_JWT_TEMPLATE = 'supabase';
-
 export interface SpacePresenceUser {
   userId: string;
   displayName: string;
@@ -62,7 +60,7 @@ export function useSpacePresence(
 
     const setup = async () => {
       try {
-        const token = await getToken({ template: CLERK_SUPABASE_JWT_TEMPLATE });
+        const token = await getToken();
         if (token && !cancelled) await supabase.realtime.setAuth(token);
       } catch {
         /* presence may still connect on public channels */

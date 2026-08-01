@@ -138,20 +138,10 @@ final class HarvousClerkBridge {
         #endif
     }
 
-    /// JWT for Supabase Realtime (Clerk Dashboard → JWT templates → `supabase`).
+    /// JWT for Supabase Realtime. Uses the default Clerk session token
+    /// (native Clerk↔Supabase integration adds `role: authenticated`).
     func supabaseRealtimeToken() async -> String? {
-        #if canImport(ClerkKit)
-        do {
-            return try await Clerk.shared.session?.getToken(
-                Session.GetTokenOptions(template: "supabase")
-            )
-        } catch {
-            Logger.app.error("Clerk Supabase token failed: \(error.localizedDescription, privacy: .public)")
-            return nil
-        }
-        #else
-        return nil
-        #endif
+        await bearerToken()
     }
 
     func signOut() async {
