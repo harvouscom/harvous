@@ -8011,15 +8011,25 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     !suppressFormatBarUntilBodySignalRef.current &&
     (isEditorFocused || showFormatBarForActivity || isPointerOverFormatToolbar);
 
+  // A read-only body (co-edit off, or a foreign shared note) still fires TipTap's
+  // `focus` event on click — `contenteditable="false"` doesn't stop that — so
+  // without this the format bar offered editing tools that would do nothing.
   const shouldShowPrototypeFormatToolbar =
-    editorChromeMode === 'prototypeNative' && formatToolbarEngaged && !studyDockChromeTakesOver;
+    editorChromeMode === 'prototypeNative' &&
+    formatToolbarEngaged &&
+    !studyDockChromeTakesOver &&
+    editor?.isEditable !== false;
 
   /* Prototype column bar: undefined = inline fallback; null = host pending; element = portal target. */
   const columnFormatToolbarPortal = formatToolbarPortalTarget !== undefined;
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative' || !onPrototypeChromeModeChange) return;
-    if (!formatToolbarEngaged) {
+    // Same guard as shouldShowPrototypeFormatToolbar: a read-only body still fires
+    // TipTap's focus event on click, so without this the parent's bottom bar would
+    // switch to 'format' — editing tools with nothing to act on — for a note the
+    // click can't actually edit.
+    if (!formatToolbarEngaged || editor?.isEditable === false) {
       onPrototypeChromeModeChange(prototypeNoteActionsChrome ? 'noteActions' : 'hidden');
       return;
     }
@@ -8033,6 +8043,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     onPrototypeChromeModeChange,
     prototypeNoteActionsChrome,
     formatToolbarEngaged,
+    editor?.isEditable,
     studyDockChromeTakesOver,
   ]);
 
