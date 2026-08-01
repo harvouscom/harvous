@@ -338,6 +338,18 @@ function PrototypeSidebarSharedSpaceViewLive() {
   const scriptureSettled = isQuerySettled(scriptureQuery.isPending, scriptureQuery.data != null);
   const notesSettled = isQuerySettled(notesQuery.isPending, notesQuery.data != null);
 
+  // Must stay above every early return below — skipping this hook when
+  // `!activeSpaceId` / dashboard error / still loading flips the hook count and
+  // React throws "Rendered fewer hooks than expected".
+  const contentReady =
+    Boolean(activeSpaceId) &&
+    !spaceQuery.isPending &&
+    !activityQuery.isLoading &&
+    notesSettled &&
+    groupThreadsSettled &&
+    scriptureSettled;
+  const homeViewClassName = useProtoHomeViewClassName(contentReady, activeSpaceId);
+
   const goToListMode = (mode: SidebarListMode) => {
     ensureSidebarExpanded();
     setSidebarLayer('list');
@@ -474,15 +486,6 @@ function PrototypeSidebarSharedSpaceViewLive() {
       </div>
     );
   }
-
-  const contentReady =
-    !spaceQuery.isPending &&
-    !activityQuery.isLoading &&
-    notesSettled &&
-    groupThreadsSettled &&
-    scriptureSettled;
-
-  const homeViewClassName = useProtoHomeViewClassName(contentReady, activeSpaceId);
 
   if (!contentReady) {
     return (
