@@ -48,6 +48,7 @@ import { updateStudyDockExpandedMaxHeight } from '@/utils/study-dock-layout';
 import { isPrototypeDraftNoteSlug, normalizeNoteIdFromParam } from '../pages/prototype/proto-route-slugs';
 import { prototypeToolbarNoteDetailsAvailable } from '../pages/prototype/prototype-toolbar-note-details';
 import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
+import { normalizePrototypeApiSpaceId } from '../utils/prototype-space-api-id';
 import { useNote } from '../hooks/queries/useNote';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
 import { ProtoMigrationProvider } from './proto-migration-context';
@@ -715,6 +716,17 @@ function DrawerOverlay({ onClose }: { onClose: () => void }) {
 function PrototypeShortcutBridge() {
   const navigate = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // Mirrors NativeToolbar's derivation. Without this, reading a foreign author's
+  // note in a shared space (any non-owner member) fetched details unscoped here,
+  // which the server correctly 404s for a non-owner — repeatedly, on every
+  // window-focus/reconnect refetch, since this call had no way to ever succeed.
+  const spaceSearchParam = useRouterState({
+    select: (s) => {
+      const v = (s.location.search as Record<string, unknown>).space;
+      return typeof v === 'string' || typeof v === 'number' ? String(v) : undefined;
+    },
+  });
+  const toolbarContextSpaceId = normalizePrototypeApiSpaceId(spaceSearchParam);
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const {
     isMobileSidebar,
@@ -744,7 +756,10 @@ function PrototypeShortcutBridge() {
     isDraftNoteRoute,
     normalizeNoteIdFromParam,
   );
-  const { data: toolbarNote, isLoading: toolbarNoteLoading } = useNote(toolbarNoteId ?? '');
+  const { data: toolbarNote, isLoading: toolbarNoteLoading } = useNote(
+    toolbarNoteId ?? '',
+    toolbarContextSpaceId,
+  );
   const showNoteDetailsOrb = prototypeToolbarNoteDetailsAvailable({
     isOnNotePage:
       isPrototypeNotePath(pathname) || (composeDraftActive && isPrototypeHomePath(pathname)),

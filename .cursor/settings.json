@@ -8,6 +8,9 @@
     },
     "clerk": {
       "enabled": true
+    },
+    "posthog": {
+      "enabled": true
     }
   }
 }
