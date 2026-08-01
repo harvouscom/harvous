@@ -24,6 +24,7 @@ import {
   getSupabaseBrowserClient,
   isSupabaseRealtimeConfigured,
   noteChannelName,
+  REALTIME_PRIVATE_CHANNEL_CONFIG,
 } from '@/lib/supabase-client';
 
 const CLERK_SUPABASE_JWT_TEMPLATE = 'supabase';
@@ -147,7 +148,7 @@ export function useNoteEditLease(
       }
       if (cancelled) return;
 
-      const channel = supabase.channel(noteChannelName(normalizedNoteId));
+      const channel = supabase.channel(noteChannelName(normalizedNoteId), REALTIME_PRIVATE_CHANNEL_CONFIG);
       channelRef.current = channel;
 
       channel.on('presence', { event: 'sync' }, () => {

@@ -1,11 +1,20 @@
 /**
- * Browser Supabase client for Realtime Broadcast (Phase 1 cross-device sync).
+ * Browser Supabase client for Realtime Broadcast + Presence.
  * Uses anon key only — never the service role key.
+ *
+ * Every channel is opened with {@link REALTIME_PRIVATE_CHANNEL_CONFIG}. RLS on
+ * `realtime.messages` (see supabase/realtime-authorization.sql) is what scopes
+ * access; channel names alone are not enough.
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 let browserClient: SupabaseClient | null = null;
+
+/** Passed to every `supabase.channel(...)` so Realtime enforces RLS. */
+export const REALTIME_PRIVATE_CHANNEL_CONFIG = {
+  config: { private: true as const },
+};
 
 export function isSupabaseRealtimeConfigured(): boolean {
   const url = import.meta.env.VITE_SUPABASE_URL;
@@ -36,8 +45,8 @@ export function spaceChannelName(spaceId: string): string {
 
 /**
  * Per-note "pass the pen" channel. Carries presence only — who has the note open
- * and who holds the pen. Never put note content on it: Realtime Authorization is
- * not enabled yet, so channel names are the only scoping (docs/SUPABASE_REALTIME_SETUP.md).
+ * and who holds the pen. Note *bodies* travel on each member's `sync-*` channel
+ * (size-capped) after Realtime Authorization is enabled; never put content here.
  */
 export function noteChannelName(noteId: string): string {
   const id = noteId.startsWith('note_') ? noteId : `note_${noteId}`;

@@ -16,6 +16,7 @@
     "db:sync": "node -r dotenv/config node_modules/.bin/drizzle-kit push --config drizzle.config.ts && npm run db:rls",
     "db:push": "node -r dotenv/config node_modules/.bin/drizzle-kit push --config drizzle.config.ts && npm run db:rls",
     "db:rls": "tsx scripts/run-enable-rls.ts",
+    "db:realtime-auth": "tsx scripts/run-realtime-authorization.ts",
     "db:check": "node scripts/db-sync.js",
     "predeploy": "npm run db:push",
     "deploy": "npm run build",

@@ -3,7 +3,12 @@
  */
 import { useAuth } from '@clerk/clerk-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getSupabaseBrowserClient, isSupabaseRealtimeConfigured, spaceChannelName } from '@/lib/supabase-client';
+import {
+  getSupabaseBrowserClient,
+  isSupabaseRealtimeConfigured,
+  REALTIME_PRIVATE_CHANNEL_CONFIG,
+  spaceChannelName,
+} from '@/lib/supabase-client';
 
 const CLERK_SUPABASE_JWT_TEMPLATE = 'supabase';
 
@@ -64,7 +69,7 @@ export function useSpacePresence(
       }
       if (cancelled) return;
 
-      const channel = supabase.channel(spaceChannelName(normalizedSpaceId));
+      const channel = supabase.channel(spaceChannelName(normalizedSpaceId), REALTIME_PRIVATE_CHANNEL_CONFIG);
       channelRef.current = channel;
 
       channel.on('presence', { event: 'sync' }, () => {

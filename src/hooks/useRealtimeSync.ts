@@ -5,14 +5,23 @@
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { getSupabaseBrowserClient, isSupabaseRealtimeConfigured, syncChannelName } from '@/lib/supabase-client';
+import {
+  getSupabaseBrowserClient,
+  isSupabaseRealtimeConfigured,
+  REALTIME_PRIVATE_CHANNEL_CONFIG,
+  syncChannelName,
+} from '@/lib/supabase-client';
 import { isRealtimeInvalidationPayload, type RealtimeInvalidationPayload } from '@/lib/realtime-invalidation';
+import {
+  createKeyedDebouncer,
+  invalidationDebounceKey,
+  invalidationDebounceMs,
+} from '@/lib/realtime-invalidation-debounce';
 import { isPrototypeShellRoute } from '@/utils/sync-init';
 import { syncNow } from '@/utils/sync-manager';
 import { matchPrototypeNoteId } from '@/lib/prototype-path';
 
 const CLERK_SUPABASE_JWT_TEMPLATE = 'supabase';
-const DEBOUNCE_MS = 600;
 
 /** True when the open prototype note editor has focus (skip detail refetch mid-edit). */
 function isPrototypeOpenNoteEditorFocused(noteId: string): boolean {
@@ -230,7 +239,7 @@ async function invalidateMainAppQueries(
 export function useRealtimeSync(userId: string | undefined, options?: UseRealtimeSyncOptions): void {
   const { getToken, isSignedIn } = useAuth();
   const queryClient = useQueryClient();
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncerRef = useRef(createKeyedDebouncer());
   const homeSpaceId = options?.homeSpaceId;
   const activeSpaceIdRef = useRef(options?.activeSpaceId);
   activeSpaceIdRef.current = options?.activeSpaceId;
@@ -244,6 +253,7 @@ export function useRealtimeSync(userId: string | undefined, options?: UseRealtim
     if (!supabase) return;
 
     let cancelled = false;
+    const debouncer = debouncerRef.current;
 
     const setup = async () => {
       try {
@@ -257,23 +267,25 @@ export function useRealtimeSync(userId: string | undefined, options?: UseRealtim
 
       if (cancelled) return;
 
-      const channel = supabase.channel(syncChannelName(userId));
+      const channel = supabase.channel(syncChannelName(userId), REALTIME_PRIVATE_CHANNEL_CONFIG);
       channelRef.current = channel;
 
       channel.on('broadcast', { event: 'invalidate' }, ({ payload }) => {
         if (!isRealtimeInvalidationPayload(payload)) return;
 
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => {
-          debounceRef.current = null;
-          void applyInvalidation(
-            queryClient,
-            payload,
-            userId,
-            homeSpaceId,
-            activeSpaceIdRef.current,
-          );
-        }, DEBOUNCE_MS);
+        debouncer.schedule(
+          invalidationDebounceKey(payload),
+          invalidationDebounceMs(payload),
+          () => {
+            void applyInvalidation(
+              queryClient,
+              payload,
+              userId,
+              homeSpaceId,
+              activeSpaceIdRef.current,
+            );
+          },
+        );
       });
 
       channel.subscribe((status) => {
@@ -287,10 +299,7 @@ export function useRealtimeSync(userId: string | undefined, options?: UseRealtim
 
     return () => {
       cancelled = true;
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-        debounceRef.current = null;
-      }
+      debouncer.clearAll();
       const ch = channelRef.current;
       channelRef.current = null;
       if (ch) {

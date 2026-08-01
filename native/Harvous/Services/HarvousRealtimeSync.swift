@@ -39,7 +39,11 @@ final class HarvousRealtimeSync {
         }
 
         let channelName = HarvousSupabaseConfig.syncChannelName(userId: userId)
-        let channel = client.channel(channelName)
+        // Private channel: RLS on realtime.messages scopes join to this user's
+        // sync-* topic (supabase/realtime-authorization.sql).
+        let channel = client.channel(channelName) {
+            $0.isPrivate = true
+        }
 
         let subscription = channel.onBroadcast(event: "invalidate") { [weak self] message in
             guard self != nil else { return }

@@ -1,6 +1,11 @@
 /**
- * Supabase Realtime Broadcast — cross-device cache invalidation (Phase 1).
+ * Supabase Realtime Broadcast — cross-device cache invalidation.
  * Fire-and-forget; never fails the caller's HTTP response.
+ *
+ * Channels are private (`config.private: true`). Access is enforced by RLS on
+ * `realtime.messages` (supabase/realtime-authorization.sql). The service role
+ * key bypasses RLS for sends; clients must still join with a Clerk JWT whose
+ * `sub` matches the topic policy.
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -35,7 +40,9 @@ export function broadcastInvalidation(userId: string, payload: RealtimeInvalidat
 
   void (async () => {
     try {
-      const channel = client.channel(syncChannelName(userId));
+      const channel = client.channel(syncChannelName(userId), {
+        config: { private: true },
+      });
       const status = await channel.send({
         type: 'broadcast',
         event: 'invalidate',
