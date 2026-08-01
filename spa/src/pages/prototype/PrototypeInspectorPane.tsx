@@ -1,6 +1,6 @@
 /**
  * Prototype inspector pane — mirrors native NoteInspectorView.
- * Sections: Info · Tags · Thread · Folders
+ * Sections: Info · Spaces (when shared) · Tags · Thread · Folders
  * Standalone — no SPA CSS variables or shared styles.
  */
 import {
@@ -15,7 +15,10 @@ import {
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
-import PrototypeInspectorCoEditSection from './PrototypeInspectorCoEditSection';
+import PrototypeNoteCoEditToggle, {
+  coEditHelperText,
+  type CoEditSpaceRef,
+} from './PrototypeNoteCoEditToggle';
 import { formatNoteContributors } from '../../lib/shared-space-capabilities';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo, prototypeSettingsAccountRouteTo } from '@/lib/prototype-path';
 import { toPrototypeSpaceSearchParam } from '../../utils/prototype-space-api-id';
@@ -202,6 +205,32 @@ export default function PrototypeInspectorPane({
       ),
     [note.contributors, note.authorUserId, note.userId, authUserId],
   );
+  // Author-only, and only where co-editing can mean anything: a note that is
+  // actually in a shared space. Toggle lives in Info (compact); Spaces lists
+  // where it applies — swap those mounts later without rewriting the control.
+  const coEditSpaces = useMemo<CoEditSpaceRef[]>(
+    () =>
+      (note.spaces ?? []).map((space) => ({
+        spaceId: space.id,
+        spaceTitle: space.title,
+      })),
+    [note.spaces],
+  );
+  const showCoEditControls =
+    !isForeignNote && !isDraftCompose && coEditSpaces.length > 0;
+  // Local mirror so Info status + Spaces helper stay in sync while the PATCH
+  // round-trips (the toggle owns its own optimistic UI separately).
+  const [coEditEnabledLocal, setCoEditEnabledLocal] = useState(note.coEditEnabled === true);
+  useEffect(() => {
+    setCoEditEnabledLocal(note.coEditEnabled === true);
+  }, [note.coEditEnabled, note.id]);
+  const onCoEditChanged = useCallback(
+    (enabled: boolean) => {
+      setCoEditEnabledLocal(enabled);
+      void queryClient.invalidateQueries({ queryKey: ['note', note.id] });
+    },
+    [queryClient, note.id],
+  );
   const templateFromId = (
     templates?.startedFromTemplateId ??
     note.startedFromTemplateId ??
@@ -277,6 +306,21 @@ export default function PrototypeInspectorPane({
               {note.isPublic ? (
                 <InspectorRow label="Sharing" value="Anyone with link" />
               ) : null}
+              {showCoEditControls ? (
+                <InspectorRow
+                  label="Editing"
+                  value={
+                    <PrototypeNoteCoEditToggle
+                      noteId={note.id}
+                      coEditEnabled={coEditEnabledLocal}
+                      contentEncrypted={note.contentEncrypted}
+                      sharedSpaces={coEditSpaces}
+                      layout="row"
+                      onChanged={onCoEditChanged}
+                    />
+                  }
+                />
+              ) : null}
             </>
           )}
         </div>
@@ -295,21 +339,26 @@ export default function PrototypeInspectorPane({
         />
       ) : null}
 
-      {/* Author-only, and only where co-editing can mean anything: a note that is
-          actually in a shared space and isn't locked. */}
-      {!isForeignNote && !isDraftCompose && (note.spaces?.length ?? 0) > 0 ? (
-        <PrototypeInspectorCoEditSection
-          noteId={note.id}
-          coEditEnabled={note.coEditEnabled === true}
-          contentEncrypted={note.contentEncrypted}
-          sharedSpaces={(note.spaces ?? []).map((space) => ({
-            spaceId: space.id,
-            spaceTitle: space.title,
-          }))}
-          onChanged={() => {
-            void queryClient.invalidateQueries({ queryKey: ['note', note.id] });
-          }}
-        />
+      {showCoEditControls ? (
+        <section className="proto-inspector-section">
+          <PrototypeSectionHeader>Spaces</PrototypeSectionHeader>
+          <ul className="proto-inspector-space-list">
+            {coEditSpaces.map((space) => (
+              <li key={space.spaceId} className="proto-inspector-space-list__item">
+                <Icon name="user-group" size={12} aria-hidden />
+                <span>{space.spaceTitle.trim() || 'Shared space'}</span>
+              </li>
+            ))}
+          </ul>
+          {/* Membership context for the Info toggle above. To move the switch
+              here later, mount PrototypeNoteCoEditToggle with layout="stack"
+              and drop the Info row. */}
+          <p className="proto-fte-lock__hint proto-inspector-space-list__hint">
+            {note.contentEncrypted
+              ? 'Locked notes stay private.'
+              : coEditHelperText(coEditEnabledLocal, coEditSpaces)}
+          </p>
+        </section>
       ) : null}
 
       {!isForeignNote && !isDraftCompose ? (
