@@ -161,6 +161,23 @@ export async function rollbackFailedNoteUpdate(
       queryKey: ['note', noteId],
       refetchType: 'all',
     });
+    return;
+  }
+  if (error instanceof APIError && (error.status === 404 || error.status === 403)) {
+    // The write path answers "not found" for both a genuinely missing note and one
+    // this viewer isn't authorized to edit (server deliberately doesn't distinguish,
+    // so note existence never leaks). Either way the rollback above just discarded
+    // what was typed — without this, that loss is silent and reads as data eaten by
+    // a bug rather than a permission the viewer never had.
+    window.dispatchEvent(
+      new CustomEvent('toast', {
+        detail: {
+          message: "You can't edit this note — your changes weren't saved.",
+          type: 'error',
+        },
+      }),
+    );
+    await queryClient.invalidateQueries({ queryKey: ['note', noteId], refetchType: 'all' });
   }
 }
 

@@ -112,6 +112,27 @@ Two rules make that work, and they must both be ported or neither:
   (`spa/src/hooks/useSwitchToSpace.ts`). As a continuous render guard it would
   vanish a private note the instant you opened it from a Home-scoped list inside a
   shared space.
+- **The switch-time lookup must find data cached under any context, not just the
+  bare key.** Web shipped a real bug here (fixed August 2026): a note opened with a
+  space context caches under a context-suffixed key, but the close-check read the
+  bare key — an exact-key miss — so every downstream guard failed open and a
+  foreign, read-only note never closed on switching to My Home. Client-side that
+  meant an editable-looking editor for a note the viewer didn't own (the server
+  still rejected the write; see `resolveNoteEditAuthorization` below — no data was
+  ever at risk, but the save silently vanished with no explanation). If native
+  keys its own note cache/store by context the same way, the equivalent lookup
+  needs the same prefix/any-context match — see `findCachedNoteAcrossContexts` in
+  `spa/src/hooks/useSwitchToSpace.ts` and its regression test in
+  `spa/src/hooks/__tests__/use-switch-to-space.test.ts`.
+- **Editability must not rest solely on space-context resolution.** The
+  context-collapse bug above also flipped `readOnlyInSharedSpace` to `false`
+  because it was gated entirely behind `noteInSharedSpace`, with the server's own
+  `canEdit` verdict sitting unused a few lines below. Fixed by checking ownership
+  independently first — see `resolveForeignNoteReadOnly` in
+  `spa/src/lib/note-audience.ts`. Port this as an unconditional rule: a note
+  positively known to be foreign and without a co-edit grant must render
+  read-only regardless of whatever context state native currently believes it's
+  in.
 - **Fail open.** Never close when membership hasn't loaded, and never close the
   author's own note when switching to My Home — My Home is an aggregate that
   contains every note you authored regardless of `spaceId`
@@ -166,6 +187,32 @@ new-note placement from the active space alone — a list filter no longer influ
 where a note lands. If native's compose has any comparable ambiguity about which
 space a new note will belong to, name the destination in the editor rather than
 leaving it to be discovered after saving.
+
+---
+
+## 5. Cross-platform: the write endpoint isn't scoped to the read context
+
+Not native-specific — flagging it here because it surfaced while chasing the item 2
+regression, and it affects any client (web included), so a native co-edit
+implementation must not assume space context matters more than it does server-side.
+
+`PUT /api/notes/update` never receives a space/context id at all
+(`spa/src/hooks/mutations/useUpdateNote.ts` — the `contextSpaceId` field is
+explicitly documented "Never sent to the canonical endpoint"). Server-side,
+`resolveNoteEditAuthorization` → `resolveSharedSpacesGrantingEdit`
+(`server/utils/note-collaboration.ts`) grants a write if **any** live,
+co-edit-enabled `SpaceNotes` association exists for that note where the actor is a
+member — independent of which space the client's UI currently shows.
+
+**Not exploitable today**: verified against production data that no note is
+currently associated with more than one shared space, so there's no second space
+whose grant could disagree with the one being displayed. But the latent shape of
+the bug is real: a note in Space A (co-edit off) *and* Space B (co-edit on) would
+be legitimately writable via the unscoped endpoint while a viewer reads it in
+Space A, where the UI correctly says editing is off. This is a should-fix, not a
+five-alarm one — no incident has occurred and none can with the current data
+shape — but the write path should eventually require and verify the same context
+a read does, mirroring `resolveNoteReadContext`.
 
 ---
 

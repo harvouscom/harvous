@@ -151,6 +151,35 @@ export function resolveCoEditFollower(input: {
 }
 
 /**
+ * Whether a foreign (not-own) note must render read-only, independent of
+ * whatever space context the viewer currently believes they're in.
+ *
+ * This is the safety check that sits underneath `noteInSharedSpace` context
+ * resolution rather than behind it. A note we positively know belongs to
+ * someone else, with no co-edit grant, must stay locked even if the space
+ * context the viewer opened it in gets lost — e.g. the switcher moving to My
+ * Home, or a stale/incomplete association list. `canEdit` is the server's own
+ * verdict (`resolveNoteEditAuthorization`, the same helper the write endpoint
+ * uses), so it is authoritative and must never be silently skipped.
+ */
+export function resolveForeignNoteReadOnly(input: {
+  /** True only when reading inside one of the note's own live shared-space associations. */
+  noteInSharedSpace: boolean;
+  /** Tri-state: `null` while ownership is still resolving. Only explicit `false` locks. */
+  isOwnNoteConfirmed: boolean | null;
+  /** The server's verdict that this viewer may write the body. */
+  canEdit: boolean;
+  holdsPen: boolean;
+  penFree: boolean;
+}): boolean {
+  if (input.isOwnNoteConfirmed === false && !input.canEdit) return true;
+  if (!input.noteInSharedSpace) return false;
+  if (input.isOwnNoteConfirmed === true) return false;
+  if (!input.canEdit) return true;
+  return !(input.holdsPen || input.penFree);
+}
+
+/**
  * How prominently the edit-status slot should render.
  *
  *  - `loud`   — the full pen/lease banner

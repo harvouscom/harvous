@@ -5,7 +5,7 @@ import { useNavigation } from './queries/useNavigation';
 import { useSpaceMembers } from './queries/useSpace';
 import { usePrototypeHomeSpaceId } from './usePrototypeHomeSpaceId';
 import { normalizePrototypeApiSpaceId } from '../utils/prototype-space-api-id';
-import { resolveNoteAudience } from '../lib/note-audience';
+import { resolveForeignNoteReadOnly, resolveNoteAudience } from '../lib/note-audience';
 
 /**
  * True when viewing another member's note inside a shared space (read-only).
@@ -119,10 +119,14 @@ export function useForeignSharedNote(
    * free (interaction claims it). Fail-closed at every step.
    */
   const readOnlyInSharedSpace = useMemo(() => {
-    if (!noteInSharedSpace || !noteId || !note) return false;
-    if (isOwnNoteConfirmed === true) return false;
-    if (note.canEdit !== true) return true;
-    return !(holdsPen || penFree);
+    if (!noteId || !note) return false;
+    return resolveForeignNoteReadOnly({
+      noteInSharedSpace,
+      isOwnNoteConfirmed,
+      canEdit: note.canEdit === true,
+      holdsPen,
+      penFree,
+    });
   }, [noteInSharedSpace, noteId, note, isOwnNoteConfirmed, holdsPen, penFree]);
 
   const isForeignSharedNote = useMemo(

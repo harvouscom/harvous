@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
   isPrototypeHomePath,
   matchPrototypeNoteId,
@@ -12,6 +12,33 @@ import { useProtoShell } from '../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from './usePrototypeHomeSpaceId';
 import type { NoteDetail } from './queries/useNote';
 import { isPrototypeDraftNoteSlug, normalizeNoteIdFromParam } from '../pages/prototype/proto-route-slugs';
+
+/**
+ * Find this note's cached detail regardless of which space context it was
+ * fetched under.
+ *
+ * A note opened with `?space=` caches under the context-suffixed key
+ * `['note', id, 'space_X']` (see `getNoteQueryOptions` in `queries/useNote.ts`),
+ * not the bare `['note', id]`. An exact-key read misses it entirely, which
+ * used to make every downstream guard in `shouldCloseNoteOnSpaceSwitch` fail
+ * open on the resulting `undefined` — a foreign, read-only note would never
+ * close on switching to My Home. Prefix-matching finds it under any key;
+ * when more than one cached entry exists, prefer whichever has `spaces`
+ * populated (the richer, detail-endpoint read) over a bare list-seed.
+ */
+export function findCachedNoteAcrossContexts(
+  queryClient: QueryClient,
+  noteId: string,
+): NoteDetail | undefined {
+  return queryClient
+    .getQueriesData<NoteDetail>({ queryKey: ['note', noteId] })
+    .map(([, data]) => data)
+    .reduce<NoteDetail | undefined>((best, data) => {
+      if (!data) return best;
+      if (!best) return data;
+      return best.spaces === undefined && data.spaces !== undefined ? data : best;
+    }, undefined);
+}
 
 /**
  * Switch the active space, treating the switcher as navigation.
@@ -45,9 +72,7 @@ export function useSwitchToSpace() {
 
       if (hasOpenNote && !isDraft && slug) {
         const noteId = normalizeNoteIdFromParam(slug);
-        // Read the audience straight off the detail cache. `undefined` spaces means
-        // membership hasn't loaded, and shouldCloseNoteOnSpaceSwitch fails open on it.
-        const note = queryClient.getQueryData<NoteDetail>(['note', noteId]);
+        const note = findCachedNoteAcrossContexts(queryClient, noteId);
         const shouldClose = shouldCloseNoteOnSpaceSwitch({
           destinationSpaceId: spaceId,
           homeSpaceId,

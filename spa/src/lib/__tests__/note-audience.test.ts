@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   noteAudienceLabel,
   resolveCoEditFollower,
+  resolveForeignNoteReadOnly,
   resolveNoteAudience,
   resolveNoteEditStatusVisibility,
   shouldCloseNoteOnSpaceSwitch,
@@ -284,6 +285,81 @@ describe('the locked-editor invariant', () => {
         canCoEdit: false,
       })
     ).toBe(false);
+  });
+});
+
+describe('resolveForeignNoteReadOnly', () => {
+  // Regression: switching the switcher to My Home used to make `noteInSharedSpace`
+  // collapse to false for a foreign note (its context was lost), which skipped the
+  // read-only check entirely and left the editor genuinely writable. The server
+  // still rejected the resulting save (verified against production data — no
+  // unauthorized write has ever persisted), but the client silently discarded
+  // what the user typed and looked editable the whole time.
+  const base = {
+    noteInSharedSpace: false,
+    isOwnNoteConfirmed: false as boolean | null,
+    canEdit: false,
+    holdsPen: false,
+    penFree: false,
+  };
+
+  it('stays read-only for a foreign, non-co-edited note even with no space context', () => {
+    // This is the exact bug: context lost (noteInSharedSpace: false), but the
+    // note is positively known to be someone else's and not writable.
+    expect(resolveForeignNoteReadOnly(base)).toBe(true);
+  });
+
+  it('stays read-only for a foreign note inside its shared-space context too', () => {
+    expect(resolveForeignNoteReadOnly({ ...base, noteInSharedSpace: true })).toBe(true);
+  });
+
+  it('is writable for a foreign note with a co-edit grant, once the pen is available', () => {
+    expect(
+      resolveForeignNoteReadOnly({
+        ...base,
+        noteInSharedSpace: true,
+        canEdit: true,
+        penFree: true,
+      })
+    ).toBe(false);
+    expect(
+      resolveForeignNoteReadOnly({
+        ...base,
+        noteInSharedSpace: true,
+        canEdit: true,
+        holdsPen: true,
+      })
+    ).toBe(false);
+  });
+
+  it('stays read-only for a co-edit-granted note while the pen is neither held nor free', () => {
+    expect(
+      resolveForeignNoteReadOnly({ ...base, noteInSharedSpace: true, canEdit: true })
+    ).toBe(true);
+  });
+
+  it('is never read-only for your own note, in any context', () => {
+    expect(
+      resolveForeignNoteReadOnly({ ...base, isOwnNoteConfirmed: true, noteInSharedSpace: false })
+    ).toBe(false);
+    expect(
+      resolveForeignNoteReadOnly({ ...base, isOwnNoteConfirmed: true, noteInSharedSpace: true })
+    ).toBe(false);
+  });
+
+  it('hides in Home (renders editable) while ownership is still unknown and there is no context', () => {
+    // `null` = still resolving. Outside a shared-space context there's nothing
+    // to lock against yet — this matches a note that hasn't loaded far enough
+    // to know anything, not a foreign note losing its context.
+    expect(
+      resolveForeignNoteReadOnly({ ...base, isOwnNoteConfirmed: null, noteInSharedSpace: false })
+    ).toBe(false);
+  });
+
+  it('fails closed (read-only) while ownership is unknown inside a shared-space context', () => {
+    expect(
+      resolveForeignNoteReadOnly({ ...base, isOwnNoteConfirmed: null, noteInSharedSpace: true })
+    ).toBe(true);
   });
 });
 
