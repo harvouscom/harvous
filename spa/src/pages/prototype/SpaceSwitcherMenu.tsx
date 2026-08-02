@@ -252,8 +252,9 @@ export default function SpaceSwitcherMenu({
     myChurchName: myChurch?.churchName ?? null,
   });
   /** Pill when a space/channel is selected (title); My Home / My Church hubs stay circular orbs.
-   * Same in the collapsed detail toolbar — the sidebar title isn't visible there. */
-  const useSpaceSwitcherPill = showSharedSpaceToolbar;
+   * `iconOnly` (mobile unified toolbar) forces the plain orb — the name is still reachable
+   * from the sidebar/drawer space list, so the toolbar doesn't need to repeat it. */
+  const useSpaceSwitcherPill = showSharedSpaceToolbar && !iconOnly;
   // Pill: color tile + title. Hub modes: plain orb glyphs.
   const triggerIcon = activeIsMinistry ? (
     <ProtoSpaceMenuIcon color={space?.color || 'paper'} iconName="rss" />

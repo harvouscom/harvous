@@ -1097,9 +1097,11 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   }
 }
 
-/* iOS standalone PWA: drop shell blur + html wallpaper to avoid WebKit process kills. */
+/* iOS standalone PWA: drop shell blur + heavy image wallpaper to avoid WebKit process kills.
+   Scoped to .harvous-proto-wallpaper-image only — a solid color preset (Sky/Lilac/etc.)
+   is cheap to render and must keep showing through via --pds-canvas-bg. */
 @media (max-width: 899px) {
-  html.ios-pwa.harvous-prototype-route {
+  html.ios-pwa.harvous-prototype-route.harvous-proto-wallpaper-image {
     background-image: none !important;
     background-color: var(--pds-canvas-default) !important;
   }
