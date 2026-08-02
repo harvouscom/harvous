@@ -51,6 +51,12 @@ export interface NotePenState {
   /** Channel is not subscribed — degrade rather than guess. */
   disconnected: boolean;
   /**
+   * The channel has subscribed successfully at least once for this note. Until it
+   * has, `disconnected` describes a connection that was never established — not a
+   * lost one, so callers must not call that "reconnecting".
+   */
+  hasConnected: boolean;
+  /**
    * Presence lease path is actually running (Realtime configured + subscribed path).
    * When false, do not force follower-lock or show a fake "available" claim UI.
    */
@@ -97,6 +103,7 @@ const IDLE_STATE: NotePenState = {
   heldBy: null,
   available: false,
   disconnected: false,
+  hasConnected: false,
   leaseActive: false,
   claim: () => {},
   release: () => {},
@@ -113,6 +120,7 @@ export function useNoteEditLease(
   const [entries, setEntries] = useState<NotePenPresence[]>([]);
   const [subscribed, setSubscribed] = useState(false);
   const [disconnectedHard, setDisconnectedHard] = useState(false);
+  const [hasConnected, setHasConnected] = useState(false);
   const [wantsPen, setWantsPen] = useState(false);
 
   const channelRef = useRef<ReturnType<
@@ -150,6 +158,7 @@ export function useNoteEditLease(
   const markSubscribed = useCallback((isSubscribed: boolean) => {
     setSubscribed(isSubscribed);
     if (isSubscribed) {
+      setHasConnected(true);
       if (disconnectTimerRef.current != null) {
         window.clearTimeout(disconnectTimerRef.current);
         disconnectTimerRef.current = null;
@@ -171,6 +180,7 @@ export function useNoteEditLease(
       setEntries((prev) => (prev.length === 0 ? prev : []));
       setSubscribed(false);
       setDisconnectedHard(false);
+      setHasConnected(false);
       setWantsPen(false);
       clearBlurTimer();
       if (disconnectTimerRef.current != null) {
@@ -184,6 +194,12 @@ export function useNoteEditLease(
 
     let cancelled = false;
     let retryTimer: number | null = null;
+    // `cancelled` alone is scoped to the effect, not to each attach. Removing a
+    // channel is async, so a superseded channel's `CLOSED` can land *after* its
+    // replacement already reported SUBSCRIBED — flipping us to disconnected over a
+    // healthy subscription, with no future SUBSCRIBED to clear it. Only the newest
+    // attach may touch state.
+    let attachGeneration = 0;
 
     const presenceSelf = () => ({
       userId: userId!,
@@ -194,13 +210,15 @@ export function useNoteEditLease(
     });
 
     const attach = async () => {
+      const generation = ++attachGeneration;
+      const isCurrent = () => !cancelled && generation === attachGeneration;
       try {
         const token = await getTokenRef.current();
-        if (token && !cancelled) await supabase.realtime.setAuth(token);
+        if (token && isCurrent()) await supabase.realtime.setAuth(token);
       } catch {
         /* refresh loop / retry will try again */
       }
-      if (cancelled) return;
+      if (!isCurrent()) return;
 
       if (channelRef.current) {
         void supabase.removeChannel(channelRef.current);
@@ -211,6 +229,7 @@ export function useNoteEditLease(
       channelRef.current = channel;
 
       channel.on('presence', { event: 'sync' }, () => {
+        if (!isCurrent()) return;
         const state = channel.presenceState<Record<string, unknown>>();
         const seen: NotePenPresence[] = [];
         for (const key of Object.keys(state)) {
@@ -223,7 +242,7 @@ export function useNoteEditLease(
       });
 
       channel.subscribe(async (status) => {
-        if (cancelled) return;
+        if (!isCurrent()) return;
         if (status === 'SUBSCRIBED') {
           markSubscribed(true);
           if (wantsPenRef.current && claimedAtRef.current === 0) {
@@ -236,14 +255,15 @@ export function useNoteEditLease(
           markSubscribed(false);
           try {
             const token = await getTokenRef.current();
-            if (token && !cancelled) await supabase.realtime.setAuth(token);
+            if (token && isCurrent()) await supabase.realtime.setAuth(token);
           } catch {
             /* ignore */
           }
-          if (!cancelled && retryTimer == null) {
+          if (isCurrent() && retryTimer == null) {
             retryTimer = window.setTimeout(() => {
               retryTimer = null;
-              if (!cancelled) void attach();
+              // A superseded attach must not re-attach and tear down the live channel.
+              if (isCurrent()) void attach();
             }, 1_500);
           }
         }
@@ -266,6 +286,7 @@ export function useNoteEditLease(
       setEntries([]);
       setSubscribed(false);
       setDisconnectedHard(false);
+      setHasConnected(false);
       setWantsPen(false);
       if (channel) void supabase.removeChannel(channel);
     };
@@ -344,17 +365,16 @@ export function useNoteEditLease(
   }, [holding]);
 
   return useMemo(() => {
-    if (!active) {
-      if (opts.enabled) {
-        return { ...IDLE_STATE, disconnected: true, leaseActive: false };
-      }
-      return IDLE_STATE;
-    }
+    // Wanted but not running (Realtime unconfigured, or auth still resolving). The
+    // lease is simply not attempting a connection, so it is not "disconnected" —
+    // reporting that made callers announce a reconnect that was never happening.
+    if (!active) return IDLE_STATE;
     return {
       holding,
       heldBy,
       available,
       disconnected: disconnectedHard,
+      hasConnected,
       leaseActive: true,
       claim,
       release,
@@ -363,11 +383,11 @@ export function useNoteEditLease(
     };
   }, [
     active,
-    opts.enabled,
     holding,
     heldBy,
     available,
     disconnectedHard,
+    hasConnected,
     claim,
     release,
     noteUserActivity,

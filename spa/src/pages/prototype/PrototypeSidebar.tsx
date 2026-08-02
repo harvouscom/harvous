@@ -3,7 +3,7 @@ import { useAuth } from '@clerk/clerk-react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
-import ProtoChipBar from './components/ProtoChipBar';
+import ProtoChipBar, { type ProtoChipOption } from './components/ProtoChipBar';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
@@ -1137,6 +1137,18 @@ function PrototypeSidebarNoteRow({
   );
 }
 
+/**
+ * What a book shows when you open it. Notes leads because "what have I written in
+ * Genesis" is the common question; the verse breakdown is still one tap away and
+ * still drills to a single passage's notes.
+ */
+type ScriptureBookView = 'notes' | 'passages';
+
+const SCRIPTURE_BOOK_VIEW_OPTIONS: readonly ProtoChipOption<ScriptureBookView>[] = [
+  { id: 'notes', label: 'Notes', iconName: 'note-sticky' },
+  { id: 'passages', label: 'Passages', iconName: 'book-open' },
+];
+
 type HighlightKindFilter = 'all' | 'notes' | 'connected' | 'scripture' | 'references';
 
 const HIGHLIGHT_KIND_OPTIONS: { id: HighlightKindFilter; label: string; iconName?: string }[] = [
@@ -1491,6 +1503,7 @@ export default function PrototypeSidebar({
     [threadDrillQuery.data?.nodes],
   );
 
+  const [scriptureBookView, setScriptureBookView] = useState<ScriptureBookView>('notes');
   const [highlightKindFilter, setHighlightKindFilter] = useState<HighlightKindFilter>('all');
   const [pinnedHighlightIds, setPinnedHighlightIds] = useState<string[]>([]);
   const [pinnedFolderIds, setPinnedFolderIds] = useState<string[]>([]);
@@ -1849,6 +1862,27 @@ export default function PrototypeSidebar({
     });
   }, [scriptureBooks, scriptureDrill, q]);
 
+  /**
+   * Every note citing anywhere in the drilled book. One note can cite several
+   * passages in the same book, so dedupe by id — the passage list counts a note
+   * once per passage, this list counts it once per book.
+   */
+  const notesForScriptureBook = useMemo(() => {
+    if (scriptureDrill.level !== 'passages') return [];
+    const book = scriptureBooks.find((b) => b.bookOrder === scriptureDrill.bookOrder);
+    if (!book) return [];
+    const byId = new Map<string, (typeof book.passages)[number]['notes'][number]>();
+    for (const passage of book.passages) {
+      for (const note of passage.notes) {
+        if (!byId.has(note.id)) byId.set(note.id, note);
+      }
+    }
+    const t = q.trim().toLowerCase();
+    const deduped = [...byId.values()];
+    const filtered = !t ? deduped : deduped.filter((n) => (n.title ?? '').toLowerCase().includes(t));
+    return sortDrillNoteBriefsByLastUpdated(filtered, notesById);
+  }, [scriptureBooks, scriptureDrill, q, notesById]);
+
   const notesForScripturePassage = useMemo(() => {
     if (scriptureDrill.level !== 'notes') return [];
     const book = scriptureBooks.find((b) => b.bookOrder === scriptureDrill.bookOrder);
@@ -2078,6 +2112,40 @@ export default function PrototypeSidebar({
       }),
     });
     afterNav();
+  };
+
+  /** Shared by the book-level and passage-level Scripture note lists — same rows, same behavior. */
+  const renderScriptureNoteList = (
+    briefs: { id: string; title: string | null; updatedAt: string | null; createdAt: string }[],
+  ) => {
+    // Row actions are space-scoped; with no space there is nothing to act on. The
+    // scripture index can't have loaded without one, so this is a type guard only.
+    if (!homeSpaceId) return null;
+    return (
+    <ul className="proto-note-list">
+      {briefs.map((n) => (
+        <PrototypeSidebarNoteRow
+          key={n.id}
+          row={resolveDrillNoteRow({
+            id: n.id,
+            title: n.title,
+            updatedAt: n.updatedAt,
+            createdAt: n.createdAt,
+          })}
+          active={!!(activeNoteFullId && n.id === activeNoteFullId)}
+          homeSpaceId={homeSpaceId}
+          activeNoteFullId={activeNoteFullId}
+          isScopedSharedSpace={isScopedSharedSpace}
+          sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
+          viewerIsSpaceOwner={viewerIsSpaceOwner}
+          prefetchNote={prefetchNote}
+          onOpenNote={(r) => {
+            onNoteRow(r);
+          }}
+        />
+      ))}
+    </ul>
+    );
   };
 
   const deleteHighlight = useDeleteHighlight();
@@ -3180,7 +3248,19 @@ export default function PrototypeSidebar({
 
             {mode === 'scripture' && scriptureDrill.level === 'passages' ? (
               <>
-                {passagesForDrill.length === 0 ? (
+                <ProtoChipBar
+                  ariaLabel="Book view"
+                  options={SCRIPTURE_BOOK_VIEW_OPTIONS}
+                  selectedId={scriptureBookView}
+                  onSelect={setScriptureBookView}
+                />
+                {scriptureBookView === 'notes' ? (
+                  notesForScriptureBook.length === 0 ? (
+                    <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noNotesMatch} />
+                  ) : (
+                    renderScriptureNoteList(notesForScriptureBook)
+                  )
+                ) : passagesForDrill.length === 0 ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     No passages match.
                   </p>
@@ -3216,32 +3296,7 @@ export default function PrototypeSidebar({
                 {notesForScripturePassage.length === 0 ? (
                   <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noNotesMatch} />
                 ) : (
-                  <ul className="proto-note-list">
-                    {notesForScripturePassage.map((n) => {
-                      const row = resolveDrillNoteRow({
-                        id: n.id,
-                        title: n.title,
-                        updatedAt: n.updatedAt,
-                        createdAt: n.createdAt,
-                      });
-                      return (
-                        <PrototypeSidebarNoteRow
-                          key={n.id}
-                          row={row}
-                          active={!!(activeNoteFullId && n.id === activeNoteFullId)}
-                          homeSpaceId={homeSpaceId}
-                          activeNoteFullId={activeNoteFullId}
-                          isScopedSharedSpace={isScopedSharedSpace}
-                          sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
-                          viewerIsSpaceOwner={viewerIsSpaceOwner}
-                          prefetchNote={prefetchNote}
-                          onOpenNote={(r) => {
-                            onNoteRow(r);
-                          }}
-                        />
-                      );
-                    })}
-                  </ul>
+                  renderScriptureNoteList(notesForScripturePassage)
                 )}
               </>
             ) : null}

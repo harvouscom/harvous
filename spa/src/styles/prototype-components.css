@@ -1860,6 +1860,12 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   display: none;
 }
 
+/* Leading a list, the chip bar sits directly under the search field, which already
+   carries its own bottom spacing — the extra top margin read as a hole. */
+.proto-sidebar-scroll > .proto-chip-bar:first-child {
+  margin-top: 0;
+}
+
 .proto-chip {
   flex: 1 0 auto;
   display: inline-flex;
@@ -9126,9 +9132,11 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 }
 
 /* Quiet register: the note is shared, but nobody is in it. Same slot and height as
- * the loud banner so escalating mid-typing never shifts the body. */
+ * the loud banner so escalating mid-typing never shifts the body — only the rule's
+ * colour changes. It keeps the same hairline as the loud register so the audience
+ * line reads as chrome separated from the note body rather than floating above it. */
 .proto-shared-readonly-banner--quiet {
-  border-bottom-color: transparent;
+  border-bottom-color: var(--pds-border);
 }
 
 .proto-shared-readonly-banner__audience {

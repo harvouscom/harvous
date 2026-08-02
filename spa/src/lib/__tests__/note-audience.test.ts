@@ -5,6 +5,7 @@ import {
   resolveForeignNoteReadOnly,
   resolveNoteAudience,
   resolveNoteEditStatusVisibility,
+  resolveSharedNoteEditStatus,
   shouldCloseNoteOnSpaceSwitch,
   type NoteAudienceSpaceInput,
 } from '../note-audience';
@@ -285,6 +286,97 @@ describe('the locked-editor invariant', () => {
         canCoEdit: false,
       })
     ).toBe(false);
+  });
+});
+
+describe('resolveSharedNoteEditStatus', () => {
+  // Regression: turning on "Others can edit" flipped the lease from disabled to
+  // enabled, and the banner announced "Reconnecting — your note is safe" for a
+  // channel that had never connected once. It then stuck, because the only thing
+  // that cleared it was a SUBSCRIBED that was never coming. A reconnect claim now
+  // requires evidence of a previous connection.
+  const base = {
+    scope: 'space' as const,
+    coEditEnabledInContext: true,
+    isOwnNote: true,
+    canCoEdit: true,
+    penHolding: false,
+    penHeldByName: null as string | null,
+    penHasConnected: false,
+    penDisconnected: false,
+  };
+
+  it('does not claim a reconnect before the lease has ever connected', () => {
+    expect(resolveSharedNoteEditStatus({ ...base, penDisconnected: true })).toEqual({
+      kind: 'available',
+    });
+  });
+
+  it('reports reconnecting only after a connection is actually lost', () => {
+    expect(
+      resolveSharedNoteEditStatus({ ...base, penHasConnected: true, penDisconnected: true }),
+    ).toEqual({ kind: 'reconnecting' });
+  });
+
+  it('clears back to available when the channel returns', () => {
+    expect(
+      resolveSharedNoteEditStatus({ ...base, penHasConnected: true, penDisconnected: false }),
+    ).toEqual({ kind: 'available' });
+  });
+
+  it('never reports reconnecting in My Home', () => {
+    // There is nothing to reconnect *to* until someone else shows up, and the
+    // warning read as though a private note were at risk.
+    expect(
+      resolveSharedNoteEditStatus({
+        ...base,
+        scope: 'home',
+        penHasConnected: true,
+        penDisconnected: true,
+      }),
+    ).toEqual({ kind: 'available' });
+  });
+
+  it('keeps pen state ahead of connection state', () => {
+    // A live holder must surface even mid-drop; going quiet would leave a locked
+    // editor with no explanation.
+    expect(
+      resolveSharedNoteEditStatus({
+        ...base,
+        penHeldByName: 'Ada',
+        penHasConnected: true,
+        penDisconnected: true,
+      }),
+    ).toEqual({ kind: 'held', holderName: 'Ada' });
+    expect(
+      resolveSharedNoteEditStatus({
+        ...base,
+        penHolding: true,
+        penHasConnected: true,
+        penDisconnected: true,
+      }),
+    ).toEqual({ kind: 'holding' });
+  });
+
+  it('stays read-only for a viewer who may not write, however the channel is doing', () => {
+    for (const penHasConnected of [true, false])
+      for (const penDisconnected of [true, false]) {
+        expect(
+          resolveSharedNoteEditStatus({
+            ...base,
+            isOwnNote: false,
+            canCoEdit: false,
+            penHasConnected,
+            penDisconnected,
+          }),
+        ).toEqual({ kind: 'read-only' });
+      }
+  });
+
+  it('stays read-only when co-edit is off in this space', () => {
+    expect(
+      resolveSharedNoteEditStatus({ ...base, coEditEnabledInContext: false }),
+    ).toEqual({ kind: 'read-only' });
   });
 });
 

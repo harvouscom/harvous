@@ -38,12 +38,13 @@ import PrototypeStudyThreadPopover from './PrototypeStudyThreadPopover';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypePaneEmptyState from './PrototypePaneEmptyState';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
-import { type SharedNoteEditStatus } from './PrototypeSharedNoteReadOnlyBanner';
 import PrototypeNoteAudienceBar from './PrototypeNoteAudienceBar';
 import {
   noteAudienceLabel,
   resolveCoEditFollower,
   resolveNoteEditStatusVisibility,
+  resolveSharedNoteEditStatus,
+  type SharedNoteEditStatus,
 } from '../../lib/note-audience';
 import SharedStudyHighlightOverlay from './SharedStudyHighlightOverlay';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
@@ -1067,31 +1068,29 @@ export default function PrototypeNotePage() {
     pen.noteEditorBlur();
   }, [pen.leaseActive, pen.holding, pen.noteEditorBlur]);
 
-  const sharedNoteEditStatus = useMemo((): SharedNoteEditStatus => {
-    // Pen state stays on the note-level mirror: the lease is per-note, so a holder
-    // must surface even when reading from Home. Everything else is per-space.
-    if (pen.holding) return { kind: 'holding' };
-    if (pen.heldBy) return { kind: 'held', holderName: pen.heldBy.displayName };
-    if (!coEditEnabledInContext) return { kind: 'read-only' };
-    // Only the author and authorized members see co-edit status; anyone else is looking.
-    if (!isOwnNote && !canCoEdit) return { kind: 'read-only' };
-    // "Reconnecting" belongs to a shared context. On your own note in My Home there
-    // is nothing to reconnect *to* until someone else shows up, and the warning read
-    // as though a private note were at risk.
-    if (audienceScope !== 'home' && (!pen.leaseActive || pen.disconnected)) {
-      return { kind: 'reconnecting' };
-    }
-    return { kind: 'available' };
-  }, [
-    coEditEnabledInContext,
-    audienceScope,
-    pen.holding,
-    pen.heldBy,
-    pen.disconnected,
-    pen.leaseActive,
-    isOwnNote,
-    canCoEdit,
-  ]);
+  const sharedNoteEditStatus = useMemo(
+    (): SharedNoteEditStatus =>
+      resolveSharedNoteEditStatus({
+        scope: audienceScope,
+        coEditEnabledInContext,
+        isOwnNote,
+        canCoEdit,
+        penHolding: pen.holding,
+        penHeldByName: pen.heldBy?.displayName ?? null,
+        penHasConnected: pen.hasConnected,
+        penDisconnected: pen.disconnected,
+      }),
+    [
+      coEditEnabledInContext,
+      audienceScope,
+      pen.holding,
+      pen.heldBy,
+      pen.disconnected,
+      pen.hasConnected,
+      isOwnNote,
+      canCoEdit,
+    ],
+  );
 
   /**
    * Quiet in Home, loud on conflict. `isFollower`/`penHeldByOther` force `loud`

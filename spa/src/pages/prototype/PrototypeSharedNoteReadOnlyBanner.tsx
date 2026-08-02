@@ -1,4 +1,5 @@
 import Icon from '@/components/react/Icon';
+import type { SharedNoteEditStatus } from '../../lib/note-audience';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 
 /**
@@ -9,17 +10,7 @@ import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
  * There is no "Start editing" control: allowed writers claim the pen by typing /
  * selecting in the editor. Done releases early; idle/blur grace also release.
  */
-export type SharedNoteEditStatus =
-  /** Not co-editable: the author's note, read-only to everyone else. */
-  | { kind: 'read-only' }
-  /** Co-editable and nobody is writing — type to take the pen. */
-  | { kind: 'available' }
-  /** Someone else is writing. */
-  | { kind: 'held'; holderName: string }
-  /** This viewer holds the pen. */
-  | { kind: 'holding' }
-  /** Co-editable but the lease channel is down; don't imply the pen is free. */
-  | { kind: 'reconnecting' };
+export type { SharedNoteEditStatus } from '../../lib/note-audience';
 
 function statusCopy(status: SharedNoteEditStatus): { icon: string; label: string } {
   switch (status.kind) {

@@ -14,16 +14,32 @@ import type { RealtimeInvalidationPayload } from '@/lib/realtime-invalidation';
 export type { RealtimeInvalidationPayload, RealtimeInvalidationType } from '@/lib/realtime-invalidation';
 
 let adminClient: SupabaseClient | null = null;
+/** Client construction failed; don't retry (or re-log) on every subsequent write. */
+let adminClientUnavailable = false;
 
 function getAdminClient(): SupabaseClient | null {
   if (adminClient) return adminClient;
+  if (adminClientUnavailable) return null;
   const url = process.env.SUPABASE_URL?.trim();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!url || !key) return null;
-  adminClient = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  return adminClient;
+  try {
+    // `createClient` builds a RealtimeClient eagerly, and that constructor throws
+    // outright on runtimes without a global WebSocket (Node < 22 — this project
+    // requires >= 22, but a dev box on 20 must degrade, not 500 every mutation).
+    // Broadcast is a best-effort side channel; HTTP sync is authoritative.
+    adminClient = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    return adminClient;
+  } catch (err) {
+    adminClientUnavailable = true;
+    console.error(
+      '[realtime] disabled — could not create admin client:',
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
 }
 
 /** Channel topic for a user's cross-device sync signals. */

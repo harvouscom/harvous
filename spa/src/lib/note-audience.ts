@@ -180,6 +180,62 @@ export function resolveForeignNoteReadOnly(input: {
 }
 
 /**
+ * What the shared-note status line says. Lives here rather than on the banner
+ * component so the rules that pick it can be tested as a matrix.
+ */
+export type SharedNoteEditStatus =
+  /** Not co-editable: the author's note, read-only to everyone else. */
+  | { kind: 'read-only' }
+  /** Co-editable and nobody is writing — type to take the pen. */
+  | { kind: 'available' }
+  /** Someone else is writing. */
+  | { kind: 'held'; holderName: string }
+  /** This viewer holds the pen. */
+  | { kind: 'holding' }
+  /** Co-editable, and a lease channel that *had* connected has dropped. */
+  | { kind: 'reconnecting' };
+
+/**
+ * Which status a shared note's edit line should show.
+ *
+ * The one subtlety is `reconnecting`. It requires `penHasConnected` — a lease that
+ * never joined is not reconnecting to anything, and saying so turned every co-edit
+ * toggle and every cold page load into an alarming banner about a note that was in
+ * no danger. A never-connected lease falls through to `available`, which is honest:
+ * the pen is advisory (see useNoteEditLease), the server is what actually rejects a
+ * conflicting write via expectedVersion → 409, and by this point the viewer has
+ * already been confirmed as someone allowed to write.
+ */
+export function resolveSharedNoteEditStatus(input: {
+  scope: NoteAudienceScope;
+  coEditEnabledInContext: boolean;
+  isOwnNote: boolean;
+  canCoEdit: boolean;
+  /** This viewer holds the pen. */
+  penHolding: boolean;
+  /** Display name of a remote pen holder, or null. */
+  penHeldByName: string | null;
+  /** The lease channel subscribed at least once for this note. */
+  penHasConnected: boolean;
+  /** The lease channel is down past its grace period. */
+  penDisconnected: boolean;
+}): SharedNoteEditStatus {
+  // Pen state stays on the note-level mirror: the lease is per-note, so a holder
+  // must surface even when reading from Home. Everything else is per-space.
+  if (input.penHolding) return { kind: 'holding' };
+  if (input.penHeldByName) return { kind: 'held', holderName: input.penHeldByName };
+  if (!input.coEditEnabledInContext) return { kind: 'read-only' };
+  // Only the author and authorized members see co-edit status; anyone else is looking.
+  if (!input.isOwnNote && !input.canCoEdit) return { kind: 'read-only' };
+  // Reconnecting belongs to a shared context. On your own note in My Home there is
+  // nothing to reconnect *to* until someone else shows up.
+  if (input.scope !== 'home' && input.penHasConnected && input.penDisconnected) {
+    return { kind: 'reconnecting' };
+  }
+  return { kind: 'available' };
+}
+
+/**
  * How prominently the edit-status slot should render.
  *
  *  - `loud`   — the full pen/lease banner

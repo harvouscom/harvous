@@ -6658,7 +6658,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             });
           }
         } else {
-          // Read-only mode: navigate to the scripture note
+          // Read-only mode. In the prototype shell a pill still opens its passage —
+          // as a read-only dock card, in place. There is no pill range to write back
+          // to (and a reader must not restyle someone else's pill), so the session
+          // carries `boundaries: null`. Needs only `reference`, matching the editable
+          // branch: a pill authored through the dock flow never gets a `data-note-id`,
+          // and the legacy bail below would silently swallow the tap.
+          if (editorChromeMode === 'prototypeNative') {
+            setTranslationPicker(null);
+            suppressScriptureDockDismiss();
+            setStudyDockStack((s) =>
+              openOrFocusScripture(s, buildReadOnlyScriptureSession(reference, translation, noteId)),
+            );
+            return;
+          }
+
+          // Classic shell: navigate to the scripture note
           if (!noteId || noteId === 'pending' || noteId === 'null') return;
 
           // Determine thread context from URL/cache/DOM
