@@ -9109,7 +9109,11 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   width: auto;
   margin: 0 12px 20px;
   padding: 0 0 10px;
-  border-bottom: 0.5px solid var(--pds-border);
+  /* Derived from the text colour, not --pds-border: that token brightens from the
+   * canvas (a light cream) and lands within ~2/255 of the white note paper, so the
+   * rule was there but invisible. Mixing from text keeps it legible on the paper
+   * and flips correctly in dark mode. */
+  border-bottom: 0.5px solid color-mix(in oklab, var(--pds-text-secondary) 26%, transparent);
   /* Match Done button height so available ↔ holding doesn't nudge the title. */
   min-height: 22px;
   box-sizing: content-box;
@@ -9131,13 +9135,9 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   opacity: 0.55;
 }
 
-/* Quiet register: the note is shared, but nobody is in it. Same slot and height as
- * the loud banner so escalating mid-typing never shifts the body — only the rule's
- * colour changes. It keeps the same hairline as the loud register so the audience
- * line reads as chrome separated from the note body rather than floating above it. */
-.proto-shared-readonly-banner--quiet {
-  border-bottom-color: var(--pds-border);
-}
+/* Quiet register: the note is shared, but nobody is in it. Same slot, height and
+ * hairline as the loud banner, so escalating mid-typing never shifts the body and
+ * the audience line always reads as chrome separated from the note body. */
 
 .proto-shared-readonly-banner__audience {
   max-width: 100%;
