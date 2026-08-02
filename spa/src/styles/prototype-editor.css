@@ -498,7 +498,9 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
 
 .proto-editor-surface .ProseMirror hr {
   border: none;
-  border-top: 1px solid var(--pds-border);
+  /* --pds-border-on-paper, not --pds-border: this sits on the note paper, where
+     --pds-border (brightened from the canvas) composites to invisible. */
+  border-top: 1px solid var(--pds-border-on-paper);
   margin: 1.5em 0;
 }
 
@@ -509,7 +511,7 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
   height: auto;
   margin: 1em 0;
   border-radius: 8px;
-  border: 1px solid var(--pds-border);
+  border: 1px solid var(--pds-border-on-paper);
   box-sizing: border-box;
 }
 

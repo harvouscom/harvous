@@ -1996,6 +1996,16 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   animation: proto-inspector-desktop-in var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease) both;
 }
 
+/* Dismiss target for the floating desktop inspector. Scoped to the right-panel host
+   (the main column), so the sidebar and toolbar stay directly clickable rather than
+   spending a click on dismissal. Sits under the inspector's own z-index: 1. */
+.proto-inspector-desktop-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: transparent;
+}
+
 .proto-inspector-desktop--exiting {
   animation: proto-inspector-desktop-out var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease) both;
 }
@@ -9109,11 +9119,9 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   width: auto;
   margin: 0 12px 20px;
   padding: 0 0 10px;
-  /* Derived from the text colour, not --pds-border: that token brightens from the
-   * canvas (a light cream) and lands within ~2/255 of the white note paper, so the
-   * rule was there but invisible. Mixing from text keeps it legible on the paper
-   * and flips correctly in dark mode. */
-  border-bottom: 0.5px solid color-mix(in oklab, var(--pds-text-secondary) 26%, transparent);
+  /* This banner sits on the note paper, not the canvas — see --pds-border-on-paper
+   * (prototype-tokens.css) for why --pds-border is invisible here. */
+  border-bottom: 0.5px solid var(--pds-border-on-paper);
   /* Match Done button height so available ↔ holding doesn't nudge the title. */
   min-height: 22px;
   box-sizing: content-box;

@@ -264,6 +264,15 @@
   --pds-border-control-soft: oklch(var(--pds-lch-border-control-soft));
   --pds-border-control-medium: oklch(var(--pds-lch-border-control-medium));
   --pds-border-control-strong: oklch(var(--pds-lch-border-control-strong));
+  /*
+   * Hairline for content that sits on the note *paper* (white/near-white), not the
+   * canvas — `<hr>`, image frames, anything inside `.ProseMirror`. `--pds-border`
+   * brightens from `--pds-canvas-bg`, so on paper it composites to within ~2/255 of
+   * white and is invisible by construction (see the audience-banner divider fix).
+   * Derived from text instead: automatically correct in both themes, no per-theme
+   * or per-wallpaper redefinition needed the way `--pds-border` requires.
+   */
+  --pds-border-on-paper: color-mix(in oklab, var(--pds-text-secondary) 26%, transparent);
 
   /* Overlays (drawer scrims, modal backdrops) */
   --pds-overlay-light: oklch(var(--pds-lch-overlay-light));

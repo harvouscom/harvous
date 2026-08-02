@@ -1833,6 +1833,18 @@ export default function PrototypeNotePage() {
   const desktopInspectorLayer =
     showInspectorDesktop && inspectorNote && rightPanelPortalTarget
       ? createPortal(
+          <>
+          {/* Floating only: the inspector is sitting on top of the editor, so a click
+              on the note behind it dismisses — same gesture as the mobile slide-over.
+              When it docks it owns its own column and must not eat editor clicks. */}
+          {inspectorFloating ? (
+            <div
+              className="proto-inspector-desktop-backdrop"
+              role="presentation"
+              tabIndex={-1}
+              onClick={closeInspector}
+            />
+          ) : null}
           <div
             className={`proto-inspector-desktop${inspectorExiting ? ' proto-inspector-desktop--exiting' : ''}`}
             role="dialog"
@@ -1850,7 +1862,8 @@ export default function PrototypeNotePage() {
               isDraftCompose={isDraft}
               templates={inspectorTemplates}
             />
-          </div>,
+          </div>
+          </>,
           rightPanelPortalTarget,
         )
       : null;
