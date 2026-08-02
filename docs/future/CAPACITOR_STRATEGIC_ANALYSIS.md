@@ -1,5 +1,11 @@
 # Capacitor.js Strategic Analysis - iOS & Android Native Apps
 
+> **SUPERSEDED (2026) — kept for historical reasoning only.** The team took
+> the native-first path instead: `native/Harvous/` is a SwiftUI app targeting
+> iOS + macOS directly against the shared Hono API, not a Capacitor wrapper
+> around this web app. See `native/docs/future/ARCHITECTURE_ROADMAP.md` for
+> the native app's own roadmap.
+
 **Status:** Planning / Future Feature  
 **Complexity:** High  
 **Estimated Effort:** 20-32 days (MVP) | 6-9 weeks (full offline-first)  

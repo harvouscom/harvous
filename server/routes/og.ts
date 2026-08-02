@@ -41,8 +41,20 @@ const route = new Hono();
 /** Cache-bust for iMessage / social after OG generator changes */
 const OG_IMAGE_VERSION = '7';
 
+/**
+ * Referral OG image generation is disabled — returns 404, not a 200 text
+ * body, so crawlers and iMessage unfurl without a preview image instead of
+ * caching a broken "image" whose body is plain text. Mirrors `noImageResponse`
+ * below for the note/thread image routes.
+ */
 route.get('/api/og/referral/:code', (c) => {
-  return c.text('OG image temporarily disabled', 200);
+  return new Response(null, {
+    status: 404,
+    headers: {
+      'Cache-Control': 'public, max-age=60, s-maxage=60',
+      'X-Og-Source': 'none',
+    },
+  });
 });
 
 async function loadPublicNote(shareToken: string) {

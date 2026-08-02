@@ -146,7 +146,7 @@ export const SHARED_SPACE_DASHBOARD_FIXTURE_FULL: SharedSpaceDashboardFixture = 
   noteCardSlots: [
     {
       kind: 'new-from-others',
-      eyebrow: 'New since your last visit',
+      eyebrow: 'Updated since your last visit',
       note: fixtureNote('sarah-adoption', {
         title: 'Adoption as sons — Romans 8:15',
         authorUserId: 'user_sarah',

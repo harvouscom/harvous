@@ -1,6 +1,43 @@
 # Memory Layer — Assessment & Roadmap
 
-Status: planning doc (no implementation). Last updated 2026-06-26.
+Status: **Workstreams A, B, and C shipped 2026-06-26.** This doc's scorecard and
+roadmap below describe the *pre-implementation* state and are kept for the
+reasoning, not the status column — see "What shipped" for what's actually live.
+Last updated 2026-06-26 (assessment); status corrected 2026-08-01.
+
+## What shipped (2026-06-26)
+
+- **A — fingerprints:** `9968bbec` `feat(memory): passage memory fingerprints`.
+  Persisted `NoteFingerprints` table (themes, people, places, `emotionalTone` via
+  a new lexicon, `meaningWeight`), computed in
+  [server/utils/note-fingerprint.ts](../../server/utils/note-fingerprint.ts) and
+  hooked into `process-scripture-references.ts`. Backfilled to 524 existing notes.
+- **B — forgetting-aware resurfacing:** `3d440931`
+  `feat(memory): forgetting-aware resurfacing`. Retrievability-based ranking in
+  [server/utils/note-recall-state.ts](../../server/utils/note-recall-state.ts) and
+  `pickRevisitNote()`, replacing recency-only ordering; stability persists across
+  devices on `NoteFingerprints`.
+- **C — study arcs:** `6216a22b` `feat(memory): study arcs`. `deriveStudyArcs()` in
+  [src/utils/prototype-home-trends.ts](../../src/utils/prototype-home-trends.ts)
+  groups themed notes into 6-month arcs; surfaced as a Home card.
+- **Recall carousel:** `dd769b20` unified the Home resurfacing surface (note +
+  highlight + arc + subject + cross-ref + passage) into one swipeable, snoozable
+  carousel, replacing the older loose card stack.
+- **Generative recall, phase 1:** `9a4c2a9d` — four client-side generative cards
+  (continue-book, recurring-person, bare-highlight, reflection-prompt) that seed a
+  draft note instead of just resurfacing one.
+
+**Recall trails were deliberately dropped**, not deferred: a read-only DB check found
+only 8 `NoteConnections` edges across 5 of 115 users with zero chains longer than 2
+notes — an explicit-link trail would be invisible to ~96% of users. The narrower
+`buildStudyThreadTrail` / inspector spine still exists for that 4%.
+
+**Generative recall, phase 2** (`crossrefGap` and `connectNotes` cards) is approved
+but deferred — plan at `~/.claude/plans/i-m-wondering-how-great-foamy-dusk.md`.
+
+**Still genuinely not done:** workstream A's inspector read-out (declined by the
+user), and the paid `review` feature (practice-from-your-notes) that this layer is
+meant to ground per `SCRIPTURE_AI_GROUNDING_PHASE_5.md`.
 
 ## Context
 

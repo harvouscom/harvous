@@ -1,5 +1,40 @@
 # Native and web data model gap
 
+> **Update (2026-08-01):** this doc was written before Clerk auth and
+> Supabase-backed two-way sync existed on native
+> (`native/Harvous/Services/HarvousSyncService.swift`,
+> `HarvousClerkBridge.swift`). Both now ship. Sync works today, which means
+> every question below was resolved *somehow* in practice — but not all of
+> them were resolved by picking one of the clean options this doc proposed.
+> Status per question, from reading the current sync code:
+>
+> - **Q2 (body format) — resolved.** Canonical is HTML in the DB; native
+>   converts via `HarvousContentBridge.htmlToPlainBody` /
+>   `.markdownToHTML` on push/pull. Native still stores plain text locally
+>   (`Note.body`), so this is "Lossy subset," not full-fidelity — accepted
+>   as the answer, not a gap.
+> - **Q6 (Clerk as canonical user key) — resolved.** Real Clerk sessions via
+>   `HarvousClerkBridge`, not the placeholder `HarvousLocalIdentity`.
+> - **Q4 (version history) — mostly resolved.** Server gained a `NoteVersions`
+>   table (immutable per-note checkpoints) since this doc was written,
+>   answering the "add Postgres fields" branch for that one field. Native's
+>   `NoteSnapshot` and the server's `NoteVersions` are not yet confirmed to be
+>   the same rows — worth a quick check before assuming full parity.
+> - **Q1 (containment / thread) — still genuinely open, and worked around
+>   crudely.** Native still has no `threadId` on `Note`
+>   (`native/Harvous/Models/Note.swift`); `HarvousSyncService.swift:981`
+>   pushes `threadId: ""` to the API on every outbound note. That's not one
+>   of the three options this doc proposed — it's a fourth, undocumented
+>   answer ("send an empty string and let the server figure it out"), and it
+>   likely explains any thread-membership drift between platforms. **This is
+>   the one item here still worth a deliberate decision.**
+> - **Q3 (`simpleNoteId` reconciliation) — still open.** The original TODO is
+>   still in `Note.swift:72` verbatim: "reconcile with server `simpleNoteId`
+>   on conflict."
+> - **Q5, Q7, Q8** — not re-verified in this pass; treat as still open until
+>   someone checks `StudyThreadEntries` parity, `NoteThreads`/`Comments`
+>   sync, and the conflict policy against current `HarvousSyncService.swift`.
+
 This document lists architectural decisions required before Supabase-backed sync, one-way import/hydration from the web SPA, or full cross-platform parity. It complements [ARCHITECTURE_ROADMAP.md](./ARCHITECTURE_ROADMAP.md) (Tier 2 cloud sync).
 
 ## Context

@@ -13,6 +13,7 @@ import {
   getNextSimpleNoteIdPreview,
   getLocalNoteCount,
   createNoteOfflineWithRetry,
+  runOfflineOperationWithRetry,
   cacheHighestSimpleNoteId,
   getCachedHighestSimpleNoteId,
   linkNoteToThreadOffline,
@@ -659,14 +660,97 @@ describe('offline-mutations', () => {
       expect(result.noteId).toBeTruthy();
     });
 
-    it.skip('should retry on transient errors', async () => {
-      // Skip: vitest module mocking doesn't work well with internal function calls
-      // This retry logic is implicitly tested through real usage
+  });
+
+  describe('runOfflineOperationWithRetry (extracted retry policy)', () => {
+    // createNoteOfflineWithRetry always calls createNoteOffline by name, so
+    // vitest can't intercept it to simulate transient/quota errors without
+    // module-level mocking that doesn't reach internal same-module calls.
+    // Testing the extracted pure retry policy directly sidesteps that.
+    const noopSleep = async () => {};
+
+    it('should retry on transient errors and eventually succeed', async () => {
+      let attempts = 0;
+      const operation = vi.fn(async () => {
+        attempts += 1;
+        if (attempts < 3) {
+          throw new Error('database transaction failed');
+        }
+        return 'note-abc';
+      });
+
+      const result = await runOfflineOperationWithRetry(operation, {
+        retries: 2,
+        sleep: noopSleep,
+      });
+
+      expect(operation).toHaveBeenCalledTimes(3);
+      expect(result).toEqual({ success: true, value: 'note-abc' });
     });
 
-    it.skip('should not retry on quota exceeded errors', async () => {
-      // Skip: vitest module mocking doesn't work well with internal function calls
-      // This quota handling is implicitly tested through real usage
+    it('should give up after exhausting retries on a persistent transient error', async () => {
+      const operation = vi.fn(async () => {
+        throw new Error('database transaction failed');
+      });
+
+      const result = await runOfflineOperationWithRetry(operation, {
+        retries: 2,
+        sleep: noopSleep,
+      });
+
+      expect(operation).toHaveBeenCalledTimes(3); // initial + 2 retries
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorType).toBe('database_error');
+      }
+    });
+
+    it('should not retry on quota exceeded errors', async () => {
+      const quotaError = new Error('Storage quota exceeded');
+      quotaError.name = 'QuotaExceededError';
+      const operation = vi.fn(async () => {
+        throw quotaError;
+      });
+
+      const result = await runOfflineOperationWithRetry(operation, {
+        retries: 2,
+        sleep: noopSleep,
+      });
+
+      expect(operation).toHaveBeenCalledTimes(1); // no retry attempts
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorType).toBe('quota_exceeded');
+        expect(result.error).toMatch(/storage is full/i);
+      }
+    });
+
+    it('should not retry when IndexedDB is unavailable', async () => {
+      const idbError = new Error('IndexedDB is not available');
+      const operation = vi.fn(async () => {
+        throw idbError;
+      });
+
+      const result = await runOfflineOperationWithRetry(operation, {
+        retries: 2,
+        sleep: noopSleep,
+      });
+
+      expect(operation).toHaveBeenCalledTimes(1);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorType).toBe('indexeddb_unavailable');
+      }
+    });
+
+    it('createNoteOfflineWithRetry surfaces success through the extracted policy', async () => {
+      // Sanity check that the wrapper still behaves like before the extraction.
+      const result = await createNoteOfflineWithRetry(testUserId, {
+        title: 'Retried note',
+        content: 'Content',
+      });
+      expect(result.success).toBe(true);
+      expect(result.noteId).toBeTruthy();
     });
   });
 });

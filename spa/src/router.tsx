@@ -392,11 +392,11 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeChurchPage')),
   });
 
-  const prototypeSettingsLockPinRoute = createRoute({
-    getParentRoute: () => prototypeSettingsRoute,
-    path: 'lock-pin',
-    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeLockPinPage')),
-  });
+  // Note lock is temporarily disabled in the prototype (see settingsCategories.ts
+  // for the full list of off-switches across web + native); the settings entry
+  // point for it is intentionally not registered here so it isn't reachable by
+  // direct URL. PrototypeLockPinPage and its supporting components are left in
+  // place — this route can be re-added when note lock is turned back on.
 
   const prototypeSettingsSharingRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
@@ -513,7 +513,6 @@ function buildPrototypeRouteBranch() {
       prototypeSettingsTranslationRoute,
       prototypeSettingsAppearanceRoute,
       prototypeSettingsChurchRoute,
-      prototypeSettingsLockPinRoute,
       prototypeSettingsSharingRoute,
       prototypeSettingsAddonsRoute,
       prototypeSettingsDataRoute,

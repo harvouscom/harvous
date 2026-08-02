@@ -472,7 +472,10 @@ export function greetingForHour(hour: number): string {
 }
 
 export function formatHomeNoteCount(count: number, hasMore: boolean): string {
-  if (count === 1 && !hasMore) return '1 note';
+  // Singular is always "1 note" — even when hasMore is true (a page capped at
+  // exactly 1 row), "1+ notes" reads oddly and the distinction isn't worth the
+  // awkward phrasing. Plural still shows the "+" since it's meaningful there.
+  if (count === 1) return '1 note';
   return `${count}${hasMore ? '+' : ''} notes`;
 }
 

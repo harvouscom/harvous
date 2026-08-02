@@ -1,5 +1,9 @@
 # Capacitor Setup Guide for Harvous iOS/Android Apps
 
+> **SUPERSEDED (2026) — not the path taken.** Native shipped as a SwiftUI app
+> (`native/Harvous/`) against the shared Hono API instead of a Capacitor
+> wrapper. Kept for historical reference only.
+
 This is a short setup checklist. For full steps (developer accounts, static build, auth implementation), see [CAPACITOR_IMPLEMENTATION_GUIDE.md](../CAPACITOR_IMPLEMENTATION_GUIDE.md). For strategy and architecture, see [CAPACITOR_STRATEGIC_ANALYSIS.md](CAPACITOR_STRATEGIC_ANALYSIS.md).
 
 This guide walks you through setting up Capacitor to build native iOS and Android apps from your Harvous web app.

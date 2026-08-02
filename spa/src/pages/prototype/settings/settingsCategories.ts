@@ -49,6 +49,17 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     footnote: 'Background color or image behind the app.',
   },
   // lockPin temporarily hidden while note lock is disabled in the prototype.
+  // The route itself is unregistered too (see spa/src/router.tsx — no
+  // prototypeSettingsLockPinRoute) so it isn't reachable by direct URL either.
+  // Full list of note-lock off-switches, none of which have been removed —
+  // this can all be turned back on by re-adding the route:
+  //   - spa/src/router.tsx: prototypeSettingsLockPinRoute (removed, not just unlisted)
+  //   - spa/src/pages/prototype/PrototypePinPanels.tsx: returns null
+  //   - spa/src/pages/prototype/PrototypeNoteMoreMenu.tsx: lock/unlock omitted
+  //   - native/Harvous/ContentView.swift:501: `case .lockNote: break`
+  //   - native/Harvous/Views/iPadRootView.swift:380: same
+  // Retained and still wired: LockPinPanel, PinEntryPanel, InlinePinUnlock,
+  // LockNoteButton, and the `contentEncrypted` read paths in server/routes/og.ts.
   {
     key: 'sharing',
     title: 'Sharing',

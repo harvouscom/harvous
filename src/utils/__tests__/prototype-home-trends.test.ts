@@ -627,7 +627,8 @@ describe('formatHomeNoteCount', () => {
     expect(formatHomeNoteCount(1, false)).toBe('1 note');
     expect(formatHomeNoteCount(12, false)).toBe('12 notes');
     expect(formatHomeNoteCount(20, true)).toBe('20+ notes');
-    expect(formatHomeNoteCount(1, true)).toBe('1+ notes');
+    // Singular stays "1 note" even when hasMore is true — "1+ notes" read awkwardly.
+    expect(formatHomeNoteCount(1, true)).toBe('1 note');
   });
 });
 

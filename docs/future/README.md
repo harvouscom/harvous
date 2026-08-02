@@ -167,28 +167,25 @@ These were designed here and are now live. The stub files in this folder point t
 
 ## 🎯 Implementation Priority
 
+> **This section is stale (last accurate ~early 2026) and kept for history, not
+> sequencing.** Reality has diverged on every phase below: native shipped as a
+> Swift app, not Capacitor; Realtime shipped as part of Shared Spaces
+> co-editing; and Church Connection remains partially built (identity + staff
+> sync live, billing + self-serve signup not). For current priorities, read
+> [NATIVE_SPACE_CONTEXT_FOLLOWUPS.md](./NATIVE_SPACE_CONTEXT_FOLLOWUPS.md)
+> (freshest, names a live regression),
+> [SHARED_SPACES_ROADMAP.md](./SHARED_SPACES_ROADMAP.md), and
+> [MEMORY_LAYER_ASSESSMENT.md](./MEMORY_LAYER_ASSESSMENT.md).
+
 ### ✅ Completed
-- **Sharing System** — Public share links and collaborative shared spaces (implemented)
+- **Sharing System** — Public share links and collaborative shared spaces, including co-editing (implemented)
 - **Offline Mode** — Full offline read/write with IndexedDB, sync queues, and conflict resolution (implemented)
+- **Real-Time Collaboration** — Supabase Realtime shipped as the transport for co-editing (private channels, RLS-enforced); see `server/utils/realtime.ts` and `src/hooks/useNoteEditLease.ts`. `REALTIME_SUPABASE_PLAN.md`'s phases 1–3 are largely done.
+- **Native Mobile Apps** — shipped, but as a native SwiftUI app (`native/Harvous/`) targeting iOS + macOS directly against the same Hono API, **not** Capacitor. `CAPACITOR_STRATEGIC_ANALYSIS.md` and `CAPACITOR_SETUP_GUIDE.md` are superseded — the team took the native-first path instead.
 
-### Phase 1: Church Connection (High Value)
-- B2B revenue opportunity
-- Automatic user discovery
-- Content distribution system
-
-### Phase 2: Native Mobile Apps (Market Expansion)
-- iOS and Android native apps via Capacitor
-- Requires static build and JWT-based API auth (no AuthGuard)
-- 4-6 weeks for MVP (hybrid API approach)
-- Increased engagement (users check apps 3-5x more than websites)
-- Home screen presence
-- See `CAPACITOR_STRATEGIC_ANALYSIS.md` for strategy and prerequisites
-- See `../CAPACITOR_IMPLEMENTATION_GUIDE.md` for implementation steps
-
-### Phase 3: Real-Time Collaboration (Enhanced Experience)
-- Real-time group study via Supabase Realtime + Tiptap
-- Cross-device instant sync
-- Google Docs-style collaborative note editing
+### Church Connection — partially built
+- Live: church identity, staff sync, HMC directory, admin provisioning (`server/routes/churches.ts`, `/admin/churches`), org-owned broadcast spaces.
+- Not yet: self-serve church signup, `ChurchConnectionRequests` (congregant connect flow), `Churches.billingPlan`. See [CHURCH_CONNECTION_SYSTEM.md](./CHURCH_CONNECTION_SYSTEM.md) and [PASTOR_FEATURES_ROADMAP.md](./PASTOR_FEATURES_ROADMAP.md) for current state and the recommended first general-purpose build (note templates).
 
 ## 🗄️ Database Schema
 

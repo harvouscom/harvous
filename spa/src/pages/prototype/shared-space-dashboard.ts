@@ -46,7 +46,17 @@ export function isNoteUnseenSinceVisit(
 ): boolean {
   if (!unseenSince) return false;
   const updated = note.lastUpdated ?? note.updatedAt;
-  return Boolean(updated && updated > unseenSince);
+  if (!updated) return false;
+  // Compare as instants, not strings. A lexicographic string compare only
+  // agrees with real chronological order when both sides share byte-identical
+  // ISO formatting (same fractional-second precision, same UTC suffix) — the
+  // server does a real Postgres timestamp compare instead
+  // (`gt(Notes.updatedAt, sinceIso)` in server/utils/shared-space-visit.ts).
+  // Date.parse mirrors that here so client/server agree even if formatting drifts.
+  const updatedMs = Date.parse(updated);
+  const sinceMs = Date.parse(unseenSince);
+  if (Number.isNaN(updatedMs) || Number.isNaN(sinceMs)) return false;
+  return updatedMs > sinceMs;
 }
 
 function isOwnSpaceNote(note: SpaceNoteRow, authUserId: string | null | undefined): boolean {
@@ -182,7 +192,10 @@ export function buildSharedSpaceNoteCardSlots(input: {
     used.add(note.id);
     slots.push({
       note,
-      eyebrow: 'New since your last visit',
+      // "Updated," not "New" — isUnseenFromOther compares Notes.updatedAt against
+      // the visit watermark, so an edit to an old note lands here too, not just
+      // creates. See SHARED_SPACES_FRESHNESS_FOLLOWUPS.md §2.
+      eyebrow: 'Updated since your last visit',
       kind: 'new-from-others',
     });
   }
@@ -209,7 +222,7 @@ export function buildSharedSpaceNoteCardSlots(input: {
     used.add(note.id);
     slots.push({
       note,
-      eyebrow: isUnseenFromOther(note) ? 'New since your last visit' : 'Recently updated',
+      eyebrow: isUnseenFromOther(note) ? 'Updated since your last visit' : 'Recently updated',
       kind: 'recent',
     });
   }

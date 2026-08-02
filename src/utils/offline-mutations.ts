@@ -1033,11 +1033,69 @@ export function getOfflineErrorMessage(errorType: OfflineErrorType): string {
 }
 
 /**
+ * Generic retry policy for offline writes: retry with exponential backoff,
+ * except for error types that won't be fixed by retrying (quota exceeded,
+ * IndexedDB unavailable).
+ *
+ * Extracted as a pure, injectable function — `operation` and `sleep` are
+ * parameters rather than direct calls to `createNoteOffline`/`setTimeout` —
+ * specifically so tests can exercise "retries on transient error" and
+ * "doesn't retry on quota exceeded" by passing a mock `operation`. Vitest
+ * module mocking doesn't reach a function called by name from inside the
+ * same module (see the two `it.skip`s this replaced in
+ * `offline-mutations.test.ts`); passing the operation in sidesteps that
+ * entirely instead of fighting the mocking system.
+ */
+export async function runOfflineOperationWithRetry<T>(
+  operation: () => Promise<T>,
+  options: {
+    retries?: number;
+    retryDelay?: number;
+    onAttemptFailed?: (attempt: number, maxAttempts: number, error: any, errorType: OfflineErrorType) => void;
+    sleep?: (ms: number) => Promise<void>;
+  } = {},
+): Promise<{ success: true; value: T } | { success: false; error: string; errorType: OfflineErrorType }> {
+  const {
+    retries = 2,
+    retryDelay = 100,
+    onAttemptFailed,
+    sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
+  } = options;
+  let lastError: any = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const value = await operation();
+      return { success: true, value };
+    } catch (error: any) {
+      lastError = error;
+      const errorType = classifyOfflineError(error);
+      onAttemptFailed?.(attempt + 1, retries + 1, error, errorType);
+
+      // Don't retry for certain error types
+      if (errorType === 'quota_exceeded' || errorType === 'indexeddb_unavailable') {
+        return { success: false, error: getOfflineErrorMessage(errorType), errorType };
+      }
+
+      // Wait before retrying
+      if (attempt < retries) {
+        const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff
+        await sleep(delay);
+      }
+    }
+  }
+
+  // All retries exhausted
+  const errorType = classifyOfflineError(lastError);
+  return { success: false, error: getOfflineErrorMessage(errorType), errorType };
+}
+
+/**
  * Create a note offline with retry logic and better error reporting
  * This is a wrapper around createNoteOffline that adds resilience
  */
 export async function createNoteOfflineWithRetry(
-  userId: string, 
+  userId: string,
   data: {
     title?: string | null;
     content: string;
@@ -1057,53 +1115,27 @@ export async function createNoteOfflineWithRetry(
   },
   options: { retries?: number; retryDelay?: number } = {}
 ): Promise<OfflineOperationResult> {
-  const { retries = 2, retryDelay = 100 } = options;
-  let lastError: any = null;
-  
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const noteId = await createNoteOffline(userId, data);
-      return { success: true, noteId };
-    } catch (error: any) {
-      lastError = error;
-      const errorType = classifyOfflineError(error);
-      
-      console.error(`[createNoteOfflineWithRetry] Attempt ${attempt + 1} failed:`, {
-        error: error.message || error,
+  const result = await runOfflineOperationWithRetry(() => createNoteOffline(userId, data), {
+    ...options,
+    onAttemptFailed: (attempt, maxAttempts, error, errorType) => {
+      console.error(`[createNoteOfflineWithRetry] Attempt ${attempt} failed:`, {
+        error: error?.message || error,
         errorType,
-        attempt: attempt + 1,
-        maxAttempts: retries + 1
+        attempt,
+        maxAttempts,
       });
-      
-      // Don't retry for certain error types
-      if (errorType === 'quota_exceeded' || errorType === 'indexeddb_unavailable') {
-        return {
-          success: false,
-          error: getOfflineErrorMessage(errorType),
-          errorType
-        };
-      }
-      
-      // Wait before retrying
-      if (attempt < retries) {
-        const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
-  
-  // All retries exhausted
-  const errorType = classifyOfflineError(lastError);
-  console.error('[createNoteOfflineWithRetry] All retries exhausted', {
-    error: lastError?.message || lastError,
-    errorType
+    },
   });
-  
-  return {
-    success: false,
-    error: getOfflineErrorMessage(errorType),
-    errorType
-  };
+
+  if (result.success) {
+    return { success: true, noteId: result.value };
+  }
+
+  console.error('[createNoteOfflineWithRetry] All retries exhausted', {
+    error: result.error,
+    errorType: result.errorType,
+  });
+  return { success: false, error: result.error, errorType: result.errorType };
 }
 
 /** Pending study-thread entry op (skips permanently-failed ops). */

@@ -1,5 +1,22 @@
 # Shared Spaces — Release Checklist
 
+> **RETIRED (August 2026) — do not use for release decisions.** Shared
+> Spaces has shipped and is live in production, including co-editing. This
+> doc describes the pre-launch plan: merging a `feat/shared-spaces-foundation`
+> branch that no longer exists (squash-merged and deleted), and configuring
+> `CLERK_SHARED_SPACES_PLAN_ID` — billing moved to Polar as merchant of
+> record before launch, so that env var and the Clerk-plan gate it describes
+> were never the real mechanism. The actual gate is DB-backed entitlements in
+> [server/utils/entitlements.ts](../server/utils/entitlements.ts) (see
+> `hasEntitlement(auth, 'shared_spaces')` in
+> [server/utils/tier-limits.ts](../server/utils/tier-limits.ts)), configured
+> per [BILLING_ARCHITECTURE.md](BILLING_ARCHITECTURE.md). Church-org
+> groundwork mentioned below has since partially activated — see
+> [future/CHURCH_CONNECTION_SYSTEM.md](future/CHURCH_CONNECTION_SYSTEM.md).
+> Kept for historical migration-runbook reference only
+> ([SHARED_SPACES_TESTING.md](SHARED_SPACES_TESTING.md) still describes the
+> real one-time cutover steps that ran).
+
 **Owner:** Derek. This is the condensed operational runbook for shipping
 Shared Spaces to production. Full detail:
 [SHARED_SPACES_LAUNCH_STRATEGY.md](future/SHARED_SPACES_LAUNCH_STRATEGY.md)

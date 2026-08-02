@@ -247,7 +247,11 @@ function PrototypeSidebarSharedSpaceViewLive() {
 
   const space = spaceQuery.data;
   const members = membersQuery.data?.members ?? [];
-  const peopleCount = membersQuery.data?.memberCount ?? (members.length || 1);
+  // No `|| 1` fallback: that flashed "Just you" on a populated space while
+  // membersQuery was still in flight. membersSettled below gates the render
+  // instead, so peopleCount only needs a safe default for the settled case.
+  const peopleCount = membersQuery.data?.memberCount ?? members.length;
+  const membersSettled = isQuerySettled(membersQuery.isPending, membersQuery.data != null);
   const spaceTitle = resolvedSpaceTitle ?? space?.title ?? 'Shared space';
   const ministryMeta = {
     type: navSpace?.type ?? space?.type,
@@ -538,7 +542,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
                 className="proto-shared-space-header__people"
                 onClick={openPeopleSheet}
               >
-                <span>{sharedSpacePeopleHeaderLabel(peopleCount)}</span>
+                <span>{membersSettled ? sharedSpacePeopleHeaderLabel(peopleCount) : ' '}</span>
                 {isSpaceOwner ? (
                   <>
                     <span className="proto-shared-space-header__dot" aria-hidden>
