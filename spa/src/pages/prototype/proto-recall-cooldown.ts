@@ -13,6 +13,15 @@ const KEY_PREFIX = 'harvous.prototype.recallCooldown.';
 /** Default window: don't resurface a snoozed recall item for three weeks. */
 export const RECALL_COOLDOWN_DAYS = 21;
 
+/**
+ * Window after *acting* on a card. Shorter than an explicit dismissal: taking the
+ * suggestion means it was useful, not that it was unwanted — but it shouldn't be the same
+ * suggestion again tomorrow. Acting used to record nothing at all, which is why a
+ * recommendation you had already followed (or followed and changed your mind about) came
+ * straight back.
+ */
+export const RECALL_OPENED_COOLDOWN_DAYS = 7;
+
 type CooldownMap = Record<string, number>;
 
 function key(spaceId: string): string {
@@ -131,6 +140,42 @@ export function recentRecallSectionCounts(
     out[sectionId] = (out[sectionId] ?? 0) + 1;
   }
   return out;
+}
+
+export type ServerRecallHistoryEntry = {
+  opportunityId: string;
+  action: 'open' | 'snooze';
+  createdAt: string;
+};
+
+/**
+ * Union of this device's cooldowns with the server's cross-device history.
+ *
+ * The localStorage store is per-device, so a card dismissed on a phone still appeared on
+ * a desktop. The server has always written these rows; nothing read them back for
+ * suppression. Merging (rather than replacing) keeps suppression working offline, where
+ * the server list is simply empty.
+ */
+export function mergeServerRecallHistoryIntoCooldowns(
+  localIds: Set<string>,
+  serverEvents: ServerRecallHistoryEntry[] | undefined,
+  now: Date,
+  windows: { open: number; snooze: number } = {
+    open: RECALL_OPENED_COOLDOWN_DAYS,
+    snooze: RECALL_COOLDOWN_DAYS,
+  },
+): Set<string> {
+  const merged = new Set(localIds);
+  const nowMs = now.getTime();
+  for (const event of serverEvents ?? []) {
+    if (!event?.opportunityId) continue;
+    const at = Date.parse(event.createdAt);
+    if (!Number.isFinite(at)) continue;
+    const windowDays = event.action === 'open' ? windows.open : windows.snooze;
+    const ageDays = (nowMs - at) / (24 * 60 * 60 * 1000);
+    if (ageDays >= 0 && ageDays < windowDays) merged.add(event.opportunityId);
+  }
+  return merged;
 }
 
 /** Ids snoozed within the cooldown window — excluded from recall picks. */

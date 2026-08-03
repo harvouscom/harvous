@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
   activeCooldownIds,
+  mergeServerRecallHistoryIntoCooldowns,
   recordRecallOpened,
   recordRecallSnoozed,
   recordRecallSectionEngaged,
@@ -65,5 +66,86 @@ describe('proto-recall-cooldown', () => {
     recordRecallSectionEngaged(SPACE, 'paul');
     recordRecallSectionEngaged(SPACE, 'gospels');
     expect(recentRecallSectionCounts(SPACE)).toEqual({ paul: 2, gospels: 1 });
+  });
+});
+
+describe('mergeServerRecallHistoryIntoCooldowns', () => {
+  const NOW = new Date('2026-08-03T12:00:00.000Z');
+  const daysAgo = (n: number) =>
+    new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000).toISOString();
+
+  it('keeps every local id', () => {
+    const merged = mergeServerRecallHistoryIntoCooldowns(new Set(['local_a']), [], NOW);
+    expect(merged.has('local_a')).toBe(true);
+  });
+
+  it('suppresses a card another device recently acted on', () => {
+    // The cross-device half: acting on a phone should rest it on the desktop too.
+    const merged = mergeServerRecallHistoryIntoCooldowns(
+      new Set(),
+      [{ opportunityId: 'book:John:4', action: 'open', createdAt: daysAgo(2) }],
+      NOW,
+    );
+    expect(merged.has('book:John:4')).toBe(true);
+  });
+
+  it('lets an acted-on card return once its shorter window passes', () => {
+    // Acting rests a card for 7 days, not the 21 an explicit dismissal earns.
+    const merged = mergeServerRecallHistoryIntoCooldowns(
+      new Set(),
+      [{ opportunityId: 'book:John:4', action: 'open', createdAt: daysAgo(10) }],
+      NOW,
+    );
+    expect(merged.has('book:John:4')).toBe(false);
+  });
+
+  it('holds a snoozed card for the full dismissal window', () => {
+    const merged = mergeServerRecallHistoryIntoCooldowns(
+      new Set(),
+      [{ opportunityId: 'reflection:season:advent', action: 'snooze', createdAt: daysAgo(10) }],
+      NOW,
+    );
+    expect(merged.has('reflection:season:advent')).toBe(true);
+  });
+
+  it('releases a snoozed card after its window', () => {
+    const merged = mergeServerRecallHistoryIntoCooldowns(
+      new Set(),
+      [{ opportunityId: 'reflection:season:advent', action: 'snooze', createdAt: daysAgo(30) }],
+      NOW,
+    );
+    expect(merged.has('reflection:season:advent')).toBe(false);
+  });
+
+  it('suppresses generative ids, which have no note behind them', () => {
+    // These were the worst offenders: no noteId means no server stability bump, and
+    // their ids are deterministic, so the identical card regenerated every render.
+    const merged = mergeServerRecallHistoryIntoCooldowns(
+      new Set(),
+      [
+        { opportunityId: 'crossref-gap:Rom 8:28|Gen 50:20', action: 'open', createdAt: daysAgo(1) },
+        { opportunityId: 'reflection:season:advent', action: 'open', createdAt: daysAgo(1) },
+      ],
+      NOW,
+    );
+    expect(merged.has('crossref-gap:Rom 8:28|Gen 50:20')).toBe(true);
+    expect(merged.has('reflection:season:advent')).toBe(true);
+  });
+
+  it('degrades to local-only when the server list is missing (offline)', () => {
+    const merged = mergeServerRecallHistoryIntoCooldowns(new Set(['local_a']), undefined, NOW);
+    expect([...merged]).toEqual(['local_a']);
+  });
+
+  it('ignores unparseable or future timestamps', () => {
+    const merged = mergeServerRecallHistoryIntoCooldowns(
+      new Set(),
+      [
+        { opportunityId: 'bad', action: 'open', createdAt: 'not-a-date' },
+        { opportunityId: 'future', action: 'open', createdAt: daysAgo(-5) },
+      ],
+      NOW,
+    );
+    expect(merged.size).toBe(0);
   });
 });

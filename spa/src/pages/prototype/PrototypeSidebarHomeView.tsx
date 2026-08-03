@@ -102,7 +102,15 @@ import {
 } from './proto-highlight-subtitle';
 import { loadPinnedHighlightIds } from './proto-pinned-stores';
 import { stabilityById, mergeStabilityMaps } from './proto-recall-stability';
-import { activeCooldownIds, recordRecallSnoozed, recentRecallSectionCounts } from './proto-recall-cooldown';
+import {
+  activeCooldownIds,
+  mergeServerRecallHistoryIntoCooldowns,
+  recordRecallOpened,
+  recordRecallSnoozed,
+  recentRecallSectionCounts,
+  RECALL_OPENED_COOLDOWN_DAYS,
+} from './proto-recall-cooldown';
+import { useRecallEventHistory } from '../../hooks/queries/useRecallEventHistory';
 import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeRecallCarousel';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
@@ -591,6 +599,7 @@ export default function PrototypeSidebarHomeView({
   // greeting line rewrites itself a beat later — one more thing moving after first paint.
   const { isLoaded: clerkLoaded } = useUser();
   const fingerprintsQuery = useNoteFingerprints();
+  const recallHistoryQuery = useRecallEventHistory();
   const {
     meaningWeightById,
     fingerprintsById,
@@ -713,9 +722,16 @@ export default function PrototypeSidebarHomeView({
   }, [notes, activeNoteId, continueIsActive, continueCandidate]);
   const spotlightHighlight = useMemo(() => pickSpotlightHighlight(highlights, homeSpaceId), [highlights, homeSpaceId]);
   const recallSnoozedIds = useMemo(
-    () => activeCooldownIds(homeSpaceId, recallDayIndex),
+    () =>
+      // Local store is per-device; the server history is what makes a card dismissed on
+      // one device stay dismissed on the others.
+      mergeServerRecallHistoryIntoCooldowns(
+        activeCooldownIds(homeSpaceId, recallDayIndex),
+        recallHistoryQuery.data?.events,
+        new Date(),
+      ),
     // recallTick forces a re-read of the snooze store after the user snoozes an item.
-    [homeSpaceId, recallDayIndex, recallTick],
+    [homeSpaceId, recallDayIndex, recallTick, recallHistoryQuery.data],
   );
   const revisitExcludeIds = useMemo(
     () =>
@@ -1471,6 +1487,18 @@ export default function PrototypeSidebarHomeView({
     [homeSpaceId, recallDayIndex],
   );
 
+  const handleRecallOpened = useCallback(
+    (id: string) => {
+      // Acting on a card rests it. This is the call that never existed: only the ✕ ever
+      // recorded anything, so a suggestion you had already followed came straight back —
+      // and generative cards (continue book, reflection, cross-ref gap) have no noteId,
+      // so they didn't even get the server-side stability bump.
+      recordRecallOpened(homeSpaceId, id, recallDayIndex, RECALL_OPENED_COOLDOWN_DAYS);
+      setRecallTick((t) => t + 1);
+    },
+    [homeSpaceId, recallDayIndex],
+  );
+
   const onCreateFirstNote = useCallback(() => {
     if (!homeSpaceId) return;
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
@@ -1626,6 +1654,7 @@ export default function PrototypeSidebarHomeView({
           <PrototypeRecallCarousel
             opportunities={recallOpportunities}
             onSnooze={handleRecallSnooze}
+            onOpened={handleRecallOpened}
             onRecallSynced={handleRecallSynced}
             homeSpaceId={homeSpaceId}
             creatingNote={createDraftNote.isPending}

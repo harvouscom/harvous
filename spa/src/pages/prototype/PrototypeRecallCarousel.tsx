@@ -36,12 +36,15 @@ function clampIndex(index: number, len: number) {
 export default function PrototypeRecallCarousel({
   opportunities,
   onSnooze,
+  onOpened,
   onRecallSynced,
   homeSpaceId,
   creatingNote = false,
 }: {
   opportunities: RecallOpportunity[];
   onSnooze: (id: string) => void;
+  /** Acting on a card — rests it so the same suggestion doesn't return tomorrow. */
+  onOpened?: (id: string) => void;
   /** Called after a note-backed open event syncs (e.g. invalidate fingerprints). */
   onRecallSynced?: () => void;
   homeSpaceId?: string | null;
@@ -167,6 +170,7 @@ export default function PrototypeRecallCarousel({
             if (active.canonSection) {
               recordRecallSectionEngaged(homeSpaceId, active.canonSection);
             }
+            onOpened?.(active.id);
             active.onOpen();
           }}
         >

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { recallAvgStabilityDays, pickRecallOpenTrendSource, recallSnoozeRatePct } from '../admin-usage-stats';
 import { validateRecallEventInput } from '../record-recall-event';
+import { collapseRecallHistory } from '../record-recall-event';
 
 describe('recallSnoozeRatePct', () => {
   it('computes snooze rate as percent of opens', () => {
@@ -53,5 +54,49 @@ describe('validateRecallEventInput', () => {
     expect(
       validateRecallEventInput({ opportunityId: 'x', kind: 'arc', action: 'dismiss' }),
     ).toBeNull();
+  });
+});
+
+describe('collapseRecallHistory', () => {
+  it('keeps only the most recent entry per opportunity and action', () => {
+    // Rows arrive newest-first, so the first one seen for a pair wins.
+    const collapsed = collapseRecallHistory([
+      { opportunityId: 'a', action: 'open', createdAt: '2026-08-03T00:00:00.000Z' },
+      { opportunityId: 'a', action: 'open', createdAt: '2026-07-01T00:00:00.000Z' },
+    ]);
+    expect(collapsed).toEqual([
+      { opportunityId: 'a', action: 'open', createdAt: '2026-08-03T00:00:00.000Z' },
+    ]);
+  });
+
+  it('treats open and snooze on the same card as separate entries', () => {
+    // They have different suppression windows, so both matter.
+    const collapsed = collapseRecallHistory([
+      { opportunityId: 'a', action: 'open', createdAt: '2026-08-03T00:00:00.000Z' },
+      { opportunityId: 'a', action: 'snooze', createdAt: '2026-08-02T00:00:00.000Z' },
+    ]);
+    expect(collapsed).toHaveLength(2);
+  });
+
+  it('drops impressions, which say nothing about intent', () => {
+    const collapsed = collapseRecallHistory([
+      { opportunityId: 'a', action: 'impression', createdAt: '2026-08-03T00:00:00.000Z' },
+    ]);
+    expect(collapsed).toEqual([]);
+  });
+
+  it('normalizes Date columns to ISO strings', () => {
+    const collapsed = collapseRecallHistory([
+      { opportunityId: 'a', action: 'open', createdAt: new Date('2026-08-03T00:00:00.000Z') },
+    ]);
+    expect(collapsed[0].createdAt).toBe('2026-08-03T00:00:00.000Z');
+  });
+
+  it('skips rows with no id or no timestamp', () => {
+    const collapsed = collapseRecallHistory([
+      { opportunityId: '', action: 'open', createdAt: '2026-08-03T00:00:00.000Z' },
+      { opportunityId: 'b', action: 'open', createdAt: null },
+    ]);
+    expect(collapsed).toEqual([]);
   });
 });
