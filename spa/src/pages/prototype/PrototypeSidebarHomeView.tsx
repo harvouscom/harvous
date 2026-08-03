@@ -934,6 +934,10 @@ export default function PrototypeSidebarHomeView({
   const startDraftNote = useCallback(
     async (opts: { title?: string; contentHtml?: string }) => {
       if (!homeSpaceId) return;
+      // Guard the whole round trip: the card stays on screen while the create is in
+      // flight, so a second tap used to start a second create and leave two notes
+      // behind. Same guard PrototypeDailyPassagePill already uses.
+      if (createDraftNote.isPending) return;
       if (isMobileSidebar) closeDrawer({ preserveHistory: true });
       try {
         const res = await createDraftNote.mutateAsync({
@@ -1574,6 +1578,7 @@ export default function PrototypeSidebarHomeView({
             onSnooze={handleRecallSnooze}
             onRecallSynced={handleRecallSynced}
             homeSpaceId={homeSpaceId}
+            creatingNote={createDraftNote.isPending}
           />
         </div>
       ) : null}

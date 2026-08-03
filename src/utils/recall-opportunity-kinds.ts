@@ -26,6 +26,23 @@ export function isRecallOpportunityKind(value: string): value is RecallOpportuni
   return (RECALL_OPPORTUNITY_KINDS as readonly string[]).includes(value);
 }
 
+/**
+ * Kinds whose primary action can create a new note (the generative cards), rather than
+ * opening something that already exists. Used to disable only these while a create is in
+ * flight, so a second tap can't leave a duplicate note behind — without freezing cards
+ * that merely navigate.
+ */
+export const NOTE_CREATING_RECALL_KINDS: readonly RecallOpportunityKind[] = [
+  'continueBook',
+  'studyPerson',
+  'reflection',
+  'crossrefGap',
+];
+
+export function recallKindCreatesNote(kind: RecallOpportunityKind): boolean {
+  return NOTE_CREATING_RECALL_KINDS.includes(kind);
+}
+
 export function isRecallEventAction(value: string): value is RecallEventAction {
   return (RECALL_EVENT_ACTIONS as readonly string[]).includes(value);
 }

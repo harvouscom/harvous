@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import type { RecallCandidate } from '@/utils/prototype-home-trends';
-import type { RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
+import { recallKindCreatesNote, type RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
 import { recordRecallOpportunityEvent } from './proto-recall-events';
 import { recordRecallSectionEngaged } from './proto-recall-cooldown';
 
@@ -38,12 +38,15 @@ export default function PrototypeRecallCarousel({
   onSnooze,
   onRecallSynced,
   homeSpaceId,
+  creatingNote = false,
 }: {
   opportunities: RecallOpportunity[];
   onSnooze: (id: string) => void;
   /** Called after a note-backed open event syncs (e.g. invalidate fingerprints). */
   onRecallSynced?: () => void;
   homeSpaceId?: string | null;
+  /** A note create started from a card is still in flight. */
+  creatingNote?: boolean;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const startXRef = useRef<number | null>(null);
@@ -52,6 +55,23 @@ export default function PrototypeRecallCarousel({
   const len = opportunities.length;
   const index = clampIndex(activeIndex, len);
   const active = opportunities[index];
+
+  // Late-arriving queries reorder the deck after first paint. Follow the card the user is
+  // actually looking at rather than letting the content swap under their cursor.
+  const idsKey = opportunities.map((o) => o.id).join('|');
+  const activeIdRef = useRef<string | null>(null);
+  activeIdRef.current = active?.id ?? activeIdRef.current;
+  useEffect(() => {
+    const keptId = activeIdRef.current;
+    if (!keptId) return;
+    const nextIndex = opportunities.findIndex((o) => o.id === keptId);
+    // Card gone (usually just snoozed) — hold the position instead of snapping to the
+    // front, which is what the snooze handler's own clamp already does.
+    setActiveIndex((i) => (nextIndex >= 0 ? nextIndex : clampIndex(i, opportunities.length)));
+    // Keyed on the id set, not the array identity — a re-render with the same cards
+    // must not move the user.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey]);
 
   useEffect(() => {
     if (!active || lastImpressionIdRef.current === active.id) return;
@@ -83,6 +103,7 @@ export default function PrototypeRecallCarousel({
 
   if (!active) return null;
 
+  const busy = creatingNote && recallKindCreatesNote(active.kind);
   const canGoPrev = len > 1 && index > 0;
   const canGoNext = len > 1 && index < len - 1;
 
@@ -130,6 +151,11 @@ export default function PrototypeRecallCarousel({
         <button
           type="button"
           className="proto-recall-card__main"
+          // Only the generative kinds are held: the guard in startDraftNote is what
+          // actually prevents the duplicate, this is the visible half. Cards that just
+          // navigate stay live so an in-flight create doesn't freeze the whole carousel.
+          disabled={busy}
+          aria-busy={busy || undefined}
           onClick={() => {
             recordRecallOpportunityEvent({
               opportunityId: active.id,
