@@ -33,7 +33,7 @@
     "cap:android": "npm run cap:sync && node_modules/.bin/cap open android",
     "native:xcodegen": "./scripts/native-xcodegen.sh",
     "native:xcodegen:if-available": "node scripts/native-xcodegen-if-available.mjs",
-    "precommit": "npm run native:xcodegen:if-available && npm run db:check && npm run design:check && npm run check:thread-terminology && npm run check:auth-gated-queries",
+    "precommit": "npm run native:xcodegen:if-available && npm run db:check && npm run design:check && npm run check:thread-terminology && npm run check:auth-gated-queries && npm run typecheck:ratchet",
     "postinstall": "npm run native:xcodegen:if-available",
     "version:bump": "node scripts/bump-version.js",
     "version:check": "node -e \"console.log(require('./package.json').version)\"",
@@ -83,7 +83,10 @@
     "shared-spaces:preflight": "tsx server/scripts/preflight-canonical-space-notes.ts",
     "shared-spaces:backfill": "tsx server/scripts/backfill-canonical-space-notes.ts",
     "shared-spaces:db:push": "tsx server/scripts/shared-spaces-db-push.ts",
-    "shared-spaces:verify": "tsx server/scripts/verify-canonical-space-notes.ts"
+    "shared-spaces:verify": "tsx server/scripts/verify-canonical-space-notes.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:ratchet": "node scripts/check-typecheck-baseline.mjs",
+    "typecheck:baseline": "node scripts/check-typecheck-baseline.mjs --update"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
