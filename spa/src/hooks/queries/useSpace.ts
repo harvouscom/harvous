@@ -151,6 +151,8 @@ export interface SpaceNoteRow {
   secondaryCollections?: string[];
   collectionPinned?: boolean;
   collectionUserOverride?: boolean;
+  /** Viewer's own tag names, capped server-side — powers offline/local search only. */
+  tags?: string[];
   version?: string;
   /** Present on shared/public space merged-author queries only. */
   authorUserId?: string;

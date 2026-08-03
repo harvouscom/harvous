@@ -254,6 +254,8 @@ export function serializeSharedCanonicalNote(input: SharedNoteSerializationInput
     resourceDescription: input.resourceDescription ?? null,
     resourceImage: input.resourceImage ?? null,
     threadColors: input.threadColors,
+    /** Viewer's own tag names only — callers must scope by the viewer's userId. */
+    tags: Array.isArray(input.tags) && input.tags.length > 0 ? input.tags : undefined,
   };
 }
 

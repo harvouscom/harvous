@@ -180,6 +180,40 @@ describe('sidebar-universal-search', () => {
     expect(elsewhere.length).toBeGreaterThan(0);
   });
 
+  it('buildActiveViewResults matches notes on tags alone', () => {
+    // "In Notes" previously only saw title + body, so a tag-only hit resolved server-side
+    // (Elsewhere) but never in the active view. Brings web to parity with native.
+    const taggedNotes = [
+      {
+        id: 'note_tagged',
+        title: 'Sunday gathering',
+        content: '<p>No mention of the query in the body.</p>',
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-02',
+        primaryCollection: null,
+        secondaryCollections: [],
+        tags: ['discipleship', 'small group'],
+      },
+      {
+        id: 'note_untagged',
+        title: 'Grocery list',
+        content: '<p>Milk and bread.</p>',
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-02',
+        primaryCollection: null,
+        secondaryCollections: [],
+      },
+    ] as UniversalSearchData['notes'];
+
+    const results = buildActiveViewResults(
+      baseCtx,
+      'discipleship',
+      { ...sampleData, notes: taggedNotes },
+      (c) => c.title ?? '',
+    );
+    expect(results.map((r) => r.noteId)).toEqual(['note_tagged']);
+  });
+
   it('buildElsewhereResults keeps notes that match only on body content', () => {
     // Mirrors the real report: a note titled "Trust God every day" whose body says
     // "Ps Jeff …" showed under In Notes but vanished from Elsewhere, because the

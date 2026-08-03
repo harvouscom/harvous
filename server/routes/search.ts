@@ -23,6 +23,8 @@ import {
   SpaceMemberships,
   NoteThreads,
   ScriptureMetadata,
+  Tags,
+  NoteTags,
   eq,
   and,
   or,
@@ -179,6 +181,16 @@ route.get('/api/search', requireAuth, async (c) => {
     const useFTS = trimmedQuery.length >= MIN_SEARCH_QUERY_LENGTH;
     const ftsSubstringPattern = useFTS ? `%${trimmedQuery}%` : '';
 
+    // Scoped to the searcher's own tags: `Tags` are per-user, so in a shared space an
+    // unscoped match would let one member's private label surface another member's note.
+    const noteTagMatchSql = (pattern: string) => sql`EXISTS (
+      SELECT 1 FROM ${NoteTags}
+      INNER JOIN ${Tags} ON ${Tags.id} = ${NoteTags.tagId}
+      WHERE ${NoteTags.noteId} = ${Notes.id}
+        AND ${Tags.userId} = ${userId}
+        AND ${Tags.name} ILIKE ${pattern}
+    )`;
+
     let notesRows: {
       id: string;
       title: string | null;
@@ -252,6 +264,7 @@ route.get('/api/search', requireAuth, async (c) => {
                   like(Notes.title, ftsSubstringPattern),
                   like(Notes.content, ftsSubstringPattern),
                   sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${ftsSubstringPattern}`,
+                  noteTagMatchSql(ftsSubstringPattern),
                 ),
               ),
             )
@@ -277,6 +290,7 @@ route.get('/api/search', requireAuth, async (c) => {
                   like(Notes.title, searchTerm),
                   like(Notes.content, searchTerm),
                   sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${searchTerm}`,
+                  noteTagMatchSql(searchTerm),
                 ),
               ),
             )
@@ -312,6 +326,7 @@ route.get('/api/search', requireAuth, async (c) => {
                 like(Notes.title, ftsSubstringPattern),
                 like(Notes.content, ftsSubstringPattern),
                 sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${ftsSubstringPattern}`,
+                noteTagMatchSql(ftsSubstringPattern),
               ),
             ),
           )
@@ -348,6 +363,7 @@ route.get('/api/search', requireAuth, async (c) => {
                 like(Notes.title, searchTerm),
                 like(Notes.content, searchTerm),
                 sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${searchTerm}`,
+                noteTagMatchSql(searchTerm),
               ),
             ),
           )

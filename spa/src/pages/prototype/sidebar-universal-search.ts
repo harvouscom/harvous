@@ -87,8 +87,11 @@ function filterNotesByQuery(notes: SpaceNoteRow[], query: string): SpaceNoteRow[
     note,
     title: noteSearchTitle(note),
     body: stripHtmlForListPreview(note.content ?? '', 800),
+    // Local tag match keeps the active view at parity with native (NoteSearchIndex.swift)
+    // and with server FTS, which resolves tags for the Elsewhere tab.
+    tags: (note.tags ?? []).join(' '),
   }));
-  return fuzzyFilter(searchable, ['title', 'body'], query).map((entry) => entry.note);
+  return fuzzyFilter(searchable, ['title', 'body', 'tags'], query).map((entry) => entry.note);
 }
 
 function highlightSearchText(row: PrototypeHighlightStudyThreadRow): string {

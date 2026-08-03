@@ -12,7 +12,7 @@
 
 import {
   db, first, Threads, Notes, Spaces, SpaceNotes, NoteThreads, SpaceMemberships, UserMetadata,
-  Churches, NoteScriptureReferences, ScriptureMetadata, ResourceMetadata,
+  Churches, NoteScriptureReferences, ScriptureMetadata, ResourceMetadata, Tags, NoteTags,
   eq, and, desc, asc, count, ne, isNull, isNotNull, inArray, sql,
 } from '../db';
 import { nowISO } from '../db/dates';
@@ -794,6 +794,43 @@ export async function getThreadColorsForNotesBatch(
     return result;
   } catch (error) {
     console.error("Error batch fetching thread colors for notes:", error);
+    return new Map();
+  }
+}
+
+/** Cap per note so the list payload stays lean — the list already truncates note content. */
+const NOTE_LIST_MAX_TAGS = 12;
+
+/**
+ * Tag names per note for offline/local list filtering (sidebar search parity with native).
+ *
+ * Scoped to `userId`'s own tags — `Tags` are per-user, so in a shared space a viewer
+ * sees only the tags they applied themselves, never another member's private labels.
+ */
+export async function getTagNamesForNotesBatch(
+  noteIds: string[], userId: string
+): Promise<Map<string, string[]>> {
+  if (noteIds.length === 0) return new Map();
+  try {
+    const rows = await db.select({ noteId: NoteTags.noteId, name: Tags.name })
+      .from(NoteTags)
+      .innerJoin(Tags, eq(Tags.id, NoteTags.tagId))
+      .where(and(inArray(NoteTags.noteId, noteIds), eq(Tags.userId, userId)));
+
+    const result = new Map<string, string[]>();
+    for (const row of rows) {
+      const name = row.name?.trim();
+      if (!name) continue;
+      const existing = result.get(row.noteId);
+      if (!existing) {
+        result.set(row.noteId, [name]);
+      } else if (existing.length < NOTE_LIST_MAX_TAGS && !existing.includes(name)) {
+        existing.push(name);
+      }
+    }
+    return result;
+  } catch (error) {
+    console.error("Error batch fetching tag names for notes:", error);
     return new Map();
   }
 }
@@ -1789,7 +1826,7 @@ export async function getNotesForSpace(
     const scriptureNoteIds = sortedNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];
     const noteIds = sortedNotes.map(n => n.id).filter(Boolean) as string[];
 
-    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap, sharedSpaceCountsMap] = await Promise.all([
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap, sharedSpaceCountsMap, tagNamesMap] = await Promise.all([
       (async (): Promise<Record<string, any>> => {
         if (resourceNoteIds.length === 0) return {};
         try {
@@ -1821,12 +1858,14 @@ export async function getNotesForSpace(
       isMyHomeAggregate
         ? getSharedSpaceCountsForNotesBatch(noteIds, userId)
         : Promise.resolve(new Map<string, number>()),
+      getTagNamesForNotesBatch(noteIds, userId),
     ]);
 
     const notesWithMeta = sortedNotes.map(note => {
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
       const sharedSpaceCount = sharedSpaceCountsMap.get(note.id) ?? 0;
+      const tags = tagNamesMap.get(note.id);
       const version = note.noteType === 'scripture'
         ? (scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? 'NET')
         : undefined;
@@ -1843,6 +1882,7 @@ export async function getNotesForSpace(
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
         sharedSpaceCount: sharedSpaceCount > 0 ? sharedSpaceCount : undefined,
+        tags: tags && tags.length > 0 ? tags : undefined,
         version,
       };
     });
@@ -1939,7 +1979,7 @@ export async function getNotesForSharedSpace(
     const noteIds = sortedNotes.map(n => n.id).filter(Boolean) as string[];
     const authorIds = [...new Set(sortedNotes.map(n => n.userId).filter(Boolean))] as string[];
 
-    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap, authorMap] = await Promise.all([
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap, authorMap, tagNamesMap] = await Promise.all([
       (async (): Promise<Record<string, any>> => {
         if (resourceNoteIds.length === 0) return {};
         try {
@@ -1967,12 +2007,16 @@ export async function getNotesForSharedSpace(
       })(),
       Promise.resolve(new Map<string, Array<{ color: string; frequency: number }>>()),
       batchAuthorAttribution(authorIds),
+      // Viewer-scoped: only tags this member applied themselves, never another
+      // member's private labels on the same shared note.
+      getTagNamesForNotesBatch(noteIds, viewerUserId),
     ]);
 
     const notesWithMeta = sortedNotes.map(note => {
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
       const author = authorMap[note.userId as string];
+      const tags = tagNamesMap.get(note.id);
       const version = note.noteType === 'scripture'
         ? (scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? 'NET')
         : undefined;
@@ -1985,6 +2029,7 @@ export async function getNotesForSharedSpace(
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+        tags: tags && tags.length > 0 ? tags : undefined,
         version,
         authorUserId: note.userId,
         authorDisplayName: author?.displayName ?? 'Member',
