@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { stripStudyHighlightMarkInlineBackground } from '../note-html-highlight-marks';
 
 describe('stripStudyHighlightMarkInlineBackground', () => {

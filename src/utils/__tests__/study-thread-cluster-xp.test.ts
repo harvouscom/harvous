@@ -4,6 +4,7 @@ import {
   pickRepNoteIdFromGraph,
 } from '../study-thread-cluster-count';
 import { isStudyThreadCreatedXpRecord } from '../admin-pulse-xp-filter';
+import type { StudyThreadClusterEdge } from '../study-thread-cluster-count';
 
 describe('countStudyThreadClustersFromGraph', () => {
   it('returns 0 with no edges or singletons', () => {

@@ -101,6 +101,7 @@ import {
   buildFoldersFromNotes,
   mergeFoldersWithRegistry,
   type ActiveSearchContext,
+  type FolderBucket,
 } from './sidebar-universal-search';
 import { usePrototypeFolderRegistry } from '../../hooks/mutations/usePrototypeFolderRegistry';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
