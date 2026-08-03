@@ -19,13 +19,18 @@ import {
   externalUserIdFromPolarData,
   customerIdFromPolarData,
   subscriptionStatusFromPolarData,
+  churchIdFromPolarData,
 } from '../utils/polar-webhook';
 import {
   applyPolarSubscriptionEntitlement,
   setPolarCustomerId,
   getPolarCustomerId,
 } from '../utils/entitlements';
-import { planForProductId } from '@/lib/billing-plans';
+import {
+  applyChurchSubscription,
+  findChurchBySubscriptionId,
+} from '../utils/church-entitlement';
+import { planForProductId, isChurchProductId } from '@/lib/billing-plans';
 import { db, first, UserMetadata, eq } from '../db';
 
 const app = new Hono();
@@ -408,6 +413,40 @@ app.post('/api/webhooks/polar', async (c) => {
       return c.json({ ok: true, skipped: true });
     }
 
+    const eventProductId = productIdFromPolarData(data);
+    const eventSubscriptionId = typeof data?.id === 'string' ? data.id : null;
+
+    // ── Church branch ────────────────────────────────────────────────────
+    // A church subscription grants the org, not the buyer. It must be handled
+    // before the user path so a staff member's checkout never mints them a
+    // personal entitlement (and so a cancel never revokes their own Plus).
+    // Cancels can arrive without metadata, so fall back to the stored
+    // subscription id.
+    if (isChurchProductId(eventProductId) || churchIdFromPolarData(data)) {
+      const churchId =
+        churchIdFromPolarData(data) ??
+        (eventSubscriptionId ? (await findChurchBySubscriptionId(eventSubscriptionId))?.id ?? null : null);
+
+      if (!churchId) {
+        console.warn('[Polar webhook] Church product with no resolvable church', {
+          eventType,
+          eventSubscriptionId,
+        });
+        return c.json({ ok: true, skipped: true });
+      }
+
+      const applied = await applyChurchSubscription({
+        churchId,
+        enabled: intent === 'enable',
+        subscriptionId: eventSubscriptionId,
+        status: subscriptionStatusFromPolarData(data),
+      });
+      if (!applied) {
+        console.warn('[Polar webhook] Church not found for subscription', { churchId, eventType });
+      }
+      return c.json({ ok: true, church: churchId, enabled: intent === 'enable' });
+    }
+
     const userId = externalUserIdFromPolarData(data);
     if (!userId) {
       console.warn('[Polar webhook] Could not resolve user id (no external_customer_id)', { eventType });
@@ -421,8 +460,8 @@ app.post('/api/webhooks/polar', async (c) => {
       if (!existing) await setPolarCustomerId(userId, customerId);
     }
 
-    const productId = productIdFromPolarData(data);
-    const subscriptionId = typeof data?.id === 'string' ? data.id : null;
+    const productId = eventProductId;
+    const subscriptionId = eventSubscriptionId;
 
     if (intent === 'enable') {
       if (productId && planForProductId(productId)) {

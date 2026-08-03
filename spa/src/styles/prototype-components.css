@@ -9366,6 +9366,78 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   right: -2px;
 }
 
+/* Staff plan strip — pilot countdown / lapsed prompt in the My Church hub. */
+.proto-church-plan-banner {
+  padding: 12px 14px;
+  border-radius: var(--pds-radius-menu);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proto-church-plan-banner__headline {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.proto-church-plan-banner__icon {
+  opacity: 0.7;
+}
+
+.proto-church-plan-banner__body {
+  margin: 0 0 2px;
+  color: var(--pds-text-secondary);
+  line-height: 1.4;
+}
+
+.proto-church-plan-banner__error {
+  margin: 0;
+  color: var(--pds-destructive, #b42318);
+}
+
+/* Browse/manage row: same card as a followed channel, minus the tap target. */
+.proto-church-hub__browse-row {
+  cursor: default;
+}
+
+/* Compact inline Follow / Following toggle. The app reset sets
+   `* { flex-shrink: 0 }`, so this stays at its natural width and the title
+   column (flex: 1; min-width: 0) is what gives. */
+.proto-church-hub__follow-btn {
+  appearance: none;
+  padding: 4px 10px;
+  border: 0.5px solid var(--pds-border);
+  border-radius: 999px;
+  background: var(--pds-bg-subtle);
+  color: var(--pds-text-primary);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.proto-church-hub__follow-btn:hover:not(:disabled) {
+  background: var(--pds-bg-hover, var(--pds-bg-subtle));
+}
+
+.proto-church-hub__follow-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Following reads as a quieter, already-done state than Follow. */
+.proto-church-hub__follow-btn[data-following] {
+  background: transparent;
+  color: var(--pds-text-secondary);
+}
+
 .hmc-church-picker {
   display: flex;
   flex-direction: column;

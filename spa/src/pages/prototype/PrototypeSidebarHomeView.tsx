@@ -109,6 +109,7 @@ import type { CrossRefGap } from '../../hooks/queries/useCrossRefGaps';
 import { useConnectSuggestions } from '../../hooks/queries/useConnectSuggestions';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
+import PrototypeHomeChurchFeed from './PrototypeHomeChurchFeed';
 import { noteParamSlug } from './proto-route-slugs';
 import { bibleBookChapterCounts } from '@/utils/bible-book-chapters';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
@@ -1566,6 +1567,9 @@ export default function PrototypeSidebarHomeView({
           </button>
         </div>
       ) : null}
+
+      {/* Renders nothing unless the viewer follows a ministry channel. */}
+      <PrototypeHomeChurchFeed />
 
       {recallOpportunities.length > 0 ? (
         <div className="proto-home-section">

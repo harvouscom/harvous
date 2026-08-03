@@ -39,6 +39,9 @@ export type AdminChurch = {
   country: string | null;
   createdBy: string;
   billingPlan: string | null;
+  billingStatus?: string | null;
+  /** Concierge-pilot window; sponsored while this is in the future. */
+  pilotUntil?: string | null;
   isActive: boolean;
   createdAt: string;
   spaceCount: number;
@@ -174,6 +177,22 @@ export function useSetChurchActive(churchId: string) {
     mutationFn: (active: boolean) =>
       adminApiPost<{ success: boolean; church: AdminChurch }>(
         `/api/admin/churches/${churchId}/${active ? 'reactivate' : 'deactivate'}`,
+      ),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin', 'churches'] }),
+  });
+}
+
+/**
+ * Set or clear the concierge-pilot window. `days` extends from now; `null` ends
+ * the pilot immediately (church-scoped writes then refuse until it pays).
+ */
+export function useSetChurchPilot(churchId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (days: number | null) =>
+      adminApiPost<{ success: boolean; church: AdminChurch }>(
+        `/api/admin/churches/${churchId}/pilot`,
+        { days },
       ),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin', 'churches'] }),
   });

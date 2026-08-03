@@ -28,8 +28,8 @@ describe('church admin route contracts', () => {
     // routes. hmc/sync-denorm (get+post) added a cron-callable pair: the gate call is still
     // present, just conditional on a missing/invalid cron secret (see handleHmcSyncDenorm),
     // so it isn't matched by the literal always-runs `gates` regex above — hence the >= below.
-    expect(endpoints.length).toBe(13);
-    expect(gates.length).toBeGreaterThanOrEqual(10);
+    expect(endpoints.length).toBe(14);
+    expect(gates.length).toBeGreaterThanOrEqual(11);
     expect(route()).not.toContain('requireAuth');
   });
 

@@ -54,6 +54,7 @@ import {
   hmcSearchChurches,
 } from '../utils/hmc-partner';
 import { listHmcChurchInterest } from '../utils/hmc-church-interest';
+import { churchSponsorship } from '../utils/church-entitlement';
 
 const app = new Hono();
 
@@ -496,6 +497,51 @@ async function setChurchActive(c: any, active: boolean) {
 
 app.post('/api/admin/churches/:churchId/deactivate', (c) => setChurchActive(c, false));
 app.post('/api/admin/churches/:churchId/reactivate', (c) => setChurchActive(c, true));
+
+// ─── POST /api/admin/churches/:churchId/pilot ───────────────────────────────
+/**
+ * Set or clear the concierge-pilot window — how a church gets to "try" before
+ * it pays. `days` extends from now; `null` ends the pilot immediately.
+ *
+ * Deliberately does not touch `billingPlan`: a paying church is sponsored
+ * regardless, and a pilot alongside a plan is harmless (paid wins in
+ * `churchSponsorship`).
+ */
+app.post('/api/admin/churches/:churchId/pilot', async (c) => {
+  const gate = await requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const churchId = c.req.param('churchId');
+    const body = await c.req.json().catch(() => ({} as any));
+
+    let pilotUntil: Date | null = null;
+    if (body.days !== null && body.days !== undefined) {
+      const days = Number(body.days);
+      if (!Number.isFinite(days) || days <= 0 || days > 365) {
+        return c.json({ error: 'days must be between 1 and 365, or null to end', code: 'INVALID_PILOT_DAYS' }, 400);
+      }
+      pilotUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+    }
+
+    const church = first(
+      await db
+        .update(Churches)
+        .set({ pilotUntil, updatedAt: nowISO() })
+        .where(eq(Churches.id, churchId))
+        .returning(),
+    );
+    if (!church) return c.json({ error: 'Church not found', code: 'CHURCH_NOT_FOUND' }, 404);
+
+    return c.json({ success: true, church, sponsorship: churchSponsorship(church) });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/admin/churches/[churchId]/pilot',
+      action: 'set_church_pilot',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
 
 // ─── POST /api/admin/churches/:churchId/spaces ──────────────────────────────
 /**

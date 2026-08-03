@@ -93,3 +93,13 @@ export function customerIdFromPolarData(data: PolarWebhookData | null | undefine
 export function subscriptionStatusFromPolarData(data: PolarWebhookData | null | undefined): string | null {
   return data?.status ?? null;
 }
+
+/**
+ * Harvous church id stamped into checkout metadata for church subscriptions.
+ * This — not the buyer's user id — is what a church payment grants against, so
+ * the subscription survives the staff member who happened to check out.
+ */
+export function churchIdFromPolarData(data: PolarWebhookData | null | undefined): string | null {
+  const value = data?.metadata?.churchId;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}

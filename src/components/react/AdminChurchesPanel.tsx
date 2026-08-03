@@ -7,6 +7,7 @@ import {
   useCreateChurchSpace,
   useSyncChurchStaff,
   useSetChurchActive,
+  useSetChurchPilot,
   useUpdateAdminChurch,
   useRefreshAdminChurchHmc,
   searchAdminHmcChurches,
@@ -455,6 +456,7 @@ function ChurchRow({ church }: { church: AdminChurch }) {
   const [syncSummary, setSyncSummary] = useState<string[] | null>(null);
   const sync = useSyncChurchStaff(church.id);
   const setActive = useSetChurchActive(church.id);
+  const setPilot = useSetChurchPilot(church.id);
 
   const location = [church.city, church.state, church.country].filter(Boolean).join(', ');
 
@@ -482,6 +484,26 @@ function ChurchRow({ church }: { church: AdminChurch }) {
     if (church.isActive && !window.confirm(`Deactivate ${church.name}?`)) return;
     setActive.mutate(!church.isActive, {
       onSuccess: () => window.toast?.success(church.isActive ? 'Church deactivated' : 'Church reactivated'),
+      onError: (err) => window.toast?.error(err.message),
+    });
+  };
+
+  // Mirrors churchSponsorship() on the server: paid wins, then a live pilot.
+  const pilotUntilDate = church.pilotUntil ? new Date(church.pilotUntil) : null;
+  const pilotActive = Boolean(
+    pilotUntilDate && !Number.isNaN(pilotUntilDate.getTime()) && pilotUntilDate.getTime() > Date.now(),
+  );
+  const sponsorshipLabel = church.billingPlan
+    ? `Paid · ${church.billingPlan}${church.billingStatus ? ` (${church.billingStatus})` : ''}`
+    : pilotActive
+      ? `Pilot until ${pilotUntilDate!.toLocaleDateString()}`
+      : 'Not sponsored — staff cannot create channels';
+
+  const onSetPilot = (days: number | null) => {
+    if (days === null && !window.confirm(`End the pilot for ${church.name} now?`)) return;
+    setPilot.mutate(days, {
+      onSuccess: () =>
+        window.toast?.success(days === null ? 'Pilot ended' : `Pilot set — ${days} days`),
       onError: (err) => window.toast?.error(err.message),
     });
   };
@@ -515,6 +537,41 @@ function ChurchRow({ church }: { church: AdminChurch }) {
             <button type="button" className="admin-action-btn" onClick={onToggleActive} disabled={setActive.isPending}>
               {church.isActive ? 'Deactivate' : 'Reactivate'}
             </button>
+          </div>
+
+          {/* Sponsorship — a church can create channels only while paid or in-pilot. */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span className="admin-publish__space-meta">{sponsorshipLabel}</span>
+            {church.billingPlan ? null : (
+              <>
+                <button
+                  type="button"
+                  className="admin-action-btn"
+                  onClick={() => onSetPilot(30)}
+                  disabled={setPilot.isPending}
+                >
+                  {pilotActive ? 'Extend pilot 30d' : 'Start 30-day pilot'}
+                </button>
+                <button
+                  type="button"
+                  className="admin-action-btn"
+                  onClick={() => onSetPilot(90)}
+                  disabled={setPilot.isPending}
+                >
+                  90 days
+                </button>
+                {pilotActive ? (
+                  <button
+                    type="button"
+                    className="admin-action-btn"
+                    onClick={() => onSetPilot(null)}
+                    disabled={setPilot.isPending}
+                  >
+                    End pilot
+                  </button>
+                ) : null}
+              </>
+            )}
           </div>
           {syncSummary ? (
             <ul style={{ margin: 0, paddingLeft: 18 }}>

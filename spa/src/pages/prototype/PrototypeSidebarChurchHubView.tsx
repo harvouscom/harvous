@@ -19,10 +19,13 @@ import {
   resolveMyChurchFromNav,
 } from '../../lib/church-settings';
 import { isMinistryBroadcastSpace } from '../../lib/shared-space-capabilities';
+import { useChurchChannels, type ChurchChannel } from '../../hooks/queries/useChurchChannels';
+import { useFollowChannel } from '../../hooks/mutations/useFollowChannel';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import CreateSharedSpaceSheet, { type CreateSpaceSheetKind } from './CreateSharedSpaceSheet';
+import PrototypeChurchPlanBanner from './PrototypeChurchPlanBanner';
 
 function normalizeSpaceId(id: string): string {
   return id.startsWith('space_') ? id : `space_${id}`;
@@ -80,6 +83,54 @@ function ChurchHubSpaceButton({
         </div>
       </div>
     </button>
+  );
+}
+
+/**
+ * Browse/manage row for a ministry channel, with a Follow/Following toggle.
+ * Deliberately a div, not the tappable ChurchHubSpaceButton — an unfollowed
+ * channel has no space to open, and a nested button would be invalid markup.
+ */
+function ChurchHubBrowseRow({
+  channel,
+  pending,
+  onToggleFollow,
+}: {
+  channel: ChurchChannel;
+  pending: boolean;
+  onToggleFollow: (spaceId: string, follow: boolean) => void;
+}) {
+  const following = channel.isFollowing;
+  return (
+    <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-church-hub__browse-row">
+      <div className="proto-home-card__body">
+        <div className="proto-home-card__title-row">
+          <span className="proto-home-card__icon-orb" aria-hidden>
+            <ProtoSpaceMenuIcon color={channel.color || 'paper'} size={28} radius={8} iconName="rss" />
+          </span>
+          <div className="proto-church-hub__row-text">
+            <p className="pds-list-title proto-home-card__title">{channel.title}</p>
+            {channel.description ? (
+              <p className="proto-caption proto-church-hub__row-meta">{channel.description}</p>
+            ) : channel.cadenceLabel ? (
+              <p className="proto-caption proto-church-hub__row-meta">{channel.cadenceLabel}</p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="proto-church-hub__follow-btn"
+            data-following={following ? 'true' : undefined}
+            disabled={pending}
+            aria-label={
+              following ? `Unfollow ${channel.title}` : `Follow ${channel.title}`
+            }
+            onClick={() => onToggleFollow(channel.id, !following)}
+          >
+            {pending ? '…' : following ? 'Following' : 'Follow'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -144,11 +195,40 @@ export default function PrototypeSidebarChurchHubView() {
     return { sharedSpaces: shared, ministryChannels: ministry };
   }, [nav?.spaces, nav?.memberOfSpaces, orgId]);
 
-  const isEmpty = sharedSpaces.length === 0 && ministryChannels.length === 0;
+  // Channels the church publishes that the viewer hasn't followed yet. Staff
+  // reach their own channels through the lanes above, so they're filtered out.
+  const { data: channelsData } = useChurchChannels();
+  const followChannel = useFollowChannel();
+  const [manageOpen, setManageOpen] = useState(false);
+  const pendingFollowId = followChannel.isPending
+    ? followChannel.variables?.spaceId ?? null
+    : null;
+
+  // Staff reach their own channels through the lanes above, so they never
+  // appear here — you don't "follow" a channel you author.
+  const followableChannels = useMemo(
+    () => (channelsData?.channels ?? []).filter((channel) => !channel.isStaff),
+    [channelsData?.channels],
+  );
+  const unfollowedChannels = useMemo(
+    () => followableChannels.filter((channel) => !channel.isFollowing),
+    [followableChannels],
+  );
+  // Closed, the lane is discovery (unfollowed only); open, it's the manage list
+  // (every channel with a Following toggle) — which is where unfollow lives.
+  const browseChannels = manageOpen ? followableChannels : unfollowedChannels;
+  const canManageChannels = followableChannels.some((channel) => channel.isFollowing);
+
+  const isEmpty =
+    sharedSpaces.length === 0 && ministryChannels.length === 0 && followableChannels.length === 0;
 
   const openSpace = (spaceId: string) => {
     ensureSidebarExpanded();
     switchToSpace(normalizeSpaceId(spaceId));
+  };
+
+  const handleToggleFollow = (spaceId: string, follow: boolean) => {
+    followChannel.mutate({ spaceId, follow });
   };
 
   return (
@@ -174,13 +254,19 @@ export default function PrototypeSidebarChurchHubView() {
 
       <div className="proto-sidebar-scroll">
         <div className="proto-home-view">
+          {/* Staff-only, and silent while the church is paid and healthy. */}
+          <PrototypeChurchPlanBanner orgId={orgId} isStaff={canCreateChurchContent} />
           <>
             {isEmpty ? (
               <div className="proto-home-section">
                 <PrototypeListEmptyState
                   iconName="church"
                   title="Still quiet here"
-                  description="Shared spaces are for groups. Ministry channels are where your church publishes study."
+                  description={
+                    canCreateChurchContent
+                      ? 'Shared spaces are for groups. Ministry channels are where your church publishes study.'
+                      : `${churchName} hasn’t published any study yet. When they do, it shows up here.`
+                  }
                 />
                 {canCreateChurchContent ? (
                   <div className="proto-church-hub__create-stack">
@@ -253,7 +339,36 @@ export default function PrototypeSidebarChurchHubView() {
                       New ministry channel
                     </button>
                   ) : null}
+                  {!canCreateChurchContent && canManageChannels ? (
+                    <button
+                      type="button"
+                      className="proto-church-hub__lane-action"
+                      aria-expanded={manageOpen}
+                      onClick={() => setManageOpen((open) => !open)}
+                    >
+                      {manageOpen ? 'Done' : 'Manage channels'}
+                    </button>
+                  ) : null}
                 </div>
+
+                {browseChannels.length > 0 ? (
+                  <div className="proto-home-section">
+                    <p className="proto-caption proto-home-section__eyebrow">
+                      {manageOpen ? `All channels from ${churchName}` : `More from ${churchName}`}
+                    </p>
+                    <ul className="proto-church-hub__list">
+                      {browseChannels.map((channel) => (
+                        <li key={channel.id}>
+                          <ChurchHubBrowseRow
+                            channel={channel}
+                            pending={pendingFollowId === channel.id}
+                            onToggleFollow={handleToggleFollow}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </>
             )}
           </>
