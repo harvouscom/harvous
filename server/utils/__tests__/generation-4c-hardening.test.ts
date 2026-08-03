@@ -40,7 +40,9 @@ describe('Generation 4C deletion lifecycle', () => {
     const handlerEnd = people.indexOf('const members =', handlerStart);
     const handler = people.slice(handlerStart, handlerEnd);
     expect(handler).toContain('setActiveSpaceId(null)');
-    expect(handler).toContain('navigate({ to: prototypeHomeRouteTo() as any, replace: true })');
+    // No `as any`: prototypeHomeRouteTo() now returns a type the router's `to` accepts,
+    // so this call site is genuinely type-checked rather than cast past the checker.
+    expect(handler).toContain('navigate({ to: prototypeHomeRouteTo(), replace: true })');
     expect(handler).not.toContain('setTimeout');
   });
 

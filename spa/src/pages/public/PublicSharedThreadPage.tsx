@@ -217,7 +217,7 @@ export default function PublicSharedThreadPage() {
                           className="public-cta-btn"
                           onClick={() => {
                             void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-                            navigate({ to: prototypeHomeRouteTo() as any });
+                            navigate({ to: prototypeHomeRouteTo() });
                           }}
                         >
                           View in my Harvous

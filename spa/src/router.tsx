@@ -531,7 +531,7 @@ function buildClassicRedirectRoutes() {
           getParentRoute: () => rootRoute,
           path: '/',
           beforeLoad: () => {
-            throw redirect({ to: '/prototype/', replace: true });
+            throw redirect({ to: '/prototype', replace: true });
           },
         })
       : null;

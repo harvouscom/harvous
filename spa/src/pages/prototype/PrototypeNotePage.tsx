@@ -592,7 +592,7 @@ export default function PrototypeNotePage() {
   // pane (focused on the thread) so the tap never silently lands on "just the note".
   const onScriptureDockUnresolved = useCallback(() => {
     if (!initialScriptureRef) return;
-    navigate({ to: prototypeHomeRouteTo() as any });
+    navigate({ to: prototypeHomeRouteTo() });
     openStandaloneScripturePassage({
       canonicalReference: initialScriptureRef,
       translationCode: initialScriptureTranslation ?? '',
@@ -648,7 +648,7 @@ export default function PrototypeNotePage() {
     const onDeleted = (e: Event) => {
       const deletedId = (e as CustomEvent<{ noteId?: string }>).detail?.noteId;
       if (deletedId && deletedId === noteId) {
-        navigate({ to: prototypeHomeRouteTo() as any, replace: true });
+        navigate({ to: prototypeHomeRouteTo(), replace: true });
       }
     };
     window.addEventListener('noteDeleted', onDeleted);
@@ -1657,7 +1657,7 @@ export default function PrototypeNotePage() {
               secondaryAction={{
                 label: 'Go to Home',
                 onClick: () => {
-                  void navigate({ to: prototypeHomeRouteTo() as any });
+                  void navigate({ to: prototypeHomeRouteTo() });
                 },
               }}
             />

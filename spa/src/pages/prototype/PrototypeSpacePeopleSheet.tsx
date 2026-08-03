@@ -228,7 +228,7 @@ export default function PrototypeSpacePeopleSheet({
         if (isSelf) {
           setActiveSpaceId(null);
           onOpenChange(false);
-          void navigate({ to: prototypeHomeRouteTo() as any, replace: true });
+          void navigate({ to: prototypeHomeRouteTo(), replace: true });
         }
       },
       onError: (err) => {
@@ -257,7 +257,7 @@ export default function PrototypeSpacePeopleSheet({
         setDeleteConfirmAnchor(null);
         setActiveSpaceId(null);
         onOpenChange(false);
-        void navigate({ to: prototypeHomeRouteTo() as any, replace: true });
+        void navigate({ to: prototypeHomeRouteTo(), replace: true });
       },
       onError: (err) => {
         if (isDeletedSpaceUnavailableError(err)) {
@@ -265,7 +265,7 @@ export default function PrototypeSpacePeopleSheet({
           setDeleteConfirmAnchor(null);
           setActiveSpaceId(null);
           onOpenChange(false);
-          void navigate({ to: prototypeHomeRouteTo() as any, replace: true });
+          void navigate({ to: prototypeHomeRouteTo(), replace: true });
         }
         toastError(err, 'Could not delete space');
       },
@@ -325,7 +325,7 @@ export default function PrototypeSpacePeopleSheet({
                   className="proto-shared-people-capacity__support-link"
                   onClick={() => {
                     onOpenChange(false);
-                    void navigate({ to: prototypeSettingsSupportRouteTo() as any });
+                    void navigate({ to: prototypeSettingsSupportRouteTo() });
                   }}
                 >
                   Contact support

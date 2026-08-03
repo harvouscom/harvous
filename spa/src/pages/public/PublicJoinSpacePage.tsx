@@ -119,7 +119,7 @@ export default function PublicJoinSpacePage() {
         } catch { /* ignore */ }
         writePersistedSidebarNav({ activeSpaceId: normalizedId, layer: 'space', clearFolderDrill: true, clearThreadDrill: true, clearScriptureDrill: true });
         await queryClient.refetchQueries({ queryKey: navigationQueryKeyPrefix });
-        navigate({ to: prototypeHomeRouteTo() as any });
+        navigate({ to: prototypeHomeRouteTo() });
       }
     } catch (err: any) {
       showToast(err?.message || 'Failed to join space. Please try again.', 'error');
@@ -165,7 +165,7 @@ export default function PublicJoinSpacePage() {
                     onGoToSpace={() => {
                       const normalizedId = space.id.startsWith('space_') ? space.id : `space_${space.id}`;
                       writePersistedSidebarNav({ activeSpaceId: normalizedId, layer: 'space', clearFolderDrill: true, clearThreadDrill: true, clearScriptureDrill: true });
-                      navigate({ to: prototypeHomeRouteTo() as any });
+                      navigate({ to: prototypeHomeRouteTo() });
                     }}
                   />
                   <div className="public-footer public-footer--rich">

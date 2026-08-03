@@ -176,7 +176,7 @@ export default function PublicInvitationPage() {
                           Sign in to accept
                         </a>
                       ) : data?.alreadyMember ? (
-                        <button className="public-cta-btn" onClick={() => navigate({ to: prototypeHomeRouteTo() as any })}>
+                        <button className="public-cta-btn" onClick={() => navigate({ to: prototypeHomeRouteTo() })}>
                           Go to app
                         </button>
                       ) : (

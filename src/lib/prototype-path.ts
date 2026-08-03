@@ -158,40 +158,66 @@ export function isPrototypeAdminHomePath(pathname: string): boolean {
   return logical === '/admin';
 }
 
-export function prototypeAdminRouteTo(): '/admin' | '/prototype/admin' {
-  return isDedicatedPrototypeHost() ? '/admin' : '/prototype/admin';
+/*
+ * ─── `*RouteTo()` helpers and the cast they all share ────────────────────────
+ *
+ * The prototype shell is mounted twice over, and which one exists is decided at
+ * runtime: `buildPrototypeRouteBranch()` (spa/src/router.tsx) gives it a *pathless*
+ * layout on a dedicated host — so its children resolve to `/`, `/$noteId`,
+ * `/admin/usage` — and `path: '/prototype'` everywhere else, resolving to
+ * `/prototype/$noteId` and friends. Only one branch is ever built per page load.
+ *
+ * TypeScript can't see that. It infers a single route tree from the ternary, and it
+ * picks the `/prototype`-prefixed shape. So these helpers used to declare the honest
+ * runtime union — `'/$noteId' | '/prototype/$noteId'` — which could never be assignable
+ * to a `to` prop whose type contains only the prefixed half. That was 56 of the repo's
+ * type errors across 24 files, and the reason `as any` had started appearing at call
+ * sites (see the history of PrototypeInspectorPane).
+ *
+ * So each helper declares the prefixed literal — the one the generated route tree
+ * actually exposes — and casts. The runtime value is still whichever path really exists
+ * on this host; the cast only bridges the gap TypeScript can't model. Call sites keep
+ * full checking against real route names, so a typo in a path here still fails to
+ * compile.
+ *
+ * If the route tree ever registers both shapes unconditionally, delete the casts and
+ * restore the unions — they are the truthful types.
+ */
+
+export function prototypeAdminRouteTo(): '/prototype/admin' {
+  return (isDedicatedPrototypeHost() ? '/admin' : '/prototype/admin') as '/prototype/admin';
 }
 
-export function prototypeAdminUsageRouteTo(): '/admin/usage' | '/prototype/admin/usage' {
-  return isDedicatedPrototypeHost() ? '/admin/usage' : '/prototype/admin/usage';
+export function prototypeAdminUsageRouteTo(): '/prototype/admin/usage' {
+  return (isDedicatedPrototypeHost() ? '/admin/usage' : '/prototype/admin/usage') as '/prototype/admin/usage';
 }
 
-export function prototypeAdminPulseRouteTo(): '/admin/pulse' | '/prototype/admin/pulse' {
-  return isDedicatedPrototypeHost() ? '/admin/pulse' : '/prototype/admin/pulse';
+export function prototypeAdminPulseRouteTo(): '/prototype/admin/pulse' {
+  return (isDedicatedPrototypeHost() ? '/admin/pulse' : '/prototype/admin/pulse') as '/prototype/admin/pulse';
 }
 
-export function prototypeAdminReportsRouteTo(): '/admin/reports' | '/prototype/admin/reports' {
-  return isDedicatedPrototypeHost() ? '/admin/reports' : '/prototype/admin/reports';
+export function prototypeAdminReportsRouteTo(): '/prototype/admin/reports' {
+  return (isDedicatedPrototypeHost() ? '/admin/reports' : '/prototype/admin/reports') as '/prototype/admin/reports';
 }
 
-export function prototypeAdminVotdRouteTo(): '/admin/votd' | '/prototype/admin/votd' {
-  return isDedicatedPrototypeHost() ? '/admin/votd' : '/prototype/admin/votd';
+export function prototypeAdminVotdRouteTo(): '/prototype/admin/votd' {
+  return (isDedicatedPrototypeHost() ? '/admin/votd' : '/prototype/admin/votd') as '/prototype/admin/votd';
 }
 
-export function prototypeAdminPublishRouteTo(): '/admin/publish' | '/prototype/admin/publish' {
-  return isDedicatedPrototypeHost() ? '/admin/publish' : '/prototype/admin/publish';
+export function prototypeAdminPublishRouteTo(): '/prototype/admin/publish' {
+  return (isDedicatedPrototypeHost() ? '/admin/publish' : '/prototype/admin/publish') as '/prototype/admin/publish';
 }
 
-export function prototypeAdminMaintenanceRouteTo(): '/admin/maintenance' | '/prototype/admin/maintenance' {
-  return isDedicatedPrototypeHost() ? '/admin/maintenance' : '/prototype/admin/maintenance';
+export function prototypeAdminMaintenanceRouteTo(): '/prototype/admin/maintenance' {
+  return (isDedicatedPrototypeHost() ? '/admin/maintenance' : '/prototype/admin/maintenance') as '/prototype/admin/maintenance';
 }
 
-export function prototypeAdminSupportRouteTo(): '/admin/support' | '/prototype/admin/support' {
-  return isDedicatedPrototypeHost() ? '/admin/support' : '/prototype/admin/support';
+export function prototypeAdminSupportRouteTo(): '/prototype/admin/support' {
+  return (isDedicatedPrototypeHost() ? '/admin/support' : '/prototype/admin/support') as '/prototype/admin/support';
 }
 
-export function prototypeAdminChurchesRouteTo(): '/admin/churches' | '/prototype/admin/churches' {
-  return isDedicatedPrototypeHost() ? '/admin/churches' : '/prototype/admin/churches';
+export function prototypeAdminChurchesRouteTo(): '/prototype/admin/churches' {
+  return (isDedicatedPrototypeHost() ? '/admin/churches' : '/prototype/admin/churches') as '/prototype/admin/churches';
 }
 
 export function matchPrototypeNoteId(pathname: string): string | null {
@@ -219,23 +245,26 @@ export function prototypeNoteRoutePaths(hostname?: string): {
 }
 
 /** TanStack Router `to` for the canonical note route on the current host. */
-export function prototypeNoteRouteTo(hostname?: string): '/$noteId' | '/prototype/$noteId' {
-  return isDedicatedPrototypeHost(hostname) ? '/$noteId' : '/prototype/$noteId';
+export function prototypeNoteRouteTo(hostname?: string): '/prototype/$noteId' {
+  return (isDedicatedPrototypeHost(hostname) ? '/$noteId' : '/prototype/$noteId') as '/prototype/$noteId';
 }
 
-export function prototypeSettingsRouteTo(): '/settings' | '/prototype/settings' {
-  return isDedicatedPrototypeHost() ? '/settings' : '/prototype/settings';
+export function prototypeSettingsRouteTo(): '/prototype/settings' {
+  return (isDedicatedPrototypeHost() ? '/settings' : '/prototype/settings') as '/prototype/settings';
 }
 
-export function prototypeSettingsAccountRouteTo(): '/settings/account' | '/prototype/settings/account' {
-  return isDedicatedPrototypeHost() ? '/settings/account' : '/prototype/settings/account';
+export function prototypeSettingsAccountRouteTo(): '/prototype/settings/account' {
+  return (isDedicatedPrototypeHost() ? '/settings/account' : '/prototype/settings/account') as '/prototype/settings/account';
 }
 
-export function prototypeSettingsSupportRouteTo(): '/settings/support' | '/prototype/settings/support' {
-  return isDedicatedPrototypeHost() ? '/settings/support' : '/prototype/settings/support';
+export function prototypeSettingsSupportRouteTo(): '/prototype/settings/support' {
+  return (isDedicatedPrototypeHost() ? '/settings/support' : '/prototype/settings/support') as '/prototype/settings/support';
 }
 
-export function prototypeHomeRouteTo(): '/' | '/prototype/' {
-  return isDedicatedPrototypeHost() ? '/' : '/prototype/';
+export function prototypeHomeRouteTo(): '/prototype' {
+  // No trailing slash: the shell registers `path: '/prototype'`, and the router (default
+  // trailingSlash: 'never') normalizes '/prototype/' to it anyway. The trailing form was
+  // never a route the type system accepted.
+  return (isDedicatedPrototypeHost() ? '/' : '/prototype') as '/prototype';
 }
 

@@ -85,7 +85,7 @@ export function useSwitchToSpace() {
           // `?space=`, which remounts and re-syncs the switcher to that space.
           // `as any` matches the existing call sites — the router's generated
           // route union doesn't include the dynamic prototype base path.
-          void navigate({ to: prototypeHomeRouteTo() as any });
+          void navigate({ to: prototypeHomeRouteTo() });
         } else {
           // The note survives the switch (it's in the destination space too, or we
           // moved to Home). Re-stamp `?space=` so the URL doesn't keep asserting the

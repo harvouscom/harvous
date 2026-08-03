@@ -255,7 +255,7 @@ export default function PrototypeNoteMoreMenu({
               replace: true,
             });
           } else {
-            navigate({ to: prototypeHomeRouteTo() as any, replace: true });
+            navigate({ to: prototypeHomeRouteTo(), replace: true });
           }
         },
         onError: (err) => {
@@ -313,7 +313,7 @@ export default function PrototypeNoteMoreMenu({
       {
         onSuccess: () => {
           setDeleteConfirmOpen(false);
-          navigate({ to: prototypeHomeRouteTo() as any, replace: true });
+          navigate({ to: prototypeHomeRouteTo(), replace: true });
           if (isMobileSidebar) closeDrawer({ preserveHistory: true });
         },
         onError: (err) => {

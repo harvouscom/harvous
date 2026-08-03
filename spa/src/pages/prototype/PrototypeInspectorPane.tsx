@@ -145,7 +145,7 @@ export default function PrototypeInspectorPane({
             setDeleteConfirmOpen(false);
             closeInspector();
             if (isForeignNote) {
-              navigate({ to: prototypeHomeRouteTo() as any, replace: true });
+              navigate({ to: prototypeHomeRouteTo(), replace: true });
             } else {
               navigate({
                 to: prototypeNoteRouteTo(),
@@ -171,7 +171,7 @@ export default function PrototypeInspectorPane({
         onSuccess: () => {
           setDeleteConfirmOpen(false);
           closeInspector();
-          navigate({ to: prototypeHomeRouteTo() as any, replace: true });
+          navigate({ to: prototypeHomeRouteTo(), replace: true });
           if (isMobileSidebar) closeDrawer({ preserveHistory: true });
         },
         onError: (err) => {
@@ -617,7 +617,7 @@ function InspectorAddedByValue({
 
   const openAccountSettings = () => {
     storeSettingsOpenerPath(`${pathname}${searchRaw ?? ''}`);
-    void navigate({ to: prototypeSettingsAccountRouteTo() as any });
+    void navigate({ to: prototypeSettingsAccountRouteTo() });
   };
 
   return (
