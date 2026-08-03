@@ -11,6 +11,8 @@ import {
   StudyThreadEntries,
   NoteVersions,
   SpaceNotes,
+  NoteFingerprints,
+  RecallEvents,
   and,
   eq,
   inArray,
@@ -50,6 +52,8 @@ export const NOTE_DELETE_CASCADE_TABLES = [
   'StudyThreadEntries',
   'SpaceNotes',
   'NoteVersions',
+  'NoteFingerprints',
+  'RecallEvents',
   'Notes',
 ] as const;
 
@@ -126,6 +130,12 @@ export async function deleteNotesCascadeForUser(userId: string, noteIds: string[
         );
       await tx.delete(SpaceNotes).where(inArray(SpaceNotes.noteId, chunk));
       await tx.delete(NoteVersions).where(inArray(NoteVersions.noteId, chunk));
+      // Memory-layer rows. Without these, a deleted note keeps feeding Home:
+      // fingerprints drive the greeting's canon-section line, and RecallEvents are
+      // the cross-device source of truth for what's already been resurfaced.
+      // RecallEvents.noteId is nullable, so this leaves generative rows alone.
+      await tx.delete(NoteFingerprints).where(inArray(NoteFingerprints.noteId, chunk));
+      await tx.delete(RecallEvents).where(inArray(RecallEvents.noteId, chunk));
       await tx
         .delete(Notes)
         .where(and(eq(Notes.userId, userId), inArray(Notes.id, chunk)));

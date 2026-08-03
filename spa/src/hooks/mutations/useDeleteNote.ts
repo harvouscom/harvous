@@ -60,6 +60,16 @@ export function useDeleteNote() {
     onError: (_err, _variables, context) => {
       restoreSpaceNotesCaches(queryClient, context?.previous);
     },
+    onSettled: (_data, _err, variables) => {
+      const sid = normalizeSpaceIdForCache(variables.spaceId);
+      if (!sid) return;
+      // The notes list was never invalidated here, so a deleted note lingered in the
+      // cache until a window-focus refetch — long enough to keep feeding Home's
+      // "Pick up where you left off", which just reads the live notes array.
+      // Prefix-matches every unseenSince variant. In onSettled so a failed delete
+      // resyncs too.
+      queryClient.invalidateQueries({ queryKey: ['space', sid, 'notes'] });
+    },
     onSuccess: (_data, variables) => {
       const sid = normalizeSpaceIdForCache(variables.spaceId);
       if (!sid) return;
@@ -70,6 +80,9 @@ export function useDeleteNote() {
       queryClient.invalidateQueries({ queryKey: ['space', sid, 'bootstrap'] });
       queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
       queryClient.invalidateQueries({ queryKey: ['prototype', 'space', sid, 'study-threads'] });
+      // Home's greeting derives its canon-section line from every fingerprint, not just
+      // those of live notes, so a stale list keeps the deleted note's themes on screen.
+      queryClient.invalidateQueries({ queryKey: ['note-fingerprints'] });
       queryClient.invalidateQueries({
         predicate: (query) =>
           Array.isArray(query.queryKey) &&

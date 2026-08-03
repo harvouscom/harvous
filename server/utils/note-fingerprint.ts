@@ -394,11 +394,26 @@ export async function getNoteFingerprint(noteId: string): Promise<StoredNoteFing
   }
 }
 
-/** Read all of a user's fingerprints (for resurfacing / arcs). Empty if table missing. */
+/**
+ * Read all of a user's fingerprints (for resurfacing / arcs). Empty if table missing.
+ *
+ * Joined to Notes so a fingerprint whose note is gone can never come back. Most Home
+ * consumers look fingerprints up by live note id and so were already safe, but the
+ * greeting's canon-section line iterates every fingerprint — deleted notes kept
+ * steering it. The delete cascade now removes these rows too; the join also cleans up
+ * rows orphaned before that fix, without needing a backfill.
+ */
 export async function getUserNoteFingerprints(userId: string): Promise<StoredNoteFingerprint[]> {
   try {
-    const rows = await db.select().from(NoteFingerprints).where(eq(NoteFingerprints.userId, userId));
-    return rows.map(deserializeFingerprint);
+    const rows = await db
+      .select()
+      .from(NoteFingerprints)
+      .innerJoin(
+        Notes,
+        and(eq(Notes.id, NoteFingerprints.noteId), eq(Notes.userId, NoteFingerprints.userId)),
+      )
+      .where(eq(NoteFingerprints.userId, userId));
+    return rows.map((row) => deserializeFingerprint(row.NoteFingerprints));
   } catch (err) {
     if (isNoteFingerprintsTableMissing(err)) return [];
     throw err;
