@@ -32,14 +32,12 @@ import { requireHarvousAdmin, getHarvousSystemUserId } from '../utils/harvous-ad
 import { getAuth } from '../middleware/auth';
 import {
   ClerkOrgError,
-  CLERK_ORG_STAFF_CAP,
-  computeStaffSyncPlan,
   fetchClerkOrganization,
   fetchClerkOrganizations,
   fetchClerkOrgMemberships,
   isValidClerkOrgId,
-  isWithinClerkOrgStaffCap,
 } from '../utils/clerk-org';
+import { syncChurchStaffForOrg } from '../utils/church-staff-sync';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { serializeSpaceCoverForDb, spaceCoverFromThreadColor } from '@/utils/space-cover';
 import { validateTitle, validateColor } from '@/utils/validation';
@@ -653,96 +651,33 @@ app.post('/api/admin/churches/:churchId/sync-staff', async (c) => {
       return c.json({ error: 'Church is not active', code: 'CHURCH_INACTIVE' }, 409);
     }
 
-    let staff;
+    let result;
     try {
-      staff = await fetchClerkOrgMemberships(church.orgId);
+      result = await syncChurchStaffForOrg(church.orgId);
     } catch (error) {
       const resp = clerkErrorResponse(c, error);
       if (resp) return resp;
       throw error;
     }
 
-    if (!isWithinClerkOrgStaffCap(staff.length)) {
+    if (!result.ok) {
       return c.json(
         {
-          error: `This Clerk org has ${staff.length} members; Church base allows ${CLERK_ORG_STAFF_CAP} staff. Remove members in Clerk, or use Unlimited staff (requires Clerk Enhanced) when that add-on ships.`,
-          code: 'CLERK_ORG_MEMBER_LIMIT',
-          staffCount: staff.length,
-          limit: CLERK_ORG_STAFF_CAP,
+          error: `This Clerk org has ${result.staffCount} members; Church base allows ${result.limit} staff. Remove members in Clerk, or use Unlimited staff (requires Clerk Enhanced) when that add-on ships.`,
+          code: result.code,
+          staffCount: result.staffCount,
+          limit: result.limit,
         },
         409,
       );
     }
 
-    // Include inactive spaces (membership stays truthful); exclude deleted.
-    const orgSpaces = await db.select().from(Spaces)
-      .where(and(eq(Spaces.orgId, church.orgId), isNull(Spaces.deletedAt)));
-    if (orgSpaces.length === 0) {
-      return c.json({ success: true, staffCount: staff.length, spaces: [], warnings: ['This church has no org spaces yet'] });
-    }
-
-    const now = nowISO();
-    const warnings: string[] = [];
-    const results: { spaceId: string; title: string; added: number; promoted: number; removed: number; healedOwner: boolean }[] = [];
-
-    for (const space of orgSpaces) {
-      const existing = await db
-        .select({ userId: SpaceMemberships.userId, role: SpaceMemberships.role })
-        .from(SpaceMemberships)
-        .where(eq(SpaceMemberships.spaceId, space.id));
-
-      const plan = computeStaffSyncPlan({ spaceOwnerUserId: space.userId, staff, existing });
-      warnings.push(...plan.warnings);
-
-      await db.transaction(async (tx) => {
-        if (plan.healOwnerRow) {
-          await tx.insert(SpaceMemberships).values({
-            id: `smem_${crypto.randomUUID()}`,
-            spaceId: space.id,
-            userId: space.userId,
-            role: 'owner',
-            joinedAt: now,
-            createdAt: now,
-          }).onConflictDoNothing();
-        }
-        for (const userId of plan.toInsertLeaders) {
-          await tx.insert(SpaceMemberships).values({
-            id: `smem_${crypto.randomUUID()}`,
-            spaceId: space.id,
-            userId,
-            role: 'leader',
-            joinedAt: now,
-            createdAt: now,
-          }).onConflictDoNothing();
-        }
-        for (const userId of plan.toPromoteToLeader) {
-          await tx.update(SpaceMemberships)
-            .set({ role: 'leader', updatedAt: now })
-            .where(and(eq(SpaceMemberships.spaceId, space.id), eq(SpaceMemberships.userId, userId)));
-        }
-        for (const userId of plan.toRemove) {
-          // Guard restated in SQL: only 'leader' rows are ever deleted here —
-          // never role 'owner', never role 'member' (congregant followers).
-          await tx.delete(SpaceMemberships)
-            .where(and(
-              eq(SpaceMemberships.spaceId, space.id),
-              eq(SpaceMemberships.userId, userId),
-              eq(SpaceMemberships.role, 'leader'),
-            ));
-        }
-      });
-
-      results.push({
-        spaceId: space.id,
-        title: space.title,
-        added: plan.toInsertLeaders.length,
-        promoted: plan.toPromoteToLeader.length,
-        removed: plan.toRemove.length,
-        healedOwner: plan.healOwnerRow,
-      });
-    }
-
-    return c.json({ success: true, staffCount: staff.length, spaces: results, warnings: [...new Set(warnings)] });
+    return c.json({
+      success: true,
+      staffCount: result.staffCount,
+      spaces: result.spaces,
+      warnings: result.warnings,
+    });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/admin/churches/[churchId]/sync-staff', action: 'sync_church_staff' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);

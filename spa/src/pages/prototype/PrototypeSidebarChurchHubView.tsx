@@ -26,6 +26,7 @@ import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import CreateSharedSpaceSheet, { type CreateSpaceSheetKind } from './CreateSharedSpaceSheet';
 import PrototypeChurchPlanBanner from './PrototypeChurchPlanBanner';
+import PrototypeChurchStaffSection from './PrototypeChurchStaffSection';
 
 function normalizeSpaceId(id: string): string {
   return id.startsWith('space_') ? id : `space_${id}`;
@@ -371,6 +372,9 @@ export default function PrototypeSidebarChurchHubView() {
                 ) : null}
               </>
             )}
+
+            {/* Staff-only, collapsed by default — administration, not the daily job. */}
+            <PrototypeChurchStaffSection orgId={orgId} isStaff={canCreateChurchContent} />
           </>
         </div>
       </div>

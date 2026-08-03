@@ -30,6 +30,8 @@ import {
   applyChurchSubscription,
   findChurchBySubscriptionId,
 } from '../utils/church-entitlement';
+import { getActiveChurchByOrgId } from '../utils/church-staff';
+import { syncChurchStaffForOrg } from '../utils/church-staff-sync';
 import { planForProductId, isChurchProductId } from '@/lib/billing-plans';
 import { db, first, UserMetadata, eq } from '../db';
 
@@ -73,6 +75,23 @@ interface ClerkEmailWebhookEvent {
   };
   object: 'event';
   timestamp?: number;
+}
+
+/**
+ * Clerk organization membership change — the church staff roster moving.
+ * Only `organization.id` is consumed; the roster itself is re-read from Clerk
+ * so the reconcile never trusts a single event's view of the world.
+ */
+interface ClerkOrgMembershipWebhookEvent {
+  type:
+    | 'organizationMembership.created'
+    | 'organizationMembership.updated'
+    | 'organizationMembership.deleted';
+  data: {
+    organization?: { id?: string } | null;
+    [key: string]: any;
+  };
+  object: 'event';
 }
 
 type ClerkWebhookEvent = ClerkUserWebhookEvent | ClerkEmailWebhookEvent;
@@ -262,6 +281,42 @@ async function handleUserDeleted(event: ClerkUserWebhookEvent): Promise<void> {
   console.log('User deleted in Clerk:', event.data.id);
 }
 
+/**
+ * Staff roster changed in Clerk — reconcile Harvous membership rows so a newly
+ * accepted invite gets `leader` access without anyone pressing "Sync staff".
+ *
+ * Never throws: this handler shares the Clerk webhook endpoint with user sync,
+ * and a church that isn't registered (or a Clerk hiccup) must not make Clerk
+ * retry unrelated user events. The manual sync button remains the fallback.
+ */
+async function handleOrgMembershipChanged(event: ClerkOrgMembershipWebhookEvent): Promise<void> {
+  const orgId = event.data?.organization?.id;
+  if (!orgId) {
+    console.warn('[Webhook] Org membership event with no organization id:', event.type);
+    return;
+  }
+
+  try {
+    const church = await getActiveChurchByOrgId(orgId);
+    if (!church) {
+      // Not every Clerk org is a Harvous church — nothing to reconcile.
+      return;
+    }
+    const result = await syncChurchStaffForOrg(orgId);
+    console.log('[Webhook] Church staff reconciled:', {
+      orgId,
+      type: event.type,
+      ok: result.ok,
+      ...(result.ok ? { staffCount: result.staffCount, spaces: result.spaces.length } : { code: result.code }),
+    });
+  } catch (error: any) {
+    console.error('[Webhook] Church staff reconcile failed (manual sync still available):', {
+      orgId,
+      error: error?.message ?? error,
+    });
+  }
+}
+
 // ─── POST /api/webhooks/clerk ─────────────────────────────────────────
 
 app.post('/api/webhooks/clerk', async (c) => {
@@ -298,6 +353,20 @@ app.post('/api/webhooks/clerk', async (c) => {
     } catch (error: any) {
       console.error('[Webhook] Signature verification failed:', error.message);
       return c.json({ error: 'Invalid webhook signature' }, 401);
+    }
+
+    // Org membership changes carry an organization, not a user — handle them
+    // before the user-id extraction below, which would read an empty id.
+    // Compared as a string: Clerk's SDK types only enumerate the user events
+    // this endpoint was originally written for.
+    const eventType: string = event.type;
+    if (
+      eventType === 'organizationMembership.created' ||
+      eventType === 'organizationMembership.updated' ||
+      eventType === 'organizationMembership.deleted'
+    ) {
+      await handleOrgMembershipChanged(event as unknown as ClerkOrgMembershipWebhookEvent);
+      return c.json({ received: true });
     }
 
     // Extract userId for logging

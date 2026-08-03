@@ -14,6 +14,11 @@
  *   GET  /api/church/feed                           — recent notes from followed channels
  *   GET  /api/church/billing                        — staff: sponsorship + purchasable plans
  *   POST /api/church/checkout                       — staff: Polar checkout for the Church plan
+ *   GET  /api/church/staff                          — staff: roster + pending invites
+ *   POST /api/church/staff/invite                   — org admin: invite by email
+ *   POST /api/church/staff/revoke-invite            — org admin: revoke a pending invite
+ *   POST /api/church/staff/remove                   — org admin: remove a staff member
+ *   POST /api/church/staff/sync                     — staff: manual reconcile fallback
  *
  * There is deliberately no copy endpoint here. "Start my own note" from a
  * channel note already works through `POST /api/spaces/:spaceId/copy-notes`:
@@ -65,6 +70,20 @@ import {
   type ChurchRow,
 } from '../utils/church-entitlement';
 import { getActiveChurchByOrgId, isChurchStaffForOrg } from '../utils/church-staff';
+import { syncChurchStaffForOrg } from '../utils/church-staff-sync';
+import {
+  ClerkOrgError,
+  ClerkOrgInviteError,
+  CLERK_ORG_ADMIN_ROLE,
+  CLERK_ORG_STAFF_CAP,
+  canInviteMoreStaff,
+  createClerkOrgInvitation,
+  fetchClerkOrgMemberships,
+  fetchClerkOrgPendingInvitations,
+  isClerkOrgAdminRole,
+  removeClerkOrgMember,
+  revokeClerkOrgInvitation,
+} from '../utils/clerk-org';
 import { getPolarClient, isPolarConfigured } from '../utils/polar-client';
 import { getPublicAppOrigin } from '../utils/public-app-origin';
 import {
@@ -469,6 +488,259 @@ app.post('/api/church/checkout', requireAuth, rateLimit('write'), async (c) => {
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/checkout',
       action: 'create_church_checkout',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── Staff roster (church self-serve) ───────────────────────────────────────
+/**
+ * Resolve the church for a staff request and the caller's Clerk org role.
+ *
+ * Two distinct gates on purpose: `isChurchStaffForOrg` says "you belong to this
+ * church" (enough to see the roster), while the Clerk role says "you may change
+ * it". A leader can publish curriculum without being able to staff the org.
+ */
+async function resolveStaffContext(
+  userId: string,
+  orgIdInput: string,
+): Promise<
+  | { ok: true; church: ChurchRow; roster: Awaited<ReturnType<typeof fetchClerkOrgMemberships>>; role: string | null }
+  | { ok: false; status: 403 | 404; code: string; error: string }
+> {
+  const orgId = orgIdInput.trim();
+  const church = orgId ? await getActiveChurchByOrgId(orgId) : await getConnectedChurch(userId);
+  if (!church) {
+    return { ok: false, status: 404, code: 'CHURCH_NOT_FOUND', error: 'Church not found' };
+  }
+  if (!(await isChurchStaffForOrg(userId, church.orgId))) {
+    return { ok: false, status: 403, code: 'CHURCH_STAFF_REQUIRED', error: 'Only church staff can manage the team' };
+  }
+  const roster = await fetchClerkOrgMemberships(church.orgId);
+  const role = roster.find((member) => member.userId === userId)?.role ?? null;
+  return { ok: true, church, roster, role };
+}
+
+function clerkFailureResponse(c: any, error: unknown) {
+  if (error instanceof ClerkOrgInviteError) {
+    return c.json({ error: error.message, code: error.code }, 409);
+  }
+  if (error instanceof ClerkOrgError) {
+    if (error.code === 'CLERK_ORGS_NOT_ENABLED') {
+      return c.json(
+        { error: 'Staff management is unavailable right now', code: 'CLERK_ORGS_NOT_ENABLED' },
+        503,
+      );
+    }
+    return c.json({ error: 'Staff directory is unavailable — try again', code: 'CLERK_UNAVAILABLE' }, 502);
+  }
+  return null;
+}
+
+// ─── GET /api/church/staff ──────────────────────────────────────────────────
+app.get('/api/church/staff', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const ctx = await resolveStaffContext(auth.userId, c.req.query('orgId') ?? '');
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+
+    const pending = await fetchClerkOrgPendingInvitations(ctx.church.orgId);
+    const attribution = await batchAuthorAttribution(ctx.roster.map((m) => m.userId));
+
+    return c.json({
+      church: { id: ctx.church.id, name: ctx.church.name, orgId: ctx.church.orgId },
+      canManage: isClerkOrgAdminRole(ctx.role),
+      viewerRole: ctx.role,
+      staffCap: CLERK_ORG_STAFF_CAP,
+      seatsUsed: ctx.roster.length + pending.length,
+      staff: ctx.roster.map((member) => ({
+        userId: member.userId,
+        role: member.role,
+        isSelf: member.userId === auth.userId,
+        displayName: attribution[member.userId]?.displayName ?? 'Staff member',
+        profileImageUrl: attribution[member.userId]?.profileImageUrl ?? null,
+        userColor: attribution[member.userId]?.userColor ?? 'blue',
+      })),
+      pendingInvites: pending,
+    });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/staff',
+      action: 'list_church_staff',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/church/staff/invite ──────────────────────────────────────────
+/**
+ * Invite one staff member. Pending invites count against the cap — an org at
+ * 18 members with 3 outstanding invites is already over 20 once they accept,
+ * and Clerk would reject the acceptance rather than the invite.
+ */
+app.post('/api/church/staff/invite', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      orgId?: string;
+      email?: string;
+      role?: string;
+    };
+
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? '');
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    if (!isClerkOrgAdminRole(ctx.role)) {
+      return c.json({ error: 'Only a church admin can invite staff', code: 'CHURCH_ADMIN_REQUIRED' }, 403);
+    }
+    if (!churchSponsorship(ctx.church).sponsored) {
+      return c.json({ error: CHURCH_LAPSED_ERROR, code: CHURCH_LAPSED_CODE }, 402);
+    }
+
+    const email = (body.email ?? '').trim().toLowerCase();
+    if (!email || !email.includes('@')) {
+      return c.json({ error: 'A valid email address is required', code: 'INVALID_EMAIL' }, 400);
+    }
+
+    const pending = await fetchClerkOrgPendingInvitations(ctx.church.orgId);
+    if (!canInviteMoreStaff({ memberCount: ctx.roster.length, pendingInviteCount: pending.length })) {
+      return c.json(
+        {
+          error: `Your church has ${ctx.roster.length} staff and ${pending.length} pending invite(s) — the limit is ${CLERK_ORG_STAFF_CAP}. Remove someone first.`,
+          code: 'CLERK_ORG_MEMBER_LIMIT',
+          seatsUsed: ctx.roster.length + pending.length,
+          limit: CLERK_ORG_STAFF_CAP,
+        },
+        409,
+      );
+    }
+
+    const invitation = await createClerkOrgInvitation({
+      orgId: ctx.church.orgId,
+      emailAddress: email,
+      inviterUserId: auth.userId,
+      role: body.role === CLERK_ORG_ADMIN_ROLE ? CLERK_ORG_ADMIN_ROLE : undefined,
+    });
+
+    return c.json({ success: true, invitation });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/staff/invite',
+      action: 'invite_church_staff',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/church/staff/revoke-invite ───────────────────────────────────
+app.post('/api/church/staff/revoke-invite', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as { orgId?: string; invitationId?: string };
+
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? '');
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    if (!isClerkOrgAdminRole(ctx.role)) {
+      return c.json({ error: 'Only a church admin can revoke invites', code: 'CHURCH_ADMIN_REQUIRED' }, 403);
+    }
+
+    const invitationId = (body.invitationId ?? '').trim();
+    if (!invitationId) {
+      return c.json({ error: 'invitationId is required', code: 'BAD_REQUEST' }, 400);
+    }
+
+    await revokeClerkOrgInvitation({
+      orgId: ctx.church.orgId,
+      invitationId,
+      requestingUserId: auth.userId,
+    });
+    return c.json({ success: true });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/staff/revoke-invite',
+      action: 'revoke_church_invite',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/church/staff/remove ──────────────────────────────────────────
+/**
+ * Remove a staff member from the Clerk org, then reconcile Harvous rows so
+ * their `leader` access disappears in the same request rather than at the next
+ * sync. Self-removal is refused: an admin who removes themselves would lock the
+ * church out of its own roster.
+ */
+app.post('/api/church/staff/remove', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as { orgId?: string; userId?: string };
+
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? '');
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    if (!isClerkOrgAdminRole(ctx.role)) {
+      return c.json({ error: 'Only a church admin can remove staff', code: 'CHURCH_ADMIN_REQUIRED' }, 403);
+    }
+
+    const targetUserId = (body.userId ?? '').trim();
+    if (!targetUserId) return c.json({ error: 'userId is required', code: 'BAD_REQUEST' }, 400);
+    if (targetUserId === auth.userId) {
+      return c.json({ error: 'You cannot remove yourself', code: 'CANNOT_REMOVE_SELF' }, 400);
+    }
+    if (!ctx.roster.some((member) => member.userId === targetUserId)) {
+      return c.json({ error: 'That person is not on your staff', code: 'NOT_STAFF' }, 404);
+    }
+
+    await removeClerkOrgMember(ctx.church.orgId, targetUserId);
+    // Reconcile immediately; their leader rows are gone before the response.
+    const sync = await syncChurchStaffForOrg(ctx.church.orgId);
+
+    return c.json({ success: true, sync });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/staff/remove',
+      action: 'remove_church_staff',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/church/staff/sync ────────────────────────────────────────────
+/** Manual reconcile — the fallback when the Clerk webhook is missed. */
+app.post('/api/church/staff/sync', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as { orgId?: string };
+
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? '');
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+
+    const result = await syncChurchStaffForOrg(ctx.church.orgId, { staff: ctx.roster });
+    if (!result.ok) {
+      return c.json(
+        {
+          error: `Your church has ${result.staffCount} staff — the limit is ${result.limit}.`,
+          code: result.code,
+          staffCount: result.staffCount,
+          limit: result.limit,
+        },
+        409,
+      );
+    }
+    return c.json({ success: true, ...result });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/staff/sync',
+      action: 'sync_church_staff_self_serve',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

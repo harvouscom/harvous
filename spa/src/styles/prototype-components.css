@@ -9400,6 +9400,97 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   color: var(--pds-destructive, #b42318);
 }
 
+/* Staff roster — collapsed disclosure in the My Church hub. */
+.proto-church-staff__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 0;
+}
+
+.proto-church-staff {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.proto-church-staff__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.proto-church-staff__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.8125rem;
+}
+
+/* The app reset sets `* { flex-shrink: 0 }` — the name column is what gives. */
+.proto-church-staff__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-church-staff__name--pending {
+  color: var(--pds-text-secondary);
+  font-style: italic;
+}
+
+.proto-church-staff__role {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-church-staff__action {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.proto-church-staff__action:hover:not(:disabled) {
+  color: var(--pds-destructive, #b42318);
+}
+
+.proto-church-staff__invite {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.proto-church-staff__invite input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.proto-church-staff__invite button {
+  width: auto;
+  white-space: nowrap;
+}
+
+.proto-church-staff__meta {
+  margin: 0;
+  color: var(--pds-text-tertiary);
+  line-height: 1.4;
+}
+
 /* Browse/manage row: same card as a followed channel, minus the tap target. */
 .proto-church-hub__browse-row {
   cursor: default;
