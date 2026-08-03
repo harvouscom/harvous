@@ -1,10 +1,11 @@
 # Typecheck debt
 
-**Status:** ratchet in place (Aug 2026). Cleanup not started.
+**Status:** ratchet in place; cleanup **in progress on `fix/typecheck-debt`**.
+**291 → 220** (24% cleared, causes #1 and a slice of #6 done).
 
-`tsc --noEmit` reports **291 errors across 118 files**. Nothing ran it, so those errors
-were invisible — and not harmless. Two shipped bugs found during the Aug 2026 reliability
-pass were already sitting in that output:
+`tsc --noEmit` originally reported **291 errors across 118 files**. Nothing ran it, so
+those errors were invisible — and not harmless. Two shipped bugs found during the Aug 2026
+reliability pass were already sitting in that output:
 
 - `PrototypeSidebar` read `p.items` from a page whose field is `notes`, so `myHomeNotes`
   became `[undefined]` and `myHomeNotesById` threw.
@@ -30,14 +31,16 @@ regression, not in where the check runs.
 
 Work down by cause, not by file — a fifth of the total is one fix. Re-baseline after each.
 
-| # | Root cause | Errors | Files | Notes |
-|---|---|---|---|---|
-| 1 | Router `to=` route literals | **56** | 24 | `prototypeNoteRouteTo()` returns `'/$noteId' \| '/prototype/$noteId'`, but only one is in the generated route tree, so the union never satisfies `to`. Call sites work around it with `as any` (e.g. `PrototypeInspectorPane`). Fix once in `src/lib/prototype-path.ts` — either register the legacy prefixed routes or type the return against the router's own `ToPathOption` — and the `as any` casts come out with it. |
-| 2 | Test-file typing | ~40 | ~12 | Concentrated in `study-dock-layout`, `note-html-highlight-marks`, `study-thread-cluster-xp`. Mostly incomplete fixture objects. Low risk, no production impact. |
-| 3 | `spa/src/router.tsx` | 15 | 1 | Likely resolves alongside #1. |
-| 4 | Icon name literals | 5 | few | `string` passed where `IconName` is expected. Either narrow the call sites or widen the prop. |
-| 5 | `UserMetadata` schema drift | 2 | 2 | Fixtures missing `hmcChurchId`, `sharedSpaceSwitcherOrder`, `polarCustomerId`. |
-| 6 | Long tail | remainder | scattered | `TS2339` property-does-not-exist and `TS2345` argument-type, case by case. |
+| # | Root cause | Errors | Status |
+|---|---|---|---|
+| 1 | Router `to=` route literals | 54 | **Done.** The shell is mounted twice over and which one exists is a *runtime* host decision, so TS infers one tree (the `/prototype`-prefixed one) while the helpers returned the honest union of both. Helpers now declare the prefixed literal and cast, reasoning documented once in `src/lib/prototype-path.ts`. `prototypeHomeRouteTo()` also returned a `/prototype/` that was never a registered route. 18 now-redundant `as any` casts came out with it. |
+| 2 | Missing type imports | 17 | **Done.** `FolderBucket`, `StudyThreadClusterEdge`, and vitest globals. Types are erased so none were runtime bugs, but each turned off checking exactly where it was requested — including in `PrototypeSidebar`, the file whose `p.items` typo shipped a crash. |
+| 3 | `Date` vs `string` on Drizzle `ts()` columns | ~19 | Next, and the most likely to hide a real bug. Fixture objects and query results type `createdAt` as `string` where the column yields `Date`. Fix at the boundary (one date helper), not per call site. |
+| 4 | Test fixtures missing required fields (`TS2353`) | ~19 | Mechanical. Concentrated in `study-dock-layout.test.ts` (15) and `prototype-format-toolbar-selection.test.ts` (6). No production impact. |
+| 5 | Property does not exist (`TS2339`) | ~34 | Case by case — the class most likely to contain genuine bugs, since it means code reads a field the type says isn't there. Worth reading rather than batch-fixing. |
+| 6 | Long tail | remainder | `server/routes/migrations.ts` (9), `offline-mutations.ts` (8), `admin-cleanup-duplicates.ts` (8), `TiptapEditor.tsx` (12), scattered `TS2345`. |
+
+Current split: **48 in tests, 172 in production.**
 
 Do this on its own branch. It touches 118 files, which is a large conflict surface against
 any concurrent work in `spa/src/pages/prototype/`.
