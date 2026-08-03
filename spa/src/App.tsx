@@ -32,7 +32,11 @@ import {
   peekPendingAuthRedirect,
   pendingAuthRedirectDecision,
 } from './lib/pending-auth-redirect';
-import { syncPublicRouteHtmlClass } from '@/lib/prototype-path';
+import { isPrototypeShellPath, syncPublicRouteHtmlClass } from '@/lib/prototype-path';
+import {
+  showPrototypeFeedbackToast,
+  type PrototypeFeedbackToastVariant,
+} from '@/utils/prototype-feedback-toast';
 import { setSupabaseRealtimeAccessTokenGetter } from '@/lib/supabase-client';
 
 const PWA_INSTALL_INSTRUCTIONS_EVENT = 'showPwaInstallInstructions';
@@ -77,27 +81,67 @@ function stripPunctuation(msg: string) {
   return msg.replace(/[.!]/g, '');
 }
 
-function showToast(show: () => void) {
-  if (shouldSuppressAppToasts()) return;
+/**
+ * Route a toast to whichever renderer the current shell actually mounts.
+ *
+ * `shouldSuppressAppToasts()` hides <Toaster> on the auth/upgrade shells *and* on the
+ * 2.0 prototype shell — but the prototype mounts its own renderer
+ * (PrototypeFeedbackToast). Without the `proto` fallback below, every `window.toast.*`
+ * call and every `CustomEvent('toast')` in 2.0 was silently dropped, so users saw
+ * nothing at all when a save failed. Mirrors the same fallback in `src/utils/toast.ts`.
+ *
+ * upgradePrompt / pwaPrompt deliberately pass no fallback: the prototype toast's action
+ * button always opens the support sheet, so their Upgrade / How-to-install actions
+ * cannot be represented there.
+ */
+function showToast(
+  show: () => void,
+  proto?: { message: string; variant: PrototypeFeedbackToastVariant },
+) {
+  if (shouldSuppressAppToasts()) {
+    if (proto?.message && typeof window !== 'undefined' && isPrototypeShellPath(window.location.pathname)) {
+      showPrototypeFeedbackToast(proto.message, proto.variant);
+    }
+    return;
+  }
   show();
 }
 
 const windowToast = {
   success: (message: string) =>
-    showToast(() => sonnerToast.success(stripPunctuation(message), { icon: null })),
-  allSynced: () => showToast(() => sonnerToast.success('Your Harvous is synced', { icon: null })),
+    showToast(() => sonnerToast.success(stripPunctuation(message), { icon: null }), {
+      message: stripPunctuation(message),
+      variant: 'success',
+    }),
+  allSynced: () =>
+    showToast(() => sonnerToast.success('Your Harvous is synced', { icon: null }), {
+      message: 'Your Harvous is synced',
+      variant: 'success',
+    }),
   error: (message: string) =>
-    showToast(() => sonnerToast.error(stripPunctuation(message), { icon: null })),
+    showToast(() => sonnerToast.error(stripPunctuation(message), { icon: null }), {
+      message: stripPunctuation(message),
+      variant: 'error',
+    }),
   info: (message: string) =>
-    showToast(() => sonnerToast.info(stripPunctuation(message), { icon: null })),
+    showToast(() => sonnerToast.info(stripPunctuation(message), { icon: null }), {
+      message: stripPunctuation(message),
+      variant: 'info',
+    }),
   warning: (message: string) =>
-    showToast(() => sonnerToast.warning(stripPunctuation(message), { icon: null })),
+    showToast(() => sonnerToast.warning(stripPunctuation(message), { icon: null }), {
+      message: stripPunctuation(message),
+      variant: 'warning',
+    }),
   show: (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'success') => {
     windowToast[type](message);
   },
   errorWithAction: (message: string, action: { label: string; onClick: () => void }) => {
-    showToast(() =>
-      sonnerToast.error(stripPunctuation(message), { icon: null, duration: Infinity, action }),
+    showToast(
+      () => sonnerToast.error(stripPunctuation(message), { icon: null, duration: Infinity, action }),
+      // The prototype toast can render the message but not this caller's action.
+      // Showing the message alone still beats dropping the error entirely.
+      { message: stripPunctuation(message), variant: 'error' },
     );
   },
   upgradePrompt: (message: string, upgradeUrl?: string) => {
@@ -214,8 +258,9 @@ function ToastSetup() {
     handleUrlToast();
 
     // Handle 'toast' and 'showToast' custom events dispatched by components
+    // No suppression check here: windowToast's own showToast() decides per shell,
+    // and forwards to the prototype renderer rather than dropping the toast.
     function handleToastEvent(event: Event) {
-      if (shouldSuppressAppToasts()) return;
       const { message, type, code, upgradeUrl } = (event as CustomEvent).detail || {};
       if (code === 'SHARED_SPACE_LIMIT_EXCEEDED') {
         windowToast.upgradePrompt(message ?? '', upgradeUrl);
