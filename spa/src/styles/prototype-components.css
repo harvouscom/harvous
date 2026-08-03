@@ -9366,169 +9366,6 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   right: -2px;
 }
 
-/* Staff plan strip — pilot countdown / lapsed prompt in the My Church hub. */
-.proto-church-plan-banner {
-  padding: 12px 14px;
-  border-radius: var(--pds-radius-menu);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.proto-church-plan-banner__headline {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.proto-church-plan-banner__icon {
-  opacity: 0.7;
-}
-
-.proto-church-plan-banner__body {
-  margin: 0 0 2px;
-  color: var(--pds-text-secondary);
-  line-height: 1.4;
-}
-
-.proto-church-plan-banner__error {
-  margin: 0;
-  color: var(--pds-destructive, #b42318);
-}
-
-/* Staff roster — collapsed disclosure in the My Church hub. */
-.proto-church-staff__toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 0;
-}
-
-.proto-church-staff {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.proto-church-staff__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.proto-church-staff__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-  font-size: 0.8125rem;
-}
-
-/* The app reset sets `* { flex-shrink: 0 }` — the name column is what gives. */
-.proto-church-staff__name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.proto-church-staff__name--pending {
-  color: var(--pds-text-secondary);
-  font-style: italic;
-}
-
-.proto-church-staff__role {
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--pds-text-tertiary);
-}
-
-.proto-church-staff__action {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  font: inherit;
-  font-size: 0.75rem;
-  color: var(--pds-text-secondary);
-  cursor: pointer;
-}
-
-.proto-church-staff__action:hover:not(:disabled) {
-  color: var(--pds-destructive, #b42318);
-}
-
-.proto-church-staff__invite {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.proto-church-staff__invite input {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-}
-
-.proto-church-staff__invite button {
-  width: auto;
-  white-space: nowrap;
-}
-
-.proto-church-staff__meta {
-  margin: 0;
-  color: var(--pds-text-tertiary);
-  line-height: 1.4;
-}
-
-/* Browse/manage row: same card as a followed channel, minus the tap target. */
-.proto-church-hub__browse-row {
-  cursor: default;
-}
-
-/* Compact inline Follow / Following toggle. The app reset sets
-   `* { flex-shrink: 0 }`, so this stays at its natural width and the title
-   column (flex: 1; min-width: 0) is what gives. */
-.proto-church-hub__follow-btn {
-  appearance: none;
-  padding: 4px 10px;
-  border: 0.5px solid var(--pds-border);
-  border-radius: 999px;
-  background: var(--pds-bg-subtle);
-  color: var(--pds-text-primary);
-  font: inherit;
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1.2;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.proto-church-hub__follow-btn:hover:not(:disabled) {
-  background: var(--pds-bg-hover, var(--pds-bg-subtle));
-}
-
-.proto-church-hub__follow-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-/* Following reads as a quieter, already-done state than Follow. */
-.proto-church-hub__follow-btn[data-following] {
-  background: transparent;
-  color: var(--pds-text-secondary);
-}
-
 .hmc-church-picker {
   display: flex;
   flex-direction: column;
@@ -9778,6 +9615,47 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 .proto-shared-space-header__church {
   margin: 0;
   color: var(--pds-text-tertiary);
+  /* One line, always — a wrapped church name pushed the channel title down and
+     made the header jump between one and two lines per space. */
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1.25;
+  /* Establishes 100cqw below = this element's own width. */
+  container-type: inline-size;
+}
+
+.proto-shared-space-header__church > span {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+/* Hover reveal. `min(0px, 100cqw - 100%)` is the overflow distance: exactly 0
+   when the name already fits (so short names never twitch), and the negative
+   remainder when it doesn't — no JS measurement needed. */
+.proto-shared-space-header__church:hover > span {
+  max-width: none;
+  text-overflow: clip;
+  animation: proto-marquee-reveal 5s ease-in-out infinite alternate;
+}
+
+@keyframes proto-marquee-reveal {
+  0%,
+  15% {
+    transform: translateX(0);
+  }
+  85%,
+  100% {
+    transform: translateX(min(0px, calc(100cqw - 100%)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-shared-space-header__church:hover > span {
+    animation: none;
+  }
 }
 
 .proto-shared-space-header__title {
@@ -10458,70 +10336,61 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   fill: oklch(from var(--swatch-accent) calc(l * 0.58) min(c * 3.5, 0.2) h);
 }
 
-/* My Home / My Church segmented chips (only when a Harvous church is available). */
-.proto-menu-section--mode-toggle {
-  padding: 6px 6px 4px;
-}
-
-.proto-space-switcher__mode-toggle {
-  display: flex;
-  width: 100%;
-  box-sizing: border-box;
-  border-radius: 9px;
-  background: var(--pds-bg-control);
-  padding: 3px;
-  gap: 2px;
-}
-
-.proto-space-switcher__mode-chip {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  border-radius: 7px;
-  padding: 5px 8px;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--pds-text-secondary);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
-}
-
-.proto-space-switcher__mode-chip-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  line-height: 0;
-  opacity: 0.85;
-}
-
-.proto-space-switcher__mode-chip--active {
-  background: var(--pds-bg-page);
-  color: var(--pds-text-primary);
+/* Parent row (My Home / a church) — heads its own group in the flat switcher.
+   Replaced the segmented My Home / My Church chips: a chip pair can only ever
+   express two parents, and it sat one level below the spaces it governed. */
+.proto-space-switcher__parent-item {
   font-weight: 600;
-  box-shadow: 0 1px 3px oklch(0% 0 0 / 0.08);
 }
 
-.proto-space-switcher__mode-chip--active .proto-space-switcher__mode-chip-icon {
-  opacity: 1;
+/* Spaces belonging to the parent above them.
+   Deliberately NOT indented: every label in the menu shares one left edge, so
+   the eye reads a single column instead of a ragged staircase. Grouping is
+   carried by the parent row's weight and the section divider. The reorder
+   handle is lifted out of the flow below so it can't push these rows right. */
+.proto-space-switcher__row--nested .proto-space-switcher__row-item {
+  padding-left: 8px;
+}
+
+.proto-space-switcher__see-all {
+  /* Aligns with the labels above, not with their icons — it's a continuation
+     of the list, not another entry in it. */
+  padding-left: 33px;
+  color: var(--pds-text-secondary);
+  font-size: 12px;
 }
 
 .proto-space-switcher__row {
+  position: relative;
   display: flex;
   align-items: stretch;
   min-width: 0;
   border-radius: 8px;
 }
 
-.proto-space-switcher__row--reorderable {
-  padding-left: 2px;
+/* The handle floats over the leading icon rather than occupying a column of
+   its own — an in-flow handle shifted every reorderable row right, so personal
+   spaces sat further in than church ones and neither lined up with its parent.
+   Hidden until the row is hovered, with the icon fading out beneath it. */
+.proto-space-switcher__row--reorderable .proto-space-switcher__drag-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  height: auto;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.proto-space-switcher__row--reorderable:hover .proto-space-switcher__drag-handle,
+.proto-space-switcher__row--reorderable:focus-within .proto-space-switcher__drag-handle {
+  opacity: 0.75;
+}
+
+.proto-space-switcher__row--reorderable:hover .proto-menu-item__icon--space,
+.proto-space-switcher__row--reorderable:focus-within .proto-menu-item__icon--space {
+  opacity: 0;
 }
 
 .proto-space-switcher__row--dragging {

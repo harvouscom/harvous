@@ -14,6 +14,7 @@ import Icon from '@/components/react/Icon';
 import ProtoHouseIcon from './ProtoHouseIcon';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { parentForSpace } from '../../layouts/proto-location';
 import { resolveSpaceSwitcherToolbarState, useActiveSpace } from '../../hooks/useActiveSpace';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import { useSwitchToSpace } from '../../hooks/useSwitchToSpace';
@@ -42,6 +43,8 @@ import { UNLIMITED, isUnlimited } from '@/lib/shared-spaces-limits';
 
 const SPACE_SWITCHER_POPOVER_WIDTH = 260;
 const SPACE_SWITCHER_POPOVER_FALLBACK_HEIGHT = 180;
+/** Spaces listed under each parent before collapsing into a "See all" row. */
+const SWITCHER_SPACES_PER_PARENT = 6;
 
 function normalizeSpaceId(id: string): string {
   return id.startsWith('space_') ? id : `space_${id}`;
@@ -61,6 +64,10 @@ export default function SpaceSwitcherMenu({
   const {
     sidebarLayer,
     setSidebarLayer,
+    // Named `protoLocation`, not `location` — a bare `location` silently
+    // resolves to `window.location` and the shadowing typechecks far enough to
+    // hide the mistake.
+    location: protoLocation,
     activeSpaceId,
     activeChurchOrgId,
     setActiveChurchOrgId,
@@ -110,14 +117,18 @@ export default function SpaceSwitcherMenu({
     ],
   );
   const inMyChurchMode = Boolean(activeChurchOrgId);
-  /** My Church: that church’s spaces (owned + joined). */
+  /**
+   * The church's spaces (owned + joined). Computed from the church itself, not
+   * from the active parent — the menu is flat, so a church channel is reachable
+   * in one click while you're sitting in My Home.
+   */
   const churchSpaces = useMemo(() => {
-    if (!inMyChurchMode || !activeChurchOrgId) return [] as NavSpace[];
+    if (!myChurch?.orgId) return [] as NavSpace[];
     return churchHubSpacesForOrg(
       [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])],
-      activeChurchOrgId,
+      myChurch.orgId,
     );
-  }, [nav?.spaces, nav?.memberOfSpaces, inMyChurchMode, activeChurchOrgId]);
+  }, [nav?.spaces, nav?.memberOfSpaces, myChurch?.orgId]);
 
   /** My Home: one list of personal Shared Spaces (hosted + joined), preference-ordered. */
   const personalSharedSpaces = useMemo(() => {
@@ -156,8 +167,10 @@ export default function SpaceSwitcherMenu({
     ],
   );
   const spaceDrag = useSharedSpaceSwitcherDragReorder({
+    // Personal spaces are always listed now (flat menu), so reorder is available
+    // whenever the menu is open rather than only in My Home mode.
     orderedSpaceIds: personalSharedIds,
-    enabled: !inMyChurchMode && open,
+    enabled: open,
   });
   const personalSpacesById = useMemo(() => {
     const map = new Map<string, NavSpace>();
@@ -166,12 +179,27 @@ export default function SpaceSwitcherMenu({
     }
     return map;
   }, [personalSharedSpaces]);
-  const displayedPersonalSpaces = useMemo(() => {
-    if (inMyChurchMode) return [];
-    return spaceDrag.displayOrderedIds
-      .map((id) => personalSpacesById.get(id))
-      .filter((s): s is NavSpace => Boolean(s));
-  }, [inMyChurchMode, personalSpacesById, spaceDrag.displayOrderedIds]);
+  const displayedPersonalSpaces = useMemo(
+    () =>
+      spaceDrag.displayOrderedIds
+        .map((id) => personalSpacesById.get(id))
+        .filter((s): s is NavSpace => Boolean(s)),
+    [personalSpacesById, spaceDrag.displayOrderedIds],
+  );
+
+  /**
+   * Each parent group is capped so a church with twenty channels doesn't turn
+   * the switcher into a directory — the overflow gets a "See all" row into that
+   * parent's hub, which is the surface built for browsing.
+   */
+  const visiblePersonalSpaces = displayedPersonalSpaces.slice(0, SWITCHER_SPACES_PER_PARENT);
+  const personalOverflow = displayedPersonalSpaces.length - visiblePersonalSpaces.length;
+  const visibleChurchSpaces = churchSpaces.slice(0, SWITCHER_SPACES_PER_PARENT);
+  const churchOverflow = churchSpaces.length - visibleChurchSpaces.length;
+
+  /** A parent row is checked when you're at that parent's hub (no space open). */
+  const atHomeHub = protoLocation.parent.kind === 'home' && !activeSpaceId;
+  const atChurchHub = protoLocation.parent.kind === 'church' && !activeSpaceId;
 
   // Plus is unlimited; a stale cache can still report the old numeric limit (or 0),
   // so anything non-positive resolves to unlimited rather than locking the user out.
@@ -268,25 +296,31 @@ export default function SpaceSwitcherMenu({
     <Icon name="table-cells" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
   );
 
-  function selectHome(options?: { keepOpen?: boolean }) {
-    if (!options?.keepOpen) setOpen(false);
+  // Every selection closes the menu. The parent chips that used to stay open
+  // are gone, and a row that leaves the menu up makes you click again to
+  // dismiss what you already chose.
+
+  function selectHome() {
+    setOpen(false);
     switchToSpace(null);
     ensureSidebarExpanded();
   }
 
-  function selectMyChurch(options?: { keepOpen?: boolean }) {
+  function selectMyChurch() {
     if (!myChurch) return;
-    if (!options?.keepOpen) setOpen(false);
+    setOpen(false);
     setActiveChurchOrgId(myChurch.orgId);
     ensureSidebarExpanded();
   }
 
-  function selectSpace(spaceId: string, options?: { keepChurch?: boolean }) {
+  /**
+   * The parent comes from the space, not from a flag the caller carries.
+   * Opening a ministry channel puts you in church context because that is where
+   * the channel lives.
+   */
+  function selectSpace(row: NavSpace) {
     setOpen(false);
-    if (!options?.keepChurch) {
-      setActiveChurchOrgId(null);
-    }
-    switchToSpace(normalizeSpaceId(spaceId));
+    switchToSpace(normalizeSpaceId(row.id), parentForSpace(row));
     ensureSidebarExpanded();
   }
 
@@ -309,7 +343,10 @@ export default function SpaceSwitcherMenu({
     setCreateSheetOpen(true);
   }
 
-  function renderSpaceRow(row: NavSpace, options?: { reorderIndex?: number; allowReorder?: boolean }) {
+  function renderSpaceRow(
+    row: NavSpace,
+    options?: { reorderIndex?: number; allowReorder?: boolean; nested?: boolean },
+  ) {
     const checked = activeSpaceId === normalizeSpaceId(row.id);
     // Active space: no new affordance (you're already there). Inactive: subtle dot only.
     const hasUnseen = !checked && Boolean(row.newNoteCount && row.newNoteCount > 0);
@@ -322,7 +359,7 @@ export default function SpaceSwitcherMenu({
         key={row.id}
         className={`proto-space-switcher__row${isDraggingRow ? ' proto-space-switcher__row--dragging' : ''}${
           allowReorder ? ' proto-space-switcher__row--reorderable' : ''
-        }`}
+        }${options?.nested ? ' proto-space-switcher__row--nested' : ''}`}
         onDragEnter={
           allowReorder && options?.reorderIndex != null
             ? (e) => spaceDrag.handleDragOver(e, options.reorderIndex!)
@@ -359,7 +396,7 @@ export default function SpaceSwitcherMenu({
           aria-checked={checked}
           className="proto-menu-item proto-space-switcher__row-item"
           title={row.title}
-          onClick={() => selectSpace(row.id, { keepChurch: inMyChurchMode })}
+          onClick={() => selectSpace(row)}
         >
           <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
             {ministry ? (
@@ -387,84 +424,78 @@ export default function SpaceSwitcherMenu({
           aria-label="Spaces"
           style={{ top: anchorPos?.top ?? -9999, left: anchorPos?.left ?? 0 }}
         >
+          {/* Places: each parent is a selectable row that also heads its own
+              spaces. One flat list, so anything is one click from anywhere. */}
+          <div className="proto-menu-section" role="group" aria-label="Places">
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={atHomeHub}
+              className="proto-menu-item proto-space-switcher__parent-item"
+              onClick={selectHome}
+            >
+              <span className="proto-menu-item__icon" aria-hidden>
+                <ProtoHouseIcon size={PROTO_TOOLBAR_ICON_SIZE} />
+              </span>
+              <span className="proto-menu-item__label">My Home</span>
+              <span className="proto-menu-item__check" aria-hidden>
+                {atHomeHub ? <Icon name="check" size={12} /> : null}
+              </span>
+            </button>
+
+            {visiblePersonalSpaces.map((space, index) =>
+              renderSpaceRow(space, { reorderIndex: index, allowReorder: true, nested: true }),
+            )}
+            {spaceDrag.showDragHandle ? (
+              <div
+                className="proto-space-switcher__drop-tail"
+                role="presentation"
+                onDragEnter={(e) => spaceDrag.handleDragOver(e, visiblePersonalSpaces.length)}
+                onDragOver={(e) => spaceDrag.handleDragOver(e, visiblePersonalSpaces.length)}
+                onDrop={spaceDrag.handleDrop}
+              />
+            ) : null}
+            {personalOverflow > 0 ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item proto-space-switcher__see-all"
+                onClick={selectHome}
+              >
+                <span className="proto-menu-item__label">{`See all ${displayedPersonalSpaces.length} in My Home`}</span>
+              </button>
+            ) : null}
+          </div>
+
           {myChurch ? (
-            <div className="proto-menu-section proto-menu-section--mode-toggle" role="group" aria-label="Home or church">
-              <div className="proto-space-switcher__mode-toggle" role="radiogroup" aria-label="Home or church">
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={!inMyChurchMode}
-                  className={
-                    inMyChurchMode
-                      ? 'proto-space-switcher__mode-chip'
-                      : 'proto-space-switcher__mode-chip proto-space-switcher__mode-chip--active'
-                  }
-                  onClick={() => selectHome({ keepOpen: true })}
-                >
-                  <span className="proto-space-switcher__mode-chip-icon" aria-hidden>
-                    <ProtoHouseIcon size={12} />
-                  </span>
-                  My Home
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={inMyChurchMode}
-                  className={
-                    inMyChurchMode
-                      ? 'proto-space-switcher__mode-chip proto-space-switcher__mode-chip--active'
-                      : 'proto-space-switcher__mode-chip'
-                  }
-                  title={myChurch.churchName}
-                  aria-label={`My Church, ${myChurch.churchName}`}
-                  onClick={() => selectMyChurch({ keepOpen: true })}
-                >
-                  <span className="proto-space-switcher__mode-chip-icon" aria-hidden>
-                    <Icon name="church" size={12} />
-                  </span>
-                  My Church
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="proto-menu-section" role="group">
+            <div className="proto-menu-section" role="group" aria-label={myChurch.churchName}>
               <button
                 type="button"
                 role="menuitemradio"
-                aria-checked={!isSharedSpace}
-                className="proto-menu-item"
-                onClick={() => selectHome()}
+                aria-checked={atChurchHub}
+                className="proto-menu-item proto-space-switcher__parent-item"
+                title={myChurch.churchName}
+                onClick={selectMyChurch}
               >
                 <span className="proto-menu-item__icon" aria-hidden>
-                  <ProtoHouseIcon size={PROTO_TOOLBAR_ICON_SIZE} />
+                  <Icon name="church" size={PROTO_TOOLBAR_ICON_SIZE} />
                 </span>
-                <span className="proto-menu-item__label">My Home</span>
+                <span className="proto-menu-item__label">{myChurch.churchName}</span>
                 <span className="proto-menu-item__check" aria-hidden>
-                  {!isSharedSpace ? <Icon name="check" size={12} /> : null}
+                  {atChurchHub ? <Icon name="check" size={12} /> : null}
                 </span>
               </button>
-            </div>
-          )}
 
-          {inMyChurchMode && churchSpaces.length > 0 ? (
-            <div className="proto-menu-section" role="group" aria-label="Church spaces">
-              {churchSpaces.map((space) => renderSpaceRow(space))}
-            </div>
-          ) : null}
-
-          {!inMyChurchMode && displayedPersonalSpaces.length > 0 ? (
-            <div className="proto-menu-section" role="group" aria-label="Shared spaces">
-              {displayedPersonalSpaces.map((space, index) =>
-                renderSpaceRow(space, { reorderIndex: index, allowReorder: true }),
-              )}
-              {spaceDrag.showDragHandle ? (
-                <div
-                  className="proto-space-switcher__drop-tail"
-                  role="presentation"
-                  onDragEnter={(e) => spaceDrag.handleDragOver(e, displayedPersonalSpaces.length)}
-                  onDragOver={(e) => spaceDrag.handleDragOver(e, displayedPersonalSpaces.length)}
-                  onDrop={spaceDrag.handleDrop}
-                />
+              {visibleChurchSpaces.map((space) => renderSpaceRow(space, { nested: true }))}
+              {churchOverflow > 0 ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="proto-menu-item proto-space-switcher__see-all"
+                  onClick={selectMyChurch}
+                >
+                  <span className="proto-menu-item__label">{`See all ${churchSpaces.length} in ${myChurch.churchName}`}</span>
+                </button>
               ) : null}
             </div>
           ) : null}
@@ -540,11 +571,14 @@ export default function SpaceSwitcherMenu({
           aria-haspopup="menu"
           aria-expanded={open}
           disabled={!hasHome}
+          // Two jobs, resolved by which layer you're already on — and that's a
+          // readout, not hidden state: `data-active` below marks the current
+          // layer. Inactive, the orb is a fast view toggle (one click straight
+          // to this layer, no menu, nothing to re-pick). Active, it opens the
+          // menu. Neither job ever costs two clicks.
           onClick={() => {
             if (!hasHome) return;
             if (!open && sidebarLayer !== 'space') {
-              // First tap when on the list layer just switches to the space
-              // layer (matches the old orb behavior); tap again to open the menu.
               setSidebarLayer('space');
               ensureSidebarExpanded();
               return;
@@ -572,7 +606,9 @@ export default function SpaceSwitcherMenu({
         onOpenChange={setCreateSheetOpen}
         orgId={createOrgId}
         kind={createKind}
-        onCreated={(spaceId) => selectSpace(spaceId, { keepChurch: Boolean(createOrgId) })}
+        // A just-created space isn't in nav yet, so its parent can't be looked
+        // up — but the sheet already captured which org it was created under.
+        onCreated={(spaceId) => selectSpace({ id: spaceId, orgId: createOrgId } as NavSpace)}
       />
     </div>
   );
