@@ -416,15 +416,19 @@ function collectAllElsewhereCandidates(
   if (!query) return [];
 
   const results: SidebarSearchResult[] = [];
-  const loadedNoteIds = new Set(data.notes.map((n) => n.id));
+  const locallyMatchedNoteIds = new Set<string>();
 
   for (const note of filterNotesByQuery(data.notes, query)) {
+    locallyMatchedNoteIds.add(note.id);
     results.push(noteToResult(note, stripHtmlForListPreview(note.content ?? '', 80) || undefined));
   }
 
+  // Skip only notes the local pass already matched — a loaded note can still be an
+  // FTS-only hit (tag match, or body past the local preview truncation), and dropping
+  // every loaded id would silently discard those.
   for (const fts of data.ftsNotes ?? []) {
     if (fts.type !== 'note') continue;
-    if (loadedNoteIds.has(fts.id)) continue;
+    if (locallyMatchedNoteIds.has(fts.id)) continue;
     results.push(ftsNoteToResult(fts));
   }
 
@@ -488,10 +492,26 @@ export function buildElsewhereResults(
     if (!deduped.has(r.id)) deduped.set(r.id, r);
   }
 
-  return fuzzyFilter(Array.from(deduped.values()), ['title'], query).slice(
-    0,
-    SIDEBAR_ELSEWHERE_RESULTS_CAP,
-  );
+  // Rank by title only — never re-filter by it. Every candidate already earned its
+  // place through its own matcher (note body, highlight text, server FTS/tags), and a
+  // title-only pass here dropped all of those: a note whose body says "Ps Jeff" but
+  // whose title doesn't mention Jeff vanished from Elsewhere while showing In Notes.
+  return Array.from(deduped.values())
+    .map((result, index) => ({ result, index, rank: titleMatchRank(result.title, query) }))
+    .sort((a, b) => (a.rank !== b.rank ? a.rank - b.rank : a.index - b.index))
+    .slice(0, SIDEBAR_ELSEWHERE_RESULTS_CAP)
+    .map((entry) => entry.result);
+}
+
+/** Title-affinity rank for Elsewhere ordering: exact prefix, substring, fuzzy, then body/tag-only hits. */
+function titleMatchRank(title: string, query: string): number {
+  const t = title.trim().toLowerCase();
+  const q = query.trim().toLowerCase();
+  if (!q) return 3;
+  if (t.startsWith(q)) return 0;
+  if (t.includes(q)) return 1;
+  if (fuzzyMatches(query, title)) return 2;
+  return 3;
 }
 
 export function buildFoldersFromNotes(notes: SpaceNoteRow[]): FolderBucket[] {

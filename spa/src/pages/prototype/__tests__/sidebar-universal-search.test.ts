@@ -180,6 +180,98 @@ describe('sidebar-universal-search', () => {
     expect(elsewhere.length).toBeGreaterThan(0);
   });
 
+  it('buildElsewhereResults keeps notes that match only on body content', () => {
+    // Mirrors the real report: a note titled "Trust God every day" whose body says
+    // "Ps Jeff …" showed under In Notes but vanished from Elsewhere, because the
+    // final pass re-filtered candidates by title alone.
+    const bodyOnlyNotes = [
+      {
+        id: 'note_body',
+        title: 'Trust God every day',
+        content: '<p>Ps Jeff — right now, what are you in your life…</p>',
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-02',
+        primaryCollection: null,
+        secondaryCollections: [],
+      },
+    ] as UniversalSearchData['notes'];
+
+    const elsewhere = buildElsewhereResults(
+      'jeff',
+      { ...sampleData, notes: bodyOnlyNotes, folders: [], highlights: [], scriptureBooks: [], threadClusters: [] },
+      new Set(),
+      'notes',
+      (c) => c.title ?? '',
+    );
+    expect(elsewhere.map((r) => r.noteId)).toContain('note_body');
+  });
+
+  it('buildElsewhereResults surfaces FTS-only hits for already-loaded notes (tag matches)', () => {
+    // A tag match resolves server-side only. The note is already in `notes`, so skipping
+    // every loaded id used to drop it entirely.
+    const loaded = [
+      {
+        id: 'note_tagged',
+        title: 'Sunday gathering',
+        content: '<p>No mention of the query here.</p>',
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-02',
+        primaryCollection: null,
+        secondaryCollections: [],
+      },
+    ] as UniversalSearchData['notes'];
+
+    const elsewhere = buildElsewhereResults(
+      'discipleship',
+      {
+        ...sampleData,
+        notes: loaded,
+        folders: [],
+        highlights: [],
+        scriptureBooks: [],
+        threadClusters: [],
+        ftsNotes: [{ id: 'note_tagged', type: 'note', title: 'Sunday gathering' }] as UniversalSearchData['ftsNotes'],
+      },
+      new Set(),
+      'notes',
+      (c) => c.title ?? '',
+    );
+    expect(elsewhere.map((r) => r.noteId)).toContain('note_tagged');
+  });
+
+  it('buildElsewhereResults ranks title matches above body-only matches', () => {
+    const notes = [
+      {
+        id: 'body_match',
+        title: 'Zebra thoughts',
+        content: '<p>Jeff preached on this</p>',
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-02',
+        primaryCollection: null,
+        secondaryCollections: [],
+      },
+      {
+        id: 'title_match',
+        title: 'Jeff sermon notes',
+        content: '<p>unrelated body</p>',
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-02',
+        primaryCollection: null,
+        secondaryCollections: [],
+      },
+    ] as UniversalSearchData['notes'];
+
+    const elsewhere = buildElsewhereResults(
+      'jeff',
+      { ...sampleData, notes, folders: [], highlights: [], scriptureBooks: [], threadClusters: [] },
+      new Set(),
+      'notes',
+      (c) => c.title ?? '',
+    );
+    expect(elsewhere[0]?.noteId).toBe('title_match');
+    expect(elsewhere.map((r) => r.noteId)).toContain('body_match');
+  });
+
   it('elsewhere type filter limits kinds', () => {
     const elsewhere = buildElsewhereResults(
       'romans',
