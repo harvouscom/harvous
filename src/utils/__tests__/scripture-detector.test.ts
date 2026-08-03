@@ -16,6 +16,8 @@ import {
   normalizeChapterReference,
   canonicalizeScriptureReferenceDisplay,
   checkScriptureReferenceValidity,
+  isResolvableScriptureReference,
+  repairUnresolvableReference,
   matchTrailingTranslationAbbreviation,
   matchAnchoredTrailingTranslationAbbreviation,
   normalizeInlineTranslationAbbreviation,
@@ -625,5 +627,58 @@ describe('checkScriptureReferenceValidity', () => {
 
   it('accepts lowercase input (validity is independent of casing)', () => {
     expect(checkScriptureReferenceValidity('exodus 16:13')).toEqual({ ok: true });
+  });
+});
+
+describe('repairUnresolvableReference', () => {
+  it('recovers the range when a hyphen was dropped and the split is unambiguous', () => {
+    // What iOS predictive text does to "Exodus 16:16-20".
+    expect(repairUnresolvableReference('Exodus 16:1620')).toBe('Exodus 16:16-20');
+  });
+
+  it('returns null when more than one split would be valid', () => {
+    // Psalm 119 has 176 verses, so both 1-156 and 11-56 are real ranges. Guessing
+    // between them would silently rewrite the user's reference.
+    expect(repairUnresolvableReference('Psalm 119:1156')).toBeNull();
+  });
+
+  it('recovers where a long chapter still leaves only one real range', () => {
+    // 1|234 is past 176 and 123|4 runs backwards, so 12-34 is the only candidate.
+    expect(repairUnresolvableReference('Psalm 119:1234')).toBe('Psalms 119:12-34');
+  });
+
+  it('returns null for a reference that already resolves', () => {
+    expect(repairUnresolvableReference('Exodus 16:16-20')).toBeNull();
+    expect(repairUnresolvableReference('John 3:16')).toBeNull();
+  });
+
+  it('returns null when no split lands inside the chapter', () => {
+    expect(repairUnresolvableReference('John 3:9999')).toBeNull();
+  });
+
+  it('returns null for an unknown book', () => {
+    expect(repairUnresolvableReference('Hezekiah 4:1620')).toBeNull();
+  });
+
+  it('ignores splits that would invent a leading zero', () => {
+    // 1|05 is not something a user typed; only a genuine 10-5 style split counts,
+    // and that runs backwards, so there is nothing to recover.
+    expect(repairUnresolvableReference('John 3:105')).toBeNull();
+  });
+
+  it('normalizes the book name in the repaired output', () => {
+    expect(repairUnresolvableReference('exodus 16:1620')).toBe('Exodus 16:16-20');
+  });
+});
+
+describe('unresolvable references are rejected, not just warned about', () => {
+  it('treats a dropped-hyphen range as unresolvable', () => {
+    expect(isResolvableScriptureReference('Exodus 16:1620')).toBe(false);
+  });
+
+  it('still detects it, because detection is deliberately permissive', () => {
+    // This is exactly why the resolvability gate exists: a `.length === 0` check
+    // on detection passes here and let the broken pill through.
+    expect(detectScriptureReferences('Exodus 16:1620').length).toBeGreaterThan(0);
   });
 });

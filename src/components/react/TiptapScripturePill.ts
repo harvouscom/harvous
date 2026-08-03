@@ -3,19 +3,25 @@ import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
-import { detectScriptureReferences } from '@/utils/scripture-detector';
+import { isResolvableScriptureReference } from '@/utils/scripture-detector';
 
 /**
  * A saved pill span is only honored if BOTH its `data-scripture-reference` attribute and its
  * visible text are actual scripture references. This rejects corrupted/over-broad pills (e.g. a
  * whole list item "1. Obedience flows from a relationship with God" wrapped as a pill) at parse
  * time so they load as plain text instead of re-hydrating the corruption.
+ *
+ * The check is *resolvability*, not just shape. Detection is deliberately permissive — it
+ * accepts unbounded digit runs — so `Exodus 16:1620` (an iOS-eaten hyphen in 16:16-20) used
+ * to pass every gate and persist forever as a pill the server can never resolve, surfacing
+ * as "Could not load this passage". Failing here unwraps it to plain text, which shows the
+ * user their own words and lets them fix it.
  */
 export function pillSpanIsValidReference(reference: string | null, text: string | null): boolean {
   if (!reference) return false;
-  if (detectScriptureReferences(reference).length === 0) return false;
+  if (!isResolvableScriptureReference(reference)) return false;
   const t = (text || '').trim();
-  if (t && detectScriptureReferences(t).length === 0) return false;
+  if (t && !isResolvableScriptureReference(t)) return false;
   return true;
 }
 

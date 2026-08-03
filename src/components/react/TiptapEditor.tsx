@@ -87,7 +87,7 @@ import {
 } from './TiptapReferenceSuggestion';
 import { UrlLink, isAllowedExternalHref } from './TiptapUrlLink';
 import { TextIndent } from './TiptapTextIndent';
-import { normalizeScriptureReference, detectScriptureReferences, matchTrailingTranslationAbbreviation, matchAnchoredTrailingTranslationAbbreviation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
+import { normalizeScriptureReference, detectScriptureReferences, isResolvableScriptureReference, matchTrailingTranslationAbbreviation, matchAnchoredTrailingTranslationAbbreviation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
 import {
   extractResolvedScripturePillReferencesFromHtml,
   filterReferencesWithoutExistingPills,
@@ -1723,11 +1723,13 @@ function resolveExtendedReference(
   detectedRef: string,
 ): string | null {
   const merged = mergeReferenceWithOrphanSuffix(existingRef, gapText);
-  if (merged) return merged;
+  if (merged) return isResolvableScriptureReference(merged) ? merged : null;
   const pillTrim = existingRef.trim();
   const detTrim = detectedRef.trim();
   if (detTrim.length > pillTrim.length && detTrim.toLowerCase().startsWith(pillTrim.toLowerCase())) {
-    return detectedRef;
+    // A longer prefix-match is only an extension if it still resolves; otherwise it's
+    // the same dropped-hyphen corruption in a different disguise.
+    return isResolvableScriptureReference(detectedRef) ? detectedRef : null;
   }
   return null;
 }
@@ -1760,6 +1762,23 @@ function insertScriptureContinuationAtPillEnd(
     null;
 
   const finalRef = merged ?? pillAttrs.reference;
+
+  // Only let the pill swallow the keystroke if the result still points at a real passage.
+  // Detection accepts unbounded digit runs, so when iOS eats the `-` of `16:16-20` this
+  // path used to grow the pill through `16:162` to `16:1620` and store that as the
+  // reference — a pill the server can never resolve. Falling back to plain text keeps the
+  // digits visible and editable instead of baking in a broken pill.
+  const grownText = tr.doc.textBetween(boundaries.start, newEnd);
+  if (!isResolvableScriptureReference(finalRef) || !isResolvableScriptureReference(grownText)) {
+    const plain = view.state.tr;
+    plain.insertText(key, insertPos);
+    plain.removeMark(insertPos, insertPos + key.length, markType);
+    plain.setSelection(TextSelection.create(plain.doc, insertPos + key.length));
+    plain.setStoredMarks([]);
+    plain.setMeta('addToHistory', true);
+    view.dispatch(plain);
+    return;
+  }
   const finalEnd = applyScripturePillToRange(tr, markType, boundaries.start, newEnd, finalRef, {
     noteId: pillAttrs.noteId,
     translation: pillAttrs.translation,

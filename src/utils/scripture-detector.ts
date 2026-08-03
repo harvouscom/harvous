@@ -316,6 +316,49 @@ export function isResolvableScriptureReference(reference: string): boolean {
   return checkScriptureReferenceValidity(reference).ok;
 }
 
+/**
+ * Recover the range a user almost certainly meant when the hyphen went missing.
+ *
+ * `Exodus 16:16-20` typed on iOS can arrive as `Exodus 16:1620` — predictive text eats the
+ * `-`, and because detection accepts unbounded digit runs it parses happily as verse 1620.
+ * Split the digit run every possible way and accept only when exactly one split yields a
+ * real ascending range inside that chapter, so an ambiguous case is never silently guessed:
+ *
+ *   Exodus 16:1620 -> 16-20   (1|620 and 162|0 are both out of range, so 16|20 is unique)
+ *   Psalm 119:1234 -> null    (1|234, 12|34 and 123|4 are all valid — genuinely ambiguous)
+ *
+ * Returns null when the reference already resolves, isn't this shape, or is ambiguous.
+ */
+export function repairUnresolvableReference(reference: string): string | null {
+  const raw = String(reference ?? '').trim();
+  if (!raw || isResolvableScriptureReference(raw)) return null;
+
+  const match = raw.match(/^(.+?)\s+(\d+):(\d+)$/);
+  if (!match) return null;
+  const [, bookPart, chapterPart, digits] = match;
+  if (digits.length < 2) return null;
+
+  const canonicalBook = resolveCanonicalBookName(bookPart.trim(), getBookNameVariations());
+  if (!canonicalBook) return null;
+  const chapter = parseInt(chapterPart, 10);
+
+  const candidates: string[] = [];
+  for (let cut = 1; cut < digits.length; cut++) {
+    const startText = digits.slice(0, cut);
+    const endText = digits.slice(cut);
+    // A leading zero on either side was never a verse number the user typed.
+    if (startText.length > 1 && startText.startsWith('0')) continue;
+    if (endText.length > 1 && endText.startsWith('0')) continue;
+    const start = parseInt(startText, 10);
+    const end = parseInt(endText, 10);
+    if (start >= end) continue;
+    if (!validateVerseRange(canonicalBook, chapter, start, end)) continue;
+    candidates.push(`${canonicalBook} ${chapter}:${start}-${end}`);
+  }
+
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
 // Normalize chapter-only reference to include full verse range
 // "Genesis 1" → "Genesis 1:1-31"
 export function normalizeChapterReference(book: string, chapter: number): string | null {
@@ -383,6 +426,29 @@ export const formatBookNameForAPI = (bookName: string): string => {
 };
 
 // Helper function to validate and log warnings for scripture references
+/**
+ * Dev-only warn budget. These warnings are emitted from `parseReference`, which runs per
+ * keystroke, per pill on every setContent, and over the whole body on each autosave — so
+ * a single unresolvable pill could produce thousands of identical lines and drown the
+ * console (it also tripped PostHog's client-side rate limiter). Warn once per distinct
+ * message, and stop entirely past a hard cap.
+ */
+const WARNED_REFERENCES = new Set<string>();
+const MAX_DISTINCT_REFERENCE_WARNINGS = 50;
+
+function warnOnceAboutReference(message: string): void {
+  if (typeof import.meta !== 'undefined' && !import.meta.env?.DEV) return;
+  if (WARNED_REFERENCES.has(message)) return;
+  if (WARNED_REFERENCES.size >= MAX_DISTINCT_REFERENCE_WARNINGS) return;
+  WARNED_REFERENCES.add(message);
+  console.warn(message);
+}
+
+/** Test seam — reset the warn budget between cases. */
+export function resetScriptureReferenceWarnings(): void {
+  WARNED_REFERENCES.clear();
+}
+
 function validateAndWarn(ref: ScriptureReference): ScriptureReference {
   const { book, chapter, verse, endChapter } = ref;
 
@@ -390,7 +456,7 @@ function validateAndWarn(ref: ScriptureReference): ScriptureReference {
   if (endChapter != null && Array.isArray(verse)) {
     const [start, end] = verse;
     if (!validateCrossChapterRange(book, chapter, start, endChapter, end)) {
-      console.warn(`Invalid cross-chapter range: ${ref.reference}`);
+      warnOnceAboutReference(`Invalid cross-chapter range: ${ref.reference}`);
     }
     return ref;
   }
@@ -409,9 +475,9 @@ function validateAndWarn(ref: ScriptureReference): ScriptureReference {
     if (!validateVerseRange(book, chapter, start, end)) {
       const range = getChapterVerseRange(book, chapter);
       if (range) {
-        console.warn(`Invalid verse range: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
+        warnOnceAboutReference(`Invalid verse range: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
       } else {
-        console.warn(`Unknown book/chapter: ${book} ${chapter}`);
+        warnOnceAboutReference(`Unknown book/chapter: ${book} ${chapter}`);
       }
     }
   } else {
@@ -419,9 +485,9 @@ function validateAndWarn(ref: ScriptureReference): ScriptureReference {
     if (!validateVerseNumber(book, chapter, verse)) {
       const range = getChapterVerseRange(book, chapter);
       if (range) {
-        console.warn(`Invalid verse number: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
+        warnOnceAboutReference(`Invalid verse number: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
       } else {
-        console.warn(`Unknown book/chapter: ${book} ${chapter}`);
+        warnOnceAboutReference(`Unknown book/chapter: ${book} ${chapter}`);
       }
     }
   }

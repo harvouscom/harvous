@@ -1,7 +1,7 @@
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import {
   matchAnchoredTrailingTranslationAbbreviation,
-  detectScriptureReferences,
+  isResolvableScriptureReference,
 } from '@/utils/scripture-detector';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 
@@ -66,10 +66,12 @@ export function sanitizeScripturePillHtml(html: string): string {
     const el = node as HTMLElement;
     const ref = el.getAttribute('data-scripture-reference');
     const text = (el.textContent || '').trim();
+    // Resolvability, not just shape: an unresolvable-but-well-formed reference like
+    // `Exodus 16:1620` is exactly the pill that must not survive a load round-trip.
     const invalid =
       !ref ||
-      detectScriptureReferences(ref).length === 0 ||
-      (text.length > 0 && detectScriptureReferences(text).length === 0);
+      !isResolvableScriptureReference(ref) ||
+      (text.length > 0 && !isResolvableScriptureReference(text));
     if (invalid) {
       el.replaceWith(document.createTextNode(el.textContent || ''));
       modified = true;

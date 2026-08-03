@@ -4,7 +4,7 @@
  */
 
 import { db, first, Notes, UserMetadata, NoteThreads, ScriptureMetadata, NoteScriptureReferences, NoteTags, Comments, Threads, eq, and, desc, isNotNull, count, ne } from '../db';
-import { detectScriptureReferences, normalizeScriptureReference, parseScriptureReference } from '@/utils/scripture-detector';
+import { detectScriptureReferences, isResolvableScriptureReference, normalizeScriptureReference, parseScriptureReference } from '@/utils/scripture-detector';
 import { highlightScriptureReferences } from '@/utils/scripture-highlighter';
 import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
 import { generateNoteId, generateShareToken } from '@/utils/ids';
@@ -301,7 +301,11 @@ export function transformCanonicalScriptureContent(input: {
     ...new Set(
       detectScriptureReferences(plainText)
         .map((detected) => normalizeScriptureReference(detected.reference))
-        .filter(Boolean),
+        .filter(Boolean)
+        // Detection is permissive by design (unbounded digit runs), so a dropped hyphen
+        // like `Exodus 16:1620` reaches here looking well-formed. Pilling it would only
+        // produce "Could not load this passage" for the reader.
+        .filter((reference) => isResolvableScriptureReference(reference as string)),
     ),
   ];
   const highlighted = highlightScriptureReferences(
@@ -666,7 +670,7 @@ async function processScriptureReferencesInternal(
   const detectedReferences = mergeAdditionalScriptureReferences(
     detectScriptureReferences(plainText),
     options?.additionalReferences,
-  );
+  ).filter((detected) => isResolvableScriptureReference(detected.reference));
   console.log('[processScriptureReferences] Detection', {
     noteId,
     plainTextLength: plainText.length,
