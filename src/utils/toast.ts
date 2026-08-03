@@ -47,16 +47,54 @@ function safeToast(
   }
 }
 
-const ERROR_TOAST_PROTOTYPE_OPTIONS: ShowPrototypeFeedbackToastOptions = {
-  persistent: true,
-  action: { label: 'Support' },
-};
-
 function openSupportSettings() {
   try {
     sessionStorage.setItem('harvousSkipBeforeUnload', 'support');
   } catch (_) {}
   window.location.href = '/settings/support';
+}
+
+/** How long a non-persistent error stays up — longer than a success, still ephemeral. */
+const ERROR_TOAST_DURATION_MS = 6000;
+
+export interface ShowErrorToastOptions {
+  /** Stay until dismissed, with a support affordance. */
+  persistent?: boolean;
+  /** Dedupe key so a repeated failure replaces its predecessor instead of stacking. */
+  id?: string;
+}
+
+/**
+ * Single implementation for error toasts.
+ *
+ * Previously every error was `duration: Infinity` with a hardcoded Support button, so a
+ * transient blip demanded the same attention as a genuinely stuck state, and the design
+ * system's own guidance (toasts are for ephemeral feedback; persistent failures belong in
+ * inline chrome) was ignored. Now persistence is opt-in — see spa/src/lib/error-copy.ts,
+ * which escalates only after repeated failures of the same operation.
+ *
+ * The label is "Get support" to match the design-system gallery baseline (ds-12-toasts);
+ * production had drifted to "Support".
+ */
+function showError(message: string, options: ShowErrorToastOptions = {}): void {
+  const persistent = options.persistent ?? false;
+  const prototypeOptions: ShowPrototypeFeedbackToastOptions = {
+    persistent,
+    ...(persistent ? { action: { label: 'Get support' } } : {}),
+  };
+  safeToast(
+    () =>
+      sonnerToast.error(message, {
+        icon: null,
+        duration: persistent ? Infinity : ERROR_TOAST_DURATION_MS,
+        className: 'harvous-error-toast',
+        ...(options.id ? { id: options.id } : {}),
+        ...(persistent ? { action: { label: 'Get support', onClick: openSupportSettings } } : {}),
+      }),
+    'error',
+    message,
+    prototypeOptions,
+  );
 }
 
 // Toast utility functions that can be used from anywhere
@@ -66,23 +104,8 @@ export const toast = {
     safeToast(() => sonnerToast.success(cleanedMessage, { icon: null, duration: 4000 }), 'success', cleanedMessage);
   },
   
-  error: (message: string) => {
-    const cleanedMessage = stripPunctuation(message);
-    safeToast(
-      () =>
-        sonnerToast.error(cleanedMessage, {
-          icon: null,
-          duration: Infinity,
-          className: 'harvous-error-toast',
-          action: {
-            label: 'Support',
-            onClick: openSupportSettings,
-          },
-        }),
-      'error',
-      cleanedMessage,
-      ERROR_TOAST_PROTOTYPE_OPTIONS,
-    );
+  error: (message: string, options?: ShowErrorToastOptions) => {
+    showError(stripPunctuation(message), options);
   },
   
   info: (message: string) => {
@@ -103,21 +126,7 @@ export const toast = {
         safeToast(() => sonnerToast.success(cleanedMessage, { icon: null, duration: 4000 }), 'success', cleanedMessage);
         break;
       case 'error':
-        safeToast(
-          () =>
-            sonnerToast.error(cleanedMessage, {
-              icon: null,
-              duration: Infinity,
-              className: 'harvous-error-toast',
-              action: {
-                label: 'Support',
-                onClick: openSupportSettings,
-              },
-            }),
-          'error',
-          cleanedMessage,
-          ERROR_TOAST_PROTOTYPE_OPTIONS,
-        );
+        showError(cleanedMessage);
         break;
       case 'info':
         safeToast(() => sonnerToast.info(cleanedMessage, { icon: null, duration: 4000 }), 'info', cleanedMessage);

@@ -186,20 +186,32 @@ describe('canonical shared-note action contracts', () => {
         isSpaceOwner: false,
       }),
     ).toBe('delete-everywhere');
-    expect(REMOVE_NOTE_FROM_SPACE_CONFIRMATION.description).toContain(
-      'canonical note remains in My Home',
-    );
-    expect(REMOVE_NOTE_FROM_SPACE_CONFIRMATION.description).toContain('responses are archived');
-    expect(DELETE_CANONICAL_NOTE_CONFIRMATION.description).toContain('every shared space');
-    expect(REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION.description).toContain(
-      'Thread and folder placement',
-    );
-    expect(DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION.description).toContain('permanently deletes');
+    // Assert the meaning these dialogs must convey, not their exact wording — the copy
+    // was rewritten out of data-model vocabulary ("canonical note", "responses are
+    // archived") into something a reader can act on.
+    expect(REMOVE_NOTE_FROM_SPACE_CONFIRMATION.description).toMatch(/keep it in My Home/i);
+    expect(REMOVE_NOTE_FROM_SPACE_CONFIRMATION.description).toMatch(/replies .*(kept|come back)/i);
+    expect(DELETE_CANONICAL_NOTE_CONFIRMATION.description).toMatch(/every space/i);
+    expect(DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION.description).toMatch(/can.t be undone/i);
+  });
+
+  it('keeps destructive copy to one sentence plus the reversibility clause', () => {
+    // The complaint these replaced: too much text, too technical.
+    for (const copy of [
+      REMOVE_NOTE_FROM_SPACE_CONFIRMATION,
+      DELETE_CANONICAL_NOTE_CONFIRMATION,
+      REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION,
+      DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION,
+      RESHARE_NOTE_CONFIRMATION,
+    ]) {
+      expect(copy.description.length).toBeLessThanOrEqual(120);
+      expect(copy.description).not.toMatch(/canonical|association|archived/i);
+    }
   });
 
   it('requires explicit acknowledgment before an association can reactivate responses', () => {
-    expect(RESHARE_NOTE_CONFIRMATION.description).toContain('prior responses can return');
-    expect(RESHARE_NOTE_CONFIRMATION.description).toContain('will not return');
+    expect(RESHARE_NOTE_CONFIRMATION.description).toMatch(/replies can come back/i);
+    expect(RESHARE_NOTE_CONFIRMATION.description).toMatch(/will not/i);
   });
 });
 

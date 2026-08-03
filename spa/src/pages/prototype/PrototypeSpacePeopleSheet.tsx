@@ -38,6 +38,7 @@ import SharedSpaceMemberAvatar from './SharedSpaceMemberAvatar';
 import SharedSpaceInviteExpiryPicker from './SharedSpaceInviteExpiryPicker';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import { SettingsGroup, SettingsRow } from './settings/SettingsShell';
+import { toastError } from '../../lib/error-copy';
 
 export interface PrototypeSpacePeopleSheetProps {
   open: boolean;
@@ -231,9 +232,7 @@ export default function PrototypeSpacePeopleSheet({
         }
       },
       onError: (err) => {
-        const msg =
-          err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not update membership';
-        toast.error(msg);
+        toastError(err, 'Could not update membership');
       },
     });
   }
@@ -246,9 +245,7 @@ export default function PrototypeSpacePeopleSheet({
         setRevokeConfirmAnchor(null);
       },
       onError: (err) => {
-        const msg =
-          err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not turn off link';
-        toast.error(msg);
+        toastError(err, 'Could not turn off link');
       },
     });
   }
@@ -270,9 +267,7 @@ export default function PrototypeSpacePeopleSheet({
           onOpenChange(false);
           void navigate({ to: prototypeHomeRouteTo() as any, replace: true });
         }
-        const msg =
-          err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete space';
-        toast.error(msg);
+        toastError(err, 'Could not delete space');
       },
     });
   }
@@ -383,16 +378,14 @@ export default function PrototypeSpacePeopleSheet({
     try {
       expiresAt = resolveInviteExpiresAt(inviteExpiryPreset, inviteCustomDate);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Pick a valid expiration');
+      toastError(err, 'Pick a valid expiration');
       return;
     }
     try {
       await createInvite.mutateAsync({ expiresAt });
       setIsCreatingInvite(false);
     } catch (err) {
-      const msg =
-        err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not create invite link';
-      toast.error(msg);
+      toastError(err, 'Could not create invite link');
     }
   }
 

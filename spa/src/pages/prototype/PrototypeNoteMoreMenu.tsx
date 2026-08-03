@@ -35,28 +35,21 @@ import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { noteParamSlug } from './proto-route-slugs';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
+import { toastError } from '../../lib/error-copy';
+import {
+  DELETE_NOTE_EVERYWHERE_CONFIRMATION,
+  REMOVE_NOTE_FROM_SPACE_CONFIRMATION,
+  RESHARE_NOTE_CONFIRMATION_COPY,
+} from './proto-destructive-copy';
 
 interface CachedSpaceNotesPage {
   notes?: { id: string; isPinned?: boolean }[];
 }
 
-export const RESHARE_NOTE_CONFIRMATION = {
-  title: 'Add this note to the selected space?',
-  description:
-    'If it was shared there before, prior responses can return. Previous Thread, folder, pin, and order placement will not return.',
-} as const;
-
-export const REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION = {
-  title: 'Remove this note from this space?',
-  description:
-    'The canonical note remains in My Home. Responses in this space are archived and can return if the note is shared here again. Thread and folder placement is removed.',
-} as const;
-
-export const DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION = {
-  title: 'Delete this note everywhere?',
-  description:
-    'This permanently deletes the canonical note from My Home and every shared space, including its connections and responses. This can’t be undone.',
-} as const;
+// Copy lives in proto-destructive-copy.ts; re-exported so existing importers still work.
+export const RESHARE_NOTE_CONFIRMATION = RESHARE_NOTE_CONFIRMATION_COPY;
+export const REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION = REMOVE_NOTE_FROM_SPACE_CONFIRMATION;
+export const DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION = DELETE_NOTE_EVERYWHERE_CONFIRMATION;
 
 function readNotePinnedFromCache(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -235,9 +228,7 @@ export default function PrototypeNoteMoreMenu({
         },
         onError: (err) => {
           setPendingAddTarget(null);
-          const msg =
-            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not add note';
-          toast.error(msg);
+          toastError(err, 'Could not add note');
         },
       },
     );
@@ -269,7 +260,7 @@ export default function PrototypeNoteMoreMenu({
         },
         onError: (err) => {
           setRemoveConfirmRect(null);
-          toast.error(err instanceof Error ? err.message : 'Could not remove note from space');
+          toastError(err, 'Could not remove note from space');
         },
       },
     );
@@ -290,7 +281,7 @@ export default function PrototypeNoteMoreMenu({
           });
         },
         onError: (err) =>
-          toast.error(err instanceof Error ? err.message : 'Could not save a copy'),
+          toastError(err, 'Could not save a copy'),
       },
     );
   };
@@ -310,9 +301,7 @@ export default function PrototypeNoteMoreMenu({
       {
         onSuccess: () => setPinOverride(nextPinned),
         onError: (err) => {
-          const msg =
-            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not update pin';
-          toast.error(msg);
+          toastError(err, 'Could not update pin');
         },
       },
     );
@@ -328,9 +317,7 @@ export default function PrototypeNoteMoreMenu({
           if (isMobileSidebar) closeDrawer({ preserveHistory: true });
         },
         onError: (err) => {
-          const msg =
-            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete note';
-          toast.error(msg);
+          toastError(err, 'Could not delete note');
         },
       },
     );

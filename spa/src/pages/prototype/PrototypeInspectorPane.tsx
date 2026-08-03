@@ -51,6 +51,11 @@ import {
   NOTE_TEMPLATE_ICON_NAME,
   resolveNoteTemplateIconColor,
 } from '@/utils/note-template-icon';
+import { toastError } from '../../lib/error-copy';
+import {
+  DELETE_NOTE_EVERYWHERE_CONFIRMATION,
+  REMOVE_NOTE_FROM_SPACE_CONFIRMATION as SHARED_REMOVE_NOTE_FROM_SPACE_CONFIRMATION,
+} from './proto-destructive-copy';
 
 export type PrototypeInspectorTemplatesProps = {
   spaceId?: string | null;
@@ -82,17 +87,9 @@ interface PrototypeInspectorPaneProps {
   templates?: PrototypeInspectorTemplatesProps | null;
 }
 
-export const REMOVE_NOTE_FROM_SPACE_CONFIRMATION = {
-  title: 'Remove this note from this space?',
-  description:
-    'The canonical note remains in My Home. This space’s responses are archived and can return if the note is shared here again. Thread and folder placement in this space is removed.',
-} as const;
+export const REMOVE_NOTE_FROM_SPACE_CONFIRMATION = SHARED_REMOVE_NOTE_FROM_SPACE_CONFIRMATION;
 
-export const DELETE_CANONICAL_NOTE_CONFIRMATION = {
-  title: 'Delete this note everywhere?',
-  description:
-    'This permanently deletes the canonical note from My Home and every shared space, including its connections and responses. This can’t be undone.',
-} as const;
+export const DELETE_CANONICAL_NOTE_CONFIRMATION = DELETE_NOTE_EVERYWHERE_CONFIRMATION;
 
 export function resolveInspectorNoteAction(input: {
   sharedSpaceId: string | null;
@@ -161,7 +158,7 @@ export default function PrototypeInspectorPane({
           },
           onError: (err) => {
             setDeleteConfirmOpen(false);
-            toast.error(err instanceof Error ? err.message : 'Could not remove note from this space');
+            toastError(err, 'Could not remove note from this space');
           },
         },
       );
@@ -179,8 +176,7 @@ export default function PrototypeInspectorPane({
         },
         onError: (err) => {
           setDeleteConfirmOpen(false);
-          const msg = err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete note';
-          toast.error(msg);
+          toastError(err, 'Could not delete note');
         },
       },
     );

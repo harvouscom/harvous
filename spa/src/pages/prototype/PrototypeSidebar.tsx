@@ -126,6 +126,7 @@ import {
 } from '@/utils/prototype-sidebar-highlight-active';
 
 import { ProtoThreadTrailRecencyLine as ProtoListRecencyLine } from './proto-thread-trail-row';
+import { toastError } from '../../lib/error-copy';
 
 function stripHtmlPreview(html: string | null | undefined, max = 80) {
   if (!html) return '';
@@ -780,8 +781,7 @@ function PrototypeSidebarNoteRow({
       },
       {
         onError: (err) => {
-          const msg = err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not update pin';
-          toast.error(msg);
+          toastError(err, 'Could not update pin');
         },
       },
     );
@@ -794,9 +794,7 @@ function PrototypeSidebarNoteRow({
       { spaceId: homeSpaceId, memberIds: threadRemoval.memberIds, noteId: row.id },
       {
         onError: (err) => {
-          const msg =
-            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not remove from Thread';
-          toast.error(msg);
+          toastError(err, 'Could not remove from Thread');
         },
       },
     );
@@ -814,9 +812,7 @@ function PrototypeSidebarNoteRow({
       },
       {
         onError: (err) => {
-          const msg =
-            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not remove from folder';
-          toast.error(msg);
+          toastError(err, 'Could not remove from folder');
         },
       },
     );
@@ -842,8 +838,7 @@ function PrototypeSidebarNoteRow({
         },
         onError: (err) => {
           setDeleteConfirmOpen(false);
-          const msg = err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete note';
-          toast.error(msg);
+          toastError(err, 'Could not delete note');
         },
       },
     );
@@ -2186,9 +2181,7 @@ export default function PrototypeSidebar({
         },
         onError: (err) => {
           setFolderDeleteTarget(null);
-          const msg =
-            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete folder';
-          toast.error(msg);
+          toastError(err, 'Could not delete folder');
         },
       },
     );
@@ -2215,9 +2208,7 @@ export default function PrototypeSidebar({
         },
         onError: (err) => {
           setThreadDeleteTarget(null);
-          const msg =
-            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete Thread';
-          toast.error(msg);
+          toastError(err, 'Could not delete Thread');
         },
       },
     );
@@ -2239,9 +2230,7 @@ export default function PrototypeSidebar({
         },
         onError: (err) => {
           setSharedThreadDeleteTarget(null);
-          const msg =
-            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete Thread';
-          toast.error(msg);
+          toastError(err, 'Could not delete Thread');
         },
       },
     );
@@ -2267,9 +2256,7 @@ export default function PrototypeSidebar({
         onSuccess: () => setHighlightDeleteTarget(null),
         onError: (err) => {
           setHighlightDeleteTarget(null);
-          const msg =
-            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete highlight';
-          toast.error(msg);
+          toastError(err, 'Could not delete highlight');
         },
       },
     );

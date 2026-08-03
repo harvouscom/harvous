@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/utils/toast';
 import { api } from '../../lib/api';
+import { toastError } from '../../lib/error-copy';
 
 export interface CoEditSpaceRef {
   spaceId: string;
@@ -72,7 +73,7 @@ export default function PrototypeNoteCoEditToggle({
     } catch (err) {
       setOptimistic(null);
       onChanged?.(previous, previous);
-      toast.error(err instanceof Error ? err.message : 'Could not change this setting');
+      toastError(err, 'Could not change this setting');
     } finally {
       setPending(false);
     }

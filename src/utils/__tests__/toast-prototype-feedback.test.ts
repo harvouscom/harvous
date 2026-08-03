@@ -25,24 +25,43 @@ describe('toast prototype feedback fallback', () => {
     expect(feedbackEvent?.detail.variant).toBe('success');
   });
 
-  it('dispatches persistent error toast with Support action on prototype shell', async () => {
+  async function dispatchedFeedback(show: () => void) {
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
-    const { toast } = await import('../toast');
-
-    toast.error('Could not update space');
-
-    const feedbackEvent = dispatchSpy.mock.calls.find(
+    show();
+    return dispatchSpy.mock.calls.find(
       ([event]) => event instanceof CustomEvent && event.type === PROTO_FEEDBACK_TOAST_EVENT,
-    )?.[0] as CustomEvent<{
-      message: string;
-      variant?: string;
-      persistent?: boolean;
-      action?: { label: string };
-    }> | undefined;
+    )?.[0] as
+      | CustomEvent<{
+          message: string;
+          variant?: string;
+          persistent?: boolean;
+          action?: { label: string };
+        }>
+      | undefined;
+  }
 
-    expect(feedbackEvent?.detail.message).toBe('Could not update space');
-    expect(feedbackEvent?.detail.variant).toBe('error');
-    expect(feedbackEvent?.detail.persistent).toBe(true);
-    expect(feedbackEvent?.detail.action).toEqual({ label: 'Support' });
+  it('dispatches an ephemeral error toast with no action by default', async () => {
+    // Errors used to be duration: Infinity with a Support button every time, so a
+    // transient blip demanded the same attention as a genuinely stuck state. The design
+    // system reserves toasts for ephemeral feedback; persistence is now opt-in.
+    const { toast } = await import('../toast');
+    const event = await dispatchedFeedback(() => toast.error('Could not update space'));
+
+    expect(event?.detail.message).toBe('Could not update space');
+    expect(event?.detail.variant).toBe('error');
+    expect(event?.detail.persistent).toBe(false);
+    expect(event?.detail.action).toBeUndefined();
+  });
+
+  it('offers support only when the caller asks for a persistent toast', async () => {
+    const { toast } = await import('../toast');
+    const event = await dispatchedFeedback(() =>
+      toast.error('Could not update space', { persistent: true }),
+    );
+
+    expect(event?.detail.persistent).toBe(true);
+    // "Get support" matches the design-system gallery baseline (ds-12-toasts);
+    // production had drifted to "Support".
+    expect(event?.detail.action).toEqual({ label: 'Get support' });
   });
 });
