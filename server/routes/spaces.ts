@@ -2860,21 +2860,34 @@ route.post('/api/spaces/:spaceId/pin-item', requireAuth, async (c) => {
     }
 
     if (itemType === 'note') {
-      const association = first(
-        await db
-          .select({ id: SpaceNotes.id })
-          .from(SpaceNotes)
-          .where(
-            and(
-              eq(SpaceNotes.noteId, itemId),
-              eq(SpaceNotes.spaceId, spaceId),
-              isNull(SpaceNotes.removedAt),
-            ),
-          )
-          .limit(1),
-      );
-      if (!association) return c.json({ error: 'Note not found in space', code: 'NOT_FOUND' }, 404);
-      await db.update(SpaceNotes).set({ isPinned, updatedAt: nowISO() }).where(eq(SpaceNotes.id, association.id));
+      if (accessInfo.space?.type === 'personal') {
+        // A personal space never gets a SpaceNotes row (resolveCanonicalCreateScope
+        // returns associationSpaceId: null), so the association lookup below can never
+        // succeed here. Notes.isPinned is also the column the personal read path orders
+        // by (getNotesForSpace), so this keeps the write and the read on the same field.
+        const updated = await db
+          .update(Notes)
+          .set({ isPinned, updatedAt: nowISO() })
+          .where(and(eq(Notes.id, itemId), eq(Notes.userId, auth.userId)))
+          .returning({ id: Notes.id });
+        if (!first(updated)) return c.json({ error: 'Note not found', code: 'NOT_FOUND' }, 404);
+      } else {
+        const association = first(
+          await db
+            .select({ id: SpaceNotes.id })
+            .from(SpaceNotes)
+            .where(
+              and(
+                eq(SpaceNotes.noteId, itemId),
+                eq(SpaceNotes.spaceId, spaceId),
+                isNull(SpaceNotes.removedAt),
+              ),
+            )
+            .limit(1),
+        );
+        if (!association) return c.json({ error: 'Note not found in space', code: 'NOT_FOUND' }, 404);
+        await db.update(SpaceNotes).set({ isPinned, updatedAt: nowISO() }).where(eq(SpaceNotes.id, association.id));
+      }
     } else if (itemType === 'thread') {
       await db.transaction((tx) =>
         setSingularThreadPin(tx, {

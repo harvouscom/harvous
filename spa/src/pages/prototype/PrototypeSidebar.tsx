@@ -772,7 +772,12 @@ function PrototypeSidebarNoteRow({
   const onPin = () => {
     setMenuOpen(false);
     pinNote.mutate(
-      { spaceId: homeSpaceId, noteId: row.id, isPinned: !pinned },
+      {
+        spaceId: homeSpaceId,
+        noteId: row.id,
+        isPinned: !pinned,
+        spaceKind: isScopedSharedSpace ? 'shared' : 'personal',
+      },
       {
         onError: (err) => {
           const msg = err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not update pin';

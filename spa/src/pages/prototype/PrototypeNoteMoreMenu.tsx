@@ -299,7 +299,14 @@ export default function PrototypeNoteMoreMenu({
     setOpen(false);
     const nextPinned = !pinned;
     pinNote.mutate(
-      { spaceId, noteId, isPinned: nextPinned },
+      {
+        spaceId,
+        noteId,
+        isPinned: nextPinned,
+        // NativeToolbar resolves this spaceId as `currentSharedSpaceId ?? homeSpaceId`,
+        // so anything that isn't the active shared space is the personal My Home space.
+        spaceKind: currentSharedSpaceId && spaceId === currentSharedSpaceId ? 'shared' : 'personal',
+      },
       {
         onSuccess: () => setPinOverride(nextPinned),
         onError: (err) => {

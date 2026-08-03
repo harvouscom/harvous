@@ -31,6 +31,11 @@ export interface UpdateNoteInput {
   secondaryCollections?: string[];
   collectionPinned?: boolean;
   collectionUserOverride?: boolean;
+  /**
+   * Personal-space pin. Shared spaces pin through SpaceNotes instead
+   * (see usePinSpaceNote), because a personal space has no SpaceNotes row.
+   */
+  isPinned?: boolean;
   bumpUpdatedAt?: boolean;
   startedFromTemplateId?: string | null;
   startedFromTemplateName?: string | null;
@@ -77,6 +82,9 @@ export function buildUpdateNoteBody(
     body.startedFromTemplateName = input.startedFromTemplateName;
   }
   if (!input.contextSpaceId?.trim()) {
+    // Canonical (My Home) fields only. In a shared context these live on SpaceNotes and
+    // must not be written through the canonical endpoint.
+    if (input.isPinned !== undefined) body.isPinned = input.isPinned;
     if (input.primaryCollection !== undefined) body.primaryCollection = input.primaryCollection;
     if (input.secondaryCollections !== undefined) body.secondaryCollections = input.secondaryCollections;
     if (input.collectionPinned !== undefined) body.collectionPinned = input.collectionPinned;

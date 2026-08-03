@@ -6,6 +6,7 @@ import { buildUpdateNoteBody } from '../useUpdateNote';
 import { buildAddNotesToFolderOperations } from '../useAddNotesToFolder';
 import { buildRemoveNoteFromFolderOperation } from '../useRemoveNoteFromFolder';
 import { buildFolderTagPersistenceRequest } from '../../../pages/prototype/PrototypeFolderTagEditor';
+import { resolvePinSpaceNoteRequest } from '../usePinSpaceNote';
 
 function detail(): NoteDetail {
   return {
@@ -193,5 +194,79 @@ describe('bulk folder routing', () => {
     });
     expect(removal.request.input).not.toHaveProperty('title');
     expect(removal.request.input).not.toHaveProperty('content');
+  });
+});
+
+describe('resolvePinSpaceNoteRequest', () => {
+  const HOME = 'space_home';
+
+  it('routes a personal space pin to the canonical note endpoint', () => {
+    // A personal space has no SpaceNotes row, so pin-item can only 404 there.
+    const request = resolvePinSpaceNoteRequest(
+      { spaceId: HOME, noteId: 'note_1', isPinned: true, spaceKind: 'personal' },
+      HOME,
+    );
+    expect(request).toEqual({ kind: 'personal', input: { noteId: 'note_1', isPinned: true } });
+  });
+
+  it('routes a shared space pin to the space association endpoint', () => {
+    const request = resolvePinSpaceNoteRequest(
+      { spaceId: 'space_shared_1', noteId: 'note_1', isPinned: false, spaceKind: 'shared' },
+      HOME,
+    );
+    expect(request).toEqual({
+      kind: 'shared',
+      sid: 'space_shared_1',
+      body: { itemId: 'note_1', itemType: 'note', isPinned: false },
+    });
+  });
+
+  it('infers personal when the space is My Home and the caller omitted spaceKind', () => {
+    const request = resolvePinSpaceNoteRequest({ spaceId: HOME, noteId: 'n', isPinned: true }, HOME);
+    expect(request.kind).toBe('personal');
+  });
+
+  it('infers shared for any other space when the caller omitted spaceKind', () => {
+    const request = resolvePinSpaceNoteRequest(
+      { spaceId: 'space_other', noteId: 'n', isPinned: true },
+      HOME,
+    );
+    expect(request.kind).toBe('shared');
+  });
+
+  it('infers across the space_ prefix on either side', () => {
+    expect(resolvePinSpaceNoteRequest({ spaceId: 'home', noteId: 'n', isPinned: true }, HOME).kind)
+      .toBe('personal');
+    expect(resolvePinSpaceNoteRequest({ spaceId: HOME, noteId: 'n', isPinned: true }, 'home').kind)
+      .toBe('personal');
+  });
+
+  it('falls back to shared when the home space is unknown', () => {
+    // Better to attempt the owner-gated endpoint than to write a canonical pin blind.
+    expect(resolvePinSpaceNoteRequest({ spaceId: 'space_x', noteId: 'n', isPinned: true }, null).kind)
+      .toBe('shared');
+  });
+
+  it('rejects an empty space id', () => {
+    expect(() => resolvePinSpaceNoteRequest({ spaceId: '  ', noteId: 'n', isPinned: true }, HOME))
+      .toThrow(/Space ID is required/);
+  });
+});
+
+describe('buildUpdateNoteBody isPinned', () => {
+  it('sends isPinned for a canonical (personal) save', () => {
+    expect(buildUpdateNoteBody({ noteId: 'note_1', isPinned: true })).toEqual({
+      noteId: 'note_1',
+      isPinned: true,
+    });
+  });
+
+  it('omits isPinned in a shared context, where the pin lives on SpaceNotes', () => {
+    const body = buildUpdateNoteBody({ noteId: 'note_1', isPinned: true, contextSpaceId: 'space_s' });
+    expect(body).not.toHaveProperty('isPinned');
+  });
+
+  it('omits isPinned entirely when not set', () => {
+    expect(buildUpdateNoteBody({ noteId: 'note_1' })).not.toHaveProperty('isPinned');
   });
 });
