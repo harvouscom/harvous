@@ -42,6 +42,14 @@ import {
   plainBodyForFolderSnapshot,
 } from '@/utils/prototype-folder-auto-assign';
 import { shouldAllowPrimaryFolderUpdate } from '@/utils/should-allow-primary-folder-update';
+import {
+  classifySaveFailure,
+  MIN_SAVE_INTERVAL_MS,
+  nextBackoffDelayMs,
+  saveFailureMessage,
+  saveSignature,
+  shouldRetrySave,
+} from '@/utils/autosave-retry';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { formatNoteDefaultTitle } from '@/utils/date-formatting';
 import type { HighlightDockOpenMetadata } from '@/utils/study-dock-stack';
@@ -526,6 +534,42 @@ export default function CardFullEditable({
   const protoPendingFlushRef = useRef(false);
   const folderSuggestSnapshotRef = useRef<{ title: string; body: string }>({ title: '', body: '' });
   const protoSaveAsyncRef = useRef<(opts?: { fromUnmount?: boolean }) => Promise<void>>(async () => {});
+  // Backoff state for failed saves. `signature` identifies the payload being retried, so
+  // that further typing resets the count instead of counting as another attempt.
+  const protoSaveFailureRef = useRef<{ attempts: number; signature: string; timerId: number | null }>({
+    attempts: 0,
+    signature: '',
+    timerId: null,
+  });
+  /** When the last network save actually started — enforces MIN_SAVE_INTERVAL_MS. */
+  const protoLastSaveAtRef = useRef(0);
+  /**
+   * Memoized folder auto-assign result, keyed by payload signature. Recomputing runs
+   * scripture detection over the whole note body, so a retry of unchanged content must
+   * not redo it — that was the source of the "Invalid verse number" console flood.
+   */
+  const protoFolderAutoAssignMemoRef = useRef<{ signature: string; chrome: CollectionChromeState } | null>(null);
+
+  const clearProtoSaveRetryTimer = useCallback(() => {
+    const { timerId } = protoSaveFailureRef.current;
+    if (timerId != null) {
+      window.clearTimeout(timerId);
+      protoSaveFailureRef.current.timerId = null;
+    }
+  }, []);
+
+  const scheduleProtoSaveRetry = useCallback(
+    (delayMs: number) => {
+      clearProtoSaveRetryTimer();
+      protoSaveFailureRef.current.timerId = window.setTimeout(() => {
+        protoSaveFailureRef.current.timerId = null;
+        void protoSaveAsyncRef.current();
+      }, delayMs);
+    },
+    [clearProtoSaveRetryTimer],
+  );
+
+  useEffect(() => () => clearProtoSaveRetryTimer(), [clearProtoSaveRetryTimer]);
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
   const noteIdRef = useRef(noteId);
@@ -2358,27 +2402,42 @@ export default function CardFullEditable({
     // Recompute the auto collection from the live text so the suggested folder is
     // persisted alongside the autosave (otherwise it shows transiently then gets
     // wiped by the post-save refetch). Prototype-only; mirrors flushEdits.
+    // Identity of the payload the user is trying to save. Used both to memoize the
+    // folder auto-assign below and to decide whether a failure is a retry of the same
+    // content or a fresh attempt at newly typed content.
+    const retrySignature = saveSignature(currentTitle, currentContent, '');
+
     const isProto = editorChromeModeRef.current === 'prototypeNative';
     let chromeForSave = collectionChromeRef.current;
     if (isProto) {
       if (isEffectivelyEmptyPrototypeNote(currentTitle, currentContent)) {
         chromeForSave = clearAutoFolderChrome(collectionChromeRef.current);
         folderSuggestSnapshotRef.current = { title: currentTitle, body: '' };
+        protoFolderAutoAssignMemoRef.current = null;
         if (isMountedRef.current) setCollectionChrome(chromeForSave);
         return;
       }
-      const snap = folderSuggestSnapshotRef.current;
-      const plainBody = plainBodyForFolderSnapshot(currentContent);
-      const allowPrimary = shouldAllowPrimaryFolderUpdate(snap.title, currentTitle, snap.body, plainBody);
-      chromeForSave = applyIdleFolderAutoAssign(
-        collectionChromeRef.current,
-        currentTitle,
-        currentContent,
-        new Date(),
-        allowPrimary,
-      );
-      if (allowPrimary) {
-        folderSuggestSnapshotRef.current = { title: currentTitle, body: plainBody };
+      const memo = protoFolderAutoAssignMemoRef.current;
+      if (memo && memo.signature === retrySignature) {
+        // Retrying identical content — reuse the previous result rather than re-running
+        // scripture detection over the whole body. Same object identity, so the
+        // setCollectionChrome below is a no-op re-render.
+        chromeForSave = memo.chrome;
+      } else {
+        const snap = folderSuggestSnapshotRef.current;
+        const plainBody = plainBodyForFolderSnapshot(currentContent);
+        const allowPrimary = shouldAllowPrimaryFolderUpdate(snap.title, currentTitle, snap.body, plainBody);
+        chromeForSave = applyIdleFolderAutoAssign(
+          collectionChromeRef.current,
+          currentTitle,
+          currentContent,
+          new Date(),
+          allowPrimary,
+        );
+        if (allowPrimary) {
+          folderSuggestSnapshotRef.current = { title: currentTitle, body: plainBody };
+        }
+        protoFolderAutoAssignMemoRef.current = { signature: retrySignature, chrome: chromeForSave };
       }
       if (isMountedRef.current) setCollectionChrome(chromeForSave);
     }
@@ -2400,6 +2459,17 @@ export default function CardFullEditable({
       return;
     }
 
+    // Network-save floor. The 700ms debounce only gates the first attempt after a
+    // keystroke, so steady typing-with-pauses could still approach the server's
+    // 20-writes/minute budget. Defer rather than drop — the timer re-enters here.
+    if (!opts?.fromUnmount) {
+      const sinceLastSave = Date.now() - protoLastSaveAtRef.current;
+      if (protoLastSaveAtRef.current > 0 && sinceLastSave < MIN_SAVE_INTERVAL_MS) {
+        scheduleProtoSaveRetry(MIN_SAVE_INTERVAL_MS - sinceLastSave);
+        return;
+      }
+    }
+
     // Capture note-scoped save fn synchronously — never read window.noteSaveCallback after await.
     const saveFn =
       onSaveRef.current ??
@@ -2407,11 +2477,16 @@ export default function CardFullEditable({
     if (!saveFn) return;
 
     protoIsSavingRef.current = true;
+    protoLastSaveAtRef.current = Date.now();
     const prevLast = protoLastSavedRef.current;
     protoLastSavedRef.current = { title: currentTitle, content: currentContent, collectionKey };
 
     try {
       const saveResult: unknown = await saveFn(currentTitle, currentContent, collectionExtras);
+      // Saved — drop any backoff state so the next failure starts a fresh episode and
+      // a queued retry for this payload can't fire against already-persisted content.
+      clearProtoSaveRetryTimer();
+      protoSaveFailureRef.current = { attempts: 0, signature: '', timerId: null };
       const result = saveResult as { processedContent?: string } | null;
       if (collectionExtras && isMountedRef.current) setCollectionChrome(chromeForSave);
 
@@ -2504,22 +2579,50 @@ export default function CardFullEditable({
       } catch {
         /* ignore */
       }
-    } catch {
-      // Restore last-saved so the next attempt retries the full content
+    } catch (error) {
+      // Restore last-saved so a later attempt retries the full content. Note this
+      // deliberately defeats the equality guard above — which is exactly why the
+      // retry must be scheduled with backoff here rather than re-fired from `finally`.
       protoLastSavedRef.current = prevLast;
-      protoPendingFlushRef.current = isMountedRef.current;
-      window.dispatchEvent(new CustomEvent('toast', {
-        detail: {
-          message: 'Error saving note. Please try again.',
-          type: 'error',
-        },
-      }));
+
+      const classification = classifySaveFailure(error);
+      const failure = protoSaveFailureRef.current;
+      // Further typing is new information, not another attempt — restart the count.
+      const attempts = failure.signature === retrySignature ? failure.attempts + 1 : 1;
+      // If the user typed during the save, `finally` re-fires with that newer content;
+      // scheduling a backoff retry for the stale payload on top would double up.
+      const willRetry =
+        isMountedRef.current &&
+        !protoPendingFlushRef.current &&
+        shouldRetrySave(classification, attempts);
+
+      protoSaveFailureRef.current = { attempts, signature: retrySignature, timerId: failure.timerId };
+
+      if (willRetry) {
+        scheduleProtoSaveRetry(nextBackoffDelayMs(attempts, classification.retryAfterMs));
+      }
+
+      // One toast per failure episode — on the first failure, and again only when we
+      // stop retrying. Toasting per attempt is what produced thousands of them.
+      // Conflict and permission failures are skipped: rollbackFailedNoteUpdate already
+      // reports those, and it knows things we don't (e.g. that a draft was preserved).
+      const reportedByMutationLayer =
+        classification.kind === 'conflict' || classification.kind === 'forbidden';
+      if (!reportedByMutationLayer && (attempts === 1 || !willRetry)) {
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: saveFailureMessage(classification.kind, !willRetry),
+            type: 'error',
+          },
+        }));
+      }
     } finally {
       protoIsSavingRef.current = false;
       if (protoPendingFlushRef.current && isMountedRef.current) {
         protoPendingFlushRef.current = false;
-        // Re-fire after releasing the lock. The equality-check guard above
-        // prevents infinite loops when content is unchanged.
+        // Re-fire only for content that changed *during* this save. Failures never set
+        // pendingFlush — they schedule their own backoff above. Re-firing them from here
+        // with no delay and no cap is what turned a single 409 into a save storm.
         void protoSaveAsyncRef.current();
       } else {
         protoPendingFlushRef.current = false;

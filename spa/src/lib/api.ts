@@ -14,10 +14,20 @@ export class APIError extends Error {
     public status: number,
     message: string,
     public code?: string,
+    /** Seconds from `Retry-After` on a 429, when the server sent one. */
+    public retryAfterSec?: number,
   ) {
     super(message);
     this.name = 'APIError';
   }
+}
+
+/** Parse `Retry-After` (delta-seconds form only — the server always sends seconds). */
+function parseRetryAfterSeconds(res: Response): number | undefined {
+  const raw = res.headers.get('Retry-After');
+  if (!raw) return undefined;
+  const seconds = Number(raw.trim());
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined;
 }
 
 type GetTokenFn = () => Promise<string | null>;
@@ -84,7 +94,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const body = await res.json().catch(() => ({})) as { error?: string; code?: string };
     const errMessage = body.error || `HTTP ${res.status}`;
     reportApiDiagnostic(path, res.status, errMessage);
-    throw new APIError(res.status, errMessage, body.code);
+    throw new APIError(res.status, errMessage, body.code, parseRetryAfterSeconds(res));
   }
 
   return res.json() as Promise<T>;

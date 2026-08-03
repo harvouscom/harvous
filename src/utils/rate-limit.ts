@@ -240,6 +240,12 @@ export function rateLimitMiddleware(
   };
 }
 
+/** Whole seconds until `resetTime`, floored at 1 so `Retry-After: 0` never invites an instant retry. */
+export function retryAfterSecondsFrom(resetTime: number | undefined, now: number = Date.now()): number {
+  if (typeof resetTime !== 'number' || !Number.isFinite(resetTime)) return 1;
+  return Math.max(1, Math.ceil((resetTime - now) / 1000));
+}
+
 /**
  * Hono middleware factory for rate limiting.
  * Use as route-level middleware:
@@ -255,7 +261,13 @@ export function rateLimit(type: 'read' | 'write'): (c: any, next: any) => Promis
     const endpoint = c.req.path;
     const result = rateLimitMiddleware(auth?.userId ?? null, endpoint, type, ip);
     if (!result.allowed) {
-      return c.json({ error: result.error || 'Rate limit exceeded', code: 'RATE_LIMIT_EXCEEDED' }, 429);
+      // Tell the client when it may try again, so it can back off to the window
+      // edge instead of guessing (or hammering). Matches rateLimitNoteCreate below.
+      return c.json(
+        { error: result.error || 'Rate limit exceeded', code: 'RATE_LIMIT_EXCEEDED' },
+        429,
+        { 'Retry-After': String(retryAfterSecondsFrom(result.resetTime)) },
+      );
     }
     return next();
   };

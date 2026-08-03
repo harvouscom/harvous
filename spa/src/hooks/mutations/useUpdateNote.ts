@@ -170,6 +170,12 @@ export async function rollbackFailedNoteUpdate(
     });
     return;
   }
+  if (error instanceof APIError && error.status === 429) {
+    // Rate limited: the note itself is unchanged on the server, so refetching it would
+    // add load without telling us anything. No toast either — the autosave caller knows
+    // whether it's going to retry, so it owns the message (see src/utils/autosave-retry).
+    return;
+  }
   if (error instanceof APIError && (error.status === 404 || error.status === 403)) {
     // The write path answers "not found" for both a genuinely missing note and one
     // this viewer isn't authorized to edit (server deliberately doesn't distinguish,
