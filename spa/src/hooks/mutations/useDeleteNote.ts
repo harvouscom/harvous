@@ -8,8 +8,9 @@ import { runOfflineFirst } from './withOfflineQueue';
 import {
   normalizeSpaceIdForCache,
   removeSpaceNoteFromCache,
+  restoreSpaceNotesCaches,
+  snapshotSpaceNotesCaches,
   spaceNotesQueryKey,
-  type SpaceNotesPage,
 } from '../../lib/space-notes-cache';
 import { invalidatePrototypeSpaceDerivedQueries } from '../../lib/prototype-space-query-keys';
 
@@ -51,16 +52,13 @@ export function useDeleteNote() {
     onMutate: async (variables) => {
       const sid = normalizeSpaceIdForCache(variables.spaceId);
       if (!sid) return { previous: undefined, sid: '' };
-      const key = spaceNotesQueryKey(sid);
-      await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData<InfiniteData<SpaceNotesPage, number>>(key);
+      await queryClient.cancelQueries({ queryKey: spaceNotesQueryKey(sid) });
+      const previous = snapshotSpaceNotesCaches(queryClient, sid);
       removeSpaceNoteFromCache(queryClient, sid, variables.noteId);
       return { previous, sid };
     },
     onError: (_err, _variables, context) => {
-      if (context?.previous && context.sid) {
-        queryClient.setQueryData(spaceNotesQueryKey(context.sid), context.previous);
-      }
+      restoreSpaceNotesCaches(queryClient, context?.previous);
     },
     onSuccess: (_data, variables) => {
       const sid = normalizeSpaceIdForCache(variables.spaceId);

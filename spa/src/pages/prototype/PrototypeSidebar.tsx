@@ -1426,7 +1426,7 @@ export default function PrototypeSidebar({
     20,
   );
   const myHomeNotes = useMemo(
-    () => myHomeNotesPages?.pages.flatMap((p) => p.items) ?? [],
+    () => myHomeNotesPages?.pages.flatMap((p) => p.notes) ?? [],
     [myHomeNotesPages?.pages],
   );
   const myHomeFolderRegistryQuery = usePrototypeFolderRegistry(

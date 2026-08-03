@@ -1,6 +1,11 @@
-import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
-import { patchSpaceNotesInfiniteCache, spaceNotesQueryKey, type SpaceNotesPage } from '../../lib/space-notes-cache';
+import {
+  patchSpaceNotesInfiniteCache,
+  restoreSpaceNotesCaches,
+  snapshotSpaceNotesCaches,
+  spaceNotesQueryKey,
+} from '../../lib/space-notes-cache';
 import type { NoteDetail } from '../queries/useNote';
 import { runOfflineFirst } from './withOfflineQueue';
 import { pinNoteOffline } from '@/utils/offline-mutations';
@@ -50,18 +55,15 @@ export function usePinSpaceNote() {
     onMutate: async (variables) => {
       const sid = normalizeSpaceId(variables.spaceId);
       if (!sid) return;
-      const key = spaceNotesQueryKey(sid);
-      await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData<InfiniteData<SpaceNotesPage, number>>(key);
+      await queryClient.cancelQueries({ queryKey: spaceNotesQueryKey(sid) });
+      const previous = snapshotSpaceNotesCaches(queryClient, sid);
       patchSpaceNotesInfiniteCache(queryClient, sid, (note) =>
         note.id === variables.noteId ? { ...note, isPinned: variables.isPinned } : note,
       );
       return { previous, sid };
     },
     onError: (_err, variables, context) => {
-      if (context?.previous && context.sid) {
-        queryClient.setQueryData(spaceNotesQueryKey(context.sid), context.previous);
-      }
+      restoreSpaceNotesCaches(queryClient, context?.previous);
     },
     onSettled: (_data, _err, variables) => {
       const sid = normalizeSpaceId(variables.spaceId);

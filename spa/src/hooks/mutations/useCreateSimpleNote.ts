@@ -4,6 +4,8 @@ import { navigationQueryKeyPrefix } from '../queries/useNavigation';
 import {
   prependSpaceNoteToCache,
   removeSpaceNoteFromCache,
+  restoreSpaceNotesCaches,
+  snapshotSpaceNotesCaches,
   spaceNotesQueryKey,
   type SpaceNotesPage,
 } from '../../lib/space-notes-cache';
@@ -161,12 +163,7 @@ export function useCreateSimpleNote() {
       );
       const previous = targetSpaceIds.map(
         (targetSpaceId) =>
-          [
-            targetSpaceId,
-            queryClient.getQueryData<InfiniteData<SpaceNotesPage, number>>(
-              spaceNotesQueryKey(targetSpaceId),
-            ),
-          ] as const,
+          [targetSpaceId, snapshotSpaceNotesCaches(queryClient, targetSpaceId)] as const,
       );
       // Use the offline-db `local_*` id format so an offline create can adopt this exact id,
       // which is what lets sync-cache-bridge reconcile it to the server id later.
@@ -305,7 +302,7 @@ export function useCreateSimpleNote() {
         if (context?.optimisticId) {
           removeSpaceNoteFromCache(queryClient, spaceId, context.optimisticId);
         }
-        queryClient.setQueryData(spaceNotesQueryKey(spaceId), previous);
+        restoreSpaceNotesCaches(queryClient, previous);
       }
     },
   });

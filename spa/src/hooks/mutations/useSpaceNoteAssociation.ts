@@ -5,6 +5,8 @@ import {
   patchSpaceNotesInfiniteCache,
   prependSpaceNoteToCache,
   removeSpaceNoteFromCache,
+  restoreSpaceNotesCaches,
+  snapshotSpaceNotesCaches,
   spaceNotesQueryKey,
   type SpaceNotesPage,
 } from '../../lib/space-notes-cache';
@@ -136,14 +138,13 @@ export function useRemoveNoteFromSpace() {
     },
     onMutate: async (input) => {
       const sid = normalizeAssociationSpaceId(input.spaceId);
-      const key = spaceNotesQueryKey(sid);
-      await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData<InfiniteData<SpaceNotesPage, number>>(key);
+      await queryClient.cancelQueries({ queryKey: spaceNotesQueryKey(sid) });
+      const previous = snapshotSpaceNotesCaches(queryClient, sid);
       removeSpaceNoteFromCache(queryClient, sid, input.noteId);
-      return { sid, key, previous };
+      return { sid, previous };
     },
     onError: (_error, _input, context) => {
-      if (context) queryClient.setQueryData(context.key, context.previous);
+      restoreSpaceNotesCaches(queryClient, context?.previous);
     },
     onSuccess: (_response, input) => {
       invalidateSpaceNoteAssociationQueries(queryClient, input.spaceId, input.noteId, {

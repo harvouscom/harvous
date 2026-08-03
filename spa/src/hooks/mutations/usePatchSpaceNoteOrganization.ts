@@ -5,6 +5,8 @@ import {
 } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import {
+  restoreSpaceNotesCaches,
+  snapshotSpaceNotesCaches,
   spaceNotesQueryKey,
   updateSpaceNoteInCache,
   type SpaceNotesPage,
@@ -128,14 +130,12 @@ export function usePatchSpaceNoteOrganization() {
     onMutate: async (input) => {
       const request = buildPatchSpaceNoteOrganizationRequest(input);
       const noteKey = ['note', input.noteId, request.spaceId] as const;
-      const listKey = spaceNotesQueryKey(request.spaceId);
       await Promise.all([
         queryClient.cancelQueries({ queryKey: noteKey }),
-        queryClient.cancelQueries({ queryKey: listKey }),
+        queryClient.cancelQueries({ queryKey: spaceNotesQueryKey(request.spaceId) }),
       ]);
       const previousNote = queryClient.getQueryData<NoteDetail>(noteKey);
-      const previousList =
-        queryClient.getQueryData<InfiniteData<SpaceNotesPage, number>>(listKey);
+      const previousList = snapshotSpaceNotesCaches(queryClient, request.spaceId);
       queryClient.setQueryData<NoteDetail>(
         noteKey,
         (note) => note ? patchContextualNoteOrganization(note, request.body) : note,
@@ -154,12 +154,12 @@ export function usePatchSpaceNoteOrganization() {
           ? { collectionPinned: request.body.collectionPinned }
           : {}),
       });
-      return { noteKey, listKey, previousNote, previousList, spaceId: request.spaceId };
+      return { noteKey, previousNote, previousList, spaceId: request.spaceId };
     },
     onError: (_error, _input, context) => {
       if (!context) return;
       queryClient.setQueryData(context.noteKey, context.previousNote);
-      queryClient.setQueryData(context.listKey, context.previousList);
+      restoreSpaceNotesCaches(queryClient, context.previousList);
     },
     onSuccess: (response, input) => {
       const spaceId = normalizePrototypeApiSpaceId(response.contextSpaceId ?? input.spaceId);
