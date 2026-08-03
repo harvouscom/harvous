@@ -7,19 +7,19 @@ import {
 
 describe('isPrototypeHomeContentReady', () => {
   it('returns false while notes are loading', () => {
-    expect(isPrototypeHomeContentReady({ notesListPhase: 'loading' })).toBe(false);
+    expect(isPrototypeHomeContentReady('loading')).toBe(false);
   });
 
   it('returns false on notes error', () => {
-    expect(isPrototypeHomeContentReady({ notesListPhase: 'error' })).toBe(false);
+    expect(isPrototypeHomeContentReady('error')).toBe(false);
   });
 
   it('returns true for list when notes are ready', () => {
-    expect(isPrototypeHomeContentReady({ notesListPhase: 'list' })).toBe(true);
+    expect(isPrototypeHomeContentReady('list')).toBe(true);
   });
 
   it('returns true for empty when notes are ready', () => {
-    expect(isPrototypeHomeContentReady({ notesListPhase: 'empty' })).toBe(true);
+    expect(isPrototypeHomeContentReady('empty')).toBe(true);
   });
 });
 
@@ -68,5 +68,38 @@ describe('isPrototypeHomePresentationReady', () => {
 
   it('returns false while highlights are still loading', () => {
     expect(isPrototypeHomePresentationReady({ ...readyBase, highlightsSettled: false })).toBe(false);
+  });
+});
+
+describe('home readiness composition', () => {
+  const ready = {
+    notesReady: true,
+    clerkLoaded: true,
+    fingerprintsSettled: true,
+    tagsSettled: true,
+    threadsSettled: true,
+    scriptureSettled: true,
+    connectionsSettled: true,
+    highlightsSettled: true,
+    votdSettled: true,
+  };
+
+  it('is not ready on notes alone', () => {
+    // The regression this guards: Home painted as soon as notes resolved, then jumped
+    // as each of the remaining queries landed and inserted its own section.
+    expect(isPrototypeHomePresentationReady({ ...ready, tagsSettled: false })).toBe(false);
+    expect(isPrototypeHomePresentationReady({ ...ready, connectionsSettled: false })).toBe(false);
+    expect(isPrototypeHomePresentationReady({ ...ready, clerkLoaded: false })).toBe(false);
+  });
+
+  it('is ready when every input has settled', () => {
+    expect(isPrototypeHomePresentationReady(ready)).toBe(true);
+  });
+
+  it('takes the notes phase as a bare argument, so extra flags cannot be passed', () => {
+    // The old object parameter silently swallowed five sibling flags the call site
+    // passed alongside notesListPhase.
+    expect(isPrototypeHomeContentReady('list')).toBe(true);
+    expect(isPrototypeHomeContentReady('loading')).toBe(false);
   });
 });

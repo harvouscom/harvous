@@ -1,17 +1,19 @@
 import type { PrototypeNotesListPhase } from './prototype-notes-list-phase';
 
-export interface PrototypeHomeContentReadyInput {
-  notesListPhase: PrototypeNotesListPhase;
-}
-
 /**
  * True when notes have loaded enough to leave a hard-error/loading notes phase.
  *
- * Prefer {@link isPrototypeHomePresentationReady} for painting the home view — that waits
- * until greeting + card enrichment queries have settled, then presents top-to-bottom.
+ * This is only the *notes* half of readiness — feed it into
+ * {@link isPrototypeHomePresentationReady} rather than painting the home view off it
+ * directly, or the view appears as soon as notes arrive and then jumps as each
+ * enrichment query lands.
+ *
+ * Takes the phase directly rather than an options object on purpose. It used to accept
+ * `{ notesListPhase }`, and the call site passed five more settled-flags alongside it;
+ * every one was discarded. (TypeScript does flag that as an excess-property error — it
+ * shipped because nothing ran `tsc`.) A bare parameter makes the mistake unexpressible.
  */
-export function isPrototypeHomeContentReady(input: PrototypeHomeContentReadyInput): boolean {
-  const { notesListPhase } = input;
+export function isPrototypeHomeContentReady(notesListPhase: PrototypeNotesListPhase): boolean {
   if (notesListPhase === 'loading' || notesListPhase === 'error') return false;
   return notesListPhase === 'list' || notesListPhase === 'empty';
 }

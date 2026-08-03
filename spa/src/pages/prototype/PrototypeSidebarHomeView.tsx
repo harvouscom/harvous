@@ -7,7 +7,7 @@
  * Copy follows docs/BRAND_VOICE.md — friend-over-coffee, no hype, no em dashes.
  */
 import { useUser } from '@clerk/clerk-react';
-import { useCallback, useMemo, useState, Fragment } from 'react';
+import { useCallback, useEffect, useMemo, useState, Fragment } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
@@ -27,7 +27,11 @@ import { usePrototypeSpaceReferenceWordConnections } from '../../hooks/queries/u
 import { useProfile } from '../../hooks/queries/useProfile';
 import { useVotdToday } from '../../hooks/queries/useVotdToday';
 import type { PrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase';
-import { isPrototypeHomeContentReady, isQuerySettled } from '@/utils/prototype-home-ready';
+import {
+  isPrototypeHomeContentReady,
+  isPrototypeHomePresentationReady,
+  isQuerySettled,
+} from '@/utils/prototype-home-ready';
 import {
   computeActivityRhythm,
   computeLastActivityTime,
@@ -102,6 +106,9 @@ import { activeCooldownIds, recordRecallSnoozed, recentRecallSectionCounts } fro
 import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeRecallCarousel';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
+
+/** Force Home to present even if an auxiliary query never settles. */
+const HOME_PRESENTATION_DEADLINE_MS = 2500;
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
 import { useCrossRefGaps } from '../../hooks/queries/useCrossRefGaps';
 import { findMostRecentNoteForScriptureReference } from '@/utils/scripture-passage-drill';
@@ -580,6 +587,17 @@ export default function PrototypeSidebarHomeView({
   const crossRefConnectionsQuery = usePrototypeSpaceScriptureConnections(homeSpaceId);
   const referenceWordConnectionsQuery = usePrototypeSpaceReferenceWordConnections(homeSpaceId);
   const votdQuery = useVotdToday({ enabled: Boolean(homeSpaceId) });
+  // Only the greeting's first name needs Clerk, but presenting before it loads means the
+  // greeting line rewrites itself a beat later — one more thing moving after first paint.
+  const { isLoaded: clerkLoaded } = useUser();
+  const fingerprintsQuery = useNoteFingerprints();
+  const {
+    meaningWeightById,
+    fingerprintsById,
+    canonSectionById,
+    recallStabilityById,
+    lastRecallEngagedAtById,
+  } = fingerprintsQuery;
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -600,16 +618,49 @@ export default function PrototypeSidebarHomeView({
   const highlightsSettled = isQuerySettled(highlightsQuery.isPending, highlightsQuery.data != null);
   const votdSettled =
     isQuerySettled(votdQuery.isPending, votdQuery.data != null) || Boolean(votdQuery.isError);
-  const contentReady = isPrototypeHomeContentReady({
-    notesListPhase,
-    scriptureSettled,
+  const fingerprintsSettled = isQuerySettled(
+    fingerprintsQuery.isPending,
+    fingerprintsQuery.data != null,
+  );
+  const connectionsSettled =
+    isQuerySettled(crossRefConnectionsQuery.isPending, crossRefConnectionsQuery.data != null) &&
+    isQuerySettled(
+      referenceWordConnectionsQuery.isPending,
+      referenceWordConnectionsQuery.data != null,
+    );
+
+  // Home used to paint the moment notes resolved, then insert or remove a whole section
+  // each time one of ~9 independent queries landed — the visible jumping. Wait for them
+  // all, then present once. isPrototypeHomeContentReady only ever read notesListPhase;
+  // the other flags passed to it were silently dropped.
+  const presentationReady = isPrototypeHomePresentationReady({
+    notesReady: isPrototypeHomeContentReady(notesListPhase),
+    clerkLoaded,
+    fingerprintsSettled,
     tagsSettled,
     threadsSettled,
+    scriptureSettled,
+    connectionsSettled,
     highlightsSettled,
     votdSettled,
   });
 
-  const homeViewClassName = useProtoHomeViewClassName(contentReady);
+  // Backstop: a disabled query stays `isPending` forever in React Query v5, so without a
+  // deadline one misconfigured auxiliary would strand Home on loading dots. Trading a
+  // little jitter for a blank Home would be a worse bug than the one being fixed.
+  const [presentationDeadlinePassed, setPresentationDeadlinePassed] = useState(false);
+  useEffect(() => {
+    if (presentationReady) return;
+    const id = window.setTimeout(
+      () => setPresentationDeadlinePassed(true),
+      HOME_PRESENTATION_DEADLINE_MS,
+    );
+    return () => window.clearTimeout(id);
+  }, [presentationReady]);
+
+  const contentReady = presentationReady || presentationDeadlinePassed;
+
+  const homeViewClassName = useProtoHomeViewClassName(contentReady, homeSpaceId);
 
   const tags = tagsQuery.data?.tags ?? [];
   const threads = threadsQuery.data ?? [];
@@ -642,8 +693,7 @@ export default function PrototypeSidebarHomeView({
   // Memory layer Workstream B: forgetting-aware resurfacing. meaningWeight (server fingerprints) +
   // per-note stability (lengthened each time the user re-engages a recall) rank the "Worth another
   // look" pick toward meaningful, fading notes. Degrades to recency logic before fingerprints exist.
-  const { meaningWeightById, fingerprintsById, canonSectionById, recallStabilityById, lastRecallEngagedAtById } =
-    useNoteFingerprints();
+
   const localRecallStability = useMemo(() => stabilityById(homeSpaceId), [homeSpaceId]);
   const recallStability = useMemo(
     () => mergeStabilityMaps(recallStabilityById, localRecallStability),
