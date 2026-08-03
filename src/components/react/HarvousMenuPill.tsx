@@ -3,6 +3,11 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from './Icon';
+import {
+  getVisualViewportBox,
+  visualViewportOverlayStyle,
+  type VisualViewportBox,
+} from '@/utils/visual-viewport-box';
 import '@/styles/harvous-menu-pill.css';
 
 export interface HarvousMenuPillOption {
@@ -59,6 +64,9 @@ export default function HarvousMenuPill({
   // inside the slide-up dock the trigger rect is unreliable (→ corner glitch) and the iOS
   // keyboard/visual-viewport leaves a fixed menu stale. The sheet needs no per-trigger math.
   const [isCoarse, setIsCoarse] = useState(false);
+  // Visible-area box for the mobile sheet. Without it the sheet anchors to the LAYOUT viewport
+  // bottom, which on iOS sits behind the keyboard — the sheet was rendering half-covered.
+  const [viewportBox, setViewportBox] = useState<VisualViewportBox | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLUListElement>(null);
@@ -104,8 +112,29 @@ export default function HarvousMenuPill({
     updateMenuPosition();
   }, [open, isCoarse, updateMenuPosition, options.length, triggerLabel]);
 
-  // Opening the sheet: dismiss the iOS keyboard (a focused editor would otherwise leave it
-  // covering the bottom-anchored sheet) and scroll the selected option into view.
+  // Track the visible area while the sheet is open so it sits above the keyboard rather than
+  // behind it. iOS fires visualViewport `scroll` (not just `resize`) as the keyboard animates.
+  useEffect(() => {
+    if (!open || !isCoarse || typeof window === 'undefined') {
+      setViewportBox(null);
+      return;
+    }
+    const sync = () => setViewportBox(getVisualViewportBox(window));
+    sync();
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', sync);
+    vv?.addEventListener('scroll', sync);
+    window.addEventListener('resize', sync);
+    return () => {
+      vv?.removeEventListener('resize', sync);
+      vv?.removeEventListener('scroll', sync);
+      window.removeEventListener('resize', sync);
+    };
+  }, [open, isCoarse]);
+
+  // Backstop keyboard dismissal (the reliable attempt happens in the trigger's pointerdown, inside
+  // a real user gesture — iOS ignores a programmatic blur outside one). Correct placement no longer
+  // *depends* on this working; it just avoids a needless keyboard. Also scroll the selection in.
   useEffect(() => {
     if (!open || !isCoarse) return;
     const active = document.activeElement as HTMLElement | null;
@@ -180,6 +209,7 @@ export default function HarvousMenuPill({
         ? createPortal(
             <div
               className="harvous-menu-pill__sheet-backdrop"
+              style={viewportBox ? visualViewportOverlayStyle(viewportBox) : undefined}
               onPointerDown={(e) => {
                 if (e.target === e.currentTarget) close();
               }}
@@ -190,6 +220,13 @@ export default function HarvousMenuPill({
                 role="dialog"
                 aria-modal="true"
                 aria-label={ariaLabel}
+                style={
+                  // iOS keeps a ~44px form-assistant bar above the keyboard that visualViewport
+                  // does not always exclude; pad for it so the last option stays tappable.
+                  viewportBox?.keyboardLikely
+                    ? ({ '--harvous-sheet-kb-inset': '44px' } as React.CSSProperties)
+                    : undefined
+                }
               >
                 <div className="harvous-menu-pill__sheet-header">{ariaLabel}</div>
                 <ul
@@ -238,6 +275,18 @@ export default function HarvousMenuPill({
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-controls={open ? menuId : undefined}
+        onPointerDown={() => {
+          // Dismiss the keyboard from INSIDE the user gesture — iOS ignores a blur issued from a
+          // post-open effect, which is why the sheet kept opening with the keyboard still up.
+          if (!isCoarse || open) return;
+          const active = document.activeElement as HTMLElement | null;
+          if (
+            active &&
+            (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')
+          ) {
+            active.blur();
+          }
+        }}
         onClick={() => setOpen((prev) => !prev)}
       >
         <span

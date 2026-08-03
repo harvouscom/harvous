@@ -67,6 +67,7 @@ export function usePublicStatus() {
       return (await res.json()) as PublicStatusData;
     },
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
     staleTime: 30_000,
     retry: 1,
   });

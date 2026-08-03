@@ -134,7 +134,10 @@ export interface SpaceContentItem {
 export interface SpaceNoteRow {
   id: string;
   title?: string | null;
+  /** Truncated to NOTE_LIST_CONTENT_MAX_CHARS server-side — never write this back to a note. */
   content?: string | null;
+  /** Length of the stored body; greater than `content.length` means `content` is a prefix. */
+  contentLength?: number | null;
   noteType?: string;
   isPinned?: boolean;
   simpleNoteId?: number | null;
@@ -199,6 +202,7 @@ function setCachedSpaceNotesFirstPage(id: string, page: SpaceNotesPage) {
 
 export function useSpace(spaceId: string) {
   const queryClient = useQueryClient();
+  const authReady = useAuthReady();
   return useQuery({
     queryKey: ['space', spaceId],
     queryFn: async () => {
@@ -219,7 +223,10 @@ export function useSpace(spaceId: string) {
       const bootstrap = queryClient.getQueryData<SpaceBootstrapData>(bootstrapQueryKey(spaceId));
       return bootstrap?.space;
     },
-    enabled: !!spaceId,
+    // Cold-start race: firing before the Clerk session JWT is attachable 401s and
+    // then never auto-retries (see useAuthReady's docstring; useSpaceNotes below
+    // hit this same bug first).
+    enabled: authReady && !!spaceId,
     staleTime: 30_000,
   });
 }
@@ -304,10 +311,11 @@ export interface SpaceMembersResponse {
 }
 
 export function useSpaceMembers(spaceId: string) {
+  const authReady = useAuthReady();
   return useQuery({
     queryKey: ['space', spaceId, 'members'],
     queryFn: () => api.get<SpaceMembersResponse>(`/api/spaces/${spaceId}/members`),
-    enabled: !!spaceId,
+    enabled: authReady && !!spaceId,
     staleTime: 30_000,
   });
 }
@@ -324,10 +332,11 @@ export interface SpaceInviteRow {
 }
 
 export function useSpaceInvites(spaceId: string, isOwner: boolean) {
+  const authReady = useAuthReady();
   return useQuery({
     queryKey: ['space', spaceId, 'invites'],
     queryFn: () => api.get<{ invites: SpaceInviteRow[] }>(`/api/spaces/${spaceId}/invites`),
-    enabled: !!spaceId && isOwner,
+    enabled: authReady && !!spaceId && isOwner,
     staleTime: 15_000,
   });
 }
@@ -422,6 +431,7 @@ export function getSpaceBootstrapQueryOptions(spaceId: string) {
 
 export function useSpaceItems(spaceId: string) {
   const queryClient = useQueryClient();
+  const authReady = useAuthReady();
   return useQuery({
     queryKey: ['space', spaceId, 'items'],
     queryFn: async () => {
@@ -430,7 +440,7 @@ export function useSpaceItems(spaceId: string) {
       const data = await api.get<SpaceItemsResponse>(`/api/spaces/${spaceId}/items`);
       return mapSpaceItemsResponse(data);
     },
-    enabled: !!spaceId,
+    enabled: authReady && !!spaceId,
     staleTime: 30_000,
   });
 }

@@ -1,8 +1,11 @@
 import { Mark, getMarkRange } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import {
+  canonicalizeScriptureReferenceDisplay,
+  checkScriptureReferenceValidity,
   detectScriptureReferences,
   matchAnchoredTrailingTranslationAbbreviation,
+  type ScriptureReferenceValidity,
 } from '@/utils/scripture-detector';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
@@ -32,8 +35,21 @@ export interface ScriptureDraftOptions {
   HTMLAttributes: Record<string, any>;
 }
 
+/**
+ * The draft is TEXT BEING EDITED, not an atomic chip — so unlike the committed pill it must be a
+ * valid caret host: `display: inline` with selectable text.
+ *
+ * An `inline-flex` box with `user-select: none` (what the committed `.scripture-pill` is, and what
+ * the draft used to inherit) gives iOS nowhere legitimate to paint a caret, which is the root of
+ * the "caret jumps to the far right of the line" reports and the reason the whole
+ * `resyncMobileCaret` / `setNativeSelectionAfterInlinePill` machinery exists.
+ *
+ * `box-decoration-break: clone` keeps the dashed border closed on both fragments if the reference
+ * wraps. Vertical padding is 0 because padding on an inline box paints without contributing to
+ * line height, so it would overlap adjacent lines.
+ */
 const DRAFT_STYLE =
-  'border-radius: 12px; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px; font-weight: 500; font-style: normal; font-size: inherit; vertical-align: baseline; line-height: inherit; white-space: normal;';
+  'border-radius: 12px; padding: 0 6px; display: inline; -webkit-box-decoration-break: clone; box-decoration-break: clone; -webkit-user-select: text; user-select: text; font-weight: 500; font-style: normal; font-size: inherit; vertical-align: baseline; line-height: inherit; white-space: normal;';
 
 export const ScriptureDraft = Mark.create<ScriptureDraftOptions>({
   name: 'scriptureDraft',
@@ -66,6 +82,20 @@ export const ScriptureDraft = Mark.create<ScriptureDraftOptions>({
             : {},
       },
       pillAccent: {
+        default: null,
+        parseHTML: () => null,
+        renderHTML: () => ({}),
+      },
+      // Set only when this draft came from an existing committed pill (Backspace-to-edit). It lets
+      // an abandoned or invalidated edit RESTORE the pill instead of degrading it to plain prose —
+      // otherwise backspacing into a pill and tapping away would silently destroy it.
+      originalReference: {
+        default: null,
+        parseHTML: () => null,
+        renderHTML: () => ({}),
+      },
+      // Carried so a round-trip through the draft doesn't reset a persisted pill to 'pending'.
+      noteId: {
         default: null,
         parseHTML: () => null,
         renderHTML: () => ({}),
@@ -326,13 +356,49 @@ export function findDetachedScriptureDraft(state: any): { from: number; to: numb
  * reference yet. Uses the shared detector so the result matches the rest of the app: a
  * chapter-only reference (e.g. `Exodus 5`) stays chapter-only, and ranges are canonicalized
  * (`Exodus 4:18-20`). Picks the reference that covers the most of the typed text.
+ *
+ * The detector returns the raw matched text, so the winner is put through
+ * `canonicalizeScriptureReferenceDisplay` — that is what turns a typed `exodus 16:13` into the
+ * pill text `Exodus 16:13`. Note it canonicalizes the BOOK NAME only; the shape-expanding
+ * `normalizeScriptureReference` would turn a chapter-only `Psalms 23` into `Psalms 23:1-6`.
+ * Canonicalize after picking the winner — canonicalization changes string length, which would
+ * otherwise skew the longest-match comparison.
  */
 export function draftTextToReference(text: string): string | null {
   const trimmed = text.trim();
   if (!trimmed) return null;
   const refs = detectScriptureReferences(trimmed);
   if (refs.length === 0) return null;
-  return refs.reduce((a, b) => (b.reference.length > a.reference.length ? b : a)).reference;
+  const winner = refs.reduce((a, b) => (b.reference.length > a.reference.length ? b : a)).reference;
+  return canonicalizeScriptureReferenceDisplay(winner);
+}
+
+/**
+ * Whether the draft at `atPos` (or the caret) would commit, and why not when it wouldn't.
+ *
+ * Mirrors the gate inside `confirmScriptureDraftView` so the floating ✓ can show an invalid state
+ * with a reason ("Exodus 16 has 36 verses.") instead of silently doing nothing when tapped.
+ * `pending` means the reference is still incomplete — normal mid-typing, not an error to surface.
+ */
+export type ScriptureDraftCommitState =
+  | { status: 'none' }
+  | { status: 'pending' }
+  | { status: 'ready'; reference: string }
+  | { status: 'invalid'; reason: string };
+
+export function getScriptureDraftValidity(state: any, atPos?: number): ScriptureDraftCommitState {
+  const draftType = state?.schema?.marks?.scriptureDraft;
+  if (!draftType) return { status: 'none' };
+  const range = findDraftRange(state, atPos ?? state.selection.from);
+  if (!range) return { status: 'none' };
+
+  const effectiveTo = Math.max(range.to, extendRangeOverTrailingContinuation(state.doc, range.to));
+  const reference = draftTextToReference(state.doc.textBetween(range.from, effectiveTo));
+  if (!reference) return { status: 'pending' };
+
+  const validity: ScriptureReferenceValidity = checkScriptureReferenceValidity(reference);
+  if (validity.ok) return { status: 'ready', reference };
+  return { status: 'invalid', reason: validity.reason };
 }
 
 // ── Mutations ───────────────────────────────────────────────────────────────────
@@ -613,8 +679,11 @@ export function enterScriptureDraftView(view: any, from: number, to: number): bo
 
 /**
  * Convert a committed `scripturePill` over [from, to) back into an inline `scriptureDraft` so the
- * user can fix/extend the reference in place and re-confirm via the floating ✓. Used by the
- * pill's delete floater "Edit" action.
+ * user can fix/extend the reference in place and re-confirm via the floating ✓. This is what
+ * Backspace on a pill does: the reference becomes ordinary editable text rather than being deleted.
+ *
+ * `originalReference` + `noteId` ride along so an abandoned or invalidated edit can put the pill
+ * back exactly as it was (see `restoreScripturePillFromDraft`).
  */
 export function editScripturePillAsDraft(view: any, from: number, to: number): boolean {
   const { state } = view;
@@ -623,7 +692,13 @@ export function editScripturePillAsDraft(view: any, from: number, to: number): b
   if (!pillType || !draftType || to <= from) return false;
   const pillMark = getMarkInstanceAt(state.doc, from, pillType);
   const carried = pillMark
-    ? { translation: pillMark.attrs.translation ?? null, pillAccent: pillMark.attrs.pillAccent ?? null }
+    ? {
+        translation: pillMark.attrs.translation ?? null,
+        pillAccent: pillMark.attrs.pillAccent ?? null,
+        originalReference:
+          pillMark.attrs.reference ?? state.doc.textBetween(from, to),
+        noteId: pillMark.attrs.noteId ?? null,
+      }
     : {};
   const tr = state.tr;
   tr.removeMark(from, to, pillType);
@@ -637,6 +712,47 @@ export function editScripturePillAsDraft(view: any, from: number, to: number): b
   } catch {
     /* ignore */
   }
+  // A bare view.focus() is not enough on iOS after a mark mutation — the painted caret strands at
+  // the line end even though PM's selection is right. Same treatment the commit path gets.
+  resyncMobileCaret(view, { focus: true, pos: to, markFrom: from, markTo: to });
+  return true;
+}
+
+/**
+ * Put back the committed pill a draft was created from. Used when an edit-draft is abandoned or
+ * ends up invalid — without this, backspacing into a pill and then tapping away would silently
+ * turn it into plain prose.
+ *
+ * Returns false when the draft didn't come from a pill, or when the user has emptied the text
+ * (deleting the reference character by character MUST be allowed to actually delete the pill).
+ */
+export function restoreScripturePillFromDraft(view: any, from: number, to: number): boolean {
+  const { state } = view;
+  const draftType = state.schema.marks.scriptureDraft;
+  const pillType = state.schema.marks.scripturePill;
+  if (!draftType || !pillType || to <= from) return false;
+
+  const draftMark = getMarkInstanceAt(state.doc, from, draftType);
+  const originalReference = draftMark?.attrs?.originalReference;
+  if (!originalReference) return false;
+  if (!state.doc.textBetween(from, to).trim()) return false;
+
+  const tr = state.tr;
+  tr.replaceWith(
+    from,
+    to,
+    state.schema.text(originalReference, [
+      pillType.create({
+        reference: originalReference,
+        noteId: draftMark.attrs.noteId ?? 'pending',
+        translation: draftMark.attrs.translation ?? null,
+        pillAccent: draftMark.attrs.pillAccent ?? null,
+      }),
+    ]),
+  );
+  tr.setStoredMarks([]);
+  tr.setMeta('addToHistory', true);
+  view.dispatch(tr);
   return true;
 }
 
@@ -736,11 +852,24 @@ export function confirmScriptureDraftView(
     if (midRangeEntry) {
       return null;
     }
+    // An edit-draft that no longer parses: put the original pill back rather than dropping to
+    // prose. (No-op for drafts typed from scratch, and for one the user has emptied on purpose.)
+    if (restoreScripturePillFromDraft(view, range.from, range.to)) {
+      return null;
+    }
     tr.removeMark(range.from, range.to, draftType);
     stripProseFormattingFromDraftSpan(tr, state, range.from, range.to);
     tr.setStoredMarks([]);
     tr.setMeta('addToHistory', true);
     view.dispatch(tr);
+    return null;
+  }
+
+  // The reference parses but doesn't resolve against the canon — e.g. `Exodus 16:1315`, what you
+  // get when iOS swallows the `-` of a range. Committing it produces a pill the server can never
+  // resolve ("Could not load this passage."), so keep the draft OPEN instead: the text stays
+  // editable in place and the floating ✓ shows why it won't commit (see getScriptureDraftValidity).
+  if (!checkScriptureReferenceValidity(reference).ok) {
     return null;
   }
 
@@ -768,16 +897,30 @@ export function confirmScriptureDraftView(
   const pillNode = state.schema.text(reference, [
     pillType.create({
       reference,
-      noteId: 'pending',
+      // An edit-draft carries the note id of the pill it came from; only a genuinely new
+      // reference is 'pending'. Without this, backspacing into a saved pill and re-confirming
+      // would silently orphan it from its note.
+      noteId: carried?.attrs?.noteId ?? 'pending',
       translation,
       pillAccent: carried?.attrs?.pillAccent ?? null,
     }),
   ]);
   tr.replaceWith(range.from, consumeTo, pillNode);
 
-  const pillEnd = range.from + reference.length;
+  // `ensureScripturePillSpacing` can insert a LEADING space at `range.from` (when the pill follows
+  // a non-whitespace char — e.g. mid-sentence or after prior content in a list item). That shifts
+  // every position after it, so map the pill boundaries through the steps it adds instead of
+  // trusting the pre-spacing arithmetic. Getting this wrong desyncs `markTo`, which makes Round
+  // 14's `posAtDOM >= markTo` validation fail and drops the caret onto the generic `domAtPos`
+  // fallback — i.e. the far-right caret paint that Round 13/14 exist to prevent.
+  const rawPillStart = range.from;
+  const rawPillEnd = range.from + reference.length;
+  const stepsBeforeSpacing = tr.steps.length;
   tr.setStoredMarks([]);
   ensureScripturePillSpacing(tr);
+  const spacingMapping = tr.mapping.slice(stepsBeforeSpacing);
+  const pillStart = spacingMapping.map(rawPillStart, 1);
+  const pillEnd = spacingMapping.map(rawPillEnd, 1);
 
   let caret = pillEnd;
   const charAfter = tr.doc.textBetween(pillEnd, Math.min(pillEnd + 1, tr.doc.content.size));
@@ -793,7 +936,7 @@ export function confirmScriptureDraftView(
     resyncMobileCaret(view, {
       focus: true,
       pos: caretPos,
-      markFrom: range.from,
+      markFrom: pillStart,
       markTo: pillEnd,
     });
   }
@@ -818,13 +961,20 @@ export function confirmAnyScriptureDraftView(view: any): string | null {
   return confirmScriptureDraftView(view, target.end, { focus: true });
 }
 
-/** Drop the draft mark at the caret, leaving the text as plain prose (Escape). */
+/**
+ * Drop the draft mark at the caret, leaving the text as plain prose (Escape).
+ * For an edit-draft (Backspace on a committed pill), Escape restores the pill instead — cancelling
+ * an edit should undo the edit, not destroy what was there.
+ */
 export function cancelScriptureDraftView(view: any): boolean {
   const { state } = view;
   const draftType = state.schema.marks.scriptureDraft;
   if (!draftType) return false;
   const range = getScriptureDraftRange(state);
   if (!range) return false;
+  if (restoreScripturePillFromDraft(view, range.from, range.to)) {
+    return true;
+  }
   const tr = state.tr;
   tr.removeMark(range.from, range.to, draftType);
   stripProseFormattingFromDraftSpan(tr, state, range.from, range.to);

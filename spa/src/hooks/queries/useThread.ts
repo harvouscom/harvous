@@ -1,5 +1,6 @@
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { useAuthReady } from '../useAuthReady';
 
 export interface NoteItem {
   id: string;
@@ -131,12 +132,13 @@ export function getThreadQueryOptions(threadId: string) {
 }
 
 export function useThread(threadId: string) {
+  const authReady = useAuthReady();
   const options = getThreadQueryOptions(threadId);
   const normalizedId = normalizeThreadId(threadId);
   const cached = threadId ? getCachedThreadPrefetch(normalizedId) : undefined;
   return useQuery({
     ...options,
-    enabled: !!threadId,
+    enabled: authReady && !!threadId,
     select: (data) => normalizeThreadPrefetchData(data as ThreadPrefetchData | ThreadDetail),
     initialData: cached,
     initialDataUpdatedAt: cached ? Date.now() - 5_000 : undefined,
@@ -144,6 +146,7 @@ export function useThread(threadId: string) {
 }
 
 export function useThreadNotes(threadId: string, limit = 20) {
+  const authReady = useAuthReady();
   const normalizedId = normalizeThreadId(threadId);
   return useInfiniteQuery({
     queryKey: ['thread', normalizedId, 'notes'],
@@ -152,7 +155,7 @@ export function useThreadNotes(threadId: string, limit = 20) {
     getNextPageParam: (lastPage) =>
       lastPage.hasMore ? lastPage.offset + lastPage.limit : undefined,
     initialPageParam: 0,
-    enabled: !!normalizedId,
+    enabled: authReady && !!normalizedId,
     staleTime: 30_000,
   });
 }

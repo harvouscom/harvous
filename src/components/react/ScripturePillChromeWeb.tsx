@@ -12,7 +12,13 @@ import {
 import { TRANSLATIONS } from '@/data/translations';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { safeRenderHtml } from '@/utils/content-renderer';
-import { fetchVerseHtml } from '@/utils/fetch-verse-html';
+import { fetchVerseHtmlResult } from '@/utils/fetch-verse-html';
+import {
+  passageErrorMessage,
+  passageHtmlOf,
+  passageStateFromResult,
+  type PassageLoadState,
+} from '@/utils/passage-load-state';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import { isStudyHighlightAccentKey, scriptureDockChromeAccent } from '@/utils/study-highlight-accents';
 
@@ -185,8 +191,11 @@ export default function ScripturePillChromeWeb({
     else setIsExpandedInternal(next);
   };
 
-  const [passageHtml, setPassageHtml] = useState<string>('');
-  const [loadingPassage, setLoadingPassage] = useState(false);
+  const [passageState, setPassageState] = useState<PassageLoadState>({ kind: 'idle' });
+  const [reloadToken, setReloadToken] = useState(0);
+  // Derived alias so the existing truthiness gates below keep working unchanged.
+  const passageHtml = passageHtmlOf(passageState);
+  const loadingPassage = passageState.kind === 'loading';
   const passageContentRef = useRef<HTMLDivElement>(null);
   // Passage text selection → highlight creation
   const passageScrollRef = useRef<HTMLDivElement>(null);
@@ -359,22 +368,23 @@ export default function ScripturePillChromeWeb({
 
   useEffect(() => {
     if (!interactionActive || !isExpanded) {
-      setPassageHtml('');
-      setLoadingPassage(false);
+      setPassageState({ kind: 'idle' });
       return;
     }
     let cancelled = false;
+    // Set synchronously, NOT inside the async IIFE below. Doing it inside meant the first frame
+    // rendered with "not loading, no html", which the pane treated as failure — the spurious
+    // "Could not load this passage." flash on passages that then loaded fine.
+    setPassageState({ kind: 'loading' });
     void (async () => {
-      setLoadingPassage(true);
-      const html = await fetchVerseHtml(displayRefString, trans);
+      const result = await fetchVerseHtmlResult(displayRefString, trans);
       if (cancelled) return;
-      setPassageHtml(html || '');
-      setLoadingPassage(false);
+      setPassageState(passageStateFromResult(result));
     })();
     return () => {
       cancelled = true;
     };
-  }, [displayRefString, trans, interactionActive, isExpanded]);
+  }, [displayRefString, trans, interactionActive, isExpanded, reloadToken]);
 
   const maxChapter = maxChapterForBook(selectedBook);
   const verseBoundsForChapter = getChapterVerseRange(selectedBook, chapter);
@@ -788,15 +798,30 @@ export default function ScripturePillChromeWeb({
         onClick={handlePassageClick}
       >
         <div ref={passageContentRef} className="scripture-pill-chrome__passage-inner">
-          {loadingPassage ? (
-            <p className="scripture-pill-chrome__passage-status">Loading passage…</p>
+          {passageState.kind === 'idle' ? null : passageState.kind === 'loading' ? (
+            <p className="scripture-pill-chrome__passage-status" aria-live="polite">
+              Loading passage…
+            </p>
           ) : passageHtml ? (
+            // 'loaded' and 'unavailable' both render body content — "not in this translation" is
+            // legitimate copy from the server, not a failure, so it gets no retry affordance.
             <div
               className="scripture-pill-chrome__passage-html"
               dangerouslySetInnerHTML={passageHtmlMarkup}
             />
           ) : (
-            <p className="scripture-pill-chrome__passage-status">Could not load this passage.</p>
+            <div className="scripture-pill-chrome__passage-status scripture-pill-chrome__passage-status--error">
+              <p>{passageErrorMessage(passageState) ?? "Couldn't load this passage."}</p>
+              {passageState.kind === 'error' ? (
+                <button
+                  type="button"
+                  className="scripture-pill-chrome__passage-retry"
+                  onClick={() => setReloadToken((t) => t + 1)}
+                >
+                  Try again
+                </button>
+              ) : null}
+            </div>
           )}
           {interactionActive && isExpanded && passageHtml ? (
             <PassageContextStrip

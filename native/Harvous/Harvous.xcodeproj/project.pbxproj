@@ -1097,23 +1097,23 @@
 			sourceTree = "<group>";
 		};
 		DDE35B3AEF88A091A6883303 /* Harvous */ = {
-		isa = PBXGroup;
-		children = (
-			0DCA9F6B6587D05D924F4C57 /* Assets.xcassets */,
-			84FBB893192309BD3022353E /* BibleStudyTagSuggester.swift */,
-			37F006FD9D75796675113907 /* chapter-subjects.json */,
-			6C4AEECFBCC15CFF90BC8F3A /* ChristKeywordContextGate.swift */,
-			24CB35E22B6D8A4DAC98F84B /* ContentView.swift */,
-			A5EB64AB6CCA0BDC65CBDBF4 /* FolderKeywordContextGate.swift */,
-			3C5A3152054CEF3A01972463 /* FolderSubjectEnrichment.swift */,
-			DC1067124A419BAF7002F22E /* Harvous.entitlements */,
-			1D3CDB28BB9BF31E5832F658 /* HarvousApp.swift */,
-			A1774DF51E262C76E2037DDE /* HarvousCommands.swift */,
-			CD0F9C5430AFA2554D051317 /* Info.plist */,
-			ACA96E76B2A0F616DA9C9BE5 /* LifeKeywordContextGate.swift */,
-			613771F7E191505CBC5A994B /* NoteRelativeTime.swift */,
-			29D6FAAB4F77BFE86A8033E7 /* PersonNameContextGate.swift */,
-			7846283BF1E854617CBEA8E9 /* SubjectTagCandidates.swift */,
+			isa = PBXGroup;
+			children = (
+				0DCA9F6B6587D05D924F4C57 /* Assets.xcassets */,
+				84FBB893192309BD3022353E /* BibleStudyTagSuggester.swift */,
+				37F006FD9D75796675113907 /* chapter-subjects.json */,
+				6C4AEECFBCC15CFF90BC8F3A /* ChristKeywordContextGate.swift */,
+				24CB35E22B6D8A4DAC98F84B /* ContentView.swift */,
+				A5EB64AB6CCA0BDC65CBDBF4 /* FolderKeywordContextGate.swift */,
+				3C5A3152054CEF3A01972463 /* FolderSubjectEnrichment.swift */,
+				DC1067124A419BAF7002F22E /* Harvous.entitlements */,
+				1D3CDB28BB9BF31E5832F658 /* HarvousApp.swift */,
+				A1774DF51E262C76E2037DDE /* HarvousCommands.swift */,
+				CD0F9C5430AFA2554D051317 /* Info.plist */,
+				ACA96E76B2A0F616DA9C9BE5 /* LifeKeywordContextGate.swift */,
+				613771F7E191505CBC5A994B /* NoteRelativeTime.swift */,
+				29D6FAAB4F77BFE86A8033E7 /* PersonNameContextGate.swift */,
+				7846283BF1E854617CBEA8E9 /* SubjectTagCandidates.swift */,
 				F11B3D2CAD734884B528D56E /* UniversalBibleEntities.swift */,
 				83F7258FD2178CD3A0AC67C1 /* _fa-symbol-source */,
 				804FCA929D204887C7A825BE /* App */,

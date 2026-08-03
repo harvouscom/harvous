@@ -14,6 +14,8 @@ import {
   validateVerseRange,
   validateCrossChapterRange,
   normalizeChapterReference,
+  canonicalizeScriptureReferenceDisplay,
+  checkScriptureReferenceValidity,
   matchTrailingTranslationAbbreviation,
   matchAnchoredTrailingTranslationAbbreviation,
   normalizeInlineTranslationAbbreviation,
@@ -532,5 +534,96 @@ describe('cross-chapter ranges', () => {
 
   it('rejects a backwards cross-chapter range', () => {
     expect(validateCrossChapterRange('Exodus', 7, 7, 6, 28)).toBe(false);
+  });
+});
+
+// ─── Canonical display form ──────────────────────────────
+describe('canonicalizeScriptureReferenceDisplay', () => {
+  it('capitalizes a lowercase book name', () => {
+    expect(canonicalizeScriptureReferenceDisplay('exodus 16:13')).toBe('Exodus 16:13');
+  });
+
+  it('expands an abbreviation to the canonical book name', () => {
+    expect(canonicalizeScriptureReferenceDisplay('ex 16:13')).toBe('Exodus 16:13');
+    expect(canonicalizeScriptureReferenceDisplay('1 cor 13:4-7')).toBe('1 Corinthians 13:4-7');
+  });
+
+  it('preserves chapter-only shape instead of expanding it', () => {
+    // normalizeScriptureReference expands to a verse range; pill text must stay chapter-only.
+    // "Psalms" (not "Psalm") is the canonical name in bible-study-keywords + bible-chapters.json.
+    expect(canonicalizeScriptureReferenceDisplay('psalm 23')).toBe('Psalms 23');
+    expect(normalizeScriptureReference('psalm 23')).toBe('Psalms 23:1-6');
+  });
+
+  it('preserves a chapter range', () => {
+    expect(canonicalizeScriptureReferenceDisplay('matthew 5-7')).toBe('Matthew 5-7');
+  });
+
+  it('preserves a cross-chapter verse range', () => {
+    expect(canonicalizeScriptureReferenceDisplay('exodus 6:28-7:7')).toBe('Exodus 6:28-7:7');
+  });
+
+  it('tightens spacing around colons and dashes', () => {
+    expect(canonicalizeScriptureReferenceDisplay('John 3: 16 - 17')).toBe('John 3:16-17');
+  });
+
+  it('leaves an unrecognized book untouched', () => {
+    expect(canonicalizeScriptureReferenceDisplay('Zorblax 3:16')).toBe('Zorblax 3:16');
+  });
+
+  it('is idempotent', () => {
+    const once = canonicalizeScriptureReferenceDisplay('exodus 16:13-15');
+    expect(canonicalizeScriptureReferenceDisplay(once)).toBe(once);
+  });
+});
+
+// ─── Canonical resolvability gate ────────────────────────
+describe('checkScriptureReferenceValidity', () => {
+  it('accepts a valid single verse and range', () => {
+    expect(checkScriptureReferenceValidity('Exodus 16:13')).toEqual({ ok: true });
+    expect(checkScriptureReferenceValidity('Exodus 16:13-15')).toEqual({ ok: true });
+  });
+
+  it('rejects the dropped-dash typo that produced unloadable pills', () => {
+    // "Exodus 16:1315" is what you get when the "-" is swallowed on iOS.
+    const result = checkScriptureReferenceValidity('Exodus 16:1315');
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reason).toBe('Exodus 16 has 36 verses.');
+  });
+
+  it('accepts the last verse of the longest chapter', () => {
+    expect(checkScriptureReferenceValidity('Psalm 119:176')).toEqual({ ok: true });
+  });
+
+  it('rejects a verse past the end of the chapter', () => {
+    expect(checkScriptureReferenceValidity('Psalm 119:177').ok).toBe(false);
+  });
+
+  it('accepts a valid cross-chapter range', () => {
+    expect(checkScriptureReferenceValidity('Exodus 6:28-7:7')).toEqual({ ok: true });
+  });
+
+  it('rejects a cross-chapter range whose end verse is out of range', () => {
+    expect(checkScriptureReferenceValidity('Exodus 6:28-7:99').ok).toBe(false);
+  });
+
+  it('accepts chapter-only and chapter-range shapes', () => {
+    expect(checkScriptureReferenceValidity('Psalm 23')).toEqual({ ok: true });
+    expect(checkScriptureReferenceValidity('Matthew 5-7')).toEqual({ ok: true });
+  });
+
+  it('rejects a chapter past the end of the book', () => {
+    const result = checkScriptureReferenceValidity('Jude 2');
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reason).toBe('Jude has 1 chapter.');
+  });
+
+  it('rejects an incomplete reference', () => {
+    expect(checkScriptureReferenceValidity('Exodus').ok).toBe(false);
+    expect(checkScriptureReferenceValidity('').ok).toBe(false);
+  });
+
+  it('accepts lowercase input (validity is independent of casing)', () => {
+    expect(checkScriptureReferenceValidity('exodus 16:13')).toEqual({ ok: true });
   });
 });

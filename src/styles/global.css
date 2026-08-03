@@ -976,6 +976,19 @@ button[disabled] {
   -ms-user-select: none;
 }
 
+/* The in-progress draft is editable text, not an atomic chip: it must be a real caret host or iOS
+   paints the caret at the end of the line instead of inside the reference. Higher specificity than
+   the two rules above, so it wins without !important. */
+.scripture-pill.scripture-pill-draft,
+.scripture-pill.scripture-pill-draft * {
+  display: inline;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  cursor: text;
+}
+
 /* Scripture pill press feedback */
 .scripture-pill-clickable:active {
   transform: scale(0.97);
@@ -1006,9 +1019,28 @@ button[disabled] {
   transform: translateY(-50%) scale(0.92);
 }
 
+/* The reference parses but doesn't resolve against the canon (e.g. "Exodus 16:1315" — a range
+   whose dash got swallowed). The draft stays open so it can be fixed in place; the button reads
+   as unavailable rather than broken, and the reason is on `title` / `aria-label`.
+   No pop animation and no press feedback — both read as "it worked". */
+.scripture-draft-confirm-float--invalid {
+  background: var(--pds-bg-control, rgba(120, 120, 128, 0.24));
+  box-shadow: none;
+  cursor: default;
+  animation: none;
+}
+
+.scripture-draft-confirm-float--invalid:active {
+  transform: translateY(-50%);
+}
+
 /* Force the check white regardless of inherited color / icon rules. */
 .scripture-draft-confirm-float svg path {
   stroke: #fff;
+}
+
+.scripture-draft-confirm-float--invalid svg path {
+  stroke: var(--pds-text-tertiary, rgba(60, 60, 67, 0.6));
 }
 
 @keyframes scripture-draft-confirm-pop {

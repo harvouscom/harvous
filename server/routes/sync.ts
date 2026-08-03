@@ -918,6 +918,8 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
         },
         source: 'sync-update',
         now: nowISO(),
+        // Pre-transform body, for the list-preview truncation guard.
+        incomingRawContent: typeof data.content === 'string' ? data.content : undefined,
       });
       if (
         updateSpaceGate?.spaceId &&

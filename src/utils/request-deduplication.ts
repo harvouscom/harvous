@@ -16,6 +16,10 @@ const CLEANUP_INTERVAL = 30 * 1000;
 const MAX_REQUEST_AGE = 30 * 1000;
 
 function cleanupOldRequests() {
+  // No in-flight request outlives a hidden tab anyway (the page isn't running JS fast
+  // enough to keep fetches alive), so there's nothing to sweep while backgrounded —
+  // skip waking the timer wheel for it.
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
   const now = Date.now();
   for (const [url, request] of pendingRequests.entries()) {
     if (now - request.timestamp > MAX_REQUEST_AGE) {

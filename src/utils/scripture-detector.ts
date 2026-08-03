@@ -180,6 +180,142 @@ export function validateCrossChapterRange(
   return startOk && endOk && orderOk;
 }
 
+/**
+ * Split "1 Corinthians 13:4-7" into `{ book: '1 Corinthians', tail: '13:4-7' }`.
+ * The chapter number is the first digit run preceded by whitespace — leading digits belong to
+ * the book name ("1 Corinthians", "2 Kings"). Returns null when there is no numeric tail.
+ */
+function splitBookAndNumericTail(reference: string): { book: string; tail: string } | null {
+  const trimmed = reference.trim();
+  const match = trimmed.match(/\s(\d.*)$/);
+  if (!match || match.index == null) {
+    return null;
+  }
+  const book = trimmed.slice(0, match.index).trim();
+  if (!book) {
+    return null;
+  }
+  return { book, tail: match[1].trim() };
+}
+
+// Number of chapters in a book, or null when the book isn't canonical.
+export function getBookChapterCount(book: string): number | null {
+  const bookMap = buildBibleChaptersMap().get(book);
+  if (!bookMap || bookMap.size === 0) {
+    return null;
+  }
+  let max = 0;
+  for (const chapter of bookMap.keys()) {
+    if (chapter > max) max = chapter;
+  }
+  return max;
+}
+
+/**
+ * Whether a reference resolves against the canon, plus a human-readable reason when it doesn't.
+ *
+ * Detection is deliberately permissive — the regex accepts unbounded digit runs, so a typo like
+ * `Exodus 16:1315` (a dropped `-`) parses as verse 1315 and `validateAndWarn` only logs. Committing
+ * that produces a pill the server can never resolve, which surfaces to the user as
+ * "Could not load this passage." This is the gate that stops such a reference from becoming a pill
+ * in the first place; callers should keep the user in edit mode and show `reason`.
+ */
+export type ScriptureReferenceValidity = { ok: true } | { ok: false; reason: string };
+
+export function checkScriptureReferenceValidity(reference: string): ScriptureReferenceValidity {
+  const raw = String(reference ?? '').trim();
+  const tooManyChapters = (book: string, count: number): ScriptureReferenceValidity => ({
+    ok: false,
+    reason: `${book} has ${count} chapter${count === 1 ? '' : 's'}.`,
+  });
+
+  // Colon-free shapes — chapter-only ("Psalms 23") and chapter ranges ("Matthew 5-7").
+  // Handled before `parseReference` because it *returns null* for an out-of-range chapter
+  // (`Jude 2`), which would otherwise surface as an unhelpful "not a complete reference".
+  const split = splitBookAndNumericTail(raw);
+  if (split && !raw.includes(':')) {
+    const canonicalBook = resolveCanonicalBookName(split.book, getBookNameVariations());
+    if (!canonicalBook) {
+      return { ok: false, reason: `We don't recognize the book "${split.book}".` };
+    }
+    const chapterCount = getBookChapterCount(canonicalBook);
+    if (chapterCount == null) {
+      return { ok: false, reason: `We don't recognize the book "${canonicalBook}".` };
+    }
+    const chapters = (split.tail.match(/\d+/g) ?? []).map((n) => parseInt(n, 10));
+    if (chapters.length === 0) {
+      return { ok: false, reason: 'Not a complete scripture reference yet.' };
+    }
+    for (const ch of chapters) {
+      if (ch < 1 || ch > chapterCount) {
+        return tooManyChapters(canonicalBook, chapterCount);
+      }
+    }
+    if (chapters.length === 2 && chapters[0] > chapters[1]) {
+      return { ok: false, reason: 'That range runs backwards.' };
+    }
+    return { ok: true };
+  }
+
+  const parsed = parseReference(raw);
+  if (!parsed) {
+    return { ok: false, reason: 'Not a complete scripture reference yet.' };
+  }
+
+  const { book, chapter, verse, endChapter } = parsed;
+
+  const chapterCount = getBookChapterCount(book);
+  if (chapterCount == null) {
+    return { ok: false, reason: `We don't recognize the book "${book}".` };
+  }
+  if (chapter < 1 || chapter > chapterCount) {
+    return tooManyChapters(book, chapterCount);
+  }
+
+  const describeChapter = (ch: number): string => {
+    const range = getChapterVerseRange(book, ch);
+    return range ? `${book} ${ch} has ${range.end} verses.` : `${book} has no chapter ${ch}.`;
+  };
+
+  if (endChapter != null && Array.isArray(verse)) {
+    const [start, end] = verse;
+    if (endChapter > chapterCount) {
+      return tooManyChapters(book, chapterCount);
+    }
+    if (validateCrossChapterRange(book, chapter, start, endChapter, end)) {
+      return { ok: true };
+    }
+    if (!validateVerseNumber(book, chapter, start)) {
+      return { ok: false, reason: describeChapter(chapter) };
+    }
+    if (!validateVerseNumber(book, endChapter, end)) {
+      return { ok: false, reason: describeChapter(endChapter) };
+    }
+    return { ok: false, reason: 'That range runs backwards.' };
+  }
+
+  if (Array.isArray(verse)) {
+    const [start, end] = verse;
+    if (validateVerseRange(book, chapter, start, end)) {
+      return { ok: true };
+    }
+    if (start > end) {
+      return { ok: false, reason: 'That range runs backwards.' };
+    }
+    return { ok: false, reason: describeChapter(chapter) };
+  }
+
+  if (!validateVerseNumber(book, chapter, verse)) {
+    return { ok: false, reason: describeChapter(chapter) };
+  }
+  return { ok: true };
+}
+
+/** Convenience boolean for callers that don't surface the reason. */
+export function isResolvableScriptureReference(reference: string): boolean {
+  return checkScriptureReferenceValidity(reference).ok;
+}
+
 // Normalize chapter-only reference to include full verse range
 // "Genesis 1" → "Genesis 1:1-31"
 export function normalizeChapterReference(book: string, chapter: number): string | null {
@@ -994,6 +1130,38 @@ export const normalizeScriptureReference = (reference: string): string => {
   normalized = normalized.trim();
   
   return normalized;
+};
+
+/**
+ * Canonicalize a reference for DISPLAY while preserving the shape the user typed.
+ *
+ * `normalizeScriptureReference` runs through `parseReference`, which *expands* colon-free shapes
+ * ("Psalm 23" → "Psalm 23:1-6"). That is right for storage and lookup but wrong for pill text: a
+ * chapter-only reference must stay chapter-only. This fixes only what should be fixed — book-name
+ * casing and abbreviations ("exodus"/"ex" → "Exodus", "1 cor" → "1 Corinthians") plus dash/colon
+ * spacing — and leaves the numeric tail's structure alone.
+ *
+ * Returns the input unchanged when the book can't be resolved.
+ */
+export const canonicalizeScriptureReferenceDisplay = (reference: string): string => {
+  if (!reference || typeof reference !== 'string') {
+    return reference;
+  }
+  const trimmed = reference.trim();
+  const split = splitBookAndNumericTail(trimmed);
+  if (!split) {
+    return trimmed;
+  }
+  const canonicalBook = resolveCanonicalBookName(split.book, getBookNameVariations());
+  if (!canonicalBook) {
+    return trimmed;
+  }
+  const tail = split.tail
+    .replace(/:\s+/g, ':')
+    .replace(/,\s+/g, ',')
+    .replace(/(\d+)\s*[-–—]\s*/g, '$1-')
+    .trim();
+  return `${canonicalBook} ${tail}`;
 };
 
 // Parse verse groups from a reference string

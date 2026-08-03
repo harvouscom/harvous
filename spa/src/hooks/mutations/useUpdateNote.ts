@@ -14,8 +14,16 @@ import { updateNoteOffline } from '@/utils/offline-mutations';
 
 export interface UpdateNoteInput {
   noteId: string;
-  title: string;
-  content: string;
+  /**
+   * Omit for metadata-only saves (folder add/remove, pin, tag). The server keeps the
+   * stored title/body untouched when these are absent.
+   *
+   * This matters beyond tidiness: the only body a list-driven surface has on hand is
+   * the truncated preview from NOTE_LIST_SELECT, and resending it overwrites the full
+   * note. Don't reintroduce a `content: row.content ?? ''` fallback to satisfy the type.
+   */
+  title?: string;
+  content?: string;
   /** Shared read context for cache/version resolution. Never sent to the canonical endpoint. */
   contextSpaceId?: string | null;
   scriptureVersion?: string;
@@ -56,11 +64,10 @@ export function buildUpdateNoteBody(
   input: UpdateNoteInput,
   expectedVersion?: number,
 ): Record<string, unknown> {
-  const body: Record<string, unknown> = {
-    noteId: input.noteId,
-    title: input.title,
-    content: input.content,
-  };
+  const body: Record<string, unknown> = { noteId: input.noteId };
+  // Absent, not null — the server distinguishes "keep what's stored" from "set to this".
+  if (input.title !== undefined) body.title = input.title;
+  if (input.content !== undefined) body.content = input.content;
   if (input.bumpUpdatedAt === false) body.bumpUpdatedAt = false;
   if (input.scriptureVersion !== undefined) body.scriptureVersion = input.scriptureVersion;
   if (input.startedFromTemplateId !== undefined) {
@@ -208,15 +215,25 @@ export function useUpdateNote() {
         queryClient.getQueriesData<NoteDetail>({ queryKey: ['note', noteId] })
           .map(([, note]) => note)
           .find(Boolean);
+      // Keys must be *absent*, not undefined: updateNoteOffline decides whether an op
+      // touches canonical content with hasOwnProperty, and a present-but-undefined
+      // `content` would both demand an expectedVersion and queue an undefined body.
+      const offlineUpdates = {
+        ...(title !== undefined ? { title } : {}),
+        ...(content !== undefined ? { content } : {}),
+      };
       const offline = (userId: string) =>
         updateNoteOffline(
           userId,
           noteId,
-          { title, content },
+          offlineUpdates,
           {
-            content,
+            // Seeding a never-bootstrapped note still needs a body; the cache is the
+            // only source, and it may itself be a list preview — so fall back to it
+            // only when this save carries no body of its own.
+            content: content ?? cached?.content ?? '',
             currentVersion: cached?.currentVersion,
-            title,
+            title: title ?? cached?.title ?? null,
             spaceId: cached?.spaceId ?? null,
             threadId: cached?.threads?.[0]?.id,
             noteType: (cached?.noteType as 'default' | 'scripture' | 'resource' | undefined) ?? 'default',
@@ -264,10 +281,14 @@ export function useUpdateNote() {
       const patchCanonicalOrganization = !variables.contextSpaceId?.trim();
       setContextualNoteData(queryClient, variables.noteId, (prev) => ({
         ...prev,
-        title: variables.title,
-        content: variables.content,
-        updatedAt: optimisticUpdatedAt,
-        __contentIsPreview: false,
+        ...(variables.title !== undefined ? { title: variables.title } : {}),
+        // Only claim the cached body is authoritative when this save actually carried
+        // one. Clearing __contentIsPreview on a metadata-only save told useNote the
+        // truncated preview was the full note, which stopped the details refetch and
+        // made a one-shot truncation stick for the rest of the session.
+        ...(variables.content !== undefined
+          ? { content: variables.content, __contentIsPreview: false, updatedAt: optimisticUpdatedAt }
+          : {}),
         ...(patchCanonicalOrganization && variables.primaryCollection !== undefined
           ? { primaryCollection: variables.primaryCollection }
           : {}),
@@ -299,10 +320,16 @@ export function useUpdateNote() {
       const data = outcome.online;
       const queuedOffline = outcome.queued;
       const patchCanonicalOrganization = !variables.contextSpaceId?.trim();
+      // The response carries the *stored* note, so it's authoritative even when this
+      // save sent no body of its own. Only when all three are absent (a metadata-only
+      // op that queued offline) do we leave the cached body alone rather than
+      // overwriting it with undefined.
       const processed =
         typeof data?.processedContent === 'string' && data.processedContent.length > 0
           ? data.processedContent
-          : variables.content;
+          : typeof data?.note?.content === 'string'
+            ? data.note.content
+            : variables.content;
       // Optimistically patch the note detail cache so navigating back / refreshing
       // immediately shows the typed content without waiting for the refetch to
       // round-trip. Without this, a fast refresh after typing can briefly show
@@ -325,19 +352,28 @@ export function useUpdateNote() {
               .map((t) => (typeof t?.id === 'string' ? t.id : null))
               .filter((id): id is string => !!id);
           }
+          const nextTitle = data?.note?.title ?? variables.title;
           return {
             ...prev,
-            title: data?.note?.title ?? variables.title,
-            content: processed,
-            updatedAt: data?.note?.updatedAt ?? new Date().toISOString(),
+            ...(nextTitle !== undefined ? { title: nextTitle } : {}),
+            // Only clear the list-preview flag when we actually hold a full body.
+            // Clearing it on a metadata-only save told useNote the truncated preview
+            // was the whole note, which suppressed the details refetch and made a
+            // one-shot truncation stick for the session.
+            ...(processed !== undefined
+              ? { content: processed, __contentIsPreview: false }
+              : {}),
+            ...(data?.note?.updatedAt !== undefined
+              ? { updatedAt: data.note.updatedAt }
+              : variables.content !== undefined
+                ? { updatedAt: new Date().toISOString() }
+                : {}),
             ...(typeof data?.currentVersion === 'number'
               ? { currentVersion: data.currentVersion }
               : {}),
             ...(data?.currentVersionId !== undefined
               ? { currentVersionId: data.currentVersionId }
               : {}),
-            // Authoritative full content now in cache — clear any list-preview flag.
-            __contentIsPreview: false,
             ...(patchCanonicalOrganization && variables.primaryCollection !== undefined
               ? { primaryCollection: variables.primaryCollection }
               : {}),
@@ -366,11 +402,13 @@ export function useUpdateNote() {
       const tagsFromServer = Array.isArray(data?.tags) ? data.tags : null;
       if (tagsFromServer) {
         mergeNoteTagsInCache(queryClient, variables.noteId, tagsFromServer);
-      } else {
+      } else if (processed !== undefined) {
+        // Skipped entirely for a metadata-only save: there's no new body to derive
+        // preview tags from, and the stored one didn't change.
         mergeNoteTagsInCache(
           queryClient,
           variables.noteId,
-          previewNoteTagsFromContent(variables.title, processed, {
+          previewNoteTagsFromContent(variables.title ?? '', processed, {
             primary: patchCanonicalOrganization ? variables.primaryCollection : undefined,
             secondaries: patchCanonicalOrganization ? variables.secondaryCollections : undefined,
             dismissedAutoTags: queryClient.getQueryData<NoteDetail>(['note', variables.noteId])?.dismissedAutoTags,

@@ -864,8 +864,18 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     } = body;
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
-    const contentValidation = validateContent(content, true);
-    if (!contentValidation.isValid) return c.json({ error: contentValidation.error, code: contentValidation.code }, 400);
+    // `content` is optional: metadata-only saves (folder add/remove, pin, tag) must not
+    // have to resend a body, because the only body they have on hand is the truncated
+    // one from a list payload. Omitting it keeps the stored body untouched.
+    //
+    // Note this stays `required: true` when a body IS present — validateContent(x, false)
+    // treats '' as valid, which would turn an omitted-vs-empty mixup into a note wipe.
+    const contentProvided = content !== undefined;
+    if (contentProvided) {
+      const contentValidation = validateContent(content, true);
+      if (!contentValidation.isValid) return c.json({ error: contentValidation.error, code: contentValidation.code }, 400);
+    }
+    const titleProvided = title !== undefined;
 
     // Authorship is the default, but an author can opt a note into co-editing for
     // members of its shared spaces. The verdict covers both; anything other than
@@ -883,14 +893,23 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
 
     const targetEncrypted =
       typeof contentEncrypted === 'boolean' ? contentEncrypted : existingNote.contentEncrypted;
-    const contentForStore = targetEncrypted
-      ? content
-      : canonicalizeNoteHtmlLineBreaks(typeof content === 'string' ? content : '');
-    let capitalizedContent = targetEncrypted
-      ? contentForStore
-      : contentForStore.charAt(0).toUpperCase() + contentForStore.slice(1);
-    const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
-    if (!targetEncrypted) {
+    // All undefined when no body was sent — the stored content is already canonicalized
+    // and already carries its pills, so there is nothing to re-derive.
+    const contentForStore = !contentProvided
+      ? undefined
+      : targetEncrypted
+        ? content
+        : canonicalizeNoteHtmlLineBreaks(typeof content === 'string' ? content : '');
+    let capitalizedContent: string | undefined =
+      contentForStore === undefined
+        ? undefined
+        : targetEncrypted
+          ? contentForStore
+          : contentForStore.charAt(0).toUpperCase() + contentForStore.slice(1);
+    const capitalizedTitle = !titleProvided
+      ? undefined
+      : title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
+    if (!targetEncrypted && capitalizedContent !== undefined) {
       capitalizedContent = transformCanonicalScriptureContent({
         noteId,
         content: capitalizedContent,
@@ -909,14 +928,22 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     // updatedAt doubles as the sync watermark, so suppressing it means the change won't propagate via
     // delta sync until the next real edit — acceptable for deterministic normalization (recomputed per
     // device).
-    const titleChanged = capitalizedTitle !== existingNote.title;
-    const contentChanged = capitalizedContent !== existingNote.content;
+    //
+    // "Changed" has to be gated on "was it even sent" — an omitted field is undefined,
+    // and `undefined !== existingNote.title` is true, which would make every
+    // metadata-only save look like a content edit: bumping updatedAt, re-stamping
+    // thread timestamps, and kicking off a full auto-retag.
+    const titleChanged = titleProvided && capitalizedTitle !== existingNote.title;
+    const contentChanged = contentProvided && capitalizedContent !== existingNote.content;
     const encryptionToggled =
       typeof contentEncrypted === 'boolean' && contentEncrypted !== existingNote.contentEncrypted;
     const contentTouched = titleChanged || contentChanged || encryptionToggled;
     const shouldBumpUpdatedAt = bumpUpdatedAtRaw === false ? false : contentTouched;
 
-    const updateData: any = { title: capitalizedTitle, content: capitalizedContent };
+    const updateData: any = {
+      ...(titleProvided ? { title: capitalizedTitle } : {}),
+      ...(contentProvided ? { content: capitalizedContent } : {}),
+    };
     if (shouldBumpUpdatedAt) updateData.updatedAt = nowISO();
     let nextPrimaryForSecondaries: string | null = existingNote.primaryCollection ?? null;
     if (primaryCollectionRaw !== undefined) {
@@ -988,8 +1015,8 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
             lockedNote.contentEncrypted,
           );
           const lockedTitleChanged =
-            (capitalizedTitle ?? lockedNote.title) !== lockedNote.title;
-          const lockedContentChanged = capitalizedContent !== lockedNote.content;
+            titleProvided && (capitalizedTitle ?? lockedNote.title) !== lockedNote.title;
+          const lockedContentChanged = contentProvided && capitalizedContent !== lockedNote.content;
           const lockedEncryptionChanged = lockedTargetEncrypted !== lockedNote.contentEncrypted;
           if (bumpUpdatedAtRaw === false) delete lockedPatch.updatedAt;
           else if (lockedTitleChanged || lockedContentChanged || lockedEncryptionChanged) {
@@ -1007,12 +1034,15 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
           }
           return lockedPatch;
         },
+        // No body sent → carry the locked note's own content through unchanged.
+        // Both branches must fall back, including the encrypted one.
         nextContent: (lockedNote) => ({
-          title: capitalizedTitle ?? lockedNote.title,
-          content:
-            resolveLockedEncryptionState(contentEncrypted, lockedNote.contentEncrypted)
+          title: titleProvided ? (capitalizedTitle ?? lockedNote.title) : lockedNote.title,
+          content: !contentProvided
+            ? lockedNote.content
+            : resolveLockedEncryptionState(contentEncrypted, lockedNote.contentEncrypted)
               ? content
-              : capitalizedContent,
+              : (capitalizedContent as string),
           contentEncrypted: resolveLockedEncryptionState(
             contentEncrypted,
             lockedNote.contentEncrypted,
@@ -1021,6 +1051,8 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
         source: 'save',
         now: nowISO(),
         actorRole,
+        // Pre-transform body, for the list-preview truncation guard.
+        incomingRawContent: typeof content === 'string' ? content : undefined,
       }),
     );
     const updatedNote = versionedUpdate.note;

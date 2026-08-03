@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { useAuthReady } from '../useAuthReady';
 import type { BillingSubscriptionSummary } from './useSubscriptionStatus';
 
 export type BillingPaymentMethodSummary = {
@@ -28,10 +29,11 @@ export type BillingManageResponse = {
 
 /** Rich Settings › Plan payload — only when Polar manages the subscription. */
 export function useBillingManage(enabled: boolean) {
+  const authReady = useAuthReady();
   return useQuery({
     queryKey: ['billing', 'manage'],
     queryFn: () => api.get<BillingManageResponse>('/api/billing/manage'),
-    enabled,
+    enabled: authReady && enabled,
     staleTime: 30_000,
     retry: false,
   });

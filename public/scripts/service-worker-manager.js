@@ -315,6 +315,12 @@
       visibilityEvent = "webkitvisibilitychange";
     }
     
+    // Someone glancing at their phone repeatedly (e.g. checking notes during a service)
+    // shouldn't cost a network round trip every single time — only refresh if it's been
+    // a while since the last one. The hourly setInterval above is the slow-path backstop.
+    const FOREGROUND_REFRESH_THROTTLE_MS = 15 * 60 * 1000; // 15 minutes
+    let lastForegroundRefreshAt = 0;
+
     /**
      * THE on-visible handler for the service worker. Everything the app does when a tab
      * comes back to the foreground belongs here — there used to be three separate
@@ -328,6 +334,10 @@
     document.addEventListener(visibilityEvent, () => {
       if (isHidden()) return;
 
+      const now = Date.now();
+      if (now - lastForegroundRefreshAt < FOREGROUND_REFRESH_THROTTLE_MS) return;
+      lastForegroundRefreshAt = now;
+
       // One update check…
       if (registrationRef) {
         registrationRef.update().catch(err => {
@@ -340,9 +350,10 @@
         navigator.serviceWorker.controller.postMessage('warmup');
       }
     });
-    
+
     // Also warm up on initial load (deferred)
     const warmupOnLoad = () => {
+      lastForegroundRefreshAt = Date.now();
       if (navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage('warmup');
       }

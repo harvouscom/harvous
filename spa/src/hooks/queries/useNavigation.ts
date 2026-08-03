@@ -99,10 +99,22 @@ export function getNavigationQueryKey(userId: string) {
 /** SessionStorage key for nav snapshot (must clear on thread delete / sign-out). */
 export const NAV_SESSION_CACHE_KEY = HARVOUS_NAV_CACHE_KEY;
 
-/** Shared React Query defaults — session cache must never suppress a network refetch. */
+/**
+ * Shared React Query defaults — session cache must never suppress a network refetch.
+ *
+ * `refetchOnMount: true` (the default) still refetches whenever the query is actually
+ * stale, so a remount more than `staleTime` after the last fetch behaves exactly like
+ * `'always'` did. What it fixes: `useNavigation()` is called from ~10 components
+ * (sidebar, space switcher, account menu, note menu…), so on cellular a burst of
+ * remounts during normal navigation — each one well inside the 30s staleTime window —
+ * used to force a fresh `/api/navigation/data` request every time under `'always'`,
+ * which ignores staleTime entirely. This does not touch the shared-spaces fix described
+ * on `getNavigationQueryHydrationOptions` below — that bug came from `initialData`
+ * faking a fetch timestamp, not from this flag.
+ */
 export const NAVIGATION_QUERY_DEFAULTS = {
   staleTime: 30_000,
-  refetchOnMount: 'always' as const,
+  refetchOnMount: true as const,
 } as const;
 
 /** Browser fetch cache mode for `/api/navigation/data` (auth-scoped; must not reuse HTTP cache). */

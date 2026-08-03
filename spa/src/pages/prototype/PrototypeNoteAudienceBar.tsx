@@ -1,4 +1,5 @@
 import Icon from '@/components/react/Icon';
+import ProtoHouseIcon from './ProtoHouseIcon';
 import PrototypeSharedNoteReadOnlyBanner, {
   type SharedNoteEditStatus,
 } from './PrototypeSharedNoteReadOnlyBanner';
@@ -24,6 +25,7 @@ export default function PrototypeNoteAudienceBar({
   mode,
   audienceLabel,
   draftDestinationLabel,
+  draftDestinationIsHome = false,
   onOpenAudience,
   authorDisplayName,
   authorUserId,
@@ -39,6 +41,8 @@ export default function PrototypeNoteAudienceBar({
   audienceLabel?: string | null;
   /** While composing: where this draft will land, e.g. "Saving to My Home". */
   draftDestinationLabel?: string | null;
+  /** True when the draft's destination is My Home — swaps the house icon in for the shared-space one. */
+  draftDestinationIsHome?: boolean;
   /** Opens the inspector's Shared-with section. */
   onOpenAudience?: () => void;
   authorDisplayName?: string | null;
@@ -56,12 +60,16 @@ export default function PrototypeNoteAudienceBar({
     return (
       <div className="proto-shared-readonly-banner proto-shared-readonly-banner--quiet">
         <span className="proto-shared-readonly-banner__status proto-shared-readonly-banner__audience pds-caption">
-          <Icon
-            name="user-group"
-            size={11}
-            className="proto-shared-readonly-banner__icon"
-            aria-hidden
-          />
+          {draftDestinationIsHome ? (
+            <ProtoHouseIcon size={11} className="proto-shared-readonly-banner__icon" />
+          ) : (
+            <Icon
+              name="user-group"
+              size={11}
+              className="proto-shared-readonly-banner__icon"
+              aria-hidden
+            />
+          )}
           {draftDestinationLabel}
         </span>
       </div>

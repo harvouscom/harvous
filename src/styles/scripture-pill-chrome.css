@@ -86,7 +86,18 @@ button .scripture-pill-chrome__trans-chip {
   flex-shrink: 0;
 }
 
+/* Row = scrollable reference controls + a pinned range toggle. The toggle sits outside the
+   scroller so it stays reachable, and `min-width: 0` lets the scroller actually shrink inside
+   the flex row instead of forcing the toggle off the edge. */
+.scripture-pill-chrome__reference-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
 .scripture-pill-chrome__reference-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: visible;
   scrollbar-width: none;
@@ -95,6 +106,46 @@ button .scripture-pill-chrome__trans-chip {
 
 .scripture-pill-chrome__reference-scroll::-webkit-scrollbar {
   display: none;
+}
+
+/* Touch devices: fade the trailing edge so a reference too wide to fit reads as scrollable
+   instead of silently clipped (the end verse used to vanish with no affordance at all).
+   Coarse-pointer only — the mask creates a paint context, and the menus are portaled so
+   nothing inside them gets clipped by it. */
+@media (pointer: coarse) {
+  .scripture-pill-chrome__reference-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: 8px;
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 10px,
+      #000 calc(100% - 14px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 10px,
+      #000 calc(100% - 14px),
+      transparent 100%
+    );
+  }
+}
+
+/* Last-resort slack: the book name has the most give, so let it ellipsize on narrow screens
+   rather than pushing the verse numbers out of view. `.harvous-menu-pill` is flex-shrink: 0
+   by default, which is what stops the existing text-overflow rule from ever engaging. */
+@media (max-width: 480px) {
+  .scripture-pill-chrome .harvous-menu-pill--book {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .scripture-pill-chrome .harvous-menu-pill--book .harvous-menu-pill__trigger {
+    max-width: min(220px, 34vw);
+  }
 }
 
 .scripture-pill-chrome__reference-controls {
@@ -405,6 +456,30 @@ button .scripture-pill-chrome__trans-chip {
   margin: 0;
   font-size: 13px;
   color: var(--pds-text-secondary, var(--color-pebble-grey, #777));
+}
+
+/* Only a genuine failure gets this treatment — "not in this translation" renders as body copy. */
+.scripture-pill-chrome__passage-status--error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.scripture-pill-chrome__passage-retry {
+  padding: 6px 12px;
+  border-radius: var(--pds-radius-pill, 999px);
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body, system-ui, sans-serif);
+  font-size: 13px;
+  cursor: pointer;
+  /* 44pt touch target without visually inflating the chip. */
+  min-height: 32px;
+}
+
+.scripture-pill-chrome__passage-retry:active {
+  transform: scale(0.97);
 }
 
 .scripture-pill-chrome__passage-highlights {

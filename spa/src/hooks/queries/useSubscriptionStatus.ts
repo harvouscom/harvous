@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouterState } from '@tanstack/react-router';
 import { api } from '../../lib/api';
+import { useAuthReady } from '../useAuthReady';
 import type { FeatureKey, PlanKey, PlanLimits } from '@/lib/billing-plans';
 import {
   applySharedSpacesEntitlementSynced,
@@ -45,6 +46,7 @@ export interface SubscriptionStatusResponse {
 /** Client-side mirror of the server's Shared Spaces add-on gate (server 403 stays authoritative). */
 export function useSubscriptionStatus() {
   const queryClient = useQueryClient();
+  const authReady = useAuthReady();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const prevPathRef = useRef(pathname);
 
@@ -76,6 +78,7 @@ export function useSubscriptionStatus() {
   return useQuery({
     queryKey: ['subscription', 'status'],
     queryFn: () => api.get<SubscriptionStatusResponse>('/api/subscription/status'),
+    enabled: authReady,
     staleTime: 30_000,
   });
 }

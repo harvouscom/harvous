@@ -13,6 +13,9 @@ import {
   makeScriptureDraftGrowPlugin,
   unifyScriptureDraftAtCursor,
   editScripturePillAsDraft,
+  getScriptureDraftValidity,
+  restoreScripturePillFromDraft,
+  cancelScriptureDraftView,
 } from '@/components/react/TiptapScriptureDraft';
 import { collectScripturePillRanges } from '@/utils/scripture-pill-spacing';
 
@@ -62,7 +65,13 @@ const draftSchema = new Schema({
       toDOM: () => ['strong', 0],
     },
     scriptureDraft: {
-      attrs: { translation: { default: null }, pillAccent: { default: null } },
+      attrs: {
+        translation: { default: null },
+        pillAccent: { default: null },
+        // Set when the draft came from a committed pill (Backspace-to-edit).
+        originalReference: { default: null },
+        noteId: { default: null },
+      },
       inclusive: false,
       parseDOM: [],
       toDOM: () => ['span', 0],
@@ -133,22 +142,22 @@ describe('confirmScriptureDraftView', () => {
     // iOS dropped the inclusive draft mark, so "-3" sits just past the "Psalm 27:1" draft.
     const { view, draftEnd, getState } = draftView('Psalm 27:1', '-3');
     const ref = confirmScriptureDraftView(view, draftEnd);
-    expect(ref).toBe('Psalm 27:1-3');
-    expect(pillText(getState())).toBe('Psalm 27:1-3');
+    expect(ref).toBe('Psalms 27:1-3');
+    expect(pillText(getState())).toBe('Psalms 27:1-3');
   });
 
   it('commits a plain chapter:verse draft unchanged', () => {
     const { view, draftEnd, getState } = draftView('Psalm 27:1');
     const ref = confirmScriptureDraftView(view, draftEnd);
-    expect(ref).toBe('Psalm 27:1');
-    expect(pillText(getState())).toBe('Psalm 27:1');
+    expect(ref).toBe('Psalms 27:1');
+    expect(pillText(getState())).toBe('Psalms 27:1');
   });
 
   it('does not absorb following prose (space stops the scan)', () => {
     const { view, draftEnd, getState } = draftView('Psalm 27:1', ' and');
     const ref = confirmScriptureDraftView(view, draftEnd);
-    expect(ref).toBe('Psalm 27:1');
-    expect(pillText(getState())).toBe('Psalm 27:1');
+    expect(ref).toBe('Psalms 27:1');
+    expect(pillText(getState())).toBe('Psalms 27:1');
   });
 
   it('consumes a trailing translation abbreviation typed after the reference', () => {
@@ -384,5 +393,259 @@ describe('unifyScriptureDraftAtCursor', () => {
       ]),
     );
     expect(unifyScriptureDraftAtCursor(view)).toBe(false);
+  });
+});
+
+// ── Canonicalization + canon-validity gate on commit ────────────────────────────
+
+describe('draftTextToReference canonicalization', () => {
+  it('capitalizes a lowercase book name (the reported "exodus" bug)', () => {
+    expect(draftTextToReference('exodus 16:13')).toBe('Exodus 16:13');
+  });
+
+  it('expands an abbreviated book name', () => {
+    // Only abbreviations the detector's alternation knows (BIBLE_STUDY_KEYWORDS synonyms) reach
+    // this path — "ex" is not a synonym, so it never becomes a draft in the first place.
+    expect(draftTextToReference('exo 16:13')).toBe('Exodus 16:13');
+    expect(draftTextToReference('1 cor 13:4-7')).toBe('1 Corinthians 13:4-7');
+  });
+
+  it('canonicalizes without expanding a chapter-only reference', () => {
+    expect(draftTextToReference('exodus 5')).toBe('Exodus 5');
+  });
+});
+
+describe('confirmScriptureDraftView canonical + validity', () => {
+  it('commits canonical pill text for a lowercase draft', () => {
+    const { view, draftEnd, getState } = draftView('exodus 16:13');
+    expect(confirmScriptureDraftView(view, draftEnd)).toBe('Exodus 16:13');
+    expect(pillText(getState())).toBe('Exodus 16:13');
+  });
+
+  it('places the caret correctly when canonicalization LENGTHENS the text', () => {
+    // "exo 16:13" (9 chars) commits as "Exodus 16:13" (12) — pillEnd is derived from the
+    // committed reference, so the caret must land after the pill + spacer, not mid-pill.
+    const { view, draftEnd, getState } = draftView('exo 16:13');
+    expect(confirmScriptureDraftView(view, draftEnd)).toBe('Exodus 16:13');
+    const state = getState();
+    expect(pillText(state)).toBe('Exodus 16:13');
+    const ranges = collectScripturePillRanges(state.doc, 'scripturePill');
+    expect(ranges).toHaveLength(1);
+    // Caret sits at or past the pill end (after the trailing spacer).
+    expect(state.selection.from).toBeGreaterThanOrEqual(ranges[0].end);
+    expect(state.doc.textBetween(ranges[0].start, ranges[0].end)).toBe('Exodus 16:13');
+  });
+
+  it('refuses to commit an out-of-canon verse and keeps the draft open', () => {
+    // "Exodus 16:1315" is the dropped-dash typo; Exodus 16 has 36 verses.
+    const { view, draftEnd, getState } = draftView('Exodus 16:1315');
+    expect(confirmScriptureDraftView(view, draftEnd)).toBeNull();
+    const state = getState();
+    expect(pillText(state)).toBeNull();
+    // Draft mark survives, so the text stays editable in place rather than degrading to prose.
+    expect(collectScripturePillRanges(state.doc, 'scriptureDraft')).toHaveLength(1);
+  });
+
+  it('still commits the valid range the typo was meant to be', () => {
+    const { view, draftEnd, getState } = draftView('Exodus 16:13-15');
+    expect(confirmScriptureDraftView(view, draftEnd)).toBe('Exodus 16:13-15');
+    expect(pillText(getState())).toBe('Exodus 16:13-15');
+  });
+});
+
+describe('getScriptureDraftValidity', () => {
+  it('reports none when there is no draft', () => {
+    const doc = draftSchema.node('doc', null, [
+      draftSchema.node('paragraph', null, [draftSchema.text('just prose')]),
+    ]);
+    const state = EditorState.create({ doc });
+    expect(getScriptureDraftValidity(state).status).toBe('none');
+  });
+
+  it('reports ready with the canonical reference', () => {
+    const { view, draftEnd } = draftView('exodus 16:13');
+    expect(getScriptureDraftValidity(view.state, draftEnd)).toEqual({
+      status: 'ready',
+      reference: 'Exodus 16:13',
+    });
+  });
+
+  it('reports invalid with a human reason for an out-of-canon verse', () => {
+    const { view, draftEnd } = draftView('Exodus 16:1315');
+    expect(getScriptureDraftValidity(view.state, draftEnd)).toEqual({
+      status: 'invalid',
+      reason: 'Exodus 16 has 36 verses.',
+    });
+  });
+
+  it('reports pending (not invalid) while the reference is still incomplete', () => {
+    const { view, draftEnd } = draftView('Exodus');
+    expect(getScriptureDraftValidity(view.state, draftEnd).status).toBe('pending');
+  });
+});
+
+// ── Leading-spacer position mapping (regression guard) ─────────────────────────
+//
+// `ensureScripturePillSpacing` inserts a LEADING space when the pill follows a non-whitespace
+// char. That shifts every position after it, so the pill boundaries must be mapped through those
+// steps. Getting it wrong desyncs `markTo`, which breaks the caret-placement validation on iOS.
+
+/** Paragraph of `leadingText` + [draftText](draft mark), i.e. a draft that follows prose. */
+function draftViewAfterText(leadingText: string, draftText: string) {
+  const draftMark = draftSchema.marks.scriptureDraft.create();
+  const doc = draftSchema.node('doc', null, [
+    draftSchema.node('paragraph', null, [
+      draftSchema.text(leadingText),
+      draftSchema.text(draftText, [draftMark]),
+    ]),
+  ]);
+  let state = EditorState.create({ doc });
+  state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, state.doc.content.size - 1)));
+  const view = {
+    get state() {
+      return state;
+    },
+    dispatch(tr: any) {
+      state = state.apply(tr);
+    },
+    dom: { dispatchEvent: () => true },
+    focus: () => {},
+  };
+  return { view, draftEnd: 1 + leadingText.length + draftText.length, getState: () => state };
+}
+
+describe('confirmScriptureDraftView with an inserted leading spacer', () => {
+  it('lands the caret after the pill when a leading space is inserted', () => {
+    // "(" before the reference is non-whitespace, so spacing inserts a space BEFORE the pill.
+    const { view, draftEnd, getState } = draftViewAfterText('see(', 'Exodus 16:13');
+    expect(confirmScriptureDraftView(view, draftEnd)).toBe('Exodus 16:13');
+
+    const state = getState();
+    const ranges = collectScripturePillRanges(state.doc, 'scripturePill');
+    expect(ranges).toHaveLength(1);
+    expect(state.doc.textBetween(ranges[0].start, ranges[0].end)).toBe('Exodus 16:13');
+    // The caret must sit at/after the real pill end, not one short of it.
+    expect(state.selection.from).toBeGreaterThanOrEqual(ranges[0].end);
+  });
+
+  it('still lands the caret correctly with no leading spacer', () => {
+    const { view, draftEnd, getState } = draftViewAfterText('see ', 'Exodus 16:13');
+    expect(confirmScriptureDraftView(view, draftEnd)).toBe('Exodus 16:13');
+    const state = getState();
+    const ranges = collectScripturePillRanges(state.doc, 'scripturePill');
+    expect(ranges).toHaveLength(1);
+    expect(state.selection.from).toBeGreaterThanOrEqual(ranges[0].end);
+  });
+});
+
+// ── Backspace-to-edit: a pill becomes editable text, and is never silently destroyed ──────────
+
+/** Paragraph containing a single committed pill, caret at the pill's trailing edge. */
+function pillView(reference: string, attrs: Record<string, unknown> = {}) {
+  const pillMark = draftSchema.marks.scripturePill.create({
+    reference,
+    noteId: 'note_1',
+    translation: 'NLT',
+    pillAccent: 'skyBlue',
+    ...attrs,
+  });
+  const doc = draftSchema.node('doc', null, [
+    draftSchema.node('paragraph', null, [draftSchema.text(reference, [pillMark])]),
+  ]);
+  let state = EditorState.create({ doc });
+  const end = 1 + reference.length;
+  state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, end)));
+  const view = {
+    get state() {
+      return state;
+    },
+    dispatch(tr: any) {
+      state = state.apply(tr);
+    },
+    dom: { dispatchEvent: () => true },
+    focus: () => {},
+  };
+  return { view, from: 1, to: end, getState: () => state };
+}
+
+function draftMarkAt(state: any, pos: number): any | null {
+  let found: any = null;
+  state.doc.nodesBetween(pos, pos + 1, (node: any) => {
+    if (!found && node.isText) {
+      found = node.marks?.find((m: any) => m.type.name === 'scriptureDraft') ?? null;
+    }
+    return undefined;
+  });
+  return found;
+}
+
+describe('editScripturePillAsDraft carries pill identity', () => {
+  it('preserves translation, accent, noteId and the original reference', () => {
+    const { view, from, to, getState } = pillView('Exodus 16:13-15');
+    expect(editScripturePillAsDraft(view, from, to)).toBe(true);
+
+    const mark = draftMarkAt(getState(), from);
+    expect(mark).not.toBeNull();
+    expect(mark.attrs.translation).toBe('NLT');
+    expect(mark.attrs.pillAccent).toBe('skyBlue');
+    // Without noteId the pill would come back as 'pending' and lose its persisted identity.
+    expect(mark.attrs.noteId).toBe('note_1');
+    expect(mark.attrs.originalReference).toBe('Exodus 16:13-15');
+    // The pill mark is gone — the text is now ordinary editable content.
+    expect(collectScripturePillRanges(getState().doc, 'scripturePill')).toHaveLength(0);
+  });
+
+  it('re-confirming an untouched edit-draft restores the pill with its noteId intact', () => {
+    const { view, from, to, getState } = pillView('Exodus 16:13-15');
+    editScripturePillAsDraft(view, from, to);
+    expect(confirmScriptureDraftView(view, to)).toBe('Exodus 16:13-15');
+
+    const state = getState();
+    expect(pillText(state)).toBe('Exodus 16:13-15');
+    expect(pillMark(state)?.attrs.noteId).toBe('note_1');
+    expect(pillMark(state)?.attrs.translation).toBe('NLT');
+    expect(pillMark(state)?.attrs.pillAccent).toBe('skyBlue');
+  });
+});
+
+describe('abandoning an edit-draft does not destroy the pill', () => {
+  it('restores the original pill when the edited text no longer parses', () => {
+    const { view, from, to, getState } = pillView('Exodus 16:13-15');
+    editScripturePillAsDraft(view, from, to);
+
+    // Chop the reference down to something unparseable, as backspacing would.
+    let state = getState();
+    view.dispatch(state.tr.delete(from + 6, to));
+    const brokenEnd = from + 6;
+
+    expect(confirmScriptureDraftView(view, brokenEnd)).toBeNull();
+    // Restored, not degraded to prose.
+    expect(pillText(getState())).toBe('Exodus 16:13-15');
+    expect(pillMark(getState())?.attrs.noteId).toBe('note_1');
+  });
+
+  it('Escape on an edit-draft restores the pill rather than leaving plain text', () => {
+    const { view, from, to, getState } = pillView('Exodus 16:13-15');
+    editScripturePillAsDraft(view, from, to);
+    expect(cancelScriptureDraftView(view)).toBe(true);
+    expect(pillText(getState())).toBe('Exodus 16:13-15');
+  });
+
+  it('does NOT restore once the user has erased the reference (deletion must still work)', () => {
+    const { view, from, to, getState } = pillView('Exodus 16:13-15');
+    editScripturePillAsDraft(view, from, to);
+    // Erase every character — the friction model says this is how you delete a pill.
+    view.dispatch(getState().tr.delete(from, to));
+    expect(restoreScripturePillFromDraft(view, from, from)).toBe(false);
+    expect(pillText(getState())).toBeNull();
+    expect(getState().doc.textContent).toBe('');
+  });
+
+  it('leaves a from-scratch draft alone (no pill to restore)', () => {
+    const { view, draftEnd, getState } = draftView('not a reference at all');
+    expect(confirmScriptureDraftView(view, draftEnd)).toBeNull();
+    // Degrades to plain prose, exactly as before.
+    expect(pillText(getState())).toBeNull();
+    expect(getState().doc.textContent).toContain('not a reference at all');
   });
 });

@@ -17,6 +17,7 @@ let browserClient: SupabaseClient | null = null;
 type AccessTokenGetter = () => Promise<string | null>;
 let accessTokenGetter: AccessTokenGetter | null = null;
 let authRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let authRefreshVisibilityListenerAttached = false;
 
 /** How often to push a fresh Clerk JWT into Realtime (session tokens are short-lived). */
 const REALTIME_AUTH_REFRESH_MS = 45_000;
@@ -44,11 +45,33 @@ async function pushRealtimeAccessToken(): Promise<void> {
   }
 }
 
+/**
+ * Refresh timer body. Skipped while the tab is hidden — a backgrounded PWA has no
+ * open UI reacting to Realtime broadcasts, so there's nothing to keep fresh, and a
+ * network write every 45s indefinitely is exactly the kind of thing that keeps a
+ * phone's cellular radio from ever going idle. The `visibilitychange` listener below
+ * pushes one immediate refresh on return so joins don't fail on a stale token.
+ */
+function refreshIfVisible(): void {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+  void pushRealtimeAccessToken();
+}
+
 function ensureAuthRefreshLoop(): void {
   if (typeof window === 'undefined' || authRefreshTimer != null) return;
-  authRefreshTimer = setInterval(() => {
-    void pushRealtimeAccessToken();
-  }, REALTIME_AUTH_REFRESH_MS);
+  authRefreshTimer = setInterval(refreshIfVisible, REALTIME_AUTH_REFRESH_MS);
+
+  if (!authRefreshVisibilityListenerAttached) {
+    authRefreshVisibilityListenerAttached = true;
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible' || authRefreshTimer == null) return;
+      // Refresh immediately, then re-arm so the next tick is a full interval from now
+      // rather than landing mid-interval on stale timing from while we were hidden.
+      void pushRealtimeAccessToken();
+      clearInterval(authRefreshTimer);
+      authRefreshTimer = setInterval(refreshIfVisible, REALTIME_AUTH_REFRESH_MS);
+    });
+  }
 }
 
 /**

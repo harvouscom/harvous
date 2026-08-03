@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 import { setNavSpaceNewNoteCount } from '@/lib/shared-space-nav-cache';
+import { useAuthReady } from './useAuthReady';
 import type { SpaceNoteRow } from './queries/useSpace';
 
 function normalizeSpaceId(spaceId: string): string {
@@ -53,11 +54,12 @@ export function sharedSpaceLastVisitQueryKey(spaceId: string) {
 }
 
 export function useSharedSpaceActivityPreview(spaceId: string | null) {
+  const authReady = useAuthReady();
   const id = spaceId ? normalizeSpaceId(spaceId) : '';
   return useQuery({
     queryKey: ['space', id, 'activity-preview'],
     queryFn: () => api.get<SharedSpaceActivityPreview>(`/api/spaces/${id}/activity-preview`),
-    enabled: !!id,
+    enabled: authReady && !!id,
     staleTime: 15_000,
   });
 }

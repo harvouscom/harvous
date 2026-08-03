@@ -2057,6 +2057,8 @@ export default function PrototypeSidebar({
         id: row.id,
         title: row.title ?? '',
         content: row.content ?? '',
+        // Stored length, so the seed can tell a complete short note from a prefix.
+        contentLength: row.contentLength ?? null,
         noteType: (row.noteType as ListNoteForSeed['noteType']) || 'default',
         contentEncrypted: row.contentEncrypted === true,
         resourceTitle: row.resourceTitle ?? null,

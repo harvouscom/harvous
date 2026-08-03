@@ -45,6 +45,8 @@ export function slugCandidates(word: string): string[] {
 }
 
 export function useEastonsSlugIndex() {
+  // auth-gate-exempt: /api/dictionary/eastons/index is unauthenticated static
+  // public-domain reference data (server/routes/dictionary.ts) — no session needed.
   return useQuery({
     queryKey: ['dictionary', 'eastons', 'index'],
     staleTime: Infinity,

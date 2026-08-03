@@ -11,6 +11,12 @@ import {
 } from './note-versioning';
 import { buildDurableAnchorReresolutionPatch } from './durable-note-anchor';
 import { clearAllCoEditForNote } from './note-collaboration';
+import { NOTE_LIST_CONTENT_MAX_CHARS } from './dashboard-data';
+import {
+  endsWithTagBoundary,
+  isRawListPreviewWrite,
+  isSuspiciousNoteShrink,
+} from '@/utils/note-truncated-write-guard';
 
 type Transaction = any;
 
@@ -414,6 +420,13 @@ export async function updateCanonicalNoteInTransaction(
      * route is responsible for having run resolveNoteEditAuthorization first.
      */
     actorRole?: NoteVersionActorRole;
+    /**
+     * The body exactly as the client sent it, *before* any server-side rewriting
+     * (scripture pill transforms in particular, which break byte equality). Only
+     * used to detect a list-preview body being written back over the full note —
+     * see the truncation guard below. Omit when the caller sent no body.
+     */
+    incomingRawContent?: string;
   },
 ): Promise<CanonicalNoteMutationResult> {
   const note = first(
@@ -423,8 +436,63 @@ export async function updateCanonicalNoteInTransaction(
   if (input.actorRole !== 'collaborator') {
     assertCanAccessNoteVersions(note.userId, input.actorId);
   }
-  const { patch: resolvedPatch, nextContent: resolvedNextContent } =
+  // eslint-disable-next-line prefer-const
+  let { patch: resolvedPatch, nextContent: resolvedNextContent } =
     resolveLockedCanonicalMutation(note, input);
+
+  // ── Truncated-body guards ────────────────────────────────────────────────
+  // Compared against the *raw* request body: by this point the routes have run
+  // transformCanonicalScriptureContent, which rewrites pills and would break the
+  // byte-exact prefix test below.
+  if (typeof input.incomingRawContent === 'string') {
+    const incoming = input.incomingRawContent;
+    const stored = note.content ?? '';
+
+    if (isRawListPreviewWrite(incoming, stored, NOTE_LIST_CONTENT_MAX_CHARS)) {
+      // A list-preview body written back over the full note. Resolve
+      // non-destructively — keep the stored body and let the metadata through —
+      // rather than rejecting, so the rare false positive (a trailing-paragraph
+      // deletion that lands on exactly the cap) costs one dropped save the next
+      // keystroke fixes instead of stranding the user.
+      console.warn(
+        '[note-truncation-guard] dropped list-preview body write',
+        JSON.stringify({
+          noteId: note.id,
+          actorId: input.actorId,
+          source: input.source ?? 'save',
+          storedLen: stored.length,
+          incomingLen: incoming.length,
+          endsWithTagBoundary: endsWithTagBoundary(incoming),
+        }),
+      );
+      // Clone rather than mutate: resolveLockedCanonicalMutation hands back the
+      // caller's own object when it was passed a plain object, not a factory.
+      resolvedNextContent = {
+        ...resolvedNextContent,
+        content: stored,
+        contentEncrypted: note.contentEncrypted,
+      };
+      const { updatedAt: _droppedUpdatedAt, ...patchWithoutUpdatedAt } = resolvedPatch;
+      resolvedPatch = patchWithoutUpdatedAt;
+    } else if (isSuspiciousNoteShrink(incoming, stored)) {
+      // Log-only. The guard above only catches a raw passthrough; a truncated
+      // body that went through TipTap is re-serialized and is no longer a prefix,
+      // so it stays observable here rather than being silently absorbed.
+      console.warn(
+        '[note-truncation-telemetry] large body shrink',
+        JSON.stringify({
+          noteId: note.id,
+          actorId: input.actorId,
+          source: input.source ?? 'save',
+          storedLen: stored.length,
+          incomingLen: incoming.length,
+          isExactPrefix: stored.startsWith(incoming),
+          endsWithTagBoundary: endsWithTagBoundary(incoming),
+          expectedVersion: input.expectedVersion ?? null,
+        }),
+      );
+    }
+  }
 
   if (resolvedNextContent.contentEncrypted) {
     const activeAssociation = first(

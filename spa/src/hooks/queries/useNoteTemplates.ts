@@ -1,5 +1,6 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { useAuthReady } from '../useAuthReady';
 
 export type BuiltInNoteTemplate = {
   id: string;
@@ -118,6 +119,7 @@ export function removeStoredNoteTemplateFromCaches(queryClient: QueryClient, id:
 }
 
 export function useNoteTemplates(spaceId?: string | null, enabled = true) {
+  const authReady = useAuthReady();
   const sid = spaceId?.trim() || null;
   return useQuery({
     queryKey: noteTemplatesQueryKey(sid),
@@ -126,7 +128,7 @@ export function useNoteTemplates(spaceId?: string | null, enabled = true) {
         '/api/note-templates/list',
         sid ? { spaceId: sid } : undefined,
       ),
-    enabled,
+    enabled: authReady && enabled,
     staleTime: 30_000,
   });
 }

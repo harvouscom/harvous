@@ -957,18 +957,29 @@ const NOTE_SELECT_COLUMNS = {
  * lists, sidebar). List/preview surfaces only render a short stripped preview,
  * and the client always flags list content as a preview (useNote.ts
  * __contentIsPreview) and loads the full body on open via GET
- * /api/notes/:id/details — so this truncation is never user-visible as
- * "missing" content. Kept generous enough to cover a card preview strip while
+ * /api/notes/:id/details. Kept generous enough to cover a card preview strip while
  * keeping list payloads small: at limit=100 a 20k cap meant up to ~2 MB of HTML
  * per bootstrap response, dominated by content the list never renders. Offline
  * reads are served from IndexedDB (sync bootstrap), unaffected by this cap.
+ *
+ * This cut is NOT harmless on its own: a client that resends a body read from a
+ * list row overwrites the full note with this prefix. Writes are guarded by
+ * isRawListPreviewWrite (src/utils/note-truncated-write-guard.ts), which reads
+ * this exported constant — keep them in sync.
  */
-const NOTE_LIST_CONTENT_MAX_CHARS = 2000;
+export const NOTE_LIST_CONTENT_MAX_CHARS = 2000;
 
-/** List-payload column set: same as NOTE_SELECT_COLUMNS but content is truncated. */
+/**
+ * List-payload column set: same as NOTE_SELECT_COLUMNS but content is truncated.
+ *
+ * `contentLength` is the *stored* length, so the client can tell "this preview is
+ * the whole note" from "this preview is a prefix". Without it every list seed looks
+ * identical and the editor can't know whether its body is safe to save.
+ */
 const NOTE_LIST_SELECT = {
   ...NOTE_SELECT_COLUMNS,
   content: sql<string>`left(${Notes.content}, ${NOTE_LIST_CONTENT_MAX_CHARS})`,
+  contentLength: sql<number>`length(${Notes.content})`,
 } as const;
 
 export async function getNotesForThread(threadId: string, userId: string, limit = 20, offset = 0) {

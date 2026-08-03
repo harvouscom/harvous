@@ -289,13 +289,32 @@
 }
 
 /* ─── Inline edit-mode (draft) scripture pill — in-progress, confirm to commit ─ */
-.proto-editor-surface .scripture-pill-draft {
+/* The draft carries BOTH .scripture-pill and .scripture-pill-draft, so it would otherwise inherit
+   `display: inline-flex !important` + `user-select: none` from the committed-pill rules above.
+   That combination is not a valid caret host: iOS has nowhere to paint the caret and strands it at
+   the end of the line. The draft is editable text, so it must be `display: inline` and selectable.
+   The COMMITTED pill deliberately stays inline-flex + user-select:none — do not change it. */
+.proto-editor-surface .scripture-pill-draft,
+.proto-editor-surface .ProseMirror .scripture-pill-draft {
+  display: inline !important;
+  align-items: normal !important;
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
   background: var(--pds-accent-subtle-bg) !important;
   border: 1px dashed var(--pds-accent-subtle-border) !important;
-  /* 1px dashed border: match committed outer size */
-  padding: calc(var(--pds-inline-pill-pad-block) - 0.5px) calc(var(--pds-inline-pill-pad-inline) - 0.5px) !important;
+  /* Inline boxes paint vertical padding without adding to line height, so it would overlap the
+     line above/below. Horizontal padding only; the dashed border sits tight to the text. */
+  padding: 0 calc(var(--pds-inline-pill-pad-inline) - 0.5px) !important;
   color: var(--pds-text-primary) !important;
   cursor: text !important;
+}
+
+/* Beat the `.scripture-pill * { user-select: none }` rule for the draft's descendants. */
+.proto-editor-surface .scripture-pill-draft * {
+  -webkit-user-select: text !important;
+  user-select: text !important;
 }
 
 /* Inline ✓ confirm button rendered as a widget at the draft's trailing edge —

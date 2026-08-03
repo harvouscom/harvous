@@ -257,6 +257,41 @@ Round 13 moved the caret off the line end but it painted **before** the pill.
 post-commit caret after pill + spacer, correct baseline — no far-right, before-pill, or dash-entry
 regressions. This is the baseline; treat any caret change as high-risk.
 
+### Round 15 (August 2026) — NEEDS DEVICE VERIFICATION
+
+The far-right caret was re-reported despite Round 14, alongside unusable range entry, spurious
+"Could not load this passage.", lowercase pills, and no way to fix a reference from the keyboard.
+Two root causes were found that Rounds 5–14 had worked *around* rather than fixed.
+
+| # | Symptom | Root cause | Fix |
+|---|---------|-----------|-----|
+| 1 | Caret paints at line end during draft | The draft span carries `.scripture-pill` too, so it inherited `display: inline-flex` + `user-select: none`. **That is not a valid caret host** — iOS has nowhere to paint, which is why all of `resyncMobileCaret` / `setNativeSelectionAfterInlinePill` / `findScripturePillElementAtMark` had to exist. | Draft is now `display: inline` + `user-select: text` + `box-decoration-break: clone`. Set in **three** places, all required: the inline `DRAFT_STYLE` constant (`TiptapScriptureDraft.ts`), `.scripture-pill-draft` in `prototype-editor.css` (which has `display: inline-flex !important` on `.scripture-pill` above it), and `global.css`. **The committed pill is unchanged** — still `inline-flex` + `user-select: none`. |
+| 2 | Caret after commit lands one short (list items, mid-sentence) | `pillEnd = range.from + reference.length` was computed **before** `ensureScripturePillSpacing`, which can insert a **leading** space at `range.from`. Every downstream use (`charAfter`, `caretPos`, and critically `markTo`) was then off by one, so Round 14's `posAtDOM >= markTo` validation failed and fell through to the mis-painting generic `domAtPos` path. | Map the boundaries through the spacing steps: `tr.mapping.slice(stepsBeforeSpacing).map(rawPillEnd, 1)`. Regression test: "lands the caret after the pill when a leading space is inserted" in `scripture-draft.test.ts` (verified to fail without the fix). |
+| 3 | Pill reads `exodus 16:13` | The detector returns the raw matched text (`extracted.reference = fullMatch`); nothing canonicalized it. | New **shape-preserving** `canonicalizeScriptureReferenceDisplay` in `scripture-detector.ts`, applied in `draftTextToReference`. Not `normalizeScriptureReference` — that one *expands* chapter-only refs (`Psalms 23` → `Psalms 23:1-6`). Note canonical names are `Psalms`/`Song of Songs`, so `Psalm 27:1` now displays as `Psalms 27:1`. |
+| 4 | `Exodus 16:1315` commits an unloadable pill | Detection uses unbounded `\d+` and `validateAndWarn` only `console.warn`s, so a dropped `-` became verse 1315 → server 404 → error card. | New `checkScriptureReferenceValidity` gate in `confirmScriptureDraftView`: the draft **stays open** and the ✓ shows `--invalid` with the reason ("Exodus 16 has 36 verses."). The detector regex was deliberately **not** tightened to `\d{1,3}` — that makes the verse alternative fail entirely and silently degrades to a chapter-only `Exodus 16` pill, which is worse than a blocked one. |
+| 5 | "Could not load this passage." flashes | `setLoadingPassage(true)` ran *inside* the async IIFE, so frame 1 was "not loading, no html" — which the pane rendered as failure. | `PassageLoadState` union (`passage-load-state.ts`); loading is set **synchronously**. `unavailable` (the server's "not included in the {T} translation", which arrives as a *success*) is now distinct from `error`, and only `error` offers Retry. |
+| 6 | End verse clipped off-screen | The strip always rendered an end-**chapter** picker + second colon, ~50px that pushed the end verse past the right edge of a hidden-scrollbar scroller. | End-chapter pill only renders when `endChapter !== chapter`; cross-chapter is reached via an "Into chapter N →" option appended to the end-verse list. Range toggle moved outside the scroller; edge fade added on coarse pointers. |
+| 7 | Picker sheet behind the keyboard | `position: fixed` bottom = **layout** viewport bottom (behind the keyboard) and `60vh` = large viewport. The blur that was supposed to dismiss the keyboard ran in a post-open effect, outside a user gesture, so iOS ignored it. | Sheet backdrop is pinned to `visualViewport` (`visual-viewport-box.ts`); `max-height: min(60%, 420px)`; blur moved into the trigger's `onPointerDown`. Placement no longer *depends* on the keyboard dismissing. |
+| 8 | Backspace destroyed a pill; no keyboard editing | `tryHandleScripturePillDeleteKey` armed a delete on the first Backspace, and inline edit was judged unreliable in Round 4 #2 (before fix #1 above). | New `tryEditScripturePillOnBackspace` runs *before* the delete handler: Backspace converts the pill to an edit-draft. Forward **Delete** keeps the confirm-then-delete path. |
+
+**This supersedes the Round 4 #2 / "editing happens in the dock" lesson for the keyboard only.**
+Tap-the-pill → dock is still the route for changing book/chapter/translation/accent. Backspace is
+the route for fixing a typo'd reference.
+
+**Edit-drafts must never silently destroy a pill.** The `scriptureDraft` mark now carries
+`originalReference` + `noteId`. `restoreScripturePillFromDraft` puts the pill back on Escape or on
+a confirm that no longer parses. Two guards matter: it is a no-op for drafts typed from scratch
+(those still degrade to prose), and a no-op once the text is empty (erasing the reference
+character-by-character must still delete the pill — that is the intended friction model).
+`confirmScriptureDraftView` also now carries `noteId` forward instead of hardcoding `'pending'`.
+
+**Still device-unverified:** every caret-related claim above. Fixes #1 and #2 are separately
+revertable and should be tested independently — #1 is the CSS/`DRAFT_STYLE` change, #2 is the
+position mapping. Re-run the full Round-14 checklist plus: a draft **inside an ordered list item
+with a committed pill earlier in the paragraph** (the reported repro), and a reference long enough
+to wrap (the ✓ anchors to the last client rect now, since an inline box's `getBoundingClientRect`
+is the union of its fragments).
+
 ---
 
 ## iOS limitations & gotchas (durable)
@@ -273,9 +308,17 @@ regressions. This is the baseline; treat any caret change as high-risk.
   inside the mark (`findScripturePillElementAtMark`), place after the span (`setNativeSelectionAfterInlinePill`),
   validate `posAtDOM >= markTo`. Never `querySelector` on the caret path; never last-text-node-inside-draft
   during range tail entry.
-- **Editing a committed pill happens in the dock, not inline** — mobile has no reliable inline
-  reference-edit affordance. Tap the pill (or the floating Edit pencil) → scripture dock →
-  `ScriptureReferencePickerStrip`.
+- **Editing a committed pill: Backspace for the keyboard, dock for the pickers** (revised in Round
+  15 — inline edit is viable now that the draft span is a real caret host). Backspace on a pill
+  converts it to an edit-draft; tap the pill or the floating Edit pencil for the dock.
+- **The draft span must stay `display: inline` + `user-select: text`.** An `inline-flex` +
+  `user-select: none` box is not a valid caret host on iOS and strands the painted caret at the
+  line end. It is set in three places (`DRAFT_STYLE`, `prototype-editor.css`, `global.css`) because
+  `.proto-editor-surface .scripture-pill` uses `display: inline-flex !important`.
+- **Never compute a position across `ensureScripturePillSpacing`** — it can insert a *leading*
+  space. Map through `tr.mapping.slice(stepsBefore)` instead.
+- **Anything positioned against a `position: fixed` overlay needs the `visualViewport` box**, not
+  `inset: 0` / `vh` — see `src/utils/visual-viewport-box.ts`.
 - **The study-dock sidebar offset lives on `.study-dock-carousel__track`** — when changing dock
   layout, reset/inherit padding on the *track*, and re-check `--no-sidebar` / `--sidebar-collapsed` /
   `@media (max-width: 899px)` / `--drawer-open` states.

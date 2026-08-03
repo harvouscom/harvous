@@ -55,9 +55,9 @@ export function buildRemoveNoteFromFolderOperation(
         : {
             kind: 'personal',
             input: {
+              // No title/content — folder label change only. `row` is a list payload
+              // whose content is truncated server-side.
               noteId: input.row.id,
-              title: input.row.title ?? '',
-              content: input.row.content ?? '',
               primaryCollection: patch.primaryCollection,
               secondaryCollections: patch.secondaryCollections,
               collectionPinned: patch.collectionPinned,

@@ -108,6 +108,9 @@
 
 /* ── Mobile bottom-anchored picker sheet ─────────────────────────────────────── */
 
+/* `inset: 0` is the fallback for browsers without visualViewport. When it IS available the
+   component overrides position/top/left/width/height inline, pinning this to the VISIBLE area so
+   `align-items: flex-end` lands the sheet just above the iOS keyboard instead of behind it. */
 .harvous-menu-pill__sheet-backdrop {
   position: fixed;
   inset: 0;
@@ -124,11 +127,14 @@
 .harvous-menu-pill__sheet {
   width: 100%;
   max-width: 560px;
-  max-height: 60vh;
+  /* Percentage of the (now correctly sized) backdrop — never `vh`, which on iOS measures the
+     large viewport and made the sheet taller than the area actually on screen. */
+  max-height: min(60%, 420px);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  padding: 6px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  padding: 6px 10px
+    calc(10px + env(safe-area-inset-bottom, 0px) + var(--harvous-sheet-kb-inset, 0px));
   border-top-left-radius: 16px;
   border-top-right-radius: 16px;
   background: var(--pds-bg-popover-solid, var(--pds-bg-page));

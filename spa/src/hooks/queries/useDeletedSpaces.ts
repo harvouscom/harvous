@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { SpaceCoverBg } from '@/utils/space-cover';
 import { api } from '../../lib/api';
+import { useAuthReady } from '../useAuthReady';
 
 export interface DeletedSpaceItem {
   id: string;
@@ -20,9 +21,11 @@ export interface DeletedSpacesResponse {
 export const deletedSpacesQueryKey = ['spaces', 'deleted'] as const;
 
 export function useDeletedSpaces() {
+  const authReady = useAuthReady();
   return useQuery({
     queryKey: deletedSpacesQueryKey,
     queryFn: () => api.get<DeletedSpacesResponse>('/api/spaces/deleted'),
+    enabled: authReady,
     staleTime: 30_000,
   });
 }

@@ -6,6 +6,7 @@ This folder contains troubleshooting documentation for common issues encountered
 
 ### Sync and multi-device
 - **[Cross-platform sync](./CROSS_PLATFORM_SYNC.md)** — Mac Debug vs production web, Debug-Prod checklist, native scheduler and prototype React Query refresh
+- **[Note body truncated at ~2000 characters](./NOTE_BODY_TRUNCATION.md)** — note full on one device, hard-cut on another: list-payload preview written back over the note; guards, diagnostic script, and how to restore from `NoteVersions`
 
 ### Database Issues
 - **[Database Deployment Errors](./database-deployment-errors.md)** - Fixing UNIQUE constraint errors during Netlify deployments

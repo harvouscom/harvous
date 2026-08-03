@@ -201,7 +201,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API routes - always network, no cache (credentials included)
+  // API routes - always network, no cache (credentials included). Authenticated responses
+  // must never land in Cache Storage (shared-device / account-switch leakage).
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(event.request, { credentials: 'include', cache: 'no-store' }).catch(() =>
@@ -214,120 +215,23 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
-  
-  // Authenticated API responses must not be cached in Cache Storage (shared-device /
-  // account-switch leakage). Network-only for all /api/* requests.
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        return new Response(JSON.stringify({ error: 'Network error' }), {
-          status: 503,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      })
-    );
-    return;
-  }
-  
+
   // Non-GET requests
   if (event.request.method !== 'GET') {
     event.respondWith(fetch(event.request));
     return;
   }
   
-  // Font files - cache-first
-  const isFontFile = /\.(woff2?|ttf|otf|eot)$/i.test(url.pathname);
-  if (isFontFile) {
+  // Everything under /assets/ is a Vite build output — content-hashed by filename (JS, CSS,
+  // and fonts all land here, see vite.config.ts outDir), so a cache hit can never be stale:
+  // a changed file gets a new filename, and a new deploy gets a new CACHE_NAME (see
+  // scripts/inject-sw-cache-version.js). Serve straight from cache with no network hop at
+  // all — this is what used to needlessly redownload the whole JS bundle on every launch.
+  if (url.pathname.startsWith('/assets/')) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
-        if (cached) {
-          fetch(event.request).then((response) => {
-            if (shouldCacheResponse(response, event.request)) {
-              caches.open(CACHE_NAME).then((cache) => {
-                safeCachePut(cache, event.request, addCacheTimestamp(response.clone()));
-              });
-            }
-          }).catch(() => {});
-          return cached;
-        }
-        
-        return fetch(event.request).then((response) => {
-          if (shouldCacheResponse(response, event.request)) {
-            const timestamped = addCacheTimestamp(response.clone());
-            const responseToCache = timestamped.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              safeCachePut(cache, event.request, responseToCache);
-            });
-            return timestamped;
-          }
-          return response;
-        }).catch(() =>
-          // `caches.match` resolves undefined on a miss, and respondWith(undefined) throws —
-          // which would turn a transient network blip into a hard failure for this asset.
-          caches.match(event.request).then((fallback) =>
-            fallback || new Response('', { status: 504, statusText: 'Asset unavailable' })
-          )
-        );
-      })
-    );
-    return;
-  }
-  
-  // CSS files - cache-first
-  const isCSSFile = /\.css$/i.test(url.pathname);
-  if (isCSSFile) {
-    event.respondWith(
-      caches.match(event.request).then((cached) => {
-        if (cached) {
-          fetch(event.request).then((response) => {
-            if (shouldCacheResponse(response, event.request)) {
-              caches.open(CACHE_NAME).then((cache) => {
-                safeCachePut(cache, event.request, addCacheTimestamp(response.clone()));
-              });
-            }
-          }).catch(() => {});
-          return cached;
-        }
-        
-        return fetch(event.request).then((response) => {
-          if (shouldCacheResponse(response, event.request)) {
-            const timestamped = addCacheTimestamp(response.clone());
-            const responseToCache = timestamped.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              safeCachePut(cache, event.request, responseToCache);
-            });
-            return timestamped;
-          }
-          return response;
-        }).catch(() =>
-          // `caches.match` resolves undefined on a miss, and respondWith(undefined) throws —
-          // which would turn a transient network blip into a hard failure for this asset.
-          caches.match(event.request).then((fallback) =>
-            fallback || new Response('', { status: 504, statusText: 'Asset unavailable' })
-          )
-        );
-      })
-    );
-    return;
-  }
-  
-  // Static assets (/_astro/) - cache-first
-  if (url.pathname.startsWith('/_astro/')) {
-    event.respondWith(
-      caches.match(event.request).then((cached) => {
-        if (cached) {
-          fetch(event.request).then((response) => {
-            if (shouldCacheResponse(response, event.request)) {
-              const timestamped = addCacheTimestamp(response);
-              const timestampedClone = timestamped.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                safeCachePut(cache, event.request, timestampedClone);
-              });
-            }
-          }).catch(() => {});
-          return cached;
-        }
-        
+        if (cached) return cached;
+
         return fetch(event.request).then((response) => {
           if (shouldCacheResponse(response, event.request)) {
             const timestamped = addCacheTimestamp(response.clone());
@@ -350,20 +254,24 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets (/assets/) - cache-first (SPA Vite bundles)
-  if (url.pathname.startsWith('/assets/')) {
+  // Font files outside /assets/ (public/fonts/* — unhashed, can change between deploys without
+  // a filename change) and any other stray CSS — cache-first, revalidate only once the cached
+  // copy is older than CACHE_MAX_AGE instead of on every single hit.
+  const isFontFile = /\.(woff2?|ttf|otf|eot)$/i.test(url.pathname);
+  const isCSSFile = /\.css$/i.test(url.pathname);
+  if (isFontFile || isCSSFile) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
         if (cached) {
-          fetch(event.request).then((response) => {
-            if (shouldCacheResponse(response, event.request)) {
-              const timestamped = addCacheTimestamp(response);
-              const timestampedClone = timestamped.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                safeCachePut(cache, event.request, timestampedClone);
-              });
-            }
-          }).catch(() => {});
+          if (!isCacheFresh(cached, CACHE_MAX_AGE)) {
+            fetch(event.request).then((response) => {
+              if (shouldCacheResponse(response, event.request)) {
+                caches.open(CACHE_NAME).then((cache) => {
+                  safeCachePut(cache, event.request, addCacheTimestamp(response.clone()));
+                });
+              }
+            }).catch(() => {});
+          }
           return cached;
         }
 
@@ -869,21 +777,4 @@ self.addEventListener('message', (event) => {
   if (event.data === 'warmup' || (event.data && event.data.type === 'warmup')) {
     fetch('/api/health', { method: 'GET', credentials: 'include' }).catch(() => {});
   }
-});
-
-// Online/offline events
-self.addEventListener('online', () => {
-  console.log('Service Worker: Online');
-  fetch('/api/health', { method: 'GET', credentials: 'include' }).catch(() => {});
-  
-  self.clients.matchAll().then((clients) => {
-    clients.forEach((client) => client.postMessage({ type: 'online' }));
-  });
-});
-
-self.addEventListener('offline', () => {
-  console.log('Service Worker: Offline');
-  self.clients.matchAll().then((clients) => {
-    clients.forEach((client) => client.postMessage({ type: 'offline' }));
-  });
 });

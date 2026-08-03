@@ -102,6 +102,7 @@ import { contentSyncWouldClobberScripturePillAccent } from '@/utils/scripture-pi
 import { saveNoteDraft, getNoteDraft, clearNoteDraft } from '@/utils/note-draft-store';
 import { shouldSkipPrototypeUnloadSave } from '@/utils/prototype-note-save-guard';
 import { shouldUpgradePrototypeBodyFromServer } from '@/utils/prototype-note-body-upgrade';
+import { noteListPreviewTail } from '@/utils/note-list-preview';
 
 /** TipTap body HTML for editing — empty notes use `<p></p>` so the caret stays on line 1. */
 function repairHtmlForEditor(html: string): string {
@@ -156,6 +157,17 @@ interface CardFullEditableProps {
    * flips false after GET …/details, prototype TipTap upgrades the body once.
    */
   contentIsPreview?: boolean;
+  /**
+   * True when `content` is *provably* a prefix of the stored body (the note is longer
+   * than the list cap). Distinct from `contentIsPreview`, which is set for every list
+   * seed including short notes whose preview is the whole note.
+   *
+   * While this is true the body is incomplete, so every save path is held — saving it
+   * would overwrite the note with its own preview. Released when the full body arrives.
+   */
+  contentTruncated?: boolean;
+  /** Character offset into the stored body where a truncated `content` ends. */
+  previewLength?: number;
   className?: string;
   isEditable?: boolean;
   onSave?: (
@@ -328,6 +340,8 @@ export default function CardFullEditable({
   resourceUrl,
   contentEncrypted = false,
   contentIsPreview = false,
+  contentTruncated = false,
+  previewLength,
   className = '',
   isEditable = true,
   onSave,
@@ -840,6 +854,15 @@ export default function CardFullEditable({
         if (!userEditedSinceOpenRef.current) {
           return;
         }
+        // Body is a known-incomplete prefix — the save is held, and unmount means there
+        // is no upgrade coming to release it. Persist the edit locally instead; the next
+        // open restores it on top of the full body.
+        if (bodyTruncatedRef.current) {
+          if (departingNoteId !== 'note_draft') {
+            saveNoteDraft(departingNoteId, { title: currentTitle, content: currentContent });
+          }
+          return;
+        }
         const draft = departingNoteId ? getNoteDraft(departingNoteId) : null;
         if (
           shouldSkipPrototypeUnloadSave({
@@ -863,6 +886,12 @@ export default function CardFullEditable({
   const hasLocalContentUpdate = useRef(false);
   /** Note opened with list-truncated body — allow one upgrade when full details arrive. */
   const seededFromPreviewRef = useRef(false);
+  /** Body is a known-incomplete prefix — hold every save until the full note lands. */
+  const bodyTruncatedRef = useRef(false);
+  /** Offset in the stored body where the held preview ends, for the tail append. */
+  const truncatedPreviewLengthRef = useRef<number | null>(null);
+  /** The preview html as seeded, to verify the tail actually continues it. */
+  const truncatedPreviewHtmlRef = useRef<string | null>(null);
   const [forceBodyReplaceRevision, setForceBodyReplaceRevision] = useState(0);
   // Skip next init-effect overwrite when we just set decrypted content from pinEntryComplete (avoids race where effect runs with stale lockStateOverride and overwrites with encrypted content)
   const skipNextContentSyncRef = useRef(false);
@@ -1014,6 +1043,9 @@ export default function CardFullEditable({
     seededEditorForNoteRef.current = null;
     bodyInteractionRef.current = false;
     seededFromPreviewRef.current = false;
+    bodyTruncatedRef.current = false;
+    truncatedPreviewLengthRef.current = null;
+    truncatedPreviewHtmlRef.current = null;
     setForceBodyReplaceRevision(0);
   }, [noteId, editorChromeMode, alwaysEditing]);
 
@@ -1021,6 +1053,26 @@ export default function CardFullEditable({
   useEffect(() => {
     if (contentIsPreview) seededFromPreviewRef.current = true;
   }, [contentIsPreview, noteId]);
+
+  // Track "this body is a known-incomplete prefix" separately from "this came from a
+  // list". Saves are held while it's true; the seam offset is captured now because the
+  // details response that releases the hold no longer carries it.
+  useEffect(() => {
+    if (contentTruncated) {
+      bodyTruncatedRef.current = true;
+      if (typeof previewLength === 'number') truncatedPreviewLengthRef.current = previewLength;
+      truncatedPreviewHtmlRef.current = content ?? '';
+      return;
+    }
+    // Full body arrived and the user never typed — nothing to splice, so just lift the
+    // hold here and let the normal upgrade path below replace the body. (When they
+    // *did* type, the release branch in that effect owns clearing this.)
+    if (bodyTruncatedRef.current && !userEditedSinceOpenRef.current) {
+      bodyTruncatedRef.current = false;
+      truncatedPreviewLengthRef.current = null;
+      truncatedPreviewHtmlRef.current = null;
+    }
+  }, [contentTruncated, previewLength, content, noteId]);
 
   // Parent signals first draft persist (compose-on-home → /{id}). With a stable
   // `prototypeBodyMountId`, the TipTap instance survives the swap, so keep its live
@@ -1269,6 +1321,45 @@ export default function CardFullEditable({
     if (foreignSharedAnnotationMode) return;
     if (readOnlyLikeScripture || noteType === 'scripture') return;
     if (needsPinUnlock) return;
+
+    // Release path for a held save. The user typed into a body we knew was an
+    // incomplete prefix, so the plain bail below would strand them: the upgrade is
+    // blocked forever and the save stays held. Their edits all live inside the
+    // preview region (they could not have typed past text that wasn't there), so
+    // the note is made whole by appending the missing tail to the end of the doc.
+    // Splicing rather than replacing is what keeps their in-flight edits and caret.
+    if (bodyTruncatedRef.current && !contentTruncated && userEditedSinceOpenRef.current) {
+      const full = repairHtmlForEditor(content ?? '');
+      const tail = noteListPreviewTail(
+        content ?? '',
+        truncatedPreviewHtmlRef.current ?? '',
+        truncatedPreviewLengthRef.current ?? 0,
+      );
+      bodyTruncatedRef.current = false;
+      truncatedPreviewLengthRef.current = null;
+      truncatedPreviewHtmlRef.current = null;
+      const editor = editorInstanceRef.current;
+      if (tail && editor && !editor.isDestroyed) {
+        editor.commands.insertContentAt(editor.state.doc.content.size, tail);
+        const merged = editor.getHTML();
+        setDisplayContent(merged);
+        setEditContent(merged);
+        editContentRef.current = merged;
+      } else if (!tail && isTiptapBodyEmpty(editContentRef.current) && !isTiptapBodyEmpty(full)) {
+        // Nothing to splice and the editor is empty — take the server body outright
+        // rather than saving an empty doc over it.
+        setDisplayContent(full);
+        setEditContent(full);
+        editContentRef.current = full;
+        setForceBodyReplaceRevision((r) => r + 1);
+      }
+      seededFromPreviewRef.current = false;
+      // Now that the body is whole, send the save this session has been holding.
+      protoPendingFlushRef.current = false;
+      void protoSaveAsyncRef.current();
+      return;
+    }
+
     if (userEditedSinceOpenRef.current) return;
 
     const repaired = repairHtmlForEditor(content ?? '');
@@ -2234,6 +2325,13 @@ export default function CardFullEditable({
   // editTitle / editContent change, reads live content from the editor ref, and calls
   // onSave (note-scoped) or noteSaveCallback as fallback.
   const protoSaveAsync = useCallback(async (opts?: { fromUnmount?: boolean }) => {
+    // The body is a known-incomplete prefix of the stored note (list seed, details
+    // still in flight). Saving now would persist the preview over the full note.
+    // Remember that a flush is owed; the upgrade effect fires it once the tail lands.
+    if (bodyTruncatedRef.current) {
+      protoPendingFlushRef.current = true;
+      return;
+    }
     if (protoIsSavingRef.current) {
       // A save is in flight. Remember that a flush was requested so we re-fire
       // when it returns — otherwise trailing edits typed during the in-flight
@@ -2440,6 +2538,9 @@ export default function CardFullEditable({
     if (editorChromeMode !== 'prototypeNative') return;
     if (!effectiveIsEditable) return;
     if (!userEditedSinceOpenRef.current) return;
+    // Incomplete body — nothing safe to send yet. The draft writer below still runs,
+    // so the edit is durable locally while the save is held.
+    if (bodyTruncatedRef.current) return;
 
     const timerId = window.setTimeout(() => { void protoSaveAsync(); }, 700);
     return () => window.clearTimeout(timerId);
@@ -2534,6 +2635,11 @@ export default function CardFullEditable({
       // a brand-new (note_draft) note, which has no server id to PUT against.
       saveNoteDraft(departingNoteId, { title: currentTitle, content: currentContent });
 
+      // Body is a known-incomplete prefix: the draft above is the whole recovery
+      // story. PUTting it would overwrite the note with its own preview — exactly
+      // the case where backgrounding mid-typing silently truncated the note.
+      if (bodyTruncatedRef.current) return;
+
       const chromeForSave = applyIdleFolderAutoAssign(
         collectionChromeRef.current,
         currentTitle,
@@ -2579,7 +2685,11 @@ export default function CardFullEditable({
           keepalive: true,
           body,
         }).catch(() => { /* best-effort on unload */ });
-        protoLastSavedRef.current = { title: currentTitle, content: currentContent, collectionKey };
+        // Deliberately NOT advancing protoLastSavedRef. This write is unverifiable —
+        // it can 409 (a co-editor saved first) or be dropped outright, and marking it
+        // as saved would make the next real save skip the dedup check and leave the
+        // draft written above as the only copy. Leaving it stale just costs a
+        // redundant PUT if the page turns out to survive.
       } catch {
         /* ignore — best-effort */
       }

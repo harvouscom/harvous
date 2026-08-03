@@ -1,5 +1,6 @@
 import { useQuery, QueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { resolveNoteListPreview } from '@/utils/note-list-preview';
 
 /** Thread context when seeding note cache from a list (thread/space page). */
 export interface NoteSeedThreadContext {
@@ -32,6 +33,12 @@ export interface ListNoteForSeed {
   collectionUserOverride?: boolean;
   /** Shared space list seed — note belongs to the viewer. */
   isOwnNote?: boolean;
+  /**
+   * Length of the *stored* body (server NOTE_LIST_SELECT). Greater than
+   * `content.length` means `content` is a truncated prefix. Absent on hand-built
+   * seeds, in which case truncation can't be proven and isn't claimed.
+   */
+  contentLength?: number | null;
 }
 
 /** Slim linked-note row from GET /api/notes/:id/details (connections strip). */
@@ -166,6 +173,18 @@ export interface NoteDetail {
    * once GET /api/notes/:id/details has populated the full detail.
    */
   __contentIsPreview?: boolean;
+  /**
+   * Internal: set when `content` is *provably* a prefix of the stored body — the note
+   * is longer than the list cap. `__contentIsPreview` alone can't tell that apart from
+   * a short note whose preview is the whole thing, and the editor needs the difference:
+   * a truncated body must never be saved, or it overwrites the note with its own preview.
+   */
+  __contentTruncated?: boolean;
+  /**
+   * Internal: character offset into the stored content where a truncated `content` ends,
+   * so the missing tail can be appended once the full body loads.
+   */
+  __previewLength?: number;
 }
 
 interface NoteDetailResponse {
@@ -321,10 +340,13 @@ export function listNoteToNoteDetail(
     color: threadContext.color,
     backgroundGradient: threadContext.backgroundGradient,
   };
+  // Trim a truncated preview back to a clean block boundary so seeding TipTap with it
+  // — and later appending the tail — can't split an element mid-way.
+  const preview = resolveNoteListPreview(listNote.content, listNote.contentLength);
   return {
     id: listNote.id,
     title: listNote.title ?? null,
-    content: listNote.content ?? null,
+    content: listNote.content == null ? null : preview.html,
     noteType: listNote.noteType ?? 'default',
     contentEncrypted: listNote.contentEncrypted ?? false,
     isPublic: false,
@@ -349,6 +371,8 @@ export function listNoteToNoteDetail(
     linkedToNotes: [],
     studyThreads: [],
     __contentIsPreview: true,
+    __contentTruncated: preview.truncated,
+    __previewLength: preview.previewLength,
   };
 }
 
@@ -378,6 +402,8 @@ export function seedNoteFromList(
     if (typeof prev.content === 'string' && prev.content.length >= (merged.content?.length ?? 0)) {
       merged.content = prev.content;
       merged.__contentIsPreview = prev.__contentIsPreview ?? false;
+      merged.__contentTruncated = prev.__contentTruncated ?? false;
+      merged.__previewLength = prev.__previewLength;
     }
     // List payloads can lag autosave — keep the longer / newer title from detail cache.
     if (typeof prev.title === 'string' && (merged.title?.length ?? 0) < prev.title.length) {
@@ -517,8 +543,10 @@ export function getNoteQueryOptions(noteId: string, contextSpaceId?: string | nu
       const organization = res.context?.organization ?? res.note.organization ?? null;
       const note = {
         ...res.note,
-        // Full body from GET …/details — clear list-seed preview marker so the editor can upgrade.
+        // Full body from GET …/details — clear list-seed preview markers so the editor
+        // can upgrade and release any saves it was holding.
         __contentIsPreview: false,
+        __contentTruncated: false,
         currentVersion:
           typeof res.currentVersion === 'number'
             ? res.currentVersion

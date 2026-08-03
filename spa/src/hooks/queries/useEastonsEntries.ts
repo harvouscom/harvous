@@ -22,6 +22,8 @@ interface EntryResponse extends EastonsDictionaryEntry {
 
 /** Single entry fetched by slug. */
 export function useEastonsEntry(slug: string | undefined) {
+  // auth-gate-exempt: /api/dictionary/eastons/:slug is unauthenticated static
+  // public-domain reference data (server/routes/dictionary.ts) — no session needed.
   return useQuery({
     queryKey: ['dictionary', 'eastons', 'entry', slug],
     enabled: !!slug,

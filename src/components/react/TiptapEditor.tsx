@@ -44,6 +44,8 @@ import {
   scheduleMobileDraftTailCaretSync,
   canSafelyResyncMobileDraftIdleCaret,
   resyncMobileCaret,
+  getScriptureDraftValidity,
+  editScripturePillAsDraft,
   SCRIPTURE_DRAFT_CONFIRMED_EVENT,
 } from './TiptapScriptureDraft';
 import { BoldCustom } from './TiptapBoldCustom';
@@ -736,6 +738,53 @@ function commitMentionPickerItem(
     /* ignore — stale range after a concurrent doc change */
   }
   closePicker();
+}
+
+/**
+ * Backspace on (or just after) a committed scripture pill converts it back to an editable draft
+ * instead of arming a delete.
+ *
+ * Rationale: a pill used to be destroyable in two keystrokes with no way to fix a typo'd reference
+ * from the keyboard. Now the first Backspace only changes mode — the reference becomes ordinary
+ * text you can edit, and the ✓ re-commits it. Deleting the pill still works, it just costs the
+ * keystrokes of actually erasing it (or the explicit "Remove" in the floater). Forward Delete keeps
+ * the old confirm-then-delete behaviour, so there is still a fast destructive path.
+ *
+ * Returns false (declining the keystroke) whenever there's no pill to edit, so the delete-confirm
+ * and atomic-block handlers after it still get their turn.
+ */
+function tryEditScripturePillOnBackspace(
+  editor: any,
+  event: KeyboardEvent,
+  view: any,
+  deleteConfirmPillRef: React.MutableRefObject<ScripturePillDeleteConfirmState | null>,
+): boolean {
+  if (event.key !== 'Backspace') return false;
+  // A confirm floater is already up — let the existing handler complete that interaction.
+  if (deleteConfirmPillRef.current) return false;
+  // Already editing a reference: Backspace must delete characters, not re-enter edit mode.
+  if (hasActiveScriptureDraft(view.state)) return false;
+
+  const { from, to } = view.state.selection;
+  if (from !== to) return false;
+
+  const $from = view.state.selection.$from;
+  const insidePill = $from.marks().some((m: any) => m.type.name === 'scripturePill');
+  const boundaries = insidePill
+    ? findPillBoundaries(view.state.doc, from)
+    : findAdjacentPillBoundaries(view.state.doc, from, 'before');
+  if (!boundaries) return false;
+
+  // A stray range suffix between the pill and the caret (e.g. the "-15" of a half-typed range)
+  // must stay ordinary editable text — backspacing it is how the orphan-merge flow works.
+  const realPill = findPillBoundaries(view.state.doc, boundaries.start);
+  if (realPill && from > realPill.end) {
+    const gapText = view.state.doc.textBetween(realPill.end, from);
+    if (gapText && isOrphanScriptureSuffix(gapText)) return false;
+  }
+
+  event.preventDefault();
+  return editScripturePillAsDraft(view, boundaries.start, boundaries.end);
 }
 
 /** Backspace/Delete/Escape handling for scripture pill delete confirmation. */
@@ -4006,6 +4055,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     top: number;
     left: number;
     to: number;
+    /** Set when the reference parses but doesn't resolve against the canon — the ✓ won't commit. */
+    invalidReason: string | null;
   } | null>(null);
   const [connectFromSelectionOpen, setConnectFromSelectionOpen] = useState(false);
   const [connectFromSelectionAnchorRect, setConnectFromSelectionAnchorRect] = useState<DOMRect | null>(null);
@@ -4932,6 +4983,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // EARLY CHECK: Handle Backspace/Delete adjacent to or inside a pill
         // This must fire first to prevent ProseMirror's default backspace from eating pill characters
         if (tryHandleMentionPillDeleteKey(editor, event, view)) {
+          return true;
+        }
+        // Backspace-to-edit runs BEFORE the delete-confirm handler so Backspace on a pill changes
+        // mode rather than arming a deletion. It declines whenever there's no pill to edit, so the
+        // handler below still owns forward Delete and the orphan-suffix cases.
+        if (
+          editorChromeModeRef.current === 'prototypeNative' &&
+          tryEditScripturePillOnBackspace(editor, event, view, deleteConfirmPillRef)
+        ) {
           return true;
         }
         if (tryHandleScripturePillDeleteKey(editor, event, view, deleteConfirmPillRef, setDeleteConfirmPill)) {
@@ -7246,11 +7306,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Anchor the ✓ to the draft pill's DOM rect so it sits inline beside the pill —
         // vertically centered on the pill, flush to its right edge. coordsAtPos returns a thin
         // caret box that on iOS renders the button above the taller inline-flex pill.
+        // Ask the same helper `confirmScriptureDraftView` gates on, so the button can never
+        // disagree with what the commit will actually do. Only 'invalid' is surfaced — 'pending'
+        // is ordinary mid-typing and must not look like an error.
+        const commitState = getScriptureDraftValidity(editor.state, to);
+        const invalidReason = commitState.status === 'invalid' ? commitState.reason : null;
         const draftEl = getScriptureDraftAnchorElement(editor.view, to);
         if (draftEl) {
-          const rect = draftEl.getBoundingClientRect();
+          // The draft is `display: inline`, so if the reference wraps across a line
+          // getBoundingClientRect() returns the UNION of its fragments — anchoring to that would
+          // put the ✓ at the end of the first line. The last client rect is the trailing fragment,
+          // which is where the caret and the next typed character actually are.
+          const rects = draftEl.getClientRects();
+          const rect = rects.length > 0 ? rects[rects.length - 1] : draftEl.getBoundingClientRect();
           setScriptureDraftConfirm({
             to,
+            invalidReason,
             top: rect.top + rect.height / 2 + oy,
             left: Math.min(rect.right + 6, vw - 30) + ox,
           });
@@ -7260,6 +7331,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const coords = editor.view.coordsAtPos(to);
         setScriptureDraftConfirm({
           to,
+          invalidReason,
           top: (coords.top + coords.bottom) / 2 + oy,
           left: Math.min(coords.right + 6, vw - 30) + ox,
         });
@@ -7976,7 +8048,24 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         bulletList: editor.isActive('bulletList'),
         headingLevel: headingLevel
       };
-      setActiveStates(newStates);
+      // This fires on every keystroke and every caret move ('selectionUpdate' + 'update').
+      // A fresh object literal every time defeats React's same-state bailout and forces a
+      // full re-render of this component tree per character typed. Only commit the state
+      // when a value actually changed so unrelated keystrokes (typing plain text with no
+      // active marks, arrow-key moves within the same paragraph) don't re-render at all.
+      setActiveStates((prev) => {
+        const changed =
+          prev.canUndo !== newStates.canUndo ||
+          prev.canRedo !== newStates.canRedo ||
+          prev.bold !== newStates.bold ||
+          prev.italic !== newStates.italic ||
+          prev.underline !== newStates.underline ||
+          prev.strike !== newStates.strike ||
+          prev.orderedList !== newStates.orderedList ||
+          prev.bulletList !== newStates.bulletList ||
+          prev.headingLevel !== newStates.headingLevel;
+        return changed ? newStates : prev;
+      });
     };
 
     // Update on selection change
@@ -8780,9 +8869,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         {scriptureDraftConfirm && editorChromeMode === 'prototypeNative' && createPortal(
           <button
             type="button"
-            className="scripture-draft-confirm-float"
-            aria-label="Confirm scripture reference"
-            title="Confirm"
+            className={`scripture-draft-confirm-float${
+              scriptureDraftConfirm.invalidReason ? ' scripture-draft-confirm-float--invalid' : ''
+            }`}
+            aria-label={
+              scriptureDraftConfirm.invalidReason
+                ? `Can't add this reference — ${scriptureDraftConfirm.invalidReason}`
+                : 'Confirm scripture reference'
+            }
+            aria-disabled={scriptureDraftConfirm.invalidReason ? true : undefined}
+            title={scriptureDraftConfirm.invalidReason ?? 'Confirm'}
             style={{
               position: 'fixed',
               top: scriptureDraftConfirm.top,
@@ -8795,6 +8891,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               e.preventDefault();
               e.stopPropagation();
               if (!editor || !isEditorValid(editor)) return;
+              // Out-of-canon reference: the commit would refuse anyway, and the
+              // confirmAnyScriptureDraftView fallback below would just retry the same doomed
+              // draft. Leave the draft open so the user can fix it in place.
+              if (scriptureDraftConfirm.invalidReason) return;
               const view = editor.view;
               const to = scriptureDraftConfirm.to;
               if (confirmScriptureDraftView(view, to, { focus: true }) == null) {

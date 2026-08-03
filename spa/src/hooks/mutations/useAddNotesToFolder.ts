@@ -64,9 +64,10 @@ export function buildAddNotesToFolderOperations(
           : {
               kind: 'personal',
               input: {
+                // No title/content: this is a folder label change. `row` comes from a
+                // list payload, whose content is truncated server-side — sending it
+                // back would overwrite the note with its own preview.
                 noteId: row.id,
-                title: row.title ?? '',
-                content: row.content ?? '',
                 primaryCollection: patch.primaryCollection,
                 secondaryCollections: patch.secondaryCollections,
                 collectionUserOverride: patch.collectionUserOverride,

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import { api } from '../../lib/api';
+import { useAuthReady } from '../useAuthReady';
 
 export interface ReferencesIndexNoteBrief {
   id: string;
@@ -28,10 +29,11 @@ export interface SpaceReferencesIndexResponse {
 }
 
 export function usePrototypeSpaceReferencesIndex(spaceId: string | undefined) {
+  const authReady = useAuthReady();
   const id = normalizePrototypeApiSpaceId(spaceId);
   return useQuery({
     queryKey: ['prototype', 'space', id, 'references-index'],
-    enabled: Boolean(id),
+    enabled: authReady && Boolean(id),
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const res = await api.get<SpaceReferencesIndexResponse>(

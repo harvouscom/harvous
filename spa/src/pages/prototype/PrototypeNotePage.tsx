@@ -101,13 +101,22 @@ import { api, APIError } from '../../lib/api';
 const DRAFT_NOTE_ID = 'note_draft';
 const EMPTY_NOTE_COLLECTIONS: string[] = [];
 
+/** Single source of truth for "is this draft landing in My Home" — the label and the
+ *  audience-bar icon must agree, so both read this instead of re-deriving it. */
+export function isDraftSaveDestinationHome(input: {
+  targetSpaceId: string | null | undefined;
+  homeSpaceId: string | null | undefined;
+}): boolean {
+  return !input.targetSpaceId || input.targetSpaceId === input.homeSpaceId;
+}
+
 export function draftSaveDestinationLabel(input: {
   targetSpaceId: string | null | undefined;
   homeSpaceId: string | null | undefined;
   targetSpaceTitle: string | null | undefined;
   threadTitle?: string | null;
 }): string {
-  if (!input.targetSpaceId || input.targetSpaceId === input.homeSpaceId) return 'Saving to My Home';
+  if (isDraftSaveDestinationHome(input)) return 'Saving to My Home';
   const spaceTitle = input.targetSpaceTitle?.trim() || 'this space';
   const threadTitle = input.threadTitle?.trim();
   return threadTitle ? `Saving to ${threadTitle} in ${spaceTitle}` : `Saving to ${spaceTitle}`;
@@ -522,6 +531,11 @@ export default function PrototypeNotePage() {
       composeGroupThreads,
       resolvedComposeThreadId,
     ],
+  );
+
+  const draftDestinationIsHome = useMemo(
+    () => isDraftSaveDestinationHome({ targetSpaceId: composeTargetSpaceId, homeSpaceId: personalHomeSpaceId }),
+    [composeTargetSpaceId, personalHomeSpaceId],
   );
 
   const onHighlightOpenRequestConsumed = useCallback(() => {
@@ -1933,6 +1947,7 @@ export default function PrototypeNotePage() {
                 mode={audienceBarMode}
                 audienceLabel={audienceLabel}
                 draftDestinationLabel={draftDestinationLabel}
+                draftDestinationIsHome={draftDestinationIsHome}
                 onOpenAudience={openInspector}
                 authorDisplayName={foreignNoteAuthor?.displayName ?? note?.authorDisplayName}
                 authorUserId={foreignNoteAuthor?.userId ?? note?.authorUserId ?? note?.userId}
@@ -1965,6 +1980,8 @@ export default function PrototypeNotePage() {
                 resourceUrl={editorNote.resourceUrl ?? undefined}
                 contentEncrypted={editorNote.contentEncrypted ?? false}
                 contentIsPreview={!!note?.__contentIsPreview}
+                contentTruncated={!!note?.__contentTruncated}
+                previewLength={note?.__previewLength}
                 isEditable={isEditable}
                 onSave={handleNoteSave}
                 onPrototypeEditorUnmount={handlePrototypeEditorUnmount}

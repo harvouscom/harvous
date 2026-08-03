@@ -86,9 +86,9 @@ export function buildFolderTagPersistenceRequest(
   return {
     kind: 'personal',
     input: {
+      // No title/content — folder label change only. `note` may still hold a
+      // list-truncated body (__contentIsPreview) if details hasn't landed yet.
       noteId: note.id,
-      title: note.title ?? '',
-      content: note.content ?? '',
       ...patch,
     },
   };

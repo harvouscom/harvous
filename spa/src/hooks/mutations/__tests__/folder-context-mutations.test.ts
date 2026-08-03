@@ -82,14 +82,45 @@ describe('inspector folder editor routing', () => {
     expect(request.kind).toBe('personal');
     if (request.kind !== 'personal') throw new Error('Expected personal request');
 
+    // No title/content: a folder edit must not carry a body. The note it was built
+    // from can hold a list-truncated preview (NOTE_LIST_SELECT caps content at
+    // NOTE_LIST_CONTENT_MAX_CHARS), and PUT /api/notes/update overwrites whatever
+    // body it receives — so resending one silently truncated the note.
     expect(buildUpdateNoteBody(request.input, 3)).toEqual({
       noteId: 'note_1',
-      title: 'Note',
-      content: '<p>Body</p>',
       primaryCollection: 'Updated',
       secondaryCollections: [],
       collectionUserOverride: true,
       expectedVersion: 3,
+    });
+    expect(request.input).not.toHaveProperty('title');
+    expect(request.input).not.toHaveProperty('content');
+  });
+
+  it('omits title and content from the update body when they are not supplied', () => {
+    expect(buildUpdateNoteBody({ noteId: 'note_1' }, 7)).toEqual({
+      noteId: 'note_1',
+      expectedVersion: 7,
+    });
+  });
+
+  it('still sends title and content when a real save supplies them', () => {
+    expect(
+      buildUpdateNoteBody({ noteId: 'note_1', title: 'Note', content: '<p>Body</p>' }, 7),
+    ).toEqual({
+      noteId: 'note_1',
+      title: 'Note',
+      content: '<p>Body</p>',
+      expectedVersion: 7,
+    });
+  });
+
+  it('sends an explicitly emptied title rather than dropping it', () => {
+    // '' is a real value the user chose; only `undefined` means "leave it alone".
+    expect(buildUpdateNoteBody({ noteId: 'note_1', title: '' }, 7)).toEqual({
+      noteId: 'note_1',
+      title: '',
+      expectedVersion: 7,
     });
   });
 });
@@ -141,6 +172,9 @@ describe('bulk folder routing', () => {
       secondaryCollections: ['Community', 'Prayer'],
       expectedVersion: 3,
     });
+    // `rows` come from a list payload, whose content is truncated server-side.
+    expect(add.request.input).not.toHaveProperty('title');
+    expect(add.request.input).not.toHaveProperty('content');
 
     const removal = buildRemoveNoteFromFolderOperation({
       row: row(),
@@ -157,5 +191,7 @@ describe('bulk folder routing', () => {
       primaryCollection: null,
       expectedVersion: 3,
     });
+    expect(removal.request.input).not.toHaveProperty('title');
+    expect(removal.request.input).not.toHaveProperty('content');
   });
 });
