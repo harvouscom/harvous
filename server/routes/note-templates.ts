@@ -1,5 +1,10 @@
 /**
- * Note templates — built-in + personal + space-scoped.
+ * Note templates — built-in + personal + space-scoped + org-provisioned.
+ *
+ * Org templates (`orgId` set) are the church's own starters — the sermon
+ * template is one of these, not a pastor-only feature with its own UI. Everyone
+ * connected to the church can *use* them; only staff holding the
+ * `manage_templates` capability can write one (see church-role-capabilities.ts).
  *
  * Endpoints:
  *   GET    /api/note-templates/list?spaceId=
@@ -10,7 +15,7 @@
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
-import { db, NoteTemplates, eq, and, isNull, desc } from '../db';
+import { db, first, NoteTemplates, UserMetadata, eq, and, isNull, desc } from '../db';
 import { now } from '../db/dates';
 import {
   requireSpaceAccess,
@@ -24,8 +29,46 @@ import {
   NOTE_TEMPLATE_DESCRIPTION_MAX_LENGTH,
 } from '@/data/note-templates';
 import { isNoteTemplateIconColor } from '@/utils/note-template-icon';
+import { isChurchStaffForOrg, getActiveChurchByOrgId } from '../utils/church-staff';
+import { fetchClerkOrgMemberships } from '../utils/clerk-org';
+import { capabilitiesForChurchRole } from '../utils/church-role-capabilities';
 
 const app = new Hono();
+
+/** The caller's home church org, or null when they haven't connected one. */
+async function connectedOrgIdFor(userId: string): Promise<string | null> {
+  const row = first(
+    await db
+      .select({ connectedOrgId: UserMetadata.connectedOrgId })
+      .from(UserMetadata)
+      .where(eq(UserMetadata.userId, userId))
+      .limit(1),
+  );
+  return row?.connectedOrgId ?? null;
+}
+
+/**
+ * Whether this user may write org-scoped templates for `orgId`.
+ *
+ * Two gates, matching the role-gating principle: staff membership, then the
+ * `manage_templates` capability derived server-side from their Clerk org role.
+ * A plain staff member publishes curriculum; provisioning the church's starters
+ * is a pastor/teacher/admin act.
+ */
+async function canManageOrgTemplates(userId: string, orgId: string): Promise<boolean> {
+  const church = await getActiveChurchByOrgId(orgId);
+  if (!church) return false;
+  if (!(await isChurchStaffForOrg(userId, orgId))) return false;
+  try {
+    const roster = await fetchClerkOrgMemberships(orgId);
+    const role = roster.find((member) => member.userId === userId)?.role ?? null;
+    return capabilitiesForChurchRole(role).includes('manage_templates');
+  } catch {
+    // Fail closed on provisioning: a Clerk outage must not let a plain staff
+    // member write a church-wide template.
+    return false;
+  }
+}
 
 type StoredTemplateRow = {
   id: string;
@@ -105,10 +148,23 @@ app.get('/api/note-templates/list', requireAuth, async (c) => {
         .orderBy(desc(NoteTemplates.createdAt));
     }
 
+    // Church starters: available to everyone connected to the church, staff or
+    // not — a congregant using the sermon template is the point.
+    let org: StoredTemplateRow[] = [];
+    const orgId = await connectedOrgIdFor(auth.userId);
+    if (orgId && (await getActiveChurchByOrgId(orgId))) {
+      org = await db
+        .select()
+        .from(NoteTemplates)
+        .where(eq(NoteTemplates.orgId, orgId))
+        .orderBy(desc(NoteTemplates.createdAt));
+    }
+
     return c.json({
       builtIn: serializeBuiltIn(),
       personal: personal.map(serializeStored),
       ...(spaceId ? { space: space.map(serializeStored) } : {}),
+      ...(org.length > 0 ? { org: org.map(serializeStored) } : {}),
     });
   } catch (error) {
     const standardError = handleAPIError(error, {
@@ -144,6 +200,22 @@ app.post('/api/note-templates/create', requireAuth, rateLimit('write'), async (c
       : null;
     const spaceId =
       typeof body.spaceId === 'string' && body.spaceId.trim() ? body.spaceId.trim() : null;
+    const orgId =
+      typeof body.orgId === 'string' && body.orgId.trim() ? body.orgId.trim() : null;
+
+    if (orgId && spaceId) {
+      return c.json(
+        { error: 'A template is scoped to a space or an org, not both', code: 'INVALID_SCOPE' },
+        400,
+      );
+    }
+
+    if (orgId && !(await canManageOrgTemplates(auth.userId, orgId))) {
+      return c.json(
+        { error: 'Only church staff can create church templates', code: 'CHURCH_TEMPLATE_FORBIDDEN' },
+        403,
+      );
+    }
 
     if (spaceId) {
       let access;
@@ -173,7 +245,7 @@ app.post('/api/note-templates/create', requireAuth, rateLimit('write'), async (c
       id,
       userId: auth.userId,
       spaceId,
-      orgId: null,
+      orgId,
       name,
       description,
       title,
@@ -188,7 +260,7 @@ app.post('/api/note-templates/create', requireAuth, rateLimit('write'), async (c
       id,
       userId: auth.userId,
       spaceId,
-      orgId: null,
+      orgId,
       name,
       description,
       title,
@@ -213,6 +285,21 @@ async function assertCanManageTemplate(
   row: StoredTemplateRow,
   userId: string,
 ): Promise<{ ok: true } | { ok: false; status: 403 | 404; error: string; code: string }> {
+  // Org templates belong to the church, not their author: any staff member with
+  // `manage_templates` may edit them, and the original author loses that right
+  // when they leave. Checked before the userId fallback below, which would
+  // otherwise hand a departed author permanent control of a church starter.
+  if (row.orgId) {
+    if (!(await canManageOrgTemplates(userId, row.orgId))) {
+      return {
+        ok: false,
+        status: 403,
+        error: 'Only church staff can manage church templates',
+        code: 'CHURCH_TEMPLATE_FORBIDDEN',
+      };
+    }
+    return { ok: true };
+  }
   if (row.spaceId) {
     let access;
     try {

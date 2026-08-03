@@ -72,6 +72,11 @@ import { canCreateSharedSpace, getUserLimitsInfo, getSpaceMemberCount } from '..
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { connectionFieldsForHmcChurchId } from '../utils/church-connection';
 import { isChurchStaffForOrg } from '../utils/church-staff';
+import { fetchClerkOrgMemberships } from '../utils/clerk-org';
+import {
+  capabilitiesForChurchRole,
+  NO_CHURCH_CAPABILITIES,
+} from '../utils/church-role-capabilities';
 
 // Pure @/utils (no astro:db)
 import { getSeasonDisplayName, getCurrentSeason } from '@/utils/season-helpers';
@@ -1037,7 +1042,25 @@ app.get('/api/user/church-staff-status', requireAuth, async (c) => {
       return c.json({ error: 'orgId is required', code: 'ORG_ID_REQUIRED' }, 400);
     }
     const isStaff = await isChurchStaffForOrg(auth.userId, orgId);
-    return c.json({ orgId, isStaff });
+    if (!isStaff) {
+      return c.json({ orgId, isStaff: false, role: null, capabilities: NO_CHURCH_CAPABILITIES });
+    }
+
+    // Role-gated surfaces are decided here, not on the client. A Clerk outage
+    // degrades to plain staff (publish only) rather than to nothing — losing
+    // the sermon template is better than losing the ability to publish.
+    let role: string | null = null;
+    try {
+      const roster = await fetchClerkOrgMemberships(orgId);
+      role = roster.find((member) => member.userId === auth.userId)?.role ?? null;
+    } catch (error) {
+      console.warn('[church-staff-status] Clerk role lookup failed; defaulting to staff', {
+        orgId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return c.json({ orgId, isStaff: true, role, capabilities: capabilitiesForChurchRole(role) });
   } catch (error) {
     const e = handleAPIError(error, {
       endpoint: '/api/user/church-staff-status',
