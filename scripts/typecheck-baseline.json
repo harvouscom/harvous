@@ -55,7 +55,6 @@
   "src/components/react/__tests__/prototype-format-toolbar-selection.test.ts": 6,
   "src/components/react/__tests__/scripture-pill-caret-before.test.ts": 1,
   "src/components/react/__tests__/scripture-pill-live-apply.test.ts": 1,
-  "src/components/react/__tests__/scripture-translation-live-consume.test.ts": 1,
   "src/components/react/AddToSpaceSection.tsx": 5,
   "src/components/react/AdminChurchesPanel.tsx": 1,
   "src/components/react/AdminPulsePanel.tsx": 1,

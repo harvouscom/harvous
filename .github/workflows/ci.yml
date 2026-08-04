@@ -1,0 +1,46 @@
+name: CI
+
+# Until this existed, nothing ran the test suite or the typechecker automatically:
+# every other workflow here is a content/cron job, and the only installed git hook is
+# post-commit. `npm run precommit` was a convention nothing invoked. That is how a test
+# importing a symbol which has never existed sat red in the suite, and how ~291 type
+# errors accumulated unseen.
+#
+# Playwright is deliberately not here — the shared-spaces specs need the safe-E2E env and
+# a disposable database, and must never run against production.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A newer push to the same branch makes an in-flight run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Tests and typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Tests
+        run: npm run test:run
+
+      # Per-file ratchet rather than a clean `tsc --noEmit`: the repo still carries a
+      # known backlog, recorded in scripts/typecheck-baseline.json. This fails when any
+      # file's error count goes *up*, so the backlog can only shrink.
+      # See docs/future/TYPECHECK_DEBT.md.
+      - name: Typecheck ratchet
+        run: npm run typecheck:ratchet
