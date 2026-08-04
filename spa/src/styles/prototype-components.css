@@ -11119,26 +11119,39 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 /* ── Scripture draft: invalid-input head-shake ─────────────────────────────────
    Applied by the draft's invalid-input guard when a keystroke is refused because it
    would leave the reference unresolvable (e.g. adding digits to `Exodus 16:1315`).
-   Small horizontal travel: the gesture is a head-shake "no", not an error klaxon —
-   the throttled toast carries the actual reason. Re-triggered per blocked keystroke
-   via class remove -> reflow -> re-add in shakeScriptureDraftElement. */
+
+   Animates `left` under `position: relative`, NOT `transform`. The draft span is
+   `display: inline` — enforced at (0,3,0) with !important by
+   `.proto-editor-surface .ProseMirror .scripture-pill-draft` in prototype-editor.css,
+   because an inline box is the only valid caret host on iOS. Transforms do not apply to
+   non-replaced inline boxes, so a transform-based shake animated nothing; and promoting
+   to inline-block both loses that specificity fight and would break the caret if it won.
+   Relative offsets DO apply to inline boxes, so `left` shakes without touching `display`.
+   Neither `position` nor `animation` is set by the competing rule, so no !important
+   needed here. */
 @keyframes proto-scripture-draft-shake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-3px); }
-  40% { transform: translateX(3px); }
-  60% { transform: translateX(-2px); }
-  80% { transform: translateX(2px); }
+  0%, 100% { left: 0; }
+  20% { left: -3px; }
+  40% { left: 3px; }
+  60% { left: -2px; }
+  80% { left: 2px; }
 }
 
 .scripture-pill-draft--shake {
+  position: relative;
   animation: proto-scripture-draft-shake 0.3s ease-in-out;
-  /* The draft span is display:inline (a caret host — see DRAFT_STYLE); transforms
-     don't apply to non-replaced inline boxes, so promote it for the animation only. */
-  display: inline-block !important;
 }
 
+/* Reduce Motion still needs to answer the keystroke — silence would read as a dead key.
+   Swap the movement for a brief border/background emphasis. */
 @media (prefers-reduced-motion: reduce) {
+  @keyframes proto-scripture-draft-shake-static {
+    0%, 100% { border-color: var(--pds-accent-subtle-border); }
+    50% { border-color: var(--pds-destructive); background: var(--pds-destructive-subtle-bg, var(--pds-accent-subtle-bg)); }
+  }
+
   .scripture-pill-draft--shake {
-    animation: none;
+    animation: proto-scripture-draft-shake-static 0.3s ease-in-out;
+    left: 0;
   }
 }
