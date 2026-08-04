@@ -68,6 +68,14 @@ export interface CreateSimpleNoteBody {
   contextSpaceId?: string | null;
   /** Canonical My Home list that must retain every created note. */
   canonicalHomeSpaceId?: string | null;
+  /**
+   * Folder placement to apply at creation. Passing it here rather than following the
+   * create with a second PUT is what keeps a brand-new note down to a single writer.
+   */
+  primaryCollection?: string | null;
+  secondaryCollections?: string[];
+  collectionPinned?: boolean;
+  collectionUserOverride?: boolean;
 }
 
 interface CreateNoteResponse {
@@ -125,6 +133,10 @@ export function useCreateSimpleNote() {
       startedFromTemplateId,
       startedFromTemplateName,
       allowOffline = true,
+      primaryCollection,
+      secondaryCollections,
+      collectionPinned,
+      collectionUserOverride,
     }: CreateSimpleNoteBody): Promise<CreateResult> => {
       const sid = normalizedSpaceIdForApi(spaceId);
       try {
@@ -142,6 +154,10 @@ export function useCreateSimpleNote() {
                 startedFromTemplateName: startedFromTemplateName ?? null,
               }
             : {}),
+          ...(primaryCollection !== undefined ? { primaryCollection } : {}),
+          ...(secondaryCollections !== undefined ? { secondaryCollections } : {}),
+          ...(collectionPinned !== undefined ? { collectionPinned } : {}),
+          ...(collectionUserOverride !== undefined ? { collectionUserOverride } : {}),
         });
       } catch (err) {
         // Offline: don't fail the mutation. onSuccess persists it to the durable queue

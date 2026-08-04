@@ -275,6 +275,13 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
     let linkedFromNoteIdRaw: string | null = null;
     let startedFromTemplateIdRaw: string | null = null;
     let startedFromTemplateNameRaw: string | null = null;
+    // Folder placement at creation time. Without these the caller had to follow every
+    // create with a second PUT to apply the auto-assigned folder — two writers on one
+    // note, which is exactly how a fresh note ended up 409ing its own next autosave.
+    let primaryCollectionRaw: string | null = null;
+    let secondaryCollectionsRaw: unknown = undefined;
+    let collectionPinnedRaw: boolean | undefined;
+    let collectionUserOverrideRaw: boolean | undefined;
 
     if (contentType.includes('application/json')) {
       const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
@@ -283,6 +290,13 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       threadId = (body.threadId as string) ?? '';
       noteType = (body.noteType as string) ?? 'default';
       scriptureReference = (body.scriptureReference as string) ?? null;
+      primaryCollectionRaw =
+        typeof body.primaryCollection === 'string' ? body.primaryCollection : null;
+      secondaryCollectionsRaw = body.secondaryCollections;
+      if (typeof body.collectionPinned === 'boolean') collectionPinnedRaw = body.collectionPinned;
+      if (typeof body.collectionUserOverride === 'boolean') {
+        collectionUserOverrideRaw = body.collectionUserOverride;
+      }
       scriptureVersion = (body.scriptureVersion as string) ?? null;
       resourceUrl = (body.resourceUrl as string) ?? null;
       const meta = body.resourceMetadata;
@@ -542,6 +556,27 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       });
       attachedThreadId = threadPlan.attachThreadId;
 
+      // Normalized the same way PUT /api/notes/update does, so a folder applied at
+      // creation is indistinguishable from one applied afterwards.
+      const createPrimary = primaryCollectionRaw?.trim() || null;
+      const createSecondaryList = Array.isArray(secondaryCollectionsRaw)
+        ? secondaryCollectionsRaw.filter((x): x is string => typeof x === 'string')
+        : null;
+      const createCollectionFields = {
+        ...(primaryCollectionRaw !== null ? { primaryCollection: createPrimary } : {}),
+        ...(createSecondaryList
+          ? {
+              secondaryCollections: serializeNoteSecondaryCollections(
+                normalizeSecondaryLabels(createSecondaryList, createPrimary),
+              ),
+            }
+          : {}),
+        ...(collectionPinnedRaw !== undefined ? { collectionPinned: collectionPinnedRaw } : {}),
+        ...(collectionUserOverrideRaw !== undefined
+          ? { collectionUserOverride: collectionUserOverrideRaw }
+          : {}),
+      };
+
       const inserted = first(
         await tx
           .insert(Notes)
@@ -564,6 +599,7 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
             linkedFromNoteId: resolvedLinkedFromNoteId,
             startedFromTemplateId: startedFromTemplateIdRaw,
             startedFromTemplateName: startedFromTemplateNameRaw,
+            ...createCollectionFields,
           })
           .returning(),
       );

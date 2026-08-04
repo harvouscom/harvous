@@ -1433,6 +1433,14 @@ export default function PrototypeNotePage() {
             threadId: resolvedComposeThreadIdRef.current ?? undefined,
             allowOffline: spaceId === personalHomeSpaceId,
             ...provenanceExtras,
+            // Personal folder placement travels with the create. It used to be applied by
+            // a second PUT immediately afterwards, which put two writers on a brand-new
+            // note: that follow-up bumped the version while the editor's own autosave was
+            // still holding the pre-update one, so the next save 409'd and surfaced as
+            // "this note changed somewhere else". It only ever reproduced with a scripture
+            // reference because that is what makes folder auto-assign produce a folder at
+            // all. Shared spaces keep organization on SpaceNotes — patched separately below.
+            ...(!sharedContextSpaceId && collectionExtras ? collectionExtras : {}),
           });
           const createdId = getNoteIdFromCreateResponse(res);
           if (!createdId) {
@@ -1443,22 +1451,15 @@ export default function PrototypeNotePage() {
           setAdoptedComposeId(createdId);
           setComposePersistedNoteId(createdId);
           clearNoteDraft(DRAFT_NOTE_ID);
-          if (collectionExtras && Object.keys(collectionExtras).length > 0) {
-            if (sharedContextSpaceId) {
-              await patchSharedOrganization(
-                createdId,
-                sharedContextSpaceId,
-                collectionExtras,
-              );
-            } else {
-              await updateNoteMutationRef.current.mutateAsync({
-                noteId: createdId,
-                title: newTitle,
-                content: newContent,
-                scriptureVersion,
-                ...collectionExtras,
-              });
-            }
+          if (
+            sharedContextSpaceId &&
+            collectionExtras &&
+            Object.keys(collectionExtras).length > 0
+          ) {
+            // Shared only: this writes SpaceNotes, not the canonical note, so it does not
+            // move the note's version and cannot race the editor's autosave. The personal
+            // equivalent is applied by the create above.
+            await patchSharedOrganization(createdId, sharedContextSpaceId, collectionExtras);
           }
           const chipForToolbar = noteFolderChipDisplayState({
             primaryCollection:
