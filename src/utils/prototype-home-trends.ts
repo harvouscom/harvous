@@ -12,6 +12,13 @@ import { UNIVERSAL_BIBLE_ENTITIES } from '@/utils/universal-bible-entities';
  */
 
 export interface HomeContinueNoteInput {
+  /**
+   * Read by pickContinueNote to honour `excludeIds` — the mechanism that keeps the
+   * note you already have open out of "Pick up where you left off". It was absent from
+   * this type, so nothing required callers to supply it and the exclusion could silently
+   * no-op.
+   */
+  id?: string;
   isPinned?: boolean;
   lastVisited?: Date | string | null;
   updatedAt?: Date | string | null;
@@ -1196,8 +1203,6 @@ export interface StudyArcOptions {
   minSpanDays?: number;
   limit?: number;
 }
-
-import { UNIVERSAL_BIBLE_ENTITIES } from '@/utils/universal-bible-entities';
 
 /** Themes too universal to be "a theme God's been teaching you" — they'd match almost everything. */
 const ARC_THEME_DENYLIST = UNIVERSAL_BIBLE_ENTITIES;
