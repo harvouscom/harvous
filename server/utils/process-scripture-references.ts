@@ -910,13 +910,15 @@ async function processScriptureReferencesInternal(
           // Fetch verse text via shared helper (normalized reference for consistent results)
           const verseText = await fetchVerseText(normalizedReference, effectiveTranslation);
 
-          // Get user metadata for simpleNoteId
-          let userMetadata = first(await db.select()
+          // Ensure a UserMetadata row exists so simpleNoteId allocation has somewhere to go.
+          // The row itself is never read here — createCanonicalScriptureChild handles
+          // simpleNoteId — so this deliberately keeps only the existence check.
+          const existingUserMetadata = first(await db.select()
             .from(UserMetadata)
             .where(eq(UserMetadata.userId, userId))
             .limit(1));
 
-          if (!userMetadata) {
+          if (!existingUserMetadata) {
             const existingNotes = await db.select({
               simpleNoteId: Notes.simpleNoteId
             })
@@ -939,37 +941,6 @@ async function processScriptureReferencesInternal(
               currentSeason: season,
               createdAt: new Date()
             });
-            userMetadata = {
-              id: `user_metadata_${userId}`,
-              userId: userId,
-              highestSimpleNoteId: highestExistingId,
-              userColor: 'blue',
-              email: null,
-              firstName: null,
-              lastName: null,
-              profileImageUrl: null,
-              clerkDataUpdatedAt: null,
-              churchName: null,
-              churchCity: null,
-              churchState: null,
-              churchCountry: null,
-              currentSeason: season,
-              lastMonthlyVisit: null,
-              churchAddedAt: null,
-              connectedChurchId: null,
-              connectedOrgId: null,
-              connectedChurchAt: null,
-              referralBonusNotes: 0,
-              referralCode: null,
-              lockPinSalt: null,
-              lockPinHash: null,
-              defaultTranslation: 'NET',
-              appearanceSettings: null,
-              onboardingPackVersionApplied: 0,
-              tier: 'free',
-              createdAt: new Date(),
-              updatedAt: null
-            };
           }
 
           const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
@@ -1305,13 +1276,15 @@ async function processScriptureReferencesInternal(
             // Fetch verse text via shared helper (normalized reference for consistent results)
             const verseText = await fetchVerseText(normalizedRef, translation);
 
-            // Get user metadata
-            let userMetadata = first(await db.select()
+            // Ensure a UserMetadata row exists so simpleNoteId allocation has somewhere
+            // to go. The row is never read here — createCanonicalScriptureChild handles
+            // simpleNoteId — so this keeps only the existence check.
+            const existingUserMetadata = first(await db.select()
               .from(UserMetadata)
               .where(eq(UserMetadata.userId, userId))
               .limit(1));
 
-            if (!userMetadata) {
+            if (!existingUserMetadata) {
               const existingNotes = await db.select({
                 simpleNoteId: Notes.simpleNoteId
               })
@@ -1334,37 +1307,6 @@ async function processScriptureReferencesInternal(
                 currentSeason: season,
                 createdAt: new Date()
               });
-              userMetadata = {
-                id: `user_metadata_${userId}`,
-                userId: userId,
-                highestSimpleNoteId: highestExistingId,
-                userColor: 'blue',
-                email: null,
-                firstName: null,
-                lastName: null,
-                profileImageUrl: null,
-                clerkDataUpdatedAt: null,
-                churchName: null,
-                churchCity: null,
-                churchState: null,
-                churchCountry: null,
-                currentSeason: season,
-                lastMonthlyVisit: null,
-                churchAddedAt: null,
-                connectedChurchId: null,
-                connectedOrgId: null,
-                connectedChurchAt: null,
-                referralBonusNotes: 0,
-                referralCode: null,
-                lockPinSalt: null,
-                lockPinHash: null,
-                defaultTranslation: 'NET',
-                appearanceSettings: null,
-                onboardingPackVersionApplied: 0,
-                tier: 'free',
-                createdAt: new Date(),
-                updatedAt: null
-              };
             }
 
             const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);

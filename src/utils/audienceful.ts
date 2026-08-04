@@ -15,9 +15,11 @@ export const APP_USER_TAG = 'User';
 export type AudiencefulActivityStatus = 'active' | 'cooling' | 'dormant' | 'unknown';
 
 export interface AudiencefulActivityFields {
-  signedUpAt?: string | null;
-  lastSignInAt?: string | null;
-  lastActiveAt?: string | null;
+  // Clerk returns epoch milliseconds and our own UserMetadata columns return Dates.
+  // toAudiencefulIsoTimestamp already accepts all three; the type just said `string`.
+  signedUpAt?: string | number | Date | null;
+  lastSignInAt?: string | number | Date | null;
+  lastActiveAt?: string | number | Date | null;
 }
 
 /** Coarse product-behavior flags for email segments (booleans only; never content). */

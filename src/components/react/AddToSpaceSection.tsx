@@ -425,7 +425,10 @@ export default function AddToSpaceSection({
     [queryClient, enableFullTextSearch, apiResultType],
   );
 
-  const searchResultToSpaceItem = useCallback((r: SearchResult): SpaceItem | null => {
+  // Not `| null`: both branches return an object literal, and the call site already
+  // dereferences the result unguarded. Adding a guard there instead would enshrine
+  // a branch that can never run.
+  const searchResultToSpaceItem = useCallback((r: SearchResult): SpaceItem => {
     if (r.type === 'note') {
       return {
         id: r.id,

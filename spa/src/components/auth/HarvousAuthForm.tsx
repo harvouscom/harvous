@@ -39,7 +39,7 @@ function missingIncludesName(missing: string[], part: 'first' | 'last'): boolean
   return missing.some((field) => keys.includes(field));
 }
 
-function incompleteSignUpMessage(signUp: SignUpResource, status: string): string {
+function incompleteSignUpMessage(signUp: SignUpResource, status: string | null): string {
   if (import.meta.env.DEV) {
     console.warn('[HarvousAuthForm] sign-up incomplete', {
       status,
@@ -49,9 +49,6 @@ function incompleteSignUpMessage(signUp: SignUpResource, status: string): string
   }
   if (status === 'missing_requirements') {
     const missing = signUp.missingFields ?? [];
-    if (missing.some((field) => field === 'captcha' || field === 'bot_detection')) {
-      return 'Complete the verification check above, then try again.';
-    }
     if (missingIncludesName(missing, 'first') || missingIncludesName(missing, 'last')) {
       return 'Enter your first and last name, then try again.';
     }
@@ -170,7 +167,9 @@ export default function HarvousAuthForm({
   }
 
   async function finishSignUp(sessionId: string, createdUserId: string | null) {
-    await setSignUpActive({ session: sessionId });
+    // Clerk only leaves setActive undefined until the resource is loaded, and every
+    // caller is gated on `ready` (signUpLoaded && !!signUp) before reaching here.
+    await setSignUpActive?.({ session: sessionId });
     clearSignupAttributionCookie();
     if (createdUserId) {
       seedProfileNamesAfterSignUp(createdUserId, {

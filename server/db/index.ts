@@ -103,3 +103,7 @@ export { first } from './helpers';
 
 // Date helpers
 export { now, toDate, fromDate, nowISO } from './dates';
+
+// Re-exported so callers building Drizzle condition arrays get `SQL[]` instead of
+// `any[]` — prototype-user-migration alone has 7 such sites.
+export type { SQL } from 'drizzle-orm';

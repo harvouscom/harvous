@@ -112,7 +112,19 @@ export interface SyncOperation {
   id?: number; // Auto-increment primary key
   userId: string; // Clerk user ID
   operation: 'create' | 'update' | 'delete';
-  entityType: 'space' | 'thread' | 'note' | 'noteThread' | 'tag' | 'noteTag';
+  // studyThreadEntry and noteConnection are fully wired at runtime — sync-manager has
+  // real `case` arms for both — they just never made it into this union. Their absence
+  // made every comparison against them a no-overlap error and every write unassignable,
+  // which turned off checking across the offline highlight/graph sync path.
+  entityType:
+    | 'space'
+    | 'thread'
+    | 'note'
+    | 'noteThread'
+    | 'tag'
+    | 'noteTag'
+    | 'studyThreadEntry'
+    | 'noteConnection';
   entityId: string; // Local ID (may be replaced with server ID after sync)
   data: any; // Full entity data or partial update
   timestamp: number; // When the operation was queued
