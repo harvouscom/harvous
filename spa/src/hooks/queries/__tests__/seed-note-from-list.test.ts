@@ -117,4 +117,27 @@ describe('seedNoteFromList', () => {
       '2026-07-09T00:00:00.000Z'
     );
   });
+
+  it('preserves the cached note version, which list payloads never carry', () => {
+    // Not cosmetic. requireExpectedNoteVersion reads this cache to build
+    // `expectedVersion`; wiping it forced an extra GET …/details before every save, and
+    // that round trip is a window in which the note's version can move. A save built on
+    // the pre-window read then 409s and surfaces as "this note changed somewhere else"
+    // on a note nobody else has touched.
+    queryClient.setQueryData<NoteDetail>(
+      ['note', 'note_1'],
+      detailCacheEntry({ currentVersion: 4, currentVersionId: 'nver_4' }),
+    );
+
+    seedNoteFromList(queryClient, LIST_NOTE, THREAD_CONTEXT);
+
+    const cached = queryClient.getQueryData<NoteDetail>(['note', 'note_1']);
+    expect(cached?.currentVersion).toBe(4);
+    expect(cached?.currentVersionId).toBe('nver_4');
+  });
+
+  it('leaves the version undefined when nothing was cached', () => {
+    seedNoteFromList(queryClient, LIST_NOTE, THREAD_CONTEXT);
+    expect(queryClient.getQueryData<NoteDetail>(['note', 'note_1'])?.currentVersion).toBeUndefined();
+  });
 });

@@ -419,6 +419,16 @@ export function seedNoteFromList(
     if ('collectionPinned' in prev) merged.collectionPinned = !!prev.collectionPinned;
     if ('collectionUserOverride' in prev) merged.collectionUserOverride = !!prev.collectionUserOverride;
     if (typeof prev.spaceId === 'string' && prev.spaceId.length > 0) merged.spaceId = prev.spaceId;
+    // Version is detail-only — list payloads carry none — so a plain merge silently wiped
+    // it on every list refresh. That is not cosmetic: requireExpectedNoteVersion reads
+    // this cache to build `expectedVersion`, so losing it forced an extra GET …/details
+    // before each save, and that round trip is a window in which the note's version can
+    // move. A save built on the pre-window read then 409s and surfaces as "this note
+    // changed somewhere else" on a note nobody else has touched. Scripture references make
+    // it far more likely: server-side processing lengthens each save and fires extra
+    // invalidations, so the list refetches — and the wipe — happen more often.
+    if (typeof prev.currentVersion === 'number') merged.currentVersion = prev.currentVersion;
+    if (prev.currentVersionId !== undefined) merged.currentVersionId = prev.currentVersionId;
     // Shared-space membership + co-edit authority are detail-only (list payloads have
     // no equivalent), so a plain merge would wipe them on every list refresh. Callers
     // read `spaces` to decide audience UI and whether a space switch orphans the note;
