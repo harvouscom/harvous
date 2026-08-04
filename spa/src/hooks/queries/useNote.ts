@@ -306,7 +306,12 @@ export function clearNoteParentThreadCacheByThreadId(threadId: string): void {
 
 export function setCachedNoteDetail(noteId: string, detail: NoteDetail) {
   try {
-    sessionStorage.setItem(`${NOTE_DETAIL_CACHE_PREFIX}${noteId}`, JSON.stringify(detail));
+    // Never persist the version. This snapshot exists for instant paint and can outlive
+    // many saves; a version read back out of it would be silently stale, and anything
+    // using it as `expectedVersion` conflicts forever. Omitting it makes a stale read
+    // impossible rather than merely unlikely.
+    const { currentVersion: _v, currentVersionId: _vid, ...versionless } = detail;
+    sessionStorage.setItem(`${NOTE_DETAIL_CACHE_PREFIX}${noteId}`, JSON.stringify(versionless));
     let index: string[] = [];
     try {
       const raw = sessionStorage.getItem(NOTE_DETAIL_CACHE_INDEX);
@@ -387,8 +392,10 @@ export function seedNoteFromList(
 ): void {
   if (!listNote?.id) return;
   const merged = listNoteToNoteDetail(listNote, threadContext);
-  const prev =
-    queryClient.getQueryData<NoteDetail>(['note', listNote.id]) ?? getCachedNoteDetail(listNote.id);
+  // Kept separate on purpose: `liveDetail` is authoritative, the sessionStorage snapshot
+  // is only good enough for instant paint. See the version handling below.
+  const liveDetail = queryClient.getQueryData<NoteDetail>(['note', listNote.id]);
+  const prev = liveDetail ?? getCachedNoteDetail(listNote.id);
   if (prev) {
     // List payloads omit tags / study threads / links — never clobber richer detail cache from GET …/details.
     if (prev.tags?.length) merged.tags = prev.tags;
@@ -427,8 +434,15 @@ export function seedNoteFromList(
     // changed somewhere else" on a note nobody else has touched. Scripture references make
     // it far more likely: server-side processing lengthens each save and fires extra
     // invalidations, so the list refetches — and the wipe — happen more often.
-    if (typeof prev.currentVersion === 'number') merged.currentVersion = prev.currentVersion;
-    if (prev.currentVersionId !== undefined) merged.currentVersionId = prev.currentVersionId;
+    // Only from the live query cache — never from the sessionStorage snapshot, which can
+    // be arbitrarily old. Re-injecting a stale version pins the client behind the server
+    // permanently: every save sends the old number, 409s, and nothing ever advances.
+    // With no version here the save path refetches …/details and recovers, which is the
+    // correct failure mode.
+    if (liveDetail) {
+      if (typeof liveDetail.currentVersion === 'number') merged.currentVersion = liveDetail.currentVersion;
+      if (liveDetail.currentVersionId !== undefined) merged.currentVersionId = liveDetail.currentVersionId;
+    }
     // Shared-space membership + co-edit authority are detail-only (list payloads have
     // no equivalent), so a plain merge would wipe them on every list refresh. Callers
     // read `spaces` to decide audience UI and whether a space switch orphans the note;

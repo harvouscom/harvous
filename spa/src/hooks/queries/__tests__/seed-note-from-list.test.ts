@@ -140,4 +140,24 @@ describe('seedNoteFromList', () => {
     seedNoteFromList(queryClient, LIST_NOTE, THREAD_CONTEXT);
     expect(queryClient.getQueryData<NoteDetail>(['note', 'note_1'])?.currentVersion).toBeUndefined();
   });
+
+  it('does not resurrect a version from the sessionStorage snapshot', () => {
+    // The dangerous case, and one I shipped: seedNoteFromList falls back to the
+    // sessionStorage snapshot when the query cache is empty. That snapshot can be many
+    // saves old. Carrying its version forward pins the client behind the server
+    // permanently — every save sends the stale number, 409s, and nothing advances.
+    // With no version the save path refetches …/details and recovers, which is the
+    // correct failure mode.
+    sessionStorage.setItem(
+      'harvous-note-detail-note_1',
+      JSON.stringify(detailCacheEntry({ currentVersion: 2, currentVersionId: 'nver_2' })),
+    );
+    queryClient.removeQueries({ queryKey: ['note', 'note_1'] });
+
+    seedNoteFromList(queryClient, LIST_NOTE, THREAD_CONTEXT);
+
+    const cached = queryClient.getQueryData<NoteDetail>(['note', 'note_1']);
+    expect(cached?.currentVersion).toBeUndefined();
+    expect(cached?.currentVersionId).toBeUndefined();
+  });
 });
