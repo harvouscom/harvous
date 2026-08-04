@@ -4,12 +4,15 @@
  */
 
 import { db, first, Churches, eq, and, isNull } from '../db';
-import { nowISO } from '../db/dates';
+import { nowISO, toDate } from '../db/dates';
 
 export type ChurchConnectionFields = {
   connectedChurchId: string | null;
   connectedOrgId: string | null;
-  connectedChurchAt: string | null;
+  // `connectedChurchAt` is a ts() column (mode: 'date'), so this is what actually gets
+  // written. It used to be typed `string | null` while a preserved value was passed
+  // through as a raw string — a string headed for a Date column.
+  connectedChurchAt: Date | null;
 };
 
 export const CLEARED_CHURCH_CONNECTION: ChurchConnectionFields = {
@@ -42,12 +45,13 @@ export async function findActiveChurchByHmcId(
  */
 export async function connectionFieldsForHmcChurchId(
   hmcChurchId: string | null,
-  options?: { preserveConnectedAt?: string | null },
+  options?: { preserveConnectedAt?: Date | string | null },
 ): Promise<ChurchConnectionFields> {
   if (!hmcChurchId) return { ...CLEARED_CHURCH_CONNECTION };
   const church = await findActiveChurchByHmcId(hmcChurchId);
   if (!church) return { ...CLEARED_CHURCH_CONNECTION };
-  const preserved = options?.preserveConnectedAt?.trim() || null;
+  // Normalize through toDate so a caller preserving an ISO string still writes a Date.
+  const preserved = toDate(options?.preserveConnectedAt ?? null);
   return {
     connectedChurchId: church.id,
     connectedOrgId: church.orgId,

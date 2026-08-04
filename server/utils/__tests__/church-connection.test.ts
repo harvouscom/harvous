@@ -14,8 +14,17 @@ vi.mock('../../db', () => ({
   Churches: { hmcChurchId: 'hmcChurchId', deletedAt: 'deletedAt', id: 'id', orgId: 'orgId', isActive: 'isActive' },
 }));
 
+// Mirrors the real module: despite the name, nowISO() returns a Date, matching the
+// ts() columns these values are written to. The old string stub is what let a string
+// connectedChurchAt look correct in tests while heading for a Date column.
 vi.mock('../../db/dates', () => ({
-  nowISO: () => '2026-07-24T12:00:00.000Z',
+  nowISO: () => new Date('2026-07-24T12:00:00.000Z'),
+  toDate: (val: Date | string | null | undefined) => {
+    if (val == null) return null;
+    if (val instanceof Date) return val;
+    const d = new Date(val);
+    return Number.isNaN(d.getTime()) ? null : d;
+  },
 }));
 
 import {
@@ -59,7 +68,7 @@ describe('church-connection', () => {
     await expect(connectionFieldsForHmcChurchId('TX-123')).resolves.toEqual({
       connectedChurchId: 'chur_1',
       connectedOrgId: 'org_1',
-      connectedChurchAt: '2026-07-24T12:00:00.000Z',
+      connectedChurchAt: new Date('2026-07-24T12:00:00.000Z'),
     });
   });
 
@@ -80,7 +89,8 @@ describe('church-connection', () => {
     ).resolves.toMatchObject({
       connectedChurchId: 'chur_1',
       connectedOrgId: 'org_1',
-      connectedChurchAt: '2026-01-01T00:00:00.000Z',
+      // A preserved ISO string is normalized to a Date before it is persisted.
+      connectedChurchAt: new Date('2026-01-01T00:00:00.000Z'),
     });
   });
 });

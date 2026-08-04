@@ -47,7 +47,9 @@ function getSessionToken(cookieHeader: string | undefined): string | null {
   return match ? match[1] : null;
 }
 
-type ResolvedMapping = { devUserId: string; migratedToLiveAt: string | null };
+// migratedToLiveAt is a ts() column, so it reads back as a Date. Only ever tested for
+// truthiness below, so the old `string | null` was wrong rather than harmful.
+type ResolvedMapping = { devUserId: string; migratedToLiveAt: Date | null };
 
 /**
  * Resolve Clerk Production (live) user ID: if we have a mapping to a dev user
