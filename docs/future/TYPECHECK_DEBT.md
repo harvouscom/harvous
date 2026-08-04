@@ -1,9 +1,9 @@
 # Typecheck debt
 
 **Status:** ratchet in place; cleanup **in progress on `fix/typecheck-debt`**.
-**291 → 210** (28% cleared; causes #1, #2 and most of #3 done).
+**291 → 205** (30% cleared; causes #1, #2 and #3 done).
 
-**Two real bugs surfaced so far**, both in the `Date`-vs-`string` cluster — which is why
+**Three real bugs surfaced so far**, all in the `Date`-vs-`string` cluster — which is why
 that cluster was ranked by risk rather than by count:
 
 - Tag dedupe compared timestamps with `Date.parse(row.createdAt)` on a value that is a
@@ -12,6 +12,11 @@ that cluster was ranked by risk rather than by count:
 - `connectedChurchAt` passed a preserved ISO string straight into a `ts()` (Date) column.
   Its unit test agreed with the wrong shape because the test's own mock stubbed
   `nowISO()` as a string.
+- **`invalidateUserCache` never invalidated anything.** It stamped `clerkDataUpdatedAt`
+  with `new Date(0).toISOString()`; Drizzle's date-mode mapper is
+  `(value) => value.toISOString()`, so the string threw `TypeError` on every call. Both
+  callers catch, so nothing 500'd — the app just kept serving stale Clerk name/email/
+  avatar after a `user.updated` webhook until the TTL expired.
 
 Both had a passing test suite over them. Wrong annotations here don't just hide errors —
 they teach the tests the wrong shape.
@@ -48,12 +53,12 @@ Work down by cause, not by file — a fifth of the total is one fix. Re-baseline
 |---|---|---|---|
 | 1 | Router `to=` route literals | 54 | **Done.** The shell is mounted twice over and which one exists is a *runtime* host decision, so TS infers one tree (the `/prototype`-prefixed one) while the helpers returned the honest union of both. Helpers now declare the prefixed literal and cast, reasoning documented once in `src/lib/prototype-path.ts`. `prototypeHomeRouteTo()` also returned a `/prototype/` that was never a registered route. 18 now-redundant `as any` casts came out with it. |
 | 2 | Missing type imports | 17 | **Done.** `FolderBucket`, `StudyThreadClusterEdge`, and vitest globals. Types are erased so none were runtime bugs, but each turned off checking exactly where it was requested — including in `PrototypeSidebar`, the file whose `p.items` typo shipped a crash. |
-| 3 | `Date` vs `string` on Drizzle `ts()` columns | ~19 | **Mostly done** — see the two bugs above. 3 sites left (`user-cache.ts`, `support-ticket.ts`, `admin-cleanup-duplicates.ts`). Same recipe: make the type say `Date`, normalize through `toDate()` at the boundary, and check the test mocks aren't stubbing `nowISO()` as a string. |
+| 3 | `Date` vs `string` on Drizzle `ts()` columns | ~19 | **Done.** See the three bugs above. Recipe that worked: make the type say `Date`, normalize through `toDate()` at the boundary, then re-run — an honest type surfaces the *next* offender, which is how the invalidateUserCache bug appeared. Check test mocks too; one was stubbing `nowISO()` as a string. |
 | 4 | Test fixtures missing required fields (`TS2353`) | ~19 | Mechanical. Concentrated in `study-dock-layout.test.ts` (15) and `prototype-format-toolbar-selection.test.ts` (6). No production impact. |
 | 5 | Property does not exist (`TS2339`) | ~34 | Case by case — the class most likely to contain genuine bugs, since it means code reads a field the type says isn't there. Worth reading rather than batch-fixing. |
 | 6 | Long tail | remainder | `server/routes/migrations.ts` (9), `offline-mutations.ts` (8), `admin-cleanup-duplicates.ts` (8), `TiptapEditor.tsx` (12), scattered `TS2345`. |
 
-Current split: **48 in tests, 162 in production.**
+Current split: **48 in tests, 157 in production.**
 
 Note `nowISO` is an alias for `now()` and returns a **Date**, not an ISO string. The
 name has misled at least two call sites and one test mock; renaming it is probably
