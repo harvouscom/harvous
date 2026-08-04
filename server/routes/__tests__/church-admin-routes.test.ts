@@ -28,8 +28,8 @@ describe('church admin route contracts', () => {
     // routes. hmc/sync-denorm (get+post) added a cron-callable pair: the gate call is still
     // present, just conditional on a missing/invalid cron secret (see handleHmcSyncDenorm),
     // so it isn't matched by the literal always-runs `gates` regex above — hence the >= below.
-    expect(endpoints.length).toBe(13);
-    expect(gates.length).toBeGreaterThanOrEqual(10);
+    expect(endpoints.length).toBe(14);
+    expect(gates.length).toBeGreaterThanOrEqual(11);
     expect(route()).not.toContain('requireAuth');
   });
 
@@ -64,24 +64,24 @@ describe('church admin route contracts', () => {
   });
 
   it('staff sync never deletes owner or congregant member rows', () => {
-    // The delete is constrained to role='leader' in SQL, not just in the plan
-    expect(route()).toMatch(/delete\(SpaceMemberships\)[\s\S]*?eq\(SpaceMemberships\.role, 'leader'\)/);
-    expect(route()).toContain('computeStaffSyncPlan');
-    // Sync never mutates when the Clerk fetch fails (fetch happens before any write)
-    expect(route().indexOf('fetchClerkOrgMemberships(church.orgId)')).toBeLessThan(
-      route().indexOf("role: 'leader'"),
-    );
+    // The reconciliation loop now lives in server/utils/church-staff-sync.ts so
+    // the admin button, the church's own staff screen, and the Clerk webhook
+    // share one implementation. The invariants are asserted there; what this
+    // route must guarantee is that it delegates rather than reimplementing.
+    expect(route()).toContain('syncChurchStaffForOrg');
+    expect(route()).not.toContain('computeStaffSyncPlan');
+    expect(route()).not.toContain('delete(SpaceMemberships)');
   });
 
-  it('staff sync refuses Clerk rosters over the 20-staff church base cap', () => {
-    expect(route()).toContain('isWithinClerkOrgStaffCap');
-    expect(route()).toContain("code: 'CLERK_ORG_MEMBER_LIMIT'");
-    expect(route()).toContain('CLERK_ORG_STAFF_CAP');
-    const syncStaff = route().slice(route().indexOf("app.post('/api/admin/churches/:churchId/sync-staff'"));
-    // Cap check runs after fetch and before membership writes in this handler
-    expect(syncStaff.indexOf('isWithinClerkOrgStaffCap(staff.length)')).toBeLessThan(
-      syncStaff.indexOf('computeStaffSyncPlan'),
+  it('surfaces the over-cap refusal from the shared sync rather than truncating', () => {
+    const syncStaff = route().slice(
+      route().indexOf("app.post('/api/admin/churches/:churchId/sync-staff'"),
     );
+    // The cap itself is enforced in church-staff-sync.ts; the route must relay
+    // its refusal as a 409 instead of reporting a partial success.
+    expect(syncStaff).toContain('if (!result.ok)');
+    expect(syncStaff).toContain('result.code');
+    expect(syncStaff).toContain('409');
   });
 
   it('exposes a Clerk org picker that flags already-registered orgs', () => {

@@ -19,13 +19,20 @@ import {
   externalUserIdFromPolarData,
   customerIdFromPolarData,
   subscriptionStatusFromPolarData,
+  churchIdFromPolarData,
 } from '../utils/polar-webhook';
 import {
   applyPolarSubscriptionEntitlement,
   setPolarCustomerId,
   getPolarCustomerId,
 } from '../utils/entitlements';
-import { planForProductId } from '@/lib/billing-plans';
+import {
+  applyChurchSubscription,
+  findChurchBySubscriptionId,
+} from '../utils/church-entitlement';
+import { getActiveChurchByOrgId } from '../utils/church-staff';
+import { syncChurchStaffForOrg } from '../utils/church-staff-sync';
+import { planForProductId, isChurchProductId } from '@/lib/billing-plans';
 import { db, first, UserMetadata, eq } from '../db';
 
 const app = new Hono();
@@ -68,6 +75,23 @@ interface ClerkEmailWebhookEvent {
   };
   object: 'event';
   timestamp?: number;
+}
+
+/**
+ * Clerk organization membership change — the church staff roster moving.
+ * Only `organization.id` is consumed; the roster itself is re-read from Clerk
+ * so the reconcile never trusts a single event's view of the world.
+ */
+interface ClerkOrgMembershipWebhookEvent {
+  type:
+    | 'organizationMembership.created'
+    | 'organizationMembership.updated'
+    | 'organizationMembership.deleted';
+  data: {
+    organization?: { id?: string } | null;
+    [key: string]: any;
+  };
+  object: 'event';
 }
 
 type ClerkWebhookEvent = ClerkUserWebhookEvent | ClerkEmailWebhookEvent;
@@ -257,6 +281,42 @@ async function handleUserDeleted(event: ClerkUserWebhookEvent): Promise<void> {
   console.log('User deleted in Clerk:', event.data.id);
 }
 
+/**
+ * Staff roster changed in Clerk — reconcile Harvous membership rows so a newly
+ * accepted invite gets `leader` access without anyone pressing "Sync staff".
+ *
+ * Never throws: this handler shares the Clerk webhook endpoint with user sync,
+ * and a church that isn't registered (or a Clerk hiccup) must not make Clerk
+ * retry unrelated user events. The manual sync button remains the fallback.
+ */
+async function handleOrgMembershipChanged(event: ClerkOrgMembershipWebhookEvent): Promise<void> {
+  const orgId = event.data?.organization?.id;
+  if (!orgId) {
+    console.warn('[Webhook] Org membership event with no organization id:', event.type);
+    return;
+  }
+
+  try {
+    const church = await getActiveChurchByOrgId(orgId);
+    if (!church) {
+      // Not every Clerk org is a Harvous church — nothing to reconcile.
+      return;
+    }
+    const result = await syncChurchStaffForOrg(orgId);
+    console.log('[Webhook] Church staff reconciled:', {
+      orgId,
+      type: event.type,
+      ok: result.ok,
+      ...(result.ok ? { staffCount: result.staffCount, spaces: result.spaces.length } : { code: result.code }),
+    });
+  } catch (error: any) {
+    console.error('[Webhook] Church staff reconcile failed (manual sync still available):', {
+      orgId,
+      error: error?.message ?? error,
+    });
+  }
+}
+
 // ─── POST /api/webhooks/clerk ─────────────────────────────────────────
 
 app.post('/api/webhooks/clerk', async (c) => {
@@ -293,6 +353,20 @@ app.post('/api/webhooks/clerk', async (c) => {
     } catch (error: any) {
       console.error('[Webhook] Signature verification failed:', error.message);
       return c.json({ error: 'Invalid webhook signature' }, 401);
+    }
+
+    // Org membership changes carry an organization, not a user — handle them
+    // before the user-id extraction below, which would read an empty id.
+    // Compared as a string: Clerk's SDK types only enumerate the user events
+    // this endpoint was originally written for.
+    const eventType: string = event.type;
+    if (
+      eventType === 'organizationMembership.created' ||
+      eventType === 'organizationMembership.updated' ||
+      eventType === 'organizationMembership.deleted'
+    ) {
+      await handleOrgMembershipChanged(event as unknown as ClerkOrgMembershipWebhookEvent);
+      return c.json({ received: true });
     }
 
     // Extract userId for logging
@@ -408,6 +482,40 @@ app.post('/api/webhooks/polar', async (c) => {
       return c.json({ ok: true, skipped: true });
     }
 
+    const eventProductId = productIdFromPolarData(data);
+    const eventSubscriptionId = typeof data?.id === 'string' ? data.id : null;
+
+    // ── Church branch ────────────────────────────────────────────────────
+    // A church subscription grants the org, not the buyer. It must be handled
+    // before the user path so a staff member's checkout never mints them a
+    // personal entitlement (and so a cancel never revokes their own Plus).
+    // Cancels can arrive without metadata, so fall back to the stored
+    // subscription id.
+    if (isChurchProductId(eventProductId) || churchIdFromPolarData(data)) {
+      const churchId =
+        churchIdFromPolarData(data) ??
+        (eventSubscriptionId ? (await findChurchBySubscriptionId(eventSubscriptionId))?.id ?? null : null);
+
+      if (!churchId) {
+        console.warn('[Polar webhook] Church product with no resolvable church', {
+          eventType,
+          eventSubscriptionId,
+        });
+        return c.json({ ok: true, skipped: true });
+      }
+
+      const applied = await applyChurchSubscription({
+        churchId,
+        enabled: intent === 'enable',
+        subscriptionId: eventSubscriptionId,
+        status: subscriptionStatusFromPolarData(data),
+      });
+      if (!applied) {
+        console.warn('[Polar webhook] Church not found for subscription', { churchId, eventType });
+      }
+      return c.json({ ok: true, church: churchId, enabled: intent === 'enable' });
+    }
+
     const userId = externalUserIdFromPolarData(data);
     if (!userId) {
       console.warn('[Polar webhook] Could not resolve user id (no external_customer_id)', { eventType });
@@ -421,8 +529,8 @@ app.post('/api/webhooks/polar', async (c) => {
       if (!existing) await setPolarCustomerId(userId, customerId);
     }
 
-    const productId = productIdFromPolarData(data);
-    const subscriptionId = typeof data?.id === 'string' ? data.id : null;
+    const productId = eventProductId;
+    const subscriptionId = eventSubscriptionId;
 
     if (intent === 'enable') {
       if (productId && planForProductId(productId)) {

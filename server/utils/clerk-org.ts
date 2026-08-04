@@ -1,9 +1,11 @@
 /**
  * Clerk Organizations REST client + staff-sync planning for church orgs.
  *
- * First Clerk Organizations runtime code in the codebase. Read-only: this
- * module only GETs org data — it never creates or mutates Clerk orgs (the
- * pilot flow creates orgs manually in the Clerk dashboard).
+ * First Clerk Organizations runtime code in the codebase. Orgs themselves are
+ * still created by hand in the Clerk dashboard (the concierge pilot flow) —
+ * this module never creates or deletes an organization. It does manage the
+ * **roster** of an existing org, so a church can invite and remove its own
+ * staff instead of routing every change through a Harvous admin.
  *
  * Church model (see docs/future/CHURCH_ORG_AND_CURRICULUM.md): the Clerk org
  * holds ONLY church staff/volunteers (≤20); congregants are never Clerk org
@@ -194,6 +196,158 @@ export async function fetchClerkOrgMemberships(orgId: string): Promise<ClerkOrgM
   }
 
   return members;
+}
+
+// ─── Roster writes (church self-serve staff management) ─────────────────────
+
+/** Clerk org roles Harvous understands. Anything else is treated as plain staff. */
+export const CLERK_ORG_ADMIN_ROLE = 'org:admin';
+export const CLERK_ORG_MEMBER_ROLE = 'org:member';
+
+/** Only an org admin may change the roster — a leader can publish, not staff up. */
+export function isClerkOrgAdminRole(role: string | null | undefined): boolean {
+  return role === CLERK_ORG_ADMIN_ROLE;
+}
+
+export type ClerkOrgInvitation = {
+  id: string;
+  emailAddress: string;
+  role: string;
+  status: string;
+  createdAt: number | null;
+};
+
+type ClerkInvitationRow = {
+  id?: string;
+  email_address?: string;
+  role?: string;
+  status?: string;
+  created_at?: number;
+};
+
+async function clerkFetch(path: string, init?: RequestInit): Promise<Response> {
+  const key = clerkSecretKey();
+  try {
+    return await fetch(`https://api.clerk.com/v1${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch (error) {
+    throw new ClerkOrgError('CLERK_UNAVAILABLE', `Clerk request failed: ${error}`);
+  }
+}
+
+/**
+ * Pending invitations for an org. These count against the staff cap: an org at
+ * 18 members with 3 outstanding invites is already over 20 once they accept.
+ */
+export async function fetchClerkOrgPendingInvitations(
+  orgId: string,
+): Promise<ClerkOrgInvitation[]> {
+  const response = await clerkFetch(
+    `/organizations/${orgId}/invitations?status=pending&limit=${MEMBERSHIPS_PAGE_SIZE}`,
+  );
+  if (!response.ok) throw classifyClerkFailure(response.status);
+  const payload = (await response.json()) as { data?: ClerkInvitationRow[] };
+  const rows = Array.isArray(payload.data) ? payload.data : [];
+  return rows
+    .filter((row): row is ClerkInvitationRow & { id: string; email_address: string } =>
+      Boolean(row.id && row.email_address),
+    )
+    .map((row) => ({
+      id: row.id,
+      emailAddress: row.email_address,
+      role: row.role ?? CLERK_ORG_MEMBER_ROLE,
+      status: row.status ?? 'pending',
+      createdAt: typeof row.created_at === 'number' ? row.created_at : null,
+    }));
+}
+
+/** Invite one person to the staff org. `inviterUserId` must be an org admin. */
+export async function createClerkOrgInvitation(input: {
+  orgId: string;
+  emailAddress: string;
+  inviterUserId: string;
+  role?: string;
+}): Promise<ClerkOrgInvitation> {
+  const response = await clerkFetch(`/organizations/${input.orgId}/invitations`, {
+    method: 'POST',
+    body: JSON.stringify({
+      email_address: input.emailAddress,
+      inviter_user_id: input.inviterUserId,
+      role: input.role ?? CLERK_ORG_MEMBER_ROLE,
+    }),
+  });
+  if (!response.ok) {
+    // Clerk answers 400 for "already a member" / "already invited" — surface it
+    // as a distinct, actionable failure rather than a generic outage.
+    if (response.status === 400 || response.status === 422) {
+      const body = (await response.json().catch(() => null)) as
+        | { errors?: Array<{ message?: string; long_message?: string }> }
+        | null;
+      const message =
+        body?.errors?.[0]?.long_message ?? body?.errors?.[0]?.message ?? 'Clerk rejected the invitation';
+      throw new ClerkOrgInviteError(message);
+    }
+    throw classifyClerkFailure(response.status);
+  }
+  const row = (await response.json()) as ClerkInvitationRow;
+  return {
+    id: row.id ?? '',
+    emailAddress: row.email_address ?? input.emailAddress,
+    role: row.role ?? CLERK_ORG_MEMBER_ROLE,
+    status: row.status ?? 'pending',
+    createdAt: typeof row.created_at === 'number' ? row.created_at : null,
+  };
+}
+
+/** A rejected invitation (already a member, already invited, bad address). */
+export class ClerkOrgInviteError extends Error {
+  readonly code = 'CLERK_INVITE_REJECTED';
+  constructor(message: string) {
+    super(message);
+    this.name = 'ClerkOrgInviteError';
+  }
+}
+
+export async function revokeClerkOrgInvitation(input: {
+  orgId: string;
+  invitationId: string;
+  requestingUserId: string;
+}): Promise<void> {
+  const response = await clerkFetch(
+    `/organizations/${input.orgId}/invitations/${input.invitationId}/revoke`,
+    { method: 'POST', body: JSON.stringify({ requesting_user_id: input.requestingUserId }) },
+  );
+  if (!response.ok && response.status !== 404) throw classifyClerkFailure(response.status);
+}
+
+/**
+ * Remove someone from the staff org. Harvous membership rows are reconciled
+ * separately by syncChurchStaffForOrg — this only touches Clerk.
+ */
+export async function removeClerkOrgMember(orgId: string, userId: string): Promise<void> {
+  const response = await clerkFetch(`/organizations/${orgId}/memberships/${userId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok && response.status !== 404) throw classifyClerkFailure(response.status);
+}
+
+/**
+ * Whether one more invitation fits under the staff cap, counting pending
+ * invites as if they were already accepted. Pure so the boundary is testable.
+ */
+export function canInviteMoreStaff(input: {
+  memberCount: number;
+  pendingInviteCount: number;
+  adding?: number;
+}): boolean {
+  const adding = input.adding ?? 1;
+  return input.memberCount + input.pendingInviteCount + adding <= CLERK_ORG_STAFF_CAP;
 }
 
 export type StaffSyncPlan = {

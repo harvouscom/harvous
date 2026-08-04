@@ -9,6 +9,7 @@ import {
 import { shouldCloseNoteOnSpaceSwitch } from '../lib/note-audience';
 import { toPrototypeSpaceSearchParam } from '../utils/prototype-space-api-id';
 import { useProtoShell } from '../layouts/proto-shell-context';
+import { HOME_LOCATION, HOME_PARENT, type SpaceParent } from '../layouts/proto-location';
 import { usePrototypeHomeSpaceId } from './usePrototypeHomeSpaceId';
 import type { NoteDetail } from './queries/useNote';
 import { isPrototypeDraftNoteSlug, normalizeNoteIdFromParam } from '../pages/prototype/proto-route-slugs';
@@ -61,10 +62,17 @@ export function useSwitchToSpace() {
   const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { homeSpaceId } = usePrototypeHomeSpaceId();
-  const { setActiveSpaceId, composeDraftActive } = useProtoShell();
+  const { setLocation, composeDraftActive } = useProtoShell();
 
   return useCallback(
-    (spaceId: string | null) => {
+    /**
+     * @param parent Destination parent. Omit and it's derived as My Home —
+     *   correct for personal spaces and for `null`. Callers that already hold
+     *   the space row should pass `parentForSpace(space)` so a church channel
+     *   lands in church context because of where it lives, not because of a
+     *   flag the caller remembered.
+     */
+    (spaceId: string | null, parent: SpaceParent = HOME_PARENT) => {
       const slug = matchPrototypeNoteId(pathname);
       // A compose draft lives on `/` too; it retargets rather than closing.
       const isDraft = composeDraftActive || (slug != null && isPrototypeDraftNoteSlug(slug));
@@ -101,8 +109,8 @@ export function useSwitchToSpace() {
         }
       }
 
-      setActiveSpaceId(spaceId);
+      setLocation(spaceId ? { parent, spaceId } : HOME_LOCATION);
     },
-    [pathname, composeDraftActive, queryClient, homeSpaceId, navigate, setActiveSpaceId],
+    [pathname, composeDraftActive, queryClient, homeSpaceId, navigate, setLocation],
   );
 }

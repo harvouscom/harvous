@@ -42,7 +42,7 @@ export const FEATURE_KEYS = ['shared_spaces', 'review', 'challenges', 'connector
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
 export type PlanInterval = 'month' | 'year';
-export type PlanKey = 'plus' | 'connector';
+export type PlanKey = 'plus' | 'connector' | 'church';
 
 /**
  * Sentinel for "no limit". Deliberately -1 rather than `Infinity`:
@@ -92,6 +92,15 @@ export interface PlanDefinition {
 const PLUS_FEATURES = ['shared_spaces', 'review', 'challenges'] as const satisfies readonly FeatureKey[];
 
 const CONNECTOR_FEATURES = ['connector'] as const satisfies readonly FeatureKey[];
+
+/**
+ * A church subscription grants the **church** (Churches.billingPlan), not the
+ * staff member who checks out. Deliberately empty: issuing a personal feature
+ * key here would silently hand the buyer a free Plus, and would revoke it the
+ * moment the church's card changed hands. Church capability is read through
+ * `churchIsSponsored`, never through user entitlements.
+ */
+const CHURCH_FEATURES = [] as const satisfies readonly FeatureKey[];
 
 /**
  * Unlimited spaces, 50 people each.
@@ -152,6 +161,16 @@ export function getConnectorProductMonthlyId(): string {
 /** Connector annual ($60 — same rate as monthly, no discount). */
 export function getConnectorProductAnnualId(): string {
   return envProduct('POLAR_CONNECTOR_PRODUCT_ANNUAL', 'VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL');
+}
+
+/** Church monthly ($39). */
+export function getChurchProductMonthlyId(): string {
+  return envProduct('POLAR_CHURCH_PRODUCT_MONTHLY', 'VITE_POLAR_CHURCH_PRODUCT_MONTHLY');
+}
+
+/** Church annual ($390 — two months free, the one discount we do offer a church). */
+export function getChurchProductAnnualId(): string {
+  return envProduct('POLAR_CHURCH_PRODUCT_ANNUAL', 'VITE_POLAR_CHURCH_PRODUCT_ANNUAL');
 }
 
 /**
@@ -220,7 +239,46 @@ export function getPlans(): PlanDefinition[] {
       listed: false,
       productId: getConnectorProductAnnualId(),
     },
+    {
+      key: 'church',
+      name: 'Harvous for Churches',
+      interval: 'month',
+      amountCents: 3900,
+      currencyCode: 'USD',
+      features: CHURCH_FEATURES,
+      limits: FREE_LIMITS,
+      // Never on the personal /upgrade page — churches buy from the My Church
+      // hub, and the buyer is a staff member paying for the org.
+      listed: false,
+      productId: getChurchProductMonthlyId(),
+    },
+    {
+      key: 'church',
+      name: 'Harvous for Churches',
+      interval: 'year',
+      amountCents: 39000,
+      currencyCode: 'USD',
+      features: CHURCH_FEATURES,
+      limits: FREE_LIMITS,
+      listed: false,
+      productId: getChurchProductAnnualId(),
+    },
   ];
+}
+
+/** True when this product id is one of the church products. */
+export function isChurchProductId(productId: string | null | undefined): boolean {
+  return planForProductId(productId)?.key === 'church';
+}
+
+/** Church plans (monthly + annual) with a configured product id. */
+export function churchPlans(): PlanDefinition[] {
+  return getPlans().filter((p) => p.key === 'church' && p.productId);
+}
+
+/** Church plan for an interval, if configured. */
+export function churchPlanFor(interval: PlanInterval): PlanDefinition | null {
+  return churchPlans().find((p) => p.interval === interval) ?? null;
 }
 
 /** Live plan rows; product ids resolve from env on each access. */

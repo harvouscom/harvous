@@ -245,6 +245,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     editorChromeMode,
     sidebarLayer,
     sidebarListSpaceScope,
+    location,
     activeSpaceId: shellActiveSpaceId,
     activeChurchOrgId,
     composeDraftActive,
@@ -292,8 +293,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     isAdminRoute,
     isSharedSpace,
     sidebarLayer,
-    activeSpaceId: shellActiveSpaceId,
-    activeChurchOrgId,
+    location,
   });
   const listScopeSpaceId =
     sidebarVariant === 'shared-list' && sidebarListSpaceScope === 'my-home' && homeSpaceId

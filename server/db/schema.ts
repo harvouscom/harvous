@@ -471,6 +471,18 @@ export const Churches = pgTable('Churches', {
    */
   billingPlan: text('billingPlan'),
   billingPlanUpdatedAt: ts('billingPlanUpdatedAt'),
+  /** Polar subscription id backing `billingPlan` — needed to reconcile cancels. */
+  billingSubscriptionId: text('billingSubscriptionId'),
+  /** Last Polar subscription status seen ('active', 'canceled', …). Audit/debug only — gates read billingPlan. */
+  billingStatus: text('billingStatus'),
+  /**
+   * Concierge-pilot window. A church is sponsored while `billingPlan` is set OR
+   * `pilotUntil` is in the future — see server/utils/church-entitlement.ts.
+   * Deliberately church-scoped rather than an expiring user Entitlement row:
+   * `listActiveFeatureKeys` never checks `Entitlements.expiresAt`, so an
+   * expiring user grant would never lapse.
+   */
+  pilotUntil: ts('pilotUntil'),
   /** Admin kill-switch (Spaces.isActive parity). */
   isActive: boolean('isActive').notNull().default(true),
   /** Soft-delete lifecycle — Spaces parity, for a future church-offboarding flow. */

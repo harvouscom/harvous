@@ -14,12 +14,18 @@ POLAR_PLUS_PRODUCT_MONTHLY=
 POLAR_PLUS_PRODUCT_ANNUAL=
 POLAR_CONNECTOR_PRODUCT_MONTHLY=
 POLAR_CONNECTOR_PRODUCT_ANNUAL=
+# Church plan ($39/mo, $390/yr). Org-scoped: the webhook grants Churches.billingPlan
+# from checkout metadata.churchId, never a personal entitlement for the staff buyer.
+POLAR_CHURCH_PRODUCT_MONTHLY=
+POLAR_CHURCH_PRODUCT_ANNUAL=
 # Client only needs the product ids (checkout session is created server-side; no client token)
 VITE_POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL=
 VITE_POLAR_PLUS_PRODUCT_MONTHLY=
 VITE_POLAR_PLUS_PRODUCT_ANNUAL=
 VITE_POLAR_CONNECTOR_PRODUCT_MONTHLY=
 VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL=
+VITE_POLAR_CHURCH_PRODUCT_MONTHLY=
+VITE_POLAR_CHURCH_PRODUCT_ANNUAL=
 
 # Here's My Church partner API (server-only - never expose the PARTNER key to the SPA).
 # Base must include /v1. Missing values make My Church search fail with

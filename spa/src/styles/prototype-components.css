@@ -9626,6 +9626,47 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 .proto-shared-space-header__church {
   margin: 0;
   color: var(--pds-text-tertiary);
+  /* One line, always — a wrapped church name pushed the channel title down and
+     made the header jump between one and two lines per space. */
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1.25;
+  /* Establishes 100cqw below = this element's own width. */
+  container-type: inline-size;
+}
+
+.proto-shared-space-header__church > span {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+/* Hover reveal. `min(0px, 100cqw - 100%)` is the overflow distance: exactly 0
+   when the name already fits (so short names never twitch), and the negative
+   remainder when it doesn't — no JS measurement needed. */
+.proto-shared-space-header__church:hover > span {
+  max-width: none;
+  text-overflow: clip;
+  animation: proto-marquee-reveal 5s ease-in-out infinite alternate;
+}
+
+@keyframes proto-marquee-reveal {
+  0%,
+  15% {
+    transform: translateX(0);
+  }
+  85%,
+  100% {
+    transform: translateX(min(0px, calc(100cqw - 100%)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-shared-space-header__church:hover > span {
+    animation: none;
+  }
 }
 
 .proto-shared-space-header__title {
@@ -10306,70 +10347,61 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   fill: oklch(from var(--swatch-accent) calc(l * 0.58) min(c * 3.5, 0.2) h);
 }
 
-/* My Home / My Church segmented chips (only when a Harvous church is available). */
-.proto-menu-section--mode-toggle {
-  padding: 6px 6px 4px;
-}
-
-.proto-space-switcher__mode-toggle {
-  display: flex;
-  width: 100%;
-  box-sizing: border-box;
-  border-radius: 9px;
-  background: var(--pds-bg-control);
-  padding: 3px;
-  gap: 2px;
-}
-
-.proto-space-switcher__mode-chip {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  border-radius: 7px;
-  padding: 5px 8px;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--pds-text-secondary);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
-}
-
-.proto-space-switcher__mode-chip-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  line-height: 0;
-  opacity: 0.85;
-}
-
-.proto-space-switcher__mode-chip--active {
-  background: var(--pds-bg-page);
-  color: var(--pds-text-primary);
+/* Parent row (My Home / a church) — heads its own group in the flat switcher.
+   Replaced the segmented My Home / My Church chips: a chip pair can only ever
+   express two parents, and it sat one level below the spaces it governed. */
+.proto-space-switcher__parent-item {
   font-weight: 600;
-  box-shadow: 0 1px 3px oklch(0% 0 0 / 0.08);
 }
 
-.proto-space-switcher__mode-chip--active .proto-space-switcher__mode-chip-icon {
-  opacity: 1;
+/* Spaces belonging to the parent above them.
+   Deliberately NOT indented: every label in the menu shares one left edge, so
+   the eye reads a single column instead of a ragged staircase. Grouping is
+   carried by the parent row's weight and the section divider. The reorder
+   handle is lifted out of the flow below so it can't push these rows right. */
+.proto-space-switcher__row--nested .proto-space-switcher__row-item {
+  padding-left: 8px;
+}
+
+.proto-space-switcher__see-all {
+  /* Aligns with the labels above, not with their icons — it's a continuation
+     of the list, not another entry in it. */
+  padding-left: 33px;
+  color: var(--pds-text-secondary);
+  font-size: 12px;
 }
 
 .proto-space-switcher__row {
+  position: relative;
   display: flex;
   align-items: stretch;
   min-width: 0;
   border-radius: 8px;
 }
 
-.proto-space-switcher__row--reorderable {
-  padding-left: 2px;
+/* The handle floats over the leading icon rather than occupying a column of
+   its own — an in-flow handle shifted every reorderable row right, so personal
+   spaces sat further in than church ones and neither lined up with its parent.
+   Hidden until the row is hovered, with the icon fading out beneath it. */
+.proto-space-switcher__row--reorderable .proto-space-switcher__drag-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  height: auto;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.proto-space-switcher__row--reorderable:hover .proto-space-switcher__drag-handle,
+.proto-space-switcher__row--reorderable:focus-within .proto-space-switcher__drag-handle {
+  opacity: 0.75;
+}
+
+.proto-space-switcher__row--reorderable:hover .proto-menu-item__icon--space,
+.proto-space-switcher__row--reorderable:focus-within .proto-menu-item__icon--space {
+  opacity: 0;
 }
 
 .proto-space-switcher__row--dragging {

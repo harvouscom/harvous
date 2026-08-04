@@ -28,6 +28,7 @@ import {
   limitsForFeatures,
   planForProductId,
   isFeatureKey,
+  isChurchProductId,
   foundingPlan,
   FOUNDING_CAP,
 } from '@/lib/billing-plans';
@@ -358,6 +359,10 @@ export async function syncEntitlementsFromProvider(
       if (!subIsActive(sub.status)) continue;
       const productId = sub.productId ?? null;
       if (!productId || !planForProductId(productId)) continue;
+      // A church subscription grants the org, not this user. Skipping it here
+      // is what stops a staff buyer's church plan from looking like a personal
+      // one and keeping their (possibly canceled) Plus rows alive below.
+      if (isChurchProductId(productId)) continue;
       grantedFromPolar = true;
       const had = before.includes('shared_spaces');
       await setEntitlementsForProduct(userId, productId, true, 'billing', sub.id ?? null);

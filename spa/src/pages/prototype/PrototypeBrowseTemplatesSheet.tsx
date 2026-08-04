@@ -323,11 +323,28 @@ export default function PrototypeBrowseTemplatesSheet({
       createdAt: toIso(t.createdAt),
       spaceId: t.spaceId ?? listSpaceId,
     }));
-    return { builtIn: builtInSource, personal, space };
+    // Church starters, provisioned by the viewer's home church. Read-only here:
+    // editing one is a staff act, done from the church's own surfaces.
+    const org: BrowseTemplateRow[] = (data?.org ?? []).map((t) => ({
+      id: t.id,
+      name: t.name,
+      title: t.title ?? '',
+      content: t.content,
+      noteType: t.noteType || 'default',
+      section: 'org',
+      iconColor: t.iconColor ?? null,
+      description: t.description ?? undefined,
+      createdAt: toIso(t.createdAt),
+      spaceId: null,
+    }));
+    return { builtIn: builtInSource, personal, space, org };
   }, [data, listSpaceId]);
 
   const itemCount =
-    sections.builtIn.length + sections.personal.length + sections.space.length;
+    sections.builtIn.length +
+    sections.personal.length +
+    sections.space.length +
+    sections.org.length;
 
   const shouldUseSheetPresentation =
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
@@ -413,6 +430,9 @@ export default function PrototypeBrowseTemplatesSheet({
     const source =
       scopeTab === 'all'
         ? [
+            // Church starters first: when a church provisions a sermon
+            // template, that is the one its people came looking for.
+            ...sections.org,
             ...sections.builtIn,
             ...sections.personal,
             ...(showSpaceSection ? sections.space : []),

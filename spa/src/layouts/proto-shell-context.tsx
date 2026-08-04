@@ -7,6 +7,15 @@ import {
   writePersistedSidebarNav,
   type SidebarListSpaceScope,
 } from '../pages/prototype/proto-sidebar-nav-store';
+import {
+  HOME_LOCATION,
+  churchParent,
+  isSameLocation,
+  locationFromStoredPair,
+  parentOrgId,
+  storedPairFromLocation,
+  type ProtoLocation,
+} from './proto-location';
 import type { ScriptureDrillState } from '../pages/prototype/sidebar-universal-search';
 import { setComposeGroupThreadId } from '../lib/compose-group-thread';
 
@@ -184,16 +193,25 @@ type ProtoShellContextValue = {
   /** Sidebar layer — 'space' shows the Home/space view, 'list' shows the list views. Persisted across refresh. */
   sidebarLayer: SidebarLayer;
   setSidebarLayer: (layer: SidebarLayer) => void;
-  /** Selected shared/public space (`space_...`); null = personal My Home (or My Church hub). Persisted across refresh. */
-  activeSpaceId: string | null;
-  /** Switch the active space. Clears drill-down state and lands on the space layer. `null` also leaves My Church. */
-  setActiveSpaceId: (spaceId: string | null) => void;
   /**
-   * My Church mode — home church Clerk org id. Hub when set with `activeSpaceId` null;
-   * channel open may keep this set. Persisted across refresh.
+   * Where the user is — parent (My Home / a church) plus the space inside it.
+   * The single source of truth; everything below is derived. Persisted across refresh.
    */
+  location: ProtoLocation;
+  /**
+   * The one navigation writer. Prefer this over the two shims below: it takes
+   * the parent and the space together, so they cannot disagree. Use
+   * `locationForSpace(space)` from proto-location.ts to derive the parent from
+   * a space rather than tracking it at the call site.
+   */
+  setLocation: (next: ProtoLocation) => void;
+  /** Derived from `location`. Selected space (`space_...`); null = the parent's hub. */
+  activeSpaceId: string | null;
+  /** Shim — keeps the current parent. Prefer `setLocation`. `null` returns to My Home. */
+  setActiveSpaceId: (spaceId: string | null) => void;
+  /** Derived from `location`. Home church Clerk org id when the parent is a church, else null. */
   activeChurchOrgId: string | null;
-  /** Enter/leave My Church hub. Non-null clears `activeSpaceId` and lands on the space layer. */
+  /** Shim — enter/leave a church parent, landing on its hub. Prefer `setLocation`. */
   setActiveChurchOrgId: (orgId: string | null) => void;
   /** List sidebar scope overlay when a shared space is active (does not change `activeSpaceId`). */
   sidebarListSpaceScope: SidebarListSpaceScope;
@@ -308,10 +326,19 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>(readStoredSidebarListMode);
   const persistedNav = readPersistedSidebarNav();
   const [sidebarLayer, setSidebarLayerState] = useState<SidebarLayer>(persistedNav.layer);
-  const [activeSpaceId, setActiveSpaceIdState] = useState<string | null>(persistedNav.activeSpaceId ?? null);
-  const [activeChurchOrgId, setActiveChurchOrgIdState] = useState<string | null>(
-    persistedNav.activeChurchOrgId ?? null,
+  /**
+   * Single source of truth for "where am I". `activeSpaceId` and
+   * `activeChurchOrgId` below are derived reads of this — see proto-location.ts
+   * for why the pair became one value.
+   */
+  const [location, setLocationState] = useState<ProtoLocation>(() =>
+    locationFromStoredPair(persistedNav),
   );
+  const activeSpaceId = location.spaceId;
+  const activeChurchOrgId = parentOrgId(location.parent);
+  /** Lets the space-id shim read the current parent without a stale closure. */
+  const locationRef = useRef(location);
+  locationRef.current = location;
   const [sidebarListSpaceScope, setSidebarListSpaceScopeState] = useState<SidebarListSpaceScope>(
     persistedNav.sidebarListSpaceScope,
   );
@@ -444,48 +471,56 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     setSidebarLayerState(layer);
     writePersistedSidebarNav({ layer });
   }, []);
-  const setActiveSpaceId = useCallback((spaceId: string | null) => {
-    setActiveSpaceIdState((prev) => (prev === spaceId ? prev : spaceId));
-    if (spaceId) {
-      writePersistedSidebarNav({ activeSpaceId: spaceId, clearSidebarListSpaceScope: true });
-    } else {
-      setActiveChurchOrgIdState(null);
-      writePersistedSidebarNav({
-        clearActiveSpaceId: true,
-        clearActiveChurchOrgId: true,
-        clearSidebarListSpaceScope: true,
-      });
-    }
+  /**
+   * The one writer for "where am I". Every navigation goes through here, so the
+   * parent and the space can never disagree — which is what the old pair of
+   * setters had to maintain by hand, each nulling the other.
+   *
+   * Always lands on the space layer and clears drill-downs: changing context
+   * resets scope (mirrors native "switch context resets scope").
+   */
+  const setLocation = useCallback((next: ProtoLocation) => {
+    setLocationState((prev) => (isSameLocation(prev, next) ? prev : next));
+
+    const { activeSpaceId: nextSpaceId, activeChurchOrgId: nextOrgId } =
+      storedPairFromLocation(next);
+    writePersistedSidebarNav({
+      layer: 'space',
+      clearSidebarListSpaceScope: true,
+      ...(nextSpaceId ? { activeSpaceId: nextSpaceId } : { clearActiveSpaceId: true }),
+      ...(nextOrgId ? { activeChurchOrgId: nextOrgId } : { clearActiveChurchOrgId: true }),
+    });
+
     setSidebarListSpaceScopeState('space');
-    // Switching spaces invalidates any in-progress drill-down and always lands
-    // on the space's top-level view (mirrors native "switch context resets scope").
     clearPersistedDrilldowns();
     setSidebarFolderDrilldownState(undefined);
     setSidebarThreadDrilldownIdState(undefined);
     setScriptureDrillState({ level: 'books' });
     setSidebarLayerState('space');
-    writePersistedSidebarNav({ layer: 'space' });
   }, []);
-  const setActiveChurchOrgId = useCallback((orgId: string | null) => {
-    setActiveChurchOrgIdState((prev) => (prev === orgId ? prev : orgId));
-    if (orgId) {
-      setActiveSpaceIdState(null);
-      writePersistedSidebarNav({
-        activeChurchOrgId: orgId,
-        clearActiveSpaceId: true,
-        clearSidebarListSpaceScope: true,
-      });
-      setSidebarListSpaceScopeState('space');
-      clearPersistedDrilldowns();
-      setSidebarFolderDrilldownState(undefined);
-      setSidebarThreadDrilldownIdState(undefined);
-      setScriptureDrillState({ level: 'books' });
-      setSidebarLayerState('space');
-      writePersistedSidebarNav({ layer: 'space' });
-    } else {
-      writePersistedSidebarNav({ clearActiveChurchOrgId: true });
-    }
-  }, []);
+
+  /**
+   * Compatibility shim for callers that only know a space id. Prefer
+   * `setLocation` with a parent derived from the space (`locationForSpace`) —
+   * this cannot know whether `spaceId` belongs to a church, so it keeps the
+   * current parent, and `null` returns to My Home.
+   */
+  const setActiveSpaceId = useCallback(
+    (spaceId: string | null) => {
+      setLocation(
+        spaceId ? { parent: locationRef.current.parent, spaceId } : HOME_LOCATION,
+      );
+    },
+    [setLocation],
+  );
+
+  /** Enter/leave a church parent, landing on its hub. */
+  const setActiveChurchOrgId = useCallback(
+    (orgId: string | null) => {
+      setLocation(orgId ? { parent: churchParent(orgId), spaceId: null } : HOME_LOCATION);
+    },
+    [setLocation],
+  );
   const setSidebarListSpaceScope = useCallback((scope: SidebarListSpaceScope) => {
     setSidebarListSpaceScopeState((prev) => {
       if (prev === scope) return prev;
@@ -838,6 +873,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       sidebarWidthMax: PROTO_SIDEBAR_WIDTH_MAX,
       sidebarLayer,
       setSidebarLayer,
+      location,
+      setLocation,
       activeSpaceId,
       setActiveSpaceId,
       activeChurchOrgId,
@@ -909,6 +946,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       persistSidebarWidth,
       sidebarLayer,
       setSidebarLayer,
+      location,
+      setLocation,
       activeSpaceId,
       setActiveSpaceId,
       activeChurchOrgId,

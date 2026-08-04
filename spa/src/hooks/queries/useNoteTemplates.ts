@@ -35,6 +35,8 @@ export type NoteTemplatesListResponse = {
   builtIn: BuiltInNoteTemplate[];
   personal: StoredNoteTemplate[];
   space?: StoredNoteTemplate[];
+  /** Church-provisioned starters — present when the viewer has a home church. */
+  org?: StoredNoteTemplate[];
 };
 
 export type ApplyableNoteTemplate = {
@@ -43,7 +45,7 @@ export type ApplyableNoteTemplate = {
   title: string;
   content: string;
   noteType: string;
-  section: 'builtIn' | 'personal' | 'space';
+  section: 'builtIn' | 'personal' | 'space' | 'org';
   iconColor?: string | null;
 };
 
@@ -164,5 +166,16 @@ export function flattenNoteTemplatesForPicker(
     section: 'space' as const,
     iconColor: t.iconColor ?? null,
   }));
-  return [...builtIn, ...personal, ...space];
+  const org = (data.org ?? []).map((t) => ({
+    id: t.id,
+    name: t.name,
+    title: t.title ?? '',
+    content: t.content,
+    noteType: t.noteType || 'default',
+    section: 'org' as const,
+    iconColor: t.iconColor ?? null,
+  }));
+  // Church starters sit above personal: when a church provisions a sermon
+  // template, that is the one its people are looking for.
+  return [...builtIn, ...org, ...personal, ...space];
 }

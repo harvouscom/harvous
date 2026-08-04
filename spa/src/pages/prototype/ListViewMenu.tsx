@@ -86,10 +86,15 @@ export default function ListViewMenu({
   const title = listModeTitle(sidebarListMode);
   const iconSize = variant === 'icon-only' ? PROTO_TOOLBAR_ORB_ICON_SIZE : 14;
   const isPortaled = variant === 'icon-only';
-  // Toolbar orb doubles as the list half of the layer toggle; the full variant stays a plain dropdown.
+  /** Toolbar orb doubles as the list half of the layer toggle; the full variant stays a plain dropdown. */
   const isLayerToggle = variant === 'icon-only';
+  /** Also the visible readout — `data-active` below marks the current layer. */
   const isActiveLayer = sidebarLayer === 'list';
 
+  // Mirrors SpaceSwitcherMenu: inactive orb is a fast view toggle (one click
+  // straight to this layer), active orb opens the menu. Keeping the two orbs
+  // symmetrical is the point — an asymmetry here is what would make the
+  // toolbar feel arbitrary.
   const onTriggerClick = () => {
     if (disabled) return;
     if (isLayerToggle && !isActiveLayer) {

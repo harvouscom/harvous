@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   resolveOptimisticSharedSpaceSelection,
@@ -5,6 +7,16 @@ import {
   resolveSpaceSwitcherToolbarState,
 } from '../useActiveSpace';
 import { resolvePrototypeSidebarVariant } from '../../layouts/resolve-prototype-sidebar-variant';
+import {
+  HOME_LOCATION,
+  HOME_PARENT,
+  churchParent,
+  isSameLocation,
+  locationForSpace,
+  locationFromStoredPair,
+  parentForSpace,
+  storedPairFromLocation,
+} from '../../layouts/proto-location';
 
 describe('resolveOptimisticSharedSpaceSelection', () => {
   it('returns shared selection when persisted id differs from personal home', () => {
@@ -150,7 +162,7 @@ describe('resolvePrototypeSidebarVariant', () => {
         isAdminRoute: false,
         isSharedSpace: true,
         sidebarLayer: 'space',
-        activeSpaceId: 'space_shared_1',
+        location: { parent: HOME_PARENT, spaceId: 'space_shared_1' },
       }),
     ).toBe('shared-space');
   });
@@ -161,7 +173,7 @@ describe('resolvePrototypeSidebarVariant', () => {
         isAdminRoute: false,
         isSharedSpace: true,
         sidebarLayer: 'list',
-        activeSpaceId: 'space_shared_1',
+        location: { parent: HOME_PARENT, spaceId: 'space_shared_1' },
       }),
     ).toBe('shared-list');
   });
@@ -172,7 +184,7 @@ describe('resolvePrototypeSidebarVariant', () => {
         isAdminRoute: false,
         isSharedSpace: false,
         sidebarLayer: 'space',
-        activeSpaceId: 'space_home',
+        location: { parent: HOME_PARENT, spaceId: 'space_home' },
       }),
     ).toBe('personal');
   });
@@ -183,8 +195,7 @@ describe('resolvePrototypeSidebarVariant', () => {
         isAdminRoute: false,
         isSharedSpace: false,
         sidebarLayer: 'space',
-        activeSpaceId: null,
-        activeChurchOrgId: 'org_1',
+        location: { parent: churchParent('org_1'), spaceId: null },
       }),
     ).toBe('church-hub');
   });
@@ -195,8 +206,7 @@ describe('resolvePrototypeSidebarVariant', () => {
         isAdminRoute: false,
         isSharedSpace: true,
         sidebarLayer: 'space',
-        activeSpaceId: 'space_ministry',
-        activeChurchOrgId: 'org_1',
+        location: { parent: churchParent('org_1'), spaceId: 'space_ministry' },
       }),
     ).toBe('shared-space');
   });
@@ -207,8 +217,112 @@ describe('resolvePrototypeSidebarVariant', () => {
         isAdminRoute: true,
         isSharedSpace: true,
         sidebarLayer: 'space',
-        activeSpaceId: 'space_shared_1',
+        location: { parent: HOME_PARENT, spaceId: 'space_shared_1' },
       }),
     ).toBe('admin');
+  });
+});
+
+describe('parentForSpace', () => {
+  it('puts a space with an orgId under that church', () => {
+    // This is what replaced the old `keepChurch` argument: opening a ministry
+    // channel lands you in church context because of where the channel lives,
+    // not because the call site remembered to pass a flag.
+    expect(parentForSpace({ orgId: 'org_1' })).toEqual({ kind: 'church', orgId: 'org_1' });
+  });
+
+  it('puts a space without an orgId under My Home', () => {
+    expect(parentForSpace({ orgId: null })).toEqual(HOME_PARENT);
+    expect(parentForSpace({})).toEqual(HOME_PARENT);
+    expect(parentForSpace(null)).toEqual(HOME_PARENT);
+  });
+
+  it('treats a blank orgId as personal rather than a church with an empty id', () => {
+    expect(parentForSpace({ orgId: '   ' })).toEqual(HOME_PARENT);
+  });
+
+  it('derives a full location from a space', () => {
+    expect(locationForSpace({ id: 'space_1', orgId: 'org_1' })).toEqual({
+      parent: { kind: 'church', orgId: 'org_1' },
+      spaceId: 'space_1',
+    });
+    expect(locationForSpace({ id: 'space_2' })).toEqual({
+      parent: HOME_PARENT,
+      spaceId: 'space_2',
+    });
+    expect(locationForSpace(null)).toEqual(HOME_LOCATION);
+  });
+});
+
+describe('location persistence round-trip', () => {
+  it('preserves a church hub (church parent, no space)', () => {
+    const location = { parent: churchParent('org_1'), spaceId: null };
+    expect(locationFromStoredPair(storedPairFromLocation(location))).toEqual(location);
+  });
+
+  it('preserves a space inside a church', () => {
+    const location = { parent: churchParent('org_1'), spaceId: 'space_ministry' };
+    expect(locationFromStoredPair(storedPairFromLocation(location))).toEqual(location);
+  });
+
+  it('preserves a personal space and My Home', () => {
+    const personal = { parent: HOME_PARENT, spaceId: 'space_shared_1' };
+    expect(locationFromStoredPair(storedPairFromLocation(personal))).toEqual(personal);
+    expect(locationFromStoredPair(storedPairFromLocation(HOME_LOCATION))).toEqual(HOME_LOCATION);
+  });
+
+  it('decodes a legacy stored pair written before the refactor', () => {
+    // Storage kept its old shape deliberately, so sessions in flight survive.
+    expect(
+      locationFromStoredPair({ activeSpaceId: undefined, activeChurchOrgId: 'org_1' }),
+    ).toEqual({ parent: churchParent('org_1'), spaceId: null });
+    expect(
+      locationFromStoredPair({ activeSpaceId: 'space_1', activeChurchOrgId: undefined }),
+    ).toEqual({ parent: HOME_PARENT, spaceId: 'space_1' });
+    expect(locationFromStoredPair({})).toEqual(HOME_LOCATION);
+  });
+
+  it('compares locations by value', () => {
+    expect(isSameLocation(HOME_LOCATION, { parent: HOME_PARENT, spaceId: null })).toBe(true);
+    expect(
+      isSameLocation(
+        { parent: churchParent('org_1'), spaceId: null },
+        { parent: churchParent('org_2'), spaceId: null },
+      ),
+    ).toBe(false);
+    expect(
+      isSameLocation(HOME_LOCATION, { parent: churchParent('org_1'), spaceId: null }),
+    ).toBe(false);
+  });
+});
+
+describe('toolbar orbs stay symmetrical', () => {
+  const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
+
+  // Both orbs are a fast view toggle when inactive and a menu trigger when
+  // active. The value is the *symmetry* — if one orb switched layer on click
+  // and the other opened a menu, the toolbar would feel arbitrary.
+  it('the space switcher jumps to its layer when inactive', () => {
+    const menu = source('spa/src/pages/prototype/SpaceSwitcherMenu.tsx');
+    expect(menu).toContain("sidebarLayer !== 'space'");
+    expect(menu).toContain("setSidebarLayer('space')");
+  });
+
+  it('the list view orb jumps to its layer when inactive', () => {
+    const menu = source('spa/src/pages/prototype/ListViewMenu.tsx');
+    expect(menu).toContain('isLayerToggle && !isActiveLayer');
+    expect(menu).toContain("setSidebarLayer('list')");
+  });
+
+  it('both orbs expose the active layer as a readout', () => {
+    // The two-mode click is only fair if you can see which mode you're in.
+    expect(source('spa/src/pages/prototype/SpaceSwitcherMenu.tsx')).toContain('data-active');
+    expect(source('spa/src/pages/prototype/ListViewMenu.tsx')).toContain('data-active');
+  });
+
+  it('no switcher selection leaves the menu open or carries the parent as a flag', () => {
+    const menu = source('spa/src/pages/prototype/SpaceSwitcherMenu.tsx');
+    expect(menu).not.toContain('keepOpen');
+    expect(menu).not.toContain('keepChurch');
   });
 });
