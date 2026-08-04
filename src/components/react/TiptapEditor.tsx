@@ -7201,7 +7201,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           return;
         }
       }
-      confirmScriptureDraftView(editor.view, detached.to);
+      confirmScriptureDraftView(editor.view, detached.to, { onInvalid: 'finalize' });
     };
 
     let blurConfirmTimer: ReturnType<typeof setTimeout> | null = null;
@@ -7217,7 +7217,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       const inside = getScriptureDraftRange(editor.state);
       const detached = findDetachedScriptureDraft(editor.state);
       const target = inside ?? detached;
-      if (target) confirmScriptureDraftView(editor.view, target.to);
+      if (target) confirmScriptureDraftView(editor.view, target.to, { onInvalid: 'finalize' });
     };
 
     const resolveOnBlur = () => {

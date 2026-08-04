@@ -1360,6 +1360,17 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   padding-bottom: 8px;
 }
 
+/* The header owns the section's leading rhythm — drop the list's own block padding
+   so stacked sections don't double up (mirrors `.mention-picker__section-label`). */
+.proto-sidebar-search-section > .proto-note-list {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.proto-sidebar-search-section:first-child .proto-sidebar-search-section__header {
+  padding-top: 4px;
+}
+
 .proto-sidebar-search-section__header {
   margin: 0;
   padding: 10px 18px 6px;
@@ -11103,4 +11114,31 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   background: var(--pds-accent, #3d7de8);
   vertical-align: middle;
   flex: 0 0 auto;
+}
+
+/* ── Scripture draft: invalid-input head-shake ─────────────────────────────────
+   Applied by the draft's invalid-input guard when a keystroke is refused because it
+   would leave the reference unresolvable (e.g. adding digits to `Exodus 16:1315`).
+   Small horizontal travel: the gesture is a head-shake "no", not an error klaxon —
+   the throttled toast carries the actual reason. Re-triggered per blocked keystroke
+   via class remove -> reflow -> re-add in shakeScriptureDraftElement. */
+@keyframes proto-scripture-draft-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+.scripture-pill-draft--shake {
+  animation: proto-scripture-draft-shake 0.3s ease-in-out;
+  /* The draft span is display:inline (a caret host — see DRAFT_STYLE); transforms
+     don't apply to non-replaced inline boxes, so promote it for the animation only. */
+  display: inline-block !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scripture-pill-draft--shake {
+    animation: none;
+  }
 }

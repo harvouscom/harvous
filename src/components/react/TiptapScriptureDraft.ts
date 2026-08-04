@@ -122,7 +122,7 @@ export const ScriptureDraft = Mark.create<ScriptureDraftOptions>({
   },
 
   addProseMirrorPlugins() {
-    return [makeScriptureDraftGrowPlugin()];
+    return [makeScriptureDraftGrowPlugin(), makeScriptureDraftInvalidInputGuard()];
   },
 });
 
@@ -133,6 +133,47 @@ export const ScriptureDraft = Mark.create<ScriptureDraftOptions>({
  * that span (covering the `-`/gap between fragments) collapses them into a single pill — no
  * `removeMark` needed, which keeps the DOM mutation minimal.
  */
+/**
+ * An edit-draft whose digits are all gone is an intentional un-pill, not an edit in
+ * progress. `restoreScripturePillFromDraft` already treats *emptied* text as deliberate
+ * deletion; this extends the same reading to "book name left, numbers deleted" — the case
+ * where users reported being unable to fully delete a pill, because tapping away restored
+ * it. From-scratch drafts (no originalReference) are exempt: "Exodus" with no digits yet
+ * is just someone mid-typing a reference.
+ */
+export function draftShouldDissolveOnDigitsRemoved(
+  text: string,
+  hasOriginalReference: boolean,
+): boolean {
+  return hasOriginalReference && !/\d/.test(text);
+}
+
+/** Dissolve tr for a draft that should stop being a draft: plain text, no formatting. */
+function buildDraftDissolveTr(state: any, from: number, to: number): any {
+  const draftType = state.schema.marks.scriptureDraft;
+  const tr = state.tr;
+  tr.removeMark(from, to, draftType);
+  stripProseFormattingFromDraftSpan(tr, state, from, to);
+  tr.setStoredMarks([]);
+  tr.setMeta('addToHistory', true);
+  return tr;
+}
+
+/** First draft in the doc that qualifies for the digits-removed dissolve, or null. */
+function findDigitsRemovedDissolveTarget(state: any): { from: number; to: number } | null {
+  const draftType = state.schema.marks.scriptureDraft;
+  if (!draftType) return null;
+  const ranges = collectScripturePillRanges(state.doc, 'scriptureDraft');
+  for (const r of ranges) {
+    const mark = getMarkInstanceAt(state.doc, r.start, draftType);
+    const text = state.doc.textBetween(r.start, r.end);
+    if (draftShouldDissolveOnDigitsRemoved(text, Boolean(mark?.attrs?.originalReference))) {
+      return { from: r.start, to: r.end };
+    }
+  }
+  return null;
+}
+
 function buildScriptureDraftGrowthTr(state: any): any | null {
   const draftType = state.schema.marks.scriptureDraft;
   if (!draftType) return null;
@@ -163,6 +204,11 @@ export function makeScriptureDraftGrowPlugin() {
     key: new PluginKey('scriptureDraftGrow'),
     appendTransaction(transactions, _oldState, newState) {
       if (!transactions.some((t) => t.docChanged)) return null;
+      // Dissolve runs on BOTH platforms (unlike growth): it fires once per deletion
+      // gesture rather than per keystroke, so the iOS every-keystroke desync that keeps
+      // growth desktop-only doesn't apply.
+      const dissolve = findDigitsRemovedDissolveTarget(newState);
+      if (dissolve) return buildDraftDissolveTr(newState, dissolve.from, dissolve.to);
       if (isMobileDevice()) return null;
       return buildScriptureDraftGrowthTr(newState);
     },
@@ -399,6 +445,104 @@ export function getScriptureDraftValidity(state: any, atPos?: number): Scripture
   const validity: ScriptureReferenceValidity = checkScriptureReferenceValidity(reference);
   if (validity.ok) return { status: 'ready', reference };
   return { status: 'invalid', reason: validity.reason };
+}
+
+// ── Invalid-draft input guard ──────────────────────────────────────────────────
+
+/**
+ * Decide whether a character typed into an already-invalid draft should be accepted.
+ *
+ * Blocking everything would trap the user: inserting the "-" of `16:1-20` into the
+ * invalid `16:120` is a repair and must go through. So the rule is simulation, not
+ * category: apply the insertion to the draft text and re-validate. Only input that
+ * leaves the reference parseable-but-still-invalid is refused — you cannot dig the
+ * hole deeper, but any keystroke that fills it works.
+ *
+ * Whitespace is always allowed, for two reasons: on iOS, intercepting the space key —
+ * even by returning false — breaks native double-space-to-period; and a space after an
+ * invalid draft is the "I'm moving on" gesture that detaches the caret, which is the
+ * moment the abandon path finalizes the draft (restore or plain prose).
+ */
+export function scriptureDraftInputDecision(
+  currentText: string,
+  offsetFrom: number,
+  offsetTo: number,
+  inserted: string,
+): 'allow' | 'block' {
+  if (/^\s*$/.test(inserted)) return 'allow';
+  const currentRef = draftTextToReference(currentText);
+  if (!currentRef || checkScriptureReferenceValidity(currentRef).ok) return 'allow';
+  const clampedFrom = Math.max(0, Math.min(offsetFrom, currentText.length));
+  const clampedTo = Math.max(clampedFrom, Math.min(offsetTo, currentText.length));
+  const next = currentText.slice(0, clampedFrom) + inserted + currentText.slice(clampedTo);
+  const nextRef = draftTextToReference(next);
+  if (!nextRef) return 'allow'; // no longer parses -> back to pending, a repair in progress
+  return checkScriptureReferenceValidity(nextRef).ok ? 'allow' : 'block';
+}
+
+const DRAFT_SHAKE_CLASS = 'scripture-pill-draft--shake';
+
+/** Head-shake the draft element. Re-triggerable: reflow between remove/add restarts it. */
+function shakeScriptureDraftElement(view: any, from: number): void {
+  try {
+    const el = getScriptureDraftAnchorElement(view, from);
+    if (!el) return;
+    el.classList.remove(DRAFT_SHAKE_CLASS);
+    // Force a reflow so a second blocked keystroke restarts the animation.
+    void el.offsetWidth;
+    el.classList.add(DRAFT_SHAKE_CLASS);
+    window.setTimeout(() => el.classList.remove(DRAFT_SHAKE_CLASS), 350);
+  } catch {
+    /* animation is decoration; never let it break input handling */
+  }
+}
+
+let lastInvalidDraftToast = { reason: '', at: 0 };
+
+/** Toast the canon reason ("Exodus 16 has 36 verses.") once per episode, not per keystroke. */
+function toastInvalidDraftReason(reason: string): void {
+  const now = Date.now();
+  if (reason === lastInvalidDraftToast.reason && now - lastInvalidDraftToast.at < 5_000) return;
+  lastInvalidDraftToast = { reason, at: now };
+  try {
+    window.dispatchEvent(
+      new CustomEvent('toast', { detail: { message: reason, type: 'warning' } }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Plugin blocking input that would keep an invalid draft invalid, with a shake and a
+ * throttled reason toast. handleTextInput only sees text insertion, so Backspace/Delete
+ * and caret movement are inherently unaffected — the user can always fix or leave.
+ */
+export function makeScriptureDraftInvalidInputGuard() {
+  return new Plugin({
+    key: new PluginKey('scriptureDraftInvalidInputGuard'),
+    props: {
+      handleTextInput(view: any, from: number, to: number, text: string) {
+        const state = view.state;
+        const range = findDraftRange(state, state.selection.from);
+        if (!range) return false;
+        const effectiveTo = Math.max(range.to, extendRangeOverTrailingContinuation(state.doc, range.to));
+        if (from < range.from || from > effectiveTo) return false;
+        const currentText = state.doc.textBetween(range.from, effectiveTo);
+        const decision = scriptureDraftInputDecision(
+          currentText,
+          from - range.from,
+          to - range.from,
+          text,
+        );
+        if (decision === 'allow') return false;
+        const validity = getScriptureDraftValidity(state, range.from);
+        if (validity.status === 'invalid') toastInvalidDraftReason(validity.reason);
+        shakeScriptureDraftElement(view, range.from);
+        return true;
+      },
+    },
+  });
 }
 
 // ── Mutations ───────────────────────────────────────────────────────────────────
@@ -826,7 +970,19 @@ export function computeScriptureDraftGrowth(
 export function confirmScriptureDraftView(
   view: any,
   atPos?: number,
-  opts?: { focus?: boolean },
+  opts?: {
+    focus?: boolean;
+    /**
+     * What to do when the reference parses but fails canon validation.
+     * 'keep' (default) leaves the draft open so the user can fix it in place — right for
+     * the ✓ button and Enter, where they are still engaged with it. 'finalize' is for the
+     * abandon paths (caret detached, blur): an edit-origin draft restores its original
+     * pill, a from-scratch one drops to clean prose. Before 'finalize' existed, an
+     * abandoned invalid draft simply kept its mark — a dashed, 500-weight span that
+     * even serialized into saved HTML, which users read as stuck bold text.
+     */
+    onInvalid?: 'keep' | 'finalize';
+  },
 ): string | null {
   const { state } = view;
   const draftType = state.schema.marks.scriptureDraft;
@@ -870,6 +1026,16 @@ export function confirmScriptureDraftView(
   // resolve ("Could not load this passage."), so keep the draft OPEN instead: the text stays
   // editable in place and the floating ✓ shows why it won't commit (see getScriptureDraftValidity).
   if (!checkScriptureReferenceValidity(reference).ok) {
+    if (opts?.onInvalid === 'finalize') {
+      if (restoreScripturePillFromDraft(view, range.from, range.to)) {
+        return null;
+      }
+      tr.removeMark(range.from, range.to, draftType);
+      stripProseFormattingFromDraftSpan(tr, state, range.from, range.to);
+      tr.setStoredMarks([]);
+      tr.setMeta('addToHistory', true);
+      view.dispatch(tr);
+    }
     return null;
   }
 
