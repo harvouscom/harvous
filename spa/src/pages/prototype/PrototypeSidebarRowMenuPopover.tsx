@@ -6,19 +6,27 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefO
 import { createPortal } from 'react-dom';
 import ProtoPopoverShell from './ProtoPopoverShell';
 
-const MENU_GAP = 2;
+export const MENU_GAP = 2;
 /** Above sidebar scroll content (1); below toolbar / modal popovers. */
 const MENU_Z_INDEX = 100;
 
 type MenuPosition = { top: number; right: number; maxWidth: number };
 
-function measureMenuPosition(rowEl: HTMLElement): MenuPosition {
-  const rowRect = rowEl.getBoundingClientRect();
+/**
+ * The menu's slot: just below the row, right-aligned to it. Exported as a pure function
+ * so the delete confirm — which takes this slot over when the menu closes — can be
+ * checked against the same rule instead of restating it.
+ */
+export function measureMenuPositionFromRect(rowRect: DOMRect, viewportWidth: number): MenuPosition {
   return {
     top: rowRect.bottom + MENU_GAP,
-    right: Math.max(0, window.innerWidth - rowRect.right),
+    right: Math.max(0, viewportWidth - rowRect.right),
     maxWidth: rowRect.width,
   };
+}
+
+function measureMenuPosition(rowEl: HTMLElement): MenuPosition {
+  return measureMenuPositionFromRect(rowEl.getBoundingClientRect(), window.innerWidth);
 }
 
 export interface PrototypeSidebarRowMenuPopoverProps {

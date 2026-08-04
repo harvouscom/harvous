@@ -200,10 +200,19 @@ export default function PrototypeNoteMoreMenu({
     }
   }, [open, pendingAddTarget]);
 
-  const requestAddToSpace = (anchorRect: DOMRect, targetSpaceId: string, targetTitle?: string) => {
-    setPendingAddTarget({ anchorRect, spaceId: targetSpaceId, title: targetTitle });
+  /**
+   * The ⋯ trigger's wrapper, which `.proto-menu__popover--right` positions against.
+   * Confirms opened from the menu anchor here so they take over the menu's slot rather
+   * than stacking below whichever item was clicked.
+   */
+  const menuSlotRect = () => rootRef.current?.getBoundingClientRect() ?? null;
+
+  const requestAddToSpace = (targetSpaceId: string, targetTitle?: string) => {
+    const anchorRect = menuSlotRect();
     setOpen(false);
     setCopyMenuOpen(false);
+    if (!anchorRect) return;
+    setPendingAddTarget({ anchorRect, spaceId: targetSpaceId, title: targetTitle });
   };
 
   const onAddToSpaceConfirm = () => {
@@ -419,9 +428,10 @@ export default function PrototypeNoteMoreMenu({
                       role="menuitem"
                       className="proto-menu-item"
                       disabled={removeFromSpace.isPending}
-                      onClick={(e) => {
-                        setRemoveConfirmRect(e.currentTarget.getBoundingClientRect());
+                      onClick={() => {
+                        const anchorRect = menuSlotRect();
                         setOpen(false);
+                        setRemoveConfirmRect(anchorRect);
                       }}
                     >
                       <span className="proto-menu-item__icon" aria-hidden>
@@ -512,9 +522,7 @@ export default function PrototypeNoteMoreMenu({
                             blocked && reason ? noteSpaceBlockedReasonLabel(reason) : space.title
                           }
                           disabled={blocked || associateWithSpace.isPending}
-                          onClick={(e) =>
-                            requestAddToSpace(e.currentTarget.getBoundingClientRect(), space.id, space.title)
-                          }
+                          onClick={() => requestAddToSpace(space.id, space.title)}
                         >
                           <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
                             <ProtoSpaceMenuIcon color={space.color || 'paper'} />
@@ -554,9 +562,10 @@ export default function PrototypeNoteMoreMenu({
                   role="menuitem"
                   className="proto-menu-item"
                   disabled={removeFromSpace.isPending}
-                  onClick={(e) => {
-                    setRemoveConfirmRect(e.currentTarget.getBoundingClientRect());
+                  onClick={() => {
+                    const anchorRect = menuSlotRect();
                     setOpen(false);
+                    setRemoveConfirmRect(anchorRect);
                   }}
                 >
                   <span className="proto-menu-item__icon" aria-hidden>
@@ -571,9 +580,11 @@ export default function PrototypeNoteMoreMenu({
                 role="menuitem"
                 className="proto-menu-item proto-menu-item--destructive"
                 disabled={deleteNote.isPending}
-                onClick={(e) => {
-                  setDeleteAnchorRect(e.currentTarget.getBoundingClientRect());
+                onClick={() => {
+                  const anchorRect = menuSlotRect();
                   setOpen(false);
+                  if (!anchorRect) return;
+                  setDeleteAnchorRect(anchorRect);
                   setDeleteConfirmOpen(true);
                 }}
               >
@@ -593,6 +604,7 @@ export default function PrototypeNoteMoreMenu({
       {deleteConfirmOpen && deleteAnchorRect ? (
         <ProtoConfirmDialog
           anchorRect={deleteAnchorRect}
+          alignRight
           title={DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION.title}
           description={DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION.description}
           confirmLabel="Delete everywhere"
@@ -609,6 +621,7 @@ export default function PrototypeNoteMoreMenu({
       {pendingAddTarget ? (
         <ProtoConfirmDialog
           anchorRect={pendingAddTarget.anchorRect}
+          alignRight
           title={RESHARE_NOTE_CONFIRMATION.title}
           description={RESHARE_NOTE_CONFIRMATION.description}
           confirmLabel="Add to space"
@@ -623,6 +636,7 @@ export default function PrototypeNoteMoreMenu({
       {removeConfirmRect ? (
         <ProtoConfirmDialog
           anchorRect={removeConfirmRect}
+          alignRight
           title={REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION.title}
           description={REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION.description}
           confirmLabel="Remove"

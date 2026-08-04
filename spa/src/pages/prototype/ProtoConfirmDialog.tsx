@@ -3,7 +3,10 @@ import { createPortal } from 'react-dom';
 import DeleteConfirmBar from '@/components/react/DeleteConfirmBar';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import { computeMainColumnTopRightPopoverPosition } from './proto-anchored-popover-position';
-import { computeAnchoredPopoverPosition } from './proto-popover-position';
+import {
+  computeAnchoredPopoverPosition,
+  computeRightAnchoredPopoverPosition,
+} from './proto-popover-position';
 import { resolveAnchorRect, type ProtoAnchoredPopoverStrategy } from './useProtoAnchoredPopoverPosition';
 import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 
@@ -23,6 +26,11 @@ export type ProtoConfirmDialogProps = {
   anchorRect?: DOMRect | null;
   /** When true, positions above the anchor instead of flipping below when space allows. */
   preferAbove?: boolean;
+  /**
+   * Right-align to the anchor instead of centering on it. Use when the confirm takes over
+   * the slot of a right-aligned menu, so it lands where the menu was rather than beside it.
+   */
+  alignRight?: boolean;
   title?: string;
   /** Supporting copy under the title — uses a roomier stacked layout. */
   description?: string;
@@ -42,6 +50,7 @@ export default function ProtoConfirmDialog({
   anchorEl = null,
   anchorRect = null,
   preferAbove = false,
+  alignRight = false,
   title,
   description,
   confirmLabel = 'Delete',
@@ -71,10 +80,14 @@ export default function ProtoConfirmDialog({
     }
     const anchor = resolveAnchorRect(anchorElRef.current, anchorRectRef.current);
     if (!anchor) return;
-    const { width, height } = el.getBoundingClientRect();
-    const cardWidth = width || CARD_MIN_WIDTH;
-    const cardHeight = height || CARD_MIN_HEIGHT;
-    const positioned = computeAnchoredPopoverPosition(anchor, cardWidth, cardHeight);
+    // offsetWidth/Height, not getBoundingClientRect: the `pickerPopIn` enter animation
+    // starts at scale(0.95), and a client rect includes that transform — measuring
+    // mid-animation positioned the card against a box 5% too small.
+    const cardWidth = el.offsetWidth || CARD_MIN_WIDTH;
+    const cardHeight = el.offsetHeight || CARD_MIN_HEIGHT;
+    const positioned = alignRight
+      ? computeRightAnchoredPopoverPosition(anchor, cardWidth, cardHeight)
+      : computeAnchoredPopoverPosition(anchor, cardWidth, cardHeight);
     if (preferAbove) {
       const offset = 7;
       const viewportMargin = 12;
@@ -85,11 +98,11 @@ export default function ProtoConfirmDialog({
       return;
     }
     setPos(positioned);
-  }, [isFixedMainColumn, preferAbove]);
+  }, [isFixedMainColumn, preferAbove, alignRight]);
 
   useLayoutEffect(() => {
     sync();
-  }, [sync, anchorEl, anchorRect, placement, preferAbove]);
+  }, [sync, anchorEl, anchorRect, placement, preferAbove, alignRight]);
 
   useEffect(() => {
     const el = cardRef.current;

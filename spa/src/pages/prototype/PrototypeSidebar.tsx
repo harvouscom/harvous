@@ -819,9 +819,16 @@ function PrototypeSidebarNoteRow({
     );
   };
 
-  const onDeleteRequest = (anchorRect: DOMRect) => {
+  /**
+   * Anchors to the row, not the "Delete note" item — the row is what
+   * `measureMenuPosition` anchors the ⋯ menu to, so the confirm takes over the menu's
+   * slot instead of stacking below its last item.
+   */
+  const onDeleteRequest = () => {
+    const rowRect = rowRef.current?.getBoundingClientRect();
     setMenuOpen(false);
-    setDeleteAnchorRect(anchorRect);
+    if (!rowRect) return;
+    setDeleteAnchorRect(rowRect);
     setDeleteConfirmOpen(true);
   };
 
@@ -1056,7 +1063,7 @@ function PrototypeSidebarNoteRow({
               disabled={deleteNote.isPending}
               onClick={(e) => {
                 e.stopPropagation();
-                onDeleteRequest(e.currentTarget.getBoundingClientRect());
+                onDeleteRequest();
               }}
             >
               <span className="proto-menu-item__icon" aria-hidden>
@@ -1074,6 +1081,7 @@ function PrototypeSidebarNoteRow({
     rowHideMenu || !deleteConfirmOpen || !deleteAnchorRect ? null : (
       <ProtoConfirmDialog
         anchorRect={deleteAnchorRect}
+        alignRight
         confirmLabel="Delete"
         busy={deleteNote.isPending}
         onConfirm={onDeleteConfirm}
