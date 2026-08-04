@@ -468,8 +468,17 @@ export function scriptureDraftInputDecision(
   offsetFrom: number,
   offsetTo: number,
   inserted: string,
+  opts?: {
+    /**
+     * 'block' (desktop): a space into an invalid draft shakes like any other refused
+     * key — the user asked for the lock to include it; leaving is done by click/arrow.
+     * 'allow' (iOS): intercepting space breaks native double-space-to-period, so there
+     * the space passes and the detach->finalize path resolves the draft instead.
+     */
+    whitespace?: 'allow' | 'block';
+  },
 ): 'allow' | 'block' {
-  if (/^\s*$/.test(inserted)) return 'allow';
+  if (/^\s*$/.test(inserted) && (opts?.whitespace ?? 'allow') === 'allow') return 'allow';
   const currentRef = draftTextToReference(currentText);
   if (!currentRef || checkScriptureReferenceValidity(currentRef).ok) return 'allow';
   const clampedFrom = Math.max(0, Math.min(offsetFrom, currentText.length));
@@ -534,6 +543,7 @@ export function makeScriptureDraftInvalidInputGuard() {
           from - range.from,
           to - range.from,
           text,
+          { whitespace: isMobileDevice() ? 'allow' : 'block' },
         );
         if (decision === 'allow') return false;
         const validity = getScriptureDraftValidity(state, range.from);

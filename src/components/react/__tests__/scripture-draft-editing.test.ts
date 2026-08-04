@@ -95,8 +95,18 @@ describe('scriptureDraftInputDecision', () => {
     expect(scriptureDraftInputDecision(INVALID, at, at, '-')).toBe('allow');
   });
 
-  it('always allows whitespace: iOS double-space AND the moving-on gesture', () => {
+  it('whitespace policy: iOS allows (double-space invariant), desktop blocks', () => {
+    // Default 'allow' is the iOS path — intercepting space there breaks
+    // double-space-to-period, and detach->finalize resolves the draft instead.
     expect(scriptureDraftInputDecision(INVALID, INVALID.length, INVALID.length, ' ')).toBe('allow');
+    // Desktop passes 'block': the user asked for the lock to include space.
+    expect(
+      scriptureDraftInputDecision(INVALID, INVALID.length, INVALID.length, ' ', { whitespace: 'block' }),
+    ).toBe('block');
+    // But a space into a VALID draft is never blocked, whatever the policy.
+    expect(
+      scriptureDraftInputDecision('Exodus 16:13', 12, 12, ' ', { whitespace: 'block' }),
+    ).toBe('allow');
   });
 
   it('leaves valid and pending drafts entirely alone', () => {
@@ -159,6 +169,72 @@ describe('abandoning an invalid draft (onInvalid: finalize)', () => {
         if (pill) pillRef = pill.attrs.reference;
       });
       expect(pillRef).toBe('Exodus 9:5');
+    } finally {
+      editor.destroy();
+    }
+  });
+});
+
+describe('the guard end-to-end through the view (someProp), not just the pure rule', () => {
+  /**
+   * The first round shipped with only the pure decision function tested; the plugin path
+   * (findDraftRange at the caret, the mark's inclusive:false end boundary, shake class,
+   * toast) had never executed. These run the exact prop chain ProseMirror runs.
+   */
+  function typeAt(editor: Editor, pos: number, text: string): boolean {
+    editor.commands.setTextSelection(pos);
+    return Boolean(
+      editor.view.someProp('handleTextInput', (f: any) => f(editor.view, pos, pos, text)),
+    );
+  }
+
+  it('blocks a digit typed at the end boundary of an invalid draft', () => {
+    const editor = editorWithDraft('Exodus 16:1315');
+    try {
+      const end = 1 + 'Exodus 16:1315'.length;
+      expect(typeAt(editor, end, '9')).toBe(true);
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('blocks a space on desktop', () => {
+    const editor = editorWithDraft('Exodus 16:1315');
+    try {
+      const end = 1 + 'Exodus 16:1315'.length;
+      expect(typeAt(editor, end, ' ')).toBe(true);
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('lets the repair dash through at its position', () => {
+    const editor = editorWithDraft('Exodus 16:1315');
+    try {
+      expect(typeAt(editor, 1 + 'Exodus 16:13'.length, '-')).toBe(false);
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('applies the shake class to the draft element when it blocks', () => {
+    const editor = editorWithDraft('Exodus 16:1315');
+    try {
+      document.body.appendChild(editor.view.dom);
+      const end = 1 + 'Exodus 16:1315'.length;
+      typeAt(editor, end, '9');
+      const el = editor.view.dom.querySelector('.scripture-pill-draft');
+      expect(el?.classList.contains('scripture-pill-draft--shake')).toBe(true);
+    } finally {
+      editor.view.dom.remove();
+      editor.destroy();
+    }
+  });
+
+  it('never fires outside a draft', () => {
+    const editor = new Editor({ extensions, content: '<p>plain text</p>' });
+    try {
+      expect(typeAt(editor, 3, 'x')).toBe(false);
     } finally {
       editor.destroy();
     }
