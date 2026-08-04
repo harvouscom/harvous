@@ -146,10 +146,32 @@ export async function rollbackFailedNoteUpdate(
   context?: UpdateNoteMutationContext,
   attempted?: { title?: string | null; content?: string | null },
 ): Promise<void> {
+  const isVersionConflict = error instanceof APIError && error.status === 409;
+
+  // Roll the optimistic patch back, but on a version conflict keep whatever version the
+  // cache currently holds.
+  //
+  // `previousNotes` was captured in onMutate, before this save. A 409 means the server has
+  // moved past it — typically because a concurrent save succeeded and its onSuccess wrote
+  // the newer version into this same cache. Restoring the snapshot wholesale put the stale
+  // version back over that correct one, so the next save sent the stale number and
+  // conflicted too. Self-perpetuating: it produced a run of identical
+  // `expectedVersion: 2, currentVersion: 3` conflicts on a note only one person was editing.
+  //
+  // The optimistic title/content still roll back — that part was always right.
   for (const [queryKey, note] of context?.previousNotes ?? []) {
-    queryClient.setQueryData(queryKey, note);
+    if (!isVersionConflict) {
+      queryClient.setQueryData(queryKey, note);
+      continue;
+    }
+    queryClient.setQueryData<NoteDetail>(queryKey, (live) =>
+      note && live
+        ? { ...note, currentVersion: live.currentVersion, currentVersionId: live.currentVersionId }
+        : note,
+    );
   }
-  if (error instanceof APIError && error.status === 409) {
+
+  if (isVersionConflict) {
     // Someone else's save landed first. The refetch below replaces the body, so
     // the text this device typed has to be preserved *before* it disappears —
     // otherwise a co-editing conflict silently eats an edit.
