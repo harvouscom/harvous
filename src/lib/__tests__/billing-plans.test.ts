@@ -65,6 +65,8 @@ describe('pricing model', () => {
     plans.find((p) => p.key === 'plus' && p.interval === interval && Boolean(p.founding) === founding);
   const connector = (interval: 'month' | 'year') =>
     plans.find((p) => p.key === 'connector' && p.interval === interval);
+  const church = (interval: 'month' | 'year') =>
+    plans.find((p) => p.key === 'church' && p.interval === interval);
 
   it('prices Plus at $5/mo; standard annual stays unlisted at $45', () => {
     expect(plus('month')?.amountCents).toBe(500);
@@ -91,6 +93,22 @@ describe('pricing model', () => {
   it('prices Connector at $5/mo with NO annual discount', () => {
     expect(connector('month')?.amountCents).toBe(500);
     expect(connector('year')?.amountCents).toBe(connector('month')!.amountCents * 12);
+  });
+
+  it('prices Church at $30/mo with a 40% annual discount', () => {
+    expect(church('month')?.amountCents).toBe(3000);
+    // Pin the *intent*, not the literal 21600 — a future monthly change must
+    // not silently drift the discount a church was sold on.
+    expect(church('year')?.amountCents).toBe(
+      Math.round(church('month')!.amountCents * 12 * 0.6),
+    );
+  });
+
+  it('never lists Church on the personal upgrade page', () => {
+    // Churches buy from the My Church hub; the buyer is a staff member paying
+    // for the org, not for themselves.
+    expect(church('month')?.listed).toBe(false);
+    expect(church('year')?.listed).toBe(false);
   });
 
   it('Plus grants every consumer feature; Connector grants only its own', () => {

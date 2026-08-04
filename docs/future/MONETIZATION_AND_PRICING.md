@@ -282,10 +282,17 @@ leader seats with admin tools. See [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_A
 **Review stays individual.** Church may optionally buy **bulk Review seat packs** — each member
 **claims** a seat so AI still runs on their notes only (payer ≠ shared AI access).
 
-**Status (v2.18.0, August 2026): shipped as ONE Church product at one price** —
-**$39/mo · $390/yr** (`key: 'church'` in [billing-plans.ts](../../src/lib/billing-plans.ts),
+**Status (v2.19.0, August 2026): shipped as ONE Church product at one price** —
+**$30/mo · $216/yr** (`key: 'church'` in [billing-plans.ts](../../src/lib/billing-plans.ts),
 `listed: false` so it never reaches the personal `/upgrade` page). A church is sponsored when
 it is paying **or** inside an admin-set pilot window.
+
+Repriced from $39/$390 in v2.19. The annual break is now **40%** ($360 → $216, i.e. $18/mo
+effective) rather than the old "two months free" (~16.7%). That is materially steeper than any
+personal plan — Plus annual is 25% off, Connector annual is 0% — and deliberately so: the
+argument in §7 below about churches responding to a steep, legible break applies to the base
+product, not only to seat packs. No church had ever paid at the old price, so nothing was
+grandfathered and no Polar product needed changing.
 
 **The four-tier ladder drafted below (Connect / Study / Study Plus / Network) was NOT built,
 and contradicts this document's own status banner** — "one price per product, no tiers within
