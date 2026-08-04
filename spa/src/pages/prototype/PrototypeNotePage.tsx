@@ -1401,6 +1401,7 @@ export default function PrototypeNotePage() {
           noteId: id,
           title: newTitle,
           content: newContent,
+          saveOrigin: 'notepage-persist-existing',
           scriptureVersion,
           contextSpaceId: sharedContextSpaceId,
           ...(sharedContextSpaceId ? {} : (collectionExtras ?? {})),
@@ -1502,7 +1503,7 @@ export default function PrototypeNotePage() {
       newTitle: string,
       newContent: string,
       collectionExtras?: NoteCollectionExtras,
-      saveOptions?: { bumpUpdatedAt?: boolean },
+      saveOptions?: { bumpUpdatedAt?: boolean; saveOrigin?: string },
     ) => {
       if (isEffectivelyEmptyPrototypeNote(newTitle, newContent)) {
         return;
@@ -1528,6 +1529,7 @@ export default function PrototypeNotePage() {
         contextSpaceId: sharedContextSpaceId,
         ...(sharedContextSpaceId ? {} : (collectionExtras ?? {})),
         ...(saveOptions?.bumpUpdatedAt === false ? { bumpUpdatedAt: false } : {}),
+        ...(saveOptions?.saveOrigin ? { saveOrigin: saveOptions.saveOrigin } : {}),
         ...provenanceExtras,
       });
       if (sharedContextSpaceId) {
@@ -1564,7 +1566,7 @@ export default function PrototypeNotePage() {
             collectionPinned?: boolean;
             collectionUserOverride?: boolean;
           },
-          saveOptions?: { bumpUpdatedAt?: boolean },
+          saveOptions?: { bumpUpdatedAt?: boolean; saveOrigin?: string },
         ) => Promise<unknown>;
       }
     ).noteSaveCallback = handleNoteSave;
@@ -1776,6 +1778,7 @@ export default function PrototypeNotePage() {
               noteId,
               title: liveNoteSnapshot.title || prototypeDisplayTitle || '',
               content: liveNoteSnapshot.content || '',
+              saveOrigin: 'notepage-template-provenance',
               scriptureVersion: getEffectiveDefaultTranslation(),
               contextSpaceId: contextSpaceId?.trim() || null,
               startedFromTemplateId: provenance.id,

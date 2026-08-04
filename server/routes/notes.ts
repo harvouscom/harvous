@@ -27,6 +27,7 @@
  *   POST /api/notes/:noteId/share
  */
 
+import { appendFileSync } from 'node:fs';
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
@@ -864,8 +865,39 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
   }
 });
 
+/**
+ * Dev-only save-event trail for PUT /api/notes/update, written to a file so it survives
+ * dev-server restarts and can be read regardless of which terminal owns the process.
+ *
+ * Exists because a "note changed somewhere else" conflict kept reproducing for a
+ * single-user note and the console-only conflict log couldn't show the *sequence* —
+ * which save attempt carried which expectedVersion, from which client call site. Each
+ * line is JSON: { at, event: 'attempt' | 'ok' | 'conflict', noteId, origin, ... }.
+ * `origin` is threaded from the client (e.g. "proto-autosave#k3f9a2") so two writers
+ * from different editor instances are distinguishable from one instance double-firing.
+ *
+ * Gated off on Netlify; no-ops silently if the file isn't writable.
+ */
+const NOTE_SAVE_TRAIL_PATH = '.dev-note-saves.log';
+function logNoteSaveTrail(entry: Record<string, unknown>): void {
+  if (process.env.NETLIFY) return;
+  try {
+    appendFileSync(
+      NOTE_SAVE_TRAIL_PATH,
+      `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`,
+    );
+  } catch {
+    /* diagnostics must never break a save */
+  }
+}
+
 // ─── PUT /api/notes/update ──────────────────────────────────────────────────
 route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
+  // Outside the try so the conflict logging in the catch can name them — `const`s
+  // declared inside a try are block-scoped and invisible to its catch, which is why the
+  // earlier conflict log could only ever print `noteId: null`.
+  let noteIdForLog: string | null = null;
+  let saveOriginForLog: string | null = null;
   try {
     const auth = getAuthenticatedAuth(c);
 
@@ -887,8 +919,18 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       expectedVersion: expectedVersionRaw,
       startedFromTemplateId: startedFromTemplateIdRaw,
       startedFromTemplateName: startedFromTemplateNameRaw,
+      saveOrigin: saveOriginRaw,
     } = body;
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
+    noteIdForLog = noteId;
+    saveOriginForLog = typeof saveOriginRaw === 'string' ? saveOriginRaw : null;
+    logNoteSaveTrail({
+      event: 'attempt',
+      noteId,
+      origin: saveOriginForLog,
+      expectedVersion: expectedVersionRaw ?? null,
+      contentLength: typeof content === 'string' ? content.length : null,
+    });
 
     // `content` is optional: metadata-only saves (folder add/remove, pin, tag) must not
     // have to resend a body, because the only body they have on hand is the truncated
@@ -1193,6 +1235,12 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     });
 
     const freshVersion = await readCurrentNoteVersion(noteId, versionedUpdate.currentVersion.id);
+    logNoteSaveTrail({
+      event: 'ok',
+      noteId,
+      origin: saveOriginForLog,
+      version: freshVersion?.version ?? versionedUpdate.currentVersion.version,
+    });
     return c.json({
       success: 'Note updated!',
       note: noteJsonWithParsedSecondaries(updatedNote),
@@ -1216,7 +1264,14 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       // is not learning the new version; a moving pair means a genuine race).
       if (mapped.status === 409) {
         console.warn('[api/notes/update] version conflict', {
-          noteId: (error as { noteId?: string })?.noteId ?? null,
+          noteId: noteIdForLog,
+          origin: saveOriginForLog,
+          ...(mapped.details ?? {}),
+        });
+        logNoteSaveTrail({
+          event: 'conflict',
+          noteId: noteIdForLog,
+          origin: saveOriginForLog,
           ...(mapped.details ?? {}),
         });
       }

@@ -187,7 +187,7 @@ interface CardFullEditableProps {
       collectionPinned?: boolean;
       collectionUserOverride?: boolean;
     },
-    saveOptions?: { bumpUpdatedAt?: boolean },
+    saveOptions?: { bumpUpdatedAt?: boolean; saveOrigin?: string },
   ) => Promise<any>;
   footer?: React.ReactNode;
   // Props for shared note CTA footer
@@ -534,6 +534,10 @@ export default function CardFullEditable({
   const protoPendingFlushRef = useRef(false);
   const folderSuggestSnapshotRef = useRef<{ title: string; body: string }>({ title: '', body: '' });
   const protoSaveAsyncRef = useRef<(opts?: { fromUnmount?: boolean }) => Promise<void>>(async () => {});
+  // Identifies THIS mount in the server's save trail. Two editor instances racing each
+  // other (e.g. across a compose-adopt remount) show as two suffixes; one instance
+  // double-firing shows as one. That distinction is the whole diagnosis.
+  const editorMountIdRef = useRef(Math.random().toString(36).slice(2, 8));
   // Backoff state for failed saves. `signature` identifies the payload being retried, so
   // that further typing resets the count instead of counting as another attempt.
   const protoSaveFailureRef = useRef<{ attempts: number; signature: string; timerId: number | null }>({
@@ -2482,7 +2486,9 @@ export default function CardFullEditable({
     protoLastSavedRef.current = { title: currentTitle, content: currentContent, collectionKey };
 
     try {
-      const saveResult: unknown = await saveFn(currentTitle, currentContent, collectionExtras);
+      const saveResult: unknown = await saveFn(currentTitle, currentContent, collectionExtras, {
+        saveOrigin: `${opts?.fromUnmount ? 'proto-unmount' : 'proto-autosave'}#${editorMountIdRef.current}`,
+      });
       // Saved — drop any backoff state so the next failure starts a fresh episode and
       // a queued retry for this payload can't fire against already-persisted content.
       clearProtoSaveRetryTimer();
@@ -2779,6 +2785,7 @@ export default function CardFullEditable({
           ...(typeof expectedVersionRef.current === 'number'
             ? { expectedVersion: expectedVersionRef.current }
             : {}),
+          saveOrigin: `unload#${editorMountIdRef.current}`,
         });
         const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) || '';
         void fetch(`${baseUrl}/api/notes/update`, {

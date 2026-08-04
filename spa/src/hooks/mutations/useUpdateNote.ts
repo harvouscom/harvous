@@ -37,6 +37,12 @@ export interface UpdateNoteInput {
    */
   isPinned?: boolean;
   bumpUpdatedAt?: boolean;
+  /**
+   * Which client call site issued this save (e.g. "proto-autosave#k3f9a2"). Logged by the
+   * server's save trail so duplicate writers racing each other are attributable. The
+   * instance suffix distinguishes two editor mounts from one mount double-firing.
+   */
+  saveOrigin?: string;
   startedFromTemplateId?: string | null;
   startedFromTemplateName?: string | null;
 }
@@ -74,6 +80,7 @@ export function buildUpdateNoteBody(
   if (input.title !== undefined) body.title = input.title;
   if (input.content !== undefined) body.content = input.content;
   if (input.bumpUpdatedAt === false) body.bumpUpdatedAt = false;
+  if (input.saveOrigin !== undefined) body.saveOrigin = input.saveOrigin;
   if (input.scriptureVersion !== undefined) body.scriptureVersion = input.scriptureVersion;
   if (input.startedFromTemplateId !== undefined) {
     body.startedFromTemplateId = input.startedFromTemplateId;

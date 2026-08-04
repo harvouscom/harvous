@@ -73,3 +73,4 @@ server/data/scripture-knowledge/_subjects-batch.json
 
 # Cursor IDE
 .cursor/
+.dev-note-saves.log
