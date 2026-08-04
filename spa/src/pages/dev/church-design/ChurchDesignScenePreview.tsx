@@ -200,13 +200,13 @@ function ChurchSettingsScene({ connected }: { connected: boolean }) {
     <div style={{ maxWidth: 520, margin: '0 auto' }}>
       {connected ? (
         <SpeculativeNote>
-          Mockup — connect is unbuilt. Live Settings › My Church already frames home vs other churches;
-          memberships land with congregant connect.
+          Mockup — congregant connect shipped in v2.18.0 (self-select from the Here&apos;s My Church
+          directory). Multi-church memberships are still design-only.
         </SpeculativeNote>
       ) : (
         <SpeculativeNote>
           Live page: discovery fields for matching + staff “churches you help lead” from ministry channels.
-          Connect / set home stay dark.
+          Connect and set-home shipped in v2.18.0.
         </SpeculativeNote>
       )}
       <SettingsShell>
@@ -352,7 +352,8 @@ function FromYourChurchScene() {
   return (
     <div>
       <SpeculativeNote>
-        Mockup — Home study feed from followed ministry education channels (not a bulletin). Dark until connect ships.
+        Mockup — Home study feed from followed ministry education channels (not a bulletin). Shipped
+        in v2.18.0; renders only for a viewer who follows at least one channel.
       </SpeculativeNote>
       <PhoneChrome>
         <div style={{ padding: 16 }}>
@@ -448,30 +449,105 @@ function BroadcastSpaceScene() {
   );
 }
 
-function BroadcastNoteScene() {
+/**
+ * The shipped This Sunday card, in the real CSS.
+ *
+ * Rendered above the daily passage pill on Home so the two can be compared —
+ * the whole design question here is whether two passage cards read as crowded.
+ */
+function ThisSundayScene() {
   return (
     <div>
-      <SpeculativeNote>
-        Mockup — sermon starter on the calendar. Start a personal note (templates + copy-lineage); do not co-edit the
-        pastor&apos;s note.
-      </SpeculativeNote>
       <PhoneChrome>
         <div style={{ padding: 16 }}>
-          <p className="pds-caption" style={{ margin: '0 0 10px', color: 'var(--pds-text-secondary)' }}>
-            <Icon name="church" size={11} aria-hidden /> Testament Made · Sunday service starter
-          </p>
-          <p className="pds-list-title" style={{ margin: '0 0 8px' }}>
-            This Sunday — Romans 8
-          </p>
-          <p style={{ margin: '0 0 6px', fontSize: 14, lineHeight: 1.55 }}>
-            We&apos;ll be walking through the first seventeen verses. Come having read the chapter once.
-          </p>
-          <p style={{ margin: '0 0 16px', fontSize: 14, lineHeight: 1.55, color: 'var(--pds-text-secondary)' }}>
-            Big idea: there is therefore now no condemnation.
-          </p>
-          <button type="button" className="proto-settings-btn proto-settings-btn--primary">
-            Start my note
-          </button>
+          <div className="proto-home-section">
+            <p className="proto-caption proto-home-section__eyebrow">This Sunday</p>
+            <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-this-sunday">
+              <div className="proto-home-card__body">
+                <div className="proto-home-card__title-row">
+                  <span className="proto-home-card__icon-orb" aria-hidden>
+                    <ProtoSpaceMenuIcon color="paper" size={28} radius={8} iconName="church" />
+                  </span>
+                  <div className="proto-church-hub__row-text">
+                    <p className="pds-list-title proto-home-card__title">No Condemnation</p>
+                    <p className="proto-caption proto-church-hub__row-meta">Life in the Spirit</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                  >
+                    <Icon name="plus" size={12} aria-hidden />
+                    <span className="proto-glass-action__label">New note</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* The card it has to coexist with. */}
+          <div className="proto-home-section">
+            <div className="proto-daily-passage-pill proto-daily-passage-pill--home">
+              <div className="proto-daily-passage-pill__content">
+                <p className="proto-caption proto-daily-passage-pill__eyebrow">Today&apos;s Passage</p>
+                <p className="pds-list-title proto-daily-passage-pill__reference">Psalm 34:8</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </PhoneChrome>
+    </div>
+  );
+}
+
+const TEACHING_PLAN_ROWS = [
+  { date: 'Aug 9', title: 'No Condemnation', meta: 'Romans 8:1-11 · Life in the Spirit' },
+  { date: 'Aug 16', title: 'Led by the Spirit', meta: 'Romans 8:12-17 · Life in the Spirit' },
+  { date: 'Aug 23', title: 'Groaning and Glory', meta: 'No passage yet · Life in the Spirit' },
+];
+
+/** Staff Teaching plan — the `sermon_tools` surface, expanded. */
+function TeachingPlanScene({ mode }: { mode: 'list' | 'lapsed' }) {
+  const lapsed = mode === 'lapsed';
+  return (
+    <div>
+      <PhoneChrome>
+        <div style={{ padding: 16 }}>
+          <div className="proto-home-section">
+            <button type="button" className="proto-church-hub__lane-action proto-church-staff__toggle">
+              <Icon name="caret-down" size={10} aria-hidden /> Teaching plan · 3
+            </button>
+
+            <div className="proto-teaching-plan">
+              <ul className="proto-teaching-plan__list">
+                {TEACHING_PLAN_ROWS.map((row) => (
+                  <li key={row.date} className="proto-teaching-plan__row">
+                    <button
+                      type="button"
+                      className="proto-teaching-plan__row-button"
+                      disabled={lapsed}
+                    >
+                      <span className="proto-teaching-plan__date">{row.date}</span>
+                      <span className="proto-teaching-plan__row-text">
+                        <span className="pds-list-title proto-teaching-plan__title">{row.title}</span>
+                        <span className="proto-caption proto-teaching-plan__meta">{row.meta}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+
+              {lapsed ? (
+                <p className="proto-caption proto-teaching-plan__empty">
+                  Your church plan has lapsed. Everything already planned stays visible to your
+                  congregation; subscribe to add more.
+                </p>
+              ) : (
+                <button type="button" className="proto-settings-btn proto-settings-btn--secondary">
+                  Add a service
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </PhoneChrome>
     </div>
@@ -491,19 +567,24 @@ function StaffRolesScene() {
         <SettingsShell>
           <SettingsIntro>Adult education · Testament Made</SettingsIntro>
           <SettingsGroup>
+            {/*
+              Role is carried by the icon shape and the badge, not by colour.
+              These three sat in sky-blue, coral-rose and grey, which read as
+              three unrelated kinds of thing rather than one roster — and put
+              the loudest colour on the least interesting fact. All grey now;
+              the silhouettes do the work.
+            */}
             <SettingsRow
               label="Derek J"
               sublabel="Space owner · staff"
-              leadingIcon="person"
-              leadingAccent="var(--pds-highlight-sky-blue)"
+              leadingIcon="id-card-clip"
               badge="Owner"
               trailing="none"
             />
             <SettingsRow
               label="Hannah P"
               sublabel="Synced from Clerk org"
-              leadingIcon="person"
-              leadingAccent="var(--pds-highlight-coral-rose)"
+              leadingIcon="book-open-reader"
               badge="Leader"
               trailing="none"
             />
@@ -540,9 +621,13 @@ export default function ChurchDesignScenePreview({ scene }: { scene: ChurchDesig
     case '08-broadcast-space':
       return <BroadcastSpaceScene />;
     case '09-broadcast-note':
-      return <BroadcastNoteScene />;
+      return <ThisSundayScene />;
     case '10-staff-roles':
       return <StaffRolesScene />;
+    case '11-teaching-plan':
+      return <TeachingPlanScene mode="list" />;
+    case '12-teaching-plan-lapsed':
+      return <TeachingPlanScene mode="lapsed" />;
     default:
       return null;
   }

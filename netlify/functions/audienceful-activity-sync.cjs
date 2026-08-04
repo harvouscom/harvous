@@ -16773,6 +16773,7 @@ __export(schema_exports, {
   BibleTranslations: () => BibleTranslations,
   BibleVerses: () => BibleVerses,
   ChurchMemberships: () => ChurchMemberships,
+  ChurchServices: () => ChurchServices,
   Churches: () => Churches,
   ClerkUserMapping: () => ClerkUserMapping,
   Comments: () => Comments,
@@ -16957,10 +16958,10 @@ var Notes = pgTable(
     /** Latest immutable NoteVersions checkpoint for the canonical note. */
     currentVersionId: text("currentVersionId"),
     /**
-     * Author opt-in: members of any shared space this note is associated with may
-     * edit the body ("pass the pen"). Off by default — authorship is otherwise
-     * exclusive. Never true for encrypted notes; cleared when the last shared
-     * association is removed. userId stays the author regardless.
+     * Derived mirror: true iff any live shared SpaceNotes association has
+     * coEditEnabled. Source of truth is SpaceNotes.coEditEnabled (per space).
+     * Kept for native / broadcast / clients that only read the note-level field.
+     * Never true for encrypted notes; cleared when no association grants remain.
      */
     coEditEnabled: boolean("coEditEnabled").notNull().default(false),
     coEditEnabledAt: ts("coEditEnabledAt"),
@@ -16973,12 +16974,24 @@ var Notes = pgTable(
     /** Template applied to start/fill this note (`soap`, `ntpl_…`, etc.). */
     startedFromTemplateId: text("startedFromTemplateId"),
     /** Display name snapshot so provenance survives template rename/delete. */
-    startedFromTemplateName: text("startedFromTemplateName")
+    startedFromTemplateName: text("startedFromTemplateName"),
+    /**
+     * Teaching-plan service (`ChurchServices.id`) this note was started from.
+     * Distinct from startedFromTemplateId — a Sunday note is started from
+     * *both* the church's template and that week's service.
+     *
+     * Privacy: this is the congregant's own row. No church-facing route ever
+     * reads it, and no aggregate is derived from it. "Review is never shared."
+     */
+    startedFromServiceId: text("startedFromServiceId"),
+    /** Title snapshot so provenance survives the church editing or deleting the entry. */
+    startedFromServiceTitle: text("startedFromServiceTitle")
   },
   (table) => [
     index("Notes_userIdIndex").on(table.userId),
     index("Notes_linkedFromNoteIdIndex").on(table.linkedFromNoteId),
     index("Notes_copiedFromNoteIdIndex").on(table.copiedFromNoteId),
+    index("Notes_startedFromServiceIdIndex").on(table.startedFromServiceId),
     index("Notes_userId_updatedAtIndex").on(table.userId, table.updatedAt),
     index("Notes_spaceIdIndex").on(table.spaceId),
     index("Notes_threadIdIndex").on(table.threadId)
@@ -17028,7 +17041,14 @@ var SpaceNotes = pgTable(
     secondaryCollections: text("secondaryCollections"),
     collectionPinned: boolean("collectionPinned").notNull().default(false),
     collectionUserOverride: boolean("collectionUserOverride").notNull().default(false),
-    order: integer("order").notNull().default(0)
+    order: integer("order").notNull().default(0),
+    /**
+     * Author opt-in for this association: members of this shared space may edit
+     * the note body ("pass the pen"). Off by default. Notes.coEditEnabled is the
+     * OR-mirror across live associations.
+     */
+    coEditEnabled: boolean("coEditEnabled").notNull().default(false),
+    coEditEnabledAt: ts("coEditEnabledAt")
   },
   (table) => [
     uniqueIndex("SpaceNotes_space_note_unique").on(table.spaceId, table.noteId),
@@ -17217,6 +17237,18 @@ var Churches = pgTable("Churches", {
    */
   billingPlan: text("billingPlan"),
   billingPlanUpdatedAt: ts("billingPlanUpdatedAt"),
+  /** Polar subscription id backing `billingPlan` — needed to reconcile cancels. */
+  billingSubscriptionId: text("billingSubscriptionId"),
+  /** Last Polar subscription status seen ('active', 'canceled', …). Audit/debug only — gates read billingPlan. */
+  billingStatus: text("billingStatus"),
+  /**
+   * Concierge-pilot window. A church is sponsored while `billingPlan` is set OR
+   * `pilotUntil` is in the future — see server/utils/church-entitlement.ts.
+   * Deliberately church-scoped rather than an expiring user Entitlement row:
+   * `listActiveFeatureKeys` never checks `Entitlements.expiresAt`, so an
+   * expiring user grant would never lapse.
+   */
+  pilotUntil: ts("pilotUntil"),
   /** Admin kill-switch (Spaces.isActive parity). */
   isActive: boolean("isActive").notNull().default(true),
   /** Soft-delete lifecycle — Spaces parity, for a future church-offboarding flow. */
@@ -17242,6 +17274,41 @@ var ChurchMemberships = pgTable("ChurchMemberships", {
   uniqueIndex("ChurchMemberships_church_user_unique").on(table.churchId, table.userId),
   index("ChurchMemberships_userIdIndex").on(table.userId),
   index("ChurchMemberships_churchIdIndex").on(table.churchId)
+]);
+var ChurchServices = pgTable("ChurchServices", {
+  id: text("id").primaryKey(),
+  churchId: text("churchId").notNull(),
+  /**
+   * Church-local calendar day, 'YYYY-MM-DD'. Deliberately NOT a timestamp: a
+   * service is a day on the church's wall calendar, and a TIMESTAMPTZ drifts a
+   * Sunday into Saturday for a viewer three zones away. Same choice as
+   * VotdPublishHistory.publishedDate.
+   */
+  serviceDate: text("serviceDate").notNull(),
+  title: text("title").notNull(),
+  /**
+   * Free text, grouped by equality. Deliberately not a Threads row: thread
+   * creation in a non-personal space requires the literal space owner
+   * (threads.ts), and non-owners only ever see the pinned thread
+   * (shared-space-group-threads.ts) — so a series would be invisible to the
+   * congregation and orphaned when its author left staff.
+   */
+  seriesTitle: text("seriesTitle"),
+  /** Canonical form written by canonicalizeServiceReference. Nullable — a
+   *  topical Sunday is legal, and every downstream path tolerates null. */
+  reference: text("reference"),
+  /** NoteTemplates.id, org-scoped — the starter a congregant's note begins from. */
+  starterTemplateId: text("starterTemplateId"),
+  /** Optional companion ministry channel (Spaces.id, type='public' + orgId). */
+  channelSpaceId: text("channelSpaceId"),
+  createdBy: text("createdBy").notNull(),
+  updatedBy: text("updatedBy"),
+  createdAt: ts("createdAt").notNull(),
+  updatedAt: ts("updatedAt")
+}, (table) => [
+  /** One service per church per date — what makes "This Sunday" have exactly
+   *  one answer. Same discipline as VotdPublishHistory_publishedDate_unique. */
+  uniqueIndex("ChurchServices_church_date_unique").on(table.churchId, table.serviceDate)
 ]);
 var NoteTemplates = pgTable(
   "NoteTemplates",

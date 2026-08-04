@@ -80,16 +80,30 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
   },
   {
     id: '09-broadcast-note',
-    title: 'Sermon starter › start my note',
+    title: 'Home › This Sunday (start my note)',
     phase: 'Receive',
-    editFiles: ['docs/future/PASTOR_FEATURES_ROADMAP.md'],
-    speculative: true,
+    editFiles: ['spa/src/pages/prototype/PrototypeHomeThisSunday.tsx'],
   },
   {
     id: '10-staff-roles',
     title: 'Staff roles on a ministry channel',
     phase: 'Staff',
     editFiles: ['spa/src/pages/prototype/PrototypeChurchStaffSection.tsx'],
+  },
+  {
+    id: '11-teaching-plan',
+    title: 'My Church › Teaching plan (staff)',
+    phase: 'Staff',
+    editFiles: ['spa/src/pages/prototype/PrototypeChurchTeachingPlanSection.tsx'],
+  },
+  {
+    id: '12-teaching-plan-lapsed',
+    title: 'Teaching plan (church plan lapsed)',
+    phase: 'Staff',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeChurchTeachingPlanSection.tsx',
+      'server/utils/church-entitlement.ts',
+    ],
   },
 ];
 

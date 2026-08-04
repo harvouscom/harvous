@@ -598,7 +598,6 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 /* Icon-only orbs — kill font strut so SVG glyphs center in the circle (iOS Safari). */
 .proto-toolbar-icon-btn:not(:has(.proto-profile-orb__photo)),
 .proto-daily-passage-pill__orb,
-.proto-votd-sheet__fab,
 .proto-appearance-preview__check-orb,
 .proto-study-thread__disconnect-btn {
   line-height: 0;
@@ -606,7 +605,6 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 
 .proto-toolbar-icon-btn:not(:has(.proto-profile-orb__photo)) > span,
 .proto-daily-passage-pill__orb > span,
-.proto-votd-sheet__fab > span,
 .proto-appearance-preview__check-orb > span,
 .proto-study-thread__disconnect-btn > span {
   display: flex;
@@ -6463,8 +6461,7 @@ button.proto-home-greeting__chip--passage {
 .proto-votd-sheet__header,
 .proto-votd-sheet__divider,
 .proto-votd-sheet__body,
-.proto-votd-sheet__attribution,
-.proto-votd-sheet__fab {
+.proto-votd-sheet__footer {
   position: relative;
   z-index: 1;
 }
@@ -6524,25 +6521,6 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
   padding: 20px;
 }
 
-.proto-votd-sheet__body--fab {
-  padding-bottom: 20px;
-}
-
-/* Pinned translation credit — sheet bottom, scripture dock banner parity. */
-.proto-votd-sheet__attribution {
-  flex-shrink: 0;
-  margin-top: 0;
-  border-radius: 0;
-  border-left: none;
-  border-right: none;
-  border-bottom: none;
-  padding: 8px 20px 12px;
-  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 3%, transparent);
-}
-
-.proto-votd-sheet__attribution--fab {
-  padding-right: 68px;
-}
 
 .proto-votd-sheet__html {
   font-family: var(--pds-font-body);
@@ -6557,39 +6535,55 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
   font-weight: inherit;
 }
 
-.proto-votd-sheet__fab {
-  position: absolute;
-  right: 16px;
-  bottom: 12px;
+/* Sheet footer: credit and action share a row, in normal flow.
+   Replaces an absolutely-positioned FAB that floated over the credit text. */
+.proto-votd-sheet__footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 16px 12px;
+  border-top: 0.5px solid var(--pds-border-control);
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 3%, transparent);
+}
+
+/* The credit yields; the action never shrinks. `* { flex-shrink: 0 }` in the
+   app reset means both halves need saying explicitly.
+   Wraps to at most two lines rather than truncating mid-word — a copyright
+   notice that reads "New Living Translatio…" isn't a notice. */
+.proto-votd-sheet__credit {
+  flex: 1;
+  min-width: 0;
+  flex-shrink: 1;
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--pds-text-tertiary);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.proto-votd-sheet__credit-link {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: var(--pds-bg-accent-button);
-  color: var(--pds-on-accent);
-  cursor: pointer;
-  box-shadow: var(--pds-shadow-accent-button);
-  transition: filter 0.1s;
+  gap: 3px;
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
-/* Beat global.css `button * { color: … !important }` so the plus glyph stays white on accent. */
-.proto-votd-sheet__fab > span,
-.proto-votd-sheet__fab svg,
-.proto-votd-sheet__fab svg path {
-  color: var(--pds-on-accent) !important;
-  fill: var(--pds-on-accent) !important;
+.proto-votd-sheet__credit-link:hover {
+  color: var(--pds-text-secondary);
 }
 
-.proto-votd-sheet__fab:hover {
-  filter: brightness(1.06);
-}
-
-.proto-votd-sheet__fab:active {
-  filter: brightness(0.95);
+.proto-votd-sheet__add {
+  flex: 0 0 auto;
 }
 
 /* Classic → 2.0 migration detail sheet */
@@ -9375,6 +9369,222 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   position: absolute;
   top: -2px;
   right: -2px;
+}
+
+/* ─── Home › This Sunday ─────────────────────────────────────────────────────
+   The congregant half of the teaching plan. Sits above the daily passage pill:
+   the church's Sunday is an appointment, the verse of the day is a habit. */
+
+/* Same row anatomy as the church feed cards below it — icon, title, meta,
+   trailing affordance — so Home reads as one list, not two card designs. */
+.proto-this-sunday .proto-home-card__title-row {
+  gap: 12px;
+  --proto-home-card-icon-size: 28px;
+}
+
+.proto-this-sunday .proto-home-card__icon-orb {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  opacity: 1;
+}
+
+/* Keep the title column shrinkable so the action never gets pushed out —
+   the app reset sets `* { flex-shrink: 0 }`. */
+.proto-this-sunday .proto-church-hub__row-text {
+  flex: 1;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+/* ─── Glass action pill ──────────────────────────────────────────────────────
+   Shared labelled action for study surfaces — This Sunday on Home and the
+   daily-passage sheet both use it, so "make a note from this passage" looks
+   like one thing wherever it appears.
+
+   Pair with `proto-glass-surface proto-glass-surface--control` in the markup;
+   that supplies the frost, sheen, rim and blur. Deliberately NOT an accent
+   fill: it sits on top of other glass cards, and a saturated chip fights them.
+
+   Text colour is deliberately unset. `html.harvous-prototype-route
+   [class*="proto-"] button *` forces prototype buttons and their spans to
+   --pds-text-primary with `!important` — intentional shell policy, and the
+   VOTD FAB already had to special-case it. Inheriting is the quiet path. */
+/* Deliberately sets no `position`: callers position it (the VOTD sheet pins it
+   absolutely), and a `position: relative` here silently won the cascade over
+   their rule and dropped the pill back into normal flow. */
+.proto-glass-action {
+  flex: 0 0 auto;
+  align-self: center;
+  appearance: none;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  transition: filter 120ms ease;
+}
+
+@media (hover: hover) {
+  .proto-glass-action:hover:not(:disabled) {
+    filter: brightness(0.97);
+  }
+}
+
+.proto-glass-action:active:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.proto-glass-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.proto-glass-action svg {
+  flex-shrink: 0;
+  display: block;
+}
+
+/* Primary emphasis — the blue gradient, for the one obvious action in a modal.
+   Use sparingly: on a surface of glass cards (Home) the glass variant is right;
+   inside a sheet where this is *the* thing to do, the gradient earns itself. */
+.proto-glass-action--primary {
+  border-color: transparent;
+  background: var(--pds-bg-accent-button);
+  box-shadow: var(--pds-shadow-accent-button);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* White-on-accent text is handled by the shared on-accent list in
+   prototype-route-overrides.css, alongside every other primary button —
+   the one place allowed to out-`!important` the blanket button-colour rule. */
+
+.proto-glass-action--primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.proto-glass-action--primary:active:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+/* Narrow sidebars: the label would crowd the title, so drop to the icon. The
+   button carries an aria-label, so hiding the span outright costs nothing —
+   and needs no positioned ancestor, which is what keeps the rule above honest. */
+@media (max-width: 380px) {
+  .proto-glass-action__label {
+    display: none;
+  }
+
+  .proto-glass-action {
+    padding: 7px 9px;
+  }
+}
+
+/* ─── My Church › Teaching plan (staff, role-gated on sermon_tools) ───────── */
+
+.proto-teaching-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  align-items: flex-start;
+}
+
+.proto-teaching-plan__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.proto-teaching-plan__list--past {
+  opacity: 0.68;
+}
+
+.proto-teaching-plan__row-button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding: 4px 0;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.proto-teaching-plan__row-button:disabled {
+  cursor: default;
+}
+
+.proto-teaching-plan__date {
+  /* Fixed column so dates line up down the list like a real calendar. */
+  flex: 0 0 auto;
+  min-width: 48px;
+  opacity: 0.72;
+  font-variant-numeric: tabular-nums;
+}
+
+.proto-teaching-plan__row-text {
+  /* The app reset sets `* { flex-shrink: 0 }` — both are required to wrap. */
+  flex: 1;
+  min-width: 0;
+  flex-shrink: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.proto-teaching-plan__title,
+.proto-teaching-plan__meta {
+  margin: 0;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.proto-teaching-plan__meta {
+  opacity: 0.72;
+  line-height: 1.25;
+}
+
+.proto-teaching-plan__empty,
+.proto-teaching-plan__divider {
+  margin: 0;
+  opacity: 0.72;
+  line-height: 1.35;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.proto-teaching-plan__divider {
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ─── Service editor sheet ───────────────────────────────────────────────── */
+
+.proto-service-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proto-service-editor .proto-create-folder-sheet__field-label:not(:first-child) {
+  margin-top: 10px;
 }
 
 .hmc-church-picker {

@@ -187,8 +187,13 @@ html.harvous-prototype-route a.proto-settings-btn:not(.proto-settings-btn--secon
 html.harvous-prototype-route a.proto-settings-btn:not(.proto-settings-btn--secondary) *,
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--destructive,
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--destructive *,
-html.harvous-prototype-route button.proto-votd-sheet__fab,
-html.harvous-prototype-route button.proto-votd-sheet__fab *,
+html.harvous-prototype-route button.proto-glass-action--primary,
+html.harvous-prototype-route button.proto-glass-action--primary *,
+/* `span` explicitly: the blanket rule above lists `button[class*='proto-'] span`
+   (0,2,3), which outranks a trailing `*` (0,2,2). Most buttons in this list wrap
+   bare text and never hit it; this one has a real label span. */
+html.harvous-prototype-route button.proto-glass-action--primary span,
+html.harvous-prototype-route button.proto-glass-action--primary svg,
 html.harvous-prototype-route button.proto-fte-field__btn--apply,
 html.harvous-prototype-route button.proto-fte-field__btn--apply *,
 html.harvous-prototype-route button.proto-share-popover__primary,

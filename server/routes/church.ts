@@ -12,6 +12,7 @@
  *   POST /api/church/channels/:spaceId/follow       — follow (SpaceMemberships role='member')
  *   POST /api/church/channels/:spaceId/unfollow     — unfollow
  *   GET  /api/church/feed                           — recent notes from followed channels
+ *   GET  /api/church/services                       — the teaching plan ("This Sunday")
  *   GET  /api/church/billing                        — staff: sponsorship + purchasable plans
  *   POST /api/church/checkout                       — staff: Polar checkout for the Church plan
  *   GET  /api/church/staff                          — staff: roster + pending invites
@@ -39,6 +40,7 @@ import {
   db,
   first,
   Notes,
+  NoteTemplates,
   Spaces,
   SpaceNotes,
   SpaceMemberships,
@@ -70,6 +72,7 @@ import {
   type ChurchRow,
 } from '../utils/church-entitlement';
 import { getActiveChurchByOrgId, isChurchStaffForOrg } from '../utils/church-staff';
+import { listServicesForChurch, resolveViewerServiceNotes } from '../utils/church-teaching-plan';
 import { syncChurchStaffForOrg } from '../utils/church-staff-sync';
 import {
   ClerkOrgError,
@@ -99,6 +102,39 @@ const app = new Hono();
 const FEED_EXCERPT_LENGTH = 180;
 const FEED_LIMIT_DEFAULT = 12;
 const FEED_LIMIT_MAX = 50;
+
+/**
+ * How long a service stays visible after its date, in days.
+ *
+ * Four, not three or seven, and not arbitrary: it matches **the four-day wall**
+ * — the Center for Bible Engagement finding that anchors harvous.com/about,
+ * that one to three days a week barely moves the needle while four or more is
+ * where engagement research sees real shifts. Do not "tidy" this number.
+ *
+ * Practically it also covers the gap people actually hit: churches enter next
+ * week's plan mid-week, so Monday often has nothing upcoming — and Monday is
+ * when someone writes up Sunday.
+ *
+ * The client re-derives the same window from its own local date; this server
+ * bound is deliberately generous so no viewer's timezone can clip a service
+ * the client still wants to show.
+ */
+const SERVICE_GRACE_DAYS = 4;
+/** A couple of months of plan is plenty for a card that shows one service. */
+const SERVICES_PAYLOAD_LIMIT = 8;
+
+/**
+ * Lower bound for the services window as 'YYYY-MM-DD'.
+ *
+ * Computed in UTC with one extra day of slack, so a viewer west of UTC never
+ * loses a service the server has already aged out. Narrowing to the exact local
+ * window is the client's job (`currentServiceFor`).
+ */
+function serviceGraceWindowStart(): string {
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - (SERVICE_GRACE_DAYS + 1));
+  return cutoff.toISOString().slice(0, 10);
+}
 
 /** The caller's home church, or null when they haven't connected one. */
 async function getConnectedChurch(userId: string): Promise<ChurchRow | null> {
@@ -381,6 +417,93 @@ app.get('/api/church/feed', requireAuth, async (c) => {
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/feed',
       action: 'church_feed',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/church/services ───────────────────────────────────────────────
+/**
+ * The church's teaching plan, congregant side — what powers "This Sunday".
+ *
+ * Returns the next few services plus a grace window of recently-past ones, so
+ * Monday morning (the highest-intent moment for writing up a sermon) still has
+ * something to open. The client picks which one is "current" using its own
+ * local date; there is no timezone parameter and no server-side "today" logic,
+ * because a service is a day on the church's wall calendar, not an instant.
+ *
+ * Deliberately NOT sponsorship-gated. A lapsed church stops being able to
+ * *write* its plan; the congregation never loses the Sunday it already has.
+ *
+ * The `starter` payload inlines the church's org template so the card can build
+ * the note body without a second round trip. It exposes nothing new — org
+ * templates are already readable by any connected congregant via
+ * /api/note-templates/list.
+ */
+app.get('/api/church/services', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    const church = await getConnectedChurch(auth.userId);
+    if (!church) return c.json({ connected: false, services: [] });
+
+    const from = serviceGraceWindowStart();
+    const services = await listServicesForChurch(church.id, {
+      from,
+      limit: SERVICES_PAYLOAD_LIMIT,
+    });
+    if (services.length === 0) {
+      return c.json({ connected: true, church: { id: church.id, name: church.name }, services: [] });
+    }
+
+    const viewerNotes = await resolveViewerServiceNotes(
+      auth.userId,
+      services.map((service) => service.id),
+    );
+
+    // One fetch for every distinct starter template referenced by the window.
+    const templateIds = [
+      ...new Set(services.map((s) => s.starterTemplateId).filter((id): id is string => Boolean(id))),
+    ];
+    const templates = templateIds.length
+      ? await db
+          .select()
+          .from(NoteTemplates)
+          .where(
+            and(inArray(NoteTemplates.id, templateIds), eq(NoteTemplates.orgId, church.orgId)),
+          )
+      : [];
+    const templateById = new Map(templates.map((t) => [t.id, t]));
+
+    return c.json({
+      connected: true,
+      church: { id: church.id, name: church.name },
+      services: services.map((service) => {
+        const template = service.starterTemplateId
+          ? templateById.get(service.starterTemplateId)
+          : undefined;
+        return {
+          id: service.id,
+          serviceDate: service.serviceDate,
+          title: service.title,
+          seriesTitle: service.seriesTitle,
+          reference: service.reference,
+          viewerNoteId: viewerNotes.get(service.id) ?? null,
+          starter: template
+            ? {
+                templateId: template.id,
+                templateName: template.name,
+                title: template.title,
+                content: template.content,
+              }
+            : null,
+        };
+      }),
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/services',
+      action: 'church_services',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

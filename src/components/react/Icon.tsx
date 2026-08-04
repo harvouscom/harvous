@@ -60,6 +60,8 @@ import linkSvg from '@fortawesome/fontawesome-free/svgs/solid/link.svg?raw';
 import imageSvg from '@fortawesome/fontawesome-free/svgs/solid/image.svg?raw';
 import personSvg from '@fortawesome/fontawesome-free/svgs/solid/person.svg?raw';
 import bookOpenSvg from '@fortawesome/fontawesome-free/svgs/solid/book-open.svg?raw';
+import bookOpenReaderSvg from '@fortawesome/fontawesome-free/svgs/solid/book-open-reader.svg?raw';
+import idCardClipSvg from '@fortawesome/fontawesome-free/svgs/solid/id-card-clip.svg?raw';
 import linesLeaningSvg from '@fortawesome/fontawesome-free/svgs/solid/lines-leaning.svg?raw';
 import locationDotSvg from '@fortawesome/fontawesome-free/svgs/solid/location-dot.svg?raw';
 import churchSvg from '@fortawesome/fontawesome-free/svgs/solid/church.svg?raw';
@@ -123,6 +125,8 @@ const icons = {
   image: withCurrentColor(imageSvg),
   'person': withCurrentColor(personSvg),
   'book-open': svgRootCurrentColor(bookOpenSvg),
+  'book-open-reader': svgRootCurrentColor(bookOpenReaderSvg),
+  'id-card-clip': svgRootCurrentColor(idCardClipSvg),
   'lines-leaning': withCurrentColor(linesLeaningSvg),
   'location-dot': svgRootCurrentColor(locationDotSvg),
   'church': svgRootCurrentColor(churchSvg),

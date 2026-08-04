@@ -1,9 +1,10 @@
 # Pastor Features Roadmap
 
-**Status: partly shipped (v2.18.0, August 2026).** Items 5 and 6 (note templates,
+**Status: partly shipped (v2.19.0, August 2026).** Items 5 and 6 (note templates,
 the sermon template as an org-provisioned `NoteTemplates` row) are built, along with
-the role gate they depend on, ministry channel publishing (8), and the congregant
-"From your church" feed (13). Items 1–4, 7, and 9–12 remain design. Individual items
+the role gate they depend on, ministry channel publishing (8), the congregant
+"From your church" feed (13), and — new in v2.19.0 — the **teaching calendar and
+Sunday note starter (7)**. Items 1–4 and 9–12 remain design. Individual items
 are marked below. Companion to
 [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md) (org model),
 [BILLING_ARCHITECTURE.md](../BILLING_ARCHITECTURE.md) (billing / Polar),
@@ -47,10 +48,12 @@ Written July 2026 alongside the harvous.com `/for/pastors` audience page and
 | Pastor + team / group leader | leader (Shared Spaces add-on) | `type='shared'` spaces, `leader` role (PCO Groups lane) | `/for/group-leaders` |
 | Church org | church | ministry broadcast + Resource Library + connect (PCO Resources lane) | `/for/churches` |
 
-**v0 product lock** (before congregant surfaces): staff-only pilot — ministry
-spaces appear for staff who own/lead them; connect / Home "From your church" /
-sermon-calendar starters stay dark until those models are decided. See
-[Locked product decisions](./CHURCH_ORG_AND_CURRICULUM.md#locked-product-decisions-july-2026).
+**The v0 staff-only lock has been lifted.** It said congregant connect, Home "From
+your church", and sermon-calendar starters would stay dark until those models were
+decided. Connect and the study feed shipped in v2.18.0; the calendar and its starters
+shipped in v2.19.0. Congregant surfaces are still gated — they need
+`UserMetadata.connectedOrgId` and render nothing without it — but they are no longer
+dark by design.
 
 ## Gating principle
 
@@ -107,12 +110,25 @@ Assigned by role under the church org — never shown to general users.
 6. **Sermon note template** *(shipped v2.18.0 — provision it as an org template)* — big idea / outline / application blocks,
    delivered as an org-provisioned `NoteTemplates` row (item 5) scoped to the
    pastor role.
-7. **Sermon / service calendar** *(deferred)* — plan weeks and series ahead (date, passage,
-   title). Staff attach **resources** and **sermon starter notes** to a given
-   service. Connected people get **start a new personal note from the starter**
-   (structure + passage preloaded via note-templates + copy-lineage) — pairs
-   `sermon-prep` with congregant `sermon-notes` without co-editing the pastor's
-   note.
+7. **Teaching calendar + Sunday starter** *(shipped v2.19.0)* — staff plan weeks and
+   series ahead (date, title, passage, series, and which org template notes start
+   from) in the My Church hub, role-gated on `sermon_tools`.
+   Congregants see **one** service — the next one — as "This Sunday" on Home, and
+   **start a personal note from it** with the passage already a live pill and the
+   church's template already in the body. Pairs `sermon-prep` with congregant
+   `sermon-notes` without co-editing the pastor's note.
+
+   Shape worth keeping in mind for anything built on top:
+   - `ChurchServices`, keyed on `churchId`; **series is a `seriesTitle` column**, not a
+     `Threads` row — thread creation in a non-personal space requires the literal space
+     owner and non-owners only see the pinned thread, so a series would have been
+     invisible to the congregation and orphaned when its author left staff.
+   - One service per church per date (unique index) — that is what makes "This Sunday"
+     have exactly one answer.
+   - Lineage is `Notes.startedFromServiceId` / `startedFromServiceTitle`, the
+     congregant's own row. **No church-facing route reads it**, enforced by a contract
+     test. Attaching resources to a service is deliberately still unbuilt — that is
+     Resource Library territory (item 11 / `RESOURCE_LIBRARY.md`).
 8. **Ministry channel publishing** *(shipped v2.18.0)* — staff post curriculum into the relevant
    `type='public'` + `orgId` ministry space (sermon series companion, adult ed,
    students, etc.) before the week; followers read and take *own* notes.
@@ -153,6 +169,12 @@ in `tier-limits.ts` shipped in v2.18.0 — no longer inert. The role gate is
 payload; clients render role surfaces from that payload and never re-derive
 from a role string.
 
-Still design-only: the sermon/service calendar (7), curriculum handoff (11),
-and aggregate engagement analytics (12). Operational detail:
+`sermon_tools` had no consumer until v2.19.0 — the teaching calendar is the first
+feature behind it, and the model for anything else that lands there:
+`assertCanManageTeachingPlan` (`server/utils/church-teaching-plan.ts`) proves staff
+membership **before** checking sponsorship, so a signed-in stranger never learns
+whether a church has lapsed, and fails closed if Clerk is unreachable.
+
+Still design-only: curriculum handoff (11) and aggregate engagement analytics (12).
+Operational detail:
 [CHURCH_ORG_ONBOARDING_AND_BILLING.md](../CHURCH_ORG_ONBOARDING_AND_BILLING.md).

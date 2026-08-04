@@ -62,13 +62,17 @@ both create buttons under that empty state.
 | Pinned or “this series” channel | Both | Later | Sermon/series companions without a bulletin |
 | Followed vs not-yet-followed channels | Congregant | Later | If opted tracks win over auto-follow-all |
 | Pending connect / “your church is on Harvous” | Congregant | Connect era | Banner when HMC matches but membership isn’t accepted |
+| Teaching plan (collapsed) | **Staff only** | **Built** (v2.19.0, role-gated on `sermon_tools`) | A staff door into planning what the church teaches — the same “administration, not the daily job” shape as the roster. **Congregants get no plan lane here**; they get one card on Home. |
 
 ## Layer 3 — Useful later; easy to put in the wrong place
 
 Prefer **Home**, **Settings**, or a **staff surface** unless one-line and optional:
 
 - **“From your church” feed** — Home only (home church study feed)
-- **Sermon calendar / service dates** — pastor tool; maybe a pinned companion channel, not a calendar widget
+- **A congregant-facing calendar** — still an anti-goal, and the v2.19.0 build honours it. The
+  staff Teaching plan lives in the hub (Layer 2 above); a congregant sees exactly **one**
+  service — the next one — as a "This Sunday" card on Home. No schedule, no "coming up" list,
+  no series page. If a congregant calendar is ever proposed again, this is the line it crosses.
 - **Teaching-team prep / quarterly curriculum** — inside a channel or shared space once opened
 - **Switch home church / other churches** — Settings (picker B deferred)
 - **Aggregate engagement / analytics** — church dashboard, staff-only

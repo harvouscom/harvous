@@ -18168,6 +18168,7 @@ __export(schema_exports, {
   BibleTranslations: () => BibleTranslations,
   BibleVerses: () => BibleVerses,
   ChurchMemberships: () => ChurchMemberships,
+  ChurchServices: () => ChurchServices,
   Churches: () => Churches,
   ClerkUserMapping: () => ClerkUserMapping,
   Comments: () => Comments,
@@ -18218,7 +18219,7 @@ __export(schema_exports, {
   VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
+var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, ChurchServices, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -18358,10 +18359,10 @@ var init_schema2 = __esm({
         /** Latest immutable NoteVersions checkpoint for the canonical note. */
         currentVersionId: text("currentVersionId"),
         /**
-         * Author opt-in: members of any shared space this note is associated with may
-         * edit the body ("pass the pen"). Off by default — authorship is otherwise
-         * exclusive. Never true for encrypted notes; cleared when the last shared
-         * association is removed. userId stays the author regardless.
+         * Derived mirror: true iff any live shared SpaceNotes association has
+         * coEditEnabled. Source of truth is SpaceNotes.coEditEnabled (per space).
+         * Kept for native / broadcast / clients that only read the note-level field.
+         * Never true for encrypted notes; cleared when no association grants remain.
          */
         coEditEnabled: boolean("coEditEnabled").notNull().default(false),
         coEditEnabledAt: ts("coEditEnabledAt"),
@@ -18374,12 +18375,24 @@ var init_schema2 = __esm({
         /** Template applied to start/fill this note (`soap`, `ntpl_…`, etc.). */
         startedFromTemplateId: text("startedFromTemplateId"),
         /** Display name snapshot so provenance survives template rename/delete. */
-        startedFromTemplateName: text("startedFromTemplateName")
+        startedFromTemplateName: text("startedFromTemplateName"),
+        /**
+         * Teaching-plan service (`ChurchServices.id`) this note was started from.
+         * Distinct from startedFromTemplateId — a Sunday note is started from
+         * *both* the church's template and that week's service.
+         *
+         * Privacy: this is the congregant's own row. No church-facing route ever
+         * reads it, and no aggregate is derived from it. "Review is never shared."
+         */
+        startedFromServiceId: text("startedFromServiceId"),
+        /** Title snapshot so provenance survives the church editing or deleting the entry. */
+        startedFromServiceTitle: text("startedFromServiceTitle")
       },
       (table) => [
         index("Notes_userIdIndex").on(table.userId),
         index("Notes_linkedFromNoteIdIndex").on(table.linkedFromNoteId),
         index("Notes_copiedFromNoteIdIndex").on(table.copiedFromNoteId),
+        index("Notes_startedFromServiceIdIndex").on(table.startedFromServiceId),
         index("Notes_userId_updatedAtIndex").on(table.userId, table.updatedAt),
         index("Notes_spaceIdIndex").on(table.spaceId),
         index("Notes_threadIdIndex").on(table.threadId)
@@ -18429,7 +18442,14 @@ var init_schema2 = __esm({
         secondaryCollections: text("secondaryCollections"),
         collectionPinned: boolean("collectionPinned").notNull().default(false),
         collectionUserOverride: boolean("collectionUserOverride").notNull().default(false),
-        order: integer("order").notNull().default(0)
+        order: integer("order").notNull().default(0),
+        /**
+         * Author opt-in for this association: members of this shared space may edit
+         * the note body ("pass the pen"). Off by default. Notes.coEditEnabled is the
+         * OR-mirror across live associations.
+         */
+        coEditEnabled: boolean("coEditEnabled").notNull().default(false),
+        coEditEnabledAt: ts("coEditEnabledAt")
       },
       (table) => [
         uniqueIndex("SpaceNotes_space_note_unique").on(table.spaceId, table.noteId),
@@ -18618,6 +18638,18 @@ var init_schema2 = __esm({
        */
       billingPlan: text("billingPlan"),
       billingPlanUpdatedAt: ts("billingPlanUpdatedAt"),
+      /** Polar subscription id backing `billingPlan` — needed to reconcile cancels. */
+      billingSubscriptionId: text("billingSubscriptionId"),
+      /** Last Polar subscription status seen ('active', 'canceled', …). Audit/debug only — gates read billingPlan. */
+      billingStatus: text("billingStatus"),
+      /**
+       * Concierge-pilot window. A church is sponsored while `billingPlan` is set OR
+       * `pilotUntil` is in the future — see server/utils/church-entitlement.ts.
+       * Deliberately church-scoped rather than an expiring user Entitlement row:
+       * `listActiveFeatureKeys` never checks `Entitlements.expiresAt`, so an
+       * expiring user grant would never lapse.
+       */
+      pilotUntil: ts("pilotUntil"),
       /** Admin kill-switch (Spaces.isActive parity). */
       isActive: boolean("isActive").notNull().default(true),
       /** Soft-delete lifecycle — Spaces parity, for a future church-offboarding flow. */
@@ -18643,6 +18675,41 @@ var init_schema2 = __esm({
       uniqueIndex("ChurchMemberships_church_user_unique").on(table.churchId, table.userId),
       index("ChurchMemberships_userIdIndex").on(table.userId),
       index("ChurchMemberships_churchIdIndex").on(table.churchId)
+    ]);
+    ChurchServices = pgTable("ChurchServices", {
+      id: text("id").primaryKey(),
+      churchId: text("churchId").notNull(),
+      /**
+       * Church-local calendar day, 'YYYY-MM-DD'. Deliberately NOT a timestamp: a
+       * service is a day on the church's wall calendar, and a TIMESTAMPTZ drifts a
+       * Sunday into Saturday for a viewer three zones away. Same choice as
+       * VotdPublishHistory.publishedDate.
+       */
+      serviceDate: text("serviceDate").notNull(),
+      title: text("title").notNull(),
+      /**
+       * Free text, grouped by equality. Deliberately not a Threads row: thread
+       * creation in a non-personal space requires the literal space owner
+       * (threads.ts), and non-owners only ever see the pinned thread
+       * (shared-space-group-threads.ts) — so a series would be invisible to the
+       * congregation and orphaned when its author left staff.
+       */
+      seriesTitle: text("seriesTitle"),
+      /** Canonical form written by canonicalizeServiceReference. Nullable — a
+       *  topical Sunday is legal, and every downstream path tolerates null. */
+      reference: text("reference"),
+      /** NoteTemplates.id, org-scoped — the starter a congregant's note begins from. */
+      starterTemplateId: text("starterTemplateId"),
+      /** Optional companion ministry channel (Spaces.id, type='public' + orgId). */
+      channelSpaceId: text("channelSpaceId"),
+      createdBy: text("createdBy").notNull(),
+      updatedBy: text("updatedBy"),
+      createdAt: ts("createdAt").notNull(),
+      updatedAt: ts("updatedAt")
+    }, (table) => [
+      /** One service per church per date — what makes "This Sunday" have exactly
+       *  one answer. Same discipline as VotdPublishHistory_publishedDate_unique. */
+      uniqueIndex("ChurchServices_church_date_unique").on(table.churchId, table.serviceDate)
     ]);
     NoteTemplates = pgTable(
       "NoteTemplates",
@@ -19316,6 +19383,12 @@ var init_helpers = __esm({
 // server/db/dates.ts
 function now() {
   return /* @__PURE__ */ new Date();
+}
+function toDate(val) {
+  if (val == null) return null;
+  if (val instanceof Date) return val;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
 }
 var nowISO;
 var init_dates = __esm({
@@ -30271,6 +30344,133 @@ function validateCrossChapterRange(book, startChapter, startVerse, endChapter, e
   const orderOk = startChapter < endChapter || startChapter === endChapter && startVerse <= endVerse;
   return startOk && endOk && orderOk;
 }
+function splitBookAndNumericTail(reference) {
+  const trimmed = reference.trim();
+  const match4 = trimmed.match(/\s(\d.*)$/);
+  if (!match4 || match4.index == null) {
+    return null;
+  }
+  const book = trimmed.slice(0, match4.index).trim();
+  if (!book) {
+    return null;
+  }
+  return { book, tail: match4[1].trim() };
+}
+function getBookChapterCount(book) {
+  const bookMap = buildBibleChaptersMap().get(book);
+  if (!bookMap || bookMap.size === 0) {
+    return null;
+  }
+  let max2 = 0;
+  for (const chapter of bookMap.keys()) {
+    if (chapter > max2) max2 = chapter;
+  }
+  return max2;
+}
+function checkScriptureReferenceValidity(reference) {
+  const raw2 = String(reference ?? "").trim();
+  const tooManyChapters = (book2, count3) => ({
+    ok: false,
+    reason: `${book2} has ${count3} chapter${count3 === 1 ? "" : "s"}.`
+  });
+  const split2 = splitBookAndNumericTail(raw2);
+  if (split2 && !raw2.includes(":")) {
+    const canonicalBook = resolveCanonicalBookName(split2.book, getBookNameVariations());
+    if (!canonicalBook) {
+      return { ok: false, reason: `We don't recognize the book "${split2.book}".` };
+    }
+    const chapterCount2 = getBookChapterCount(canonicalBook);
+    if (chapterCount2 == null) {
+      return { ok: false, reason: `We don't recognize the book "${canonicalBook}".` };
+    }
+    const chapters = (split2.tail.match(/\d+/g) ?? []).map((n) => parseInt(n, 10));
+    if (chapters.length === 0) {
+      return { ok: false, reason: "Not a complete scripture reference yet." };
+    }
+    for (const ch of chapters) {
+      if (ch < 1 || ch > chapterCount2) {
+        return tooManyChapters(canonicalBook, chapterCount2);
+      }
+    }
+    if (chapters.length === 2 && chapters[0] > chapters[1]) {
+      return { ok: false, reason: "That range runs backwards." };
+    }
+    return { ok: true };
+  }
+  const parsed = parseReference(raw2);
+  if (!parsed) {
+    return { ok: false, reason: "Not a complete scripture reference yet." };
+  }
+  const { book, chapter, verse, endChapter } = parsed;
+  const chapterCount = getBookChapterCount(book);
+  if (chapterCount == null) {
+    return { ok: false, reason: `We don't recognize the book "${book}".` };
+  }
+  if (chapter < 1 || chapter > chapterCount) {
+    return tooManyChapters(book, chapterCount);
+  }
+  const describeChapter = (ch) => {
+    const range = getChapterVerseRange(book, ch);
+    return range ? `${book} ${ch} has ${range.end} verses.` : `${book} has no chapter ${ch}.`;
+  };
+  if (endChapter != null && Array.isArray(verse)) {
+    const [start, end] = verse;
+    if (endChapter > chapterCount) {
+      return tooManyChapters(book, chapterCount);
+    }
+    if (validateCrossChapterRange(book, chapter, start, endChapter, end)) {
+      return { ok: true };
+    }
+    if (!validateVerseNumber(book, chapter, start)) {
+      return { ok: false, reason: describeChapter(chapter) };
+    }
+    if (!validateVerseNumber(book, endChapter, end)) {
+      return { ok: false, reason: describeChapter(endChapter) };
+    }
+    return { ok: false, reason: "That range runs backwards." };
+  }
+  if (Array.isArray(verse)) {
+    const [start, end] = verse;
+    if (validateVerseRange(book, chapter, start, end)) {
+      return { ok: true };
+    }
+    if (start > end) {
+      return { ok: false, reason: "That range runs backwards." };
+    }
+    return { ok: false, reason: describeChapter(chapter) };
+  }
+  if (!validateVerseNumber(book, chapter, verse)) {
+    return { ok: false, reason: describeChapter(chapter) };
+  }
+  return { ok: true };
+}
+function isResolvableScriptureReference(reference) {
+  return checkScriptureReferenceValidity(reference).ok;
+}
+function repairUnresolvableReference(reference) {
+  const raw2 = String(reference ?? "").trim();
+  if (!raw2 || isResolvableScriptureReference(raw2)) return null;
+  const match4 = raw2.match(/^(.+?)\s+(\d+):(\d+)$/);
+  if (!match4) return null;
+  const [, bookPart, chapterPart, digits] = match4;
+  if (digits.length < 2) return null;
+  const canonicalBook = resolveCanonicalBookName(bookPart.trim(), getBookNameVariations());
+  if (!canonicalBook) return null;
+  const chapter = parseInt(chapterPart, 10);
+  const candidates = [];
+  for (let cut = 1; cut < digits.length; cut++) {
+    const startText = digits.slice(0, cut);
+    const endText = digits.slice(cut);
+    if (startText.length > 1 && startText.startsWith("0")) continue;
+    if (endText.length > 1 && endText.startsWith("0")) continue;
+    const start = parseInt(startText, 10);
+    const end = parseInt(endText, 10);
+    if (start >= end) continue;
+    if (!validateVerseRange(canonicalBook, chapter, start, end)) continue;
+    candidates.push(`${canonicalBook} ${chapter}:${start}-${end}`);
+  }
+  return candidates.length === 1 ? candidates[0] : null;
+}
 function normalizeChapterReference(book, chapter) {
   const range = getChapterVerseRange(book, chapter);
   if (!range) {
@@ -30278,12 +30478,19 @@ function normalizeChapterReference(book, chapter) {
   }
   return `${book} ${chapter}:${range.start}-${range.end}`;
 }
+function warnOnceAboutReference(message) {
+  if (typeof import_meta !== "undefined" && !import_meta.env?.DEV) return;
+  if (WARNED_REFERENCES.has(message)) return;
+  if (WARNED_REFERENCES.size >= MAX_DISTINCT_REFERENCE_WARNINGS) return;
+  WARNED_REFERENCES.add(message);
+  console.warn(message);
+}
 function validateAndWarn(ref) {
   const { book, chapter, verse, endChapter } = ref;
   if (endChapter != null && Array.isArray(verse)) {
     const [start, end] = verse;
     if (!validateCrossChapterRange(book, chapter, start, endChapter, end)) {
-      console.warn(`Invalid cross-chapter range: ${ref.reference}`);
+      warnOnceAboutReference(`Invalid cross-chapter range: ${ref.reference}`);
     }
     return ref;
   }
@@ -30299,18 +30506,18 @@ function validateAndWarn(ref) {
     if (!validateVerseRange(book, chapter, start, end)) {
       const range = getChapterVerseRange(book, chapter);
       if (range) {
-        console.warn(`Invalid verse range: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
+        warnOnceAboutReference(`Invalid verse range: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
       } else {
-        console.warn(`Unknown book/chapter: ${book} ${chapter}`);
+        warnOnceAboutReference(`Unknown book/chapter: ${book} ${chapter}`);
       }
     }
   } else {
     if (!validateVerseNumber(book, chapter, verse)) {
       const range = getChapterVerseRange(book, chapter);
       if (range) {
-        console.warn(`Invalid verse number: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
+        warnOnceAboutReference(`Invalid verse number: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
       } else {
-        console.warn(`Unknown book/chapter: ${book} ${chapter}`);
+        warnOnceAboutReference(`Unknown book/chapter: ${book} ${chapter}`);
       }
     }
   }
@@ -30362,13 +30569,14 @@ function isValidScriptureContext(text3, matchIndex, matchLength) {
   }
   return true;
 }
-var INLINE_TRANSLATION_ALT, ANCHORED_TRANSLATION_CODES, DEBUG, BIBLE_CHAPTERS_MAP, getBookNameVariations, normalizeText, parseReference, detectScriptureReferences, parseScriptureReference, detectScripture, getPrimaryReference, normalizeScriptureReference, parseVerseGroups;
+var import_meta, INLINE_TRANSLATION_ALT, ANCHORED_TRANSLATION_CODES, DEBUG, BIBLE_CHAPTERS_MAP, getBookNameVariations, normalizeText, WARNED_REFERENCES, MAX_DISTINCT_REFERENCE_WARNINGS, parseReference, detectScriptureReferences, parseScriptureReference, detectScripture, getPrimaryReference, normalizeScriptureReference, parseVerseGroups;
 var init_scripture_detector = __esm({
   "src/utils/scripture-detector.ts"() {
     "use strict";
     init_bible_study_keywords();
     init_bible_chapters();
     init_translations();
+    import_meta = {};
     INLINE_TRANSLATION_ALT = buildInlineTranslationAlternation();
     ANCHORED_TRANSLATION_CODES = (() => {
       const sorted = [...TRANSLATION_ORDER].sort((a, b3) => b3.length - a.length || a.localeCompare(b3));
@@ -30387,6 +30595,8 @@ var init_scripture_detector = __esm({
     normalizeText = (text3) => {
       return text3.toLowerCase().replace(/[.,;:!?'"()\-–—]/g, "").replace(/\s+/g, " ").trim();
     };
+    WARNED_REFERENCES = /* @__PURE__ */ new Set();
+    MAX_DISTINCT_REFERENCE_WARNINGS = 50;
     parseReference = (match4) => {
       const patterns = [
         // Comma-separated verse groups: "Book 1:2-3, 5-7, 10" or "Book 1:2 - 3, 5 - 7, 10"
@@ -44361,6 +44571,126 @@ var init_durable_note_anchor = __esm({
   }
 });
 
+// server/utils/note-collaboration.ts
+var note_collaboration_exports = {};
+__export(note_collaboration_exports, {
+  canEditNoteAsCollaborator: () => canEditNoteAsCollaborator,
+  clearAllCoEditForNote: () => clearAllCoEditForNote,
+  findLiveSharedSpaceAssociation: () => findLiveSharedSpaceAssociation,
+  resolveNoteContributorIds: () => resolveNoteContributorIds,
+  resolveNoteEditAuthorization: () => resolveNoteEditAuthorization,
+  resolveSharedSpacesGrantingEdit: () => resolveSharedSpacesGrantingEdit,
+  syncNoteCoEditMirror: () => syncNoteCoEditMirror
+});
+function canEditNoteAsCollaborator(input) {
+  const { note, actorId, sharedSpaceIdsActorBelongsTo } = input;
+  if (isOnboardingSystemNote(note)) return { allowed: false, code: "ONBOARDING" };
+  if (note.userId === actorId) return { allowed: true, role: "author", viaSpaceId: null };
+  if (note.contentEncrypted) return { allowed: false, code: "ENCRYPTED" };
+  if (sharedSpaceIdsActorBelongsTo.length === 0) return { allowed: false, code: "NO_SHARED_SPACE" };
+  return { allowed: true, role: "collaborator", viaSpaceId: sharedSpaceIdsActorBelongsTo[0] };
+}
+async function resolveSharedSpacesGrantingEdit(noteId, actorId) {
+  const rows = await db.select({ spaceId: SpaceNotes.spaceId }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).innerJoin(
+    SpaceMemberships,
+    and(eq(SpaceMemberships.spaceId, Spaces.id), eq(SpaceMemberships.userId, actorId))
+  ).where(
+    and(
+      eq(SpaceNotes.noteId, noteId),
+      isNull(SpaceNotes.removedAt),
+      eq(SpaceNotes.coEditEnabled, true),
+      isNull(Spaces.deletedAt),
+      eq(Spaces.type, "shared")
+    )
+  );
+  return rows.map((row) => row.spaceId);
+}
+async function resolveNoteEditAuthorization(noteId, actorId) {
+  const note = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
+  if (!note) return null;
+  const needsSpaceLookup = note.userId !== actorId && !note.contentEncrypted;
+  const sharedSpaceIdsActorBelongsTo = needsSpaceLookup ? await resolveSharedSpacesGrantingEdit(noteId, actorId) : [];
+  return {
+    note,
+    decision: canEditNoteAsCollaborator({ note, actorId, sharedSpaceIdsActorBelongsTo })
+  };
+}
+async function resolveNoteContributorIds(noteId, authorId) {
+  const rows = await db.select({ editedBy: NoteVersions.editedBy, authorId: NoteVersions.authorId }).from(NoteVersions).where(eq(NoteVersions.noteId, noteId));
+  const ids = /* @__PURE__ */ new Set([authorId]);
+  for (const row of rows) {
+    const savedBy = row.editedBy ?? row.authorId;
+    if (savedBy) ids.add(savedBy);
+  }
+  return [authorId, ...[...ids].filter((id) => id !== authorId)];
+}
+async function findLiveSharedSpaceAssociation(noteId, spaceId) {
+  const row = first(
+    await db.select({ id: SpaceNotes.id, coEditEnabled: SpaceNotes.coEditEnabled }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).where(
+      and(
+        eq(SpaceNotes.noteId, noteId),
+        eq(SpaceNotes.spaceId, spaceId),
+        isNull(SpaceNotes.removedAt),
+        isNull(Spaces.deletedAt),
+        eq(Spaces.type, "shared")
+      )
+    ).limit(1)
+  );
+  return row ?? null;
+}
+async function syncNoteCoEditMirror(executor, noteId) {
+  const grant = first(
+    await executor.select({ enabledAt: SpaceNotes.coEditEnabledAt }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).where(
+      and(
+        eq(SpaceNotes.noteId, noteId),
+        isNull(SpaceNotes.removedAt),
+        eq(SpaceNotes.coEditEnabled, true),
+        isNull(Spaces.deletedAt),
+        eq(Spaces.type, "shared")
+      )
+    ).limit(1)
+  );
+  const enabled = Boolean(grant);
+  await executor.update(Notes).set({
+    coEditEnabled: enabled,
+    coEditEnabledAt: enabled ? grant?.enabledAt ?? nowISO() : null
+  }).where(eq(Notes.id, noteId));
+  return enabled;
+}
+async function clearAllCoEditForNote(executor, noteId) {
+  await executor.update(SpaceNotes).set({ coEditEnabled: false, coEditEnabledAt: null }).where(and(eq(SpaceNotes.noteId, noteId), eq(SpaceNotes.coEditEnabled, true)));
+  await executor.update(Notes).set({ coEditEnabled: false, coEditEnabledAt: null }).where(eq(Notes.id, noteId));
+}
+var init_note_collaboration = __esm({
+  "server/utils/note-collaboration.ts"() {
+    "use strict";
+    init_db2();
+    init_dates();
+    init_purge_onboarding_content();
+  }
+});
+
+// src/utils/note-truncated-write-guard.ts
+function endsWithTagBoundary(html) {
+  return />\s*$/.test(html);
+}
+function isRawListPreviewWrite(incoming, stored, maxChars) {
+  if (typeof incoming !== "string" || typeof stored !== "string") return false;
+  if (incoming.length !== maxChars) return false;
+  if (stored.length <= maxChars) return false;
+  return stored.startsWith(incoming);
+}
+function isSuspiciousNoteShrink(incoming, stored, minStoredLength = 4e3) {
+  if (typeof incoming !== "string" || typeof stored !== "string") return false;
+  if (stored.length <= minStoredLength) return false;
+  return incoming.length < stored.length * 0.5;
+}
+var init_note_truncated_write_guard = __esm({
+  "src/utils/note-truncated-write-guard.ts"() {
+    "use strict";
+  }
+});
+
 // server/utils/note-version-service.ts
 function isProtectedNoteVersion(input) {
   return input.id === input.currentVersionId || input.version === 1 || input.source === "restore" || input.referencedVersionIds.has(input.id);
@@ -44557,7 +44887,45 @@ async function updateCanonicalNoteInTransaction(tx, input) {
   if (input.actorRole !== "collaborator") {
     assertCanAccessNoteVersions(note.userId, input.actorId);
   }
-  const { patch: resolvedPatch, nextContent: resolvedNextContent } = resolveLockedCanonicalMutation(note, input);
+  let { patch: resolvedPatch, nextContent: resolvedNextContent } = resolveLockedCanonicalMutation(note, input);
+  if (typeof input.incomingRawContent === "string") {
+    const incoming = input.incomingRawContent;
+    const stored = note.content ?? "";
+    if (isRawListPreviewWrite(incoming, stored, NOTE_LIST_CONTENT_MAX_CHARS)) {
+      console.warn(
+        "[note-truncation-guard] dropped list-preview body write",
+        JSON.stringify({
+          noteId: note.id,
+          actorId: input.actorId,
+          source: input.source ?? "save",
+          storedLen: stored.length,
+          incomingLen: incoming.length,
+          endsWithTagBoundary: endsWithTagBoundary(incoming)
+        })
+      );
+      resolvedNextContent = {
+        ...resolvedNextContent,
+        content: stored,
+        contentEncrypted: note.contentEncrypted
+      };
+      const { updatedAt: _droppedUpdatedAt, ...patchWithoutUpdatedAt } = resolvedPatch;
+      resolvedPatch = patchWithoutUpdatedAt;
+    } else if (isSuspiciousNoteShrink(incoming, stored)) {
+      console.warn(
+        "[note-truncation-telemetry] large body shrink",
+        JSON.stringify({
+          noteId: note.id,
+          actorId: input.actorId,
+          source: input.source ?? "save",
+          storedLen: stored.length,
+          incomingLen: incoming.length,
+          isExactPrefix: stored.startsWith(incoming),
+          endsWithTagBoundary: endsWithTagBoundary(incoming),
+          expectedVersion: input.expectedVersion ?? null
+        })
+      );
+    }
+  }
   if (resolvedNextContent.contentEncrypted) {
     const activeAssociation = first(
       await tx.select({ id: SpaceNotes.id }).from(SpaceNotes).where(and(eq(SpaceNotes.noteId, note.id), isNull(SpaceNotes.removedAt))).limit(1)
@@ -44579,6 +44947,9 @@ async function updateCanonicalNoteInTransaction(tx, input) {
     });
   }
   assertExpectedNoteVersion(input.expectedVersion, current.version);
+  if (resolvedNextContent.contentEncrypted && !note.contentEncrypted) {
+    await clearAllCoEditForNote(tx, note.id);
+  }
   const latest = asVersionRecord(current);
   const shouldCheckpoint = shouldAdvanceCanonicalVersion({
     current: latest,
@@ -44676,6 +45047,16 @@ function noteVersionErrorResponse(error) {
   }
   return null;
 }
+async function readCurrentNoteVersion(noteId, fallbackVersionId) {
+  const note = first(
+    await db.select({ currentVersionId: Notes.currentVersionId }).from(Notes).where(eq(Notes.id, noteId)).limit(1)
+  );
+  const versionId = note?.currentVersionId ?? fallbackVersionId ?? null;
+  if (!versionId) return null;
+  return first(
+    await db.select({ id: NoteVersions.id, version: NoteVersions.version }).from(NoteVersions).where(and(eq(NoteVersions.id, versionId), eq(NoteVersions.noteId, noteId))).limit(1)
+  ) ?? null;
+}
 var NOTE_VERSION_RETENTION_LATEST_COUNT, NOTE_VERSION_RETENTION_MAX_AGE_MS, NoteVersionConflictError, NoteVersionNotFoundError, ActiveSharedAssociationEncryptionError;
 var init_note_version_service = __esm({
   "server/utils/note-version-service.ts"() {
@@ -44684,6 +45065,9 @@ var init_note_version_service = __esm({
     init_db2();
     init_note_versioning();
     init_durable_note_anchor();
+    init_note_collaboration();
+    init_dashboard_data();
+    init_note_truncated_write_guard();
     NOTE_VERSION_RETENTION_LATEST_COUNT = 100;
     NOTE_VERSION_RETENTION_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1e3;
     NoteVersionConflictError = class extends Error {
@@ -44775,6 +45159,8 @@ async function deleteNotesCascadeForUser(userId, noteIds) {
       );
       await tx.delete(SpaceNotes).where(inArray(SpaceNotes.noteId, chunk));
       await tx.delete(NoteVersions).where(inArray(NoteVersions.noteId, chunk));
+      await tx.delete(NoteFingerprints).where(inArray(NoteFingerprints.noteId, chunk));
+      await tx.delete(RecallEvents).where(inArray(RecallEvents.noteId, chunk));
       await tx.delete(Notes).where(and(eq(Notes.userId, userId), inArray(Notes.id, chunk)));
     }
     return {
@@ -45052,7 +45438,7 @@ function serializeSharedCanonicalNote(input) {
     authorDisplayName: input.authorDisplayName?.trim() || "Member",
     authorColor: input.authorColor ?? "blue",
     isOwnNote: Boolean(input.isOwnNote),
-    /** Author opted this note into co-editing for its shared spaces. */
+    /** OR-mirror: true if any live shared association has co-edit on. */
     coEditEnabled: Boolean(input.coEditEnabled),
     /**
      * The server's own verdict on whether this viewer may write the body. The
@@ -45066,7 +45452,9 @@ function serializeSharedCanonicalNote(input) {
     resourceTitle: input.resourceTitle ?? null,
     resourceDescription: input.resourceDescription ?? null,
     resourceImage: input.resourceImage ?? null,
-    threadColors: input.threadColors
+    threadColors: input.threadColors,
+    /** Viewer's own tag names only — callers must scope by the viewer's userId. */
+    tags: Array.isArray(input.tags) && input.tags.length > 0 ? input.tags : void 0
   };
 }
 function canExposeCanonicalTagInContext(input) {
@@ -45352,18 +45740,11 @@ function buildAssociationRemovalPatch(actorId, now2) {
 }
 async function revokeCoEditForUnsharedNotes(tx, noteIds) {
   if (noteIds.length === 0) return;
-  const stillShared = await tx.select({ noteId: SpaceNotes.noteId }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).where(
-    and(
-      inArray(SpaceNotes.noteId, noteIds),
-      isNull(SpaceNotes.removedAt),
-      isNull(Spaces.deletedAt),
-      eq(Spaces.type, "shared")
-    )
-  );
-  const stillSharedIds = new Set(stillShared.map((row) => row.noteId));
-  const orphaned = noteIds.filter((noteId) => !stillSharedIds.has(noteId));
-  if (orphaned.length === 0) return;
-  await tx.update(Notes).set({ coEditEnabled: false, coEditEnabledAt: null }).where(and(inArray(Notes.id, orphaned), eq(Notes.coEditEnabled, true)));
+  const { syncNoteCoEditMirror: syncNoteCoEditMirror2 } = await Promise.resolve().then(() => (init_note_collaboration(), note_collaboration_exports));
+  const unique2 = [...new Set(noteIds)];
+  for (const noteId of unique2) {
+    await syncNoteCoEditMirror2(tx, noteId);
+  }
 }
 function buildAssociationReactivationPatch(actorId, now2) {
   return {
@@ -45377,7 +45758,10 @@ function buildAssociationReactivationPatch(actorId, now2) {
     secondaryCollections: null,
     collectionPinned: false,
     collectionUserOverride: false,
-    order: 0
+    order: 0,
+    // Soft-delete keeps the old row; never re-open co-edit on reactivate.
+    coEditEnabled: false,
+    coEditEnabledAt: null
   };
 }
 async function associateAuthoredNoteWithSpace(tx, input) {
@@ -45433,12 +45817,12 @@ async function associateAuthoredNoteWithSpace(tx, input) {
   );
   if (existing) {
     if (!existing.removedAt) {
-      return { association: existing, reactivated: false };
+      return { association: existing, reactivated: false, alreadyAssociated: true };
     }
     const association2 = first(
       await tx.update(SpaceNotes).set(buildAssociationReactivationPatch(input.actorId, input.now)).where(eq(SpaceNotes.id, existing.id)).returning()
     );
-    return { association: association2, reactivated: true };
+    return { association: association2, reactivated: true, alreadyAssociated: false };
   }
   const association = first(
     await tx.insert(SpaceNotes).values(
@@ -45451,7 +45835,7 @@ async function associateAuthoredNoteWithSpace(tx, input) {
       })
     ).returning()
   );
-  return { association, reactivated: false };
+  return { association, reactivated: false, alreadyAssociated: false };
 }
 async function archiveNoteFromSpace(tx, input) {
   const note = first(
@@ -46256,6 +46640,27 @@ async function getThreadsWithCountsLimited(userId, limit) {
     return [];
   }
 }
+async function getSharedSpaceCountsForNotesBatch(noteIds, userId) {
+  if (noteIds.length === 0) return /* @__PURE__ */ new Map();
+  try {
+    const rows = await db.select({ noteId: SpaceNotes.noteId }).from(SpaceNotes).innerJoin(Spaces, eq(SpaceNotes.spaceId, Spaces.id)).innerJoin(
+      SpaceMemberships,
+      and(eq(SpaceMemberships.spaceId, Spaces.id), eq(SpaceMemberships.userId, userId))
+    ).where(and(
+      inArray(SpaceNotes.noteId, noteIds),
+      isNull(SpaceNotes.removedAt),
+      isNull(Spaces.deletedAt),
+      inArray(Spaces.type, ["shared", "public"])
+    ));
+    const counts = /* @__PURE__ */ new Map();
+    for (const row of rows) {
+      counts.set(row.noteId, (counts.get(row.noteId) ?? 0) + 1);
+    }
+    return counts;
+  } catch (_3) {
+    return /* @__PURE__ */ new Map();
+  }
+}
 async function getThreadColorsForNotesBatch(noteIds, userId) {
   if (noteIds.length === 0) return /* @__PURE__ */ new Map();
   try {
@@ -46279,6 +46684,27 @@ async function getThreadColorsForNotesBatch(noteIds, userId) {
     return result;
   } catch (error) {
     console.error("Error batch fetching thread colors for notes:", error);
+    return /* @__PURE__ */ new Map();
+  }
+}
+async function getTagNamesForNotesBatch(noteIds, userId) {
+  if (noteIds.length === 0) return /* @__PURE__ */ new Map();
+  try {
+    const rows = await db.select({ noteId: NoteTags.noteId, name: Tags.name }).from(NoteTags).innerJoin(Tags, eq(Tags.id, NoteTags.tagId)).where(and(inArray(NoteTags.noteId, noteIds), eq(Tags.userId, userId)));
+    const result = /* @__PURE__ */ new Map();
+    for (const row of rows) {
+      const name = row.name?.trim();
+      if (!name) continue;
+      const existing = result.get(row.noteId);
+      if (!existing) {
+        result.set(row.noteId, [name]);
+      } else if (existing.length < NOTE_LIST_MAX_TAGS && !existing.includes(name)) {
+        existing.push(name);
+      }
+    }
+    return result;
+  } catch (error) {
+    console.error("Error batch fetching tag names for notes:", error);
     return /* @__PURE__ */ new Map();
   }
 }
@@ -47027,7 +47453,7 @@ async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0, options
     const resourceNoteIds = sortedNotes.filter((n) => n.noteType === "resource").map((n) => n.id);
     const scriptureNoteIds = sortedNotes.filter((n) => n.noteType === "scripture").map((n) => n.id).filter(Boolean);
     const noteIds = sortedNotes.map((n) => n.id).filter(Boolean);
-    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap] = await Promise.all([
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap, sharedSpaceCountsMap, tagNamesMap] = await Promise.all([
       (async () => {
         if (resourceNoteIds.length === 0) return {};
         try {
@@ -47059,11 +47485,17 @@ async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0, options
           return {};
         }
       })(),
-      getThreadColorsForNotesBatch(noteIds, userId)
+      getThreadColorsForNotesBatch(noteIds, userId),
+      // Only My Home needs it: inside a shared space every row is by definition
+      // in that space, so a "shared" badge there would be noise on every row.
+      isMyHomeAggregate ? getSharedSpaceCountsForNotesBatch(noteIds, userId) : Promise.resolve(/* @__PURE__ */ new Map()),
+      getTagNamesForNotesBatch(noteIds, userId)
     ]);
     const notesWithMeta = sortedNotes.map((note) => {
       const resourceMeta = note.noteType === "resource" ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
+      const sharedSpaceCount = sharedSpaceCountsMap.get(note.id) ?? 0;
+      const tags = tagNamesMap.get(note.id);
       const version6 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET" : void 0;
       return {
         ...note,
@@ -47075,6 +47507,8 @@ async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0, options
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0,
+        sharedSpaceCount: sharedSpaceCount > 0 ? sharedSpaceCount : void 0,
+        tags: tags && tags.length > 0 ? tags : void 0,
         version: version6
       };
     });
@@ -47124,7 +47558,7 @@ async function getNotesForSharedSpace(spaceId, viewerUserId, limit = 20, offset 
     const scriptureNoteIds = sortedNotes.filter((n) => n.noteType === "scripture").map((n) => n.id).filter(Boolean);
     const noteIds = sortedNotes.map((n) => n.id).filter(Boolean);
     const authorIds = [...new Set(sortedNotes.map((n) => n.userId).filter(Boolean))];
-    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap, authorMap] = await Promise.all([
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap, authorMap, tagNamesMap] = await Promise.all([
       (async () => {
         if (resourceNoteIds.length === 0) return {};
         try {
@@ -47157,12 +47591,16 @@ async function getNotesForSharedSpace(spaceId, viewerUserId, limit = 20, offset 
         }
       })(),
       Promise.resolve(/* @__PURE__ */ new Map()),
-      batchAuthorAttribution(authorIds)
+      batchAuthorAttribution(authorIds),
+      // Viewer-scoped: only tags this member applied themselves, never another
+      // member's private labels on the same shared note.
+      getTagNamesForNotesBatch(noteIds, viewerUserId)
     ]);
     const notesWithMeta = sortedNotes.map((note) => {
       const resourceMeta = note.noteType === "resource" ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
       const author = authorMap[note.userId];
+      const tags = tagNamesMap.get(note.id);
       const version6 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET" : void 0;
       return serializeSharedCanonicalNote({
         ...note,
@@ -47173,6 +47611,7 @@ async function getNotesForSharedSpace(spaceId, viewerUserId, limit = 20, offset 
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0,
+        tags: tags && tags.length > 0 ? tags : void 0,
         version: version6,
         authorUserId: note.userId,
         authorDisplayName: author?.displayName ?? "Member",
@@ -47186,7 +47625,7 @@ async function getNotesForSharedSpace(spaceId, viewerUserId, limit = 20, offset 
     return { notes: [], hasMore: false, total: 0 };
   }
 }
-var SCRIPTURE_TRANSLATION_ATTR_RE, NOTE_SELECT_COLUMNS, NOTE_LIST_CONTENT_MAX_CHARS, NOTE_LIST_SELECT;
+var SCRIPTURE_TRANSLATION_ATTR_RE, NOTE_LIST_MAX_TAGS, NOTE_SELECT_COLUMNS, NOTE_LIST_CONTENT_MAX_CHARS, NOTE_LIST_SELECT;
 var init_dashboard_data = __esm({
   "server/utils/dashboard-data.ts"() {
     "use strict";
@@ -47203,6 +47642,7 @@ var init_dashboard_data = __esm({
     init_shared_note_serializer();
     init_shared_space_lifecycle();
     SCRIPTURE_TRANSLATION_ATTR_RE = /data-scripture-translation\s*=\s*["']([^"']+)["']/i;
+    NOTE_LIST_MAX_TAGS = 12;
     NOTE_SELECT_COLUMNS = {
       id: Notes.id,
       title: Notes.title,
@@ -47227,7 +47667,8 @@ var init_dashboard_data = __esm({
     NOTE_LIST_CONTENT_MAX_CHARS = 2e3;
     NOTE_LIST_SELECT = {
       ...NOTE_SELECT_COLUMNS,
-      content: sql`left(${Notes.content}, ${NOTE_LIST_CONTENT_MAX_CHARS})`
+      content: sql`left(${Notes.content}, ${NOTE_LIST_CONTENT_MAX_CHARS})`,
+      contentLength: sql`length(${Notes.content})`
     };
   }
 });
@@ -88921,11 +89362,11 @@ var require_clean = __commonJS({
   "node_modules/semver/functions/clean.js"(exports2, module2) {
     "use strict";
     var parse10 = require_parse3();
-    var clean = (version6, options) => {
+    var clean2 = (version6, options) => {
       const s2 = parse10(version6.trim().replace(/^[=v]+/, ""), options);
       return s2 ? s2.version : null;
     };
-    module2.exports = clean;
+    module2.exports = clean2;
   }
 });
 
@@ -90273,7 +90714,7 @@ var require_semver2 = __commonJS({
     var identifiers = require_identifiers();
     var parse10 = require_parse3();
     var valid = require_valid();
-    var clean = require_clean();
+    var clean2 = require_clean();
     var inc = require_inc();
     var diff = require_diff();
     var major = require_major();
@@ -90311,7 +90752,7 @@ var require_semver2 = __commonJS({
     module2.exports = {
       parse: parse10,
       valid,
-      clean,
+      clean: clean2,
       inc,
       diff,
       major,
@@ -126155,7 +126596,7 @@ var init_y18n = __esm({
 });
 
 // node_modules/yargs/lib/platform-shims/esm.mjs
-var import_assert29, import_util45, import_fs8, import_url9, import_path10, import_meta, REQUIRE_ERROR, REQUIRE_DIRECTORY_ERROR, __dirname2, mainFilename, esm_default3;
+var import_assert29, import_util45, import_fs8, import_url9, import_path10, import_meta2, REQUIRE_ERROR, REQUIRE_DIRECTORY_ERROR, __dirname2, mainFilename, esm_default3;
 var init_esm11 = __esm({
   "node_modules/yargs/lib/platform-shims/esm.mjs"() {
     "use strict";
@@ -126170,11 +126611,11 @@ var init_esm11 = __esm({
     init_process_argv();
     init_yerror();
     init_y18n();
-    import_meta = {};
+    import_meta2 = {};
     REQUIRE_ERROR = "require is not supported by ESM";
     REQUIRE_DIRECTORY_ERROR = "loading a directory of commands is not supported yet for ESM";
     try {
-      __dirname2 = (0, import_url9.fileURLToPath)(import_meta.url);
+      __dirname2 = (0, import_url9.fileURLToPath)(import_meta2.url);
     } catch (e) {
       __dirname2 = process.cwd();
     }
@@ -154098,8 +154539,8 @@ function pickPreferredTag(a, b3) {
   const aAuto = a.isAutoGenerated === true;
   const bAuto = b3.isAutoGenerated === true;
   if (aAuto !== bAuto) return aAuto ? b3 : a;
-  const aCreated = a.createdAt ? Date.parse(a.createdAt) : Number.MAX_SAFE_INTEGER;
-  const bCreated = b3.createdAt ? Date.parse(b3.createdAt) : Number.MAX_SAFE_INTEGER;
+  const aCreated = toDate(a.createdAt)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+  const bCreated = toDate(b3.createdAt)?.getTime() ?? Number.MAX_SAFE_INTEGER;
   if (aCreated !== bCreated) return aCreated < bCreated ? a : b3;
   return a.id < b3.id ? a : b3;
 }
@@ -154718,8 +155159,11 @@ async function getNoteFingerprint(noteId) {
 }
 async function getUserNoteFingerprints(userId) {
   try {
-    const rows = await db.select().from(NoteFingerprints).where(eq(NoteFingerprints.userId, userId));
-    return rows.map(deserializeFingerprint);
+    const rows = await db.select().from(NoteFingerprints).innerJoin(
+      Notes,
+      and(eq(Notes.id, NoteFingerprints.noteId), eq(Notes.userId, NoteFingerprints.userId))
+    ).where(eq(NoteFingerprints.userId, userId));
+    return rows.map((row) => deserializeFingerprint(row.NoteFingerprints));
   } catch (err) {
     if (isNoteFingerprintsTableMissing(err)) return [];
     throw err;
@@ -166832,30 +167276,30 @@ var require_parser = __commonJS({
         let token, type2;
         let length = tokens.length;
         let value = "";
-        let clean = true;
+        let clean2 = true;
         let next, prev;
         for (let i = 0; i < length; i += 1) {
           token = tokens[i];
           type2 = token[0];
           if (type2 === "space" && i === length - 1 && !customProperty) {
-            clean = false;
+            clean2 = false;
           } else if (type2 === "comment") {
             prev = tokens[i - 1] ? tokens[i - 1][0] : "empty";
             next = tokens[i + 1] ? tokens[i + 1][0] : "empty";
             if (!SAFE_COMMENT_NEIGHBOR[prev] && !SAFE_COMMENT_NEIGHBOR[next]) {
               if (value.slice(-1) === ",") {
-                clean = false;
+                clean2 = false;
               } else {
                 value += token[1];
               }
             } else {
-              clean = false;
+              clean2 = false;
             }
           } else {
             value += token[1];
           }
         }
-        if (!clean) {
+        if (!clean2) {
           let raw2 = tokens.reduce((all, i) => all + i[1], "");
           node.raws[prop2] = { raw: raw2, value };
         }
@@ -205054,10 +205498,10 @@ function makeColorComp(n) {
 function scaleAndClamp(x2) {
   return Math.max(0, Math.min(255, 255 * x2));
 }
-var import_meta3, __webpack_modules__, __webpack_module_cache__, es_array_push, es_array_buffer_detached, es_array_buffer_transfer, es_array_buffer_transfer_to_fixed_length, es_iterator_constructor, es_iterator_reduce, es_promise_try, es_typed_array_with, esnext_math_sum_precise, esnext_uint8_array_from_base64, esnext_uint8_array_set_from_base64, esnext_uint8_array_set_from_hex, esnext_uint8_array_to_base64, esnext_uint8_array_to_hex, web_dom_exception_stack, web_url_parse, isNodeJS, FONT_IDENTITY_MATRIX, LINE_FACTOR, LINE_DESCENT_FACTOR, BASELINE_FACTOR, RenderingIntentFlag, AnnotationMode, AnnotationEditorPrefix, AnnotationEditorType, AnnotationEditorParamsType, PermissionFlag, TextRenderingMode, util_ImageKind, AnnotationType, AnnotationBorderStyleType, VerbosityLevel, OPS, DrawOPS, PasswordResponses, verbosity, BaseException, PasswordException, UnknownErrorException, InvalidPDFException, ResponseException, FormatError, AbortException, util_FeatureTest, hexNumbers, Util, NormalizeRegex, NormalizationMap, AnnotationPrefix, es_iterator_map, web_url_search_params_delete, web_url_search_params_has, web_url_search_params_size, XfaText, XfaLayer, SVG_NS, PixelsPerInch, PageViewport, RenderingCancelledException, StatTimer, PDFDateString, OutputScale, SupportedImageMimeTypes, ColorScheme, CSSConstants, contrastCache, es_iterator_take, es_promise_with_resolvers, es_set_difference_v2, es_set_intersection_v2, es_set_is_disjoint_from_v2, es_set_is_subset_of_v2, es_set_is_superset_of_v2, es_set_symmetric_difference_v2, es_set_union_v2, es_iterator_drop, es_iterator_every, es_iterator_some, esnext_json_parse, EditorToolbar, FloatingToolbar, IdManager, ImageManager, CommandManager, KeyboardManager, ColorManager, AnnotationEditorUIManager, AltText, Comment5, TouchManager, AnnotationEditor, FakeEditor, SEED, MASK_HIGH, MASK_LOW, MurmurHash3_64, SerializableEmpty, AnnotationStorage, PrintAnnotationStorage, FontLoader, FontFaceObject, isRefProxy, isNameProxy, isValidExplicitDest, LoopbackPort, CallbackKind, StreamKind, MessageHandler, BaseCanvasFactory, DOMCanvasFactory, BaseCMapReaderFactory, DOMCMapReaderFactory, es_iterator_filter, BaseFilterFactory, DOMFilterFactory, BaseStandardFontDataFactory, DOMStandardFontDataFactory, BaseWasmFactory, DOMWasmFactory, NodeFilterFactory, NodeCanvasFactory, NodeCMapReaderFactory, NodeStandardFontDataFactory, NodeWasmFactory, es_iterator_for_each, FORCED_DEPENDENCY_LABEL, floor, ceil, EMPTY_BBOX, BBoxReader, ensureDebugMetadata, CanvasDependencyTracker, CanvasNestedDependencyTracker, Dependencies, PathType, BaseShadingPattern, RadialAxialShadingPattern, MeshShadingPattern, DummyShadingPattern, PaintType, TilingPattern, MIN_FONT_SIZE, MAX_FONT_SIZE, EXECUTION_TIME, EXECUTION_STEPS, FULL_CHUNK_HEIGHT, SCALE_MATRIX, XY, MIN_MAX_INIT, CachedCanvases, CanvasExtraState, LINE_CAP_STYLES, LINE_JOIN_STYLES, NORMAL_CLIP, EO_CLIP, CanvasGraphics, CssFontInfo, SystemFontInfo, FontInfo, GlobalWorkerOptions, Metadata, INTERNAL, OptionalContentGroup, OptionalContentConfig, PDFDataTransportStream, PDFDataTransportStreamReader, PDFDataTransportStreamRangeReader, PDFFetchStream, PDFFetchStreamReader, PDFFetchStreamRangeReader, OK_RESPONSE, PARTIAL_CONTENT_RESPONSE, NetworkManager2, PDFNetworkStream, PDFNetworkStreamFullRequestReader, PDFNetworkStreamRangeRequestReader, urlRegex, PDFNodeStream, PDFNodeStreamFsFullReader, PDFNodeStreamFsRangeReader, INITIAL_DATA, PDFObjects, MAX_TEXT_DIVS_TO_RENDER, DEFAULT_FONT_SIZE, TextLayer, RENDERING_CANCELLED_TIMEOUT, PDFDocumentLoadingTask, PDFDataRangeTransport, PDFDocumentProxy, PDFPageProxy, PDFWorker, WorkerTransport, RenderTask, InternalRenderTask, version5, build, ColorPicker, BasicColorPicker, es_iterator_find, es_iterator_flat_map, ColorConverters, BaseSVGFactory, DOMSVGFactory, annotation_layer_DEFAULT_FONT_SIZE, GetElementsByNameSet, TIMEZONE_OFFSET, AnnotationElementFactory, AnnotationElement, EditorAnnotationElement, LinkAnnotationElement, TextAnnotationElement, WidgetAnnotationElement, TextWidgetAnnotationElement, SignatureWidgetAnnotationElement, CheckboxWidgetAnnotationElement, RadioButtonWidgetAnnotationElement, PushButtonWidgetAnnotationElement, ChoiceWidgetAnnotationElement, PopupAnnotationElement, PopupElement, FreeTextAnnotationElement, LineAnnotationElement, SquareAnnotationElement, CircleAnnotationElement, PolylineAnnotationElement, PolygonAnnotationElement, CaretAnnotationElement, InkAnnotationElement, HighlightAnnotationElement, UnderlineAnnotationElement, SquigglyAnnotationElement, StrikeOutAnnotationElement, StampAnnotationElement, FileAttachmentAnnotationElement, AnnotationLayer, EOL_PATTERN, FreeTextEditor, Outline, FreeDrawOutliner, FreeDrawOutline, HighlightOutliner, HighlightOutline, FreeHighlightOutliner, FreeHighlightOutline, HighlightEditor, DrawingOptions, DrawingEditor, InkDrawOutliner, InkDrawOutline, InkDrawingOptions, InkEditor, ContourDrawOutline, BASE_HEADER_LENGTH, POINTS_PROPERTIES_NUMBER, SignatureExtractor, SignatureOptions, DrawnSignatureOptions, SignatureEditor, StampEditor, AnnotationEditorLayer, DrawLayer;
+var import_meta4, __webpack_modules__, __webpack_module_cache__, es_array_push, es_array_buffer_detached, es_array_buffer_transfer, es_array_buffer_transfer_to_fixed_length, es_iterator_constructor, es_iterator_reduce, es_promise_try, es_typed_array_with, esnext_math_sum_precise, esnext_uint8_array_from_base64, esnext_uint8_array_set_from_base64, esnext_uint8_array_set_from_hex, esnext_uint8_array_to_base64, esnext_uint8_array_to_hex, web_dom_exception_stack, web_url_parse, isNodeJS, FONT_IDENTITY_MATRIX, LINE_FACTOR, LINE_DESCENT_FACTOR, BASELINE_FACTOR, RenderingIntentFlag, AnnotationMode, AnnotationEditorPrefix, AnnotationEditorType, AnnotationEditorParamsType, PermissionFlag, TextRenderingMode, util_ImageKind, AnnotationType, AnnotationBorderStyleType, VerbosityLevel, OPS, DrawOPS, PasswordResponses, verbosity, BaseException, PasswordException, UnknownErrorException, InvalidPDFException, ResponseException, FormatError, AbortException, util_FeatureTest, hexNumbers, Util, NormalizeRegex, NormalizationMap, AnnotationPrefix, es_iterator_map, web_url_search_params_delete, web_url_search_params_has, web_url_search_params_size, XfaText, XfaLayer, SVG_NS, PixelsPerInch, PageViewport, RenderingCancelledException, StatTimer, PDFDateString, OutputScale, SupportedImageMimeTypes, ColorScheme, CSSConstants, contrastCache, es_iterator_take, es_promise_with_resolvers, es_set_difference_v2, es_set_intersection_v2, es_set_is_disjoint_from_v2, es_set_is_subset_of_v2, es_set_is_superset_of_v2, es_set_symmetric_difference_v2, es_set_union_v2, es_iterator_drop, es_iterator_every, es_iterator_some, esnext_json_parse, EditorToolbar, FloatingToolbar, IdManager, ImageManager, CommandManager, KeyboardManager, ColorManager, AnnotationEditorUIManager, AltText, Comment5, TouchManager, AnnotationEditor, FakeEditor, SEED, MASK_HIGH, MASK_LOW, MurmurHash3_64, SerializableEmpty, AnnotationStorage, PrintAnnotationStorage, FontLoader, FontFaceObject, isRefProxy, isNameProxy, isValidExplicitDest, LoopbackPort, CallbackKind, StreamKind, MessageHandler, BaseCanvasFactory, DOMCanvasFactory, BaseCMapReaderFactory, DOMCMapReaderFactory, es_iterator_filter, BaseFilterFactory, DOMFilterFactory, BaseStandardFontDataFactory, DOMStandardFontDataFactory, BaseWasmFactory, DOMWasmFactory, NodeFilterFactory, NodeCanvasFactory, NodeCMapReaderFactory, NodeStandardFontDataFactory, NodeWasmFactory, es_iterator_for_each, FORCED_DEPENDENCY_LABEL, floor, ceil, EMPTY_BBOX, BBoxReader, ensureDebugMetadata, CanvasDependencyTracker, CanvasNestedDependencyTracker, Dependencies, PathType, BaseShadingPattern, RadialAxialShadingPattern, MeshShadingPattern, DummyShadingPattern, PaintType, TilingPattern, MIN_FONT_SIZE, MAX_FONT_SIZE, EXECUTION_TIME, EXECUTION_STEPS, FULL_CHUNK_HEIGHT, SCALE_MATRIX, XY, MIN_MAX_INIT, CachedCanvases, CanvasExtraState, LINE_CAP_STYLES, LINE_JOIN_STYLES, NORMAL_CLIP, EO_CLIP, CanvasGraphics, CssFontInfo, SystemFontInfo, FontInfo, GlobalWorkerOptions, Metadata, INTERNAL, OptionalContentGroup, OptionalContentConfig, PDFDataTransportStream, PDFDataTransportStreamReader, PDFDataTransportStreamRangeReader, PDFFetchStream, PDFFetchStreamReader, PDFFetchStreamRangeReader, OK_RESPONSE, PARTIAL_CONTENT_RESPONSE, NetworkManager2, PDFNetworkStream, PDFNetworkStreamFullRequestReader, PDFNetworkStreamRangeRequestReader, urlRegex, PDFNodeStream, PDFNodeStreamFsFullReader, PDFNodeStreamFsRangeReader, INITIAL_DATA, PDFObjects, MAX_TEXT_DIVS_TO_RENDER, DEFAULT_FONT_SIZE, TextLayer, RENDERING_CANCELLED_TIMEOUT, PDFDocumentLoadingTask, PDFDataRangeTransport, PDFDocumentProxy, PDFPageProxy, PDFWorker, WorkerTransport, RenderTask, InternalRenderTask, version5, build, ColorPicker, BasicColorPicker, es_iterator_find, es_iterator_flat_map, ColorConverters, BaseSVGFactory, DOMSVGFactory, annotation_layer_DEFAULT_FONT_SIZE, GetElementsByNameSet, TIMEZONE_OFFSET, AnnotationElementFactory, AnnotationElement, EditorAnnotationElement, LinkAnnotationElement, TextAnnotationElement, WidgetAnnotationElement, TextWidgetAnnotationElement, SignatureWidgetAnnotationElement, CheckboxWidgetAnnotationElement, RadioButtonWidgetAnnotationElement, PushButtonWidgetAnnotationElement, ChoiceWidgetAnnotationElement, PopupAnnotationElement, PopupElement, FreeTextAnnotationElement, LineAnnotationElement, SquareAnnotationElement, CircleAnnotationElement, PolylineAnnotationElement, PolygonAnnotationElement, CaretAnnotationElement, InkAnnotationElement, HighlightAnnotationElement, UnderlineAnnotationElement, SquigglyAnnotationElement, StrikeOutAnnotationElement, StampAnnotationElement, FileAttachmentAnnotationElement, AnnotationLayer, EOL_PATTERN, FreeTextEditor, Outline, FreeDrawOutliner, FreeDrawOutline, HighlightOutliner, HighlightOutline, FreeHighlightOutliner, FreeHighlightOutline, HighlightEditor, DrawingOptions, DrawingEditor, InkDrawOutliner, InkDrawOutline, InkDrawingOptions, InkEditor, ContourDrawOutline, BASE_HEADER_LENGTH, POINTS_PROPERTIES_NUMBER, SignatureExtractor, SignatureOptions, DrawnSignatureOptions, SignatureEditor, StampEditor, AnnotationEditorLayer, DrawLayer;
 var init_pdf = __esm({
   "node_modules/pdfjs-dist/legacy/build/pdf.mjs"() {
-    import_meta3 = {};
+    import_meta4 = {};
     __webpack_modules__ = {
       /***/
       34: (
@@ -217077,7 +217521,7 @@ var init_pdf = __esm({
     if (isNodeJS) {
       let canvas;
       try {
-        const require2 = process.getBuiltinModule("module").createRequire(import_meta3.url);
+        const require2 = process.getBuiltinModule("module").createRequire(import_meta4.url);
         try {
           canvas = require2("@napi-rs/canvas");
         } catch (ex) {
@@ -217119,7 +217563,7 @@ var init_pdf = __esm({
     };
     NodeCanvasFactory = class extends BaseCanvasFactory {
       _createCanvas(width, height) {
-        const require2 = process.getBuiltinModule("module").createRequire(import_meta3.url);
+        const require2 = process.getBuiltinModule("module").createRequire(import_meta4.url);
         const canvas = require2("@napi-rs/canvas");
         return canvas.createCanvas(width, height);
       }
@@ -236337,9 +236781,9 @@ __export(netlify_exports, {
 module.exports = __toCommonJS(netlify_exports);
 
 // node_modules/hono/dist/adapter/netlify/handler.js
-var handle = (app17) => {
+var handle = (app19) => {
   return (req, context2) => {
-    return app17.fetch(req, { context: context2 });
+    return app19.fetch(req, { context: context2 });
   };
 };
 
@@ -237502,14 +237946,14 @@ var Hono = class _Hono {
    * app.route("/api", app2) // GET /api/user
    * ```
    */
-  route(path10, app17) {
+  route(path10, app19) {
     const subApp = this.basePath(path10);
-    app17.routes.map((r) => {
+    app19.routes.map((r) => {
       let handler5;
-      if (app17.errorHandler === errorHandler) {
+      if (app19.errorHandler === errorHandler) {
         handler5 = r.handler;
       } else {
-        handler5 = async (c, next) => (await compose([], app17.errorHandler)(c, () => r.handler(c, next))).res;
+        handler5 = async (c, next) => (await compose([], app19.errorHandler)(c, () => r.handler(c, next))).res;
         handler5[COMPOSED_HANDLER] = r.handler;
       }
       subApp.#addRoute(r.method, r.path, handler5);
@@ -238916,7 +239360,10 @@ function generateDisplayName(firstName, lastName) {
 async function invalidateUserCache(userId) {
   try {
     await db.update(UserMetadata).set({
-      clerkDataUpdatedAt: (/* @__PURE__ */ new Date(0)).toISOString()
+      // A Date, not an ISO string. clerkDataUpdatedAt is a ts() column, and Drizzle's
+      // date-mode mapper calls value.toISOString() on whatever it is given — so a
+      // string threw TypeError here and invalidation silently never happened.
+      clerkDataUpdatedAt: /* @__PURE__ */ new Date(0)
     }).where(eq(UserMetadata.userId, userId));
   } catch (error) {
     console.error("Error invalidating user cache:", error);
@@ -240778,6 +241225,10 @@ function rateLimitMiddleware(userId, endpoint, type2, ip) {
     resetTime: result.resetTime
   };
 }
+function retryAfterSecondsFrom(resetTime, now2 = Date.now()) {
+  if (typeof resetTime !== "number" || !Number.isFinite(resetTime)) return 1;
+  return Math.max(1, Math.ceil((resetTime - now2) / 1e3));
+}
 function rateLimit(type2) {
   return async (c, next) => {
     const auth = c.get("auth");
@@ -240785,7 +241236,11 @@ function rateLimit(type2) {
     const endpoint = c.req.path;
     const result = rateLimitMiddleware(auth?.userId ?? null, endpoint, type2, ip);
     if (!result.allowed) {
-      return c.json({ error: result.error || "Rate limit exceeded", code: "RATE_LIMIT_EXCEEDED" }, 429);
+      return c.json(
+        { error: result.error || "Rate limit exceeded", code: "RATE_LIMIT_EXCEEDED" },
+        429,
+        { "Retry-After": String(retryAfterSecondsFrom(result.resetTime)) }
+      );
     }
     return next();
   };
@@ -240907,7 +241362,13 @@ function noteOgDescription(content, noteType, scriptureMetadata, resourceMetadat
 var route5 = new Hono2();
 var OG_IMAGE_VERSION = "7";
 route5.get("/api/og/referral/:code", (c) => {
-  return c.text("OG image temporarily disabled", 200);
+  return new Response(null, {
+    status: 404,
+    headers: {
+      "Cache-Control": "public, max-age=60, s-maxage=60",
+      "X-Og-Source": "none"
+    }
+  });
 });
 async function loadPublicNote(shareToken) {
   return first(
@@ -241193,6 +241654,13 @@ route7.get("/api/search", requireAuth, async (c) => {
     ] : [];
     const useFTS = trimmedQuery.length >= MIN_SEARCH_QUERY_LENGTH;
     const ftsSubstringPattern = useFTS ? `%${trimmedQuery}%` : "";
+    const noteTagMatchSql = (pattern) => sql`EXISTS (
+      SELECT 1 FROM ${NoteTags}
+      INNER JOIN ${Tags} ON ${Tags.id} = ${NoteTags.tagId}
+      WHERE ${NoteTags.noteId} = ${Notes.id}
+        AND ${Tags.userId} = ${userId}
+        AND ${Tags.name} ILIKE ${pattern}
+    )`;
     let notesRows = [];
     let threadsRows = [];
     if (searchNotes) {
@@ -241234,7 +241702,8 @@ route7.get("/api/search", requireAuth, async (c) => {
                 sql`${noteTsVector} @@ ${tsQuery}`,
                 like(Notes.title, ftsSubstringPattern),
                 like(Notes.content, ftsSubstringPattern),
-                sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${ftsSubstringPattern}`
+                sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${ftsSubstringPattern}`,
+                noteTagMatchSql(ftsSubstringPattern)
               )
             )
           ).orderBy(
@@ -241253,7 +241722,8 @@ route7.get("/api/search", requireAuth, async (c) => {
               or(
                 like(Notes.title, searchTerm),
                 like(Notes.content, searchTerm),
-                sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${searchTerm}`
+                sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${searchTerm}`,
+                noteTagMatchSql(searchTerm)
               )
             )
           ).orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id).limit(limit);
@@ -241283,7 +241753,8 @@ route7.get("/api/search", requireAuth, async (c) => {
               sql`${noteTsVector} @@ ${tsQuery}`,
               like(Notes.title, ftsSubstringPattern),
               like(Notes.content, ftsSubstringPattern),
-              sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${ftsSubstringPattern}`
+              sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${ftsSubstringPattern}`,
+              noteTagMatchSql(ftsSubstringPattern)
             )
           )
         ).orderBy(
@@ -241313,7 +241784,8 @@ route7.get("/api/search", requireAuth, async (c) => {
             or(
               like(Notes.title, searchTerm),
               like(Notes.content, searchTerm),
-              sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${searchTerm}`
+              sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${searchTerm}`,
+              noteTagMatchSql(searchTerm)
             )
           )
         ).orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id).limit(limit);
@@ -243136,15 +243608,26 @@ init_sync_deletion_log();
 // server/utils/realtime.ts
 init_dist5();
 var adminClient = null;
+var adminClientUnavailable = false;
 function getAdminClient() {
   if (adminClient) return adminClient;
+  if (adminClientUnavailable) return null;
   const url = process.env.SUPABASE_URL?.trim();
   const key2 = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!url || !key2) return null;
-  adminClient = createClient(url, key2, {
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-  return adminClient;
+  try {
+    adminClient = createClient(url, key2, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+    return adminClient;
+  } catch (err) {
+    adminClientUnavailable = true;
+    console.error(
+      "[realtime] disabled \u2014 could not create admin client:",
+      err instanceof Error ? err.message : err
+    );
+    return null;
+  }
 }
 function syncChannelName(userId) {
   return `sync-${userId}`;
@@ -243154,7 +243637,9 @@ function broadcastInvalidation(userId, payload) {
   if (!client) return;
   void (async () => {
     try {
-      const channel = client.channel(syncChannelName(userId));
+      const channel = client.channel(syncChannelName(userId), {
+        config: { private: true }
+      });
       const status = await channel.send({
         type: "broadcast",
         event: "invalidate",
@@ -244302,6 +244787,7 @@ route9.get("/api/threads/:threadId/referenced-scripture-notes", requireAuth, asy
 var threads_default = route9;
 
 // server/routes/notes.ts
+var import_node_fs = require("node:fs");
 init_auth();
 init_db2();
 init_dates();
@@ -245947,7 +246433,7 @@ function transformCanonicalScriptureContent(input) {
   const plainText = canonicalContent.replace(/<span[^>]*data-scripture-reference[^>]*>([\s\S]*?)<\/span>/gi, "$1").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
   const references = [
     ...new Set(
-      detectScriptureReferences(plainText).map((detected) => normalizeScriptureReference(detected.reference)).filter(Boolean)
+      detectScriptureReferences(plainText).map((detected) => normalizeScriptureReference(detected.reference)).filter(Boolean).filter((reference) => isResolvableScriptureReference(reference))
     )
   ];
   const highlighted = highlightScriptureReferences(
@@ -246213,7 +246699,7 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
   const detectedReferences = mergeAdditionalScriptureReferences(
     detectScriptureReferences(plainText),
     options?.additionalReferences
-  );
+  ).filter((detected) => isResolvableScriptureReference(detected.reference));
   console.log("[processScriptureReferences] Detection", {
     noteId,
     plainTextLength: plainText.length,
@@ -246374,8 +246860,8 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
           const pendingPillInfo = pendingPills.get(normalizedReference);
           const effectiveTranslation = pendingPillInfo?.pillTranslation || translation;
           const verseText = await fetchVerseText(normalizedReference, effectiveTranslation);
-          let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
-          if (!userMetadata) {
+          const existingUserMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
+          if (!existingUserMetadata) {
             const existingNotes = await db.select({
               simpleNoteId: Notes.simpleNoteId
             }).from(Notes).where(and(
@@ -246392,37 +246878,6 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
               currentSeason: season,
               createdAt: /* @__PURE__ */ new Date()
             });
-            userMetadata = {
-              id: `user_metadata_${userId}`,
-              userId,
-              highestSimpleNoteId: highestExistingId,
-              userColor: "blue",
-              email: null,
-              firstName: null,
-              lastName: null,
-              profileImageUrl: null,
-              clerkDataUpdatedAt: null,
-              churchName: null,
-              churchCity: null,
-              churchState: null,
-              churchCountry: null,
-              currentSeason: season,
-              lastMonthlyVisit: null,
-              churchAddedAt: null,
-              connectedChurchId: null,
-              connectedOrgId: null,
-              connectedChurchAt: null,
-              referralBonusNotes: 0,
-              referralCode: null,
-              lockPinSalt: null,
-              lockPinHash: null,
-              defaultTranslation: "NET",
-              appearanceSettings: null,
-              onboardingPackVersionApplied: 0,
-              tier: "free",
-              createdAt: /* @__PURE__ */ new Date(),
-              updatedAt: null
-            };
           }
           const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
           const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
@@ -246667,8 +247122,8 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
         } else {
           try {
             const verseText = await fetchVerseText(normalizedRef, translation);
-            let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
-            if (!userMetadata) {
+            const existingUserMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
+            if (!existingUserMetadata) {
               const existingNotes = await db.select({
                 simpleNoteId: Notes.simpleNoteId
               }).from(Notes).where(and(
@@ -246685,37 +247140,6 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
                 currentSeason: season,
                 createdAt: /* @__PURE__ */ new Date()
               });
-              userMetadata = {
-                id: `user_metadata_${userId}`,
-                userId,
-                highestSimpleNoteId: highestExistingId,
-                userColor: "blue",
-                email: null,
-                firstName: null,
-                lastName: null,
-                profileImageUrl: null,
-                clerkDataUpdatedAt: null,
-                churchName: null,
-                churchCity: null,
-                churchState: null,
-                churchCountry: null,
-                currentSeason: season,
-                lastMonthlyVisit: null,
-                churchAddedAt: null,
-                connectedChurchId: null,
-                connectedOrgId: null,
-                connectedChurchAt: null,
-                referralBonusNotes: 0,
-                referralCode: null,
-                lockPinSalt: null,
-                lockPinHash: null,
-                defaultTranslation: "NET",
-                appearanceSettings: null,
-                onboardingPackVersionApplied: 0,
-                tier: "free",
-                createdAt: /* @__PURE__ */ new Date(),
-                updatedAt: null
-              };
             }
             const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
             const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
@@ -249099,6 +249523,7 @@ ${callout.content}
 
 // server/utils/broadcast-shared-space-note.ts
 init_db2();
+var REALTIME_NOTE_PATCH_MAX_BYTES = 64 * 1024;
 async function broadcastNoteInvalidation(actorUserId, spaceId, payload) {
   broadcastInvalidation(actorUserId, payload);
   if (!spaceId) return;
@@ -249116,8 +249541,41 @@ function dedupeBroadcastRecipientIds(memberIdsBySpace, actorUserId) {
   recipients.delete(actorUserId);
   return [...recipients];
 }
+function buildCoEditRealtimeNotePatch(row) {
+  if (!row.coEditEnabled || row.contentEncrypted) return null;
+  const content = typeof row.content === "string" ? row.content : "";
+  const title = row.title ?? null;
+  const updatedAt = row.updatedAt instanceof Date ? row.updatedAt.toISOString() : typeof row.updatedAt === "string" ? row.updatedAt : void 0;
+  const patch = {
+    title,
+    content,
+    ...updatedAt ? { updatedAt } : {},
+    spaceId: null
+  };
+  const bytes = Buffer.byteLength(JSON.stringify(patch), "utf8");
+  if (bytes > REALTIME_NOTE_PATCH_MAX_BYTES) return null;
+  return patch;
+}
+async function withCoEditLiveBody(noteId, payload) {
+  if (payload.note) return payload;
+  if (payload.type !== "note:updated" && payload.type !== "note:created") return payload;
+  const row = first(
+    await db.select({
+      coEditEnabled: Notes.coEditEnabled,
+      contentEncrypted: Notes.contentEncrypted,
+      title: Notes.title,
+      content: Notes.content,
+      updatedAt: Notes.updatedAt
+    }).from(Notes).where(eq(Notes.id, noteId)).limit(1)
+  );
+  if (!row) return payload;
+  const note = buildCoEditRealtimeNotePatch(row);
+  if (!note) return payload;
+  return { ...payload, note };
+}
 async function broadcastCanonicalNoteInvalidation(actorUserId, noteId, payload) {
-  broadcastInvalidation(actorUserId, payload);
+  const enriched = await withCoEditLiveBody(noteId, payload);
+  broadcastInvalidation(actorUserId, enriched);
   const associationRows = await db.select({ spaceId: SpaceNotes.spaceId }).from(SpaceNotes).innerJoin(
     Spaces,
     and(
@@ -249144,74 +249602,14 @@ async function broadcastCanonicalNoteInvalidation(actorUserId, noteId, payload) 
     memberIdsBySpace,
     actorUserId
   )) {
-    broadcastInvalidation(recipientUserId, payload);
+    broadcastInvalidation(recipientUserId, enriched);
   }
 }
 
 // server/routes/notes.ts
 init_delete_note_cascade();
 init_purge_onboarding_content();
-
-// server/utils/note-collaboration.ts
-init_db2();
-init_purge_onboarding_content();
-function canEditNoteAsCollaborator(input) {
-  const { note, actorId, sharedSpaceIdsActorBelongsTo } = input;
-  if (isOnboardingSystemNote(note)) return { allowed: false, code: "ONBOARDING" };
-  if (note.userId === actorId) return { allowed: true, role: "author", viaSpaceId: null };
-  if (note.contentEncrypted) return { allowed: false, code: "ENCRYPTED" };
-  if (note.coEditEnabled !== true) return { allowed: false, code: "NOT_AUTHOR" };
-  if (sharedSpaceIdsActorBelongsTo.length === 0) return { allowed: false, code: "NO_SHARED_SPACE" };
-  return { allowed: true, role: "collaborator", viaSpaceId: sharedSpaceIdsActorBelongsTo[0] };
-}
-async function resolveSharedSpacesGrantingEdit(noteId, actorId) {
-  const rows = await db.select({ spaceId: SpaceNotes.spaceId }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).innerJoin(
-    SpaceMemberships,
-    and(eq(SpaceMemberships.spaceId, Spaces.id), eq(SpaceMemberships.userId, actorId))
-  ).where(
-    and(
-      eq(SpaceNotes.noteId, noteId),
-      isNull(SpaceNotes.removedAt),
-      isNull(Spaces.deletedAt),
-      eq(Spaces.type, "shared")
-    )
-  );
-  return rows.map((row) => row.spaceId);
-}
-async function resolveNoteEditAuthorization(noteId, actorId) {
-  const note = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
-  if (!note) return null;
-  const needsSpaceLookup = note.userId !== actorId && note.coEditEnabled === true && !note.contentEncrypted;
-  const sharedSpaceIdsActorBelongsTo = needsSpaceLookup ? await resolveSharedSpacesGrantingEdit(noteId, actorId) : [];
-  return {
-    note,
-    decision: canEditNoteAsCollaborator({ note, actorId, sharedSpaceIdsActorBelongsTo })
-  };
-}
-async function resolveNoteContributorIds(noteId, authorId) {
-  const rows = await db.select({ editedBy: NoteVersions.editedBy, authorId: NoteVersions.authorId }).from(NoteVersions).where(eq(NoteVersions.noteId, noteId));
-  const ids = /* @__PURE__ */ new Set([authorId]);
-  for (const row of rows) {
-    const savedBy = row.editedBy ?? row.authorId;
-    if (savedBy) ids.add(savedBy);
-  }
-  return [authorId, ...[...ids].filter((id) => id !== authorId)];
-}
-async function noteHasLiveSharedSpaceAssociation(noteId) {
-  const row = first(
-    await db.select({ id: SpaceNotes.id }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).where(
-      and(
-        eq(SpaceNotes.noteId, noteId),
-        isNull(SpaceNotes.removedAt),
-        isNull(Spaces.deletedAt),
-        eq(Spaces.type, "shared")
-      )
-    ).limit(1)
-  );
-  return Boolean(row);
-}
-
-// server/routes/notes.ts
+init_note_collaboration();
 init_sync_deletion_log();
 init_note_fingerprint();
 
@@ -249934,6 +250332,12 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
     let linkedFromNoteIdRaw = null;
     let startedFromTemplateIdRaw = null;
     let startedFromTemplateNameRaw = null;
+    let startedFromServiceIdRaw = null;
+    let startedFromServiceTitleRaw = null;
+    let primaryCollectionRaw = null;
+    let secondaryCollectionsRaw = void 0;
+    let collectionPinnedRaw;
+    let collectionUserOverrideRaw;
     if (contentType.includes("application/json")) {
       const body = await c.req.json().catch(() => ({}));
       content = body.content ?? "";
@@ -249941,6 +250345,12 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       threadId = body.threadId ?? "";
       noteType = body.noteType ?? "default";
       scriptureReference = body.scriptureReference ?? null;
+      primaryCollectionRaw = typeof body.primaryCollection === "string" ? body.primaryCollection : null;
+      secondaryCollectionsRaw = body.secondaryCollections;
+      if (typeof body.collectionPinned === "boolean") collectionPinnedRaw = body.collectionPinned;
+      if (typeof body.collectionUserOverride === "boolean") {
+        collectionUserOverrideRaw = body.collectionUserOverride;
+      }
       scriptureVersion = body.scriptureVersion ?? null;
       resourceUrl = body.resourceUrl ?? null;
       const meta2 = body.resourceMetadata;
@@ -249951,6 +250361,8 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       linkedFromNoteIdRaw = typeof lfn === "string" && lfn.trim() ? lfn.trim() : null;
       startedFromTemplateIdRaw = typeof body.startedFromTemplateId === "string" && body.startedFromTemplateId.trim() ? body.startedFromTemplateId.trim() : null;
       startedFromTemplateNameRaw = typeof body.startedFromTemplateName === "string" && body.startedFromTemplateName.trim() ? body.startedFromTemplateName.trim().slice(0, 80) : null;
+      startedFromServiceIdRaw = typeof body.startedFromServiceId === "string" && body.startedFromServiceId.trim() ? body.startedFromServiceId.trim() : null;
+      startedFromServiceTitleRaw = typeof body.startedFromServiceTitle === "string" && body.startedFromServiceTitle.trim() ? body.startedFromServiceTitle.trim().slice(0, 120) : null;
     } else {
       const formData = await c.req.formData();
       content = formData.get("content");
@@ -249969,6 +250381,10 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       startedFromTemplateIdRaw = tplIdForm && tplIdForm.trim() ? tplIdForm.trim() : null;
       const tplNameForm = formData.get("startedFromTemplateName");
       startedFromTemplateNameRaw = tplNameForm && tplNameForm.trim() ? tplNameForm.trim().slice(0, 80) : null;
+      const svcIdForm = formData.get("startedFromServiceId");
+      startedFromServiceIdRaw = svcIdForm && svcIdForm.trim() ? svcIdForm.trim() : null;
+      const svcTitleForm = formData.get("startedFromServiceTitle");
+      startedFromServiceTitleRaw = svcTitleForm && svcTitleForm.trim() ? svcTitleForm.trim().slice(0, 120) : null;
     }
     let prefetchedResourceMetadata = null;
     if (resourceMetadataStr) {
@@ -250141,6 +250557,18 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
         thread: targetThread ?? null
       });
       attachedThreadId = threadPlan.attachThreadId;
+      const createPrimary = primaryCollectionRaw?.trim() || null;
+      const createSecondaryList = Array.isArray(secondaryCollectionsRaw) ? secondaryCollectionsRaw.filter((x2) => typeof x2 === "string") : null;
+      const createCollectionFields = {
+        ...primaryCollectionRaw !== null ? { primaryCollection: createPrimary } : {},
+        ...createSecondaryList ? {
+          secondaryCollections: serializeNoteSecondaryCollections(
+            normalizeSecondaryLabels(createSecondaryList, createPrimary)
+          )
+        } : {},
+        ...collectionPinnedRaw !== void 0 ? { collectionPinned: collectionPinnedRaw } : {},
+        ...collectionUserOverrideRaw !== void 0 ? { collectionUserOverride: collectionUserOverrideRaw } : {}
+      };
       const inserted = first(
         await tx.insert(Notes).values({
           id: noteId,
@@ -250160,7 +250588,10 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
           lastVisited: now2,
           linkedFromNoteId: resolvedLinkedFromNoteId,
           startedFromTemplateId: startedFromTemplateIdRaw,
-          startedFromTemplateName: startedFromTemplateNameRaw
+          startedFromTemplateName: startedFromTemplateNameRaw,
+          startedFromServiceId: startedFromServiceIdRaw,
+          startedFromServiceTitle: startedFromServiceTitleRaw,
+          ...createCollectionFields
         }).returning()
       );
       if (!inserted) throw new Error("Failed to create note");
@@ -250357,14 +250788,7 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       createdAt: newNote.createdAt
     }).catch(() => {
     });
-    const responseVersion = newNote.currentVersionId ? first(
-      await db.select({ id: NoteVersions.id, version: NoteVersions.version }).from(NoteVersions).where(
-        and(
-          eq(NoteVersions.id, newNote.currentVersionId),
-          eq(NoteVersions.noteId, newNote.id)
-        )
-      ).limit(1)
-    ) : null;
+    const responseVersion = await readCurrentNoteVersion(newNote.id, newNote.currentVersionId);
     queueAudiencefulProductFlagsForUser(auth.userId, {
       has_created_note: true,
       ...shouldAutoShare && shareToken ? { has_shared: true } : {}
@@ -250401,7 +250825,21 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
     return c.json({ error: error.message || "Failed to create note" }, 500);
   }
 });
+var NOTE_SAVE_TRAIL_PATH = ".dev-note-saves.log";
+function logNoteSaveTrail(entry) {
+  if (process.env.NETLIFY) return;
+  try {
+    (0, import_node_fs.appendFileSync)(
+      NOTE_SAVE_TRAIL_PATH,
+      `${JSON.stringify({ at: (/* @__PURE__ */ new Date()).toISOString(), ...entry })}
+`
+    );
+  } catch {
+  }
+}
 route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
+  let noteIdForLog = null;
+  let saveOriginForLog = null;
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
@@ -250421,11 +250859,25 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
       bumpUpdatedAt: bumpUpdatedAtRaw,
       expectedVersion: expectedVersionRaw,
       startedFromTemplateId: startedFromTemplateIdRaw,
-      startedFromTemplateName: startedFromTemplateNameRaw
+      startedFromTemplateName: startedFromTemplateNameRaw,
+      saveOrigin: saveOriginRaw
     } = body;
     if (!noteId) return c.json({ error: "Note ID is required" }, 400);
-    const contentValidation = validateContent(content, true);
-    if (!contentValidation.isValid) return c.json({ error: contentValidation.error, code: contentValidation.code }, 400);
+    noteIdForLog = noteId;
+    saveOriginForLog = typeof saveOriginRaw === "string" ? saveOriginRaw : null;
+    logNoteSaveTrail({
+      event: "attempt",
+      noteId,
+      origin: saveOriginForLog,
+      expectedVersion: expectedVersionRaw ?? null,
+      contentLength: typeof content === "string" ? content.length : null
+    });
+    const contentProvided = content !== void 0;
+    if (contentProvided) {
+      const contentValidation = validateContent(content, true);
+      if (!contentValidation.isValid) return c.json({ error: contentValidation.error, code: contentValidation.code }, 400);
+    }
+    const titleProvided = title !== void 0;
     const editAuth = await resolveNoteEditAuthorization(noteId, auth.userId);
     if (!editAuth) return c.json({ error: "Note not found" }, 404);
     if (!editAuth.decision.allowed) {
@@ -250437,10 +250889,10 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     const existingNote = editAuth.note;
     const actorRole = editAuth.decision.role;
     const targetEncrypted = typeof contentEncrypted === "boolean" ? contentEncrypted : existingNote.contentEncrypted;
-    const contentForStore = targetEncrypted ? content : canonicalizeNoteHtmlLineBreaks(typeof content === "string" ? content : "");
-    let capitalizedContent = targetEncrypted ? contentForStore : contentForStore.charAt(0).toUpperCase() + contentForStore.slice(1);
-    const capitalizedTitle = title ? title.charAt(0).toUpperCase() + title.slice(1) : title;
-    if (!targetEncrypted) {
+    const contentForStore = !contentProvided ? void 0 : targetEncrypted ? content : canonicalizeNoteHtmlLineBreaks(typeof content === "string" ? content : "");
+    let capitalizedContent = contentForStore === void 0 ? void 0 : targetEncrypted ? contentForStore : contentForStore.charAt(0).toUpperCase() + contentForStore.slice(1);
+    const capitalizedTitle = !titleProvided ? void 0 : title ? title.charAt(0).toUpperCase() + title.slice(1) : title;
+    if (!targetEncrypted && capitalizedContent !== void 0) {
       capitalizedContent = transformCanonicalScriptureContent({
         noteId,
         content: capitalizedContent,
@@ -250448,12 +250900,15 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
         pillsOnly: existingNote.noteType === "default"
       }).updatedContent;
     }
-    const titleChanged = capitalizedTitle !== existingNote.title;
-    const contentChanged = capitalizedContent !== existingNote.content;
+    const titleChanged = titleProvided && capitalizedTitle !== existingNote.title;
+    const contentChanged = contentProvided && capitalizedContent !== existingNote.content;
     const encryptionToggled = typeof contentEncrypted === "boolean" && contentEncrypted !== existingNote.contentEncrypted;
     const contentTouched = titleChanged || contentChanged || encryptionToggled;
     const shouldBumpUpdatedAt = bumpUpdatedAtRaw === false ? false : contentTouched;
-    const updateData = { title: capitalizedTitle, content: capitalizedContent };
+    const updateData = {
+      ...titleProvided ? { title: capitalizedTitle } : {},
+      ...contentProvided ? { content: capitalizedContent } : {}
+    };
     if (shouldBumpUpdatedAt) updateData.updatedAt = nowISO();
     let nextPrimaryForSecondaries = existingNote.primaryCollection ?? null;
     if (primaryCollectionRaw !== void 0) {
@@ -250509,8 +250964,8 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
             contentEncrypted,
             lockedNote.contentEncrypted
           );
-          const lockedTitleChanged = (capitalizedTitle ?? lockedNote.title) !== lockedNote.title;
-          const lockedContentChanged = capitalizedContent !== lockedNote.content;
+          const lockedTitleChanged = titleProvided && (capitalizedTitle ?? lockedNote.title) !== lockedNote.title;
+          const lockedContentChanged = contentProvided && capitalizedContent !== lockedNote.content;
           const lockedEncryptionChanged = lockedTargetEncrypted !== lockedNote.contentEncrypted;
           if (bumpUpdatedAtRaw === false) delete lockedPatch.updatedAt;
           else if (lockedTitleChanged || lockedContentChanged || lockedEncryptionChanged) {
@@ -250528,9 +250983,11 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
           }
           return lockedPatch;
         },
+        // No body sent → carry the locked note's own content through unchanged.
+        // Both branches must fall back, including the encrypted one.
         nextContent: (lockedNote) => ({
-          title: capitalizedTitle ?? lockedNote.title,
-          content: resolveLockedEncryptionState(contentEncrypted, lockedNote.contentEncrypted) ? content : capitalizedContent,
+          title: titleProvided ? capitalizedTitle ?? lockedNote.title : lockedNote.title,
+          content: !contentProvided ? lockedNote.content : resolveLockedEncryptionState(contentEncrypted, lockedNote.contentEncrypted) ? content : capitalizedContent,
           contentEncrypted: resolveLockedEncryptionState(
             contentEncrypted,
             lockedNote.contentEncrypted
@@ -250538,7 +250995,9 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
         }),
         source: "save",
         now: nowISO(),
-        actorRole
+        actorRole,
+        // Pre-transform body, for the list-preview truncation guard.
+        incomingRawContent: typeof content === "string" ? content : void 0
       })
     );
     const updatedNote = versionedUpdate.note;
@@ -250625,11 +251084,21 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
       type: "note:updated",
       id: noteId
     });
+    const freshVersion = await readCurrentNoteVersion(noteId, versionedUpdate.currentVersion.id);
+    logNoteSaveTrail({
+      event: "ok",
+      noteId,
+      origin: saveOriginForLog,
+      version: freshVersion?.version ?? versionedUpdate.currentVersion.version
+    });
     return c.json({
       success: "Note updated!",
       note: noteJsonWithParsedSecondaries(updatedNote),
-      currentVersion: versionedUpdate.currentVersion.version,
-      currentVersionId: versionedUpdate.currentVersion.id,
+      // Resolved fresh: scripture processing above can bump the note past the version
+      // captured in `versionedUpdate`, and returning the stale one made the editor's very
+      // next autosave send an expectedVersion the server had already moved past.
+      currentVersion: freshVersion?.version ?? versionedUpdate.currentVersion.version,
+      currentVersionId: freshVersion?.id ?? versionedUpdate.currentVersion.id,
       tags: tagsPatch,
       scriptureResults,
       processedContent,
@@ -250638,7 +251107,22 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     });
   } catch (error) {
     const mapped = noteVersionErrorResponse(error);
-    if (mapped) return c.json({ error: mapped.message, code: mapped.code, ...mapped.details ?? {} }, mapped.status);
+    if (mapped) {
+      if (mapped.status === 409) {
+        console.warn("[api/notes/update] version conflict", {
+          noteId: noteIdForLog,
+          origin: saveOriginForLog,
+          ...mapped.details ?? {}
+        });
+        logNoteSaveTrail({
+          event: "conflict",
+          noteId: noteIdForLog,
+          origin: saveOriginForLog,
+          ...mapped.details ?? {}
+        });
+      }
+      return c.json({ error: mapped.message, code: mapped.code, ...mapped.details ?? {} }, mapped.status);
+    }
     return c.json({ error: error.message || "Failed to update note" }, 500);
   }
 });
@@ -250928,6 +251412,11 @@ route11.patch("/api/notes/:id/co-edit", requireAuth, rateLimit("write"), async (
     if (typeof body.enabled !== "boolean") {
       return c.json({ success: false, error: "`enabled` must be a boolean" }, 400);
     }
+    const spaceIdRaw = typeof body.spaceId === "string" ? body.spaceId.trim() : "";
+    if (!spaceIdRaw) {
+      return c.json({ success: false, error: "`spaceId` is required" }, 400);
+    }
+    const spaceId = spaceIdRaw.startsWith("space_") ? spaceIdRaw : `space_${spaceIdRaw}`;
     const enabled = body.enabled;
     const note = first(
       await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1)
@@ -250942,19 +251431,29 @@ route11.patch("/api/notes/:id/co-edit", requireAuth, rateLimit("write"), async (
         400
       );
     }
-    if (enabled && !await noteHasLiveSharedSpaceAssociation(noteId)) {
+    const association = await findLiveSharedSpaceAssociation(noteId, spaceId);
+    if (!association) {
       return c.json(
         {
           success: false,
-          error: "Share this note to a shared space before opening it for editing.",
+          error: "Share this note to that shared space before opening it for editing.",
           code: "CO_EDIT_REQUIRES_SHARED_SPACE"
         },
         400
       );
     }
-    await db.update(Notes).set({ coEditEnabled: enabled, coEditEnabledAt: enabled ? nowISO() : null }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+    await db.update(SpaceNotes).set({
+      coEditEnabled: enabled,
+      coEditEnabledAt: enabled ? nowISO() : null
+    }).where(eq(SpaceNotes.id, association.id));
+    const noteCoEditEnabled = await syncNoteCoEditMirror(db, noteId);
     await broadcastCanonicalNoteInvalidation(auth.userId, noteId, { type: "note:updated", id: noteId });
-    return c.json({ success: true, coEditEnabled: enabled });
+    return c.json({
+      success: true,
+      spaceId,
+      coEditEnabled: enabled,
+      noteCoEditEnabled
+    });
   } catch (error) {
     console.error("Error updating note co-edit setting:", error);
     return c.json({ success: false, error: "Failed to update co-editing" }, 500);
@@ -251700,6 +252199,7 @@ route11.get("/api/notes/:id/details", requireAuth, async (c) => {
       spaceId: SpaceNotes.spaceId,
       spaceTitle: Spaces.title,
       spaceType: Spaces.type,
+      coEditEnabled: SpaceNotes.coEditEnabled,
       isPinned: SpaceNotes.isPinned,
       primaryCollection: SpaceNotes.primaryCollection,
       secondaryCollections: SpaceNotes.secondaryCollections,
@@ -251800,7 +252300,14 @@ route11.get("/api/notes/:id/details", requireAuth, async (c) => {
         isShared: readContext.isShared,
         organization: contextOrganization
       },
-      activeSharedAssociations: readContext.isShared ? [{ spaceId: readContext.space.id, spaceTitle: readContext.space.title, spaceType: readContext.space.type }] : activeAssociationRows.map((row) => ({
+      activeSharedAssociations: readContext.isShared ? [
+        {
+          spaceId: readContext.space.id,
+          spaceTitle: readContext.space.title,
+          spaceType: readContext.space.type,
+          coEditEnabled: activeAssociationRows.find((row) => row.spaceId === readContext.space.id)?.coEditEnabled === true
+        }
+      ] : activeAssociationRows.map((row) => ({
         ...row,
         secondaryCollections: parseNoteSecondaryCollections(row.secondaryCollections)
       })),
@@ -252590,8 +253097,413 @@ function isNoteTemplateIconColor(value) {
   return typeof value === "string" && THREAD_COLORS.includes(value) && value !== "paper";
 }
 
+// server/utils/church-staff.ts
+init_db2();
+
+// server/utils/clerk-org.ts
+var CLERK_ORG_STAFF_CAP = 20;
+function isWithinClerkOrgStaffCap(memberCount) {
+  return memberCount <= CLERK_ORG_STAFF_CAP;
+}
+var ClerkOrgError = class extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+    this.name = "ClerkOrgError";
+  }
+};
+function classifyClerkFailure(status) {
+  if (status === 403) {
+    return new ClerkOrgError(
+      "CLERK_ORGS_NOT_ENABLED",
+      "Clerk Organizations is not enabled for this instance \u2014 enable it in the Clerk dashboard"
+    );
+  }
+  return new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk request returned ${status}`);
+}
+function isValidClerkOrgId(orgId) {
+  return /^org_[A-Za-z0-9]+$/.test(orgId);
+}
+function clerkSecretKey() {
+  const key2 = process.env.CLERK_SECRET_KEY;
+  if (!key2) throw new ClerkOrgError("CLERK_KEY_MISSING", "Missing env CLERK_SECRET_KEY");
+  return key2;
+}
+async function fetchClerkOrganization(orgId) {
+  const key2 = clerkSecretKey();
+  let response;
+  try {
+    response = await fetch(`https://api.clerk.com/v1/organizations/${orgId}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${key2}`, "Content-Type": "application/json" }
+    });
+  } catch (error) {
+    throw new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk organization fetch failed: ${error}`);
+  }
+  if (response.status === 404 || response.status === 400) return null;
+  if (!response.ok) {
+    throw classifyClerkFailure(response.status);
+  }
+  const data = await response.json();
+  if (!data.id || !data.name) {
+    throw new ClerkOrgError("CLERK_UNAVAILABLE", "Clerk organization response missing id/name");
+  }
+  return { id: data.id, name: data.name, slug: data.slug ?? null };
+}
+async function fetchClerkOrganizations() {
+  const key2 = clerkSecretKey();
+  const orgs = [];
+  let offset = 0;
+  for (; ; ) {
+    let response;
+    try {
+      response = await fetch(
+        `https://api.clerk.com/v1/organizations?limit=${ORGS_PAGE_SIZE}&offset=${offset}`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${key2}`, "Content-Type": "application/json" }
+        }
+      );
+    } catch (error) {
+      throw new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk organizations fetch failed: ${error}`);
+    }
+    if (!response.ok) throw classifyClerkFailure(response.status);
+    const payload = await response.json();
+    const rows = Array.isArray(payload.data) ? payload.data : [];
+    for (const row of rows) {
+      if (!row.id || !row.name) continue;
+      orgs.push({
+        id: row.id,
+        name: row.name,
+        slug: row.slug ?? null,
+        memberCount: typeof row.members_count === "number" ? row.members_count : void 0
+      });
+    }
+    offset += rows.length;
+    const total = typeof payload.total_count === "number" ? payload.total_count : offset;
+    if (rows.length < ORGS_PAGE_SIZE || offset >= total) break;
+  }
+  return orgs;
+}
+var MEMBERSHIPS_PAGE_SIZE = 100;
+var ORGS_PAGE_SIZE = 100;
+async function fetchClerkOrgMemberships(orgId) {
+  const key2 = clerkSecretKey();
+  const members = [];
+  let offset = 0;
+  for (; ; ) {
+    let response;
+    try {
+      response = await fetch(
+        `https://api.clerk.com/v1/organizations/${orgId}/memberships?limit=${MEMBERSHIPS_PAGE_SIZE}&offset=${offset}`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${key2}`, "Content-Type": "application/json" }
+        }
+      );
+    } catch (error) {
+      throw new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk memberships fetch failed: ${error}`);
+    }
+    if (!response.ok) {
+      throw classifyClerkFailure(response.status);
+    }
+    const payload = await response.json();
+    const rows = Array.isArray(payload.data) ? payload.data : [];
+    for (const row of rows) {
+      const userId = row.public_user_data?.user_id;
+      if (!userId) continue;
+      members.push({ userId, role: row.role ?? "org:member" });
+    }
+    offset += rows.length;
+    const total = typeof payload.total_count === "number" ? payload.total_count : offset;
+    if (rows.length < MEMBERSHIPS_PAGE_SIZE || offset >= total) break;
+  }
+  return members;
+}
+var CLERK_ORG_ADMIN_ROLE = "org:admin";
+var CLERK_ORG_MEMBER_ROLE = "org:member";
+function isClerkOrgAdminRole(role) {
+  return role === CLERK_ORG_ADMIN_ROLE;
+}
+async function clerkFetch(path10, init) {
+  const key2 = clerkSecretKey();
+  try {
+    return await fetch(`https://api.clerk.com/v1${path10}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${key2}`,
+        "Content-Type": "application/json",
+        ...init?.headers ?? {}
+      }
+    });
+  } catch (error) {
+    throw new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk request failed: ${error}`);
+  }
+}
+async function fetchClerkOrgPendingInvitations(orgId) {
+  const response = await clerkFetch(
+    `/organizations/${orgId}/invitations?status=pending&limit=${MEMBERSHIPS_PAGE_SIZE}`
+  );
+  if (!response.ok) throw classifyClerkFailure(response.status);
+  const payload = await response.json();
+  const rows = Array.isArray(payload.data) ? payload.data : [];
+  return rows.filter(
+    (row) => Boolean(row.id && row.email_address)
+  ).map((row) => ({
+    id: row.id,
+    emailAddress: row.email_address,
+    role: row.role ?? CLERK_ORG_MEMBER_ROLE,
+    status: row.status ?? "pending",
+    createdAt: typeof row.created_at === "number" ? row.created_at : null
+  }));
+}
+async function createClerkOrgInvitation(input) {
+  const response = await clerkFetch(`/organizations/${input.orgId}/invitations`, {
+    method: "POST",
+    body: JSON.stringify({
+      email_address: input.emailAddress,
+      inviter_user_id: input.inviterUserId,
+      role: input.role ?? CLERK_ORG_MEMBER_ROLE
+    })
+  });
+  if (!response.ok) {
+    if (response.status === 400 || response.status === 422) {
+      const body = await response.json().catch(() => null);
+      const message = body?.errors?.[0]?.long_message ?? body?.errors?.[0]?.message ?? "Clerk rejected the invitation";
+      throw new ClerkOrgInviteError(message);
+    }
+    throw classifyClerkFailure(response.status);
+  }
+  const row = await response.json();
+  return {
+    id: row.id ?? "",
+    emailAddress: row.email_address ?? input.emailAddress,
+    role: row.role ?? CLERK_ORG_MEMBER_ROLE,
+    status: row.status ?? "pending",
+    createdAt: typeof row.created_at === "number" ? row.created_at : null
+  };
+}
+var ClerkOrgInviteError = class extends Error {
+  code = "CLERK_INVITE_REJECTED";
+  constructor(message) {
+    super(message);
+    this.name = "ClerkOrgInviteError";
+  }
+};
+async function revokeClerkOrgInvitation(input) {
+  const response = await clerkFetch(
+    `/organizations/${input.orgId}/invitations/${input.invitationId}/revoke`,
+    { method: "POST", body: JSON.stringify({ requesting_user_id: input.requestingUserId }) }
+  );
+  if (!response.ok && response.status !== 404) throw classifyClerkFailure(response.status);
+}
+async function removeClerkOrgMember(orgId, userId) {
+  const response = await clerkFetch(`/organizations/${orgId}/memberships/${userId}`, {
+    method: "DELETE"
+  });
+  if (!response.ok && response.status !== 404) throw classifyClerkFailure(response.status);
+}
+function canInviteMoreStaff(input) {
+  const adding = input.adding ?? 1;
+  return input.memberCount + input.pendingInviteCount + adding <= CLERK_ORG_STAFF_CAP;
+}
+function computeStaffSyncPlan(input) {
+  const staffIds = new Set(input.staff.map((m2) => m2.userId));
+  const existingByUser = new Map(input.existing.map((row) => [row.userId, row.role]));
+  const warnings = [];
+  const toInsertLeaders = [];
+  const toPromoteToLeader = [];
+  for (const staffId of staffIds) {
+    if (staffId === input.spaceOwnerUserId) continue;
+    const existingRole = existingByUser.get(staffId);
+    if (existingRole === void 0) toInsertLeaders.push(staffId);
+    else if (existingRole === "member") toPromoteToLeader.push(staffId);
+  }
+  const toRemove = [];
+  for (const row of input.existing) {
+    if (row.role !== "leader") continue;
+    if (row.userId === input.spaceOwnerUserId) continue;
+    if (!staffIds.has(row.userId)) toRemove.push(row.userId);
+  }
+  const healOwnerRow = !existingByUser.has(input.spaceOwnerUserId);
+  if (!staffIds.has(input.spaceOwnerUserId)) {
+    warnings.push(`Space owner ${input.spaceOwnerUserId} is not a member of the Clerk org`);
+  }
+  return { toInsertLeaders, toPromoteToLeader, toRemove, healOwnerRow, warnings };
+}
+
+// server/utils/church-entitlement.ts
+init_db2();
+var CHURCH_PLAN_SLUG = "church";
+var MS_PER_DAY3 = 24 * 60 * 60 * 1e3;
+function toDate2(value) {
+  if (!value) return null;
+  const date6 = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date6.getTime()) ? null : date6;
+}
+function churchSponsorship(church, now2 = /* @__PURE__ */ new Date()) {
+  const lapsed = {
+    sponsored: false,
+    state: "lapsed",
+    pilotUntil: null,
+    pilotDaysLeft: null
+  };
+  if (!church) return lapsed;
+  if (!church.isActive || church.deletedAt) return lapsed;
+  if (church.billingPlan) {
+    return { sponsored: true, state: "paid", pilotUntil: null, pilotDaysLeft: null };
+  }
+  const pilotUntil = toDate2(church.pilotUntil);
+  if (pilotUntil && pilotUntil.getTime() > now2.getTime()) {
+    return {
+      sponsored: true,
+      state: "pilot",
+      pilotUntil: pilotUntil.toISOString(),
+      pilotDaysLeft: Math.ceil((pilotUntil.getTime() - now2.getTime()) / MS_PER_DAY3)
+    };
+  }
+  return lapsed;
+}
+function churchIsSponsored(church, now2 = /* @__PURE__ */ new Date()) {
+  return churchSponsorship(church, now2).sponsored;
+}
+var CHURCH_LAPSED_ERROR = "This church\u2019s Harvous plan has ended. Existing study stays readable \u2014 subscribe to publish again.";
+var CHURCH_LAPSED_CODE = "CHURCH_NOT_SPONSORED";
+async function applyChurchSubscription(input) {
+  const now2 = /* @__PURE__ */ new Date();
+  const updated = await db.update(Churches).set({
+    billingPlan: input.enabled ? CHURCH_PLAN_SLUG : null,
+    billingPlanUpdatedAt: now2,
+    billingSubscriptionId: input.subscriptionId ?? null,
+    billingStatus: input.status ?? (input.enabled ? "active" : "canceled"),
+    updatedAt: now2
+  }).where(eq(Churches.id, input.churchId)).returning({ id: Churches.id });
+  return updated.length > 0;
+}
+async function findChurchBySubscriptionId(subscriptionId) {
+  const trimmed = subscriptionId.trim();
+  if (!trimmed) return null;
+  return first(
+    await db.select().from(Churches).where(eq(Churches.billingSubscriptionId, trimmed)).limit(1)
+  ) ?? null;
+}
+
+// server/utils/church-staff.ts
+async function getActiveChurchByOrgId(orgId) {
+  const trimmed = orgId.trim();
+  if (!trimmed) return null;
+  const church = first(
+    await db.select().from(Churches).where(eq(Churches.orgId, trimmed)).limit(1)
+  );
+  if (!church || church.deletedAt) return null;
+  return church;
+}
+async function isChurchStaffForOrg(userId, orgId) {
+  const church = await getActiveChurchByOrgId(orgId);
+  if (!church) return false;
+  if (church.createdBy === userId) return true;
+  const orgSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(and(eq(Spaces.orgId, church.orgId), isNull(Spaces.deletedAt)));
+  if (orgSpaces.length > 0) {
+    const membership = first(
+      await db.select({ id: SpaceMemberships.id, role: SpaceMemberships.role }).from(SpaceMemberships).where(
+        and(
+          eq(SpaceMemberships.userId, userId),
+          inArray(
+            SpaceMemberships.spaceId,
+            orgSpaces.map((s2) => s2.id)
+          ),
+          inArray(SpaceMemberships.role, ["owner", "leader"])
+        )
+      ).limit(1)
+    );
+    if (membership) return true;
+  }
+  try {
+    const staff = await fetchClerkOrgMemberships(church.orgId);
+    return staff.some((member) => member.userId === userId);
+  } catch (error) {
+    console.warn("[isChurchStaffForOrg] Clerk org membership check failed", {
+      orgId: church.orgId,
+      userId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    return false;
+  }
+}
+async function assertChurchStaffOrgWrite(userId, orgId, staffError) {
+  const church = await getActiveChurchByOrgId(orgId);
+  if (!church) {
+    return { ok: false, status: 404, code: "CHURCH_NOT_FOUND", error: "Church not found" };
+  }
+  if (!church.isActive) {
+    return { ok: false, status: 409, code: "CHURCH_INACTIVE", error: "Church is not active" };
+  }
+  if (!churchIsSponsored(church)) {
+    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
+  }
+  if (!await isChurchStaffForOrg(userId, church.orgId)) {
+    return {
+      ok: false,
+      status: 403,
+      code: "CHURCH_STAFF_REQUIRED",
+      error: staffError
+    };
+  }
+  return { ok: true, church };
+}
+async function assertCanCreateChurchSharedSpace(userId, orgId) {
+  return assertChurchStaffOrgWrite(
+    userId,
+    orgId,
+    "Only church staff can create church Shared Spaces"
+  );
+}
+async function assertCanCreateMinistryChannel(userId, orgId) {
+  return assertChurchStaffOrgWrite(
+    userId,
+    orgId,
+    "Only church staff can create ministry channels"
+  );
+}
+
+// server/utils/church-role-capabilities.ts
+var ROLE_ADMIN = "org:admin";
+var ROLE_PASTOR = "org:pastor";
+var ROLE_TEACHER = "org:teacher";
+function capabilitiesForChurchRole(role) {
+  const capabilities = /* @__PURE__ */ new Set(["publish"]);
+  if (role === ROLE_ADMIN) {
+    capabilities.add("manage_staff");
+    capabilities.add("manage_billing");
+  }
+  if (role === ROLE_ADMIN || role === ROLE_PASTOR || role === ROLE_TEACHER) {
+    capabilities.add("manage_templates");
+    capabilities.add("sermon_tools");
+  }
+  return [...capabilities];
+}
+var NO_CHURCH_CAPABILITIES = [];
+
 // server/routes/note-templates.ts
 var app = new Hono2();
+async function connectedOrgIdFor(userId) {
+  const row = first(
+    await db.select({ connectedOrgId: UserMetadata.connectedOrgId }).from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1)
+  );
+  return row?.connectedOrgId ?? null;
+}
+async function canManageOrgTemplates(userId, orgId) {
+  const church = await getActiveChurchByOrgId(orgId);
+  if (!church) return false;
+  if (!await isChurchStaffForOrg(userId, orgId)) return false;
+  try {
+    const roster = await fetchClerkOrgMemberships(orgId);
+    const role = roster.find((member) => member.userId === userId)?.role ?? null;
+    return capabilitiesForChurchRole(role).includes("manage_templates");
+  } catch {
+    return false;
+  }
+}
 function serializeStored(row) {
   return {
     id: row.id,
@@ -252641,10 +253553,16 @@ app.get("/api/note-templates/list", requireAuth, async (c) => {
       }
       space = await db.select().from(NoteTemplates).where(eq(NoteTemplates.spaceId, spaceId)).orderBy(desc(NoteTemplates.createdAt));
     }
+    let org = [];
+    const orgId = await connectedOrgIdFor(auth.userId);
+    if (orgId && await getActiveChurchByOrgId(orgId)) {
+      org = await db.select().from(NoteTemplates).where(eq(NoteTemplates.orgId, orgId)).orderBy(desc(NoteTemplates.createdAt));
+    }
     return c.json({
       builtIn: serializeBuiltIn(),
       personal: personal.map(serializeStored),
-      ...spaceId ? { space: space.map(serializeStored) } : {}
+      ...spaceId ? { space: space.map(serializeStored) } : {},
+      ...org.length > 0 ? { org: org.map(serializeStored) } : {}
     });
   } catch (error) {
     const standardError = handleAPIError(error, {
@@ -252672,6 +253590,19 @@ app.post("/api/note-templates/create", requireAuth, rateLimit("write"), async (c
     const descriptionRaw = typeof body.description === "string" ? body.description.trim() : "";
     const description = descriptionRaw ? descriptionRaw.slice(0, NOTE_TEMPLATE_DESCRIPTION_MAX_LENGTH) : null;
     const spaceId = typeof body.spaceId === "string" && body.spaceId.trim() ? body.spaceId.trim() : null;
+    const orgId = typeof body.orgId === "string" && body.orgId.trim() ? body.orgId.trim() : null;
+    if (orgId && spaceId) {
+      return c.json(
+        { error: "A template is scoped to a space or an org, not both", code: "INVALID_SCOPE" },
+        400
+      );
+    }
+    if (orgId && !await canManageOrgTemplates(auth.userId, orgId)) {
+      return c.json(
+        { error: "Only church staff can create church templates", code: "CHURCH_TEMPLATE_FORBIDDEN" },
+        403
+      );
+    }
     if (spaceId) {
       let access;
       try {
@@ -252698,7 +253629,7 @@ app.post("/api/note-templates/create", requireAuth, rateLimit("write"), async (c
       id,
       userId: auth.userId,
       spaceId,
-      orgId: null,
+      orgId,
       name,
       description,
       title,
@@ -252712,7 +253643,7 @@ app.post("/api/note-templates/create", requireAuth, rateLimit("write"), async (c
       id,
       userId: auth.userId,
       spaceId,
-      orgId: null,
+      orgId,
       name,
       description,
       title,
@@ -252732,6 +253663,17 @@ app.post("/api/note-templates/create", requireAuth, rateLimit("write"), async (c
   }
 });
 async function assertCanManageTemplate(row, userId) {
+  if (row.orgId) {
+    if (!await canManageOrgTemplates(userId, row.orgId)) {
+      return {
+        ok: false,
+        status: 403,
+        error: "Only church staff can manage church templates",
+        code: "CHURCH_TEMPLATE_FORBIDDEN"
+      };
+    }
+    return { ok: true };
+  }
   if (row.spaceId) {
     let access;
     try {
@@ -253043,7 +253985,7 @@ init_db2();
 init_db2();
 
 // src/lib/billing-plans.ts
-var import_meta2 = {};
+var import_meta3 = {};
 var FEATURE_KEYS = ["shared_spaces", "review", "challenges", "connector"];
 var UNLIMITED = -1;
 function isUnlimited(limit) {
@@ -253052,6 +253994,7 @@ function isUnlimited(limit) {
 var FOUNDING_CAP = 99;
 var PLUS_FEATURES = ["shared_spaces", "review", "challenges"];
 var CONNECTOR_FEATURES = ["connector"];
+var CHURCH_FEATURES = [];
 var PLUS_LIMITS = {
   ownedSpaces: UNLIMITED,
   membersPerSpace: 50
@@ -253065,7 +254008,7 @@ function envProduct(name, viteName) {
     return process.env[name];
   }
   try {
-    const meta2 = typeof import_meta2 !== "undefined" ? import_meta2.env : void 0;
+    const meta2 = typeof import_meta3 !== "undefined" ? import_meta3.env : void 0;
     if (meta2?.[viteName]) return String(meta2[viteName]);
   } catch {
   }
@@ -253085,6 +254028,12 @@ function getConnectorProductMonthlyId() {
 }
 function getConnectorProductAnnualId() {
   return envProduct("POLAR_CONNECTOR_PRODUCT_ANNUAL", "VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL");
+}
+function getChurchProductMonthlyId() {
+  return envProduct("POLAR_CHURCH_PRODUCT_MONTHLY", "VITE_POLAR_CHURCH_PRODUCT_MONTHLY");
+}
+function getChurchProductAnnualId() {
+  return envProduct("POLAR_CHURCH_PRODUCT_ANNUAL", "VITE_POLAR_CHURCH_PRODUCT_ANNUAL");
 }
 function getPlans() {
   return [
@@ -253145,8 +254094,43 @@ function getPlans() {
       limits: FREE_LIMITS,
       listed: false,
       productId: getConnectorProductAnnualId()
+    },
+    {
+      key: "church",
+      name: "Harvous for Churches",
+      interval: "month",
+      amountCents: 3e3,
+      currencyCode: "USD",
+      features: CHURCH_FEATURES,
+      limits: FREE_LIMITS,
+      // Never on the personal /upgrade page — churches buy from the My Church
+      // hub, and the buyer is a staff member paying for the org.
+      listed: false,
+      productId: getChurchProductMonthlyId()
+    },
+    {
+      key: "church",
+      name: "Harvous for Churches",
+      interval: "year",
+      // 40% off twelve months at $30 ($360 → $216). Churches respond to a
+      // steep, legible break far better than a shallow one.
+      amountCents: 21600,
+      currencyCode: "USD",
+      features: CHURCH_FEATURES,
+      limits: FREE_LIMITS,
+      listed: false,
+      productId: getChurchProductAnnualId()
     }
   ];
+}
+function isChurchProductId(productId) {
+  return planForProductId(productId)?.key === "church";
+}
+function churchPlans() {
+  return getPlans().filter((p) => p.key === "church" && p.productId);
+}
+function churchPlanFor(interval2) {
+  return churchPlans().find((p) => p.interval === interval2) ?? null;
 }
 var PLANS = new Proxy([], {
   get(_target, prop2, _receiver) {
@@ -253190,6 +254174,11 @@ function foundingPlan() {
 }
 function planFor(key2, interval2) {
   return listedPlans().find((p) => p.key === key2 && p.interval === interval2 && !p.founding) ?? null;
+}
+function formatPlanPrice(plan) {
+  const dollars = plan.amountCents / 100;
+  if (Number.isInteger(dollars)) return `$${dollars}`;
+  return `$${dollars.toFixed(2)}`;
 }
 function isFeatureKey(value) {
   return FEATURE_KEYS.includes(value);
@@ -255485,10 +256474,10 @@ function abortSignalAny(signals) {
   }
   function abort() {
     controller.abort(this.reason);
-    clean();
+    clean2();
   }
   const signalRefs = [];
-  function clean() {
+  function clean2() {
     for (const signalRef of signalRefs) {
       const signal = signalRef.deref();
       if (signal) {
@@ -292434,6 +293423,7 @@ async function syncEntitlementsFromProvider(userId, options) {
       if (!subIsActive(sub.status)) continue;
       const productId = sub.productId ?? null;
       if (!productId || !planForProductId(productId)) continue;
+      if (isChurchProductId(productId)) continue;
       grantedFromPolar = true;
       const had = before2.includes("shared_spaces");
       await setEntitlementsForProduct(userId, productId, true, "billing", sub.id ?? null);
@@ -292557,229 +293547,6 @@ async function getTierForAuth(auth) {
   } catch {
     return "free";
   }
-}
-
-// server/utils/church-staff.ts
-init_db2();
-
-// server/utils/clerk-org.ts
-var CLERK_ORG_STAFF_CAP = 20;
-function isWithinClerkOrgStaffCap(memberCount) {
-  return memberCount <= CLERK_ORG_STAFF_CAP;
-}
-var ClerkOrgError = class extends Error {
-  constructor(code, message) {
-    super(message);
-    this.code = code;
-    this.name = "ClerkOrgError";
-  }
-};
-function classifyClerkFailure(status) {
-  if (status === 403) {
-    return new ClerkOrgError(
-      "CLERK_ORGS_NOT_ENABLED",
-      "Clerk Organizations is not enabled for this instance \u2014 enable it in the Clerk dashboard"
-    );
-  }
-  return new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk request returned ${status}`);
-}
-function isValidClerkOrgId(orgId) {
-  return /^org_[A-Za-z0-9]+$/.test(orgId);
-}
-function clerkSecretKey() {
-  const key2 = process.env.CLERK_SECRET_KEY;
-  if (!key2) throw new ClerkOrgError("CLERK_KEY_MISSING", "Missing env CLERK_SECRET_KEY");
-  return key2;
-}
-async function fetchClerkOrganization(orgId) {
-  const key2 = clerkSecretKey();
-  let response;
-  try {
-    response = await fetch(`https://api.clerk.com/v1/organizations/${orgId}`, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${key2}`, "Content-Type": "application/json" }
-    });
-  } catch (error) {
-    throw new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk organization fetch failed: ${error}`);
-  }
-  if (response.status === 404 || response.status === 400) return null;
-  if (!response.ok) {
-    throw classifyClerkFailure(response.status);
-  }
-  const data = await response.json();
-  if (!data.id || !data.name) {
-    throw new ClerkOrgError("CLERK_UNAVAILABLE", "Clerk organization response missing id/name");
-  }
-  return { id: data.id, name: data.name, slug: data.slug ?? null };
-}
-async function fetchClerkOrganizations() {
-  const key2 = clerkSecretKey();
-  const orgs = [];
-  let offset = 0;
-  for (; ; ) {
-    let response;
-    try {
-      response = await fetch(
-        `https://api.clerk.com/v1/organizations?limit=${ORGS_PAGE_SIZE}&offset=${offset}`,
-        {
-          method: "GET",
-          headers: { Authorization: `Bearer ${key2}`, "Content-Type": "application/json" }
-        }
-      );
-    } catch (error) {
-      throw new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk organizations fetch failed: ${error}`);
-    }
-    if (!response.ok) throw classifyClerkFailure(response.status);
-    const payload = await response.json();
-    const rows = Array.isArray(payload.data) ? payload.data : [];
-    for (const row of rows) {
-      if (!row.id || !row.name) continue;
-      orgs.push({
-        id: row.id,
-        name: row.name,
-        slug: row.slug ?? null,
-        memberCount: typeof row.members_count === "number" ? row.members_count : void 0
-      });
-    }
-    offset += rows.length;
-    const total = typeof payload.total_count === "number" ? payload.total_count : offset;
-    if (rows.length < ORGS_PAGE_SIZE || offset >= total) break;
-  }
-  return orgs;
-}
-var MEMBERSHIPS_PAGE_SIZE = 100;
-var ORGS_PAGE_SIZE = 100;
-async function fetchClerkOrgMemberships(orgId) {
-  const key2 = clerkSecretKey();
-  const members = [];
-  let offset = 0;
-  for (; ; ) {
-    let response;
-    try {
-      response = await fetch(
-        `https://api.clerk.com/v1/organizations/${orgId}/memberships?limit=${MEMBERSHIPS_PAGE_SIZE}&offset=${offset}`,
-        {
-          method: "GET",
-          headers: { Authorization: `Bearer ${key2}`, "Content-Type": "application/json" }
-        }
-      );
-    } catch (error) {
-      throw new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk memberships fetch failed: ${error}`);
-    }
-    if (!response.ok) {
-      throw classifyClerkFailure(response.status);
-    }
-    const payload = await response.json();
-    const rows = Array.isArray(payload.data) ? payload.data : [];
-    for (const row of rows) {
-      const userId = row.public_user_data?.user_id;
-      if (!userId) continue;
-      members.push({ userId, role: row.role ?? "org:member" });
-    }
-    offset += rows.length;
-    const total = typeof payload.total_count === "number" ? payload.total_count : offset;
-    if (rows.length < MEMBERSHIPS_PAGE_SIZE || offset >= total) break;
-  }
-  return members;
-}
-function computeStaffSyncPlan(input) {
-  const staffIds = new Set(input.staff.map((m2) => m2.userId));
-  const existingByUser = new Map(input.existing.map((row) => [row.userId, row.role]));
-  const warnings = [];
-  const toInsertLeaders = [];
-  const toPromoteToLeader = [];
-  for (const staffId of staffIds) {
-    if (staffId === input.spaceOwnerUserId) continue;
-    const existingRole = existingByUser.get(staffId);
-    if (existingRole === void 0) toInsertLeaders.push(staffId);
-    else if (existingRole === "member") toPromoteToLeader.push(staffId);
-  }
-  const toRemove = [];
-  for (const row of input.existing) {
-    if (row.role !== "leader") continue;
-    if (row.userId === input.spaceOwnerUserId) continue;
-    if (!staffIds.has(row.userId)) toRemove.push(row.userId);
-  }
-  const healOwnerRow = !existingByUser.has(input.spaceOwnerUserId);
-  if (!staffIds.has(input.spaceOwnerUserId)) {
-    warnings.push(`Space owner ${input.spaceOwnerUserId} is not a member of the Clerk org`);
-  }
-  return { toInsertLeaders, toPromoteToLeader, toRemove, healOwnerRow, warnings };
-}
-
-// server/utils/church-staff.ts
-async function getActiveChurchByOrgId(orgId) {
-  const trimmed = orgId.trim();
-  if (!trimmed) return null;
-  const church = first(
-    await db.select().from(Churches).where(eq(Churches.orgId, trimmed)).limit(1)
-  );
-  if (!church || church.deletedAt) return null;
-  return church;
-}
-async function isChurchStaffForOrg(userId, orgId) {
-  const church = await getActiveChurchByOrgId(orgId);
-  if (!church) return false;
-  if (church.createdBy === userId) return true;
-  const orgSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(and(eq(Spaces.orgId, church.orgId), isNull(Spaces.deletedAt)));
-  if (orgSpaces.length > 0) {
-    const membership = first(
-      await db.select({ id: SpaceMemberships.id, role: SpaceMemberships.role }).from(SpaceMemberships).where(
-        and(
-          eq(SpaceMemberships.userId, userId),
-          inArray(
-            SpaceMemberships.spaceId,
-            orgSpaces.map((s2) => s2.id)
-          ),
-          inArray(SpaceMemberships.role, ["owner", "leader"])
-        )
-      ).limit(1)
-    );
-    if (membership) return true;
-  }
-  try {
-    const staff = await fetchClerkOrgMemberships(church.orgId);
-    return staff.some((member) => member.userId === userId);
-  } catch (error) {
-    console.warn("[isChurchStaffForOrg] Clerk org membership check failed", {
-      orgId: church.orgId,
-      userId,
-      error: error instanceof Error ? error.message : String(error)
-    });
-    return false;
-  }
-}
-async function assertChurchStaffOrgWrite(userId, orgId, staffError) {
-  const church = await getActiveChurchByOrgId(orgId);
-  if (!church) {
-    return { ok: false, status: 404, code: "CHURCH_NOT_FOUND", error: "Church not found" };
-  }
-  if (!church.isActive) {
-    return { ok: false, status: 409, code: "CHURCH_INACTIVE", error: "Church is not active" };
-  }
-  if (!await isChurchStaffForOrg(userId, church.orgId)) {
-    return {
-      ok: false,
-      status: 403,
-      code: "CHURCH_STAFF_REQUIRED",
-      error: staffError
-    };
-  }
-  return { ok: true, church };
-}
-async function assertCanCreateChurchSharedSpace(userId, orgId) {
-  return assertChurchStaffOrgWrite(
-    userId,
-    orgId,
-    "Only church staff can create church Shared Spaces"
-  );
-}
-async function assertCanCreateMinistryChannel(userId, orgId) {
-  return assertChurchStaffOrgWrite(
-    userId,
-    orgId,
-    "Only church staff can create ministry channels"
-  );
 }
 
 // server/routes/spaces.ts
@@ -295276,10 +296043,12 @@ route12.post("/api/spaces/:spaceId/add-note", requireAuth, rateLimit("write"), a
     });
     return c.json({
       success: true,
-      message: result.reactivated ? "Note restored to space" : "Note added to space",
+      message: result.alreadyAssociated ? "Note is already in this space" : result.reactivated ? "Note restored to space" : "Note added to space",
       noteId,
       associationId: result.association?.id,
-      reactivated: result.reactivated
+      reactivated: result.reactivated,
+      /** Idempotent no-op — the note was already live in this space. */
+      alreadyAssociated: result.alreadyAssociated
     });
   } catch (error) {
     if (error instanceof SharedSpaceLifecycleError) {
@@ -295727,17 +296496,22 @@ route12.post("/api/spaces/:spaceId/pin-item", requireAuth, async (c) => {
       return c.json({ error: "itemId, itemType, and isPinned are required", code: "BAD_REQUEST" }, 400);
     }
     if (itemType === "note") {
-      const association = first(
-        await db.select({ id: SpaceNotes.id }).from(SpaceNotes).where(
-          and(
-            eq(SpaceNotes.noteId, itemId),
-            eq(SpaceNotes.spaceId, spaceId),
-            isNull(SpaceNotes.removedAt)
-          )
-        ).limit(1)
-      );
-      if (!association) return c.json({ error: "Note not found in space", code: "NOT_FOUND" }, 404);
-      await db.update(SpaceNotes).set({ isPinned, updatedAt: nowISO() }).where(eq(SpaceNotes.id, association.id));
+      if (accessInfo.space?.type === "personal") {
+        const updated = await db.update(Notes).set({ isPinned, updatedAt: nowISO() }).where(and(eq(Notes.id, itemId), eq(Notes.userId, auth.userId))).returning({ id: Notes.id });
+        if (!first(updated)) return c.json({ error: "Note not found", code: "NOT_FOUND" }, 404);
+      } else {
+        const association = first(
+          await db.select({ id: SpaceNotes.id }).from(SpaceNotes).where(
+            and(
+              eq(SpaceNotes.noteId, itemId),
+              eq(SpaceNotes.spaceId, spaceId),
+              isNull(SpaceNotes.removedAt)
+            )
+          ).limit(1)
+        );
+        if (!association) return c.json({ error: "Note not found in space", code: "NOT_FOUND" }, 404);
+        await db.update(SpaceNotes).set({ isPinned, updatedAt: nowISO() }).where(eq(SpaceNotes.id, association.id));
+      }
     } else if (itemType === "thread") {
       await db.transaction(
         (tx) => setSingularThreadPin(tx, {
@@ -297957,7 +298731,7 @@ async function connectionFieldsForHmcChurchId(hmcChurchId, options) {
   if (!hmcChurchId) return { ...CLEARED_CHURCH_CONNECTION };
   const church = await findActiveChurchByHmcId(hmcChurchId);
   if (!church) return { ...CLEARED_CHURCH_CONNECTION };
-  const preserved = options?.preserveConnectedAt?.trim() || null;
+  const preserved = toDate(options?.preserveConnectedAt ?? null);
   return {
     connectedChurchId: church.id,
     connectedOrgId: church.orgId,
@@ -306774,7 +307548,20 @@ app2.get("/api/user/church-staff-status", requireAuth, async (c) => {
       return c.json({ error: "orgId is required", code: "ORG_ID_REQUIRED" }, 400);
     }
     const isStaff = await isChurchStaffForOrg(auth.userId, orgId);
-    return c.json({ orgId, isStaff });
+    if (!isStaff) {
+      return c.json({ orgId, isStaff: false, role: null, capabilities: NO_CHURCH_CAPABILITIES });
+    }
+    let role = null;
+    try {
+      const roster = await fetchClerkOrgMemberships(orgId);
+      role = roster.find((member) => member.userId === auth.userId)?.role ?? null;
+    } catch (error) {
+      console.warn("[church-staff-status] Clerk role lookup failed; defaulting to staff", {
+        orgId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+    return c.json({ orgId, isStaff: true, role, capabilities: capabilitiesForChurchRole(role) });
   } catch (error) {
     const e = handleAPIError(error, {
       endpoint: "/api/user/church-staff-status",
@@ -310420,7 +311207,7 @@ init_chunk_YBVFDYDR();
 init_chunk_TOROEX6P();
 
 // node_modules/@clerk/shared/dist/runtime/getEnvVariable-BSXrgsT3.mjs
-var import_meta4 = {};
+var import_meta5 = {};
 var hasCloudflareProxyContext = (context2) => {
   return !!context2?.cloudflare?.env;
 };
@@ -310429,7 +311216,7 @@ var hasCloudflareContext = (context2) => {
 };
 var getEnvVariable = (name, context2) => {
   if (typeof process !== "undefined" && process.env && typeof process.env[name] === "string") return process.env[name];
-  if (typeof import_meta4 !== "undefined" && import_meta4.env && typeof import_meta4.env[name] === "string") return import_meta4.env[name];
+  if (typeof import_meta5 !== "undefined" && import_meta5.env && typeof import_meta5.env[name] === "string") return import_meta5.env[name];
   if (hasCloudflareProxyContext(context2)) return context2.cloudflare.env[name] || "";
   if (hasCloudflareContext(context2)) return context2.env[name] || "";
   if (context2 && typeof context2[name] === "string") return context2[name];
@@ -310640,6 +311427,80 @@ function customerIdFromPolarData(data) {
 function subscriptionStatusFromPolarData(data) {
   return data?.status ?? null;
 }
+function churchIdFromPolarData(data) {
+  const value = data?.metadata?.churchId;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+// server/utils/church-staff-sync.ts
+init_db2();
+init_dates();
+async function syncChurchStaffForOrg(orgId, options) {
+  const staff = options?.staff ?? await fetchClerkOrgMemberships(orgId);
+  if (!isWithinClerkOrgStaffCap(staff.length)) {
+    return {
+      ok: false,
+      code: "CLERK_ORG_MEMBER_LIMIT",
+      staffCount: staff.length,
+      limit: CLERK_ORG_STAFF_CAP
+    };
+  }
+  const orgSpaces = await db.select().from(Spaces).where(and(eq(Spaces.orgId, orgId), isNull(Spaces.deletedAt)));
+  if (orgSpaces.length === 0) {
+    return { ok: true, staffCount: staff.length, spaces: [], warnings: ["This church has no org spaces yet"] };
+  }
+  const now2 = nowISO();
+  const warnings = [];
+  const results = [];
+  for (const space of orgSpaces) {
+    const existing = await db.select({ userId: SpaceMemberships.userId, role: SpaceMemberships.role }).from(SpaceMemberships).where(eq(SpaceMemberships.spaceId, space.id));
+    const plan = computeStaffSyncPlan({ spaceOwnerUserId: space.userId, staff, existing });
+    warnings.push(...plan.warnings);
+    await db.transaction(async (tx) => {
+      if (plan.healOwnerRow) {
+        await tx.insert(SpaceMemberships).values({
+          id: `smem_${crypto.randomUUID()}`,
+          spaceId: space.id,
+          userId: space.userId,
+          role: "owner",
+          joinedAt: now2,
+          createdAt: now2
+        }).onConflictDoNothing();
+      }
+      for (const userId of plan.toInsertLeaders) {
+        await tx.insert(SpaceMemberships).values({
+          id: `smem_${crypto.randomUUID()}`,
+          spaceId: space.id,
+          userId,
+          role: "leader",
+          joinedAt: now2,
+          createdAt: now2
+        }).onConflictDoNothing();
+      }
+      for (const userId of plan.toPromoteToLeader) {
+        await tx.update(SpaceMemberships).set({ role: "leader", updatedAt: now2 }).where(and(eq(SpaceMemberships.spaceId, space.id), eq(SpaceMemberships.userId, userId)));
+      }
+      for (const userId of plan.toRemove) {
+        await tx.delete(SpaceMemberships).where(
+          and(
+            eq(SpaceMemberships.spaceId, space.id),
+            eq(SpaceMemberships.userId, userId),
+            eq(SpaceMemberships.role, "leader")
+          )
+        );
+      }
+    });
+    results.push({
+      spaceId: space.id,
+      title: space.title,
+      added: plan.toInsertLeaders.length,
+      promoted: plan.toPromoteToLeader.length,
+      removed: plan.toRemove.length,
+      healedOwner: plan.healOwnerRow
+    });
+  }
+  return { ok: true, staffCount: staff.length, spaces: results, warnings: [...new Set(warnings)] };
+}
 
 // server/routes/webhooks.ts
 var app8 = new Hono2();
@@ -310782,6 +311643,31 @@ async function handleUserUpdated(event) {
 async function handleUserDeleted(event) {
   console.log("User deleted in Clerk:", event.data.id);
 }
+async function handleOrgMembershipChanged(event) {
+  const orgId = event.data?.organization?.id;
+  if (!orgId) {
+    console.warn("[Webhook] Org membership event with no organization id:", event.type);
+    return;
+  }
+  try {
+    const church = await getActiveChurchByOrgId(orgId);
+    if (!church) {
+      return;
+    }
+    const result = await syncChurchStaffForOrg(orgId);
+    console.log("[Webhook] Church staff reconciled:", {
+      orgId,
+      type: event.type,
+      ok: result.ok,
+      ...result.ok ? { staffCount: result.staffCount, spaces: result.spaces.length } : { code: result.code }
+    });
+  } catch (error) {
+    console.error("[Webhook] Church staff reconcile failed (manual sync still available):", {
+      orgId,
+      error: error?.message ?? error
+    });
+  }
+}
 app8.post("/api/webhooks/clerk", async (c) => {
   const startTime = Date.now();
   try {
@@ -310811,6 +311697,11 @@ app8.post("/api/webhooks/clerk", async (c) => {
     } catch (error) {
       console.error("[Webhook] Signature verification failed:", error.message);
       return c.json({ error: "Invalid webhook signature" }, 401);
+    }
+    const eventType = event.type;
+    if (eventType === "organizationMembership.created" || eventType === "organizationMembership.updated" || eventType === "organizationMembership.deleted") {
+      await handleOrgMembershipChanged(event);
+      return c.json({ received: true });
     }
     let userId;
     try {
@@ -310904,6 +311795,28 @@ app8.post("/api/webhooks/polar", async (c) => {
     if (!intent) {
       return c.json({ ok: true, skipped: true });
     }
+    const eventProductId = productIdFromPolarData(data);
+    const eventSubscriptionId = typeof data?.id === "string" ? data.id : null;
+    if (isChurchProductId(eventProductId) || churchIdFromPolarData(data)) {
+      const churchId = churchIdFromPolarData(data) ?? (eventSubscriptionId ? (await findChurchBySubscriptionId(eventSubscriptionId))?.id ?? null : null);
+      if (!churchId) {
+        console.warn("[Polar webhook] Church product with no resolvable church", {
+          eventType,
+          eventSubscriptionId
+        });
+        return c.json({ ok: true, skipped: true });
+      }
+      const applied = await applyChurchSubscription({
+        churchId,
+        enabled: intent === "enable",
+        subscriptionId: eventSubscriptionId,
+        status: subscriptionStatusFromPolarData(data)
+      });
+      if (!applied) {
+        console.warn("[Polar webhook] Church not found for subscription", { churchId, eventType });
+      }
+      return c.json({ ok: true, church: churchId, enabled: intent === "enable" });
+    }
     const userId = externalUserIdFromPolarData(data);
     if (!userId) {
       console.warn("[Polar webhook] Could not resolve user id (no external_customer_id)", { eventType });
@@ -310914,8 +311827,8 @@ app8.post("/api/webhooks/polar", async (c) => {
       const existing = await getPolarCustomerId(userId);
       if (!existing) await setPolarCustomerId(userId, customerId);
     }
-    const productId = productIdFromPolarData(data);
-    const subscriptionId = typeof data?.id === "string" ? data.id : null;
+    const productId = eventProductId;
+    const subscriptionId = eventSubscriptionId;
     if (intent === "enable") {
       if (productId && planForProductId(productId)) {
         await applyPolarSubscriptionEntitlement({ userId, productId, subscriptionId, enabled: true });
@@ -311562,7 +312475,9 @@ async function processNoteMutation(userId, operation, entityId, data, clientMuta
           };
         },
         source: "sync-update",
-        now: nowISO()
+        now: nowISO(),
+        // Pre-transform body, for the list-preview truncation guard.
+        incomingRawContent: typeof data.content === "string" ? data.content : void 0
       });
       if (updateSpaceGate?.spaceId && (updateSpaceGate.spaceType === "shared" || updateSpaceGate.spaceType === "public")) {
         if (!explicitContextGate) {
@@ -315538,7 +316453,10 @@ function sumUsage(payloads) {
       studyThreadEntries: 0,
       pinnedNotes: 0
     },
-    recall: { opens: 0, snoozes: 0, snoozeRatePct: 0, usersActive: 0 }
+    recall: { opens: 0, snoozes: 0, snoozeRatePct: 0, usersActive: 0 },
+    // Required by AdminMonthlyReportUsage and previously omitted, so every season and
+    // year rollup returned `usage.passage === undefined` while monthly reports carried it.
+    passage: { usersWhoAddedPassage: 0, dismissCloseEvents: 0, createNoteEvents: 0 }
   };
   for (const p of payloads) {
     base.signups += p.usage.signups;
@@ -315557,6 +316475,9 @@ function sumUsage(payloads) {
     base.recall.opens += p.usage.recall.opens;
     base.recall.snoozes += p.usage.recall.snoozes;
     base.recall.usersActive += p.usage.recall.usersActive;
+    base.passage.usersWhoAddedPassage += p.usage.passage.usersWhoAddedPassage;
+    base.passage.dismissCloseEvents += p.usage.passage.dismissCloseEvents;
+    base.passage.createNoteEvents += p.usage.passage.createNoteEvents;
   }
   const notesCreated = base.notesCreated;
   base.study.linkRatePct = notesCreated > 0 ? Math.round(base.study.notesLinkedInThreads / notesCreated * 100) : 0;
@@ -315775,6 +316696,7 @@ function yearRollupToJson(year, seasons) {
 
 // server/utils/admin-cleanup-duplicates.ts
 init_db2();
+init_dates();
 function groupKeyNoteThread(entry) {
   return `${entry.noteId}::${entry.threadId}`;
 }
@@ -315791,7 +316713,8 @@ function planDuplicateDeletions(entries2, keyFn) {
   const duplicateGroups = Array.from(grouped.values()).filter((group) => group.length > 1);
   const report = [];
   for (const group of duplicateGroups) {
-    const sorted = [...group].sort((a, b3) => (a.createdAt || "").localeCompare(b3.createdAt || ""));
+    const createdMs = (entry) => toDate(entry.createdAt)?.getTime() ?? 0;
+    const sorted = [...group].sort((a, b3) => createdMs(a) - createdMs(b3));
     const [kept, ...toDelete] = sorted;
     report.push({ kept, toDelete });
   }
@@ -315972,8 +316895,8 @@ function isFeedbackTopic(value) {
 }
 
 // src/utils/support-tickets.ts
-var import_meta5 = {};
-var API_BASE = typeof import_meta5 !== "undefined" && import_meta5.env?.VITE_API_BASE_URL ? String(import_meta5.env.VITE_API_BASE_URL) : "";
+var import_meta6 = {};
+var API_BASE = typeof import_meta6 !== "undefined" && import_meta6.env?.VITE_API_BASE_URL ? String(import_meta6.env.VITE_API_BASE_URL) : "";
 function formatSupportTicketRef(ticketNumber, id) {
   if (ticketNumber != null) return String(ticketNumber);
   if (/^\d+$/.test(id)) return id;
@@ -318078,6 +319001,33 @@ async function setChurchActive(c, active) {
 }
 app12.post("/api/admin/churches/:churchId/deactivate", (c) => setChurchActive(c, false));
 app12.post("/api/admin/churches/:churchId/reactivate", (c) => setChurchActive(c, true));
+app12.post("/api/admin/churches/:churchId/pilot", async (c) => {
+  const gate = await requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const churchId = c.req.param("churchId");
+    const body = await c.req.json().catch(() => ({}));
+    let pilotUntil = null;
+    if (body.days !== null && body.days !== void 0) {
+      const days = Number(body.days);
+      if (!Number.isFinite(days) || days <= 0 || days > 365) {
+        return c.json({ error: "days must be between 1 and 365, or null to end", code: "INVALID_PILOT_DAYS" }, 400);
+      }
+      pilotUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1e3);
+    }
+    const church = first(
+      await db.update(Churches).set({ pilotUntil, updatedAt: nowISO() }).where(eq(Churches.id, churchId)).returning()
+    );
+    if (!church) return c.json({ error: "Church not found", code: "CHURCH_NOT_FOUND" }, 404);
+    return c.json({ success: true, church, sponsorship: churchSponsorship(church) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/admin/churches/[churchId]/pilot",
+      action: "set_church_pilot"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
 app12.post("/api/admin/churches/:churchId/spaces", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
@@ -318158,84 +319108,1003 @@ app12.post("/api/admin/churches/:churchId/sync-staff", async (c) => {
     if (!church.isActive || church.deletedAt) {
       return c.json({ error: "Church is not active", code: "CHURCH_INACTIVE" }, 409);
     }
-    let staff;
+    let result;
     try {
-      staff = await fetchClerkOrgMemberships(church.orgId);
+      result = await syncChurchStaffForOrg(church.orgId);
     } catch (error) {
       const resp = clerkErrorResponse(c, error);
       if (resp) return resp;
       throw error;
     }
-    if (!isWithinClerkOrgStaffCap(staff.length)) {
+    if (!result.ok) {
       return c.json(
         {
-          error: `This Clerk org has ${staff.length} members; Church base allows ${CLERK_ORG_STAFF_CAP} staff. Remove members in Clerk, or use Unlimited staff (requires Clerk Enhanced) when that add-on ships.`,
-          code: "CLERK_ORG_MEMBER_LIMIT",
-          staffCount: staff.length,
-          limit: CLERK_ORG_STAFF_CAP
+          error: `This Clerk org has ${result.staffCount} members; Church base allows ${result.limit} staff. Remove members in Clerk, or use Unlimited staff (requires Clerk Enhanced) when that add-on ships.`,
+          code: result.code,
+          staffCount: result.staffCount,
+          limit: result.limit
         },
         409
       );
     }
-    const orgSpaces = await db.select().from(Spaces).where(and(eq(Spaces.orgId, church.orgId), isNull(Spaces.deletedAt)));
-    if (orgSpaces.length === 0) {
-      return c.json({ success: true, staffCount: staff.length, spaces: [], warnings: ["This church has no org spaces yet"] });
-    }
-    const now2 = nowISO();
-    const warnings = [];
-    const results = [];
-    for (const space of orgSpaces) {
-      const existing = await db.select({ userId: SpaceMemberships.userId, role: SpaceMemberships.role }).from(SpaceMemberships).where(eq(SpaceMemberships.spaceId, space.id));
-      const plan = computeStaffSyncPlan({ spaceOwnerUserId: space.userId, staff, existing });
-      warnings.push(...plan.warnings);
-      await db.transaction(async (tx) => {
-        if (plan.healOwnerRow) {
-          await tx.insert(SpaceMemberships).values({
-            id: `smem_${crypto.randomUUID()}`,
-            spaceId: space.id,
-            userId: space.userId,
-            role: "owner",
-            joinedAt: now2,
-            createdAt: now2
-          }).onConflictDoNothing();
-        }
-        for (const userId of plan.toInsertLeaders) {
-          await tx.insert(SpaceMemberships).values({
-            id: `smem_${crypto.randomUUID()}`,
-            spaceId: space.id,
-            userId,
-            role: "leader",
-            joinedAt: now2,
-            createdAt: now2
-          }).onConflictDoNothing();
-        }
-        for (const userId of plan.toPromoteToLeader) {
-          await tx.update(SpaceMemberships).set({ role: "leader", updatedAt: now2 }).where(and(eq(SpaceMemberships.spaceId, space.id), eq(SpaceMemberships.userId, userId)));
-        }
-        for (const userId of plan.toRemove) {
-          await tx.delete(SpaceMemberships).where(and(
-            eq(SpaceMemberships.spaceId, space.id),
-            eq(SpaceMemberships.userId, userId),
-            eq(SpaceMemberships.role, "leader")
-          ));
-        }
-      });
-      results.push({
-        spaceId: space.id,
-        title: space.title,
-        added: plan.toInsertLeaders.length,
-        promoted: plan.toPromoteToLeader.length,
-        removed: plan.toRemove.length,
-        healedOwner: plan.healOwnerRow
-      });
-    }
-    return c.json({ success: true, staffCount: staff.length, spaces: results, warnings: [...new Set(warnings)] });
+    return c.json({
+      success: true,
+      staffCount: result.staffCount,
+      spaces: result.spaces,
+      warnings: result.warnings
+    });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/admin/churches/[churchId]/sync-staff", action: "sync_church_staff" });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
 var churches_default = app12;
+
+// server/routes/church.ts
+init_db2();
+init_auth();
+init_html_stripper();
+init_dashboard_data();
+
+// server/utils/ministry-channel-follow.ts
+init_db2();
+init_dates();
+function planMinistryChannelFollow(options) {
+  if (!options.space) return { action: "reject", code: "SPACE_NOT_FOUND" };
+  if (options.space.deletedAt) return { action: "reject", code: "SPACE_INACTIVE" };
+  if (!isMinistryBroadcastSpaceRow(options.space)) {
+    return { action: "reject", code: "NOT_MINISTRY_CHANNEL" };
+  }
+  if (options.existingRole === "owner" || options.existingRole === "leader") {
+    return { action: "noop", reason: "already_staff" };
+  }
+  if (options.existingRole === "member") {
+    return { action: "noop", reason: "already_member" };
+  }
+  return { action: "insert" };
+}
+function planMinistryChannelUnfollow(options) {
+  if (!options.space) return { action: "reject", code: "SPACE_NOT_FOUND" };
+  if (!isMinistryBroadcastSpaceRow(options.space)) {
+    return { action: "reject", code: "NOT_MINISTRY_CHANNEL" };
+  }
+  if (options.existingRole === "owner" || options.existingRole === "leader") {
+    return { action: "reject", code: "STAFF_ROW" };
+  }
+  if (options.existingRole !== "member") {
+    return { action: "noop", reason: "not_following" };
+  }
+  return { action: "delete" };
+}
+async function loadSpaceAndMembership(spaceId, userId) {
+  const space = first(
+    await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).limit(1)
+  );
+  const membership = first(
+    await db.select().from(SpaceMemberships).where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, userId))).limit(1)
+  );
+  return { space, membership };
+}
+async function followMinistryChannel(userId, spaceId) {
+  const id = spaceId.trim();
+  const uid2 = userId.trim();
+  if (!id || !uid2) return { followed: false, code: "SPACE_NOT_FOUND", reason: "Missing ids" };
+  const { space, membership } = await loadSpaceAndMembership(id, uid2);
+  const plan = planMinistryChannelFollow({
+    space,
+    existingRole: membership?.role ?? null
+  });
+  if (plan.action === "reject") {
+    return { followed: false, code: plan.code, reason: plan.code };
+  }
+  if (plan.action === "noop") {
+    return { followed: false, reason: plan.reason };
+  }
+  const now2 = nowISO();
+  await db.insert(SpaceMemberships).values({
+    id: `smem_${crypto.randomUUID()}`,
+    spaceId: id,
+    userId: uid2,
+    role: "member",
+    joinedAt: now2,
+    createdAt: now2
+  });
+  return { followed: true };
+}
+async function unfollowMinistryChannel(userId, spaceId) {
+  const id = spaceId.trim();
+  const uid2 = userId.trim();
+  if (!id || !uid2) return { unfollowed: false, code: "SPACE_NOT_FOUND", reason: "Missing ids" };
+  const { space, membership } = await loadSpaceAndMembership(id, uid2);
+  const plan = planMinistryChannelUnfollow({
+    space,
+    existingRole: membership?.role ?? null
+  });
+  if (plan.action === "reject") {
+    return { unfollowed: false, code: plan.code, reason: plan.code };
+  }
+  if (plan.action === "noop") {
+    return { unfollowed: false, reason: plan.reason };
+  }
+  await db.delete(SpaceMemberships).where(
+    and(
+      eq(SpaceMemberships.spaceId, id),
+      eq(SpaceMemberships.userId, uid2),
+      eq(SpaceMemberships.role, "member")
+    )
+  );
+  return { unfollowed: true };
+}
+
+// server/utils/church-teaching-plan.ts
+init_db2();
+async function assertCanManageTeachingPlan(userId, orgId) {
+  const church = await getActiveChurchByOrgId(orgId);
+  if (!church) {
+    return { ok: false, status: 404, code: "CHURCH_NOT_FOUND", error: "Church not found" };
+  }
+  if (!church.isActive) {
+    return { ok: false, status: 409, code: "CHURCH_INACTIVE", error: "Church is not active" };
+  }
+  if (!await isChurchStaffForOrg(userId, church.orgId)) {
+    return {
+      ok: false,
+      status: 403,
+      code: "CHURCH_STAFF_REQUIRED",
+      error: "Only church staff can manage the teaching plan"
+    };
+  }
+  if (!churchIsSponsored(church)) {
+    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
+  }
+  let role = null;
+  try {
+    const roster = await fetchClerkOrgMemberships(church.orgId);
+    role = roster.find((member) => member.userId === userId)?.role ?? null;
+  } catch {
+    return {
+      ok: false,
+      status: 403,
+      code: "SERMON_TOOLS_REQUIRED",
+      error: "Could not confirm your role. Try again in a moment."
+    };
+  }
+  if (!capabilitiesForChurchRole(role).includes("sermon_tools")) {
+    return {
+      ok: false,
+      status: 403,
+      code: "SERMON_TOOLS_REQUIRED",
+      error: "Your role does not include the teaching plan"
+    };
+  }
+  return { ok: true, church };
+}
+async function listServicesForChurch(churchId, options = {}) {
+  const { from: from2, limit = 50 } = options;
+  const where = from2 ? and(eq(ChurchServices.churchId, churchId), gte(ChurchServices.serviceDate, from2)) : eq(ChurchServices.churchId, churchId);
+  return db.select().from(ChurchServices).where(where).orderBy(asc(ChurchServices.serviceDate)).limit(limit);
+}
+async function resolveViewerServiceNotes(userId, serviceIds) {
+  const ids = serviceIds.filter(Boolean);
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const rows = await db.select({ noteId: Notes.id, serviceId: Notes.startedFromServiceId }).from(Notes).where(
+    and(
+      eq(Notes.userId, userId),
+      isNotNull(Notes.startedFromServiceId),
+      inArray(Notes.startedFromServiceId, ids)
+    )
+  );
+  const map3 = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    if (row.serviceId && !map3.has(row.serviceId)) map3.set(row.serviceId, row.noteId);
+  }
+  return map3;
+}
+
+// server/routes/church.ts
+var app13 = new Hono2();
+var FEED_EXCERPT_LENGTH = 180;
+var FEED_LIMIT_DEFAULT = 12;
+var FEED_LIMIT_MAX = 50;
+var SERVICE_GRACE_DAYS = 4;
+var SERVICES_PAYLOAD_LIMIT = 8;
+function serviceGraceWindowStart() {
+  const cutoff = /* @__PURE__ */ new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - (SERVICE_GRACE_DAYS + 1));
+  return cutoff.toISOString().slice(0, 10);
+}
+async function getConnectedChurch(userId) {
+  const meta2 = first(
+    await db.select({ connectedOrgId: UserMetadata.connectedOrgId }).from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1)
+  );
+  if (!meta2?.connectedOrgId) return null;
+  return getActiveChurchByOrgId(meta2.connectedOrgId);
+}
+async function listOrgChannels(orgId) {
+  return db.select({
+    id: Spaces.id,
+    title: Spaces.title,
+    description: Spaces.description,
+    color: Spaces.color,
+    type: Spaces.type,
+    orgId: Spaces.orgId,
+    publishCadence: Spaces.publishCadence,
+    isActive: Spaces.isActive
+  }).from(Spaces).where(and(eq(Spaces.orgId, orgId), eq(Spaces.type, "public"), isNull(Spaces.deletedAt)));
+}
+app13.get("/api/church/channels", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const church = await getConnectedChurch(auth.userId);
+    if (!church) {
+      return c.json({ connected: false, church: null, channels: [] });
+    }
+    const sponsorship = churchSponsorship(church);
+    const channels = (await listOrgChannels(church.orgId)).filter((space) => space.isActive);
+    if (channels.length === 0) {
+      return c.json({
+        connected: true,
+        church: { id: church.id, name: church.name, orgId: church.orgId },
+        sponsorship,
+        channels: []
+      });
+    }
+    const channelIds = channels.map((space) => space.id);
+    const [memberships, lastCurriculumById] = await Promise.all([
+      db.select({ spaceId: SpaceMemberships.spaceId, role: SpaceMemberships.role }).from(SpaceMemberships).where(
+        and(
+          eq(SpaceMemberships.userId, auth.userId),
+          inArray(SpaceMemberships.spaceId, channelIds)
+        )
+      ),
+      getLastCurriculumAtBySpaceIds(channelIds)
+    ]);
+    const roleBySpace = new Map(memberships.map((row) => [row.spaceId, row.role]));
+    const payload = channels.map((space) => {
+      const role = roleBySpace.get(space.id) ?? null;
+      return {
+        id: space.id,
+        title: space.title,
+        description: space.description,
+        color: space.color,
+        role,
+        isFollowing: role === "member",
+        // Staff already reach their channels through the hub's staff lane;
+        // the browse list flags them so it never offers "Follow" to an author.
+        isStaff: role === "owner" || role === "leader",
+        ...buildChannelCadenceFields(
+          space.publishCadence,
+          lastCurriculumById.get(space.id) ?? null
+        )
+      };
+    }).sort((a, b3) => a.title.localeCompare(b3.title, void 0, { sensitivity: "base" }));
+    return c.json({
+      connected: true,
+      church: { id: church.id, name: church.name, orgId: church.orgId },
+      sponsorship,
+      channels: payload
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/channels",
+      action: "list_church_channels"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+async function resolveFollowTarget(userId, spaceId) {
+  const space = first(await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).limit(1));
+  if (!space || space.deletedAt || !isMinistryBroadcastSpaceRow(space)) {
+    return { ok: false, status: 404, code: "CHANNEL_NOT_FOUND", error: "Ministry channel not found" };
+  }
+  const church = await getConnectedChurch(userId);
+  if (!church || church.orgId !== space.orgId) {
+    return { ok: false, status: 404, code: "CHANNEL_NOT_FOUND", error: "Ministry channel not found" };
+  }
+  return { ok: true, space, church };
+}
+app13.post("/api/church/channels/:spaceId/follow", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const target = await resolveFollowTarget(auth.userId, c.req.param("spaceId") ?? "");
+    if (!target.ok) return c.json({ error: target.error, code: target.code }, target.status);
+    if (!churchSponsorship(target.church).sponsored) {
+      return c.json({ error: CHURCH_LAPSED_ERROR, code: CHURCH_LAPSED_CODE }, 402);
+    }
+    if (!target.space.isActive) {
+      return c.json({ error: "This channel is not active", code: "CHANNEL_INACTIVE" }, 409);
+    }
+    const result = await followMinistryChannel(auth.userId, target.space.id);
+    if (!result.followed && result.code) {
+      return c.json({ error: result.reason ?? "Could not follow", code: result.code }, 409);
+    }
+    return c.json({ success: true, spaceId: target.space.id, following: true, reason: result.reason ?? null });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/channels/[spaceId]/follow",
+      action: "follow_ministry_channel"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app13.post("/api/church/channels/:spaceId/unfollow", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const target = await resolveFollowTarget(auth.userId, c.req.param("spaceId") ?? "");
+    if (!target.ok) return c.json({ error: target.error, code: target.code }, target.status);
+    const result = await unfollowMinistryChannel(auth.userId, target.space.id);
+    if (!result.unfollowed && result.code) {
+      const status = result.code === "STAFF_ROW" ? 409 : 404;
+      return c.json({ error: result.reason ?? "Could not unfollow", code: result.code }, status);
+    }
+    return c.json({ success: true, spaceId: target.space.id, following: false, reason: result.reason ?? null });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/channels/[spaceId]/unfollow",
+      action: "unfollow_ministry_channel"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app13.get("/api/church/feed", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const limitRaw = Number(c.req.query("limit") ?? FEED_LIMIT_DEFAULT);
+    const limit = Number.isFinite(limitRaw) ? Math.min(FEED_LIMIT_MAX, Math.max(1, Math.trunc(limitRaw))) : FEED_LIMIT_DEFAULT;
+    const church = await getConnectedChurch(auth.userId);
+    if (!church) return c.json({ connected: false, items: [] });
+    const followed = await db.select({
+      id: Spaces.id,
+      title: Spaces.title,
+      color: Spaces.color
+    }).from(SpaceMemberships).innerJoin(Spaces, eq(SpaceMemberships.spaceId, Spaces.id)).where(
+      and(
+        eq(SpaceMemberships.userId, auth.userId),
+        eq(SpaceMemberships.role, "member"),
+        eq(Spaces.orgId, church.orgId),
+        eq(Spaces.type, "public"),
+        eq(Spaces.isActive, true),
+        isNull(Spaces.deletedAt)
+      )
+    );
+    if (followed.length === 0) {
+      return c.json({ connected: true, church: { id: church.id, name: church.name }, items: [] });
+    }
+    const spaceById = new Map(followed.map((space) => [space.id, space]));
+    const rows = await db.select({
+      noteId: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      noteType: Notes.noteType,
+      authorUserId: Notes.userId,
+      createdAt: Notes.createdAt,
+      updatedAt: Notes.updatedAt,
+      spaceId: SpaceNotes.spaceId,
+      addedAt: SpaceNotes.addedAt
+    }).from(SpaceNotes).innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId)).where(
+      and(
+        inArray(SpaceNotes.spaceId, [...spaceById.keys()]),
+        isNull(SpaceNotes.removedAt),
+        eq(Notes.contentEncrypted, false)
+      )
+    ).orderBy(desc(SpaceNotes.addedAt)).limit(limit);
+    const authors = await batchAuthorAttribution(rows.map((row) => row.authorUserId));
+    const items = rows.map((row) => {
+      const space = spaceById.get(row.spaceId);
+      const author = authors[row.authorUserId];
+      return {
+        noteId: row.noteId,
+        title: row.title,
+        excerpt: stripHtmlForCard(row.content ?? "").slice(0, FEED_EXCERPT_LENGTH),
+        noteType: row.noteType ?? "default",
+        publishedAt: row.addedAt ?? row.createdAt ?? null,
+        updatedAt: row.updatedAt ?? row.createdAt ?? null,
+        channel: { id: space.id, title: space.title, color: space.color },
+        author: {
+          displayName: author?.displayName ?? "Church staff",
+          userColor: author?.userColor ?? "blue",
+          profileImageUrl: author?.profileImageUrl ?? null
+        }
+      };
+    });
+    return c.json({
+      connected: true,
+      church: { id: church.id, name: church.name },
+      items
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/feed",
+      action: "church_feed"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app13.get("/api/church/services", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const church = await getConnectedChurch(auth.userId);
+    if (!church) return c.json({ connected: false, services: [] });
+    const from2 = serviceGraceWindowStart();
+    const services = await listServicesForChurch(church.id, {
+      from: from2,
+      limit: SERVICES_PAYLOAD_LIMIT
+    });
+    if (services.length === 0) {
+      return c.json({ connected: true, church: { id: church.id, name: church.name }, services: [] });
+    }
+    const viewerNotes = await resolveViewerServiceNotes(
+      auth.userId,
+      services.map((service) => service.id)
+    );
+    const templateIds = [
+      ...new Set(services.map((s2) => s2.starterTemplateId).filter((id) => Boolean(id)))
+    ];
+    const templates = templateIds.length ? await db.select().from(NoteTemplates).where(
+      and(inArray(NoteTemplates.id, templateIds), eq(NoteTemplates.orgId, church.orgId))
+    ) : [];
+    const templateById = new Map(templates.map((t) => [t.id, t]));
+    return c.json({
+      connected: true,
+      church: { id: church.id, name: church.name },
+      services: services.map((service) => {
+        const template = service.starterTemplateId ? templateById.get(service.starterTemplateId) : void 0;
+        return {
+          id: service.id,
+          serviceDate: service.serviceDate,
+          title: service.title,
+          seriesTitle: service.seriesTitle,
+          reference: service.reference,
+          viewerNoteId: viewerNotes.get(service.id) ?? null,
+          starter: template ? {
+            templateId: template.id,
+            templateName: template.name,
+            title: template.title,
+            content: template.content
+          } : null
+        };
+      })
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/services",
+      action: "church_services"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app13.get("/api/church/billing", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const orgId = (c.req.query("orgId") ?? "").trim();
+    const church = orgId ? await getActiveChurchByOrgId(orgId) : await getConnectedChurch(auth.userId);
+    if (!church) return c.json({ error: "Church not found", code: "CHURCH_NOT_FOUND" }, 404);
+    if (!await isChurchStaffForOrg(auth.userId, church.orgId)) {
+      return c.json({ error: "Only church staff can view billing", code: "CHURCH_STAFF_REQUIRED" }, 403);
+    }
+    return c.json({
+      church: { id: church.id, name: church.name, orgId: church.orgId },
+      sponsorship: churchSponsorship(church),
+      billingStatus: church.billingStatus,
+      plans: churchPlans().map((plan) => ({
+        key: plan.key,
+        name: plan.name,
+        interval: plan.interval,
+        amountCents: plan.amountCents,
+        currencyCode: plan.currencyCode,
+        price: formatPlanPrice(plan)
+      }))
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/billing",
+      action: "church_billing_status"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app13.post("/api/church/checkout", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    if (!isPolarConfigured()) {
+      return c.json({ error: "Billing is not configured", code: "BILLING_UNCONFIGURED" }, 503);
+    }
+    const body = await c.req.json().catch(() => ({}));
+    const orgId = (body.orgId ?? "").trim();
+    const church = orgId ? await getActiveChurchByOrgId(orgId) : await getConnectedChurch(auth.userId);
+    if (!church) return c.json({ error: "Church not found", code: "CHURCH_NOT_FOUND" }, 404);
+    if (!await isChurchStaffForOrg(auth.userId, church.orgId)) {
+      return c.json({ error: "Only church staff can subscribe", code: "CHURCH_STAFF_REQUIRED" }, 403);
+    }
+    if (church.billingPlan) {
+      return c.json({ error: "This church already has a plan", code: "CHURCH_ALREADY_PAID" }, 409);
+    }
+    const interval2 = body.interval === "year" ? "year" : "month";
+    const plan = churchPlanFor(interval2);
+    if (!plan?.productId) {
+      return c.json({ error: "Church plan is not configured", code: "PLAN_UNCONFIGURED" }, 503);
+    }
+    const meta2 = first(
+      await db.select({ email: UserMetadata.email }).from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1)
+    );
+    const origin = getPublicAppOrigin(c);
+    const polar = getPolarClient();
+    const checkout = await polar.checkouts.create({
+      products: [plan.productId],
+      externalCustomerId: auth.userId,
+      ...meta2?.email?.includes("@") ? { customerEmail: meta2.email } : {},
+      successUrl: `${origin}/?church_checkout={CHECKOUT_ID}`,
+      metadata: { clerkUserId: auth.userId, churchId: church.id, orgId: church.orgId }
+    });
+    return c.json({ url: checkout.url, interval: plan.interval, plan: plan.key });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/checkout",
+      action: "create_church_checkout"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+async function resolveStaffContext(userId, orgIdInput) {
+  const orgId = orgIdInput.trim();
+  const church = orgId ? await getActiveChurchByOrgId(orgId) : await getConnectedChurch(userId);
+  if (!church) {
+    return { ok: false, status: 404, code: "CHURCH_NOT_FOUND", error: "Church not found" };
+  }
+  if (!await isChurchStaffForOrg(userId, church.orgId)) {
+    return { ok: false, status: 403, code: "CHURCH_STAFF_REQUIRED", error: "Only church staff can manage the team" };
+  }
+  const roster = await fetchClerkOrgMemberships(church.orgId);
+  const role = roster.find((member) => member.userId === userId)?.role ?? null;
+  return { ok: true, church, roster, role };
+}
+function clerkFailureResponse(c, error) {
+  if (error instanceof ClerkOrgInviteError) {
+    return c.json({ error: error.message, code: error.code }, 409);
+  }
+  if (error instanceof ClerkOrgError) {
+    if (error.code === "CLERK_ORGS_NOT_ENABLED") {
+      return c.json(
+        { error: "Staff management is unavailable right now", code: "CLERK_ORGS_NOT_ENABLED" },
+        503
+      );
+    }
+    return c.json({ error: "Staff directory is unavailable \u2014 try again", code: "CLERK_UNAVAILABLE" }, 502);
+  }
+  return null;
+}
+app13.get("/api/church/staff", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const ctx = await resolveStaffContext(auth.userId, c.req.query("orgId") ?? "");
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    const pending = await fetchClerkOrgPendingInvitations(ctx.church.orgId);
+    const attribution = await batchAuthorAttribution(ctx.roster.map((m2) => m2.userId));
+    return c.json({
+      church: { id: ctx.church.id, name: ctx.church.name, orgId: ctx.church.orgId },
+      canManage: isClerkOrgAdminRole(ctx.role),
+      viewerRole: ctx.role,
+      staffCap: CLERK_ORG_STAFF_CAP,
+      seatsUsed: ctx.roster.length + pending.length,
+      staff: ctx.roster.map((member) => ({
+        userId: member.userId,
+        role: member.role,
+        isSelf: member.userId === auth.userId,
+        displayName: attribution[member.userId]?.displayName ?? "Staff member",
+        profileImageUrl: attribution[member.userId]?.profileImageUrl ?? null,
+        userColor: attribution[member.userId]?.userColor ?? "blue"
+      })),
+      pendingInvites: pending
+    });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/staff",
+      action: "list_church_staff"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app13.post("/api/church/staff/invite", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? "");
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    if (!isClerkOrgAdminRole(ctx.role)) {
+      return c.json({ error: "Only a church admin can invite staff", code: "CHURCH_ADMIN_REQUIRED" }, 403);
+    }
+    if (!churchSponsorship(ctx.church).sponsored) {
+      return c.json({ error: CHURCH_LAPSED_ERROR, code: CHURCH_LAPSED_CODE }, 402);
+    }
+    const email2 = (body.email ?? "").trim().toLowerCase();
+    if (!email2 || !email2.includes("@")) {
+      return c.json({ error: "A valid email address is required", code: "INVALID_EMAIL" }, 400);
+    }
+    const pending = await fetchClerkOrgPendingInvitations(ctx.church.orgId);
+    if (!canInviteMoreStaff({ memberCount: ctx.roster.length, pendingInviteCount: pending.length })) {
+      return c.json(
+        {
+          error: `Your church has ${ctx.roster.length} staff and ${pending.length} pending invite(s) \u2014 the limit is ${CLERK_ORG_STAFF_CAP}. Remove someone first.`,
+          code: "CLERK_ORG_MEMBER_LIMIT",
+          seatsUsed: ctx.roster.length + pending.length,
+          limit: CLERK_ORG_STAFF_CAP
+        },
+        409
+      );
+    }
+    const invitation = await createClerkOrgInvitation({
+      orgId: ctx.church.orgId,
+      emailAddress: email2,
+      inviterUserId: auth.userId,
+      role: body.role === CLERK_ORG_ADMIN_ROLE ? CLERK_ORG_ADMIN_ROLE : void 0
+    });
+    return c.json({ success: true, invitation });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/staff/invite",
+      action: "invite_church_staff"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app13.post("/api/church/staff/revoke-invite", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? "");
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    if (!isClerkOrgAdminRole(ctx.role)) {
+      return c.json({ error: "Only a church admin can revoke invites", code: "CHURCH_ADMIN_REQUIRED" }, 403);
+    }
+    const invitationId = (body.invitationId ?? "").trim();
+    if (!invitationId) {
+      return c.json({ error: "invitationId is required", code: "BAD_REQUEST" }, 400);
+    }
+    await revokeClerkOrgInvitation({
+      orgId: ctx.church.orgId,
+      invitationId,
+      requestingUserId: auth.userId
+    });
+    return c.json({ success: true });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/staff/revoke-invite",
+      action: "revoke_church_invite"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app13.post("/api/church/staff/remove", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? "");
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    if (!isClerkOrgAdminRole(ctx.role)) {
+      return c.json({ error: "Only a church admin can remove staff", code: "CHURCH_ADMIN_REQUIRED" }, 403);
+    }
+    const targetUserId = (body.userId ?? "").trim();
+    if (!targetUserId) return c.json({ error: "userId is required", code: "BAD_REQUEST" }, 400);
+    if (targetUserId === auth.userId) {
+      return c.json({ error: "You cannot remove yourself", code: "CANNOT_REMOVE_SELF" }, 400);
+    }
+    if (!ctx.roster.some((member) => member.userId === targetUserId)) {
+      return c.json({ error: "That person is not on your staff", code: "NOT_STAFF" }, 404);
+    }
+    await removeClerkOrgMember(ctx.church.orgId, targetUserId);
+    const sync = await syncChurchStaffForOrg(ctx.church.orgId);
+    return c.json({ success: true, sync });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/staff/remove",
+      action: "remove_church_staff"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app13.post("/api/church/staff/sync", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? "");
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    const result = await syncChurchStaffForOrg(ctx.church.orgId, { staff: ctx.roster });
+    if (!result.ok) {
+      return c.json(
+        {
+          error: `Your church has ${result.staffCount} staff \u2014 the limit is ${result.limit}.`,
+          code: result.code,
+          staffCount: result.staffCount,
+          limit: result.limit
+        },
+        409
+      );
+    }
+    return c.json({ success: true, ...result });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/staff/sync",
+      action: "sync_church_staff_self_serve"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var church_default = app13;
+
+// server/routes/church-teaching-plan.ts
+init_db2();
+init_auth();
+
+// server/utils/church-service-passage.ts
+init_scripture_detector();
+function canonicalizeServiceReference(raw2) {
+  const trimmed = String(raw2 ?? "").trim();
+  if (!trimmed) return { ok: true, reference: null };
+  const normalized = normalizeScriptureReference(trimmed);
+  const firstPass = checkScriptureReferenceValidity(normalized);
+  if (firstPass.ok) return { ok: true, reference: normalized };
+  const repaired = repairUnresolvableReference(normalized);
+  if (repaired) {
+    const secondPass = checkScriptureReferenceValidity(repaired);
+    if (secondPass.ok) return { ok: true, reference: repaired };
+  }
+  return { ok: false, reason: firstPass.reason };
+}
+
+// server/routes/church-teaching-plan.ts
+var app14 = new Hono2();
+var SERVICE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+var TITLE_MAX = 120;
+var SERIES_MAX = 120;
+function clean(value, max2) {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, max2);
+}
+function serializeService(row) {
+  return {
+    id: row.id,
+    serviceDate: row.serviceDate,
+    title: row.title,
+    seriesTitle: row.seriesTitle,
+    reference: row.reference,
+    starterTemplateId: row.starterTemplateId,
+    channelSpaceId: row.channelSpaceId,
+    updatedAt: row.updatedAt ?? row.createdAt
+  };
+}
+async function validateReferences(orgId, input) {
+  const templateId = clean(input.starterTemplateId, 200);
+  if (templateId) {
+    const template = first(
+      await db.select({ id: NoteTemplates.id }).from(NoteTemplates).where(and(eq(NoteTemplates.id, templateId), eq(NoteTemplates.orgId, orgId))).limit(1)
+    );
+    if (!template) {
+      return { ok: false, code: "TEMPLATE_NOT_FOUND", error: "That starter template is not one of your church templates" };
+    }
+  }
+  const channelSpaceId = clean(input.channelSpaceId, 200);
+  if (channelSpaceId) {
+    const space = first(
+      await db.select().from(Spaces).where(and(eq(Spaces.id, channelSpaceId), isNull(Spaces.deletedAt))).limit(1)
+    );
+    if (!space || space.orgId !== orgId || !isMinistryBroadcastSpaceRow(space)) {
+      return { ok: false, code: "CHANNEL_NOT_FOUND", error: "That ministry channel was not found" };
+    }
+  }
+  return { ok: true };
+}
+app14.get("/api/church/services/plan", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const orgId = (c.req.query("orgId") ?? "").trim();
+    const gate = await assertCanManageTeachingPlan(auth.userId, orgId);
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const services = await db.select().from(ChurchServices).where(eq(ChurchServices.churchId, gate.church.id)).orderBy(asc(ChurchServices.serviceDate));
+    return c.json({
+      church: { id: gate.church.id, name: gate.church.name },
+      services: services.map(serializeService),
+      // Distinct series the church has used — powers the editor's autocomplete
+      // so weeks group without typo-splitting into two series.
+      seriesTitles: [
+        ...new Set(services.map((s2) => s2.seriesTitle).filter((t) => Boolean(t)))
+      ]
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/services/plan",
+      action: "church_teaching_plan"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.post("/api/church/services/create", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const serviceDate = (body.serviceDate ?? "").trim();
+    if (!SERVICE_DATE_PATTERN.test(serviceDate)) {
+      return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
+    }
+    const title = clean(body.title, TITLE_MAX);
+    if (!title) {
+      return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
+    }
+    const passage = canonicalizeServiceReference(body.reference);
+    if (!passage.ok) {
+      return c.json({ error: passage.reason, code: "INVALID_REFERENCE" }, 400);
+    }
+    const refs3 = await validateReferences(gate.church.orgId, body);
+    if (!refs3.ok) return c.json({ error: refs3.error, code: refs3.code }, 400);
+    const existing = first(
+      await db.select({ id: ChurchServices.id }).from(ChurchServices).where(
+        and(
+          eq(ChurchServices.churchId, gate.church.id),
+          eq(ChurchServices.serviceDate, serviceDate)
+        )
+      ).limit(1)
+    );
+    if (existing) {
+      return c.json(
+        {
+          error: "That date already has a service. Edit the existing one instead.",
+          code: "SERVICE_DATE_TAKEN",
+          serviceId: existing.id
+        },
+        409
+      );
+    }
+    const now2 = /* @__PURE__ */ new Date();
+    const row = {
+      id: `svc_${crypto.randomUUID()}`,
+      churchId: gate.church.id,
+      serviceDate,
+      title,
+      seriesTitle: clean(body.seriesTitle, SERIES_MAX),
+      reference: passage.reference,
+      starterTemplateId: clean(body.starterTemplateId, 200),
+      channelSpaceId: clean(body.channelSpaceId, 200),
+      createdBy: auth.userId,
+      updatedBy: null,
+      createdAt: now2,
+      updatedAt: null
+    };
+    try {
+      await db.insert(ChurchServices).values(row);
+    } catch (error) {
+      if (String(error).includes("ChurchServices_church_date_unique")) {
+        return c.json(
+          { error: "That date already has a service.", code: "SERVICE_DATE_TAKEN" },
+          409
+        );
+      }
+      throw error;
+    }
+    return c.json({ success: true, service: serializeService(row) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/services/create",
+      action: "create_church_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.post("/api/church/services/update", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const serviceId = (body.serviceId ?? "").trim();
+    if (!serviceId) {
+      return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
+    }
+    const existing = first(
+      await db.select().from(ChurchServices).where(
+        and(eq(ChurchServices.id, serviceId), eq(ChurchServices.churchId, gate.church.id))
+      ).limit(1)
+    );
+    if (!existing) {
+      return c.json({ error: "Service not found", code: "SERVICE_NOT_FOUND" }, 404);
+    }
+    const updates = { updatedBy: auth.userId, updatedAt: /* @__PURE__ */ new Date() };
+    if (body.serviceDate !== void 0) {
+      const serviceDate = (body.serviceDate ?? "").trim();
+      if (!SERVICE_DATE_PATTERN.test(serviceDate)) {
+        return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
+      }
+      if (serviceDate !== existing.serviceDate) {
+        const clash = first(
+          await db.select({ id: ChurchServices.id }).from(ChurchServices).where(
+            and(
+              eq(ChurchServices.churchId, gate.church.id),
+              eq(ChurchServices.serviceDate, serviceDate)
+            )
+          ).limit(1)
+        );
+        if (clash) {
+          return c.json(
+            { error: "That date already has a service.", code: "SERVICE_DATE_TAKEN", serviceId: clash.id },
+            409
+          );
+        }
+      }
+      updates.serviceDate = serviceDate;
+    }
+    if (body.title !== void 0) {
+      const title = clean(body.title, TITLE_MAX);
+      if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
+      updates.title = title;
+    }
+    if (body.seriesTitle !== void 0) updates.seriesTitle = clean(body.seriesTitle, SERIES_MAX);
+    if (body.reference !== void 0) {
+      const passage = canonicalizeServiceReference(body.reference);
+      if (!passage.ok) {
+        return c.json({ error: passage.reason, code: "INVALID_REFERENCE" }, 400);
+      }
+      updates.reference = passage.reference;
+    }
+    if (body.starterTemplateId !== void 0 || body.channelSpaceId !== void 0) {
+      const refs3 = await validateReferences(gate.church.orgId, body);
+      if (!refs3.ok) return c.json({ error: refs3.error, code: refs3.code }, 400);
+      if (body.starterTemplateId !== void 0) {
+        updates.starterTemplateId = clean(body.starterTemplateId, 200);
+      }
+      if (body.channelSpaceId !== void 0) {
+        updates.channelSpaceId = clean(body.channelSpaceId, 200);
+      }
+    }
+    await db.update(ChurchServices).set(updates).where(eq(ChurchServices.id, serviceId));
+    return c.json({ success: true, service: serializeService({ ...existing, ...updates }) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/services/update",
+      action: "update_church_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.post("/api/church/services/delete", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const serviceId = (body.serviceId ?? "").trim();
+    if (!serviceId) {
+      return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
+    }
+    const existing = first(
+      await db.select({ id: ChurchServices.id }).from(ChurchServices).where(
+        and(eq(ChurchServices.id, serviceId), eq(ChurchServices.churchId, gate.church.id))
+      ).limit(1)
+    );
+    if (!existing) {
+      return c.json({ error: "Service not found", code: "SERVICE_NOT_FOUND" }, 404);
+    }
+    await db.delete(ChurchServices).where(eq(ChurchServices.id, serviceId));
+    return c.json({ success: true });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/services/delete",
+      action: "delete_church_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var church_teaching_plan_default = app14;
 
 // server/routes/featured.ts
 init_db2();
@@ -318317,8 +320186,8 @@ function isTestRoutesForbidden() {
 
 // server/routes/featured.ts
 init_note_version_service();
-var app13 = new Hono2();
-app13.get("/api/featured/items", async (c) => {
+var app15 = new Hono2();
+app15.get("/api/featured/items", async (c) => {
   try {
     const auth = getAuth(c);
     if (!auth.userId) {
@@ -318514,7 +320383,7 @@ app13.get("/api/featured/items", async (c) => {
     return c.json({ error: message }, 500);
   }
 });
-app13.post("/api/featured/erase", requireAuth, async (c) => {
+app15.post("/api/featured/erase", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -318539,7 +320408,7 @@ app13.post("/api/featured/erase", requireAuth, async (c) => {
   });
   return c.json({ success: true });
 });
-app13.post("/api/featured/dismiss", requireAuth, async (c) => {
+app15.post("/api/featured/dismiss", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -318573,7 +320442,7 @@ app13.post("/api/featured/dismiss", requireAuth, async (c) => {
   }
   return c.json({ success: true });
 });
-app13.get("/api/featured/dismissed", requireAuth, async (c) => {
+app15.get("/api/featured/dismissed", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const dismissedConditions = [
     eq(UserFeaturedItems.userId, auth.userId),
@@ -318609,12 +320478,12 @@ app13.get("/api/featured/dismissed", requireAuth, async (c) => {
     }))
   );
 });
-app13.get("/api/admin/check", async (c) => {
+app15.get("/api/admin/check", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   return c.json({ isAdmin: true });
 });
-app13.get("/api/admin/featured/by-space/:shareToken", async (c) => {
+app15.get("/api/admin/featured/by-space/:shareToken", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const shareToken = c.req.param("shareToken")?.trim() ?? "";
@@ -318624,7 +320493,7 @@ app13.get("/api/admin/featured/by-space/:shareToken", async (c) => {
   );
   return c.json(item ?? null);
 });
-app13.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
+app15.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const shareToken = c.req.param("shareToken")?.trim() ?? "";
@@ -318634,7 +320503,7 @@ app13.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
   );
   return c.json(item ?? null);
 });
-app13.post("/api/admin/featured", async (c) => {
+app15.post("/api/admin/featured", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -318678,7 +320547,7 @@ app13.post("/api/admin/featured", async (c) => {
   );
   return c.json(inserted ?? { success: true });
 });
-app13.patch("/api/admin/featured/:id", async (c) => {
+app15.patch("/api/admin/featured/:id", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
@@ -318695,7 +320564,7 @@ app13.patch("/api/admin/featured/:id", async (c) => {
   if (!updated) return c.json({ error: "Not found" }, 404);
   return c.json(updated);
 });
-app13.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
+app15.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -318839,7 +320708,7 @@ app13.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
   });
   return c.json({ success: true, noteId: newNote.id });
 });
-app13.get("/api/featured/space", async (c) => {
+app15.get("/api/featured/space", async (c) => {
   try {
     const systemUserId = getHarvousSystemUserId();
     const space = first(
@@ -318876,7 +320745,7 @@ app13.get("/api/featured/space", async (c) => {
     return c.json(null);
   }
 });
-var featured_default = app13;
+var featured_default = app15;
 
 // server/routes/votd.ts
 init_db2();
@@ -319046,10 +320915,10 @@ function clampReferenceToMaxVerseSpan(reference, maxVerses) {
   const p = parseScriptureReference(norm);
   if (!p) return null;
   const ch = p.chapter;
-  if (typeof p.verse === "number") return p.reference;
+  if (typeof p.verse === "number") return norm;
   const [a, b3] = p.verse;
   const span = b3 - a + 1;
-  if (span <= maxVerses) return p.reference;
+  if (span <= maxVerses) return norm;
   const end = a + maxVerses - 1;
   return `${p.book} ${ch}:${a}-${end}`;
 }
@@ -319674,7 +321543,7 @@ function pickPoolVerseForPreview(dateStr, usedRefs, avoidBook) {
 }
 
 // server/routes/votd.ts
-var app14 = new Hono2();
+var app16 = new Hono2();
 async function requireVotdAuth(c) {
   if (c.get("cronAuthed")) return null;
   const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
@@ -319766,7 +321635,7 @@ async function publishVotdCore(params) {
   });
   return { featuredItemId };
 }
-app14.post("/api/admin/votd/schedule", async (c) => {
+app16.post("/api/admin/votd/schedule", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -319806,13 +321675,13 @@ app14.post("/api/admin/votd/schedule", async (c) => {
   );
   return c.json(inserted ?? { success: true }, 201);
 });
-app14.get("/api/admin/votd/schedule", async (c) => {
+app16.get("/api/admin/votd/schedule", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const rows = await db.select().from(VotdSchedule).orderBy(desc(VotdSchedule.createdAt));
   return c.json(rows);
 });
-app14.delete("/api/admin/votd/schedule/:id", async (c) => {
+app16.delete("/api/admin/votd/schedule/:id", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
@@ -319883,7 +321752,7 @@ async function publishForDate(dateStr) {
   });
   return { alreadyPublished: false, featuredItemId: result.featuredItemId, reference: pick2.reference, source: pick2.source };
 }
-app14.post("/api/admin/votd/publish-daily", async (c) => {
+app16.post("/api/admin/votd/publish-daily", async (c) => {
   const unauthorized = await requireVotdAuth(c);
   if (unauthorized) return unauthorized;
   const target = c.req.query("target");
@@ -319946,7 +321815,7 @@ function daysBetweenUtcInclusive(start, end) {
   const msPerDay = 24 * 60 * 60 * 1e3;
   return Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
 }
-app14.get("/api/admin/votd/preview", async (c) => {
+app16.get("/api/admin/votd/preview", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const monthParam = c.req.query("month")?.trim();
@@ -320105,7 +321974,7 @@ app14.get("/api/admin/votd/preview", async (c) => {
   }
   return c.json({ days: out });
 });
-app14.post("/api/admin/votd/override", async (c) => {
+app16.post("/api/admin/votd/override", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -320149,7 +322018,7 @@ app14.post("/api/admin/votd/override", async (c) => {
   );
   return c.json(inserted ?? { success: true });
 });
-app14.post("/api/admin/votd/refresh", async (c) => {
+app16.post("/api/admin/votd/refresh", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -320214,7 +322083,7 @@ app14.post("/api/admin/votd/refresh", async (c) => {
   );
   return c.json({ success: true, reference: normalizedRef, row: inserted });
 });
-app14.delete("/api/admin/votd/override/:date", async (c) => {
+app16.delete("/api/admin/votd/override/:date", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const dateStr = c.req.param("date")?.trim() ?? "";
@@ -320224,7 +322093,7 @@ app14.delete("/api/admin/votd/override/:date", async (c) => {
   await db.delete(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, dateStr), eq(VotdSchedule.isPublished, false)));
   return c.json({ success: true });
 });
-app14.post("/api/votd/record-engagement", requireAuth, async (c) => {
+app16.post("/api/votd/record-engagement", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const action = body.action?.trim();
@@ -320240,7 +322109,7 @@ app14.post("/api/votd/record-engagement", requireAuth, async (c) => {
   }
   return c.json({ success: true, featuredItemId: result.featuredItemId });
 });
-var votd_default = app14;
+var votd_default = app16;
 
 // server/routes/test.ts
 init_auth();
@@ -320280,8 +322149,8 @@ async function resetUserToNew(userId) {
 init_db2();
 init_dates();
 init_schema2();
-var app15 = new Hono2();
-app15.post("/api/test/reset-to-new-user", async (c) => {
+var app17 = new Hono2();
+app17.post("/api/test/reset-to-new-user", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -320306,7 +322175,7 @@ app15.post("/api/test/reset-to-new-user", async (c) => {
     return c.json({ error: error.message || "Failed to reset user" }, 500);
   }
 });
-app15.post("/api/test/set-shared-spaces-addon", async (c) => {
+app17.post("/api/test/set-shared-spaces-addon", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -320329,7 +322198,7 @@ app15.post("/api/test/set-shared-spaces-addon", async (c) => {
     return c.json({ error: error.message || "Failed to update Shared Spaces add-on" }, 500);
   }
 });
-app15.post("/api/test/reset-featured", async (c) => {
+app17.post("/api/test/reset-featured", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -320351,7 +322220,7 @@ app15.post("/api/test/reset-featured", async (c) => {
     return c.json({ error: error.message || "Failed to reset featured items" }, 500);
   }
 });
-app15.post("/api/test/seed-sample-votd", async (c) => {
+app17.post("/api/test/seed-sample-votd", async (c) => {
   const seedBlock = featuredSampleSeedForbiddenResponse(c);
   if (seedBlock) return seedBlock;
   try {
@@ -320416,7 +322285,7 @@ app15.post("/api/test/seed-sample-votd", async (c) => {
     return c.json({ error: error.message || "Failed to seed sample VOTD" }, 500);
   }
 });
-app15.post("/api/test/seed-sample-featured", async (c) => {
+app17.post("/api/test/seed-sample-featured", async (c) => {
   const seedBlock = featuredSampleSeedForbiddenResponse(c);
   if (seedBlock) return seedBlock;
   try {
@@ -320560,7 +322429,7 @@ app15.post("/api/test/seed-sample-featured", async (c) => {
     return c.json({ error: error.message || "Failed to seed sample featured items" }, 500);
   }
 });
-var test_default = app15;
+var test_default = app17;
 
 // server/data/dictionaries/eastons-slug-index.json
 var eastons_slug_index_default = [
@@ -368234,6 +370103,19 @@ init_db2();
 init_dates();
 init_ids();
 init_pg_undefined_relation();
+function collapseRecallHistory(rows) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    if (row.action !== "open" && row.action !== "snooze") continue;
+    if (!row.opportunityId) continue;
+    const key2 = `${row.opportunityId}\0${row.action}`;
+    if (seen.has(key2)) continue;
+    const createdAt = row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt ?? "");
+    if (!createdAt) continue;
+    seen.set(key2, { opportunityId: row.opportunityId, action: row.action, createdAt });
+  }
+  return [...seen.values()];
+}
 function validateRecallEventInput(body) {
   if (!body || typeof body !== "object") return null;
   const { opportunityId, kind, action, noteId } = body;
@@ -368275,7 +370157,11 @@ async function recordRecallEvent(userId, input) {
 }
 
 // server/routes/recall.ts
+init_db2();
+init_pg_undefined_relation();
 var route14 = new Hono2();
+var RECALL_HISTORY_WINDOW_DAYS = 21;
+var RECALL_HISTORY_MAX_ROWS = 500;
 route14.post("/api/recall/event", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -368288,6 +370174,33 @@ route14.post("/api/recall/event", requireAuth, rateLimit("write"), async (c) => 
     return c.json({ success: true });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/recall/event", action: "recall_event" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route14.get("/api/recall/events/recent", requireAuth, rateLimit("read"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const since = new Date(Date.now() - RECALL_HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1e3);
+    const rows = await db.select({
+      opportunityId: RecallEvents.opportunityId,
+      action: RecallEvents.action,
+      createdAt: RecallEvents.createdAt
+    }).from(RecallEvents).where(
+      and(
+        eq(RecallEvents.userId, auth.userId),
+        inArray(RecallEvents.action, ["open", "snooze"]),
+        gte(RecallEvents.createdAt, since)
+      )
+    ).orderBy(desc(RecallEvents.createdAt)).limit(RECALL_HISTORY_MAX_ROWS);
+    return c.json({ success: true, events: collapseRecallHistory(rows) });
+  } catch (error) {
+    if (isRecallEventsTableMissing(error)) {
+      return c.json({ success: true, events: [] });
+    }
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/recall/events/recent",
+      action: "recall_events_recent"
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
@@ -368786,49 +370699,51 @@ route17.get("/api/status/public", async (c) => {
 var status_public_default = route17;
 
 // server/app.ts
-var app16 = new Hono2();
-app16.use("/api/*", requestId());
-app16.use("/api/*", cors());
-app16.use("/api/*", clerkAuth);
-app16.use("/api/*", async (c, next) => {
+var app18 = new Hono2();
+app18.use("/api/*", requestId());
+app18.use("/api/*", cors());
+app18.use("/api/*", clerkAuth);
+app18.use("/api/*", async (c, next) => {
   await next();
   if (c.req.method === "GET" && !c.res.headers.has("Cache-Control")) {
     c.res.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
   }
 });
-app16.route("/", health_default);
-app16.route("/", navigation_default);
-app16.route("/", debug_default);
-app16.route("/", about_default);
-app16.route("/", og_default);
-app16.route("/", stats_default);
-app16.route("/", search_default);
-app16.route("/", content_default);
-app16.route("/", threads_default);
-app16.route("/", notes_default);
-app16.route("/", note_templates_default);
-app16.route("/", study_threads_default);
-app16.route("/", spaces_default);
-app16.route("/", user_default);
-app16.route("/", tags_scripture_default);
-app16.route("/", shared_default);
-app16.route("/", billing_default);
-app16.route("/", resource_default);
-app16.route("/", inbox_default);
-app16.route("/", webhooks_default);
-app16.route("/", sync_default2);
-app16.route("/", migrations_default);
-app16.route("/", admin_default);
-app16.route("/", churches_default);
-app16.route("/", featured_default);
-app16.route("/", votd_default);
-app16.route("/", test_default);
-app16.route("/", dictionary_default);
-app16.route("/", recall_default);
-app16.route("/", support_default);
-app16.route("/", diagnostics_default);
-app16.route("/", status_public_default);
-var app_default = app16;
+app18.route("/", health_default);
+app18.route("/", navigation_default);
+app18.route("/", debug_default);
+app18.route("/", about_default);
+app18.route("/", og_default);
+app18.route("/", stats_default);
+app18.route("/", search_default);
+app18.route("/", content_default);
+app18.route("/", threads_default);
+app18.route("/", notes_default);
+app18.route("/", note_templates_default);
+app18.route("/", study_threads_default);
+app18.route("/", spaces_default);
+app18.route("/", user_default);
+app18.route("/", tags_scripture_default);
+app18.route("/", shared_default);
+app18.route("/", billing_default);
+app18.route("/", resource_default);
+app18.route("/", inbox_default);
+app18.route("/", webhooks_default);
+app18.route("/", sync_default2);
+app18.route("/", migrations_default);
+app18.route("/", admin_default);
+app18.route("/", churches_default);
+app18.route("/", church_default);
+app18.route("/", church_teaching_plan_default);
+app18.route("/", featured_default);
+app18.route("/", votd_default);
+app18.route("/", test_default);
+app18.route("/", dictionary_default);
+app18.route("/", recall_default);
+app18.route("/", support_default);
+app18.route("/", diagnostics_default);
+app18.route("/", status_public_default);
+var app_default = app18;
 
 // server/netlify.ts
 init_client();

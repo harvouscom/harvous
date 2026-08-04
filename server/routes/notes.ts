@@ -276,6 +276,11 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
     let linkedFromNoteIdRaw: string | null = null;
     let startedFromTemplateIdRaw: string | null = null;
     let startedFromTemplateNameRaw: string | null = null;
+    // Church teaching-plan lineage. Distinct from the template pair above — a
+    // Sunday note is started from *both* the church's template and that week's
+    // service, and collapsing them would destroy the template provenance.
+    let startedFromServiceIdRaw: string | null = null;
+    let startedFromServiceTitleRaw: string | null = null;
     // Folder placement at creation time. Without these the caller had to follow every
     // create with a second PUT to apply the auto-assigned folder — two writers on one
     // note, which is exactly how a fresh note ended up 409ing its own next autosave.
@@ -314,6 +319,14 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
         typeof body.startedFromTemplateName === 'string' && body.startedFromTemplateName.trim()
           ? body.startedFromTemplateName.trim().slice(0, 80)
           : null;
+      startedFromServiceIdRaw =
+        typeof body.startedFromServiceId === 'string' && body.startedFromServiceId.trim()
+          ? body.startedFromServiceId.trim()
+          : null;
+      startedFromServiceTitleRaw =
+        typeof body.startedFromServiceTitle === 'string' && body.startedFromServiceTitle.trim()
+          ? body.startedFromServiceTitle.trim().slice(0, 120)
+          : null;
     } else {
       const formData = await c.req.formData();
       content = formData.get('content') as string;
@@ -333,6 +346,11 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       const tplNameForm = formData.get('startedFromTemplateName') as string | null;
       startedFromTemplateNameRaw =
         tplNameForm && tplNameForm.trim() ? tplNameForm.trim().slice(0, 80) : null;
+      const svcIdForm = formData.get('startedFromServiceId') as string | null;
+      startedFromServiceIdRaw = svcIdForm && svcIdForm.trim() ? svcIdForm.trim() : null;
+      const svcTitleForm = formData.get('startedFromServiceTitle') as string | null;
+      startedFromServiceTitleRaw =
+        svcTitleForm && svcTitleForm.trim() ? svcTitleForm.trim().slice(0, 120) : null;
     }
 
     let prefetchedResourceMetadata: { title?: string; description?: string; image?: string; articleContent?: string; siteName?: string } | null = null;
@@ -600,6 +618,8 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
             linkedFromNoteId: resolvedLinkedFromNoteId,
             startedFromTemplateId: startedFromTemplateIdRaw,
             startedFromTemplateName: startedFromTemplateNameRaw,
+            startedFromServiceId: startedFromServiceIdRaw,
+            startedFromServiceTitle: startedFromServiceTitleRaw,
             ...createCollectionFields,
           })
           .returning(),

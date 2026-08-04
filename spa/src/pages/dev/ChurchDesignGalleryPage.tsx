@@ -23,11 +23,12 @@ import { HarvousLogoMark } from '../public/public-shared';
 
 const PHASE_ORDER = ['Admin', 'Connect', 'Receive', 'Staff'] as const;
 
+/** All four phases shipped in v2.18.0; the teaching plan followed in v2.19.0. */
 const PHASE_NOTE: Record<(typeof PHASE_ORDER)[number], string> = {
-  Admin: 'Built today',
-  Connect: 'Not built',
-  Receive: 'Not built',
-  Staff: 'Not built',
+  Admin: 'Shipped',
+  Connect: 'Shipped',
+  Receive: 'Shipped',
+  Staff: 'Shipped',
 };
 
 export default function ChurchDesignGalleryPage() {

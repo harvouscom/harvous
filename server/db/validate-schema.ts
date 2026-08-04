@@ -91,12 +91,26 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'createdAt',
     'updatedAt',
   ],
+  ChurchServices: [
+    'id',
+    'churchId',
+    'serviceDate',
+    'title',
+    'seriesTitle',
+    'reference',
+    'starterTemplateId',
+    'channelSpaceId',
+    'createdBy',
+    'updatedBy',
+    'createdAt',
+    'updatedAt',
+  ],
   UserMetadata: ['hmcChurchId', 'connectedChurchId', 'connectedOrgId', 'connectedChurchAt'],
 };
 
 const REQUIRED_INDEXES: Record<string, readonly string[]> = {
   Spaces: ['Spaces_deletedAt_recoveryUntilIndex'],
-  Notes: ['Notes_copiedFromNoteIdIndex'],
+  Notes: ['Notes_copiedFromNoteIdIndex', 'Notes_startedFromServiceIdIndex'],
   NoteVersions: [
     'NoteVersions_note_version_unique',
     'NoteVersions_noteId_createdAtIndex',
@@ -114,6 +128,7 @@ const REQUIRED_INDEXES: Record<string, readonly string[]> = {
     'StudyThreadEntries_anchorStatusIndex',
   ],
   Churches: ['Churches_orgId_unique', 'Churches_hmcChurchId_unique', 'Churches_createdByIndex'],
+  ChurchServices: ['ChurchServices_church_date_unique'],
   UserMetadata: ['UserMetadata_connectedChurchIdIndex', 'UserMetadata_hmcChurchIdIndex'],
 };
 
@@ -151,6 +166,7 @@ async function main() {
     'SpaceMemberships',
     'SpaceInvites',
     'Churches',
+    'ChurchServices',
     'UserMetadata',
     'UserXP',
     'UserSeasonalXP',

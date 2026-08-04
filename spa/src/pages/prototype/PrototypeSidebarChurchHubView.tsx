@@ -27,6 +27,7 @@ import PrototypeListEmptyState from './PrototypeListEmptyState';
 import CreateSharedSpaceSheet, { type CreateSpaceSheetKind } from './CreateSharedSpaceSheet';
 import PrototypeChurchPlanBanner from './PrototypeChurchPlanBanner';
 import PrototypeChurchStaffSection from './PrototypeChurchStaffSection';
+import PrototypeChurchTeachingPlanSection from './PrototypeChurchTeachingPlanSection';
 
 function normalizeSpaceId(id: string): string {
   return id.startsWith('space_') ? id : `space_${id}`;
@@ -172,7 +173,9 @@ export default function PrototypeSidebarChurchHubView() {
   const orgId = activeChurchOrgId ?? church?.orgId ?? null;
   const churchName = church?.churchName ?? 'My Church';
   const churchLocation = church ? formatChurchLocation(church) : null;
-  const { isStaff: isOrgStaff } = useChurchStaffStatus(orgId);
+  const { isStaff: isOrgStaff, can: canChurch } = useChurchStaffStatus(orgId);
+  /** Server's verdict — never re-derived from the role string on the client. */
+  const canManageTeachingPlan = canChurch('sermon_tools');
   const canCreateChurchContent = useMemo(
     () =>
       canCreateChurchOrgContent({
@@ -199,6 +202,12 @@ export default function PrototypeSidebarChurchHubView() {
   // Channels the church publishes that the viewer hasn't followed yet. Staff
   // reach their own channels through the lanes above, so they're filtered out.
   const { data: channelsData } = useChurchChannels();
+  /**
+   * Lapsed gates *writes* only. The plan stays listed and the congregation
+   * keeps its Sunday — losing a church's study is never how a lapse shows up.
+   * Read off the channels payload rather than adding a billing request.
+   */
+  const churchPlanLapsed = channelsData?.sponsorship?.state === 'lapsed';
   const followChannel = useFollowChannel();
   const [manageOpen, setManageOpen] = useState(false);
   const pendingFollowId = followChannel.isPending
@@ -372,6 +381,18 @@ export default function PrototypeSidebarChurchHubView() {
                 ) : null}
               </>
             )}
+
+            {/*
+              Role-gated on `sermon_tools`, NOT on canCreateChurchContent —
+              that is the publish-level gate, and planning what the church
+              teaches is a pastor/teacher/admin act. First consumer of the
+              capability payload.
+            */}
+            <PrototypeChurchTeachingPlanSection
+              orgId={orgId}
+              canManage={canManageTeachingPlan}
+              canWrite={canManageTeachingPlan && !churchPlanLapsed}
+            />
 
             {/* Staff-only, collapsed by default — administration, not the daily job. */}
             <PrototypeChurchStaffSection orgId={orgId} isStaff={canCreateChurchContent} />

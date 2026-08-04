@@ -25,6 +25,7 @@ export {
   SpaceInvites,
   Churches,
   ChurchMemberships,
+  ChurchServices,
   NoteTemplates,
   UserMetadata,
   Entitlements,

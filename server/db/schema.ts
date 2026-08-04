@@ -171,11 +171,23 @@ export const Notes = pgTable(
     startedFromTemplateId: text('startedFromTemplateId'),
     /** Display name snapshot so provenance survives template rename/delete. */
     startedFromTemplateName: text('startedFromTemplateName'),
+    /**
+     * Teaching-plan service (`ChurchServices.id`) this note was started from.
+     * Distinct from startedFromTemplateId — a Sunday note is started from
+     * *both* the church's template and that week's service.
+     *
+     * Privacy: this is the congregant's own row. No church-facing route ever
+     * reads it, and no aggregate is derived from it. "Review is never shared."
+     */
+    startedFromServiceId: text('startedFromServiceId'),
+    /** Title snapshot so provenance survives the church editing or deleting the entry. */
+    startedFromServiceTitle: text('startedFromServiceTitle'),
   },
   (table) => [
     index('Notes_userIdIndex').on(table.userId),
     index('Notes_linkedFromNoteIdIndex').on(table.linkedFromNoteId),
     index('Notes_copiedFromNoteIdIndex').on(table.copiedFromNoteId),
+    index('Notes_startedFromServiceIdIndex').on(table.startedFromServiceId),
     index('Notes_userId_updatedAtIndex').on(table.userId, table.updatedAt),
     index('Notes_spaceIdIndex').on(table.spaceId),
     index('Notes_threadIdIndex').on(table.threadId),
@@ -520,6 +532,63 @@ export const ChurchMemberships = pgTable('ChurchMemberships', {
   index('ChurchMemberships_churchIdIndex').on(table.churchId),
 ]);
 
+// ─── ChurchServices (the church's teaching plan — one row per service date) ────
+
+/**
+ * A church's preaching/teaching plan: one row per service date.
+ *
+ * This is the spine the congregant "This Sunday" card and the staff Teaching
+ * plan both read. Keyed on `churchId` alone — every route that gates anything
+ * already materializes the full `Churches` row (getConnectedChurch,
+ * getActiveChurchByOrgId, resolveStaffContext), so denormalizing `orgId` here
+ * would buy zero round trips and mint a second drift pair like
+ * UserMetadata.connectedChurchId/connectedOrgId.
+ *
+ * No soft delete: a plan entry is not study. Removing one destroys nothing —
+ * congregants' notes are canonical and independent, and provenance survives on
+ * `Notes.startedFromServiceTitle`.
+ *
+ * No `isPublished`: congregants only ever see the *next* service, so a
+ * half-sketched entry weeks out is invisible without a draft state.
+ *
+ * Row ids: `svc_${crypto.randomUUID()}`.
+ */
+export const ChurchServices = pgTable('ChurchServices', {
+  id: text('id').primaryKey(),
+  churchId: text('churchId').notNull(),
+  /**
+   * Church-local calendar day, 'YYYY-MM-DD'. Deliberately NOT a timestamp: a
+   * service is a day on the church's wall calendar, and a TIMESTAMPTZ drifts a
+   * Sunday into Saturday for a viewer three zones away. Same choice as
+   * VotdPublishHistory.publishedDate.
+   */
+  serviceDate: text('serviceDate').notNull(),
+  title: text('title').notNull(),
+  /**
+   * Free text, grouped by equality. Deliberately not a Threads row: thread
+   * creation in a non-personal space requires the literal space owner
+   * (threads.ts), and non-owners only ever see the pinned thread
+   * (shared-space-group-threads.ts) — so a series would be invisible to the
+   * congregation and orphaned when its author left staff.
+   */
+  seriesTitle: text('seriesTitle'),
+  /** Canonical form written by canonicalizeServiceReference. Nullable — a
+   *  topical Sunday is legal, and every downstream path tolerates null. */
+  reference: text('reference'),
+  /** NoteTemplates.id, org-scoped — the starter a congregant's note begins from. */
+  starterTemplateId: text('starterTemplateId'),
+  /** Optional companion ministry channel (Spaces.id, type='public' + orgId). */
+  channelSpaceId: text('channelSpaceId'),
+  createdBy: text('createdBy').notNull(),
+  updatedBy: text('updatedBy'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  /** One service per church per date — what makes "This Sunday" have exactly
+   *  one answer. Same discipline as VotdPublishHistory_publishedDate_unique. */
+  uniqueIndex('ChurchServices_church_date_unique').on(table.churchId, table.serviceDate),
+]);
+
 // ─── NoteTemplates (personal / space / org-scoped note starters) ───────────────
 
 /**
@@ -527,7 +596,7 @@ export const ChurchMemberships = pgTable('ChurchMemberships', {
  * src/data/note-templates.ts (not rows). Scope:
  * - userId only (spaceId/orgId null) = personal template
  * - spaceId set = shared with everyone composing in that space (owner/leader attach)
- * - orgId set = church/org-provisioned (future; always null in v1)
+ * - orgId set = church/org-provisioned (live since v2.18.0 — see note-templates.ts)
  * Row ids: `ntpl_${crypto.randomUUID()}`.
  */
 export const NoteTemplates = pgTable(
