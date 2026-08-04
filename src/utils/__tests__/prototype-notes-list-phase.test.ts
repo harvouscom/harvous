@@ -68,3 +68,37 @@ describe('computePrototypeNotesListPhase', () => {
     expect(computePrototypeNotesListPhase({ ...base, noteCount: 2 })).toBe('list');
   });
 });
+
+describe('the INVARIANT, pinned at the shape call sites actually pass', () => {
+  /**
+   * PrototypeSidebar called this helper without `isFetched` at all. TypeScript flagged it
+   * as a missing required property, but nothing ran tsc — so `input.isFetched` was
+   * `undefined`, `!input.isFetched` was permanently true, and a settled-empty Home fell
+   * back to loading dots on every background refetch. Exactly the regression the
+   * INVARIANT comment on computePrototypeNotesListPhase documents as already fixed.
+   */
+  const settledEmpty = {
+    homeSpaceId: 'space_home',
+    authReady: true,
+    isPending: false,
+    isFetching: true,
+    isFetched: true,
+    noteCount: 0,
+    isError: false,
+  };
+
+  it('stays empty during a background refetch of an empty list', () => {
+    expect(computePrototypeNotesListPhase(settledEmpty)).toBe('empty');
+  });
+
+  it('is loading only while the first fetch has not landed', () => {
+    expect(computePrototypeNotesListPhase({ ...settledEmpty, isFetched: false })).toBe('loading');
+  });
+
+  it('regresses to loading if isFetched is omitted — which is why it is required', () => {
+    const { isFetched: _omitted, ...withoutIsFetched } = settledEmpty;
+    expect(
+      computePrototypeNotesListPhase(withoutIsFetched as typeof settledEmpty),
+    ).toBe('loading');
+  });
+});

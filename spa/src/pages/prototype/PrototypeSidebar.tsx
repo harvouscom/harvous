@@ -1375,6 +1375,7 @@ export default function PrototypeSidebar({
     isError: notesIsError,
     isPending: notesIsPending,
     isFetching: notesIsFetching,
+    isFetched: notesIsFetched,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -1739,6 +1740,11 @@ export default function PrototypeSidebar({
     authReady,
     isPending: notesIsPending,
     isFetching: notesIsFetching,
+    // Required, and it was missing — so `!input.isFetched` was permanently true and a
+    // settled-empty Home dropped back to loading dots on every background refetch. That
+    // is verbatim the regression computePrototypeNotesListPhase's own INVARIANT comment
+    // documents as fixed; omitting it here silently un-fixed it.
+    isFetched: notesIsFetched,
     noteCount: notes.length,
     isError: notesIsError,
   });
@@ -2020,7 +2026,10 @@ export default function PrototypeSidebar({
     return mergeFoldersWithRegistry(fromNotes, myHomeFolderRegistryQuery.data ?? []);
   }, [myHomeCrossSearchEnabled, myHomeNotes, myHomeFolderRegistryQuery.data]);
 
-  const myHomeScriptureBooks = myHomeScriptureQuery.data?.books ?? [];
+  // `data` is already ScriptureIndexBook[] — the queryFn returns `res.books ?? []`.
+  // Reading `.books` off an array gave undefined, and `?? []` turned that into a
+  // permanently empty list, so My Home cross-space search never returned a scripture book.
+  const myHomeScriptureBooks = myHomeScriptureQuery.data ?? [];
 
   const myHomeUniversalSearchData = useMemo(
     () => ({

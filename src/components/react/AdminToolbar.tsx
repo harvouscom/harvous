@@ -102,7 +102,7 @@ export default function AdminToolbar({ variant = 'split' }: { variant?: 'split' 
         ) : null}
       </div>
       <div className="proto-admin-toolbar__right">
-        <AccountMenu />
+        <AccountMenu iconSize={PROTO_TOOLBAR_ORB_ICON_SIZE} />
       </div>
     </header>
   );

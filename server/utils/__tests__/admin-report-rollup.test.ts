@@ -118,4 +118,21 @@ describe('rollupMonthlyReports', () => {
     expect(rollup.pulse.curiosity.tones[0]).toEqual({ name: 'Reflective', count: 5 });
     expect(rollup.pulse.canon.sections.find((section) => section.id === 'wisdom')?.count).toBe(14);
   });
+
+  it('carries the passage block through a rollup', () => {
+    // sumUsage's accumulator omitted `passage` entirely and never summed it, so every
+    // season and year rollup returned usage.passage === undefined while monthly reports
+    // carried it fine. The fixtures already seeded passage — nothing ever asserted it
+    // survived, which is why the drop was invisible.
+    const a = samplePayload('2026-03');
+    const b = samplePayload('2026-04');
+    const rollup = rollupMonthlyReports('season', 'spring-2026', 'Spring 2026', [a, b]);
+
+    expect(rollup.usage.passage).toBeDefined();
+    expect(rollup.usage.passage).toEqual({
+      usersWhoAddedPassage: a.usage.passage.usersWhoAddedPassage + b.usage.passage.usersWhoAddedPassage,
+      dismissCloseEvents: a.usage.passage.dismissCloseEvents + b.usage.passage.dismissCloseEvents,
+      createNoteEvents: a.usage.passage.createNoteEvents + b.usage.passage.createNoteEvents,
+    });
+  });
 });

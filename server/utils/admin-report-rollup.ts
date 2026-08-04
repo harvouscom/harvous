@@ -104,6 +104,9 @@ function sumUsage(payloads: AdminMonthlyReportPayload[]): AdminMonthlyReportUsag
       pinnedNotes: 0,
     },
     recall: { opens: 0, snoozes: 0, snoozeRatePct: 0, usersActive: 0 },
+    // Required by AdminMonthlyReportUsage and previously omitted, so every season and
+    // year rollup returned `usage.passage === undefined` while monthly reports carried it.
+    passage: { usersWhoAddedPassage: 0, dismissCloseEvents: 0, createNoteEvents: 0 },
   };
 
   for (const p of payloads) {
@@ -123,6 +126,9 @@ function sumUsage(payloads: AdminMonthlyReportPayload[]): AdminMonthlyReportUsag
     base.recall.opens += p.usage.recall.opens;
     base.recall.snoozes += p.usage.recall.snoozes;
     base.recall.usersActive += p.usage.recall.usersActive;
+    base.passage.usersWhoAddedPassage += p.usage.passage.usersWhoAddedPassage;
+    base.passage.dismissCloseEvents += p.usage.passage.dismissCloseEvents;
+    base.passage.createNoteEvents += p.usage.passage.createNoteEvents;
   }
 
   const notesCreated = base.notesCreated;

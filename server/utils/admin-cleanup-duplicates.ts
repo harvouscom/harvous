@@ -1,11 +1,12 @@
 import { db, NoteThreads, NoteScriptureReferences, eq } from '../db';
+import { toDate } from '../db/dates';
 
 export type DuplicateCleanupEntry = {
   id: string;
   noteId: string;
   threadId?: string;
   scriptureNoteId?: string;
-  createdAt: string | null;
+  createdAt: Date | string | null;
 };
 
 export type DuplicateCleanupReportItem = {
@@ -34,7 +35,7 @@ function groupKeyScriptureRef(entry: { noteId: string; scriptureNoteId: string }
 }
 
 /** Pure planning step — used by tests and cleanup handlers. */
-export function planDuplicateDeletions<T extends { id: string; createdAt: string | null }>(
+export function planDuplicateDeletions<T extends { id: string; createdAt: Date | string | null }>(
   entries: T[],
   keyFn: (entry: T) => string,
 ): { groups: number; report: Array<{ kept: T; toDelete: T[] }> } {
@@ -49,7 +50,11 @@ export function planDuplicateDeletions<T extends { id: string; createdAt: string
   const report: Array<{ kept: T; toDelete: T[] }> = [];
 
   for (const group of duplicateGroups) {
-    const sorted = [...group].sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+    // Compare as time, not text. These rows come from ts() columns, so createdAt is a
+    // Date — truthy, so the old `|| ''` never fired, and Date has no localeCompare, so
+    // this threw for every group with an actual duplicate in it.
+    const createdMs = (entry: T) => toDate(entry.createdAt)?.getTime() ?? 0;
+    const sorted = [...group].sort((a, b) => createdMs(a) - createdMs(b));
     const [kept, ...toDelete] = sorted;
     report.push({ kept, toDelete });
   }
