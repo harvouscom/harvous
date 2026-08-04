@@ -1,3 +1,4 @@
+import { clearComposeRestoreStash } from '../lib/compose-session-restore';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { PROTO_PANEL_EXIT_MS } from './proto-motion';
 import {
@@ -771,6 +772,11 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     setPrototypeFolderChipState((prev) => (prototypeFolderChipsEqual(prev, value) ? prev : value));
   }, []);
   const setComposePersistedNoteId = useCallback((noteId: string | null) => {
+    // Null means the compose session no longer needs refresh protection — either the URL
+    // just became /{id} (which survives refresh on its own) or the session was reset.
+    // Clearing here, at the single choke point every null-path goes through, is what
+    // keeps a stale stash from bouncing a deliberate Home visit into an old note.
+    if (noteId === null) clearComposeRestoreStash();
     setComposePersistedNoteIdState((prev) => (prev === noteId ? prev : noteId));
     if (noteId) {
       setComposeTargetSpaceIdOverrideState(null);

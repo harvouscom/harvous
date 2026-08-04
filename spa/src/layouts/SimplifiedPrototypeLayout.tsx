@@ -54,6 +54,9 @@ import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
 import { ProtoMigrationProvider } from './proto-migration-context';
 import { ProtoShellProvider, resolveVisibleComposeTarget, useProtoShell } from './proto-shell-context';
 import { consumePendingComposeSession } from '../lib/pending-compose-session';
+import { consumeComposeRestore } from '../lib/compose-session-restore';
+import { noteParamSlug } from '../pages/prototype/proto-route-slugs';
+import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import {
   applyBackgroundWithImageTint,
   applyColorSchemePreference,
@@ -75,6 +78,7 @@ import {
   matchPrototypeNoteId,
   prototypeHomePath,
   prototypeHomeRouteTo,
+  prototypeNoteRouteTo,
 } from '@/lib/prototype-path';
 import {
   clearMainFreezeLayer,
@@ -93,6 +97,31 @@ export default function SimplifiedPrototypeLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.search });
   const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
+  const layoutRouter = useRouter();
+
+  // Reopen a mid-compose note after a refresh. Compose keeps the URL at `/` until an
+  // idle moment, so refreshing while typing lands on a blank Home even though the note
+  // persisted seconds ago — the stash bridges exactly that window, and only that window:
+  // it is cleared the moment the URL catches up or the compose session ends, dies with
+  // the tab, and expires after an hour (see compose-session-restore).
+  const composeRestoreAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (composeRestoreAttemptedRef.current) return;
+    if (!isSignedIn) return; // decide only once auth has settled; signed-out never restores
+    composeRestoreAttemptedRef.current = true;
+    if (!isPrototypeHomePath(pathname)) return; // a /{id} boot never lost the note
+    const target = consumeComposeRestore();
+    if (!target) return;
+    layoutRouter.navigate({
+      to: prototypeNoteRouteTo(),
+      params: { noteId: noteParamSlug(target.noteId) },
+      search: {
+        ...PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+        ...(target.spaceParam ? { space: target.spaceParam } : {}),
+      },
+      replace: true,
+    });
+  }, [isSignedIn, pathname, layoutRouter]);
   const hasSessionCookie = hasClerkSessionCookieHint();
 
   useEffect(() => {

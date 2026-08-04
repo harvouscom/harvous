@@ -65,3 +65,20 @@ export function clearNoteDraft(noteId: string): void {
     /* ignore */
   }
 }
+
+/**
+ * Whether restoring this draft deserves a toast.
+ *
+ * The draft writer runs on a tight debounce and saves take seconds, so refreshing while
+ * typing almost always leaves a draft a few seconds newer than the server — restoring it
+ * is routine continuation, not an event, and announcing it every time taught users to
+ * ignore the message. A draft that has sat for minutes is different: that is a crash or
+ * an abandoned tab, and silently diverging from what the user last remembers seeing is
+ * worse than one toast.
+ */
+export const DRAFT_RESTORE_ANNOUNCE_AFTER_MS = 5 * 60_000;
+
+export function shouldAnnounceDraftRestore(savedAt: number, now: number = Date.now()): boolean {
+  if (!Number.isFinite(savedAt)) return true;
+  return now - savedAt >= DRAFT_RESTORE_ANNOUNCE_AFTER_MS;
+}

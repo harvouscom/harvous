@@ -1,3 +1,4 @@
+import { stashComposeRestore } from '../../lib/compose-session-restore';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
@@ -1455,6 +1456,15 @@ export default function PrototypeNotePage() {
           adoptedComposeIdRef.current = createdId;
           setAdoptedComposeId(createdId);
           setComposePersistedNoteId(createdId);
+          // The URL is still `/` until the idle replace, so a refresh right now would
+          // lose the open note. Stash it; the shell setter clears this the moment the
+          // URL catches up or the session resets.
+          stashComposeRestore(
+            createdId,
+            composeTargetSpaceId === personalHomeSpaceId
+              ? undefined
+              : toPrototypeSpaceSearchParam(composeTargetSpaceId) ?? undefined,
+          );
           clearNoteDraft(DRAFT_NOTE_ID);
           if (
             sharedContextSpaceId &&

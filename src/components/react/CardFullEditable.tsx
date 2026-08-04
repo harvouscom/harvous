@@ -107,7 +107,7 @@ import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
 import { stripStudyHighlightMarkInlineBackground } from '@/utils/note-html-highlight-marks';
 import { shouldInjectProcessedNoteContent } from '@/utils/prototype-editor-save';
 import { contentSyncWouldClobberScripturePillAccent } from '@/utils/scripture-pill-accent-sync';
-import { saveNoteDraft, getNoteDraft, clearNoteDraft } from '@/utils/note-draft-store';
+import { shouldAnnounceDraftRestore, saveNoteDraft, getNoteDraft, clearNoteDraft } from '@/utils/note-draft-store';
 import { shouldSkipPrototypeUnloadSave } from '@/utils/prototype-note-save-guard';
 import { shouldUpgradePrototypeBodyFromServer } from '@/utils/prototype-note-body-upgrade';
 import { noteListPreviewTail } from '@/utils/note-list-preview';
@@ -1295,9 +1295,13 @@ export default function CardFullEditable({
         setIsTitleEditing(true);
         setIsContentEditing(true);
         setHasChanges(true);
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: { message: 'Restored unsaved changes', type: 'info' },
-        }));
+        // Only announce genuinely old recoveries. A seconds-old draft is a refresh
+        // mid-typing — restoring it silently IS the expected behaviour.
+        if (shouldAnnounceDraftRestore(draft.savedAt)) {
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: { message: 'Restored unsaved changes', type: 'info' },
+          }));
+        }
         seededEditorForNoteRef.current = noteId ?? null;
         return;
       }
