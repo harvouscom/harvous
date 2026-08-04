@@ -25,8 +25,6 @@
   "server/utils/move-scripture-notes-to-thread.ts": 1,
   "server/utils/process-scripture-references.ts": 2,
   "server/utils/prototype-user-migration.ts": 1,
-  "server/utils/support-ticket.ts": 1,
-  "server/utils/user-cache.ts": 4,
   "server/utils/votd-reference-bounds.ts": 2,
   "spa/src/components/auth/HarvousAuthForm.tsx": 4,
   "spa/src/hooks/mutations/usePrototypeFolderRegistry.ts": 1,

@@ -68,7 +68,9 @@ async function allocateNextTicketNumber(): Promise<number> {
 export async function createSupportTicket(
   userId: string,
   input: CreateSupportTicketInput,
-): Promise<{ id: string; ticketNumber: number; createdAt: string } | null> {
+// createdAt comes from nowISO(), which returns a Date (see server/db/dates), and goes
+// straight into a ts() column. It is never used as a string.
+): Promise<{ id: string; ticketNumber: number; createdAt: Date } | null> {
   try {
     const meta = first(
       await db

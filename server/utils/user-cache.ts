@@ -19,7 +19,8 @@ export interface CachedUserData {
   initials: string;
   displayName: string;
   userColor: string;
-  createdAt?: string;
+  /** From the UserMetadata ts() column, so a Date. Only ever forwarded as signedUpAt. */
+  createdAt?: Date;
 }
 
 // In-memory lock: when a new user is being initialized (metadata),
@@ -137,7 +138,7 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
   const profileImageUrl = userData?.profile_image_url || userData?.image_url;
   const userColor = userData?.public_metadata?.userColor || 'blue';
 
-  let userCreatedAt: string | undefined;
+  let userCreatedAt: Date | undefined;
   if (existingMetadata) {
     userCreatedAt = existingMetadata.createdAt;
     const setPayload: Record<string, any> = {
@@ -279,7 +280,10 @@ export async function invalidateUserCache(userId: string): Promise<void> {
   try {
     await db.update(UserMetadata)
       .set({
-        clerkDataUpdatedAt: new Date(0).toISOString()
+        // A Date, not an ISO string. clerkDataUpdatedAt is a ts() column, and Drizzle's
+        // date-mode mapper calls value.toISOString() on whatever it is given — so a
+        // string threw TypeError here and invalidation silently never happened.
+        clerkDataUpdatedAt: new Date(0)
       })
       .where(eq(UserMetadata.userId, userId));
   } catch (error) {
