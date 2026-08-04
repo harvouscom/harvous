@@ -1,6 +1,10 @@
 # Pastor Features Roadmap
 
-**Status:** Design only — no code lands from this doc. Companion to
+**Status: partly shipped (v2.18.0, August 2026).** Items 5 and 6 (note templates,
+the sermon template as an org-provisioned `NoteTemplates` row) are built, along with
+the role gate they depend on, ministry channel publishing (8), and the congregant
+"From your church" feed (13). Items 1–4, 7, and 9–12 remain design. Individual items
+are marked below. Companion to
 [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md) (org model),
 [BILLING_ARCHITECTURE.md](../BILLING_ARCHITECTURE.md) (billing / Polar),
 and [CHURCH_CONNECTION_SYSTEM.md](./CHURCH_CONNECTION_SYSTEM.md) (connection flow).
@@ -90,7 +94,7 @@ org is served by the general-first features below, plus, later, **Church base**
    exist; "bring your years of Word docs" is a general onboarding story.
 4. **Share a note/thread by link** — works *today* (shareToken + OG cards).
    Marketing can already say "send your congregation the notes."
-5. **Note templates** — general feature for every user; see
+5. **Note templates** *(shipped v2.18.0)* — general feature for every user; see
    [NOTE_TEMPLATES.md](./NOTE_TEMPLATES.md) for the full design. Recommended
    first feature build after the church-org schema groundwork. The sermon
    template (item 6 below) rides these same rails as an org-provisioned
@@ -100,16 +104,16 @@ org is served by the general-first features below, plus, later, **Church base**
 
 Assigned by role under the church org — never shown to general users.
 
-6. **Sermon note template** — big idea / outline / application blocks,
+6. **Sermon note template** *(shipped v2.18.0 — provision it as an org template)* — big idea / outline / application blocks,
    delivered as an org-provisioned `NoteTemplates` row (item 5) scoped to the
    pastor role.
-7. **Sermon / service calendar** — plan weeks and series ahead (date, passage,
+7. **Sermon / service calendar** *(deferred)* — plan weeks and series ahead (date, passage,
    title). Staff attach **resources** and **sermon starter notes** to a given
    service. Connected people get **start a new personal note from the starter**
    (structure + passage preloaded via note-templates + copy-lineage) — pairs
    `sermon-prep` with congregant `sermon-notes` without co-editing the pastor's
    note.
-8. **Ministry channel publishing** — staff post curriculum into the relevant
+8. **Ministry channel publishing** *(shipped v2.18.0)* — staff post curriculum into the relevant
    `type='public'` + `orgId` ministry space (sermon series companion, adult ed,
    students, etc.) before the week; followers read and take *own* notes.
    Publishing is role-gated; following is general once connected.
@@ -131,7 +135,7 @@ Assigned by role under the church org — never shown to general users.
 General users, but only appear once connected to a church. Dark until connect
 is decided (v0 is staff-only).
 
-13. **"From your church"** — Home-level **study feed** from followed ministry
+13. **"From your church"** *(shipped v2.18.0)* — Home-level **study feed** from followed ministry
     education channels + sermon-calendar starters +
     `FeaturedItems.contentType='church'`. Not a bulletin / announcements inbox.
     Content gated by connection, not a new UI class for everyone.
@@ -141,10 +145,14 @@ is decided (v0 is staff-only).
 ## Relation to schema groundwork
 
 The `Churches` table, `UserMetadata.connectedChurchId/connectedOrgId/
-connectedChurchAt`, org-space semantics in `space-access.ts`, and limit
-scoping in `tier-limits.ts` are already landed (inert) on
-`feat/shared-spaces-foundation` — see
-[CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md#database--schema)
-for the current state. None of the features above are built; this doc exists
-to keep product, schema, and marketing aimed at the same ladder as each piece
-lands.
+connectedChurchAt`, org-space semantics in `space-access.ts`, and limit scoping
+in `tier-limits.ts` shipped in v2.18.0 — no longer inert. The role gate is
+`server/utils/church-role-capabilities.ts`, which derives capabilities
+(`publish`, `manage_staff`, `manage_billing`, `manage_templates`,
+`sermon_tools`) from the Clerk org role and hands them to the client as a
+payload; clients render role surfaces from that payload and never re-derive
+from a role string.
+
+Still design-only: the sermon/service calendar (7), curriculum handoff (11),
+and aggregate engagement analytics (12). Operational detail:
+[CHURCH_ORG_ONBOARDING_AND_BILLING.md](../CHURCH_ORG_ONBOARDING_AND_BILLING.md).

@@ -5,16 +5,15 @@
  * to the release-verification screenshot baselines, and church org must not
  * touch the shared-spaces release surface.
  *
- * Phase key:
- *   Admin   — built today (server/routes/churches.ts + /admin/churches)
- *   Connect — future: congregant links their account to a church
- *   Receive — future: connected congregants see ministry education channels
- *   Staff   — future: leader-role tooling on org-owned ministry spaces
+ * Phase key (all four shipped in v2.18.0):
+ *   Admin   — server/routes/churches.ts + /admin/churches
+ *   Connect — congregant links their account to a church (Settings › My Church)
+ *   Receive — connected congregants browse, follow, and read ministry channels
+ *   Staff   — roster management and role-gated tooling on org-owned spaces
  *
  * Broadcast spaces = ministry / curriculum channels (adult ed, sermon series,
- * students, etc.) — not an announcements bulletin. Only Admin scenes reflect
- * shipped UI. See docs/future/CHURCH_ORG_AND_CURRICULUM.md and
- * docs/future/PASTOR_FEATURES_ROADMAP.md.
+ * students, etc.) — not an announcements bulletin. See
+ * docs/CHURCH_ORG_ONBOARDING_AND_BILLING.md for the runbook.
  */
 
 export interface ChurchDesignScene {
@@ -56,8 +55,7 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
     id: '05-connect-prompt',
     title: 'Your church joined Harvous',
     phase: 'Connect',
-    editFiles: ['docs/future/CHURCH_CONNECTION_SYSTEM.md'],
-    speculative: true,
+    editFiles: ['spa/src/pages/prototype/settings/PrototypeChurchPage.tsx'],
   },
   {
     id: '06-settings-church-connected',
@@ -67,21 +65,18 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
       'spa/src/pages/prototype/settings/PrototypeChurchPage.tsx',
       'docs/future/CHURCH_CONNECTION_SYSTEM.md',
     ],
-    speculative: true,
   },
   {
     id: '07-from-your-church',
     title: 'Home › From your church (study feed)',
     phase: 'Receive',
-    editFiles: ['docs/future/CHURCH_ORG_AND_CURRICULUM.md'],
-    speculative: true,
+    editFiles: ['spa/src/pages/prototype/PrototypeHomeChurchFeed.tsx'],
   },
   {
     id: '08-broadcast-space',
     title: 'Ministry channel (adult education)',
     phase: 'Receive',
-    editFiles: ['docs/future/CHURCH_ORG_AND_CURRICULUM.md'],
-    speculative: true,
+    editFiles: ['spa/src/pages/prototype/PrototypeSidebarChurchHubView.tsx'],
   },
   {
     id: '09-broadcast-note',
@@ -94,8 +89,7 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
     id: '10-staff-roles',
     title: 'Staff roles on a ministry channel',
     phase: 'Staff',
-    editFiles: ['server/utils/clerk-org.ts'],
-    speculative: true,
+    editFiles: ['spa/src/pages/prototype/PrototypeChurchStaffSection.tsx'],
   },
 ];
 

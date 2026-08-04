@@ -1,16 +1,22 @@
 # Church Connection System Design
 
-> **Current schema status (July 2026):** `Churches` and
-> `UserMetadata.connectedChurchId/connectedOrgId/connectedChurchAt` are **landed**
-> in `server/db/schema.ts` (shared-spaces foundation), and the **admin
-> provisioning pipes are built** (`server/routes/churches.ts` +
-> `server/utils/clerk-org.ts` + the `/admin/churches` SPA page — all
-> `requireHarvousAdmin`-gated). `ChurchConnectionRequests` is **planned** — it
-> lands with the connect flow. Product lock: **v0 is staff-only**; congregant
-> connect / Home "From your church" stay dark — see
-> [Locked product decisions](./CHURCH_ORG_AND_CURRICULUM.md#locked-product-decisions-july-2026).
-> **Multi-church + home church** is locked below (memberships many, home one);
-> schema for that lands with congregant connect, not in the staff pilot.
+> **Shipped in v2.18.0 (August 2026).** The staff-only lock this document
+> described is **lifted**: congregant connect, channel follow, and Home's
+> "From your church" feed all shipped. Correct the reading below accordingly.
+>
+> **How connection actually works:** a congregant self-selects their church in
+> Settings › My Church from the Here's My Church directory. If that church is
+> registered on Harvous, picking it sets `connectedChurchId` / `connectedOrgId`
+> directly. There is **no approval step** — `ChurchConnectionRequests` was
+> designed here but never built, because self-select is sufficient while
+> churches are onboarded one at a time. Build it if churches ever need to vet
+> who claims membership.
+>
+> **Multi-church + home church** is still design-only: `ChurchMemberships`
+> exists as a stub table with no writers, and `UserMetadata.connectedChurchId`
+> remains the single home pointer.
+>
+> Operational detail: [CHURCH_ORG_ONBOARDING_AND_BILLING.md](../CHURCH_ORG_ONBOARDING_AND_BILLING.md).
 >
 > **Here’s My Church (directory SoT):** Stable directory identity is
 > `Churches.hmcChurchId` / `UserMetadata.hmcChurchId` (e.g. `TX-123456`).

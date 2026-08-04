@@ -274,7 +274,7 @@ distributed lock at launch volume.
 
 ---
 
-## 7. Church org (future — draft pricing for pilot)
+## 7. Church org (shipped at a single price — tier drafts below are superseded)
 
 **Vision:** Leader connects church → church adopts Harvous → church pays for org-level curriculum and
 leader seats with admin tools. See [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md).
@@ -282,7 +282,19 @@ leader seats with admin tools. See [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_A
 **Review stays individual.** Church may optionally buy **bulk Review seat packs** — each member
 **claims** a seat so AI still runs on their notes only (payer ≠ shared AI access).
 
-**Status:** Draft tiers below for friendly-church pilot — not committed in billing until validated.
+**Status (v2.18.0, August 2026): shipped as ONE Church product at one price** —
+**$39/mo · $390/yr** (`key: 'church'` in [billing-plans.ts](../../src/lib/billing-plans.ts),
+`listed: false` so it never reaches the personal `/upgrade` page). A church is sponsored when
+it is paying **or** inside an admin-set pilot window.
+
+**The four-tier ladder drafted below (Connect / Study / Study Plus / Network) was NOT built,
+and contradicts this document's own status banner** — "one price per product, no tiers within
+a product". It is kept as historical reasoning about where a church fence belongs, not as a
+plan. Read the tables below as superseded.
+
+Polar products are not yet created, so checkout cannot complete and the billing surface reads
+"Contact Harvous to set up billing" — deliberate while church onboarding is concierge. See
+[CHURCH_ORG_ONBOARDING_AND_BILLING.md](../CHURCH_ORG_ONBOARDING_AND_BILLING.md).
 Supersedes the older $75 / $125 / $200 placeholders in
 [CLERK_MONETIZATION_ARCHITECTURE.md](./CLERK_MONETIZATION_ARCHITECTURE.md) (technical file only).
 
@@ -305,7 +317,7 @@ members**:
 **Pitch anchor:** *"Keep Planning Center. Harvous is where your people's Bible study lives — you
 publish the guide; they keep personal notes; Review helps each person remember what they learned."*
 
-### Recommended tiers (modular — Option A)
+### Recommended tiers (modular — Option A) — *superseded, not built*
 
 Public pricing for standard plans; no sales call required at entry tiers.
 
@@ -339,7 +351,7 @@ cheaper than discounting the consumer price.
 **Example MRR per church:** Church Study Plus ($69) + 25 Plus seats ($50–75) = **$119–144/mo** — the
 org fee is high-margin; seat packs carry the (small) per-active-seat AI cost.
 
-### Alternative: leader-based pricing (Option B)
+### Alternative: leader-based pricing (Option B) — *superseded, not built*
 
 | Component | Price (draft) |
 |---|---|
