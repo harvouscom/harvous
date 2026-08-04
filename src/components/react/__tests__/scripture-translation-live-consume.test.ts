@@ -3,8 +3,20 @@ import { Editor } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
-import { tryConsumeLiveTrailingTranslationAfterPill } from '../TiptapEditor';
+import { consumeTrailingTranslationAfterPills } from '../TiptapEditor';
 import { ScripturePill } from '../TiptapScripturePill';
+
+/**
+ * These tests previously imported `tryConsumeLiveTrailingTranslationAfterPill`, a symbol
+ * that has never existed anywhere in this repo's history — so the file threw on import and
+ * neither test had ever run, while appearing to cover the feature.
+ *
+ * They were written against an imagined *typing-time* ("live") API. The function that
+ * actually exists, `consumeTrailingTranslationAfterPills`, is documented as **load-time
+ * cleanup**: it sweeps every pill in the document rather than a selection, and deliberately
+ * refuses to overwrite a pill that already carries an explicit translation. These now pin
+ * that real contract.
+ */
 
 const extensions = [Document, Paragraph, Text, ScripturePill];
 
@@ -17,17 +29,20 @@ function pillTranslation(editor: Editor): string | null {
   return translation;
 }
 
-describe('tryConsumeLiveTrailingTranslationAfterPill', () => {
-  it('consumes NIV typed after a resolved pill and updates translation', () => {
-    const editor = new Editor({
-      extensions,
-      content:
-        '<p><span data-scripture-reference="Exodus 11:1-10" data-scripture-translation="NLT" data-note-id="pending">Exodus 11:1-10</span> NIV</p>',
-    });
+function editorWithPill(translationAttr: string | null): Editor {
+  const attr = translationAttr ? ` data-scripture-translation="${translationAttr}"` : '';
+  return new Editor({
+    extensions,
+    content:
+      `<p><span data-scripture-reference="Exodus 11:1-10"${attr} data-note-id="pending">Exodus 11:1-10</span> NIV</p>`,
+  });
+}
+
+describe('consumeTrailingTranslationAfterPills', () => {
+  it('adopts a trailing abbreviation when the pill has no translation yet', () => {
+    const editor = editorWithPill(null);
     try {
-      editor.commands.setTextSelection(editor.state.doc.content.size - 1);
-      const consumed = tryConsumeLiveTrailingTranslationAfterPill(editor);
-      expect(consumed).toBe(true);
+      expect(consumeTrailingTranslationAfterPills(editor)).toBe(true);
       expect(pillTranslation(editor)).toBe('NIV');
       expect(editor.state.doc.textContent).toBe('Exodus 11:1-10');
     } finally {
@@ -35,11 +50,44 @@ describe('tryConsumeLiveTrailingTranslationAfterPill', () => {
     }
   });
 
-  it('consumes inline translation when pill is created with trailing abbrev in buffer', () => {
+  it('adopts over NET, which is the fallback rather than a real choice', () => {
+    const editor = editorWithPill('NET');
+    try {
+      expect(consumeTrailingTranslationAfterPills(editor)).toBe(true);
+      expect(pillTranslation(editor)).toBe('NIV');
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('preserves an explicit per-pill translation rather than letting trailing text win', () => {
+    // Deliberate: an explicit non-NET translation is a user/per-pill override.
+    const editor = editorWithPill('NLT');
+    try {
+      consumeTrailingTranslationAfterPills(editor);
+      expect(pillTranslation(editor)).toBe('NLT');
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('consumes the trailing text even when it does not adopt it', () => {
+    // Documents current behaviour, which is arguably a wart: type "NIV" after a pill that
+    // already says NLT and the text is deleted while the pill is unchanged, so the
+    // keystrokes just vanish. Changing that is a product decision, not a typing fix.
+    const editor = editorWithPill('NLT');
+    try {
+      consumeTrailingTranslationAfterPills(editor);
+      expect(editor.state.doc.textContent).toBe('Exodus 11:1-10');
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('consumes an abbreviation left in the buffer when the pill is built around text', () => {
     const editor = new Editor({ extensions, content: '<p></p>' });
     try {
       editor.commands.insertContent('Exodus 11:1-10 NIV');
-      editor.commands.setTextSelection(editor.state.selection.from);
       const markType = editor.state.schema.marks.scripturePill;
       editor.commands.command(({ tr, dispatch }) => {
         if (!dispatch || !markType) return false;
@@ -49,10 +97,18 @@ describe('tryConsumeLiveTrailingTranslationAfterPill', () => {
         dispatch(tr);
         return true;
       });
-      editor.commands.setTextSelection(editor.state.doc.content.size - 1);
-      const consumed = tryConsumeLiveTrailingTranslationAfterPill(editor);
-      expect(consumed).toBe(true);
+      expect(consumeTrailingTranslationAfterPills(editor)).toBe(true);
       expect(pillTranslation(editor)).toBe('NIV');
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('is a no-op on a document with no pills', () => {
+    const editor = new Editor({ extensions, content: '<p>Exodus 11:1-10 NIV</p>' });
+    try {
+      expect(consumeTrailingTranslationAfterPills(editor)).toBe(false);
+      expect(editor.state.doc.textContent).toBe('Exodus 11:1-10 NIV');
     } finally {
       editor.destroy();
     }

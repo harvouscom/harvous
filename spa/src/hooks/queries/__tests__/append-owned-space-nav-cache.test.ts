@@ -32,7 +32,13 @@ describe('getNavigationQueryHydrationOptions', () => {
 
     const options = getNavigationQueryHydrationOptions(cached);
     expect(options.placeholderData).toBe(cached);
-    expect(options.refetchOnMount).toBe('always');
+    // `true`, not `'always'`: the flag was deliberately relaxed because `'always'`
+    // ignores staleTime, and ~10 components call useNavigation(), so a burst of remounts
+    // during normal navigation forced a fresh request every time. The intent this test
+    // exists to guard — a session-cached snapshot must never suppress the refetch — is
+    // upheld by the assertions below: placeholderData sets no dataUpdatedAt, so the query
+    // is stale on mount and `true` refetches.
+    expect(options.refetchOnMount).toBe(NAVIGATION_QUERY_DEFAULTS.refetchOnMount);
     expect(options.staleTime).toBe(NAVIGATION_QUERY_DEFAULTS.staleTime);
     expect(options).not.toHaveProperty('initialData');
     expect(options).not.toHaveProperty('initialDataUpdatedAt');
@@ -41,7 +47,7 @@ describe('getNavigationQueryHydrationOptions', () => {
   it('still schedules mount refetch when there is no session cache', () => {
     const options = getNavigationQueryHydrationOptions(undefined);
     expect(options.placeholderData).toBeUndefined();
-    expect(options.refetchOnMount).toBe('always');
+    expect(options.refetchOnMount).toBe(NAVIGATION_QUERY_DEFAULTS.refetchOnMount);
   });
 
   it('uses no-store for the navigation fetch', () => {
