@@ -35,6 +35,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # server/routes/founder-letter.inline.generated.ts is gitignored and produced by
+      # this script, which normally runs as part of dev:api / build:api. A fresh checkout
+      # doesn't have it, so `tsc` reports a phantom "cannot find module" for its importer.
+      # Any freshly cloned working copy hits the same thing before its first build.
+      - name: Generate build-time sources
+        run: node scripts/generate-founder-letter.js
+
       - name: Tests
         run: npm run test:run
 
