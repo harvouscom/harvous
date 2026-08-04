@@ -163,7 +163,11 @@ export async function rollbackFailedNoteUpdate(
         window.dispatchEvent(
           new CustomEvent('toast', {
             detail: {
-              message: 'Someone saved first. Your version is saved as a draft.',
+              // Not "someone": a 409 can equally be another tab, a background job, or
+              // server-side processing that moved the version. Telling a solo user in
+              // their own private space that a person beat them to it is both false and
+              // alarming — it reads as data loss when nothing was lost.
+              message: 'This note changed somewhere else. Your version is saved as a draft.',
               type: 'info',
             },
           }),

@@ -785,14 +785,32 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       content: newNote.content,
       createdAt: newNote.createdAt,
     }).catch(() => {});
-    const responseVersion = newNote.currentVersionId
+    // Re-read the note's version pointer rather than trusting `newNote`, which is the
+    // in-memory row captured at insert — *before* scripture processing ran. Processing can
+    // still bump the parent: the duplicate-collapse path rewrites `data-note-id` in every
+    // affected note through updateCanonicalNoteInTransaction, and that path is not gated by
+    // `persistParentContent: false`.
+    //
+    // Returning the pre-processing version made the client seed a stale expectedVersion, so
+    // the editor's very first autosave 409'd — surfacing to a solo user as
+    // "Someone saved first" on a note they had just created. Reading it fresh is robust to
+    // any future writer, rather than requiring each one to be found and gated.
+    const persistedNote = first(
+      await db
+        .select({ currentVersionId: Notes.currentVersionId })
+        .from(Notes)
+        .where(eq(Notes.id, newNote.id))
+        .limit(1),
+    );
+    const responseVersionId = persistedNote?.currentVersionId ?? newNote.currentVersionId;
+    const responseVersion = responseVersionId
       ? first(
           await db
             .select({ id: NoteVersions.id, version: NoteVersions.version })
             .from(NoteVersions)
             .where(
               and(
-                eq(NoteVersions.id, newNote.currentVersionId),
+                eq(NoteVersions.id, responseVersionId),
                 eq(NoteVersions.noteId, newNote.id),
               ),
             )
