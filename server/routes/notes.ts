@@ -1209,7 +1209,19 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     });
   } catch (error: any) {
     const mapped = noteVersionErrorResponse(error);
-    if (mapped) return c.json({ error: mapped.message, code: mapped.code, ...(mapped.details ?? {}) }, mapped.status);
+    if (mapped) {
+      // Log conflicts. A 409 used to be returned silently, which made a reproducible
+      // stuck conflict on a single-user note impossible to trace from the server side —
+      // the numbers are the whole diagnosis (a repeating identical pair means the client
+      // is not learning the new version; a moving pair means a genuine race).
+      if (mapped.status === 409) {
+        console.warn('[api/notes/update] version conflict', {
+          noteId: (error as { noteId?: string })?.noteId ?? null,
+          ...(mapped.details ?? {}),
+        });
+      }
+      return c.json({ error: mapped.message, code: mapped.code, ...(mapped.details ?? {}) }, mapped.status);
+    }
     return c.json({ error: error.message || 'Failed to update note' }, 500);
   }
 });

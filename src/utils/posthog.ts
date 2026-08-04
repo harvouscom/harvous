@@ -43,6 +43,17 @@ export function initPostHog() {
     return;
   }
 
+  // Analytics from a developer's own machine is noise in the dashboard, and when an ad
+  // blocker is present (most of us) every capture becomes a red console entry that
+  // PostHog then retries — `retry_count=1,2,3…` — burying real errors under dozens of
+  // ERR_BLOCKED_BY_CLIENT lines. The blocked request itself is logged by the browser and
+  // can't be silenced from JS, so the only real fix is not making it in dev.
+  // Set VITE_ENABLE_POSTHOG_IN_DEV=true to opt back in when testing analytics itself.
+  const env = import.meta.env as Record<string, string | boolean | undefined>;
+  if (env.DEV && env.VITE_ENABLE_POSTHOG_IN_DEV !== 'true') {
+    return;
+  }
+
   const posthogKey = getPostHogKey();
   const posthogHost = getPostHogHost();
 
