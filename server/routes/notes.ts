@@ -125,6 +125,7 @@ import {
 import {
   createInitialNoteVersion,
   noteVersionErrorResponse,
+  readCurrentNoteVersion,
   resolveCanonicalCreateScope,
   resolveLockedEncryptionState,
   restoreCanonicalNoteVersionInTransaction,
@@ -785,38 +786,9 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       content: newNote.content,
       createdAt: newNote.createdAt,
     }).catch(() => {});
-    // Re-read the note's version pointer rather than trusting `newNote`, which is the
-    // in-memory row captured at insert — *before* scripture processing ran. Processing can
-    // still bump the parent: the duplicate-collapse path rewrites `data-note-id` in every
-    // affected note through updateCanonicalNoteInTransaction, and that path is not gated by
-    // `persistParentContent: false`.
-    //
-    // Returning the pre-processing version made the client seed a stale expectedVersion, so
-    // the editor's very first autosave 409'd — surfacing to a solo user as
-    // "Someone saved first" on a note they had just created. Reading it fresh is robust to
-    // any future writer, rather than requiring each one to be found and gated.
-    const persistedNote = first(
-      await db
-        .select({ currentVersionId: Notes.currentVersionId })
-        .from(Notes)
-        .where(eq(Notes.id, newNote.id))
-        .limit(1),
-    );
-    const responseVersionId = persistedNote?.currentVersionId ?? newNote.currentVersionId;
-    const responseVersion = responseVersionId
-      ? first(
-          await db
-            .select({ id: NoteVersions.id, version: NoteVersions.version })
-            .from(NoteVersions)
-            .where(
-              and(
-                eq(NoteVersions.id, responseVersionId),
-                eq(NoteVersions.noteId, newNote.id),
-              ),
-            )
-            .limit(1),
-        )
-      : null;
+    // Resolved after scripture processing, not from the insert-time row — see
+    // readCurrentNoteVersion for why the captured value goes stale.
+    const responseVersion = await readCurrentNoteVersion(newNote.id, newNote.currentVersionId);
 
     queueAudiencefulProductFlagsForUser(auth.userId, {
       has_created_note: true,
@@ -1184,11 +1156,15 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       id: noteId,
     });
 
+    const freshVersion = await readCurrentNoteVersion(noteId, versionedUpdate.currentVersion.id);
     return c.json({
       success: 'Note updated!',
       note: noteJsonWithParsedSecondaries(updatedNote),
-      currentVersion: versionedUpdate.currentVersion.version,
-      currentVersionId: versionedUpdate.currentVersion.id,
+      // Resolved fresh: scripture processing above can bump the note past the version
+      // captured in `versionedUpdate`, and returning the stale one made the editor's very
+      // next autosave send an expectedVersion the server had already moved past.
+      currentVersion: freshVersion?.version ?? versionedUpdate.currentVersion.version,
+      currentVersionId: freshVersion?.id ?? versionedUpdate.currentVersion.id,
       tags: tagsPatch,
       scriptureResults,
       processedContent,

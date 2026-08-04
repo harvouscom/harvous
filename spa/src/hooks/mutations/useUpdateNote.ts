@@ -167,7 +167,9 @@ export async function rollbackFailedNoteUpdate(
               // server-side processing that moved the version. Telling a solo user in
               // their own private space that a person beat them to it is both false and
               // alarming — it reads as data loss when nothing was lost.
-              message: 'This note changed somewhere else. Your version is saved as a draft.',
+              // One clause, joined with a dash: toast.ts strips periods, which turned
+              // two sentences into a run-on ("…somewhere else Your version is…").
+              message: 'This note changed somewhere else — your version is saved as a draft',
               type: 'info',
             },
           }),

@@ -1,5 +1,5 @@
 import { generateTimestampId } from '@/utils/ids';
-import { Notes, NoteVersions, SpaceNotes, StudyThreadEntries, and, desc, eq, first, inArray, isNull } from '../db';
+import { db, Notes, NoteVersions, SpaceNotes, StudyThreadEntries, and, desc, eq, first, inArray, isNull } from '../db';
 import {
   NoteVersionAccessError,
   assertCanAccessNoteVersions,
@@ -655,4 +655,45 @@ export function noteVersionErrorResponse(error: unknown):
     return { status: 409, code: error.code, message: error.message };
   }
   return null;
+}
+
+/**
+ * The note's current version as persisted *right now*.
+ *
+ * Handlers capture a version early — at insert, or from the versioned update — and then do
+ * more work before responding. Scripture processing in particular can still move the
+ * parent: its duplicate-collapse path rewrites `data-note-id` in every affected note
+ * through updateCanonicalNoteInTransaction, and that path is *not* gated by
+ * `persistParentContent: false` the way the main content rewrite is.
+ *
+ * Returning the captured value therefore told the client a version the row had already
+ * moved past. The client seeded it, the editor's next autosave sent it as
+ * `expectedVersion`, and the server 409'd — surfacing to a solo user as a
+ * "changed somewhere else" toast on a note only they were touching.
+ *
+ * Any handler that responds with a version *after* doing post-write work should resolve it
+ * through here rather than trusting what it captured earlier.
+ */
+export async function readCurrentNoteVersion(
+  noteId: string,
+  fallbackVersionId?: string | null,
+): Promise<{ id: string; version: number } | null> {
+  const note = first(
+    await db
+      .select({ currentVersionId: Notes.currentVersionId })
+      .from(Notes)
+      .where(eq(Notes.id, noteId))
+      .limit(1),
+  );
+  const versionId = note?.currentVersionId ?? fallbackVersionId ?? null;
+  if (!versionId) return null;
+  return (
+    first(
+      await db
+        .select({ id: NoteVersions.id, version: NoteVersions.version })
+        .from(NoteVersions)
+        .where(and(eq(NoteVersions.id, versionId), eq(NoteVersions.noteId, noteId)))
+        .limit(1),
+    ) ?? null
+  );
 }

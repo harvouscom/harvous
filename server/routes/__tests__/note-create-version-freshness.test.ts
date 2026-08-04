@@ -3,44 +3,60 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
- * POST /api/notes/create used to report the version from `newNote` — the in-memory row
- * captured at insert, before scripture processing ran. Processing can still bump the
- * parent: the duplicate-collapse path rewrites `data-note-id` in every affected note via
- * updateCanonicalNoteInTransaction, and it is not gated by `persistParentContent: false`.
+ * Both note write endpoints capture a version early and then keep working before they
+ * respond. Scripture processing can still move the parent: its duplicate-collapse path
+ * rewrites `data-note-id` in every affected note through updateCanonicalNoteInTransaction,
+ * and that path is *not* gated by `persistParentContent: false` the way the main content
+ * rewrite is.
  *
- * So a note created with a scripture reference came back claiming version 1 while the row
- * was already at 2. The client seeded the stale number, the editor's first autosave sent
- * it as `expectedVersion`, and the server 409'd — surfacing to a solo user in their own
- * private space as "Someone saved first" on a note they had just made.
+ * Returning the captured version told the client a number the row had already moved past.
+ * The client seeded it, the editor's next autosave sent it as `expectedVersion`, and the
+ * server 409'd — surfacing to a solo user in a private space as a "changed somewhere else"
+ * toast on a note only they were touching. It reproduced by typing the start of a
+ * scripture reference into a new note.
  *
- * The response must read the note's version pointer back from the database after all
- * post-insert work, so it stays correct no matter which path moves it next.
+ * Create was fixed first and the report persisted, because the note already exists by the
+ * time you are typing — the failing path was update. Both now resolve through
+ * readCurrentNoteVersion.
  */
 const source = readFileSync(resolve(process.cwd(), 'server/routes/notes.ts'), 'utf8');
 
-function createHandlerSource(): string {
-  const start = source.indexOf("route.post('/api/notes/create'");
-  const end = source.indexOf("route.put('/api/notes/update'", start);
+function handlerSource(startMarker: string, endMarker: string): string {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start);
   expect(start).toBeGreaterThan(-1);
   expect(end).toBeGreaterThan(start);
   return source.slice(start, end);
 }
 
-describe('POST /api/notes/create version freshness', () => {
-  it('resolves the response version from a fresh read, not the insert-time row', () => {
-    const handler = createHandlerSource();
-    expect(handler).toMatch(/select\(\{\s*currentVersionId:\s*Notes\.currentVersionId\s*\}\)/);
-    expect(handler).toContain('responseVersionId');
+const createHandler = () =>
+  handlerSource("route.post('/api/notes/create'", "route.put('/api/notes/update'");
+const updateHandler = () =>
+  handlerSource("route.put('/api/notes/update'", "route.delete('/api/notes/delete'");
+
+describe('note write endpoints report a fresh version', () => {
+  it('create resolves through readCurrentNoteVersion', () => {
+    expect(createHandler()).toContain('readCurrentNoteVersion(');
   });
 
-  it('does not look the version up by the stale in-memory pointer', () => {
-    const handler = createHandlerSource();
-    // The defect shape: keying the NoteVersions lookup off `newNote.currentVersionId`.
-    expect(handler).not.toMatch(/eq\(NoteVersions\.id,\s*newNote\.currentVersionId\)/);
+  it('update resolves through readCurrentNoteVersion', () => {
+    expect(updateHandler()).toContain('readCurrentNoteVersion(');
   });
 
-  it('still falls back to the insert-time pointer if the re-read finds nothing', () => {
-    const handler = createHandlerSource();
-    expect(handler).toContain('?? newNote.currentVersionId');
+  it('create does not report the insert-time pointer directly', () => {
+    expect(createHandler()).not.toMatch(/eq\(NoteVersions\.id,\s*newNote\.currentVersionId\)/);
+  });
+
+  it('update does not report the captured version directly', () => {
+    // The defect shape: `currentVersion: versionedUpdate.currentVersion.version` with no
+    // fresh read in between.
+    const handler = updateHandler();
+    expect(handler).not.toMatch(/currentVersion:\s*versionedUpdate\.currentVersion\.version,/);
+    expect(handler).toContain('freshVersion?.version ?? versionedUpdate.currentVersion.version');
+  });
+
+  it('both keep a fallback to the captured value', () => {
+    expect(createHandler()).toContain('newNote.currentVersionId');
+    expect(updateHandler()).toContain('versionedUpdate.currentVersion.id');
   });
 });
