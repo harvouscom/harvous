@@ -1379,6 +1379,8 @@ export default function PrototypeNotePage() {
       newTitle: string,
       newContent: string,
       collectionExtras?: NoteCollectionExtras,
+      /** Editor call-site tag; kept so the save trail can attribute draft-path saves. */
+      originHint?: string,
     ): Promise<string | null> => {
       const scriptureVersion = getEffectiveDefaultTranslation();
       const spaceId = isDraft
@@ -1401,7 +1403,9 @@ export default function PrototypeNotePage() {
           noteId: id,
           title: newTitle,
           content: newContent,
-          saveOrigin: 'notepage-persist-existing',
+          // Preserve the editor mount's tag — the draft branch used to drop it, which
+          // flattened two overlapping writers into one label in the save trail.
+          saveOrigin: originHint ? `${originHint}>persist` : 'notepage-persist-existing',
           scriptureVersion,
           contextSpaceId: sharedContextSpaceId,
           ...(sharedContextSpaceId ? {} : (collectionExtras ?? {})),
@@ -1509,7 +1513,12 @@ export default function PrototypeNotePage() {
         return;
       }
       if (isDraft) {
-        const createdId = await persistDraftNote(newTitle, newContent, collectionExtras);
+        const createdId = await persistDraftNote(
+          newTitle,
+          newContent,
+          collectionExtras,
+          saveOptions?.saveOrigin,
+        );
         return createdId ? { noteId: createdId } : undefined;
       }
       // Offline persistence (queue + materialize) is handled by useUpdateNote's runOfflineFirst

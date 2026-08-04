@@ -63,6 +63,34 @@ interface UpdateNoteResponse {
   processedContent?: string | null;
 }
 
+/**
+ * Serializes saves per note. Exported for tests.
+ *
+ * Why this exists: expectedVersion is read from the cache at send time, so two saves for
+ * the same note launched while neither has resolved both carry the same number — the
+ * first wins, the second 409s as a phantom "changed somewhere else" conflict. The save
+ * trail caught exactly that: `attempt expected=3` twice, 3s apart, from overlapping
+ * writers (editor mounts serialize their own saves but not each other's; a compose
+ * remount runs two mounts).
+ *
+ * Chaining here — the one layer every writer goes through — makes any overlap
+ * sequential by construction, and the mutationFn re-reads the version after its
+ * predecessor completes. A failed predecessor doesn't poison the chain, and every
+ * caller still receives its own result or rejection.
+ */
+const noteSaveChains = new Map<string, Promise<unknown>>();
+
+export function chainNoteSave<T>(noteId: string, task: () => Promise<T>): Promise<T> {
+  const prior = noteSaveChains.get(noteId) ?? Promise.resolve();
+  const run = prior.catch(() => undefined).then(task);
+  const settled = run.catch(() => undefined);
+  noteSaveChains.set(noteId, settled);
+  void settled.finally(() => {
+    if (noteSaveChains.get(noteId) === settled) noteSaveChains.delete(noteId);
+  });
+  return run;
+}
+
 export function getCurrentCachedNoteVersion(queryClient: QueryClient, noteId: string): number | undefined {
   const versions = queryClient
     .getQueriesData<NoteDetail>({ queryKey: ['note', noteId] })
@@ -250,12 +278,31 @@ export function useUpdateNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: UpdateNoteInput) => {
+    mutationFn: (input: UpdateNoteInput) => chainNoteSave(input.noteId, async () => {
       const {
         noteId,
         title,
         content,
       } = input;
+      // Adopt the server's version into every ['note', id] cache entry *inside* the
+      // chained section, before the next queued save runs. Relying on onSuccess for this
+      // is a race: react-query fires it after mutationFn resolves, with no ordering
+      // guarantee against the next chain link's version read.
+      const adoptServerVersion = (res: UpdateNoteResponse | undefined) => {
+        if (!res) return;
+        const v = res.currentVersion;
+        const vid = res.currentVersionId ?? res.note?.currentVersionId;
+        if (typeof v !== 'number' && vid === undefined) return;
+        queryClient.setQueriesData<NoteDetail>({ queryKey: ['note', noteId] }, (n) =>
+          n
+            ? {
+                ...n,
+                ...(typeof v === 'number' ? { currentVersion: v } : {}),
+                ...(vid !== undefined ? { currentVersionId: vid } : {}),
+              }
+            : n,
+        );
+      };
       // Online-first; if offline, queue the edit. `seed` (from the open note's cache) lets a
       // pre-existing server note that was never mirrored locally still queue its edit — the
       // edit coalesces into a pending create for offline-authored notes. Scripture pills are
@@ -314,13 +361,16 @@ export function useUpdateNote() {
       const skipOfflineQueue = Boolean(input.contextSpaceId?.trim()) || cached?.coEditEnabled === true;
       if (skipOfflineQueue) {
         const online = await api.put<UpdateNoteResponse>('/api/notes/update', body as any);
+        adoptServerVersion(online);
         return { online, queued: false, localId: null };
       }
-      return runOfflineFirst({
+      const result = await runOfflineFirst({
         online: () => api.put<UpdateNoteResponse>('/api/notes/update', body as any),
         offline,
       });
-    },
+      adoptServerVersion((result as { online?: UpdateNoteResponse } | undefined)?.online);
+      return result;
+    }),
     onMutate: async (variables): Promise<UpdateNoteMutationContext> => {
       await queryClient.cancelQueries({ queryKey: ['note', variables.noteId] });
       const previousNotes = queryClient.getQueriesData<NoteDetail>({
