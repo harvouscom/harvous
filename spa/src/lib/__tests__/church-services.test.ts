@@ -5,6 +5,7 @@ import {
   currentSeriesTitle,
   currentServiceFor,
   serviceEyebrow,
+  starterFolderForService,
   starterNoteTitle,
   type ChurchService,
 } from '../church-services';
@@ -139,6 +140,24 @@ describe('starterNoteTitle', () => {
     expect(
       starterNoteTitle(service({ serviceDate: '2026-08-09', title: '', reference: null })),
     ).toBe('Sermon notes');
+  });
+});
+
+describe('starterFolderForService', () => {
+  it('uses the series as the folder', () => {
+    expect(starterFolderForService(service({ serviceDate: '2026-08-09' }))).toBe(
+      'Life in the Spirit',
+    );
+  });
+
+  it('is null for a one-off Sunday', () => {
+    // A folder of one is worse than the person's own auto-folder.
+    expect(
+      starterFolderForService(service({ serviceDate: '2026-08-09', seriesTitle: null })),
+    ).toBeNull();
+    expect(
+      starterFolderForService(service({ serviceDate: '2026-08-09', seriesTitle: '   ' })),
+    ).toBeNull();
   });
 });
 

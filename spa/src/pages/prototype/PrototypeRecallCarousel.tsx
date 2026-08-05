@@ -4,6 +4,7 @@ import type { RecallCandidate } from '@/utils/prototype-home-trends';
 import { recallKindCreatesNote, type RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
 import { recordRecallOpportunityEvent } from './proto-recall-events';
 import { recordRecallSectionEngaged } from './proto-recall-cooldown';
+import PrototypeCardStack from './PrototypeCardStack';
 
 /**
  * One swipeable carousel of recall opportunities on the prototype Home — a fading meaningful note, a
@@ -87,150 +88,106 @@ export default function PrototypeRecallCarousel({
     });
   }, [active]);
 
-  const goPrev = () => setActiveIndex((i) => clampIndex(i - 1, len));
-  const goNext = () => setActiveIndex((i) => clampIndex(i + 1, len));
-
-  const handleSwipeStart = (clientX: number, target: EventTarget | null) => {
-    if ((target as HTMLElement)?.closest('button')) return;
-    startXRef.current = clientX;
-  };
-  const handleSwipeEnd = (clientX: number) => {
-    const startX = startXRef.current;
-    startXRef.current = null;
-    if (startX == null) return;
-    const dx = clientX - startX;
-    const threshold = 40;
-    if (dx <= -threshold) goNext();
-    else if (dx >= threshold) goPrev();
-  };
-
   if (!active) return null;
 
-  const busy = creatingNote && recallKindCreatesNote(active.kind);
-  const canGoPrev = len > 1 && index > 0;
-  const canGoNext = len > 1 && index < len - 1;
+  /** The card's visible content — identical in both modes, so a preview and a
+   *  real card never look different, only behave differently. */
+  const cardInner = (op: RecallOpportunity) => (
+    <>
+      <p className="proto-caption proto-home-card__eyebrow">{op.eyebrow}</p>
+      <div className="proto-home-card__body">
+        <div className="proto-home-card__title-row">
+          <span className="proto-home-card__icon-orb" aria-hidden>
+            <Icon name={op.iconName} size={13} />
+          </span>
+          <p className="pds-list-title proto-home-card__title">{op.title}</p>
+          <span className="proto-home-card__chevron" aria-hidden>
+            <Icon name="caret-right" size={11} />
+          </span>
+        </div>
+        {op.meta ? (
+          <div className="proto-home-card__meta">
+            <span className="proto-home-card__meta-item">{op.meta}</span>
+          </div>
+        ) : null}
+      </div>
+    </>
+  );
+
+  const openOpportunity = (op: RecallOpportunity) => {
+    recordRecallOpportunityEvent({
+      opportunityId: op.id,
+      kind: op.kind,
+      action: 'open',
+      noteId: op.noteId,
+      onSynced: op.noteId ? onRecallSynced : undefined,
+    });
+    if (op.canonSection) {
+      recordRecallSectionEngaged(homeSpaceId, op.canonSection);
+    }
+    onOpened?.(op.id);
+    op.onOpen();
+  };
+
+  const snoozeOpportunity = (op: RecallOpportunity) => {
+    recordRecallOpportunityEvent({
+      opportunityId: op.id,
+      kind: op.kind,
+      action: 'snooze',
+      noteId: op.noteId,
+    });
+    onSnooze(op.id);
+    setActiveIndex((i) => clampIndex(i, len - 1));
+  };
 
   return (
-    <div
-      className={`proto-recall-carousel${len <= 1 ? ' proto-recall-carousel--single' : ''}`}
-      onMouseDown={(e) => {
-        if (e.button !== 0) return;
-        handleSwipeStart(e.clientX, e.target);
-      }}
-      onMouseUp={(e) => handleSwipeEnd(e.clientX)}
-      onMouseLeave={() => {
-        startXRef.current = null;
-      }}
-      onTouchStart={(e) => {
-        if (e.touches.length === 1) handleSwipeStart(e.touches[0].clientX, e.target);
-      }}
-      onTouchEnd={(e) => {
-        if (e.changedTouches.length === 1) handleSwipeEnd(e.changedTouches[0].clientX);
-      }}
-      aria-label="Recall opportunities"
-    >
-      <div
-        className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-recall-card"
-      >
-        <button
-          type="button"
-          className="proto-daily-passage-pill__dismiss"
-          aria-label="Not now — remind me later"
-          onClick={(e) => {
-            e.stopPropagation();
-            recordRecallOpportunityEvent({
-              opportunityId: active.id,
-              kind: active.kind,
-              action: 'snooze',
-              noteId: active.noteId,
-            });
-            onSnooze(active.id);
-            setActiveIndex((i) => clampIndex(i, len - 1));
-          }}
-        >
-          <Icon name="xmark" size={10} aria-hidden />
-          <span>Not now</span>
-        </button>
-        <button
-          type="button"
-          className="proto-recall-card__main"
-          // Only the generative kinds are held: the guard in startDraftNote is what
-          // actually prevents the duplicate, this is the visible half. Cards that just
-          // navigate stay live so an in-flight create doesn't freeze the whole carousel.
-          disabled={busy}
-          aria-busy={busy || undefined}
-          onClick={() => {
-            recordRecallOpportunityEvent({
-              opportunityId: active.id,
-              kind: active.kind,
-              action: 'open',
-              noteId: active.noteId,
-              onSynced: active.noteId ? onRecallSynced : undefined,
-            });
-            if (active.canonSection) {
-              recordRecallSectionEngaged(homeSpaceId, active.canonSection);
-            }
-            onOpened?.(active.id);
-            active.onOpen();
-          }}
-        >
-          <p className="proto-caption proto-home-card__eyebrow">{active.eyebrow}</p>
-          <div className="proto-home-card__body">
-            <div className="proto-home-card__title-row">
-              <span className="proto-home-card__icon-orb" aria-hidden>
-                <Icon name={active.iconName} size={13} />
-              </span>
-              <p className="pds-list-title proto-home-card__title">{active.title}</p>
-              <span className="proto-home-card__chevron" aria-hidden>
-                <Icon name="caret-right" size={11} />
-              </span>
+    <PrototypeCardStack
+      items={opportunities}
+      ariaLabel="Recall opportunities"
+      collapsedLabel="Show all recall suggestions"
+      renderItem={(op, _idx, mode) => {
+        // Preview: inert markup only. It sits inside the stack's own button,
+        // and a button within a button is invalid and keyboard-unreachable.
+        if (mode === 'preview') {
+          return (
+            <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-recall-card">
+              <div className="proto-recall-card__main">{cardInner(op)}</div>
             </div>
-            {active.meta ? (
-              <div className="proto-home-card__meta">
-                <span className="proto-home-card__meta-item">
-                  {active.meta}
-                </span>
-              </div>
-            ) : null}
-          </div>
-        </button>
-      </div>
+          );
+        }
 
-      {len > 1 ? (
-        <div className="proto-recall-carousel__pager" role="navigation" aria-label="Recall carousel">
-          <button
-            type="button"
-            className="proto-recall-carousel__pager-btn"
-            aria-label="Previous recall item"
-            disabled={!canGoPrev}
-            onClick={goPrev}
-          >
-            <Icon name="caret-left" size={14} />
-          </button>
-          <div className="proto-recall-carousel__dots" role="tablist" aria-label="Recall positions">
-            {opportunities.map((op, idx) => (
-              <button
-                key={op.id}
-                type="button"
-                className={`proto-recall-carousel__dot${idx === index ? ' proto-recall-carousel__dot--active' : ''}`}
-                onClick={() => setActiveIndex(idx)}
-                aria-label={`Show recall item ${idx + 1} of ${len}`}
-                aria-selected={idx === index}
-                role="tab"
-              />
-            ))}
+        // Only the generative kinds are held: the guard in startDraftNote is what
+        // actually prevents the duplicate, this is the visible half. Cards that just
+        // navigate stay live so an in-flight create doesn't freeze the whole deck.
+        const busy = creatingNote && recallKindCreatesNote(op.kind);
+        return (
+          <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-recall-card">
+            {/* Snooze is per-card once fanned — it is how the deck gets trained,
+                so it must never become unreachable. */}
+            <button
+              type="button"
+              className="proto-daily-passage-pill__dismiss"
+              aria-label={`Not now — remind me later about ${op.title}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                snoozeOpportunity(op);
+              }}
+            >
+              <Icon name="xmark" size={10} aria-hidden />
+              <span>Not now</span>
+            </button>
+            <button
+              type="button"
+              className="proto-recall-card__main"
+              disabled={busy}
+              aria-busy={busy || undefined}
+              onClick={() => openOpportunity(op)}
+            >
+              {cardInner(op)}
+            </button>
           </div>
-          <button
-            type="button"
-            className="proto-recall-carousel__pager-btn"
-            aria-label="Next recall item"
-            disabled={!canGoNext}
-            onClick={goNext}
-          >
-            <Icon name="caret-right" size={14} />
-          </button>
-        </div>
-      ) : null}
-    </div>
+        );
+      }}
+    />
   );
 }

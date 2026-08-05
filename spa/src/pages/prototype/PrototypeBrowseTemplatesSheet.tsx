@@ -41,7 +41,9 @@ import {
 export type EditableNoteTemplate = ApplyableNoteTemplate & {
   description?: string | null;
   spaceId?: string | null;
-  section: 'personal' | 'space';
+  /** Set on church starters — the editor uses it to keep the church scope. */
+  orgId?: string | null;
+  section: 'personal' | 'space' | 'org';
 };
 
 type BrowseTemplateRow = ApplyableNoteTemplate & {
@@ -50,6 +52,7 @@ type BrowseTemplateRow = ApplyableNoteTemplate & {
   level?: string;
   createdAt?: string | null;
   spaceId?: string | null;
+  orgId?: string | null;
 };
 
 type TemplateScopeTab = 'all' | 'builtIn' | 'personal' | 'space';
@@ -66,6 +69,8 @@ export interface PrototypeBrowseTemplatesSheetProps {
   canManageSpaceTemplates?: boolean;
   onApply: (template: ApplyableNoteTemplate) => void;
   /** Opens inspector edit panel for a personal/space template. */
+  /** Server's `manage_templates` verdict — gates editing church starters here. */
+  canManageChurchTemplates?: boolean;
   onEdit?: (template: EditableNoteTemplate) => void;
   /** `main-column-top-right` for inspector flows; default `anchor` for trigger-relative. */
   placement?: ProtoAnchoredPopoverStrategy;
@@ -233,6 +238,7 @@ export default function PrototypeBrowseTemplatesSheet({
   spaceTitle = null,
   showSpaceSection = false,
   canManageSpaceTemplates = false,
+  canManageChurchTemplates = false,
   onApply,
   onEdit,
   placement = 'main-column-top-right',
@@ -323,8 +329,9 @@ export default function PrototypeBrowseTemplatesSheet({
       createdAt: toIso(t.createdAt),
       spaceId: t.spaceId ?? listSpaceId,
     }));
-    // Church starters, provisioned by the viewer's home church. Read-only here:
-    // editing one is a staff act, done from the church's own surfaces.
+    // Church starters, provisioned by the viewer's home church. Editable in
+    // place for staff holding `manage_templates`; read-only for everyone else,
+    // who can still use them.
     const org: BrowseTemplateRow[] = (data?.org ?? []).map((t) => ({
       id: t.id,
       name: t.name,
@@ -336,6 +343,7 @@ export default function PrototypeBrowseTemplatesSheet({
       description: t.description ?? undefined,
       createdAt: toIso(t.createdAt),
       spaceId: null,
+      orgId: t.orgId ?? null,
     }));
     return { builtIn: builtInSource, personal, space, org };
   }, [data, listSpaceId]);
@@ -378,7 +386,14 @@ export default function PrototypeBrowseTemplatesSheet({
   };
 
   const handleEdit = (template: BrowseTemplateRow) => {
-    if (!onEdit || (template.section !== 'personal' && template.section !== 'space')) return;
+    if (!onEdit) return;
+    if (
+      template.section !== 'personal' &&
+      template.section !== 'space' &&
+      template.section !== 'org'
+    ) {
+      return;
+    }
     setOpenMenuId(null);
     onEdit({
       id: template.id,
@@ -390,6 +405,7 @@ export default function PrototypeBrowseTemplatesSheet({
       iconColor: template.iconColor ?? null,
       description: template.description ?? null,
       spaceId: template.spaceId ?? null,
+      orgId: template.orgId ?? null,
     });
   };
 
@@ -419,6 +435,7 @@ export default function PrototypeBrowseTemplatesSheet({
     if (!onEdit) return false;
     if (template.section === 'personal') return true;
     if (template.section === 'space') return canManageSpaceTemplates;
+    if (template.section === 'org') return canManageChurchTemplates;
     return false;
   };
 

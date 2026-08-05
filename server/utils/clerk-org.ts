@@ -330,6 +330,26 @@ export async function revokeClerkOrgInvitation(input: {
  * Remove someone from the staff org. Harvous membership rows are reconciled
  * separately by syncChurchStaffForOrg — this only touches Clerk.
  */
+/**
+ * Change a staff member's Clerk org role.
+ *
+ * Roles are the source of every church capability (see
+ * church-role-capabilities.ts), so this is the one write that can hand someone
+ * the teaching plan or take it away. Clerk is the record; Harvous never stores
+ * a role of its own to drift from it.
+ */
+export async function updateClerkOrgMemberRole(
+  orgId: string,
+  userId: string,
+  role: string,
+): Promise<void> {
+  const response = await clerkFetch(`/organizations/${orgId}/memberships/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role }),
+  });
+  if (!response.ok) throw classifyClerkFailure(response.status);
+}
+
 export async function removeClerkOrgMember(orgId: string, userId: string): Promise<void> {
   const response = await clerkFetch(`/organizations/${orgId}/memberships/${userId}`, {
     method: 'DELETE',

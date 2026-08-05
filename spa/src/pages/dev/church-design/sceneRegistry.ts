@@ -105,6 +105,42 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
       'server/utils/church-entitlement.ts',
     ],
   },
+  {
+    id: '13-service-page',
+    title: 'Service page — fresh',
+    phase: 'Receive',
+    editFiles: ['spa/src/styles/prototype-components.css'],
+    speculative: true,
+  },
+  {
+    id: '13b-service-page-returning',
+    title: 'Service page — already writing',
+    phase: 'Receive',
+    editFiles: ['spa/src/styles/prototype-components.css'],
+    speculative: true,
+  },
+  {
+    id: '13c-service-page-topical',
+    title: 'Service page — no passage',
+    phase: 'Receive',
+    editFiles: ['spa/src/styles/prototype-components.css'],
+    speculative: true,
+  },
+  {
+    id: '14-hub-congregant',
+    title: 'My Church hub — congregant (rework)',
+    phase: 'Receive',
+    editFiles: ['spa/src/pages/prototype/PrototypeSidebarChurchHubView.tsx'],
+  },
+  {
+    id: '15-hub-staff',
+    title: 'My Church hub — staff (rework)',
+    phase: 'Staff',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeSidebarChurchHubView.tsx',
+      'spa/src/pages/prototype/PrototypeChurchPlanRow.tsx',
+    ],
+  },
 ];
 
 export const DEFAULT_CHURCH_SCENE_ID = '01-admin-empty';

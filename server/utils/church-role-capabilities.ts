@@ -35,6 +35,27 @@ export const ROLE_PASTOR = 'org:pastor';
 export const ROLE_TEACHER = 'org:teacher';
 
 /**
+ * Roles a church admin may assign from Harvous.
+ *
+ * An allowlist, not a passthrough: the role string goes straight to Clerk and
+ * straight back out as capabilities, so accepting an arbitrary one would let a
+ * caller invent a role Harvous has no gating for. `org:member` is the plain
+ * staff role — everyone can publish, which is what being staff means here.
+ */
+export const ASSIGNABLE_CHURCH_ROLES = [
+  ROLE_ADMIN,
+  ROLE_PASTOR,
+  ROLE_TEACHER,
+  'org:member',
+] as const;
+
+export type AssignableChurchRole = (typeof ASSIGNABLE_CHURCH_ROLES)[number];
+
+export function isAssignableChurchRole(role: string): role is AssignableChurchRole {
+  return (ASSIGNABLE_CHURCH_ROLES as readonly string[]).includes(role);
+}
+
+/**
  * Capabilities for a staff member's Clerk org role.
  *
  * Every staff member can publish — that is what being staff means here. Admin

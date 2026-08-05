@@ -165,3 +165,27 @@ export async function resolveViewerServiceNotes(
   }
   return map;
 }
+
+/**
+ * Distinct series this church has used, most recently dated first.
+ *
+ * Order is the whole point. The editor's series picker exists so a pastor
+ * adding week 4 reuses "Life in the Spirit" instead of retyping it slightly
+ * differently and splitting the series in two — and the series they want is
+ * almost always the current one. This used to inherit the services query's
+ * `serviceDate ASC`, which put the church's oldest series first and buried the
+ * current one at the bottom of the list.
+ *
+ * Takes the ascending-by-date rows the plan endpoint already has, so it stays a
+ * pure transform rather than a second query.
+ */
+export function deriveSeriesTitles(
+  servicesByDateAsc: { seriesTitle: string | null }[],
+): string[] {
+  const seen = new Set<string>();
+  for (let i = servicesByDateAsc.length - 1; i >= 0; i--) {
+    const title = servicesByDateAsc[i]?.seriesTitle?.trim();
+    if (title) seen.add(title);
+  }
+  return [...seen];
+}

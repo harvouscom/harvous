@@ -7,6 +7,13 @@ import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id
 export type SetCurrentSpaceThreadInput = {
   spaceId: string;
   threadId: string;
+  /**
+   * False clears the space's current Thread without touching the Thread, which
+   * drops back into the plain Threads list. The endpoint has always accepted
+   * this; only `true` was ever sent, which made setting a current Thread a
+   * one-way door.
+   */
+  isPinned?: boolean;
 };
 
 export function buildSetCurrentSpaceThreadRequest(input: SetCurrentSpaceThreadInput) {
@@ -16,7 +23,7 @@ export function buildSetCurrentSpaceThreadRequest(input: SetCurrentSpaceThreadIn
     body: {
       itemId: input.threadId,
       itemType: 'thread' as const,
-      isPinned: true,
+      isPinned: input.isPinned ?? true,
     },
   };
 }

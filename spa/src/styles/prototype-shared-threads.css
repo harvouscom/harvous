@@ -234,3 +234,48 @@
     background: var(--pds-bg-accent-button);
   }
 }
+
+/*
+  Non-current Thread cards carry two actions — open, and "Set current" — so the
+  card itself can't be the button (a button cannot contain a button). The title
+  becomes the open target instead and has to shed all button chrome to keep
+  reading as the card's title.
+*/
+.proto-shared-thread-card__open {
+  min-width: 0;
+  flex: 1 1 auto;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  /* The card's own title colour, not the blanket button colour. */
+  color: var(--pds-text-primary);
+}
+
+/* Never the browser's default link underline — this is a card title, not a
+   link. The card tints under the cursor instead, so the whole row reads as the
+   target rather than just the glyphs of the word. */
+.proto-shared-thread-card__open {
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  .proto-home-card:has(.proto-shared-thread-card__open:hover) {
+    background: var(--pds-bg-control);
+  }
+}
+
+.proto-shared-thread-card__open:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* The shared chip bar carries sidebar-list margins; under the section eyebrow
+   it only needs a little air above the cards. */
+.proto-shared-thread-tabs {
+  margin: 0 0 8px;
+}

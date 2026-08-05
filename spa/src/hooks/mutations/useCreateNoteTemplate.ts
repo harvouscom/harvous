@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import {
+  invalidateChurchStarterConsumers,
   invalidateNoteTemplatesQueries,
   syncStoredNoteTemplateInCaches,
   type StoredNoteTemplate,
@@ -14,6 +15,8 @@ export interface CreateNoteTemplateBody {
   content: string;
   noteType?: string | null;
   spaceId?: string | null;
+  /** Church starter scope. Mutually exclusive with `spaceId` (server rejects both). */
+  orgId?: string | null;
   /** Thread accent for the list icon tile. */
   iconColor?: string | null;
 }
@@ -36,10 +39,12 @@ export function useCreateNoteTemplate() {
         noteType: body.noteType ?? null,
         iconColor: body.iconColor ?? null,
         ...(body.spaceId ? { spaceId: body.spaceId } : {}),
+        ...(body.orgId ? { orgId: body.orgId } : {}),
       }),
     onSuccess: (data) => {
       syncStoredNoteTemplateInCaches(queryClient, data.template);
       void invalidateNoteTemplatesQueries(queryClient);
+      if (data.template.orgId) void invalidateChurchStarterConsumers(queryClient);
     },
   });
 }

@@ -152,6 +152,14 @@ export interface NoteDetail {
   startedFromTemplateId?: string | null;
   /** Display name snapshot for template provenance. */
   startedFromTemplateName?: string | null;
+  /**
+   * Church teaching-plan service this note was started from. Present only on
+   * the author's own note — it is what makes the editor show the church
+   * letterhead above the paper.
+   */
+  startedFromServiceId?: string | null;
+  /** Title snapshot, so provenance survives the church editing the plan. */
+  startedFromServiceTitle?: string | null;
   primaryCollection?: string | null;
   secondaryCollections?: string[];
   collectionPinned?: boolean;
@@ -517,6 +525,13 @@ export function seedNoteFromCreateResponse(
     simpleNoteId: typeof created.simpleNoteId === 'number' ? created.simpleNoteId : undefined,
     primaryCollection: typeof created.primaryCollection === 'string' ? created.primaryCollection : null,
     secondaryCollections: secondary,
+    // Carry the folder *intent*, not just the folder. Without these the editor
+    // mounts from this seed believing the placement was auto-assigned, and the
+    // first keystroke lets auto-folder overwrite a folder the caller chose on
+    // purpose — visible only in the create→edit window, since a later details
+    // fetch restores the truth.
+    collectionPinned: created.collectionPinned === true,
+    collectionUserOverride: created.collectionUserOverride === true,
     resourceTitle: typeof created.resourceTitle === 'string' ? created.resourceTitle : null,
     version: typeof created.version === 'string' ? created.version : undefined,
   };

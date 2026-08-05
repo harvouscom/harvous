@@ -37,7 +37,9 @@ vi.mock('../db', () => ({
   asc: vi.fn(),
 }));
 
-const { assertCanManageTeachingPlan } = await import('../church-teaching-plan');
+const { assertCanManageTeachingPlan, deriveSeriesTitles } = await import(
+  '../church-teaching-plan',
+);
 
 const CHURCH = { id: 'chur_1', orgId: 'org_1', name: 'New Hope', isActive: true };
 const USER = 'user_pastor';
@@ -146,5 +148,39 @@ describe('privacy: the church never learns who took notes', () => {
     const code = planCode();
     expect(code).not.toMatch(/\bcount\(/);
     expect(code).not.toMatch(/\bgroupBy\b/);
+  });
+});
+
+describe('deriveSeriesTitles', () => {
+  /** Rows arrive from the plan query in `serviceDate ASC` order. */
+  const svc = (seriesTitle: string | null) => ({ seriesTitle });
+
+  it('returns the most recently dated series first', () => {
+    // The bug this replaced: reusing the ascending query order put the
+    // church's oldest series at the top of the editor's picker, so the one a
+    // pastor is adding a week to sat at the bottom.
+    expect(deriveSeriesTitles([svc('Advent 2024'), svc('Romans'), svc('Life in the Spirit')])).toEqual([
+      'Life in the Spirit',
+      'Romans',
+      'Advent 2024',
+    ]);
+  });
+
+  it('de-duplicates a multi-week series down to one entry, at its latest use', () => {
+    const rows = [svc('Romans'), svc('Advent'), svc('Romans'), svc('Romans')];
+    expect(deriveSeriesTitles(rows)).toEqual(['Romans', 'Advent']);
+  });
+
+  it('drops services with no series, including whitespace-only ones', () => {
+    expect(deriveSeriesTitles([svc(null), svc('   '), svc('Romans')])).toEqual(['Romans']);
+  });
+
+  it('trims, so " Romans " and "Romans" are one series', () => {
+    expect(deriveSeriesTitles([svc('Romans'), svc(' Romans ')])).toEqual(['Romans']);
+  });
+
+  it('is empty for a plan with no series at all', () => {
+    expect(deriveSeriesTitles([])).toEqual([]);
+    expect(deriveSeriesTitles([svc(null), svc(null)])).toEqual([]);
   });
 });

@@ -19,6 +19,7 @@ import { useCallback, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import Icon from '@/components/react/Icon';
+import { useSwitchToSpace } from '../../hooks/useSwitchToSpace';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import {
   alertCreateNoteFailure,
@@ -30,12 +31,13 @@ import {
   buildStarterContent,
   currentServiceFor,
   serviceEyebrow,
+  starterFolderForService,
   starterNoteTitle,
   type ChurchService,
 } from '../../lib/church-services';
+import { markPendingNoteFocus } from '../../lib/pending-note-focus';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { noteParamSlug } from './proto-route-slugs';
-import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 
 type Props = {
   homeSpaceId: string | null;
@@ -48,8 +50,14 @@ function isOfflineQueuedCreate(res: unknown): boolean {
   );
 }
 
+/** Space ids round-trip with a `space_` prefix; nav ids may arrive without it. */
+function normalizeChannelSpaceId(id: string): string {
+  return id.startsWith('space_') ? id : `space_${id}`;
+}
+
 export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
   const navigate = useNavigate();
+  const switchToSpace = useSwitchToSpace();
   const createNote = useCreateSimpleNote();
   const { isMobileSidebar, closeDrawer } = useProtoShell();
   const { data } = useChurchServices();
@@ -80,6 +88,13 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
       }
       if (!homeSpaceId || createNote.isPending) return;
 
+      // Series → folder, so eight weeks of one study land together instead of
+      // scattering across whatever each week's text happened to be about.
+      // Set at create time on purpose: the create route takes folder fields
+      // precisely so a caller doesn't follow a create with a second write,
+      // which is what used to make a fresh note 409 its own first autosave.
+      const folder = starterFolderForService(svc);
+
       createNote.mutate(
         {
           spaceId: homeSpaceId,
@@ -88,6 +103,14 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
           noteType: 'default',
           startedFromServiceId: svc.id,
           startedFromServiceTitle: svc.title,
+          ...(folder
+            ? {
+                primaryCollection: folder,
+                // "Chosen, not guessed" — whoever planned the series named this
+                // grouping. Also what stops the auto-folder pass overwriting it.
+                collectionUserOverride: true,
+              }
+            : {}),
           ...(svc.starter
             ? {
                 startedFromTemplateId: svc.starter.templateId,
@@ -101,7 +124,12 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
             // is queued. Don't navigate to an id the router can't resolve.
             if (isOfflineQueuedCreate(res)) return;
             const nid = getNoteIdFromCreateResponse(res);
-            if (nid) openNote(nid);
+            if (nid) {
+              // The editor mounts after this navigation, so it can't be focused
+              // from here — leave a one-shot, id-keyed flag it picks up itself.
+              markPendingNoteFocus(nid);
+              openNote(nid);
+            }
           },
           onError: (err) => alertCreateNoteFailure(err),
         },
@@ -117,43 +145,60 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
 
   return (
     <div className="proto-home-section">
-      <p className="proto-caption proto-home-section__eyebrow">{eyebrow}</p>
       {/*
-        A div, not a tappable card: the action below is a real <button>, and
-        nesting one inside another is invalid and unreachable by keyboard.
+        Same anatomy as the continue/revisit cards: the eyebrow lives *inside*
+        the card, so this reads as one contained object rather than a floating
+        label above a row.
+
+        Deliberately no coloured space tile. Tinting it by the companion
+        ministry channel implied the sermon came *from* that channel — it
+        doesn't. The channel is an optional companion staff may attach, and most
+        services have none. A plain glyph says "church" without claiming a source.
       */}
-      <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-this-sunday">
+      <button
+        type="button"
+        className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable proto-this-sunday"
+        aria-label={hasNote ? 'Open my note on this service' : 'New note on this service'}
+        disabled={createNote.isPending || (!homeSpaceId && !hasNote)}
+        onClick={() => takeNotes(service)}
+      >
+        <p className="proto-caption proto-home-card__eyebrow">{eyebrow}&rsquo;s sermon</p>
         <div className="proto-home-card__body">
           <div className="proto-home-card__title-row">
             <span className="proto-home-card__icon-orb" aria-hidden>
-              <ProtoSpaceMenuIcon color="paper" size={28} radius={8} iconName="church" />
+              <Icon name="church" size={13} />
             </span>
-            <div className="proto-church-hub__row-text">
-              <p className="pds-list-title proto-home-card__title">{service.title}</p>
-              {service.seriesTitle ? (
-                <p className="proto-caption proto-church-hub__row-meta">{service.seriesTitle}</p>
-              ) : null}
-            </div>
-            {/*
-              Sits in the row's empty right-hand space, so a real labelled
-              button costs no extra height.
-            */}
-            <button
-              type="button"
-              className="proto-glass-surface proto-glass-surface--control proto-glass-action"
-              /* Carries the name when the label span is hidden on narrow sidebars. */
-              aria-label={hasNote ? 'Open my note on this service' : 'New note on this service'}
-              disabled={createNote.isPending || (!homeSpaceId && !hasNote)}
-              onClick={() => takeNotes(service)}
-            >
-              <Icon name={hasNote ? 'arrow-right' : 'plus'} size={12} aria-hidden />
-              <span className="proto-glass-action__label">
-                {hasNote ? 'Open note' : 'New note'}
-              </span>
-            </button>
+            <p className="pds-list-title proto-home-card__title">{service.title}</p>
+            <span className="proto-home-card__chevron" aria-hidden>
+              <Icon name="caret-right" size={11} />
+            </span>
           </div>
+          {service.seriesTitle ? (
+            <div className="proto-home-card__meta">
+              <span className="proto-home-card__meta-item">{service.seriesTitle}</span>
+            </div>
+          ) : null}
         </div>
-      </div>
+      </button>
+
+      {/*
+        Sibling, not a child: the card above is a single <button> and a button
+        cannot contain a button. Shown whenever staff attached a channel — study
+        material is prep before Sunday as much as follow-up after, so it doesn't
+        wait for a note to exist. "Study material", never "from": the sermon does
+        not come from the channel.
+      */}
+      {service.channel ? (
+        <button
+          type="button"
+          className="proto-this-sunday__companion"
+          onClick={() => switchToSpace(normalizeChannelSpaceId(service.channel!.id))}
+        >
+          <span className="proto-this-sunday__companion-label">Study material</span>
+          <Icon name="caret-right" size={10} aria-hidden />
+          <span className="proto-this-sunday__companion-name">{service.channel.title}</span>
+        </button>
+      ) : null}
     </div>
   );
 }

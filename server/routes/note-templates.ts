@@ -30,6 +30,11 @@ import {
 } from '@/data/note-templates';
 import { isNoteTemplateIconColor } from '@/utils/note-template-icon';
 import { isChurchStaffForOrg, getActiveChurchByOrgId } from '../utils/church-staff';
+import {
+  churchIsSponsored,
+  CHURCH_LAPSED_CODE,
+  CHURCH_LAPSED_ERROR,
+} from '../utils/church-entitlement';
 import { fetchClerkOrgMemberships } from '../utils/clerk-org';
 import { capabilitiesForChurchRole } from '../utils/church-role-capabilities';
 
@@ -47,26 +52,61 @@ async function connectedOrgIdFor(userId: string): Promise<string | null> {
   return row?.connectedOrgId ?? null;
 }
 
+type OrgTemplateGateResult =
+  | { ok: true }
+  | { ok: false; status: 402 | 403 | 404; code: string; error: string };
+
 /**
- * Whether this user may write org-scoped templates for `orgId`.
+ * May this user write org-scoped templates for `orgId`?
  *
- * Two gates, matching the role-gating principle: staff membership, then the
- * `manage_templates` capability derived server-side from their Clerk org role.
- * A plain staff member publishes curriculum; provisioning the church's starters
- * is a pastor/teacher/admin act.
+ * Same order as `assertCanManageTeachingPlan` and for the same reason: staff
+ * membership is proven first, so only a real staff member ever learns the
+ * church's billing state. Then sponsorship, because provisioning a starter is a
+ * write — reading and *using* church starters is never gated, so a lapsed
+ * church's congregation keeps the sermon template it already has. Capability
+ * last: a plain staff member publishes curriculum, but provisioning what the
+ * whole church writes from is a pastor/teacher/admin act.
  */
-async function canManageOrgTemplates(userId: string, orgId: string): Promise<boolean> {
+async function assertCanManageOrgTemplates(
+  userId: string,
+  orgId: string,
+): Promise<OrgTemplateGateResult> {
   const church = await getActiveChurchByOrgId(orgId);
-  if (!church) return false;
-  if (!(await isChurchStaffForOrg(userId, orgId))) return false;
+  if (!church) {
+    return { ok: false, status: 404, code: 'CHURCH_NOT_FOUND', error: 'Church not found' };
+  }
+  if (!(await isChurchStaffForOrg(userId, orgId))) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'CHURCH_TEMPLATE_FORBIDDEN',
+      error: 'Only church staff can manage church templates',
+    };
+  }
+  if (!churchIsSponsored(church)) {
+    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
+  }
   try {
     const roster = await fetchClerkOrgMemberships(orgId);
     const role = roster.find((member) => member.userId === userId)?.role ?? null;
-    return capabilitiesForChurchRole(role).includes('manage_templates');
+    if (!capabilitiesForChurchRole(role).includes('manage_templates')) {
+      return {
+        ok: false,
+        status: 403,
+        code: 'CHURCH_TEMPLATE_FORBIDDEN',
+        error: 'Your role does not include church starters',
+      };
+    }
+    return { ok: true };
   } catch {
     // Fail closed on provisioning: a Clerk outage must not let a plain staff
     // member write a church-wide template.
-    return false;
+    return {
+      ok: false,
+      status: 403,
+      code: 'CHURCH_TEMPLATE_FORBIDDEN',
+      error: 'Could not confirm your role. Try again in a moment.',
+    };
   }
 }
 
@@ -210,11 +250,9 @@ app.post('/api/note-templates/create', requireAuth, rateLimit('write'), async (c
       );
     }
 
-    if (orgId && !(await canManageOrgTemplates(auth.userId, orgId))) {
-      return c.json(
-        { error: 'Only church staff can create church templates', code: 'CHURCH_TEMPLATE_FORBIDDEN' },
-        403,
-      );
+    if (orgId) {
+      const gate = await assertCanManageOrgTemplates(auth.userId, orgId);
+      if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
     }
 
     if (spaceId) {
@@ -284,20 +322,14 @@ app.post('/api/note-templates/create', requireAuth, rateLimit('write'), async (c
 async function assertCanManageTemplate(
   row: StoredTemplateRow,
   userId: string,
-): Promise<{ ok: true } | { ok: false; status: 403 | 404; error: string; code: string }> {
+): Promise<{ ok: true } | { ok: false; status: 402 | 403 | 404; error: string; code: string }> {
   // Org templates belong to the church, not their author: any staff member with
   // `manage_templates` may edit them, and the original author loses that right
   // when they leave. Checked before the userId fallback below, which would
   // otherwise hand a departed author permanent control of a church starter.
   if (row.orgId) {
-    if (!(await canManageOrgTemplates(userId, row.orgId))) {
-      return {
-        ok: false,
-        status: 403,
-        error: 'Only church staff can manage church templates',
-        code: 'CHURCH_TEMPLATE_FORBIDDEN',
-      };
-    }
+    const gate = await assertCanManageOrgTemplates(userId, row.orgId);
+    if (!gate.ok) return { ok: false, status: gate.status, error: gate.error, code: gate.code };
     return { ok: true };
   }
   if (row.spaceId) {
@@ -367,6 +399,14 @@ app.post('/api/note-templates/update', requireAuth, rateLimit('write'), async (c
     if ('spaceId' in body) {
       nextSpaceId =
         typeof body.spaceId === 'string' && body.spaceId.trim() ? body.spaceId.trim() : null;
+      // Create rejects org+space together; update has to as well, or a church
+      // starter can be quietly re-scoped into a space and end up in both lists.
+      if (nextSpaceId && existing.orgId) {
+        return c.json(
+          { error: 'A template is scoped to a space or an org, not both', code: 'INVALID_SCOPE' },
+          400,
+        );
+      }
       if (nextSpaceId && nextSpaceId !== existing.spaceId) {
         let access;
         try {

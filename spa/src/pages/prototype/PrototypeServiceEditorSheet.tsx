@@ -6,11 +6,20 @@
  * own endpoint, its own partial-failure story, and a second set of validation
  * rules for rows that exist but have nothing in them yet.
  *
- * The series field is free text with a datalist of what this church has already
- * used, so weeks group by equality without a series object and without a typo
- * silently splitting "Life in the Spirit" into two series.
+ * The series field is free text, so weeks group by equality without a series
+ * object — which makes a typo silently splitting "Life in the Spirit" into two
+ * series the failure mode to design against. Reusing an existing name therefore
+ * has to be easier than retyping it, at any library size.
+ *
+ * It is a filtering combobox, not a `<datalist>` and not a chip row. A datalist
+ * is unsupported on iOS Safari, so the guard was absent on the platform where
+ * typing is hardest; a chip row shows every series at once, which is fine for
+ * three and unusable for three years' worth. Typing filters, the list scrolls,
+ * and the server hands them back most-recently-used first — the series you are
+ * adding a week to is nearly always the current one.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
@@ -20,7 +29,11 @@ import {
   useChurchServiceActions,
   type TeachingPlanService,
 } from '../../hooks/queries/useChurchTeachingPlan';
-import { formatLocalDateInput } from '../../lib/proto-date-picker';
+import { formatLocalDateInput, parseLocalDateInput } from '../../lib/proto-date-picker';
+import { useNotesByReference } from '../../hooks/queries/useNotesByReference';
+import { checkScriptureReferenceValidity, normalizeScriptureReference } from '@/utils/scripture-detector';
+import { prototypeNoteRouteTo } from '@/lib/prototype-path';
+import { noteParamSlug } from './proto-route-slugs';
 import ProtoDatePicker from './ProtoDatePicker';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
@@ -35,6 +48,12 @@ export interface PrototypeServiceEditorSheetProps {
   /** Null = creating a new service. */
   service: TeachingPlanService | null;
   seriesTitles: string[];
+  /** The church's ministry channels, for the companion-channel picker. */
+  channels?: { id: string; title: string; color: string | null }[];
+  /** Server's `manage_templates` verdict — gates the empty-state nudge only. */
+  canManageChurchTemplates?: boolean;
+  /** Opens the Church starters pane; the sheet closes itself first. */
+  onOpenStarters?: () => void;
   onOpenChange: (open: boolean) => void;
 }
 
@@ -51,24 +70,40 @@ function nextSunday(): string {
   return formatLocalDateInput(d);
 }
 
+/** "Sun, Aug 9" — enough to confirm the date without opening the calendar. */
+function formatServiceDate(iso: string): string {
+  const d = parseLocalDateInput(iso);
+  if (!d) return 'Pick a date';
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
 export default function PrototypeServiceEditorSheet({
   open,
   orgId,
   service,
   seriesTitles,
+  channels = [],
+  canManageChurchTemplates = false,
+  onOpenStarters,
   onOpenChange,
 }: PrototypeServiceEditorSheetProps) {
   const { isMobileSidebar } = useProtoShell();
+  const navigate = useNavigate();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const actions = useChurchServiceActions(orgId);
   const { data: templates } = useNoteTemplates();
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const datePickerRef = useRef<HTMLDivElement | null>(null);
 
   const [serviceDate, setServiceDate] = useState(nextSunday);
   const [title, setTitle] = useState('');
   const [seriesTitle, setSeriesTitle] = useState('');
   const [reference, setReference] = useState('');
   const [starterTemplateId, setStarterTemplateId] = useState('');
+  const [channelSpaceId, setChannelSpaceId] = useState('');
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [seriesListOpen, setSeriesListOpen] = useState(false);
+  const [debouncedReference, setDebouncedReference] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   // Reset from the row being edited each time the sheet opens, so a cancelled
@@ -76,12 +111,69 @@ export default function PrototypeServiceEditorSheet({
   useEffect(() => {
     if (!open) return;
     setError(null);
+    setDatePickerOpen(false);
+    setSeriesListOpen(false);
     setServiceDate(service?.serviceDate ?? nextSunday());
     setTitle(service?.title ?? '');
     setSeriesTitle(service?.seriesTitle ?? '');
     setReference(service?.reference ?? '');
     setStarterTemplateId(service?.starterTemplateId ?? '');
+    setChannelSpaceId(service?.channelSpaceId ?? '');
   }, [open, service]);
+
+  // The calendar is taller than the body it opens into, so opening it would
+  // otherwise leave most of it below the fold.
+  useEffect(() => {
+    if (!datePickerOpen) return;
+    const raf = requestAnimationFrame(() => {
+      datePickerRef.current?.scrollIntoView({ block: 'nearest' });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [datePickerOpen]);
+
+  /*
+    Passage history is prep, never a gate on saving. Debounced so a half-typed
+    reference doesn't fire a query per keystroke, and validated client-side
+    first so the endpoint only ever sees something it can parse.
+  */
+  useEffect(() => {
+    const raw = reference.trim();
+    if (!raw) {
+      setDebouncedReference('');
+      return;
+    }
+    const id = window.setTimeout(() => setDebouncedReference(raw), 400);
+    return () => window.clearTimeout(id);
+  }, [reference]);
+
+  const historyReference = useMemo(() => {
+    if (!debouncedReference) return null;
+    const normalized = normalizeScriptureReference(debouncedReference);
+    if (!normalized) return null;
+    return checkScriptureReferenceValidity(normalized).ok ? normalized : null;
+  }, [debouncedReference]);
+
+  const { data: passageHistory } = useNotesByReference(historyReference);
+  const historyNotes = passageHistory?.notes ?? [];
+
+  /**
+   * Server order is most-recently-used first, so an unfiltered list already
+   * leads with the current series. Typing narrows by substring rather than
+   * prefix — "spirit" should find "Life in the Spirit".
+   */
+  const seriesMatches = useMemo(() => {
+    const q = seriesTitle.trim().toLowerCase();
+    if (!q) return seriesTitles;
+    return seriesTitles.filter((title) => title.toLowerCase().includes(q));
+  }, [seriesTitles, seriesTitle]);
+
+  /** Exactly one match that *is* what you typed means there is nothing to pick. */
+  const seriesIsExisting = seriesTitles.some(
+    (title) => title.toLowerCase() === seriesTitle.trim().toLowerCase(),
+  );
+  const showSeriesList = seriesListOpen && seriesMatches.length > 0 && !seriesIsExisting;
+  /** Answers "am I joining a series or starting one?" while you type. */
+  const startsNewSeries = seriesTitle.trim().length > 0 && !seriesIsExisting;
 
   const orgTemplates = templates?.org ?? [];
   const isEditing = Boolean(service);
@@ -96,6 +188,7 @@ export default function PrototypeServiceEditorSheet({
       seriesTitle: seriesTitle.trim() || null,
       reference: reference.trim() || null,
       starterTemplateId: starterTemplateId || null,
+      channelSpaceId: channelSpaceId || null,
     };
     actions.mutate(
       isEditing ? { kind: 'update', serviceId: service!.id, ...payload } : { kind: 'create', ...payload },
@@ -157,7 +250,7 @@ export default function PrototypeServiceEditorSheet({
     <>
       <div className="proto-study-thread-popover__header">
         <div className="proto-study-thread-popover__title-row">
-          <Icon name="calendar" size={13} aria-hidden />
+          <Icon name="calendar-check" size={13} aria-hidden />
           <span className="proto-study-thread-popover__title">
             {isEditing ? 'Edit service' : 'Add a service'}
           </span>
@@ -174,15 +267,39 @@ export default function PrototypeServiceEditorSheet({
       </div>
 
       <div className="proto-service-editor">
+        {/*
+          The calendar used to be open permanently: 394px of a 520px modal for
+          the one field that already has a sensible default (the coming Sunday),
+          which pushed the title, the passage and the save button off screen. It
+          opens on demand now, and closes as soon as a date is chosen.
+        */}
         <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
           Date
         </label>
-        <ProtoDatePicker
-          value={serviceDate}
-          min={earliestSelectableDate()}
-          onChange={setServiceDate}
-          aria-label="Service date"
-        />
+        <button
+          type="button"
+          className="proto-service-editor__date-chip"
+          aria-expanded={datePickerOpen}
+          onClick={() => setDatePickerOpen((open) => !open)}
+        >
+          <Icon name="calendar" size={12} aria-hidden />
+          <span className="proto-service-editor__date-value">{formatServiceDate(serviceDate)}</span>
+          <Icon name={datePickerOpen ? 'caret-up' : 'caret-down'} size={10} aria-hidden />
+        </button>
+        {datePickerOpen ? (
+          <div ref={datePickerRef}>
+            <ProtoDatePicker
+              value={serviceDate}
+              min={earliestSelectableDate()}
+              onChange={(iso) => {
+                setServiceDate(iso);
+                // Picking a date is the whole reason it was open.
+                setDatePickerOpen(false);
+              }}
+              aria-label="Service date"
+            />
+          </div>
+        ) : null}
 
         <label
           className="proto-inspector-section-title proto-create-folder-sheet__field-label"
@@ -195,7 +312,7 @@ export default function PrototypeServiceEditorSheet({
           type="text"
           className="proto-create-folder-sheet__name-input"
           value={title}
-          placeholder="e.g. No Condemnation"
+          placeholder="Sermon title"
           onChange={(e) => {
             setTitle(e.target.value);
             setError(null);
@@ -206,40 +323,158 @@ export default function PrototypeServiceEditorSheet({
           className="proto-inspector-section-title proto-create-folder-sheet__field-label"
           htmlFor="proto-service-reference"
         >
-          Passage
+          <span>Passage</span>
+          <span className="proto-service-editor__optional">optional</span>
         </label>
         <input
           id="proto-service-reference"
           type="text"
           className="proto-create-folder-sheet__name-input"
           value={reference}
-          placeholder="e.g. Romans 8:1-11 — optional"
+          placeholder="Book chapter:verse"
           onChange={(e) => {
             setReference(e.target.value);
             setError(null);
           }}
         />
 
+        {/*
+          The pastor's own notes on this passage — their history, never the
+          congregation's. Silent while loading, on error, and with no matches:
+          an empty result here is the normal case and deserves no chrome.
+        */}
+        {historyNotes.length > 0 ? (
+          <div className="proto-service-editor__history">
+            <p className="proto-caption proto-service-editor__history-head">
+              {passageHistory!.totalCount === 1
+                ? `You've written on ${passageHistory!.reference} once`
+                : `You've written on ${passageHistory!.reference} ${passageHistory!.totalCount} times`}
+            </p>
+            {historyNotes.map((note) => (
+              <button
+                key={note.id}
+                type="button"
+                className="proto-service-editor__history-row"
+                onClick={() => {
+                  onOpenChange(false);
+                  void navigate({
+                    to: prototypeNoteRouteTo(),
+                    params: { noteId: noteParamSlug(note.id) },
+                  });
+                }}
+              >
+                {note.title?.trim() || 'Untitled note'}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         <label
           className="proto-inspector-section-title proto-create-folder-sheet__field-label"
           htmlFor="proto-service-series"
         >
-          Series
+          <span>Series</span>
+          <span className="proto-service-editor__optional">optional</span>
         </label>
-        <input
-          id="proto-service-series"
-          type="text"
-          className="proto-create-folder-sheet__name-input"
-          list="proto-service-series-options"
-          value={seriesTitle}
-          placeholder="e.g. Life in the Spirit — optional"
-          onChange={(e) => setSeriesTitle(e.target.value)}
-        />
-        <datalist id="proto-service-series-options">
-          {seriesTitles.map((option) => (
-            <option key={option} value={option} />
-          ))}
-        </datalist>
+        <div
+          className="proto-service-editor__combobox"
+          // Closes when focus leaves the input *and* the list together, so
+          // clicking an option doesn't race the blur that would unmount it.
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+              setSeriesListOpen(false);
+            }
+          }}
+        >
+          <input
+            id="proto-service-series"
+            type="text"
+            className="proto-create-folder-sheet__name-input"
+            role="combobox"
+            aria-expanded={showSeriesList}
+            aria-controls="proto-service-series-list"
+            aria-autocomplete="list"
+            autoComplete="off"
+            value={seriesTitle}
+            placeholder="Series name"
+            onFocus={() => setSeriesListOpen(true)}
+            onChange={(e) => {
+              setSeriesTitle(e.target.value);
+              setSeriesListOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && showSeriesList) {
+                // Dismiss the list without closing the whole sheet.
+                e.stopPropagation();
+                setSeriesListOpen(false);
+              }
+            }}
+          />
+          {showSeriesList ? (
+            <ul
+              id="proto-service-series-list"
+              className="proto-service-editor__series-list"
+              role="listbox"
+              aria-label="Series this church has used"
+            >
+              {seriesMatches.map((option) => (
+                <li key={option}>
+                  {/*
+                    A real button, in source order after the input — Tab reaches
+                    every option without a roving-tabindex implementation.
+                  */}
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={false}
+                    className="proto-service-editor__series-option"
+                    onClick={() => {
+                      setSeriesTitle(option);
+                      setSeriesListOpen(false);
+                    }}
+                  >
+                    {option}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {startsNewSeries && !showSeriesList ? (
+            <p className="proto-caption proto-service-editor__series-hint">
+              Starts a new series
+            </p>
+          ) : null}
+        </div>
+
+        {/*
+          A church with no starters used to see nothing here at all, which made
+          the feature invisible to exactly the person who could create one. Tell
+          them it exists and where it lives; congregants still see nothing.
+        */}
+        {orgTemplates.length === 0 && canManageChurchTemplates && onOpenStarters ? (
+          <>
+            <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+              Notes start from
+            </label>
+            <p className="proto-caption proto-service-editor__starter-hint">
+              Just the passage. Save a template to give everyone a shape to write into.
+            </p>
+            {/* The app's secondary action pill — same control as Add service and
+                New space. Noticeable without competing with Save, which is the
+                only blue thing in this sheet. */}
+            <button
+              type="button"
+              className="proto-glass-surface proto-glass-surface--control proto-glass-action proto-service-editor__starter-action"
+              onClick={() => {
+                onOpenChange(false);
+                onOpenStarters();
+              }}
+            >
+              <Icon name="list-check" size={12} aria-hidden />
+              <span className="proto-glass-action__label">Note templates</span>
+            </button>
+          </>
+        ) : null}
 
         {orgTemplates.length > 0 ? (
           <>
@@ -264,6 +499,37 @@ export default function PrototypeServiceEditorSheet({
             </select>
           </>
         ) : null}
+
+        {/*
+          Optional pointer from a service to the channel carrying its study
+          material. Deliberately not a claim that the sermon *comes from* the
+          channel — the congregant surface says "Study material", and the card
+          is never tinted by the channel's color.
+        */}
+        {channels.length > 0 ? (
+          <>
+            <label
+              className="proto-inspector-section-title proto-create-folder-sheet__field-label"
+              htmlFor="proto-service-channel"
+            >
+              <span>Companion channel</span>
+              <span className="proto-service-editor__optional">optional</span>
+            </label>
+            <select
+              id="proto-service-channel"
+              className="proto-create-folder-sheet__name-input"
+              value={channelSpaceId}
+              onChange={(e) => setChannelSpaceId(e.target.value)}
+            >
+              <option value="">None</option>
+              {channels.map((channel) => (
+                <option key={channel.id} value={channel.id}>
+                  {channel.title}
+                </option>
+              ))}
+            </select>
+          </>
+        ) : null}
       </div>
 
       {error ? (
@@ -272,17 +538,12 @@ export default function PrototypeServiceEditorSheet({
         </p>
       ) : null}
 
-      <div className="proto-add-notes-sheet__footer">
-        {isEditing ? (
-          <button
-            type="button"
-            className="proto-settings-btn proto-settings-btn--secondary"
-            disabled={actions.isPending}
-            onClick={remove}
-          >
-            Remove
-          </button>
-        ) : null}
+      {/*
+        Save first, in the DOM as well as visually. Removing used to be a
+        full-width filled button *above* Save: more weight than the primary
+        action, and sitting directly on the path to it.
+      */}
+      <div className="proto-add-notes-sheet__footer proto-sheet-footer--stacked">
         <button
           type="button"
           className="proto-share-popover__primary"
@@ -291,6 +552,20 @@ export default function PrototypeServiceEditorSheet({
         >
           {actions.isPending ? 'Saving…' : isEditing ? 'Save' : 'Add to plan'}
         </button>
+        {isEditing ? (
+          // "Remove" alone never said from what — and the answer matters here,
+          // because it isn't the congregation's notes. Those survive; the
+          // confirm says so, but the button shouldn't need the confirm to be
+          // legible.
+          <button
+            type="button"
+            className="proto-sheet-quiet-action proto-sheet-quiet-action--danger"
+            disabled={actions.isPending}
+            onClick={remove}
+          >
+            Remove from plan
+          </button>
+        ) : null}
       </div>
     </>
   );

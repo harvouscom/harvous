@@ -219,26 +219,22 @@ export default function PrototypeSharedThreadDrilldown({
     <>
     <div className="proto-sidebar-root proto-shared-thread-drilldown">
       {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
-      <div className="proto-sidebar-back-row">
-        <button
-          type="button"
-          className="proto-sidebar-back-row__button"
-          onClick={onBack}
-          aria-label={`Back to ${backLabel}`}
-        >
-          <Icon name="caret-left" size={13} className="proto-sidebar-back-row__chevron" aria-hidden />
-          <span className="proto-sidebar-back-row__label">{backLabel}</span>
-        </button>
-      </div>
-
       <div className="proto-shared-thread-drilldown__header" ref={headerRef}>
         <div className="proto-shared-thread-drilldown__identity">
-          <ProtoSpaceMenuIcon
-            color={thread.color || 'paper'}
-            size={30}
-            radius={9}
-            iconName="arrow-right-arrow-left"
-          />
+          {/*
+            Back sits in the identity slot, exactly as the church tools panes
+            do — one header row instead of a separate back row above a second
+            header. The Thread's own glyph gives way to it the same way the
+            church glyph does.
+          */}
+          <button
+            type="button"
+            className="proto-shared-space-header__church-icon proto-sidebar-back-tile"
+            onClick={onBack}
+            aria-label={`Back to ${backLabel}`}
+          >
+            <Icon name="caret-left" size={16} aria-hidden />
+          </button>
           <div className="proto-shared-thread-drilldown__meta">
             {isOwner && isEditingTitle ? (
               <input

@@ -913,6 +913,16 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   box-sizing: border-box;
 }
 
+/* Touch: 28px rows are comfortably tappable with a cursor and not with a thumb.
+   Apple HIG asks for 44px; WCAG 2.5.8's floor is 24. Raised only where the
+   pointer is coarse so the desktop menu keeps its compact density. */
+@media (pointer: coarse) {
+  .proto-menu-item {
+    min-height: 44px;
+    padding: 8px 10px;
+  }
+}
+
 .proto-menu-item span:not(.proto-menu-item__label) {
   font-weight: 400;
 }
@@ -932,9 +942,15 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   color: var(--pds-destructive) !important;
 }
 
+/* Destructive hover: neutral surface, red text.
+   These used to wash the row in an 8%-alpha red on hover, which read as a
+   faint pink smear rather than a warning. The red *text* is the signal; the
+   hover just says "this is the row under your cursor", same as every
+   non-destructive sibling. Matches `.proto-fte-row__btn--danger` and
+   `.proto-sharing-card__text-action--danger`, which never tinted. */
 .proto-menu-item--destructive:hover,
 .proto-menu-item--destructive:focus-visible {
-  background: var(--pds-destructive-bg-hover);
+  background: var(--pds-bg-subtle);
 }
 
 .proto-menu-item--destructive:hover *,
@@ -5811,17 +5827,13 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   animation: proto-home-section-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.proto-home-view--enter .proto-home-section:nth-child(1) {
-  animation-delay: 0ms;
-}
-
-.proto-home-view--enter .proto-home-section:nth-child(2) {
-  animation-delay: 80ms;
-}
-
-.proto-home-view--enter .proto-home-section:nth-child(3) {
-  animation-delay: 160ms;
-}
+/*
+  No per-section stagger. The delays were keyed on `:nth-child`, so the last
+  section landed 160ms after the first — on a short dashboard that reads as a
+  straggler arriving late rather than as a sequence, i.e. a second load. Every
+  section is ready before `--enter` goes on (the view waits for all its queries),
+  so they have no reason to arrive apart.
+*/
 
 @media (prefers-reduced-motion: reduce) {
   .proto-home-view--enter .proto-home-section {
@@ -5944,7 +5956,9 @@ button.proto-home-card--tappable:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: 5px;
-  margin-top: 8px;
+  /* Tight to what it annotates — the meta belongs to the line above it, so it
+     should read as paired with it rather than as a separate block. */
+  margin-top: 3px;
   font-family: var(--pds-font-body);
   font-size: var(--pds-list-meta-size);
   line-height: 1.35;
@@ -6670,8 +6684,10 @@ html.harvous-prototype-route .harvous-delete-confirm__icon-btn {
   color: var(--pds-text-secondary);
 }
 
+/* Was `var(--pds-bg-hover)`, which is defined nowhere — this button had no
+   hover response at all. */
 html.harvous-prototype-route .harvous-delete-confirm__icon-btn:hover:not(:disabled) {
-  background: var(--pds-bg-hover);
+  background: var(--pds-bg-subtle);
   color: var(--pds-text-primary);
 }
 
@@ -6684,7 +6700,7 @@ html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive {
 }
 
 html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive:hover:not(:disabled) {
-  background: var(--pds-destructive-bg);
+  background: var(--pds-bg-subtle);
   color: var(--pds-destructive);
 }
 
@@ -6706,7 +6722,7 @@ html.harvous-prototype-route
 }
 
 html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive:active:not(:disabled) {
-  background: var(--pds-destructive-bg-strong);
+  background: var(--pds-bg-control-hover);
 }
 
 /* ─── Appearance settings — mini shell preview carousel ──────────────────── */
@@ -8270,7 +8286,7 @@ button.proto-appearance-hero__card {
 }
 
 .proto-thread-review__dismiss--danger:not(:disabled):hover {
-  background: var(--pds-destructive-bg);
+  background: var(--pds-bg-sidebar-input-hover);
   border-color: color-mix(in oklab, var(--pds-destructive) 55%, var(--pds-border-control));
 }
 
@@ -8729,6 +8745,181 @@ button.proto-appearance-hero__card {
 }
 
 /* ── Recall carousel (Home resurfacing) ─────────────────────────────────── */
+/* ─── Card stack ─────────────────────────────────────────────────────────────
+   An overlapping deck that fans out on tap, replacing the dot-and-caret pager.
+   Tappability is fixed by having no small targets at all: collapsed, the whole
+   deck is one button; fanned, every card is a full-size one. */
+
+.proto-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* The collapsed deck. Bottom padding leaves room for the peek layers, which are
+   absolutely positioned below the top card. */
+.proto-card-stack__collapsed {
+  position: relative;
+  display: block;
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: none;
+  /* Reserve the *hovered* spread, not the resting one. The peeks grow on hover;
+     if the padding grew with them the whole page would nudge every time the
+     cursor crossed the deck. Costs a few px of quiet space at rest. */
+  padding: 0 0 calc(var(--stack-peek-step-max, 10px) * 2);
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  --stack-peek-step: 5px;
+  --stack-peek-inset: 6px;
+}
+
+/* Hover spreads the deck: layers slide down and widen toward the top card's
+   edges, showing more of what's underneath without committing to the fan.
+   Hover-only by construction — there is no hovering on touch, where the tap
+   fans it anyway. */
+@media (hover: hover) {
+  .proto-card-stack__collapsed:hover,
+  .proto-card-stack__collapsed:focus-visible {
+    --stack-peek-step: 10px;
+    --stack-peek-inset: 3px;
+  }
+}
+
+/* Edges of the cards underneath: inset at the sides and pushed down, so the
+   deck reads as depth without drawing any real content. */
+.proto-card-stack__peek {
+  position: absolute;
+  left: calc(var(--peek-depth) * var(--stack-peek-inset, 6px));
+  right: calc(var(--peek-depth) * var(--stack-peek-inset, 6px));
+  /* Measured from the reserved band below the top card: a deeper layer sits
+     lower, and a larger step pushes every layer further down. Written against
+     the reserved max so growing the step spreads the deck downward instead of
+     dragging the shallow layers up — which is what `(2 - depth) * step` did. */
+  bottom: calc(
+    var(--stack-peek-step-max, 10px) * 2 - var(--peek-depth) * var(--stack-peek-step, 5px)
+  );
+  height: calc(var(--peek-depth) * var(--stack-peek-step, 5px) + 10px);
+  border-radius: 0 0 14px 14px;
+  background: var(--pds-paper-sheet);
+  box-shadow: var(--pds-paper-shadow-subtle);
+  opacity: calc(1 - var(--peek-depth) * 0.22);
+  pointer-events: none;
+  z-index: 0;
+  /* Deeper layers trail the ones above them, so the spread cascades rather
+     than moving as one block. */
+  transition:
+    left 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    right 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    bottom 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc((var(--peek-depth) - 1) * 26ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-card-stack__peek {
+    transition: none;
+  }
+}
+
+.proto-card-stack__top {
+  position: relative;
+  display: block;
+  z-index: 1;
+}
+
+@media (hover: hover) {
+  .proto-card-stack__collapsed:hover .proto-card-stack__top {
+    transform: translateY(-1px);
+  }
+}
+
+.proto-card-stack__top {
+  transition: transform 140ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-card-stack__top {
+    transition: none;
+  }
+}
+
+.proto-card-stack__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* The fan. Each card begins where the collapsed deck sat — pulled up under the
+   one above and slightly narrowed, as if it had been underneath — then settles
+   into place one beat after its predecessor. The stagger is what makes it read
+   as a deck spreading rather than a list fading in.
+   Overshoot easing (the 1.24 in the curve) gives the settle a little weight. */
+@keyframes proto-card-stack-fan {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.proto-card-stack__list-item {
+  animation: proto-card-stack-fan 260ms cubic-bezier(0.22, 1.24, 0.36, 1) backwards;
+  animation-delay: calc(var(--fan-index, 0) * 34ms);
+}
+
+/* The first card is already where it was — no reason to make it move. */
+.proto-card-stack__list-item:first-child {
+  animation-delay: 0ms;
+  animation-duration: 200ms;
+}
+
+.proto-card-stack__toggle {
+  animation: proto-card-stack-fan 240ms ease backwards;
+  /* Lands after the cards it belongs to, so it doesn't arrive over them. */
+  animation-delay: 140ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-card-stack__list-item,
+  .proto-card-stack__toggle {
+    animation: none;
+  }
+}
+
+/* Aligned with the deck rather than centred: it belongs to the list above it. */
+.proto-card-stack__toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 6px 2px;
+  margin: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .proto-card-stack__toggle {
+    min-height: 44px;
+  }
+}
+
 .proto-recall-carousel {
   display: flex;
   flex-direction: column;
@@ -8769,53 +8960,6 @@ button.proto-appearance-hero__card {
 
 .proto-recall-card__main:focus-visible {
   outline: none;
-}
-
-.proto-recall-carousel__pager {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-
-.proto-recall-carousel__pager-btn {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  color: var(--pds-text-secondary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px;
-}
-
-.proto-recall-carousel__pager-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.proto-recall-carousel__dots {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.proto-recall-carousel__dot {
-  appearance: none;
-  border: 0;
-  cursor: pointer;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  padding: 0;
-  background: var(--pds-border-control);
-  transition: background 0.2s ease, transform 0.2s ease;
-}
-
-.proto-recall-carousel__dot--active {
-  background: var(--pds-text-secondary);
-  transform: scale(1.25);
 }
 
 .proto-recall-card .proto-home-card__meta {
@@ -9375,26 +9519,398 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
    The congregant half of the teaching plan. Sits above the daily passage pill:
    the church's Sunday is an appointment, the verse of the day is a habit. */
 
-/* Same row anatomy as the church feed cards below it — icon, title, meta,
-   trailing affordance — so Home reads as one list, not two card designs. */
-.proto-this-sunday .proto-home-card__title-row {
-  gap: 12px;
-  --proto-home-card-icon-size: 28px;
+/* No overrides: it uses the continue/revisit card anatomy as-is — inside
+   eyebrow, 13px glyph, title row, meta line. Earlier revisions carried a 28px
+   coloured space tile and its own row-text sizing; both are gone with it. */
+
+/* ─── Church service page ────────────────────────────────────────────────────
+   The surface a planned service opens into, instead of a blank note.
+
+   Structure only — the writing area is the congregant's own canonical note, and
+   the sections are template headings inside a single editor. Nothing here
+   implies per-section storage; when this is implemented the section chrome
+   wraps one editor rather than several fields. */
+
+/* Canvas surround — the paper sits inset from the column exactly like
+   proto-editor-paper does (12px x-inset, runs past the bottom). */
+.proto-service-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 10px 12px 0;
 }
 
-.proto-this-sunday .proto-home-card__icon-orb {
+/* The same sheet a note lives on: --pds-paper-sheet + the subtle paper shadow,
+   sharp corners. The service page is not a different kind of document — it is
+   a note whose paper carries the church's letterhead. */
+.proto-service-page__paper {
+  flex: 1;
+  background-color: var(--pds-paper-sheet);
+  box-shadow: var(--pds-paper-shadow-subtle);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Cover art — the series channel's identity, via the same cover system spaces
+   use. Printed at the top of the paper like a letterhead. */
+.proto-service-page__hero {
+  height: 118px;
+  overflow: hidden;
   position: relative;
-  width: 28px;
-  height: 28px;
-  opacity: 1;
+  flex-shrink: 0;
+  z-index: 0;
 }
 
-/* Keep the title column shrinkable so the action never gets pushed out —
-   the app reset sets `* { flex-shrink: 0 }`. */
-.proto-this-sunday .proto-church-hub__row-text {
+.proto-service-page__hero-eyebrow {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  z-index: 1;
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #000 32%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+/* Masthead overlaps the hero, About-letter style: icon tile pulled up halfway,
+   ringed in canvas so it reads as sitting on top of the art. */
+.proto-service-page__masthead {
+  position: relative;
+  z-index: 1;
+  margin-top: -22px;
+  padding: 0 18px 6px;
+}
+
+.proto-service-page__masthead-icon {
+  display: inline-flex;
+  border-radius: 12px;
+  /* Ringed in the paper colour — it sits on the sheet, over the art. */
+  box-shadow: 0 0 0 3px var(--pds-paper-sheet);
+  margin-bottom: 8px;
+}
+
+.proto-service-page__series {
+  margin: 0 0 2px;
+  opacity: 0.72;
+}
+
+.proto-service-page__title {
+  margin: 0 0 4px;
+  font-family: var(--pds-font-display);
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.proto-service-page__church {
+  margin: 0;
+  opacity: 0.66;
+}
+
+/* The passage, readable — the thing a blank note can never give you. A
+   full-bleed reading band, not an inset card: this is the church's page, and
+   the text gets the room a page gives it. Typography comes from
+   scripture-pill-chrome__passage-html so it matches the daily-passage sheet. */
+.proto-service-page__passage {
+  padding: 14px 18px 4px;
+}
+
+.proto-service-page__passage-html {
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+
+.proto-service-page__passage-html p {
+  margin: 0 0 8px;
+}
+
+.proto-service-page__passage-html p:last-child {
+  margin-bottom: 0;
+}
+
+.proto-service-page__passage-credit {
+  margin: 8px 0 0;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--pds-text-tertiary);
+}
+
+/* The seam where the letterhead ends and the note begins: a hairline across
+   the text column, then ordinary note content on the same paper. */
+.proto-service-page__notes {
+  margin: 12px 18px 0;
+  padding: 10px 0 22px;
+  border-top: 0.5px solid var(--pds-border-control);
+}
+
+.proto-service-page__notes-head {
+  margin-bottom: 10px;
+}
+
+/* Said once, plainly, at the top of the writing area. A church can see that it
+   published a service; it can never see this. */
+.proto-service-page__notes-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  opacity: 0.6;
+}
+
+/* No rules between sections — this is one continuous note, not a stack of
+   form fields. Heading rhythm alone separates them, the way it does in the
+   editor. */
+.proto-service-page__section + .proto-service-page__section {
+  margin-top: 4px;
+}
+
+/* The editor's own H2: display face, 1.1875rem, same margin rhythm. In the
+   real page this IS an H2 in the note, so it should be indistinguishable. */
+.proto-service-page__section-heading {
+  margin: 1.1em 0 0.35em;
+  font-family: var(--pds-font-display);
+  font-size: 1.1875rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--pds-text-primary);
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.proto-service-page__section:first-of-type .proto-service-page__section-heading {
+  margin-top: 0;
+}
+
+.proto-service-page__section-body,
+.proto-service-page__section-placeholder {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+/* Matches the editor's real placeholder treatment (tertiary, no italics, no
+   extra fade) — this text sits exactly where the caret will. It doubles as
+   the guided-studies slot: a staff-authored question lands here unchanged. */
+.proto-service-page__section-placeholder {
+  color: var(--pds-text-tertiary);
+}
+
+/* ─── Church tools (staff-only group in the hub) ─────────────────────────────
+   MY_CHURCH_SIDEBAR.md floated a staff-only footer as "Later (if needed)".
+   Promoted here: one card group holding the teaching plan, the team and plan
+   status, visually separated from the congregation-facing catalog above.
+   Previously these were bare text links interleaved with the catalog. */
+
+.proto-church-tools {
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.proto-church-tools__row {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  border-top: 0.5px solid var(--pds-border-control);
+}
+
+.proto-church-tools__row:first-child {
+  border-top: none;
+}
+
+/* ─── Team invite row ───────────────────────────────────────────────────────
+   Field and action on one line. The `proto-church-staff__*` classes this
+   replaces had no CSS at all, so the form rendered as stacked full-width
+   blocks in whatever the inherited input styling happened to be. */
+
+.proto-church-invite {
+  display: flex;
+  /* Stacked: the email address needs the full column, and a role select plus a
+     submit button beside it left it truncated at ~130px. */
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* Field column: the gap is the only spacing authority, as in the service
+   editor, so the shared field class's own top margin has to go. */
+.proto-church-invite {
+  gap: 6px;
+}
+
+.proto-church-invite .proto-create-folder-sheet__name-input {
+  margin-top: 0;
+}
+
+.proto-church-invite .proto-create-folder-sheet__field-label:not(:first-child) {
+  margin-top: 10px;
+}
+
+.proto-church-invite__submit {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.proto-church-invite__input {
+  /* The app reset sets `* { flex-shrink: 0 }` — both are required. */
   flex: 1;
   min-width: 0;
   flex-shrink: 1;
+  appearance: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  /* Pinned rather than derived: inherited input styling kept adding a few
+     pixels, so field and button drifted out of alignment on the row. */
+  box-sizing: border-box;
+  height: 28px;
+  line-height: 1;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-control);
+  color: var(--pds-text-primary);
+}
+
+.proto-church-invite__input::placeholder {
+  color: var(--pds-text-tertiary);
+}
+
+.proto-church-invite__input:disabled {
+  opacity: 0.5;
+}
+
+.proto-church-invite__note,
+.proto-church-invite__error {
+  margin: 8px 0 0;
+  line-height: 1.4;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.proto-church-invite__note {
+  opacity: 0.72;
+}
+
+.proto-church-invite__error {
+  color: var(--pds-text-danger, var(--pds-text-primary));
+}
+
+/* Lane head: the section label with its one action beside it, so a lane never
+   needs a grey button slab below its content. */
+.proto-church-tools__lane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.proto-church-tools__lane-head .proto-home-section__eyebrow {
+  margin: 0;
+}
+
+/* Date column for schedule rows (teaching plan) — sits where a tool icon
+   would, small-caps and tabular so the column reads as a calendar rail. */
+.proto-church-tools__row-date {
+  flex: 0 0 auto;
+  min-width: 44px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.proto-church-tools__row:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.proto-church-tools__row-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  opacity: 0.75;
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 5%, transparent);
+}
+
+.proto-church-tools__row-text {
+  flex: 1;
+  min-width: 0;
+  flex-shrink: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* One line each, always — a row is a row, not a paragraph. Copy that would
+   wrap gets shortened or truncated, never taller. */
+.proto-church-tools__row-title,
+.proto-church-tools__row-meta {
+  margin: 0;
+  min-width: 0;
+  flex-shrink: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proto-church-tools__row-meta {
+  opacity: 0.68;
+  line-height: 1.3;
+}
+
+.proto-church-tools__row-chevron {
+  flex: 0 0 auto;
+  opacity: 0.4;
+}
+
+/* Status is a row, not a banner. A pilot counting down is information; only a
+   lapse is an interruption, and that earns colour rather than size. */
+.proto-church-tools__row--status {
+  cursor: default;
+}
+
+/* Create action sits under its lane, aligned left with the list. */
+.proto-church-tools__add {
+  margin-top: 8px;
+}
+
+/* Empty lane: caption and action on one row instead of three stacked lines. */
+.proto-church-tools__empty-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 /* ─── Glass action pill ──────────────────────────────────────────────────────
@@ -9577,14 +10093,234 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 
 /* ─── Service editor sheet ───────────────────────────────────────────────── */
 
+/*
+  The fields used to sit flush against the card edge while the header and footer
+  were inset 14px, so the input fills bled into the rounded corners. 14px is the
+  sheet's inset unit (`.proto-create-folder-sheet__name-wrap`).
+
+  Scrolls as the body so the save button stays pinned when the calendar opens —
+  the picker alone is taller than the shell.
+*/
 .proto-service-editor {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px 14px 12px;
+}
+
+/* Collapsed date control. Reads as the current selection first and a control
+   second — the date is usually already right (the coming Sunday), so the
+   calendar behind it is the exception, not the default view. */
+.proto-service-editor__date-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+  padding: 0 12px;
+  height: 34px;
+  border-radius: 999px;
+  border: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-control);
+  color: var(--pds-text-primary);
+}
+
+@media (pointer: coarse) {
+  .proto-service-editor__date-chip {
+    height: 44px;
+  }
+}
+
+@media (hover: hover) {
+  .proto-service-editor__date-chip:hover {
+    background: var(--pds-bg-control-strong);
+  }
+}
+
+.proto-service-editor__date-value {
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+/*
+  The shared field class adds its own `margin-top: 6px`, which lands on top of
+  this column's 6px flex gap — so every input sat 12px under its label while the
+  date chip (no such margin) sat at 6px. The gap is the one spacing authority
+  here; scoped so other sheets using the class keep their own rhythm.
+*/
+.proto-service-editor .proto-create-folder-sheet__name-input {
+  margin-top: 0;
+}
+
+.proto-service-editor .proto-create-folder-sheet__field-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .proto-service-editor .proto-create-folder-sheet__field-label:not(:first-child) {
   margin-top: 10px;
+}
+
+/*
+  Optionality belongs on the label, not in the placeholder — a placeholder
+  reading "e.g. Romans 8:1-11 — optional" disappears the moment you start
+  typing, which is exactly when you'd want to know the field can be left empty.
+  Lower case and unspaced so it reads as an aside next to the tracked-out label.
+*/
+.proto-service-editor__combobox {
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+  Series the church has already used, filtered by what you type. Scrolls at a
+  fixed cap rather than growing: the whole reason this isn't a chip row is that
+  a church accumulates series indefinitely, so the control's height has to be
+  independent of the library's size. ~4.5 rows, so the cut-off row reads as
+  "keep scrolling" instead of looking like the end of the list.
+*/
+.proto-service-editor__series-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 4px;
+  max-height: 148px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--pds-radius-input, 10px);
+  border: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-control);
+}
+
+.proto-service-editor__series-option {
+  appearance: none;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--pds-text-primary);
+  /* Long series names truncate rather than widening the sheet. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (pointer: coarse) {
+  .proto-service-editor__series-option {
+    padding: 12px 10px;
+  }
+}
+
+@media (hover: hover) {
+  .proto-service-editor__series-option:hover {
+    background: var(--pds-bg-control-strong);
+  }
+}
+
+.proto-service-editor__series-option:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: -2px;
+}
+
+/*
+  Opt-in stacked footer: primary on top, quiet action beneath. A modifier rather
+  than a change to `.proto-add-notes-sheet__footer` itself, because every other
+  sheet using that class expects its current single-button layout.
+*/
+.proto-sheet-footer--stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/*
+  Secondary sheet action, sitting under the primary rather than beside or above
+  it. Quiet on purpose: a filled button here competes with the primary, and
+  putting one *above* the primary also drops it on the tap path.
+
+  `--danger` adds red text on approach only. It is deliberately not
+  `.proto-settings-btn--destructive` (the red slab) — that weight belongs to
+  deleting an account, not to reversible sheet actions.
+*/
+.proto-sheet-quiet-action {
+  appearance: none;
+  cursor: pointer;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: none;
+  /* Matches the primary it sits under — same token, so the pair stays a pair
+     if the button radius ever changes. */
+  border-radius: var(--pds-radius-button);
+  background: transparent;
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+}
+
+/* Full-size target where fingers are the input, without growing on desktop. */
+@media (pointer: coarse) {
+  .proto-sheet-quiet-action {
+    min-height: 44px;
+  }
+}
+
+@media (hover: hover) {
+  .proto-sheet-quiet-action:hover:not(:disabled) {
+    background: var(--pds-bg-subtle);
+    color: var(--pds-text-primary);
+  }
+  /* Red text on approach, neutral surface — see the destructive-hover note above. */
+  .proto-sheet-quiet-action--danger:hover:not(:disabled) {
+    color: var(--pds-destructive);
+  }
+}
+
+.proto-sheet-quiet-action:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: -2px;
+}
+
+.proto-sheet-quiet-action--danger:focus-visible {
+  color: var(--pds-destructive);
+}
+
+.proto-sheet-quiet-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.proto-service-editor__series-hint {
+  margin: 6px 0 0;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-service-editor__optional {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
 
 .hmc-church-picker {
@@ -9819,6 +10555,34 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   gap: 1px;
   min-width: 0;
   flex: 1;
+}
+
+/*
+  Back control for a drilled-in sidebar view: a tile in the header's leading
+  slot, where the view's identity glyph sits at the top level. Shared by the
+  church tools panes and the shared-space Thread drilldown so the two can't
+  drift — `.proto-church-tools__back` used to carry no CSS whatsoever, leaving
+  the church one styled entirely by the icon tile it borrowed.
+
+  Sizing comes from the tile class it is used with; this adds the interaction.
+*/
+.proto-sidebar-back-tile {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+@media (hover: hover) {
+  .proto-sidebar-back-tile:hover {
+    background: var(--pds-bg-control-strong);
+    color: var(--pds-text-primary);
+  }
+}
+
+.proto-sidebar-back-tile:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: 2px;
 }
 
 .proto-shared-space-header__church-icon {
@@ -10450,7 +11214,7 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 }
 
 .proto-shared-people-row__action--destructive:hover:not(:disabled) {
-  background: var(--pds-destructive-bg);
+  background: var(--pds-bg-sidebar-input-hover);
   border-color: color-mix(in oklab, var(--pds-destructive) 55%, var(--pds-border-control));
 }
 
@@ -11396,4 +12160,309 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
     animation: proto-scripture-draft-shake-static 0.3s ease-in-out;
     left: 0;
   }
+}
+
+/* ─── Church starters (staff pane) ───────────────────────────────────────── */
+
+/*
+  Inline metadata editor for one starter, replacing its row in place. Content
+  isn't edited here on purpose — a starter's body is authored in a real note,
+  so this pane only owns name, description and icon.
+*/
+.proto-church-starter__edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px 14px;
+}
+
+/* Matches the service editor: the column gap is the only spacing authority, so
+   the shared field class's own top margin has to go. */
+.proto-church-starter__edit .proto-create-folder-sheet__name-input {
+  margin-top: 0;
+}
+
+.proto-church-starter__edit .proto-create-folder-sheet__field-label:not(:first-child) {
+  margin-top: 10px;
+}
+
+.proto-church-starter__edit-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+}
+
+.proto-service-editor__starter-hint {
+  margin: 0;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+/*
+  Companion-channel pointer under This Sunday. Quiet on purpose: the card is the
+  action, this is a reference. Sits outside the card because the card is a
+  single button.
+*/
+.proto-this-sunday__companion {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 4px;
+  border: none;
+  border-radius: var(--pds-radius-input, 10px);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--pds-text-secondary);
+  text-align: left;
+}
+
+@media (pointer: coarse) {
+  .proto-this-sunday__companion {
+    min-height: 44px;
+  }
+}
+
+@media (hover: hover) {
+  .proto-this-sunday__companion:hover {
+    background: var(--pds-bg-subtle);
+    color: var(--pds-text-primary);
+  }
+}
+
+.proto-this-sunday__companion:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: -2px;
+}
+
+/* The channel's own name is the informative half — let it truncate rather than
+   push the row wider (the reset sets `* { flex-shrink: 0 }`). */
+.proto-this-sunday__companion-name {
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+}
+
+/*
+  Passage history in the service editor — the pastor's own prior notes on the
+  passage they just typed. Quiet: it informs the plan, it isn't part of it.
+*/
+.proto-service-editor__history {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: var(--pds-radius-input, 10px);
+  background: var(--pds-bg-control);
+}
+
+.proto-service-editor__history-head {
+  margin: 0 0 2px;
+  padding: 0 2px;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-service-editor__history-row {
+  appearance: none;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--pds-text-primary);
+  /* Long titles truncate rather than widening the sheet. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (pointer: coarse) {
+  .proto-service-editor__history-row {
+    padding: 12px 8px;
+  }
+}
+
+@media (hover: hover) {
+  .proto-service-editor__history-row:hover {
+    background: var(--pds-bg-control-strong);
+  }
+}
+
+.proto-service-editor__history-row:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: -2px;
+}
+
+/* The shared pill centres itself in a row; in this column it should sit under
+   the hint it belongs to, not float in the middle. */
+.proto-service-editor__starter-action {
+  align-self: flex-start;
+  margin-top: 8px;
+}
+
+/* ─── Team member sheet ──────────────────────────────────────────────────── */
+
+.proto-church-member__role {
+  margin: 0;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-church-member__note {
+  margin: 6px 0 0;
+  line-height: 1.4;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+/* Role picker in the team member sheet. Radio semantics, list appearance —
+   each row says what the role grants, not just its name. */
+.proto-church-member__roles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.proto-church-member__role-option {
+  appearance: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--pds-radius-input, 10px);
+  background: transparent;
+  color: var(--pds-text-primary);
+}
+
+@media (pointer: coarse) {
+  .proto-church-member__role-option {
+    min-height: 44px;
+  }
+}
+
+@media (hover: hover) {
+  .proto-church-member__role-option:hover:not(:disabled) {
+    background: var(--pds-bg-subtle);
+  }
+}
+
+.proto-church-member__role-option[aria-checked='true'] {
+  background: var(--pds-bg-control);
+}
+
+.proto-church-member__role-option:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.proto-church-member__role-option:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: -2px;
+}
+
+/* The reset sets `* { flex-shrink: 0 }`; the text column has to opt back in so a
+   long description truncates instead of pushing the check mark out. */
+.proto-church-member__role-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex-shrink: 1;
+  flex-grow: 1;
+}
+
+.proto-church-member__role-desc {
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Role for a pending invite. Sized to its content so the email field keeps the
+   room — the address is the part that needs space. */
+.proto-church-invite__role {
+  flex: 0 0 auto;
+  appearance: none;
+  cursor: pointer;
+  padding: 0 8px;
+  height: 30px;
+  border-radius: 999px;
+  border: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-control);
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+}
+
+@media (pointer: coarse) {
+  .proto-church-invite__role {
+    height: 44px;
+  }
+}
+
+.proto-church-invite__role:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Role select — same treatment as `.hmc-church-picker__select`: the native
+   chevron differs per browser, so it is suppressed and redrawn. */
+.proto-church-invite__select-wrap {
+  position: relative;
+  display: block;
+}
+
+.proto-church-invite__select {
+  padding-right: 32px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: none;
+}
+
+.proto-church-invite__select::-ms-expand {
+  display: none;
+}
+
+.proto-church-invite__select-chevron {
+  position: absolute;
+  right: 10px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  line-height: 0;
+}
+
+.proto-church-invite__select:disabled + .proto-church-invite__select-chevron {
+  opacity: 0.45;
+}
+
+.proto-church-invite__role-note {
+  margin: 6px 0 0;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }

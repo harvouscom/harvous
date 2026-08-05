@@ -54,6 +54,11 @@ import {
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
+import {
+  capabilitiesForChurchRole,
+  isAssignableChurchRole,
+  ROLE_ADMIN,
+} from '../utils/church-role-capabilities';
 import { stripHtmlForCard } from '@/utils/html-stripper';
 import { batchAuthorAttribution } from '../utils/dashboard-data';
 import {
@@ -85,6 +90,7 @@ import {
   fetchClerkOrgPendingInvitations,
   isClerkOrgAdminRole,
   removeClerkOrgMember,
+  updateClerkOrgMemberRole,
   revokeClerkOrgInvitation,
 } from '../utils/clerk-org';
 import { getPolarClient, isPolarConfigured } from '../utils/polar-client';
@@ -475,6 +481,39 @@ app.get('/api/church/services', requireAuth, async (c) => {
       : [];
     const templateById = new Map(templates.map((t) => [t.id, t]));
 
+    /*
+      Resolve companion channels to a title the card can render, rather than
+      handing the congregant a raw `channelSpaceId` they'd have to look up.
+      Scoped to this church's own org and re-checked as a ministry channel, so a
+      deleted or reclassified space degrades to `null` instead of a dead link.
+    */
+    const channelIds = [
+      ...new Set(services.map((s) => s.channelSpaceId).filter((id): id is string => Boolean(id))),
+    ];
+    const channelRows = channelIds.length
+      ? await db
+          .select({
+            id: Spaces.id,
+            title: Spaces.title,
+            color: Spaces.color,
+            type: Spaces.type,
+            orgId: Spaces.orgId,
+          })
+          .from(Spaces)
+          .where(
+            and(
+              inArray(Spaces.id, channelIds),
+              eq(Spaces.orgId, church.orgId),
+              isNull(Spaces.deletedAt),
+            ),
+          )
+      : [];
+    const channelById = new Map(
+      channelRows
+        .filter(isMinistryBroadcastSpaceRow)
+        .map((row) => [row.id, { id: row.id, title: row.title, color: row.color ?? null }]),
+    );
+
     return c.json({
       connected: true,
       church: { id: church.id, name: church.name },
@@ -489,6 +528,9 @@ app.get('/api/church/services', requireAuth, async (c) => {
           seriesTitle: service.seriesTitle,
           reference: service.reference,
           viewerNoteId: viewerNotes.get(service.id) ?? null,
+          channel: service.channelSpaceId
+            ? (channelById.get(service.channelSpaceId) ?? null)
+            : null,
           starter: template
             ? {
                 templateId: template.id,
@@ -743,7 +785,10 @@ app.post('/api/church/staff/invite', requireAuth, rateLimit('write'), async (c) 
       orgId: ctx.church.orgId,
       emailAddress: email,
       inviterUserId: auth.userId,
-      role: body.role === CLERK_ORG_ADMIN_ROLE ? CLERK_ORG_ADMIN_ROLE : undefined,
+      // Any role from the allowlist, not just admin — a church hiring a pastor
+      // shouldn't have to invite them as staff and then promote them. Undefined
+      // lets Clerk apply its own default (plain member = staff).
+      role: isAssignableChurchRole(body.role ?? '') ? body.role : undefined,
     });
 
     return c.json({ success: true, invitation });
@@ -830,6 +875,89 @@ app.post('/api/church/staff/remove', requireAuth, rateLimit('write'), async (c) 
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/staff/remove',
       action: 'remove_church_staff',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/church/staff/role ────────────────────────────────────────────
+/**
+ * Change a staff member's Clerk org role — the one write that grants or removes
+ * the teaching plan and church templates.
+ *
+ * Gated on the `manage_staff` capability rather than an inline admin check, so
+ * the capability that names this act is the thing that authorises it. (Today
+ * only `org:admin` derives it, so behaviour is unchanged; the difference shows
+ * up the moment a church defines a role that should manage the roster.)
+ *
+ * Two guardrails, both about not stranding a church:
+ *   - You cannot change your own role. Demoting yourself would drop your own
+ *     admin rights mid-request, leaving nobody able to undo it.
+ *   - You cannot demote the last admin. A church with no admin has no way back
+ *     into its own roster without a Harvous operator opening Clerk.
+ */
+app.post('/api/church/staff/role', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      orgId?: string;
+      userId?: string;
+      role?: string;
+    };
+
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? '');
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    if (!capabilitiesForChurchRole(ctx.role).includes('manage_staff')) {
+      return c.json(
+        { error: 'Only a church admin can change roles', code: 'CHURCH_ADMIN_REQUIRED' },
+        403,
+      );
+    }
+
+    const targetUserId = (body.userId ?? '').trim();
+    const nextRole = (body.role ?? '').trim();
+    if (!targetUserId) return c.json({ error: 'userId is required', code: 'BAD_REQUEST' }, 400);
+    if (!isAssignableChurchRole(nextRole)) {
+      return c.json({ error: 'Unknown role', code: 'BAD_REQUEST' }, 400);
+    }
+    if (targetUserId === auth.userId) {
+      return c.json(
+        { error: 'You cannot change your own role', code: 'CANNOT_CHANGE_SELF' },
+        400,
+      );
+    }
+
+    const target = ctx.roster.find((member) => member.userId === targetUserId);
+    if (!target) {
+      return c.json({ error: 'That person is not on your staff', code: 'NOT_STAFF' }, 404);
+    }
+    if (target.role === nextRole) return c.json({ success: true, unchanged: true });
+
+    if (target.role === ROLE_ADMIN) {
+      const admins = ctx.roster.filter((member) => member.role === ROLE_ADMIN).length;
+      if (admins <= 1) {
+        return c.json(
+          {
+            error: 'Your church needs at least one admin',
+            code: 'LAST_ADMIN',
+          },
+          409,
+        );
+      }
+    }
+
+    await updateClerkOrgMemberRole(ctx.church.orgId, targetUserId, nextRole);
+    // Reconcile immediately so their channel rows match the new role before the
+    // response lands, the way remove does.
+    const sync = await syncChurchStaffForOrg(ctx.church.orgId);
+
+    return c.json({ success: true, sync });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/staff/role',
+      action: 'set_church_staff_role',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

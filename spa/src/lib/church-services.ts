@@ -41,6 +41,11 @@ export type ChurchService = {
   reference: string | null;
   viewerNoteId: string | null;
   starter: ChurchServiceStarter | null;
+  /**
+   * Ministry channel carrying this service's study material, resolved by the
+   * server. Optional so a cached payload from before this shipped still parses.
+   */
+  channel?: { id: string; title: string; color: string | null } | null;
 };
 
 /** Whole days from `from` to `to`, both snapped to local midnight first. */
@@ -137,6 +142,25 @@ export function starterNoteTitle(service: ChurchService): string {
 }
 
 /**
+ * Folder a note started from this service should live in — the series, if the
+ * church named one.
+ *
+ * Deliberately the **primary** folder, not a secondary. Secondaries are
+ * auto-managed: `withSubjectFolders` recomputes them on every edit and
+ * `clearAutoFolderChrome` empties them, so a series parked there would vanish
+ * the first time the person typed. The primary survives when paired with
+ * `collectionUserOverride` (`freezePrimary = pinned || userOverride`), which is
+ * honest here — the grouping was *chosen* by whoever planned the series, not
+ * guessed from the note's contents.
+ *
+ * Null when the service has no series: a one-off Sunday shouldn't invent a
+ * folder, and the person's own auto-folder is better than a folder of one.
+ */
+export function starterFolderForService(service: ChurchService): string | null {
+  return service.seriesTitle?.trim() || null;
+}
+
+/**
  * Body for the note a congregant starts from a service.
  *
  * The passage goes in as a *pending* pill — `processScriptureReferences` on
@@ -153,7 +177,10 @@ export function buildStarterContent(
   const body = service.starter?.content?.trim() ?? '';
 
   if (pill && body) return `${pill}${body}`;
-  if (pill) return pill;
+  // A blank paragraph after the pill is where the caret goes on open. Without
+  // it the only cursor position is the pill's own trailing edge, which sits
+  // visually inside the pill's box — you appear to be typing into the citation.
+  if (pill) return `${pill}<p></p>`;
   if (body) return body;
   // Neither a passage nor a template: an empty paragraph, so the editor opens
   // with a caret rather than an empty document.

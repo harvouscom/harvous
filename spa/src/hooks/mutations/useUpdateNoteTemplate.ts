@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import {
+  invalidateChurchStarterConsumers,
   invalidateNoteTemplatesQueries,
   syncStoredNoteTemplateInCaches,
   type StoredNoteTemplate,
@@ -46,6 +47,7 @@ export function useUpdateNoteTemplate() {
     onSuccess: (data) => {
       syncStoredNoteTemplateInCaches(queryClient, data.template);
       void invalidateNoteTemplatesQueries(queryClient);
+      if (data.template.orgId) void invalidateChurchStarterConsumers(queryClient);
     },
   });
 }

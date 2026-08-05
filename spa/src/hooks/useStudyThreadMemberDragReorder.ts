@@ -9,6 +9,7 @@ import {
   useUpdateStudyThreadMemberOrder,
 } from './mutations/useUpdateStudyThreadMemberOrder';
 import { computeStudyThreadMemberMoveIndex } from './study-thread-member-move-index';
+import { useCoarsePointer } from '../lib/use-coarse-pointer';
 
 interface UseStudyThreadMemberDragReorderOptions {
   anchorNoteId: string;
@@ -64,7 +65,13 @@ export function useStudyThreadMemberDragReorder({
     };
   }, []);
 
-  const showDragHandle = enabled && orderedNoteIds.length > 1;
+  /**
+   * No drag handle on touch — same reasoning as the space switcher's reorder:
+   * this is HTML5 drag-and-drop, which never fires on touch, so the handle is
+   * an inert target competing with the row's own tap.
+   */
+  const coarsePointer = useCoarsePointer();
+  const showDragHandle = enabled && orderedNoteIds.length > 1 && !coarsePointer;
 
   const moveMember = useCallback((draggedId: string, insertBeforeIndex: number) => {
     const currentIds = orderedIdsRef.current;

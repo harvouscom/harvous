@@ -75,6 +75,13 @@ export default function ChurchDesignGalleryPage() {
                     onClick={() => selectScene(scene)}
                   >
                     {scene.title}
+                    {/* The phase heading above says "shipped", but that is the
+                        phase, not the scene — several scenes inside a shipped
+                        phase are unbuilt explorations. Without this you had to
+                        open one to find out. */}
+                    {scene.speculative ? (
+                      <span className="pds-gallery__scene-tag">mockup</span>
+                    ) : null}
                   </button>
                 </li>
               ))}

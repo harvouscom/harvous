@@ -30,47 +30,58 @@ function formatServiceDate(iso: string): string {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+/** Same row anatomy as Church tools, with the date where the icon would sit. */
 function ServiceRow({
   service,
   disabled,
   onEdit,
+  past,
 }: {
   service: TeachingPlanService;
   disabled: boolean;
   onEdit: (service: TeachingPlanService) => void;
+  past?: boolean;
 }) {
   return (
-    <li className="proto-teaching-plan__row">
-      <button
-        type="button"
-        className="proto-teaching-plan__row-button"
-        disabled={disabled}
-        onClick={() => onEdit(service)}
-      >
-        <span className="proto-teaching-plan__date">{formatServiceDate(service.serviceDate)}</span>
-        <span className="proto-teaching-plan__row-text">
-          <span className="pds-list-title proto-teaching-plan__title">{service.title}</span>
-          <span className="proto-caption proto-teaching-plan__meta">
-            {service.reference || 'No passage yet'}
-            {service.seriesTitle ? ` · ${service.seriesTitle}` : ''}
-          </span>
+    <button
+      type="button"
+      className={`proto-church-tools__row${past ? ' proto-church-tools__row--past' : ''}`}
+      disabled={disabled}
+      onClick={() => onEdit(service)}
+    >
+      <span className="proto-church-tools__row-date">{formatServiceDate(service.serviceDate)}</span>
+      <span className="proto-church-tools__row-text">
+        <span className="pds-list-title proto-church-tools__row-title">{service.title}</span>
+        <span className="proto-caption proto-church-tools__row-meta">
+          {service.reference || 'No passage yet'}
+          {service.seriesTitle ? ` · ${service.seriesTitle}` : ''}
         </span>
-      </button>
-    </li>
+      </span>
+      {disabled ? null : (
+        <span className="proto-church-tools__row-chevron" aria-hidden>
+          <Icon name="caret-right" size={11} />
+        </span>
+      )}
+    </button>
   );
 }
 
 export default function PrototypeChurchTeachingPlanSection({
   orgId,
   canManage,
+  canManageChurchTemplates = false,
+  onOpenStarters,
   /** False when the church's pilot has lapsed — reads stay, writes don't. */
   canWrite,
 }: {
   orgId: string | null;
   canManage: boolean;
   canWrite: boolean;
+  /** Server's `manage_templates` verdict — only drives the editor's nudge. */
+  canManageChurchTemplates?: boolean;
+  /** Hub callback that switches to the Church starters pane. */
+  onOpenStarters?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TeachingPlanService | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const { data } = useChurchTeachingPlan(orgId, { enabled: canManage });
@@ -95,84 +106,81 @@ export default function PrototypeChurchTeachingPlanSection({
 
   return (
     <div className="proto-home-section">
-      <button
-        type="button"
-        className="proto-church-hub__lane-action proto-church-staff__toggle"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <Icon name={open ? 'caret-down' : 'caret-right'} size={10} aria-hidden />
-        Teaching plan
-        {data.services.length > 0 ? ` · ${data.services.length}` : ''}
-      </button>
+      {/* A pane, not a disclosure — the hub's Church tools row is what opens
+          it, so the caret toggle that used to live here is gone. */}
+      <div className="proto-church-tools__lane-head">
+        <p className="proto-caption proto-home-section__eyebrow">
+          {data.services.length > 0 ? `${data.services.length} planned` : 'Nothing planned yet'}
+        </p>
+        {canWrite ? (
+          <button
+            type="button"
+            className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+            disabled={actions.isPending}
+            onClick={() => openEditor(null)}
+          >
+            <Icon name="plus" size={12} aria-hidden />
+            <span className="proto-glass-action__label">Add service</span>
+          </button>
+        ) : null}
+      </div>
 
-      {open ? (
-        <div className="proto-teaching-plan">
-          {data.services.length === 0 ? (
-            <p className="proto-caption proto-teaching-plan__empty">
-              Plan a service and everyone connected to your church sees it on their Home, with
-              your passage and your template one tap away.
-            </p>
-          ) : (
+      {data.services.length === 0 ? (
+        <p className="proto-caption proto-teaching-plan__empty">
+          Plan a service and everyone connected to your church sees it on their Home.
+        </p>
+      ) : (
+        <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+          {upcoming.map((service) => (
+            <ServiceRow
+              key={service.id}
+              service={service}
+              disabled={!canWrite}
+              onEdit={openEditor}
+            />
+          ))}
+
+          {past.length > 0 ? (
             <>
               {upcoming.length > 0 ? (
-                <ul className="proto-teaching-plan__list">
-                  {upcoming.map((service) => (
-                    <ServiceRow
-                      key={service.id}
-                      service={service}
-                      disabled={!canWrite}
-                      onEdit={openEditor}
-                    />
-                  ))}
-                </ul>
-              ) : (
-                <p className="proto-caption proto-teaching-plan__empty">
-                  Nothing planned yet. Your congregation sees last Sunday for a few more days.
-                </p>
-              )}
-
-              {past.length > 0 ? (
-                <>
-                  <p className="proto-caption proto-teaching-plan__divider">Past</p>
-                  <ul className="proto-teaching-plan__list proto-teaching-plan__list--past">
-                    {past.slice(0, 6).map((service) => (
-                      <ServiceRow
-                        key={service.id}
-                        service={service}
-                        disabled={!canWrite}
-                        onEdit={openEditor}
-                      />
-                    ))}
-                  </ul>
-                </>
+                <p className="proto-caption proto-teaching-plan__divider">Past</p>
               ) : null}
+              {past.slice(0, 6).map((service) => (
+                <ServiceRow
+                  key={service.id}
+                  service={service}
+                  disabled={!canWrite}
+                  onEdit={openEditor}
+                  past
+                />
+              ))}
             </>
-          )}
+          ) : null}
 
-          {canWrite ? (
-            <button
-              type="button"
-              className="proto-settings-btn proto-settings-btn--secondary"
-              disabled={actions.isPending}
-              onClick={() => openEditor(null)}
-            >
-              Add a service
-            </button>
-          ) : (
-            <p className="proto-caption proto-teaching-plan__empty">
-              Your church plan has lapsed. Everything already planned stays visible to your
-              congregation; subscribe to add more.
-            </p>
-          )}
+          {!canWrite ? (
+            <div className="proto-church-tools__row proto-church-tools__row--status">
+              <span className="proto-church-tools__row-icon" aria-hidden>
+                <Icon name="circle-exclamation" size={13} />
+              </span>
+              <span className="proto-church-tools__row-text">
+                <span className="pds-list-title proto-church-tools__row-title">Plan ended</span>
+                <span className="proto-caption proto-church-tools__row-meta">
+                  Planned services stay visible
+                </span>
+              </span>
+            </div>
+          ) : null}
         </div>
-      ) : null}
+      )}
 
       <PrototypeServiceEditorSheet
         open={sheetOpen}
         orgId={orgId}
         service={editing}
         seriesTitles={data.seriesTitles}
+        channels={data.channels ?? []}
+        canManageChurchTemplates={canManageChurchTemplates}
+        onOpenStarters={onOpenStarters}
         onOpenChange={(next) => {
           setSheetOpen(next);
           if (!next) setEditing(null);

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 
 /**
- * How long `--enter` stays on the view: the 0.42s section animation plus the largest
- * `:nth-child` stagger delay, with slack. Must cover the whole staggered sequence in
- * `prototype-components.css`.
+ * How long `--enter` stays on the view: the 0.42s section animation plus slack.
+ * Sections no longer stagger, so this no longer has to cover a sequence — it
+ * just has to outlast the one animation in `prototype-components.css`.
  */
-const ENTER_WINDOW_MS = 800;
+const ENTER_WINDOW_MS = 560;
 
 /** Distinguishes "never entered" from a genuine `undefined`/`null` replayKey. */
 const NO_KEY_YET = Symbol('no-key-yet');

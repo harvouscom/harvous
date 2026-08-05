@@ -94,21 +94,25 @@ describe('org-provisioned note templates', () => {
     // Availability keys off connection, not staff — a congregant using the
     // sermon template is the point.
     expect(list).toContain('connectedOrgIdFor');
-    expect(list).not.toContain('canManageOrgTemplates');
+    expect(list).not.toContain('assertCanManageOrgTemplates(');
   });
 
   it('restricts writing them to staff with manage_templates', () => {
-    expect(route()).toContain('canManageOrgTemplates');
+    expect(route()).toContain('assertCanManageOrgTemplates');
     expect(route()).toContain("includes('manage_templates')");
     expect(route()).toContain("code: 'CHURCH_TEMPLATE_FORBIDDEN'");
   });
 
   it('fails closed when Clerk is unreachable for a provisioning write', () => {
+    // The gate returns a typed result rather than a boolean now, so "closed"
+    // is `ok: false` — but the rule is unchanged: an outage denies.
     const gate = route().slice(
-      route().indexOf('async function canManageOrgTemplates'),
+      route().indexOf('async function assertCanManageOrgTemplates'),
       route().indexOf('type StoredTemplateRow'),
     );
-    expect(gate).toMatch(/catch\s*{[\s\S]*?return false;/);
+    const tail = gate.slice(gate.indexOf('} catch {'));
+    expect(tail).toContain('ok: false');
+    expect(tail).not.toContain('ok: true');
   });
 
   it('checks org ownership before the author fallback', () => {

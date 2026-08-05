@@ -20,6 +20,8 @@ export type TeachingPlanResponse = {
   services: TeachingPlanService[];
   /** Series the church has already used — the editor's autocomplete source. */
   seriesTitles: string[];
+  /** The church's ministry channels, for the companion-channel picker. */
+  channels: { id: string; title: string; color: string | null }[];
 };
 
 export function churchTeachingPlanQueryKey(

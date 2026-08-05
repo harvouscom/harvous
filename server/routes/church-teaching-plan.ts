@@ -38,6 +38,7 @@ import { isMinistryBroadcastSpaceRow } from '../utils/channel-publish-cadence';
 import { canonicalizeServiceReference } from '../utils/church-service-passage';
 import {
   assertCanManageTeachingPlan,
+  deriveSeriesTitles,
   type ChurchServiceRow,
 } from '../utils/church-teaching-plan';
 
@@ -141,14 +142,34 @@ app.get('/api/church/services/plan', requireAuth, async (c) => {
       .where(eq(ChurchServices.churchId, gate.church.id))
       .orderBy(asc(ChurchServices.serviceDate));
 
+    /*
+      The church's own ministry channels, for the editor's companion-channel
+      picker. Scoped to `gate.church.orgId` rather than the caller's
+      `connectedOrgId`: a staff member can be looking at a church they help lead
+      that isn't their home church, and `useChurchChannels` would answer for the
+      wrong one.
+    */
+    const channelRows = await db
+      .select({
+        id: Spaces.id,
+        title: Spaces.title,
+        color: Spaces.color,
+        type: Spaces.type,
+        orgId: Spaces.orgId,
+      })
+      .from(Spaces)
+      .where(and(eq(Spaces.orgId, gate.church.orgId), isNull(Spaces.deletedAt)))
+      .orderBy(asc(Spaces.title));
+
     return c.json({
       church: { id: gate.church.id, name: gate.church.name },
       services: services.map(serializeService),
-      // Distinct series the church has used — powers the editor's autocomplete
-      // so weeks group without typo-splitting into two series.
-      seriesTitles: [
-        ...new Set(services.map((s) => s.seriesTitle).filter((t): t is string => Boolean(t))),
-      ],
+      // Distinct series the church has used, most recent first — powers the
+      // editor's series picker so weeks group without typo-splitting in two.
+      seriesTitles: deriveSeriesTitles(services),
+      channels: channelRows
+        .filter(isMinistryBroadcastSpaceRow)
+        .map((row) => ({ id: row.id, title: row.title, color: row.color ?? null })),
     });
   } catch (error) {
     const standardError = handleAPIError(error, {

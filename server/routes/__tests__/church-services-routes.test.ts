@@ -125,6 +125,50 @@ describe('staff writes (/api/church/services/*)', () => {
   });
 });
 
+describe('companion channel', () => {
+  const congregantBlock = () => {
+    const text = churchRoutes();
+    return text.slice(
+      text.indexOf("app.get('/api/church/services'"),
+      text.indexOf('// ─── GET /api/church/billing'),
+    );
+  };
+
+  it('resolves the channel inside this church’s own org', () => {
+    // A raw channelSpaceId from another org would otherwise render a title the
+    // congregant has no access to.
+    const block = congregantBlock();
+    expect(block).toContain('eq(Spaces.orgId, church.orgId)');
+    expect(block).toContain('isNull(Spaces.deletedAt)');
+  });
+
+  it('re-checks that the space is still a ministry channel', () => {
+    // A space reclassified out of `public` must degrade to null, not keep
+    // pointing congregants at something that is no longer a channel.
+    expect(congregantBlock()).toContain('isMinistryBroadcastSpaceRow');
+  });
+
+  it('serializes a resolved channel, never the raw id', () => {
+    const block = congregantBlock();
+    expect(block).toContain('channel: service.channelSpaceId');
+    // The payload hands over { id, title, color }; `channelSpaceId:` as an
+    // output key would leak an unresolvable pointer.
+    expect(block).not.toMatch(/channelSpaceId:\s*service\.channelSpaceId/);
+  });
+
+  it('offers staff the church’s channels from the plan endpoint, after the gate', () => {
+    // Sourced here rather than from useChurchChannels, which answers for the
+    // caller's *home* church and would be the wrong one for a staff member
+    // looking at a church they merely help lead.
+    const text = staffRoutes();
+    const gateAt = text.indexOf('assertCanManageTeachingPlan');
+    const channelsAt = text.indexOf('const channelRows');
+    expect(channelsAt).toBeGreaterThan(-1);
+    expect(gateAt).toBeLessThan(channelsAt);
+    expect(text).toContain('eq(Spaces.orgId, gate.church.orgId)');
+  });
+});
+
 describe('privacy: no analytics on who took notes', () => {
   it('neither route file reads the note lineage column', () => {
     // startedFromServiceId belongs to the congregant. The only reader is

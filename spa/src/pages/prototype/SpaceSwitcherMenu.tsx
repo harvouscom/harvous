@@ -511,7 +511,7 @@ export default function SpaceSwitcherMenu({
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="plus" size={PROTO_TOOLBAR_ICON_SIZE} />
                 </span>
-                <span className="proto-menu-item__label">New church shared space</span>
+                <span className="proto-menu-item__label">New shared space</span>
               </button>
               <button
                 type="button"
@@ -522,7 +522,7 @@ export default function SpaceSwitcherMenu({
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="plus" size={PROTO_TOOLBAR_ICON_SIZE} />
                 </span>
-                <span className="proto-menu-item__label">New ministry channel</span>
+                <span className="proto-menu-item__label">New channel</span>
               </button>
             </div>
           ) : null}
