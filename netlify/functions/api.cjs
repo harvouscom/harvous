@@ -154155,7 +154155,7 @@ async function getNotePassages(noteId) {
   const seen = /* @__PURE__ */ new Set();
   const out = [];
   for (const r of rows) {
-    const k2 = verseKey(r);
+    const k2 = verseKey2(r);
     if (!seen.has(k2)) {
       seen.add(k2);
       out.push(r);
@@ -154235,7 +154235,7 @@ async function getRelatedNotesForPassages(userId, sourcePassages, opts = {}) {
   const deduped = [];
   const sourceKeys = /* @__PURE__ */ new Set();
   for (const p of sourcePassages) {
-    const k2 = verseKey(p);
+    const k2 = verseKey2(p);
     if (!sourceKeys.has(k2)) {
       sourceKeys.add(k2);
       deduped.push(p);
@@ -154249,20 +154249,20 @@ async function getRelatedNotesForPassages(userId, sourcePassages, opts = {}) {
     chapter: ScriptureCrossReferences.toChapterStart,
     verse: ScriptureCrossReferences.toVerseStart
   }).from(ScriptureCrossReferences).where(anyOf(ScriptureCrossReferences.fromBook, ScriptureCrossReferences.fromChapter, ScriptureCrossReferences.fromVerse)).orderBy(desc(ScriptureCrossReferences.votes)).limit(maxCrossRefs);
-  const crossRefKeys = new Set(crossRows.map(verseKey));
+  const crossRefKeys = new Set(crossRows.map(verseKey2));
   const themeRows = await db.select({ topicId: ScriptureTopicVerses.topicId, relevance: ScriptureTopicVerses.relevance }).from(ScriptureTopicVerses).where(anyOf(ScriptureTopicVerses.book, ScriptureTopicVerses.chapter, ScriptureTopicVerses.verse)).orderBy(desc(ScriptureTopicVerses.relevance)).limit(maxThemes);
   const themeIds = [...new Set(themeRows.map((t) => t.topicId))];
   const candidateWhere = excludeNoteId ? and(eq(Notes.userId, userId), ne(Notes.noteType, "scripture"), ne(ScriptureMetadata.noteId, excludeNoteId)) : and(eq(Notes.userId, userId), ne(Notes.noteType, "scripture"));
   const candidates = await db.select({ noteId: ScriptureMetadata.noteId, book: ScriptureMetadata.book, chapter: ScriptureMetadata.chapter, verse: ScriptureMetadata.verse }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(candidateWhere);
   const verseToNotes = /* @__PURE__ */ new Map();
   for (const c of candidates) {
-    const key2 = verseKey(c);
+    const key2 = verseKey2(c);
     if (!verseToNotes.has(key2)) verseToNotes.set(key2, /* @__PURE__ */ new Set());
     verseToNotes.get(key2).add(c.noteId);
   }
   const signals = [];
   for (const c of candidates) {
-    const key2 = verseKey(c);
+    const key2 = verseKey2(c);
     if (sourceKeys.has(key2)) signals.push({ noteId: c.noteId, kind: "passage", detail: key2 });
     if (crossRefKeys.has(key2)) signals.push({ noteId: c.noteId, kind: "crossref", detail: key2 });
   }
@@ -154270,7 +154270,7 @@ async function getRelatedNotesForPassages(userId, sourcePassages, opts = {}) {
     const candidateBooks = [...new Set(candidates.map((c) => c.book))];
     const themeHits = await db.select({ topicId: ScriptureTopicVerses.topicId, book: ScriptureTopicVerses.book, chapter: ScriptureTopicVerses.chapter, verse: ScriptureTopicVerses.verse }).from(ScriptureTopicVerses).where(and(inArray(ScriptureTopicVerses.topicId, themeIds), inArray(ScriptureTopicVerses.book, candidateBooks)));
     for (const hit of themeHits) {
-      const notes = verseToNotes.get(verseKey(hit));
+      const notes = verseToNotes.get(verseKey2(hit));
       if (!notes) continue;
       for (const nid of notes) signals.push({ noteId: nid, kind: "theme", detail: hit.topicId });
     }
@@ -154363,7 +154363,7 @@ async function getUserPassageKnowledge(userId, opts = {}) {
   const verses = [];
   const seen = /* @__PURE__ */ new Set();
   for (const r of cited) {
-    const k2 = verseKey(r);
+    const k2 = verseKey2(r);
     if (!seen.has(k2)) {
       seen.add(k2);
       verses.push(r);
@@ -154377,31 +154377,31 @@ async function getUserPassageKnowledge(userId, opts = {}) {
     const chunk = verses.slice(i, i + CHUNK);
     const peopleRows = await db.select({ book: ScriptureEntityRefs.book, chapter: ScriptureEntityRefs.chapter, verse: ScriptureEntityRefs.verse, name: BiblePeople.name }).from(ScriptureEntityRefs).innerJoin(BiblePeople, eq(ScriptureEntityRefs.entityId, BiblePeople.id)).where(and(eq(ScriptureEntityRefs.entityType, "person"), or(...chunk.map((p) => and(eq(ScriptureEntityRefs.book, p.book), eq(ScriptureEntityRefs.chapter, p.chapter), eq(ScriptureEntityRefs.verse, p.verse))))));
     for (const r of peopleRows) {
-      const e = entry(verseKey(r));
+      const e = entry(verseKey2(r));
       if (!e.people.includes(r.name)) e.people.push(r.name);
     }
     const placeRows = await db.select({ book: ScriptureEntityRefs.book, chapter: ScriptureEntityRefs.chapter, verse: ScriptureEntityRefs.verse, name: BiblePlaces.name }).from(ScriptureEntityRefs).innerJoin(BiblePlaces, eq(ScriptureEntityRefs.entityId, BiblePlaces.id)).where(and(eq(ScriptureEntityRefs.entityType, "place"), or(...chunk.map((p) => and(eq(ScriptureEntityRefs.book, p.book), eq(ScriptureEntityRefs.chapter, p.chapter), eq(ScriptureEntityRefs.verse, p.verse))))));
     for (const r of placeRows) {
-      const e = entry(verseKey(r));
+      const e = entry(verseKey2(r));
       const nm = normalizePlaceName(r.name);
       if (!e.places.includes(nm)) e.places.push(nm);
     }
     const themeRows = await db.select({ book: ScriptureTopicVerses.book, chapter: ScriptureTopicVerses.chapter, verse: ScriptureTopicVerses.verse, label: ScriptureTopics.label }).from(ScriptureTopicVerses).innerJoin(ScriptureTopics, eq(ScriptureTopicVerses.topicId, ScriptureTopics.id)).where(or(...chunk.map((p) => and(eq(ScriptureTopicVerses.book, p.book), eq(ScriptureTopicVerses.chapter, p.chapter), eq(ScriptureTopicVerses.verse, p.verse))))).orderBy(desc(ScriptureTopicVerses.relevance));
     for (const r of themeRows) {
-      const e = entry(verseKey(r));
+      const e = entry(verseKey2(r));
       if (e.themes.length < themesPerVerse) e.themes.push(r.label);
     }
   }
   return out;
 }
-var verseKey, MIN_THEME_CORROBORATION_RELEVANCE, SIGNAL_WEIGHT, SECTION_MATCH_BOOST, MAX_THEME_SIGNALS;
+var verseKey2, MIN_THEME_CORROBORATION_RELEVANCE, SIGNAL_WEIGHT, SECTION_MATCH_BOOST, MAX_THEME_SIGNALS;
 var init_scripture_knowledge = __esm({
   "server/utils/scripture-knowledge.ts"() {
     "use strict";
     init_db2();
     init_bible_place_name();
     init_admin_pulse_canon_groups();
-    verseKey = (v2) => `${v2.book}|${v2.chapter}|${v2.verse}`;
+    verseKey2 = (v2) => `${v2.book}|${v2.chapter}|${v2.verse}`;
     MIN_THEME_CORROBORATION_RELEVANCE = 50;
     SIGNAL_WEIGHT = { passage: 3, crossref: 2, theme: 1 };
     SECTION_MATCH_BOOST = 1;
@@ -245363,6 +245363,268 @@ async function userNeedsCollectionBackfill(userId) {
 // server/routes/notes.ts
 init_pg_undefined_relation();
 init_scripture_detector();
+
+// server/utils/church-service-passage.ts
+init_scripture_detector();
+function canonicalizeServiceReference(raw2) {
+  const trimmed = String(raw2 ?? "").trim();
+  if (!trimmed) return { ok: true, reference: null };
+  const normalized = normalizeScriptureReference(trimmed);
+  const firstPass = checkScriptureReferenceValidity(normalized);
+  if (firstPass.ok) return { ok: true, reference: normalized };
+  const repaired = repairUnresolvableReference(normalized);
+  if (repaired) {
+    const secondPass = checkScriptureReferenceValidity(repaired);
+    if (secondPass.ok) return { ok: true, reference: repaired };
+  }
+  return { ok: false, reason: firstPass.reason };
+}
+
+// src/utils/scripture-verse-keys.ts
+init_scripture_detector();
+var verseKeyFromParts = (v2) => `${v2.book}|${v2.chapter}|${v2.verse}`;
+function verseKeysFromScriptureReference(reference) {
+  const normalized = normalizeScriptureReference(reference.trim()) ?? reference.trim();
+  if (!normalized) return [];
+  const parsed = parseScriptureReference(normalized.replace(/,\s+/g, ","));
+  if (!parsed) return [];
+  const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+  const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : verseStart;
+  const keys2 = [];
+  for (let v2 = verseStart; v2 <= verseEnd; v2++) {
+    keys2.push(verseKeyFromParts({ book: parsed.book, chapter: parsed.chapter, verse: v2 }));
+  }
+  return keys2;
+}
+
+// server/utils/crossref-gaps.ts
+init_scripture_detector();
+init_db2();
+var verseKey = (v2) => verseKeyFromParts(v2);
+function displayRef(v2) {
+  return `${v2.book} ${v2.chapter}:${v2.verse}`;
+}
+function extractScripturePillsFromHtml(html) {
+  const out = [];
+  const re2 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  let match4;
+  while ((match4 = re2.exec(html)) !== null) {
+    const reference = match4[1]?.trim();
+    if (!reference) continue;
+    const transMatch = match4[0].match(/data-scripture-translation\s*=\s*["']([^"']+)["']/i);
+    const translation = transMatch?.[1]?.trim().toUpperCase() || "NET";
+    out.push({ reference, translation });
+  }
+  return out;
+}
+function buildVerseSourceNoteMapFromPillNotes(notes) {
+  const rows = [];
+  for (const note of notes) {
+    if (!note.content) continue;
+    for (const pill of extractScripturePillsFromHtml(note.content)) {
+      const normalized = normalizeScriptureReference(pill.reference) ?? pill.reference;
+      const parsed = parseScriptureReference(normalized.replace(/,\s+/g, ","));
+      if (!parsed) continue;
+      const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+      const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : verseStart;
+      for (let verse = verseStart; verse <= verseEnd; verse++) {
+        rows.push({
+          book: parsed.book,
+          chapter: parsed.chapter,
+          verse,
+          noteId: note.id,
+          translation: pill.translation,
+          noteUpdatedAt: note.updatedAt
+        });
+      }
+    }
+  }
+  return buildVerseSourceNoteMap(rows);
+}
+function buildVerseSourceNoteMapFromLegacyJunctions(rows) {
+  return buildVerseSourceNoteMap(rows);
+}
+function mergeVerseSourceNoteMaps(primary, fallback) {
+  const out = new Map(primary);
+  for (const [key2, value] of fallback) {
+    if (!out.has(key2)) out.set(key2, value);
+  }
+  return out;
+}
+function verseRefFromKey(key2) {
+  const [book, chapterRaw, verseRaw] = key2.split("|");
+  const chapter = Number(chapterRaw);
+  const verse = Number(verseRaw);
+  if (!book || !Number.isFinite(chapter) || !Number.isFinite(verse)) return null;
+  return { book, chapter, verse };
+}
+function addHighlightRefsToCitedKeys(citedKeys, references) {
+  for (const ref of references) {
+    for (const k2 of verseKeysFromScriptureReference(ref)) {
+      citedKeys.add(k2);
+    }
+  }
+}
+function buildVerseSourceNoteMap(rows) {
+  const out = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    const key2 = verseKey(row);
+    const updatedAtMs = row.noteUpdatedAt?.getTime() ?? 0;
+    const existing = out.get(key2);
+    if (existing && existing.updatedAtMs >= updatedAtMs) continue;
+    out.set(key2, { noteId: row.noteId, translation: row.translation, updatedAtMs });
+  }
+  const trimmed = /* @__PURE__ */ new Map();
+  for (const [key2, value] of out) {
+    trimmed.set(key2, { noteId: value.noteId, translation: value.translation });
+  }
+  return trimmed;
+}
+function rankCrossRefGaps(crossRefs, citedKeys, verseSourceNotes, opts = {}) {
+  const { limit = 5 } = opts;
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const cr of crossRefs) {
+    const toKey = verseKey(cr.to);
+    if (citedKeys.has(toKey)) continue;
+    if (seen.has(toKey)) continue;
+    const source2 = verseSourceNotes.get(verseKey(cr.from));
+    if (!source2) continue;
+    seen.add(toKey);
+    out.push({
+      from: { ...cr.from, displayRef: displayRef(cr.from) },
+      to: { ...cr.to, displayRef: displayRef(cr.to) },
+      votes: cr.votes,
+      fromNoteId: source2.noteId,
+      fromTranslation: source2.translation
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+async function getCrossRefGaps(userId, opts = {}) {
+  const { limit = 5, minVotes = 1 } = opts;
+  const parentNotes = await db.select({
+    id: Notes.id,
+    content: Notes.content,
+    updatedAt: Notes.updatedAt
+  }).from(Notes).where(
+    and(eq(Notes.userId, userId), eq(Notes.contentEncrypted, false), ne(Notes.noteType, "scripture"))
+  );
+  const pillSourceNotes = buildVerseSourceNoteMapFromPillNotes(parentNotes);
+  const legacyJunctionRows = await db.select({
+    book: ScriptureMetadata.book,
+    chapter: ScriptureMetadata.chapter,
+    verse: ScriptureMetadata.verse,
+    noteId: NoteScriptureReferences.noteId,
+    translation: ScriptureMetadata.translation,
+    noteUpdatedAt: Notes.updatedAt
+  }).from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.noteId, Notes.id)).innerJoin(ScriptureMetadata, eq(ScriptureMetadata.noteId, NoteScriptureReferences.scriptureNoteId)).where(and(eq(Notes.userId, userId), ne(Notes.noteType, "scripture")));
+  const verseSourceNotes = mergeVerseSourceNoteMaps(
+    pillSourceNotes,
+    buildVerseSourceNoteMapFromLegacyJunctions(legacyJunctionRows)
+  );
+  const citedKeys = /* @__PURE__ */ new Set();
+  for (const key2 of verseSourceNotes.keys()) {
+    citedKeys.add(key2);
+  }
+  const metadataRows = await db.select({
+    book: ScriptureMetadata.book,
+    chapter: ScriptureMetadata.chapter,
+    verse: ScriptureMetadata.verse,
+    verseEnd: ScriptureMetadata.verseEnd,
+    reference: ScriptureMetadata.reference
+  }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(eq(Notes.userId, userId));
+  for (const row of metadataRows) {
+    const ref = row.reference?.trim() || `${row.book} ${row.chapter}:${row.verse}${row.verseEnd && row.verseEnd !== row.verse ? `-${row.verseEnd}` : ""}`;
+    addHighlightRefsToCitedKeys(citedKeys, [ref]);
+  }
+  const highlighted = await db.select({ scriptureReference: StudyThreadEntries.scriptureReference }).from(StudyThreadEntries).where(
+    and(
+      eq(StudyThreadEntries.userId, userId),
+      eq(StudyThreadEntries.isArchived, false),
+      isNotNull(StudyThreadEntries.scriptureReference)
+    )
+  );
+  addHighlightRefsToCitedKeys(
+    citedKeys,
+    highlighted.map((r) => r.scriptureReference).filter((ref) => Boolean(ref?.trim()))
+  );
+  if (!citedKeys.size) return [];
+  const deduped = [];
+  const seenSource = /* @__PURE__ */ new Set();
+  for (const key2 of citedKeys) {
+    if (seenSource.has(key2)) continue;
+    seenSource.add(key2);
+    const ref = verseRefFromKey(key2);
+    if (ref) deduped.push(ref);
+  }
+  const sourceChunk = deduped.slice(0, 50);
+  if (!sourceChunk.length) return [];
+  const fromAny = or(
+    ...sourceChunk.map(
+      (p) => and(
+        eq(ScriptureCrossReferences.fromBook, p.book),
+        eq(ScriptureCrossReferences.fromChapter, p.chapter),
+        eq(ScriptureCrossReferences.fromVerse, p.verse)
+      )
+    )
+  );
+  const crossRows = await db.select({
+    fromBook: ScriptureCrossReferences.fromBook,
+    fromChapter: ScriptureCrossReferences.fromChapter,
+    fromVerse: ScriptureCrossReferences.fromVerse,
+    toBook: ScriptureCrossReferences.toBook,
+    toChapter: ScriptureCrossReferences.toChapterStart,
+    toVerse: ScriptureCrossReferences.toVerseStart,
+    votes: ScriptureCrossReferences.votes
+  }).from(ScriptureCrossReferences).where(and(fromAny, gte(ScriptureCrossReferences.votes, minVotes))).orderBy(desc(ScriptureCrossReferences.votes)).limit(200);
+  const mapped = crossRows.map((r) => ({
+    from: { book: r.fromBook, chapter: r.fromChapter, verse: r.fromVerse },
+    to: { book: r.toBook, chapter: r.toChapter, verse: r.toVerse },
+    votes: r.votes
+  }));
+  return rankCrossRefGaps(mapped, citedKeys, verseSourceNotes, { limit });
+}
+
+// server/utils/notes-by-reference.ts
+function timeOf(value) {
+  if (!value) return 0;
+  const d = value instanceof Date ? value : new Date(value);
+  const t = d.getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+function matchNotesToReference(input) {
+  const targetKeys = new Set(verseKeysFromScriptureReference(input.reference));
+  if (targetKeys.size === 0) return [];
+  const excluded = new Set(input.excludeNoteIds ?? []);
+  const byId = /* @__PURE__ */ new Map();
+  const overlaps = (candidateRef) => {
+    for (const key2 of verseKeysFromScriptureReference(candidateRef)) {
+      if (targetKeys.has(key2)) return true;
+    }
+    return false;
+  };
+  const remember = (note) => {
+    if (excluded.has(note.id) || byId.has(note.id)) return;
+    byId.set(note.id, { id: note.id, title: note.title, updatedAt: note.updatedAt });
+  };
+  for (const note of input.pillNotes) {
+    if (excluded.has(note.id) || byId.has(note.id)) continue;
+    for (const pill of extractScripturePillsFromHtml(note.content ?? "")) {
+      if (overlaps(pill.reference)) {
+        remember(note);
+        break;
+      }
+    }
+  }
+  for (const row of input.legacyNotes) {
+    if (overlaps(row.reference)) remember(row);
+  }
+  return [...byId.values()].sort((a, b3) => timeOf(b3.updatedAt) - timeOf(a.updatedAt));
+}
+
+// server/routes/notes.ts
 init_bible_study_keywords();
 init_bible_study_concept_overlaps();
 
@@ -249613,213 +249875,6 @@ init_note_collaboration();
 init_sync_deletion_log();
 init_note_fingerprint();
 
-// src/utils/scripture-verse-keys.ts
-init_scripture_detector();
-var verseKeyFromParts = (v2) => `${v2.book}|${v2.chapter}|${v2.verse}`;
-function verseKeysFromScriptureReference(reference) {
-  const normalized = normalizeScriptureReference(reference.trim()) ?? reference.trim();
-  if (!normalized) return [];
-  const parsed = parseScriptureReference(normalized.replace(/,\s+/g, ","));
-  if (!parsed) return [];
-  const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
-  const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : verseStart;
-  const keys2 = [];
-  for (let v2 = verseStart; v2 <= verseEnd; v2++) {
-    keys2.push(verseKeyFromParts({ book: parsed.book, chapter: parsed.chapter, verse: v2 }));
-  }
-  return keys2;
-}
-
-// server/utils/crossref-gaps.ts
-init_scripture_detector();
-init_db2();
-var verseKey2 = (v2) => verseKeyFromParts(v2);
-function displayRef(v2) {
-  return `${v2.book} ${v2.chapter}:${v2.verse}`;
-}
-function extractScripturePillsFromHtml(html) {
-  const out = [];
-  const re2 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
-  let match4;
-  while ((match4 = re2.exec(html)) !== null) {
-    const reference = match4[1]?.trim();
-    if (!reference) continue;
-    const transMatch = match4[0].match(/data-scripture-translation\s*=\s*["']([^"']+)["']/i);
-    const translation = transMatch?.[1]?.trim().toUpperCase() || "NET";
-    out.push({ reference, translation });
-  }
-  return out;
-}
-function buildVerseSourceNoteMapFromPillNotes(notes) {
-  const rows = [];
-  for (const note of notes) {
-    if (!note.content) continue;
-    for (const pill of extractScripturePillsFromHtml(note.content)) {
-      const normalized = normalizeScriptureReference(pill.reference) ?? pill.reference;
-      const parsed = parseScriptureReference(normalized.replace(/,\s+/g, ","));
-      if (!parsed) continue;
-      const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
-      const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : verseStart;
-      for (let verse = verseStart; verse <= verseEnd; verse++) {
-        rows.push({
-          book: parsed.book,
-          chapter: parsed.chapter,
-          verse,
-          noteId: note.id,
-          translation: pill.translation,
-          noteUpdatedAt: note.updatedAt
-        });
-      }
-    }
-  }
-  return buildVerseSourceNoteMap(rows);
-}
-function buildVerseSourceNoteMapFromLegacyJunctions(rows) {
-  return buildVerseSourceNoteMap(rows);
-}
-function mergeVerseSourceNoteMaps(primary, fallback) {
-  const out = new Map(primary);
-  for (const [key2, value] of fallback) {
-    if (!out.has(key2)) out.set(key2, value);
-  }
-  return out;
-}
-function verseRefFromKey(key2) {
-  const [book, chapterRaw, verseRaw] = key2.split("|");
-  const chapter = Number(chapterRaw);
-  const verse = Number(verseRaw);
-  if (!book || !Number.isFinite(chapter) || !Number.isFinite(verse)) return null;
-  return { book, chapter, verse };
-}
-function addHighlightRefsToCitedKeys(citedKeys, references) {
-  for (const ref of references) {
-    for (const k2 of verseKeysFromScriptureReference(ref)) {
-      citedKeys.add(k2);
-    }
-  }
-}
-function buildVerseSourceNoteMap(rows) {
-  const out = /* @__PURE__ */ new Map();
-  for (const row of rows) {
-    const key2 = verseKey2(row);
-    const updatedAtMs = row.noteUpdatedAt?.getTime() ?? 0;
-    const existing = out.get(key2);
-    if (existing && existing.updatedAtMs >= updatedAtMs) continue;
-    out.set(key2, { noteId: row.noteId, translation: row.translation, updatedAtMs });
-  }
-  const trimmed = /* @__PURE__ */ new Map();
-  for (const [key2, value] of out) {
-    trimmed.set(key2, { noteId: value.noteId, translation: value.translation });
-  }
-  return trimmed;
-}
-function rankCrossRefGaps(crossRefs, citedKeys, verseSourceNotes, opts = {}) {
-  const { limit = 5 } = opts;
-  const seen = /* @__PURE__ */ new Set();
-  const out = [];
-  for (const cr of crossRefs) {
-    const toKey = verseKey2(cr.to);
-    if (citedKeys.has(toKey)) continue;
-    if (seen.has(toKey)) continue;
-    const source2 = verseSourceNotes.get(verseKey2(cr.from));
-    if (!source2) continue;
-    seen.add(toKey);
-    out.push({
-      from: { ...cr.from, displayRef: displayRef(cr.from) },
-      to: { ...cr.to, displayRef: displayRef(cr.to) },
-      votes: cr.votes,
-      fromNoteId: source2.noteId,
-      fromTranslation: source2.translation
-    });
-    if (out.length >= limit) break;
-  }
-  return out;
-}
-async function getCrossRefGaps(userId, opts = {}) {
-  const { limit = 5, minVotes = 1 } = opts;
-  const parentNotes = await db.select({
-    id: Notes.id,
-    content: Notes.content,
-    updatedAt: Notes.updatedAt
-  }).from(Notes).where(
-    and(eq(Notes.userId, userId), eq(Notes.contentEncrypted, false), ne(Notes.noteType, "scripture"))
-  );
-  const pillSourceNotes = buildVerseSourceNoteMapFromPillNotes(parentNotes);
-  const legacyJunctionRows = await db.select({
-    book: ScriptureMetadata.book,
-    chapter: ScriptureMetadata.chapter,
-    verse: ScriptureMetadata.verse,
-    noteId: NoteScriptureReferences.noteId,
-    translation: ScriptureMetadata.translation,
-    noteUpdatedAt: Notes.updatedAt
-  }).from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.noteId, Notes.id)).innerJoin(ScriptureMetadata, eq(ScriptureMetadata.noteId, NoteScriptureReferences.scriptureNoteId)).where(and(eq(Notes.userId, userId), ne(Notes.noteType, "scripture")));
-  const verseSourceNotes = mergeVerseSourceNoteMaps(
-    pillSourceNotes,
-    buildVerseSourceNoteMapFromLegacyJunctions(legacyJunctionRows)
-  );
-  const citedKeys = /* @__PURE__ */ new Set();
-  for (const key2 of verseSourceNotes.keys()) {
-    citedKeys.add(key2);
-  }
-  const metadataRows = await db.select({
-    book: ScriptureMetadata.book,
-    chapter: ScriptureMetadata.chapter,
-    verse: ScriptureMetadata.verse,
-    verseEnd: ScriptureMetadata.verseEnd,
-    reference: ScriptureMetadata.reference
-  }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(eq(Notes.userId, userId));
-  for (const row of metadataRows) {
-    const ref = row.reference?.trim() || `${row.book} ${row.chapter}:${row.verse}${row.verseEnd && row.verseEnd !== row.verse ? `-${row.verseEnd}` : ""}`;
-    addHighlightRefsToCitedKeys(citedKeys, [ref]);
-  }
-  const highlighted = await db.select({ scriptureReference: StudyThreadEntries.scriptureReference }).from(StudyThreadEntries).where(
-    and(
-      eq(StudyThreadEntries.userId, userId),
-      eq(StudyThreadEntries.isArchived, false),
-      isNotNull(StudyThreadEntries.scriptureReference)
-    )
-  );
-  addHighlightRefsToCitedKeys(
-    citedKeys,
-    highlighted.map((r) => r.scriptureReference).filter((ref) => Boolean(ref?.trim()))
-  );
-  if (!citedKeys.size) return [];
-  const deduped = [];
-  const seenSource = /* @__PURE__ */ new Set();
-  for (const key2 of citedKeys) {
-    if (seenSource.has(key2)) continue;
-    seenSource.add(key2);
-    const ref = verseRefFromKey(key2);
-    if (ref) deduped.push(ref);
-  }
-  const sourceChunk = deduped.slice(0, 50);
-  if (!sourceChunk.length) return [];
-  const fromAny = or(
-    ...sourceChunk.map(
-      (p) => and(
-        eq(ScriptureCrossReferences.fromBook, p.book),
-        eq(ScriptureCrossReferences.fromChapter, p.chapter),
-        eq(ScriptureCrossReferences.fromVerse, p.verse)
-      )
-    )
-  );
-  const crossRows = await db.select({
-    fromBook: ScriptureCrossReferences.fromBook,
-    fromChapter: ScriptureCrossReferences.fromChapter,
-    fromVerse: ScriptureCrossReferences.fromVerse,
-    toBook: ScriptureCrossReferences.toBook,
-    toChapter: ScriptureCrossReferences.toChapterStart,
-    toVerse: ScriptureCrossReferences.toVerseStart,
-    votes: ScriptureCrossReferences.votes
-  }).from(ScriptureCrossReferences).where(and(fromAny, gte(ScriptureCrossReferences.votes, minVotes))).orderBy(desc(ScriptureCrossReferences.votes)).limit(200);
-  const mapped = crossRows.map((r) => ({
-    from: { book: r.fromBook, chapter: r.fromChapter, verse: r.fromVerse },
-    to: { book: r.toBook, chapter: r.toChapter, verse: r.toVerse },
-    votes: r.votes
-  }));
-  return rankCrossRefGaps(mapped, citedKeys, verseSourceNotes, { limit });
-}
-
 // server/utils/votd-record-engagement.ts
 init_db2();
 init_dates();
@@ -251680,6 +251735,78 @@ route11.get("/api/notes/crossref-gaps", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+route11.get("/api/notes/by-reference", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const raw2 = (c.req.query("reference") ?? "").trim();
+    if (!raw2) {
+      return c.json({ error: "A scripture reference is required", code: "BAD_REQUEST" }, 400);
+    }
+    const canonical = canonicalizeServiceReference(raw2);
+    if (!canonical.ok) {
+      return c.json({ error: canonical.reason, code: "INVALID_REFERENCE" }, 400);
+    }
+    const reference = canonical.reference;
+    if (!reference) {
+      return c.json({ error: "A scripture reference is required", code: "BAD_REQUEST" }, 400);
+    }
+    const parsed = parseScriptureReference(reference);
+    if (!parsed) {
+      return c.json({ error: "A scripture reference is required", code: "BAD_REQUEST" }, 400);
+    }
+    const pillNotes = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      updatedAt: Notes.updatedAt
+    }).from(Notes).where(
+      and(
+        eq(Notes.userId, auth.userId),
+        ne(Notes.noteType, "scripture"),
+        eq(Notes.contentEncrypted, false),
+        like(Notes.content, "%data-scripture-reference%"),
+        like(Notes.content, `%${parsed.book}%`)
+      )
+    );
+    const legacyRows = await db.select({
+      id: NoteScriptureReferences.noteId,
+      title: Notes.title,
+      updatedAt: Notes.updatedAt,
+      reference: ScriptureMetadata.reference
+    }).from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.noteId, Notes.id)).innerJoin(
+      ScriptureMetadata,
+      eq(ScriptureMetadata.noteId, NoteScriptureReferences.scriptureNoteId)
+    ).where(
+      and(
+        eq(Notes.userId, auth.userId),
+        ne(Notes.noteType, "scripture"),
+        eq(ScriptureMetadata.book, parsed.book)
+      )
+    );
+    const matches3 = matchNotesToReference({
+      reference,
+      pillNotes,
+      legacyNotes: legacyRows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        updatedAt: row.updatedAt,
+        reference: row.reference ?? ""
+      }))
+    });
+    return c.json({
+      success: true,
+      reference,
+      totalCount: matches3.length,
+      notes: matches3.slice(0, 3)
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/notes/by-reference",
+      action: "get_notes_by_reference"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
 route11.get("/api/notes/connect-suggestions", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -253297,6 +253424,13 @@ async function revokeClerkOrgInvitation(input) {
   );
   if (!response.ok && response.status !== 404) throw classifyClerkFailure(response.status);
 }
+async function updateClerkOrgMemberRole(orgId, userId, role) {
+  const response = await clerkFetch(`/organizations/${orgId}/memberships/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ role })
+  });
+  if (!response.ok) throw classifyClerkFailure(response.status);
+}
 async function removeClerkOrgMember(orgId, userId) {
   const response = await clerkFetch(`/organizations/${orgId}/memberships/${userId}`, {
     method: "DELETE"
@@ -253470,6 +253604,15 @@ async function assertCanCreateMinistryChannel(userId, orgId) {
 var ROLE_ADMIN = "org:admin";
 var ROLE_PASTOR = "org:pastor";
 var ROLE_TEACHER = "org:teacher";
+var ASSIGNABLE_CHURCH_ROLES = [
+  ROLE_ADMIN,
+  ROLE_PASTOR,
+  ROLE_TEACHER,
+  "org:member"
+];
+function isAssignableChurchRole(role) {
+  return ASSIGNABLE_CHURCH_ROLES.includes(role);
+}
 function capabilitiesForChurchRole(role) {
   const capabilities = /* @__PURE__ */ new Set(["publish"]);
   if (role === ROLE_ADMIN) {
@@ -253492,16 +253635,41 @@ async function connectedOrgIdFor(userId) {
   );
   return row?.connectedOrgId ?? null;
 }
-async function canManageOrgTemplates(userId, orgId) {
+async function assertCanManageOrgTemplates(userId, orgId) {
   const church = await getActiveChurchByOrgId(orgId);
-  if (!church) return false;
-  if (!await isChurchStaffForOrg(userId, orgId)) return false;
+  if (!church) {
+    return { ok: false, status: 404, code: "CHURCH_NOT_FOUND", error: "Church not found" };
+  }
+  if (!await isChurchStaffForOrg(userId, orgId)) {
+    return {
+      ok: false,
+      status: 403,
+      code: "CHURCH_TEMPLATE_FORBIDDEN",
+      error: "Only church staff can manage church templates"
+    };
+  }
+  if (!churchIsSponsored(church)) {
+    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
+  }
   try {
     const roster = await fetchClerkOrgMemberships(orgId);
     const role = roster.find((member) => member.userId === userId)?.role ?? null;
-    return capabilitiesForChurchRole(role).includes("manage_templates");
+    if (!capabilitiesForChurchRole(role).includes("manage_templates")) {
+      return {
+        ok: false,
+        status: 403,
+        code: "CHURCH_TEMPLATE_FORBIDDEN",
+        error: "Your role does not include church starters"
+      };
+    }
+    return { ok: true };
   } catch {
-    return false;
+    return {
+      ok: false,
+      status: 403,
+      code: "CHURCH_TEMPLATE_FORBIDDEN",
+      error: "Could not confirm your role. Try again in a moment."
+    };
   }
 }
 function serializeStored(row) {
@@ -253597,11 +253765,9 @@ app.post("/api/note-templates/create", requireAuth, rateLimit("write"), async (c
         400
       );
     }
-    if (orgId && !await canManageOrgTemplates(auth.userId, orgId)) {
-      return c.json(
-        { error: "Only church staff can create church templates", code: "CHURCH_TEMPLATE_FORBIDDEN" },
-        403
-      );
+    if (orgId) {
+      const gate = await assertCanManageOrgTemplates(auth.userId, orgId);
+      if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
     }
     if (spaceId) {
       let access;
@@ -253664,14 +253830,8 @@ app.post("/api/note-templates/create", requireAuth, rateLimit("write"), async (c
 });
 async function assertCanManageTemplate(row, userId) {
   if (row.orgId) {
-    if (!await canManageOrgTemplates(userId, row.orgId)) {
-      return {
-        ok: false,
-        status: 403,
-        error: "Only church staff can manage church templates",
-        code: "CHURCH_TEMPLATE_FORBIDDEN"
-      };
-    }
+    const gate = await assertCanManageOrgTemplates(userId, row.orgId);
+    if (!gate.ok) return { ok: false, status: gate.status, error: gate.error, code: gate.code };
     return { ok: true };
   }
   if (row.spaceId) {
@@ -253726,6 +253886,12 @@ app.post("/api/note-templates/update", requireAuth, rateLimit("write"), async (c
     let nextSpaceId = existing.spaceId;
     if ("spaceId" in body) {
       nextSpaceId = typeof body.spaceId === "string" && body.spaceId.trim() ? body.spaceId.trim() : null;
+      if (nextSpaceId && existing.orgId) {
+        return c.json(
+          { error: "A template is scoped to a space or an org, not both", code: "INVALID_SCOPE" },
+          400
+        );
+      }
       if (nextSpaceId && nextSpaceId !== existing.spaceId) {
         let access;
         try {
@@ -319300,6 +319466,14 @@ async function resolveViewerServiceNotes(userId, serviceIds) {
   }
   return map3;
 }
+function deriveSeriesTitles(servicesByDateAsc) {
+  const seen = /* @__PURE__ */ new Set();
+  for (let i = servicesByDateAsc.length - 1; i >= 0; i--) {
+    const title = servicesByDateAsc[i]?.seriesTitle?.trim();
+    if (title) seen.add(title);
+  }
+  return [...seen];
+}
 
 // server/routes/church.ts
 var app13 = new Hono2();
@@ -319544,6 +319718,25 @@ app13.get("/api/church/services", requireAuth, async (c) => {
       and(inArray(NoteTemplates.id, templateIds), eq(NoteTemplates.orgId, church.orgId))
     ) : [];
     const templateById = new Map(templates.map((t) => [t.id, t]));
+    const channelIds = [
+      ...new Set(services.map((s2) => s2.channelSpaceId).filter((id) => Boolean(id)))
+    ];
+    const channelRows = channelIds.length ? await db.select({
+      id: Spaces.id,
+      title: Spaces.title,
+      color: Spaces.color,
+      type: Spaces.type,
+      orgId: Spaces.orgId
+    }).from(Spaces).where(
+      and(
+        inArray(Spaces.id, channelIds),
+        eq(Spaces.orgId, church.orgId),
+        isNull(Spaces.deletedAt)
+      )
+    ) : [];
+    const channelById = new Map(
+      channelRows.filter(isMinistryBroadcastSpaceRow).map((row) => [row.id, { id: row.id, title: row.title, color: row.color ?? null }])
+    );
     return c.json({
       connected: true,
       church: { id: church.id, name: church.name },
@@ -319556,6 +319749,7 @@ app13.get("/api/church/services", requireAuth, async (c) => {
           seriesTitle: service.seriesTitle,
           reference: service.reference,
           viewerNoteId: viewerNotes.get(service.id) ?? null,
+          channel: service.channelSpaceId ? channelById.get(service.channelSpaceId) ?? null : null,
           starter: template ? {
             templateId: template.id,
             templateName: template.name,
@@ -319738,7 +319932,10 @@ app13.post("/api/church/staff/invite", requireAuth, rateLimit("write"), async (c
       orgId: ctx.church.orgId,
       emailAddress: email2,
       inviterUserId: auth.userId,
-      role: body.role === CLERK_ORG_ADMIN_ROLE ? CLERK_ORG_ADMIN_ROLE : void 0
+      // Any role from the allowlist, not just admin — a church hiring a pastor
+      // shouldn't have to invite them as staff and then promote them. Undefined
+      // lets Clerk apply its own default (plain member = staff).
+      role: isAssignableChurchRole(body.role ?? "") ? body.role : void 0
     });
     return c.json({ success: true, invitation });
   } catch (error) {
@@ -319810,6 +320007,60 @@ app13.post("/api/church/staff/remove", requireAuth, rateLimit("write"), async (c
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+app13.post("/api/church/staff/role", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? "");
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    if (!capabilitiesForChurchRole(ctx.role).includes("manage_staff")) {
+      return c.json(
+        { error: "Only a church admin can change roles", code: "CHURCH_ADMIN_REQUIRED" },
+        403
+      );
+    }
+    const targetUserId = (body.userId ?? "").trim();
+    const nextRole = (body.role ?? "").trim();
+    if (!targetUserId) return c.json({ error: "userId is required", code: "BAD_REQUEST" }, 400);
+    if (!isAssignableChurchRole(nextRole)) {
+      return c.json({ error: "Unknown role", code: "BAD_REQUEST" }, 400);
+    }
+    if (targetUserId === auth.userId) {
+      return c.json(
+        { error: "You cannot change your own role", code: "CANNOT_CHANGE_SELF" },
+        400
+      );
+    }
+    const target = ctx.roster.find((member) => member.userId === targetUserId);
+    if (!target) {
+      return c.json({ error: "That person is not on your staff", code: "NOT_STAFF" }, 404);
+    }
+    if (target.role === nextRole) return c.json({ success: true, unchanged: true });
+    if (target.role === ROLE_ADMIN) {
+      const admins = ctx.roster.filter((member) => member.role === ROLE_ADMIN).length;
+      if (admins <= 1) {
+        return c.json(
+          {
+            error: "Your church needs at least one admin",
+            code: "LAST_ADMIN"
+          },
+          409
+        );
+      }
+    }
+    await updateClerkOrgMemberRole(ctx.church.orgId, targetUserId, nextRole);
+    const sync = await syncChurchStaffForOrg(ctx.church.orgId);
+    return c.json({ success: true, sync });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/staff/role",
+      action: "set_church_staff_role"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
 app13.post("/api/church/staff/sync", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -319844,24 +320095,6 @@ var church_default = app13;
 // server/routes/church-teaching-plan.ts
 init_db2();
 init_auth();
-
-// server/utils/church-service-passage.ts
-init_scripture_detector();
-function canonicalizeServiceReference(raw2) {
-  const trimmed = String(raw2 ?? "").trim();
-  if (!trimmed) return { ok: true, reference: null };
-  const normalized = normalizeScriptureReference(trimmed);
-  const firstPass = checkScriptureReferenceValidity(normalized);
-  if (firstPass.ok) return { ok: true, reference: normalized };
-  const repaired = repairUnresolvableReference(normalized);
-  if (repaired) {
-    const secondPass = checkScriptureReferenceValidity(repaired);
-    if (secondPass.ok) return { ok: true, reference: repaired };
-  }
-  return { ok: false, reason: firstPass.reason };
-}
-
-// server/routes/church-teaching-plan.ts
 var app14 = new Hono2();
 var SERVICE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 var TITLE_MAX = 120;
@@ -319911,14 +320144,20 @@ app14.get("/api/church/services/plan", requireAuth, async (c) => {
     const gate = await assertCanManageTeachingPlan(auth.userId, orgId);
     if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
     const services = await db.select().from(ChurchServices).where(eq(ChurchServices.churchId, gate.church.id)).orderBy(asc(ChurchServices.serviceDate));
+    const channelRows = await db.select({
+      id: Spaces.id,
+      title: Spaces.title,
+      color: Spaces.color,
+      type: Spaces.type,
+      orgId: Spaces.orgId
+    }).from(Spaces).where(and(eq(Spaces.orgId, gate.church.orgId), isNull(Spaces.deletedAt))).orderBy(asc(Spaces.title));
     return c.json({
       church: { id: gate.church.id, name: gate.church.name },
       services: services.map(serializeService),
-      // Distinct series the church has used — powers the editor's autocomplete
-      // so weeks group without typo-splitting into two series.
-      seriesTitles: [
-        ...new Set(services.map((s2) => s2.seriesTitle).filter((t) => Boolean(t)))
-      ]
+      // Distinct series the church has used, most recent first — powers the
+      // editor's series picker so weeks group without typo-splitting in two.
+      seriesTitles: deriveSeriesTitles(services),
+      channels: channelRows.filter(isMinistryBroadcastSpaceRow).map((row) => ({ id: row.id, title: row.title, color: row.color ?? null }))
     });
   } catch (error) {
     const standardError = handleAPIError(error, {
