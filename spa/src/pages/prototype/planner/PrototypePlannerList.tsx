@@ -13,15 +13,8 @@ import type {
   TeachingPlanSermon,
 } from '../../../hooks/queries/useChurchTeachingPlan';
 import { localTodayIso, sermonTimeLabel } from '../../../lib/church-services';
+import ProtoServiceDateTile from '../ProtoServiceDateTile';
 import type { PlannerSelection } from './PrototypeExpandedPlanner';
-
-function formatRowDate(iso: string | null): string {
-  if (!iso) return '—';
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (!match) return iso;
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-}
 
 function Row({
   service,
@@ -49,9 +42,7 @@ function Row({
         .join(' ')}
       onClick={onSelect}
     >
-      <span className="proto-church-tools__row-date proto-planner-list__row-date">
-        {formatRowDate(service.serviceDate)}
-      </span>
+      <ProtoServiceDateTile iso={service.serviceDate} />
       <span className="proto-church-tools__row-text">
         <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={service.title}><span>{service.title}</span></span>
         <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">

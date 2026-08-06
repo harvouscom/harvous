@@ -11,6 +11,7 @@ import Icon from '@/components/react/Icon';
 import { spaceCoverFromThreadColor } from '@/utils/space-cover';
 import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from '../../prototype/settings/SettingsShell';
 import ProtoSpaceMenuIcon from '../../prototype/ProtoSpaceMenuIcon';
+import ProtoServiceDateTile from '../../prototype/ProtoServiceDateTile';
 import PublicJoinSpaceHero from '../../public/PublicJoinSpaceHero';
 import PrototypePlannerBoard from '../../prototype/planner/PrototypePlannerBoard';
 import PrototypePlannerCalendar from '../../prototype/planner/PrototypePlannerCalendar';
@@ -572,10 +573,14 @@ function ThisSundayScene() {
   );
 }
 
+/* ISO dates, not pre-split month/day strings: the rows render through the real
+   `ProtoServiceDateTile`, so the fixture feeds it what a sermon actually holds.
+   The hand-written copy this replaces had drifted — no aria-label, and its two
+   spans were both exposed to screen readers as loose text. */
 const TEACHING_PLAN_ROWS = [
-  { month: 'Aug', day: '9', title: 'No Condemnation', meta: 'Romans 8:1-11 · Life in the Spirit' },
-  { month: 'Aug', day: '16', title: 'Led by the Spirit', meta: 'Romans 8:12-17 · Life in the Spirit' },
-  { month: 'Aug', day: '23', title: 'Groaning and Glory', meta: 'No passage yet · Life in the Spirit' },
+  { iso: '2026-08-09', title: 'No Condemnation', meta: 'Romans 8:1-11 · Life in the Spirit' },
+  { iso: '2026-08-16', title: 'Led by the Spirit', meta: 'Romans 8:12-17 · Life in the Spirit' },
+  { iso: '2026-08-23', title: 'Groaning and Glory', meta: 'No passage yet · Life in the Spirit' },
 ];
 
 /* The lane below the sermons, and the reason the date is a tile: both lanes
@@ -616,15 +621,12 @@ function TeachingPlanScene({ mode }: { mode: 'list' | 'lapsed' }) {
             <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
               {TEACHING_PLAN_ROWS.map((row) => (
                 <button
-                  key={row.day}
+                  key={row.iso}
                   type="button"
                   className="proto-church-tools__row"
                   disabled={lapsed}
                 >
-                  <span className="proto-church-tools__row-date">
-                    <span className="proto-church-tools__row-date-month">{row.month}</span>
-                    <span className="proto-church-tools__row-date-day">{row.day}</span>
-                  </span>
+                  <ProtoServiceDateTile iso={row.iso} />
                   <span className="proto-church-tools__row-text">
                     <span className="pds-list-title proto-church-tools__row-title">{row.title}</span>
                     <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">{row.meta}</span>

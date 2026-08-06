@@ -13535,11 +13535,11 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   padding: 4px 14px 14px;
 }
 
-/* Wider than the sidebar's, because a full weekday fits now and "Sun, Aug 9"
-   is what tells two consecutive Sundays apart at a glance. */
-.proto-planner-list__row-date {
-  min-width: 6.5rem;
-}
+/* The row date used to widen to 6.5rem here so a full weekday fit — but the
+   104px slab pushed every title off the edge the sidebar and the series sheet
+   share, and made the same list look like two different components depending
+   on which pane you opened it in. It uses `ProtoServiceDateTile` now, the same
+   26px square as everywhere else. */
 
 .proto-planner-list__row--selected {
   background: var(--pds-bg-modal-inset-highlight, var(--pds-bg-hover));
@@ -13618,10 +13618,6 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   .proto-planner-list {
     padding: 4px 10px 14px;
   }
-
-  .proto-planner-list__row-date {
-    min-width: 5rem;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -13656,6 +13652,15 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+}
+
+/* `proto-sheet-quiet-action` carries `width: 100%` because a sheet stacks it
+   full-width under a primary. Inline beside "Add it" that stretched it to 147px
+   and pushed it 69px past the row, where the panel's `overflow-x: hidden` cut
+   the label mid-word. Inline, it sizes to its own text. */
+.proto-library-suggestion__actions .proto-sheet-quiet-action {
+  width: auto;
   flex-shrink: 0;
 }
 
