@@ -322025,6 +322025,95 @@ function normalizeChurchTimezone(raw2) {
   return { ok: true, value: trimmed };
 }
 
+// server/utils/church-service-attachments.ts
+init_db2();
+var ATTACHMENTS_MAX = 20;
+async function attachmentsByServiceIds(serviceIds) {
+  const out = /* @__PURE__ */ new Map();
+  if (serviceIds.length === 0) return out;
+  const links = await db.select().from(ChurchServiceLibraryItems).where(inArray(ChurchServiceLibraryItems.serviceId, [...serviceIds])).orderBy(asc(ChurchServiceLibraryItems.sortOrder));
+  if (links.length === 0) return out;
+  const items = await db.select().from(LibraryItems).where(inArray(LibraryItems.id, [...new Set(links.map((l) => l.libraryItemId))]));
+  const itemById = new Map(items.map((i) => [i.id, i]));
+  for (const link of links) {
+    const item = itemById.get(link.libraryItemId);
+    if (!item) continue;
+    const entry = {
+      itemId: item.id,
+      title: item.title,
+      kind: item.kind,
+      sourceDomain: item.sourceDomain,
+      sourceUrl: item.sourceUrl,
+      fileName: item.fileName
+    };
+    const list = out.get(link.serviceId);
+    if (list) list.push(entry);
+    else out.set(link.serviceId, [entry]);
+  }
+  return out;
+}
+async function setServiceAttachments(input) {
+  const { serviceId, itemIds, churchId, spaceId, userId } = input;
+  if (itemIds.length > ATTACHMENTS_MAX) {
+    return {
+      ok: false,
+      status: 400,
+      error: `At most ${ATTACHMENTS_MAX} resources on one entry`,
+      code: "TOO_MANY_ATTACHMENTS"
+    };
+  }
+  const service = first(
+    await db.select({ id: ChurchServices.id }).from(ChurchServices).where(
+      and(
+        eq(ChurchServices.id, serviceId),
+        eq(ChurchServices.churchId, churchId),
+        /* `eq(col, null)` is never true in SQL — the church plan is the
+           rows where spaceId IS NULL, and that needs its own predicate. */
+        spaceId === null ? isNull(ChurchServices.spaceId) : eq(ChurchServices.spaceId, spaceId)
+      )
+    ).limit(1)
+  );
+  if (!service) {
+    return { ok: false, status: 404, error: "Entry not found", code: "SERVICE_NOT_FOUND" };
+  }
+  const unique2 = [...new Set(itemIds)];
+  if (unique2.length > 0) {
+    const owned = await db.select({ id: LibraryItems.id }).from(LibraryItems).innerJoin(ResourceLibraries, eq(LibraryItems.libraryId, ResourceLibraries.id)).where(
+      and(
+        inArray(LibraryItems.id, unique2),
+        eq(ResourceLibraries.ownerKind, "church"),
+        eq(ResourceLibraries.ownerId, churchId)
+      )
+    );
+    if (owned.length !== unique2.length) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Those resources are not in your church\u2019s library",
+        code: "ITEM_NOT_FOUND"
+      };
+    }
+  }
+  const timestamp3 = /* @__PURE__ */ new Date();
+  await db.transaction(async (tx) => {
+    await tx.delete(ChurchServiceLibraryItems).where(eq(ChurchServiceLibraryItems.serviceId, serviceId));
+    if (unique2.length === 0) return;
+    await tx.insert(ChurchServiceLibraryItems).values(
+      unique2.map((libraryItemId, index2) => ({
+        id: `svcli_${crypto.randomUUID()}`,
+        serviceId,
+        libraryItemId,
+        attachedByUserId: userId,
+        /* Order is the order they were picked — a curator's sequence is a
+           statement about how they will use them. */
+        sortOrder: index2,
+        createdAt: timestamp3
+      }))
+    );
+  });
+  return { ok: true };
+}
+
 // server/utils/church-sermon-repeat.ts
 var REPEAT_MAX_WEEKS = 12;
 var ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -322099,6 +322188,7 @@ app18.get("/api/church/services/plan", requireAuth, async (c) => {
     const services = await db.select().from(ChurchServices).where(and(eq(ChurchServices.churchId, gate.church.id), isNull(ChurchServices.spaceId))).orderBy(asc(ChurchServices.serviceDate));
     const serviceTimes = await listServiceTimesForChurch(gate.church.id);
     const assignments = await serviceTimeIdsByService(services.map((row) => row.id));
+    const attachments = await attachmentsByServiceIds(services.map((row) => row.id));
     const scope = { churchId: gate.church.id, spaceId: null };
     const seriesTitles = await seriesTitlesByServiceRows(services);
     return c.json({
@@ -322115,9 +322205,10 @@ app18.get("/api/church/services/plan", requireAuth, async (c) => {
         startTime: row.startTime,
         label: row.label
       })),
-      services: services.map(
-        (row) => serializeSermon(row, assignments.get(row.id) ?? [], seriesTitles)
-      ),
+      services: services.map((row) => ({
+        ...serializeSermon(row, assignments.get(row.id) ?? [], seriesTitles),
+        resources: attachments.get(row.id) ?? []
+      })),
       /*
         The church plan's own series, most recently *taught* first — what the
         editor's picker offers so weeks group without typo-splitting in two.
@@ -322392,6 +322483,33 @@ app18.post("/api/church/services/update", requireAuth, rateLimit("write"), async
     const standardError = handleAPIError(error, {
       endpoint: "/api/church/services/update",
       action: "update_church_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app18.post("/api/church/services/attachments/set", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const serviceId = (body.serviceId ?? "").trim();
+    if (!serviceId) return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
+    const itemIds = Array.isArray(body.itemIds) ? body.itemIds.map((id) => String(id).trim()).filter(Boolean) : [];
+    const result = await setServiceAttachments({
+      serviceId,
+      itemIds,
+      churchId: gate.church.id,
+      spaceId: null,
+      userId: auth.userId
+    });
+    if (!result.ok) return c.json({ error: result.error, code: result.code }, result.status);
+    const attached = await attachmentsByServiceIds([serviceId]);
+    return c.json({ success: true, resources: attached.get(serviceId) ?? [] });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/services/attachments/set",
+      action: "church_service_attachments"
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
@@ -322877,6 +322995,7 @@ app20.get("/api/church/spaces/:spaceId/plan", requireAuth, async (c) => {
     const services = await db.select().from(ChurchServices).where(eq(ChurchServices.spaceId, gate.space.id)).orderBy(asc(ChurchServices.serviceDate));
     const scope = { churchId: gate.church.id, spaceId: gate.space.id };
     const seriesTitles = await seriesTitlesByServiceRows(services);
+    const attachments = await attachmentsByServiceIds(services.map((row) => row.id));
     return c.json({
       church: { id: gate.church.id, name: gate.church.name },
       /*
@@ -322896,7 +323015,10 @@ app20.get("/api/church/spaces/:spaceId/plan", requireAuth, async (c) => {
         meetingDay: gate.space.meetingDay,
         meetingTime: gate.space.meetingTime
       },
-      services: services.map((row) => serializeSpaceSermon(row, seriesTitles)),
+      services: services.map((row) => ({
+        ...serializeSpaceSermon(row, seriesTitles),
+        resources: attachments.get(row.id) ?? []
+      })),
       // Per-plan vocabulary: Youth's series and the church's stay separate — the
       // scope is what keeps a volunteer leader out of the main service's rows.
       series: await listSeriesForPlan(scope)
@@ -323089,6 +323211,38 @@ app20.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+app20.post(
+  "/api/church/spaces/:spaceId/services/attachments/set",
+  requireAuth,
+  rateLimit("write"),
+  async (c) => {
+    try {
+      const auth = getAuthenticatedAuth(c);
+      const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+      if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+      const body = await c.req.json().catch(() => ({}));
+      const serviceId = (body.serviceId ?? "").trim();
+      if (!serviceId) return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
+      const itemIds = Array.isArray(body.itemIds) ? body.itemIds.map((id) => String(id).trim()).filter(Boolean) : [];
+      const result = await setServiceAttachments({
+        serviceId,
+        itemIds,
+        churchId: gate.church.id,
+        spaceId: gate.space.id,
+        userId: auth.userId
+      });
+      if (!result.ok) return c.json({ error: result.error, code: result.code }, result.status);
+      const attached = await attachmentsByServiceIds([serviceId]);
+      return c.json({ success: true, resources: attached.get(serviceId) ?? [] });
+    } catch (error) {
+      const standardError = handleAPIError(error, {
+        endpoint: "/api/church/spaces/[spaceId]/services/attachments/set",
+        action: "space_service_attachments"
+      });
+      return c.json({ error: standardError.message, code: standardError.code }, 500);
+    }
+  }
+);
 app20.post("/api/church/spaces/:spaceId/services/repeat", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);

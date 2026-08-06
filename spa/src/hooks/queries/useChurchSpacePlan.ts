@@ -81,6 +81,7 @@ export type SpaceSermonDraft = {
 };
 
 type SpaceSermonAction =
+  | { kind: 'attachments'; serviceId: string; itemIds: string[] }
   | ({ kind: 'create' } & SpaceSermonDraft)
   | ({ kind: 'update'; serviceId: string } & Partial<SpaceSermonDraft>)
   | { kind: 'delete'; serviceId: string }
@@ -113,6 +114,8 @@ export function useChurchSpaceSermonActions(spaceId: string | null | undefined) 
           return api.post(`${room}/services/delete`, rest);
         case 'repeat':
           return api.post(`${room}/services/repeat`, rest);
+        case 'attachments':
+          return api.post(`${room}/services/attachments/set`, rest);
         case 'series-rename':
           return api.post(`${room}/series/rename`, rest);
         case 'series-delete':

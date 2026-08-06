@@ -54,7 +54,7 @@ function Row({
       </span>
       <span className="proto-church-tools__row-text">
         <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={service.title}><span>{service.title}</span></span>
-        <span className="proto-caption proto-church-tools__row-meta">
+        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
           {timeLabel ? `${timeLabel} · ` : ''}
           {service.reference || 'No passage yet'}
           {service.seriesTitle ? ` · ${service.seriesTitle}` : ''}

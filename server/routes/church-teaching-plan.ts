@@ -58,6 +58,10 @@ import {
   type ChurchServiceRow,
 } from '../utils/church-teaching-plan';
 import {
+  attachmentsByServiceIds,
+  setServiceAttachments,
+} from '../utils/church-service-attachments';
+import {
   REPEAT_MAX_WEEKS,
   repeatTitleFor,
   weeklyDatesAfter,
@@ -183,6 +187,9 @@ app.get('/api/church/services/plan', requireAuth, async (c) => {
 
     const serviceTimes = await listServiceTimesForChurch(gate.church.id);
     const assignments = await serviceTimeIdsByService(services.map((row) => row.id));
+    /* Staff-gated read, so the resources a week draws on ride along rather than
+       costing a request per row when the editor opens. */
+    const attachments = await attachmentsByServiceIds(services.map((row) => row.id));
     const scope = { churchId: gate.church.id, spaceId: null };
     const seriesTitles = await seriesTitlesByServiceRows(services);
 
@@ -201,9 +208,10 @@ app.get('/api/church/services/plan', requireAuth, async (c) => {
         startTime: row.startTime,
         label: row.label,
       })),
-      services: services.map((row) =>
-        serializeSermon(row, assignments.get(row.id) ?? [], seriesTitles),
-      ),
+      services: services.map((row) => ({
+        ...serializeSermon(row, assignments.get(row.id) ?? [], seriesTitles),
+        resources: attachments.get(row.id) ?? [],
+      })),
       /*
         The church plan's own series, most recently *taught* first — what the
         editor's picker offers so weeks group without typo-splitting in two.
@@ -593,6 +601,49 @@ app.post('/api/church/services/update', requireAuth, rateLimit('write'), async (
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/services/update',
       action: 'update_church_service',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/church/services/attachments/set ──────────────────────────────
+/**
+ * The resources a sermon draws on. Replace-set: the editor holds the whole list.
+ */
+app.post('/api/church/services/attachments/set', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      orgId?: string;
+      serviceId?: string;
+      itemIds?: unknown;
+    };
+
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? '').trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    const serviceId = (body.serviceId ?? '').trim();
+    if (!serviceId) return c.json({ error: 'serviceId is required', code: 'BAD_REQUEST' }, 400);
+
+    const itemIds = Array.isArray(body.itemIds)
+      ? body.itemIds.map((id) => String(id).trim()).filter(Boolean)
+      : [];
+
+    const result = await setServiceAttachments({
+      serviceId,
+      itemIds,
+      churchId: gate.church.id,
+      spaceId: null,
+      userId: auth.userId,
+    });
+    if (!result.ok) return c.json({ error: result.error, code: result.code }, result.status);
+
+    const attached = await attachmentsByServiceIds([serviceId]);
+    return c.json({ success: true, resources: attached.get(serviceId) ?? [] });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/services/attachments/set',
+      action: 'church_service_attachments',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

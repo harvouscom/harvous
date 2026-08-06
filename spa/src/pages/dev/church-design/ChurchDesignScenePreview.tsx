@@ -627,7 +627,7 @@ function TeachingPlanScene({ mode }: { mode: 'list' | 'lapsed' }) {
                   </span>
                   <span className="proto-church-tools__row-text">
                     <span className="pds-list-title proto-church-tools__row-title">{row.title}</span>
-                    <span className="proto-caption proto-church-tools__row-meta">{row.meta}</span>
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">{row.meta}</span>
                   </span>
                   <span className="proto-church-tools__row-chevron" aria-hidden>
                     <Icon name="caret-right" size={11} />
@@ -647,7 +647,7 @@ function TeachingPlanScene({ mode }: { mode: 'list' | 'lapsed' }) {
                     <span className="pds-list-title proto-church-tools__row-title">
                       Plan ended
                     </span>
-                    <span className="proto-caption proto-church-tools__row-meta">
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                       Planned services stay visible
                     </span>
                   </span>
@@ -680,7 +680,7 @@ function TeachingPlanScene({ mode }: { mode: 'list' | 'lapsed' }) {
                   </span>
                   <span className="proto-church-tools__row-text">
                     <span className="pds-list-title proto-church-tools__row-title">{entry.title}</span>
-                    <span className="proto-caption proto-church-tools__row-meta">{entry.weeks}</span>
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">{entry.weeks}</span>
                   </span>
                   <span className="proto-church-tools__row-chevron" aria-hidden>
                     <Icon name="caret-right" size={11} />
@@ -1078,7 +1078,7 @@ function HubStaffScene() {
                   </span>
                   <span className="proto-church-tools__row-text">
                     <span className="pds-list-title proto-church-tools__row-title">Planner</span>
-                    <span className="proto-caption proto-church-tools__row-meta">
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                       Next: Aug 9 · Romans 8:1-11
                     </span>
                   </span>
@@ -1093,7 +1093,7 @@ function HubStaffScene() {
                   </span>
                   <span className="proto-church-tools__row-text">
                     <span className="pds-list-title proto-church-tools__row-title">Team</span>
-                    <span className="proto-caption proto-church-tools__row-meta">1 person</span>
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">1 person</span>
                   </span>
                   <span className="proto-church-tools__row-chevron" aria-hidden>
                     <Icon name="caret-right" size={11} />
@@ -1110,7 +1110,7 @@ function HubStaffScene() {
                     <span className="pds-list-title proto-church-tools__row-title">
                       29 days left in your pilot
                     </span>
-                    <span className="proto-caption proto-church-tools__row-meta">
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                       Congregation unaffected
                     </span>
                   </span>
@@ -1381,7 +1381,7 @@ function MarqueeScene() {
                   >
                     <span>{text}</span>
                   </span>
-                  <span className="proto-caption proto-church-tools__row-meta">8 weeks</span>
+                  <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">8 weeks</span>
                 </span>
                 <span className="proto-church-tools__row-chevron" aria-hidden>
                   <Icon name="caret-right" size={11} />
@@ -1545,7 +1545,7 @@ function LibrarySuggestionQueueScene() {
                     >
                       <span>{row.title}</span>
                     </span>
-                    <span className="proto-caption proto-church-tools__row-meta">
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                       {row.domain} · {row.who} · {row.when}
                     </span>
                     {row.note ? (

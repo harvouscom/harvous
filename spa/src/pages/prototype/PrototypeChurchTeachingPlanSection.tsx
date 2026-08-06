@@ -92,7 +92,7 @@ function SermonRow({
       <ServiceDateTile iso={service.serviceDate} />
       <span className="proto-church-tools__row-text">
         <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={service.title}><span>{service.title}</span></span>
-        <span className="proto-caption proto-church-tools__row-meta">
+        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
           {/* Time first: a church with a morning and an evening sermon has two
               rows on one date, and without this they read as duplicates. */}
           {timeLabel ? `${timeLabel} · ` : ''}
@@ -308,7 +308,7 @@ export default function PrototypeChurchTeachingPlanSection({
                 <span className="pds-list-title proto-church-tools__row-title">
                   {readOnlyReason === 'lapsed' ? 'Plan ended' : 'View only'}
                 </span>
-                <span className="proto-caption proto-church-tools__row-meta">
+                <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                   {readOnlyReason === 'lapsed'
                     ? 'Planned sermons stay visible'
                     : 'A pastor or admin plans the sermons'}
@@ -349,7 +349,7 @@ export default function PrototypeChurchTeachingPlanSection({
                 </span>
                 <span className="proto-church-tools__row-text">
                   <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={entry.title}><span>{entry.title}</span></span>
-                  <span className="proto-caption proto-church-tools__row-meta">
+                  <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                     {entry.serviceCount === 1 ? '1 week' : `${entry.serviceCount} weeks`}
                   </span>
                 </span>

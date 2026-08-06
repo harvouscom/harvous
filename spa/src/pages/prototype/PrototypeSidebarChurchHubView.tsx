@@ -613,7 +613,7 @@ export default function PrototypeSidebarChurchHubView() {
                           Planner
                         </span>
                         {/* Short enough for the sidebar's ~175px meta column. */}
-                        <span className="proto-caption proto-church-tools__row-meta">
+                        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                           Sermons and series
                         </span>
                       </span>
@@ -634,7 +634,7 @@ export default function PrototypeSidebarChurchHubView() {
                       </span>
                       <span className="proto-church-tools__row-text">
                         <span className="pds-list-title proto-church-tools__row-title">Team</span>
-                        <span className="proto-caption proto-church-tools__row-meta">
+                        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                           Staff and volunteers
                         </span>
                       </span>
@@ -663,7 +663,7 @@ export default function PrototypeSidebarChurchHubView() {
                         {/* Short enough not to truncate in the ~175px meta
                             column, and it says the thing the title can't: these
                             reach everyone, unlike a personal template. */}
-                        <span className="proto-caption proto-church-tools__row-meta">
+                        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                           Shared with everyone
                         </span>
                       </span>
@@ -692,7 +692,7 @@ export default function PrototypeSidebarChurchHubView() {
                         <span className="pds-list-title proto-church-tools__row-title">
                           Resource library
                         </span>
-                        <span className="proto-caption proto-church-tools__row-meta">
+                        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                           What your church studies from
                         </span>
                       </span>
@@ -721,7 +721,7 @@ export default function PrototypeSidebarChurchHubView() {
                         {/* Says the limit in the row, before anyone opens it —
                             "how many" is the whole offer, and a pastor should
                             not have to click to find out it is not "who". */}
-                        <span className="proto-caption proto-church-tools__row-meta">
+                        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                           How many, never who
                         </span>
                       </span>
@@ -747,7 +747,7 @@ export default function PrototypeSidebarChurchHubView() {
                         <span className="pds-list-title proto-church-tools__row-title">
                           Church settings
                         </span>
-                        <span className="proto-caption proto-church-tools__row-meta">
+                        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                           Times and time zone
                         </span>
                       </span>

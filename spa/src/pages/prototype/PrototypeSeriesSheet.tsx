@@ -183,7 +183,7 @@ export default function PrototypeSeriesSheet({
               <ServiceDateTile iso={service.serviceDate} />
               <span className="proto-church-tools__row-text">
                 <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={service.title}><span>{service.title}</span></span>
-                <span className="proto-caption proto-church-tools__row-meta">
+                <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                   {service.reference || 'No passage yet'}
                 </span>
               </span>

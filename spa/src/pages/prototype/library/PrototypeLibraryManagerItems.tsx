@@ -82,7 +82,7 @@ export default function PrototypeLibraryManagerItems({
                 >
                   <span>{item.title}</span>
                 </span>
-                <span className="proto-caption proto-church-tools__row-meta">
+                <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                   {subtitle ? `${subtitle} · ` : ''}
                   {scopeLabel(item, plannableSpaces)}
                   {/* Audience only when it narrows — "Members" on every row

@@ -112,7 +112,7 @@ export default function PrototypeChurchStaffSection({
                     {member.displayName}
                     {member.isSelf ? ' (you)' : ''}
                   </span>
-                  <span className="proto-caption proto-church-tools__row-meta">
+                  <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                     {churchRoleLabel(member.role)}
                   </span>
                 </span>
@@ -131,7 +131,7 @@ export default function PrototypeChurchStaffSection({
                   <span className="pds-list-title proto-church-tools__row-title">
                     {invite.emailAddress}
                   </span>
-                  <span className="proto-caption proto-church-tools__row-meta">Invited</span>
+                  <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">Invited</span>
                 </span>
                 {canManage ? (
                   <button

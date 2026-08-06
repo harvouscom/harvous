@@ -14,6 +14,9 @@
 import { useEffect, useRef } from 'react';
 import Icon from '@/components/react/Icon';
 import PrototypeSermonEditorFields from '../PrototypeSermonEditorFields';
+import PrototypePlannerResourcesField from './PrototypePlannerResourcesField';
+import { useChurchSermonActions } from '../../../hooks/queries/useChurchTeachingPlan';
+import { useChurchSpaceSermonActions } from '../../../hooks/queries/useChurchSpacePlan';
 import type {
   ChurchServiceTimeOption,
   TeachingPlanSeries,
@@ -51,6 +54,12 @@ export default function PrototypePlannerEditorPane({
   onNavigateAway: () => void;
 }) {
   const paneRef = useRef<HTMLElement | null>(null);
+  /* Both mounted, only the one for this plan used — the same guard the fields
+     component makes, for the same reason: a pane opened on a space plan must
+     not be able to post into the church's. */
+  const churchActions = useChurchSermonActions(orgId);
+  const spaceActions = useChurchSpaceSermonActions(planSpaceId);
+  const attachActions = planSpaceId ? spaceActions : churchActions;
 
   /*
     Escape closes the pane, not the whole planner. Marking it handled is what
@@ -143,6 +152,26 @@ export default function PrototypePlannerEditorPane({
               : 'A pastor or admin changes what is planned here.'}
           </p>
         )}
+
+        {/*
+          Only for a saved entry. Attachments are a join on a row that has to
+          exist first, and offering the picker mid-create would promise a link
+          the Save has not earned yet. Read-only viewers still see the list —
+          knowing what a week draws on is the point of showing it.
+        */}
+        {service ? (
+          <div className="proto-service-editor proto-planner-editor__resources">
+            <PrototypePlannerResourcesField
+              orgId={orgId}
+              attached={service.resources ?? []}
+              canWrite={canWrite}
+              pending={attachActions.isPending}
+              onChange={(itemIds) =>
+                attachActions.mutate({ kind: 'attachments', serviceId: service.id, itemIds })
+              }
+            />
+          </div>
+        ) : null}
       </div>
     </aside>
   );

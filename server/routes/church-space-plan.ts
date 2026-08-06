@@ -44,6 +44,10 @@ import {
 import { parseServiceDateInput, type ChurchServiceRow } from '../utils/church-teaching-plan';
 import { isMinistryBroadcastSpaceRow } from '../utils/channel-publish-cadence';
 import {
+  attachmentsByServiceIds,
+  setServiceAttachments,
+} from '../utils/church-service-attachments';
+import {
   REPEAT_MAX_WEEKS,
   repeatTitleFor,
   weeklyDatesAfter,
@@ -161,6 +165,7 @@ app.get('/api/church/spaces/:spaceId/plan', requireAuth, async (c) => {
 
     const scope = { churchId: gate.church.id, spaceId: gate.space.id };
     const seriesTitles = await seriesTitlesByServiceRows(services);
+    const attachments = await attachmentsByServiceIds(services.map((row) => row.id));
 
     return c.json({
       church: { id: gate.church.id, name: gate.church.name },
@@ -181,7 +186,10 @@ app.get('/api/church/spaces/:spaceId/plan', requireAuth, async (c) => {
         meetingDay: gate.space.meetingDay,
         meetingTime: gate.space.meetingTime,
       },
-      services: services.map((row) => serializeSpaceSermon(row, seriesTitles)),
+      services: services.map((row) => ({
+        ...serializeSpaceSermon(row, seriesTitles),
+        resources: attachments.get(row.id) ?? [],
+      })),
       // Per-plan vocabulary: Youth's series and the church's stay separate — the
       // scope is what keeps a volunteer leader out of the main service's rows.
       series: await listSeriesForPlan(scope),
@@ -420,6 +428,55 @@ app.post('/api/church/spaces/:spaceId/services/update', requireAuth, rateLimit('
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+
+// ─── POST /api/church/spaces/:spaceId/services/attachments/set ─────────────
+/**
+ * Resources for one entry on a space plan.
+ *
+ * Rides the plan's own manage gate, so a granted volunteer leader may attach
+ * to their room's entries — they are usually the person who found the material.
+ */
+app.post(
+  '/api/church/spaces/:spaceId/services/attachments/set',
+  requireAuth,
+  rateLimit('write'),
+  async (c) => {
+    try {
+      const auth = getAuthenticatedAuth(c);
+      const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param('spaceId') ?? '');
+      if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+      const body = (await c.req.json().catch(() => ({}))) as {
+        serviceId?: string;
+        itemIds?: unknown;
+      };
+      const serviceId = (body.serviceId ?? '').trim();
+      if (!serviceId) return c.json({ error: 'serviceId is required', code: 'BAD_REQUEST' }, 400);
+
+      const itemIds = Array.isArray(body.itemIds)
+        ? body.itemIds.map((id) => String(id).trim()).filter(Boolean)
+        : [];
+
+      const result = await setServiceAttachments({
+        serviceId,
+        itemIds,
+        churchId: gate.church.id,
+        spaceId: gate.space.id,
+        userId: auth.userId,
+      });
+      if (!result.ok) return c.json({ error: result.error, code: result.code }, result.status);
+
+      const attached = await attachmentsByServiceIds([serviceId]);
+      return c.json({ success: true, resources: attached.get(serviceId) ?? [] });
+    } catch (error) {
+      const standardError = handleAPIError(error, {
+        endpoint: '/api/church/spaces/[spaceId]/services/attachments/set',
+        action: 'space_service_attachments',
+      });
+      return c.json({ error: standardError.message, code: standardError.code }, 500);
+    }
+  },
+);
 
 // ─── POST /api/church/spaces/:spaceId/services/repeat ──────────────────────
 /**

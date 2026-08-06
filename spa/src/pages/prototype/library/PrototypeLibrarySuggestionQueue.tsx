@@ -106,7 +106,7 @@ export default function PrototypeLibrarySuggestionQueue({
                 >
                   <span>{suggestion.title ?? suggestion.url}</span>
                 </span>
-                <span className="proto-caption proto-church-tools__row-meta">
+                <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                   {suggestion.domain ? `${suggestion.domain} · ` : ''}
                   {suggestion.suggestedByName}
                   {relativeDay(suggestion.createdAt) ? ` · ${relativeDay(suggestion.createdAt)}` : ''}

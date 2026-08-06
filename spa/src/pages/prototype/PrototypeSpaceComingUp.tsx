@@ -89,7 +89,7 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
           </span>
           <span className="proto-church-tools__row-text">
             <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={gathering.title}><span>{gathering.title}</span></span>
-            <span className="proto-caption proto-church-tools__row-meta">
+            <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
               {gathering.reference || 'No passage yet'}
               {gathering.seriesTitle ? ` · ${gathering.seriesTitle}` : ''}
             </span>

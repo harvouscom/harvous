@@ -88,6 +88,42 @@
   }
 }
 
+/*
+ * Second form: the label *is* the moving element, no wrapper span.
+ *
+ * For a label that is the only thing on its line inside a parent that can be
+ * the clipping box — a row's subtitle, where the text is a composed expression
+ * (`{time} · {passage} · {series}`) and wrapping it in a span at every call
+ * site would be churn for no gain.
+ *
+ * The parent takes `proto-marquee-frame`; the label takes this. On hover the
+ * label grows to `max-content` so `100%` in the keyframe means its intrinsic
+ * width rather than the stretched-to-fit width a block child would report —
+ * without that the overflow always measures as zero and nothing moves.
+ */
+.proto-marquee-frame {
+  container-type: inline-size;
+  overflow: hidden;
+}
+
+.proto-marquee-self {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .proto-marquee-hover-root:hover .proto-marquee-self,
+  .proto-church-tools__row:hover .proto-marquee-self,
+  .proto-menu-item:hover .proto-marquee-self,
+  .proto-planner-card:hover .proto-marquee-self {
+    width: max-content;
+    max-width: none;
+    text-overflow: clip;
+    animation: proto-marquee-reveal 5s ease-in-out infinite alternate;
+  }
+}
+
 /* Dwell at both ends: the tail is only useful if it stops long enough to read. */
 @keyframes proto-marquee-reveal {
   0%,
@@ -10244,6 +10280,11 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   display: flex;
   flex-direction: column;
   gap: 1px;
+  /* The clipping box for the subtitle's marquee (see `.proto-marquee-frame`).
+     Safe here: this column's width comes from the flex parent, never from its
+     contents, so containment changes no layout. */
+  container-type: inline-size;
+  overflow: hidden;
 }
 
 /* One line each, always — a row is a row, not a paragraph. Copy that would
@@ -13648,4 +13689,63 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   padding: 0;
   font-size: 11px;
   flex-shrink: 0;
+}
+
+/* ─── Planner: attached resources ─────────────────────────────────────────── */
+
+.proto-planner-resources {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.proto-planner-resources__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: var(--pds-radius-row);
+  background: var(--pds-bg-chip);
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-planner-resources__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.proto-planner-resources__source {
+  flex: 0 0 auto;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-planner-resources__picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.proto-planner-resources__options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.proto-planner-resources__empty {
+  padding: 6px 2px;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+/* Its own block above the footer, so the picker never sits between a field and
+   the Save it belongs to. */
+.proto-planner-editor__resources {
+  border-top: 0.5px solid var(--pds-border-control);
+  margin-top: 6px;
+  padding-top: 10px;
 }
