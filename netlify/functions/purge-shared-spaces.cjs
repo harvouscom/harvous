@@ -10538,6 +10538,7 @@ __export(schema_exports, {
   BibleVerses: () => BibleVerses,
   ChurchMemberships: () => ChurchMemberships,
   ChurchSeries: () => ChurchSeries,
+  ChurchServiceLibraryItems: () => ChurchServiceLibraryItems,
   ChurchServiceTimeAssignments: () => ChurchServiceTimeAssignments,
   ChurchServiceTimes: () => ChurchServiceTimes,
   ChurchServices: () => ChurchServices,
@@ -10550,6 +10551,9 @@ __export(schema_exports, {
   FeaturedItems: () => FeaturedItems,
   InboxItemNotes: () => InboxItemNotes,
   InboxItems: () => InboxItems,
+  LibraryItemScopes: () => LibraryItemScopes,
+  LibraryItemSpacePins: () => LibraryItemSpacePins,
+  LibraryItemSuggestions: () => LibraryItemSuggestions,
   LibraryItems: () => LibraryItems,
   Members: () => Members,
   MonthlyAnalytics: () => MonthlyAnalytics,
@@ -10593,7 +10597,7 @@ __export(schema_exports, {
   VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, ChurchServiceTimes, ChurchServiceTimeAssignments, ChurchSeries, ChurchServices, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, ResourceLibraries, LibraryItems, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
+var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, ChurchServiceTimes, ChurchServiceTimeAssignments, ChurchSeries, ChurchServices, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, ResourceLibraries, LibraryItems, LibraryItemScopes, LibraryItemSpacePins, LibraryItemSuggestions, ChurchServiceLibraryItems, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -11186,8 +11190,19 @@ var init_schema2 = __esm({
        * service is a day on the church's wall calendar, and a TIMESTAMPTZ drifts a
        * Sunday into Saturday for a viewer three zones away. Same choice as
        * VotdPublishHistory.publishedDate.
+       *
+       * **NULL means unscheduled** — an idea sitting in the planner's backlog,
+       * waiting for a Sunday. Planning starts before a date exists ("I want to
+       * preach Habakkuk this fall"), and forcing a placeholder date to hold the
+       * thought put fiction on the calendar. Two invariants ride along, enforced in
+       * the write routes because no index can express them: an undated row has no
+       * ChurchServiceTimeAssignments (that table mirrors a date it does not have)
+       * and a NULL `serviceTime`.
+       *
+       * Congregant reads must exclude these — see `listServicesForChurch`. The
+       * backlog is a staff surface; "This Sunday" never shows a maybe.
        */
-      serviceDate: text("serviceDate").notNull(),
+      serviceDate: text("serviceDate"),
       /**
        * A one-off time for a sermon that does not sit at any of the church's usual
        * services — a Christmas Eve 17:00, a Good Friday evening.
@@ -11217,6 +11232,26 @@ var init_schema2 = __esm({
       reference: text("reference"),
       /** NoteTemplates.id, org-scoped — the starter a congregant's note begins from. */
       starterTemplateId: text("starterTemplateId"),
+      /**
+       * What kind of thing this row plans: `'gathering'` | `'content'`.
+       *
+       * The church plan and church Shared Spaces plan **gatherings** — a service, a
+       * Wednesday night, something people come to at a time. A ministry channel
+       * does not gather; it *publishes*, on a `Spaces.publishCadence`. Planning a
+       * channel as though it met weekly borrowed a shape that fit nothing about it:
+       * one entry per date (a daily devotional channel breaks that on day one), a
+       * meeting time, and the word "gathering" in every string.
+       *
+       * **Derived from the plan's space on write, never taken from the client** —
+       * `isMinistryBroadcastSpaceRow` decides it. A client that could name its own
+       * kind could escape the one-per-date rule by claiming to be content.
+       *
+       * Not a publish state. There is no pipeline from a planned entry to a
+       * published note yet (see docs/future/CHURCH_STUDY_MATERIAL_LINKING.md for
+       * why the pointer that tried was removed) — a content entry is still only a
+       * plan, and nothing congregant-facing reads it.
+       */
+      kind: text("kind").notNull().default("gathering"),
       createdBy: text("createdBy").notNull(),
       updatedBy: text("updatedBy"),
       createdAt: ts("createdAt").notNull(),
@@ -11235,8 +11270,16 @@ var init_schema2 = __esm({
        * space has a single `meetingTime` and can never claim a church service slot
        * — so every space row is timeless and the DB can carry the whole invariant.
        * The church side cannot: its answer depends on which slots a sermon claims.
+       *
+       * Undated backlog rows fall out of this for free: Postgres treats NULLs as
+       * distinct in a unique index, so a space can hold as many unscheduled ideas
+       * as it likes while still having one gathering per actual date.
+       *
+       * **Gatherings only.** A ministry channel publishes rather than meets, and a
+       * daily channel puts several entries on one date by design — "one per date"
+       * is a fact about a room people walk into, not about a publishing queue.
        */
-      uniqueIndex("ChurchServices_space_date_unique").on(table.spaceId, table.serviceDate).where(sql`${table.spaceId} IS NOT NULL`)
+      uniqueIndex("ChurchServices_space_date_unique").on(table.spaceId, table.serviceDate).where(sql`${table.spaceId} IS NOT NULL AND ${table.kind} = 'gathering'`)
     ]);
     NoteTemplates = pgTable(
       "NoteTemplates",
@@ -11758,6 +11801,98 @@ var init_schema2 = __esm({
       (table) => [
         index("LibraryItems_libraryId_archivedAtIndex").on(table.libraryId, table.archivedAt),
         index("LibraryItems_libraryId_updatedAtIndex").on(table.libraryId, table.updatedAt)
+      ]
+    );
+    LibraryItemScopes = pgTable(
+      "LibraryItemScopes",
+      {
+        id: text("id").primaryKey(),
+        libraryItemId: text("libraryItemId").notNull(),
+        scopeKind: text("scopeKind").notNull(),
+        spaceId: text("spaceId"),
+        ministryKey: text("ministryKey"),
+        createdAt: ts("createdAt").notNull()
+      },
+      (table) => [
+        /*
+          One partial unique per kind. A single index over all three columns would
+          not work: NULLs are distinct in a plain unique, so an item could be scoped
+          to the whole org twice. Same shape as ChurchSeries' per-scope uniques.
+        */
+        uniqueIndex("LibraryItemScopes_org_unique").on(table.libraryItemId).where(sql`${table.scopeKind} = 'org'`),
+        uniqueIndex("LibraryItemScopes_space_unique").on(table.libraryItemId, table.spaceId).where(sql`${table.scopeKind} = 'space'`),
+        uniqueIndex("LibraryItemScopes_ministry_unique").on(table.libraryItemId, table.ministryKey).where(sql`${table.scopeKind} = 'ministry'`),
+        index("LibraryItemScopes_libraryItemIdIndex").on(table.libraryItemId),
+        index("LibraryItemScopes_spaceIdIndex").on(table.spaceId)
+      ]
+    );
+    LibraryItemSpacePins = pgTable(
+      "LibraryItemSpacePins",
+      {
+        id: text("id").primaryKey(),
+        spaceId: text("spaceId").notNull(),
+        libraryItemId: text("libraryItemId").notNull(),
+        pinned: boolean("pinned").notNull().default(true),
+        sortOrder: integer("sortOrder").notNull().default(0),
+        pinnedByUserId: text("pinnedByUserId").notNull(),
+        pinnedAt: ts("pinnedAt").notNull()
+      },
+      (table) => [
+        uniqueIndex("LibraryItemSpacePins_space_item_unique").on(table.spaceId, table.libraryItemId),
+        index("LibraryItemSpacePins_spaceIdIndex").on(table.spaceId)
+      ]
+    );
+    LibraryItemSuggestions = pgTable(
+      "LibraryItemSuggestions",
+      {
+        id: text("id").primaryKey(),
+        churchId: text("churchId").notNull(),
+        suggestedByUserId: text("suggestedByUserId").notNull(),
+        url: text("url").notNull(),
+        title: text("title"),
+        /** The congregant's "why" — what a reviewer reads before deciding. */
+        note: text("note"),
+        /** 'open' | 'approved' | 'declined'. */
+        status: text("status").notNull().default("open"),
+        reviewedByUserId: text("reviewedByUserId"),
+        reviewedAt: ts("reviewedAt"),
+        /** Set on approval — the LibraryItems row this became. */
+        createdItemId: text("createdItemId"),
+        /** Drives the unread badge, the way SupportTickets.adminReadAt does. */
+        staffReadAt: ts("staffReadAt"),
+        createdAt: ts("createdAt").notNull()
+      },
+      (table) => [
+        index("LibraryItemSuggestions_church_status_createdAtIndex").on(
+          table.churchId,
+          table.status,
+          table.createdAt
+        ),
+        index("LibraryItemSuggestions_suggestedBy_createdAtIndex").on(
+          table.suggestedByUserId,
+          table.createdAt
+        )
+      ]
+    );
+    ChurchServiceLibraryItems = pgTable(
+      "ChurchServiceLibraryItems",
+      {
+        id: text("id").primaryKey(),
+        serviceId: text("serviceId").notNull(),
+        libraryItemId: text("libraryItemId").notNull(),
+        attachedByUserId: text("attachedByUserId").notNull(),
+        sortOrder: integer("sortOrder").notNull().default(0),
+        createdAt: ts("createdAt").notNull()
+      },
+      (table) => [
+        uniqueIndex("ChurchServiceLibraryItems_service_item_unique").on(
+          table.serviceId,
+          table.libraryItemId
+        ),
+        index("ChurchServiceLibraryItems_serviceIdIndex").on(table.serviceId),
+        /* The reverse question — "which weeks used this?" — indexed now rather
+           than after someone writes it as a table scan. */
+        index("ChurchServiceLibraryItems_libraryItemIdIndex").on(table.libraryItemId)
       ]
     );
     InboxItems = pgTable("InboxItems", {

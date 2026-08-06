@@ -657,17 +657,18 @@ function PrototypeSidebarSharedSpaceViewLive() {
           />
           <div className="proto-shared-space-header__meta">
             {isMinistryChannel && churchEyebrow ? (
-              // Clamped to one line; the inner span is what slides on hover to
-              // reveal a long church name (see proto-marquee-reveal).
               <p
-                className="proto-caption proto-shared-space-header__church"
+                className="proto-caption proto-shared-space-header__church proto-marquee"
                 title={churchEyebrow}
               >
                 <span>{churchEyebrow}</span>
               </p>
             ) : null}
-            <div className="pds-list-title proto-shared-space-header__title" title={spaceTitle}>
-              {spaceTitle}
+            <div
+              className="pds-list-title proto-shared-space-header__title proto-marquee"
+              title={spaceTitle}
+            >
+              <span>{spaceTitle}</span>
             </div>
             {!isMinistryChannel ? (
               <button

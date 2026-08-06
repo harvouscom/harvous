@@ -12,6 +12,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import Icon from '@/components/react/Icon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import {
+  useChurchLibraryUnion,
+  type ChurchLibraryItem,
+} from '../../hooks/queries/useChurchLibrary';
+import PrototypeSuggestResourceSheet from './PrototypeSuggestResourceSheet';
 import PrototypeListEmptyState, { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
 import PrototypeSidebarRowMenuPopover from './PrototypeSidebarRowMenuPopover';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
@@ -414,6 +419,55 @@ function hostOf(raw: string): string {
   }
 }
 
+/**
+ * A church resource, read-only.
+ *
+ * Same row anatomy as a personal one, minus the kebab: these belong to the
+ * church, and a member "removing" one would either be a lie — it returns on
+ * the next refetch — or a right they do not have. Opening is the interaction.
+ */
+function ChurchResourceRow({
+  item,
+  onOpen,
+}: {
+  item: ChurchLibraryItem;
+  onOpen: () => void;
+}) {
+  const subtitle = resourceSourceLabel(item.sourceDomain, item.sourceSiteName);
+  return (
+    <li className="proto-note-row-item">
+      <button
+        type="button"
+        className="proto-note-row__main"
+        onClick={onOpen}
+        aria-label={`Church resource: ${item.title}`}
+      >
+        <div className="proto-note-row__title-line">
+          <span className="proto-note-row__kind-icon" aria-hidden>
+            <Icon name="newspaper" size={11} />
+          </span>
+          <span
+            className="pds-list-title proto-note-row__title-text proto-marquee"
+            title={item.title}
+          >
+            <span>{item.title}</span>
+          </span>
+        </div>
+        {subtitle || item.description || item.access === 'leaders' ? (
+          <div className="pds-list-preview proto-note-row__preview">
+            {subtitle ? <span className="pds-list-timestamp">{subtitle}</span> : null}
+            {/* Says why this is visible when it is not visible to everyone. */}
+            {item.access === 'leaders' ? (
+              <span className="pds-list-timestamp">{subtitle ? '  ·  Leaders' : 'Leaders'}</span>
+            ) : null}
+            {item.description ? <span>{item.description}</span> : null}
+          </div>
+        ) : null}
+      </button>
+    </li>
+  );
+}
+
 export default function PrototypeResourceLibraryList({
   query,
   onOpenResource,
@@ -423,7 +477,14 @@ export default function PrototypeResourceLibraryList({
   onOpenResource: (item: LibraryItem) => void;
 }) {
   const libraryQuery = useLibrary();
+  /*
+    The church's shelf is a section of this list, not a second list. A member's
+    resources are "what I can reach for" — where a thing came from is a label
+    on the row, not a place they should have to go and look.
+  */
+  const churchQuery = useChurchLibraryUnion();
   const archive = useArchiveLibraryItem();
+  const [suggestOpen, setSuggestOpen] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -440,6 +501,20 @@ export default function PrototypeResourceLibraryList({
         .some((field) => field!.toLowerCase().includes(trimmedQuery)),
     );
   }, [items, trimmedQuery]);
+
+  const churchItems = churchQuery.data?.items ?? [];
+  const churchName = churchQuery.data?.church?.name ?? null;
+  const filteredChurch = useMemo(() => {
+    if (!trimmedQuery) return churchItems;
+    return churchItems.filter((item) =>
+      [item.title, item.sourceSiteName, item.sourceDomain, item.description]
+        .filter(Boolean)
+        .some((field) => field!.toLowerCase().includes(trimmedQuery)),
+    );
+  }, [churchItems, trimmedQuery]);
+
+  /* Only worth a heading when there is a second section to tell it apart from. */
+  const showSections = filteredChurch.length > 0;
 
   const hasFiles = (e: DragEvent) => e.dataTransfer?.types?.includes('Files');
 
@@ -488,7 +563,7 @@ export default function PrototypeResourceLibraryList({
         <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
           Could not load your resources.
         </p>
-      ) : filtered.length === 0 ? (
+      ) : filtered.length === 0 && filteredChurch.length === 0 ? (
         trimmedQuery ? (
           <PrototypeListNoMatchEmptyState title="No resources match" />
         ) : (
@@ -499,21 +574,66 @@ export default function PrototypeResourceLibraryList({
           />
         )
       ) : (
-        <ul className="proto-note-list">
-          {filtered.map((item) => (
-            <ResourceRow
-              key={item.id}
-              item={item}
-              onOpen={() => onOpenResource(item)}
-              isArchiving={archive.isPending && archivingId === item.id}
-              onArchive={() => {
-                setArchivingId(item.id);
-                void archive.mutateAsync(item.id).finally(() => setArchivingId(null));
-              }}
-            />
-          ))}
-        </ul>
+        <>
+          {filtered.length > 0 ? (
+            <>
+              {showSections ? (
+                <p className="proto-caption proto-resource-section-head">Yours</p>
+              ) : null}
+              <ul className="proto-note-list">
+                {filtered.map((item) => (
+                  <ResourceRow
+                    key={item.id}
+                    item={item}
+                    onOpen={() => onOpenResource(item)}
+                    isArchiving={archive.isPending && archivingId === item.id}
+                    onArchive={() => {
+                      setArchivingId(item.id);
+                      void archive.mutateAsync(item.id).finally(() => setArchivingId(null));
+                    }}
+                  />
+                ))}
+              </ul>
+            </>
+          ) : null}
+
+          {filteredChurch.length > 0 ? (
+            <>
+              <div className="proto-resource-section-head-row">
+                <p className="proto-caption proto-resource-section-head">
+                  {churchName ? `From ${churchName}` : 'From your church'}
+                </p>
+                {/* Sits with the church's own section, where someone is already
+                    looking at what their church keeps and noticing a gap. */}
+                <button
+                  type="button"
+                  className="proto-sheet-quiet-action proto-resource-suggest-btn"
+                  onClick={() => setSuggestOpen(true)}
+                >
+                  Suggest one
+                </button>
+              </div>
+              <ul className="proto-note-list">
+                {filteredChurch.map((item) => (
+                  <ChurchResourceRow
+                    key={item.id}
+                    item={item}
+                    onOpen={() => {
+                      if (item.sourceUrl) window.open(item.sourceUrl, '_blank', 'noopener');
+                    }}
+                  />
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </>
       )}
+
+      <PrototypeSuggestResourceSheet
+        open={suggestOpen}
+        churchName={churchName}
+        onOpenChange={setSuggestOpen}
+      />
     </div>
   );
 }

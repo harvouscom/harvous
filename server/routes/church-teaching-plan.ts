@@ -32,6 +32,7 @@ import {
   NoteTemplates,
   Spaces,
   eq,
+  ne,
   and,
   asc,
   isNull,
@@ -53,8 +54,13 @@ import {
 import {
   assertCanManageTeachingPlan,
   assertCanViewTeachingPlan,
+  parseServiceDateInput,
   type ChurchServiceRow,
 } from '../utils/church-teaching-plan';
+import {
+  attachmentsByServiceIds,
+  setServiceAttachments,
+} from '../utils/church-service-attachments';
 import {
   REPEAT_MAX_WEEKS,
   repeatTitleFor,
@@ -70,15 +76,13 @@ import {
 
 const app = new Hono();
 
-/** ISO calendar day, the only shape `ChurchServices.serviceDate` accepts. */
-const SERVICE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
 const TITLE_MAX = 120;
 
 type SermonInput = {
   orgId?: string;
   serviceId?: string;
-  serviceDate?: string;
+  /** Explicit `null` files this as an undated backlog idea — see parseServiceDateInput. */
+  serviceDate?: string | null;
   /** Which of the church's recurring services this sermon is preached at. */
   serviceTimeIds?: string[];
   /** A one-off time for a sermon that sits at none of the usual services. */
@@ -121,6 +125,9 @@ function serializeSermon(
     seriesTitle: row.seriesId ? seriesTitles?.get(row.seriesId) ?? null : null,
     reference: row.reference,
     starterTemplateId: row.starterTemplateId,
+    /* Backlog order. `updatedAt` cannot stand in for it: editing an idea
+       would reshuffle the Ideas column under the pastor's cursor. */
+    createdAt: row.createdAt,
     updatedAt: row.updatedAt ?? row.createdAt,
   };
 }
@@ -173,10 +180,10 @@ app.get('/api/church/services/plan', requireAuth, async (c) => {
     const scope = { churchId: gate.church.id, spaceId: null };
 
     /*
-      Two waves, not five serial queries. Only the assignments and the series
-      titles need the sermon rows first; the church's slots and its series list
-      are keyed on the church alone, so they ride alongside rather than queue
-      behind. The plan pane was five round trips deep before this.
+      Two waves, not six serial queries. Only the assignments, the series titles
+      and the attachments need the sermon rows first; the church's slots and its
+      series list are keyed on the church alone, so they ride alongside rather
+      than queue behind.
     */
     const [services, serviceTimes, series] = await Promise.all([
       db
@@ -190,9 +197,13 @@ app.get('/api/church/services/plan', requireAuth, async (c) => {
       listSeriesForPlan(scope),
     ]);
 
-    const [assignments, seriesTitles] = await Promise.all([
-      serviceTimeIdsByService(services.map((row) => row.id)),
+    const serviceIds = services.map((row) => row.id);
+    const [assignments, seriesTitles, attachments] = await Promise.all([
+      serviceTimeIdsByService(serviceIds),
       seriesTitlesByServiceRows(services),
+      /* Staff-gated read, so the resources a week draws on ride along rather
+         than costing a request per row when the editor opens. */
+      attachmentsByServiceIds(serviceIds),
     ]);
 
 
@@ -210,9 +221,10 @@ app.get('/api/church/services/plan', requireAuth, async (c) => {
         startTime: row.startTime,
         label: row.label,
       })),
-      services: services.map((row) =>
-        serializeSermon(row, assignments.get(row.id) ?? [], seriesTitles),
-      ),
+      services: services.map((row) => ({
+        ...serializeSermon(row, assignments.get(row.id) ?? [], seriesTitles),
+        resources: attachments.get(row.id) ?? [],
+      })),
       /*
         The church plan's own series, most recently *taught* first — what the
         editor's picker offers so weeks group without typo-splitting in two.
@@ -239,10 +251,14 @@ app.post('/api/church/services/create', requireAuth, rateLimit('write'), async (
     const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? '').trim());
     if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
 
-    const serviceDate = (body.serviceDate ?? '').trim();
-    if (!SERVICE_DATE_PATTERN.test(serviceDate)) {
+    const parsedDate = parseServiceDateInput(body.serviceDate);
+    if (!parsedDate.ok) {
+      return c.json({ error: parsedDate.reason, code: 'BAD_REQUEST' }, 400);
+    }
+    if (parsedDate.kind === 'absent') {
       return c.json({ error: 'serviceDate must be YYYY-MM-DD', code: 'BAD_REQUEST' }, 400);
     }
+    const serviceDate = parsedDate.kind === 'date' ? parsedDate.value : null;
     const title = clean(body.title, TITLE_MAX);
     if (!title) {
       return c.json({ error: 'A title is required', code: 'BAD_REQUEST' }, 400);
@@ -250,15 +266,25 @@ app.post('/api/church/services/create', requireAuth, rateLimit('write'), async (
 
     const time = normalizeServiceTime(body.serviceTime);
     if (!time.ok) return c.json({ error: time.reason, code: 'BAD_REQUEST' }, 400);
-    const serviceTime = time.value;
+    /*
+      An undated idea keeps neither kind of time. Both a slot claim and a
+      one-off clock reading describe a moment on a date this row does not have
+      — and the assignments table mirrors `serviceDate` into a NOT NULL column,
+      so there is nothing to write there either. Stripped rather than refused:
+      the drag that unschedules a sermon shouldn't have to clear its times
+      first, and there is no ambiguity about what the user meant.
+    */
+    const serviceTime = serviceDate === null ? null : time.value;
 
     // Cross-church guard: a slot id from another church would put this sermon
     // on someone else's Sunday. Unknown ids are dropped, not errored — a stale
     // editor holding a since-deleted slot should still be able to save.
-    const serviceTimeIds = await filterServiceTimeIdsForChurch(
-      gate.church.id,
-      Array.isArray(body.serviceTimeIds) ? body.serviceTimeIds : [],
-    );
+    const serviceTimeIds = serviceDate === null
+      ? []
+      : await filterServiceTimeIdsForChurch(
+          gate.church.id,
+          Array.isArray(body.serviceTimeIds) ? body.serviceTimeIds : [],
+        );
 
     const passage = canonicalizeServiceReference(body.reference);
     if (!passage.ok) {
@@ -275,7 +301,7 @@ app.post('/api/church/services/create', requireAuth, rateLimit('write'), async (
       tell them apart, neither the plan nor the card could say which is which.
       Sermons that do claim slots are guarded by the DB index below instead.
     */
-    if (serviceTimeIds.length === 0) {
+    if (serviceDate !== null && serviceTimeIds.length === 0) {
       const clash = first(
         await db
           .select({ id: ChurchServices.id })
@@ -324,6 +350,9 @@ app.post('/api/church/services/create', requireAuth, rateLimit('write'), async (
       seriesId: null as string | null,
       reference: passage.reference,
       starterTemplateId: clean(body.starterTemplateId, 200),
+      /* The church's own plan is always gatherings — stated rather than
+         left to the column default, so the intent survives a schema edit. */
+      kind: 'gathering' as const,
       createdBy: auth.userId,
       updatedBy: null,
       createdAt: now,
@@ -350,7 +379,10 @@ app.post('/api/church/services/create', requireAuth, rateLimit('write'), async (
         seriesId = series.seriesId;
         row.seriesId = seriesId;
         await tx.insert(ChurchServices).values(row);
-        await replaceServiceTimeAssignments(tx, { serviceId: row.id, serviceDate, serviceTimeIds });
+        /* No date, no assignments — the table's own serviceDate is NOT NULL. */
+        if (serviceDate !== null) {
+          await replaceServiceTimeAssignments(tx, { serviceId: row.id, serviceDate, serviceTimeIds });
+        }
       });
       if (refusal.reason) {
         return c.json({ error: refusal.reason.error, code: refusal.reason.code }, 404);
@@ -418,13 +450,14 @@ app.post('/api/church/services/update', requireAuth, rateLimit('write'), async (
 
     const updates: Partial<ChurchServiceRow> = { updatedBy: auth.userId, updatedAt: new Date() };
 
-    if (body.serviceDate !== undefined) {
-      const serviceDate = (body.serviceDate ?? '').trim();
-      if (!SERVICE_DATE_PATTERN.test(serviceDate)) {
-        return c.json({ error: 'serviceDate must be YYYY-MM-DD', code: 'BAD_REQUEST' }, 400);
-      }
-      updates.serviceDate = serviceDate;
+    const parsedDate = parseServiceDateInput(body.serviceDate);
+    if (!parsedDate.ok) {
+      return c.json({ error: parsedDate.reason, code: 'BAD_REQUEST' }, 400);
     }
+    if (parsedDate.kind === 'date') updates.serviceDate = parsedDate.value;
+    /* Unscheduling — the board's drag back to Ideas. */
+    if (parsedDate.kind === 'backlog') updates.serviceDate = null;
+    const unscheduling = parsedDate.kind === 'backlog';
 
     if (body.serviceTime !== undefined) {
       const time = normalizeServiceTime(body.serviceTime);
@@ -432,20 +465,24 @@ app.post('/api/church/services/update', requireAuth, rateLimit('write'), async (
       // An explicit null drops the one-off time; the sermon's slots then say when.
       updates.serviceTime = time.value;
     }
+    /* A date is what a time is relative to. Losing one loses the other, whatever
+       the payload said — the same strip create does. */
+    if (unscheduling) updates.serviceTime = null;
 
     /*
       Slots are replaced wholesale when the key is present, and left alone when
       it is absent — the same present/absent contract every other field here
       uses, so a partial update never silently unassigns a sermon.
     */
-    const nextServiceTimeIds =
-      body.serviceTimeIds === undefined
+    const nextServiceTimeIds = unscheduling
+      ? []
+      : body.serviceTimeIds === undefined
         ? null
         : await filterServiceTimeIdsForChurch(
             gate.church.id,
             Array.isArray(body.serviceTimeIds) ? body.serviceTimeIds : [],
           );
-    const nextDate = updates.serviceDate ?? existing.serviceDate;
+    const nextDate = updates.serviceDate !== undefined ? updates.serviceDate : existing.serviceDate;
 
     if (body.title !== undefined) {
       const title = clean(body.title, TITLE_MAX);
@@ -475,6 +512,46 @@ app.post('/api/church/services/update', requireAuth, rateLimit('write'), async (
       quietly stops applying.
     */
     const finalIds = nextServiceTimeIds ?? (await serviceTimeIdsByService([serviceId])).get(serviceId) ?? [];
+
+    /*
+      The same "two timeless sermons on one date" nonsense create refuses, now
+      that a date can arrive by update too. It could not happen before the
+      planner board: the editor only ever moved a sermon you were already
+      looking at, so a collision was visible on screen. Dragging a card onto an
+      occupied Sunday is not, and a silent double-booking there is worse than a
+      refusal the board can revert. Only when this sermon ends up timeless —
+      slot-claiming sermons are still caught by the DB index below.
+    */
+    const finalServiceTime =
+      updates.serviceTime !== undefined ? updates.serviceTime : existing.serviceTime;
+    if (nextDate !== null && finalIds.length === 0 && finalServiceTime === null) {
+      const clash = first(
+        await db
+          .select({ id: ChurchServices.id })
+          .from(ChurchServices)
+          .where(
+            and(
+              eq(ChurchServices.churchId, gate.church.id),
+              isNull(ChurchServices.spaceId),
+              eq(ChurchServices.serviceDate, nextDate),
+              isNull(ChurchServices.serviceTime),
+              ne(ChurchServices.id, serviceId),
+            ),
+          )
+          .limit(1),
+      );
+      if (clash) {
+        return c.json(
+          {
+            error: 'That date already has a sermon. Edit it, or give this one a service time.',
+            code: 'SERVICE_DATE_TAKEN',
+            serviceId: clash.id,
+          },
+          409,
+        );
+      }
+    }
+
     const refusal: { reason: { code: string; error: string } | null } = { reason: null };
     try {
       await db.transaction(async (tx) => {
@@ -499,7 +576,12 @@ app.post('/api/church/services/update', requireAuth, rateLimit('write'), async (
           updates.seriesId = series.seriesId;
         }
         await tx.update(ChurchServices).set(updates).where(eq(ChurchServices.id, serviceId));
-        if (nextServiceTimeIds !== null || updates.serviceDate !== undefined) {
+        if (nextDate === null) {
+          /* Unscheduled: release the slots outright rather than re-writing them
+             against a date this row no longer has. Holding them would keep those
+             Sundays blocked for a sermon that is back to being an idea. */
+          await clearServiceTimeAssignments(tx, serviceId);
+        } else if (nextServiceTimeIds !== null || updates.serviceDate !== undefined) {
           await replaceServiceTimeAssignments(tx, {
             serviceId,
             serviceDate: nextDate,
@@ -532,6 +614,49 @@ app.post('/api/church/services/update', requireAuth, rateLimit('write'), async (
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/services/update',
       action: 'update_church_service',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/church/services/attachments/set ──────────────────────────────
+/**
+ * The resources a sermon draws on. Replace-set: the editor holds the whole list.
+ */
+app.post('/api/church/services/attachments/set', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      orgId?: string;
+      serviceId?: string;
+      itemIds?: unknown;
+    };
+
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? '').trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    const serviceId = (body.serviceId ?? '').trim();
+    if (!serviceId) return c.json({ error: 'serviceId is required', code: 'BAD_REQUEST' }, 400);
+
+    const itemIds = Array.isArray(body.itemIds)
+      ? body.itemIds.map((id) => String(id).trim()).filter(Boolean)
+      : [];
+
+    const result = await setServiceAttachments({
+      serviceId,
+      itemIds,
+      churchId: gate.church.id,
+      spaceId: null,
+      userId: auth.userId,
+    });
+    if (!result.ok) return c.json({ error: result.error, code: result.code }, result.status);
+
+    const attached = await attachmentsByServiceIds([serviceId]);
+    return c.json({ success: true, resources: attached.get(serviceId) ?? [] });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/services/attachments/set',
+      action: 'church_service_attachments',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
@@ -586,6 +711,16 @@ app.post('/api/church/services/repeat', requireAuth, rateLimit('write'), async (
         .limit(1),
     );
     if (!seed) return c.json({ error: 'Service not found', code: 'SERVICE_NOT_FOUND' }, 404);
+    /* Weekly repeats count forward from a date. An idea has none to count from. */
+    if (seed.serviceDate === null) {
+      return c.json(
+        {
+          error: 'Give this sermon a date first — repeat counts weeks from one.',
+          code: 'BAD_REQUEST',
+        },
+        400,
+      );
+    }
 
     const dates = weeklyDatesAfter(seed.serviceDate, Number(body.weeks ?? 0));
     if (dates.length === 0) {
@@ -646,6 +781,7 @@ app.post('/api/church/services/repeat', requireAuth, rateLimit('write'), async (
         // guessing it would put words in the pastor's mouth.
         reference: null,
         starterTemplateId: seed.starterTemplateId,
+        kind: seed.kind,
         createdBy: auth.userId,
         updatedBy: null,
         createdAt: now,

@@ -12,6 +12,17 @@ import { spaceCoverFromThreadColor } from '@/utils/space-cover';
 import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from '../../prototype/settings/SettingsShell';
 import ProtoSpaceMenuIcon from '../../prototype/ProtoSpaceMenuIcon';
 import PublicJoinSpaceHero from '../../public/PublicJoinSpaceHero';
+import PrototypePlannerBoard from '../../prototype/planner/PrototypePlannerBoard';
+import PrototypePlannerCalendar from '../../prototype/planner/PrototypePlannerCalendar';
+import PrototypePlannerList from '../../prototype/planner/PrototypePlannerList';
+import PrototypePlannerScopeChips from '../../prototype/planner/PrototypePlannerScopeChips';
+import PrototypeLibraryManagerItems from '../../prototype/library/PrototypeLibraryManagerItems';
+import type { LibrarySelection } from '../../prototype/library/PrototypeExpandedLibraryManager';
+import type {
+  PlannerSelection,
+  PlannerView,
+} from '../../prototype/planner/PrototypeExpandedPlanner';
+import type { TeachingPlanSermon } from '../../../hooks/queries/useChurchTeachingPlan';
 import type { ChurchDesignScene } from './sceneRegistry';
 import '@/styles/admin-usage.css';
 import '@/styles/admin-publish.css';
@@ -67,6 +78,54 @@ function PhoneChrome({ children }: { children: ReactNode }) {
         }}
       >
         {children}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The expanded sidebar's footprint, at the width it actually gets.
+ *
+ * Wider than every other frame here because that is the whole point of the
+ * surface — a board previewed at phone width would be a different design.
+ */
+function ExpandedPanelChrome({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="proto-theme" style={{ width: '100%', maxWidth: 1040, margin: '0 auto' }}>
+      <div
+        className="proto-sidebar-expanded-panel"
+        style={{
+          // The panel's structure lives in prototype-shell.css, which this
+          // gallery deliberately does not import — it previews components, not
+          // the app shell. So the frame is restated here: statically placed so
+          // scenes can stack, and a column flex so the body fills the height.
+          position: 'static',
+          display: 'flex',
+          flexDirection: 'column',
+          width: '100%',
+          height: 'calc(100vh - 230px)',
+          minHeight: 460,
+          overflow: 'hidden',
+          borderRadius: 18,
+          background: 'var(--pds-bg-page)',
+          border: '0.5px solid var(--pds-border)',
+          animation: 'none',
+        }}
+      >
+        <div className="proto-sidebar-expanded-panel__header">
+          <div className="proto-sidebar-expanded-panel__header-lead">
+            <button type="button" className="proto-side-panel__action-btn" aria-label="Collapse">
+              <Icon name="down-left-and-up-right-to-center" size={14} />
+            </button>
+            <span className="proto-sidebar-expanded-panel__title">{title}</span>
+          </div>
+        </div>
+        <div
+          className="proto-sidebar-expanded-panel__body"
+          style={{ minWidth: 0, flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}
+        >
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -514,9 +573,16 @@ function ThisSundayScene() {
 }
 
 const TEACHING_PLAN_ROWS = [
-  { date: 'Aug 9', title: 'No Condemnation', meta: 'Romans 8:1-11 · Life in the Spirit' },
-  { date: 'Aug 16', title: 'Led by the Spirit', meta: 'Romans 8:12-17 · Life in the Spirit' },
-  { date: 'Aug 23', title: 'Groaning and Glory', meta: 'No passage yet · Life in the Spirit' },
+  { month: 'Aug', day: '9', title: 'No Condemnation', meta: 'Romans 8:1-11 · Life in the Spirit' },
+  { month: 'Aug', day: '16', title: 'Led by the Spirit', meta: 'Romans 8:12-17 · Life in the Spirit' },
+  { month: 'Aug', day: '23', title: 'Groaning and Glory', meta: 'No passage yet · Life in the Spirit' },
+];
+
+/* The lane below the sermons, and the reason the date is a tile: both lanes
+   have to start their titles on the same edge. */
+const TEACHING_PLAN_SERIES = [
+  { title: 'Life in the Spirit', weeks: '8 weeks' },
+  { title: 'Advent', weeks: '4 weeks' },
 ];
 
 /**
@@ -550,15 +616,18 @@ function TeachingPlanScene({ mode }: { mode: 'list' | 'lapsed' }) {
             <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
               {TEACHING_PLAN_ROWS.map((row) => (
                 <button
-                  key={row.date}
+                  key={row.day}
                   type="button"
                   className="proto-church-tools__row"
                   disabled={lapsed}
                 >
-                  <span className="proto-church-tools__row-date">{row.date}</span>
+                  <span className="proto-church-tools__row-date">
+                    <span className="proto-church-tools__row-date-month">{row.month}</span>
+                    <span className="proto-church-tools__row-date-day">{row.day}</span>
+                  </span>
                   <span className="proto-church-tools__row-text">
                     <span className="pds-list-title proto-church-tools__row-title">{row.title}</span>
-                    <span className="proto-caption proto-church-tools__row-meta">{row.meta}</span>
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">{row.meta}</span>
                   </span>
                   <span className="proto-church-tools__row-chevron" aria-hidden>
                     <Icon name="caret-right" size={11} />
@@ -578,7 +647,7 @@ function TeachingPlanScene({ mode }: { mode: 'list' | 'lapsed' }) {
                     <span className="pds-list-title proto-church-tools__row-title">
                       Plan ended
                     </span>
-                    <span className="proto-caption proto-church-tools__row-meta">
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                       Planned services stay visible
                     </span>
                   </span>
@@ -590,6 +659,34 @@ function TeachingPlanScene({ mode }: { mode: 'list' | 'lapsed' }) {
                   </button>
                 </div>
               ) : null}
+            </div>
+
+            {/* The Series lane, present so the two leading slots can be checked
+                against each other — a date tile and an icon tile on one edge is
+                the whole reason the date stopped being a text column. */}
+            <div className="proto-church-tools__lane-head proto-church-tools__lane-head--stacked">
+              <p className="proto-caption proto-home-section__eyebrow">Series</p>
+            </div>
+            <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+              {TEACHING_PLAN_SERIES.map((entry) => (
+                <button
+                  key={entry.title}
+                  type="button"
+                  className="proto-church-tools__row"
+                  disabled={lapsed}
+                >
+                  <span className="proto-church-tools__row-icon" aria-hidden>
+                    <Icon name="timeline" size={13} />
+                  </span>
+                  <span className="proto-church-tools__row-text">
+                    <span className="pds-list-title proto-church-tools__row-title">{entry.title}</span>
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">{entry.weeks}</span>
+                  </span>
+                  <span className="proto-church-tools__row-chevron" aria-hidden>
+                    <Icon name="caret-right" size={11} />
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -981,7 +1078,7 @@ function HubStaffScene() {
                   </span>
                   <span className="proto-church-tools__row-text">
                     <span className="pds-list-title proto-church-tools__row-title">Planner</span>
-                    <span className="proto-caption proto-church-tools__row-meta">
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                       Next: Aug 9 · Romans 8:1-11
                     </span>
                   </span>
@@ -996,7 +1093,7 @@ function HubStaffScene() {
                   </span>
                   <span className="proto-church-tools__row-text">
                     <span className="pds-list-title proto-church-tools__row-title">Team</span>
-                    <span className="proto-caption proto-church-tools__row-meta">1 person</span>
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">1 person</span>
                   </span>
                   <span className="proto-church-tools__row-chevron" aria-hidden>
                     <Icon name="caret-right" size={11} />
@@ -1013,7 +1110,7 @@ function HubStaffScene() {
                     <span className="pds-list-title proto-church-tools__row-title">
                       29 days left in your pilot
                     </span>
-                    <span className="proto-caption proto-church-tools__row-meta">
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                       Congregation unaffected
                     </span>
                   </span>
@@ -1030,6 +1127,451 @@ function HubStaffScene() {
         </div>
       </PhoneChrome>
     </div>
+  );
+}
+
+/**
+ * Planner fixtures — one idea, a run of Sundays, and a midweek gathering, so
+ * the board shows a populated Ideas column, a busy week, and a card whose
+ * weekday differs from the plan's default service day.
+ */
+const PLANNER_SERVICE_TIMES = [
+  { id: 'cstm_morning', dayOfWeek: 0, startTime: '09:00', label: null },
+  { id: 'cstm_late', dayOfWeek: 0, startTime: '10:45', label: null },
+  { id: 'cstm_midweek', dayOfWeek: 3, startTime: '18:30', label: 'Midweek' },
+];
+
+function plannerFixtures(): TeachingPlanSermon[] {
+  /* Anchored to today so the board's "This week" column is never empty in the
+     gallery — a fixed date would drift out of the visible weeks. */
+  const today = new Date();
+  const iso = (offsetDays: number) => {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offsetDays);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const nextSundayOffset = (7 - today.getDay()) % 7;
+  const base = {
+    serviceTime: null,
+    starterTemplateId: null,
+    updatedAt: null,
+    createdAt: '2026-08-01T00:00:00.000Z',
+  };
+  return [
+    {
+      ...base,
+      id: 'svc_idea_habakkuk',
+      serviceDate: null,
+      serviceTimeIds: [],
+      title: 'Habakkuk in a hard year',
+      seriesId: null,
+      seriesTitle: null,
+      reference: null,
+      createdAt: '2026-08-04T00:00:00.000Z',
+    },
+    {
+      ...base,
+      id: 'svc_idea_advent',
+      serviceDate: null,
+      serviceTimeIds: [],
+      title: 'Advent — four kinds of waiting',
+      seriesId: null,
+      seriesTitle: null,
+      reference: null,
+      createdAt: '2026-08-02T00:00:00.000Z',
+    },
+    {
+      ...base,
+      id: 'svc_1',
+      serviceDate: iso(nextSundayOffset),
+      serviceTimeIds: ['cstm_morning', 'cstm_late'],
+      title: 'No Condemnation',
+      seriesId: 'csrs_spirit',
+      seriesTitle: 'Life in the Spirit',
+      reference: 'Romans 8:1-11',
+    },
+    {
+      ...base,
+      id: 'svc_2',
+      serviceDate: iso(nextSundayOffset + 3),
+      serviceTimeIds: ['cstm_midweek'],
+      title: 'What the law could not do',
+      seriesId: null,
+      seriesTitle: null,
+      reference: 'Romans 8:3',
+    },
+    {
+      ...base,
+      id: 'svc_3',
+      serviceDate: iso(nextSundayOffset + 7),
+      serviceTimeIds: ['cstm_morning', 'cstm_late'],
+      title: 'Led by the Spirit',
+      seriesId: 'csrs_spirit',
+      seriesTitle: 'Life in the Spirit',
+      reference: 'Romans 8:12-17',
+    },
+    {
+      ...base,
+      id: 'svc_4',
+      serviceDate: iso(nextSundayOffset + 14),
+      serviceTimeIds: ['cstm_morning'],
+      title: 'Groaning and glory',
+      seriesId: 'csrs_spirit',
+      seriesTitle: 'Life in the Spirit',
+      reference: 'Romans 8:18-25',
+    },
+    {
+      ...base,
+      id: 'svc_past',
+      serviceDate: iso(nextSundayOffset - 7),
+      serviceTimeIds: ['cstm_morning', 'cstm_late'],
+      title: 'The Spirit of adoption',
+      seriesId: 'csrs_spirit',
+      seriesTitle: 'Life in the Spirit',
+      reference: 'Romans 8:14-16',
+    },
+  ];
+}
+
+/* Enough channels that the switcher has to be a picker rather than a row of
+   chips — the case a one-channel fixture would never show. */
+const PLANNER_CHANNELS = [
+  { id: 'space_youth', title: 'Youth' },
+  { id: 'space_adult_ed', title: 'Adult education' },
+  { id: 'space_kids', title: 'Kids' },
+  { id: 'space_womens', title: "Women's Bible study" },
+  { id: 'space_mens', title: "Men's breakfast" },
+];
+
+function PlannerScene({ view, canWrite = true }: { view: PlannerView; canWrite?: boolean }) {
+  const [selection, setSelection] = useState<PlannerSelection>(null);
+  const [planSpaceId, setPlanSpaceId] = useState<string | null>(null);
+  const [lastChannelId, setLastChannelId] = useState<string | null>(null);
+  const services = plannerFixtures();
+  const readOnlyReason = canWrite ? null : ('lapsed' as const);
+  const noop = () => undefined;
+
+  return (
+    <ExpandedPanelChrome title="Planner">
+      <div className="proto-planner">
+        <div className="proto-planner__main">
+          <div style={{ padding: '10px 14px 0' }}>
+            <PrototypePlannerScopeChips
+              plannableSpaces={PLANNER_CHANNELS}
+              planSpaceId={planSpaceId}
+              lastChannelId={lastChannelId}
+              onChange={(next) => {
+                setPlanSpaceId(next);
+                if (next) setLastChannelId(next);
+              }}
+            />
+          </div>
+          {view === 'board' ? (
+            <PrototypePlannerBoard
+              services={services}
+              serviceTimes={PLANNER_SERVICE_TIMES}
+              canWrite={canWrite}
+              readOnlyReason={readOnlyReason}
+              defaultDay={0}
+              selection={selection}
+              onSelect={setSelection}
+              onMove={noop}
+            />
+          ) : view === 'calendar' ? (
+            <PrototypePlannerCalendar
+              services={services}
+              serviceTimes={PLANNER_SERVICE_TIMES}
+              canWrite={canWrite}
+              selection={selection}
+              onSelect={setSelection}
+              onMoveToDate={noop}
+            />
+          ) : (
+            <PrototypePlannerList
+              services={services}
+              serviceTimes={PLANNER_SERVICE_TIMES}
+              canWrite={canWrite}
+              readOnlyReason={readOnlyReason}
+              selection={selection}
+              onSelect={setSelection}
+            />
+          )}
+        </div>
+      </div>
+    </ExpandedPanelChrome>
+  );
+}
+
+/**
+ * The marquee standard, at the widths that actually clip.
+ *
+ * Every label here is deliberately longer than its box: hovering any row, chip,
+ * card, or header should slide the tail into view and ease back. Under
+ * `prefers-reduced-motion: reduce` nothing moves and the ellipsis stays — that
+ * fallback is the point of the scene as much as the animation is.
+ */
+function MarqueeScene() {
+  const long = 'Wednesday Night Intergenerational Bible Study and Supper';
+  const longer = 'New Hope Assembly of God of Greater Nashville';
+  return (
+    <PhoneChrome>
+      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div>
+          <p className="proto-caption" style={{ marginBottom: 6, opacity: 0.6 }}>
+            Header (hovers itself)
+          </p>
+          <div className="proto-shared-space-header">
+            <div className="proto-shared-space-header__row">
+              <span className="proto-shared-space-header__church-icon" aria-hidden>
+                <Icon name="church" size={18} />
+              </span>
+              <div className="proto-shared-space-header__meta">
+                <p
+                  className="proto-caption proto-shared-space-header__church proto-marquee"
+                  title={longer}
+                >
+                  <span>{longer}</span>
+                </p>
+                <div
+                  className="pds-list-title proto-shared-space-header__title proto-marquee"
+                  title={long}
+                >
+                  <span>{long}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p className="proto-caption" style={{ marginBottom: 6, opacity: 0.6 }}>
+            Scope chip (hovers itself)
+          </p>
+          <div className="proto-chip-bar proto-planner-scope" role="radiogroup" aria-label="Plan">
+            <button type="button" role="radio" aria-checked={false} className="proto-chip">
+              Church
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked
+              className="proto-chip proto-planner-scope__channel proto-chip--selected"
+            >
+              <span className="proto-planner-scope__channel-name proto-marquee" title={long}>
+                <span>{long}</span>
+              </span>
+              <Icon name="caret-down" size={9} aria-hidden className="proto-planner-scope__caret" />
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <p className="proto-caption" style={{ marginBottom: 6, opacity: 0.6 }}>
+            Rows (the row is the hover surface)
+          </p>
+          <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+            {[long, longer].map((text) => (
+              <button key={text} type="button" className="proto-church-tools__row">
+                <span className="proto-church-tools__row-icon" aria-hidden>
+                  <Icon name="timeline" size={13} />
+                </span>
+                <span className="proto-church-tools__row-text">
+                  <span
+                    className="pds-list-title proto-church-tools__row-title proto-marquee"
+                    title={text}
+                  >
+                    <span>{text}</span>
+                  </span>
+                  <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">8 weeks</span>
+                </span>
+                <span className="proto-church-tools__row-chevron" aria-hidden>
+                  <Icon name="caret-right" size={11} />
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="proto-caption" style={{ marginBottom: 6, opacity: 0.6 }}>
+            Board card (the card is the hover surface)
+          </p>
+          <div style={{ width: 232 }}>
+            <span className="proto-planner-card proto-marquee-hover-root">
+              <span className="pds-list-title proto-planner-card__title proto-marquee" title={long}>
+                <span>{long}</span>
+              </span>
+              <span className="proto-caption proto-planner-card__meta">
+                9:00 &amp; 10:45 AM · Romans 8:1-11
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </PhoneChrome>
+  );
+}
+
+const LIBRARY_FIXTURES = [
+  {
+    id: 'libi_1',
+    kind: 'link',
+    title: 'Romans 8 — Douglas Moo commentary notes',
+    description: null,
+    sourceUrl: 'https://example.org/moo-romans-8',
+    sourceDomain: 'example.org',
+    sourceSiteName: null,
+    sourceImage: null,
+    fileName: null,
+    fileMime: null,
+    fileBytes: null,
+    access: 'members' as const,
+    scopes: [],
+    createdByUserId: 'user_1',
+    archivedAt: null,
+    createdAt: null,
+    updatedAt: null,
+  },
+  {
+    id: 'libi_2',
+    kind: 'link',
+    title: 'Leader prep: handling hard questions about suffering',
+    description: null,
+    sourceUrl: 'https://example.org/leader-prep',
+    sourceDomain: 'example.org',
+    sourceSiteName: null,
+    sourceImage: null,
+    fileName: null,
+    fileMime: null,
+    fileBytes: null,
+    access: 'leaders' as const,
+    scopes: [{ scopeKind: 'space' as const, spaceId: 'space_youth' }],
+    createdByUserId: 'user_1',
+    archivedAt: null,
+    createdAt: null,
+    updatedAt: null,
+  },
+  {
+    id: 'libi_3',
+    kind: 'link',
+    title: 'Advent readings for families',
+    description: null,
+    sourceUrl: 'https://example.org/advent',
+    sourceDomain: 'example.org',
+    sourceSiteName: null,
+    sourceImage: null,
+    fileName: null,
+    fileMime: null,
+    fileBytes: null,
+    access: 'members' as const,
+    scopes: [
+      { scopeKind: 'space' as const, spaceId: 'space_youth' },
+      { scopeKind: 'space' as const, spaceId: 'space_kids' },
+    ],
+    createdByUserId: 'user_1',
+    archivedAt: null,
+    createdAt: null,
+    updatedAt: null,
+  },
+];
+
+const LIBRARY_SPACES = [
+  { id: 'space_youth', title: 'Youth' },
+  { id: 'space_kids', title: 'Kids' },
+];
+
+/** The catalog at the width where audience and rooms fit on the row. */
+function LibraryManagerScene() {
+  const [selection, setSelection] = useState<LibrarySelection>(null);
+  return (
+    <ExpandedPanelChrome title="Resource library">
+      <div className="proto-planner">
+        <div className="proto-planner__main">
+          <PrototypeLibraryManagerItems
+            items={LIBRARY_FIXTURES}
+            canCurate
+            plannableSpaces={LIBRARY_SPACES}
+            selection={selection}
+            onSelect={setSelection}
+          />
+        </div>
+      </div>
+    </ExpandedPanelChrome>
+  );
+}
+
+/**
+ * The review queue, with the "why" that makes a suggestion weighable.
+ *
+ * Presentational copy of the real row so the scene needs no network — the live
+ * component takes an orgId and fetches.
+ */
+function LibrarySuggestionQueueScene() {
+  const rows = [
+    {
+      id: 's1',
+      title: 'The Bible Project — Romans overview video',
+      domain: 'bibleproject.com',
+      who: 'Marta Nguyen',
+      when: 'yesterday',
+      note: 'We watched this in small group and it landed for people who find Romans heavy.',
+    },
+    {
+      id: 's2',
+      title: 'Free Advent devotional PDF',
+      domain: 'example.org',
+      who: 'Dave Ellison',
+      when: '3 days ago',
+      note: null,
+    },
+  ];
+  return (
+    <ExpandedPanelChrome title="Resource library">
+      <div className="proto-planner">
+        <div className="proto-planner__main">
+          <div className="proto-planner-list">
+            <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+              {rows.map((row) => (
+                <div
+                  key={row.id}
+                  className="proto-church-tools__row proto-church-tools__row--status proto-library-suggestion"
+                >
+                  <span className="proto-church-tools__row-icon" aria-hidden>
+                    <Icon name="inbox" size={13} />
+                  </span>
+                  <span className="proto-church-tools__row-text">
+                    <span
+                      className="pds-list-title proto-church-tools__row-title proto-marquee"
+                      title={row.title}
+                    >
+                      <span>{row.title}</span>
+                    </span>
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
+                      {row.domain} · {row.who} · {row.when}
+                    </span>
+                    {row.note ? (
+                      <span className="proto-caption proto-library-suggestion__note">
+                        “{row.note}”
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="proto-library-suggestion__actions">
+                    <button
+                      type="button"
+                      className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                    >
+                      <span className="proto-glass-action__label">Add it</span>
+                    </button>
+                    <button type="button" className="proto-sheet-quiet-action">
+                      Not now
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </ExpandedPanelChrome>
   );
 }
 
@@ -1069,6 +1611,20 @@ export default function ChurchDesignScenePreview({ scene }: { scene: ChurchDesig
       return <HubCongregantScene />;
     case '15-hub-staff':
       return <HubStaffScene />;
+    case '16-planner-board':
+      return <PlannerScene view="board" />;
+    case '17-planner-calendar':
+      return <PlannerScene view="calendar" />;
+    case '18-planner-list':
+      return <PlannerScene view="list" />;
+    case '19-planner-board-readonly':
+      return <PlannerScene view="board" canWrite={false} />;
+    case '20-marquee-labels':
+      return <MarqueeScene />;
+    case '21-library-manager':
+      return <LibraryManagerScene />;
+    case '22-library-suggestions':
+      return <LibrarySuggestionQueueScene />;
     default:
       return null;
   }

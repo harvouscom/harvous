@@ -69,7 +69,7 @@ export default function PrototypeChurchPlanRow({
         <span className="pds-list-title proto-church-tools__row-title">
           {lapsed ? 'Plan ended' : pilotCopy(sponsorship.pilotDaysLeft)}
         </span>
-        <span className="proto-caption proto-church-tools__row-meta">
+        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
           {/* With no Polar products configured there is no button, so the
               "talk to us" route has to live here or it disappears entirely. */}
           {error

@@ -141,6 +141,60 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
       'spa/src/pages/prototype/PrototypeChurchPlanRow.tsx',
     ],
   },
+  {
+    id: '16-planner-board',
+    title: 'Expanded planner — board',
+    phase: 'Staff',
+    editFiles: [
+      'spa/src/pages/prototype/planner/PrototypePlannerBoard.tsx',
+      'spa/src/lib/planner-board.ts',
+    ],
+  },
+  {
+    id: '17-planner-calendar',
+    title: 'Expanded planner — calendar',
+    phase: 'Staff',
+    editFiles: ['spa/src/pages/prototype/planner/PrototypePlannerCalendar.tsx'],
+  },
+  {
+    id: '18-planner-list',
+    title: 'Expanded planner — list',
+    phase: 'Staff',
+    editFiles: ['spa/src/pages/prototype/planner/PrototypePlannerList.tsx'],
+  },
+  {
+    id: '19-planner-board-readonly',
+    title: 'Expanded planner — read-only (lapsed)',
+    phase: 'Staff',
+    editFiles: [
+      'spa/src/pages/prototype/planner/PrototypePlannerBoard.tsx',
+      'spa/src/hooks/useChurchPlannerAccess.ts',
+    ],
+  },
+  {
+    id: '21-library-manager',
+    title: 'Resource library — staff catalog',
+    phase: 'Staff',
+    editFiles: [
+      'spa/src/pages/prototype/library/PrototypeLibraryManagerItems.tsx',
+      'spa/src/pages/prototype/library/PrototypeLibraryItemEditorPane.tsx',
+    ],
+  },
+  {
+    id: '22-library-suggestions',
+    title: 'Resource library — suggestion queue',
+    phase: 'Staff',
+    editFiles: [
+      'spa/src/pages/prototype/library/PrototypeLibrarySuggestionQueue.tsx',
+      'server/routes/church-library-suggestions.ts',
+    ],
+  },
+  {
+    id: '20-marquee-labels',
+    title: 'Marquee — truncated labels',
+    phase: 'Staff',
+    editFiles: ['spa/src/styles/prototype-components.css'],
+  },
 ];
 
 export const DEFAULT_CHURCH_SCENE_ID = '01-admin-empty';

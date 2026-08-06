@@ -11,6 +11,7 @@ import { useNavigation } from '../../hooks/queries/useNavigation';
 import { isQuerySettled } from '@/utils/prototype-home-ready';
 import { useProfile } from '../../hooks/queries/useProfile';
 import { useChurchStaffStatus } from '../../hooks/queries/useChurchStaffStatus';
+import { useChurchPlannerAccess } from '../../hooks/useChurchPlannerAccess';
 import { useChurchBilling } from '../../hooks/queries/useChurchBilling';
 import {
   canCreateChurchOrgContent,
@@ -146,7 +147,7 @@ function ChurchHubBrowseRow({
 }
 
 export default function PrototypeSidebarChurchHubView() {
-  const { isMobileSidebar, activeChurchOrgId, ensureSidebarExpanded } = useProtoShell();
+  const { isMobileSidebar, activeChurchOrgId, ensureSidebarExpanded, openExpandedSidebar } = useProtoShell();
   const switchToSpace = useSwitchToSpace();
   const navQuery = useNavigation();
   const profileQuery = useProfile();
@@ -187,12 +188,12 @@ export default function PrototypeSidebarChurchHubView() {
   const { isStaff: isOrgStaff, can: canChurch, isLoading: staffStatusLoading } =
     useChurchStaffStatus(orgId);
   /*
-    Server's verdicts — never re-derived from the role string on the client.
-    Two of them, because seeing the plan and setting it are different jobs: a
-    teacher teaches from what's planned, a pastor decides what it is.
+    The planner's own gates come from the shared hook, because the expanded
+    planner reads the same verdicts: a board that lets you drag a card this
+    pane would have shown as read-only is worse than either surface alone.
   */
-  const canViewTeachingPlan = canChurch('sermon_tools');
-  const canEditTeachingPlan = canChurch('manage_teaching_plan');
+  const plannerAccess = useChurchPlannerAccess(orgId);
+  const canViewTeachingPlan = plannerAccess.canView;
   /** First client consumer of `manage_templates` — the church-starters gate. */
   const canManageChurchTemplates = canChurch('manage_templates');
   /** Admin-only: the church's own clock. */
@@ -203,6 +204,9 @@ export default function PrototypeSidebarChurchHubView() {
     while narrowing after a church has grown used to it is not.
   */
   const canViewEngagement = canChurch('manage_staff');
+  /* Browsing the catalog is `sermon_tools`; curating it is `manage_library`.
+     A teacher gets the row and a read-only view inside it. */
+  const canBrowseLibrary = canChurch('sermon_tools');
   const canCreateChurchContent = useMemo(
     () =>
       canCreateChurchOrgContent({
@@ -239,15 +243,10 @@ export default function PrototypeSidebarChurchHubView() {
    */
   const churchPlanLapsed = channelsData?.sponsorship?.state === 'lapsed';
   /**
-   * Why the plan is read-only, when it is. Lapsed wins: it is the church-wide
-   * fact and it is true for the pastor too, so it outranks the role reason.
-   * `null` means fully writable.
+   * Why the plan is read-only, when it is — derived once in the shared hook so
+   * the compact pane and the expanded planner cannot disagree.
    */
-  const teachingPlanReadOnly: 'lapsed' | 'role' | null = churchPlanLapsed
-    ? 'lapsed'
-    : canEditTeachingPlan
-      ? null
-      : 'role';
+  const teachingPlanReadOnly = plannerAccess.readOnlyReason;
   const followChannel = useFollowChannel();
   const [manageOpen, setManageOpen] = useState(false);
   /**
@@ -310,6 +309,20 @@ export default function PrototypeSidebarChurchHubView() {
   // Each tools pane is its own destination, so it replays on the way in and back.
   const homeViewClassName = useProtoHomeViewClassName(contentReady, `${orgId ?? 'none'}:${toolsView}`);
 
+  /** What the header reads — the pane's own name once you drill into one. */
+  const headerTitle =
+    toolsView === 'teaching-plan'
+      ? 'Planner'
+      : toolsView === 'team'
+        ? 'Team'
+        : toolsView === 'starters'
+          ? 'Note templates'
+          : toolsView === 'settings'
+            ? 'Church settings'
+            : toolsView === 'engagement'
+              ? 'Engagement'
+              : churchName;
+
   const openSpace = (spaceId: string) => {
     ensureSidebarExpanded();
     switchToSpace(normalizeSpaceId(spaceId));
@@ -339,18 +352,14 @@ export default function PrototypeSidebarChurchHubView() {
             </button>
           )}
           <div className="proto-shared-space-header__meta">
-            <div className="pds-list-title proto-shared-space-header__title" title={churchName}>
-              {toolsView === 'teaching-plan'
-                ? 'Planner'
-                : toolsView === 'team'
-                  ? 'Team'
-                  : toolsView === 'starters'
-                    ? 'Note templates'
-                    : toolsView === 'settings'
-                      ? 'Church settings'
-                      : toolsView === 'engagement'
-                        ? 'Engagement'
-                      : churchName}
+            <div
+              className="pds-list-title proto-shared-space-header__title proto-marquee"
+              /* Matches what is rendered — it used to always say the church's
+                 name, so hovering "Planner" produced a tooltip for a different
+                 string than the one on screen. */
+              title={headerTitle}
+            >
+              <span>{headerTitle}</span>
             </div>
             {toolsView === 'catalog' && churchLocation ? (
               <p className="proto-caption proto-shared-space-header__location" title={churchLocation}>
@@ -360,6 +369,22 @@ export default function PrototypeSidebarChurchHubView() {
               <p className="proto-caption proto-shared-space-header__location">{churchName}</p>
             ) : null}
           </div>
+          {/*
+            Opt-in, not automatic: the compact list is still the right answer for
+            "what am I preaching Sunday", and the board is for the afternoon you
+            sit down to plan a quarter.
+          */}
+          {toolsView === 'teaching-plan' && canViewTeachingPlan ? (
+            <button
+              type="button"
+              className="proto-side-panel__action-btn"
+              title="Expand planner"
+              aria-label="Expand planner"
+              onClick={() => openExpandedSidebar('planner')}
+            >
+              <Icon name="up-right-and-down-left-from-center" size={14} />
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -588,7 +613,7 @@ export default function PrototypeSidebarChurchHubView() {
                           Planner
                         </span>
                         {/* Short enough for the sidebar's ~175px meta column. */}
-                        <span className="proto-caption proto-church-tools__row-meta">
+                        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                           Sermons and series
                         </span>
                       </span>
@@ -609,7 +634,7 @@ export default function PrototypeSidebarChurchHubView() {
                       </span>
                       <span className="proto-church-tools__row-text">
                         <span className="pds-list-title proto-church-tools__row-title">Team</span>
-                        <span className="proto-caption proto-church-tools__row-meta">
+                        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                           Staff and volunteers
                         </span>
                       </span>
@@ -638,12 +663,41 @@ export default function PrototypeSidebarChurchHubView() {
                         {/* Short enough not to truncate in the ~175px meta
                             column, and it says the thing the title can't: these
                             reach everyone, unlike a personal template. */}
-                        <span className="proto-caption proto-church-tools__row-meta">
+                        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                           Shared with everyone
                         </span>
                       </span>
                       <span className="proto-church-tools__row-chevron" aria-hidden>
                         <Icon name="caret-right" size={11} />
+                      </span>
+                    </button>
+                  ) : null}
+
+                  {/*
+                    Opens straight into the expanded surface rather than a
+                    sidebar pane: a catalog whose rows carry an audience and a
+                    set of rooms has nothing useful to say at 304px, so there is
+                    no compact version worth stepping through.
+                  */}
+                  {canBrowseLibrary ? (
+                    <button
+                      type="button"
+                      className="proto-church-tools__row"
+                      onClick={() => openExpandedSidebar('library')}
+                    >
+                      <span className="proto-church-tools__row-icon" aria-hidden>
+                        <Icon name="newspaper" size={13} />
+                      </span>
+                      <span className="proto-church-tools__row-text">
+                        <span className="pds-list-title proto-church-tools__row-title">
+                          Resource library
+                        </span>
+                        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
+                          What your church studies from
+                        </span>
+                      </span>
+                      <span className="proto-church-tools__row-chevron" aria-hidden>
+                        <Icon name="up-right-and-down-left-from-center" size={11} />
                       </span>
                     </button>
                   ) : null}
@@ -667,7 +721,7 @@ export default function PrototypeSidebarChurchHubView() {
                         {/* Says the limit in the row, before anyone opens it —
                             "how many" is the whole offer, and a pastor should
                             not have to click to find out it is not "who". */}
-                        <span className="proto-caption proto-church-tools__row-meta">
+                        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                           How many, never who
                         </span>
                       </span>
@@ -693,7 +747,7 @@ export default function PrototypeSidebarChurchHubView() {
                         <span className="pds-list-title proto-church-tools__row-title">
                           Church settings
                         </span>
-                        <span className="proto-caption proto-church-tools__row-meta">
+                        <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                           Times and time zone
                         </span>
                       </span>

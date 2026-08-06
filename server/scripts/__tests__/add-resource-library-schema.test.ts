@@ -48,8 +48,18 @@ describe('Resource Library migration', () => {
     }
   });
 
-  it('touches only the two library tables', () => {
-    const allowed = new Set(['ResourceLibraries', 'LibraryItems']);
+  it('touches only library-family tables', () => {
+    // The allowlist is the point: this script runs against a shared dev
+    // database while other branches are mid-flight, so a statement that names
+    // a table outside this family is a merge accident, not a feature.
+    const allowed = new Set([
+      'ResourceLibraries',
+      'LibraryItems',
+      'LibraryItemScopes',
+      'LibraryItemSpacePins',
+      'LibraryItemSuggestions',
+      'ChurchServiceLibraryItems',
+    ]);
     for (const statement of ADDITIVE_RESOURCE_LIBRARY_DDL) {
       const target = statement.match(/(?:TABLE|ON) (?:IF NOT EXISTS )?"(\w+)"/)?.[1];
       expect(allowed.has(target ?? ''), `unexpected target: ${target}`).toBe(true);
@@ -66,6 +76,33 @@ describe('Resource Library migration', () => {
 
   it('creates every column LibraryItems declares', () => {
     expect(ddlColumns('LibraryItems').sort()).toEqual(schemaColumns('LibraryItems').sort());
+  });
+
+  it.each([
+    'LibraryItemScopes',
+    'LibraryItemSpacePins',
+    'LibraryItemSuggestions',
+    'ChurchServiceLibraryItems',
+  ])('creates every column %s declares', (table) => {
+    expect(ddlColumns(table).sort()).toEqual(schemaColumns(table).sort());
+  });
+
+  it('enables RLS on every table it creates', () => {
+    const created = ADDITIVE_RESOURCE_LIBRARY_DDL.flatMap(
+      (s) => s.match(/CREATE TABLE IF NOT EXISTS "(\w+)"/)?.slice(1) ?? [],
+    );
+    const secured = ADDITIVE_RESOURCE_LIBRARY_DDL.flatMap(
+      (s) => s.match(/ALTER TABLE "(\w+)" ENABLE ROW LEVEL SECURITY/)?.slice(1) ?? [],
+    );
+    // A fresh apply must leave no window where a table exists unprotected.
+    expect(created.sort()).toEqual(secured.sort());
+  });
+
+  it('keeps the ministry scope kind out of nothing — it is schema-only by design', () => {
+    // The column ships so the table never needs a migration; the write routes
+    // refuse the kind. If this index disappears, that story has changed.
+    const joined = ADDITIVE_RESOURCE_LIBRARY_DDL.join('\n');
+    expect(joined).toContain('LibraryItemScopes_ministry_unique');
   });
 
   it('creates every index the schema validator requires', () => {

@@ -32,6 +32,34 @@ import {
 
 export type ChurchServiceRow = typeof ChurchServices.$inferSelect;
 
+/** ISO calendar day, the only shape `ChurchServices.serviceDate` accepts. */
+const SERVICE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Reads the `serviceDate` field of a write payload.
+ *
+ * Three cases, and the difference between the first two is the whole point:
+ * an explicit `null` means "this is a backlog idea, no date yet", while an
+ * absent key means the caller forgot — on create that stays a 400, so a stale
+ * client that omits the field lands loudly instead of quietly filing every
+ * sermon under Unscheduled. On update, absent means "leave the date alone".
+ *
+ * Shared by all four write routes (church plan and space plan, create and
+ * update) because the three-way distinction has to be identical in each; four
+ * hand-rolled copies is exactly how one of them ends up treating '' as null.
+ */
+export function parseServiceDateInput(
+  value: string | null | undefined,
+): { ok: true; kind: 'absent' } | { ok: true; kind: 'date'; value: string } | { ok: true; kind: 'backlog' } | { ok: false; reason: string } {
+  if (value === undefined) return { ok: true, kind: 'absent' };
+  if (value === null) return { ok: true, kind: 'backlog' };
+  const trimmed = String(value).trim();
+  if (!SERVICE_DATE_PATTERN.test(trimmed)) {
+    return { ok: false, reason: 'serviceDate must be YYYY-MM-DD' };
+  }
+  return { ok: true, kind: 'date', value: trimmed };
+}
+
 export type TeachingPlanGateResult = ChurchOrgAccessResult;
 
 /**
@@ -113,9 +141,19 @@ export async function listServicesForChurch(
     ? isNull(ChurchServices.spaceId)
     : eq(ChurchServices.spaceId, spaceId);
 
+  /*
+    Dated rows only, always.
+
+    This helper feeds the congregant side — the "This Sunday" card — and a
+    backlog idea is a staff thought, not a promise to the congregation. The
+    `gte(from)` below already drops NULLs by SQL's three-valued logic, but that
+    is an accident of comparison rather than a decision; a future caller that
+    omits `from` would inherit the whole backlog. Stated outright instead.
+  */
+  const dated = isNotNull(ChurchServices.serviceDate);
   const where = from
-    ? and(eq(ChurchServices.churchId, churchId), scope, gte(ChurchServices.serviceDate, from))
-    : and(eq(ChurchServices.churchId, churchId), scope);
+    ? and(eq(ChurchServices.churchId, churchId), scope, dated, gte(ChurchServices.serviceDate, from))
+    : and(eq(ChurchServices.churchId, churchId), scope, dated);
 
   return db
     .select()

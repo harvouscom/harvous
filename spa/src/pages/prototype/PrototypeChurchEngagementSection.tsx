@@ -65,8 +65,8 @@ export default function PrototypeChurchEngagementSection({
                 <Icon name="rss" size={13} />
               </span>
               <span className="proto-church-tools__row-text">
-                <span className="pds-list-title proto-church-tools__row-title">{channel.title}</span>
-                <span className="proto-caption proto-church-tools__row-meta">
+                <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={channel.title}><span>{channel.title}</span></span>
+                <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                   {channel.followerCount === 1 ? '1 follower' : `${channel.followerCount} followers`}
                 </span>
               </span>

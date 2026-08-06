@@ -167,7 +167,7 @@ export default function PrototypeChurchSettingsSection({
                   {weekdayShortLabel(slot.dayOfWeek)} · {formatServiceTime(slot.startTime)}
                 </span>
                 {slot.label ? (
-                  <span className="proto-caption proto-church-tools__row-meta">{slot.label}</span>
+                  <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">{slot.label}</span>
                 ) : null}
               </span>
               {canWrite ? (

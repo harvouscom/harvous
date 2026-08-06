@@ -262,6 +262,74 @@ export function formatServiceTime(value: string | null | undefined): string | nu
   return `${hour12}:${match[2]} ${suffix}`;
 }
 
+/**
+ * A planned sermon's time, resolved from the church's slots.
+ *
+ * The staff payload ships slot *ids* so the editor can check boxes; every
+ * surface that lists sermons needs clock readings instead, and it is the only
+ * thing distinguishing a morning sermon from an evening one on the same date.
+ *
+ * `slots` is empty for a space plan — a room gathers at its own `meetingTime`,
+ * rendered beside the plan rather than per row — and empty for an undated idea,
+ * which has no day for a slot to fall on.
+ */
+export function sermonTimeLabel(
+  sermon: { serviceTimeIds: string[]; serviceTime: string | null },
+  slots: readonly { id: string; startTime: string }[],
+): string | null {
+  const startById = new Map(slots.map((slot) => [slot.id, slot.startTime]));
+  const slotTimes = sermon.serviceTimeIds
+    .map((id) => startById.get(id))
+    .filter((time): time is string => Boolean(time))
+    .sort();
+  if (slotTimes.length > 0) return formatServiceTimes(slotTimes);
+  // A one-off only speaks when the sermon claims no usual service.
+  return formatServiceTime(sermon.serviceTime);
+}
+
+/**
+ * What a plan calls the things in it.
+ *
+ * Three answers, not two: the church preaches sermons, a Shared Space gathers,
+ * and a ministry channel publishes. A channel was being asked to "Add a
+ * gathering" for something nobody attends — the word promised a room and a
+ * time that a published study does not have.
+ */
+export type PlanVocabulary = {
+  /** The primary action's label. */
+  addLabel: string;
+  /** Shown when the plan is empty and the viewer can write. */
+  emptyWritable: string;
+  /** One entry, lowercase, for mid-sentence use. */
+  itemNoun: string;
+};
+
+export function planVocabulary(
+  scope: { onSpacePlan: boolean; planKind?: 'gathering' | 'content' },
+): PlanVocabulary {
+  if (!scope.onSpacePlan) {
+    return {
+      addLabel: 'Add a sermon',
+      emptyWritable: 'Plan a sermon and everyone connected to your church sees it on their Home.',
+      itemNoun: 'sermon',
+    };
+  }
+  if (scope.planKind === 'content') {
+    return {
+      addLabel: 'Add content',
+      /* No "members see it inside the space" promise here: a planned entry is
+         not published, and nothing congregant-facing reads it yet. */
+      emptyWritable: 'Plan what this channel publishes — studies, devotionals, a series to come.',
+      itemNoun: 'entry',
+    };
+  }
+  return {
+    addLabel: 'Add a gathering',
+    emptyWritable: 'Plan what this ministry studies. Its members see it inside the space.',
+    itemNoun: 'gathering',
+  };
+}
+
 /** The series of whichever service is current — the card's context line. */
 export function currentSeriesTitle(
   services: readonly ChurchSermon[],

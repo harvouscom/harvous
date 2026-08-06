@@ -14,7 +14,8 @@ export type ChurchCapability =
   | 'manage_templates'
   | 'sermon_tools'
   | 'manage_teaching_plan'
-  | 'manage_church_settings';
+  | 'manage_church_settings'
+  | 'manage_library';
 
 export type ChurchStaffStatusResponse = {
   orgId: string;

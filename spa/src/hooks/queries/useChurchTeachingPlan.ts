@@ -4,9 +4,20 @@ import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import { churchSermonsQueryKey } from './useChurchSermons';
 
+/** One library item a planned entry pulls from. */
+export type AttachedResource = {
+  itemId: string;
+  title: string;
+  kind: string;
+  sourceDomain: string | null;
+  sourceUrl: string | null;
+  fileName: string | null;
+};
+
 export type TeachingPlanSermon = {
   id: string;
-  serviceDate: string;
+  /** Null = an undated idea in the planner's backlog, not yet on a Sunday. */
+  serviceDate: string | null;
   /** The church services this sermon is preached at. */
   serviceTimeIds: string[];
   /** A one-off time, set only when the sermon sits at no usual service. */
@@ -18,6 +29,14 @@ export type TeachingPlanSermon = {
   seriesTitle: string | null;
   reference: string | null;
   starterTemplateId: string | null;
+  /** 'gathering' | 'content'. Optional for payloads cached before it shipped —
+   *  absent reads as a gathering, which is what those rows were. */
+  kind?: 'gathering' | 'content';
+  /** Library items this entry draws on — staff prep, never congregant-facing. */
+  resources?: AttachedResource[];
+  /** Orders the planner's Ideas column. Optional so a payload cached before
+   *  this shipped still parses. */
+  createdAt?: string | null;
   updatedAt: string | null;
 };
 
@@ -88,7 +107,8 @@ export function useChurchTeachingPlan(
 }
 
 export type SermonDraft = {
-  serviceDate: string;
+  /** Explicit null files it as an undated idea; the server refuses an absent key. */
+  serviceDate: string | null;
   /** Which of the church's services this sermon fills. */
   serviceTimeIds?: string[];
   /** A one-off time, for a sermon at none of the usual services. */
@@ -114,6 +134,7 @@ type SeriesAction =
   | { kind: 'series-delete'; seriesId: string };
 
 type SermonAction =
+  | { kind: 'attachments'; serviceId: string; itemIds: string[] }
   | ({ kind: 'create' } & SermonDraft)
   | ({ kind: 'update'; serviceId: string } & Partial<SermonDraft>)
   | { kind: 'delete'; serviceId: string }
@@ -141,6 +162,11 @@ export function useChurchSermonActions(orgId: string | null | undefined) {
           return api.post('/api/church/services/delete', { orgId: trimmedOrgId, ...rest });
         case 'repeat':
           return api.post('/api/church/services/repeat', { orgId: trimmedOrgId, ...rest });
+        case 'attachments':
+          return api.post('/api/church/services/attachments/set', {
+            orgId: trimmedOrgId,
+            ...rest,
+          });
         // Series ride the same mutation because they invalidate the same
         // queries — renaming one changes every sermon row that renders it.
         case 'series-rename':

@@ -36,9 +36,30 @@ export interface PrototypeSpaceComingUpProps {
 export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSpaceComingUpProps) {
   const { data } = useChurchSpacePlan(spaceId, { enabled });
 
+  /*
+    Channels have nothing to come up to.
+
+    "Coming up" names a gathering — a time you turn up for. A channel's plan
+    entries are unpublished staff intentions with no publish pipeline behind
+    them yet, so rendering one here would announce something the church has not
+    said, in a strip whose whole promise is that it is real.
+  */
+  if (data?.planKind === 'content') return null;
+
   // Same selection the congregant card uses, so "next" means the same thing in
   // both places — including the grace window.
-  const gathering = data ? currentSermonFor(data.services) : null;
+  //
+  // Undated rows are dropped first: the staff plan carries a backlog of ideas
+  // now, and "coming up" must never be answered with something nobody has
+  // committed to a day.
+  const gathering = data
+    ? currentSermonFor(
+        data.services.filter(
+          (service): service is typeof service & { serviceDate: string } =>
+            service.serviceDate !== null,
+        ),
+      )
+    : null;
   if (!data || !gathering) return null;
 
   /*
@@ -67,8 +88,8 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
             <Icon name="calendar-check" size={13} />
           </span>
           <span className="proto-church-tools__row-text">
-            <span className="pds-list-title proto-church-tools__row-title">{gathering.title}</span>
-            <span className="proto-caption proto-church-tools__row-meta">
+            <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={gathering.title}><span>{gathering.title}</span></span>
+            <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
               {gathering.reference || 'No passage yet'}
               {gathering.seriesTitle ? ` · ${gathering.seriesTitle}` : ''}
             </span>

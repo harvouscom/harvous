@@ -252,7 +252,7 @@ export default function PrototypeChurchStarterSection({
                     {template.name}
                   </span>
                   {template.description ? (
-                    <span className="proto-caption proto-church-tools__row-meta">
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                       {template.description}
                     </span>
                   ) : null}

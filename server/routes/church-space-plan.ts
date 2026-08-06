@@ -41,7 +41,12 @@ import {
   assertCanManageSpaceTeachingPlan,
   assertCanViewSpaceTeachingPlan,
 } from '../utils/church-space-plan';
-import { type ChurchServiceRow } from '../utils/church-teaching-plan';
+import { parseServiceDateInput, type ChurchServiceRow } from '../utils/church-teaching-plan';
+import { isMinistryBroadcastSpaceRow } from '../utils/channel-publish-cadence';
+import {
+  attachmentsByServiceIds,
+  setServiceAttachments,
+} from '../utils/church-service-attachments';
 import {
   REPEAT_MAX_WEEKS,
   repeatTitleFor,
@@ -57,12 +62,30 @@ import {
 
 const app = new Hono();
 
-const SERVICE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TITLE_MAX = 120;
+
+/**
+ * What this plan's rows are: a channel publishes, every other space gathers.
+ *
+ * Derived from the space, never from the request — a client that could name its
+ * own kind could file a row as content and escape the one-per-date index that
+ * makes a gathering schedule mean anything.
+ */
+type PlanKind = 'gathering' | 'content';
+
+function planKindForSpace(space: { type: string | null; orgId: string | null }): PlanKind {
+  return isMinistryBroadcastSpaceRow(space) ? 'content' : 'gathering';
+}
+
+/** "Gathering" is a lie for a channel; "entry" is honest for both. */
+function notFoundError(kind: PlanKind): string {
+  return kind === 'content' ? 'Entry not found' : 'Gathering not found';
+}
 
 type SpaceSermonInput = {
   serviceId?: string;
-  serviceDate?: string;
+  /** Explicit `null` files this as an undated backlog idea — see parseServiceDateInput. */
+  serviceDate?: string | null;
   title?: string;
   /** An existing ChurchSeries in *this space's* plan — never the church's. */
   seriesId?: string | null;
@@ -88,6 +111,8 @@ function serializeSpaceSermon(row: ChurchServiceRow, seriesTitles?: Map<string, 
     serviceDate: row.serviceDate,
     /** Always empty for a space row — slots are the church's. */
     serviceTimeIds: [] as string[],
+    /** 'gathering' | 'content' — see the schema docblock. */
+    kind: row.kind,
     serviceTime: row.serviceTime,
     title: row.title,
     seriesId: row.seriesId,
@@ -95,6 +120,9 @@ function serializeSpaceSermon(row: ChurchServiceRow, seriesTitles?: Map<string, 
     seriesTitle: row.seriesId ? seriesTitles?.get(row.seriesId) ?? null : null,
     reference: row.reference,
     starterTemplateId: row.starterTemplateId,
+    /* Backlog order. `updatedAt` cannot stand in for it: editing an idea
+       would reshuffle the Ideas column under the pastor's cursor. */
+    createdAt: row.createdAt,
     updatedAt: row.updatedAt ?? row.createdAt,
   };
 }
@@ -143,9 +171,16 @@ app.get('/api/church/spaces/:spaceId/plan', requireAuth, async (c) => {
     ]);
 
     const seriesTitles = await seriesTitlesByServiceRows(services);
+    const attachments = await attachmentsByServiceIds(services.map((row) => row.id));
 
     return c.json({
       church: { id: gate.church.id, name: gate.church.name },
+      /*
+        What this plan plans. Sent once at the top rather than left for the
+        client to infer from the space's type — the server already decides it
+        on every write, and two derivations of one fact drift.
+      */
+      planKind: planKindForSpace(gate.space),
       space: {
         id: gate.space.id,
         title: gate.space.title,
@@ -157,7 +192,10 @@ app.get('/api/church/spaces/:spaceId/plan', requireAuth, async (c) => {
         meetingDay: gate.space.meetingDay,
         meetingTime: gate.space.meetingTime,
       },
-      services: services.map((row) => serializeSpaceSermon(row, seriesTitles)),
+      services: services.map((row) => ({
+        ...serializeSpaceSermon(row, seriesTitles),
+        resources: attachments.get(row.id) ?? [],
+      })),
       // Per-plan vocabulary: Youth's series and the church's stay separate — the
       // scope is what keeps a volunteer leader out of the main service's rows.
       series,
@@ -180,10 +218,15 @@ app.post('/api/church/spaces/:spaceId/services/create', requireAuth, rateLimit('
 
     const body = (await c.req.json().catch(() => ({}))) as SpaceSermonInput;
 
-    const serviceDate = (body.serviceDate ?? '').trim();
-    if (!SERVICE_DATE_PATTERN.test(serviceDate)) {
+    const parsedDate = parseServiceDateInput(body.serviceDate);
+    if (!parsedDate.ok) {
+      return c.json({ error: parsedDate.reason, code: 'BAD_REQUEST' }, 400);
+    }
+    if (parsedDate.kind === 'absent') {
       return c.json({ error: 'serviceDate must be YYYY-MM-DD', code: 'BAD_REQUEST' }, 400);
     }
+    /* NULL files this as an undated idea in the channel's backlog. */
+    const serviceDate = parsedDate.kind === 'date' ? parsedDate.value : null;
     const title = clean(body.title, TITLE_MAX);
     if (!title) return c.json({ error: 'A title is required', code: 'BAD_REQUEST' }, 400);
 
@@ -218,6 +261,8 @@ app.post('/api/church/spaces/:spaceId/services/create', requireAuth, rateLimit('
       seriesId: null as string | null,
       reference: passage.reference,
       starterTemplateId,
+      /* From the space, never the body — see planKindForSpace. */
+      kind: planKindForSpace(gate.space),
       createdBy: auth.userId,
       updatedBy: null,
       createdAt: now,
@@ -253,6 +298,9 @@ app.post('/api/church/spaces/:spaceId/services/create', requireAuth, rateLimit('
       if (isUniqueViolation(error, 'ChurchServices_space_date_unique')) {
         return c.json(
           {
+            /* Only reachable for gatherings — the unique index no longer
+               covers content, because a channel publishing twice in a day is
+               ordinary rather than a mistake. */
             error: 'This ministry already has a gathering planned that day.',
             code: 'SERVICE_DATE_TAKEN',
           },
@@ -303,18 +351,19 @@ app.post('/api/church/spaces/:spaceId/services/update', requireAuth, rateLimit('
         .limit(1),
     );
     if (!existing) {
-      return c.json({ error: 'Gathering not found', code: 'SERVICE_NOT_FOUND' }, 404);
+      return c.json({ error: notFoundError(planKindForSpace(gate.space)), code: 'SERVICE_NOT_FOUND' }, 404);
     }
 
     const updates: Partial<ChurchServiceRow> = { updatedBy: auth.userId, updatedAt: new Date() };
 
-    if (body.serviceDate !== undefined) {
-      const serviceDate = (body.serviceDate ?? '').trim();
-      if (!SERVICE_DATE_PATTERN.test(serviceDate)) {
-        return c.json({ error: 'serviceDate must be YYYY-MM-DD', code: 'BAD_REQUEST' }, 400);
-      }
-      updates.serviceDate = serviceDate;
+    const parsedDate = parseServiceDateInput(body.serviceDate);
+    if (!parsedDate.ok) {
+      return c.json({ error: parsedDate.reason, code: 'BAD_REQUEST' }, 400);
     }
+    if (parsedDate.kind === 'date') updates.serviceDate = parsedDate.value;
+    /* Unscheduling — the board's drag back to Ideas. Nothing else to release
+       here: a space plan has no slot assignments and no one-off times. */
+    if (parsedDate.kind === 'backlog') updates.serviceDate = null;
     if (body.title !== undefined) {
       const title = clean(body.title, TITLE_MAX);
       if (!title) return c.json({ error: 'A title is required', code: 'BAD_REQUEST' }, 400);
@@ -360,6 +409,9 @@ app.post('/api/church/spaces/:spaceId/services/update', requireAuth, rateLimit('
       if (isUniqueViolation(error, 'ChurchServices_space_date_unique')) {
         return c.json(
           {
+            /* Only reachable for gatherings — the unique index no longer
+               covers content, because a channel publishing twice in a day is
+               ordinary rather than a mistake. */
             error: 'This ministry already has a gathering planned that day.',
             code: 'SERVICE_DATE_TAKEN',
           },
@@ -382,6 +434,55 @@ app.post('/api/church/spaces/:spaceId/services/update', requireAuth, rateLimit('
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+
+// ─── POST /api/church/spaces/:spaceId/services/attachments/set ─────────────
+/**
+ * Resources for one entry on a space plan.
+ *
+ * Rides the plan's own manage gate, so a granted volunteer leader may attach
+ * to their room's entries — they are usually the person who found the material.
+ */
+app.post(
+  '/api/church/spaces/:spaceId/services/attachments/set',
+  requireAuth,
+  rateLimit('write'),
+  async (c) => {
+    try {
+      const auth = getAuthenticatedAuth(c);
+      const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param('spaceId') ?? '');
+      if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+      const body = (await c.req.json().catch(() => ({}))) as {
+        serviceId?: string;
+        itemIds?: unknown;
+      };
+      const serviceId = (body.serviceId ?? '').trim();
+      if (!serviceId) return c.json({ error: 'serviceId is required', code: 'BAD_REQUEST' }, 400);
+
+      const itemIds = Array.isArray(body.itemIds)
+        ? body.itemIds.map((id) => String(id).trim()).filter(Boolean)
+        : [];
+
+      const result = await setServiceAttachments({
+        serviceId,
+        itemIds,
+        churchId: gate.church.id,
+        spaceId: gate.space.id,
+        userId: auth.userId,
+      });
+      if (!result.ok) return c.json({ error: result.error, code: result.code }, result.status);
+
+      const attached = await attachmentsByServiceIds([serviceId]);
+      return c.json({ success: true, resources: attached.get(serviceId) ?? [] });
+    } catch (error) {
+      const standardError = handleAPIError(error, {
+        endpoint: '/api/church/spaces/[spaceId]/services/attachments/set',
+        action: 'space_service_attachments',
+      });
+      return c.json({ error: standardError.message, code: standardError.code }, 500);
+    }
+  },
+);
 
 // ─── POST /api/church/spaces/:spaceId/services/repeat ──────────────────────
 /**
@@ -413,7 +514,20 @@ app.post('/api/church/spaces/:spaceId/services/repeat', requireAuth, rateLimit('
         .where(and(eq(ChurchServices.id, serviceId), eq(ChurchServices.spaceId, gate.space.id)))
         .limit(1),
     );
-    if (!seed) return c.json({ error: 'Gathering not found', code: 'SERVICE_NOT_FOUND' }, 404);
+    if (!seed) return c.json({ error: notFoundError(planKindForSpace(gate.space)), code: 'SERVICE_NOT_FOUND' }, 404);
+    /* Weekly repeats count forward from a date. An idea has none to count from. */
+    if (seed.serviceDate === null) {
+      return c.json(
+        {
+          error:
+            planKindForSpace(gate.space) === 'content'
+              ? 'Give this a date first — repeat counts weeks from one.'
+              : 'Give this gathering a date first — repeat counts weeks from one.',
+          code: 'BAD_REQUEST',
+        },
+        400,
+      );
+    }
 
     const dates = weeklyDatesAfter(seed.serviceDate, Number(body.weeks ?? 0));
     if (dates.length === 0) {
@@ -445,6 +559,9 @@ app.post('/api/church/spaces/:spaceId/services/repeat', requireAuth, rateLimit('
         // leader's mouth.
         reference: null,
         starterTemplateId: seed.starterTemplateId,
+        /* Inherits the seed's kind by inheriting the space's — a repeat cannot
+           change what sort of thing it is repeating. */
+        kind: seed.kind,
         createdBy: auth.userId,
         updatedBy: null,
         createdAt: new Date(),
@@ -495,7 +612,7 @@ app.post('/api/church/spaces/:spaceId/services/delete', requireAuth, rateLimit('
       .returning({ id: ChurchServices.id });
 
     if (removed.length === 0) {
-      return c.json({ error: 'Gathering not found', code: 'SERVICE_NOT_FOUND' }, 404);
+      return c.json({ error: notFoundError(planKindForSpace(gate.space)), code: 'SERVICE_NOT_FOUND' }, 404);
     }
     return c.json({ success: true, serviceId });
   } catch (error) {
