@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getActiveChurchByOrgId = vi.fn();
-const isChurchStaffForOrg = vi.fn();
+const isChurchStaffForChurch = vi.fn();
 const churchIsSponsored = vi.fn();
 const fetchClerkOrgMemberships = vi.fn();
 const spaceRows = vi.fn();
@@ -9,7 +9,7 @@ const membershipRows = vi.fn();
 
 vi.mock('../church-staff', () => ({
   getActiveChurchByOrgId: (...args: unknown[]) => getActiveChurchByOrgId(...args),
-  isChurchStaffForOrg: (...args: unknown[]) => isChurchStaffForOrg(...args),
+  isChurchStaffForChurch: (...args: unknown[]) => isChurchStaffForChurch(...args),
 }));
 
 vi.mock('../church-entitlement', () => ({
@@ -72,7 +72,7 @@ function allowAll() {
   // No grant by default — the grant arm is opt-in per test.
   membershipRows.mockResolvedValue([]);
   getActiveChurchByOrgId.mockResolvedValue(CHURCH);
-  isChurchStaffForOrg.mockResolvedValue(true);
+  isChurchStaffForChurch.mockResolvedValue(true);
   churchIsSponsored.mockReturnValue(true);
   fetchClerkOrgMemberships.mockResolvedValue([{ userId: USER, role: 'org:pastor' }]);
 }
@@ -155,7 +155,7 @@ describe('space plan gates', () => {
   });
 
   it('checks staff BEFORE sponsorship, so a stranger never learns a church lapsed', async () => {
-    isChurchStaffForOrg.mockResolvedValue(false);
+    isChurchStaffForChurch.mockResolvedValue(false);
     churchIsSponsored.mockReturnValue(false);
     expect(await assertCanManageSpaceTeachingPlan(USER, 'space_youth')).toMatchObject({
       code: 'CHURCH_STAFF_REQUIRED',
@@ -186,7 +186,7 @@ describe('space plan gates', () => {
 describe('granted leader — the P5 boundary', () => {
   /** A volunteer: not Clerk staff, no church role, holding one granted room. */
   function asGrantedVolunteer() {
-    isChurchStaffForOrg.mockResolvedValue(false);
+    isChurchStaffForChurch.mockResolvedValue(false);
     fetchClerkOrgMemberships.mockResolvedValue([]);
     membershipRows.mockResolvedValue([{ role: 'leader', grantSource: 'grant' }]);
   }
@@ -199,7 +199,7 @@ describe('granted leader — the P5 boundary', () => {
   });
 
   it('refuses a member whose row is not a grant', async () => {
-    isChurchStaffForOrg.mockResolvedValue(false);
+    isChurchStaffForChurch.mockResolvedValue(false);
     fetchClerkOrgMemberships.mockResolvedValue([]);
     membershipRows.mockResolvedValue([{ role: 'member', grantSource: null }]);
     expect(await assertCanManageSpaceTeachingPlan('user_member', 'space_youth')).toMatchObject({
@@ -211,7 +211,7 @@ describe('granted leader — the P5 boundary', () => {
   it('refuses a staff-projected leader row reached without staff standing', async () => {
     // grantSource must be the discriminator, not the role — otherwise every
     // synced leader row would read as a grant.
-    isChurchStaffForOrg.mockResolvedValue(false);
+    isChurchStaffForChurch.mockResolvedValue(false);
     fetchClerkOrgMemberships.mockResolvedValue([]);
     membershipRows.mockResolvedValue([{ role: 'leader', grantSource: 'staff_sync' }]);
     expect((await assertCanManageSpaceTeachingPlan('user_x', 'space_youth')).ok).toBe(false);
@@ -233,7 +233,7 @@ describe('granted leader — the P5 boundary', () => {
     // Same property the shared resolver exists for: a non-granted stranger
     // must not learn a church has lapsed. The grant sits in the staff check's
     // seat, so sponsorship is never consulted for someone who does not belong.
-    isChurchStaffForOrg.mockResolvedValue(false);
+    isChurchStaffForChurch.mockResolvedValue(false);
     fetchClerkOrgMemberships.mockResolvedValue([]);
     membershipRows.mockResolvedValue([]);
     churchIsSponsored.mockReturnValue(false);

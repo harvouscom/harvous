@@ -5,13 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 
 const getActiveChurchByOrgId = vi.fn();
-const isChurchStaffForOrg = vi.fn();
+const isChurchStaffForChurch = vi.fn();
 const churchIsSponsored = vi.fn();
 const fetchClerkOrgMemberships = vi.fn();
 
 vi.mock('../church-staff', () => ({
   getActiveChurchByOrgId: (...args: unknown[]) => getActiveChurchByOrgId(...args),
-  isChurchStaffForOrg: (...args: unknown[]) => isChurchStaffForOrg(...args),
+  isChurchStaffForChurch: (...args: unknown[]) => isChurchStaffForChurch(...args),
 }));
 
 vi.mock('../church-entitlement', () => ({
@@ -39,7 +39,7 @@ const BOTH_GATES = [
 /** Everything passing — each test then knocks out exactly one gate. */
 function allowAll() {
   getActiveChurchByOrgId.mockResolvedValue(CHURCH);
-  isChurchStaffForOrg.mockResolvedValue(true);
+  isChurchStaffForChurch.mockResolvedValue(true);
   churchIsSponsored.mockReturnValue(true);
   fetchClerkOrgMemberships.mockResolvedValue([{ userId: USER, role: 'org:admin' }]);
 }
@@ -95,7 +95,7 @@ describe('the church settings gates', () => {
   });
 
   it.each(BOTH_GATES)('403s a non-staff caller (%s)', async (_name, gate) => {
-    isChurchStaffForOrg.mockResolvedValue(false);
+    isChurchStaffForChurch.mockResolvedValue(false);
     expect(await gate(USER, 'org_1')).toMatchObject({
       ok: false,
       status: 403,
@@ -104,7 +104,7 @@ describe('the church settings gates', () => {
   });
 
   it('checks staff BEFORE sponsorship, so a stranger never learns a church lapsed', async () => {
-    isChurchStaffForOrg.mockResolvedValue(false);
+    isChurchStaffForChurch.mockResolvedValue(false);
     churchIsSponsored.mockReturnValue(false);
     expect(await assertCanManageChurchSettings(USER, 'org_1')).toMatchObject({
       code: 'CHURCH_STAFF_REQUIRED',
@@ -131,7 +131,7 @@ describe('the church settings gates', () => {
   it('degrades a user absent from a healthy roster to read-only, and refuses the write', async () => {
     /*
       Deliberately asymmetric with the outage case above, and worth stating.
-      `isChurchStaffForOrg` has already proven this person is staff by some
+      `isChurchStaffForChurch` has already proven this person is staff by some
       other means (they created the church, or hold an owner/leader row). Clerk
       simply has no role for them, so `capabilitiesForChurchRole(null)` is
       publish-only: enough for the read, never enough for the write.
@@ -153,6 +153,7 @@ describe('the gate composes the shared ordering rather than re-implementing it',
     // has a sibling with it backwards. This module must not grow its own.
     const module = source('server/utils/church-settings-access.ts');
     expect(module).toContain('resolveChurchOrgAccess');
-    expect(module).not.toMatch(/isChurchStaffForOrg|churchIsSponsored|fetchClerkOrgMemberships/);
+    // `isChurchStaffFor` catches both the …ForOrg and …ForChurch spellings.
+    expect(module).not.toMatch(/isChurchStaffFor|churchIsSponsored|fetchClerkOrgMemberships/);
   });
 });

@@ -129,13 +129,19 @@ app.get('/api/church/spaces/:spaceId/plan', requireAuth, async (c) => {
     const gate = await assertCanViewSpaceTeachingPlan(auth.userId, c.req.param('spaceId') ?? '');
     if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
 
-    const services = await db
-      .select()
-      .from(ChurchServices)
-      .where(eq(ChurchServices.spaceId, gate.space.id))
-      .orderBy(asc(ChurchServices.serviceDate));
-
     const scope = { churchId: gate.church.id, spaceId: gate.space.id };
+
+    // The series list is keyed on the scope, not on the rows — see the church
+    // plan's twin. Only the joined titles have to wait for the sermons.
+    const [services, series] = await Promise.all([
+      db
+        .select()
+        .from(ChurchServices)
+        .where(eq(ChurchServices.spaceId, gate.space.id))
+        .orderBy(asc(ChurchServices.serviceDate)),
+      listSeriesForPlan(scope),
+    ]);
+
     const seriesTitles = await seriesTitlesByServiceRows(services);
 
     return c.json({
@@ -154,7 +160,7 @@ app.get('/api/church/spaces/:spaceId/plan', requireAuth, async (c) => {
       services: services.map((row) => serializeSpaceSermon(row, seriesTitles)),
       // Per-plan vocabulary: Youth's series and the church's stay separate — the
       // scope is what keeps a volunteer leader out of the main service's rows.
-      series: await listSeriesForPlan(scope),
+      series,
     });
   } catch (error) {
     const standardError = handleAPIError(error, {

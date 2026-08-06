@@ -1,9 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ClerkOrgError,
   CLERK_ORG_STAFF_CAP,
   computeStaffSyncPlan,
   fetchClerkOrgMemberships,
+  invalidateClerkOrgMemberships,
   isValidClerkOrgId,
   isWithinClerkOrgStaffCap,
 } from '../clerk-org';
@@ -188,9 +191,17 @@ describe('computeStaffSyncPlan', () => {
 });
 
 describe('fetchClerkOrgMemberships', () => {
+  // The roster is memoized per org, so every test starts from a cold cache —
+  // otherwise the pagination test below feeds its 101 members to the two error
+  // cases that follow it.
+  beforeEach(() => {
+    invalidateClerkOrgMemberships('org_abc');
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+    invalidateClerkOrgMemberships('org_abc');
   });
 
   it('fails closed when CLERK_SECRET_KEY is missing', async () => {
@@ -241,5 +252,112 @@ describe('fetchClerkOrgMemberships', () => {
     vi.stubEnv('CLERK_SECRET_KEY', 'sk_test_fake');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 403 })));
     await expect(fetchClerkOrgMemberships('org_abc')).rejects.toMatchObject({ code: 'CLERK_ORGS_NOT_ENABLED' });
+  });
+});
+
+/**
+ * The roster memo. Rendering one church pane used to ask Clerk for the same
+ * list of at most twenty people four or five times — twice inside a single
+ * gate. These are the properties that make reusing it safe.
+ */
+describe('fetchClerkOrgMemberships caching', () => {
+  const roster = { data: [{ role: 'org:admin', public_user_data: { user_id: 'user_1' } }], total_count: 1 };
+  const ok = () => new Response(JSON.stringify(roster), { status: 200 });
+
+  beforeEach(() => {
+    invalidateClerkOrgMemberships('org_abc');
+    invalidateClerkOrgMemberships('org_other');
+    vi.stubEnv('CLERK_SECRET_KEY', 'sk_test_fake');
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    invalidateClerkOrgMemberships('org_abc');
+    invalidateClerkOrgMemberships('org_other');
+  });
+
+  it('serves a second read of the same org without another Clerk request', async () => {
+    const fetchMock = vi.fn().mockImplementation(ok);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const first = await fetchClerkOrgMemberships('org_abc');
+    const second = await fetchClerkOrgMemberships('org_abc');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(second).toEqual(first);
+  });
+
+  it('shares one request between concurrent callers', async () => {
+    // The gate asks twice in a row — once for staff standing, once for the
+    // role — so this is the shape that mattered most.
+    const fetchMock = vi.fn().mockImplementation(ok);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await Promise.all([fetchClerkOrgMemberships('org_abc'), fetchClerkOrgMemberships('org_abc')]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('never caches a failure — an outage must not lock staff out for the whole TTL', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('{}', { status: 500 }))
+      .mockImplementation(ok);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchClerkOrgMemberships('org_abc')).rejects.toMatchObject({
+      code: 'CLERK_UNAVAILABLE',
+    });
+    // The retry goes back to Clerk rather than replaying the rejection.
+    expect(await fetchClerkOrgMemberships('org_abc')).toEqual([
+      { userId: 'user_1', role: 'org:admin' },
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('caches per org, so one church never answers for another', async () => {
+    const fetchMock = vi.fn().mockImplementation(ok);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchClerkOrgMemberships('org_abc');
+    await fetchClerkOrgMemberships('org_other');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('org_abc');
+    expect(String(fetchMock.mock.calls[1][0])).toContain('org_other');
+  });
+
+  it('re-reads after invalidation, which is how a role change takes effect', async () => {
+    const fetchMock = vi.fn().mockImplementation(ok);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchClerkOrgMemberships('org_abc');
+    invalidateClerkOrgMemberships('org_abc');
+    await fetchClerkOrgMemberships('org_abc');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * Source-level, because the eviction is what bounds how stale a capability can
+ * be. A roster write that forgot to evict would leave this process deciding
+ * from the roster as it stood before the change.
+ */
+describe('roster writes evict the memo', () => {
+  it.each(['updateClerkOrgMemberRole', 'removeClerkOrgMember'])('%s', (fn) => {
+    const module = readFileSync(resolve(process.cwd(), 'server/utils/clerk-org.ts'), 'utf8');
+    const start = module.indexOf(`export async function ${fn}`);
+    expect(start).toBeGreaterThan(-1);
+    const body = module.slice(start, module.indexOf('\n}', start));
+    expect(body).toContain('invalidateClerkOrgMemberships(orgId)');
+  });
+
+  it('reconciling always reads a live roster', () => {
+    // syncChurchStaffForOrg IS the "go and look at Clerk" operation — the
+    // webhook and both Sync buttons route through it.
+    const module = readFileSync(resolve(process.cwd(), 'server/utils/church-staff-sync.ts'), 'utf8');
+    expect(module).toContain('if (!options?.staff) invalidateClerkOrgMemberships(orgId);');
   });
 });

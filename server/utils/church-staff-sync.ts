@@ -27,6 +27,7 @@ import {
   CLERK_ORG_STAFF_CAP,
   computeStaffSyncPlan,
   fetchClerkOrgMemberships,
+  invalidateClerkOrgMemberships,
   isWithinClerkOrgStaffCap,
   type ClerkOrgMember,
 } from './clerk-org';
@@ -57,11 +58,17 @@ export type StaffSyncResult =
 /**
  * Sync one church's staff. Pass `staff` when the roster is already in hand
  * (the webhook path) to avoid a redundant Clerk round trip.
+ *
+ * When it isn't, this deliberately drops the memoized roster first. Reconciling
+ * *is* the "go and look at Clerk" operation — every caller is either reacting to
+ * a membership event or answering a staff member who pressed Sync — so it is
+ * the one read that must never be served from cache.
  */
 export async function syncChurchStaffForOrg(
   orgId: string,
   options?: { staff?: ClerkOrgMember[] },
 ): Promise<StaffSyncResult> {
+  if (!options?.staff) invalidateClerkOrgMemberships(orgId);
   const staff = options?.staff ?? (await fetchClerkOrgMemberships(orgId));
 
   if (!isWithinClerkOrgStaffCap(staff.length)) {

@@ -45,6 +45,17 @@ export async function getActiveChurchByOrgId(orgId: string): Promise<ChurchRow |
 export async function isChurchStaffForOrg(userId: string, orgId: string): Promise<boolean> {
   const church = await getActiveChurchByOrgId(orgId);
   if (!church) return false;
+  return isChurchStaffForChurch(userId, church);
+}
+
+/**
+ * The same check for a caller that already holds the church row.
+ *
+ * Every gate in `church-org-access.ts` had just fetched it, so going through
+ * `isChurchStaffForOrg` looked the church up a second time on every church
+ * request. Same rules, same answer — this only skips the redundant read.
+ */
+export async function isChurchStaffForChurch(userId: string, church: ChurchRow): Promise<boolean> {
   if (church.createdBy === userId) return true;
 
   const orgSpaces = await db
@@ -81,7 +92,7 @@ export async function isChurchStaffForOrg(userId: string, orgId: string): Promis
     const staff = await fetchClerkOrgMemberships(church.orgId);
     return staff.some((member) => member.userId === userId);
   } catch (error) {
-    console.warn('[isChurchStaffForOrg] Clerk org membership check failed', {
+    console.warn('[isChurchStaffForChurch] Clerk org membership check failed', {
       orgId: church.orgId,
       userId,
       error: error instanceof Error ? error.message : String(error),

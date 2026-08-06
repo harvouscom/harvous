@@ -15,7 +15,7 @@
 import { fetchClerkOrgMemberships } from './clerk-org';
 import { capabilitiesForChurchRole, type ChurchCapability } from './church-role-capabilities';
 import { CHURCH_LAPSED_CODE, CHURCH_LAPSED_ERROR, churchIsSponsored } from './church-entitlement';
-import { getActiveChurchByOrgId, isChurchStaffForOrg, type ChurchRow } from './church-staff';
+import { getActiveChurchByOrgId, isChurchStaffForChurch, type ChurchRow } from './church-staff';
 
 export type ChurchOrgAccessResult =
   | { ok: true; church: ChurchRow }
@@ -46,7 +46,9 @@ export async function resolveChurchOrgAccess(
   if (!church.isActive) {
     return { ok: false, status: 409, code: 'CHURCH_INACTIVE', error: 'Church is not active' };
   }
-  if (!(await isChurchStaffForOrg(userId, church.orgId))) {
+  // `isChurchStaffForChurch`, not the …ForOrg wrapper: the church row is already
+  // in hand, and the wrapper would look it up again on every church request.
+  if (!(await isChurchStaffForChurch(userId, church))) {
     return { ok: false, status: 403, code: 'CHURCH_STAFF_REQUIRED', error: rule.staffError };
   }
   if (rule.sponsorshipGated && !churchIsSponsored(church)) {

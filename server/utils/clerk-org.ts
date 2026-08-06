@@ -156,11 +156,55 @@ const MEMBERSHIPS_PAGE_SIZE = 100;
 const ORGS_PAGE_SIZE = 100;
 
 /**
+ * How long a fetched roster is reused.
+ *
+ * The roster is the source of every church capability, so this is deliberately
+ * short — a role change made in another process (or in the Clerk dashboard)
+ * must take effect on its own, without a deploy. Roster writes made *here*
+ * evict eagerly, so the window only ever covers changes this process did not
+ * make.
+ */
+const ORG_ROSTER_CACHE_TTL_MS = 30_000;
+
+/** Promises, not values: a burst of concurrent gates shares one HTTP request. */
+const orgRosterCache = new Map<string, { members: Promise<ClerkOrgMember[]>; expiresAt: number }>();
+
+/**
+ * Drop the memoized roster for an org. Called by every roster write below, so
+ * a role change this process made is visible to the next gate immediately.
+ */
+export function invalidateClerkOrgMemberships(orgId: string): void {
+  orgRosterCache.delete(orgId);
+}
+
+/**
  * Fetch all memberships of an org (paginated; staff is ≤20 in practice, the
  * loop is defensive). Consumes only `role` + `public_user_data.user_id`;
  * rows without public_user_data are skipped.
+ *
+ * Memoized for `ORG_ROSTER_CACHE_TTL_MS`, because this is the hottest Clerk
+ * call in the church surfaces and it was being made several times to render one
+ * pane: `resolveChurchOrgAccess` alone asked twice (once through
+ * `isChurchStaffForOrg`, once for the role), and staff-status, the plan, church
+ * settings and templates each asked again on top of that. Every one of those is
+ * the same list of at most twenty people.
  */
 export async function fetchClerkOrgMemberships(orgId: string): Promise<ClerkOrgMember[]> {
+  const cached = orgRosterCache.get(orgId);
+  if (cached && cached.expiresAt > Date.now()) return cached.members;
+
+  const pending = fetchClerkOrgMembershipsUncached(orgId);
+  orgRosterCache.set(orgId, { members: pending, expiresAt: Date.now() + ORG_ROSTER_CACHE_TTL_MS });
+  /*
+    Never cache a failure. `isChurchStaffForOrg` turns a Clerk outage into
+    "not staff", so a cached rejection would lock a pastor out of their own
+    church for the rest of the TTL.
+  */
+  pending.catch(() => orgRosterCache.delete(orgId));
+  return pending;
+}
+
+async function fetchClerkOrgMembershipsUncached(orgId: string): Promise<ClerkOrgMember[]> {
   const key = clerkSecretKey();
   const members: ClerkOrgMember[] = [];
   let offset = 0;
@@ -347,6 +391,9 @@ export async function updateClerkOrgMemberRole(
     method: 'PATCH',
     body: JSON.stringify({ role }),
   });
+  // Before the throw: a PATCH that Clerk applied and then failed to acknowledge
+  // must not leave a stale roster memoized behind it.
+  invalidateClerkOrgMemberships(orgId);
   if (!response.ok) throw classifyClerkFailure(response.status);
 }
 
@@ -354,6 +401,7 @@ export async function removeClerkOrgMember(orgId: string, userId: string): Promi
   const response = await clerkFetch(`/organizations/${orgId}/memberships/${userId}`, {
     method: 'DELETE',
   });
+  invalidateClerkOrgMemberships(orgId);
   if (!response.ok && response.status !== 404) throw classifyClerkFailure(response.status);
 }
 

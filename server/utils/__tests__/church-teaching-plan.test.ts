@@ -5,13 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 
 const getActiveChurchByOrgId = vi.fn();
-const isChurchStaffForOrg = vi.fn();
+const isChurchStaffForChurch = vi.fn();
 const churchIsSponsored = vi.fn();
 const fetchClerkOrgMemberships = vi.fn();
 
 vi.mock('../church-staff', () => ({
   getActiveChurchByOrgId: (...args: unknown[]) => getActiveChurchByOrgId(...args),
-  isChurchStaffForOrg: (...args: unknown[]) => isChurchStaffForOrg(...args),
+  isChurchStaffForChurch: (...args: unknown[]) => isChurchStaffForChurch(...args),
 }));
 
 vi.mock('../church-entitlement', () => ({
@@ -53,7 +53,7 @@ const USER = 'user_pastor';
 /** Everything passing — each test then knocks out exactly one gate. */
 function allowAll() {
   getActiveChurchByOrgId.mockResolvedValue(CHURCH);
-  isChurchStaffForOrg.mockResolvedValue(true);
+  isChurchStaffForChurch.mockResolvedValue(true);
   churchIsSponsored.mockReturnValue(true);
   fetchClerkOrgMemberships.mockResolvedValue([{ userId: USER, role: 'org:pastor' }]);
 }
@@ -127,7 +127,7 @@ describe('the teaching plan gates', () => {
   });
 
   it.each(BOTH_GATES)('403s a non-staff caller (%s)', async (_name, gate) => {
-    isChurchStaffForOrg.mockResolvedValue(false);
+    isChurchStaffForChurch.mockResolvedValue(false);
     expect(await gate(USER, 'org_1')).toMatchObject({
       ok: false,
       status: 403,
@@ -152,7 +152,7 @@ describe('the teaching plan gates', () => {
   it('checks staff BEFORE sponsorship, so a stranger never learns a church lapsed', async () => {
     // The pre-existing assertChurchStaffOrgWrite has these the other way round,
     // which leaks billing state to any signed-in user. Don't regress to that.
-    isChurchStaffForOrg.mockResolvedValue(false);
+    isChurchStaffForChurch.mockResolvedValue(false);
     churchIsSponsored.mockReturnValue(false);
     const result = await assertCanManageTeachingPlan(USER, 'org_1');
     expect(result).toMatchObject({ code: 'CHURCH_STAFF_REQUIRED' });

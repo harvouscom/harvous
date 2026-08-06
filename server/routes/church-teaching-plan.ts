@@ -170,18 +170,30 @@ app.get('/api/church/services/plan', requireAuth, async (c) => {
     const gate = await assertCanViewTeachingPlan(auth.userId, orgId);
     if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
 
-    const services = await db
-      .select()
-      .from(ChurchServices)
-      // Church plan only. Space plans have their own endpoints; merging them
-      // here would put Youth's Wednesday in the church's sermon list.
-      .where(and(eq(ChurchServices.churchId, gate.church.id), isNull(ChurchServices.spaceId)))
-      .orderBy(asc(ChurchServices.serviceDate));
-
-    const serviceTimes = await listServiceTimesForChurch(gate.church.id);
-    const assignments = await serviceTimeIdsByService(services.map((row) => row.id));
     const scope = { churchId: gate.church.id, spaceId: null };
-    const seriesTitles = await seriesTitlesByServiceRows(services);
+
+    /*
+      Two waves, not five serial queries. Only the assignments and the series
+      titles need the sermon rows first; the church's slots and its series list
+      are keyed on the church alone, so they ride alongside rather than queue
+      behind. The plan pane was five round trips deep before this.
+    */
+    const [services, serviceTimes, series] = await Promise.all([
+      db
+        .select()
+        .from(ChurchServices)
+        // Church plan only. Space plans have their own endpoints; merging them
+        // here would put Youth's Wednesday in the church's sermon list.
+        .where(and(eq(ChurchServices.churchId, gate.church.id), isNull(ChurchServices.spaceId)))
+        .orderBy(asc(ChurchServices.serviceDate)),
+      listServiceTimesForChurch(gate.church.id),
+      listSeriesForPlan(scope),
+    ]);
+
+    const [assignments, seriesTitles] = await Promise.all([
+      serviceTimeIdsByService(services.map((row) => row.id)),
+      seriesTitlesByServiceRows(services),
+    ]);
 
 
     return c.json({
@@ -207,7 +219,7 @@ app.get('/api/church/services/plan', requireAuth, async (c) => {
         Replaced a list of bare strings derived from the sermon rows: a picker of
         objects can rename, delete, and be attached to, and a string cannot.
       */
-      series: await listSeriesForPlan(scope),
+      series,
     });
   } catch (error) {
     const standardError = handleAPIError(error, {
