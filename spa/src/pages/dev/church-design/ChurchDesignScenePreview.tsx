@@ -1236,12 +1236,15 @@ function plannerFixtures(): TeachingPlanSermon[] {
 
 /* Enough channels that the switcher has to be a picker rather than a row of
    chips — the case a one-channel fixture would never show. */
+/* Distinct colours and both lanes, because that is what the picker now draws:
+   a channel gets the broadcast glyph, a shared space the gathering one, each on
+   its own tile. A fixture of five identical entries would hide the whole thing. */
 const PLANNER_CHANNELS = [
-  { id: 'space_youth', title: 'Youth' },
-  { id: 'space_adult_ed', title: 'Adult education' },
-  { id: 'space_kids', title: 'Kids' },
-  { id: 'space_womens', title: "Women's Bible study" },
-  { id: 'space_mens', title: "Men's breakfast" },
+  { id: 'space_youth', title: 'Youth', color: 'orange', ministry: true },
+  { id: 'space_adult_ed', title: 'Adult education', color: 'blue', ministry: true },
+  { id: 'space_kids', title: 'Kids', color: 'green', ministry: true },
+  { id: 'space_womens', title: "Women's Bible study", color: 'purple', ministry: false },
+  { id: 'space_mens', title: "Men's breakfast", color: 'yellow', ministry: false },
 ];
 
 function PlannerScene({ view, canWrite = true }: { view: PlannerView; canWrite?: boolean }) {
@@ -1477,8 +1480,8 @@ const LIBRARY_FIXTURES = [
 ];
 
 const LIBRARY_SPACES = [
-  { id: 'space_youth', title: 'Youth' },
-  { id: 'space_kids', title: 'Kids' },
+  { id: 'space_youth', title: 'Youth', color: 'orange', ministry: true },
+  { id: 'space_kids', title: 'Kids', color: 'green', ministry: true },
 ];
 
 /** The catalog at the width where audience and rooms fit on the row. */

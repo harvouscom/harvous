@@ -12944,6 +12944,26 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   overflow-y: auto;
 }
 
+/*
+  Rows are the space switcher's: a coloured tile, the name, a tick. The name is
+  a `.proto-marquee`, so it needs its width from the row rather than its own
+  text — and `--list-view`, whose styling this popover borrows, sizes labels to
+  content instead. Restore the base flex, exactly as `--sidebar-list-view` does
+  for the switcher itself. Without it every label measured 0px and the menu
+  showed two tiles and a tick with no words.
+*/
+.proto-menu__popover--planner-scope .proto-menu-item__label {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* And the row has to fill the popover for that flex to mean anything. Sized to
+   content it stopped at 148px of the 240 available, so "Young Adults"
+   ellipsised with 90px of empty menu beside it. */
+.proto-menu__popover--planner-scope .proto-menu-item {
+  width: 100%;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .proto-planner-scope__caret {
     transition: none;
@@ -13071,11 +13091,16 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   flex-shrink: 0;
 }
 
+/* `flex-shrink: 0`, because the toolbar beside it is `flex: 1` and the comment
+   below claims the switcher gives up room first. It did not: with `min-width: 0`
+   and no shrink control, the lead lost every time and the title ellipsised to
+   literally zero width — the panel rendered a name nobody could read. */
 .proto-sidebar-expanded-panel__header-lead {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex-shrink: 0;
 }
 
 .proto-sidebar-expanded-panel__title {
@@ -13087,6 +13112,9 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* The truncation bound. Tool names are short — the scope beside it carries
+     the long half — so this only ever catches a pathological one. */
+  max-width: 240px;
 }
 
 /* Centred between title and actions, and the first thing to give up room —
@@ -13158,6 +13186,31 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 .proto-chip-bar.proto-planner__views {
   margin: 0;
   flex: 0 0 auto;
+}
+
+/* Beside the title, the scope bar is a control rather than a row: the chip
+   bar's own list margins go. Scoped to the header so the compact sidebar's
+   standalone bar keeps the layout it was designed for. */
+.proto-sidebar-expanded-panel__header-lead .proto-chip-bar.proto-planner-scope {
+  margin: 0;
+  flex: 0 0 auto;
+  /* A width, not a max-width, and it is load-bearing. The channel name inside
+     is a `.proto-marquee`, which sets `container-type: inline-size` — an
+     element whose width must therefore come from its parent, never its
+     contents. Sized to content, the bar gave the name nothing to fill and it
+     collapsed to 0px, exactly as the panel title did. */
+  width: 248px;
+}
+
+/* "Church" takes its label; the channel chip takes the rest, so the marquee
+   inside it has a parent-derived width to ellipsise against. */
+.proto-sidebar-expanded-panel__header-lead .proto-planner-scope .proto-chip {
+  flex: 0 0 auto;
+}
+
+.proto-sidebar-expanded-panel__header-lead .proto-planner-scope .proto-planner-scope__channel {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .proto-chip-bar.proto-planner__scope {

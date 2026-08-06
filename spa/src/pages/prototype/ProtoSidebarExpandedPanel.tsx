@@ -23,6 +23,16 @@ type ProtoSidebarExpandedPanelProps = {
   label: string;
   /** Rendered at the head of the panel, left of the view switcher. */
   title: ReactNode;
+  /**
+   * Scope control, immediately after the title — which plan, which space,
+   * which thing this tool is pointed at.
+   *
+   * Beside the title rather than in a band of its own, because it answers the
+   * same question the title does. The planner had it as a second full-width row
+   * under the header: 31px of chrome to restate what the title already said,
+   * and two stacked bars of controls before any content.
+   */
+  scope?: ReactNode;
   /** Center slot — a view switcher or segmented control. */
   toolbar?: ReactNode;
   /** Right slot — tool-level actions. */
@@ -36,6 +46,7 @@ type ProtoSidebarExpandedPanelProps = {
 export default function ProtoSidebarExpandedPanel({
   label,
   title,
+  scope,
   toolbar,
   actions,
   exiting,
@@ -91,9 +102,15 @@ export default function ProtoSidebarExpandedPanel({
           >
             <Icon name="down-left-and-up-right-to-center" size={14} />
           </button>
-          <span className="proto-sidebar-expanded-panel__title proto-marquee">
-            <span>{title}</span>
-          </span>
+          {/*
+            Not `proto-marquee`. That class sets `container-type: inline-size`,
+            and inline-size containment zeroes an element's own intrinsic width
+            — fine in a column whose width comes from its parent, fatal here
+            where the title's width comes from its own text. It rendered at 0px,
+            so the panel showed no name at all. Ellipsis via max-width instead.
+          */}
+          <span className="proto-sidebar-expanded-panel__title">{title}</span>
+          {scope}
         </div>
         {toolbar ? <div className="proto-sidebar-expanded-panel__toolbar">{toolbar}</div> : null}
         {actions ? <div className="proto-sidebar-expanded-panel__actions">{actions}</div> : null}

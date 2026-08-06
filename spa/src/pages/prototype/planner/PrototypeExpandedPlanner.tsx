@@ -140,8 +140,27 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
     closeExpandedSidebar({ preserveHistory: true });
   }, [closeExpandedSidebar]);
 
-  const activeSpace = plannableSpaces.find((s) => s.id === planSpaceId) ?? null;
-  const title = activeSpace ? `Planner · ${activeSpace.title}` : 'Planner';
+  /*
+    Just "Planner". The scope switcher sits right beside it now and names the
+    space itself, so "Planner · Young Adults" would say it twice in the same
+    breath — and the title is the one that could not be changed from.
+  */
+  const title = 'Planner';
+
+  /*
+    Which plan you are looking at. Radio semantics, not tabs: these are two
+    different plans, not two views of one — which is also why it is not in the
+    toolbar slot beside Board/Calendar/List. Those change how you look; this
+    changes what you are looking at.
+  */
+  const scopeSwitcher = canView ? (
+    <PrototypePlannerScopeChips
+      plannableSpaces={plannableSpaces}
+      planSpaceId={planSpaceId}
+      lastChannelId={lastChannelId}
+      onChange={changeScope}
+    />
+  ) : undefined;
 
   const viewSwitcher = (
     <div className="proto-chip-bar proto-planner__views" role="radiogroup" aria-label="Planner view">
@@ -165,6 +184,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
     <ProtoSidebarExpandedPanel
       label="Planner"
       title={title}
+      scope={scopeSwitcher}
       toolbar={canView ? viewSwitcher : undefined}
       actions={
         canWrite ? (
@@ -190,18 +210,6 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
       ) : (
         <div className="proto-planner">
           <div className="proto-planner__main">
-            {/*
-              Which plan you are looking at. Hidden entirely when the church has
-              no other room to plan for. Radio semantics, not tabs: these are two
-              different plans, not two views of one.
-            */}
-            <PrototypePlannerScopeChips
-              plannableSpaces={plannableSpaces}
-              planSpaceId={planSpaceId}
-              lastChannelId={lastChannelId}
-              onChange={changeScope}
-            />
-
             {schedule.error ? (
               <p className="proto-connect-note-sheet__error proto-planner__error" role="alert">
                 {schedule.error}

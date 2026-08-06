@@ -414,10 +414,22 @@ export default function PrototypeSidebarChurchHubView() {
               readOnlyReason={teachingPlanReadOnly}
               canManageChurchTemplates={canManageChurchTemplates && !churchPlanLapsed}
               onOpenStarters={() => setToolsView('starters')}
-              plannableSpaces={[...ministryChannels, ...sharedSpaces].map((s) => ({
-                id: s.id,
-                title: s.title,
-              }))}
+              /* Colour and lane ride along: the scope picker draws each row as
+                 the space switcher does, which it cannot do from id and title. */
+              plannableSpaces={[
+                ...ministryChannels.map((s) => ({
+                  id: s.id,
+                  title: s.title,
+                  color: s.color ?? null,
+                  ministry: true,
+                })),
+                ...sharedSpaces.map((s) => ({
+                  id: s.id,
+                  title: s.title,
+                  color: s.color ?? null,
+                  ministry: false,
+                })),
+              ]}
             />
           ) : toolsView === 'team' ? (
             <PrototypeChurchStaffSection orgId={orgId} isStaff={canCreateChurchContent} />

@@ -33,6 +33,7 @@ import PrototypeSermonEditorSheet from './PrototypeSermonEditorSheet';
 import PrototypeSeriesSheet from './PrototypeSeriesSheet';
 import PrototypePlannerScopeChips from './planner/PrototypePlannerScopeChips';
 import { usePlannerScope } from './planner/usePlannerScope';
+import type { PlannableSpace } from '../../hooks/useChurchPlannerAccess';
 
 /** Same row anatomy as Church tools, with the date where the icon would sit. */
 function SermonRow({
@@ -99,7 +100,7 @@ export default function PrototypeChurchTeachingPlanSection({
    * Org spaces that may carry their own plan. The switcher is hidden when this
    * is empty, so a church with one room sees exactly today's pane.
    */
-  plannableSpaces?: { id: string; title: string }[];
+  plannableSpaces?: PlannableSpace[];
   /** Server's `manage_templates` verdict — only drives the editor's nudge. */
   canManageChurchTemplates?: boolean;
   /** Hub callback that switches to the Church starters pane. */

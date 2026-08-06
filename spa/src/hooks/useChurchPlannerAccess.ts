@@ -15,7 +15,22 @@ import { churchHubSpacesForOrg, resolveMyChurchFromNav } from '../lib/church-set
 import { isMinistryBroadcastSpace } from '../lib/shared-space-capabilities';
 
 /** A plan you can switch to: the church's own, or one room's. */
-export type PlannableSpace = { id: string; title: string };
+export type PlannableSpace = {
+  id: string;
+  title: string;
+  /**
+   * The space's own accent, so a picker can draw the same coloured tile the
+   * space switcher does. Without it every row got one flat glyph, and the list
+   * told you nothing about which room you were choosing.
+   */
+  color: string | null;
+  /**
+   * Channel or shared space. Both are plannable, but they are not the same
+   * thing, and a picker that draws a broadcast glyph on a room that gathers is
+   * saying something untrue about it.
+   */
+  ministry: boolean;
+};
 
 export type ChurchPlannerAccess = {
   orgId: string | null;
@@ -91,8 +106,14 @@ export function useChurchPlannerAccess(orgIdOverride?: string | null): ChurchPla
     const ministry: PlannableSpace[] = [];
     const shared: PlannableSpace[] = [];
     for (const space of hubSpaces) {
-      const entry = { id: space.id, title: space.title };
-      if (isMinistryBroadcastSpace(space)) ministry.push(entry);
+      const isMinistry = isMinistryBroadcastSpace(space);
+      const entry: PlannableSpace = {
+        id: space.id,
+        title: space.title,
+        color: space.color ?? null,
+        ministry: isMinistry,
+      };
+      if (isMinistry) ministry.push(entry);
       else shared.push(entry);
     }
     return [...ministry, ...shared];

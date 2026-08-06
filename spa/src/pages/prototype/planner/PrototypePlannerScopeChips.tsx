@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from '../ProtoPopoverShell';
+import ProtoSpaceMenuIcon from '../ProtoSpaceMenuIcon';
 import { computeRightAnchoredPopoverPosition } from '../proto-popover-position';
 import type { PlannableSpace } from '../../../hooks/useChurchPlannerAccess';
 
@@ -127,7 +128,9 @@ export default function PrototypePlannerScopeChips({
                one control family. */
             className="proto-menu__popover proto-menu__popover--list-view proto-menu__popover--planner-scope"
             role="menu"
-            aria-label="Channels"
+            /* Not "Channels": both lanes are plannable, so this list holds the
+               church's shared spaces too. */
+            aria-label="Plans"
             style={{
               position: 'fixed',
               top: anchorPos?.top ?? -9999,
@@ -137,27 +140,48 @@ export default function PrototypePlannerScopeChips({
             }}
           >
             <div className="proto-menu-section" role="group">
-              {plannableSpaces.map((space) => (
-                <button
-                  key={space.id}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={planSpaceId === space.id}
-                  className="proto-menu-item"
-                  onClick={() => {
-                    onChange(space.id);
-                    setOpen(false);
-                  }}
-                >
-                  {/* Same glyph on every row, selection carried by
-                      `aria-checked` — the list-view popover's convention, and
-                      swapping in a tick would lose what the row *is*. */}
-                  <span className="proto-menu-item__icon" aria-hidden>
-                    <Icon name="megaphone" size={12} />
-                  </span>
-                  <span className="proto-menu-item__label">{space.title}</span>
-                </button>
-              ))}
+              {plannableSpaces.map((space) => {
+                const checked = planSpaceId === space.id;
+                return (
+                  <button
+                    key={space.id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={checked}
+                    className="proto-menu-item"
+                    title={space.title}
+                    onClick={() => {
+                      onChange(space.id);
+                      setOpen(false);
+                    }}
+                  >
+                    {/*
+                      The space's own tile, exactly as the switcher under the
+                      church orb draws it — same component, same colour, `rss`
+                      for a channel and the shared-space glyph otherwise.
+
+                      This was one flat megaphone on every row. It identified
+                      nothing (five channels looked identical) and it was simply
+                      wrong for the shared spaces in the same list, which
+                      gather rather than broadcast.
+                    */}
+                    <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
+                      <ProtoSpaceMenuIcon
+                        color={space.color || 'paper'}
+                        iconName={space.ministry ? 'rss' : 'user-group'}
+                      />
+                    </span>
+                    <span className="proto-menu-item__label proto-marquee" title={space.title}>
+                      <span>{space.title}</span>
+                    </span>
+                    {/* The switcher's tick. `aria-checked` already carries it
+                        for assistive tech; this is the sighted half. */}
+                    <span className="proto-menu-item__check" aria-hidden>
+                      {checked ? <Icon name="check" size={12} /> : null}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </ProtoPopoverShell>,
           document.body,
