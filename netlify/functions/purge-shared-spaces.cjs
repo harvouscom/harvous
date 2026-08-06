@@ -10550,6 +10550,7 @@ __export(schema_exports, {
   FeaturedItems: () => FeaturedItems,
   InboxItemNotes: () => InboxItemNotes,
   InboxItems: () => InboxItems,
+  LibraryItems: () => LibraryItems,
   Members: () => Members,
   MonthlyAnalytics: () => MonthlyAnalytics,
   NoteConnections: () => NoteConnections,
@@ -10561,6 +10562,7 @@ __export(schema_exports, {
   NoteVersions: () => NoteVersions,
   Notes: () => Notes,
   RecallEvents: () => RecallEvents,
+  ResourceLibraries: () => ResourceLibraries,
   ResourceMetadata: () => ResourceMetadata,
   ScriptureCrossReferences: () => ScriptureCrossReferences,
   ScriptureEntityRefs: () => ScriptureEntityRefs,
@@ -10591,7 +10593,7 @@ __export(schema_exports, {
   VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, ChurchServiceTimes, ChurchServiceTimeAssignments, ChurchSeries, ChurchServices, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
+var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, ChurchServiceTimes, ChurchServiceTimeAssignments, ChurchSeries, ChurchServices, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, ResourceLibraries, LibraryItems, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -11699,6 +11701,65 @@ var init_schema2 = __esm({
       sourceImage: text("sourceImage"),
       createdAt: ts("createdAt").notNull()
     });
+    ResourceLibraries = pgTable(
+      "ResourceLibraries",
+      {
+        id: text("id").primaryKey(),
+        /** 'user' | 'church' — 'school' later. */
+        ownerKind: text("ownerKind").notNull(),
+        /** Clerk userId when ownerKind='user'; Churches.id when 'church'. */
+        ownerId: text("ownerId").notNull(),
+        title: text("title").notNull(),
+        createdAt: ts("createdAt").notNull(),
+        updatedAt: ts("updatedAt")
+      },
+      (table) => [
+        // One library per owner. Also the race guard for lazy creation: concurrent
+        // first-saves collide here, and the loser re-reads instead of forking a
+        // second library.
+        uniqueIndex("ResourceLibraries_owner_unique").on(table.ownerKind, table.ownerId)
+      ]
+    );
+    LibraryItems = pgTable(
+      "LibraryItems",
+      {
+        id: text("id").primaryKey(),
+        libraryId: text("libraryId").notNull(),
+        /** 'link' | 'file' | 'note_ref' | 'thread_ref' | 'template_ref' | 'pack'. */
+        kind: text("kind").notNull().default("link"),
+        title: text("title").notNull(),
+        description: text("description"),
+        /** kind='link': the destination. Normalized by validateResourceUrl on write. */
+        sourceUrl: text("sourceUrl"),
+        sourceDomain: text("sourceDomain"),
+        sourceSiteName: text("sourceSiteName"),
+        sourceImage: text("sourceImage"),
+        /**
+         * kind='file': Supabase storage object in the private `library-files`
+         * bucket (NOT the public note-attachments bucket — RESOURCE_LIBRARY.md §8).
+         * Opened via short-lived signed URLs, never a public link.
+         */
+        fileStorageKey: text("fileStorageKey"),
+        fileName: text("fileName"),
+        fileMime: text("fileMime"),
+        fileBytes: integer("fileBytes"),
+        /**
+         * 'leaders' | 'members' — dormant until church libraries land. Written with
+         * the default from day one so the church lane needs no backfill on a table
+         * that already holds user data.
+         */
+        access: text("access").notNull().default("members"),
+        createdByUserId: text("createdByUserId").notNull(),
+        createdAt: ts("createdAt").notNull(),
+        updatedAt: ts("updatedAt"),
+        /** Soft archive — items stay resolvable for pills that already cite them. */
+        archivedAt: ts("archivedAt")
+      },
+      (table) => [
+        index("LibraryItems_libraryId_archivedAtIndex").on(table.libraryId, table.archivedAt),
+        index("LibraryItems_libraryId_updatedAtIndex").on(table.libraryId, table.updatedAt)
+      ]
+    );
     InboxItems = pgTable("InboxItems", {
       id: text("id").primaryKey(),
       webflowItemId: text("webflowItemId").notNull().unique(),
