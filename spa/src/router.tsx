@@ -81,6 +81,8 @@ export type PrototypeNoteSearch = {
   scriptureRef?: string;
   scriptureTranslation?: string;
   highlight?: string;
+  /** Resource Library item id — opens a collapsed-only resource chip in the study dock. */
+  libItem?: string;
   dockReq?: string;
   crossRefTarget?: string;
   /** Bare space id in the URL (`?space=1785…`); normalize with {@link normalizePrototypeApiSpaceId} for APIs. */
@@ -272,6 +274,7 @@ function buildPrototypeRouteBranch() {
     scriptureTranslation:
       typeof search.scriptureTranslation === 'string' ? search.scriptureTranslation : undefined,
     highlight: typeof search.highlight === 'string' ? search.highlight : undefined,
+    libItem: typeof search.libItem === 'string' ? search.libItem : undefined,
     dockReq: typeof search.dockReq === 'string' ? search.dockReq : undefined,
     crossRefTarget: typeof search.crossRefTarget === 'string' ? search.crossRefTarget : undefined,
     // Accept legacy `?space=space_…` / JSON-quoted bookmarks; store bare ids in the address bar.

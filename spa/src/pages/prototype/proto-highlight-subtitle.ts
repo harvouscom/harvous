@@ -95,7 +95,7 @@ export function highlightEntryKindIconName(entryKind: string | null | undefined)
     case 'linkedNote':
       return 'arrow-right-arrow-left';
     case 'scriptureLink':
-      return 'book-open';
+      return 'scroll';
     case 'reference':
       return 'lines-leaning';
     case 'workspace':

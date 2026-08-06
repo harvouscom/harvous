@@ -853,7 +853,7 @@ function PrototypeShortcutBridge() {
         ensureSidebarExpanded();
         return;
       }
-      const order = ['notes', 'folders', 'highlights', 'scripture', 'threads'] as const;
+      const order = ['notes', 'folders', 'highlights', 'scripture', 'threads', 'resources'] as const;
       const currentIndex = Math.max(0, order.indexOf(sidebarListMode));
       const nextIndex = (currentIndex + step + order.length) % order.length;
       setSidebarListMode(order[nextIndex]);

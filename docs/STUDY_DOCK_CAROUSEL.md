@@ -1,6 +1,6 @@
 # Per-note study dock carousel
 
-Scripture pill docks and painted-highlight docks share one **ordered stack per note** on web (`/prototype`, production `/note/*`) and native (macOS/iOS). Reference (Easton's) and URL-pill docks are **not** in the carousel.
+Scripture pill docks, painted-highlight docks, and resource chips share one **ordered stack per note** on web (`/prototype`, production `/note/*`) and native (macOS/iOS). Reference (Easton's) and URL-pill docks are **not** in the carousel.
 
 ## Behavior
 
@@ -14,11 +14,17 @@ Scripture pill docks and painted-highlight docks share one **ordered stack per n
 - **Prune:** Entries whose anchor disappeared (deleted pill, removed highlight) are dropped on editor update (web) or highlight reconcile (native).
 - **Cap:** 8 entries; oldest dropped when exceeded.
 
+### Collapsed-only kinds
+
+`resource` entries (Resource Library items — see [RESOURCE_LIBRARY.md](future/RESOURCE_LIBRARY.md) §5.2) never expand. A resource points at something *outside* Harvous, so there is nothing the dock can render better than the destination itself; the chip's job is to keep the link in reach while writing. `dockKindSupportsExpanded()` in `study-dock-stack.ts` is the single source of that rule — activation, deserialization, and the card shell all read it, so a hand-edited localStorage payload can't produce a half-rendered card. Activating a resource chip still makes it the active entry (for roving focus and reorder); it just has no expanded body. Tapping opens the destination in a new tab and leaves the chip docked.
+
+Native currently has no resource kind. An X.com-style treatment — pinned source chip over a full in-app browser — is sketched in RESOURCE_LIBRARY.md §5.2 as a native-only exploration.
+
 ## Web
 
 - Stack logic: [`src/utils/study-dock-stack.ts`](../src/utils/study-dock-stack.ts)
 - UI shell: [`src/components/react/StudyDockCarouselWeb.tsx`](../src/components/react/StudyDockCarouselWeb.tsx) (`renderEntry`, drag handle + `moveDockEntryToIndex`)
-- Card chrome: [`src/components/react/StudyDockCardShell.tsx`](../src/components/react/StudyDockCardShell.tsx) — scripture (`ScripturePillChromeWeb`) and highlight (`HighlightDockWeb`)
+- Card chrome: [`src/components/react/StudyDockCardShell.tsx`](../src/components/react/StudyDockCardShell.tsx) — scripture (`ScripturePillChromeWeb`), highlight (`HighlightDockWeb`), resource (`ResourceDockChipWeb`, `collapsedOnly`)
 - State owner: [`src/components/react/TiptapEditor.tsx`](../src/components/react/TiptapEditor.tsx) (`studyDockStack`)
 - Portal host: `studyDockCarouselPortalTarget` on note pages (single slot in dock layer)
 - Inactive cards: `interactionActive={false}` skips passage / study-thread API loads until the card is active and expanded.

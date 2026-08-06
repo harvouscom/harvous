@@ -783,7 +783,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
                     <div className="proto-home-card__body">
                       <div className="proto-home-card__title-row">
                         <span className="proto-home-card__icon-orb" aria-hidden>
-                          <Icon name="book" size={13} />
+                          <Icon name="scroll" size={13} />
                         </span>
                         <p className="pds-list-title proto-home-card__title">{topPassage.displayRef}</p>
                         <span className="proto-home-card__chevron" aria-hidden>

@@ -92,6 +92,27 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'updatedAt',
   ],
   UserMetadata: ['hmcChurchId', 'connectedChurchId', 'connectedOrgId', 'connectedChurchAt'],
+  ResourceLibraries: ['id', 'ownerKind', 'ownerId', 'title', 'createdAt', 'updatedAt'],
+  LibraryItems: [
+    'id',
+    'libraryId',
+    'kind',
+    'title',
+    'description',
+    'sourceUrl',
+    'sourceDomain',
+    'sourceSiteName',
+    'sourceImage',
+    'fileStorageKey',
+    'fileName',
+    'fileMime',
+    'fileBytes',
+    'access',
+    'createdByUserId',
+    'createdAt',
+    'updatedAt',
+    'archivedAt',
+  ],
 };
 
 const REQUIRED_INDEXES: Record<string, readonly string[]> = {
@@ -115,6 +136,12 @@ const REQUIRED_INDEXES: Record<string, readonly string[]> = {
   ],
   Churches: ['Churches_orgId_unique', 'Churches_hmcChurchId_unique', 'Churches_createdByIndex'],
   UserMetadata: ['UserMetadata_connectedChurchIdIndex', 'UserMetadata_hmcChurchIdIndex'],
+  // The owner unique index is the lazy-creation race guard, not just a constraint.
+  ResourceLibraries: ['ResourceLibraries_owner_unique'],
+  LibraryItems: [
+    'LibraryItems_libraryId_archivedAtIndex',
+    'LibraryItems_libraryId_updatedAtIndex',
+  ],
 };
 
 export function validateRequiredTableColumns(
@@ -161,6 +188,8 @@ async function main() {
     'ScriptureMetadata',
     'NoteScriptureReferences',
     'ResourceMetadata',
+    'ResourceLibraries',
+    'LibraryItems',
     'InboxItems',
     'InboxItemNotes',
     'UserInboxItems',

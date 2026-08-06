@@ -28,6 +28,7 @@ function listModeShortLabel(mode: SidebarListMode): string {
     case 'highlights': return 'Highlights';
     case 'scripture':  return 'Scripture';
     case 'threads':    return 'Threads';
+    case 'resources':  return 'Resources';
     default:           return 'List view';
   }
 }
@@ -39,6 +40,7 @@ function listModeTitle(mode: SidebarListMode): string {
     case 'highlights': return 'Highlights list';
     case 'scripture':  return 'Scripture index';
     case 'threads':    return 'Threads';
+    case 'resources':  return 'Resource library';
     default:           return 'List view';
   }
 }
@@ -48,8 +50,9 @@ function ListModeTriggerIcon({ mode, size }: { mode: SidebarListMode; size: numb
     case 'notes':      return <Icon name="note-sticky" size={size} />;
     case 'folders':    return <Icon name="folder" size={size} />;
     case 'highlights': return <Icon name="highlighter" size={size} />;
-    case 'scripture':  return <Icon name="book" size={size} />;
+    case 'scripture':  return <Icon name="scroll" size={size} />;
     case 'threads':    return <Icon name="arrow-right-arrow-left" size={size} />;
+    case 'resources':  return <Icon name="newspaper" size={size} />;
     default:           return <Icon name="note-sticky" size={size} />;
   }
 }

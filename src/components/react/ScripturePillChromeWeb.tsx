@@ -727,7 +727,7 @@ export default function ScripturePillChromeWeb({
       onToggleExpanded={toggleExpanded}
       onDismiss={onDone}
       animateEnter={animateEnter}
-      headerIcon={<Icon name="book-open" size={13} />}
+      headerIcon={<Icon name="scroll" size={13} />}
       headerTitle={
         <span className="scripture-pill-chrome__header-label">
           <span

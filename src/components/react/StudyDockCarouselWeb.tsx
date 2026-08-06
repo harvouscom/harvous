@@ -26,6 +26,9 @@ export function studyDockEntryAccessibleLabel(entry: StudyDockEntry): string {
   if (entry.kind === 'reference') {
     return `Reference ${entry.session.query || 'study'}`;
   }
+  if (entry.kind === 'resource') {
+    return `Resource ${entry.session.title || entry.session.domain || 'link'}`;
+  }
   const subject = entry.session.focusTitle?.trim() || entry.session.excerpt.trim() || 'Highlight';
   const actor = entry.session.authorDisplayName?.trim();
   return actor ? `${subject}, by ${actor}` : subject;
