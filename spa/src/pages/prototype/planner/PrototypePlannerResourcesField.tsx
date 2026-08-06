@@ -41,6 +41,9 @@ export default function PrototypePlannerResourcesField({
      being the person who curates the catalog. */
   const library = useChurchLibraryManage(orgId, { enabled: picking && canWrite });
   const attachedIds = useMemo(() => attached.map((r) => r.itemId), [attached]);
+  /* Distinguishes "nothing left to attach" from "nothing to attach from" —
+     only meaningful once the query has landed, hence the `data` check. */
+  const libraryIsEmpty = Boolean(library.data) && (library.data?.items.length ?? 0) === 0;
 
   const candidates = useMemo(() => {
     const items = library.data?.items ?? [];
@@ -137,10 +140,18 @@ export default function PrototypePlannerResourcesField({
           {library.isLoading ? (
             <p className="proto-caption proto-planner-resources__empty">Loading…</p>
           ) : candidates.length === 0 ? (
+            /*
+              Three different nothings. A church with an empty shelf used to be
+              told "everything in the library is already attached", which is
+              false twice over and sends a pastor looking for an attachment
+              they never made instead of to the library to add one.
+            */
             <p className="proto-caption proto-planner-resources__empty">
               {query.trim()
                 ? 'Nothing matches.'
-                : 'Everything in the library is already attached.'}
+                : libraryIsEmpty
+                  ? "Your church's library is empty. Add a resource to it first, from Resource library."
+                  : 'Everything in the library is already attached.'}
             </p>
           ) : (
             <ul className="proto-planner-resources__options">
