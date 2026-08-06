@@ -22,7 +22,14 @@ export function PlannerCardBody({
 }) {
   return (
     <>
-      <span className="pds-list-title proto-planner-card__title">{service.title}</span>
+      {/* Compact chips clamp to two lines, which the marquee cannot reveal —
+          it slides one line sideways. Only the single-line title marquees. */}
+      <span
+        className={`pds-list-title proto-planner-card__title${compact ? '' : ' proto-marquee'}`}
+        title={service.title}
+      >
+        {compact ? service.title : <span>{service.title}</span>}
+      </span>
       {compact ? null : (
         <span className="proto-caption proto-planner-card__meta">
           {/* Time first: a church with a morning and an evening sermon has two
@@ -70,6 +77,9 @@ export default function PrototypePlannerCard({
       type="button"
       className={[
         'proto-planner-card',
+        /* The pointer lands on the card, not on the 100px of title, so the card
+           is what triggers the title's marquee. */
+        'proto-marquee-hover-root',
         /* Still clickable when read-only — the editor opens to be read — but a
            grab cursor would promise a drag that will not start. */
         draggable ? '' : 'proto-planner-card--static',

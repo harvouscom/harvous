@@ -11,6 +11,86 @@
   outline: none;
 }
 
+/* ─── Marquee: the standard treatment for truncated text ─────────────────────
+ *
+ * Wherever a user-authored name is clipped, hovering should reveal the rest.
+ * A tooltip answers "what is this called?" only after a delay and only with a
+ * mouse; sliding the text says it in place, and the ellipsis stays the resting
+ * state so nothing moves until you ask.
+ *
+ * Zero JavaScript, and no measurement: `min(0px, 100cqw - 100%)` *is* the
+ * overflow distance. `container-type: inline-size` makes `100cqw` the clipping
+ * box's own width, `100%` is the text's intrinsic width, and `min()` clamps to
+ * zero when the text already fits — so short labels never twitch. That is why
+ * this generalizes to any container/child pair for the cost of a `<span>`.
+ *
+ * Markup: put the class on the clipping element and wrap its text in one span.
+ *   <span class="proto-marquee"><span>{title}</span></span>
+ * For a label inside a row, put `proto-marquee-hover-root` on the row instead —
+ * the pointer is on the row, not on the 80px of text.
+ *
+ * Always pair with a `title` attribute: touch has no hover, and reduced motion
+ * deliberately keeps the ellipsis rather than sliding.
+ */
+.proto-marquee {
+  overflow: hidden;
+  white-space: nowrap;
+  /* Establishes 100cqw below = this element's own width. */
+  container-type: inline-size;
+  /* The app reset sets `* { flex-shrink: 0 }` (src/styles/global.css), so a flex
+     child cannot narrow enough to overflow in the first place. Both of these
+     are required for the marquee to have anything to reveal. */
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.proto-marquee > span {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+/*
+ * Scoped to `no-preference` rather than undone in a `reduce` block. The earlier
+ * shape disabled only the animation, which left `max-width: none` and
+ * `text-overflow: clip` applied — so reduced motion got text clipped mid-word
+ * with no ellipsis, strictly worse than not hovering. Here the reveal simply
+ * never engages and the resting ellipsis stands.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .proto-marquee:hover > span,
+  .proto-marquee-hover-root:hover .proto-marquee > span,
+  .proto-marquee-hover-root:focus-visible .proto-marquee > span,
+  /* Rows are hover surfaces for their own labels by definition — listed here
+     rather than adding `proto-marquee-hover-root` to dozens of call sites that
+     all mean the same thing. Only labels that opted in with `proto-marquee`
+     respond, so a static "Delete" row is unaffected. */
+  .proto-church-tools__row:hover .proto-marquee > span,
+  .proto-church-tools__row:focus-visible .proto-marquee > span,
+  .proto-menu-item:hover .proto-marquee > span,
+  .proto-menu-item:focus-visible .proto-marquee > span,
+  .proto-planner-card:hover .proto-marquee > span,
+  .proto-planner-card:focus-visible .proto-marquee > span {
+    max-width: none;
+    text-overflow: clip;
+    animation: proto-marquee-reveal 5s ease-in-out infinite alternate;
+  }
+}
+
+/* Dwell at both ends: the tail is only useful if it stops long enough to read. */
+@keyframes proto-marquee-reveal {
+  0%,
+  15% {
+    transform: translateX(0);
+  }
+  85%,
+  100% {
+    transform: translateX(min(0px, calc(100cqw - 100%)));
+  }
+}
+
 /* ─── Glass surface recipe (tiered backdrop-filter — see prototype-tokens.css) ─ */
 .proto-glass-surface,
 .proto-daily-passage-pill,
@@ -10954,47 +11034,7 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 .proto-shared-space-header__church {
   margin: 0;
   color: var(--pds-text-tertiary);
-  /* One line, always — a wrapped church name pushed the channel title down and
-     made the header jump between one and two lines per space. */
-  overflow: hidden;
-  white-space: nowrap;
   line-height: 1.25;
-  /* Establishes 100cqw below = this element's own width. */
-  container-type: inline-size;
-}
-
-.proto-shared-space-header__church > span {
-  display: inline-block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: bottom;
-}
-
-/* Hover reveal. `min(0px, 100cqw - 100%)` is the overflow distance: exactly 0
-   when the name already fits (so short names never twitch), and the negative
-   remainder when it doesn't — no JS measurement needed. */
-.proto-shared-space-header__church:hover > span {
-  max-width: none;
-  text-overflow: clip;
-  animation: proto-marquee-reveal 5s ease-in-out infinite alternate;
-}
-
-@keyframes proto-marquee-reveal {
-  0%,
-  15% {
-    transform: translateX(0);
-  }
-  85%,
-  100% {
-    transform: translateX(min(0px, calc(100cqw - 100%)));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .proto-shared-space-header__church:hover > span {
-    animation: none;
-  }
 }
 
 .proto-shared-space-header__title {

@@ -91,7 +91,7 @@ function SermonRow({
     >
       <ServiceDateTile iso={service.serviceDate} />
       <span className="proto-church-tools__row-text">
-        <span className="pds-list-title proto-church-tools__row-title">{service.title}</span>
+        <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={service.title}><span>{service.title}</span></span>
         <span className="proto-caption proto-church-tools__row-meta">
           {/* Time first: a church with a morning and an evening sermon has two
               rows on one date, and without this they read as duplicates. */}
@@ -349,7 +349,7 @@ export default function PrototypeChurchTeachingPlanSection({
                   <Icon name="timeline" size={13} />
                 </span>
                 <span className="proto-church-tools__row-text">
-                  <span className="pds-list-title proto-church-tools__row-title">{entry.title}</span>
+                  <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={entry.title}><span>{entry.title}</span></span>
                   <span className="proto-caption proto-church-tools__row-meta">
                     {entry.serviceCount === 1 ? '1 week' : `${entry.serviceCount} weeks`}
                   </span>

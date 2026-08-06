@@ -306,6 +306,20 @@ export default function PrototypeSidebarChurchHubView() {
   // Each tools pane is its own destination, so it replays on the way in and back.
   const homeViewClassName = useProtoHomeViewClassName(contentReady, `${orgId ?? 'none'}:${toolsView}`);
 
+  /** What the header reads — the pane's own name once you drill into one. */
+  const headerTitle =
+    toolsView === 'teaching-plan'
+      ? 'Planner'
+      : toolsView === 'team'
+        ? 'Team'
+        : toolsView === 'starters'
+          ? 'Note templates'
+          : toolsView === 'settings'
+            ? 'Church settings'
+            : toolsView === 'engagement'
+              ? 'Engagement'
+              : churchName;
+
   const openSpace = (spaceId: string) => {
     ensureSidebarExpanded();
     switchToSpace(normalizeSpaceId(spaceId));
@@ -335,18 +349,14 @@ export default function PrototypeSidebarChurchHubView() {
             </button>
           )}
           <div className="proto-shared-space-header__meta">
-            <div className="pds-list-title proto-shared-space-header__title" title={churchName}>
-              {toolsView === 'teaching-plan'
-                ? 'Planner'
-                : toolsView === 'team'
-                  ? 'Team'
-                  : toolsView === 'starters'
-                    ? 'Note templates'
-                    : toolsView === 'settings'
-                      ? 'Church settings'
-                      : toolsView === 'engagement'
-                        ? 'Engagement'
-                      : churchName}
+            <div
+              className="pds-list-title proto-shared-space-header__title proto-marquee"
+              /* Matches what is rendered — it used to always say the church's
+                 name, so hovering "Planner" produced a tooltip for a different
+                 string than the one on screen. */
+              title={headerTitle}
+            >
+              <span>{headerTitle}</span>
             </div>
             {toolsView === 'catalog' && churchLocation ? (
               <p className="proto-caption proto-shared-space-header__location" title={churchLocation}>

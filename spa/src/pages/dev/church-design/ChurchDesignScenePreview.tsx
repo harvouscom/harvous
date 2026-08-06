@@ -1299,6 +1299,116 @@ function PlannerScene({ view, canWrite = true }: { view: PlannerView; canWrite?:
   );
 }
 
+/**
+ * The marquee standard, at the widths that actually clip.
+ *
+ * Every label here is deliberately longer than its box: hovering any row, chip,
+ * card, or header should slide the tail into view and ease back. Under
+ * `prefers-reduced-motion: reduce` nothing moves and the ellipsis stays — that
+ * fallback is the point of the scene as much as the animation is.
+ */
+function MarqueeScene() {
+  const long = 'Wednesday Night Intergenerational Bible Study and Supper';
+  const longer = 'New Hope Assembly of God of Greater Nashville';
+  return (
+    <PhoneChrome>
+      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div>
+          <p className="proto-caption" style={{ marginBottom: 6, opacity: 0.6 }}>
+            Header (hovers itself)
+          </p>
+          <div className="proto-shared-space-header">
+            <div className="proto-shared-space-header__row">
+              <span className="proto-shared-space-header__church-icon" aria-hidden>
+                <Icon name="church" size={18} />
+              </span>
+              <div className="proto-shared-space-header__meta">
+                <p
+                  className="proto-caption proto-shared-space-header__church proto-marquee"
+                  title={longer}
+                >
+                  <span>{longer}</span>
+                </p>
+                <div
+                  className="pds-list-title proto-shared-space-header__title proto-marquee"
+                  title={long}
+                >
+                  <span>{long}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p className="proto-caption" style={{ marginBottom: 6, opacity: 0.6 }}>
+            Scope chip (hovers itself)
+          </p>
+          <div className="proto-chip-bar proto-planner-scope" role="radiogroup" aria-label="Plan">
+            <button type="button" role="radio" aria-checked={false} className="proto-chip">
+              Church
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked
+              className="proto-chip proto-planner-scope__channel proto-chip--selected"
+            >
+              <span className="proto-planner-scope__channel-name proto-marquee" title={long}>
+                <span>{long}</span>
+              </span>
+              <Icon name="caret-down" size={9} aria-hidden className="proto-planner-scope__caret" />
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <p className="proto-caption" style={{ marginBottom: 6, opacity: 0.6 }}>
+            Rows (the row is the hover surface)
+          </p>
+          <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+            {[long, longer].map((text) => (
+              <button key={text} type="button" className="proto-church-tools__row">
+                <span className="proto-church-tools__row-icon" aria-hidden>
+                  <Icon name="timeline" size={13} />
+                </span>
+                <span className="proto-church-tools__row-text">
+                  <span
+                    className="pds-list-title proto-church-tools__row-title proto-marquee"
+                    title={text}
+                  >
+                    <span>{text}</span>
+                  </span>
+                  <span className="proto-caption proto-church-tools__row-meta">8 weeks</span>
+                </span>
+                <span className="proto-church-tools__row-chevron" aria-hidden>
+                  <Icon name="caret-right" size={11} />
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="proto-caption" style={{ marginBottom: 6, opacity: 0.6 }}>
+            Board card (the card is the hover surface)
+          </p>
+          <div style={{ width: 232 }}>
+            <span className="proto-planner-card proto-marquee-hover-root">
+              <span className="pds-list-title proto-planner-card__title proto-marquee" title={long}>
+                <span>{long}</span>
+              </span>
+              <span className="proto-caption proto-planner-card__meta">
+                9:00 &amp; 10:45 AM · Romans 8:1-11
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </PhoneChrome>
+  );
+}
+
 export default function ChurchDesignScenePreview({ scene }: { scene: ChurchDesignScene }) {
   switch (scene.id) {
     case '01-admin-empty':
@@ -1343,6 +1453,8 @@ export default function ChurchDesignScenePreview({ scene }: { scene: ChurchDesig
       return <PlannerScene view="list" />;
     case '19-planner-board-readonly':
       return <PlannerScene view="board" canWrite={false} />;
+    case '20-marquee-labels':
+      return <MarqueeScene />;
     default:
       return null;
   }

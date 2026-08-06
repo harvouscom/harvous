@@ -78,7 +78,9 @@ function Column({
     >
       <header className="proto-planner-column__head">
         <div className="proto-planner-column__head-text">
-          <span className="proto-planner-column__title">{title}</span>
+          <span className="proto-planner-column__title proto-marquee" title={title}>
+            <span>{title}</span>
+          </span>
           {subtitle ? <span className="proto-caption proto-planner-column__subtitle">{subtitle}</span> : null}
         </div>
         {onAdd ? (

@@ -188,7 +188,9 @@ export default function PrototypePlannerScopeChips({
         title={hasPicker && !onChurch ? 'Switch channel' : chipSpace.title}
         onClick={onChannelChipClick}
       >
-        <span className="proto-planner-scope__channel-name">{chipSpace.title}</span>
+        <span className="proto-planner-scope__channel-name proto-marquee">
+          <span>{chipSpace.title}</span>
+        </span>
         {hasPicker ? (
           <Icon
             name={open ? 'caret-up' : 'caret-down'}

@@ -78,7 +78,7 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
             <Icon name="calendar-check" size={13} />
           </span>
           <span className="proto-church-tools__row-text">
-            <span className="pds-list-title proto-church-tools__row-title">{gathering.title}</span>
+            <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={gathering.title}><span>{gathering.title}</span></span>
             <span className="proto-caption proto-church-tools__row-meta">
               {gathering.reference || 'No passage yet'}
               {gathering.seriesTitle ? ` · ${gathering.seriesTitle}` : ''}

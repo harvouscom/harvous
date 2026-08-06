@@ -406,7 +406,9 @@ export default function SpaceSwitcherMenu({
             )}
             {hasUnseen ? <span className="proto-space-switcher-dot" aria-hidden /> : null}
           </span>
-          <span className="proto-menu-item__label">{row.title}</span>
+          <span className="proto-menu-item__label proto-marquee" title={row.title}>
+            <span>{row.title}</span>
+          </span>
           <span className="proto-menu-item__check" aria-hidden>
             {checked ? <Icon name="check" size={12} /> : null}
           </span>
@@ -480,7 +482,9 @@ export default function SpaceSwitcherMenu({
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="church" size={PROTO_TOOLBAR_ICON_SIZE} />
                 </span>
-                <span className="proto-menu-item__label">{myChurch.churchName}</span>
+                <span className="proto-menu-item__label proto-marquee" title={myChurch.churchName}>
+                  <span>{myChurch.churchName}</span>
+                </span>
                 <span className="proto-menu-item__check" aria-hidden>
                   {atChurchHub ? <Icon name="check" size={12} /> : null}
                 </span>
@@ -592,7 +596,9 @@ export default function SpaceSwitcherMenu({
                 {triggerIcon}
               </span>
               {sharedSpaceLabel ? (
-                <span className="proto-toolbar-space-switcher__label">{sharedSpaceLabel}</span>
+                <span className="proto-toolbar-space-switcher__label proto-marquee" title={sharedSpaceLabel}>
+                  <span>{sharedSpaceLabel}</span>
+                </span>
               ) : null}
             </>
           ) : (

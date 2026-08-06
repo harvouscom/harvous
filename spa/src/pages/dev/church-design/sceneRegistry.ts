@@ -171,6 +171,12 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
       'spa/src/hooks/useChurchPlannerAccess.ts',
     ],
   },
+  {
+    id: '20-marquee-labels',
+    title: 'Marquee — truncated labels',
+    phase: 'Staff',
+    editFiles: ['spa/src/styles/prototype-components.css'],
+  },
 ];
 
 export const DEFAULT_CHURCH_SCENE_ID = '01-admin-empty';

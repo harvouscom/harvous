@@ -91,7 +91,9 @@ export default function ProtoSidebarExpandedPanel({
           >
             <Icon name="down-left-and-up-right-to-center" size={14} />
           </button>
-          <span className="proto-sidebar-expanded-panel__title">{title}</span>
+          <span className="proto-sidebar-expanded-panel__title proto-marquee">
+            <span>{title}</span>
+          </span>
         </div>
         {toolbar ? <div className="proto-sidebar-expanded-panel__toolbar">{toolbar}</div> : null}
         {actions ? <div className="proto-sidebar-expanded-panel__actions">{actions}</div> : null}
