@@ -25,6 +25,7 @@ import {
 } from '../../../hooks/queries/useChurchLibrary';
 import PrototypeLibraryManagerItems from './PrototypeLibraryManagerItems';
 import PrototypeLibraryItemEditorPane from './PrototypeLibraryItemEditorPane';
+import PrototypeLibrarySuggestionQueue from './PrototypeLibrarySuggestionQueue';
 
 export type LibraryManagerView = 'items' | 'suggestions';
 export type LibrarySelection =
@@ -126,10 +127,7 @@ export default function PrototypeExpandedLibraryManager({
                 onSelect={setSelection}
               />
             ) : (
-              <p className="proto-caption proto-planner__empty">
-                Nothing suggested yet. When someone in your church proposes a
-                resource, it waits here for you.
-              </p>
+              <PrototypeLibrarySuggestionQueue orgId={orgId} canReview={canCurate} />
             )}
           </div>
 

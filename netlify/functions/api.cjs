@@ -89714,11 +89714,11 @@ var require_clean = __commonJS({
   "node_modules/semver/functions/clean.js"(exports2, module2) {
     "use strict";
     var parse10 = require_parse3();
-    var clean5 = (version6, options) => {
+    var clean6 = (version6, options) => {
       const s2 = parse10(version6.trim().replace(/^[=v]+/, ""), options);
       return s2 ? s2.version : null;
     };
-    module2.exports = clean5;
+    module2.exports = clean6;
   }
 });
 
@@ -91066,7 +91066,7 @@ var require_semver2 = __commonJS({
     var identifiers = require_identifiers();
     var parse10 = require_parse3();
     var valid = require_valid();
-    var clean5 = require_clean();
+    var clean6 = require_clean();
     var inc = require_inc();
     var diff = require_diff();
     var major = require_major();
@@ -91104,7 +91104,7 @@ var require_semver2 = __commonJS({
     module2.exports = {
       parse: parse10,
       valid,
-      clean: clean5,
+      clean: clean6,
       inc,
       diff,
       major,
@@ -167628,30 +167628,30 @@ var require_parser = __commonJS({
         let token, type2;
         let length = tokens.length;
         let value = "";
-        let clean5 = true;
+        let clean6 = true;
         let next, prev;
         for (let i = 0; i < length; i += 1) {
           token = tokens[i];
           type2 = token[0];
           if (type2 === "space" && i === length - 1 && !customProperty) {
-            clean5 = false;
+            clean6 = false;
           } else if (type2 === "comment") {
             prev = tokens[i - 1] ? tokens[i - 1][0] : "empty";
             next = tokens[i + 1] ? tokens[i + 1][0] : "empty";
             if (!SAFE_COMMENT_NEIGHBOR[prev] && !SAFE_COMMENT_NEIGHBOR[next]) {
               if (value.slice(-1) === ",") {
-                clean5 = false;
+                clean6 = false;
               } else {
                 value += token[1];
               }
             } else {
-              clean5 = false;
+              clean6 = false;
             }
           } else {
             value += token[1];
           }
         }
-        if (!clean5) {
+        if (!clean6) {
           let raw2 = tokens.reduce((all, i) => all + i[1], "");
           node.raws[prop2] = { raw: raw2, value };
         }
@@ -237133,9 +237133,9 @@ __export(netlify_exports, {
 module.exports = __toCommonJS(netlify_exports);
 
 // node_modules/hono/dist/adapter/netlify/handler.js
-var handle = (app26) => {
+var handle = (app27) => {
   return (req, context2) => {
-    return app26.fetch(req, { context: context2 });
+    return app27.fetch(req, { context: context2 });
   };
 };
 
@@ -238298,14 +238298,14 @@ var Hono = class _Hono {
    * app.route("/api", app2) // GET /api/user
    * ```
    */
-  route(path10, app26) {
+  route(path10, app27) {
     const subApp = this.basePath(path10);
-    app26.routes.map((r) => {
+    app27.routes.map((r) => {
       let handler5;
-      if (app26.errorHandler === errorHandler) {
+      if (app27.errorHandler === errorHandler) {
         handler5 = r.handler;
       } else {
-        handler5 = async (c, next) => (await compose([], app26.errorHandler)(c, () => r.handler(c, next))).res;
+        handler5 = async (c, next) => (await compose([], app27.errorHandler)(c, () => r.handler(c, next))).res;
         handler5[COMPOSED_HANDLER] = r.handler;
       }
       subApp.#addRoute(r.method, r.path, handler5);
@@ -257007,10 +257007,10 @@ function abortSignalAny(signals) {
   }
   function abort() {
     controller.abort(this.reason);
-    clean5();
+    clean6();
   }
   const signalRefs = [];
-  function clean5() {
+  function clean6() {
     for (const signalRef of signalRefs) {
       const signal = signalRef.deref();
       if (signal) {
@@ -312032,6 +312032,242 @@ app9.post(
 );
 var church_space_library_default = app9;
 
+// server/routes/church-library-suggestions.ts
+init_db2();
+init_auth();
+var app10 = new Hono2();
+var TITLE_MAX_LENGTH4 = 200;
+var NOTE_MAX_LENGTH = 500;
+var OPEN_SUGGESTIONS_MAX = 10;
+function clean3(value, max2) {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, max2);
+}
+function serializeMine(row) {
+  return {
+    id: row.id,
+    url: row.url,
+    title: row.title,
+    note: row.note,
+    status: row.status,
+    createdAt: row.createdAt,
+    reviewedAt: row.reviewedAt
+  };
+}
+app10.post("/api/church/library/suggestions/create", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const viewer = await resolveChurchLibraryViewer(auth.userId);
+    if (viewer.kind === "none") {
+      return c.json({ error: "Connect a church first", code: "NO_CHURCH" }, 403);
+    }
+    const churchRow = first(
+      await db.select().from(Churches).where(eq(Churches.id, viewer.church.id)).limit(1)
+    );
+    if (!churchIsSponsored(churchRow)) {
+      return c.json({ error: CHURCH_LAPSED_ERROR, code: CHURCH_LAPSED_CODE }, 402);
+    }
+    const body = await c.req.json().catch(() => ({}));
+    const validation2 = validateResourceUrl(String(body.url ?? ""));
+    if (!validation2.isValid || !validation2.normalizedUrl) {
+      return c.json(
+        { error: validation2.error || "Enter a valid link", code: validation2.code || "INVALID_URL" },
+        400
+      );
+    }
+    const open = await db.select({ id: LibraryItemSuggestions.id }).from(LibraryItemSuggestions).where(
+      and(
+        eq(LibraryItemSuggestions.churchId, viewer.church.id),
+        eq(LibraryItemSuggestions.suggestedByUserId, auth.userId),
+        eq(LibraryItemSuggestions.status, "open")
+      )
+    );
+    if (open.length >= OPEN_SUGGESTIONS_MAX) {
+      return c.json(
+        {
+          error: "You have a few suggestions still waiting. Give your church a chance to look.",
+          code: "SUGGESTION_LIMIT"
+        },
+        429
+      );
+    }
+    const row = {
+      id: `libsg_${crypto.randomUUID()}`,
+      churchId: viewer.church.id,
+      suggestedByUserId: auth.userId,
+      url: validation2.normalizedUrl,
+      title: clean3(body.title, TITLE_MAX_LENGTH4),
+      note: clean3(body.note, NOTE_MAX_LENGTH),
+      status: "open",
+      reviewedByUserId: null,
+      reviewedAt: null,
+      createdItemId: null,
+      staffReadAt: null,
+      createdAt: /* @__PURE__ */ new Date()
+    };
+    await db.insert(LibraryItemSuggestions).values(row);
+    return c.json({ success: true, suggestion: serializeMine(row) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/library/suggestions/create",
+      action: "library_suggestion_create"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app10.get("/api/church/library/suggestions/mine", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const viewer = await resolveChurchLibraryViewer(auth.userId);
+    if (viewer.kind === "none") return c.json({ suggestions: [] });
+    const rows = await db.select().from(LibraryItemSuggestions).where(
+      and(
+        eq(LibraryItemSuggestions.churchId, viewer.church.id),
+        /* Scoped to the caller in the query, not filtered afterwards — the
+           difference matters if this ever grows a pagination bug. */
+        eq(LibraryItemSuggestions.suggestedByUserId, auth.userId)
+      )
+    ).orderBy(desc(LibraryItemSuggestions.createdAt)).limit(50);
+    return c.json({ suggestions: rows.map(serializeMine) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/library/suggestions/mine",
+      action: "library_suggestion_mine"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app10.get("/api/church/library/suggestions", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const orgId = (c.req.query("orgId") ?? "").trim();
+    const status = (c.req.query("status") ?? "open").trim();
+    const gate = await assertCanManageChurchLibrary(auth.userId, orgId);
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const rows = await db.select().from(LibraryItemSuggestions).where(
+      status === "all" ? eq(LibraryItemSuggestions.churchId, gate.church.id) : and(
+        eq(LibraryItemSuggestions.churchId, gate.church.id),
+        eq(LibraryItemSuggestions.status, status)
+      )
+    ).orderBy(desc(LibraryItemSuggestions.createdAt)).limit(200);
+    const names = await displayNamesFor(rows.map((r) => r.suggestedByUserId));
+    return c.json({
+      suggestions: rows.map((row) => ({
+        ...serializeMine(row),
+        suggestedByName: names.get(row.suggestedByUserId) ?? "Someone at your church",
+        domain: extractDomain(row.url),
+        staffReadAt: row.staffReadAt
+      }))
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/library/suggestions",
+      action: "library_suggestion_queue"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+async function displayNamesFor(userIds) {
+  const out = /* @__PURE__ */ new Map();
+  const unique2 = [...new Set(userIds)];
+  if (unique2.length === 0) return out;
+  const rows = await db.select({
+    userId: UserMetadata.userId,
+    firstName: UserMetadata.firstName,
+    lastName: UserMetadata.lastName
+  }).from(UserMetadata).where(inArray(UserMetadata.userId, unique2));
+  for (const row of rows) {
+    const name = [row.firstName, row.lastName].map((part) => (part ?? "").trim()).filter(Boolean).join(" ");
+    if (name) out.set(row.userId, name);
+  }
+  return out;
+}
+app10.post("/api/church/library/suggestions/review", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageChurchLibrary(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const suggestionId = clean3(body.suggestionId, 200);
+    if (!suggestionId) {
+      return c.json({ error: "suggestionId is required", code: "BAD_REQUEST" }, 400);
+    }
+    const action = body.action === "approve" ? "approve" : body.action === "decline" ? "decline" : null;
+    if (!action) {
+      return c.json({ error: "action must be approve or decline", code: "BAD_REQUEST" }, 400);
+    }
+    const existing = first(
+      await db.select().from(LibraryItemSuggestions).where(
+        and(
+          eq(LibraryItemSuggestions.id, suggestionId),
+          eq(LibraryItemSuggestions.churchId, gate.church.id)
+        )
+      ).limit(1)
+    );
+    if (!existing) {
+      return c.json({ error: "Suggestion not found", code: "SUGGESTION_NOT_FOUND" }, 404);
+    }
+    if (existing.status !== "open") {
+      return c.json(
+        { error: "Someone already reviewed this one.", code: "ALREADY_REVIEWED" },
+        409
+      );
+    }
+    const timestamp3 = /* @__PURE__ */ new Date();
+    if (action === "decline") {
+      await db.update(LibraryItemSuggestions).set({
+        status: "declined",
+        reviewedByUserId: auth.userId,
+        reviewedAt: timestamp3,
+        staffReadAt: timestamp3
+      }).where(eq(LibraryItemSuggestions.id, suggestionId));
+      return c.json({ success: true, status: "declined" });
+    }
+    const library = await ensureChurchLibrary(gate.church.id, gate.church.name);
+    const itemId = `libi_${crypto.randomUUID()}`;
+    await db.transaction(async (tx) => {
+      await tx.insert(LibraryItems).values({
+        id: itemId,
+        libraryId: library.id,
+        kind: "link",
+        title: existing.title?.trim() || extractDomain(existing.url) || existing.url,
+        description: existing.note,
+        sourceUrl: existing.url,
+        sourceDomain: extractDomain(existing.url),
+        sourceSiteName: null,
+        sourceImage: null,
+        fileStorageKey: null,
+        fileName: null,
+        fileMime: null,
+        fileBytes: null,
+        access: "members",
+        /* The reviewer, not the suggester: they are the person who decided the
+           church keeps this, and the one to ask about it later. */
+        createdByUserId: auth.userId,
+        createdAt: timestamp3,
+        updatedAt: timestamp3,
+        archivedAt: null
+      });
+      await tx.update(LibraryItemSuggestions).set({
+        status: "approved",
+        reviewedByUserId: auth.userId,
+        reviewedAt: timestamp3,
+        createdItemId: itemId,
+        staffReadAt: timestamp3
+      }).where(eq(LibraryItemSuggestions.id, suggestionId));
+    });
+    return c.json({ success: true, status: "approved", itemId });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/library/suggestions/review",
+      action: "library_suggestion_review"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var church_library_suggestions_default = app10;
+
 // server/routes/inbox.ts
 init_auth();
 init_db2();
@@ -312089,7 +312325,7 @@ async function verifyInboxItemInWebflow(webflowItemId, collectionId = "690ed2f0e
 // server/routes/inbox.ts
 init_note_version_service();
 init_space_note_associations();
-var app10 = new Hono2();
+var app11 = new Hono2();
 var INBOX_BULK_INSERT_CHUNK = 400;
 var INBOX_XP_AWARD_CONCURRENCY = 8;
 var InboxTargetError = class extends Error {
@@ -312144,7 +312380,7 @@ function convertInboxColorToThreadColor(inboxColor) {
   if (mappedColor && THREAD_COLORS.includes(mappedColor)) return mappedColor;
   return null;
 }
-app10.post("/api/inbox/archive", requireAuth, rateLimit("write"), async (c) => {
+app11.post("/api/inbox/archive", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { inboxItemId } = await c.req.json();
@@ -312158,7 +312394,7 @@ app10.post("/api/inbox/archive", requireAuth, rateLimit("write"), async (c) => {
     return c.json({ error: "Failed to archive inbox item", details: error.message }, 500);
   }
 });
-app10.post("/api/inbox/unarchive", requireAuth, rateLimit("write"), async (c) => {
+app11.post("/api/inbox/unarchive", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { inboxItemId } = await c.req.json();
@@ -312176,7 +312412,7 @@ app10.post("/api/inbox/unarchive", requireAuth, rateLimit("write"), async (c) =>
     return c.json({ error: "Failed to unarchive inbox item", details: error.message }, 500);
   }
 });
-app10.get("/api/inbox/preview", requireAuth, async (c) => {
+app11.get("/api/inbox/preview", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const inboxItemId = c.req.query("inboxItemId");
@@ -312191,7 +312427,7 @@ app10.get("/api/inbox/preview", requireAuth, async (c) => {
     return c.json({ error: "Failed to fetch inbox item preview", details: error.message }, 500);
   }
 });
-app10.post("/api/inbox/add-to-harvous", requireAuth, rateLimit("write"), async (c) => {
+app11.post("/api/inbox/add-to-harvous", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { inboxItemId, targetThreadId, targetSpaceId } = await c.req.json();
@@ -312628,8 +312864,8 @@ async function handleAutoArchive(c) {
     return c.json({ error: "Failed to auto-archive items", details: error.message }, 500);
   }
 }
-app10.post("/api/inbox/auto-archive", handleAutoArchive);
-app10.get("/api/inbox/auto-archive", handleAutoArchive);
+app11.post("/api/inbox/auto-archive", handleAutoArchive);
+app11.get("/api/inbox/auto-archive", handleAutoArchive);
 async function handleAutoDelete(c) {
   try {
     const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
@@ -312700,9 +312936,9 @@ async function handleAutoDelete(c) {
     return c.json({ error: "Failed to auto-delete archived items", details: error.message }, 500);
   }
 }
-app10.post("/api/inbox/auto-delete", handleAutoDelete);
-app10.get("/api/inbox/auto-delete", handleAutoDelete);
-app10.post("/api/inbox/assign-to-users", async (c) => {
+app11.post("/api/inbox/auto-delete", handleAutoDelete);
+app11.get("/api/inbox/auto-delete", handleAutoDelete);
+app11.post("/api/inbox/assign-to-users", async (c) => {
   return c.json(
     {
       error: "Gone",
@@ -312711,7 +312947,7 @@ app10.post("/api/inbox/assign-to-users", async (c) => {
     410
   );
 });
-app10.post("/api/inbox/reset-all-users", async (c) => {
+app11.post("/api/inbox/reset-all-users", async (c) => {
   try {
     const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
     const expectedToken = process.env.INBOX_RESET_SECRET_TOKEN;
@@ -312808,7 +313044,7 @@ app10.post("/api/inbox/reset-all-users", async (c) => {
     return c.json({ error: "Failed to reset inbox items", details: error.message }, 500);
   }
 });
-app10.get("/api/inbox/reset-all-users", async (c) => {
+app11.get("/api/inbox/reset-all-users", async (c) => {
   return c.json({
     message: "Use POST method to reset inbox items",
     endpoint: "/api/inbox/reset-all-users",
@@ -312816,7 +313052,7 @@ app10.get("/api/inbox/reset-all-users", async (c) => {
     note: "Requires Authorization: Bearer <INBOX_RESET_SECRET_TOKEN>"
   });
 });
-var inbox_default = app10;
+var inbox_default = app11;
 
 // node_modules/@clerk/backend/dist/webhooks.mjs
 init_chunk_YBVFDYDR();
@@ -313128,7 +313364,7 @@ async function syncChurchStaffForOrg(orgId, options) {
 }
 
 // server/routes/webhooks.ts
-var app11 = new Hono2();
+var app12 = new Hono2();
 var SVIX_HEADER_NAMES = ["svix-id", "svix-timestamp", "svix-signature"];
 async function dedupeSvixHeaders(req) {
   const headers = new Headers(req.headers);
@@ -313293,7 +313529,7 @@ async function handleOrgMembershipChanged(event) {
     });
   }
 }
-app11.post("/api/webhooks/clerk", async (c) => {
+app12.post("/api/webhooks/clerk", async (c) => {
   const startTime = Date.now();
   try {
     console.log("[Webhook] Webhook request received:", {
@@ -313390,7 +313626,7 @@ app11.post("/api/webhooks/clerk", async (c) => {
     return c.json({ error: "Internal server error", message: error?.message || "An unexpected error occurred" }, 500);
   }
 });
-app11.post("/api/webhooks/polar", async (c) => {
+app12.post("/api/webhooks/polar", async (c) => {
   try {
     const secret = process.env.POLAR_WEBHOOK_SECRET;
     if (!secret) {
@@ -313467,7 +313703,7 @@ app11.post("/api/webhooks/polar", async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-var webhooks_default = app11;
+var webhooks_default = app12;
 
 // server/routes/sync.ts
 init_auth();
@@ -313496,7 +313732,7 @@ init_note_version_service();
 init_shared_space_lifecycle();
 init_shared_note_serializer();
 init_space_note_associations();
-var app12 = new Hono2();
+var app13 = new Hono2();
 var processedMutations = /* @__PURE__ */ new Map();
 var MUTATION_CACHE_TTL = 5 * 60 * 1e3;
 setInterval(() => {
@@ -314423,7 +314659,7 @@ async function processStudyThreadEntryMutation(userId, operation, entityId, data
   }
   return { success: false, error: `Unknown operation: ${operation}` };
 }
-app12.post("/api/sync/push", requireAuth, async (c) => {
+app13.post("/api/sync/push", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { mutations } = await c.req.json();
@@ -314502,7 +314738,7 @@ app12.post("/api/sync/push", requireAuth, async (c) => {
   }
 });
 var SYNC_NOTE_PAGE_LIMIT = 1e3;
-app12.get("/api/sync/bootstrap", requireAuth, async (c) => {
+app13.get("/api/sync/bootstrap", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const [spaces, threads, notes, noteThreads, noteConnections, tags, noteTags, studyThreadEntries, userMetadataRows] = await Promise.all([
@@ -314705,7 +314941,7 @@ app12.get("/api/sync/bootstrap", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app12.get("/api/sync/changes", requireAuth, async (c) => {
+app13.get("/api/sync/changes", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const sinceParam = c.req.query("since");
@@ -314930,12 +315166,12 @@ app12.get("/api/sync/changes", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var sync_default2 = app12;
+var sync_default2 = app13;
 
 // server/routes/migrations.ts
 init_db2();
 init_dist();
-var app13 = new Hono2();
+var app14 = new Hono2();
 function requireMigrationKey(c) {
   const migrationKey = process.env.MIGRATION_KEY;
   if (!migrationKey) {
@@ -314950,7 +315186,7 @@ function requireMigrationKey(c) {
   }
   return null;
 }
-app13.post("/api/migrations/backfill-last-visited", async (c) => {
+app14.post("/api/migrations/backfill-last-visited", async (c) => {
   try {
     const unauthorized = requireMigrationKey(c);
     if (unauthorized) return unauthorized;
@@ -315018,7 +315254,7 @@ app13.post("/api/migrations/backfill-last-visited", async (c) => {
     return c.json({ success: false, error: "Migration failed", message: error.message }, 500);
   }
 });
-app13.post("/api/migrations/retry-failed-users", async (c) => {
+app14.post("/api/migrations/retry-failed-users", async (c) => {
   try {
     const unauthorized = requireMigrationKey(c);
     if (unauthorized) return unauthorized;
@@ -315101,7 +315337,7 @@ app13.post("/api/migrations/retry-failed-users", async (c) => {
     return c.json({ error: "Retry failed", message: error.message }, 500);
   }
 });
-app13.post("/api/migrations/sync-clerk-to-audienceful", async (c) => {
+app14.post("/api/migrations/sync-clerk-to-audienceful", async (c) => {
   try {
     const unauthorized = requireMigrationKey(c);
     if (unauthorized) return unauthorized;
@@ -315164,7 +315400,7 @@ app13.post("/api/migrations/sync-clerk-to-audienceful", async (c) => {
     return c.json({ error: "Migration failed", message: error.message, isTimeout }, isTimeout ? 504 : 500);
   }
 });
-var migrations_default = app13;
+var migrations_default = app14;
 
 // node_modules/@netlify/runtime-utils/dist/main.js
 var getString = (input) => typeof input === "string" ? input : JSON.stringify(input);
@@ -319000,8 +319236,8 @@ async function bulkUpdateDiagnosticIssueTriage(issueSignatures, status, adminNot
 }
 
 // server/routes/admin.ts
-var app14 = new Hono2();
-app14.get("/api/admin/usage/overview", async (c) => {
+var app15 = new Hono2();
+app15.get("/api/admin/usage/overview", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -319013,7 +319249,7 @@ app14.get("/api/admin/usage/overview", async (c) => {
     return c.json({ error: "Failed to load usage overview" }, 500);
   }
 });
-app14.get("/api/admin/usage/trends", async (c) => {
+app15.get("/api/admin/usage/trends", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -319025,7 +319261,7 @@ app14.get("/api/admin/usage/trends", async (c) => {
     return c.json({ error: "Failed to load usage trends" }, 500);
   }
 });
-app14.get("/api/admin/usage/discovery", async (c) => {
+app15.get("/api/admin/usage/discovery", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -319037,7 +319273,7 @@ app14.get("/api/admin/usage/discovery", async (c) => {
     return c.json({ error: "Failed to load usage discovery" }, 500);
   }
 });
-app14.get("/api/admin/pulse", async (c) => {
+app15.get("/api/admin/pulse", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -319049,7 +319285,7 @@ app14.get("/api/admin/pulse", async (c) => {
     return c.json({ error: "Failed to load pulse" }, 500);
   }
 });
-app14.get("/api/admin/reports/catalog", async (c) => {
+app15.get("/api/admin/reports/catalog", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -319060,7 +319296,7 @@ app14.get("/api/admin/reports/catalog", async (c) => {
     return c.json({ error: "Failed to load reports catalog" }, 500);
   }
 });
-app14.post("/api/admin/reports/generate", async (c) => {
+app15.post("/api/admin/reports/generate", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const month = c.req.query("month");
@@ -319079,7 +319315,7 @@ app14.post("/api/admin/reports/generate", async (c) => {
     return c.json({ error: "Failed to generate report", details }, 500);
   }
 });
-app14.get("/api/admin/reports/season/:seasonId", async (c) => {
+app15.get("/api/admin/reports/season/:seasonId", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const seasonId = c.req.param("seasonId");
@@ -319113,7 +319349,7 @@ app14.get("/api/admin/reports/season/:seasonId", async (c) => {
     return c.json({ error: "Failed to load season report" }, 500);
   }
 });
-app14.get("/api/admin/reports/year/:year", async (c) => {
+app15.get("/api/admin/reports/year/:year", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const yearParam = c.req.param("year");
@@ -319159,7 +319395,7 @@ app14.get("/api/admin/reports/year/:year", async (c) => {
     return c.json({ error: "Failed to load year report" }, 500);
   }
 });
-app14.get("/api/admin/reports/:month", async (c) => {
+app15.get("/api/admin/reports/:month", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const month = c.req.param("month");
@@ -319276,11 +319512,11 @@ async function handleAggregateAnalytics(c) {
     message: reportGenerated ? `Analytics and monthly report generated for ${targetMonth}` : `Analytics aggregated for ${targetMonth} (before reports launch; no report snapshot)`
   });
 }
-app14.post("/api/admin/aggregate-analytics", handleAggregateAnalytics);
-app14.get("/api/admin/aggregate-analytics", handleAggregateAnalytics);
+app15.post("/api/admin/aggregate-analytics", handleAggregateAnalytics);
+app15.get("/api/admin/aggregate-analytics", handleAggregateAnalytics);
 var BACKUP_STORE_NAME = "user-exports";
 var DEFAULT_RETENTION_DAYS = 30;
-app14.post("/api/admin/backup-exports", async (c) => {
+app15.post("/api/admin/backup-exports", async (c) => {
   try {
     const secret = process.env.BACKUP_CRON_SECRET;
     const authHeader = c.req.header("authorization")?.split(",")[0]?.trim();
@@ -319332,7 +319568,7 @@ app14.post("/api/admin/backup-exports", async (c) => {
     return c.json({ error: error.message || "Backup failed", success: false }, 500);
   }
 });
-app14.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
+app15.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319347,7 +319583,7 @@ app14.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
     );
   }
 });
-app14.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
+app15.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319362,7 +319598,7 @@ app14.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
     );
   }
 });
-app14.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
+app15.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const dryRun = c.req.query("dryRun") === "true";
@@ -319470,7 +319706,7 @@ app14.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
-app14.get("/api/admin/debug-thread-counts", requireAuth, async (c) => {
+app15.get("/api/admin/debug-thread-counts", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const threadId = c.req.query("threadId");
@@ -319505,7 +319741,7 @@ app14.get("/api/admin/debug-thread-counts", requireAuth, async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
-app14.get("/api/admin/list-threads", requireAuth, async (c) => {
+app15.get("/api/admin/list-threads", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const threads = await db.select().from(Threads).where(eq(Threads.userId, auth.userId));
@@ -319520,7 +319756,7 @@ app14.get("/api/admin/list-threads", requireAuth, async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
-app14.get("/api/admin/content/spaces", async (c) => {
+app15.get("/api/admin/content/spaces", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319533,7 +319769,7 @@ app14.get("/api/admin/content/spaces", async (c) => {
     return c.json({ error: "Failed to load curated spaces" }, 500);
   }
 });
-app14.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
+app15.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319548,7 +319784,7 @@ app14.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
     return c.json({ error: "Failed to load threads" }, 500);
   }
 });
-app14.post("/api/admin/spaces", async (c) => {
+app15.post("/api/admin/spaces", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319593,7 +319829,7 @@ app14.post("/api/admin/spaces", async (c) => {
     return c.json({ error: error.message || "Error creating space" }, 500);
   }
 });
-app14.post("/api/admin/spaces/:spaceId/threads", async (c) => {
+app15.post("/api/admin/spaces/:spaceId/threads", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319634,7 +319870,7 @@ app14.post("/api/admin/spaces/:spaceId/threads", async (c) => {
     return c.json({ error: error.message || "Error creating thread" }, 500);
   }
 });
-app14.post("/api/admin/spaces/:spaceId/members", async (c) => {
+app15.post("/api/admin/spaces/:spaceId/members", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319682,7 +319918,7 @@ app14.post("/api/admin/spaces/:spaceId/members", async (c) => {
     return c.json({ error: error.message || "Error adding member" }, 500);
   }
 });
-app14.post("/api/admin/threads/:threadId/notes", async (c) => {
+app15.post("/api/admin/threads/:threadId/notes", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319786,7 +320022,7 @@ app14.post("/api/admin/threads/:threadId/notes", async (c) => {
     return c.json({ error: error.message || "Error creating note" }, 500);
   }
 });
-app14.post("/api/admin/regenerate-note-tags", async (c) => {
+app15.post("/api/admin/regenerate-note-tags", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319832,7 +320068,7 @@ app14.post("/api/admin/regenerate-note-tags", async (c) => {
     );
   }
 });
-app14.post("/api/admin/backfill-auto-tags", async (c) => {
+app15.post("/api/admin/backfill-auto-tags", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319913,7 +320149,7 @@ app14.post("/api/admin/backfill-auto-tags", async (c) => {
     );
   }
 });
-app14.get("/api/admin/support/tickets", async (c) => {
+app15.get("/api/admin/support/tickets", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319929,7 +320165,7 @@ app14.get("/api/admin/support/tickets", async (c) => {
     return c.json({ error: "Failed to load support tickets" }, 500);
   }
 });
-app14.get("/api/admin/support/tickets/:id", async (c) => {
+app15.get("/api/admin/support/tickets/:id", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319943,7 +320179,7 @@ app14.get("/api/admin/support/tickets/:id", async (c) => {
     return c.json({ error: "Failed to load support ticket" }, 500);
   }
 });
-app14.patch("/api/admin/support/tickets/:id", async (c) => {
+app15.patch("/api/admin/support/tickets/:id", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319961,7 +320197,7 @@ app14.patch("/api/admin/support/tickets/:id", async (c) => {
   }
 });
 var MAX_SUPPORT_NOTE_LENGTH = 2e3;
-app14.post("/api/admin/support/tickets/:id/notes", async (c) => {
+app15.post("/api/admin/support/tickets/:id/notes", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320001,9 +320237,9 @@ async function handleSupportNotifyCheck(c) {
     return c.json({ error: "Failed to run notify-check" }, 500);
   }
 }
-app14.post("/api/admin/support/notify-check", handleSupportNotifyCheck);
-app14.get("/api/admin/support/notify-check", handleSupportNotifyCheck);
-app14.get("/api/admin/diagnostics/issues", async (c) => {
+app15.post("/api/admin/support/notify-check", handleSupportNotifyCheck);
+app15.get("/api/admin/support/notify-check", handleSupportNotifyCheck);
+app15.get("/api/admin/diagnostics/issues", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320021,7 +320257,7 @@ app14.get("/api/admin/diagnostics/issues", async (c) => {
     return c.json({ error: "Failed to load diagnostic issues" }, 500);
   }
 });
-app14.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
+app15.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320036,7 +320272,7 @@ app14.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
     return c.json({ error: "Failed to load diagnostic events" }, 500);
   }
 });
-app14.patch("/api/admin/diagnostics/issues/bulk", async (c) => {
+app15.patch("/api/admin/diagnostics/issues/bulk", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320058,7 +320294,7 @@ app14.patch("/api/admin/diagnostics/issues/bulk", async (c) => {
     return c.json({ error: "Failed to update triage" }, 500);
   }
 });
-app14.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
+app15.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320077,7 +320313,7 @@ app14.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
     return c.json({ error: "Failed to update triage" }, 500);
   }
 });
-var admin_default = app14;
+var admin_default = app15;
 
 // server/routes/churches.ts
 init_db2();
@@ -320316,7 +320552,7 @@ async function listHmcChurchInterest() {
 }
 
 // server/routes/churches.ts
-var app15 = new Hono2();
+var app16 = new Hono2();
 function hmcErrorResponse(c, error) {
   if (error instanceof HmcPartnerError) {
     return c.json({ error: error.message, code: error.code }, error.status);
@@ -320335,7 +320571,7 @@ function clerkErrorResponse(c, error) {
   }
   return null;
 }
-app15.get("/api/admin/churches", async (c) => {
+app16.get("/api/admin/churches", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320352,7 +320588,7 @@ app15.get("/api/admin/churches", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app15.get("/api/admin/churches/hmc-interest", async (c) => {
+app16.get("/api/admin/churches/hmc-interest", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320366,7 +320602,7 @@ app15.get("/api/admin/churches/hmc-interest", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app15.get("/api/admin/churches/hmc/search", async (c) => {
+app16.get("/api/admin/churches/hmc/search", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320389,7 +320625,7 @@ app15.get("/api/admin/churches/hmc/search", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app15.get("/api/admin/churches/clerk-orgs", async (c) => {
+app16.get("/api/admin/churches/clerk-orgs", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320413,7 +320649,7 @@ app15.get("/api/admin/churches/clerk-orgs", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app15.post("/api/admin/churches", async (c) => {
+app16.post("/api/admin/churches", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320484,7 +320720,7 @@ app15.post("/api/admin/churches", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app15.post("/api/admin/churches/:churchId/update", async (c) => {
+app16.post("/api/admin/churches/:churchId/update", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320567,7 +320803,7 @@ app15.post("/api/admin/churches/:churchId/update", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app15.post("/api/admin/churches/:churchId/refresh-hmc", async (c) => {
+app16.post("/api/admin/churches/:churchId/refresh-hmc", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320625,8 +320861,8 @@ async function handleHmcSyncDenorm(c) {
     return c.json({ error: "Failed to sync HMC denorm" }, 500);
   }
 }
-app15.post("/api/admin/hmc/sync-denorm", handleHmcSyncDenorm);
-app15.get("/api/admin/hmc/sync-denorm", handleHmcSyncDenorm);
+app16.post("/api/admin/hmc/sync-denorm", handleHmcSyncDenorm);
+app16.get("/api/admin/hmc/sync-denorm", handleHmcSyncDenorm);
 async function setChurchActive(c, active) {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
@@ -320640,9 +320876,9 @@ async function setChurchActive(c, active) {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 }
-app15.post("/api/admin/churches/:churchId/deactivate", (c) => setChurchActive(c, false));
-app15.post("/api/admin/churches/:churchId/reactivate", (c) => setChurchActive(c, true));
-app15.post("/api/admin/churches/:churchId/pilot", async (c) => {
+app16.post("/api/admin/churches/:churchId/deactivate", (c) => setChurchActive(c, false));
+app16.post("/api/admin/churches/:churchId/reactivate", (c) => setChurchActive(c, true));
+app16.post("/api/admin/churches/:churchId/pilot", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320669,7 +320905,7 @@ app15.post("/api/admin/churches/:churchId/pilot", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app15.post("/api/admin/churches/:churchId/spaces", async (c) => {
+app16.post("/api/admin/churches/:churchId/spaces", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320739,7 +320975,7 @@ app15.post("/api/admin/churches/:churchId/spaces", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app15.post("/api/admin/churches/:churchId/sync-staff", async (c) => {
+app16.post("/api/admin/churches/:churchId/sync-staff", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -320779,7 +321015,7 @@ app15.post("/api/admin/churches/:churchId/sync-staff", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var churches_default = app15;
+var churches_default = app16;
 
 // server/routes/church.ts
 init_db2();
@@ -321119,7 +321355,7 @@ async function deleteSeries(scope, seriesId) {
 }
 
 // server/routes/church.ts
-var app16 = new Hono2();
+var app17 = new Hono2();
 var FEED_EXCERPT_LENGTH = 180;
 var FEED_LIMIT_DEFAULT = 12;
 var FEED_LIMIT_MAX = 50;
@@ -321149,7 +321385,7 @@ async function listOrgChannels(orgId) {
     isActive: Spaces.isActive
   }).from(Spaces).where(and(eq(Spaces.orgId, orgId), eq(Spaces.type, "public"), isNull(Spaces.deletedAt)));
 }
-app16.get("/api/church/channels", requireAuth, async (c) => {
+app17.get("/api/church/channels", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const church = await getConnectedChurch(auth.userId);
@@ -321220,7 +321456,7 @@ async function resolveFollowTarget(userId, spaceId) {
   }
   return { ok: true, space, church };
 }
-app16.post("/api/church/channels/:spaceId/follow", requireAuth, rateLimit("write"), async (c) => {
+app17.post("/api/church/channels/:spaceId/follow", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const target = await resolveFollowTarget(auth.userId, c.req.param("spaceId") ?? "");
@@ -321244,7 +321480,7 @@ app16.post("/api/church/channels/:spaceId/follow", requireAuth, rateLimit("write
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app16.post("/api/church/channels/:spaceId/unfollow", requireAuth, rateLimit("write"), async (c) => {
+app17.post("/api/church/channels/:spaceId/unfollow", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const target = await resolveFollowTarget(auth.userId, c.req.param("spaceId") ?? "");
@@ -321263,7 +321499,7 @@ app16.post("/api/church/channels/:spaceId/unfollow", requireAuth, rateLimit("wri
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app16.get("/api/church/feed", requireAuth, async (c) => {
+app17.get("/api/church/feed", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const limitRaw = Number(c.req.query("limit") ?? FEED_LIMIT_DEFAULT);
@@ -321337,7 +321573,7 @@ app16.get("/api/church/feed", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app16.get("/api/church/services", requireAuth, async (c) => {
+app17.get("/api/church/services", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const church = await getConnectedChurch(auth.userId);
@@ -321411,7 +321647,7 @@ app16.get("/api/church/services", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app16.get("/api/church/billing", requireAuth, async (c) => {
+app17.get("/api/church/billing", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const orgId = (c.req.query("orgId") ?? "").trim();
@@ -321441,7 +321677,7 @@ app16.get("/api/church/billing", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app16.post("/api/church/checkout", requireAuth, rateLimit("write"), async (c) => {
+app17.post("/api/church/checkout", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     if (!isPolarConfigured()) {
@@ -321511,7 +321747,7 @@ function clerkFailureResponse(c, error) {
   }
   return null;
 }
-app16.get("/api/church/staff", requireAuth, async (c) => {
+app17.get("/api/church/staff", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const ctx = await resolveStaffContext(auth.userId, c.req.query("orgId") ?? "");
@@ -321544,7 +321780,7 @@ app16.get("/api/church/staff", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app16.post("/api/church/staff/invite", requireAuth, rateLimit("write"), async (c) => {
+app17.post("/api/church/staff/invite", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321592,7 +321828,7 @@ app16.post("/api/church/staff/invite", requireAuth, rateLimit("write"), async (c
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app16.post("/api/church/staff/revoke-invite", requireAuth, rateLimit("write"), async (c) => {
+app17.post("/api/church/staff/revoke-invite", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321621,7 +321857,7 @@ app16.post("/api/church/staff/revoke-invite", requireAuth, rateLimit("write"), a
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app16.post("/api/church/staff/remove", requireAuth, rateLimit("write"), async (c) => {
+app17.post("/api/church/staff/remove", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321651,7 +321887,7 @@ app16.post("/api/church/staff/remove", requireAuth, rateLimit("write"), async (c
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app16.post("/api/church/staff/role", requireAuth, rateLimit("write"), async (c) => {
+app17.post("/api/church/staff/role", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321705,7 +321941,7 @@ app16.post("/api/church/staff/role", requireAuth, rateLimit("write"), async (c) 
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app16.post("/api/church/staff/sync", requireAuth, rateLimit("write"), async (c) => {
+app17.post("/api/church/staff/sync", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321734,7 +321970,7 @@ app16.post("/api/church/staff/sync", requireAuth, rateLimit("write"), async (c) 
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var church_default = app16;
+var church_default = app17;
 
 // server/routes/church-teaching-plan.ts
 init_db2();
@@ -321810,9 +322046,9 @@ function repeatTitleFor(input) {
 }
 
 // server/routes/church-teaching-plan.ts
-var app17 = new Hono2();
+var app18 = new Hono2();
 var TITLE_MAX = 120;
-function clean3(value, max2) {
+function clean4(value, max2) {
   const trimmed = String(value ?? "").trim();
   if (!trimmed) return null;
   return trimmed.slice(0, max2);
@@ -321843,7 +322079,7 @@ function serializeSermon(row, serviceTimeIds = [], seriesTitles) {
   };
 }
 async function validateReferences(orgId, input) {
-  const templateId = clean3(input.starterTemplateId, 200);
+  const templateId = clean4(input.starterTemplateId, 200);
   if (templateId) {
     const template = first(
       await db.select({ id: NoteTemplates.id }).from(NoteTemplates).where(and(eq(NoteTemplates.id, templateId), eq(NoteTemplates.orgId, orgId))).limit(1)
@@ -321854,7 +322090,7 @@ async function validateReferences(orgId, input) {
   }
   return { ok: true };
 }
-app17.get("/api/church/services/plan", requireAuth, async (c) => {
+app18.get("/api/church/services/plan", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const orgId = (c.req.query("orgId") ?? "").trim();
@@ -321898,7 +322134,7 @@ app17.get("/api/church/services/plan", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app17.post("/api/church/services/create", requireAuth, rateLimit("write"), async (c) => {
+app18.post("/api/church/services/create", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321912,7 +322148,7 @@ app17.post("/api/church/services/create", requireAuth, rateLimit("write"), async
       return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
     }
     const serviceDate = parsedDate.kind === "date" ? parsedDate.value : null;
-    const title = clean3(body.title, TITLE_MAX);
+    const title = clean4(body.title, TITLE_MAX);
     if (!title) {
       return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
     }
@@ -321965,7 +322201,7 @@ app17.post("/api/church/services/create", requireAuth, rateLimit("write"), async
       title,
       seriesId: null,
       reference: passage.reference,
-      starterTemplateId: clean3(body.starterTemplateId, 200),
+      starterTemplateId: clean4(body.starterTemplateId, 200),
       /* The church's own plan is always gatherings — stated rather than
          left to the column default, so the intent survives a schema edit. */
       kind: "gathering",
@@ -322025,7 +322261,7 @@ app17.post("/api/church/services/create", requireAuth, rateLimit("write"), async
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app17.post("/api/church/services/update", requireAuth, rateLimit("write"), async (c) => {
+app18.post("/api/church/services/update", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -322063,7 +322299,7 @@ app17.post("/api/church/services/update", requireAuth, rateLimit("write"), async
     );
     const nextDate = updates.serviceDate !== void 0 ? updates.serviceDate : existing.serviceDate;
     if (body.title !== void 0) {
-      const title = clean3(body.title, TITLE_MAX);
+      const title = clean4(body.title, TITLE_MAX);
       if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
       updates.title = title;
     }
@@ -322077,7 +322313,7 @@ app17.post("/api/church/services/update", requireAuth, rateLimit("write"), async
     if (body.starterTemplateId !== void 0) {
       const refs3 = await validateReferences(gate.church.orgId, body);
       if (!refs3.ok) return c.json({ error: refs3.error, code: refs3.code }, 400);
-      updates.starterTemplateId = clean3(body.starterTemplateId, 200);
+      updates.starterTemplateId = clean4(body.starterTemplateId, 200);
     }
     const finalIds = nextServiceTimeIds ?? (await serviceTimeIdsByService([serviceId])).get(serviceId) ?? [];
     const finalServiceTime = updates.serviceTime !== void 0 ? updates.serviceTime : existing.serviceTime;
@@ -322160,7 +322396,7 @@ app17.post("/api/church/services/update", requireAuth, rateLimit("write"), async
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app17.post("/api/church/services/repeat", requireAuth, rateLimit("write"), async (c) => {
+app18.post("/api/church/services/repeat", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -322271,7 +322507,7 @@ app17.post("/api/church/services/repeat", requireAuth, rateLimit("write"), async
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app17.post("/api/church/services/delete", requireAuth, rateLimit("write"), async (c) => {
+app18.post("/api/church/services/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -322302,7 +322538,7 @@ app17.post("/api/church/services/delete", requireAuth, rateLimit("write"), async
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app17.post("/api/church/series/rename", requireAuth, rateLimit("write"), async (c) => {
+app18.post("/api/church/series/rename", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -322331,7 +322567,7 @@ app17.post("/api/church/series/rename", requireAuth, rateLimit("write"), async (
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app17.post("/api/church/series/delete", requireAuth, rateLimit("write"), async (c) => {
+app18.post("/api/church/series/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -322350,7 +322586,7 @@ app17.post("/api/church/series/delete", requireAuth, rateLimit("write"), async (
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var church_teaching_plan_default = app17;
+var church_teaching_plan_default = app18;
 
 // server/routes/church-settings.ts
 init_db2();
@@ -322381,7 +322617,7 @@ function assertCanManageChurchSettings(userId, orgId) {
 }
 
 // server/routes/church-settings.ts
-var app18 = new Hono2();
+var app19 = new Hono2();
 var LABEL_MAX = 40;
 function serializeServiceTime(row) {
   return {
@@ -322411,7 +322647,7 @@ async function settingsPayload(church) {
     serviceTimes: serviceTimes.map(serializeServiceTime)
   };
 }
-app18.get("/api/church/settings", requireAuth, async (c) => {
+app19.get("/api/church/settings", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const orgId = (c.req.query("orgId") ?? "").trim();
@@ -322426,7 +322662,7 @@ app18.get("/api/church/settings", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app18.post("/api/church/settings/update", requireAuth, rateLimit("write"), async (c) => {
+app19.post("/api/church/settings/update", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -322447,7 +322683,7 @@ app18.post("/api/church/settings/update", requireAuth, rateLimit("write"), async
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app18.post("/api/church/settings/service-times/create", requireAuth, rateLimit("write"), async (c) => {
+app19.post("/api/church/settings/service-times/create", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -322499,7 +322735,7 @@ app18.post("/api/church/settings/service-times/create", requireAuth, rateLimit("
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app18.post("/api/church/settings/service-times/delete", requireAuth, rateLimit("write"), async (c) => {
+app19.post("/api/church/settings/service-times/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -322525,7 +322761,7 @@ app18.post("/api/church/settings/service-times/delete", requireAuth, rateLimit("
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var church_settings_default = app18;
+var church_settings_default = app19;
 
 // server/routes/church-space-plan.ts
 init_db2();
@@ -322585,7 +322821,7 @@ async function resolveGrantedLeaderAccess(userId, spaceId, refusal) {
 }
 
 // server/routes/church-space-plan.ts
-var app19 = new Hono2();
+var app20 = new Hono2();
 var TITLE_MAX2 = 120;
 function planKindForSpace(space) {
   return isMinistryBroadcastSpaceRow(space) ? "content" : "gathering";
@@ -322593,7 +322829,7 @@ function planKindForSpace(space) {
 function notFoundError(kind) {
   return kind === "content" ? "Entry not found" : "Gathering not found";
 }
-function clean4(value, max2) {
+function clean5(value, max2) {
   const trimmed = String(value ?? "").trim();
   if (!trimmed) return null;
   return trimmed.slice(0, max2);
@@ -322633,7 +322869,7 @@ async function validateStarter(orgId, starterTemplateId) {
   }
   return { ok: true };
 }
-app19.get("/api/church/spaces/:spaceId/plan", requireAuth, async (c) => {
+app20.get("/api/church/spaces/:spaceId/plan", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanViewSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
@@ -322673,7 +322909,7 @@ app19.get("/api/church/spaces/:spaceId/plan", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app19.post("/api/church/spaces/:spaceId/services/create", requireAuth, rateLimit("write"), async (c) => {
+app20.post("/api/church/spaces/:spaceId/services/create", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
@@ -322687,11 +322923,11 @@ app19.post("/api/church/spaces/:spaceId/services/create", requireAuth, rateLimit
       return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
     }
     const serviceDate = parsedDate.kind === "date" ? parsedDate.value : null;
-    const title = clean4(body.title, TITLE_MAX2);
+    const title = clean5(body.title, TITLE_MAX2);
     if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
     const passage = canonicalizeServiceReference(body.reference);
     if (!passage.ok) return c.json({ error: passage.reason, code: "INVALID_REFERENCE" }, 400);
-    const starterTemplateId = clean4(body.starterTemplateId, 200);
+    const starterTemplateId = clean5(body.starterTemplateId, 200);
     const starter = await validateStarter(gate.church.orgId, starterTemplateId);
     if (!starter.ok) return c.json({ error: starter.error, code: starter.code }, 400);
     const now2 = /* @__PURE__ */ new Date();
@@ -322766,7 +323002,7 @@ app19.post("/api/church/spaces/:spaceId/services/create", requireAuth, rateLimit
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app19.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit("write"), async (c) => {
+app20.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
@@ -322788,7 +323024,7 @@ app19.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit
     if (parsedDate.kind === "date") updates.serviceDate = parsedDate.value;
     if (parsedDate.kind === "backlog") updates.serviceDate = null;
     if (body.title !== void 0) {
-      const title = clean4(body.title, TITLE_MAX2);
+      const title = clean5(body.title, TITLE_MAX2);
       if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
       updates.title = title;
     }
@@ -322798,7 +323034,7 @@ app19.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit
       updates.reference = passage.reference;
     }
     if (body.starterTemplateId !== void 0) {
-      const starterTemplateId = clean4(body.starterTemplateId, 200);
+      const starterTemplateId = clean5(body.starterTemplateId, 200);
       const starter = await validateStarter(gate.church.orgId, starterTemplateId);
       if (!starter.ok) return c.json({ error: starter.error, code: starter.code }, 400);
       updates.starterTemplateId = starterTemplateId;
@@ -322853,7 +323089,7 @@ app19.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app19.post("/api/church/spaces/:spaceId/services/repeat", requireAuth, rateLimit("write"), async (c) => {
+app20.post("/api/church/spaces/:spaceId/services/repeat", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
@@ -322929,7 +323165,7 @@ app19.post("/api/church/spaces/:spaceId/services/repeat", requireAuth, rateLimit
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app19.post("/api/church/spaces/:spaceId/services/delete", requireAuth, rateLimit("write"), async (c) => {
+app20.post("/api/church/spaces/:spaceId/services/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
@@ -322950,7 +323186,7 @@ app19.post("/api/church/spaces/:spaceId/services/delete", requireAuth, rateLimit
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app19.post("/api/church/spaces/:spaceId/series/rename", requireAuth, rateLimit("write"), async (c) => {
+app20.post("/api/church/spaces/:spaceId/series/rename", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
@@ -322976,7 +323212,7 @@ app19.post("/api/church/spaces/:spaceId/series/rename", requireAuth, rateLimit("
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app19.post("/api/church/spaces/:spaceId/series/delete", requireAuth, rateLimit("write"), async (c) => {
+app20.post("/api/church/spaces/:spaceId/series/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
@@ -322995,7 +323231,7 @@ app19.post("/api/church/spaces/:spaceId/series/delete", requireAuth, rateLimit("
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var church_space_plan_default = app19;
+var church_space_plan_default = app20;
 
 // server/routes/church-engagement.ts
 init_auth();
@@ -323047,8 +323283,8 @@ async function getChurchEngagement(church) {
 }
 
 // server/routes/church-engagement.ts
-var app20 = new Hono2();
-app20.get("/api/church/engagement", requireAuth, async (c) => {
+var app21 = new Hono2();
+app21.get("/api/church/engagement", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const orgId = (c.req.query("orgId") ?? "").trim();
@@ -323067,19 +323303,19 @@ app20.get("/api/church/engagement", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var church_engagement_default = app20;
+var church_engagement_default = app21;
 
 // server/routes/church-space-leaders.ts
 init_db2();
 init_auth();
 init_dates();
-var app21 = new Hono2();
+var app22 = new Hono2();
 async function loadTarget(spaceId, targetUserId) {
   return first(
     await db.select().from(SpaceMemberships).where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, targetUserId))).limit(1)
   );
 }
-app21.post("/api/church/spaces/:spaceId/leaders/grant", requireAuth, rateLimit("write"), async (c) => {
+app22.post("/api/church/spaces/:spaceId/leaders/grant", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanGrantSpaceLeadership(auth.userId, c.req.param("spaceId") ?? "");
@@ -323116,7 +323352,7 @@ app21.post("/api/church/spaces/:spaceId/leaders/grant", requireAuth, rateLimit("
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app21.post("/api/church/spaces/:spaceId/leaders/revoke", requireAuth, rateLimit("write"), async (c) => {
+app22.post("/api/church/spaces/:spaceId/leaders/revoke", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanGrantSpaceLeadership(auth.userId, c.req.param("spaceId") ?? "");
@@ -323147,7 +323383,7 @@ app21.post("/api/church/spaces/:spaceId/leaders/revoke", requireAuth, rateLimit(
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var church_space_leaders_default = app21;
+var church_space_leaders_default = app22;
 
 // server/routes/featured.ts
 init_db2();
@@ -323229,8 +323465,8 @@ function isTestRoutesForbidden() {
 
 // server/routes/featured.ts
 init_note_version_service();
-var app22 = new Hono2();
-app22.get("/api/featured/items", async (c) => {
+var app23 = new Hono2();
+app23.get("/api/featured/items", async (c) => {
   try {
     const auth = getAuth(c);
     if (!auth.userId) {
@@ -323426,7 +323662,7 @@ app22.get("/api/featured/items", async (c) => {
     return c.json({ error: message }, 500);
   }
 });
-app22.post("/api/featured/erase", requireAuth, async (c) => {
+app23.post("/api/featured/erase", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -323451,7 +323687,7 @@ app22.post("/api/featured/erase", requireAuth, async (c) => {
   });
   return c.json({ success: true });
 });
-app22.post("/api/featured/dismiss", requireAuth, async (c) => {
+app23.post("/api/featured/dismiss", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -323485,7 +323721,7 @@ app22.post("/api/featured/dismiss", requireAuth, async (c) => {
   }
   return c.json({ success: true });
 });
-app22.get("/api/featured/dismissed", requireAuth, async (c) => {
+app23.get("/api/featured/dismissed", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const dismissedConditions = [
     eq(UserFeaturedItems.userId, auth.userId),
@@ -323521,12 +323757,12 @@ app22.get("/api/featured/dismissed", requireAuth, async (c) => {
     }))
   );
 });
-app22.get("/api/admin/check", async (c) => {
+app23.get("/api/admin/check", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   return c.json({ isAdmin: true });
 });
-app22.get("/api/admin/featured/by-space/:shareToken", async (c) => {
+app23.get("/api/admin/featured/by-space/:shareToken", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const shareToken = c.req.param("shareToken")?.trim() ?? "";
@@ -323536,7 +323772,7 @@ app22.get("/api/admin/featured/by-space/:shareToken", async (c) => {
   );
   return c.json(item ?? null);
 });
-app22.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
+app23.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const shareToken = c.req.param("shareToken")?.trim() ?? "";
@@ -323546,7 +323782,7 @@ app22.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
   );
   return c.json(item ?? null);
 });
-app22.post("/api/admin/featured", async (c) => {
+app23.post("/api/admin/featured", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -323590,7 +323826,7 @@ app22.post("/api/admin/featured", async (c) => {
   );
   return c.json(inserted ?? { success: true });
 });
-app22.patch("/api/admin/featured/:id", async (c) => {
+app23.patch("/api/admin/featured/:id", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
@@ -323607,7 +323843,7 @@ app22.patch("/api/admin/featured/:id", async (c) => {
   if (!updated) return c.json({ error: "Not found" }, 404);
   return c.json(updated);
 });
-app22.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
+app23.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -323751,7 +323987,7 @@ app22.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
   });
   return c.json({ success: true, noteId: newNote.id });
 });
-app22.get("/api/featured/space", async (c) => {
+app23.get("/api/featured/space", async (c) => {
   try {
     const systemUserId = getHarvousSystemUserId();
     const space = first(
@@ -323788,7 +324024,7 @@ app22.get("/api/featured/space", async (c) => {
     return c.json(null);
   }
 });
-var featured_default = app22;
+var featured_default = app23;
 
 // server/routes/votd.ts
 init_db2();
@@ -324586,7 +324822,7 @@ function pickPoolVerseForPreview(dateStr, usedRefs, avoidBook) {
 }
 
 // server/routes/votd.ts
-var app23 = new Hono2();
+var app24 = new Hono2();
 async function requireVotdAuth(c) {
   if (c.get("cronAuthed")) return null;
   const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
@@ -324678,7 +324914,7 @@ async function publishVotdCore(params) {
   });
   return { featuredItemId };
 }
-app23.post("/api/admin/votd/schedule", async (c) => {
+app24.post("/api/admin/votd/schedule", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -324718,13 +324954,13 @@ app23.post("/api/admin/votd/schedule", async (c) => {
   );
   return c.json(inserted ?? { success: true }, 201);
 });
-app23.get("/api/admin/votd/schedule", async (c) => {
+app24.get("/api/admin/votd/schedule", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const rows = await db.select().from(VotdSchedule).orderBy(desc(VotdSchedule.createdAt));
   return c.json(rows);
 });
-app23.delete("/api/admin/votd/schedule/:id", async (c) => {
+app24.delete("/api/admin/votd/schedule/:id", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
@@ -324795,7 +325031,7 @@ async function publishForDate(dateStr) {
   });
   return { alreadyPublished: false, featuredItemId: result.featuredItemId, reference: pick2.reference, source: pick2.source };
 }
-app23.post("/api/admin/votd/publish-daily", async (c) => {
+app24.post("/api/admin/votd/publish-daily", async (c) => {
   const unauthorized = await requireVotdAuth(c);
   if (unauthorized) return unauthorized;
   const target = c.req.query("target");
@@ -324858,7 +325094,7 @@ function daysBetweenUtcInclusive(start, end) {
   const msPerDay = 24 * 60 * 60 * 1e3;
   return Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
 }
-app23.get("/api/admin/votd/preview", async (c) => {
+app24.get("/api/admin/votd/preview", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const monthParam = c.req.query("month")?.trim();
@@ -325017,7 +325253,7 @@ app23.get("/api/admin/votd/preview", async (c) => {
   }
   return c.json({ days: out });
 });
-app23.post("/api/admin/votd/override", async (c) => {
+app24.post("/api/admin/votd/override", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -325061,7 +325297,7 @@ app23.post("/api/admin/votd/override", async (c) => {
   );
   return c.json(inserted ?? { success: true });
 });
-app23.post("/api/admin/votd/refresh", async (c) => {
+app24.post("/api/admin/votd/refresh", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -325126,7 +325362,7 @@ app23.post("/api/admin/votd/refresh", async (c) => {
   );
   return c.json({ success: true, reference: normalizedRef, row: inserted });
 });
-app23.delete("/api/admin/votd/override/:date", async (c) => {
+app24.delete("/api/admin/votd/override/:date", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const dateStr = c.req.param("date")?.trim() ?? "";
@@ -325136,7 +325372,7 @@ app23.delete("/api/admin/votd/override/:date", async (c) => {
   await db.delete(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, dateStr), eq(VotdSchedule.isPublished, false)));
   return c.json({ success: true });
 });
-app23.post("/api/votd/record-engagement", requireAuth, async (c) => {
+app24.post("/api/votd/record-engagement", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const action = body.action?.trim();
@@ -325152,7 +325388,7 @@ app23.post("/api/votd/record-engagement", requireAuth, async (c) => {
   }
   return c.json({ success: true, featuredItemId: result.featuredItemId });
 });
-var votd_default = app23;
+var votd_default = app24;
 
 // server/routes/test.ts
 init_auth();
@@ -325192,8 +325428,8 @@ async function resetUserToNew(userId) {
 init_db2();
 init_dates();
 init_schema2();
-var app24 = new Hono2();
-app24.post("/api/test/reset-to-new-user", async (c) => {
+var app25 = new Hono2();
+app25.post("/api/test/reset-to-new-user", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -325218,7 +325454,7 @@ app24.post("/api/test/reset-to-new-user", async (c) => {
     return c.json({ error: error.message || "Failed to reset user" }, 500);
   }
 });
-app24.post("/api/test/set-shared-spaces-addon", async (c) => {
+app25.post("/api/test/set-shared-spaces-addon", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -325241,7 +325477,7 @@ app24.post("/api/test/set-shared-spaces-addon", async (c) => {
     return c.json({ error: error.message || "Failed to update Shared Spaces add-on" }, 500);
   }
 });
-app24.post("/api/test/reset-featured", async (c) => {
+app25.post("/api/test/reset-featured", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -325263,7 +325499,7 @@ app24.post("/api/test/reset-featured", async (c) => {
     return c.json({ error: error.message || "Failed to reset featured items" }, 500);
   }
 });
-app24.post("/api/test/seed-sample-votd", async (c) => {
+app25.post("/api/test/seed-sample-votd", async (c) => {
   const seedBlock = featuredSampleSeedForbiddenResponse(c);
   if (seedBlock) return seedBlock;
   try {
@@ -325328,7 +325564,7 @@ app24.post("/api/test/seed-sample-votd", async (c) => {
     return c.json({ error: error.message || "Failed to seed sample VOTD" }, 500);
   }
 });
-app24.post("/api/test/seed-sample-featured", async (c) => {
+app25.post("/api/test/seed-sample-featured", async (c) => {
   const seedBlock = featuredSampleSeedForbiddenResponse(c);
   if (seedBlock) return seedBlock;
   try {
@@ -325472,7 +325708,7 @@ app24.post("/api/test/seed-sample-featured", async (c) => {
     return c.json({ error: error.message || "Failed to seed sample featured items" }, 500);
   }
 });
-var test_default = app24;
+var test_default = app25;
 
 // server/data/dictionaries/eastons-slug-index.json
 var eastons_slug_index_default = [
@@ -373742,58 +373978,59 @@ route17.get("/api/status/public", async (c) => {
 var status_public_default = route17;
 
 // server/app.ts
-var app25 = new Hono2();
-app25.use("/api/*", requestId());
-app25.use("/api/*", cors());
-app25.use("/api/*", clerkAuth);
-app25.use("/api/*", async (c, next) => {
+var app26 = new Hono2();
+app26.use("/api/*", requestId());
+app26.use("/api/*", cors());
+app26.use("/api/*", clerkAuth);
+app26.use("/api/*", async (c, next) => {
   await next();
   if (c.req.method === "GET" && !c.res.headers.has("Cache-Control")) {
     c.res.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
   }
 });
-app25.route("/", health_default);
-app25.route("/", navigation_default);
-app25.route("/", debug_default);
-app25.route("/", about_default);
-app25.route("/", og_default);
-app25.route("/", stats_default);
-app25.route("/", search_default);
-app25.route("/", content_default);
-app25.route("/", threads_default);
-app25.route("/", notes_default);
-app25.route("/", note_templates_default);
-app25.route("/", study_threads_default);
-app25.route("/", spaces_default);
-app25.route("/", user_default);
-app25.route("/", tags_scripture_default);
-app25.route("/", shared_default);
-app25.route("/", billing_default);
-app25.route("/", resource_default);
-app25.route("/", library_default);
-app25.route("/", church_library_default);
-app25.route("/", church_space_library_default);
-app25.route("/", inbox_default);
-app25.route("/", webhooks_default);
-app25.route("/", sync_default2);
-app25.route("/", migrations_default);
-app25.route("/", admin_default);
-app25.route("/", churches_default);
-app25.route("/", church_default);
-app25.route("/", church_teaching_plan_default);
-app25.route("/", church_settings_default);
-app25.route("/", church_space_plan_default);
-app25.route("/", church_engagement_default);
-app25.route("/", church_space_leaders_default);
-app25.route("/", featured_default);
-app25.route("/", votd_default);
-app25.route("/", test_default);
-app25.route("/", dictionary_default);
-app25.route("/", recall_default);
-app25.route("/", support_default);
-app25.route("/", diagnostics_default);
-app25.route("/", status_public_default);
-var app_default = app25;
+app26.route("/", health_default);
+app26.route("/", navigation_default);
+app26.route("/", debug_default);
+app26.route("/", about_default);
+app26.route("/", og_default);
+app26.route("/", stats_default);
+app26.route("/", search_default);
+app26.route("/", content_default);
+app26.route("/", threads_default);
+app26.route("/", notes_default);
+app26.route("/", note_templates_default);
+app26.route("/", study_threads_default);
+app26.route("/", spaces_default);
+app26.route("/", user_default);
+app26.route("/", tags_scripture_default);
+app26.route("/", shared_default);
+app26.route("/", billing_default);
+app26.route("/", resource_default);
+app26.route("/", library_default);
+app26.route("/", church_library_default);
+app26.route("/", church_space_library_default);
+app26.route("/", church_library_suggestions_default);
+app26.route("/", inbox_default);
+app26.route("/", webhooks_default);
+app26.route("/", sync_default2);
+app26.route("/", migrations_default);
+app26.route("/", admin_default);
+app26.route("/", churches_default);
+app26.route("/", church_default);
+app26.route("/", church_teaching_plan_default);
+app26.route("/", church_settings_default);
+app26.route("/", church_space_plan_default);
+app26.route("/", church_engagement_default);
+app26.route("/", church_space_leaders_default);
+app26.route("/", featured_default);
+app26.route("/", votd_default);
+app26.route("/", test_default);
+app26.route("/", dictionary_default);
+app26.route("/", recall_default);
+app26.route("/", support_default);
+app26.route("/", diagnostics_default);
+app26.route("/", status_public_default);
+var app_default = app26;
 
 // server/netlify.ts
 init_client();

@@ -13592,3 +13592,60 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
     transition: none;
   }
 }
+
+/* ─── Library suggestion queue ────────────────────────────────────────────── */
+
+/* Taller than a plain row: a suggestion carries a "why", and the reason
+   someone sent it is what a reviewer is actually weighing. */
+.proto-library-suggestion {
+  align-items: flex-start;
+  gap: 11px;
+}
+
+.proto-library-suggestion__note {
+  display: block;
+  margin-top: 3px;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  font-style: italic;
+}
+
+/* Approve and decline at equal weight. Making "not now" look destructive
+   would push reviewers toward approving things to avoid the red button. */
+.proto-library-suggestion__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 899px) {
+  .proto-library-suggestion {
+    flex-wrap: wrap;
+  }
+
+  .proto-library-suggestion__actions {
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* The church section's heading shares its row with "Suggest one" — the moment
+   someone is looking at what their church keeps is the moment they notice a
+   gap in it. */
+.proto-resource-section-head-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 18px 4px;
+}
+
+.proto-resource-section-head-row .proto-resource-section-head {
+  margin: 0;
+}
+
+.proto-resource-suggest-btn {
+  padding: 0;
+  font-size: 11px;
+  flex-shrink: 0;
+}

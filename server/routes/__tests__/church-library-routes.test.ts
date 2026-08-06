@@ -147,3 +147,84 @@ describe('resolveVisibleItem', () => {
     expect(fn).toMatch(/scopes\.length === 0.*return true/s);
   });
 });
+
+describe('suggestion box', () => {
+  const suggestions = () => source('server/routes/church-library-suggestions.ts');
+
+  it('takes no orgId on either congregant endpoint', () => {
+    // A suggestion can only ever be addressed to the church the caller
+    // actually belongs to.
+    for (const marker of [
+      "app.post('/api/church/library/suggestions/create'",
+      "app.get('/api/church/library/suggestions/mine'",
+    ]) {
+      const body = handlerBody(suggestions(), marker);
+      expect(body, marker).not.toMatch(/c\.req\.query\(['"]orgId/);
+      expect(body, marker).not.toMatch(/body\.orgId/);
+      expect(body, marker).toContain('resolveChurchLibraryViewer(auth.userId)');
+    }
+  });
+
+  it('scopes "mine" to the caller in the query, not after the fact', () => {
+    const body = handlerBody(suggestions(), "app.get('/api/church/library/suggestions/mine'");
+    expect(body).toContain('eq(LibraryItemSuggestions.suggestedByUserId, auth.userId)');
+  });
+
+  it('never returns a suggester name outside the manage-gated queue', () => {
+    // The attribution exception is confined to the staff queue. If this starts
+    // failing, a congregant-facing surface has started naming people.
+    const text = suggestions();
+    const queue = handlerBody(text, "app.get('/api/church/library/suggestions'");
+    expect(queue).toContain('assertCanManageChurchLibrary');
+    expect(queue).toContain('suggestedByName:');
+
+    for (const marker of [
+      "app.post('/api/church/library/suggestions/create'",
+      "app.get('/api/church/library/suggestions/mine'",
+    ]) {
+      // The emitted key, not the word: a handler slice runs to the next
+      // `app.`, so it picks up the following handler's docblock, and that
+      // docblock legitimately names the field it is explaining.
+      expect(handlerBody(text, marker), marker).not.toContain('suggestedByName:');
+    }
+    // `serializeMine` is what both congregant paths return.
+    const mine = text.slice(text.indexOf('function serializeMine'), text.indexOf('// ─── POST'));
+    expect(mine).not.toContain('suggestedByUserId');
+    expect(mine).not.toContain('reviewedByUserId');
+  });
+
+  it('keeps the only user-column read in this one file', () => {
+    // "Review is never shared" protects observed behaviour; a submission is a
+    // different kind of fact. The exception must not spread — if another
+    // church-facing route starts reading names, this test should be the thing
+    // that makes someone justify it.
+    const text = suggestions();
+    expect(text).toContain('UserMetadata.firstName');
+    for (const path of [
+      'server/routes/church-library.ts',
+      'server/routes/church-space-library.ts',
+    ]) {
+      expect(source(path), `${path} reads a user column`).not.toContain('UserMetadata');
+    }
+  });
+
+  it('approves inside a transaction so a status change cannot outlive its item', () => {
+    const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/review'");
+    const txAt = body.indexOf('db.transaction(');
+    expect(txAt).toBeGreaterThan(-1);
+    expect(body.indexOf('tx.insert(LibraryItems)')).toBeGreaterThan(txAt);
+    expect(body.indexOf('tx\n        .update(LibraryItemSuggestions)')).toBeGreaterThan(txAt);
+  });
+
+  it('refuses a second review rather than creating a duplicate item', () => {
+    const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/review'");
+    expect(body).toContain('ALREADY_REVIEWED');
+    expect(body).toMatch(/status !== 'open'/);
+  });
+
+  it('caps open suggestions per person', () => {
+    const text = suggestions();
+    expect(text).toContain('OPEN_SUGGESTIONS_MAX');
+    expect(text).toContain('SUGGESTION_LIMIT');
+  });
+});

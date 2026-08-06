@@ -181,6 +181,15 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
     ],
   },
   {
+    id: '22-library-suggestions',
+    title: 'Resource library — suggestion queue',
+    phase: 'Staff',
+    editFiles: [
+      'spa/src/pages/prototype/library/PrototypeLibrarySuggestionQueue.tsx',
+      'server/routes/church-library-suggestions.ts',
+    ],
+  },
+  {
     id: '20-marquee-labels',
     title: 'Marquee — truncated labels',
     phase: 'Staff',

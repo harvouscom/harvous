@@ -1499,6 +1499,82 @@ function LibraryManagerScene() {
   );
 }
 
+/**
+ * The review queue, with the "why" that makes a suggestion weighable.
+ *
+ * Presentational copy of the real row so the scene needs no network — the live
+ * component takes an orgId and fetches.
+ */
+function LibrarySuggestionQueueScene() {
+  const rows = [
+    {
+      id: 's1',
+      title: 'The Bible Project — Romans overview video',
+      domain: 'bibleproject.com',
+      who: 'Marta Nguyen',
+      when: 'yesterday',
+      note: 'We watched this in small group and it landed for people who find Romans heavy.',
+    },
+    {
+      id: 's2',
+      title: 'Free Advent devotional PDF',
+      domain: 'example.org',
+      who: 'Dave Ellison',
+      when: '3 days ago',
+      note: null,
+    },
+  ];
+  return (
+    <ExpandedPanelChrome title="Resource library">
+      <div className="proto-planner">
+        <div className="proto-planner__main">
+          <div className="proto-planner-list">
+            <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+              {rows.map((row) => (
+                <div
+                  key={row.id}
+                  className="proto-church-tools__row proto-church-tools__row--status proto-library-suggestion"
+                >
+                  <span className="proto-church-tools__row-icon" aria-hidden>
+                    <Icon name="inbox" size={13} />
+                  </span>
+                  <span className="proto-church-tools__row-text">
+                    <span
+                      className="pds-list-title proto-church-tools__row-title proto-marquee"
+                      title={row.title}
+                    >
+                      <span>{row.title}</span>
+                    </span>
+                    <span className="proto-caption proto-church-tools__row-meta">
+                      {row.domain} · {row.who} · {row.when}
+                    </span>
+                    {row.note ? (
+                      <span className="proto-caption proto-library-suggestion__note">
+                        “{row.note}”
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="proto-library-suggestion__actions">
+                    <button
+                      type="button"
+                      className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                    >
+                      <span className="proto-glass-action__label">Add it</span>
+                    </button>
+                    <button type="button" className="proto-sheet-quiet-action">
+                      Not now
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </ExpandedPanelChrome>
+  );
+}
+
 export default function ChurchDesignScenePreview({ scene }: { scene: ChurchDesignScene }) {
   switch (scene.id) {
     case '01-admin-empty':
@@ -1547,6 +1623,8 @@ export default function ChurchDesignScenePreview({ scene }: { scene: ChurchDesig
       return <MarqueeScene />;
     case '21-library-manager':
       return <LibraryManagerScene />;
+    case '22-library-suggestions':
+      return <LibrarySuggestionQueueScene />;
     default:
       return null;
   }

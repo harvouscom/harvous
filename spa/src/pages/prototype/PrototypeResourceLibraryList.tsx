@@ -16,6 +16,7 @@ import {
   useChurchLibraryUnion,
   type ChurchLibraryItem,
 } from '../../hooks/queries/useChurchLibrary';
+import PrototypeSuggestResourceSheet from './PrototypeSuggestResourceSheet';
 import PrototypeListEmptyState, { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
 import PrototypeSidebarRowMenuPopover from './PrototypeSidebarRowMenuPopover';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
@@ -483,6 +484,7 @@ export default function PrototypeResourceLibraryList({
   */
   const churchQuery = useChurchLibraryUnion();
   const archive = useArchiveLibraryItem();
+  const [suggestOpen, setSuggestOpen] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -597,9 +599,20 @@ export default function PrototypeResourceLibraryList({
 
           {filteredChurch.length > 0 ? (
             <>
-              <p className="proto-caption proto-resource-section-head">
-                {churchName ? `From ${churchName}` : 'From your church'}
-              </p>
+              <div className="proto-resource-section-head-row">
+                <p className="proto-caption proto-resource-section-head">
+                  {churchName ? `From ${churchName}` : 'From your church'}
+                </p>
+                {/* Sits with the church's own section, where someone is already
+                    looking at what their church keeps and noticing a gap. */}
+                <button
+                  type="button"
+                  className="proto-sheet-quiet-action proto-resource-suggest-btn"
+                  onClick={() => setSuggestOpen(true)}
+                >
+                  Suggest one
+                </button>
+              </div>
               <ul className="proto-note-list">
                 {filteredChurch.map((item) => (
                   <ChurchResourceRow
@@ -615,6 +628,12 @@ export default function PrototypeResourceLibraryList({
           ) : null}
         </>
       )}
+
+      <PrototypeSuggestResourceSheet
+        open={suggestOpen}
+        churchName={churchName}
+        onOpenChange={setSuggestOpen}
+      />
     </div>
   );
 }

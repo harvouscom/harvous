@@ -239,3 +239,104 @@ export function useSpaceLibraryActions(spaceId: string | null | undefined) {
     },
   });
 }
+
+export type LibrarySuggestionStatus = 'open' | 'approved' | 'declined';
+
+export type MyLibrarySuggestion = {
+  id: string;
+  url: string;
+  title: string | null;
+  note: string | null;
+  status: LibrarySuggestionStatus;
+  createdAt: string | null;
+  reviewedAt: string | null;
+};
+
+/** The staff queue adds who asked — the one place a congregant is named. */
+export type LibrarySuggestionForReview = MyLibrarySuggestion & {
+  suggestedByName: string;
+  domain: string | null;
+  staffReadAt: string | null;
+};
+
+export const librarySuggestionsMineQueryKey = (userId: string | null | undefined) =>
+  ['library', 'suggestions', 'mine', userId ?? 'none'] as const;
+
+export const librarySuggestionsQueueQueryKey = (
+  userId: string | null | undefined,
+  orgId: string | null | undefined,
+) => ['library', 'suggestions', 'queue', userId ?? 'none', orgId ?? 'none'] as const;
+
+/** What you have proposed, and what became of it. */
+export function useMyLibrarySuggestions() {
+  const { userId } = useAuth();
+  const authReady = useAuthReady();
+
+  return useQuery({
+    queryKey: librarySuggestionsMineQueryKey(userId),
+    enabled: authReady && !!userId,
+    queryFn: () =>
+      api.get<{ suggestions: MyLibrarySuggestion[] }>(
+        '/api/church/library/suggestions/mine',
+      ),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/** The review queue. Server-gated on `manage_library`. */
+export function useLibrarySuggestionQueue(
+  orgId: string | null | undefined,
+  options?: { enabled?: boolean; status?: 'open' | 'all' },
+) {
+  const { userId } = useAuth();
+  const authReady = useAuthReady();
+  const trimmed = orgId?.trim() || null;
+  const status = options?.status ?? 'open';
+
+  return useQuery({
+    queryKey: [...librarySuggestionsQueueQueryKey(userId, trimmed), status] as const,
+    enabled: authReady && !!userId && !!trimmed && options?.enabled === true,
+    queryFn: () =>
+      api.get<{ suggestions: LibrarySuggestionForReview[] }>(
+        `/api/church/library/suggestions?orgId=${encodeURIComponent(trimmed!)}&status=${status}`,
+      ),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/** Propose a link to your church. */
+export function useSuggestLibraryItem() {
+  const queryClient = useQueryClient();
+  const { userId } = useAuth();
+
+  return useMutation({
+    mutationFn: (input: { url: string; title?: string | null; note?: string | null }) =>
+      api.post('/api/church/library/suggestions/create', input),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: librarySuggestionsMineQueryKey(userId) });
+      void queryClient.invalidateQueries({ queryKey: ['library', 'suggestions', 'queue'] });
+    },
+  });
+}
+
+/**
+ * Approve or decline. Approving creates the item, so the catalog reads are
+ * invalidated too — the new row has to appear where the reviewer expects it.
+ */
+export function useReviewLibrarySuggestion(orgId: string | null | undefined) {
+  const queryClient = useQueryClient();
+  const { userId } = useAuth();
+  const trimmed = orgId?.trim() || null;
+
+  return useMutation({
+    mutationFn: (input: { suggestionId: string; action: 'approve' | 'decline' }) =>
+      api.post('/api/church/library/suggestions/review', { orgId: trimmed, ...input }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['library', 'suggestions'] });
+      void queryClient.invalidateQueries({ queryKey: churchLibraryManageQueryKey(userId, trimmed) });
+      void queryClient.invalidateQueries({ queryKey: churchLibraryUnionQueryKey(userId) });
+    },
+  });
+}
