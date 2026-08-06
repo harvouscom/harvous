@@ -16,6 +16,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/react/Icon';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
 import ProtoTimePicker from './ProtoTimePicker';
 import { detectedTimeZone, listTimeZoneGroups } from '../../lib/time-zone-options';
 import { DEFAULT_SERVICE_TIME } from '../../lib/proto-time-picker';
@@ -45,7 +46,7 @@ export default function PrototypeChurchSettingsSection({
   canManage,
   canWrite,
 }: PrototypeChurchSettingsSectionProps) {
-  const { data } = useChurchSettings(orgId, { enabled: canManage });
+  const { data, isPending } = useChurchSettings(orgId, { enabled: canManage });
   const actions = useChurchSettingsActions(orgId);
 
   const [timezone, setTimezone] = useState('');
@@ -74,7 +75,9 @@ export default function PrototypeChurchSettingsSection({
   );
 
   if (!canManage) return null;
-  if (!data) return null;
+  // `canManage` is already proven above, so the query is enabled and `isPending`
+  // is a real in-flight state rather than React Query's disabled-forever one.
+  if (!data) return isPending ? <ProtoSpaceLoading label="Loading church settings" /> : null;
 
   const savedTimezone = data.settings.timezone ?? detectedTimeZone();
   const timezoneDirty = timezone !== savedTimezone;

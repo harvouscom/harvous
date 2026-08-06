@@ -25,6 +25,7 @@ import { useNoteTemplates, type StoredNoteTemplate } from '../../hooks/queries/u
 import { useUpdateNoteTemplate } from '../../hooks/mutations/useUpdateNoteTemplate';
 import { useDeleteNoteTemplate } from '../../hooks/mutations/useDeleteNoteTemplate';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 
 export interface PrototypeChurchStarterSectionProps {
@@ -117,7 +118,9 @@ export default function PrototypeChurchStarterSection({
   };
 
   if (!canManage) return null;
-  if (isPending && starters.length === 0) return null;
+  // The list is always enabled once auth is ready, so this is a real wait —
+  // and an empty frame here reads as "no templates" rather than "not yet".
+  if (isPending && starters.length === 0) return <ProtoSpaceLoading label="Loading templates" />;
 
   return (
     <div className="proto-home-section">

@@ -14,6 +14,7 @@ import {
   type ChurchStaffMember,
   type ChurchStaffResponse,
 } from '../../hooks/queries/useChurchStaff';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeChurchMemberSheet from './PrototypeChurchMemberSheet';
 import PrototypeChurchInviteSheet from './PrototypeChurchInviteSheet';
 
@@ -32,10 +33,15 @@ export default function PrototypeChurchStaffSection({
   /* Plain staff by default — the common hire, and the least you can grant. */
   const [inviteRole, setInviteRole] = useState('org:member');
   const [inviteOpen, setInviteOpen] = useState(false);
-  const { data } = useChurchStaff(orgId, { enabled: isStaff });
+  const { data, isPending } = useChurchStaff(orgId, { enabled: isStaff });
   const actions = useChurchStaffActions(orgId);
 
-  if (!data) return null;
+  /*
+    The roster is a Clerk round trip, so this pane is never instant. Gated on
+    `isStaff` because a disabled query stays `isPending` forever in React Query
+    v5 — without it a non-staff viewer would sit on dots that never resolve.
+  */
+  if (!data) return isStaff && isPending ? <ProtoSpaceLoading label="Loading team" /> : null;
   const { staff, pendingInvites, canManage, staffCap, seatsUsed } = data as ChurchStaffResponse;
 
   const run = (action: Parameters<typeof actions.mutate>[0], onDone?: () => void) => {

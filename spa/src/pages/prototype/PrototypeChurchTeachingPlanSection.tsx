@@ -27,6 +27,7 @@ import {
   useChurchSpaceSermonActions,
 } from '../../hooks/queries/useChurchSpacePlan';
 import { formatServiceTime, formatServiceTimes, localTodayIso } from '../../lib/church-services';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeSermonEditorSheet from './PrototypeSermonEditorSheet';
 import PrototypeSeriesSheet from './PrototypeSeriesSheet';
 
@@ -163,7 +164,62 @@ export default function PrototypeChurchTeachingPlanSection({
     };
   }, [onSpacePlan, churchPlan.data?.serviceTimes]);
 
-  if (!data) return null;
+  /*
+    Which plan you are looking at. Hidden entirely when the church has no other
+    room to plan for, so a single-room church sees exactly the pane it saw
+    before space plans existed. Radio semantics, not tabs: these are two
+    different plans, not two views of one.
+
+    Hoisted out of the body so it survives the loading branch below — switching
+    to a ministry's plan for the first time used to blank the switcher along
+    with the list, and you lost the control you had just used.
+  */
+  const scopeChips =
+    plannableSpaces.length > 0 ? (
+      <div className="proto-chip-bar proto-teaching-plan__scope" role="radiogroup" aria-label="Plan">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={planSpaceId === null}
+          className={`proto-chip${planSpaceId === null ? ' proto-chip--selected' : ''}`}
+          onClick={() => setPlanSpaceId(null)}
+        >
+          Church
+        </button>
+        {plannableSpaces.map((space) => (
+          <button
+            key={space.id}
+            type="button"
+            role="radio"
+            aria-checked={planSpaceId === space.id}
+            className={`proto-chip${planSpaceId === space.id ? ' proto-chip--selected' : ''}`}
+            onClick={() => setPlanSpaceId(space.id)}
+          >
+            {space.title}
+          </button>
+        ))}
+      </div>
+    ) : null;
+
+  /*
+    The pane's own load state. The plan is a request of its own, fired only when
+    this pane mounts, so it lands well after the hub finished animating — and
+    until it did, the pane rendered nothing at all.
+
+    Gated on `canManage` deliberately: a disabled query stays `isPending`
+    forever in React Query v5, so a viewer without `sermon_tools` would sit on
+    dots that never resolve. `isPending` goes false once the query errors, so a
+    failed plan still falls through to the empty pane rather than hanging.
+  */
+  if (!data) {
+    const loading = canManage && (onSpacePlan ? spacePlan.isPending : churchPlan.isPending);
+    return (
+      <div className="proto-home-section">
+        {scopeChips}
+        {loading ? <ProtoSpaceLoading label="Loading plan" /> : null}
+      </div>
+    );
+  }
 
   const openEditor = (service: TeachingPlanSermon | null) => {
     setEditing(service);
@@ -183,37 +239,7 @@ export default function PrototypeChurchTeachingPlanSection({
 
   return (
     <div className="proto-home-section">
-      {/*
-        Which plan you are looking at. Hidden entirely when the church has no
-        other room to plan for, so a single-room church sees exactly the pane it
-        saw before space plans existed. Radio semantics, not tabs: these are two
-        different plans, not two views of one.
-      */}
-      {plannableSpaces.length > 0 ? (
-        <div className="proto-chip-bar proto-teaching-plan__scope" role="radiogroup" aria-label="Plan">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={planSpaceId === null}
-            className={`proto-chip${planSpaceId === null ? ' proto-chip--selected' : ''}`}
-            onClick={() => setPlanSpaceId(null)}
-          >
-            Church
-          </button>
-          {plannableSpaces.map((space) => (
-            <button
-              key={space.id}
-              type="button"
-              role="radio"
-              aria-checked={planSpaceId === space.id}
-              className={`proto-chip${planSpaceId === space.id ? ' proto-chip--selected' : ''}`}
-              onClick={() => setPlanSpaceId(space.id)}
-            >
-              {space.title}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      {scopeChips}
 
       {/* A pane, not a disclosure — the hub's Church tools row is what opens
           it, so the caret toggle that used to live here is gone. */}

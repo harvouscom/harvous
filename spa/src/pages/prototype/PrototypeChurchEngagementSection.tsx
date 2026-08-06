@@ -15,6 +15,7 @@
  */
 import Icon from '@/components/react/Icon';
 import { useChurchEngagement } from '../../hooks/queries/useChurchEngagement';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
 
 export default function PrototypeChurchEngagementSection({
   orgId,
@@ -24,9 +25,14 @@ export default function PrototypeChurchEngagementSection({
   /** Server's `manage_staff` verdict — gates the request, not just the render. */
   canView: boolean;
 }) {
-  const { data } = useChurchEngagement(orgId, { enabled: canView });
+  const { data, isPending } = useChurchEngagement(orgId, { enabled: canView });
 
-  if (!data) return null;
+  /*
+    Gated on `canView` because a disabled query stays `isPending` forever in
+    React Query v5 — an admin sees dots while the counts land, everyone else
+    sees the nothing they saw before.
+  */
+  if (!data) return canView && isPending ? <ProtoSpaceLoading label="Loading engagement" /> : null;
 
   const { connectedCount, channels } = data;
   const following = channels.reduce((sum, channel) => sum + channel.followerCount, 0);
