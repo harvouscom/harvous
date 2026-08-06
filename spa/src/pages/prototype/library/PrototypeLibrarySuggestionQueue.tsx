@@ -20,6 +20,7 @@ import {
   type LibrarySuggestionForReview,
 } from '../../../hooks/queries/useChurchLibrary';
 import ProtoSpaceLoading from '../ProtoSpaceLoading';
+import PrototypeListEmptyState from '../PrototypeListEmptyState';
 
 function relativeDay(iso: string | null): string {
   if (!iso) return '';
@@ -46,9 +47,11 @@ export default function PrototypeLibrarySuggestionQueue({
 
   if (!canReview) {
     return (
-      <p className="proto-caption proto-planner__empty">
-        A pastor or admin reviews what your church suggests.
-      </p>
+      <PrototypeListEmptyState
+        iconName="user-shield"
+        title="For pastors and admins"
+        description="A pastor or admin reviews what your church suggests."
+      />
     );
   }
 
@@ -58,10 +61,11 @@ export default function PrototypeLibrarySuggestionQueue({
 
   if (suggestions.length === 0) {
     return (
-      <p className="proto-caption proto-planner__empty">
-        Nothing waiting. When someone in your church suggests a resource, it
-        turns up here.
-      </p>
+      <PrototypeListEmptyState
+        iconName="inbox"
+        title="Nothing waiting"
+        description="When someone in your church suggests a resource, it turns up here."
+      />
     );
   }
 

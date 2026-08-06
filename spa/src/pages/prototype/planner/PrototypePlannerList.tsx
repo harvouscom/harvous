@@ -14,6 +14,7 @@ import type {
 } from '../../../hooks/queries/useChurchTeachingPlan';
 import { localTodayIso, sermonTimeLabel } from '../../../lib/church-services';
 import ProtoServiceDateTile from '../ProtoServiceDateTile';
+import PrototypeListEmptyState from '../PrototypeListEmptyState';
 import type { PlannerSelection } from './PrototypeExpandedPlanner';
 
 function Row({
@@ -109,22 +110,34 @@ export default function PrototypePlannerList({
       </>
     );
 
+  /*
+    Returned above the `.proto-planner-list` wrapper, not inside it. That
+    wrapper is a plain block, so an empty state nested in it would sit at the
+    top with only its text centred; as a direct child of the column it fills
+    the pane and centres in it.
+  */
+  if (services.length === 0) {
+    return (
+      <PrototypeListEmptyState
+        iconName="calendar-week"
+        title="Nothing planned yet"
+        description={
+          canWrite
+            ? (emptyWritable ??
+              'Add a sermon, or drop an idea in the board to come back to.')
+            : 'A pastor or admin plans the sermons here.'
+        }
+      />
+    );
+  }
+
   return (
     <div className="proto-planner-list">
-      {services.length === 0 ? (
-        <p className="proto-caption proto-planner__empty">
-          {canWrite
-            ? (emptyWritable ??
-              'Nothing planned yet. Add a sermon, or drop an idea in the board to come back to.')
-            : 'Nothing planned yet.'}
-        </p>
-      ) : (
-        <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
-          {group('Ideas', backlog)}
-          {group('Upcoming', upcoming)}
-          {group('Past', past, true)}
-        </div>
-      )}
+      <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+        {group('Ideas', backlog)}
+        {group('Upcoming', upcoming)}
+        {group('Past', past, true)}
+      </div>
 
       {readOnlyReason ? (
         <p className="proto-caption proto-planner__readonly" role="status">

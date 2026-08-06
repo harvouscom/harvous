@@ -29,6 +29,7 @@ import { useChurchPlannerAccess } from '../../../hooks/useChurchPlannerAccess';
 import { planVocabulary } from '../../../lib/church-services';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import ProtoSpaceLoading from '../ProtoSpaceLoading';
+import PrototypeListEmptyState from '../PrototypeListEmptyState';
 import PrototypePlannerBoard from './PrototypePlannerBoard';
 import PrototypePlannerCalendar from './PrototypePlannerCalendar';
 import PrototypePlannerList from './PrototypePlannerList';
@@ -181,9 +182,11 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
       onClose={onClose}
     >
       {!canView ? (
-        <p className="proto-caption proto-planner__empty">
-          The teaching plan is for church staff.
-        </p>
+        <PrototypeListEmptyState
+          iconName="user-shield"
+          title="For church staff"
+          description="A pastor, teacher or admin plans what the church teaches."
+        />
       ) : (
         <div className="proto-planner">
           <div className="proto-planner__main">

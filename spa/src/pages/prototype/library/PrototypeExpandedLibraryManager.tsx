@@ -16,6 +16,7 @@ import Icon, { type IconName } from '@/components/react/Icon';
 import ProtoSidebarExpandedPanel from '../ProtoSidebarExpandedPanel';
 import type { ExpandedSidebarToolProps } from '../PrototypeExpandedSidebarHost';
 import ProtoSpaceLoading from '../ProtoSpaceLoading';
+import PrototypeListEmptyState from '../PrototypeListEmptyState';
 import { useChurchPlannerAccess } from '../../../hooks/useChurchPlannerAccess';
 import { useChurchStaffStatus } from '../../../hooks/queries/useChurchStaffStatus';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
@@ -110,9 +111,11 @@ export default function PrototypeExpandedLibraryManager({
       onClose={onClose}
     >
       {!canBrowse ? (
-        <p className="proto-caption proto-planner__empty">
-          The resource library is for church staff.
-        </p>
+        <PrototypeListEmptyState
+          iconName="user-shield"
+          title="For church staff"
+          description="Your church's shelf is curated by its staff."
+        />
       ) : (
         <div className="proto-planner">
           <div className="proto-planner__main">
