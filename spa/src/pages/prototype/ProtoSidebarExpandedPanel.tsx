@@ -112,8 +112,15 @@ export default function ProtoSidebarExpandedPanel({
           <span className="proto-sidebar-expanded-panel__title">{title}</span>
           {scope}
         </div>
-        {toolbar ? <div className="proto-sidebar-expanded-panel__toolbar">{toolbar}</div> : null}
-        {actions ? <div className="proto-sidebar-expanded-panel__actions">{actions}</div> : null}
+        {/*
+          Always rendered, even when empty. The header is a three-column grid so
+          the centre cell is the panel's centre whatever the sides hold —
+          dropping an empty cell would collapse the track and slide the switcher
+          across. Conditional cells are why it sat 114px right of centre once
+          the scope control moved in beside the title.
+        */}
+        <div className="proto-sidebar-expanded-panel__toolbar">{toolbar}</div>
+        <div className="proto-sidebar-expanded-panel__actions">{actions}</div>
       </div>
       <div className="proto-sidebar-expanded-panel__body">{children}</div>
     </div>

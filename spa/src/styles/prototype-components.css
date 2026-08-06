@@ -13082,8 +13082,14 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   outline: none;
 }
 
+/* Three columns, not a flex row. The view switcher belongs on the panel's own
+   centre line, and a flex `justify-content: center` only centres it in whatever
+   the sides left over — so it slid 114px right the moment the scope control
+   moved in beside the title, and would have kept moving with the channel name's
+   length. Equal `1fr` cheeks hold the middle cell still. */
 .proto-sidebar-expanded-panel__header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   padding: 8px 12px 8px 8px;
@@ -13098,9 +13104,10 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 .proto-sidebar-expanded-panel__header-lead {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  /* Wider than the header's own gap: the title and the scope control are two
+     different things, and at 8px they read as one run-on cluster. */
+  gap: 14px;
   min-width: 0;
-  flex-shrink: 0;
 }
 
 .proto-sidebar-expanded-panel__title {
@@ -13117,22 +13124,20 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   max-width: 240px;
 }
 
-/* Centred between title and actions, and the first thing to give up room —
-   the view switcher is a segmented control that can shrink to icons. */
+/* The grid's centre cell — sized to the switcher, held on the panel's midline. */
 .proto-sidebar-expanded-panel__toolbar {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 0;
 }
 
 .proto-sidebar-expanded-panel__actions {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
-  margin-left: auto;
+  /* `justify-self`, not `margin-left: auto` — the auto margin was the flex
+     row's way of pinning right, and in a grid it would eat the whole cell. */
+  justify-self: end;
 }
 
 .proto-sidebar-expanded-panel__body {
@@ -13198,8 +13203,11 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
      is a `.proto-marquee`, which sets `container-type: inline-size` — an
      element whose width must therefore come from its parent, never its
      contents. Sized to content, the bar gave the name nothing to fill and it
-     collapsed to 0px, exactly as the panel title did. */
-  width: 248px;
+     collapsed to 0px, exactly as the panel title did.
+
+     Kept tight: this is a two-position toggle next to a title, not a field.
+     Long channel names ellipsise, and the menu carries the full list anyway. */
+  width: 196px;
 }
 
 /* "Church" takes its label; the channel chip takes the rest, so the marquee
