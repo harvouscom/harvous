@@ -336,6 +336,11 @@
   --pds-duration-popover: 120ms;
   --pds-duration-sheet: 220ms;
   --pds-duration-panel: 260ms;
+  /* The expanded sidebar unfurls faster than the panels that slide. It covers
+     the whole shell in one gesture, so it is the motion you sit through most,
+     and 260ms read as the panel deciding whether to open. Paired with
+     PROTO_EXPANDED_SIDEBAR_EXIT_MS, not PROTO_PANEL_EXIT_MS. */
+  --pds-duration-panel-expand: 190ms;
   --pds-ease-standard: cubic-bezier(0.32, 0.72, 0.24, 1);
   --pds-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
 

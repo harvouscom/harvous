@@ -14,7 +14,7 @@ vi.mock('@clerk/clerk-react', () => ({
 }));
 
 const { ProtoShellProvider, useProtoShell } = await import('../proto-shell-context');
-const { PROTO_PANEL_EXIT_MS } = await import('../proto-motion');
+const { PROTO_EXPANDED_SIDEBAR_EXIT_MS } = await import('../proto-motion');
 const { HOME_LOCATION, churchParent } = await import('../proto-location');
 
 type Shell = ReturnType<typeof useProtoShell>;
@@ -36,9 +36,43 @@ function renderShell() {
 /** Runs the exit timer the way a real close does. */
 function flushExit() {
   act(() => {
-    vi.advanceTimersByTime(PROTO_PANEL_EXIT_MS + 10);
+    vi.advanceTimersByTime(PROTO_EXPANDED_SIDEBAR_EXIT_MS + 10);
   });
 }
+
+/**
+ * The exit timer keeps the panel mounted for its CSS animation, so the two
+ * numbers have to agree. They live in different files and different languages,
+ * which is exactly the pair that drifts: too short and the panel is cut off
+ * mid-collapse, too long and the sidebar underneath is dead for the remainder.
+ */
+describe('the exit timer matches the CSS it is waiting for', () => {
+  it('PROTO_EXPANDED_SIDEBAR_EXIT_MS equals --pds-duration-panel-expand', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const tokens = readFileSync(
+      resolve(process.cwd(), 'spa/src/styles/prototype-tokens.css'),
+      'utf8',
+    );
+    const declared = /--pds-duration-panel-expand:\s*(\d+)ms/.exec(tokens);
+    expect(declared).not.toBeNull();
+    expect(Number(declared![1])).toBe(PROTO_EXPANDED_SIDEBAR_EXIT_MS);
+  });
+
+  it('the expanded panel animations use that token, not the shared panel one', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const shell = readFileSync(resolve(process.cwd(), 'spa/src/styles/prototype-shell.css'), 'utf8');
+    const lines = shell
+      .split('\n')
+      .filter((line) => /animation:\s*proto-sidebar-expanded-/.test(line));
+    // Enter and exit, on both the desktop and mobile presentations.
+    expect(lines).toHaveLength(4);
+    for (const line of lines) {
+      expect(line).toContain('var(--pds-duration-panel-expand)');
+    }
+  });
+});
 
 describe('expanded sidebar tool', () => {
   beforeEach(() => {

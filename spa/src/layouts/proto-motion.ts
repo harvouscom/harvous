@@ -12,6 +12,18 @@
 export const PROTO_PANEL_EXIT_MS = 260;
 
 /**
+ * The expanded sidebar (Planner, Resource library) unfurls and collapses faster
+ * than the panels that slide — MUST stay in lockstep with
+ * `--pds-duration-panel-expand` in `prototype-tokens.css`.
+ *
+ * Separate from `PROTO_PANEL_EXIT_MS` because the sidebar, inspector and thread
+ * panel all hardcode `0.26s` in `prototype-shell.css`. Speeding this one up by
+ * lowering the shared constant would have left those three unmounting 70ms
+ * before their own animation finished, which looks like a panel being cut off.
+ */
+export const PROTO_EXPANDED_SIDEBAR_EXIT_MS = 190;
+
+/**
  * Portaled toolbar popovers (folder / share / find) play a short scale+fade exit
  * before unmount. The dismiss hook keeps each popover mounted for exactly this
  * long — MUST stay in lockstep with `.proto-portaled-popover--motion` in

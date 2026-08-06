@@ -858,7 +858,7 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    animation: proto-sidebar-expanded-mobile-in var(--pds-duration-panel) var(--pds-ease-standard) both;
+    animation: proto-sidebar-expanded-mobile-in var(--pds-duration-panel-expand) var(--pds-ease-emphasized) both;
   }
 
   @keyframes proto-sidebar-expanded-mobile-in {
@@ -873,7 +873,7 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   }
 
   .proto-sidebar-expanded-panel--exiting {
-    animation: proto-sidebar-expanded-mobile-out var(--pds-duration-panel) var(--pds-ease-standard) both;
+    animation: proto-sidebar-expanded-mobile-out var(--pds-duration-panel-expand) var(--pds-ease-emphasized) both;
   }
 
   @keyframes proto-sidebar-expanded-mobile-out {
@@ -1133,7 +1133,7 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    animation: proto-sidebar-expanded-in var(--pds-duration-panel) var(--pds-ease-standard) both;
+    animation: proto-sidebar-expanded-in var(--pds-duration-panel-expand) var(--pds-ease-emphasized) both;
   }
 
   /* Width is the animated property so the panel unfurls from the sidebar's
@@ -1152,7 +1152,7 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   }
 
   .proto-sidebar-expanded-panel--exiting {
-    animation: proto-sidebar-expanded-out var(--pds-duration-panel) var(--pds-ease-standard) both;
+    animation: proto-sidebar-expanded-out var(--pds-duration-panel-expand) var(--pds-ease-emphasized) both;
   }
 
   @keyframes proto-sidebar-expanded-out {

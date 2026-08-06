@@ -1,6 +1,6 @@
 import { clearComposeRestoreStash } from '../lib/compose-session-restore';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { PROTO_PANEL_EXIT_MS } from './proto-motion';
+import { PROTO_EXPANDED_SIDEBAR_EXIT_MS, PROTO_PANEL_EXIT_MS } from './proto-motion';
 import {
   clearPersistedDrilldowns,
   readPersistedSidebarNav,
@@ -488,7 +488,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setExpandedSidebarTool(null);
       setExpandedSidebarExiting(false);
       expandedSidebarExitTimerRef.current = null;
-    }, PROTO_PANEL_EXIT_MS);
+    }, PROTO_EXPANDED_SIDEBAR_EXIT_MS);
   }, []);
 
   const openExpandedSidebar = useCallback(
