@@ -19,7 +19,7 @@
  * and the server hands them back most-recently-used first — the series you are
  * adding a week to is nearly always the current one.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { APIError } from '../../lib/api';
@@ -82,6 +82,12 @@ export interface PrototypeSermonEditorFieldsProps {
    * would let staff set something that is silently discarded.
    */
   planKind?: 'gathering' | 'content';
+  /**
+   * Extra fields rendered at the end of the scrolling region, above the footer.
+   * The compact sheet puts the resources picker here; the docked pane scrolls
+   * its whole body and composes it itself.
+   */
+  trailingFields?: ReactNode;
   /** Saved, repeated to completion, or removed — the caller closes or clears. */
   onDone: () => void;
   /** About to route away to a note. Defaults to `onDone`. */
@@ -121,6 +127,7 @@ export default function PrototypeSermonEditorFields({
   createDefaultDate,
   allowNullDate = false,
   planKind,
+  trailingFields,
   onDone,
   onNavigateAway,
   onLayoutChange,
@@ -716,6 +723,13 @@ export default function PrototypeSermonEditorFields({
           </>
         ) : null}
 
+        {/*
+          Inside the scrolling region, deliberately. A caller that appended its
+          own block after this component got a section the card could not reach:
+          the fields scroll, the footer is pinned, and anything between them
+          simply hung off the bottom edge.
+        */}
+        {trailingFields}
       </div>
 
       {error ? (

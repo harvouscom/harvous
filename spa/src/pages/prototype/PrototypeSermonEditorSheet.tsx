@@ -19,11 +19,14 @@ import { useCallback, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
-import type {
-  ChurchServiceTimeOption,
-  TeachingPlanSeries,
-  TeachingPlanSermon,
+import {
+  useChurchSermonActions,
+  type ChurchServiceTimeOption,
+  type TeachingPlanSeries,
+  type TeachingPlanSermon,
 } from '../../hooks/queries/useChurchTeachingPlan';
+import { useChurchSpaceSermonActions } from '../../hooks/queries/useChurchSpacePlan';
+import PrototypePlannerResourcesField from './planner/PrototypePlannerResourcesField';
 import { planVocabulary } from '../../lib/church-services';
 import PrototypeSermonEditorFields from './PrototypeSermonEditorFields';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -55,6 +58,13 @@ export interface PrototypeSermonEditorSheetProps {
    * opened a window headed "Add a sermon".
    */
   planKind?: 'gathering' | 'content';
+  /**
+   * False when the plan is read-only. Only the resources field reads it — the
+   * rows that open this sheet are already disabled without it — but attaching
+   * saves immediately rather than on Save, so it must not offer a control it
+   * would then reject.
+   */
+  canWrite?: boolean;
   /** Server's `manage_templates` verdict — gates the empty-state nudge only. */
   canManageChurchTemplates?: boolean;
   /** Opens the Church starters pane; the sheet closes itself first. */
@@ -70,6 +80,7 @@ export default function PrototypeSermonEditorSheet({
   serviceTimes = [],
   planSpaceId = null,
   planKind,
+  canWrite = true,
   canManageChurchTemplates = false,
   onOpenStarters,
   onOpenChange,
@@ -81,6 +92,12 @@ export default function PrototypeSermonEditorSheet({
   /* The same source the button that opened this sheet reads, so the two can
      never disagree again — `planSpaceId` already tells us which plan we're on. */
   const vocab = planVocabulary({ onSpacePlan: planSpaceId !== null, planKind });
+  /* Both mounted, only the one for this plan used — the same guard the fields
+     component makes, so a sheet opened on a space plan cannot attach into the
+     church's. */
+  const churchActions = useChurchSermonActions(orgId);
+  const spaceActions = useChurchSpaceSermonActions(planSpaceId);
+  const attachActions = planSpaceId ? spaceActions : churchActions;
 
   const shouldUseSheetPresentation =
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
@@ -143,6 +160,27 @@ export default function PrototypeSermonEditorSheet({
         active={open}
         onDone={() => onOpenChange(false)}
         onLayoutChange={onLayoutChange}
+        /*
+          Only for a saved entry, matching the docked pane: an attachment is a
+          join on a row that has to exist first, so offering the picker
+          mid-create would promise a link the Save has not earned. Read-only
+          viewers still see the list — knowing what a week draws on is the
+          point of showing it.
+        */
+        trailingFields={
+          service ? (
+            <PrototypePlannerResourcesField
+              orgId={orgId}
+              attached={service.resources ?? []}
+              canWrite={canWrite}
+              pending={attachActions.isPending}
+              onChange={(itemIds) =>
+                attachActions.mutate({ kind: 'attachments', serviceId: service.id, itemIds })
+              }
+              onLayoutChange={onLayoutChange}
+            />
+          ) : null
+        }
       />
     </>
   );

@@ -2,6 +2,11 @@
  * "What am I pulling from this week" — the church library, attached to one
  * planned entry.
  *
+ * Used by both editor presentations: the expanded planner's docked rail and
+ * the compact sidebar's popover. It lived only in the rail at first, which
+ * meant attaching was invisible from the Planner's own front door — you had
+ * to know to expand the pane before the feature existed at all.
+ *
  * Lives below the sermon's own fields rather than beside them, because it is a
  * different act: the fields above describe what you are teaching, and this is
  * the pile of things on the desk while you write it.
@@ -11,7 +16,7 @@
  * result vanishes because you closed the pane without pressing Save is the
  * exact frustration that makes people stop using a feature.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import { resourceSourceLabel } from '@/utils/resource-source-label';
 import type { AttachedResource } from '../../../hooks/queries/useChurchTeachingPlan';
@@ -26,6 +31,7 @@ export default function PrototypePlannerResourcesField({
   canWrite,
   pending,
   onChange,
+  onLayoutChange,
 }: {
   orgId: string | null;
   attached: AttachedResource[];
@@ -33,9 +39,22 @@ export default function PrototypePlannerResourcesField({
   pending: boolean;
   /** The whole next set — the endpoint is replace-set. */
   onChange: (itemIds: string[]) => void;
+  /**
+   * Fired when opening or closing the picker changes this field's height. The
+   * docked pane ignores it; the compact sheet is a centred popover that has to
+   * re-measure, or the picker opens off the bottom of the card.
+   */
+  onLayoutChange?: () => void;
 }) {
   const [picking, setPicking] = useState(false);
   const [query, setQuery] = useState('');
+
+  /* Both the toggle and the list landing change the height, and the list
+     arrives a tick after the query resolves — hence an effect, not a call
+     alongside `setPicking`. */
+  useEffect(() => {
+    onLayoutChange?.();
+  }, [picking, onLayoutChange]);
 
   /* Gated on `sermon_tools`, so a teacher or granted leader can attach without
      being the person who curates the catalog. */
