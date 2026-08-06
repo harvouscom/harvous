@@ -1,7 +1,7 @@
 /**
- * Add or edit one service on the church's teaching plan.
+ * Add or edit one sermon on the church's teaching plan.
  *
- * One service per open — deliberately no bulk "create a whole series" flow.
+ * One sermon per open — deliberately no bulk "create a whole series" flow.
  * Entering a quarter is a once-a-quarter job, and a bulk creator would need its
  * own endpoint, its own partial-failure story, and a second set of validation
  * rules for rows that exist but have nothing in them yet.
@@ -25,10 +25,14 @@ import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
 import { APIError } from '../../lib/api';
 import { useNoteTemplates } from '../../hooks/queries/useNoteTemplates';
+import { useChurchSpaceSermonActions } from '../../hooks/queries/useChurchSpacePlan';
 import {
-  useChurchServiceActions,
-  type TeachingPlanService,
+  useChurchSermonActions,
+  type ChurchServiceTimeOption,
+  type TeachingPlanSeries,
+  type TeachingPlanSermon,
 } from '../../hooks/queries/useChurchTeachingPlan';
+import { formatServiceTime, nextOccurrenceOfDay } from '../../lib/church-services';
 import { formatLocalDateInput, parseLocalDateInput } from '../../lib/proto-date-picker';
 import { useNotesByReference } from '../../hooks/queries/useNotesByReference';
 import { checkScriptureReferenceValidity, normalizeScriptureReference } from '@/utils/scripture-detector';
@@ -42,14 +46,21 @@ import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 
-export interface PrototypeServiceEditorSheetProps {
+export interface PrototypeSermonEditorSheetProps {
   open: boolean;
   orgId: string | null;
   /** Null = creating a new service. */
-  service: TeachingPlanService | null;
-  seriesTitles: string[];
-  /** The church's ministry channels, for the companion-channel picker. */
-  channels?: { id: string; title: string; color: string | null }[];
+  service: TeachingPlanSermon | null;
+  /** This plan's series, most recently taught first. Never the other plan's. */
+  series: TeachingPlanSeries[];
+  /** The church's recurring services — which ones this sermon fills. */
+  serviceTimes?: ChurchServiceTimeOption[];
+  /**
+   * Which plan is being edited: null = the church's, a space id = that
+   * ministry's. It picks the write path, so an editor opened from a space plan
+   * can never post into the church's — the failure this prop exists to prevent.
+   */
+  planSpaceId?: string | null;
   /** Server's `manage_templates` verdict — gates the empty-state nudge only. */
   canManageChurchTemplates?: boolean;
   /** Opens the Church starters pane; the sheet closes itself first. */
@@ -64,11 +75,6 @@ function earliestSelectableDate(): string {
   return formatLocalDateInput(d);
 }
 
-function nextSunday(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
-  return formatLocalDateInput(d);
-}
 
 /** "Sun, Aug 9" — enough to confirm the date without opening the calendar. */
 function formatServiceDate(iso: string): string {
@@ -77,31 +83,63 @@ function formatServiceDate(iso: string): string {
   return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-export default function PrototypeServiceEditorSheet({
+export default function PrototypeSermonEditorSheet({
   open,
   orgId,
   service,
-  seriesTitles,
-  channels = [],
+  series,
+  serviceTimes = [],
+  planSpaceId = null,
   canManageChurchTemplates = false,
   onOpenStarters,
   onOpenChange,
-}: PrototypeServiceEditorSheetProps) {
+}: PrototypeSermonEditorSheetProps) {
   const { isMobileSidebar } = useProtoShell();
   const navigate = useNavigate();
   const { mounted, exiting } = useProtoOverlayMotion(open);
-  const actions = useChurchServiceActions(orgId);
+  /*
+    Both hooks are always called — hook order is fixed — and only the one for
+    the plan in hand is used. Choosing here rather than at the call site means
+    a caller cannot accidentally hand the church's mutation to a space plan.
+  */
+  const churchActions = useChurchSermonActions(orgId);
+  const spaceActions = useChurchSpaceSermonActions(planSpaceId);
+  const actions = planSpaceId ? spaceActions : churchActions;
   const { data: templates } = useNoteTemplates();
   const cardRef = useRef<HTMLDivElement | null>(null);
   const datePickerRef = useRef<HTMLDivElement | null>(null);
 
-  const [serviceDate, setServiceDate] = useState(nextSunday);
+  /*
+    The day a new sermon should default to — the church's soonest recurring
+    service — held in a ref rather than read directly in the reset effect below.
+    `useChurchTeachingPlan` has a 30s staleTime and is invalidated by every
+    mutation, so a refetch while the sheet is open would re-run that effect if
+    this were in its deps, wiping whatever the pastor had typed. The ref keeps
+    the effect's deps at [open, service].
+  */
+  const defaultDay = serviceTimes.length > 0 ? serviceTimes[0].dayOfWeek : null;
+  const defaultServiceDayRef = useRef<number | null>(defaultDay);
+  defaultServiceDayRef.current = defaultDay;
+
+  const [serviceDate, setServiceDate] = useState(() => nextOccurrenceOfDay(defaultDay));
+  const [serviceTimeIds, setServiceTimeIds] = useState<string[]>([]);
+  const [serviceTime, setServiceTime] = useState('');
   const [title, setTitle] = useState('');
   const [seriesTitle, setSeriesTitle] = useState('');
+  /*
+    Set only by picking from the list, cleared by typing. That is the whole
+    distinction the row buys: picking points at an existing series, typing names
+    one — and the server takes either grain.
+  */
+  const [seriesId, setSeriesId] = useState<string | null>(null);
   const [reference, setReference] = useState('');
   const [starterTemplateId, setStarterTemplateId] = useState('');
-  const [channelSpaceId, setChannelSpaceId] = useState('');
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  /** "Repeat weekly" is closed until asked for — most sermons are one week. */
+  const [repeatOpen, setRepeatOpen] = useState(false);
+  const [repeatWeeks, setRepeatWeeks] = useState(7);
+  /** Not an error: the run may have been cut short and still be a success. */
+  const [notice, setNotice] = useState<string | null>(null);
   const [seriesListOpen, setSeriesListOpen] = useState(false);
   const [debouncedReference, setDebouncedReference] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -111,15 +149,38 @@ export default function PrototypeServiceEditorSheet({
   useEffect(() => {
     if (!open) return;
     setError(null);
+    setNotice(null);
     setDatePickerOpen(false);
+    setRepeatOpen(false);
     setSeriesListOpen(false);
-    setServiceDate(service?.serviceDate ?? nextSunday());
+    setServiceDate(service?.serviceDate ?? nextOccurrenceOfDay(defaultServiceDayRef.current));
+    setServiceTimeIds(service?.serviceTimeIds ?? []);
+    setServiceTime(service?.serviceTime ?? '');
     setTitle(service?.title ?? '');
     setSeriesTitle(service?.seriesTitle ?? '');
+    setSeriesId(service?.seriesId ?? null);
     setReference(service?.reference ?? '');
     setStarterTemplateId(service?.starterTemplateId ?? '');
-    setChannelSpaceId(service?.channelSpaceId ?? '');
   }, [open, service]);
+
+  /*
+    Drop any service that no longer falls on the chosen day.
+
+    Without this, moving a sermon from Sunday to Wednesday keeps the Sunday
+    9:00 selection in state — invisibly, since the checkbox for it is no longer
+    rendered — and saving would file a Wednesday sermon against a Sunday
+    service. The server accepts it (the slot really does belong to this church),
+    so nothing downstream would catch it.
+  */
+  useEffect(() => {
+    if (serviceTimeIds.length === 0) return;
+    const dayOfChosenDate = parseLocalDateInput(serviceDate)?.getDay() ?? null;
+    const stillValid = new Set(
+      serviceTimes.filter((slot) => slot.dayOfWeek === dayOfChosenDate).map((slot) => slot.id),
+    );
+    const pruned = serviceTimeIds.filter((id) => stillValid.has(id));
+    if (pruned.length !== serviceTimeIds.length) setServiceTimeIds(pruned);
+  }, [serviceDate, serviceTimes, serviceTimeIds]);
 
   // The calendar is taller than the body it opens into, so opening it would
   // otherwise leave most of it below the fold.
@@ -163,19 +224,26 @@ export default function PrototypeServiceEditorSheet({
    */
   const seriesMatches = useMemo(() => {
     const q = seriesTitle.trim().toLowerCase();
-    if (!q) return seriesTitles;
-    return seriesTitles.filter((title) => title.toLowerCase().includes(q));
-  }, [seriesTitles, seriesTitle]);
+    if (!q) return series;
+    return series.filter((option) => option.title.toLowerCase().includes(q));
+  }, [series, seriesTitle]);
 
   /** Exactly one match that *is* what you typed means there is nothing to pick. */
-  const seriesIsExisting = seriesTitles.some(
-    (title) => title.toLowerCase() === seriesTitle.trim().toLowerCase(),
+  const seriesIsExisting = series.some(
+    (option) => option.title.toLowerCase() === seriesTitle.trim().toLowerCase(),
   );
   const showSeriesList = seriesListOpen && seriesMatches.length > 0 && !seriesIsExisting;
   /** Answers "am I joining a series or starting one?" while you type. */
   const startsNewSeries = seriesTitle.trim().length > 0 && !seriesIsExisting;
 
   const orgTemplates = templates?.org ?? [];
+  /*
+    Only the services that fall on the chosen day. Offering Wednesday's slot for
+    a Sunday sermon would let staff build a plan the calendar cannot honour, and
+    the unique index would reject it later with a worse message.
+  */
+  const chosenDay = parseLocalDateInput(serviceDate)?.getDay() ?? null;
+  const sameDaySlots = serviceTimes.filter((slot) => slot.dayOfWeek === chosenDay);
   const isEditing = Boolean(service);
   const canSubmit = title.trim().length > 0 && Boolean(serviceDate) && !actions.isPending;
 
@@ -184,11 +252,20 @@ export default function PrototypeServiceEditorSheet({
     setError(null);
     const payload = {
       serviceDate,
+      serviceTimeIds,
+      // Only meaningful when no usual service was picked; the server ignores it
+      // for display in that case, but sending a stale value would be a lie.
+      serviceTime: serviceTimeIds.length > 0 ? null : serviceTime || null,
       title: title.trim(),
-      seriesTitle: seriesTitle.trim() || null,
+      /*
+        One key, never both. A picked series is an id; anything typed is a name
+        the server resolves — creating the row if this plan has no such series.
+        Sending both would make the server choose, and it prefers the id, which
+        would silently discard an edit made after picking.
+      */
+      ...(seriesId ? { seriesId } : { seriesTitle: seriesTitle.trim() || null }),
       reference: reference.trim() || null,
       starterTemplateId: starterTemplateId || null,
-      channelSpaceId: channelSpaceId || null,
     };
     actions.mutate(
       isEditing ? { kind: 'update', serviceId: service!.id, ...payload } : { kind: 'create', ...payload },
@@ -203,9 +280,41 @@ export default function PrototypeServiceEditorSheet({
               ? err.message
               : err instanceof Error
                 ? err.message
-                : 'Could not save this service.',
+                : 'Could not save this sermon.',
           );
         },
+      },
+    );
+  };
+
+  /**
+   * Plan the rest of the run in one go.
+   *
+   * Server-side because a quarter is thirteen writes and the limit is twenty a
+   * minute. It stops at the first week already spoken for and says which —
+   * reported here rather than swallowed, since the pastor needs to know their
+   * plan is short before they close the sheet.
+   */
+  const repeat = () => {
+    if (!service || actions.isPending) return;
+    setError(null);
+    setNotice(null);
+    actions.mutate(
+      { kind: 'repeat', serviceId: service.id, weeks: repeatWeeks },
+      {
+        onSuccess: (res) => {
+          const result = res as { services?: unknown[]; stoppedAt?: string | null };
+          const added = result?.services?.length ?? 0;
+          if (result?.stoppedAt) {
+            setNotice(
+              `Added ${added} ${added === 1 ? 'week' : 'weeks'}. Stopped at ${formatServiceDate(result.stoppedAt)} — something is already planned then.`,
+            );
+            return;
+          }
+          onOpenChange(false);
+        },
+        onError: (err) =>
+          setError(err instanceof Error ? err.message : 'Could not repeat this sermon.'),
       },
     );
   };
@@ -221,7 +330,7 @@ export default function PrototypeServiceEditorSheet({
       {
         onSuccess: () => onOpenChange(false),
         onError: (err) =>
-          setError(err instanceof Error ? err.message : 'Could not remove this service.'),
+          setError(err instanceof Error ? err.message : 'Could not remove this sermon.'),
       },
     );
   };
@@ -252,7 +361,7 @@ export default function PrototypeServiceEditorSheet({
         <div className="proto-study-thread-popover__title-row">
           <Icon name="calendar-check" size={13} aria-hidden />
           <span className="proto-study-thread-popover__title">
-            {isEditing ? 'Edit service' : 'Add a service'}
+            {isEditing ? 'Edit sermon' : 'Add a sermon'}
           </span>
         </div>
         <button
@@ -296,9 +405,71 @@ export default function PrototypeServiceEditorSheet({
                 // Picking a date is the whole reason it was open.
                 setDatePickerOpen(false);
               }}
-              aria-label="Service date"
+              aria-label="Sermon date"
             />
           </div>
+        ) : null}
+
+        {/*
+          Checkboxes, not a single select: one sermon is preached at both Sunday
+          morning services, while the evening service hears a different one.
+          Only the chosen day's services are offered — a Sunday sermon has no
+          business claiming the Wednesday slot.
+        */}
+        {sameDaySlots.length > 0 ? (
+          <>
+            <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+              <span>Preached at</span>
+              <span className="proto-service-editor__optional">optional</span>
+            </label>
+            <div className="proto-service-editor__slots" role="group" aria-label="Services">
+              {sameDaySlots.map((slot) => {
+                const checked = serviceTimeIds.includes(slot.id);
+                return (
+                  <label key={slot.id} className="proto-service-editor__slot">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setServiceTimeIds((ids) =>
+                          checked ? ids.filter((id) => id !== slot.id) : [...ids, slot.id],
+                        )
+                      }
+                    />
+                    <span>
+                      {formatServiceTime(slot.startTime)}
+                      {slot.label ? ` · ${slot.label}` : ''}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+
+        {/*
+          The escape hatch, shown only when no usual service applies: a
+          Christmas Eve at 17:00 should not become a permanent Thursday slot on
+          the church's week. `<input type="time">` ignores placeholder, so the
+          hint has to be a sibling caption.
+        */}
+        {serviceTimeIds.length === 0 ? (
+          <>
+            <label
+              className="proto-inspector-section-title proto-create-folder-sheet__field-label"
+              htmlFor="proto-service-time"
+            >
+              <span>{sameDaySlots.length > 0 ? 'Or a one-off time' : 'Time'}</span>
+              <span className="proto-service-editor__optional">optional</span>
+            </label>
+            <input
+              id="proto-service-time"
+              type="time"
+              className="proto-create-folder-sheet__name-input"
+              value={serviceTime}
+              onChange={(e) => setServiceTime(e.target.value)}
+            />
+          </>
         ) : null}
 
         <label
@@ -400,6 +571,9 @@ export default function PrototypeServiceEditorSheet({
             onFocus={() => setSeriesListOpen(true)}
             onChange={(e) => {
               setSeriesTitle(e.target.value);
+              // Typing means naming, not picking — the id no longer describes
+              // what is in the field.
+              setSeriesId(null);
               setSeriesListOpen(true);
             }}
             onKeyDown={(e) => {
@@ -418,7 +592,7 @@ export default function PrototypeServiceEditorSheet({
               aria-label="Series this church has used"
             >
               {seriesMatches.map((option) => (
-                <li key={option}>
+                <li key={option.id}>
                   {/*
                     A real button, in source order after the input — Tab reaches
                     every option without a roving-tabindex implementation.
@@ -426,14 +600,22 @@ export default function PrototypeServiceEditorSheet({
                   <button
                     type="button"
                     role="option"
-                    aria-selected={false}
+                    aria-selected={option.id === seriesId}
                     className="proto-service-editor__series-option"
                     onClick={() => {
-                      setSeriesTitle(option);
+                      setSeriesTitle(option.title);
+                      setSeriesId(option.id);
                       setSeriesListOpen(false);
                     }}
                   >
-                    {option}
+                    <span className="proto-service-editor__series-option-name">{option.title}</span>
+                    {/* Its extent, which is what a series has and a string did
+                        not — "8 weeks" tells a pastor they are joining a run. */}
+                    {option.serviceCount > 0 ? (
+                      <span className="proto-caption proto-service-editor__series-option-count">
+                        {option.serviceCount === 1 ? '1 week' : `${option.serviceCount} weeks`}
+                      </span>
+                    ) : null}
                   </button>
                 </li>
               ))}
@@ -459,7 +641,7 @@ export default function PrototypeServiceEditorSheet({
             <p className="proto-caption proto-service-editor__starter-hint">
               Just the passage. Save a template to give everyone a shape to write into.
             </p>
-            {/* The app's secondary action pill — same control as Add service and
+            {/* The app's secondary action pill — same control as Add a sermon and
                 New space. Noticeable without competing with Save, which is the
                 only blue thing in this sheet. */}
             <button
@@ -500,41 +682,17 @@ export default function PrototypeServiceEditorSheet({
           </>
         ) : null}
 
-        {/*
-          Optional pointer from a service to the channel carrying its study
-          material. Deliberately not a claim that the sermon *comes from* the
-          channel — the congregant surface says "Study material", and the card
-          is never tinted by the channel's color.
-        */}
-        {channels.length > 0 ? (
-          <>
-            <label
-              className="proto-inspector-section-title proto-create-folder-sheet__field-label"
-              htmlFor="proto-service-channel"
-            >
-              <span>Companion channel</span>
-              <span className="proto-service-editor__optional">optional</span>
-            </label>
-            <select
-              id="proto-service-channel"
-              className="proto-create-folder-sheet__name-input"
-              value={channelSpaceId}
-              onChange={(e) => setChannelSpaceId(e.target.value)}
-            >
-              <option value="">None</option>
-              {channels.map((channel) => (
-                <option key={channel.id} value={channel.id}>
-                  {channel.title}
-                </option>
-              ))}
-            </select>
-          </>
-        ) : null}
       </div>
 
       {error ? (
         <p className="proto-connect-note-sheet__error" role="alert">
           {error}
+        </p>
+      ) : null}
+
+      {notice ? (
+        <p className="proto-caption proto-service-editor__notice" role="status">
+          {notice}
         </p>
       ) : null}
 
@@ -552,6 +710,54 @@ export default function PrototypeServiceEditorSheet({
         >
           {actions.isPending ? 'Saving…' : isEditing ? 'Save' : 'Add to plan'}
         </button>
+        {/*
+          Repeat lives here and only when editing, because it needs a saved row
+          to copy — and because planning a run is a second thought after the
+          first week exists, not a decision to make while typing it.
+        */}
+        {isEditing ? (
+          repeatOpen ? (
+            <div className="proto-service-editor__repeat">
+              <select
+                aria-label="How many more weeks"
+                className="proto-create-folder-sheet__name-input proto-service-editor__repeat-select"
+                value={repeatWeeks}
+                disabled={actions.isPending}
+                onChange={(e) => setRepeatWeeks(Number(e.target.value))}
+              >
+                {[3, 5, 7, 11].map((weeks) => (
+                  <option key={weeks} value={weeks}>
+                    {/* Counted as the series a pastor would say out loud: a
+                        "four-week series" is this week plus three more. */}
+                    {weeks + 1}-week series
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                disabled={actions.isPending}
+                onClick={repeat}
+              >
+                <span className="proto-glass-action__label">
+                  {actions.isPending ? 'Planning…' : 'Plan it'}
+                </span>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="proto-sheet-quiet-action"
+              disabled={actions.isPending}
+              onClick={() => {
+                setNotice(null);
+                setRepeatOpen(true);
+              }}
+            >
+              Repeat weekly
+            </button>
+          )
+        ) : null}
         {isEditing ? (
           // "Remove" alone never said from what — and the answer matters here,
           // because it isn't the congregation's notes. Those survive; the
@@ -576,12 +782,12 @@ export default function PrototypeServiceEditorSheet({
         <ProtoDialogBackdrop
           exiting={exiting}
           onDismiss={() => onOpenChange(false)}
-          aria-label="Close service editor"
+          aria-label="Close sermon editor"
         />
         <ProtoPopoverShell
           ref={cardRef}
           role="dialog"
-          aria-label={isEditing ? 'Edit service' : 'Add a service'}
+          aria-label={isEditing ? 'Edit sermon' : 'Add a sermon'}
           className={portaledDialogShellClassName(
             'proto-connect-note-popover proto-service-editor-popover',
             exiting,

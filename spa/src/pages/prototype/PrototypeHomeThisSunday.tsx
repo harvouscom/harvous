@@ -19,21 +19,21 @@ import { useCallback, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import Icon from '@/components/react/Icon';
-import { useSwitchToSpace } from '../../hooks/useSwitchToSpace';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import {
   alertCreateNoteFailure,
   useCreateSimpleNote,
 } from '../../hooks/mutations/useCreateSimpleNote';
 import { getNoteIdFromCreateResponse } from '../../hooks/queries/useNote';
-import { useChurchServices } from '../../hooks/queries/useChurchServices';
+import { useChurchSermons } from '../../hooks/queries/useChurchSermons';
 import {
   buildStarterContent,
-  currentServiceFor,
-  serviceEyebrow,
-  starterFolderForService,
+  currentSermonFor,
+  formatServiceTimes,
+  sermonEyebrow,
+  starterFolderForSermon,
   starterNoteTitle,
-  type ChurchService,
+  type ChurchSermon,
 } from '../../lib/church-services';
 import { markPendingNoteFocus } from '../../lib/pending-note-focus';
 import { useProtoShell } from '../../layouts/proto-shell-context';
@@ -50,20 +50,14 @@ function isOfflineQueuedCreate(res: unknown): boolean {
   );
 }
 
-/** Space ids round-trip with a `space_` prefix; nav ids may arrive without it. */
-function normalizeChannelSpaceId(id: string): string {
-  return id.startsWith('space_') ? id : `space_${id}`;
-}
-
 export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
   const navigate = useNavigate();
-  const switchToSpace = useSwitchToSpace();
   const createNote = useCreateSimpleNote();
   const { isMobileSidebar, closeDrawer } = useProtoShell();
-  const { data } = useChurchServices();
+  const { data } = useChurchSermons();
 
   const service = useMemo(
-    () => (data?.connected ? currentServiceFor(data.services) : null),
+    () => (data?.connected ? currentSermonFor(data.services, undefined, data.churchNow ?? null) : null),
     [data],
   );
 
@@ -79,7 +73,7 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
   );
 
   const takeNotes = useCallback(
-    (svc: ChurchService) => {
+    (svc: ChurchSermon) => {
       // Already wrote something for this service — open it rather than making
       // a second one. The server resolved this from the viewer's own note row.
       if (svc.viewerNoteId) {
@@ -93,7 +87,7 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
       // Set at create time on purpose: the create route takes folder fields
       // precisely so a caller doesn't follow a create with a second write,
       // which is what used to make a fresh note 409 its own first autosave.
-      const folder = starterFolderForService(svc);
+      const folder = starterFolderForSermon(svc);
 
       createNote.mutate(
         {
@@ -140,7 +134,8 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
 
   if (!data?.connected || !service) return null;
 
-  const eyebrow = serviceEyebrow(service);
+  const eyebrow = sermonEyebrow(service);
+  const timeLabel = formatServiceTimes(service.serviceTimes);
   const hasNote = Boolean(service.viewerNoteId);
 
   return (
@@ -150,10 +145,8 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
         the card, so this reads as one contained object rather than a floating
         label above a row.
 
-        Deliberately no coloured space tile. Tinting it by the companion
-        ministry channel implied the sermon came *from* that channel — it
-        doesn't. The channel is an optional companion staff may attach, and most
-        services have none. A plain glyph says "church" without claiming a source.
+        Deliberately no coloured space tile: a plain glyph says "church"
+        without claiming the sermon came from any particular room.
       */}
       <button
         type="button"
@@ -173,32 +166,26 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
               <Icon name="caret-right" size={11} />
             </span>
           </div>
-          {service.seriesTitle ? (
+          {/*
+            Time first, series second: the eyebrow already carries the day, so
+            the missing half of "when" is the clock. Rendered as the church's own
+            wall time, resolved server-side and never converted to the viewer's
+            zone. A church that has set no time renders exactly as before.
+          */}
+          {timeLabel || service.seriesTitle ? (
             <div className="proto-home-card__meta">
-              <span className="proto-home-card__meta-item">{service.seriesTitle}</span>
+              {timeLabel ? <span className="proto-home-card__meta-item">{timeLabel}</span> : null}
+              {timeLabel && service.seriesTitle ? (
+                <span className="proto-home-card__meta-sep">·</span>
+              ) : null}
+              {service.seriesTitle ? (
+                <span className="proto-home-card__meta-item">{service.seriesTitle}</span>
+              ) : null}
             </div>
           ) : null}
         </div>
       </button>
 
-      {/*
-        Sibling, not a child: the card above is a single <button> and a button
-        cannot contain a button. Shown whenever staff attached a channel — study
-        material is prep before Sunday as much as follow-up after, so it doesn't
-        wait for a note to exist. "Study material", never "from": the sermon does
-        not come from the channel.
-      */}
-      {service.channel ? (
-        <button
-          type="button"
-          className="proto-this-sunday__companion"
-          onClick={() => switchToSpace(normalizeChannelSpaceId(service.channel!.id))}
-        >
-          <span className="proto-this-sunday__companion-label">Study material</span>
-          <Icon name="caret-right" size={10} aria-hidden />
-          <span className="proto-this-sunday__companion-name">{service.channel.title}</span>
-        </button>
-      ) : null}
     </div>
   );
 }

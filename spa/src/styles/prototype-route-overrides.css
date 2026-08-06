@@ -40,6 +40,24 @@ html.harvous-prototype-route button.proto-sidebar-search__clear path {
   fill: currentColor !important;
 }
 
+/*
+  Destructive icon actions — white glyph on the red fill.
+
+  The fill itself lives with the component (`.proto-side-panel__action-btn--danger`
+  in prototype-components.css); only the *colour* has to be re-stated here,
+  because the blanket rule above pins every proto button and its descendants to
+  `--pds-text-primary !important`, which no amount of specificity beats. Same
+  reason the search-clear exception exists. Descendants are listed explicitly
+  since the glyph sits in a `<span style="color: inherit">`, and that span is
+  itself caught by the blanket `button *`.
+*/
+html.harvous-prototype-route button.proto-side-panel__action-btn--danger:hover:not(:disabled),
+html.harvous-prototype-route button.proto-side-panel__action-btn--danger:hover:not(:disabled) *,
+html.harvous-prototype-route button.proto-side-panel__action-btn--danger:focus-visible,
+html.harvous-prototype-route button.proto-side-panel__action-btn--danger:focus-visible * {
+  color: var(--pds-on-accent, #fff) !important;
+}
+
 /* Sidebar list view + toolbar folder chip — GSF axes inside buttons */
 html.harvous-prototype-route button.proto-sidebar-list-view__trigger,
 html.harvous-prototype-route button.proto-sidebar-list-view__trigger .proto-sidebar-list-view__label,

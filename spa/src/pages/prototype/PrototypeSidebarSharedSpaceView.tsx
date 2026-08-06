@@ -7,6 +7,8 @@ import { useAuth, useUser } from '@clerk/clerk-react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from '@/utils/toast';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
+import PrototypeSpaceComingUp from './PrototypeSpaceComingUp';
+import { useChurchStaffStatus } from '../../hooks/queries/useChurchStaffStatus';
 import { isQuerySettled } from '@/utils/prototype-home-ready';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { useSpace, useSpaceMembers, useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -266,6 +268,14 @@ function PrototypeSidebarSharedSpaceViewLive() {
     orgId: navSpace?.orgId ?? null,
   };
   const isMinistryChannel = isMinistryBroadcastSpace(ministryMeta);
+  /*
+    Server's `manage_staff` verdict for this room's church — never re-derived
+    from a role string. Handing someone the right to publish into a room the
+    congregation follows sits with the people who manage the roster, so the
+    same capability gates both. The space owner is the other way in, and the
+    server allows that arm on its own.
+  */
+  const { can: canChurchForSpace } = useChurchStaffStatus(ministryMeta.orgId ?? null);
   const canComposeHere = canComposeInSpace(ministryMeta);
   const churchEyebrow = navSpace?.churchName?.trim() || null;
 
@@ -704,6 +714,15 @@ function PrototypeSidebarSharedSpaceViewLive() {
 
       <div className="proto-sidebar-scroll">
         <div className={homeViewClassName}>
+          {/*
+            What this room is studying next. Staff-gated server-side, so it is
+            only requested for someone who can already see the church's plans;
+            everyone else, and every space without a plan, renders nothing.
+          */}
+          <PrototypeSpaceComingUp
+            spaceId={activeSpaceId ?? null}
+            enabled={Boolean(ministryMeta.orgId) && canManageThreads}
+          />
           {bannerNewCount > 0 ? (
             <div className="proto-home-section">
               <p className="proto-home-greeting">
@@ -957,6 +976,9 @@ function PrototypeSidebarSharedSpaceViewLive() {
         viewerIsOwner={isSpaceOwner}
         viewerCanModerate={canModerateChannel}
         ministryChannel={isMinistryChannel}
+        canGrantLeadership={
+          Boolean(ministryMeta.orgId) && (canChurchForSpace('manage_staff') || isSpaceOwner)
+        }
       />
       <PrototypeCreateSharedThreadSheet
         open={createThreadOpen}

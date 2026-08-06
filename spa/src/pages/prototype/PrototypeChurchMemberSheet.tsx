@@ -18,7 +18,7 @@ import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
 import type { ChurchStaffMember } from '../../hooks/queries/useChurchStaff';
-import { ASSIGNABLE_CHURCH_ROLES } from '../../lib/church-roles';
+import { ASSIGNABLE_CHURCH_ROLES, churchRoleIcon } from '../../lib/church-roles';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
@@ -84,7 +84,7 @@ export default function PrototypeChurchMemberSheet({
     <>
       <div className="proto-study-thread-popover__header">
         <div className="proto-study-thread-popover__title-row">
-          <Icon name={member.role === 'org:admin' ? 'id-card-clip' : 'book-open-reader'} size={13} aria-hidden />
+          <Icon name={churchRoleIcon(member.role)} size={13} aria-hidden />
           <span className="proto-study-thread-popover__title">
             {member.displayName}
             {member.isSelf ? ' (you)' : ''}
@@ -122,6 +122,9 @@ export default function PrototypeChurchMemberSheet({
                     if (!selected) onSetRole(member, option.role);
                   }}
                 >
+                  <span className="proto-church-member__role-icon" aria-hidden>
+                    <Icon name={option.icon} size={13} />
+                  </span>
                   <span className="proto-church-member__role-text">
                     <span className="pds-list-title proto-church-member__role-name">
                       {option.label}

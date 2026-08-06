@@ -520,7 +520,7 @@ const TEACHING_PLAN_ROWS = [
 ];
 
 /**
- * Staff Teaching plan — the destination the hub's "Teaching plan" row opens.
+ * Staff planner — the destination the hub's "Planner" row opens.
  *
  * No caret disclosure: the collapsed-footnote pattern is what the hub rework
  * retired. This is a proper view — a lane head with the one action as a glass
@@ -535,7 +535,7 @@ function TeachingPlanScene({ mode }: { mode: 'list' | 'lapsed' }) {
         <div style={{ padding: 16 }}>
           <div className="proto-home-section">
             <div className="proto-church-tools__lane-head">
-              <p className="proto-caption proto-home-section__eyebrow">Teaching plan</p>
+              <p className="proto-caption proto-home-section__eyebrow">Planner</p>
               {lapsed ? null : (
                 <button
                   type="button"
@@ -935,7 +935,7 @@ function HubStaffScene() {
     <div>
       <SpeculativeNote>
         Design exploration — staff view. The catalog reads the same as a congregant&apos;s;
-        everything staff-only is grouped into &ldquo;Staff tools&rdquo; at the bottom, with
+        everything staff-only is grouped into &ldquo;Tools&rdquo; at the bottom, with
         plan status as a row inside it rather than a banner on top.
       </SpeculativeNote>
       <PhoneChrome>
@@ -973,14 +973,14 @@ function HubStaffScene() {
             </div>
 
             <div className="proto-home-section">
-              <p className="proto-caption proto-home-section__eyebrow">Staff tools</p>
+              <p className="proto-caption proto-home-section__eyebrow">Tools</p>
               <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
                 <button type="button" className="proto-church-tools__row">
                   <span className="proto-church-tools__row-icon" aria-hidden>
                     <Icon name="calendar" size={13} />
                   </span>
                   <span className="proto-church-tools__row-text">
-                    <span className="pds-list-title proto-church-tools__row-title">Teaching plan</span>
+                    <span className="pds-list-title proto-church-tools__row-title">Planner</span>
                     <span className="proto-caption proto-church-tools__row-meta">
                       Next: Aug 9 · Romans 8:1-11
                     </span>

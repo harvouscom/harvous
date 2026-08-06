@@ -3,15 +3,21 @@ import { useAuth } from '@clerk/clerk-react';
 import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import { useProfile } from './useProfile';
-import type { ChurchService } from '../../lib/church-services';
+import type { ChurchClock, ChurchSermon } from '../../lib/church-services';
 
-export type ChurchServicesResponse = {
+export type ChurchSermonsResponse = {
   connected: boolean;
   church?: { id: string; name: string };
-  services: ChurchService[];
+  /**
+   * The church's own wall clock, for deciding whether this morning's service
+   * has started. Optional so a payload cached before this shipped still parses;
+   * absent, the card falls back to showing the earliest sermon of the day.
+   */
+  churchNow?: ChurchClock;
+  services: ChurchSermon[];
 };
 
-export function churchServicesQueryKey(userId: string | null | undefined) {
+export function churchSermonsQueryKey(userId: string | null | undefined) {
   return ['church-services', userId ?? 'none'] as const;
 }
 
@@ -23,16 +29,16 @@ export function churchServicesQueryKey(userId: string | null | undefined) {
  * for the large majority who have no church would be a real regression, and the
  * profile is already in cache by the time Home renders.
  */
-export function useChurchServices(options?: { enabled?: boolean }) {
+export function useChurchSermons(options?: { enabled?: boolean }) {
   const { userId } = useAuth();
   const authReady = useAuthReady();
   const { data: profile } = useProfile();
   const connected = Boolean(profile?.connectedOrgId);
 
   return useQuery({
-    queryKey: churchServicesQueryKey(userId),
+    queryKey: churchSermonsQueryKey(userId),
     enabled: authReady && !!userId && connected && options?.enabled !== false,
-    queryFn: () => api.get<ChurchServicesResponse>('/api/church/services'),
+    queryFn: () => api.get<ChurchSermonsResponse>('/api/church/services'),
     staleTime: 60_000,
   });
 }

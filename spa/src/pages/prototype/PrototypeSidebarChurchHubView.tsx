@@ -31,7 +31,9 @@ import CreateSharedSpaceSheet, { type CreateSpaceSheetKind } from './CreateShare
 import PrototypeChurchPlanRow from './PrototypeChurchPlanRow';
 import PrototypeChurchStaffSection from './PrototypeChurchStaffSection';
 import PrototypeChurchTeachingPlanSection from './PrototypeChurchTeachingPlanSection';
+import PrototypeChurchEngagementSection from './PrototypeChurchEngagementSection';
 import PrototypeChurchStarterSection from './PrototypeChurchStarterSection';
+import PrototypeChurchSettingsSection from './PrototypeChurchSettingsSection';
 import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
 
 function normalizeSpaceId(id: string): string {
@@ -184,10 +186,23 @@ export default function PrototypeSidebarChurchHubView() {
   const churchLocation = church ? formatChurchLocation(church) : null;
   const { isStaff: isOrgStaff, can: canChurch, isLoading: staffStatusLoading } =
     useChurchStaffStatus(orgId);
-  /** Server's verdict — never re-derived from the role string on the client. */
-  const canManageTeachingPlan = canChurch('sermon_tools');
+  /*
+    Server's verdicts — never re-derived from the role string on the client.
+    Two of them, because seeing the plan and setting it are different jobs: a
+    teacher teaches from what's planned, a pastor decides what it is.
+  */
+  const canViewTeachingPlan = canChurch('sermon_tools');
+  const canEditTeachingPlan = canChurch('manage_teaching_plan');
   /** First client consumer of `manage_templates` — the church-starters gate. */
   const canManageChurchTemplates = canChurch('manage_templates');
+  /** Admin-only: the church's own clock. */
+  const canManageChurchSettings = canChurch('manage_church_settings');
+  /*
+    Admin-only, deliberately the narrowest audience: adoption numbers are an
+    administrative view of the congregation, and widening later is one line
+    while narrowing after a church has grown used to it is not.
+  */
+  const canViewEngagement = canChurch('manage_staff');
   const canCreateChurchContent = useMemo(
     () =>
       canCreateChurchOrgContent({
@@ -223,6 +238,16 @@ export default function PrototypeSidebarChurchHubView() {
    * Read off the channels payload rather than adding a billing request.
    */
   const churchPlanLapsed = channelsData?.sponsorship?.state === 'lapsed';
+  /**
+   * Why the plan is read-only, when it is. Lapsed wins: it is the church-wide
+   * fact and it is true for the pastor too, so it outranks the role reason.
+   * `null` means fully writable.
+   */
+  const teachingPlanReadOnly: 'lapsed' | 'role' | null = churchPlanLapsed
+    ? 'lapsed'
+    : canEditTeachingPlan
+      ? null
+      : 'role';
   const followChannel = useFollowChannel();
   const [manageOpen, setManageOpen] = useState(false);
   /**
@@ -231,9 +256,9 @@ export default function PrototypeSidebarChurchHubView() {
    * hosts the note page so navigation doesn't remount the editor), so the
    * stack lives here.
    */
-  const [toolsView, setToolsView] = useState<'catalog' | 'teaching-plan' | 'team' | 'starters'>(
-    'catalog',
-  );
+  const [toolsView, setToolsView] = useState<
+    'catalog' | 'teaching-plan' | 'team' | 'starters' | 'settings' | 'engagement'
+  >('catalog');
   const pendingFollowId = followChannel.isPending
     ? followChannel.variables?.spaceId ?? null
     : null;
@@ -316,12 +341,16 @@ export default function PrototypeSidebarChurchHubView() {
           <div className="proto-shared-space-header__meta">
             <div className="pds-list-title proto-shared-space-header__title" title={churchName}>
               {toolsView === 'teaching-plan'
-                ? 'Teaching plan'
+                ? 'Planner'
                 : toolsView === 'team'
                   ? 'Team'
                   : toolsView === 'starters'
                     ? 'Note templates'
-                    : churchName}
+                    : toolsView === 'settings'
+                      ? 'Church settings'
+                      : toolsView === 'engagement'
+                        ? 'Engagement'
+                      : churchName}
             </div>
             {toolsView === 'catalog' && churchLocation ? (
               <p className="proto-caption proto-shared-space-header__location" title={churchLocation}>
@@ -348,12 +377,22 @@ export default function PrototypeSidebarChurchHubView() {
       <div className="proto-sidebar-scroll">
         <div className={homeViewClassName}>
           {toolsView === 'teaching-plan' ? (
+            /*
+              Both lanes are plannable: a church Shared Space gathers as surely
+              as a ministry channel broadcasts. The pane hides the switcher when
+              there is nowhere other than the church to switch to.
+            */
             <PrototypeChurchTeachingPlanSection
               orgId={orgId}
-              canManage={canManageTeachingPlan}
-              canWrite={canManageTeachingPlan && !churchPlanLapsed}
+              canManage={canViewTeachingPlan}
+              canWrite={teachingPlanReadOnly === null}
+              readOnlyReason={teachingPlanReadOnly}
               canManageChurchTemplates={canManageChurchTemplates && !churchPlanLapsed}
               onOpenStarters={() => setToolsView('starters')}
+              plannableSpaces={[...ministryChannels, ...sharedSpaces].map((s) => ({
+                id: s.id,
+                title: s.title,
+              }))}
             />
           ) : toolsView === 'team' ? (
             <PrototypeChurchStaffSection orgId={orgId} isStaff={canCreateChurchContent} />
@@ -361,6 +400,14 @@ export default function PrototypeSidebarChurchHubView() {
             <PrototypeChurchStarterSection
               canManage={canManageChurchTemplates}
               canWrite={canManageChurchTemplates && !churchPlanLapsed}
+            />
+          ) : toolsView === 'engagement' ? (
+            <PrototypeChurchEngagementSection orgId={orgId} canView={canViewEngagement} />
+          ) : toolsView === 'settings' ? (
+            <PrototypeChurchSettingsSection
+              orgId={orgId}
+              canManage={canManageChurchSettings}
+              canWrite={canManageChurchSettings && !churchPlanLapsed}
             />
           ) : (
           <>
@@ -515,29 +562,34 @@ export default function PrototypeSidebarChurchHubView() {
               plan, the team and the plan banner were interleaved with the
               catalog as bare text links and a slab.
             */}
-            {canCreateChurchContent || canManageTeachingPlan || canManageChurchTemplates ? (
+            {canCreateChurchContent ||
+            canViewTeachingPlan ||
+            canManageChurchTemplates ||
+            canManageChurchSettings ? (
               <div className="proto-home-section">
-                <p className="proto-caption proto-home-section__eyebrow">Staff tools</p>
+                <p className="proto-caption proto-home-section__eyebrow">Tools</p>
                 <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
                   {/* Role-gated on `sermon_tools`, NOT canCreateChurchContent —
-                      that is the publish-level gate, and planning what the
-                      church teaches is a pastor/teacher/admin act. */}
-                  {canManageTeachingPlan ? (
+                      that is the publish-level gate. Seeing the plan is a
+                      pastor/teacher/admin act; *changing* it is narrower still
+                      (`manage_teaching_plan`), and that verdict rides in as
+                      `canWrite` rather than hiding the door. */}
+                  {canViewTeachingPlan ? (
                     <button
                       type="button"
                       className="proto-church-tools__row"
                       onClick={() => setToolsView('teaching-plan')}
                     >
                       <span className="proto-church-tools__row-icon" aria-hidden>
-                        <Icon name="calendar-check" size={13} />
+                        <Icon name="calendar-week" size={13} />
                       </span>
                       <span className="proto-church-tools__row-text">
                         <span className="pds-list-title proto-church-tools__row-title">
-                          Teaching plan
+                          Planner
                         </span>
                         {/* Short enough for the sidebar's ~175px meta column. */}
                         <span className="proto-caption proto-church-tools__row-meta">
-                          Services and series
+                          Sermons and series
                         </span>
                       </span>
                       <span className="proto-church-tools__row-chevron" aria-hidden>
@@ -567,9 +619,9 @@ export default function PrototypeSidebarChurchHubView() {
                     </button>
                   ) : null}
 
-                  {/* Gated on `manage_templates`, not publish rights: a plain
-                      staff member writes curriculum, but provisioning what the
-                      whole church starts from is a pastor/teacher/admin act. */}
+                  {/* Gated on `manage_templates`, not publish rights: a teacher
+                      writes curriculum, but provisioning what the whole church
+                      starts from is a pastor/admin act. */}
                   {canManageChurchTemplates ? (
                     <button
                       type="button"
@@ -588,6 +640,61 @@ export default function PrototypeSidebarChurchHubView() {
                             reach everyone, unlike a personal template. */}
                         <span className="proto-caption proto-church-tools__row-meta">
                           Shared with everyone
+                        </span>
+                      </span>
+                      <span className="proto-church-tools__row-chevron" aria-hidden>
+                        <Icon name="caret-right" size={11} />
+                      </span>
+                    </button>
+                  ) : null}
+
+                  {/* Admin-only. Sits above settings because it is something a
+                      pastor looks at, not something they configure — and below
+                      the tools they act with, because it changes nothing. */}
+                  {canViewEngagement ? (
+                    <button
+                      type="button"
+                      className="proto-church-tools__row"
+                      onClick={() => setToolsView('engagement')}
+                    >
+                      <span className="proto-church-tools__row-icon" aria-hidden>
+                        <Icon name="chart-simple" size={13} />
+                      </span>
+                      <span className="proto-church-tools__row-text">
+                        <span className="pds-list-title proto-church-tools__row-title">
+                          Engagement
+                        </span>
+                        {/* Says the limit in the row, before anyone opens it —
+                            "how many" is the whole offer, and a pastor should
+                            not have to click to find out it is not "who". */}
+                        <span className="proto-caption proto-church-tools__row-meta">
+                          How many, never who
+                        </span>
+                      </span>
+                      <span className="proto-church-tools__row-chevron" aria-hidden>
+                        <Icon name="caret-right" size={11} />
+                      </span>
+                    </button>
+                  ) : null}
+
+                  {/* Admin-only, and last: setting the church's clock is the
+                      rarest of these jobs, and the only one that touches the
+                      church record itself. */}
+                  {canManageChurchSettings ? (
+                    <button
+                      type="button"
+                      className="proto-church-tools__row"
+                      onClick={() => setToolsView('settings')}
+                    >
+                      <span className="proto-church-tools__row-icon" aria-hidden>
+                        <Icon name="gear" size={13} />
+                      </span>
+                      <span className="proto-church-tools__row-text">
+                        <span className="pds-list-title proto-church-tools__row-title">
+                          Church settings
+                        </span>
+                        <span className="proto-caption proto-church-tools__row-meta">
+                          Times and time zone
                         </span>
                       </span>
                       <span className="proto-church-tools__row-chevron" aria-hidden>

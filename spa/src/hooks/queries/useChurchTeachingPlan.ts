@@ -2,26 +2,52 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/clerk-react';
 import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
-import { churchServicesQueryKey } from './useChurchServices';
+import { churchSermonsQueryKey } from './useChurchSermons';
 
-export type TeachingPlanService = {
+export type TeachingPlanSermon = {
   id: string;
   serviceDate: string;
+  /** The church services this sermon is preached at. */
+  serviceTimeIds: string[];
+  /** A one-off time, set only when the sermon sits at no usual service. */
+  serviceTime: string | null;
   title: string;
+  /** The ChurchSeries this sermon belongs to, or null for a standalone week. */
+  seriesId: string | null;
+  /** Its name, joined server-side — the row renders the label, not the id. */
   seriesTitle: string | null;
   reference: string | null;
   starterTemplateId: string | null;
-  channelSpaceId: string | null;
   updatedAt: string | null;
+};
+
+/** One of the church's recurring services — a checkbox in the sermon editor. */
+export type ChurchServiceTimeOption = {
+  id: string;
+  /** 0 = Sunday, matching Date.getDay(). */
+  dayOfWeek: number;
+  startTime: string;
+  label: string | null;
+};
+
+/**
+ * A series in one plan. Replaced the bare-string list: a picker of objects can
+ * rename and delete, and — once the resource library lands — be attached to.
+ */
+export type TeachingPlanSeries = {
+  id: string;
+  title: string;
+  /** How many sermons sit under it; what makes the series worth opening. */
+  serviceCount: number;
 };
 
 export type TeachingPlanResponse = {
   church: { id: string; name: string };
-  services: TeachingPlanService[];
-  /** Series the church has already used — the editor's autocomplete source. */
-  seriesTitles: string[];
-  /** The church's ministry channels, for the companion-channel picker. */
-  channels: { id: string; title: string; color: string | null }[];
+  /** Optional so a payload cached before this shipped still parses. */
+  serviceTimes?: ChurchServiceTimeOption[];
+  services: TeachingPlanSermon[];
+  /** This plan's series, most recently taught first — the picker's source. */
+  series: TeachingPlanSeries[];
 };
 
 export function churchTeachingPlanQueryKey(
@@ -34,9 +60,12 @@ export function churchTeachingPlanQueryKey(
 /**
  * The staff view of the teaching plan, past included.
  *
- * Server-gated on the `sermon_tools` capability — pass `enabled: true` only
- * once `useChurchStaffStatus` says the viewer has it, so a plain staff member
- * never fires a request that will 403.
+ * Server-gated on `sermon_tools` — pass `enabled: true` only once
+ * `useChurchStaffStatus` says the viewer has it, so a plain staff member never
+ * fires a request that will 403. A teacher *does* have it: reading the plan is
+ * a wider right than reshaping it, which `useChurchSermonActions` below needs
+ * `manage_teaching_plan` for. The read is never sponsorship-gated either, so a
+ * lapsed church still sees what it planned.
  */
 export function useChurchTeachingPlan(
   orgId: string | null | undefined,
@@ -58,28 +87,50 @@ export function useChurchTeachingPlan(
   });
 }
 
-export type ServiceDraft = {
+export type SermonDraft = {
   serviceDate: string;
+  /** Which of the church's services this sermon fills. */
+  serviceTimeIds?: string[];
+  /** A one-off time, for a sermon at none of the usual services. */
+  serviceTime?: string | null;
   title: string;
+  /** Pick an existing series… */
+  seriesId?: string | null;
+  /** …or name one, which creates it. Either grain; null on either detaches. */
   seriesTitle?: string | null;
   reference?: string | null;
   starterTemplateId?: string | null;
-  channelSpaceId?: string | null;
 };
 
-type ServiceAction =
-  | ({ kind: 'create' } & ServiceDraft)
-  | ({ kind: 'update'; serviceId: string } & Partial<ServiceDraft>)
-  | { kind: 'delete'; serviceId: string };
+type SermonRepeat = {
+  kind: 'repeat';
+  serviceId: string;
+  /** How many further weeks; the server caps it at a quarter. */
+  weeks: number;
+};
 
-/** Create / update / delete a service, refreshing both staff and congregant views. */
-export function useChurchServiceActions(orgId: string | null | undefined) {
+type SeriesAction =
+  | { kind: 'series-rename'; seriesId: string; title: string }
+  | { kind: 'series-delete'; seriesId: string };
+
+type SermonAction =
+  | ({ kind: 'create' } & SermonDraft)
+  | ({ kind: 'update'; serviceId: string } & Partial<SermonDraft>)
+  | { kind: 'delete'; serviceId: string }
+  | SermonRepeat
+  | SeriesAction;
+
+/**
+ * Create / update / delete a service, refreshing both staff and congregant
+ * views. Server-gated on `manage_teaching_plan` — narrower than the read above.
+ */
+export function useChurchSermonActions(orgId: string | null | undefined) {
   const queryClient = useQueryClient();
   const { userId } = useAuth();
   const trimmedOrgId = orgId?.trim() || null;
 
   return useMutation({
-    mutationFn: (action: ServiceAction) => {
+    mutationFn: (action: SermonAction) => {
       const { kind, ...rest } = action;
       switch (kind) {
         case 'create':
@@ -88,6 +139,14 @@ export function useChurchServiceActions(orgId: string | null | undefined) {
           return api.post('/api/church/services/update', { orgId: trimmedOrgId, ...rest });
         case 'delete':
           return api.post('/api/church/services/delete', { orgId: trimmedOrgId, ...rest });
+        case 'repeat':
+          return api.post('/api/church/services/repeat', { orgId: trimmedOrgId, ...rest });
+        // Series ride the same mutation because they invalidate the same
+        // queries — renaming one changes every sermon row that renders it.
+        case 'series-rename':
+          return api.post('/api/church/series/rename', { orgId: trimmedOrgId, ...rest });
+        case 'series-delete':
+          return api.post('/api/church/series/delete', { orgId: trimmedOrgId, ...rest });
       }
     },
     onSettled: () => {
@@ -95,7 +154,7 @@ export function useChurchServiceActions(orgId: string | null | undefined) {
         queryKey: churchTeachingPlanQueryKey(userId, trimmedOrgId),
       });
       // The staff edit is what changes what the congregation sees on Home.
-      void queryClient.invalidateQueries({ queryKey: churchServicesQueryKey(userId) });
+      void queryClient.invalidateQueries({ queryKey: churchSermonsQueryKey(userId) });
     },
   });
 }

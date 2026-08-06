@@ -130,6 +130,9 @@ export default function PrototypeChurchInviteSheet({
                 disabled={pending}
                 onClick={() => onRoleChange(option.role)}
               >
+                <span className="proto-church-member__role-icon" aria-hidden>
+                  <Icon name={option.icon} size={13} />
+                </span>
                 <span className="proto-church-member__role-text">
                   <span className="pds-list-title proto-church-member__role-name">
                     {option.label}

@@ -7198,6 +7198,25 @@ button.proto-appearance-hero__card {
   color: var(--pds-text-primary);
 }
 
+/*
+  Destructive variant of the same 28x28 control — a modifier rather than a
+  change to the base, because that base is the close button on every sheet and
+  turning those red would be a very loud accident.
+
+  The colour arrives only on hover/focus: at rest a row of these would read as
+  a row of warnings, when removing a service time is ordinary editing. It fires
+  on `:focus-visible` too, so keyboard users get the same warning the mouse
+  does rather than a silent Enter.
+*/
+.proto-side-panel__action-btn--danger:hover:not(:disabled),
+.proto-side-panel__action-btn--danger:focus-visible {
+  background: var(--pds-destructive);
+  /* The glyph colour cannot be set from here — the prototype route pins every
+     proto button to --pds-text-primary with !important. It is re-stated in
+     prototype-route-overrides.css; this line only documents the intent. */
+  color: var(--pds-on-accent, #fff);
+}
+
 .proto-side-panel__body {
   flex: 1;
   min-height: 0;
@@ -9819,6 +9838,17 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   color: var(--pds-text-danger, var(--pds-text-primary));
 }
 
+/*
+   The promise under the engagement counts. Set apart from the numbers with
+   real space rather than a divider — it is a different kind of statement, not
+   a footnote to the list, and a rule above it would read as "small print".
+*/
+.proto-church-engagement__note {
+  margin: 14px 2px 0;
+  opacity: 0.72;
+  line-height: 1.45;
+}
+
 /* Lane head: the section label with its one action beside it, so a lane never
    needs a grey button slab below its content. */
 .proto-church-tools__lane-head {
@@ -10222,6 +10252,55 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+   Since ChurchSeries the option carries its extent — "Life in the Spirit ·
+   8 weeks" — so the row is a flex pair rather than a single truncating line.
+   The name still takes the truncation; the count never shrinks, because a
+   half-rendered "8 we…" would be worse than no count at all.
+*/
+.proto-service-editor__series-option {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.proto-service-editor__series-option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-service-editor__series-option-count {
+  flex-shrink: 0;
+  color: var(--pds-text-secondary);
+}
+
+/*
+   "Repeat weekly": a count and a confirm on one line, in the sheet footer.
+   A row rather than two stacked full-width blocks — it sits between Save and
+   Remove, and stacking would push the destructive action further from the
+   thumb than the incidental one.
+*/
+.proto-service-editor__repeat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proto-service-editor__repeat-select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Not an error and not a caption in the field flow: the result of an action
+   that succeeded partially. Sits under the error slot, styled quieter. */
+.proto-service-editor__notice {
+  margin: 6px 0 0;
+  color: var(--pds-text-secondary);
 }
 
 @media (pointer: coarse) {
@@ -11266,7 +11345,46 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   margin-top: 12px;
 }
 
-.proto-shared-space-settings__field label {
+/* Which of the church's services a sermon fills. A column of checkboxes rather
+   than a select, because one sermon commonly covers two morning services. */
+.proto-service-editor__slots {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.proto-service-editor__slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  font-size: 13px;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .proto-service-editor__slot {
+    min-height: 44px;
+  }
+}
+
+.proto-service-editor__slot input {
+  flex: 0 0 auto;
+  accent-color: var(--pds-accent, #2f6fed);
+}
+
+/* Sits under a settings control to say what it governs, not to nag. */
+.proto-church-settings__hint {
+  margin: 4px 0 0;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+/* Shared rule, not a copy: a standalone heading in a settings pane has to be
+   indistinguishable from the field labels it sits among, and duplicating the
+   values is how the two drift apart. */
+.proto-shared-space-settings__field label,
+.proto-church-settings__section-label {
   display: block;
   margin-bottom: 4px;
   font-size: 11px;
@@ -11276,7 +11394,12 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   color: var(--pds-text-secondary);
 }
 
+.proto-church-settings__section-label {
+  margin-top: 18px;
+}
+
 .proto-shared-space-settings__field input[type='text'],
+.proto-shared-space-settings__field input[type='time'],
 .proto-shared-space-settings__field select {
   width: 100%;
   box-sizing: border-box;
@@ -11289,7 +11412,36 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   color: var(--pds-text-primary);
 }
 
+/*
+  `appearance: none` is the load-bearing line. Without it the browser keeps its
+  native control chrome — on macOS that means a system-drawn bezel and caret
+  sitting inside our border, so the field reads as an OS widget dropped into the
+  app rather than part of it. The caret is then ours: an inline SVG background,
+  because a pseudo-element can't be positioned inside a `<select>`.
+
+  Its own rule, deliberately not folded into the grouped one above: that group
+  also styles the text and time inputs, and a caret on those is nonsense.
+*/
+.proto-shared-space-settings__field select {
+  appearance: none;
+  -webkit-appearance: none;
+  /* Right padding clears the caret; everything else comes from the group above. */
+  padding-right: 32px;
+  background-color: var(--pds-bg-card, var(--pds-bg-subtle));
+  /* currentColor can't be used in a data URI, so the caret carries the same
+     grey as `--pds-text-secondary` resolves to; it is chrome, not content. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512' fill='%238a8a8e'%3E%3Cpath d='M137.4 374.6c12.5 12.5 32.8 12.5 45.3 0l128-128c9.2-9.2 11.9-22.9 6.9-34.9s-16.6-19.8-29.6-19.8L32 192c-12.9 0-24.6 7.8-29.6 19.8s-2.2 25.7 6.9 34.9l128 128z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  background-size: 10px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+}
+
 .proto-shared-space-settings__field input[type='text']:focus,
+.proto-shared-space-settings__field input[type='time']:focus,
 .proto-shared-space-settings__field select:focus,
 .proto-shared-space-settings__field textarea:focus {
   outline: none;
@@ -11715,6 +11867,38 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   border-radius: 10px;
   border: 0.5px solid var(--pds-border);
   background: var(--pds-bg-card, var(--pds-bg-subtle));
+}
+
+/* ─── Time picker ────────────────────────────────────────────────────────────
+   A row of menu pills, matching the study dock's Chapter : Verse controls. The
+   pills bring their own styling (harvous-menu-pill.css, imported by the
+   component), so all this owns is the row. */
+.proto-time-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Hour and minute read as one value, so they sit tighter than the row gap. */
+.proto-time-picker__cluster {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.proto-time-picker__colon {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+/* Visual half of `disabled`; the component refuses the write regardless, since
+   HarvousMenuPill has no disabled state of its own to borrow. */
+.proto-time-picker--disabled {
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .proto-date-picker__nav {
@@ -12199,59 +12383,6 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 }
 
 /*
-  Companion-channel pointer under This Sunday. Quiet on purpose: the card is the
-  action, this is a reference. Sits outside the card because the card is a
-  single button.
-*/
-.proto-this-sunday__companion {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  width: 100%;
-  margin-top: 6px;
-  padding: 6px 4px;
-  border: none;
-  border-radius: var(--pds-radius-input, 10px);
-  background: transparent;
-  cursor: pointer;
-  font-family: var(--pds-font-body);
-  font-size: 12px;
-  line-height: 1.3;
-  color: var(--pds-text-secondary);
-  text-align: left;
-}
-
-@media (pointer: coarse) {
-  .proto-this-sunday__companion {
-    min-height: 44px;
-  }
-}
-
-@media (hover: hover) {
-  .proto-this-sunday__companion:hover {
-    background: var(--pds-bg-subtle);
-    color: var(--pds-text-primary);
-  }
-}
-
-.proto-this-sunday__companion:focus-visible {
-  outline: 2px solid var(--pds-accent-focus-ring);
-  outline-offset: -2px;
-}
-
-/* The channel's own name is the informative half — let it truncate rather than
-   push the row wider (the reset sets `* { flex-shrink: 0 }`). */
-.proto-this-sunday__companion-name {
-  min-width: 0;
-  flex-shrink: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-  color: var(--pds-text-primary);
-}
-
-/*
   Passage history in the service editor — the pastor's own prior notes on the
   passage they just typed. Quiet: it informs the plan, it isn't part of it.
 */
@@ -12379,6 +12510,28 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 .proto-church-member__role-option:focus-visible {
   outline: 2px solid var(--pds-accent-focus-ring);
   outline-offset: -2px;
+}
+
+/* Plan switcher in the teaching-plan pane. The chip bar's own margin assumes a
+   toolbar context; here it heads a section, so only the bottom gap is kept. */
+.proto-teaching-plan__scope {
+  margin: 0 0 10px;
+}
+
+/* Leading role icon. Same chip geometry as `.proto-church-tools__row-icon`
+   rather than that class itself — copying keeps the picker from depending on
+   the tools-row block, and matching it is what makes the picker and the roster
+   carry a role the same way: by silhouette, never by colour. */
+.proto-church-member__role-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  opacity: 0.75;
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 5%, transparent);
 }
 
 /* The reset sets `* { flex-shrink: 0 }`; the text column has to opt back in so a

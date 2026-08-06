@@ -17,7 +17,7 @@ import {
 import PrototypeChurchMemberSheet from './PrototypeChurchMemberSheet';
 import PrototypeChurchInviteSheet from './PrototypeChurchInviteSheet';
 
-import { ASSIGNABLE_CHURCH_ROLES, churchRoleLabel } from '../../lib/church-roles';
+import { ASSIGNABLE_CHURCH_ROLES, churchRoleIcon, churchRoleLabel } from '../../lib/church-roles';
 
 export default function PrototypeChurchStaffSection({
   orgId,
@@ -105,10 +105,7 @@ export default function PrototypeChurchStaffSection({
                 }}
               >
                 <span className="proto-church-tools__row-icon" aria-hidden>
-                  <Icon
-                    name={member.role === 'org:admin' ? 'id-card-clip' : 'book-open-reader'}
-                    size={13}
-                  />
+                  <Icon name={churchRoleIcon(member.role)} size={13} />
                 </span>
                 <span className="proto-church-tools__row-text">
                   <span className="pds-list-title proto-church-tools__row-title">
