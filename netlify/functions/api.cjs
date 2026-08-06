@@ -18169,6 +18169,7 @@ __export(schema_exports, {
   BibleVerses: () => BibleVerses,
   ChurchMemberships: () => ChurchMemberships,
   ChurchSeries: () => ChurchSeries,
+  ChurchServiceLibraryItems: () => ChurchServiceLibraryItems,
   ChurchServiceTimeAssignments: () => ChurchServiceTimeAssignments,
   ChurchServiceTimes: () => ChurchServiceTimes,
   ChurchServices: () => ChurchServices,
@@ -18181,6 +18182,9 @@ __export(schema_exports, {
   FeaturedItems: () => FeaturedItems,
   InboxItemNotes: () => InboxItemNotes,
   InboxItems: () => InboxItems,
+  LibraryItemScopes: () => LibraryItemScopes,
+  LibraryItemSpacePins: () => LibraryItemSpacePins,
+  LibraryItemSuggestions: () => LibraryItemSuggestions,
   LibraryItems: () => LibraryItems,
   Members: () => Members,
   MonthlyAnalytics: () => MonthlyAnalytics,
@@ -18224,7 +18228,7 @@ __export(schema_exports, {
   VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, ChurchServiceTimes, ChurchServiceTimeAssignments, ChurchSeries, ChurchServices, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, ResourceLibraries, LibraryItems, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
+var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, ChurchServiceTimes, ChurchServiceTimeAssignments, ChurchSeries, ChurchServices, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, ResourceLibraries, LibraryItems, LibraryItemScopes, LibraryItemSpacePins, LibraryItemSuggestions, ChurchServiceLibraryItems, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -19428,6 +19432,98 @@ var init_schema2 = __esm({
       (table) => [
         index("LibraryItems_libraryId_archivedAtIndex").on(table.libraryId, table.archivedAt),
         index("LibraryItems_libraryId_updatedAtIndex").on(table.libraryId, table.updatedAt)
+      ]
+    );
+    LibraryItemScopes = pgTable(
+      "LibraryItemScopes",
+      {
+        id: text("id").primaryKey(),
+        libraryItemId: text("libraryItemId").notNull(),
+        scopeKind: text("scopeKind").notNull(),
+        spaceId: text("spaceId"),
+        ministryKey: text("ministryKey"),
+        createdAt: ts("createdAt").notNull()
+      },
+      (table) => [
+        /*
+          One partial unique per kind. A single index over all three columns would
+          not work: NULLs are distinct in a plain unique, so an item could be scoped
+          to the whole org twice. Same shape as ChurchSeries' per-scope uniques.
+        */
+        uniqueIndex("LibraryItemScopes_org_unique").on(table.libraryItemId).where(sql`${table.scopeKind} = 'org'`),
+        uniqueIndex("LibraryItemScopes_space_unique").on(table.libraryItemId, table.spaceId).where(sql`${table.scopeKind} = 'space'`),
+        uniqueIndex("LibraryItemScopes_ministry_unique").on(table.libraryItemId, table.ministryKey).where(sql`${table.scopeKind} = 'ministry'`),
+        index("LibraryItemScopes_libraryItemIdIndex").on(table.libraryItemId),
+        index("LibraryItemScopes_spaceIdIndex").on(table.spaceId)
+      ]
+    );
+    LibraryItemSpacePins = pgTable(
+      "LibraryItemSpacePins",
+      {
+        id: text("id").primaryKey(),
+        spaceId: text("spaceId").notNull(),
+        libraryItemId: text("libraryItemId").notNull(),
+        pinned: boolean("pinned").notNull().default(true),
+        sortOrder: integer("sortOrder").notNull().default(0),
+        pinnedByUserId: text("pinnedByUserId").notNull(),
+        pinnedAt: ts("pinnedAt").notNull()
+      },
+      (table) => [
+        uniqueIndex("LibraryItemSpacePins_space_item_unique").on(table.spaceId, table.libraryItemId),
+        index("LibraryItemSpacePins_spaceIdIndex").on(table.spaceId)
+      ]
+    );
+    LibraryItemSuggestions = pgTable(
+      "LibraryItemSuggestions",
+      {
+        id: text("id").primaryKey(),
+        churchId: text("churchId").notNull(),
+        suggestedByUserId: text("suggestedByUserId").notNull(),
+        url: text("url").notNull(),
+        title: text("title"),
+        /** The congregant's "why" — what a reviewer reads before deciding. */
+        note: text("note"),
+        /** 'open' | 'approved' | 'declined'. */
+        status: text("status").notNull().default("open"),
+        reviewedByUserId: text("reviewedByUserId"),
+        reviewedAt: ts("reviewedAt"),
+        /** Set on approval — the LibraryItems row this became. */
+        createdItemId: text("createdItemId"),
+        /** Drives the unread badge, the way SupportTickets.adminReadAt does. */
+        staffReadAt: ts("staffReadAt"),
+        createdAt: ts("createdAt").notNull()
+      },
+      (table) => [
+        index("LibraryItemSuggestions_church_status_createdAtIndex").on(
+          table.churchId,
+          table.status,
+          table.createdAt
+        ),
+        index("LibraryItemSuggestions_suggestedBy_createdAtIndex").on(
+          table.suggestedByUserId,
+          table.createdAt
+        )
+      ]
+    );
+    ChurchServiceLibraryItems = pgTable(
+      "ChurchServiceLibraryItems",
+      {
+        id: text("id").primaryKey(),
+        serviceId: text("serviceId").notNull(),
+        libraryItemId: text("libraryItemId").notNull(),
+        attachedByUserId: text("attachedByUserId").notNull(),
+        sortOrder: integer("sortOrder").notNull().default(0),
+        createdAt: ts("createdAt").notNull()
+      },
+      (table) => [
+        uniqueIndex("ChurchServiceLibraryItems_service_item_unique").on(
+          table.serviceId,
+          table.libraryItemId
+        ),
+        index("ChurchServiceLibraryItems_serviceIdIndex").on(table.serviceId),
+        /* The reverse question — "which weeks used this?" — indexed now rather
+           than after someone writes it as a table scan. */
+        index("ChurchServiceLibraryItems_libraryItemIdIndex").on(table.libraryItemId)
       ]
     );
     InboxItems = pgTable("InboxItems", {
@@ -89618,11 +89714,11 @@ var require_clean = __commonJS({
   "node_modules/semver/functions/clean.js"(exports2, module2) {
     "use strict";
     var parse10 = require_parse3();
-    var clean3 = (version6, options) => {
+    var clean4 = (version6, options) => {
       const s2 = parse10(version6.trim().replace(/^[=v]+/, ""), options);
       return s2 ? s2.version : null;
     };
-    module2.exports = clean3;
+    module2.exports = clean4;
   }
 });
 
@@ -90970,7 +91066,7 @@ var require_semver2 = __commonJS({
     var identifiers = require_identifiers();
     var parse10 = require_parse3();
     var valid = require_valid();
-    var clean3 = require_clean();
+    var clean4 = require_clean();
     var inc = require_inc();
     var diff = require_diff();
     var major = require_major();
@@ -91008,7 +91104,7 @@ var require_semver2 = __commonJS({
     module2.exports = {
       parse: parse10,
       valid,
-      clean: clean3,
+      clean: clean4,
       inc,
       diff,
       major,
@@ -167532,30 +167628,30 @@ var require_parser = __commonJS({
         let token, type2;
         let length = tokens.length;
         let value = "";
-        let clean3 = true;
+        let clean4 = true;
         let next, prev;
         for (let i = 0; i < length; i += 1) {
           token = tokens[i];
           type2 = token[0];
           if (type2 === "space" && i === length - 1 && !customProperty) {
-            clean3 = false;
+            clean4 = false;
           } else if (type2 === "comment") {
             prev = tokens[i - 1] ? tokens[i - 1][0] : "empty";
             next = tokens[i + 1] ? tokens[i + 1][0] : "empty";
             if (!SAFE_COMMENT_NEIGHBOR[prev] && !SAFE_COMMENT_NEIGHBOR[next]) {
               if (value.slice(-1) === ",") {
-                clean3 = false;
+                clean4 = false;
               } else {
                 value += token[1];
               }
             } else {
-              clean3 = false;
+              clean4 = false;
             }
           } else {
             value += token[1];
           }
         }
-        if (!clean3) {
+        if (!clean4) {
           let raw2 = tokens.reduce((all, i) => all + i[1], "");
           node.raws[prop2] = { raw: raw2, value };
         }
@@ -237037,9 +237133,9 @@ __export(netlify_exports, {
 module.exports = __toCommonJS(netlify_exports);
 
 // node_modules/hono/dist/adapter/netlify/handler.js
-var handle = (app24) => {
+var handle = (app25) => {
   return (req, context2) => {
-    return app24.fetch(req, { context: context2 });
+    return app25.fetch(req, { context: context2 });
   };
 };
 
@@ -238202,14 +238298,14 @@ var Hono = class _Hono {
    * app.route("/api", app2) // GET /api/user
    * ```
    */
-  route(path10, app24) {
+  route(path10, app25) {
     const subApp = this.basePath(path10);
-    app24.routes.map((r) => {
+    app25.routes.map((r) => {
       let handler5;
-      if (app24.errorHandler === errorHandler) {
+      if (app25.errorHandler === errorHandler) {
         handler5 = r.handler;
       } else {
-        handler5 = async (c, next) => (await compose([], app24.errorHandler)(c, () => r.handler(c, next))).res;
+        handler5 = async (c, next) => (await compose([], app25.errorHandler)(c, () => r.handler(c, next))).res;
         handler5[COMPOSED_HANDLER] = r.handler;
       }
       subApp.#addRoute(r.method, r.path, handler5);
@@ -253892,6 +253988,7 @@ function capabilitiesForChurchRole(role) {
   if (role === ROLE_ADMIN || role === ROLE_PASTOR) {
     capabilities.add("manage_templates");
     capabilities.add("manage_teaching_plan");
+    capabilities.add("manage_library");
   }
   return [...capabilities];
 }
@@ -256910,10 +257007,10 @@ function abortSignalAny(signals) {
   }
   function abort() {
     controller.abort(this.reason);
-    clean3();
+    clean4();
   }
   const signalRefs = [];
-  function clean3() {
+  function clean4() {
     for (const signalRef of signalRefs) {
       const signal = signalRef.deref();
       if (signal) {
@@ -311245,6 +311342,467 @@ app7.post("/api/library/items/archive", requireAuth, rateLimit("write"), async (
 });
 var library_default = app7;
 
+// server/routes/church-library.ts
+init_db2();
+init_auth();
+
+// server/utils/church-library-access.ts
+init_db2();
+
+// server/utils/church-org-access.ts
+async function resolveChurchOrgAccess(userId, orgId, rule) {
+  const church = await getActiveChurchByOrgId(orgId);
+  if (!church) {
+    return { ok: false, status: 404, code: "CHURCH_NOT_FOUND", error: "Church not found" };
+  }
+  if (!church.isActive) {
+    return { ok: false, status: 409, code: "CHURCH_INACTIVE", error: "Church is not active" };
+  }
+  if (!await isChurchStaffForOrg(userId, church.orgId)) {
+    return { ok: false, status: 403, code: "CHURCH_STAFF_REQUIRED", error: rule.staffError };
+  }
+  if (rule.sponsorshipGated && !churchIsSponsored(church)) {
+    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
+  }
+  let role = null;
+  try {
+    const roster = await fetchClerkOrgMemberships(church.orgId);
+    role = roster.find((member) => member.userId === userId)?.role ?? null;
+  } catch {
+    return {
+      ok: false,
+      status: 403,
+      code: rule.code,
+      error: "Could not confirm your role. Try again in a moment."
+    };
+  }
+  if (!capabilitiesForChurchRole(role).includes(rule.capability)) {
+    return { ok: false, status: 403, code: rule.code, error: rule.roleError };
+  }
+  return { ok: true, church };
+}
+
+// server/utils/church-space-leaders.ts
+init_db2();
+var GRANT_SOURCE = "grant";
+async function isGrantedSpaceLeader(userId, spaceId) {
+  if (!userId || !spaceId) return false;
+  const row = first(
+    await db.select({ role: SpaceMemberships.role, grantSource: SpaceMemberships.grantSource }).from(SpaceMemberships).where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, userId))).limit(1)
+  );
+  return row?.role === "leader" && row.grantSource === GRANT_SOURCE;
+}
+async function assertCanGrantSpaceLeadership(userId, spaceId) {
+  const id = String(spaceId ?? "").trim();
+  if (!id) {
+    return { ok: false, status: 404, code: "SPACE_NOT_FOUND", error: "Space not found" };
+  }
+  const space = first(
+    await db.select().from(Spaces).where(and(eq(Spaces.id, id), isNull(Spaces.deletedAt))).limit(1)
+  );
+  if (!space || !space.isActive || !isChurchOrgSpaceRow(space) || !space.orgId) {
+    return { ok: false, status: 404, code: "SPACE_NOT_FOUND", error: "Space not found" };
+  }
+  const access = await resolveChurchOrgAccess(userId, space.orgId, {
+    capability: "manage_staff",
+    code: "CHURCH_STAFF_REQUIRED",
+    staffError: "Only church staff can change who leads this space",
+    roleError: "A church admin or this space\u2019s owner grants leadership here",
+    sponsorshipGated: true
+  });
+  if (access.ok) return { ok: true, church: access.church, space };
+  if (space.userId === userId && access.status === 403 && access.code === "CHURCH_STAFF_REQUIRED") {
+    const asOwner = await resolveChurchOrgAccess(userId, space.orgId, {
+      capability: "publish",
+      code: "CHURCH_STAFF_REQUIRED",
+      staffError: "Only church staff can change who leads this space",
+      roleError: "You cannot grant leadership here",
+      sponsorshipGated: true
+    });
+    if (asOwner.ok) return { ok: true, church: asOwner.church, space };
+    return asOwner;
+  }
+  return access;
+}
+
+// server/utils/church-library-access.ts
+var WRITABLE_SCOPE_KINDS = ["org", "space"];
+async function connectedOrgIdFor2(userId) {
+  const row = first(
+    await db.select({ connectedOrgId: UserMetadata.connectedOrgId }).from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1)
+  );
+  return row?.connectedOrgId ?? null;
+}
+function libraryTitleFor(churchName) {
+  return `${churchName} Library`;
+}
+async function findChurchLibrary(churchId) {
+  return first(
+    await db.select().from(ResourceLibraries).where(
+      and(eq(ResourceLibraries.ownerKind, "church"), eq(ResourceLibraries.ownerId, churchId))
+    ).limit(1)
+  ) ?? null;
+}
+async function ensureChurchLibrary(churchId, churchName) {
+  const existing = await findChurchLibrary(churchId);
+  if (existing) return existing;
+  const timestamp3 = /* @__PURE__ */ new Date();
+  const row = {
+    id: `lib_${crypto.randomUUID()}`,
+    ownerKind: "church",
+    ownerId: churchId,
+    title: libraryTitleFor(churchName),
+    createdAt: timestamp3,
+    updatedAt: timestamp3
+  };
+  try {
+    await db.insert(ResourceLibraries).values(row);
+    return row;
+  } catch (error) {
+    const raced = await findChurchLibrary(churchId);
+    if (!raced) throw error;
+    return raced;
+  }
+}
+async function assertCanManageChurchLibrary(userId, orgId) {
+  return resolveChurchOrgAccess(userId, orgId, {
+    capability: "manage_library",
+    code: "LIBRARY_ROLE_REQUIRED",
+    staffError: "Only church staff can manage this library",
+    roleError: "A pastor or admin curates this library",
+    /* Writes stop when a church lapses; the reads below deliberately do not. */
+    sponsorshipGated: true
+  });
+}
+async function assertCanViewChurchLibrary(userId, orgId) {
+  return resolveChurchOrgAccess(userId, orgId, {
+    capability: "sermon_tools",
+    code: "LIBRARY_STAFF_REQUIRED",
+    staffError: "Only church staff can see this library",
+    roleError: "This library is for church staff",
+    sponsorshipGated: false
+  });
+}
+async function memberSpaceIdsForChurch(userId, orgId) {
+  const rows = await db.select({ spaceId: SpaceMemberships.spaceId }).from(SpaceMemberships).innerJoin(Spaces, eq(Spaces.id, SpaceMemberships.spaceId)).where(and(eq(SpaceMemberships.userId, userId), eq(Spaces.orgId, orgId), isNull(Spaces.deletedAt)));
+  return rows.map((r) => r.spaceId);
+}
+async function resolveChurchLibraryViewer(userId) {
+  const orgId = await connectedOrgIdFor2(userId);
+  if (!orgId) return { kind: "none" };
+  const church = first(
+    await db.select({ id: Churches.id, name: Churches.name, orgId: Churches.orgId }).from(Churches).where(and(eq(Churches.orgId, orgId), eq(Churches.isActive, true))).limit(1)
+  );
+  if (!church) return { kind: "none" };
+  const staff = await assertCanViewChurchLibrary(userId, orgId);
+  return {
+    kind: staff.ok ? "staff" : "congregant",
+    church,
+    memberSpaceIds: await memberSpaceIdsForChurch(userId, orgId),
+    seesLeaderOnly: staff.ok
+  };
+}
+function scopesAdmitViewer(scopes, memberSpaceIds, isStaff) {
+  if (scopes.length === 0) return true;
+  if (scopes.some((s2) => s2.scopeKind === "org")) return true;
+  if (isStaff) return true;
+  return scopes.some(
+    (s2) => s2.scopeKind === "space" && s2.spaceId != null && memberSpaceIds.includes(s2.spaceId)
+  );
+}
+async function scopesByItemIds(itemIds) {
+  const out = /* @__PURE__ */ new Map();
+  if (itemIds.length === 0) return out;
+  const rows = await db.select().from(LibraryItemScopes).where(inArray(LibraryItemScopes.libraryItemId, [...itemIds]));
+  for (const row of rows) {
+    const list = out.get(row.libraryItemId);
+    if (list) list.push(row);
+    else out.set(row.libraryItemId, [row]);
+  }
+  return out;
+}
+
+// server/routes/church-library.ts
+var app8 = new Hono2();
+var TITLE_MAX_LENGTH2 = 200;
+var DESCRIPTION_MAX_LENGTH2 = 1e3;
+var SCOPES_MAX = 40;
+function clean(value, max2) {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, max2);
+}
+function serializeChurchItem(row, scopes) {
+  return {
+    id: row.id,
+    kind: row.kind,
+    title: row.title,
+    description: row.description,
+    sourceUrl: row.sourceUrl,
+    sourceDomain: row.sourceDomain,
+    sourceSiteName: row.sourceSiteName,
+    sourceImage: row.sourceImage,
+    fileName: row.fileName,
+    fileMime: row.fileMime,
+    fileBytes: row.fileBytes,
+    access: row.access,
+    scopes: scopes.map((s2) => ({ scopeKind: s2.scopeKind, spaceId: s2.spaceId })),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  };
+}
+function serializeStaffItem(row, scopes) {
+  return {
+    ...serializeChurchItem(row, scopes),
+    createdByUserId: row.createdByUserId,
+    archivedAt: row.archivedAt
+  };
+}
+async function listLibraryItems(libraryId) {
+  return db.select().from(LibraryItems).where(and(eq(LibraryItems.libraryId, libraryId), isNull(LibraryItems.archivedAt))).orderBy(desc(LibraryItems.updatedAt), desc(LibraryItems.createdAt));
+}
+async function resolveScopes(orgId, raw2) {
+  if (raw2 === void 0) return { ok: true, scopes: [] };
+  if (!Array.isArray(raw2)) {
+    return { ok: false, error: "scopes must be an array", code: "BAD_REQUEST" };
+  }
+  if (raw2.length > SCOPES_MAX) {
+    return { ok: false, error: `At most ${SCOPES_MAX} scopes`, code: "BAD_REQUEST" };
+  }
+  const scopes = [];
+  const spaceIds = [];
+  for (const entry of raw2) {
+    const kind = String(entry?.scopeKind ?? "");
+    if (!WRITABLE_SCOPE_KINDS.includes(kind)) {
+      return {
+        ok: false,
+        error: `Unsupported scope: ${kind || "(missing)"}`,
+        code: "SCOPE_KIND_UNSUPPORTED"
+      };
+    }
+    if (kind === "org") {
+      scopes.push({ scopeKind: "org", spaceId: null });
+      continue;
+    }
+    const spaceId = clean(entry?.spaceId, 200);
+    if (!spaceId) {
+      return { ok: false, error: "A space scope needs a spaceId", code: "BAD_REQUEST" };
+    }
+    scopes.push({ scopeKind: "space", spaceId });
+    spaceIds.push(spaceId);
+  }
+  if (spaceIds.length > 0) {
+    const rows = await db.select().from(Spaces).where(and(inArray(Spaces.id, spaceIds), isNull(Spaces.deletedAt)));
+    const valid = new Set(
+      rows.filter((row) => row.orgId === orgId && isChurchOrgSpaceRow(row)).map((row) => row.id)
+    );
+    const stranger = spaceIds.find((id) => !valid.has(id));
+    if (stranger) {
+      return {
+        ok: false,
+        error: "That space is not one of your church\u2019s rooms",
+        code: "SPACE_NOT_FOUND"
+      };
+    }
+  }
+  return { ok: true, scopes };
+}
+async function replaceScopes(tx, itemId, scopes) {
+  await tx.delete(LibraryItemScopes).where(eq(LibraryItemScopes.libraryItemId, itemId));
+  if (scopes.length === 0) return;
+  const timestamp3 = /* @__PURE__ */ new Date();
+  await tx.insert(LibraryItemScopes).values(
+    scopes.map((scope) => ({
+      id: `libsc_${crypto.randomUUID()}`,
+      libraryItemId: itemId,
+      scopeKind: scope.scopeKind,
+      spaceId: scope.spaceId,
+      ministryKey: null,
+      createdAt: timestamp3
+    }))
+  );
+}
+app8.get("/api/church/library", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const orgId = (c.req.query("orgId") ?? "").trim();
+    const gate = await assertCanViewChurchLibrary(auth.userId, orgId);
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const library = await findChurchLibrary(gate.church.id);
+    if (!library) {
+      return c.json({ library: null, items: [] });
+    }
+    const items = await listLibraryItems(library.id);
+    const scopes = await scopesByItemIds(items.map((i) => i.id));
+    return c.json({
+      library: { id: library.id, title: library.title },
+      items: items.map((item) => serializeStaffItem(item, scopes.get(item.id) ?? []))
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/library",
+      action: "church_library_list"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app8.get("/api/library/church", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const viewer = await resolveChurchLibraryViewer(auth.userId);
+    if (viewer.kind === "none") {
+      return c.json({ connected: false, church: null, items: [] });
+    }
+    const library = await findChurchLibrary(viewer.church.id);
+    if (!library) {
+      return c.json({
+        connected: true,
+        church: { id: viewer.church.id, name: viewer.church.name },
+        items: []
+      });
+    }
+    const items = await listLibraryItems(library.id);
+    const scopes = await scopesByItemIds(items.map((i) => i.id));
+    const visible = items.filter((item) => {
+      if (item.access === "leaders" && !viewer.seesLeaderOnly) return false;
+      return scopesAdmitViewer(scopes.get(item.id) ?? [], viewer.memberSpaceIds, viewer.seesLeaderOnly);
+    });
+    return c.json({
+      connected: true,
+      church: { id: viewer.church.id, name: viewer.church.name },
+      items: visible.map((item) => serializeChurchItem(item, scopes.get(item.id) ?? []))
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/library/church",
+      action: "church_library_union"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app8.post("/api/church/library/items/create", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageChurchLibrary(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const validation2 = validateResourceUrl(String(body.url ?? ""));
+    if (!validation2.isValid || !validation2.normalizedUrl) {
+      return c.json(
+        { error: validation2.error || "Invalid URL", code: validation2.code || "INVALID_URL" },
+        400
+      );
+    }
+    const sourceUrl = validation2.normalizedUrl;
+    const access = body.access === "leaders" ? "leaders" : "members";
+    const scopeResult = await resolveScopes(gate.church.orgId, body.scopes);
+    if (!scopeResult.ok) {
+      return c.json({ error: scopeResult.error, code: scopeResult.code }, 400);
+    }
+    const library = await ensureChurchLibrary(gate.church.id, gate.church.name);
+    const timestamp3 = /* @__PURE__ */ new Date();
+    const row = {
+      id: `libi_${crypto.randomUUID()}`,
+      libraryId: library.id,
+      kind: "link",
+      title: clean(body.title, TITLE_MAX_LENGTH2) ?? extractDomain(sourceUrl) ?? sourceUrl,
+      description: clean(body.description, DESCRIPTION_MAX_LENGTH2),
+      sourceUrl,
+      sourceDomain: extractDomain(sourceUrl),
+      sourceSiteName: clean(body.siteName, TITLE_MAX_LENGTH2),
+      sourceImage: clean(body.image, 2e3),
+      fileStorageKey: null,
+      fileName: null,
+      fileMime: null,
+      fileBytes: null,
+      access,
+      createdByUserId: auth.userId,
+      createdAt: timestamp3,
+      updatedAt: timestamp3,
+      archivedAt: null
+    };
+    await db.transaction(async (tx) => {
+      await tx.insert(LibraryItems).values(row);
+      await replaceScopes(tx, row.id, scopeResult.scopes);
+    });
+    return c.json({ success: true, item: serializeStaffItem(row, []) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/library/items/create",
+      action: "church_library_create"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app8.post("/api/church/library/items/update", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageChurchLibrary(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const itemId = clean(body.id, 200);
+    if (!itemId) return c.json({ error: "id is required", code: "BAD_REQUEST" }, 400);
+    const library = await findChurchLibrary(gate.church.id);
+    const existing = library ? first(
+      await db.select().from(LibraryItems).where(and(eq(LibraryItems.id, itemId), eq(LibraryItems.libraryId, library.id))).limit(1)
+    ) : void 0;
+    if (!existing) return c.json({ error: "Resource not found", code: "ITEM_NOT_FOUND" }, 404);
+    const updates = { updatedAt: /* @__PURE__ */ new Date() };
+    if (body.title !== void 0) {
+      const title = clean(body.title, TITLE_MAX_LENGTH2);
+      if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
+      updates.title = title;
+    }
+    if (body.description !== void 0) {
+      updates.description = clean(body.description, DESCRIPTION_MAX_LENGTH2);
+    }
+    if (body.access !== void 0) {
+      updates.access = body.access === "leaders" ? "leaders" : "members";
+    }
+    const scopeResult = body.scopes === void 0 ? null : await resolveScopes(gate.church.orgId, body.scopes);
+    if (scopeResult && !scopeResult.ok) {
+      return c.json({ error: scopeResult.error, code: scopeResult.code }, 400);
+    }
+    await db.transaction(async (tx) => {
+      await tx.update(LibraryItems).set(updates).where(eq(LibraryItems.id, itemId));
+      if (scopeResult) await replaceScopes(tx, itemId, scopeResult.scopes);
+    });
+    const merged = { ...existing, ...updates };
+    const scopes = (await scopesByItemIds([itemId])).get(itemId) ?? [];
+    return c.json({ success: true, item: serializeStaffItem(merged, scopes) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/library/items/update",
+      action: "church_library_update"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app8.post("/api/church/library/items/archive", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageChurchLibrary(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const itemId = clean(body.id, 200);
+    if (!itemId) return c.json({ error: "id is required", code: "BAD_REQUEST" }, 400);
+    const library = await findChurchLibrary(gate.church.id);
+    const existing = library ? first(
+      await db.select({ id: LibraryItems.id }).from(LibraryItems).where(and(eq(LibraryItems.id, itemId), eq(LibraryItems.libraryId, library.id))).limit(1)
+    ) : void 0;
+    if (!existing) return c.json({ error: "Resource not found", code: "ITEM_NOT_FOUND" }, 404);
+    await db.update(LibraryItems).set({ archivedAt: /* @__PURE__ */ new Date(), updatedAt: /* @__PURE__ */ new Date() }).where(eq(LibraryItems.id, itemId));
+    return c.json({ success: true });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/library/items/archive",
+      action: "church_library_archive"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var church_library_default = app8;
+
 // server/routes/inbox.ts
 init_auth();
 init_db2();
@@ -311302,7 +311860,7 @@ async function verifyInboxItemInWebflow(webflowItemId, collectionId = "690ed2f0e
 // server/routes/inbox.ts
 init_note_version_service();
 init_space_note_associations();
-var app8 = new Hono2();
+var app9 = new Hono2();
 var INBOX_BULK_INSERT_CHUNK = 400;
 var INBOX_XP_AWARD_CONCURRENCY = 8;
 var InboxTargetError = class extends Error {
@@ -311357,7 +311915,7 @@ function convertInboxColorToThreadColor(inboxColor) {
   if (mappedColor && THREAD_COLORS.includes(mappedColor)) return mappedColor;
   return null;
 }
-app8.post("/api/inbox/archive", requireAuth, rateLimit("write"), async (c) => {
+app9.post("/api/inbox/archive", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { inboxItemId } = await c.req.json();
@@ -311371,7 +311929,7 @@ app8.post("/api/inbox/archive", requireAuth, rateLimit("write"), async (c) => {
     return c.json({ error: "Failed to archive inbox item", details: error.message }, 500);
   }
 });
-app8.post("/api/inbox/unarchive", requireAuth, rateLimit("write"), async (c) => {
+app9.post("/api/inbox/unarchive", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { inboxItemId } = await c.req.json();
@@ -311389,7 +311947,7 @@ app8.post("/api/inbox/unarchive", requireAuth, rateLimit("write"), async (c) => 
     return c.json({ error: "Failed to unarchive inbox item", details: error.message }, 500);
   }
 });
-app8.get("/api/inbox/preview", requireAuth, async (c) => {
+app9.get("/api/inbox/preview", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const inboxItemId = c.req.query("inboxItemId");
@@ -311404,7 +311962,7 @@ app8.get("/api/inbox/preview", requireAuth, async (c) => {
     return c.json({ error: "Failed to fetch inbox item preview", details: error.message }, 500);
   }
 });
-app8.post("/api/inbox/add-to-harvous", requireAuth, rateLimit("write"), async (c) => {
+app9.post("/api/inbox/add-to-harvous", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { inboxItemId, targetThreadId, targetSpaceId } = await c.req.json();
@@ -311841,8 +312399,8 @@ async function handleAutoArchive(c) {
     return c.json({ error: "Failed to auto-archive items", details: error.message }, 500);
   }
 }
-app8.post("/api/inbox/auto-archive", handleAutoArchive);
-app8.get("/api/inbox/auto-archive", handleAutoArchive);
+app9.post("/api/inbox/auto-archive", handleAutoArchive);
+app9.get("/api/inbox/auto-archive", handleAutoArchive);
 async function handleAutoDelete(c) {
   try {
     const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
@@ -311913,9 +312471,9 @@ async function handleAutoDelete(c) {
     return c.json({ error: "Failed to auto-delete archived items", details: error.message }, 500);
   }
 }
-app8.post("/api/inbox/auto-delete", handleAutoDelete);
-app8.get("/api/inbox/auto-delete", handleAutoDelete);
-app8.post("/api/inbox/assign-to-users", async (c) => {
+app9.post("/api/inbox/auto-delete", handleAutoDelete);
+app9.get("/api/inbox/auto-delete", handleAutoDelete);
+app9.post("/api/inbox/assign-to-users", async (c) => {
   return c.json(
     {
       error: "Gone",
@@ -311924,7 +312482,7 @@ app8.post("/api/inbox/assign-to-users", async (c) => {
     410
   );
 });
-app8.post("/api/inbox/reset-all-users", async (c) => {
+app9.post("/api/inbox/reset-all-users", async (c) => {
   try {
     const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
     const expectedToken = process.env.INBOX_RESET_SECRET_TOKEN;
@@ -312021,7 +312579,7 @@ app8.post("/api/inbox/reset-all-users", async (c) => {
     return c.json({ error: "Failed to reset inbox items", details: error.message }, 500);
   }
 });
-app8.get("/api/inbox/reset-all-users", async (c) => {
+app9.get("/api/inbox/reset-all-users", async (c) => {
   return c.json({
     message: "Use POST method to reset inbox items",
     endpoint: "/api/inbox/reset-all-users",
@@ -312029,7 +312587,7 @@ app8.get("/api/inbox/reset-all-users", async (c) => {
     note: "Requires Authorization: Bearer <INBOX_RESET_SECRET_TOKEN>"
   });
 });
-var inbox_default = app8;
+var inbox_default = app9;
 
 // node_modules/@clerk/backend/dist/webhooks.mjs
 init_chunk_YBVFDYDR();
@@ -312341,7 +312899,7 @@ async function syncChurchStaffForOrg(orgId, options) {
 }
 
 // server/routes/webhooks.ts
-var app9 = new Hono2();
+var app10 = new Hono2();
 var SVIX_HEADER_NAMES = ["svix-id", "svix-timestamp", "svix-signature"];
 async function dedupeSvixHeaders(req) {
   const headers = new Headers(req.headers);
@@ -312506,7 +313064,7 @@ async function handleOrgMembershipChanged(event) {
     });
   }
 }
-app9.post("/api/webhooks/clerk", async (c) => {
+app10.post("/api/webhooks/clerk", async (c) => {
   const startTime = Date.now();
   try {
     console.log("[Webhook] Webhook request received:", {
@@ -312603,7 +313161,7 @@ app9.post("/api/webhooks/clerk", async (c) => {
     return c.json({ error: "Internal server error", message: error?.message || "An unexpected error occurred" }, 500);
   }
 });
-app9.post("/api/webhooks/polar", async (c) => {
+app10.post("/api/webhooks/polar", async (c) => {
   try {
     const secret = process.env.POLAR_WEBHOOK_SECRET;
     if (!secret) {
@@ -312680,7 +313238,7 @@ app9.post("/api/webhooks/polar", async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-var webhooks_default = app9;
+var webhooks_default = app10;
 
 // server/routes/sync.ts
 init_auth();
@@ -312709,7 +313267,7 @@ init_note_version_service();
 init_shared_space_lifecycle();
 init_shared_note_serializer();
 init_space_note_associations();
-var app10 = new Hono2();
+var app11 = new Hono2();
 var processedMutations = /* @__PURE__ */ new Map();
 var MUTATION_CACHE_TTL = 5 * 60 * 1e3;
 setInterval(() => {
@@ -313636,7 +314194,7 @@ async function processStudyThreadEntryMutation(userId, operation, entityId, data
   }
   return { success: false, error: `Unknown operation: ${operation}` };
 }
-app10.post("/api/sync/push", requireAuth, async (c) => {
+app11.post("/api/sync/push", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { mutations } = await c.req.json();
@@ -313715,7 +314273,7 @@ app10.post("/api/sync/push", requireAuth, async (c) => {
   }
 });
 var SYNC_NOTE_PAGE_LIMIT = 1e3;
-app10.get("/api/sync/bootstrap", requireAuth, async (c) => {
+app11.get("/api/sync/bootstrap", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const [spaces, threads, notes, noteThreads, noteConnections, tags, noteTags, studyThreadEntries, userMetadataRows] = await Promise.all([
@@ -313918,7 +314476,7 @@ app10.get("/api/sync/bootstrap", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app10.get("/api/sync/changes", requireAuth, async (c) => {
+app11.get("/api/sync/changes", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const sinceParam = c.req.query("since");
@@ -314143,12 +314701,12 @@ app10.get("/api/sync/changes", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var sync_default2 = app10;
+var sync_default2 = app11;
 
 // server/routes/migrations.ts
 init_db2();
 init_dist();
-var app11 = new Hono2();
+var app12 = new Hono2();
 function requireMigrationKey(c) {
   const migrationKey = process.env.MIGRATION_KEY;
   if (!migrationKey) {
@@ -314163,7 +314721,7 @@ function requireMigrationKey(c) {
   }
   return null;
 }
-app11.post("/api/migrations/backfill-last-visited", async (c) => {
+app12.post("/api/migrations/backfill-last-visited", async (c) => {
   try {
     const unauthorized = requireMigrationKey(c);
     if (unauthorized) return unauthorized;
@@ -314231,7 +314789,7 @@ app11.post("/api/migrations/backfill-last-visited", async (c) => {
     return c.json({ success: false, error: "Migration failed", message: error.message }, 500);
   }
 });
-app11.post("/api/migrations/retry-failed-users", async (c) => {
+app12.post("/api/migrations/retry-failed-users", async (c) => {
   try {
     const unauthorized = requireMigrationKey(c);
     if (unauthorized) return unauthorized;
@@ -314314,7 +314872,7 @@ app11.post("/api/migrations/retry-failed-users", async (c) => {
     return c.json({ error: "Retry failed", message: error.message }, 500);
   }
 });
-app11.post("/api/migrations/sync-clerk-to-audienceful", async (c) => {
+app12.post("/api/migrations/sync-clerk-to-audienceful", async (c) => {
   try {
     const unauthorized = requireMigrationKey(c);
     if (unauthorized) return unauthorized;
@@ -314377,7 +314935,7 @@ app11.post("/api/migrations/sync-clerk-to-audienceful", async (c) => {
     return c.json({ error: "Migration failed", message: error.message, isTimeout }, isTimeout ? 504 : 500);
   }
 });
-var migrations_default = app11;
+var migrations_default = app12;
 
 // node_modules/@netlify/runtime-utils/dist/main.js
 var getString = (input) => typeof input === "string" ? input : JSON.stringify(input);
@@ -318213,8 +318771,8 @@ async function bulkUpdateDiagnosticIssueTriage(issueSignatures, status, adminNot
 }
 
 // server/routes/admin.ts
-var app12 = new Hono2();
-app12.get("/api/admin/usage/overview", async (c) => {
+var app13 = new Hono2();
+app13.get("/api/admin/usage/overview", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -318226,7 +318784,7 @@ app12.get("/api/admin/usage/overview", async (c) => {
     return c.json({ error: "Failed to load usage overview" }, 500);
   }
 });
-app12.get("/api/admin/usage/trends", async (c) => {
+app13.get("/api/admin/usage/trends", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -318238,7 +318796,7 @@ app12.get("/api/admin/usage/trends", async (c) => {
     return c.json({ error: "Failed to load usage trends" }, 500);
   }
 });
-app12.get("/api/admin/usage/discovery", async (c) => {
+app13.get("/api/admin/usage/discovery", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -318250,7 +318808,7 @@ app12.get("/api/admin/usage/discovery", async (c) => {
     return c.json({ error: "Failed to load usage discovery" }, 500);
   }
 });
-app12.get("/api/admin/pulse", async (c) => {
+app13.get("/api/admin/pulse", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -318262,7 +318820,7 @@ app12.get("/api/admin/pulse", async (c) => {
     return c.json({ error: "Failed to load pulse" }, 500);
   }
 });
-app12.get("/api/admin/reports/catalog", async (c) => {
+app13.get("/api/admin/reports/catalog", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -318273,7 +318831,7 @@ app12.get("/api/admin/reports/catalog", async (c) => {
     return c.json({ error: "Failed to load reports catalog" }, 500);
   }
 });
-app12.post("/api/admin/reports/generate", async (c) => {
+app13.post("/api/admin/reports/generate", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const month = c.req.query("month");
@@ -318292,7 +318850,7 @@ app12.post("/api/admin/reports/generate", async (c) => {
     return c.json({ error: "Failed to generate report", details }, 500);
   }
 });
-app12.get("/api/admin/reports/season/:seasonId", async (c) => {
+app13.get("/api/admin/reports/season/:seasonId", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const seasonId = c.req.param("seasonId");
@@ -318326,7 +318884,7 @@ app12.get("/api/admin/reports/season/:seasonId", async (c) => {
     return c.json({ error: "Failed to load season report" }, 500);
   }
 });
-app12.get("/api/admin/reports/year/:year", async (c) => {
+app13.get("/api/admin/reports/year/:year", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const yearParam = c.req.param("year");
@@ -318372,7 +318930,7 @@ app12.get("/api/admin/reports/year/:year", async (c) => {
     return c.json({ error: "Failed to load year report" }, 500);
   }
 });
-app12.get("/api/admin/reports/:month", async (c) => {
+app13.get("/api/admin/reports/:month", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const month = c.req.param("month");
@@ -318489,11 +319047,11 @@ async function handleAggregateAnalytics(c) {
     message: reportGenerated ? `Analytics and monthly report generated for ${targetMonth}` : `Analytics aggregated for ${targetMonth} (before reports launch; no report snapshot)`
   });
 }
-app12.post("/api/admin/aggregate-analytics", handleAggregateAnalytics);
-app12.get("/api/admin/aggregate-analytics", handleAggregateAnalytics);
+app13.post("/api/admin/aggregate-analytics", handleAggregateAnalytics);
+app13.get("/api/admin/aggregate-analytics", handleAggregateAnalytics);
 var BACKUP_STORE_NAME = "user-exports";
 var DEFAULT_RETENTION_DAYS = 30;
-app12.post("/api/admin/backup-exports", async (c) => {
+app13.post("/api/admin/backup-exports", async (c) => {
   try {
     const secret = process.env.BACKUP_CRON_SECRET;
     const authHeader = c.req.header("authorization")?.split(",")[0]?.trim();
@@ -318545,7 +319103,7 @@ app12.post("/api/admin/backup-exports", async (c) => {
     return c.json({ error: error.message || "Backup failed", success: false }, 500);
   }
 });
-app12.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
+app13.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -318560,7 +319118,7 @@ app12.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
     );
   }
 });
-app12.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
+app13.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -318575,7 +319133,7 @@ app12.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
     );
   }
 });
-app12.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
+app13.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const dryRun = c.req.query("dryRun") === "true";
@@ -318683,7 +319241,7 @@ app12.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
-app12.get("/api/admin/debug-thread-counts", requireAuth, async (c) => {
+app13.get("/api/admin/debug-thread-counts", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const threadId = c.req.query("threadId");
@@ -318718,7 +319276,7 @@ app12.get("/api/admin/debug-thread-counts", requireAuth, async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
-app12.get("/api/admin/list-threads", requireAuth, async (c) => {
+app13.get("/api/admin/list-threads", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const threads = await db.select().from(Threads).where(eq(Threads.userId, auth.userId));
@@ -318733,7 +319291,7 @@ app12.get("/api/admin/list-threads", requireAuth, async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
-app12.get("/api/admin/content/spaces", async (c) => {
+app13.get("/api/admin/content/spaces", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -318746,7 +319304,7 @@ app12.get("/api/admin/content/spaces", async (c) => {
     return c.json({ error: "Failed to load curated spaces" }, 500);
   }
 });
-app12.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
+app13.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -318761,7 +319319,7 @@ app12.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
     return c.json({ error: "Failed to load threads" }, 500);
   }
 });
-app12.post("/api/admin/spaces", async (c) => {
+app13.post("/api/admin/spaces", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -318806,7 +319364,7 @@ app12.post("/api/admin/spaces", async (c) => {
     return c.json({ error: error.message || "Error creating space" }, 500);
   }
 });
-app12.post("/api/admin/spaces/:spaceId/threads", async (c) => {
+app13.post("/api/admin/spaces/:spaceId/threads", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -318847,7 +319405,7 @@ app12.post("/api/admin/spaces/:spaceId/threads", async (c) => {
     return c.json({ error: error.message || "Error creating thread" }, 500);
   }
 });
-app12.post("/api/admin/spaces/:spaceId/members", async (c) => {
+app13.post("/api/admin/spaces/:spaceId/members", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -318895,7 +319453,7 @@ app12.post("/api/admin/spaces/:spaceId/members", async (c) => {
     return c.json({ error: error.message || "Error adding member" }, 500);
   }
 });
-app12.post("/api/admin/threads/:threadId/notes", async (c) => {
+app13.post("/api/admin/threads/:threadId/notes", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -318999,7 +319557,7 @@ app12.post("/api/admin/threads/:threadId/notes", async (c) => {
     return c.json({ error: error.message || "Error creating note" }, 500);
   }
 });
-app12.post("/api/admin/regenerate-note-tags", async (c) => {
+app13.post("/api/admin/regenerate-note-tags", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319045,7 +319603,7 @@ app12.post("/api/admin/regenerate-note-tags", async (c) => {
     );
   }
 });
-app12.post("/api/admin/backfill-auto-tags", async (c) => {
+app13.post("/api/admin/backfill-auto-tags", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319126,7 +319684,7 @@ app12.post("/api/admin/backfill-auto-tags", async (c) => {
     );
   }
 });
-app12.get("/api/admin/support/tickets", async (c) => {
+app13.get("/api/admin/support/tickets", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319142,7 +319700,7 @@ app12.get("/api/admin/support/tickets", async (c) => {
     return c.json({ error: "Failed to load support tickets" }, 500);
   }
 });
-app12.get("/api/admin/support/tickets/:id", async (c) => {
+app13.get("/api/admin/support/tickets/:id", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319156,7 +319714,7 @@ app12.get("/api/admin/support/tickets/:id", async (c) => {
     return c.json({ error: "Failed to load support ticket" }, 500);
   }
 });
-app12.patch("/api/admin/support/tickets/:id", async (c) => {
+app13.patch("/api/admin/support/tickets/:id", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319174,7 +319732,7 @@ app12.patch("/api/admin/support/tickets/:id", async (c) => {
   }
 });
 var MAX_SUPPORT_NOTE_LENGTH = 2e3;
-app12.post("/api/admin/support/tickets/:id/notes", async (c) => {
+app13.post("/api/admin/support/tickets/:id/notes", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319214,9 +319772,9 @@ async function handleSupportNotifyCheck(c) {
     return c.json({ error: "Failed to run notify-check" }, 500);
   }
 }
-app12.post("/api/admin/support/notify-check", handleSupportNotifyCheck);
-app12.get("/api/admin/support/notify-check", handleSupportNotifyCheck);
-app12.get("/api/admin/diagnostics/issues", async (c) => {
+app13.post("/api/admin/support/notify-check", handleSupportNotifyCheck);
+app13.get("/api/admin/support/notify-check", handleSupportNotifyCheck);
+app13.get("/api/admin/diagnostics/issues", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319234,7 +319792,7 @@ app12.get("/api/admin/diagnostics/issues", async (c) => {
     return c.json({ error: "Failed to load diagnostic issues" }, 500);
   }
 });
-app12.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
+app13.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319249,7 +319807,7 @@ app12.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
     return c.json({ error: "Failed to load diagnostic events" }, 500);
   }
 });
-app12.patch("/api/admin/diagnostics/issues/bulk", async (c) => {
+app13.patch("/api/admin/diagnostics/issues/bulk", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319271,7 +319829,7 @@ app12.patch("/api/admin/diagnostics/issues/bulk", async (c) => {
     return c.json({ error: "Failed to update triage" }, 500);
   }
 });
-app12.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
+app13.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319290,7 +319848,7 @@ app12.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
     return c.json({ error: "Failed to update triage" }, 500);
   }
 });
-var admin_default = app12;
+var admin_default = app13;
 
 // server/routes/churches.ts
 init_db2();
@@ -319529,7 +320087,7 @@ async function listHmcChurchInterest() {
 }
 
 // server/routes/churches.ts
-var app13 = new Hono2();
+var app14 = new Hono2();
 function hmcErrorResponse(c, error) {
   if (error instanceof HmcPartnerError) {
     return c.json({ error: error.message, code: error.code }, error.status);
@@ -319548,7 +320106,7 @@ function clerkErrorResponse(c, error) {
   }
   return null;
 }
-app13.get("/api/admin/churches", async (c) => {
+app14.get("/api/admin/churches", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319565,7 +320123,7 @@ app13.get("/api/admin/churches", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.get("/api/admin/churches/hmc-interest", async (c) => {
+app14.get("/api/admin/churches/hmc-interest", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319579,7 +320137,7 @@ app13.get("/api/admin/churches/hmc-interest", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.get("/api/admin/churches/hmc/search", async (c) => {
+app14.get("/api/admin/churches/hmc/search", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319602,7 +320160,7 @@ app13.get("/api/admin/churches/hmc/search", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.get("/api/admin/churches/clerk-orgs", async (c) => {
+app14.get("/api/admin/churches/clerk-orgs", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319626,7 +320184,7 @@ app13.get("/api/admin/churches/clerk-orgs", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.post("/api/admin/churches", async (c) => {
+app14.post("/api/admin/churches", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319697,7 +320255,7 @@ app13.post("/api/admin/churches", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.post("/api/admin/churches/:churchId/update", async (c) => {
+app14.post("/api/admin/churches/:churchId/update", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319780,7 +320338,7 @@ app13.post("/api/admin/churches/:churchId/update", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.post("/api/admin/churches/:churchId/refresh-hmc", async (c) => {
+app14.post("/api/admin/churches/:churchId/refresh-hmc", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319838,8 +320396,8 @@ async function handleHmcSyncDenorm(c) {
     return c.json({ error: "Failed to sync HMC denorm" }, 500);
   }
 }
-app13.post("/api/admin/hmc/sync-denorm", handleHmcSyncDenorm);
-app13.get("/api/admin/hmc/sync-denorm", handleHmcSyncDenorm);
+app14.post("/api/admin/hmc/sync-denorm", handleHmcSyncDenorm);
+app14.get("/api/admin/hmc/sync-denorm", handleHmcSyncDenorm);
 async function setChurchActive(c, active) {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
@@ -319853,9 +320411,9 @@ async function setChurchActive(c, active) {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 }
-app13.post("/api/admin/churches/:churchId/deactivate", (c) => setChurchActive(c, false));
-app13.post("/api/admin/churches/:churchId/reactivate", (c) => setChurchActive(c, true));
-app13.post("/api/admin/churches/:churchId/pilot", async (c) => {
+app14.post("/api/admin/churches/:churchId/deactivate", (c) => setChurchActive(c, false));
+app14.post("/api/admin/churches/:churchId/reactivate", (c) => setChurchActive(c, true));
+app14.post("/api/admin/churches/:churchId/pilot", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319882,7 +320440,7 @@ app13.post("/api/admin/churches/:churchId/pilot", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.post("/api/admin/churches/:churchId/spaces", async (c) => {
+app14.post("/api/admin/churches/:churchId/spaces", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319952,7 +320510,7 @@ app13.post("/api/admin/churches/:churchId/spaces", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app13.post("/api/admin/churches/:churchId/sync-staff", async (c) => {
+app14.post("/api/admin/churches/:churchId/sync-staff", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -319992,7 +320550,7 @@ app13.post("/api/admin/churches/:churchId/sync-staff", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var churches_default = app13;
+var churches_default = app14;
 
 // server/routes/church.ts
 init_db2();
@@ -320092,41 +320650,6 @@ async function unfollowMinistryChannel(userId, spaceId) {
 
 // server/utils/church-teaching-plan.ts
 init_db2();
-
-// server/utils/church-org-access.ts
-async function resolveChurchOrgAccess(userId, orgId, rule) {
-  const church = await getActiveChurchByOrgId(orgId);
-  if (!church) {
-    return { ok: false, status: 404, code: "CHURCH_NOT_FOUND", error: "Church not found" };
-  }
-  if (!church.isActive) {
-    return { ok: false, status: 409, code: "CHURCH_INACTIVE", error: "Church is not active" };
-  }
-  if (!await isChurchStaffForOrg(userId, church.orgId)) {
-    return { ok: false, status: 403, code: "CHURCH_STAFF_REQUIRED", error: rule.staffError };
-  }
-  if (rule.sponsorshipGated && !churchIsSponsored(church)) {
-    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
-  }
-  let role = null;
-  try {
-    const roster = await fetchClerkOrgMemberships(church.orgId);
-    role = roster.find((member) => member.userId === userId)?.role ?? null;
-  } catch {
-    return {
-      ok: false,
-      status: 403,
-      code: rule.code,
-      error: "Could not confirm your role. Try again in a moment."
-    };
-  }
-  if (!capabilitiesForChurchRole(role).includes(rule.capability)) {
-    return { ok: false, status: 403, code: rule.code, error: rule.roleError };
-  }
-  return { ok: true, church };
-}
-
-// server/utils/church-teaching-plan.ts
 var SERVICE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 function parseServiceDateInput(value) {
   if (value === void 0) return { ok: true, kind: "absent" };
@@ -320367,7 +320890,7 @@ async function deleteSeries(scope, seriesId) {
 }
 
 // server/routes/church.ts
-var app14 = new Hono2();
+var app15 = new Hono2();
 var FEED_EXCERPT_LENGTH = 180;
 var FEED_LIMIT_DEFAULT = 12;
 var FEED_LIMIT_MAX = 50;
@@ -320397,7 +320920,7 @@ async function listOrgChannels(orgId) {
     isActive: Spaces.isActive
   }).from(Spaces).where(and(eq(Spaces.orgId, orgId), eq(Spaces.type, "public"), isNull(Spaces.deletedAt)));
 }
-app14.get("/api/church/channels", requireAuth, async (c) => {
+app15.get("/api/church/channels", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const church = await getConnectedChurch(auth.userId);
@@ -320468,7 +320991,7 @@ async function resolveFollowTarget(userId, spaceId) {
   }
   return { ok: true, space, church };
 }
-app14.post("/api/church/channels/:spaceId/follow", requireAuth, rateLimit("write"), async (c) => {
+app15.post("/api/church/channels/:spaceId/follow", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const target = await resolveFollowTarget(auth.userId, c.req.param("spaceId") ?? "");
@@ -320492,7 +321015,7 @@ app14.post("/api/church/channels/:spaceId/follow", requireAuth, rateLimit("write
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app14.post("/api/church/channels/:spaceId/unfollow", requireAuth, rateLimit("write"), async (c) => {
+app15.post("/api/church/channels/:spaceId/unfollow", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const target = await resolveFollowTarget(auth.userId, c.req.param("spaceId") ?? "");
@@ -320511,7 +321034,7 @@ app14.post("/api/church/channels/:spaceId/unfollow", requireAuth, rateLimit("wri
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app14.get("/api/church/feed", requireAuth, async (c) => {
+app15.get("/api/church/feed", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const limitRaw = Number(c.req.query("limit") ?? FEED_LIMIT_DEFAULT);
@@ -320585,7 +321108,7 @@ app14.get("/api/church/feed", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app14.get("/api/church/services", requireAuth, async (c) => {
+app15.get("/api/church/services", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const church = await getConnectedChurch(auth.userId);
@@ -320659,7 +321182,7 @@ app14.get("/api/church/services", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app14.get("/api/church/billing", requireAuth, async (c) => {
+app15.get("/api/church/billing", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const orgId = (c.req.query("orgId") ?? "").trim();
@@ -320689,7 +321212,7 @@ app14.get("/api/church/billing", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app14.post("/api/church/checkout", requireAuth, rateLimit("write"), async (c) => {
+app15.post("/api/church/checkout", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     if (!isPolarConfigured()) {
@@ -320759,7 +321282,7 @@ function clerkFailureResponse(c, error) {
   }
   return null;
 }
-app14.get("/api/church/staff", requireAuth, async (c) => {
+app15.get("/api/church/staff", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const ctx = await resolveStaffContext(auth.userId, c.req.query("orgId") ?? "");
@@ -320792,7 +321315,7 @@ app14.get("/api/church/staff", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app14.post("/api/church/staff/invite", requireAuth, rateLimit("write"), async (c) => {
+app15.post("/api/church/staff/invite", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -320840,7 +321363,7 @@ app14.post("/api/church/staff/invite", requireAuth, rateLimit("write"), async (c
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app14.post("/api/church/staff/revoke-invite", requireAuth, rateLimit("write"), async (c) => {
+app15.post("/api/church/staff/revoke-invite", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -320869,7 +321392,7 @@ app14.post("/api/church/staff/revoke-invite", requireAuth, rateLimit("write"), a
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app14.post("/api/church/staff/remove", requireAuth, rateLimit("write"), async (c) => {
+app15.post("/api/church/staff/remove", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -320899,7 +321422,7 @@ app14.post("/api/church/staff/remove", requireAuth, rateLimit("write"), async (c
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app14.post("/api/church/staff/role", requireAuth, rateLimit("write"), async (c) => {
+app15.post("/api/church/staff/role", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -320953,7 +321476,7 @@ app14.post("/api/church/staff/role", requireAuth, rateLimit("write"), async (c) 
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app14.post("/api/church/staff/sync", requireAuth, rateLimit("write"), async (c) => {
+app15.post("/api/church/staff/sync", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -320982,7 +321505,7 @@ app14.post("/api/church/staff/sync", requireAuth, rateLimit("write"), async (c) 
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var church_default = app14;
+var church_default = app15;
 
 // server/routes/church-teaching-plan.ts
 init_db2();
@@ -321058,9 +321581,9 @@ function repeatTitleFor(input) {
 }
 
 // server/routes/church-teaching-plan.ts
-var app15 = new Hono2();
+var app16 = new Hono2();
 var TITLE_MAX = 120;
-function clean(value, max2) {
+function clean2(value, max2) {
   const trimmed = String(value ?? "").trim();
   if (!trimmed) return null;
   return trimmed.slice(0, max2);
@@ -321091,7 +321614,7 @@ function serializeSermon(row, serviceTimeIds = [], seriesTitles) {
   };
 }
 async function validateReferences(orgId, input) {
-  const templateId = clean(input.starterTemplateId, 200);
+  const templateId = clean2(input.starterTemplateId, 200);
   if (templateId) {
     const template = first(
       await db.select({ id: NoteTemplates.id }).from(NoteTemplates).where(and(eq(NoteTemplates.id, templateId), eq(NoteTemplates.orgId, orgId))).limit(1)
@@ -321102,7 +321625,7 @@ async function validateReferences(orgId, input) {
   }
   return { ok: true };
 }
-app15.get("/api/church/services/plan", requireAuth, async (c) => {
+app16.get("/api/church/services/plan", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const orgId = (c.req.query("orgId") ?? "").trim();
@@ -321146,7 +321669,7 @@ app15.get("/api/church/services/plan", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app15.post("/api/church/services/create", requireAuth, rateLimit("write"), async (c) => {
+app16.post("/api/church/services/create", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321160,7 +321683,7 @@ app15.post("/api/church/services/create", requireAuth, rateLimit("write"), async
       return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
     }
     const serviceDate = parsedDate.kind === "date" ? parsedDate.value : null;
-    const title = clean(body.title, TITLE_MAX);
+    const title = clean2(body.title, TITLE_MAX);
     if (!title) {
       return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
     }
@@ -321213,7 +321736,7 @@ app15.post("/api/church/services/create", requireAuth, rateLimit("write"), async
       title,
       seriesId: null,
       reference: passage.reference,
-      starterTemplateId: clean(body.starterTemplateId, 200),
+      starterTemplateId: clean2(body.starterTemplateId, 200),
       /* The church's own plan is always gatherings — stated rather than
          left to the column default, so the intent survives a schema edit. */
       kind: "gathering",
@@ -321273,7 +321796,7 @@ app15.post("/api/church/services/create", requireAuth, rateLimit("write"), async
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app15.post("/api/church/services/update", requireAuth, rateLimit("write"), async (c) => {
+app16.post("/api/church/services/update", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321311,7 +321834,7 @@ app15.post("/api/church/services/update", requireAuth, rateLimit("write"), async
     );
     const nextDate = updates.serviceDate !== void 0 ? updates.serviceDate : existing.serviceDate;
     if (body.title !== void 0) {
-      const title = clean(body.title, TITLE_MAX);
+      const title = clean2(body.title, TITLE_MAX);
       if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
       updates.title = title;
     }
@@ -321325,7 +321848,7 @@ app15.post("/api/church/services/update", requireAuth, rateLimit("write"), async
     if (body.starterTemplateId !== void 0) {
       const refs3 = await validateReferences(gate.church.orgId, body);
       if (!refs3.ok) return c.json({ error: refs3.error, code: refs3.code }, 400);
-      updates.starterTemplateId = clean(body.starterTemplateId, 200);
+      updates.starterTemplateId = clean2(body.starterTemplateId, 200);
     }
     const finalIds = nextServiceTimeIds ?? (await serviceTimeIdsByService([serviceId])).get(serviceId) ?? [];
     const finalServiceTime = updates.serviceTime !== void 0 ? updates.serviceTime : existing.serviceTime;
@@ -321408,7 +321931,7 @@ app15.post("/api/church/services/update", requireAuth, rateLimit("write"), async
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app15.post("/api/church/services/repeat", requireAuth, rateLimit("write"), async (c) => {
+app16.post("/api/church/services/repeat", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321519,7 +322042,7 @@ app15.post("/api/church/services/repeat", requireAuth, rateLimit("write"), async
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app15.post("/api/church/services/delete", requireAuth, rateLimit("write"), async (c) => {
+app16.post("/api/church/services/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321550,7 +322073,7 @@ app15.post("/api/church/services/delete", requireAuth, rateLimit("write"), async
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app15.post("/api/church/series/rename", requireAuth, rateLimit("write"), async (c) => {
+app16.post("/api/church/series/rename", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321579,7 +322102,7 @@ app15.post("/api/church/series/rename", requireAuth, rateLimit("write"), async (
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app15.post("/api/church/series/delete", requireAuth, rateLimit("write"), async (c) => {
+app16.post("/api/church/series/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321598,7 +322121,7 @@ app15.post("/api/church/series/delete", requireAuth, rateLimit("write"), async (
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var church_teaching_plan_default = app15;
+var church_teaching_plan_default = app16;
 
 // server/routes/church-settings.ts
 init_db2();
@@ -321629,7 +322152,7 @@ function assertCanManageChurchSettings(userId, orgId) {
 }
 
 // server/routes/church-settings.ts
-var app16 = new Hono2();
+var app17 = new Hono2();
 var LABEL_MAX = 40;
 function serializeServiceTime(row) {
   return {
@@ -321659,7 +322182,7 @@ async function settingsPayload(church) {
     serviceTimes: serviceTimes.map(serializeServiceTime)
   };
 }
-app16.get("/api/church/settings", requireAuth, async (c) => {
+app17.get("/api/church/settings", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const orgId = (c.req.query("orgId") ?? "").trim();
@@ -321674,7 +322197,7 @@ app16.get("/api/church/settings", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app16.post("/api/church/settings/update", requireAuth, rateLimit("write"), async (c) => {
+app17.post("/api/church/settings/update", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321695,7 +322218,7 @@ app16.post("/api/church/settings/update", requireAuth, rateLimit("write"), async
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app16.post("/api/church/settings/service-times/create", requireAuth, rateLimit("write"), async (c) => {
+app17.post("/api/church/settings/service-times/create", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321747,7 +322270,7 @@ app16.post("/api/church/settings/service-times/create", requireAuth, rateLimit("
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app16.post("/api/church/settings/service-times/delete", requireAuth, rateLimit("write"), async (c) => {
+app17.post("/api/church/settings/service-times/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json().catch(() => ({}));
@@ -321773,7 +322296,7 @@ app16.post("/api/church/settings/service-times/delete", requireAuth, rateLimit("
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var church_settings_default = app16;
+var church_settings_default = app17;
 
 // server/routes/church-space-plan.ts
 init_db2();
@@ -321781,51 +322304,6 @@ init_auth();
 
 // server/utils/church-space-plan.ts
 init_db2();
-
-// server/utils/church-space-leaders.ts
-init_db2();
-var GRANT_SOURCE = "grant";
-async function isGrantedSpaceLeader(userId, spaceId) {
-  if (!userId || !spaceId) return false;
-  const row = first(
-    await db.select({ role: SpaceMemberships.role, grantSource: SpaceMemberships.grantSource }).from(SpaceMemberships).where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, userId))).limit(1)
-  );
-  return row?.role === "leader" && row.grantSource === GRANT_SOURCE;
-}
-async function assertCanGrantSpaceLeadership(userId, spaceId) {
-  const id = String(spaceId ?? "").trim();
-  if (!id) {
-    return { ok: false, status: 404, code: "SPACE_NOT_FOUND", error: "Space not found" };
-  }
-  const space = first(
-    await db.select().from(Spaces).where(and(eq(Spaces.id, id), isNull(Spaces.deletedAt))).limit(1)
-  );
-  if (!space || !space.isActive || !isChurchOrgSpaceRow(space) || !space.orgId) {
-    return { ok: false, status: 404, code: "SPACE_NOT_FOUND", error: "Space not found" };
-  }
-  const access = await resolveChurchOrgAccess(userId, space.orgId, {
-    capability: "manage_staff",
-    code: "CHURCH_STAFF_REQUIRED",
-    staffError: "Only church staff can change who leads this space",
-    roleError: "A church admin or this space\u2019s owner grants leadership here",
-    sponsorshipGated: true
-  });
-  if (access.ok) return { ok: true, church: access.church, space };
-  if (space.userId === userId && access.status === 403 && access.code === "CHURCH_STAFF_REQUIRED") {
-    const asOwner = await resolveChurchOrgAccess(userId, space.orgId, {
-      capability: "publish",
-      code: "CHURCH_STAFF_REQUIRED",
-      staffError: "Only church staff can change who leads this space",
-      roleError: "You cannot grant leadership here",
-      sponsorshipGated: true
-    });
-    if (asOwner.ok) return { ok: true, church: asOwner.church, space };
-    return asOwner;
-  }
-  return access;
-}
-
-// server/utils/church-space-plan.ts
 async function resolveSpacePlanAccess(userId, spaceId, rule) {
   const id = String(spaceId ?? "").trim();
   if (!id) {
@@ -321878,7 +322356,7 @@ async function resolveGrantedLeaderAccess(userId, spaceId, refusal) {
 }
 
 // server/routes/church-space-plan.ts
-var app17 = new Hono2();
+var app18 = new Hono2();
 var TITLE_MAX2 = 120;
 function planKindForSpace(space) {
   return isMinistryBroadcastSpaceRow(space) ? "content" : "gathering";
@@ -321886,7 +322364,7 @@ function planKindForSpace(space) {
 function notFoundError(kind) {
   return kind === "content" ? "Entry not found" : "Gathering not found";
 }
-function clean2(value, max2) {
+function clean3(value, max2) {
   const trimmed = String(value ?? "").trim();
   if (!trimmed) return null;
   return trimmed.slice(0, max2);
@@ -321926,7 +322404,7 @@ async function validateStarter(orgId, starterTemplateId) {
   }
   return { ok: true };
 }
-app17.get("/api/church/spaces/:spaceId/plan", requireAuth, async (c) => {
+app18.get("/api/church/spaces/:spaceId/plan", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanViewSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
@@ -321966,7 +322444,7 @@ app17.get("/api/church/spaces/:spaceId/plan", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app17.post("/api/church/spaces/:spaceId/services/create", requireAuth, rateLimit("write"), async (c) => {
+app18.post("/api/church/spaces/:spaceId/services/create", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
@@ -321980,11 +322458,11 @@ app17.post("/api/church/spaces/:spaceId/services/create", requireAuth, rateLimit
       return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
     }
     const serviceDate = parsedDate.kind === "date" ? parsedDate.value : null;
-    const title = clean2(body.title, TITLE_MAX2);
+    const title = clean3(body.title, TITLE_MAX2);
     if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
     const passage = canonicalizeServiceReference(body.reference);
     if (!passage.ok) return c.json({ error: passage.reason, code: "INVALID_REFERENCE" }, 400);
-    const starterTemplateId = clean2(body.starterTemplateId, 200);
+    const starterTemplateId = clean3(body.starterTemplateId, 200);
     const starter = await validateStarter(gate.church.orgId, starterTemplateId);
     if (!starter.ok) return c.json({ error: starter.error, code: starter.code }, 400);
     const now2 = /* @__PURE__ */ new Date();
@@ -322059,7 +322537,7 @@ app17.post("/api/church/spaces/:spaceId/services/create", requireAuth, rateLimit
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app17.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit("write"), async (c) => {
+app18.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
@@ -322081,7 +322559,7 @@ app17.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit
     if (parsedDate.kind === "date") updates.serviceDate = parsedDate.value;
     if (parsedDate.kind === "backlog") updates.serviceDate = null;
     if (body.title !== void 0) {
-      const title = clean2(body.title, TITLE_MAX2);
+      const title = clean3(body.title, TITLE_MAX2);
       if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
       updates.title = title;
     }
@@ -322091,7 +322569,7 @@ app17.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit
       updates.reference = passage.reference;
     }
     if (body.starterTemplateId !== void 0) {
-      const starterTemplateId = clean2(body.starterTemplateId, 200);
+      const starterTemplateId = clean3(body.starterTemplateId, 200);
       const starter = await validateStarter(gate.church.orgId, starterTemplateId);
       if (!starter.ok) return c.json({ error: starter.error, code: starter.code }, 400);
       updates.starterTemplateId = starterTemplateId;
@@ -322146,7 +322624,7 @@ app17.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app17.post("/api/church/spaces/:spaceId/services/repeat", requireAuth, rateLimit("write"), async (c) => {
+app18.post("/api/church/spaces/:spaceId/services/repeat", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
@@ -322222,7 +322700,7 @@ app17.post("/api/church/spaces/:spaceId/services/repeat", requireAuth, rateLimit
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app17.post("/api/church/spaces/:spaceId/services/delete", requireAuth, rateLimit("write"), async (c) => {
+app18.post("/api/church/spaces/:spaceId/services/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
@@ -322243,7 +322721,7 @@ app17.post("/api/church/spaces/:spaceId/services/delete", requireAuth, rateLimit
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app17.post("/api/church/spaces/:spaceId/series/rename", requireAuth, rateLimit("write"), async (c) => {
+app18.post("/api/church/spaces/:spaceId/series/rename", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
@@ -322269,7 +322747,7 @@ app17.post("/api/church/spaces/:spaceId/series/rename", requireAuth, rateLimit("
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app17.post("/api/church/spaces/:spaceId/series/delete", requireAuth, rateLimit("write"), async (c) => {
+app18.post("/api/church/spaces/:spaceId/series/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
@@ -322288,7 +322766,7 @@ app17.post("/api/church/spaces/:spaceId/series/delete", requireAuth, rateLimit("
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var church_space_plan_default = app17;
+var church_space_plan_default = app18;
 
 // server/routes/church-engagement.ts
 init_auth();
@@ -322340,8 +322818,8 @@ async function getChurchEngagement(church) {
 }
 
 // server/routes/church-engagement.ts
-var app18 = new Hono2();
-app18.get("/api/church/engagement", requireAuth, async (c) => {
+var app19 = new Hono2();
+app19.get("/api/church/engagement", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const orgId = (c.req.query("orgId") ?? "").trim();
@@ -322360,19 +322838,19 @@ app18.get("/api/church/engagement", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var church_engagement_default = app18;
+var church_engagement_default = app19;
 
 // server/routes/church-space-leaders.ts
 init_db2();
 init_auth();
 init_dates();
-var app19 = new Hono2();
+var app20 = new Hono2();
 async function loadTarget(spaceId, targetUserId) {
   return first(
     await db.select().from(SpaceMemberships).where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, targetUserId))).limit(1)
   );
 }
-app19.post("/api/church/spaces/:spaceId/leaders/grant", requireAuth, rateLimit("write"), async (c) => {
+app20.post("/api/church/spaces/:spaceId/leaders/grant", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanGrantSpaceLeadership(auth.userId, c.req.param("spaceId") ?? "");
@@ -322409,7 +322887,7 @@ app19.post("/api/church/spaces/:spaceId/leaders/grant", requireAuth, rateLimit("
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app19.post("/api/church/spaces/:spaceId/leaders/revoke", requireAuth, rateLimit("write"), async (c) => {
+app20.post("/api/church/spaces/:spaceId/leaders/revoke", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanGrantSpaceLeadership(auth.userId, c.req.param("spaceId") ?? "");
@@ -322440,7 +322918,7 @@ app19.post("/api/church/spaces/:spaceId/leaders/revoke", requireAuth, rateLimit(
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var church_space_leaders_default = app19;
+var church_space_leaders_default = app20;
 
 // server/routes/featured.ts
 init_db2();
@@ -322522,8 +323000,8 @@ function isTestRoutesForbidden() {
 
 // server/routes/featured.ts
 init_note_version_service();
-var app20 = new Hono2();
-app20.get("/api/featured/items", async (c) => {
+var app21 = new Hono2();
+app21.get("/api/featured/items", async (c) => {
   try {
     const auth = getAuth(c);
     if (!auth.userId) {
@@ -322719,7 +323197,7 @@ app20.get("/api/featured/items", async (c) => {
     return c.json({ error: message }, 500);
   }
 });
-app20.post("/api/featured/erase", requireAuth, async (c) => {
+app21.post("/api/featured/erase", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -322744,7 +323222,7 @@ app20.post("/api/featured/erase", requireAuth, async (c) => {
   });
   return c.json({ success: true });
 });
-app20.post("/api/featured/dismiss", requireAuth, async (c) => {
+app21.post("/api/featured/dismiss", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -322778,7 +323256,7 @@ app20.post("/api/featured/dismiss", requireAuth, async (c) => {
   }
   return c.json({ success: true });
 });
-app20.get("/api/featured/dismissed", requireAuth, async (c) => {
+app21.get("/api/featured/dismissed", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const dismissedConditions = [
     eq(UserFeaturedItems.userId, auth.userId),
@@ -322814,12 +323292,12 @@ app20.get("/api/featured/dismissed", requireAuth, async (c) => {
     }))
   );
 });
-app20.get("/api/admin/check", async (c) => {
+app21.get("/api/admin/check", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   return c.json({ isAdmin: true });
 });
-app20.get("/api/admin/featured/by-space/:shareToken", async (c) => {
+app21.get("/api/admin/featured/by-space/:shareToken", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const shareToken = c.req.param("shareToken")?.trim() ?? "";
@@ -322829,7 +323307,7 @@ app20.get("/api/admin/featured/by-space/:shareToken", async (c) => {
   );
   return c.json(item ?? null);
 });
-app20.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
+app21.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const shareToken = c.req.param("shareToken")?.trim() ?? "";
@@ -322839,7 +323317,7 @@ app20.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
   );
   return c.json(item ?? null);
 });
-app20.post("/api/admin/featured", async (c) => {
+app21.post("/api/admin/featured", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -322883,7 +323361,7 @@ app20.post("/api/admin/featured", async (c) => {
   );
   return c.json(inserted ?? { success: true });
 });
-app20.patch("/api/admin/featured/:id", async (c) => {
+app21.patch("/api/admin/featured/:id", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
@@ -322900,7 +323378,7 @@ app20.patch("/api/admin/featured/:id", async (c) => {
   if (!updated) return c.json({ error: "Not found" }, 404);
   return c.json(updated);
 });
-app20.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
+app21.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -323044,7 +323522,7 @@ app20.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
   });
   return c.json({ success: true, noteId: newNote.id });
 });
-app20.get("/api/featured/space", async (c) => {
+app21.get("/api/featured/space", async (c) => {
   try {
     const systemUserId = getHarvousSystemUserId();
     const space = first(
@@ -323081,7 +323559,7 @@ app20.get("/api/featured/space", async (c) => {
     return c.json(null);
   }
 });
-var featured_default = app20;
+var featured_default = app21;
 
 // server/routes/votd.ts
 init_db2();
@@ -323879,7 +324357,7 @@ function pickPoolVerseForPreview(dateStr, usedRefs, avoidBook) {
 }
 
 // server/routes/votd.ts
-var app21 = new Hono2();
+var app22 = new Hono2();
 async function requireVotdAuth(c) {
   if (c.get("cronAuthed")) return null;
   const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
@@ -323971,7 +324449,7 @@ async function publishVotdCore(params) {
   });
   return { featuredItemId };
 }
-app21.post("/api/admin/votd/schedule", async (c) => {
+app22.post("/api/admin/votd/schedule", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -324011,13 +324489,13 @@ app21.post("/api/admin/votd/schedule", async (c) => {
   );
   return c.json(inserted ?? { success: true }, 201);
 });
-app21.get("/api/admin/votd/schedule", async (c) => {
+app22.get("/api/admin/votd/schedule", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const rows = await db.select().from(VotdSchedule).orderBy(desc(VotdSchedule.createdAt));
   return c.json(rows);
 });
-app21.delete("/api/admin/votd/schedule/:id", async (c) => {
+app22.delete("/api/admin/votd/schedule/:id", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
@@ -324088,7 +324566,7 @@ async function publishForDate(dateStr) {
   });
   return { alreadyPublished: false, featuredItemId: result.featuredItemId, reference: pick2.reference, source: pick2.source };
 }
-app21.post("/api/admin/votd/publish-daily", async (c) => {
+app22.post("/api/admin/votd/publish-daily", async (c) => {
   const unauthorized = await requireVotdAuth(c);
   if (unauthorized) return unauthorized;
   const target = c.req.query("target");
@@ -324151,7 +324629,7 @@ function daysBetweenUtcInclusive(start, end) {
   const msPerDay = 24 * 60 * 60 * 1e3;
   return Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
 }
-app21.get("/api/admin/votd/preview", async (c) => {
+app22.get("/api/admin/votd/preview", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const monthParam = c.req.query("month")?.trim();
@@ -324310,7 +324788,7 @@ app21.get("/api/admin/votd/preview", async (c) => {
   }
   return c.json({ days: out });
 });
-app21.post("/api/admin/votd/override", async (c) => {
+app22.post("/api/admin/votd/override", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -324354,7 +324832,7 @@ app21.post("/api/admin/votd/override", async (c) => {
   );
   return c.json(inserted ?? { success: true });
 });
-app21.post("/api/admin/votd/refresh", async (c) => {
+app22.post("/api/admin/votd/refresh", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -324419,7 +324897,7 @@ app21.post("/api/admin/votd/refresh", async (c) => {
   );
   return c.json({ success: true, reference: normalizedRef, row: inserted });
 });
-app21.delete("/api/admin/votd/override/:date", async (c) => {
+app22.delete("/api/admin/votd/override/:date", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const dateStr = c.req.param("date")?.trim() ?? "";
@@ -324429,7 +324907,7 @@ app21.delete("/api/admin/votd/override/:date", async (c) => {
   await db.delete(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, dateStr), eq(VotdSchedule.isPublished, false)));
   return c.json({ success: true });
 });
-app21.post("/api/votd/record-engagement", requireAuth, async (c) => {
+app22.post("/api/votd/record-engagement", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const action = body.action?.trim();
@@ -324445,7 +324923,7 @@ app21.post("/api/votd/record-engagement", requireAuth, async (c) => {
   }
   return c.json({ success: true, featuredItemId: result.featuredItemId });
 });
-var votd_default = app21;
+var votd_default = app22;
 
 // server/routes/test.ts
 init_auth();
@@ -324485,8 +324963,8 @@ async function resetUserToNew(userId) {
 init_db2();
 init_dates();
 init_schema2();
-var app22 = new Hono2();
-app22.post("/api/test/reset-to-new-user", async (c) => {
+var app23 = new Hono2();
+app23.post("/api/test/reset-to-new-user", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -324511,7 +324989,7 @@ app22.post("/api/test/reset-to-new-user", async (c) => {
     return c.json({ error: error.message || "Failed to reset user" }, 500);
   }
 });
-app22.post("/api/test/set-shared-spaces-addon", async (c) => {
+app23.post("/api/test/set-shared-spaces-addon", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -324534,7 +325012,7 @@ app22.post("/api/test/set-shared-spaces-addon", async (c) => {
     return c.json({ error: error.message || "Failed to update Shared Spaces add-on" }, 500);
   }
 });
-app22.post("/api/test/reset-featured", async (c) => {
+app23.post("/api/test/reset-featured", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -324556,7 +325034,7 @@ app22.post("/api/test/reset-featured", async (c) => {
     return c.json({ error: error.message || "Failed to reset featured items" }, 500);
   }
 });
-app22.post("/api/test/seed-sample-votd", async (c) => {
+app23.post("/api/test/seed-sample-votd", async (c) => {
   const seedBlock = featuredSampleSeedForbiddenResponse(c);
   if (seedBlock) return seedBlock;
   try {
@@ -324621,7 +325099,7 @@ app22.post("/api/test/seed-sample-votd", async (c) => {
     return c.json({ error: error.message || "Failed to seed sample VOTD" }, 500);
   }
 });
-app22.post("/api/test/seed-sample-featured", async (c) => {
+app23.post("/api/test/seed-sample-featured", async (c) => {
   const seedBlock = featuredSampleSeedForbiddenResponse(c);
   if (seedBlock) return seedBlock;
   try {
@@ -324765,7 +325243,7 @@ app22.post("/api/test/seed-sample-featured", async (c) => {
     return c.json({ error: error.message || "Failed to seed sample featured items" }, 500);
   }
 });
-var test_default = app22;
+var test_default = app23;
 
 // server/data/dictionaries/eastons-slug-index.json
 var eastons_slug_index_default = [
@@ -373035,56 +373513,57 @@ route17.get("/api/status/public", async (c) => {
 var status_public_default = route17;
 
 // server/app.ts
-var app23 = new Hono2();
-app23.use("/api/*", requestId());
-app23.use("/api/*", cors());
-app23.use("/api/*", clerkAuth);
-app23.use("/api/*", async (c, next) => {
+var app24 = new Hono2();
+app24.use("/api/*", requestId());
+app24.use("/api/*", cors());
+app24.use("/api/*", clerkAuth);
+app24.use("/api/*", async (c, next) => {
   await next();
   if (c.req.method === "GET" && !c.res.headers.has("Cache-Control")) {
     c.res.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
   }
 });
-app23.route("/", health_default);
-app23.route("/", navigation_default);
-app23.route("/", debug_default);
-app23.route("/", about_default);
-app23.route("/", og_default);
-app23.route("/", stats_default);
-app23.route("/", search_default);
-app23.route("/", content_default);
-app23.route("/", threads_default);
-app23.route("/", notes_default);
-app23.route("/", note_templates_default);
-app23.route("/", study_threads_default);
-app23.route("/", spaces_default);
-app23.route("/", user_default);
-app23.route("/", tags_scripture_default);
-app23.route("/", shared_default);
-app23.route("/", billing_default);
-app23.route("/", resource_default);
-app23.route("/", library_default);
-app23.route("/", inbox_default);
-app23.route("/", webhooks_default);
-app23.route("/", sync_default2);
-app23.route("/", migrations_default);
-app23.route("/", admin_default);
-app23.route("/", churches_default);
-app23.route("/", church_default);
-app23.route("/", church_teaching_plan_default);
-app23.route("/", church_settings_default);
-app23.route("/", church_space_plan_default);
-app23.route("/", church_engagement_default);
-app23.route("/", church_space_leaders_default);
-app23.route("/", featured_default);
-app23.route("/", votd_default);
-app23.route("/", test_default);
-app23.route("/", dictionary_default);
-app23.route("/", recall_default);
-app23.route("/", support_default);
-app23.route("/", diagnostics_default);
-app23.route("/", status_public_default);
-var app_default = app23;
+app24.route("/", health_default);
+app24.route("/", navigation_default);
+app24.route("/", debug_default);
+app24.route("/", about_default);
+app24.route("/", og_default);
+app24.route("/", stats_default);
+app24.route("/", search_default);
+app24.route("/", content_default);
+app24.route("/", threads_default);
+app24.route("/", notes_default);
+app24.route("/", note_templates_default);
+app24.route("/", study_threads_default);
+app24.route("/", spaces_default);
+app24.route("/", user_default);
+app24.route("/", tags_scripture_default);
+app24.route("/", shared_default);
+app24.route("/", billing_default);
+app24.route("/", resource_default);
+app24.route("/", library_default);
+app24.route("/", church_library_default);
+app24.route("/", inbox_default);
+app24.route("/", webhooks_default);
+app24.route("/", sync_default2);
+app24.route("/", migrations_default);
+app24.route("/", admin_default);
+app24.route("/", churches_default);
+app24.route("/", church_default);
+app24.route("/", church_teaching_plan_default);
+app24.route("/", church_settings_default);
+app24.route("/", church_space_plan_default);
+app24.route("/", church_engagement_default);
+app24.route("/", church_space_leaders_default);
+app24.route("/", featured_default);
+app24.route("/", votd_default);
+app24.route("/", test_default);
+app24.route("/", dictionary_default);
+app24.route("/", recall_default);
+app24.route("/", support_default);
+app24.route("/", diagnostics_default);
+app24.route("/", status_public_default);
+var app_default = app24;
 
 // server/netlify.ts
 init_client();

@@ -10538,6 +10538,7 @@ __export(schema_exports, {
   BibleVerses: () => BibleVerses,
   ChurchMemberships: () => ChurchMemberships,
   ChurchSeries: () => ChurchSeries,
+  ChurchServiceLibraryItems: () => ChurchServiceLibraryItems,
   ChurchServiceTimeAssignments: () => ChurchServiceTimeAssignments,
   ChurchServiceTimes: () => ChurchServiceTimes,
   ChurchServices: () => ChurchServices,
@@ -10550,6 +10551,9 @@ __export(schema_exports, {
   FeaturedItems: () => FeaturedItems,
   InboxItemNotes: () => InboxItemNotes,
   InboxItems: () => InboxItems,
+  LibraryItemScopes: () => LibraryItemScopes,
+  LibraryItemSpacePins: () => LibraryItemSpacePins,
+  LibraryItemSuggestions: () => LibraryItemSuggestions,
   LibraryItems: () => LibraryItems,
   Members: () => Members,
   MonthlyAnalytics: () => MonthlyAnalytics,
@@ -10593,7 +10597,7 @@ __export(schema_exports, {
   VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, ChurchServiceTimes, ChurchServiceTimeAssignments, ChurchSeries, ChurchServices, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, ResourceLibraries, LibraryItems, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
+var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, ChurchServiceTimes, ChurchServiceTimeAssignments, ChurchSeries, ChurchServices, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, ResourceLibraries, LibraryItems, LibraryItemScopes, LibraryItemSpacePins, LibraryItemSuggestions, ChurchServiceLibraryItems, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -11797,6 +11801,98 @@ var init_schema2 = __esm({
       (table) => [
         index("LibraryItems_libraryId_archivedAtIndex").on(table.libraryId, table.archivedAt),
         index("LibraryItems_libraryId_updatedAtIndex").on(table.libraryId, table.updatedAt)
+      ]
+    );
+    LibraryItemScopes = pgTable(
+      "LibraryItemScopes",
+      {
+        id: text("id").primaryKey(),
+        libraryItemId: text("libraryItemId").notNull(),
+        scopeKind: text("scopeKind").notNull(),
+        spaceId: text("spaceId"),
+        ministryKey: text("ministryKey"),
+        createdAt: ts("createdAt").notNull()
+      },
+      (table) => [
+        /*
+          One partial unique per kind. A single index over all three columns would
+          not work: NULLs are distinct in a plain unique, so an item could be scoped
+          to the whole org twice. Same shape as ChurchSeries' per-scope uniques.
+        */
+        uniqueIndex("LibraryItemScopes_org_unique").on(table.libraryItemId).where(sql`${table.scopeKind} = 'org'`),
+        uniqueIndex("LibraryItemScopes_space_unique").on(table.libraryItemId, table.spaceId).where(sql`${table.scopeKind} = 'space'`),
+        uniqueIndex("LibraryItemScopes_ministry_unique").on(table.libraryItemId, table.ministryKey).where(sql`${table.scopeKind} = 'ministry'`),
+        index("LibraryItemScopes_libraryItemIdIndex").on(table.libraryItemId),
+        index("LibraryItemScopes_spaceIdIndex").on(table.spaceId)
+      ]
+    );
+    LibraryItemSpacePins = pgTable(
+      "LibraryItemSpacePins",
+      {
+        id: text("id").primaryKey(),
+        spaceId: text("spaceId").notNull(),
+        libraryItemId: text("libraryItemId").notNull(),
+        pinned: boolean("pinned").notNull().default(true),
+        sortOrder: integer("sortOrder").notNull().default(0),
+        pinnedByUserId: text("pinnedByUserId").notNull(),
+        pinnedAt: ts("pinnedAt").notNull()
+      },
+      (table) => [
+        uniqueIndex("LibraryItemSpacePins_space_item_unique").on(table.spaceId, table.libraryItemId),
+        index("LibraryItemSpacePins_spaceIdIndex").on(table.spaceId)
+      ]
+    );
+    LibraryItemSuggestions = pgTable(
+      "LibraryItemSuggestions",
+      {
+        id: text("id").primaryKey(),
+        churchId: text("churchId").notNull(),
+        suggestedByUserId: text("suggestedByUserId").notNull(),
+        url: text("url").notNull(),
+        title: text("title"),
+        /** The congregant's "why" — what a reviewer reads before deciding. */
+        note: text("note"),
+        /** 'open' | 'approved' | 'declined'. */
+        status: text("status").notNull().default("open"),
+        reviewedByUserId: text("reviewedByUserId"),
+        reviewedAt: ts("reviewedAt"),
+        /** Set on approval — the LibraryItems row this became. */
+        createdItemId: text("createdItemId"),
+        /** Drives the unread badge, the way SupportTickets.adminReadAt does. */
+        staffReadAt: ts("staffReadAt"),
+        createdAt: ts("createdAt").notNull()
+      },
+      (table) => [
+        index("LibraryItemSuggestions_church_status_createdAtIndex").on(
+          table.churchId,
+          table.status,
+          table.createdAt
+        ),
+        index("LibraryItemSuggestions_suggestedBy_createdAtIndex").on(
+          table.suggestedByUserId,
+          table.createdAt
+        )
+      ]
+    );
+    ChurchServiceLibraryItems = pgTable(
+      "ChurchServiceLibraryItems",
+      {
+        id: text("id").primaryKey(),
+        serviceId: text("serviceId").notNull(),
+        libraryItemId: text("libraryItemId").notNull(),
+        attachedByUserId: text("attachedByUserId").notNull(),
+        sortOrder: integer("sortOrder").notNull().default(0),
+        createdAt: ts("createdAt").notNull()
+      },
+      (table) => [
+        uniqueIndex("ChurchServiceLibraryItems_service_item_unique").on(
+          table.serviceId,
+          table.libraryItemId
+        ),
+        index("ChurchServiceLibraryItems_serviceIdIndex").on(table.serviceId),
+        /* The reverse question — "which weeks used this?" — indexed now rather
+           than after someone writes it as a table scan. */
+        index("ChurchServiceLibraryItems_libraryItemIdIndex").on(table.libraryItemId)
       ]
     );
     InboxItems = pgTable("InboxItems", {

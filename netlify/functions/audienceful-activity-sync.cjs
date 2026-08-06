@@ -16774,6 +16774,7 @@ __export(schema_exports, {
   BibleVerses: () => BibleVerses,
   ChurchMemberships: () => ChurchMemberships,
   ChurchSeries: () => ChurchSeries,
+  ChurchServiceLibraryItems: () => ChurchServiceLibraryItems,
   ChurchServiceTimeAssignments: () => ChurchServiceTimeAssignments,
   ChurchServiceTimes: () => ChurchServiceTimes,
   ChurchServices: () => ChurchServices,
@@ -16786,6 +16787,9 @@ __export(schema_exports, {
   FeaturedItems: () => FeaturedItems,
   InboxItemNotes: () => InboxItemNotes,
   InboxItems: () => InboxItems,
+  LibraryItemScopes: () => LibraryItemScopes,
+  LibraryItemSpacePins: () => LibraryItemSpacePins,
+  LibraryItemSuggestions: () => LibraryItemSuggestions,
   LibraryItems: () => LibraryItems,
   Members: () => Members,
   MonthlyAnalytics: () => MonthlyAnalytics,
@@ -18027,6 +18031,98 @@ var LibraryItems = pgTable(
   (table) => [
     index("LibraryItems_libraryId_archivedAtIndex").on(table.libraryId, table.archivedAt),
     index("LibraryItems_libraryId_updatedAtIndex").on(table.libraryId, table.updatedAt)
+  ]
+);
+var LibraryItemScopes = pgTable(
+  "LibraryItemScopes",
+  {
+    id: text("id").primaryKey(),
+    libraryItemId: text("libraryItemId").notNull(),
+    scopeKind: text("scopeKind").notNull(),
+    spaceId: text("spaceId"),
+    ministryKey: text("ministryKey"),
+    createdAt: ts("createdAt").notNull()
+  },
+  (table) => [
+    /*
+      One partial unique per kind. A single index over all three columns would
+      not work: NULLs are distinct in a plain unique, so an item could be scoped
+      to the whole org twice. Same shape as ChurchSeries' per-scope uniques.
+    */
+    uniqueIndex("LibraryItemScopes_org_unique").on(table.libraryItemId).where(sql`${table.scopeKind} = 'org'`),
+    uniqueIndex("LibraryItemScopes_space_unique").on(table.libraryItemId, table.spaceId).where(sql`${table.scopeKind} = 'space'`),
+    uniqueIndex("LibraryItemScopes_ministry_unique").on(table.libraryItemId, table.ministryKey).where(sql`${table.scopeKind} = 'ministry'`),
+    index("LibraryItemScopes_libraryItemIdIndex").on(table.libraryItemId),
+    index("LibraryItemScopes_spaceIdIndex").on(table.spaceId)
+  ]
+);
+var LibraryItemSpacePins = pgTable(
+  "LibraryItemSpacePins",
+  {
+    id: text("id").primaryKey(),
+    spaceId: text("spaceId").notNull(),
+    libraryItemId: text("libraryItemId").notNull(),
+    pinned: boolean("pinned").notNull().default(true),
+    sortOrder: integer("sortOrder").notNull().default(0),
+    pinnedByUserId: text("pinnedByUserId").notNull(),
+    pinnedAt: ts("pinnedAt").notNull()
+  },
+  (table) => [
+    uniqueIndex("LibraryItemSpacePins_space_item_unique").on(table.spaceId, table.libraryItemId),
+    index("LibraryItemSpacePins_spaceIdIndex").on(table.spaceId)
+  ]
+);
+var LibraryItemSuggestions = pgTable(
+  "LibraryItemSuggestions",
+  {
+    id: text("id").primaryKey(),
+    churchId: text("churchId").notNull(),
+    suggestedByUserId: text("suggestedByUserId").notNull(),
+    url: text("url").notNull(),
+    title: text("title"),
+    /** The congregant's "why" — what a reviewer reads before deciding. */
+    note: text("note"),
+    /** 'open' | 'approved' | 'declined'. */
+    status: text("status").notNull().default("open"),
+    reviewedByUserId: text("reviewedByUserId"),
+    reviewedAt: ts("reviewedAt"),
+    /** Set on approval — the LibraryItems row this became. */
+    createdItemId: text("createdItemId"),
+    /** Drives the unread badge, the way SupportTickets.adminReadAt does. */
+    staffReadAt: ts("staffReadAt"),
+    createdAt: ts("createdAt").notNull()
+  },
+  (table) => [
+    index("LibraryItemSuggestions_church_status_createdAtIndex").on(
+      table.churchId,
+      table.status,
+      table.createdAt
+    ),
+    index("LibraryItemSuggestions_suggestedBy_createdAtIndex").on(
+      table.suggestedByUserId,
+      table.createdAt
+    )
+  ]
+);
+var ChurchServiceLibraryItems = pgTable(
+  "ChurchServiceLibraryItems",
+  {
+    id: text("id").primaryKey(),
+    serviceId: text("serviceId").notNull(),
+    libraryItemId: text("libraryItemId").notNull(),
+    attachedByUserId: text("attachedByUserId").notNull(),
+    sortOrder: integer("sortOrder").notNull().default(0),
+    createdAt: ts("createdAt").notNull()
+  },
+  (table) => [
+    uniqueIndex("ChurchServiceLibraryItems_service_item_unique").on(
+      table.serviceId,
+      table.libraryItemId
+    ),
+    index("ChurchServiceLibraryItems_serviceIdIndex").on(table.serviceId),
+    /* The reverse question — "which weeks used this?" — indexed now rather
+       than after someone writes it as a table scan. */
+    index("ChurchServiceLibraryItems_libraryItemIdIndex").on(table.libraryItemId)
   ]
 );
 var InboxItems = pgTable("InboxItems", {
