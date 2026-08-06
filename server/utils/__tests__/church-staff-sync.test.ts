@@ -58,6 +58,17 @@ describe('shared staff-sync implementation', () => {
     expect(sync()).toContain('computeStaffSyncPlan');
   });
 
+  it('restates the never-reap-a-grant guard in SQL, not only in the planner', () => {
+    // Belt and braces, same as the owner/member guards: a future caller that
+    // builds a plan by another route still must not be able to delete a grant.
+    const text = sync();
+    const deleteBlock = text.slice(text.indexOf('plan.toRemove'));
+    expect(deleteBlock).toContain('SpaceMemberships.grantSource');
+    expect(deleteBlock).toContain("'grant'");
+    // And the read that feeds the planner has to select the column at all.
+    expect(text).toContain('grantSource: SpaceMemberships.grantSource');
+  });
+
   it('never mutates when the Clerk roster could not be read', () => {
     // The fetch is awaited before any write; a throw propagates out of the
     // function rather than being treated as an empty roster.
@@ -128,5 +139,22 @@ describe('clerk membership webhook', () => {
     expect(handler).toContain('catch');
     expect(handler).toContain('getActiveChurchByOrgId');
     expect(handler).not.toMatch(/throw\s/);
+  });
+});
+
+describe('a granted leader is not church staff', () => {
+  it('excludes grantSource=grant rows from the staff predicate', () => {
+    /*
+      The P5 escalation this prevents. Several callers treat "is staff" as
+      sufficient with no capability check after — church billing, checkout, and
+      the isStaff flag that decides whether the hub shows staff tools at all.
+      Before grants existed, an owner/leader row could only have come from the
+      roster sync, so the predicate was sound; a grant breaks that equivalence,
+      and a youth volunteer must not reach the church's billing.
+    */
+    const text = source('server/utils/church-staff.ts');
+    const fn = text.slice(text.indexOf('export async function isChurchStaffForOrg'));
+    expect(fn).toContain('SpaceMemberships.grantSource');
+    expect(fn).toContain("'grant'");
   });
 });

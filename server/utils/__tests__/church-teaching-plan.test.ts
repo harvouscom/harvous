@@ -37,9 +37,15 @@ vi.mock('../db', () => ({
   asc: vi.fn(),
 }));
 
-const { assertCanManageTeachingPlan, deriveSeriesTitles } = await import(
+const { assertCanManageTeachingPlan, assertCanViewTeachingPlan } = await import(
   '../church-teaching-plan',
 );
+
+/** Both gates share one ordering; anything about the order is asserted on both. */
+const BOTH_GATES = [
+  ['assertCanViewTeachingPlan', assertCanViewTeachingPlan],
+  ['assertCanManageTeachingPlan', assertCanManageTeachingPlan],
+] as const;
 
 const CHURCH = { id: 'chur_1', orgId: 'org_1', name: 'New Hope', isActive: true };
 const USER = 'user_pastor';
@@ -57,46 +63,90 @@ beforeEach(() => {
   allowAll();
 });
 
-describe('assertCanManageTeachingPlan', () => {
-  it('lets a pastor through', async () => {
-    const result = await assertCanManageTeachingPlan(USER, 'org_1');
-    expect(result).toEqual({ ok: true, church: CHURCH });
+describe('the teaching plan gates', () => {
+  it('lets a pastor both see the plan and reshape it', async () => {
+    expect(await assertCanViewTeachingPlan(USER, 'org_1')).toEqual({ ok: true, church: CHURCH });
+    expect(await assertCanManageTeachingPlan(USER, 'org_1')).toEqual({ ok: true, church: CHURCH });
   });
 
-  it.each([['org:teacher'], ['org:admin']])('lets %s through too', async (role) => {
+  it.each([['org:pastor'], ['org:teacher'], ['org:admin']])(
+    'lets %s see the plan',
+    async (role) => {
+      fetchClerkOrgMemberships.mockResolvedValue([{ userId: USER, role }]);
+      expect((await assertCanViewTeachingPlan(USER, 'org_1')).ok).toBe(true);
+    },
+  );
+
+  it.each([['org:pastor'], ['org:admin']])('lets %s reshape the plan', async (role) => {
     fetchClerkOrgMemberships.mockResolvedValue([{ userId: USER, role }]);
-    const result = await assertCanManageTeachingPlan(USER, 'org_1');
-    expect(result.ok).toBe(true);
+    expect((await assertCanManageTeachingPlan(USER, 'org_1')).ok).toBe(true);
   });
 
-  it('refuses a plain staff member — publishing is not planning', async () => {
+  it('lets a teacher read the plan but not reshape it', async () => {
+    // The whole point of the split: a teacher teaches from what's planned and
+    // must be able to see it, without deciding what the church teaches.
+    fetchClerkOrgMemberships.mockResolvedValue([{ userId: USER, role: 'org:teacher' }]);
+    expect((await assertCanViewTeachingPlan(USER, 'org_1')).ok).toBe(true);
+    expect(await assertCanManageTeachingPlan(USER, 'org_1')).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'TEACHING_PLAN_ROLE_REQUIRED',
+    });
+  });
+
+  it('refuses a plain staff member either way — publishing is not planning', async () => {
     fetchClerkOrgMemberships.mockResolvedValue([{ userId: USER, role: 'org:member' }]);
-    const result = await assertCanManageTeachingPlan(USER, 'org_1');
-    expect(result).toMatchObject({ ok: false, status: 403, code: 'SERMON_TOOLS_REQUIRED' });
+    expect(await assertCanViewTeachingPlan(USER, 'org_1')).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'SERMON_TOOLS_REQUIRED',
+    });
+    expect(await assertCanManageTeachingPlan(USER, 'org_1')).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'TEACHING_PLAN_ROLE_REQUIRED',
+    });
   });
 
-  it('404s an unknown church', async () => {
+  it.each(BOTH_GATES)('404s an unknown church (%s)', async (_name, gate) => {
     getActiveChurchByOrgId.mockResolvedValue(null);
-    const result = await assertCanManageTeachingPlan(USER, 'org_nope');
-    expect(result).toMatchObject({ ok: false, status: 404, code: 'CHURCH_NOT_FOUND' });
+    expect(await gate(USER, 'org_nope')).toMatchObject({
+      ok: false,
+      status: 404,
+      code: 'CHURCH_NOT_FOUND',
+    });
   });
 
-  it('409s a deactivated church', async () => {
+  it.each(BOTH_GATES)('409s a deactivated church (%s)', async (_name, gate) => {
     getActiveChurchByOrgId.mockResolvedValue({ ...CHURCH, isActive: false });
-    const result = await assertCanManageTeachingPlan(USER, 'org_1');
-    expect(result).toMatchObject({ ok: false, status: 409, code: 'CHURCH_INACTIVE' });
+    expect(await gate(USER, 'org_1')).toMatchObject({
+      ok: false,
+      status: 409,
+      code: 'CHURCH_INACTIVE',
+    });
   });
 
-  it('403s a non-staff caller', async () => {
+  it.each(BOTH_GATES)('403s a non-staff caller (%s)', async (_name, gate) => {
     isChurchStaffForOrg.mockResolvedValue(false);
-    const result = await assertCanManageTeachingPlan(USER, 'org_1');
-    expect(result).toMatchObject({ ok: false, status: 403, code: 'CHURCH_STAFF_REQUIRED' });
+    expect(await gate(USER, 'org_1')).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'CHURCH_STAFF_REQUIRED',
+    });
   });
 
-  it('402s a lapsed church — writes stop, reads never do', async () => {
+  it('402s a lapsed church on a write', async () => {
     churchIsSponsored.mockReturnValue(false);
     const result = await assertCanManageTeachingPlan(USER, 'org_1');
     expect(result).toMatchObject({ ok: false, status: 402, code: 'CHURCH_NOT_SPONSORED' });
+  });
+
+  it('never sponsorship-gates the read — a lapsed church still sees its own plan', async () => {
+    // church-entitlement.ts: "Lapsing is a write gate, never a read gate."
+    // Losing a church's study is never how a lapse shows up.
+    churchIsSponsored.mockReturnValue(false);
+    expect(await assertCanViewTeachingPlan(USER, 'org_1')).toEqual({ ok: true, church: CHURCH });
+    expect(churchIsSponsored).not.toHaveBeenCalled();
   });
 
   it('checks staff BEFORE sponsorship, so a stranger never learns a church lapsed', async () => {
@@ -109,18 +159,22 @@ describe('assertCanManageTeachingPlan', () => {
     expect(churchIsSponsored).not.toHaveBeenCalled();
   });
 
-  it('fails closed when Clerk is unreachable', async () => {
+  it.each([
+    ['assertCanViewTeachingPlan', assertCanViewTeachingPlan, 'SERMON_TOOLS_REQUIRED'],
+    ['assertCanManageTeachingPlan', assertCanManageTeachingPlan, 'TEACHING_PLAN_ROLE_REQUIRED'],
+  ] as const)('fails closed when Clerk is unreachable (%s)', async (_name, gate, code) => {
     // A Clerk outage must not let a plain staff member publish what the whole
     // congregation sees on Sunday.
     fetchClerkOrgMemberships.mockRejectedValue(new Error('clerk down'));
-    const result = await assertCanManageTeachingPlan(USER, 'org_1');
-    expect(result).toMatchObject({ ok: false, status: 403, code: 'SERMON_TOOLS_REQUIRED' });
+    expect(await gate(USER, 'org_1')).toMatchObject({ ok: false, status: 403, code });
   });
 
-  it('fails closed for a user missing from the roster', async () => {
+  it.each([
+    ['assertCanViewTeachingPlan', assertCanViewTeachingPlan, 'SERMON_TOOLS_REQUIRED'],
+    ['assertCanManageTeachingPlan', assertCanManageTeachingPlan, 'TEACHING_PLAN_ROLE_REQUIRED'],
+  ] as const)('fails closed for a user missing from the roster (%s)', async (_name, gate, code) => {
     fetchClerkOrgMemberships.mockResolvedValue([{ userId: 'someone_else', role: 'org:admin' }]);
-    const result = await assertCanManageTeachingPlan(USER, 'org_1');
-    expect(result).toMatchObject({ ok: false, code: 'SERMON_TOOLS_REQUIRED' });
+    expect(await gate(USER, 'org_1')).toMatchObject({ ok: false, code });
   });
 });
 
@@ -148,39 +202,5 @@ describe('privacy: the church never learns who took notes', () => {
     const code = planCode();
     expect(code).not.toMatch(/\bcount\(/);
     expect(code).not.toMatch(/\bgroupBy\b/);
-  });
-});
-
-describe('deriveSeriesTitles', () => {
-  /** Rows arrive from the plan query in `serviceDate ASC` order. */
-  const svc = (seriesTitle: string | null) => ({ seriesTitle });
-
-  it('returns the most recently dated series first', () => {
-    // The bug this replaced: reusing the ascending query order put the
-    // church's oldest series at the top of the editor's picker, so the one a
-    // pastor is adding a week to sat at the bottom.
-    expect(deriveSeriesTitles([svc('Advent 2024'), svc('Romans'), svc('Life in the Spirit')])).toEqual([
-      'Life in the Spirit',
-      'Romans',
-      'Advent 2024',
-    ]);
-  });
-
-  it('de-duplicates a multi-week series down to one entry, at its latest use', () => {
-    const rows = [svc('Romans'), svc('Advent'), svc('Romans'), svc('Romans')];
-    expect(deriveSeriesTitles(rows)).toEqual(['Romans', 'Advent']);
-  });
-
-  it('drops services with no series, including whitespace-only ones', () => {
-    expect(deriveSeriesTitles([svc(null), svc('   '), svc('Romans')])).toEqual(['Romans']);
-  });
-
-  it('trims, so " Romans " and "Romans" are one series', () => {
-    expect(deriveSeriesTitles([svc('Romans'), svc(' Romans ')])).toEqual(['Romans']);
-  });
-
-  it('is empty for a plan with no series at all', () => {
-    expect(deriveSeriesTitles([])).toEqual([]);
-    expect(deriveSeriesTitles([svc(null), svc(null)])).toEqual([]);
   });
 });

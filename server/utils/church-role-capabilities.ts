@@ -24,6 +24,20 @@ export const CHURCH_CAPABILITIES = [
   'manage_templates',
   /** Sermon-prep surfaces — role-gated, never general-app UI. */
   'sermon_tools',
+  /**
+   * Reshape the teaching plan — add, edit, remove services. Narrower than
+   * `sermon_tools` on purpose: a teacher teaches *from* the plan, a pastor
+   * sets it.
+   */
+  'manage_teaching_plan',
+  /**
+   * Change the church's own configuration — timezone, default meeting day and
+   * time. Deliberately not folded into `manage_billing`: capabilities are the
+   * contract clients render surfaces from, and "billing" gating a timezone
+   * picker would mislead every future reader while foreclosing the option of
+   * giving a pastor the settings without giving them the money.
+   */
+  'manage_church_settings',
 ] as const;
 
 export type ChurchCapability = (typeof CHURCH_CAPABILITIES)[number];
@@ -59,9 +73,10 @@ export function isAssignableChurchRole(role: string): role is AssignableChurchRo
  * Capabilities for a staff member's Clerk org role.
  *
  * Every staff member can publish — that is what being staff means here. Admin
- * adds the roster and the money. Pastor/teacher add the teaching tooling, and
- * admin gets it too so a one-person church is not locked out of its own
- * sermon template.
+ * adds the roster, the money, and the church's own settings. Pastor and teacher
+ * both get the sermon surfaces; only pastor reshapes what the church teaches.
+ * Admin gets the teaching tooling too, so a one-person church is not locked out
+ * of its own sermon template.
  */
 export function capabilitiesForChurchRole(role: string | null | undefined): ChurchCapability[] {
   const capabilities = new Set<ChurchCapability>(['publish']);
@@ -69,10 +84,19 @@ export function capabilitiesForChurchRole(role: string | null | undefined): Chur
   if (role === ROLE_ADMIN) {
     capabilities.add('manage_staff');
     capabilities.add('manage_billing');
+    capabilities.add('manage_church_settings');
   }
+  // Everyone who teaches gets the sermon surfaces, including *reading* the
+  // church's plan — that is the thing they teach from.
   if (role === ROLE_ADMIN || role === ROLE_PASTOR || role === ROLE_TEACHER) {
-    capabilities.add('manage_templates');
     capabilities.add('sermon_tools');
+  }
+  // Deciding what the whole church teaches, and what it writes from, is a
+  // pastor/admin act. A teacher reads the plan and uses the starters; they
+  // don't set them.
+  if (role === ROLE_ADMIN || role === ROLE_PASTOR) {
+    capabilities.add('manage_templates');
+    capabilities.add('manage_teaching_plan');
   }
 
   return [...capabilities];

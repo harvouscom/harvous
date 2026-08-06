@@ -21,77 +21,68 @@ import {
   gte,
   inArray,
   isNotNull,
+  isNull,
   asc,
 } from '../db';
-import { fetchClerkOrgMemberships } from './clerk-org';
-import { capabilitiesForChurchRole } from './church-role-capabilities';
-import { CHURCH_LAPSED_CODE, CHURCH_LAPSED_ERROR, churchIsSponsored } from './church-entitlement';
-import { getActiveChurchByOrgId, isChurchStaffForOrg, type ChurchRow } from './church-staff';
+import {
+  resolveChurchOrgAccess,
+  type ChurchOrgAccessResult,
+  type ChurchOrgAccessRule,
+} from './church-org-access';
 
 export type ChurchServiceRow = typeof ChurchServices.$inferSelect;
 
-export type TeachingPlanGateResult =
-  | { ok: true; church: ChurchRow }
-  | { ok: false; status: 402 | 403 | 404 | 409; code: string; error: string };
+export type TeachingPlanGateResult = ChurchOrgAccessResult;
 
 /**
- * May this user author the church's teaching plan?
- *
- * Order matters and deliberately differs from `assertChurchStaffOrgWrite` in
- * church-staff.ts, which checks sponsorship *before* staff membership and so
- * tells any signed-in stranger whether a given church has lapsed. That is
- * pre-existing; don't copy it. Here staff membership is proven first, and only
- * a real staff member ever learns the billing state.
+ * Reading the plan, or reshaping it. The gate order is identical either way —
+ * only the capability, the denial code, and whether sponsorship applies differ
+ * — so the ordering lives once in `church-org-access.ts` and these two exports
+ * name what they permit.
  */
-export async function assertCanManageTeachingPlan(
+type TeachingPlanAccess = 'view' | 'manage';
+
+const TEACHING_PLAN_ACCESS: Record<TeachingPlanAccess, ChurchOrgAccessRule> = {
+  view: {
+    capability: 'sermon_tools',
+    code: 'SERMON_TOOLS_REQUIRED',
+    staffError: 'Only church staff can see the teaching plan',
+    roleError: 'Your role does not include the teaching plan',
+    // Reading the plan is never sponsorship-gated — a lapsed church must never
+    // take its congregation's Sunday away, and its staff must still be able to
+    // look at what they already planned.
+    sponsorshipGated: false,
+  },
+  manage: {
+    capability: 'manage_teaching_plan',
+    code: 'TEACHING_PLAN_ROLE_REQUIRED',
+    staffError: 'Only church staff can manage the teaching plan',
+    roleError: 'A pastor or admin plans the services here',
+    sponsorshipGated: true,
+  },
+};
+
+/**
+ * The staff *read*. Gated on `sermon_tools` — a teacher sees the plan they
+ * teach from. Never sponsorship-gated.
+ */
+export function assertCanViewTeachingPlan(
   userId: string,
   orgId: string,
 ): Promise<TeachingPlanGateResult> {
-  const church = await getActiveChurchByOrgId(orgId);
-  if (!church) {
-    return { ok: false, status: 404, code: 'CHURCH_NOT_FOUND', error: 'Church not found' };
-  }
-  if (!church.isActive) {
-    return { ok: false, status: 409, code: 'CHURCH_INACTIVE', error: 'Church is not active' };
-  }
-  if (!(await isChurchStaffForOrg(userId, church.orgId))) {
-    return {
-      ok: false,
-      status: 403,
-      code: 'CHURCH_STAFF_REQUIRED',
-      error: 'Only church staff can manage the teaching plan',
-    };
-  }
-  // Writes only. Reading the plan is never sponsorship-gated — a lapsed church
-  // must never take its congregation's Sunday away.
-  if (!churchIsSponsored(church)) {
-    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
-  }
+  return resolveChurchOrgAccess(userId, orgId, TEACHING_PLAN_ACCESS.view);
+}
 
-  let role: string | null = null;
-  try {
-    const roster = await fetchClerkOrgMemberships(church.orgId);
-    role = roster.find((member) => member.userId === userId)?.role ?? null;
-  } catch {
-    // Fail closed: a Clerk outage must not let a plain staff member publish
-    // what the whole congregation will see on Sunday.
-    return {
-      ok: false,
-      status: 403,
-      code: 'SERMON_TOOLS_REQUIRED',
-      error: 'Could not confirm your role. Try again in a moment.',
-    };
-  }
-  if (!capabilitiesForChurchRole(role).includes('sermon_tools')) {
-    return {
-      ok: false,
-      status: 403,
-      code: 'SERMON_TOOLS_REQUIRED',
-      error: 'Your role does not include the teaching plan',
-    };
-  }
-
-  return { ok: true, church };
+/**
+ * The staff *write*. Gated on `manage_teaching_plan`, narrower than
+ * `sermon_tools`: a teacher reads the plan without reshaping what the whole
+ * church teaches.
+ */
+export function assertCanManageTeachingPlan(
+  userId: string,
+  orgId: string,
+): Promise<TeachingPlanGateResult> {
+  return resolveChurchOrgAccess(userId, orgId, TEACHING_PLAN_ACCESS.manage);
 }
 
 /**
@@ -103,12 +94,28 @@ export async function assertCanManageTeachingPlan(
  */
 export async function listServicesForChurch(
   churchId: string,
-  options: { from?: string; limit?: number } = {},
+  options: { plan?: { spaceId: string | null }; from?: string; limit?: number } = {},
 ): Promise<ChurchServiceRow[]> {
-  const { from, limit = 50 } = options;
+  const { from, limit = 50, plan } = options;
+
+  /*
+    Church plan by default, and that default is load-bearing.
+
+    The moment `ChurchServices.spaceId` existed, a churchId-only filter started
+    matching every ministry's rows too — which would have merged Youth's
+    Wednesday into the congregation's "This Sunday" card with no code change
+    anywhere. Defaulting to `spaceId IS NULL` means an un-migrated caller keeps
+    today's behaviour instead of silently gaining a wider plan; a caller that
+    wants a space plan has to name it.
+  */
+  const spaceId = plan ? plan.spaceId : null;
+  const scope = spaceId === null
+    ? isNull(ChurchServices.spaceId)
+    : eq(ChurchServices.spaceId, spaceId);
+
   const where = from
-    ? and(eq(ChurchServices.churchId, churchId), gte(ChurchServices.serviceDate, from))
-    : eq(ChurchServices.churchId, churchId);
+    ? and(eq(ChurchServices.churchId, churchId), scope, gte(ChurchServices.serviceDate, from))
+    : and(eq(ChurchServices.churchId, churchId), scope);
 
   return db
     .select()
@@ -166,26 +173,10 @@ export async function resolveViewerServiceNotes(
   return map;
 }
 
-/**
- * Distinct series this church has used, most recently dated first.
- *
- * Order is the whole point. The editor's series picker exists so a pastor
- * adding week 4 reuses "Life in the Spirit" instead of retyping it slightly
- * differently and splitting the series in two — and the series they want is
- * almost always the current one. This used to inherit the services query's
- * `serviceDate ASC`, which put the church's oldest series first and buried the
- * current one at the bottom of the list.
- *
- * Takes the ascending-by-date rows the plan endpoint already has, so it stays a
- * pure transform rather than a second query.
+/*
+ * `deriveSeriesTitles` lived here — distinct `seriesTitle` strings, most
+ * recently dated first, to power the editor's picker. It is gone with the
+ * column: series are `ChurchSeries` rows now, and `listSeriesForPlan` in
+ * church-series.ts returns real objects in the same recency order, which was
+ * the part worth keeping.
  */
-export function deriveSeriesTitles(
-  servicesByDateAsc: { seriesTitle: string | null }[],
-): string[] {
-  const seen = new Set<string>();
-  for (let i = servicesByDateAsc.length - 1; i >= 0; i--) {
-    const title = servicesByDateAsc[i]?.seriesTitle?.trim();
-    if (title) seen.add(title);
-  }
-  return [...seen];
-}

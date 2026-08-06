@@ -12,13 +12,16 @@
  *     staff, and a staff sync must never unfollow a congregation.
  *   - Only `leader` rows are ever deleted, and the SQL restates that guard so
  *     a planning bug still can't reach an owner or member row.
+ *   - A `grantSource='grant'` leader is never removed. That is a volunteer
+ *     given one space explicitly; they are not in the Clerk roster and never
+ *     will be, so reaping them would undo the grant on the next webhook.
  *   - Nothing is mutated when the Clerk fetch fails — a Clerk outage must not
  *     read as "the roster is empty" and strip every leader.
  *
  * Planning stays in the pure `computeStaffSyncPlan` (clerk-org.ts).
  */
 
-import { db, Spaces, SpaceMemberships, eq, and, isNull } from '../db';
+import { db, Spaces, SpaceMemberships, eq, and, isNull, ne, or } from '../db';
 import { nowISO } from '../db/dates';
 import {
   CLERK_ORG_STAFF_CAP,
@@ -86,7 +89,12 @@ export async function syncChurchStaffForOrg(
 
   for (const space of orgSpaces) {
     const existing = await db
-      .select({ userId: SpaceMemberships.userId, role: SpaceMemberships.role })
+      .select({
+        userId: SpaceMemberships.userId,
+        role: SpaceMemberships.role,
+        // Feeds the planner's never-reap-a-granted-leader rule.
+        grantSource: SpaceMemberships.grantSource,
+      })
       .from(SpaceMemberships)
       .where(eq(SpaceMemberships.spaceId, space.id));
 
@@ -127,8 +135,14 @@ export async function syncChurchStaffForOrg(
           .where(and(eq(SpaceMemberships.spaceId, space.id), eq(SpaceMemberships.userId, userId)));
       }
       for (const userId of plan.toRemove) {
-        // Guard restated in SQL: only 'leader' rows are ever deleted here —
-        // never role 'owner', never role 'member' (congregant followers).
+        /*
+          Guards restated in SQL: only 'leader' rows are ever deleted here —
+          never 'owner', never 'member' (congregant followers) — and never a
+          granted leader, who is a volunteer holding this one space rather than
+          a Clerk staffer. The planner already excludes both; restating it here
+          means a future caller that builds a plan by another route still can't
+          delete a grant.
+        */
         await tx
           .delete(SpaceMemberships)
           .where(
@@ -136,6 +150,10 @@ export async function syncChurchStaffForOrg(
               eq(SpaceMemberships.spaceId, space.id),
               eq(SpaceMemberships.userId, userId),
               eq(SpaceMemberships.role, 'leader'),
+              or(
+                isNull(SpaceMemberships.grantSource),
+                ne(SpaceMemberships.grantSource, 'grant'),
+              ),
             ),
           );
       }

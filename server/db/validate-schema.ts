@@ -79,6 +79,7 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'city',
     'state',
     'country',
+    'timezone',
     'createdBy',
     'billingPlan',
     'billingPlanUpdatedAt',
@@ -94,17 +95,30 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
   ChurchServices: [
     'id',
     'churchId',
+    'spaceId',
     'serviceDate',
+    'serviceTime',
     'title',
-    'seriesTitle',
+    'seriesId',
     'reference',
     'starterTemplateId',
-    'channelSpaceId',
     'createdBy',
     'updatedBy',
     'createdAt',
     'updatedAt',
   ],
+  ChurchServiceTimes: [
+    'id',
+    'churchId',
+    'dayOfWeek',
+    'startTime',
+    'label',
+    'sortOrder',
+    'createdAt',
+    'updatedAt',
+  ],
+  ChurchServiceTimeAssignments: ['id', 'serviceId', 'serviceTimeId', 'serviceDate', 'createdAt'],
+  ChurchSeries: ['id', 'churchId', 'spaceId', 'title', 'createdBy', 'createdAt', 'updatedAt'],
   UserMetadata: ['hmcChurchId', 'connectedChurchId', 'connectedOrgId', 'connectedChurchAt'],
 };
 
@@ -128,7 +142,15 @@ const REQUIRED_INDEXES: Record<string, readonly string[]> = {
     'StudyThreadEntries_anchorStatusIndex',
   ],
   Churches: ['Churches_orgId_unique', 'Churches_hmcChurchId_unique', 'Churches_createdByIndex'],
-  ChurchServices: ['ChurchServices_church_date_unique'],
+  ChurchServices: ['ChurchServices_church_dateIndex', 'ChurchServices_space_date_unique'],
+  ChurchServiceTimes: [
+    'ChurchServiceTimes_church_day_time_unique',
+    'ChurchServiceTimes_churchIdIndex',
+  ],
+  /** The one-answer guarantee, moved here from ChurchServices_church_date_unique. */
+  ChurchServiceTimeAssignments: ['ChurchServiceTimeAssignments_slot_date_unique'],
+  /** Both halves required — one index per plan scope, neither optional. */
+  ChurchSeries: ['ChurchSeries_church_title_unique', 'ChurchSeries_space_title_unique'],
   UserMetadata: ['UserMetadata_connectedChurchIdIndex', 'UserMetadata_hmcChurchIdIndex'],
 };
 
@@ -167,6 +189,7 @@ async function main() {
     'SpaceInvites',
     'Churches',
     'ChurchServices',
+    'ChurchSeries',
     'UserMetadata',
     'UserXP',
     'UserSeasonalXP',

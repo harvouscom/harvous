@@ -80,6 +80,12 @@ import { getActiveChurchByOrgId, isChurchStaffForOrg } from '../utils/church-sta
 import { listServicesForChurch, resolveViewerServiceNotes } from '../utils/church-teaching-plan';
 import { syncChurchStaffForOrg } from '../utils/church-staff-sync';
 import {
+  churchClockNow,
+  listServiceTimesForChurch,
+  serviceTimeIdsByService,
+} from '../utils/church-service-times';
+import { seriesTitlesByServiceRows } from '../utils/church-series';
+import {
   ClerkOrgError,
   ClerkOrgInviteError,
   CLERK_ORG_ADMIN_ROLE,
@@ -134,7 +140,7 @@ const SERVICES_PAYLOAD_LIMIT = 8;
  *
  * Computed in UTC with one extra day of slack, so a viewer west of UTC never
  * loses a service the server has already aged out. Narrowing to the exact local
- * window is the client's job (`currentServiceFor`).
+ * window is the client's job (`currentSermonFor`).
  */
 function serviceGraceWindowStart(): string {
   const cutoff = new Date();
@@ -481,56 +487,53 @@ app.get('/api/church/services', requireAuth, async (c) => {
       : [];
     const templateById = new Map(templates.map((t) => [t.id, t]));
 
+
     /*
-      Resolve companion channels to a title the card can render, rather than
-      handing the congregant a raw `channelSpaceId` they'd have to look up.
-      Scoped to this church's own org and re-checked as a ministry channel, so a
-      deleted or reclassified space degrades to `null` instead of a dead link.
+      Resolve each sermon's times server-side. A congregant gets clock readings,
+      never slot ids and never the church's whole schedule — the times of the
+      sermon in front of them, and nothing about the ones they aren't seeing.
     */
-    const channelIds = [
-      ...new Set(services.map((s) => s.channelSpaceId).filter((id): id is string => Boolean(id))),
-    ];
-    const channelRows = channelIds.length
-      ? await db
-          .select({
-            id: Spaces.id,
-            title: Spaces.title,
-            color: Spaces.color,
-            type: Spaces.type,
-            orgId: Spaces.orgId,
-          })
-          .from(Spaces)
-          .where(
-            and(
-              inArray(Spaces.id, channelIds),
-              eq(Spaces.orgId, church.orgId),
-              isNull(Spaces.deletedAt),
-            ),
-          )
-      : [];
-    const channelById = new Map(
-      channelRows
-        .filter(isMinistryBroadcastSpaceRow)
-        .map((row) => [row.id, { id: row.id, title: row.title, color: row.color ?? null }]),
-    );
+    const serviceTimeRows = await listServiceTimesForChurch(church.id);
+    const startTimeById = new Map(serviceTimeRows.map((row) => [row.id, row.startTime]));
+    const slotsByService = await serviceTimeIdsByService(services.map((row) => row.id));
+    // One keyed lookup for the whole payload — the congregant card renders the
+    // series name, and since ChurchSeries the name lives on the series row.
+    const seriesTitles = await seriesTitlesByServiceRows(services);
 
     return c.json({
       connected: true,
       church: { id: church.id, name: church.name },
+      /*
+        The church's own wall clock, so the client can tell whether this
+        morning's service has already started without guessing from the
+        viewer's zone. The one place a timezone is ever applied.
+      */
+      churchNow: churchClockNow(church.timezone),
       services: services.map((service) => {
         const template = service.starterTemplateId
           ? templateById.get(service.starterTemplateId)
           : undefined;
+        const slotTimes = (slotsByService.get(service.id) ?? [])
+          .map((id) => startTimeById.get(id))
+          .filter((time): time is string => Boolean(time));
+        // A one-off time only speaks when the sermon claims no usual service.
+        const times = slotTimes.length > 0 ? [...slotTimes].sort() : service.serviceTime ? [service.serviceTime] : [];
         return {
           id: service.id,
           serviceDate: service.serviceDate,
+          /*
+            Every time this sermon is preached, ascending — a church with 9:00
+            and 10:45 morning services sends both, because it is one sermon at
+            two services rather than two sermons.
+
+            The church's wall clock, never converted to the viewer's zone: a
+            service time is a clock reading on a wall calendar, not an instant.
+          */
+          serviceTimes: times,
           title: service.title,
-          seriesTitle: service.seriesTitle,
+          seriesTitle: service.seriesId ? seriesTitles.get(service.seriesId) ?? null : null,
           reference: service.reference,
           viewerNoteId: viewerNotes.get(service.id) ?? null,
-          channel: service.channelSpaceId
-            ? (channelById.get(service.channelSpaceId) ?? null)
-            : null,
           starter: template
             ? {
                 templateId: template.id,

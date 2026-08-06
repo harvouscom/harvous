@@ -4,7 +4,7 @@
  * or membership in the church's Clerk organization (staff-only org).
  */
 
-import { db, first, Churches, Spaces, SpaceMemberships, eq, and, isNull, inArray } from '../db';
+import { db, first, Churches, Spaces, SpaceMemberships, eq, ne, and, or, isNull, inArray } from '../db';
 import { fetchClerkOrgMemberships } from './clerk-org';
 import { CHURCH_LAPSED_CODE, CHURCH_LAPSED_ERROR, churchIsSponsored } from './church-entitlement';
 
@@ -25,7 +25,23 @@ export async function getActiveChurchByOrgId(orgId: string): Promise<ChurchRow |
   return church;
 }
 
-/** True when the user is staff for this org (createdBy, space staff, or Clerk org member). */
+/**
+ * True when the user is staff for this org (createdBy, space staff, or Clerk
+ * org member).
+ *
+ * **A granted space leader is deliberately NOT staff.** Until granted
+ * leadership existed, an `owner`/`leader` row on an org space could only have
+ * come from `syncChurchStaffForOrg`, so "holds a leader row" and "is Clerk
+ * staff" meant the same thing and this query was sound. A grant breaks that
+ * equivalence: it hands one volunteer one room.
+ *
+ * Counting them here would be a real escalation, because several callers treat
+ * staff as *sufficient* with no capability check after it — church billing,
+ * checkout, and the `isStaff` flag that decides whether the hub shows staff
+ * tools at all. A youth volunteer must not see the church's billing. Callers
+ * that need "may this person act in this space" ask
+ * `isGrantedSpaceLeader`, never this.
+ */
 export async function isChurchStaffForOrg(userId: string, orgId: string): Promise<boolean> {
   const church = await getActiveChurchByOrgId(orgId);
   if (!church) return false;
@@ -48,6 +64,12 @@ export async function isChurchStaffForOrg(userId: string, orgId: string): Promis
               orgSpaces.map((s) => s.id),
             ),
             inArray(SpaceMemberships.role, ['owner', 'leader']),
+            // NULL reads as a staff projection, which is what every row
+            // predating grants is.
+            or(
+              isNull(SpaceMemberships.grantSource),
+              ne(SpaceMemberships.grantSource, 'grant'),
+            ),
           ),
         )
         .limit(1),

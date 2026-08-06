@@ -12,7 +12,9 @@ export type ChurchCapability =
   | 'manage_staff'
   | 'manage_billing'
   | 'manage_templates'
-  | 'sermon_tools';
+  | 'sermon_tools'
+  | 'manage_teaching_plan'
+  | 'manage_church_settings';
 
 export type ChurchStaffStatusResponse = {
   orgId: string;

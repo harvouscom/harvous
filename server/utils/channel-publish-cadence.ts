@@ -34,6 +34,23 @@ export function isMinistryBroadcastSpaceRow(space: {
   return space.type === 'public' && Boolean(space.orgId);
 }
 
+/**
+ * A room a church owns — ministry channel (`public`) or church Shared Space
+ * (`shared`) — as opposed to somebody's personal space.
+ *
+ * Deliberately wider than the broadcast predicate above: a teaching plan
+ * belongs to any room the church gathers in, not only the ones it broadcasts
+ * into. Naming it ends the inline-checks-only status church Shared Spaces have
+ * had, and it lives here beside its sibling rather than in the plan gate so
+ * both the plan and the leadership-grant gates can use it without a cycle.
+ */
+export function isChurchOrgSpaceRow(space: {
+  type?: string | null;
+  orgId?: string | null;
+}): boolean {
+  return Boolean(space.orgId) && (space.type === 'shared' || space.type === 'public');
+}
+
 /** Latest curriculum note `createdAt` per space (active SpaceNotes associations). */
 export async function getLastCurriculumAtBySpaceIds(
   spaceIds: string[],
