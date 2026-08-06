@@ -75,6 +75,13 @@ export interface PrototypeSermonEditorFieldsProps {
    * that can quietly empty itself is a worse default than one that cannot.
    */
   allowNullDate?: boolean;
+  /**
+   * What the plan plans. `'content'` (a ministry channel) drops the one-off
+   * time field: a published study has a day, not an hour people arrive at, and
+   * the server refuses `serviceTime` on space rows anyway — offering the input
+   * would let staff set something that is silently discarded.
+   */
+  planKind?: 'gathering' | 'content';
   /** Saved, repeated to completion, or removed — the caller closes or clears. */
   onDone: () => void;
   /** About to route away to a note. Defaults to `onDone`. */
@@ -113,6 +120,7 @@ export default function PrototypeSermonEditorFields({
   active,
   createDefaultDate,
   allowNullDate = false,
+  planKind,
   onDone,
   onNavigateAway,
   onLayoutChange,
@@ -474,7 +482,7 @@ export default function PrototypeSermonEditorFields({
           the church's week. `<input type="time">` ignores placeholder, so the
           hint has to be a sibling caption.
         */}
-        {!isUnscheduled && serviceTimeIds.length === 0 ? (
+        {!isUnscheduled && planKind !== 'content' && serviceTimeIds.length === 0 ? (
           <>
             <label
               className="proto-inspector-section-title proto-create-folder-sheet__field-label"
@@ -730,7 +738,13 @@ export default function PrototypeSermonEditorFields({
           disabled={!canSubmit}
           onClick={submit}
         >
-          {actions.isPending ? 'Saving…' : isEditing ? 'Save' : isUnscheduled ? 'Add to ideas' : 'Add to plan'}
+          {actions.isPending
+            ? 'Saving…'
+            : isEditing
+              ? 'Save'
+              : isUnscheduled
+                ? 'Add to ideas'
+                : 'Add to plan'}
         </button>
         {/*
           Repeat lives here and only when editing, because it needs a saved row

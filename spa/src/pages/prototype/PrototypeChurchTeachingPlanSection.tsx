@@ -26,7 +26,7 @@ import {
   useChurchSpacePlan,
   useChurchSpaceSermonActions,
 } from '../../hooks/queries/useChurchSpacePlan';
-import { localTodayIso, sermonTimeLabel } from '../../lib/church-services';
+import { localTodayIso, planVocabulary, sermonTimeLabel } from '../../lib/church-services';
 import PrototypeSermonEditorSheet from './PrototypeSermonEditorSheet';
 import PrototypeSeriesSheet from './PrototypeSeriesSheet';
 import PrototypePlannerScopeChips from './planner/PrototypePlannerScopeChips';
@@ -159,6 +159,9 @@ export default function PrototypeChurchTeachingPlanSection({
   const onSpacePlan = planSpaceId !== null;
   const data = onSpacePlan ? spacePlan.data : churchPlan.data;
   const actions = onSpacePlan ? spaceActions : churchActions;
+  /* Server-decided; a channel plans content, everything else gathers. */
+  const planKind = onSpacePlan ? spacePlan.data?.planKind : undefined;
+  const vocab = planVocabulary({ onSpacePlan, planKind });
 
   const today = localTodayIso();
   /*
@@ -235,9 +238,7 @@ export default function PrototypeChurchTeachingPlanSection({
             onClick={() => openEditor(null)}
           >
             <Icon name="plus" size={12} aria-hidden />
-            <span className="proto-glass-action__label">
-              {onSpacePlan ? 'Add a gathering' : 'Add a sermon'}
-            </span>
+            <span className="proto-glass-action__label">{vocab.addLabel}</span>
           </button>
         ) : null}
       </div>
@@ -245,9 +246,7 @@ export default function PrototypeChurchTeachingPlanSection({
       {data.services.length === 0 ? (
         <p className="proto-caption proto-teaching-plan__empty">
           {canWrite
-            ? onSpacePlan
-              ? 'Plan what this ministry studies. Its members see it inside the space.'
-              : 'Plan a sermon and everyone connected to your church sees it on their Home.'
+            ? vocab.emptyWritable
             : readOnlyReason === 'role'
               ? 'Nothing planned yet. A pastor or admin adds sermons here.'
               : 'Nothing planned yet.'}

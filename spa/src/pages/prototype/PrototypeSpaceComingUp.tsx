@@ -36,6 +36,16 @@ export interface PrototypeSpaceComingUpProps {
 export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSpaceComingUpProps) {
   const { data } = useChurchSpacePlan(spaceId, { enabled });
 
+  /*
+    Channels have nothing to come up to.
+
+    "Coming up" names a gathering — a time you turn up for. A channel's plan
+    entries are unpublished staff intentions with no publish pipeline behind
+    them yet, so rendering one here would announce something the church has not
+    said, in a strip whose whole promise is that it is real.
+  */
+  if (data?.planKind === 'content') return null;
+
   // Same selection the congregant card uses, so "next" means the same thing in
   // both places — including the grace window.
   //

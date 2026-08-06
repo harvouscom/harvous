@@ -19,6 +19,9 @@ export type TeachingPlanSermon = {
   seriesTitle: string | null;
   reference: string | null;
   starterTemplateId: string | null;
+  /** 'gathering' | 'content'. Optional for payloads cached before it shipped —
+   *  absent reads as a gathering, which is what those rows were. */
+  kind?: 'gathering' | 'content';
   /** Orders the planner's Ideas column. Optional so a payload cached before
    *  this shipped still parses. */
   createdAt?: string | null;

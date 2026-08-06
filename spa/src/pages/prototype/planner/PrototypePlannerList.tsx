@@ -72,6 +72,7 @@ export default function PrototypePlannerList({
   serviceTimes,
   canWrite,
   readOnlyReason,
+  emptyWritable,
   selection,
   onSelect,
 }: {
@@ -79,6 +80,8 @@ export default function PrototypePlannerList({
   serviceTimes: ChurchServiceTimeOption[];
   canWrite: boolean;
   readOnlyReason: 'lapsed' | 'role' | null;
+  /** Scope-aware empty copy — a channel does not "add a sermon". */
+  emptyWritable?: string;
   selection: PlannerSelection;
   onSelect: (selection: PlannerSelection) => void;
 }) {
@@ -120,7 +123,8 @@ export default function PrototypePlannerList({
       {services.length === 0 ? (
         <p className="proto-caption proto-planner__empty">
           {canWrite
-            ? 'Nothing planned yet. Add a sermon, or drop an idea in the board to come back to.'
+            ? (emptyWritable ??
+              'Nothing planned yet. Add a sermon, or drop an idea in the board to come back to.')
             : 'Nothing planned yet.'}
         </p>
       ) : (

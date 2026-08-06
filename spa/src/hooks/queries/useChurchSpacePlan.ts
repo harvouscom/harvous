@@ -4,8 +4,11 @@ import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import type { TeachingPlanSeries, TeachingPlanSermon } from './useChurchTeachingPlan';
 
+/** What a plan plans — see ChurchServices.kind. Server-decided, never inferred. */
+export type PlanKind = 'gathering' | 'content';
+
 /**
- * A ministry's own plan — Youth's Wednesdays.
+ * A ministry's own plan — Youth's Wednesdays, or a channel's publishing queue.
  *
  * Deliberately reuses `TeachingPlanSermon`: the server serializes a space row
  * into the same shape as a church row (with an empty `serviceTimeIds`, since
@@ -14,6 +17,12 @@ import type { TeachingPlanSeries, TeachingPlanSermon } from './useChurchTeaching
  */
 export type ChurchSpacePlanResponse = {
   church: { id: string; name: string };
+  /**
+   * A ministry channel publishes ('content'); every other space gathers.
+   * Optional so a payload cached before this shipped still parses — absent
+   * reads as 'gathering', which is what those rows were.
+   */
+  planKind?: PlanKind;
   space: {
     id: string;
     title: string;

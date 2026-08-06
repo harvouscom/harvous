@@ -8,6 +8,7 @@ import {
   formatServiceTimes,
   nextOccurrenceOfDay,
   sermonEyebrow,
+  planVocabulary,
   sermonTimeLabel,
   starterFolderForSermon,
   starterNoteTitle,
@@ -324,6 +325,36 @@ describe('formatServiceTimes', () => {
     expect(formatServiceTimes(null)).toBeNull();
     expect(formatServiceTimes(['nope'])).toBeNull();
     expect(formatServiceTimes(['nope', '09:00'])).toBe('9:00 AM');
+  });
+});
+
+describe('planVocabulary', () => {
+  it('calls the church plan a sermon', () => {
+    expect(planVocabulary({ onSpacePlan: false }).addLabel).toBe('Add a sermon');
+  });
+
+  it('calls a shared space a gathering', () => {
+    const v = planVocabulary({ onSpacePlan: true, planKind: 'gathering' });
+    expect(v.addLabel).toBe('Add a gathering');
+    expect(v.itemNoun).toBe('gathering');
+  });
+
+  it('calls a channel content — it publishes, it does not meet', () => {
+    const v = planVocabulary({ onSpacePlan: true, planKind: 'content' });
+    expect(v.addLabel).toBe('Add content');
+    expect(v.emptyWritable).not.toContain('gathering');
+    expect(v.emptyWritable).not.toContain('sermon');
+  });
+
+  it('reads an absent kind as a gathering, for payloads cached before it shipped', () => {
+    expect(planVocabulary({ onSpacePlan: true }).addLabel).toBe('Add a gathering');
+  });
+
+  it("never offers a channel the church's own wording", () => {
+    const church = planVocabulary({ onSpacePlan: false });
+    const channel = planVocabulary({ onSpacePlan: true, planKind: 'content' });
+    expect(channel.addLabel).not.toBe(church.addLabel);
+    expect(channel.emptyWritable).not.toBe(church.emptyWritable);
   });
 });
 

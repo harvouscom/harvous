@@ -17458,6 +17458,26 @@ var ChurchServices = pgTable("ChurchServices", {
   reference: text("reference"),
   /** NoteTemplates.id, org-scoped — the starter a congregant's note begins from. */
   starterTemplateId: text("starterTemplateId"),
+  /**
+   * What kind of thing this row plans: `'gathering'` | `'content'`.
+   *
+   * The church plan and church Shared Spaces plan **gatherings** — a service, a
+   * Wednesday night, something people come to at a time. A ministry channel
+   * does not gather; it *publishes*, on a `Spaces.publishCadence`. Planning a
+   * channel as though it met weekly borrowed a shape that fit nothing about it:
+   * one entry per date (a daily devotional channel breaks that on day one), a
+   * meeting time, and the word "gathering" in every string.
+   *
+   * **Derived from the plan's space on write, never taken from the client** —
+   * `isMinistryBroadcastSpaceRow` decides it. A client that could name its own
+   * kind could escape the one-per-date rule by claiming to be content.
+   *
+   * Not a publish state. There is no pipeline from a planned entry to a
+   * published note yet (see docs/future/CHURCH_STUDY_MATERIAL_LINKING.md for
+   * why the pointer that tried was removed) — a content entry is still only a
+   * plan, and nothing congregant-facing reads it.
+   */
+  kind: text("kind").notNull().default("gathering"),
   createdBy: text("createdBy").notNull(),
   updatedBy: text("updatedBy"),
   createdAt: ts("createdAt").notNull(),
@@ -17480,8 +17500,12 @@ var ChurchServices = pgTable("ChurchServices", {
    * Undated backlog rows fall out of this for free: Postgres treats NULLs as
    * distinct in a unique index, so a space can hold as many unscheduled ideas
    * as it likes while still having one gathering per actual date.
+   *
+   * **Gatherings only.** A ministry channel publishes rather than meets, and a
+   * daily channel puts several entries on one date by design — "one per date"
+   * is a fact about a room people walk into, not about a publishing queue.
    */
-  uniqueIndex("ChurchServices_space_date_unique").on(table.spaceId, table.serviceDate).where(sql`${table.spaceId} IS NOT NULL`)
+  uniqueIndex("ChurchServices_space_date_unique").on(table.spaceId, table.serviceDate).where(sql`${table.spaceId} IS NOT NULL AND ${table.kind} = 'gathering'`)
 ]);
 var NoteTemplates = pgTable(
   "NoteTemplates",

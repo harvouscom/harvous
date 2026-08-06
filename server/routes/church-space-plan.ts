@@ -42,6 +42,7 @@ import {
   assertCanViewSpaceTeachingPlan,
 } from '../utils/church-space-plan';
 import { parseServiceDateInput, type ChurchServiceRow } from '../utils/church-teaching-plan';
+import { isMinistryBroadcastSpaceRow } from '../utils/channel-publish-cadence';
 import {
   REPEAT_MAX_WEEKS,
   repeatTitleFor,
@@ -58,6 +59,24 @@ import {
 const app = new Hono();
 
 const TITLE_MAX = 120;
+
+/**
+ * What this plan's rows are: a channel publishes, every other space gathers.
+ *
+ * Derived from the space, never from the request — a client that could name its
+ * own kind could file a row as content and escape the one-per-date index that
+ * makes a gathering schedule mean anything.
+ */
+type PlanKind = 'gathering' | 'content';
+
+function planKindForSpace(space: { type: string | null; orgId: string | null }): PlanKind {
+  return isMinistryBroadcastSpaceRow(space) ? 'content' : 'gathering';
+}
+
+/** "Gathering" is a lie for a channel; "entry" is honest for both. */
+function notFoundError(kind: PlanKind): string {
+  return kind === 'content' ? 'Entry not found' : 'Gathering not found';
+}
 
 type SpaceSermonInput = {
   serviceId?: string;
@@ -88,6 +107,8 @@ function serializeSpaceSermon(row: ChurchServiceRow, seriesTitles?: Map<string, 
     serviceDate: row.serviceDate,
     /** Always empty for a space row — slots are the church's. */
     serviceTimeIds: [] as string[],
+    /** 'gathering' | 'content' — see the schema docblock. */
+    kind: row.kind,
     serviceTime: row.serviceTime,
     title: row.title,
     seriesId: row.seriesId,
@@ -143,6 +164,12 @@ app.get('/api/church/spaces/:spaceId/plan', requireAuth, async (c) => {
 
     return c.json({
       church: { id: gate.church.id, name: gate.church.name },
+      /*
+        What this plan plans. Sent once at the top rather than left for the
+        client to infer from the space's type — the server already decides it
+        on every write, and two derivations of one fact drift.
+      */
+      planKind: planKindForSpace(gate.space),
       space: {
         id: gate.space.id,
         title: gate.space.title,
@@ -220,6 +247,8 @@ app.post('/api/church/spaces/:spaceId/services/create', requireAuth, rateLimit('
       seriesId: null as string | null,
       reference: passage.reference,
       starterTemplateId,
+      /* From the space, never the body — see planKindForSpace. */
+      kind: planKindForSpace(gate.space),
       createdBy: auth.userId,
       updatedBy: null,
       createdAt: now,
@@ -255,6 +284,9 @@ app.post('/api/church/spaces/:spaceId/services/create', requireAuth, rateLimit('
       if (isUniqueViolation(error, 'ChurchServices_space_date_unique')) {
         return c.json(
           {
+            /* Only reachable for gatherings — the unique index no longer
+               covers content, because a channel publishing twice in a day is
+               ordinary rather than a mistake. */
             error: 'This ministry already has a gathering planned that day.',
             code: 'SERVICE_DATE_TAKEN',
           },
@@ -305,7 +337,7 @@ app.post('/api/church/spaces/:spaceId/services/update', requireAuth, rateLimit('
         .limit(1),
     );
     if (!existing) {
-      return c.json({ error: 'Gathering not found', code: 'SERVICE_NOT_FOUND' }, 404);
+      return c.json({ error: notFoundError(planKindForSpace(gate.space)), code: 'SERVICE_NOT_FOUND' }, 404);
     }
 
     const updates: Partial<ChurchServiceRow> = { updatedBy: auth.userId, updatedAt: new Date() };
@@ -363,6 +395,9 @@ app.post('/api/church/spaces/:spaceId/services/update', requireAuth, rateLimit('
       if (isUniqueViolation(error, 'ChurchServices_space_date_unique')) {
         return c.json(
           {
+            /* Only reachable for gatherings — the unique index no longer
+               covers content, because a channel publishing twice in a day is
+               ordinary rather than a mistake. */
             error: 'This ministry already has a gathering planned that day.',
             code: 'SERVICE_DATE_TAKEN',
           },
@@ -416,12 +451,15 @@ app.post('/api/church/spaces/:spaceId/services/repeat', requireAuth, rateLimit('
         .where(and(eq(ChurchServices.id, serviceId), eq(ChurchServices.spaceId, gate.space.id)))
         .limit(1),
     );
-    if (!seed) return c.json({ error: 'Gathering not found', code: 'SERVICE_NOT_FOUND' }, 404);
+    if (!seed) return c.json({ error: notFoundError(planKindForSpace(gate.space)), code: 'SERVICE_NOT_FOUND' }, 404);
     /* Weekly repeats count forward from a date. An idea has none to count from. */
     if (seed.serviceDate === null) {
       return c.json(
         {
-          error: 'Give this gathering a date first — repeat counts weeks from one.',
+          error:
+            planKindForSpace(gate.space) === 'content'
+              ? 'Give this a date first — repeat counts weeks from one.'
+              : 'Give this gathering a date first — repeat counts weeks from one.',
           code: 'BAD_REQUEST',
         },
         400,
@@ -458,6 +496,9 @@ app.post('/api/church/spaces/:spaceId/services/repeat', requireAuth, rateLimit('
         // leader's mouth.
         reference: null,
         starterTemplateId: seed.starterTemplateId,
+        /* Inherits the seed's kind by inheriting the space's — a repeat cannot
+           change what sort of thing it is repeating. */
+        kind: seed.kind,
         createdBy: auth.userId,
         updatedBy: null,
         createdAt: new Date(),
@@ -508,7 +549,7 @@ app.post('/api/church/spaces/:spaceId/services/delete', requireAuth, rateLimit('
       .returning({ id: ChurchServices.id });
 
     if (removed.length === 0) {
-      return c.json({ error: 'Gathering not found', code: 'SERVICE_NOT_FOUND' }, 404);
+      return c.json({ error: notFoundError(planKindForSpace(gate.space)), code: 'SERVICE_NOT_FOUND' }, 404);
     }
     return c.json({ success: true, serviceId });
   } catch (error) {

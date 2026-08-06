@@ -30,6 +30,7 @@ export default function PrototypePlannerEditorPane({
   canWrite,
   readOnlyReason,
   canManageChurchTemplates,
+  planKind,
   onClose,
   onNavigateAway,
 }: {
@@ -44,6 +45,8 @@ export default function PrototypePlannerEditorPane({
   canWrite: boolean;
   readOnlyReason: 'lapsed' | 'role' | null;
   canManageChurchTemplates: boolean;
+  /** 'content' hides the gathering-only fields — see PrototypeSermonEditorFields. */
+  planKind?: 'gathering' | 'content';
   onClose: () => void;
   onNavigateAway: () => void;
 }) {
@@ -84,7 +87,14 @@ export default function PrototypePlannerEditorPane({
   }, [onClose]);
 
   const isEditing = Boolean(service);
-  const heading = isEditing ? 'Edit sermon' : createDate ? 'New sermon' : 'New idea';
+  /* A channel publishes entries; calling one a "sermon" in its own editor is
+     the same mismatch the plan's buttons had. */
+  const noun = planKind === 'content' ? 'entry' : 'sermon';
+  const heading = isEditing
+    ? `Edit ${noun}`
+    : createDate
+      ? `New ${noun}`
+      : 'New idea';
 
   return (
     <aside ref={paneRef} className="proto-planner-editor" aria-label={heading}>
@@ -122,6 +132,7 @@ export default function PrototypePlannerEditorPane({
             active
             createDefaultDate={isEditing ? undefined : (createDate ?? null)}
             allowNullDate
+            planKind={planKind}
             onDone={onClose}
             onNavigateAway={onNavigateAway}
           />

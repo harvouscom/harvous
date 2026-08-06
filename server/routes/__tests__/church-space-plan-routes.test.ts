@@ -160,3 +160,43 @@ describe('the church plan stays church-scoped', () => {
     expect(helper).toMatch(/plan \? plan\.spaceId : null/);
   });
 });
+
+describe('plan entry kind', () => {
+  it('derives kind from the space, never from the request body', () => {
+    // A client that could name its own kind could file a gathering as content
+    // and walk straight through the one-per-date index.
+    const text = spaceRoutes();
+    expect(text).toContain('planKindForSpace(gate.space)');
+    expect(text).not.toMatch(/body\.kind/);
+  });
+
+  it('stamps kind on every row a space plan writes', () => {
+    for (const marker of [
+      "app.post('/api/church/spaces/:spaceId/services/create'",
+      "app.post('/api/church/spaces/:spaceId/services/repeat'",
+    ]) {
+      const body = handlerBody(spaceRoutes(), marker);
+      expect(body, `${marker} writes a row without a kind`).toMatch(/kind: /);
+    }
+  });
+
+  it('keeps the church plan explicitly a gathering', () => {
+    // Stated rather than left to the column default, so the intent survives a
+    // schema edit that changes what the default is.
+    const body = handlerBody(churchRoutes(), "app.post('/api/church/services/create'");
+    expect(body).toContain("kind: 'gathering'");
+  });
+
+  it('narrows the one-per-date index to gatherings', () => {
+    // A daily channel puts several entries on one date by design; "one per
+    // date" is a fact about a room people walk into, not a publishing queue.
+    const schema = source('server/db/schema.ts');
+    expect(schema).toMatch(/ChurchServices_space_date_unique/);
+    expect(schema).toMatch(/kind\} = 'gathering'/);
+  });
+
+  it('publishes planKind on the plan read so the client never re-derives it', () => {
+    const body = handlerBody(spaceRoutes(), "app.get('/api/church/spaces/:spaceId/plan'");
+    expect(body).toContain('planKind:');
+  });
+});

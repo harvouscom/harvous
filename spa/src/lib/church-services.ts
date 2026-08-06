@@ -287,6 +287,49 @@ export function sermonTimeLabel(
   return formatServiceTime(sermon.serviceTime);
 }
 
+/**
+ * What a plan calls the things in it.
+ *
+ * Three answers, not two: the church preaches sermons, a Shared Space gathers,
+ * and a ministry channel publishes. A channel was being asked to "Add a
+ * gathering" for something nobody attends — the word promised a room and a
+ * time that a published study does not have.
+ */
+export type PlanVocabulary = {
+  /** The primary action's label. */
+  addLabel: string;
+  /** Shown when the plan is empty and the viewer can write. */
+  emptyWritable: string;
+  /** One entry, lowercase, for mid-sentence use. */
+  itemNoun: string;
+};
+
+export function planVocabulary(
+  scope: { onSpacePlan: boolean; planKind?: 'gathering' | 'content' },
+): PlanVocabulary {
+  if (!scope.onSpacePlan) {
+    return {
+      addLabel: 'Add a sermon',
+      emptyWritable: 'Plan a sermon and everyone connected to your church sees it on their Home.',
+      itemNoun: 'sermon',
+    };
+  }
+  if (scope.planKind === 'content') {
+    return {
+      addLabel: 'Add content',
+      /* No "members see it inside the space" promise here: a planned entry is
+         not published, and nothing congregant-facing reads it yet. */
+      emptyWritable: 'Plan what this channel publishes — studies, devotionals, a series to come.',
+      itemNoun: 'entry',
+    };
+  }
+  return {
+    addLabel: 'Add a gathering',
+    emptyWritable: 'Plan what this ministry studies. Its members see it inside the space.',
+    itemNoun: 'gathering',
+  };
+}
+
 /** The series of whichever service is current — the card's context line. */
 export function currentSeriesTitle(
   services: readonly ChurchSermon[],

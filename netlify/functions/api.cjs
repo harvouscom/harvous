@@ -18859,6 +18859,26 @@ var init_schema2 = __esm({
       reference: text("reference"),
       /** NoteTemplates.id, org-scoped — the starter a congregant's note begins from. */
       starterTemplateId: text("starterTemplateId"),
+      /**
+       * What kind of thing this row plans: `'gathering'` | `'content'`.
+       *
+       * The church plan and church Shared Spaces plan **gatherings** — a service, a
+       * Wednesday night, something people come to at a time. A ministry channel
+       * does not gather; it *publishes*, on a `Spaces.publishCadence`. Planning a
+       * channel as though it met weekly borrowed a shape that fit nothing about it:
+       * one entry per date (a daily devotional channel breaks that on day one), a
+       * meeting time, and the word "gathering" in every string.
+       *
+       * **Derived from the plan's space on write, never taken from the client** —
+       * `isMinistryBroadcastSpaceRow` decides it. A client that could name its own
+       * kind could escape the one-per-date rule by claiming to be content.
+       *
+       * Not a publish state. There is no pipeline from a planned entry to a
+       * published note yet (see docs/future/CHURCH_STUDY_MATERIAL_LINKING.md for
+       * why the pointer that tried was removed) — a content entry is still only a
+       * plan, and nothing congregant-facing reads it.
+       */
+      kind: text("kind").notNull().default("gathering"),
       createdBy: text("createdBy").notNull(),
       updatedBy: text("updatedBy"),
       createdAt: ts("createdAt").notNull(),
@@ -18881,8 +18901,12 @@ var init_schema2 = __esm({
        * Undated backlog rows fall out of this for free: Postgres treats NULLs as
        * distinct in a unique index, so a space can hold as many unscheduled ideas
        * as it likes while still having one gathering per actual date.
+       *
+       * **Gatherings only.** A ministry channel publishes rather than meets, and a
+       * daily channel puts several entries on one date by design — "one per date"
+       * is a fact about a room people walk into, not about a publishing queue.
        */
-      uniqueIndex("ChurchServices_space_date_unique").on(table.spaceId, table.serviceDate).where(sql`${table.spaceId} IS NOT NULL`)
+      uniqueIndex("ChurchServices_space_date_unique").on(table.spaceId, table.serviceDate).where(sql`${table.spaceId} IS NOT NULL AND ${table.kind} = 'gathering'`)
     ]);
     NoteTemplates = pgTable(
       "NoteTemplates",
@@ -321190,6 +321214,9 @@ app15.post("/api/church/services/create", requireAuth, rateLimit("write"), async
       seriesId: null,
       reference: passage.reference,
       starterTemplateId: clean(body.starterTemplateId, 200),
+      /* The church's own plan is always gatherings — stated rather than
+         left to the column default, so the intent survives a schema edit. */
+      kind: "gathering",
       createdBy: auth.userId,
       updatedBy: null,
       createdAt: now2,
@@ -321454,6 +321481,7 @@ app15.post("/api/church/services/repeat", requireAuth, rateLimit("write"), async
         // guessing it would put words in the pastor's mouth.
         reference: null,
         starterTemplateId: seed.starterTemplateId,
+        kind: seed.kind,
         createdBy: auth.userId,
         updatedBy: null,
         createdAt: now2,
@@ -321852,6 +321880,12 @@ async function resolveGrantedLeaderAccess(userId, spaceId, refusal) {
 // server/routes/church-space-plan.ts
 var app17 = new Hono2();
 var TITLE_MAX2 = 120;
+function planKindForSpace(space) {
+  return isMinistryBroadcastSpaceRow(space) ? "content" : "gathering";
+}
+function notFoundError(kind) {
+  return kind === "content" ? "Entry not found" : "Gathering not found";
+}
 function clean2(value, max2) {
   const trimmed = String(value ?? "").trim();
   if (!trimmed) return null;
@@ -321863,6 +321897,8 @@ function serializeSpaceSermon(row, seriesTitles) {
     serviceDate: row.serviceDate,
     /** Always empty for a space row — slots are the church's. */
     serviceTimeIds: [],
+    /** 'gathering' | 'content' — see the schema docblock. */
+    kind: row.kind,
     serviceTime: row.serviceTime,
     title: row.title,
     seriesId: row.seriesId,
@@ -321900,6 +321936,12 @@ app17.get("/api/church/spaces/:spaceId/plan", requireAuth, async (c) => {
     const seriesTitles = await seriesTitlesByServiceRows(services);
     return c.json({
       church: { id: gate.church.id, name: gate.church.name },
+      /*
+        What this plan plans. Sent once at the top rather than left for the
+        client to infer from the space's type — the server already decides it
+        on every write, and two derivations of one fact drift.
+      */
+      planKind: planKindForSpace(gate.space),
       space: {
         id: gate.space.id,
         title: gate.space.title,
@@ -321960,6 +322002,8 @@ app17.post("/api/church/spaces/:spaceId/services/create", requireAuth, rateLimit
       seriesId: null,
       reference: passage.reference,
       starterTemplateId,
+      /* From the space, never the body — see planKindForSpace. */
+      kind: planKindForSpace(gate.space),
       createdBy: auth.userId,
       updatedBy: null,
       createdAt: now2,
@@ -321989,6 +322033,9 @@ app17.post("/api/church/spaces/:spaceId/services/create", requireAuth, rateLimit
       if (isUniqueViolation(error, "ChurchServices_space_date_unique")) {
         return c.json(
           {
+            /* Only reachable for gatherings — the unique index no longer
+               covers content, because a channel publishing twice in a day is
+               ordinary rather than a mistake. */
             error: "This ministry already has a gathering planned that day.",
             code: "SERVICE_DATE_TAKEN"
           },
@@ -322024,7 +322071,7 @@ app17.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit
       await db.select().from(ChurchServices).where(and(eq(ChurchServices.id, serviceId), eq(ChurchServices.spaceId, gate.space.id))).limit(1)
     );
     if (!existing) {
-      return c.json({ error: "Gathering not found", code: "SERVICE_NOT_FOUND" }, 404);
+      return c.json({ error: notFoundError(planKindForSpace(gate.space)), code: "SERVICE_NOT_FOUND" }, 404);
     }
     const updates = { updatedBy: auth.userId, updatedAt: /* @__PURE__ */ new Date() };
     const parsedDate = parseServiceDateInput(body.serviceDate);
@@ -322075,6 +322122,9 @@ app17.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit
       if (isUniqueViolation(error, "ChurchServices_space_date_unique")) {
         return c.json(
           {
+            /* Only reachable for gatherings — the unique index no longer
+               covers content, because a channel publishing twice in a day is
+               ordinary rather than a mistake. */
             error: "This ministry already has a gathering planned that day.",
             code: "SERVICE_DATE_TAKEN"
           },
@@ -322107,11 +322157,11 @@ app17.post("/api/church/spaces/:spaceId/services/repeat", requireAuth, rateLimit
     const seed = first(
       await db.select().from(ChurchServices).where(and(eq(ChurchServices.id, serviceId), eq(ChurchServices.spaceId, gate.space.id))).limit(1)
     );
-    if (!seed) return c.json({ error: "Gathering not found", code: "SERVICE_NOT_FOUND" }, 404);
+    if (!seed) return c.json({ error: notFoundError(planKindForSpace(gate.space)), code: "SERVICE_NOT_FOUND" }, 404);
     if (seed.serviceDate === null) {
       return c.json(
         {
-          error: "Give this gathering a date first \u2014 repeat counts weeks from one.",
+          error: planKindForSpace(gate.space) === "content" ? "Give this a date first \u2014 repeat counts weeks from one." : "Give this gathering a date first \u2014 repeat counts weeks from one.",
           code: "BAD_REQUEST"
         },
         400
@@ -322144,6 +322194,9 @@ app17.post("/api/church/spaces/:spaceId/services/repeat", requireAuth, rateLimit
         // leader's mouth.
         reference: null,
         starterTemplateId: seed.starterTemplateId,
+        /* Inherits the seed's kind by inheriting the space's — a repeat cannot
+           change what sort of thing it is repeating. */
+        kind: seed.kind,
         createdBy: auth.userId,
         updatedBy: null,
         createdAt: /* @__PURE__ */ new Date(),
@@ -322179,7 +322232,7 @@ app17.post("/api/church/spaces/:spaceId/services/delete", requireAuth, rateLimit
     if (!serviceId) return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
     const removed = await db.delete(ChurchServices).where(and(eq(ChurchServices.id, serviceId), eq(ChurchServices.spaceId, gate.space.id))).returning({ id: ChurchServices.id });
     if (removed.length === 0) {
-      return c.json({ error: "Gathering not found", code: "SERVICE_NOT_FOUND" }, 404);
+      return c.json({ error: notFoundError(planKindForSpace(gate.space)), code: "SERVICE_NOT_FOUND" }, 404);
     }
     return c.json({ success: true, serviceId });
   } catch (error) {

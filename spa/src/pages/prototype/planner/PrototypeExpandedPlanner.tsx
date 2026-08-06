@@ -26,6 +26,7 @@ import {
   useChurchSpaceSermonActions,
 } from '../../../hooks/queries/useChurchSpacePlan';
 import { useChurchPlannerAccess } from '../../../hooks/useChurchPlannerAccess';
+import { planVocabulary } from '../../../lib/church-services';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import ProtoSpaceLoading from '../ProtoSpaceLoading';
 import PrototypePlannerBoard from './PrototypePlannerBoard';
@@ -90,6 +91,9 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
   const onSpacePlan = planSpaceId !== null;
   const data = onSpacePlan ? spacePlan.data : churchPlan.data;
   const actions = onSpacePlan ? spaceActions : churchActions;
+  /* Server-decided; a channel plans content, everything else gathers. */
+  const planKind = onSpacePlan ? spacePlan.data?.planKind : undefined;
+  const vocab = planVocabulary({ onSpacePlan, planKind });
   const services = useMemo(() => data?.services ?? [], [data]);
   const series = data?.series ?? [];
   const serviceTimes = onSpacePlan ? [] : (churchPlan.data?.serviceTimes ?? []);
@@ -169,9 +173,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
             onClick={() => setSelection({ mode: 'create', date: null })}
           >
             <Icon name="plus" size={12} aria-hidden />
-            <span className="proto-glass-action__label">
-              {onSpacePlan ? 'Add a gathering' : 'Add a sermon'}
-            </span>
+            <span className="proto-glass-action__label">{vocab.addLabel}</span>
           </button>
         ) : undefined
       }
@@ -231,6 +233,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
                 serviceTimes={serviceTimes}
                 canWrite={canWrite}
                 readOnlyReason={readOnlyReason}
+                emptyWritable={vocab.emptyWritable}
                 selection={selection}
                 onSelect={setSelection}
               />
@@ -248,6 +251,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
               canWrite={canWrite}
               readOnlyReason={readOnlyReason}
               canManageChurchTemplates={canManageChurchTemplates}
+              planKind={planKind}
               onClose={() => setSelection(null)}
               onNavigateAway={leaveForNote}
             />

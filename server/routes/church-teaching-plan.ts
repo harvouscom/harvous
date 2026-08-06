@@ -329,6 +329,9 @@ app.post('/api/church/services/create', requireAuth, rateLimit('write'), async (
       seriesId: null as string | null,
       reference: passage.reference,
       starterTemplateId: clean(body.starterTemplateId, 200),
+      /* The church's own plan is always gatherings — stated rather than
+         left to the column default, so the intent survives a schema edit. */
+      kind: 'gathering' as const,
       createdBy: auth.userId,
       updatedBy: null,
       createdAt: now,
@@ -714,6 +717,7 @@ app.post('/api/church/services/repeat', requireAuth, rateLimit('write'), async (
         // guessing it would put words in the pastor's mouth.
         reference: null,
         starterTemplateId: seed.starterTemplateId,
+        kind: seed.kind,
         createdBy: auth.userId,
         updatedBy: null,
         createdAt: now,
