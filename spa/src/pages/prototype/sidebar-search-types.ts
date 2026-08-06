@@ -30,7 +30,7 @@ export const SIDEBAR_ELSEWHERE_TYPE_OPTIONS: {
   { id: 'folders', label: 'Folders', iconName: 'folder' },
   { id: 'threads', label: 'Threads', iconName: 'arrow-right-arrow-left' },
   { id: 'highlights', label: 'Highlights', iconName: 'highlighter' },
-  { id: 'scripture', label: 'Scripture', iconName: 'book-open' },
+  { id: 'scripture', label: 'Scripture', iconName: 'scroll' },
 ];
 
 export type SidebarSearchResult = {

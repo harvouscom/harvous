@@ -25,7 +25,7 @@ export default function ScriptureDraftConfirmDockWeb({
       animateEnter={false}
       onToggleExpanded={() => {}}
       onDismiss={() => {}}
-      headerIcon={<Icon name="book-open" size={13} />}
+      headerIcon={<Icon name="scroll" size={13} />}
       headerTitle={
         <span className="scripture-draft-confirm-dock__title study-dock-card__header-primary-text">
           {label}

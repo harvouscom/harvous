@@ -427,7 +427,7 @@ function HomeGreeting({
         aria-label={`Open ${lead.book.title} in Scripture`}
         onClick={() => onOpenScriptureBook(lead.book.bookOrder)}
       >
-        <Icon name="book" size={11} aria-hidden />
+        <Icon name="scroll" size={11} aria-hidden />
         <span>{lead.book.title}</span>
       </button>
     ) : null;
@@ -1222,7 +1222,7 @@ export default function PrototypeSidebarHomeView({
         eyebrow: 'A passage you keep returning to',
         title: passageConnection.displayRef,
         meta: `Across ${passageConnection.noteCount} of your notes`,
-        iconName: 'book',
+        iconName: 'scroll',
         onOpen: openPassageConnection,
       });
     }
@@ -1278,7 +1278,7 @@ export default function PrototypeSidebarHomeView({
             eyebrow: `Keep going in ${continueBookSuggestion.book}`,
             title: ref,
             meta: continueBookRecallMeta(continueBookSuggestion.book, continueBookSuggestion.nextChapter),
-            iconName: 'book',
+            iconName: 'scroll',
             onOpen: () => startDraftNote({ title: ref, contentHtml: buildVotdScripturePillHtml(ref, 'NET') }),
           });
         }
