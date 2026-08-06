@@ -16773,6 +16773,9 @@ __export(schema_exports, {
   BibleTranslations: () => BibleTranslations,
   BibleVerses: () => BibleVerses,
   ChurchMemberships: () => ChurchMemberships,
+  ChurchSeries: () => ChurchSeries,
+  ChurchServiceTimeAssignments: () => ChurchServiceTimeAssignments,
+  ChurchServiceTimes: () => ChurchServiceTimes,
   ChurchServices: () => ChurchServices,
   Churches: () => Churches,
   ClerkUserMapping: () => ClerkUserMapping,
@@ -16836,6 +16839,23 @@ var Spaces = pgTable(
      * Values: daily | weekly | biweekly | monthly | quarterly | irregular | null.
      */
     publishCadence: text("publishCadence"),
+    /**
+     * When this org space gathers — "Youth meets Wednesdays at 6:30".
+     *
+     * Org spaces only (ministry channel or church Shared Space). The church's
+     * own times live in `ChurchServiceTimes`, which is a *list* because a church
+     * holds several services on one morning; a space gathers once, so a single
+     * day/time is the honest shape rather than a second slot table.
+     *
+     * Display and defaults only — this seeds the space plan's date picker and
+     * labels its card. Nothing here schedules, reminds, or recurs; staff still
+     * enter every gathering by hand. See
+     * docs/future/CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md §1.
+     */
+    /** 0–6, 0 = Sunday — Date.getDay() and the WEEKDAYS array in church-services.ts. */
+    meetingDay: integer("meetingDay"),
+    /** 'HH:MM' 24h on the church's wall clock; the zone is Churches.timezone. */
+    meetingTime: text("meetingTime"),
     color: text("color"),
     backgroundGradient: text("backgroundGradient"),
     /** JSON `SpaceCoverBg` — join-page / invite hero for light appearance. */
@@ -17182,6 +17202,22 @@ var SpaceMemberships = pgTable("SpaceMemberships", {
   invitedBy: text("invitedBy"),
   /** SpaceInvites.id that was redeemed to create this membership; null on the owner row. */
   inviteId: text("inviteId"),
+  /**
+   * Where this row's role came from: `'staff_sync'` (or NULL, same meaning) vs
+   * `'grant'` — an explicit act of giving one person leadership of one space.
+   *
+   * Load-bearing, and landed before the feature that needs it (P5 granted
+   * leadership). `computeStaffSyncPlan` deletes any `leader` row whose user is
+   * not in the Clerk roster, and sync runs on the organizationMembership
+   * webhook plus every staff invite, removal, and role change — so a granted
+   * volunteer would be reaped silently, probably within a day. The removal step
+   * therefore skips `'grant'` rows. A no-op until the first grant exists, which
+   * is the point: the rule cannot be forgotten later.
+   *
+   * No backfill needed — every `leader` row today is staff-projected, and NULL
+   * already reads as that.
+   */
+  grantSource: text("grantSource"),
   joinedAt: ts("joinedAt").notNull(),
   /** Last time this member opened the shared space dashboard (new-since watermark). */
   lastVisitedAt: ts("lastVisitedAt"),
@@ -17226,6 +17262,29 @@ var Churches = pgTable("Churches", {
   city: text("city"),
   state: text("state"),
   country: text("country"),
+  /*
+      ─── Self-serve church configuration ──────────────────────────────────────
+      Written ONLY by POST /api/church/settings/update (server/routes/
+      church-settings.ts), behind the admin-only `manage_church_settings`
+      capability. Deliberately *below* the HMC denorm block above and never part
+      of it: `hmcDenormFields` returns exactly {name, city, state, country} and
+      every writer spreads those four field-by-field, so a directory refresh
+      cannot reach these. Keep it that way — a church losing its own service time
+      to a name sync would be silent and baffling.
+  
+      Display and defaults only. These pre-fill a date picker and label a card;
+      nothing here schedules, reminds, notifies, or generates rows. "Scheduling"
+      is a named anti-goal (MY_CHURCH_SIDEBAR.md, CHMS_INTEGRATION_RESEARCH.md).
+      See docs/future/CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md §1.
+    */
+  /**
+   * IANA zone (e.g. 'America/Chicago'). Its whole job is to make the 'HH:MM'
+   * values in ChurchServiceTimes unambiguous — it records *whose* clock, and it
+   * is what lets the congregant card know whether this morning's service has
+   * started yet. Nothing converts to a viewer's timezone; congregants see the
+   * church's wall time verbatim.
+   */
+  timezone: text("timezone"),
   /** Staff user who created the church record (audit anchor); admin roles live in Clerk org roles. */
   createdBy: text("createdBy").notNull(),
   /**
@@ -17275,9 +17334,81 @@ var ChurchMemberships = pgTable("ChurchMemberships", {
   index("ChurchMemberships_userIdIndex").on(table.userId),
   index("ChurchMemberships_churchIdIndex").on(table.churchId)
 ]);
+var ChurchServiceTimes = pgTable("ChurchServiceTimes", {
+  id: text("id").primaryKey(),
+  churchId: text("churchId").notNull(),
+  /** 0–6, 0 = Sunday — Date.getDay() and the WEEKDAYS array in church-services.ts. */
+  dayOfWeek: integer("dayOfWeek").notNull(),
+  /** 'HH:MM' 24h on the church's own wall clock; the zone is Churches.timezone. */
+  startTime: text("startTime").notNull(),
+  /** Optional human name — "First service", "Evening". Null renders as the time alone. */
+  label: text("label"),
+  sortOrder: integer("sortOrder").notNull().default(0),
+  createdAt: ts("createdAt").notNull(),
+  updatedAt: ts("updatedAt")
+}, (table) => [
+  /** The same slot twice would give a sermon two identical checkboxes. */
+  uniqueIndex("ChurchServiceTimes_church_day_time_unique").on(
+    table.churchId,
+    table.dayOfWeek,
+    table.startTime
+  ),
+  index("ChurchServiceTimes_churchIdIndex").on(table.churchId)
+]);
+var ChurchServiceTimeAssignments = pgTable("ChurchServiceTimeAssignments", {
+  id: text("id").primaryKey(),
+  /** ChurchServices.id — the sermon. */
+  serviceId: text("serviceId").notNull(),
+  /** ChurchServiceTimes.id — the slot it is preached at. */
+  serviceTimeId: text("serviceTimeId").notNull(),
+  /** Mirrors ChurchServices.serviceDate. See the note above before touching. */
+  serviceDate: text("serviceDate").notNull(),
+  createdAt: ts("createdAt").notNull()
+}, (table) => [
+  /**
+   * One sermon per slot per date — the replacement for
+   * ChurchServices_church_date_unique. "This Sunday 9:00" still has exactly one
+   * answer; "this Sunday" now has as many as the church actually holds.
+   */
+  uniqueIndex("ChurchServiceTimeAssignments_slot_date_unique").on(
+    table.serviceTimeId,
+    table.serviceDate
+  ),
+  index("ChurchServiceTimeAssignments_serviceIdIndex").on(table.serviceId),
+  index("ChurchServiceTimeAssignments_serviceDateIndex").on(table.serviceDate)
+]);
+var ChurchSeries = pgTable("ChurchSeries", {
+  id: text("id").primaryKey(),
+  churchId: text("churchId").notNull(),
+  /** NULL = the church plan; set = that space's plan. Immutable after create. */
+  spaceId: text("spaceId"),
+  title: text("title").notNull(),
+  createdBy: text("createdBy").notNull(),
+  createdAt: ts("createdAt").notNull(),
+  updatedAt: ts("updatedAt")
+}, (table) => [
+  /**
+   * One series per name per plan, case-insensitively — the whole point is that
+   * "Life In the Spirit" cannot become a second series beside "Life in the
+   * Spirit". Two partial indexes because `spaceId IS NULL` is a distinct scope
+   * and Postgres treats NULLs as distinct in a plain unique index, so the
+   * church-plan half would not be constrained at all. Same shape and same
+   * reason as `ChurchServices_space_date_unique`.
+   */
+  uniqueIndex("ChurchSeries_church_title_unique").on(table.churchId, sql`lower(${table.title})`).where(sql`${table.spaceId} IS NULL`),
+  uniqueIndex("ChurchSeries_space_title_unique").on(table.spaceId, sql`lower(${table.title})`).where(sql`${table.spaceId} IS NOT NULL`),
+  index("ChurchSeries_churchIdIndex").on(table.churchId)
+]);
 var ChurchServices = pgTable("ChurchServices", {
   id: text("id").primaryKey(),
   churchId: text("churchId").notNull(),
+  /**
+   * Which plan this sermon belongs to. NULL = the church's own plan; set = a
+   * ministry channel or church Shared Space that carries its own (Youth meets
+   * Wednesdays). See the docblock above for the same-church invariant and why
+   * this column is allowed where a denormalized `orgId` is not.
+   */
+  spaceId: text("spaceId"),
   /**
    * Church-local calendar day, 'YYYY-MM-DD'. Deliberately NOT a timestamp: a
    * service is a day on the church's wall calendar, and a TIMESTAMPTZ drifts a
@@ -17285,30 +17416,55 @@ var ChurchServices = pgTable("ChurchServices", {
    * VotdPublishHistory.publishedDate.
    */
   serviceDate: text("serviceDate").notNull(),
+  /**
+   * A one-off time for a sermon that does not sit at any of the church's usual
+   * services — a Christmas Eve 17:00, a Good Friday evening.
+   *
+   * Normally NULL: the times come from ChurchServiceTimeAssignments, because
+   * those recur and this does not. Adding a permanent "Thursday 17:00" slot for
+   * one Christmas Eve would be a lie about the church's week, which is the
+   * whole reason this column survives the move to assignments.
+   *
+   * 'HH:MM' 24h, church wall clock — text for the same reason `serviceDate` is.
+   */
+  serviceTime: text("serviceTime"),
   title: text("title").notNull(),
   /**
-   * Free text, grouped by equality. Deliberately not a Threads row: thread
-   * creation in a non-personal space requires the literal space owner
-   * (threads.ts), and non-owners only ever see the pinned thread
-   * (shared-space-group-threads.ts) — so a series would be invisible to the
-   * congregation and orphaned when its author left staff.
+   * ChurchSeries.id, or NULL for a standalone sermon. Replaced the free-text
+   * `seriesTitle` outright rather than sitting beside it — a denormalized copy
+   * would reintroduce the exact bug the row exists to fix, two sources of truth
+   * and a rename that lands in only one. Reads join; the join is one row per
+   * sermon on payloads already bounded to a handful of weeks.
+   *
+   * Must share this sermon's plan scope (see the ChurchSeries docblock); the
+   * write routes enforce it, because no index can.
    */
-  seriesTitle: text("seriesTitle"),
+  seriesId: text("seriesId"),
   /** Canonical form written by canonicalizeServiceReference. Nullable — a
    *  topical Sunday is legal, and every downstream path tolerates null. */
   reference: text("reference"),
   /** NoteTemplates.id, org-scoped — the starter a congregant's note begins from. */
   starterTemplateId: text("starterTemplateId"),
-  /** Optional companion ministry channel (Spaces.id, type='public' + orgId). */
-  channelSpaceId: text("channelSpaceId"),
   createdBy: text("createdBy").notNull(),
   updatedBy: text("updatedBy"),
   createdAt: ts("createdAt").notNull(),
   updatedAt: ts("updatedAt")
 }, (table) => [
-  /** One service per church per date — what makes "This Sunday" have exactly
-   *  one answer. Same discipline as VotdPublishHistory_publishedDate_unique. */
-  uniqueIndex("ChurchServices_church_date_unique").on(table.churchId, table.serviceDate)
+  /**
+   * Plain index, not unique — see the "no unique index" note in the docblock.
+   * The church-plan one-answer guarantee lives on ChurchServiceTimeAssignments.
+   */
+  index("ChurchServices_church_dateIndex").on(table.churchId, table.serviceDate),
+  index("ChurchServices_spaceIdIndex").on(table.spaceId),
+  /**
+   * One gathering per date, for space plans only.
+   *
+   * Spaces get a hard index where the church gets a route guard, because a
+   * space has a single `meetingTime` and can never claim a church service slot
+   * — so every space row is timeless and the DB can carry the whole invariant.
+   * The church side cannot: its answer depends on which slots a sermon claims.
+   */
+  uniqueIndex("ChurchServices_space_date_unique").on(table.spaceId, table.serviceDate).where(sql`${table.spaceId} IS NOT NULL`)
 ]);
 var NoteTemplates = pgTable(
   "NoteTemplates",

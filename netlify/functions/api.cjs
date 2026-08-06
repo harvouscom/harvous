@@ -18168,6 +18168,9 @@ __export(schema_exports, {
   BibleTranslations: () => BibleTranslations,
   BibleVerses: () => BibleVerses,
   ChurchMemberships: () => ChurchMemberships,
+  ChurchSeries: () => ChurchSeries,
+  ChurchServiceTimeAssignments: () => ChurchServiceTimeAssignments,
+  ChurchServiceTimes: () => ChurchServiceTimes,
   ChurchServices: () => ChurchServices,
   Churches: () => Churches,
   ClerkUserMapping: () => ClerkUserMapping,
@@ -18219,7 +18222,7 @@ __export(schema_exports, {
   VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, ChurchServices, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
+var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, ChurchServiceTimes, ChurchServiceTimeAssignments, ChurchSeries, ChurchServices, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -18237,6 +18240,23 @@ var init_schema2 = __esm({
          * Values: daily | weekly | biweekly | monthly | quarterly | irregular | null.
          */
         publishCadence: text("publishCadence"),
+        /**
+         * When this org space gathers — "Youth meets Wednesdays at 6:30".
+         *
+         * Org spaces only (ministry channel or church Shared Space). The church's
+         * own times live in `ChurchServiceTimes`, which is a *list* because a church
+         * holds several services on one morning; a space gathers once, so a single
+         * day/time is the honest shape rather than a second slot table.
+         *
+         * Display and defaults only — this seeds the space plan's date picker and
+         * labels its card. Nothing here schedules, reminds, or recurs; staff still
+         * enter every gathering by hand. See
+         * docs/future/CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md §1.
+         */
+        /** 0–6, 0 = Sunday — Date.getDay() and the WEEKDAYS array in church-services.ts. */
+        meetingDay: integer("meetingDay"),
+        /** 'HH:MM' 24h on the church's wall clock; the zone is Churches.timezone. */
+        meetingTime: text("meetingTime"),
         color: text("color"),
         backgroundGradient: text("backgroundGradient"),
         /** JSON `SpaceCoverBg` — join-page / invite hero for light appearance. */
@@ -18583,6 +18603,22 @@ var init_schema2 = __esm({
       invitedBy: text("invitedBy"),
       /** SpaceInvites.id that was redeemed to create this membership; null on the owner row. */
       inviteId: text("inviteId"),
+      /**
+       * Where this row's role came from: `'staff_sync'` (or NULL, same meaning) vs
+       * `'grant'` — an explicit act of giving one person leadership of one space.
+       *
+       * Load-bearing, and landed before the feature that needs it (P5 granted
+       * leadership). `computeStaffSyncPlan` deletes any `leader` row whose user is
+       * not in the Clerk roster, and sync runs on the organizationMembership
+       * webhook plus every staff invite, removal, and role change — so a granted
+       * volunteer would be reaped silently, probably within a day. The removal step
+       * therefore skips `'grant'` rows. A no-op until the first grant exists, which
+       * is the point: the rule cannot be forgotten later.
+       *
+       * No backfill needed — every `leader` row today is staff-projected, and NULL
+       * already reads as that.
+       */
+      grantSource: text("grantSource"),
       joinedAt: ts("joinedAt").notNull(),
       /** Last time this member opened the shared space dashboard (new-since watermark). */
       lastVisitedAt: ts("lastVisitedAt"),
@@ -18627,6 +18663,29 @@ var init_schema2 = __esm({
       city: text("city"),
       state: text("state"),
       country: text("country"),
+      /*
+          ─── Self-serve church configuration ──────────────────────────────────────
+          Written ONLY by POST /api/church/settings/update (server/routes/
+          church-settings.ts), behind the admin-only `manage_church_settings`
+          capability. Deliberately *below* the HMC denorm block above and never part
+          of it: `hmcDenormFields` returns exactly {name, city, state, country} and
+          every writer spreads those four field-by-field, so a directory refresh
+          cannot reach these. Keep it that way — a church losing its own service time
+          to a name sync would be silent and baffling.
+      
+          Display and defaults only. These pre-fill a date picker and label a card;
+          nothing here schedules, reminds, notifies, or generates rows. "Scheduling"
+          is a named anti-goal (MY_CHURCH_SIDEBAR.md, CHMS_INTEGRATION_RESEARCH.md).
+          See docs/future/CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md §1.
+        */
+      /**
+       * IANA zone (e.g. 'America/Chicago'). Its whole job is to make the 'HH:MM'
+       * values in ChurchServiceTimes unambiguous — it records *whose* clock, and it
+       * is what lets the congregant card know whether this morning's service has
+       * started yet. Nothing converts to a viewer's timezone; congregants see the
+       * church's wall time verbatim.
+       */
+      timezone: text("timezone"),
       /** Staff user who created the church record (audit anchor); admin roles live in Clerk org roles. */
       createdBy: text("createdBy").notNull(),
       /**
@@ -18676,9 +18735,81 @@ var init_schema2 = __esm({
       index("ChurchMemberships_userIdIndex").on(table.userId),
       index("ChurchMemberships_churchIdIndex").on(table.churchId)
     ]);
+    ChurchServiceTimes = pgTable("ChurchServiceTimes", {
+      id: text("id").primaryKey(),
+      churchId: text("churchId").notNull(),
+      /** 0–6, 0 = Sunday — Date.getDay() and the WEEKDAYS array in church-services.ts. */
+      dayOfWeek: integer("dayOfWeek").notNull(),
+      /** 'HH:MM' 24h on the church's own wall clock; the zone is Churches.timezone. */
+      startTime: text("startTime").notNull(),
+      /** Optional human name — "First service", "Evening". Null renders as the time alone. */
+      label: text("label"),
+      sortOrder: integer("sortOrder").notNull().default(0),
+      createdAt: ts("createdAt").notNull(),
+      updatedAt: ts("updatedAt")
+    }, (table) => [
+      /** The same slot twice would give a sermon two identical checkboxes. */
+      uniqueIndex("ChurchServiceTimes_church_day_time_unique").on(
+        table.churchId,
+        table.dayOfWeek,
+        table.startTime
+      ),
+      index("ChurchServiceTimes_churchIdIndex").on(table.churchId)
+    ]);
+    ChurchServiceTimeAssignments = pgTable("ChurchServiceTimeAssignments", {
+      id: text("id").primaryKey(),
+      /** ChurchServices.id — the sermon. */
+      serviceId: text("serviceId").notNull(),
+      /** ChurchServiceTimes.id — the slot it is preached at. */
+      serviceTimeId: text("serviceTimeId").notNull(),
+      /** Mirrors ChurchServices.serviceDate. See the note above before touching. */
+      serviceDate: text("serviceDate").notNull(),
+      createdAt: ts("createdAt").notNull()
+    }, (table) => [
+      /**
+       * One sermon per slot per date — the replacement for
+       * ChurchServices_church_date_unique. "This Sunday 9:00" still has exactly one
+       * answer; "this Sunday" now has as many as the church actually holds.
+       */
+      uniqueIndex("ChurchServiceTimeAssignments_slot_date_unique").on(
+        table.serviceTimeId,
+        table.serviceDate
+      ),
+      index("ChurchServiceTimeAssignments_serviceIdIndex").on(table.serviceId),
+      index("ChurchServiceTimeAssignments_serviceDateIndex").on(table.serviceDate)
+    ]);
+    ChurchSeries = pgTable("ChurchSeries", {
+      id: text("id").primaryKey(),
+      churchId: text("churchId").notNull(),
+      /** NULL = the church plan; set = that space's plan. Immutable after create. */
+      spaceId: text("spaceId"),
+      title: text("title").notNull(),
+      createdBy: text("createdBy").notNull(),
+      createdAt: ts("createdAt").notNull(),
+      updatedAt: ts("updatedAt")
+    }, (table) => [
+      /**
+       * One series per name per plan, case-insensitively — the whole point is that
+       * "Life In the Spirit" cannot become a second series beside "Life in the
+       * Spirit". Two partial indexes because `spaceId IS NULL` is a distinct scope
+       * and Postgres treats NULLs as distinct in a plain unique index, so the
+       * church-plan half would not be constrained at all. Same shape and same
+       * reason as `ChurchServices_space_date_unique`.
+       */
+      uniqueIndex("ChurchSeries_church_title_unique").on(table.churchId, sql`lower(${table.title})`).where(sql`${table.spaceId} IS NULL`),
+      uniqueIndex("ChurchSeries_space_title_unique").on(table.spaceId, sql`lower(${table.title})`).where(sql`${table.spaceId} IS NOT NULL`),
+      index("ChurchSeries_churchIdIndex").on(table.churchId)
+    ]);
     ChurchServices = pgTable("ChurchServices", {
       id: text("id").primaryKey(),
       churchId: text("churchId").notNull(),
+      /**
+       * Which plan this sermon belongs to. NULL = the church's own plan; set = a
+       * ministry channel or church Shared Space that carries its own (Youth meets
+       * Wednesdays). See the docblock above for the same-church invariant and why
+       * this column is allowed where a denormalized `orgId` is not.
+       */
+      spaceId: text("spaceId"),
       /**
        * Church-local calendar day, 'YYYY-MM-DD'. Deliberately NOT a timestamp: a
        * service is a day on the church's wall calendar, and a TIMESTAMPTZ drifts a
@@ -18686,30 +18817,55 @@ var init_schema2 = __esm({
        * VotdPublishHistory.publishedDate.
        */
       serviceDate: text("serviceDate").notNull(),
+      /**
+       * A one-off time for a sermon that does not sit at any of the church's usual
+       * services — a Christmas Eve 17:00, a Good Friday evening.
+       *
+       * Normally NULL: the times come from ChurchServiceTimeAssignments, because
+       * those recur and this does not. Adding a permanent "Thursday 17:00" slot for
+       * one Christmas Eve would be a lie about the church's week, which is the
+       * whole reason this column survives the move to assignments.
+       *
+       * 'HH:MM' 24h, church wall clock — text for the same reason `serviceDate` is.
+       */
+      serviceTime: text("serviceTime"),
       title: text("title").notNull(),
       /**
-       * Free text, grouped by equality. Deliberately not a Threads row: thread
-       * creation in a non-personal space requires the literal space owner
-       * (threads.ts), and non-owners only ever see the pinned thread
-       * (shared-space-group-threads.ts) — so a series would be invisible to the
-       * congregation and orphaned when its author left staff.
+       * ChurchSeries.id, or NULL for a standalone sermon. Replaced the free-text
+       * `seriesTitle` outright rather than sitting beside it — a denormalized copy
+       * would reintroduce the exact bug the row exists to fix, two sources of truth
+       * and a rename that lands in only one. Reads join; the join is one row per
+       * sermon on payloads already bounded to a handful of weeks.
+       *
+       * Must share this sermon's plan scope (see the ChurchSeries docblock); the
+       * write routes enforce it, because no index can.
        */
-      seriesTitle: text("seriesTitle"),
+      seriesId: text("seriesId"),
       /** Canonical form written by canonicalizeServiceReference. Nullable — a
        *  topical Sunday is legal, and every downstream path tolerates null. */
       reference: text("reference"),
       /** NoteTemplates.id, org-scoped — the starter a congregant's note begins from. */
       starterTemplateId: text("starterTemplateId"),
-      /** Optional companion ministry channel (Spaces.id, type='public' + orgId). */
-      channelSpaceId: text("channelSpaceId"),
       createdBy: text("createdBy").notNull(),
       updatedBy: text("updatedBy"),
       createdAt: ts("createdAt").notNull(),
       updatedAt: ts("updatedAt")
     }, (table) => [
-      /** One service per church per date — what makes "This Sunday" have exactly
-       *  one answer. Same discipline as VotdPublishHistory_publishedDate_unique. */
-      uniqueIndex("ChurchServices_church_date_unique").on(table.churchId, table.serviceDate)
+      /**
+       * Plain index, not unique — see the "no unique index" note in the docblock.
+       * The church-plan one-answer guarantee lives on ChurchServiceTimeAssignments.
+       */
+      index("ChurchServices_church_dateIndex").on(table.churchId, table.serviceDate),
+      index("ChurchServices_spaceIdIndex").on(table.spaceId),
+      /**
+       * One gathering per date, for space plans only.
+       *
+       * Spaces get a hard index where the church gets a route guard, because a
+       * space has a single `meetingTime` and can never claim a church service slot
+       * — so every space row is timeless and the DB can carry the whole invariant.
+       * The church side cannot: its answer depends on which slots a sermon claims.
+       */
+      uniqueIndex("ChurchServices_space_date_unique").on(table.spaceId, table.serviceDate).where(sql`${table.spaceId} IS NOT NULL`)
     ]);
     NoteTemplates = pgTable(
       "NoteTemplates",
@@ -89362,11 +89518,11 @@ var require_clean = __commonJS({
   "node_modules/semver/functions/clean.js"(exports2, module2) {
     "use strict";
     var parse10 = require_parse3();
-    var clean2 = (version6, options) => {
+    var clean3 = (version6, options) => {
       const s2 = parse10(version6.trim().replace(/^[=v]+/, ""), options);
       return s2 ? s2.version : null;
     };
-    module2.exports = clean2;
+    module2.exports = clean3;
   }
 });
 
@@ -90714,7 +90870,7 @@ var require_semver2 = __commonJS({
     var identifiers = require_identifiers();
     var parse10 = require_parse3();
     var valid = require_valid();
-    var clean2 = require_clean();
+    var clean3 = require_clean();
     var inc = require_inc();
     var diff = require_diff();
     var major = require_major();
@@ -90752,7 +90908,7 @@ var require_semver2 = __commonJS({
     module2.exports = {
       parse: parse10,
       valid,
-      clean: clean2,
+      clean: clean3,
       inc,
       diff,
       major,
@@ -167276,30 +167432,30 @@ var require_parser = __commonJS({
         let token, type2;
         let length = tokens.length;
         let value = "";
-        let clean2 = true;
+        let clean3 = true;
         let next, prev;
         for (let i = 0; i < length; i += 1) {
           token = tokens[i];
           type2 = token[0];
           if (type2 === "space" && i === length - 1 && !customProperty) {
-            clean2 = false;
+            clean3 = false;
           } else if (type2 === "comment") {
             prev = tokens[i - 1] ? tokens[i - 1][0] : "empty";
             next = tokens[i + 1] ? tokens[i + 1][0] : "empty";
             if (!SAFE_COMMENT_NEIGHBOR[prev] && !SAFE_COMMENT_NEIGHBOR[next]) {
               if (value.slice(-1) === ",") {
-                clean2 = false;
+                clean3 = false;
               } else {
                 value += token[1];
               }
             } else {
-              clean2 = false;
+              clean3 = false;
             }
           } else {
             value += token[1];
           }
         }
-        if (!clean2) {
+        if (!clean3) {
           let raw2 = tokens.reduce((all, i) => all + i[1], "");
           node.raws[prop2] = { raw: raw2, value };
         }
@@ -193921,11 +194077,11 @@ var require_turndown_cjs = __commonJS({
     function Node7(node, options) {
       node.isBlock = isBlock(node);
       node.isCode = node.nodeName === "CODE" || node.parentNode.isCode;
-      node.isBlank = isBlank(node);
+      node.isBlank = isBlank2(node);
       node.flankingWhitespace = flankingWhitespace(node, options);
       return node;
     }
-    function isBlank(node) {
+    function isBlank2(node) {
       return !isVoid2(node) && !isMeaningfulWhenBlank(node) && /^\s*$/i.test(node.textContent) && !hasVoid(node) && !hasMeaningfulWhenBlank(node);
     }
     function flankingWhitespace(node, options) {
@@ -236781,9 +236937,9 @@ __export(netlify_exports, {
 module.exports = __toCommonJS(netlify_exports);
 
 // node_modules/hono/dist/adapter/netlify/handler.js
-var handle = (app19) => {
+var handle = (app23) => {
   return (req, context2) => {
-    return app19.fetch(req, { context: context2 });
+    return app23.fetch(req, { context: context2 });
   };
 };
 
@@ -237946,14 +238102,14 @@ var Hono = class _Hono {
    * app.route("/api", app2) // GET /api/user
    * ```
    */
-  route(path10, app19) {
+  route(path10, app23) {
     const subApp = this.basePath(path10);
-    app19.routes.map((r) => {
+    app23.routes.map((r) => {
       let handler5;
-      if (app19.errorHandler === errorHandler) {
+      if (app23.errorHandler === errorHandler) {
         handler5 = r.handler;
       } else {
-        handler5 = async (c, next) => (await compose([], app19.errorHandler)(c, () => r.handler(c, next))).res;
+        handler5 = async (c, next) => (await compose([], app23.errorHandler)(c, () => r.handler(c, next))).res;
         handler5[COMPOSED_HANDLER] = r.handler;
       }
       subApp.#addRoute(r.method, r.path, handler5);
@@ -239439,6 +239595,9 @@ function isCadenceStale(lastNoteAt, cadence, now2 = /* @__PURE__ */ new Date()) 
 // server/utils/channel-publish-cadence.ts
 function isMinistryBroadcastSpaceRow(space) {
   return space.type === "public" && Boolean(space.orgId);
+}
+function isChurchOrgSpaceRow(space) {
+  return Boolean(space.orgId) && (space.type === "shared" || space.type === "public");
 }
 async function getLastCurriculumAtBySpaceIds(spaceIds) {
   const out = /* @__PURE__ */ new Map();
@@ -253457,6 +253616,7 @@ function computeStaffSyncPlan(input) {
   for (const row of input.existing) {
     if (row.role !== "leader") continue;
     if (row.userId === input.spaceOwnerUserId) continue;
+    if (row.grantSource === "grant") continue;
     if (!staffIds.has(row.userId)) toRemove.push(row.userId);
   }
   const healOwnerRow = !existingByUser.has(input.spaceOwnerUserId);
@@ -253546,7 +253706,13 @@ async function isChurchStaffForOrg(userId, orgId) {
             SpaceMemberships.spaceId,
             orgSpaces.map((s2) => s2.id)
           ),
-          inArray(SpaceMemberships.role, ["owner", "leader"])
+          inArray(SpaceMemberships.role, ["owner", "leader"]),
+          // NULL reads as a staff projection, which is what every row
+          // predating grants is.
+          or(
+            isNull(SpaceMemberships.grantSource),
+            ne(SpaceMemberships.grantSource, "grant")
+          )
         )
       ).limit(1)
     );
@@ -253618,10 +253784,14 @@ function capabilitiesForChurchRole(role) {
   if (role === ROLE_ADMIN) {
     capabilities.add("manage_staff");
     capabilities.add("manage_billing");
+    capabilities.add("manage_church_settings");
   }
   if (role === ROLE_ADMIN || role === ROLE_PASTOR || role === ROLE_TEACHER) {
-    capabilities.add("manage_templates");
     capabilities.add("sermon_tools");
+  }
+  if (role === ROLE_ADMIN || role === ROLE_PASTOR) {
+    capabilities.add("manage_templates");
+    capabilities.add("manage_teaching_plan");
   }
   return [...capabilities];
 }
@@ -256640,10 +256810,10 @@ function abortSignalAny(signals) {
   }
   function abort() {
     controller.abort(this.reason);
-    clean2();
+    clean3();
   }
   const signalRefs = [];
-  function clean2() {
+  function clean3() {
     for (const signalRef of signalRefs) {
       const signal = signalRef.deref();
       if (signal) {
@@ -297039,6 +297209,14 @@ route12.get("/api/spaces/:spaceId/members", requireAuth, async (c) => {
           userId: m2.userId,
           role: m2.role,
           joinedAt: m2.joinedAt || m2.createdAt,
+          /*
+            How this row got its role: 'grant' means a church admin or the
+            space owner handed this person leadership of *this* room (P5).
+            Anything else — including null — is the staff-sync projection, which
+            the people sheet must not offer to revoke, since the roster sweep
+            owns it and would just restore it.
+          */
+          grantSource: m2.grantSource ?? null,
           firstName: meta2.firstName || null,
           lastName: meta2.lastName || null,
           displayName: safeMemberDisplayName({
@@ -311619,7 +311797,12 @@ async function syncChurchStaffForOrg(orgId, options) {
   const warnings = [];
   const results = [];
   for (const space of orgSpaces) {
-    const existing = await db.select({ userId: SpaceMemberships.userId, role: SpaceMemberships.role }).from(SpaceMemberships).where(eq(SpaceMemberships.spaceId, space.id));
+    const existing = await db.select({
+      userId: SpaceMemberships.userId,
+      role: SpaceMemberships.role,
+      // Feeds the planner's never-reap-a-granted-leader rule.
+      grantSource: SpaceMemberships.grantSource
+    }).from(SpaceMemberships).where(eq(SpaceMemberships.spaceId, space.id));
     const plan = computeStaffSyncPlan({ spaceOwnerUserId: space.userId, staff, existing });
     warnings.push(...plan.warnings);
     await db.transaction(async (tx) => {
@@ -311651,7 +311834,11 @@ async function syncChurchStaffForOrg(orgId, options) {
           and(
             eq(SpaceMemberships.spaceId, space.id),
             eq(SpaceMemberships.userId, userId),
-            eq(SpaceMemberships.role, "leader")
+            eq(SpaceMemberships.role, "leader"),
+            or(
+              isNull(SpaceMemberships.grantSource),
+              ne(SpaceMemberships.grantSource, "grant")
+            )
           )
         );
       }
@@ -318624,6 +318811,17 @@ var admin_default = app11;
 init_db2();
 init_harvous_admin();
 init_auth();
+
+// server/utils/church-country.ts
+function deriveChurchCountry(country, state) {
+  const explicit = String(country ?? "").trim();
+  if (explicit) {
+    return /^[A-Za-z]{2}$/.test(explicit) ? explicit.toUpperCase() : explicit;
+  }
+  return hmcCountryForRegion(state) ?? null;
+}
+
+// server/routes/churches.ts
 init_colors();
 init_ids();
 
@@ -318968,6 +319166,7 @@ app12.post("/api/admin/churches", async (c) => {
       state = denorm.state;
       country = denorm.country;
     }
+    country = deriveChurchCountry(country, state);
     const titleValidation = validateTitle(name, true);
     if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
     const existing = first(await db.select({ id: Churches.id }).from(Churches).where(eq(Churches.orgId, orgId)).limit(1));
@@ -319078,6 +319277,10 @@ app12.post("/api/admin/churches/:churchId/update", async (c) => {
     if (patch.hmcChurchId === void 0 && patch.name === void 0 && patch.city === void 0 && patch.state === void 0 && patch.country === void 0) {
       return c.json({ error: "No fields to update", code: "EMPTY_PATCH" }, 400);
     }
+    const nextState = patch.state !== void 0 ? patch.state : existing.state;
+    const nextCountry = patch.country !== void 0 ? patch.country : existing.country;
+    const derivedCountry = deriveChurchCountry(nextCountry, nextState);
+    if (derivedCountry !== nextCountry) patch.country = derivedCountry;
     const church = first(
       await db.update(Churches).set(patch).where(eq(Churches.id, churchId)).returning()
     );
@@ -319404,7 +319607,9 @@ async function unfollowMinistryChannel(userId, spaceId) {
 
 // server/utils/church-teaching-plan.ts
 init_db2();
-async function assertCanManageTeachingPlan(userId, orgId) {
+
+// server/utils/church-org-access.ts
+async function resolveChurchOrgAccess(userId, orgId, rule) {
   const church = await getActiveChurchByOrgId(orgId);
   if (!church) {
     return { ok: false, status: 404, code: "CHURCH_NOT_FOUND", error: "Church not found" };
@@ -319413,14 +319618,9 @@ async function assertCanManageTeachingPlan(userId, orgId) {
     return { ok: false, status: 409, code: "CHURCH_INACTIVE", error: "Church is not active" };
   }
   if (!await isChurchStaffForOrg(userId, church.orgId)) {
-    return {
-      ok: false,
-      status: 403,
-      code: "CHURCH_STAFF_REQUIRED",
-      error: "Only church staff can manage the teaching plan"
-    };
+    return { ok: false, status: 403, code: "CHURCH_STAFF_REQUIRED", error: rule.staffError };
   }
-  if (!churchIsSponsored(church)) {
+  if (rule.sponsorshipGated && !churchIsSponsored(church)) {
     return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
   }
   let role = null;
@@ -319431,23 +319631,47 @@ async function assertCanManageTeachingPlan(userId, orgId) {
     return {
       ok: false,
       status: 403,
-      code: "SERMON_TOOLS_REQUIRED",
+      code: rule.code,
       error: "Could not confirm your role. Try again in a moment."
     };
   }
-  if (!capabilitiesForChurchRole(role).includes("sermon_tools")) {
-    return {
-      ok: false,
-      status: 403,
-      code: "SERMON_TOOLS_REQUIRED",
-      error: "Your role does not include the teaching plan"
-    };
+  if (!capabilitiesForChurchRole(role).includes(rule.capability)) {
+    return { ok: false, status: 403, code: rule.code, error: rule.roleError };
   }
   return { ok: true, church };
 }
+
+// server/utils/church-teaching-plan.ts
+var TEACHING_PLAN_ACCESS = {
+  view: {
+    capability: "sermon_tools",
+    code: "SERMON_TOOLS_REQUIRED",
+    staffError: "Only church staff can see the teaching plan",
+    roleError: "Your role does not include the teaching plan",
+    // Reading the plan is never sponsorship-gated — a lapsed church must never
+    // take its congregation's Sunday away, and its staff must still be able to
+    // look at what they already planned.
+    sponsorshipGated: false
+  },
+  manage: {
+    capability: "manage_teaching_plan",
+    code: "TEACHING_PLAN_ROLE_REQUIRED",
+    staffError: "Only church staff can manage the teaching plan",
+    roleError: "A pastor or admin plans the services here",
+    sponsorshipGated: true
+  }
+};
+function assertCanViewTeachingPlan(userId, orgId) {
+  return resolveChurchOrgAccess(userId, orgId, TEACHING_PLAN_ACCESS.view);
+}
+function assertCanManageTeachingPlan(userId, orgId) {
+  return resolveChurchOrgAccess(userId, orgId, TEACHING_PLAN_ACCESS.manage);
+}
 async function listServicesForChurch(churchId, options = {}) {
-  const { from: from2, limit = 50 } = options;
-  const where = from2 ? and(eq(ChurchServices.churchId, churchId), gte(ChurchServices.serviceDate, from2)) : eq(ChurchServices.churchId, churchId);
+  const { from: from2, limit = 50, plan } = options;
+  const spaceId = plan ? plan.spaceId : null;
+  const scope = spaceId === null ? isNull(ChurchServices.spaceId) : eq(ChurchServices.spaceId, spaceId);
+  const where = from2 ? and(eq(ChurchServices.churchId, churchId), scope, gte(ChurchServices.serviceDate, from2)) : and(eq(ChurchServices.churchId, churchId), scope);
   return db.select().from(ChurchServices).where(where).orderBy(asc(ChurchServices.serviceDate)).limit(limit);
 }
 async function resolveViewerServiceNotes(userId, serviceIds) {
@@ -319466,13 +319690,184 @@ async function resolveViewerServiceNotes(userId, serviceIds) {
   }
   return map3;
 }
-function deriveSeriesTitles(servicesByDateAsc) {
-  const seen = /* @__PURE__ */ new Set();
-  for (let i = servicesByDateAsc.length - 1; i >= 0; i--) {
-    const title = servicesByDateAsc[i]?.seriesTitle?.trim();
-    if (title) seen.add(title);
+
+// server/utils/church-service-times.ts
+init_db2();
+async function listServiceTimesForChurch(churchId) {
+  return db.select().from(ChurchServiceTimes).where(eq(ChurchServiceTimes.churchId, churchId)).orderBy(
+    asc(ChurchServiceTimes.sortOrder),
+    asc(ChurchServiceTimes.dayOfWeek),
+    asc(ChurchServiceTimes.startTime)
+  );
+}
+async function serviceTimeIdsByService(serviceIds) {
+  const out = /* @__PURE__ */ new Map();
+  if (serviceIds.length === 0) return out;
+  const rows = await db.select({
+    serviceId: ChurchServiceTimeAssignments.serviceId,
+    serviceTimeId: ChurchServiceTimeAssignments.serviceTimeId
+  }).from(ChurchServiceTimeAssignments).where(inArray(ChurchServiceTimeAssignments.serviceId, serviceIds));
+  for (const row of rows) {
+    const list = out.get(row.serviceId);
+    if (list) list.push(row.serviceTimeId);
+    else out.set(row.serviceId, [row.serviceTimeId]);
   }
-  return [...seen];
+  return out;
+}
+async function replaceServiceTimeAssignments(tx, input) {
+  await tx.delete(ChurchServiceTimeAssignments).where(eq(ChurchServiceTimeAssignments.serviceId, input.serviceId));
+  if (input.serviceTimeIds.length === 0) return;
+  const now2 = /* @__PURE__ */ new Date();
+  await tx.insert(ChurchServiceTimeAssignments).values(
+    input.serviceTimeIds.map((serviceTimeId) => ({
+      id: `csta_${crypto.randomUUID()}`,
+      serviceId: input.serviceId,
+      serviceTimeId,
+      // Denormalized so the unique index can guarantee one sermon per slot per
+      // date. Written only here, always from the parent's own date.
+      serviceDate: input.serviceDate,
+      createdAt: now2
+    }))
+  );
+}
+async function clearServiceTimeAssignments(tx, serviceId) {
+  await tx.delete(ChurchServiceTimeAssignments).where(eq(ChurchServiceTimeAssignments.serviceId, serviceId));
+}
+async function filterServiceTimeIdsForChurch(churchId, serviceTimeIds) {
+  if (serviceTimeIds.length === 0) return [];
+  const rows = await db.select({ id: ChurchServiceTimes.id }).from(ChurchServiceTimes).where(
+    and(eq(ChurchServiceTimes.churchId, churchId), inArray(ChurchServiceTimes.id, serviceTimeIds))
+  );
+  return rows.map((row) => row.id);
+}
+function churchClockNow(timezone, now2 = /* @__PURE__ */ new Date()) {
+  const zone = timezone || "UTC";
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: zone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    }).formatToParts(now2);
+    const get2 = (type2) => parts.find((p) => p.type === type2)?.value ?? "";
+    const hour = get2("hour") === "24" ? "00" : get2("hour");
+    return {
+      date: `${get2("year")}-${get2("month")}-${get2("day")}`,
+      time: `${hour}:${get2("minute")}`
+    };
+  } catch {
+    return churchClockNow("UTC", now2);
+  }
+}
+
+// server/utils/church-series.ts
+init_db2();
+var SERIES_TITLE_MAX = 120;
+function scopeWhere(scope) {
+  return and(
+    eq(ChurchSeries.churchId, scope.churchId),
+    scope.spaceId === null ? isNull(ChurchSeries.spaceId) : eq(ChurchSeries.spaceId, scope.spaceId)
+  );
+}
+async function listSeriesForPlan(scope) {
+  const rows = await db.select({
+    id: ChurchSeries.id,
+    title: ChurchSeries.title,
+    serviceCount: sql`count(${ChurchServices.id})::int`,
+    lastDate: sql`max(${ChurchServices.serviceDate})`
+  }).from(ChurchSeries).leftJoin(ChurchServices, eq(ChurchServices.seriesId, ChurchSeries.id)).where(scopeWhere(scope)).groupBy(ChurchSeries.id, ChurchSeries.title, ChurchSeries.createdAt).orderBy(sql`max(${ChurchServices.serviceDate}) DESC NULLS LAST`, desc(ChurchSeries.createdAt));
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    serviceCount: Number(row.serviceCount ?? 0)
+  }));
+}
+async function seriesTitlesByServiceRows(rows) {
+  const ids = [...new Set(rows.map((row) => row.seriesId).filter((id) => Boolean(id)))];
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const found = await db.select({ id: ChurchSeries.id, title: ChurchSeries.title }).from(ChurchSeries).where(inArray(ChurchSeries.id, ids));
+  return new Map(found.map((row) => [row.id, row.title]));
+}
+async function resolveSeriesForWrite(options) {
+  const { scope, userId } = options;
+  const exec = options.executor ?? db;
+  if (options.seriesId !== void 0) {
+    const id = String(options.seriesId ?? "").trim();
+    if (!id) return { ok: true, seriesId: null };
+    const row = first(
+      await exec.select({ id: ChurchSeries.id }).from(ChurchSeries).where(and(eq(ChurchSeries.id, id), scopeWhere(scope))).limit(1)
+    );
+    if (!row) {
+      return {
+        ok: false,
+        code: "SERIES_NOT_FOUND",
+        error: "That series is not part of this plan"
+      };
+    }
+    return { ok: true, seriesId: row.id };
+  }
+  if (options.seriesTitle !== void 0) {
+    const title = String(options.seriesTitle ?? "").trim().slice(0, SERIES_TITLE_MAX);
+    if (!title) return { ok: true, seriesId: null };
+    return { ok: true, seriesId: await findOrCreateSeries(scope, title, userId, exec) };
+  }
+  return { ok: true, seriesId: null };
+}
+async function findOrCreateSeries(scope, title, userId, executor = db) {
+  const existing = await findSeriesByTitle(scope, title, executor);
+  if (existing) return existing;
+  await executor.insert(ChurchSeries).values({
+    id: `csrs_${crypto.randomUUID()}`,
+    churchId: scope.churchId,
+    spaceId: scope.spaceId,
+    title,
+    createdBy: userId,
+    createdAt: /* @__PURE__ */ new Date(),
+    updatedAt: null
+  }).onConflictDoNothing();
+  const settled = await findSeriesByTitle(scope, title, executor);
+  if (!settled) throw new Error(`Could not resolve series "${title}"`);
+  return settled;
+}
+async function findSeriesByTitle(scope, title, executor = db) {
+  const row = first(
+    await executor.select({ id: ChurchSeries.id }).from(ChurchSeries).where(and(scopeWhere(scope), sql`lower(${ChurchSeries.title}) = lower(${title})`)).limit(1)
+  );
+  return row?.id ?? null;
+}
+async function renameSeries(scope, seriesId, title) {
+  const trimmed = title.trim().slice(0, SERIES_TITLE_MAX);
+  if (!trimmed) return { ok: false, code: "BAD_REQUEST", error: "A series name is required" };
+  const clash = await findSeriesByTitle(scope, trimmed);
+  if (clash && clash !== seriesId) {
+    return {
+      ok: false,
+      code: "SERIES_TITLE_TAKEN",
+      error: "This plan already has a series with that name"
+    };
+  }
+  const updated = await db.update(ChurchSeries).set({ title: trimmed, updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(ChurchSeries.id, seriesId), scopeWhere(scope))).returning();
+  const row = first(updated);
+  if (!row) return { ok: false, code: "SERIES_NOT_FOUND", error: "That series is not part of this plan" };
+  return { ok: true, series: row };
+}
+async function deleteSeries(scope, seriesId) {
+  const exists2 = first(
+    await db.select({ id: ChurchSeries.id }).from(ChurchSeries).where(and(eq(ChurchSeries.id, seriesId), scopeWhere(scope))).limit(1)
+  );
+  if (!exists2) {
+    return { ok: false, code: "SERIES_NOT_FOUND", error: "That series is not part of this plan" };
+  }
+  let detached = 0;
+  await db.transaction(async (tx) => {
+    const cleared = await tx.update(ChurchServices).set({ seriesId: null }).where(eq(ChurchServices.seriesId, seriesId)).returning({ id: ChurchServices.id });
+    detached = cleared.length;
+    await tx.delete(ChurchSeries).where(eq(ChurchSeries.id, seriesId));
+  });
+  return { ok: true, detached };
 }
 
 // server/routes/church.ts
@@ -319718,38 +320113,39 @@ app13.get("/api/church/services", requireAuth, async (c) => {
       and(inArray(NoteTemplates.id, templateIds), eq(NoteTemplates.orgId, church.orgId))
     ) : [];
     const templateById = new Map(templates.map((t) => [t.id, t]));
-    const channelIds = [
-      ...new Set(services.map((s2) => s2.channelSpaceId).filter((id) => Boolean(id)))
-    ];
-    const channelRows = channelIds.length ? await db.select({
-      id: Spaces.id,
-      title: Spaces.title,
-      color: Spaces.color,
-      type: Spaces.type,
-      orgId: Spaces.orgId
-    }).from(Spaces).where(
-      and(
-        inArray(Spaces.id, channelIds),
-        eq(Spaces.orgId, church.orgId),
-        isNull(Spaces.deletedAt)
-      )
-    ) : [];
-    const channelById = new Map(
-      channelRows.filter(isMinistryBroadcastSpaceRow).map((row) => [row.id, { id: row.id, title: row.title, color: row.color ?? null }])
-    );
+    const serviceTimeRows = await listServiceTimesForChurch(church.id);
+    const startTimeById = new Map(serviceTimeRows.map((row) => [row.id, row.startTime]));
+    const slotsByService = await serviceTimeIdsByService(services.map((row) => row.id));
+    const seriesTitles = await seriesTitlesByServiceRows(services);
     return c.json({
       connected: true,
       church: { id: church.id, name: church.name },
+      /*
+        The church's own wall clock, so the client can tell whether this
+        morning's service has already started without guessing from the
+        viewer's zone. The one place a timezone is ever applied.
+      */
+      churchNow: churchClockNow(church.timezone),
       services: services.map((service) => {
         const template = service.starterTemplateId ? templateById.get(service.starterTemplateId) : void 0;
+        const slotTimes = (slotsByService.get(service.id) ?? []).map((id) => startTimeById.get(id)).filter((time4) => Boolean(time4));
+        const times = slotTimes.length > 0 ? [...slotTimes].sort() : service.serviceTime ? [service.serviceTime] : [];
         return {
           id: service.id,
           serviceDate: service.serviceDate,
+          /*
+                      Every time this sermon is preached, ascending — a church with 9:00
+                      and 10:45 morning services sends both, because it is one sermon at
+                      two services rather than two sermons.
+          
+                      The church's wall clock, never converted to the viewer's zone: a
+                      service time is a clock reading on a wall calendar, not an instant.
+                    */
+          serviceTimes: times,
           title: service.title,
-          seriesTitle: service.seriesTitle,
+          seriesTitle: service.seriesId ? seriesTitles.get(service.seriesId) ?? null : null,
           reference: service.reference,
           viewerNoteId: viewerNotes.get(service.id) ?? null,
-          channel: service.channelSpaceId ? channelById.get(service.channelSpaceId) ?? null : null,
           starter: template ? {
             templateId: template.id,
             templateName: template.name,
@@ -320095,24 +320491,104 @@ var church_default = app13;
 // server/routes/church-teaching-plan.ts
 init_db2();
 init_auth();
+
+// server/utils/db-unique-violation.ts
+function isUniqueViolation(error, constraintName) {
+  const seen = /* @__PURE__ */ new Set();
+  let current = error;
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    const candidate = current;
+    if (candidate.constraint_name === constraintName || candidate.constraint === constraintName) {
+      return true;
+    }
+    if (typeof candidate.message === "string" && candidate.message.includes(constraintName)) {
+      return true;
+    }
+    current = candidate.cause;
+  }
+  return false;
+}
+
+// server/utils/church-service-time.ts
+var SERVICE_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+function isBlank(raw2) {
+  return raw2 === null || raw2 === void 0 || typeof raw2 === "string" && raw2.trim() === "";
+}
+function normalizeServiceTime(raw2) {
+  if (isBlank(raw2)) return { ok: true, value: null };
+  if (typeof raw2 !== "string") return { ok: false, reason: "Time must be text like 10:30" };
+  const trimmed = raw2.trim();
+  if (!SERVICE_TIME_PATTERN.test(trimmed)) {
+    return { ok: false, reason: "Time must be HH:MM on a 24-hour clock, like 09:30 or 18:00" };
+  }
+  return { ok: true, value: trimmed };
+}
+function normalizeServiceDay(raw2) {
+  if (isBlank(raw2)) return { ok: true, value: null };
+  if (typeof raw2 !== "number" || !Number.isInteger(raw2) || raw2 < 0 || raw2 > 6) {
+    return { ok: false, reason: "Day must be a whole number from 0 (Sunday) to 6 (Saturday)" };
+  }
+  return { ok: true, value: raw2 };
+}
+function normalizeChurchTimezone(raw2) {
+  if (isBlank(raw2)) return { ok: true, value: null };
+  if (typeof raw2 !== "string") return { ok: false, reason: "Time zone must be text" };
+  const trimmed = raw2.trim();
+  if (!isValidIanaTimeZone(trimmed)) {
+    return { ok: false, reason: "That is not a recognised time zone" };
+  }
+  return { ok: true, value: trimmed };
+}
+
+// server/utils/church-sermon-repeat.ts
+var REPEAT_MAX_WEEKS = 12;
+var ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+function weeklyDatesAfter(seedDate, count3) {
+  const match4 = ISO_DATE.exec(seedDate);
+  if (!match4) return [];
+  const weeks = Math.min(Math.floor(count3), REPEAT_MAX_WEEKS);
+  if (!Number.isFinite(weeks) || weeks < 1) return [];
+  const start = Date.UTC(Number(match4[1]), Number(match4[2]) - 1, Number(match4[3]));
+  if (new Date(start).toISOString().slice(0, 10) !== seedDate) return [];
+  const dates = [];
+  for (let i = 1; i <= weeks; i++) {
+    dates.push(new Date(start + i * 7 * 864e5).toISOString().slice(0, 10));
+  }
+  return dates;
+}
+function repeatTitleFor(input) {
+  return input.seriesTitle?.trim() || input.seedTitle;
+}
+
+// server/routes/church-teaching-plan.ts
 var app14 = new Hono2();
 var SERVICE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 var TITLE_MAX = 120;
-var SERIES_MAX = 120;
 function clean(value, max2) {
   const trimmed = String(value ?? "").trim();
   if (!trimmed) return null;
   return trimmed.slice(0, max2);
 }
-function serializeService(row) {
+function serializeSermon(row, serviceTimeIds = [], seriesTitles) {
   return {
     id: row.id,
     serviceDate: row.serviceDate,
+    /** The church's slots this sermon fills; the editor renders them as checks. */
+    serviceTimeIds,
+    /** A one-off time, set only when the sermon sits at no usual service. */
+    serviceTime: row.serviceTime,
     title: row.title,
-    seriesTitle: row.seriesTitle,
+    seriesId: row.seriesId,
+    /*
+      The joined label, not a stored copy — `seriesTitle` as a column is exactly
+      the two-sources-of-truth bug ChurchSeries removed. Kept on the wire because
+      every card and row renders the name, and a client that had only an id would
+      have to hold the whole series list to draw one line.
+    */
+    seriesTitle: row.seriesId ? seriesTitles?.get(row.seriesId) ?? null : null,
     reference: row.reference,
     starterTemplateId: row.starterTemplateId,
-    channelSpaceId: row.channelSpaceId,
     updatedAt: row.updatedAt ?? row.createdAt
   };
 }
@@ -320126,38 +320602,43 @@ async function validateReferences(orgId, input) {
       return { ok: false, code: "TEMPLATE_NOT_FOUND", error: "That starter template is not one of your church templates" };
     }
   }
-  const channelSpaceId = clean(input.channelSpaceId, 200);
-  if (channelSpaceId) {
-    const space = first(
-      await db.select().from(Spaces).where(and(eq(Spaces.id, channelSpaceId), isNull(Spaces.deletedAt))).limit(1)
-    );
-    if (!space || space.orgId !== orgId || !isMinistryBroadcastSpaceRow(space)) {
-      return { ok: false, code: "CHANNEL_NOT_FOUND", error: "That ministry channel was not found" };
-    }
-  }
   return { ok: true };
 }
 app14.get("/api/church/services/plan", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const orgId = (c.req.query("orgId") ?? "").trim();
-    const gate = await assertCanManageTeachingPlan(auth.userId, orgId);
+    const gate = await assertCanViewTeachingPlan(auth.userId, orgId);
     if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
-    const services = await db.select().from(ChurchServices).where(eq(ChurchServices.churchId, gate.church.id)).orderBy(asc(ChurchServices.serviceDate));
-    const channelRows = await db.select({
-      id: Spaces.id,
-      title: Spaces.title,
-      color: Spaces.color,
-      type: Spaces.type,
-      orgId: Spaces.orgId
-    }).from(Spaces).where(and(eq(Spaces.orgId, gate.church.orgId), isNull(Spaces.deletedAt))).orderBy(asc(Spaces.title));
+    const services = await db.select().from(ChurchServices).where(and(eq(ChurchServices.churchId, gate.church.id), isNull(ChurchServices.spaceId))).orderBy(asc(ChurchServices.serviceDate));
+    const serviceTimes = await listServiceTimesForChurch(gate.church.id);
+    const assignments = await serviceTimeIdsByService(services.map((row) => row.id));
+    const scope = { churchId: gate.church.id, spaceId: null };
+    const seriesTitles = await seriesTitlesByServiceRows(services);
     return c.json({
       church: { id: gate.church.id, name: gate.church.name },
-      services: services.map(serializeService),
-      // Distinct series the church has used, most recent first — powers the
-      // editor's series picker so weeks group without typo-splitting in two.
-      seriesTitles: deriveSeriesTitles(services),
-      channels: channelRows.filter(isMinistryBroadcastSpaceRow).map((row) => ({ id: row.id, title: row.title, color: row.color ?? null }))
+      /*
+        The church's recurring services — the checkboxes in the editor, and what
+        seeds its date picker. Kept out of the `church` envelope so that object
+        stays identical to the congregant payload's; a space plan will fill this
+        same key from the space's own meeting times, with no rename.
+      */
+      serviceTimes: serviceTimes.map((row) => ({
+        id: row.id,
+        dayOfWeek: row.dayOfWeek,
+        startTime: row.startTime,
+        label: row.label
+      })),
+      services: services.map(
+        (row) => serializeSermon(row, assignments.get(row.id) ?? [], seriesTitles)
+      ),
+      /*
+        The church plan's own series, most recently *taught* first — what the
+        editor's picker offers so weeks group without typo-splitting in two.
+        Replaced a list of bare strings derived from the sermon rows: a picker of
+        objects can rename, delete, and be attached to, and a string cannot.
+      */
+      series: await listSeriesForPlan(scope)
     });
   } catch (error) {
     const standardError = handleAPIError(error, {
@@ -320181,57 +320662,102 @@ app14.post("/api/church/services/create", requireAuth, rateLimit("write"), async
     if (!title) {
       return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
     }
+    const time4 = normalizeServiceTime(body.serviceTime);
+    if (!time4.ok) return c.json({ error: time4.reason, code: "BAD_REQUEST" }, 400);
+    const serviceTime = time4.value;
+    const serviceTimeIds = await filterServiceTimeIdsForChurch(
+      gate.church.id,
+      Array.isArray(body.serviceTimeIds) ? body.serviceTimeIds : []
+    );
     const passage = canonicalizeServiceReference(body.reference);
     if (!passage.ok) {
       return c.json({ error: passage.reason, code: "INVALID_REFERENCE" }, 400);
     }
     const refs3 = await validateReferences(gate.church.orgId, body);
     if (!refs3.ok) return c.json({ error: refs3.error, code: refs3.code }, 400);
-    const existing = first(
-      await db.select({ id: ChurchServices.id }).from(ChurchServices).where(
-        and(
-          eq(ChurchServices.churchId, gate.church.id),
-          eq(ChurchServices.serviceDate, serviceDate)
-        )
-      ).limit(1)
-    );
-    if (existing) {
-      return c.json(
-        {
-          error: "That date already has a service. Edit the existing one instead.",
-          code: "SERVICE_DATE_TAKEN",
-          serviceId: existing.id
-        },
-        409
+    if (serviceTimeIds.length === 0) {
+      const clash = first(
+        await db.select({ id: ChurchServices.id }).from(ChurchServices).where(
+          and(
+            eq(ChurchServices.churchId, gate.church.id),
+            isNull(ChurchServices.spaceId),
+            eq(ChurchServices.serviceDate, serviceDate),
+            isNull(ChurchServices.serviceTime)
+          )
+        ).limit(1)
       );
+      if (clash) {
+        return c.json(
+          {
+            error: "That date already has a sermon. Edit it, or give this one a service time.",
+            code: "SERVICE_DATE_TAKEN",
+            serviceId: clash.id
+          },
+          409
+        );
+      }
     }
     const now2 = /* @__PURE__ */ new Date();
+    let seriesId = null;
+    const refusal = { reason: null };
     const row = {
       id: `svc_${crypto.randomUUID()}`,
       churchId: gate.church.id,
       serviceDate,
+      // Explicit, never omitted: this literal is what serializeSermon echoes
+      // back, so an absent key would ship a create response whose shape differs
+      // from every read.
+      serviceTime,
       title,
-      seriesTitle: clean(body.seriesTitle, SERIES_MAX),
+      seriesId: null,
       reference: passage.reference,
       starterTemplateId: clean(body.starterTemplateId, 200),
-      channelSpaceId: clean(body.channelSpaceId, 200),
       createdBy: auth.userId,
       updatedBy: null,
       createdAt: now2,
       updatedAt: null
     };
     try {
-      await db.insert(ChurchServices).values(row);
+      await db.transaction(async (tx) => {
+        const series = await resolveSeriesForWrite({
+          scope: { churchId: gate.church.id, spaceId: null },
+          seriesId: body.seriesId,
+          seriesTitle: body.seriesTitle,
+          userId: auth.userId,
+          executor: tx
+        });
+        if (!series.ok) {
+          refusal.reason = { code: series.code, error: series.error };
+          return;
+        }
+        seriesId = series.seriesId;
+        row.seriesId = seriesId;
+        await tx.insert(ChurchServices).values(row);
+        await replaceServiceTimeAssignments(tx, { serviceId: row.id, serviceDate, serviceTimeIds });
+      });
+      if (refusal.reason) {
+        return c.json({ error: refusal.reason.error, code: refusal.reason.code }, 404);
+      }
     } catch (error) {
-      if (String(error).includes("ChurchServices_church_date_unique")) {
+      if (isUniqueViolation(error, "ChurchServiceTimeAssignments_slot_date_unique")) {
         return c.json(
-          { error: "That date already has a service.", code: "SERVICE_DATE_TAKEN" },
+          {
+            error: "One of those services already has a sermon that day.",
+            code: "SERVICE_TIME_TAKEN"
+          },
           409
         );
       }
       throw error;
     }
-    return c.json({ success: true, service: serializeService(row) });
+    return c.json({
+      success: true,
+      service: serializeSermon(
+        { ...row, seriesId },
+        serviceTimeIds,
+        await seriesTitlesByServiceRows([{ seriesId }])
+      )
+    });
   } catch (error) {
     const standardError = handleAPIError(error, {
       endpoint: "/api/church/services/create",
@@ -320264,30 +320790,23 @@ app14.post("/api/church/services/update", requireAuth, rateLimit("write"), async
       if (!SERVICE_DATE_PATTERN.test(serviceDate)) {
         return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
       }
-      if (serviceDate !== existing.serviceDate) {
-        const clash = first(
-          await db.select({ id: ChurchServices.id }).from(ChurchServices).where(
-            and(
-              eq(ChurchServices.churchId, gate.church.id),
-              eq(ChurchServices.serviceDate, serviceDate)
-            )
-          ).limit(1)
-        );
-        if (clash) {
-          return c.json(
-            { error: "That date already has a service.", code: "SERVICE_DATE_TAKEN", serviceId: clash.id },
-            409
-          );
-        }
-      }
       updates.serviceDate = serviceDate;
     }
+    if (body.serviceTime !== void 0) {
+      const time4 = normalizeServiceTime(body.serviceTime);
+      if (!time4.ok) return c.json({ error: time4.reason, code: "BAD_REQUEST" }, 400);
+      updates.serviceTime = time4.value;
+    }
+    const nextServiceTimeIds = body.serviceTimeIds === void 0 ? null : await filterServiceTimeIdsForChurch(
+      gate.church.id,
+      Array.isArray(body.serviceTimeIds) ? body.serviceTimeIds : []
+    );
+    const nextDate = updates.serviceDate ?? existing.serviceDate;
     if (body.title !== void 0) {
       const title = clean(body.title, TITLE_MAX);
       if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
       updates.title = title;
     }
-    if (body.seriesTitle !== void 0) updates.seriesTitle = clean(body.seriesTitle, SERIES_MAX);
     if (body.reference !== void 0) {
       const passage = canonicalizeServiceReference(body.reference);
       if (!passage.ok) {
@@ -320295,22 +320814,163 @@ app14.post("/api/church/services/update", requireAuth, rateLimit("write"), async
       }
       updates.reference = passage.reference;
     }
-    if (body.starterTemplateId !== void 0 || body.channelSpaceId !== void 0) {
+    if (body.starterTemplateId !== void 0) {
       const refs3 = await validateReferences(gate.church.orgId, body);
       if (!refs3.ok) return c.json({ error: refs3.error, code: refs3.code }, 400);
-      if (body.starterTemplateId !== void 0) {
-        updates.starterTemplateId = clean(body.starterTemplateId, 200);
-      }
-      if (body.channelSpaceId !== void 0) {
-        updates.channelSpaceId = clean(body.channelSpaceId, 200);
-      }
+      updates.starterTemplateId = clean(body.starterTemplateId, 200);
     }
-    await db.update(ChurchServices).set(updates).where(eq(ChurchServices.id, serviceId));
-    return c.json({ success: true, service: serializeService({ ...existing, ...updates }) });
+    const finalIds = nextServiceTimeIds ?? (await serviceTimeIdsByService([serviceId])).get(serviceId) ?? [];
+    const refusal = { reason: null };
+    try {
+      await db.transaction(async (tx) => {
+        if (body.seriesId !== void 0 || body.seriesTitle !== void 0) {
+          const series = await resolveSeriesForWrite({
+            scope: { churchId: gate.church.id, spaceId: null },
+            seriesId: body.seriesId,
+            seriesTitle: body.seriesTitle,
+            userId: auth.userId,
+            executor: tx
+          });
+          if (!series.ok) {
+            refusal.reason = { code: series.code, error: series.error };
+            return;
+          }
+          updates.seriesId = series.seriesId;
+        }
+        await tx.update(ChurchServices).set(updates).where(eq(ChurchServices.id, serviceId));
+        if (nextServiceTimeIds !== null || updates.serviceDate !== void 0) {
+          await replaceServiceTimeAssignments(tx, {
+            serviceId,
+            serviceDate: nextDate,
+            serviceTimeIds: finalIds
+          });
+        }
+      });
+      if (refusal.reason) {
+        return c.json({ error: refusal.reason.error, code: refusal.reason.code }, 404);
+      }
+    } catch (error) {
+      if (isUniqueViolation(error, "ChurchServiceTimeAssignments_slot_date_unique")) {
+        return c.json(
+          {
+            error: "One of those services already has a sermon that day.",
+            code: "SERVICE_TIME_TAKEN"
+          },
+          409
+        );
+      }
+      throw error;
+    }
+    const merged = { ...existing, ...updates };
+    return c.json({
+      success: true,
+      service: serializeSermon(merged, finalIds, await seriesTitlesByServiceRows([merged]))
+    });
   } catch (error) {
     const standardError = handleAPIError(error, {
       endpoint: "/api/church/services/update",
       action: "update_church_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.post("/api/church/services/repeat", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const serviceId = (body.serviceId ?? "").trim();
+    if (!serviceId) return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
+    const seed = first(
+      await db.select().from(ChurchServices).where(
+        and(
+          eq(ChurchServices.id, serviceId),
+          eq(ChurchServices.churchId, gate.church.id),
+          // Church plan only: a space's gathering repeats through its own
+          // endpoint, where the rules about slots are different.
+          isNull(ChurchServices.spaceId)
+        )
+      ).limit(1)
+    );
+    if (!seed) return c.json({ error: "Service not found", code: "SERVICE_NOT_FOUND" }, 404);
+    const dates = weeklyDatesAfter(seed.serviceDate, Number(body.weeks ?? 0));
+    if (dates.length === 0) {
+      return c.json(
+        { error: `weeks must be between 1 and ${REPEAT_MAX_WEEKS}`, code: "BAD_REQUEST" },
+        400
+      );
+    }
+    const seedSlots = (await serviceTimeIdsByService([seed.id])).get(seed.id) ?? [];
+    const seriesTitles = await seriesTitlesByServiceRows([seed]);
+    const title = repeatTitleFor({
+      seedTitle: seed.title,
+      seriesTitle: seed.seriesId ? seriesTitles.get(seed.seriesId) ?? null : null
+    });
+    const created = [];
+    let stoppedAt = null;
+    for (const serviceDate of dates) {
+      if (seedSlots.length === 0) {
+        const clash = first(
+          await db.select({ id: ChurchServices.id }).from(ChurchServices).where(
+            and(
+              eq(ChurchServices.churchId, gate.church.id),
+              isNull(ChurchServices.spaceId),
+              eq(ChurchServices.serviceDate, serviceDate),
+              isNull(ChurchServices.serviceTime)
+            )
+          ).limit(1)
+        );
+        if (clash) {
+          stoppedAt = serviceDate;
+          break;
+        }
+      }
+      const now2 = /* @__PURE__ */ new Date();
+      const row = {
+        id: `svc_${crypto.randomUUID()}`,
+        churchId: gate.church.id,
+        serviceDate,
+        serviceTime: seed.serviceTime,
+        title,
+        seriesId: seed.seriesId,
+        // Deliberately not the seed's: next week is a different passage, and
+        // guessing it would put words in the pastor's mouth.
+        reference: null,
+        starterTemplateId: seed.starterTemplateId,
+        createdBy: auth.userId,
+        updatedBy: null,
+        createdAt: now2,
+        updatedAt: null
+      };
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(ChurchServices).values(row);
+          await replaceServiceTimeAssignments(tx, {
+            serviceId: row.id,
+            serviceDate,
+            serviceTimeIds: seedSlots
+          });
+        });
+      } catch (error) {
+        if (isUniqueViolation(error, "ChurchServiceTimeAssignments_slot_date_unique")) {
+          stoppedAt = serviceDate;
+          break;
+        }
+        throw error;
+      }
+      created.push(serializeSermon(row, seedSlots, seriesTitles));
+    }
+    return c.json({
+      success: true,
+      services: created,
+      /** The week it ran into, or null if it planned the whole run. */
+      stoppedAt
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/services/repeat",
+      action: "repeat_church_service"
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
@@ -320333,7 +320993,10 @@ app14.post("/api/church/services/delete", requireAuth, rateLimit("write"), async
     if (!existing) {
       return c.json({ error: "Service not found", code: "SERVICE_NOT_FOUND" }, 404);
     }
-    await db.delete(ChurchServices).where(eq(ChurchServices.id, serviceId));
+    await db.transaction(async (tx) => {
+      await clearServiceTimeAssignments(tx, serviceId);
+      await tx.delete(ChurchServices).where(eq(ChurchServices.id, serviceId));
+    });
     return c.json({ success: true });
   } catch (error) {
     const standardError = handleAPIError(error, {
@@ -320343,7 +321006,858 @@ app14.post("/api/church/services/delete", requireAuth, rateLimit("write"), async
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+app14.post("/api/church/series/rename", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const seriesId = (body.seriesId ?? "").trim();
+    if (!seriesId) return c.json({ error: "seriesId is required", code: "BAD_REQUEST" }, 400);
+    const result = await renameSeries(
+      { churchId: gate.church.id, spaceId: null },
+      seriesId,
+      String(body.title ?? "")
+    );
+    if (!result.ok) {
+      const status = result.code === "BAD_REQUEST" ? 400 : result.code === "SERIES_NOT_FOUND" ? 404 : 409;
+      return c.json({ error: result.error, code: result.code }, status);
+    }
+    return c.json({
+      success: true,
+      series: { id: result.series.id, title: result.series.title }
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/series/rename",
+      action: "rename_church_series"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.post("/api/church/series/delete", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const seriesId = (body.seriesId ?? "").trim();
+    if (!seriesId) return c.json({ error: "seriesId is required", code: "BAD_REQUEST" }, 400);
+    const result = await deleteSeries({ churchId: gate.church.id, spaceId: null }, seriesId);
+    if (!result.ok) return c.json({ error: result.error, code: result.code }, 404);
+    return c.json({ success: true, detached: result.detached });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/series/delete",
+      action: "delete_church_series"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
 var church_teaching_plan_default = app14;
+
+// server/routes/church-settings.ts
+init_db2();
+init_auth();
+
+// server/utils/church-settings-access.ts
+var CHURCH_SETTINGS_ACCESS = {
+  view: {
+    capability: "publish",
+    code: "CHURCH_SETTINGS_FORBIDDEN",
+    staffError: "Only church staff can see these settings",
+    roleError: "Your role does not include church settings",
+    sponsorshipGated: false
+  },
+  manage: {
+    capability: "manage_church_settings",
+    code: "CHURCH_SETTINGS_ROLE_REQUIRED",
+    staffError: "Only church staff can change these settings",
+    roleError: "A church admin sets your times",
+    sponsorshipGated: true
+  }
+};
+function assertCanViewChurchSettings(userId, orgId) {
+  return resolveChurchOrgAccess(userId, orgId, CHURCH_SETTINGS_ACCESS.view);
+}
+function assertCanManageChurchSettings(userId, orgId) {
+  return resolveChurchOrgAccess(userId, orgId, CHURCH_SETTINGS_ACCESS.manage);
+}
+
+// server/routes/church-settings.ts
+var app15 = new Hono2();
+var LABEL_MAX = 40;
+function serializeServiceTime(row) {
+  return {
+    id: row.id,
+    dayOfWeek: row.dayOfWeek,
+    startTime: row.startTime,
+    label: row.label,
+    sortOrder: row.sortOrder
+  };
+}
+async function settingsPayload(church) {
+  const serviceTimes = await listServiceTimesForChurch(church.id);
+  return {
+    church: { id: church.id, name: church.name, orgId: church.orgId },
+    /*
+      Raw, null intact: the form must be able to show "not set". `country` and
+      `state` ride along so the time-zone picker can narrow to where the church
+      actually is — Iowa is one zone where the US is 29. Both are read-only
+      here, since they are set at registration (usually denormalized from
+      Here's My Church), not by the church itself.
+    */
+    settings: {
+      timezone: church.timezone,
+      country: church.country,
+      state: church.state
+    },
+    serviceTimes: serviceTimes.map(serializeServiceTime)
+  };
+}
+app15.get("/api/church/settings", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const orgId = (c.req.query("orgId") ?? "").trim();
+    const gate = await assertCanViewChurchSettings(auth.userId, orgId);
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    return c.json(await settingsPayload(gate.church));
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/settings",
+      action: "church_settings_read"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app15.post("/api/church/settings/update", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageChurchSettings(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    if (body.timezone === void 0) {
+      return c.json(await settingsPayload(gate.church));
+    }
+    const tz = normalizeChurchTimezone(body.timezone);
+    if (!tz.ok) return c.json({ error: tz.reason, code: "BAD_REQUEST" }, 400);
+    const saved = await db.update(Churches).set({ timezone: tz.value, updatedAt: /* @__PURE__ */ new Date() }).where(eq(Churches.id, gate.church.id)).returning();
+    return c.json({ success: true, ...await settingsPayload(saved[0] ?? gate.church) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/settings/update",
+      action: "church_settings_update"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app15.post("/api/church/settings/service-times/create", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageChurchSettings(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const day = normalizeServiceDay(body.dayOfWeek);
+    if (!day.ok) return c.json({ error: day.reason, code: "BAD_REQUEST" }, 400);
+    if (day.value === null) {
+      return c.json({ error: "Pick a day for this service", code: "BAD_REQUEST" }, 400);
+    }
+    const time4 = normalizeServiceTime(body.startTime);
+    if (!time4.ok) return c.json({ error: time4.reason, code: "BAD_REQUEST" }, 400);
+    if (time4.value === null) {
+      return c.json({ error: "Pick a time for this service", code: "BAD_REQUEST" }, 400);
+    }
+    const label = String(body.label ?? "").trim().slice(0, LABEL_MAX) || null;
+    const now2 = /* @__PURE__ */ new Date();
+    try {
+      const saved = await db.insert(ChurchServiceTimes).values({
+        id: `cstm_${crypto.randomUUID()}`,
+        churchId: gate.church.id,
+        dayOfWeek: day.value,
+        startTime: time4.value,
+        label,
+        /*
+          Always 0: the read orders by sortOrder, then day, then clock, so
+          leaving every row equal makes the list read chronologically through
+          the week — which is the order a church thinks in. The column exists
+          for a future drag-to-reorder; nothing sets it yet, deliberately.
+        */
+        sortOrder: 0,
+        createdAt: now2
+      }).returning();
+      return c.json({ success: true, serviceTime: serializeServiceTime(saved[0]) });
+    } catch (error) {
+      if (isUniqueViolation(error, "ChurchServiceTimes_church_day_time_unique")) {
+        return c.json(
+          { error: "You already have a service at that day and time.", code: "SERVICE_TIME_TAKEN" },
+          409
+        );
+      }
+      throw error;
+    }
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/settings/service-times/create",
+      action: "church_service_time_create"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app15.post("/api/church/settings/service-times/delete", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageChurchSettings(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const serviceTimeId = (body.serviceTimeId ?? "").trim();
+    if (!serviceTimeId) {
+      return c.json({ error: "serviceTimeId is required", code: "BAD_REQUEST" }, 400);
+    }
+    const removed = await db.delete(ChurchServiceTimes).where(
+      and(eq(ChurchServiceTimes.id, serviceTimeId), eq(ChurchServiceTimes.churchId, gate.church.id))
+    ).returning({ id: ChurchServiceTimes.id });
+    if (removed.length === 0) {
+      return c.json({ error: "That service time was not found", code: "SERVICE_TIME_NOT_FOUND" }, 404);
+    }
+    await db.delete(ChurchServiceTimeAssignments).where(eq(ChurchServiceTimeAssignments.serviceTimeId, serviceTimeId));
+    return c.json({ success: true, serviceTimeId });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/settings/service-times/delete",
+      action: "church_service_time_delete"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var church_settings_default = app15;
+
+// server/routes/church-space-plan.ts
+init_db2();
+init_auth();
+
+// server/utils/church-space-plan.ts
+init_db2();
+
+// server/utils/church-space-leaders.ts
+init_db2();
+var GRANT_SOURCE = "grant";
+async function isGrantedSpaceLeader(userId, spaceId) {
+  if (!userId || !spaceId) return false;
+  const row = first(
+    await db.select({ role: SpaceMemberships.role, grantSource: SpaceMemberships.grantSource }).from(SpaceMemberships).where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, userId))).limit(1)
+  );
+  return row?.role === "leader" && row.grantSource === GRANT_SOURCE;
+}
+async function assertCanGrantSpaceLeadership(userId, spaceId) {
+  const id = String(spaceId ?? "").trim();
+  if (!id) {
+    return { ok: false, status: 404, code: "SPACE_NOT_FOUND", error: "Space not found" };
+  }
+  const space = first(
+    await db.select().from(Spaces).where(and(eq(Spaces.id, id), isNull(Spaces.deletedAt))).limit(1)
+  );
+  if (!space || !space.isActive || !isChurchOrgSpaceRow(space) || !space.orgId) {
+    return { ok: false, status: 404, code: "SPACE_NOT_FOUND", error: "Space not found" };
+  }
+  const access = await resolveChurchOrgAccess(userId, space.orgId, {
+    capability: "manage_staff",
+    code: "CHURCH_STAFF_REQUIRED",
+    staffError: "Only church staff can change who leads this space",
+    roleError: "A church admin or this space\u2019s owner grants leadership here",
+    sponsorshipGated: true
+  });
+  if (access.ok) return { ok: true, church: access.church, space };
+  if (space.userId === userId && access.status === 403 && access.code === "CHURCH_STAFF_REQUIRED") {
+    const asOwner = await resolveChurchOrgAccess(userId, space.orgId, {
+      capability: "publish",
+      code: "CHURCH_STAFF_REQUIRED",
+      staffError: "Only church staff can change who leads this space",
+      roleError: "You cannot grant leadership here",
+      sponsorshipGated: true
+    });
+    if (asOwner.ok) return { ok: true, church: asOwner.church, space };
+    return asOwner;
+  }
+  return access;
+}
+
+// server/utils/church-space-plan.ts
+async function resolveSpacePlanAccess(userId, spaceId, rule) {
+  const id = String(spaceId ?? "").trim();
+  if (!id) {
+    return { ok: false, status: 404, code: "SPACE_NOT_FOUND", error: "Space not found" };
+  }
+  const space = first(
+    await db.select().from(Spaces).where(and(eq(Spaces.id, id), isNull(Spaces.deletedAt))).limit(1)
+  );
+  if (!space || !space.isActive || !isChurchOrgSpaceRow(space) || !space.orgId) {
+    return { ok: false, status: 404, code: "SPACE_NOT_FOUND", error: "Space not found" };
+  }
+  const access = await resolveChurchOrgAccess(userId, space.orgId, rule);
+  if (!access.ok) return access;
+  return { ok: true, church: access.church, space };
+}
+function assertCanViewSpaceTeachingPlan(userId, spaceId) {
+  return resolveSpacePlanAccess(userId, spaceId, {
+    capability: "sermon_tools",
+    code: "SERMON_TOOLS_REQUIRED",
+    staffError: "Only church staff can see this plan",
+    roleError: "Your role does not include the teaching plan",
+    sponsorshipGated: false
+  });
+}
+async function assertCanManageSpaceTeachingPlan(userId, spaceId) {
+  const viaCapability = await resolveSpacePlanAccess(userId, spaceId, {
+    capability: "manage_teaching_plan",
+    code: "TEACHING_PLAN_ROLE_REQUIRED",
+    staffError: "Only church staff can manage this plan",
+    roleError: "A pastor or admin plans this ministry",
+    sponsorshipGated: true
+  });
+  if (viaCapability.ok) return viaCapability;
+  const fellThrough = viaCapability.status === 403 && (viaCapability.code === "TEACHING_PLAN_ROLE_REQUIRED" || viaCapability.code === "CHURCH_STAFF_REQUIRED");
+  if (!fellThrough) return viaCapability;
+  return resolveGrantedLeaderAccess(userId, spaceId, viaCapability);
+}
+async function resolveGrantedLeaderAccess(userId, spaceId, refusal) {
+  const space = first(
+    await db.select().from(Spaces).where(and(eq(Spaces.id, String(spaceId ?? "").trim()), isNull(Spaces.deletedAt))).limit(1)
+  );
+  if (!space || !space.isActive || !isChurchOrgSpaceRow(space) || !space.orgId) return refusal;
+  const church = await getActiveChurchByOrgId(space.orgId);
+  if (!church || !church.isActive) return refusal;
+  if (!await isGrantedSpaceLeader(userId, space.id)) return refusal;
+  if (!churchIsSponsored(church)) {
+    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
+  }
+  return { ok: true, church, space };
+}
+
+// server/routes/church-space-plan.ts
+var app16 = new Hono2();
+var SERVICE_DATE_PATTERN2 = /^\d{4}-\d{2}-\d{2}$/;
+var TITLE_MAX2 = 120;
+function clean2(value, max2) {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, max2);
+}
+function serializeSpaceSermon(row, seriesTitles) {
+  return {
+    id: row.id,
+    serviceDate: row.serviceDate,
+    /** Always empty for a space row — slots are the church's. */
+    serviceTimeIds: [],
+    serviceTime: row.serviceTime,
+    title: row.title,
+    seriesId: row.seriesId,
+    /** Joined, not stored — see the church plan's serializer. */
+    seriesTitle: row.seriesId ? seriesTitles?.get(row.seriesId) ?? null : null,
+    reference: row.reference,
+    starterTemplateId: row.starterTemplateId,
+    updatedAt: row.updatedAt ?? row.createdAt
+  };
+}
+async function validateStarter(orgId, starterTemplateId) {
+  if (!starterTemplateId) return { ok: true };
+  const template = first(
+    await db.select({ id: NoteTemplates.id }).from(NoteTemplates).where(and(eq(NoteTemplates.id, starterTemplateId), eq(NoteTemplates.orgId, orgId))).limit(1)
+  );
+  if (!template) {
+    return {
+      ok: false,
+      code: "TEMPLATE_NOT_FOUND",
+      error: "That starter template is not one of your church templates"
+    };
+  }
+  return { ok: true };
+}
+app16.get("/api/church/spaces/:spaceId/plan", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanViewSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const services = await db.select().from(ChurchServices).where(eq(ChurchServices.spaceId, gate.space.id)).orderBy(asc(ChurchServices.serviceDate));
+    const scope = { churchId: gate.church.id, spaceId: gate.space.id };
+    const seriesTitles = await seriesTitlesByServiceRows(services);
+    return c.json({
+      church: { id: gate.church.id, name: gate.church.name },
+      space: {
+        id: gate.space.id,
+        title: gate.space.title,
+        /*
+          The space's own gathering rhythm, filling the same payload key the
+          church plan uses for its service times. One entry, because a space
+          gathers once — the shape matches so the editor needs no branch.
+        */
+        meetingDay: gate.space.meetingDay,
+        meetingTime: gate.space.meetingTime
+      },
+      services: services.map((row) => serializeSpaceSermon(row, seriesTitles)),
+      // Per-plan vocabulary: Youth's series and the church's stay separate — the
+      // scope is what keeps a volunteer leader out of the main service's rows.
+      series: await listSeriesForPlan(scope)
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/plan",
+      action: "church_space_plan"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app16.post("/api/church/spaces/:spaceId/services/create", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const serviceDate = (body.serviceDate ?? "").trim();
+    if (!SERVICE_DATE_PATTERN2.test(serviceDate)) {
+      return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
+    }
+    const title = clean2(body.title, TITLE_MAX2);
+    if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
+    const passage = canonicalizeServiceReference(body.reference);
+    if (!passage.ok) return c.json({ error: passage.reason, code: "INVALID_REFERENCE" }, 400);
+    const starterTemplateId = clean2(body.starterTemplateId, 200);
+    const starter = await validateStarter(gate.church.orgId, starterTemplateId);
+    if (!starter.ok) return c.json({ error: starter.error, code: starter.code }, 400);
+    const now2 = /* @__PURE__ */ new Date();
+    let seriesId = null;
+    const refusal = { reason: null };
+    const row = {
+      id: `svc_${crypto.randomUUID()}`,
+      churchId: gate.church.id,
+      spaceId: gate.space.id,
+      serviceDate,
+      // A space gathers at its own meetingTime; a per-row override is the
+      // church plan's concern, so this stays null rather than accepting input.
+      serviceTime: null,
+      title,
+      seriesId: null,
+      reference: passage.reference,
+      starterTemplateId,
+      createdBy: auth.userId,
+      updatedBy: null,
+      createdAt: now2,
+      updatedAt: null
+    };
+    try {
+      await db.transaction(async (tx) => {
+        const series = await resolveSeriesForWrite({
+          scope: { churchId: gate.church.id, spaceId: gate.space.id },
+          seriesId: body.seriesId,
+          seriesTitle: body.seriesTitle,
+          userId: auth.userId,
+          executor: tx
+        });
+        if (!series.ok) {
+          refusal.reason = { code: series.code, error: series.error };
+          return;
+        }
+        seriesId = series.seriesId;
+        row.seriesId = seriesId;
+        await tx.insert(ChurchServices).values(row);
+      });
+      if (refusal.reason) {
+        return c.json({ error: refusal.reason.error, code: refusal.reason.code }, 404);
+      }
+    } catch (error) {
+      if (isUniqueViolation(error, "ChurchServices_space_date_unique")) {
+        return c.json(
+          {
+            error: "This ministry already has a gathering planned that day.",
+            code: "SERVICE_DATE_TAKEN"
+          },
+          409
+        );
+      }
+      throw error;
+    }
+    return c.json({
+      success: true,
+      service: serializeSpaceSermon(
+        { ...row, seriesId },
+        await seriesTitlesByServiceRows([{ seriesId }])
+      )
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/services/create",
+      action: "create_church_space_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app16.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const serviceId = (body.serviceId ?? "").trim();
+    if (!serviceId) return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
+    const existing = first(
+      await db.select().from(ChurchServices).where(and(eq(ChurchServices.id, serviceId), eq(ChurchServices.spaceId, gate.space.id))).limit(1)
+    );
+    if (!existing) {
+      return c.json({ error: "Gathering not found", code: "SERVICE_NOT_FOUND" }, 404);
+    }
+    const updates = { updatedBy: auth.userId, updatedAt: /* @__PURE__ */ new Date() };
+    if (body.serviceDate !== void 0) {
+      const serviceDate = (body.serviceDate ?? "").trim();
+      if (!SERVICE_DATE_PATTERN2.test(serviceDate)) {
+        return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
+      }
+      updates.serviceDate = serviceDate;
+    }
+    if (body.title !== void 0) {
+      const title = clean2(body.title, TITLE_MAX2);
+      if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
+      updates.title = title;
+    }
+    if (body.reference !== void 0) {
+      const passage = canonicalizeServiceReference(body.reference);
+      if (!passage.ok) return c.json({ error: passage.reason, code: "INVALID_REFERENCE" }, 400);
+      updates.reference = passage.reference;
+    }
+    if (body.starterTemplateId !== void 0) {
+      const starterTemplateId = clean2(body.starterTemplateId, 200);
+      const starter = await validateStarter(gate.church.orgId, starterTemplateId);
+      if (!starter.ok) return c.json({ error: starter.error, code: starter.code }, 400);
+      updates.starterTemplateId = starterTemplateId;
+    }
+    const refusal = { reason: null };
+    try {
+      await db.transaction(async (tx) => {
+        if (body.seriesId !== void 0 || body.seriesTitle !== void 0) {
+          const series = await resolveSeriesForWrite({
+            scope: { churchId: gate.church.id, spaceId: gate.space.id },
+            seriesId: body.seriesId,
+            seriesTitle: body.seriesTitle,
+            userId: auth.userId,
+            executor: tx
+          });
+          if (!series.ok) {
+            refusal.reason = { code: series.code, error: series.error };
+            return;
+          }
+          updates.seriesId = series.seriesId;
+        }
+        await tx.update(ChurchServices).set(updates).where(eq(ChurchServices.id, serviceId));
+      });
+      if (refusal.reason) {
+        return c.json({ error: refusal.reason.error, code: refusal.reason.code }, 404);
+      }
+    } catch (error) {
+      if (isUniqueViolation(error, "ChurchServices_space_date_unique")) {
+        return c.json(
+          {
+            error: "This ministry already has a gathering planned that day.",
+            code: "SERVICE_DATE_TAKEN"
+          },
+          409
+        );
+      }
+      throw error;
+    }
+    const merged = { ...existing, ...updates };
+    return c.json({
+      success: true,
+      service: serializeSpaceSermon(merged, await seriesTitlesByServiceRows([merged]))
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/services/update",
+      action: "update_church_space_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app16.post("/api/church/spaces/:spaceId/services/repeat", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const serviceId = (body.serviceId ?? "").trim();
+    if (!serviceId) return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
+    const seed = first(
+      await db.select().from(ChurchServices).where(and(eq(ChurchServices.id, serviceId), eq(ChurchServices.spaceId, gate.space.id))).limit(1)
+    );
+    if (!seed) return c.json({ error: "Gathering not found", code: "SERVICE_NOT_FOUND" }, 404);
+    const dates = weeklyDatesAfter(seed.serviceDate, Number(body.weeks ?? 0));
+    if (dates.length === 0) {
+      return c.json(
+        { error: `weeks must be between 1 and ${REPEAT_MAX_WEEKS}`, code: "BAD_REQUEST" },
+        400
+      );
+    }
+    const seriesTitles = await seriesTitlesByServiceRows([seed]);
+    const title = repeatTitleFor({
+      seedTitle: seed.title,
+      seriesTitle: seed.seriesId ? seriesTitles.get(seed.seriesId) ?? null : null
+    });
+    const created = [];
+    let stoppedAt = null;
+    for (const serviceDate of dates) {
+      const row = {
+        id: `svc_${crypto.randomUUID()}`,
+        churchId: gate.church.id,
+        spaceId: gate.space.id,
+        serviceDate,
+        serviceTime: null,
+        title,
+        seriesId: seed.seriesId,
+        // Next week is a different passage; guessing it would put words in the
+        // leader's mouth.
+        reference: null,
+        starterTemplateId: seed.starterTemplateId,
+        createdBy: auth.userId,
+        updatedBy: null,
+        createdAt: /* @__PURE__ */ new Date(),
+        updatedAt: null
+      };
+      try {
+        await db.insert(ChurchServices).values(row);
+      } catch (error) {
+        if (isUniqueViolation(error, "ChurchServices_space_date_unique")) {
+          stoppedAt = serviceDate;
+          break;
+        }
+        throw error;
+      }
+      created.push(serializeSpaceSermon(row, seriesTitles));
+    }
+    return c.json({ success: true, services: created, stoppedAt });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/services/repeat",
+      action: "repeat_church_space_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app16.post("/api/church/spaces/:spaceId/services/delete", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const serviceId = (body.serviceId ?? "").trim();
+    if (!serviceId) return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
+    const removed = await db.delete(ChurchServices).where(and(eq(ChurchServices.id, serviceId), eq(ChurchServices.spaceId, gate.space.id))).returning({ id: ChurchServices.id });
+    if (removed.length === 0) {
+      return c.json({ error: "Gathering not found", code: "SERVICE_NOT_FOUND" }, 404);
+    }
+    return c.json({ success: true, serviceId });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/services/delete",
+      action: "delete_church_space_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app16.post("/api/church/spaces/:spaceId/series/rename", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const seriesId = (body.seriesId ?? "").trim();
+    if (!seriesId) return c.json({ error: "seriesId is required", code: "BAD_REQUEST" }, 400);
+    const result = await renameSeries(
+      { churchId: gate.church.id, spaceId: gate.space.id },
+      seriesId,
+      String(body.title ?? "")
+    );
+    if (!result.ok) {
+      const status = result.code === "BAD_REQUEST" ? 400 : result.code === "SERIES_NOT_FOUND" ? 404 : 409;
+      return c.json({ error: result.error, code: result.code }, status);
+    }
+    return c.json({ success: true, series: { id: result.series.id, title: result.series.title } });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/series/rename",
+      action: "rename_church_space_series"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app16.post("/api/church/spaces/:spaceId/series/delete", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const seriesId = (body.seriesId ?? "").trim();
+    if (!seriesId) return c.json({ error: "seriesId is required", code: "BAD_REQUEST" }, 400);
+    const result = await deleteSeries({ churchId: gate.church.id, spaceId: gate.space.id }, seriesId);
+    if (!result.ok) return c.json({ error: result.error, code: result.code }, 404);
+    return c.json({ success: true, detached: result.detached });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/series/delete",
+      action: "delete_church_space_series"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var church_space_plan_default = app16;
+
+// server/routes/church-engagement.ts
+init_auth();
+
+// server/utils/church-engagement.ts
+init_db2();
+async function assertCanViewChurchEngagement(userId, orgId) {
+  return resolveChurchOrgAccess(userId, orgId, {
+    capability: "manage_staff",
+    code: "CHURCH_ENGAGEMENT_ROLE_REQUIRED",
+    staffError: "Only church staff can see engagement",
+    roleError: "Only a church admin can see engagement",
+    sponsorshipGated: false
+  });
+}
+async function countConnectedCongregants(churchId) {
+  const rows = await db.select({ n: sql`count(*)::int` }).from(UserMetadata).where(eq(UserMetadata.connectedChurchId, churchId));
+  return Number(rows[0]?.n ?? 0);
+}
+async function countFollowersByChannel(orgId) {
+  const spaces = await db.select({ id: Spaces.id, title: Spaces.title, type: Spaces.type, orgId: Spaces.orgId }).from(Spaces).where(and(eq(Spaces.orgId, orgId), eq(Spaces.isActive, true), isNull(Spaces.deletedAt)));
+  const channels = spaces.filter((space) => isMinistryBroadcastSpaceRow(space));
+  if (channels.length === 0) return [];
+  const counts = await db.select({
+    spaceId: SpaceMemberships.spaceId,
+    n: sql`count(*)::int`
+  }).from(SpaceMemberships).where(
+    and(
+      inArray(
+        SpaceMemberships.spaceId,
+        channels.map((channel) => channel.id)
+      ),
+      eq(SpaceMemberships.role, "member")
+    )
+  ).groupBy(SpaceMemberships.spaceId);
+  const bySpace = new Map(counts.map((row) => [row.spaceId, Number(row.n ?? 0)]));
+  return channels.map((channel) => ({
+    spaceId: channel.id,
+    title: channel.title,
+    followerCount: bySpace.get(channel.id) ?? 0
+  }));
+}
+async function getChurchEngagement(church) {
+  const [connectedCount, channels] = await Promise.all([
+    countConnectedCongregants(church.id),
+    countFollowersByChannel(church.orgId)
+  ]);
+  return { connectedCount, channels };
+}
+
+// server/routes/church-engagement.ts
+var app17 = new Hono2();
+app17.get("/api/church/engagement", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const orgId = (c.req.query("orgId") ?? "").trim();
+    const gate = await assertCanViewChurchEngagement(auth.userId, orgId);
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const engagement = await getChurchEngagement(gate.church);
+    return c.json({
+      church: { id: gate.church.id, name: gate.church.name },
+      ...engagement
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/engagement",
+      action: "church_engagement"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var church_engagement_default = app17;
+
+// server/routes/church-space-leaders.ts
+init_db2();
+init_auth();
+init_dates();
+var app18 = new Hono2();
+async function loadTarget(spaceId, targetUserId) {
+  return first(
+    await db.select().from(SpaceMemberships).where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, targetUserId))).limit(1)
+  );
+}
+app18.post("/api/church/spaces/:spaceId/leaders/grant", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanGrantSpaceLeadership(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const targetUserId = (body.userId ?? "").trim();
+    if (!targetUserId) return c.json({ error: "userId is required", code: "BAD_REQUEST" }, 400);
+    const membership = await loadTarget(gate.space.id, targetUserId);
+    if (!membership) {
+      return c.json(
+        { error: "That person is not in this space yet", code: "NOT_A_MEMBER" },
+        404
+      );
+    }
+    if (membership.role === "owner") {
+      return c.json(
+        { error: "The space owner already leads this space", code: "ALREADY_LEADS" },
+        409
+      );
+    }
+    if (membership.role === "leader" && membership.grantSource !== GRANT_SOURCE) {
+      return c.json(
+        { error: "They already lead this space as church staff", code: "STAFF_LEADER" },
+        409
+      );
+    }
+    await db.update(SpaceMemberships).set({ role: "leader", grantSource: GRANT_SOURCE, updatedAt: nowISO() }).where(and(eq(SpaceMemberships.spaceId, gate.space.id), eq(SpaceMemberships.userId, targetUserId)));
+    return c.json({ success: true, userId: targetUserId, role: "leader", grantSource: GRANT_SOURCE });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/leaders/grant",
+      action: "grant_space_leadership"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app18.post("/api/church/spaces/:spaceId/leaders/revoke", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanGrantSpaceLeadership(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const targetUserId = (body.userId ?? "").trim();
+    if (!targetUserId) return c.json({ error: "userId is required", code: "BAD_REQUEST" }, 400);
+    const membership = await loadTarget(gate.space.id, targetUserId);
+    if (!membership) {
+      return c.json({ error: "That person is not in this space", code: "NOT_A_MEMBER" }, 404);
+    }
+    if (membership.role !== "leader" || membership.grantSource !== GRANT_SOURCE) {
+      return c.json(
+        {
+          error: membership.role === "leader" ? "They lead this space as church staff. Change their role on the Team instead." : "They do not lead this space",
+          code: membership.role === "leader" ? "STAFF_LEADER" : "NOT_A_LEADER"
+        },
+        409
+      );
+    }
+    await db.update(SpaceMemberships).set({ role: "member", grantSource: null, updatedAt: nowISO() }).where(and(eq(SpaceMemberships.spaceId, gate.space.id), eq(SpaceMemberships.userId, targetUserId)));
+    return c.json({ success: true, userId: targetUserId, role: "member" });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/leaders/revoke",
+      action: "revoke_space_leadership"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var church_space_leaders_default = app18;
 
 // server/routes/featured.ts
 init_db2();
@@ -320425,8 +321939,8 @@ function isTestRoutesForbidden() {
 
 // server/routes/featured.ts
 init_note_version_service();
-var app15 = new Hono2();
-app15.get("/api/featured/items", async (c) => {
+var app19 = new Hono2();
+app19.get("/api/featured/items", async (c) => {
   try {
     const auth = getAuth(c);
     if (!auth.userId) {
@@ -320622,7 +322136,7 @@ app15.get("/api/featured/items", async (c) => {
     return c.json({ error: message }, 500);
   }
 });
-app15.post("/api/featured/erase", requireAuth, async (c) => {
+app19.post("/api/featured/erase", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -320647,7 +322161,7 @@ app15.post("/api/featured/erase", requireAuth, async (c) => {
   });
   return c.json({ success: true });
 });
-app15.post("/api/featured/dismiss", requireAuth, async (c) => {
+app19.post("/api/featured/dismiss", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -320681,7 +322195,7 @@ app15.post("/api/featured/dismiss", requireAuth, async (c) => {
   }
   return c.json({ success: true });
 });
-app15.get("/api/featured/dismissed", requireAuth, async (c) => {
+app19.get("/api/featured/dismissed", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const dismissedConditions = [
     eq(UserFeaturedItems.userId, auth.userId),
@@ -320717,12 +322231,12 @@ app15.get("/api/featured/dismissed", requireAuth, async (c) => {
     }))
   );
 });
-app15.get("/api/admin/check", async (c) => {
+app19.get("/api/admin/check", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   return c.json({ isAdmin: true });
 });
-app15.get("/api/admin/featured/by-space/:shareToken", async (c) => {
+app19.get("/api/admin/featured/by-space/:shareToken", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const shareToken = c.req.param("shareToken")?.trim() ?? "";
@@ -320732,7 +322246,7 @@ app15.get("/api/admin/featured/by-space/:shareToken", async (c) => {
   );
   return c.json(item ?? null);
 });
-app15.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
+app19.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const shareToken = c.req.param("shareToken")?.trim() ?? "";
@@ -320742,7 +322256,7 @@ app15.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
   );
   return c.json(item ?? null);
 });
-app15.post("/api/admin/featured", async (c) => {
+app19.post("/api/admin/featured", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -320786,7 +322300,7 @@ app15.post("/api/admin/featured", async (c) => {
   );
   return c.json(inserted ?? { success: true });
 });
-app15.patch("/api/admin/featured/:id", async (c) => {
+app19.patch("/api/admin/featured/:id", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
@@ -320803,7 +322317,7 @@ app15.patch("/api/admin/featured/:id", async (c) => {
   if (!updated) return c.json({ error: "Not found" }, 404);
   return c.json(updated);
 });
-app15.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
+app19.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -320947,7 +322461,7 @@ app15.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
   });
   return c.json({ success: true, noteId: newNote.id });
 });
-app15.get("/api/featured/space", async (c) => {
+app19.get("/api/featured/space", async (c) => {
   try {
     const systemUserId = getHarvousSystemUserId();
     const space = first(
@@ -320984,7 +322498,7 @@ app15.get("/api/featured/space", async (c) => {
     return c.json(null);
   }
 });
-var featured_default = app15;
+var featured_default = app19;
 
 // server/routes/votd.ts
 init_db2();
@@ -321782,7 +323296,7 @@ function pickPoolVerseForPreview(dateStr, usedRefs, avoidBook) {
 }
 
 // server/routes/votd.ts
-var app16 = new Hono2();
+var app20 = new Hono2();
 async function requireVotdAuth(c) {
   if (c.get("cronAuthed")) return null;
   const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
@@ -321874,7 +323388,7 @@ async function publishVotdCore(params) {
   });
   return { featuredItemId };
 }
-app16.post("/api/admin/votd/schedule", async (c) => {
+app20.post("/api/admin/votd/schedule", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -321914,13 +323428,13 @@ app16.post("/api/admin/votd/schedule", async (c) => {
   );
   return c.json(inserted ?? { success: true }, 201);
 });
-app16.get("/api/admin/votd/schedule", async (c) => {
+app20.get("/api/admin/votd/schedule", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const rows = await db.select().from(VotdSchedule).orderBy(desc(VotdSchedule.createdAt));
   return c.json(rows);
 });
-app16.delete("/api/admin/votd/schedule/:id", async (c) => {
+app20.delete("/api/admin/votd/schedule/:id", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
@@ -321991,7 +323505,7 @@ async function publishForDate(dateStr) {
   });
   return { alreadyPublished: false, featuredItemId: result.featuredItemId, reference: pick2.reference, source: pick2.source };
 }
-app16.post("/api/admin/votd/publish-daily", async (c) => {
+app20.post("/api/admin/votd/publish-daily", async (c) => {
   const unauthorized = await requireVotdAuth(c);
   if (unauthorized) return unauthorized;
   const target = c.req.query("target");
@@ -322054,7 +323568,7 @@ function daysBetweenUtcInclusive(start, end) {
   const msPerDay = 24 * 60 * 60 * 1e3;
   return Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
 }
-app16.get("/api/admin/votd/preview", async (c) => {
+app20.get("/api/admin/votd/preview", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const monthParam = c.req.query("month")?.trim();
@@ -322213,7 +323727,7 @@ app16.get("/api/admin/votd/preview", async (c) => {
   }
   return c.json({ days: out });
 });
-app16.post("/api/admin/votd/override", async (c) => {
+app20.post("/api/admin/votd/override", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -322257,7 +323771,7 @@ app16.post("/api/admin/votd/override", async (c) => {
   );
   return c.json(inserted ?? { success: true });
 });
-app16.post("/api/admin/votd/refresh", async (c) => {
+app20.post("/api/admin/votd/refresh", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -322322,7 +323836,7 @@ app16.post("/api/admin/votd/refresh", async (c) => {
   );
   return c.json({ success: true, reference: normalizedRef, row: inserted });
 });
-app16.delete("/api/admin/votd/override/:date", async (c) => {
+app20.delete("/api/admin/votd/override/:date", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const dateStr = c.req.param("date")?.trim() ?? "";
@@ -322332,7 +323846,7 @@ app16.delete("/api/admin/votd/override/:date", async (c) => {
   await db.delete(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, dateStr), eq(VotdSchedule.isPublished, false)));
   return c.json({ success: true });
 });
-app16.post("/api/votd/record-engagement", requireAuth, async (c) => {
+app20.post("/api/votd/record-engagement", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const action = body.action?.trim();
@@ -322348,7 +323862,7 @@ app16.post("/api/votd/record-engagement", requireAuth, async (c) => {
   }
   return c.json({ success: true, featuredItemId: result.featuredItemId });
 });
-var votd_default = app16;
+var votd_default = app20;
 
 // server/routes/test.ts
 init_auth();
@@ -322388,8 +323902,8 @@ async function resetUserToNew(userId) {
 init_db2();
 init_dates();
 init_schema2();
-var app17 = new Hono2();
-app17.post("/api/test/reset-to-new-user", async (c) => {
+var app21 = new Hono2();
+app21.post("/api/test/reset-to-new-user", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -322414,7 +323928,7 @@ app17.post("/api/test/reset-to-new-user", async (c) => {
     return c.json({ error: error.message || "Failed to reset user" }, 500);
   }
 });
-app17.post("/api/test/set-shared-spaces-addon", async (c) => {
+app21.post("/api/test/set-shared-spaces-addon", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -322437,7 +323951,7 @@ app17.post("/api/test/set-shared-spaces-addon", async (c) => {
     return c.json({ error: error.message || "Failed to update Shared Spaces add-on" }, 500);
   }
 });
-app17.post("/api/test/reset-featured", async (c) => {
+app21.post("/api/test/reset-featured", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -322459,7 +323973,7 @@ app17.post("/api/test/reset-featured", async (c) => {
     return c.json({ error: error.message || "Failed to reset featured items" }, 500);
   }
 });
-app17.post("/api/test/seed-sample-votd", async (c) => {
+app21.post("/api/test/seed-sample-votd", async (c) => {
   const seedBlock = featuredSampleSeedForbiddenResponse(c);
   if (seedBlock) return seedBlock;
   try {
@@ -322524,7 +324038,7 @@ app17.post("/api/test/seed-sample-votd", async (c) => {
     return c.json({ error: error.message || "Failed to seed sample VOTD" }, 500);
   }
 });
-app17.post("/api/test/seed-sample-featured", async (c) => {
+app21.post("/api/test/seed-sample-featured", async (c) => {
   const seedBlock = featuredSampleSeedForbiddenResponse(c);
   if (seedBlock) return seedBlock;
   try {
@@ -322668,7 +324182,7 @@ app17.post("/api/test/seed-sample-featured", async (c) => {
     return c.json({ error: error.message || "Failed to seed sample featured items" }, 500);
   }
 });
-var test_default = app17;
+var test_default = app21;
 
 // server/data/dictionaries/eastons-slug-index.json
 var eastons_slug_index_default = [
@@ -370938,51 +372452,55 @@ route17.get("/api/status/public", async (c) => {
 var status_public_default = route17;
 
 // server/app.ts
-var app18 = new Hono2();
-app18.use("/api/*", requestId());
-app18.use("/api/*", cors());
-app18.use("/api/*", clerkAuth);
-app18.use("/api/*", async (c, next) => {
+var app22 = new Hono2();
+app22.use("/api/*", requestId());
+app22.use("/api/*", cors());
+app22.use("/api/*", clerkAuth);
+app22.use("/api/*", async (c, next) => {
   await next();
   if (c.req.method === "GET" && !c.res.headers.has("Cache-Control")) {
     c.res.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
   }
 });
-app18.route("/", health_default);
-app18.route("/", navigation_default);
-app18.route("/", debug_default);
-app18.route("/", about_default);
-app18.route("/", og_default);
-app18.route("/", stats_default);
-app18.route("/", search_default);
-app18.route("/", content_default);
-app18.route("/", threads_default);
-app18.route("/", notes_default);
-app18.route("/", note_templates_default);
-app18.route("/", study_threads_default);
-app18.route("/", spaces_default);
-app18.route("/", user_default);
-app18.route("/", tags_scripture_default);
-app18.route("/", shared_default);
-app18.route("/", billing_default);
-app18.route("/", resource_default);
-app18.route("/", inbox_default);
-app18.route("/", webhooks_default);
-app18.route("/", sync_default2);
-app18.route("/", migrations_default);
-app18.route("/", admin_default);
-app18.route("/", churches_default);
-app18.route("/", church_default);
-app18.route("/", church_teaching_plan_default);
-app18.route("/", featured_default);
-app18.route("/", votd_default);
-app18.route("/", test_default);
-app18.route("/", dictionary_default);
-app18.route("/", recall_default);
-app18.route("/", support_default);
-app18.route("/", diagnostics_default);
-app18.route("/", status_public_default);
-var app_default = app18;
+app22.route("/", health_default);
+app22.route("/", navigation_default);
+app22.route("/", debug_default);
+app22.route("/", about_default);
+app22.route("/", og_default);
+app22.route("/", stats_default);
+app22.route("/", search_default);
+app22.route("/", content_default);
+app22.route("/", threads_default);
+app22.route("/", notes_default);
+app22.route("/", note_templates_default);
+app22.route("/", study_threads_default);
+app22.route("/", spaces_default);
+app22.route("/", user_default);
+app22.route("/", tags_scripture_default);
+app22.route("/", shared_default);
+app22.route("/", billing_default);
+app22.route("/", resource_default);
+app22.route("/", inbox_default);
+app22.route("/", webhooks_default);
+app22.route("/", sync_default2);
+app22.route("/", migrations_default);
+app22.route("/", admin_default);
+app22.route("/", churches_default);
+app22.route("/", church_default);
+app22.route("/", church_teaching_plan_default);
+app22.route("/", church_settings_default);
+app22.route("/", church_space_plan_default);
+app22.route("/", church_engagement_default);
+app22.route("/", church_space_leaders_default);
+app22.route("/", featured_default);
+app22.route("/", votd_default);
+app22.route("/", test_default);
+app22.route("/", dictionary_default);
+app22.route("/", recall_default);
+app22.route("/", support_default);
+app22.route("/", diagnostics_default);
+app22.route("/", status_public_default);
+var app_default = app22;
 
 // server/netlify.ts
 init_client();
