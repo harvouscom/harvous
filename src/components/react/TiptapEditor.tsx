@@ -24,9 +24,15 @@ import { ScripturePill } from './TiptapScripturePill';
 import { MentionPill } from './TiptapMentionPill';
 import MentionPickerPanel, {
   cycleMentionKindFilter,
+  mentionKindFilterOrderFor,
   type MentionKindFilter,
 } from './MentionPickerPanel';
-import type { MentionPickerItem, MentionPillClickPayload } from './mention-pill-types';
+import {
+  MENTION_KINDS,
+  type MentionKind,
+  type MentionPickerItem,
+  type MentionPillClickPayload,
+} from './mention-pill-types';
 import { findMentionTrigger } from '@/utils/mention-trigger';
 import {
   ScriptureDraft,
@@ -151,6 +157,7 @@ import {
   isHighlightDockReadOnly,
   openOrFocusHighlight,
   openOrFocusReference,
+  openOrFocusResource,
   openOrFocusScripture,
   pruneStudyDockStack,
   resolveScriptureLinkPassageContext,
@@ -167,6 +174,7 @@ import {
   type HighlightDockOpenMetadata,
   type HighlightDockSession,
   type ReferenceDockSession,
+  type ResourceDockSession,
   type ScripturePillDockSession,
   type StudyDockEntry,
   type StudyDockStack,
@@ -179,6 +187,7 @@ import { scriptureReferenceContainsReference } from '@/utils/scripture-verse-key
 import LinkPreviewCard from './LinkPreviewCard';
 import UrlLinkPromptUI from './UrlLinkPromptUI';
 import ReferenceDockWeb from './ReferenceDockWeb';
+import ResourceDockChipWeb from './ResourceDockChipWeb';
 import { useEditorHoverPreview } from './useEditorHoverPreview';
 import { useEastonsSlugIndex } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import PrototypeConnectNoteSheet from '../../../spa/src/pages/prototype/PrototypeConnectNoteSheet';
@@ -244,6 +253,12 @@ interface TiptapEditorProps {
    * study threads / folders. Absent → the @ typeahead never triggers (classic shell).
    */
   mentionSource?: (query: string) => MentionPickerItem[] | Promise<MentionPickerItem[]>;
+  /**
+   * Kinds `mentionSource` can actually return here. Drives which picker tabs
+   * exist — a shared-space note omits 'library' because personal library items
+   * can't resolve for other members. Defaults to all kinds.
+   */
+  mentionKinds?: readonly MentionKind[];
   /** Tap/click on a mention pill (editable and read-only). Navigation is owned by the parent. */
   onMentionPillClick?: (payload: MentionPillClickPayload) => void;
   /** Explicit shared-space read context. Omitted for personal/My Home. */
@@ -283,6 +298,14 @@ interface TiptapEditorProps {
   initialReferenceRequestKey?: string | null;
   /** Prototype-only: called after a reference deep-link dock handoff completes (strip URL search keys). */
   onReferenceDeepLinkHandoff?: () => void;
+  /** Prototype-only: docks a Resource Library chip once the editor mounts (`?libItem=`). */
+  initialResourceDock?: {
+    /** Distinct per request (dockReq nonce) so re-opens fire each time. */
+    requestKey: string;
+    session: ResourceDockSession;
+  } | null;
+  /** Opens a file library item (signed-URL resolve lives with the SPA's data layer). */
+  onOpenResourceFile?: (libraryItemId: string) => void;
   /**
    * Prototype-only: when provided, the prototype-native format toolbar is rendered
    * via `createPortal` into this element instead of inline. This lets the parent
@@ -571,6 +594,8 @@ function studyDockEntryStillValid(editor: any, entry: StudyDockEntry): boolean {
   }
   // Reference docks are user-dismissed (pending hints + saved references both persist while open).
   if (entry.kind === 'reference') return true;
+  // Resource chips have no anchor in the doc at all — nothing to prune against.
+  if (entry.kind === 'resource') return true;
   // scriptureLink highlights are anchored to a persisted study thread, not an editor range
   // (passage selections have range: null and no matching highlight mark in the doc). Keep them
   // user-dismissed so the prune-on-update effect can't racily remove them.
@@ -4022,6 +4047,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   sourceNoteId,
   spaceId,
   mentionSource,
+  mentionKinds = MENTION_KINDS,
   onMentionPillClick,
   contextSpaceId = null,
   onEditorReady,
@@ -4038,6 +4064,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   initialReferenceWord = null,
   initialReferenceRequestKey = null,
   onReferenceDeepLinkHandoff,
+  initialResourceDock = null,
+  onOpenResourceFile,
   prototypeScripturePillOpenRequest = null,
   onPrototypeScripturePillOpenRequestConsumed,
   onPrototypeScripturePillOpenRequestUnresolved,
@@ -4140,6 +4168,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const mentionFetchTimerRef = useRef<number | null>(null);
   const mentionSourceRef = useRef(mentionSource);
   mentionSourceRef.current = mentionSource;
+  // Read inside the ProseMirror keydown handler, which closes over stale props.
+  const mentionKindsRef = useRef(mentionKinds);
+  mentionKindsRef.current = mentionKinds;
   const onMentionPillClickRef = useRef(onMentionPillClick);
   onMentionPillClickRef.current = onMentionPillClick;
   const [contentOverflowing, setContentOverflowing] = useState(false);
@@ -4913,7 +4944,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             const step = event.key === 'ArrowRight' ? 1 : -1;
             const next = {
               ...mentionState,
-              kindFilter: cycleMentionKindFilter(mentionState.kindFilter, step),
+              kindFilter: cycleMentionKindFilter(
+                mentionState.kindFilter,
+                step,
+                mentionKindFilterOrderFor(mentionKindsRef.current),
+              ),
               activeIndex: 0,
             };
             mentionPickerRef.current = next;
@@ -5343,6 +5378,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     openReferenceDock({ query: initialReferenceWord });
     onReferenceDeepLinkHandoff?.();
   }, [initialReferenceWord, initialReferenceRequestKey, editor, openReferenceDock, onReferenceDeepLinkHandoff]);
+
+  // Dock a resource chip from `?libItem=` (Resources sidebar row → this note).
+  const initialResourceDockFiredRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialResourceDock) {
+      initialResourceDockFiredRef.current = null;
+      return;
+    }
+    if (initialResourceDockFiredRef.current === initialResourceDock.requestKey) return;
+    if (!editor || !isEditorValid(editor)) return;
+    initialResourceDockFiredRef.current = initialResourceDock.requestKey;
+    setStudyDockStack((s) => openOrFocusResource(s, initialResourceDock.session));
+  }, [initialResourceDock, editor]);
 
   useEffect(() => {
     const empty = emptyStudyDockStack();
@@ -9447,6 +9495,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               items={visibleMentionItems(mentionPicker)}
               activeIndex={mentionPicker.activeIndex}
               kindFilter={mentionPicker.kindFilter}
+              availableKinds={mentionKinds}
               query={mentionPicker.query}
               onKindFilterChange={(kind) => {
                 const state = mentionPickerRef.current;
@@ -10291,6 +10340,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           getEffectiveDefaultTranslation();
                         openScripturePassage(ref, translation, entry.id);
                       }}
+                    />
+                  );
+                }
+                if (entry.kind === 'resource') {
+                  return (
+                    <ResourceDockChipWeb
+                      key={entry.id}
+                      session={entry.session}
+                      onDismiss={() => setStudyDockStack((s) => closeDockEntry(s, entry.id))}
+                      onOpenFile={onOpenResourceFile}
                     />
                   );
                 }

@@ -66,6 +66,9 @@ See `SHARED_SPACES_DEV_NOTES.md` → "Cross-space reference rules". As built:
 
 - [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md) — cross-space reference rules this design
   must honor.
-- [RESOURCE_LIBRARY.md](./RESOURCE_LIBRARY.md) — future `library` / `libraryItem` mention kind and
-  Library tab in the picker (same mark shape; church/school catalog assets).
+- [RESOURCE_LIBRARY.md](./RESOURCE_LIBRARY.md) — the `library` mention kind and Library tab in the
+  picker (same mark shape). Shipping in the library v0 against **personal** libraries, and gated to
+  personal notes only: a personal item can't resolve for other members of a shared space. It inherits
+  the copy-in degrade blocker above rather than adding a new one — the fix is one shared pass across
+  all four kinds.
 - Memory: `react19_innerhtml_selection`, floating UI pattern, scripture pill mark-boundary lessons.

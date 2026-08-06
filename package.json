@@ -79,6 +79,8 @@
     "skl:author:subjects": "tsx server/scripts/author-subjects.ts",
     "skl:seed": "tsx server/scripts/seed-scripture-knowledge.ts",
     "fingerprints:backfill": "tsx server/scripts/backfill-note-fingerprints.ts",
+    "library:schema": "tsx server/scripts/add-resource-library-schema.ts",
+    "library:schema:apply": "tsx server/scripts/add-resource-library-schema.ts --apply",
     "shared-spaces:schema:additive": "tsx server/scripts/add-shared-spaces-schema.ts",
     "shared-spaces:preflight": "tsx server/scripts/preflight-canonical-space-notes.ts",
     "shared-spaces:backfill": "tsx server/scripts/backfill-canonical-space-notes.ts",

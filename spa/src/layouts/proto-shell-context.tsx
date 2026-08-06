@@ -45,7 +45,12 @@ function readStoredSidebarWidth() {
   }
 }
 
-export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture' | 'threads';
+/**
+ * 'resources' is the odd one out: notes/folders/threads list things you made,
+ * highlights/scripture are derived indexes over note content, and resources is
+ * a catalog you curate deliberately (see docs/future/RESOURCE_LIBRARY.md).
+ */
+export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture' | 'threads' | 'resources';
 
 /** Sidebar layer — Home space dashboard vs the list views. Only 'space' layer content today is My Home. */
 export type SidebarLayer = 'space' | 'list';
@@ -107,7 +112,7 @@ export interface ThreadProposal {
 
 const SIDEBAR_LIST_MODE_STORAGE_KEY = 'harvous-prototype-sidebar-list-mode';
 const SIDEBAR_LIST_MODE_DEFAULT: SidebarListMode = 'notes';
-const VALID_MODES = new Set<SidebarListMode>(['notes', 'folders', 'highlights', 'scripture', 'threads']);
+const VALID_MODES = new Set<SidebarListMode>(['notes', 'folders', 'highlights', 'scripture', 'threads', 'resources']);
 
 function readStoredSidebarListMode(): SidebarListMode {
   if (typeof window === 'undefined') return SIDEBAR_LIST_MODE_DEFAULT;

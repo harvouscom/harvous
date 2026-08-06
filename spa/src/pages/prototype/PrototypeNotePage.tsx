@@ -57,7 +57,7 @@ import { useNavigationSharedSpaceAccess } from '../../hooks/queries/useNavigatio
 import type { ApplyableNoteTemplate } from '../../hooks/queries/useNoteTemplates';
 import { useMentionSource } from './mention-picker-source';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
-import type { MentionPillClickPayload } from '@/components/react/mention-pill-types';
+import type { MentionKind, MentionPillClickPayload } from '@/components/react/mention-pill-types';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { buildHighlightDockOpenMetadataFromStudyThread } from '@/utils/study-dock-stack';
@@ -92,6 +92,7 @@ import {
 import { getComposeGroupThreadId } from '../../lib/compose-group-thread';
 import { validComposeThreadSelection } from './PrototypeGroupStudyThreadPicker';
 import { useSpaceGroupThreads } from '../../hooks/queries/useSpaceGroupThreads';
+import { useLibrary, openLibraryFileItem } from '../../hooks/queries/useLibrary';
 import { trackSessionNoteOpen } from '@/utils/session-xp-client';
 import { trackNoteOpened } from '@/utils/analytics';
 import { recordAudiencefulMilestoneOnce } from '@/utils/audienceful-milestones-client';
@@ -101,6 +102,9 @@ import { api, APIError } from '../../lib/api';
 
 const DRAFT_NOTE_ID = 'note_draft';
 const EMPTY_NOTE_COLLECTIONS: string[] = [];
+
+/** Mention kinds offered inside a shared space — no 'library' (owner-scoped items). */
+const SPACE_MENTION_KINDS: readonly MentionKind[] = ['note', 'thread', 'folder'];
 
 /** Single source of truth for "is this draft landing in My Home" — the label and the
  *  audience-bar icon must agree, so both read this instead of re-deriving it. */
@@ -192,6 +196,12 @@ export default function PrototypeNotePage() {
   const initialHighlightThread = useRouterState({
     select: (s) => {
       const v = (s.location.search as Record<string, unknown>).highlight;
+      return typeof v === 'string' ? v : undefined;
+    },
+  });
+  const initialLibraryItemId = useRouterState({
+    select: (s) => {
+      const v = (s.location.search as Record<string, unknown>).libItem;
       return typeof v === 'string' ? v : undefined;
     },
   });
@@ -334,6 +344,31 @@ export default function PrototypeNotePage() {
   }, [initialHighlightThread, note?.studyThreads, dockReq]);
 
   const initialReferenceRequestKey = initialReferenceWord ? (dockReq ?? initialReferenceWord) : null;
+
+  // Deep-link to a resource chip (Resources list row → dock). Reads the cached
+  // library the sidebar already loaded; a cold direct link fetches it once.
+  const { data: libraryData } = useLibrary();
+  const initialResourceDock = useMemo(() => {
+    if (!initialLibraryItemId) return null;
+    const item = libraryData?.items.find((i) => i.id === initialLibraryItemId);
+    if (!item) return null;
+    const isFile = item.kind === 'file';
+    if (!isFile && !item.sourceUrl) return null;
+    return {
+      requestKey: dockReq ?? initialLibraryItemId,
+      session: {
+        libraryItemId: item.id,
+        title: item.title,
+        kind: isFile ? ('file' as const) : ('link' as const),
+        // Files carry no durable URL — the chip signs one at click time.
+        url: item.sourceUrl ?? '',
+        domain: item.sourceDomain,
+        fileName: item.fileName,
+        fileMime: item.fileMime,
+        fileBytes: item.fileBytes,
+      },
+    };
+  }, [initialLibraryItemId, libraryData?.items, dockReq]);
 
   const editorSecondaryCollections = useMemo(() => {
     if (isDraft) return EMPTY_NOTE_COLLECTIONS;
@@ -689,6 +724,10 @@ export default function PrototypeNotePage() {
   // @ mention pills: personal notes search across the user's own spaces; notes inside a
   // shared space are scoped to that space only so a pill can never point where other
   // members can't follow. Omitted entirely (no typeahead) for read-only foreign notes.
+  //
+  // Library items are the sharpest case of that rule — they're owner-scoped, so a
+  // shared-space note gets no Resources tab at all rather than one that mints
+  // pills only the author can open.
   const mentionSource = useMentionSource(
     noteInSharedSpace
       ? { mode: 'shared', spaceId: effectiveSpaceId }
@@ -712,6 +751,22 @@ export default function PrototypeNotePage() {
         return;
       }
 
+      // Library pills dock a chip on the note you're reading rather than
+      // navigating away — the resource is meant to sit beside the writing.
+      if (payload.kind === 'library') {
+        if (!noteSlugParam) return;
+        navigate({
+          to: prototypeNoteRouteTo(),
+          params: { noteId: noteSlugParam },
+          search: (prev: Record<string, unknown>) => ({
+            ...prev,
+            libItem: payload.entityId,
+            dockReq: String(Date.now()),
+          }),
+        });
+        return;
+      }
+
       if (isCrossSpace) {
         setActiveSpaceId(targetSpaceId === personalHomeSpaceId ? null : targetSpaceId);
       }
@@ -728,6 +783,7 @@ export default function PrototypeNotePage() {
     },
     [
       navigate,
+      noteSlugParam,
       personalHomeSpaceId,
       selectedSpaceId,
       setActiveSpaceId,
@@ -2025,6 +2081,7 @@ export default function PrototypeNotePage() {
                 }}
                 spaceId={effectiveSpaceId ?? undefined}
                 mentionSource={readOnlyInSharedSpace ? undefined : mentionSource}
+                mentionKinds={noteInSharedSpace ? SPACE_MENTION_KINDS : undefined}
                 onMentionPillClick={onMentionPillClick}
                 contextSpaceId={contextSpaceId}
                 editorChromeMode="prototypeNative"
@@ -2032,6 +2089,8 @@ export default function PrototypeNotePage() {
                 studyDockCarouselPortalTarget={studyDockCarouselHostEl}
                 initialReferenceWord={initialReferenceWord || null}
                 initialReferenceRequestKey={initialReferenceRequestKey}
+                initialResourceDock={initialResourceDock}
+                onOpenResourceFile={(libraryItemId) => void openLibraryFileItem(libraryItemId)}
                 initialScriptureDock={initialScriptureDock}
                 initialCrossRefTarget={initialCrossRefTarget}
                 initialHighlightDock={initialHighlightDock}

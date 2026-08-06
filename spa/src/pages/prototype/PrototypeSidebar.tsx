@@ -79,6 +79,8 @@ import {
 import PrototypeSidebarHomeView from './PrototypeSidebarHomeView';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeListEmptyState, { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
+import PrototypeResourceLibraryList from './PrototypeResourceLibraryList';
+import { openLibraryFileItem, type LibraryItem } from '../../hooks/queries/useLibrary';
 import { SIDEBAR_NO_MATCH_COPY } from './sidebar-no-match-copy';
 import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
 import {
@@ -1155,7 +1157,7 @@ type ScriptureBookView = 'notes' | 'passages';
 
 const SCRIPTURE_BOOK_VIEW_OPTIONS: readonly ProtoChipOption<ScriptureBookView>[] = [
   { id: 'notes', label: 'Notes', iconName: 'note-sticky' },
-  { id: 'passages', label: 'Passages', iconName: 'book-open' },
+  { id: 'passages', label: 'Passages', iconName: 'scroll' },
 ];
 
 type HighlightKindFilter = 'all' | 'notes' | 'connected' | 'scripture' | 'references';
@@ -1164,7 +1166,7 @@ const HIGHLIGHT_KIND_OPTIONS: { id: HighlightKindFilter; label: string; iconName
   { id: 'all', label: 'All' },
   { id: 'notes', label: 'Notes', iconName: 'note-sticky' },
   { id: 'connected', label: 'Connected', iconName: 'arrow-right-arrow-left' },
-  { id: 'scripture', label: 'Scripture', iconName: 'book-open' },
+  { id: 'scripture', label: 'Scripture', iconName: 'scroll' },
   { id: 'references', label: 'References', iconName: 'lines-leaning' },
 ];
 
@@ -2341,6 +2343,36 @@ export default function PrototypeSidebar({
     afterNav();
   };
 
+  /**
+   * Open a library resource.
+   *
+   * The study dock is per-note, so a resource chip only has somewhere to live
+   * when a note is open — tapping a row from the home list has no dock to dock
+   * to, and jumping to an arbitrary note to hold the chip would be worse than
+   * just following the link. So: dock it when we're on a note, open it
+   * otherwise.
+   */
+  const onResourceRow = (item: LibraryItem) => {
+    if (isPrototypeNotePath(pathname) && activeNoteFullId) {
+      const navSearch = prototypeNoteListNavigationSearch({
+        isScopedSharedSpace,
+        spaceId: homeSpaceId ?? '',
+      });
+      navigate({
+        to: prototypeNoteRouteTo(),
+        params: { noteId: noteParamSlug(activeNoteFullId) },
+        search: { ...navSearch, libItem: item.id, dockReq: String(Date.now()) },
+      });
+      afterNav();
+      return;
+    }
+    if (item.kind === 'file') {
+      void openLibraryFileItem(item.id);
+      return;
+    }
+    if (item.sourceUrl) window.open(item.sourceUrl, '_blank', 'noopener,noreferrer');
+  };
+
   const isSearchResultActive = useCallback(
     (result: SidebarSearchResult) => {
       if (result.kind === 'note' && result.noteId) {
@@ -2959,6 +2991,10 @@ export default function PrototypeSidebar({
               </>
             ) : null}
 
+            {mode === 'resources' ? (
+              <PrototypeResourceLibraryList query={q} onOpenResource={onResourceRow} />
+            ) : null}
+
             {mode === 'threads' && sidebarThreadDrilldownId && !isSharedSpaceThreadDrillId(sidebarThreadDrilldownId) ? (
               <>
                 {threadDrillQuery.isLoading ? (
@@ -3241,7 +3277,7 @@ export default function PrototypeSidebar({
                           onClick={() => setScriptureDrill({ level: 'passages', bookOrder: b.bookOrder })}
                         >
                           <span className="proto-collection-card__icon">
-                            <Icon name="book" size={13} aria-hidden />
+                            <Icon name="scroll" size={13} aria-hidden />
                           </span>
                           <div className="proto-collection-card__body">
                             <div className="proto-collection-card__title">{b.title}</div>
