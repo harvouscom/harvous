@@ -1430,8 +1430,10 @@ export const ResourceLibraries = pgTable(
 );
 
 /**
- * One entry in a library. `kind='link'` is the only kind written today; file,
- * note_ref, thread_ref, template_ref, and pack are phased (RESOURCE_LIBRARY.md §6).
+ * One entry in a library. `kind='link'` and `kind='file'` are written today —
+ * links by `/api/library/items/create`, files by `/api/library/items/upload`.
+ * note_ref, thread_ref, template_ref, and pack are phased
+ * (RESOURCE_LIBRARY.md §6).
  */
 export const LibraryItems = pgTable(
   'LibraryItems',
