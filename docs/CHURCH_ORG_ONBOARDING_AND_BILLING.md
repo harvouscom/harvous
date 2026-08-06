@@ -18,9 +18,9 @@ Companion docs: [BILLING_ARCHITECTURE.md](BILLING_ARCHITECTURE.md) (Polar, entit
 | Ministry channels | `Spaces` with `type='public'` + `orgId`. Staff author; congregants follow and read |
 | Congregant receive | Browse + follow channels in My Church; "From your church" study feed on Home |
 | Staff management | Church admins invite/remove their own staff; Clerk `organizationMembership.*` webhook reconciles membership rows |
-| Role gating | Capabilities derived server-side from the Clerk org role — `publish`, `manage_staff`, `manage_billing`, `manage_templates`, `sermon_tools` |
+| Role gating | Capabilities derived server-side from the Clerk org role — `publish`, `manage_staff`, `manage_billing`, `manage_templates`, `sermon_tools`, `manage_teaching_plan` |
 | Org templates | `NoteTemplates.orgId` — church-provisioned starters (the sermon template rides these rails) |
-| Teaching plan | `ChurchServices` — staff plan services (date, title, passage, series); congregants see the next one as "This Sunday" on Home and start a note from it. Role-gated on `sermon_tools` (v2.19.0) |
+| Teaching plan | `ChurchServices` — staff plan services (date, title, passage, series); congregants see the next one as "This Sunday" on Home and start a note from it. Seeing the plan needs `sermon_tools` (v2.19.0); changing it needs `manage_teaching_plan` (v2.21.0), so a teacher teaches from the plan without reshaping it. The staff read is never sponsorship-gated |
 | Sponsorship | `churchIsSponsored()` — paid **or** inside a pilot window. Gates **writes only** |
 | Billing | Product registry + checkout route + webhook branch exist; **Polar products are not created**, so checkout cannot complete |
 
@@ -50,8 +50,9 @@ The billing code is complete and dormant. Turning it on is configuration, not de
 1. **Create the Clerk Organization** (Clerk dashboard). Staff and volunteers only —
    congregants are *never* Clerk org members. Hard cap of 20; pending invites count toward it.
 2. **Add the staff owner** to that org, and give them the `org:admin` role if they should
-   manage the roster and billing. Custom roles `org:pastor` / `org:teacher` unlock teaching
-   tooling without roster access.
+   manage the roster and billing. Custom role `org:pastor` unlocks the teaching plan and
+   note templates; `org:teacher` unlocks seeing the plan and publishing, but not reshaping
+   what the church teaches. Neither gets roster access.
 3. **Register the church** at `/admin/churches` — pick the org from the list (no pasting
    opaque `org_` ids) and link its Here's My Church record so name and location stay accurate.
 4. **Start the pilot** — "Start 30-day pilot" or "90 days". Without this the church is
