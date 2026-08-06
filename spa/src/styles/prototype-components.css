@@ -920,7 +920,11 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   top: calc(100% + 5px);
   left: 0;
   min-width: 260px;
-  max-height: min(360px, 72vh);
+  /* Raised with the row height. At 38px rows the old 360px cap held eight
+     items, so the space switcher started scrolling for a church with a couple
+     of extra rooms — a menu that fits today should keep fitting. The `vh`
+     guard is what actually binds on a short window; only the pixel term moved. */
+  max-height: min(440px, 72vh);
   overflow-y: auto;
   /* Side padding gives the inset hover-pill on each row a visible gutter. */
   padding: 5px;
@@ -1019,18 +1023,21 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 .proto-menu-item {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 11px;
   /* Full-width so the hover highlight spans the entire row. */
   width: 100%;
   margin: 0;
   border: none;
   background: none;
   text-align: left;
-  padding: 6px 8px;
+  /* ~38px rows. The old 6px/8px gave 28px, which is a small target for a
+     pointer and reads cramped next to the sidebar rows a menu opens over.
+     Coarse pointers get 44px below — this is the fine-pointer density. */
+  padding: 10px 11px;
   border-radius: var(--pds-radius-menu-item);
   cursor: pointer;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
   color: var(--pds-text-primary);
   text-decoration: none;
@@ -1038,13 +1045,17 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   box-sizing: border-box;
 }
 
-/* Touch: 28px rows are comfortably tappable with a cursor and not with a thumb.
-   Apple HIG asks for 44px; WCAG 2.5.8's floor is 24. Raised only where the
-   pointer is coarse so the desktop menu keeps its compact density. */
+/* Touch: the base row is ~38px, tappable with a cursor and still under the
+   44px Apple HIG asks of a thumb (WCAG 2.5.8's floor is 24). Raised only where
+   the pointer is coarse so the desktop menu keeps its own density.
+
+   The padding here must never fall below the base's — it read `8px 10px` from
+   when the base was `6px 8px`, and would now *tighten* the row on exactly the
+   devices this block exists to loosen it for. */
 @media (pointer: coarse) {
   .proto-menu-item {
     min-height: 44px;
-    padding: 8px 10px;
+    padding: 10px 12px;
   }
 }
 
@@ -1118,8 +1129,8 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 }
 
 .proto-menu-item__icon {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   opacity: 0.75;
   display: flex;
