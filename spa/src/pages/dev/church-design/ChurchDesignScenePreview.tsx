@@ -12,6 +12,15 @@ import { spaceCoverFromThreadColor } from '@/utils/space-cover';
 import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from '../../prototype/settings/SettingsShell';
 import ProtoSpaceMenuIcon from '../../prototype/ProtoSpaceMenuIcon';
 import PublicJoinSpaceHero from '../../public/PublicJoinSpaceHero';
+import PrototypePlannerBoard from '../../prototype/planner/PrototypePlannerBoard';
+import PrototypePlannerCalendar from '../../prototype/planner/PrototypePlannerCalendar';
+import PrototypePlannerList from '../../prototype/planner/PrototypePlannerList';
+import PrototypePlannerScopeChips from '../../prototype/planner/PrototypePlannerScopeChips';
+import type {
+  PlannerSelection,
+  PlannerView,
+} from '../../prototype/planner/PrototypeExpandedPlanner';
+import type { TeachingPlanSermon } from '../../../hooks/queries/useChurchTeachingPlan';
 import type { ChurchDesignScene } from './sceneRegistry';
 import '@/styles/admin-usage.css';
 import '@/styles/admin-publish.css';
@@ -67,6 +76,54 @@ function PhoneChrome({ children }: { children: ReactNode }) {
         }}
       >
         {children}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The expanded sidebar's footprint, at the width it actually gets.
+ *
+ * Wider than every other frame here because that is the whole point of the
+ * surface — a board previewed at phone width would be a different design.
+ */
+function ExpandedPanelChrome({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="proto-theme" style={{ width: '100%', maxWidth: 1040, margin: '0 auto' }}>
+      <div
+        className="proto-sidebar-expanded-panel"
+        style={{
+          // The panel's structure lives in prototype-shell.css, which this
+          // gallery deliberately does not import — it previews components, not
+          // the app shell. So the frame is restated here: statically placed so
+          // scenes can stack, and a column flex so the body fills the height.
+          position: 'static',
+          display: 'flex',
+          flexDirection: 'column',
+          width: '100%',
+          height: 'calc(100vh - 230px)',
+          minHeight: 460,
+          overflow: 'hidden',
+          borderRadius: 18,
+          background: 'var(--pds-bg-page)',
+          border: '0.5px solid var(--pds-border)',
+          animation: 'none',
+        }}
+      >
+        <div className="proto-sidebar-expanded-panel__header">
+          <div className="proto-sidebar-expanded-panel__header-lead">
+            <button type="button" className="proto-side-panel__action-btn" aria-label="Collapse">
+              <Icon name="down-left-and-up-right-to-center" size={14} />
+            </button>
+            <span className="proto-sidebar-expanded-panel__title">{title}</span>
+          </div>
+        </div>
+        <div
+          className="proto-sidebar-expanded-panel__body"
+          style={{ minWidth: 0, flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}
+        >
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -1033,6 +1090,177 @@ function HubStaffScene() {
   );
 }
 
+/**
+ * Planner fixtures — one idea, a run of Sundays, and a midweek gathering, so
+ * the board shows a populated Ideas column, a busy week, and a card whose
+ * weekday differs from the plan's default service day.
+ */
+const PLANNER_SERVICE_TIMES = [
+  { id: 'cstm_morning', dayOfWeek: 0, startTime: '09:00', label: null },
+  { id: 'cstm_late', dayOfWeek: 0, startTime: '10:45', label: null },
+  { id: 'cstm_midweek', dayOfWeek: 3, startTime: '18:30', label: 'Midweek' },
+];
+
+function plannerFixtures(): TeachingPlanSermon[] {
+  /* Anchored to today so the board's "This week" column is never empty in the
+     gallery — a fixed date would drift out of the visible weeks. */
+  const today = new Date();
+  const iso = (offsetDays: number) => {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offsetDays);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const nextSundayOffset = (7 - today.getDay()) % 7;
+  const base = {
+    serviceTime: null,
+    starterTemplateId: null,
+    updatedAt: null,
+    createdAt: '2026-08-01T00:00:00.000Z',
+  };
+  return [
+    {
+      ...base,
+      id: 'svc_idea_habakkuk',
+      serviceDate: null,
+      serviceTimeIds: [],
+      title: 'Habakkuk in a hard year',
+      seriesId: null,
+      seriesTitle: null,
+      reference: null,
+      createdAt: '2026-08-04T00:00:00.000Z',
+    },
+    {
+      ...base,
+      id: 'svc_idea_advent',
+      serviceDate: null,
+      serviceTimeIds: [],
+      title: 'Advent — four kinds of waiting',
+      seriesId: null,
+      seriesTitle: null,
+      reference: null,
+      createdAt: '2026-08-02T00:00:00.000Z',
+    },
+    {
+      ...base,
+      id: 'svc_1',
+      serviceDate: iso(nextSundayOffset),
+      serviceTimeIds: ['cstm_morning', 'cstm_late'],
+      title: 'No Condemnation',
+      seriesId: 'csrs_spirit',
+      seriesTitle: 'Life in the Spirit',
+      reference: 'Romans 8:1-11',
+    },
+    {
+      ...base,
+      id: 'svc_2',
+      serviceDate: iso(nextSundayOffset + 3),
+      serviceTimeIds: ['cstm_midweek'],
+      title: 'What the law could not do',
+      seriesId: null,
+      seriesTitle: null,
+      reference: 'Romans 8:3',
+    },
+    {
+      ...base,
+      id: 'svc_3',
+      serviceDate: iso(nextSundayOffset + 7),
+      serviceTimeIds: ['cstm_morning', 'cstm_late'],
+      title: 'Led by the Spirit',
+      seriesId: 'csrs_spirit',
+      seriesTitle: 'Life in the Spirit',
+      reference: 'Romans 8:12-17',
+    },
+    {
+      ...base,
+      id: 'svc_4',
+      serviceDate: iso(nextSundayOffset + 14),
+      serviceTimeIds: ['cstm_morning'],
+      title: 'Groaning and glory',
+      seriesId: 'csrs_spirit',
+      seriesTitle: 'Life in the Spirit',
+      reference: 'Romans 8:18-25',
+    },
+    {
+      ...base,
+      id: 'svc_past',
+      serviceDate: iso(nextSundayOffset - 7),
+      serviceTimeIds: ['cstm_morning', 'cstm_late'],
+      title: 'The Spirit of adoption',
+      seriesId: 'csrs_spirit',
+      seriesTitle: 'Life in the Spirit',
+      reference: 'Romans 8:14-16',
+    },
+  ];
+}
+
+/* Enough channels that the switcher has to be a picker rather than a row of
+   chips — the case a one-channel fixture would never show. */
+const PLANNER_CHANNELS = [
+  { id: 'space_youth', title: 'Youth' },
+  { id: 'space_adult_ed', title: 'Adult education' },
+  { id: 'space_kids', title: 'Kids' },
+  { id: 'space_womens', title: "Women's Bible study" },
+  { id: 'space_mens', title: "Men's breakfast" },
+];
+
+function PlannerScene({ view, canWrite = true }: { view: PlannerView; canWrite?: boolean }) {
+  const [selection, setSelection] = useState<PlannerSelection>(null);
+  const [planSpaceId, setPlanSpaceId] = useState<string | null>(null);
+  const [lastChannelId, setLastChannelId] = useState<string | null>(null);
+  const services = plannerFixtures();
+  const readOnlyReason = canWrite ? null : ('lapsed' as const);
+  const noop = () => undefined;
+
+  return (
+    <ExpandedPanelChrome title="Planner">
+      <div className="proto-planner">
+        <div className="proto-planner__main">
+          <div style={{ padding: '10px 14px 0' }}>
+            <PrototypePlannerScopeChips
+              plannableSpaces={PLANNER_CHANNELS}
+              planSpaceId={planSpaceId}
+              lastChannelId={lastChannelId}
+              onChange={(next) => {
+                setPlanSpaceId(next);
+                if (next) setLastChannelId(next);
+              }}
+            />
+          </div>
+          {view === 'board' ? (
+            <PrototypePlannerBoard
+              services={services}
+              serviceTimes={PLANNER_SERVICE_TIMES}
+              canWrite={canWrite}
+              readOnlyReason={readOnlyReason}
+              defaultDay={0}
+              selection={selection}
+              onSelect={setSelection}
+              onMove={noop}
+            />
+          ) : view === 'calendar' ? (
+            <PrototypePlannerCalendar
+              services={services}
+              serviceTimes={PLANNER_SERVICE_TIMES}
+              canWrite={canWrite}
+              selection={selection}
+              onSelect={setSelection}
+              onMoveToDate={noop}
+            />
+          ) : (
+            <PrototypePlannerList
+              services={services}
+              serviceTimes={PLANNER_SERVICE_TIMES}
+              canWrite={canWrite}
+              readOnlyReason={readOnlyReason}
+              selection={selection}
+              onSelect={setSelection}
+            />
+          )}
+        </div>
+      </div>
+    </ExpandedPanelChrome>
+  );
+}
+
 export default function ChurchDesignScenePreview({ scene }: { scene: ChurchDesignScene }) {
   switch (scene.id) {
     case '01-admin-empty':
@@ -1069,6 +1297,14 @@ export default function ChurchDesignScenePreview({ scene }: { scene: ChurchDesig
       return <HubCongregantScene />;
     case '15-hub-staff':
       return <HubStaffScene />;
+    case '16-planner-board':
+      return <PlannerScene view="board" />;
+    case '17-planner-calendar':
+      return <PlannerScene view="calendar" />;
+    case '18-planner-list':
+      return <PlannerScene view="list" />;
+    case '19-planner-board-readonly':
+      return <PlannerScene view="board" canWrite={false} />;
     default:
       return null;
   }

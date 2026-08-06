@@ -8,6 +8,7 @@ import {
   formatServiceTimes,
   nextOccurrenceOfDay,
   sermonEyebrow,
+  sermonTimeLabel,
   starterFolderForSermon,
   starterNoteTitle,
   weekdayLabel,
@@ -323,6 +324,42 @@ describe('formatServiceTimes', () => {
     expect(formatServiceTimes(null)).toBeNull();
     expect(formatServiceTimes(['nope'])).toBeNull();
     expect(formatServiceTimes(['nope', '09:00'])).toBe('9:00 AM');
+  });
+});
+
+describe('sermonTimeLabel', () => {
+  const slots = [
+    { id: 'cstm_morning', startTime: '09:00' },
+    { id: 'cstm_late', startTime: '10:45' },
+    { id: 'cstm_evening', startTime: '18:00' },
+  ];
+
+  it('resolves slot ids to clock readings', () => {
+    expect(
+      sermonTimeLabel({ serviceTimeIds: ['cstm_morning', 'cstm_late'], serviceTime: null }, slots),
+    ).toBe('9:00 & 10:45 AM');
+  });
+
+  it('sorts slots by time regardless of the order they were checked', () => {
+    expect(
+      sermonTimeLabel({ serviceTimeIds: ['cstm_late', 'cstm_morning'], serviceTime: null }, slots),
+    ).toBe('9:00 & 10:45 AM');
+  });
+
+  it('falls back to a one-off time only when no usual service is claimed', () => {
+    expect(sermonTimeLabel({ serviceTimeIds: [], serviceTime: '17:00' }, slots)).toBe('5:00 PM');
+    // A slot wins: the one-off would be a stale leftover in that case.
+    expect(sermonTimeLabel({ serviceTimeIds: ['cstm_evening'], serviceTime: '17:00' }, slots)).toBe(
+      '6:00 PM',
+    );
+  });
+
+  it('is null for an undated idea, which claims no slots and no clock', () => {
+    expect(sermonTimeLabel({ serviceTimeIds: [], serviceTime: null }, slots)).toBeNull();
+  });
+
+  it('ignores slot ids the plan does not know — a space plan has none', () => {
+    expect(sermonTimeLabel({ serviceTimeIds: ['cstm_morning'], serviceTime: null }, [])).toBeNull();
   });
 });
 

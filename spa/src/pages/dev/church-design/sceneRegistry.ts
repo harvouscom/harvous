@@ -141,6 +141,36 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
       'spa/src/pages/prototype/PrototypeChurchPlanRow.tsx',
     ],
   },
+  {
+    id: '16-planner-board',
+    title: 'Expanded planner — board',
+    phase: 'Staff',
+    editFiles: [
+      'spa/src/pages/prototype/planner/PrototypePlannerBoard.tsx',
+      'spa/src/lib/planner-board.ts',
+    ],
+  },
+  {
+    id: '17-planner-calendar',
+    title: 'Expanded planner — calendar',
+    phase: 'Staff',
+    editFiles: ['spa/src/pages/prototype/planner/PrototypePlannerCalendar.tsx'],
+  },
+  {
+    id: '18-planner-list',
+    title: 'Expanded planner — list',
+    phase: 'Staff',
+    editFiles: ['spa/src/pages/prototype/planner/PrototypePlannerList.tsx'],
+  },
+  {
+    id: '19-planner-board-readonly',
+    title: 'Expanded planner — read-only (lapsed)',
+    phase: 'Staff',
+    editFiles: [
+      'spa/src/pages/prototype/planner/PrototypePlannerBoard.tsx',
+      'spa/src/hooks/useChurchPlannerAccess.ts',
+    ],
+  },
 ];
 
 export const DEFAULT_CHURCH_SCENE_ID = '01-admin-empty';

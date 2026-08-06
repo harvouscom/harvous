@@ -18817,8 +18817,19 @@ var init_schema2 = __esm({
        * service is a day on the church's wall calendar, and a TIMESTAMPTZ drifts a
        * Sunday into Saturday for a viewer three zones away. Same choice as
        * VotdPublishHistory.publishedDate.
+       *
+       * **NULL means unscheduled** — an idea sitting in the planner's backlog,
+       * waiting for a Sunday. Planning starts before a date exists ("I want to
+       * preach Habakkuk this fall"), and forcing a placeholder date to hold the
+       * thought put fiction on the calendar. Two invariants ride along, enforced in
+       * the write routes because no index can express them: an undated row has no
+       * ChurchServiceTimeAssignments (that table mirrors a date it does not have)
+       * and a NULL `serviceTime`.
+       *
+       * Congregant reads must exclude these — see `listServicesForChurch`. The
+       * backlog is a staff surface; "This Sunday" never shows a maybe.
        */
-      serviceDate: text("serviceDate").notNull(),
+      serviceDate: text("serviceDate"),
       /**
        * A one-off time for a sermon that does not sit at any of the church's usual
        * services — a Christmas Eve 17:00, a Good Friday evening.
@@ -18866,6 +18877,10 @@ var init_schema2 = __esm({
        * space has a single `meetingTime` and can never claim a church service slot
        * — so every space row is timeless and the DB can carry the whole invariant.
        * The church side cannot: its answer depends on which slots a sermon claims.
+       *
+       * Undated backlog rows fall out of this for free: Postgres treats NULLs as
+       * distinct in a unique index, so a space can hold as many unscheduled ideas
+       * as it likes while still having one gathering per actual date.
        */
       uniqueIndex("ChurchServices_space_date_unique").on(table.spaceId, table.serviceDate).where(sql`${table.spaceId} IS NOT NULL`)
     ]);
@@ -320088,6 +320103,16 @@ async function resolveChurchOrgAccess(userId, orgId, rule) {
 }
 
 // server/utils/church-teaching-plan.ts
+var SERVICE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+function parseServiceDateInput(value) {
+  if (value === void 0) return { ok: true, kind: "absent" };
+  if (value === null) return { ok: true, kind: "backlog" };
+  const trimmed = String(value).trim();
+  if (!SERVICE_DATE_PATTERN.test(trimmed)) {
+    return { ok: false, reason: "serviceDate must be YYYY-MM-DD" };
+  }
+  return { ok: true, kind: "date", value: trimmed };
+}
 var TEACHING_PLAN_ACCESS = {
   view: {
     capability: "sermon_tools",
@@ -320117,7 +320142,8 @@ async function listServicesForChurch(churchId, options = {}) {
   const { from: from2, limit = 50, plan } = options;
   const spaceId = plan ? plan.spaceId : null;
   const scope = spaceId === null ? isNull(ChurchServices.spaceId) : eq(ChurchServices.spaceId, spaceId);
-  const where = from2 ? and(eq(ChurchServices.churchId, churchId), scope, gte(ChurchServices.serviceDate, from2)) : and(eq(ChurchServices.churchId, churchId), scope);
+  const dated = isNotNull(ChurchServices.serviceDate);
+  const where = from2 ? and(eq(ChurchServices.churchId, churchId), scope, dated, gte(ChurchServices.serviceDate, from2)) : and(eq(ChurchServices.churchId, churchId), scope, dated);
   return db.select().from(ChurchServices).where(where).orderBy(asc(ChurchServices.serviceDate)).limit(limit);
 }
 async function resolveViewerServiceNotes(userId, serviceIds) {
@@ -321009,7 +321035,6 @@ function repeatTitleFor(input) {
 
 // server/routes/church-teaching-plan.ts
 var app15 = new Hono2();
-var SERVICE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 var TITLE_MAX = 120;
 function clean(value, max2) {
   const trimmed = String(value ?? "").trim();
@@ -321035,6 +321060,9 @@ function serializeSermon(row, serviceTimeIds = [], seriesTitles) {
     seriesTitle: row.seriesId ? seriesTitles?.get(row.seriesId) ?? null : null,
     reference: row.reference,
     starterTemplateId: row.starterTemplateId,
+    /* Backlog order. `updatedAt` cannot stand in for it: editing an idea
+       would reshuffle the Ideas column under the pastor's cursor. */
+    createdAt: row.createdAt,
     updatedAt: row.updatedAt ?? row.createdAt
   };
 }
@@ -321100,18 +321128,22 @@ app15.post("/api/church/services/create", requireAuth, rateLimit("write"), async
     const body = await c.req.json().catch(() => ({}));
     const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? "").trim());
     if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
-    const serviceDate = (body.serviceDate ?? "").trim();
-    if (!SERVICE_DATE_PATTERN.test(serviceDate)) {
+    const parsedDate = parseServiceDateInput(body.serviceDate);
+    if (!parsedDate.ok) {
+      return c.json({ error: parsedDate.reason, code: "BAD_REQUEST" }, 400);
+    }
+    if (parsedDate.kind === "absent") {
       return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
     }
+    const serviceDate = parsedDate.kind === "date" ? parsedDate.value : null;
     const title = clean(body.title, TITLE_MAX);
     if (!title) {
       return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
     }
     const time4 = normalizeServiceTime(body.serviceTime);
     if (!time4.ok) return c.json({ error: time4.reason, code: "BAD_REQUEST" }, 400);
-    const serviceTime = time4.value;
-    const serviceTimeIds = await filterServiceTimeIdsForChurch(
+    const serviceTime = serviceDate === null ? null : time4.value;
+    const serviceTimeIds = serviceDate === null ? [] : await filterServiceTimeIdsForChurch(
       gate.church.id,
       Array.isArray(body.serviceTimeIds) ? body.serviceTimeIds : []
     );
@@ -321121,7 +321153,7 @@ app15.post("/api/church/services/create", requireAuth, rateLimit("write"), async
     }
     const refs3 = await validateReferences(gate.church.orgId, body);
     if (!refs3.ok) return c.json({ error: refs3.error, code: refs3.code }, 400);
-    if (serviceTimeIds.length === 0) {
+    if (serviceDate !== null && serviceTimeIds.length === 0) {
       const clash = first(
         await db.select({ id: ChurchServices.id }).from(ChurchServices).where(
           and(
@@ -321179,7 +321211,9 @@ app15.post("/api/church/services/create", requireAuth, rateLimit("write"), async
         seriesId = series.seriesId;
         row.seriesId = seriesId;
         await tx.insert(ChurchServices).values(row);
-        await replaceServiceTimeAssignments(tx, { serviceId: row.id, serviceDate, serviceTimeIds });
+        if (serviceDate !== null) {
+          await replaceServiceTimeAssignments(tx, { serviceId: row.id, serviceDate, serviceTimeIds });
+        }
       });
       if (refusal.reason) {
         return c.json({ error: refusal.reason.error, code: refusal.reason.code }, 404);
@@ -321231,23 +321265,24 @@ app15.post("/api/church/services/update", requireAuth, rateLimit("write"), async
       return c.json({ error: "Service not found", code: "SERVICE_NOT_FOUND" }, 404);
     }
     const updates = { updatedBy: auth.userId, updatedAt: /* @__PURE__ */ new Date() };
-    if (body.serviceDate !== void 0) {
-      const serviceDate = (body.serviceDate ?? "").trim();
-      if (!SERVICE_DATE_PATTERN.test(serviceDate)) {
-        return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
-      }
-      updates.serviceDate = serviceDate;
+    const parsedDate = parseServiceDateInput(body.serviceDate);
+    if (!parsedDate.ok) {
+      return c.json({ error: parsedDate.reason, code: "BAD_REQUEST" }, 400);
     }
+    if (parsedDate.kind === "date") updates.serviceDate = parsedDate.value;
+    if (parsedDate.kind === "backlog") updates.serviceDate = null;
+    const unscheduling = parsedDate.kind === "backlog";
     if (body.serviceTime !== void 0) {
       const time4 = normalizeServiceTime(body.serviceTime);
       if (!time4.ok) return c.json({ error: time4.reason, code: "BAD_REQUEST" }, 400);
       updates.serviceTime = time4.value;
     }
-    const nextServiceTimeIds = body.serviceTimeIds === void 0 ? null : await filterServiceTimeIdsForChurch(
+    if (unscheduling) updates.serviceTime = null;
+    const nextServiceTimeIds = unscheduling ? [] : body.serviceTimeIds === void 0 ? null : await filterServiceTimeIdsForChurch(
       gate.church.id,
       Array.isArray(body.serviceTimeIds) ? body.serviceTimeIds : []
     );
-    const nextDate = updates.serviceDate ?? existing.serviceDate;
+    const nextDate = updates.serviceDate !== void 0 ? updates.serviceDate : existing.serviceDate;
     if (body.title !== void 0) {
       const title = clean(body.title, TITLE_MAX);
       if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
@@ -321266,6 +321301,30 @@ app15.post("/api/church/services/update", requireAuth, rateLimit("write"), async
       updates.starterTemplateId = clean(body.starterTemplateId, 200);
     }
     const finalIds = nextServiceTimeIds ?? (await serviceTimeIdsByService([serviceId])).get(serviceId) ?? [];
+    const finalServiceTime = updates.serviceTime !== void 0 ? updates.serviceTime : existing.serviceTime;
+    if (nextDate !== null && finalIds.length === 0 && finalServiceTime === null) {
+      const clash = first(
+        await db.select({ id: ChurchServices.id }).from(ChurchServices).where(
+          and(
+            eq(ChurchServices.churchId, gate.church.id),
+            isNull(ChurchServices.spaceId),
+            eq(ChurchServices.serviceDate, nextDate),
+            isNull(ChurchServices.serviceTime),
+            ne(ChurchServices.id, serviceId)
+          )
+        ).limit(1)
+      );
+      if (clash) {
+        return c.json(
+          {
+            error: "That date already has a sermon. Edit it, or give this one a service time.",
+            code: "SERVICE_DATE_TAKEN",
+            serviceId: clash.id
+          },
+          409
+        );
+      }
+    }
     const refusal = { reason: null };
     try {
       await db.transaction(async (tx) => {
@@ -321284,7 +321343,9 @@ app15.post("/api/church/services/update", requireAuth, rateLimit("write"), async
           updates.seriesId = series.seriesId;
         }
         await tx.update(ChurchServices).set(updates).where(eq(ChurchServices.id, serviceId));
-        if (nextServiceTimeIds !== null || updates.serviceDate !== void 0) {
+        if (nextDate === null) {
+          await clearServiceTimeAssignments(tx, serviceId);
+        } else if (nextServiceTimeIds !== null || updates.serviceDate !== void 0) {
           await replaceServiceTimeAssignments(tx, {
             serviceId,
             serviceDate: nextDate,
@@ -321340,6 +321401,15 @@ app15.post("/api/church/services/repeat", requireAuth, rateLimit("write"), async
       ).limit(1)
     );
     if (!seed) return c.json({ error: "Service not found", code: "SERVICE_NOT_FOUND" }, 404);
+    if (seed.serviceDate === null) {
+      return c.json(
+        {
+          error: "Give this sermon a date first \u2014 repeat counts weeks from one.",
+          code: "BAD_REQUEST"
+        },
+        400
+      );
+    }
     const dates = weeklyDatesAfter(seed.serviceDate, Number(body.weeks ?? 0));
     if (dates.length === 0) {
       return c.json(
@@ -321781,7 +321851,6 @@ async function resolveGrantedLeaderAccess(userId, spaceId, refusal) {
 
 // server/routes/church-space-plan.ts
 var app17 = new Hono2();
-var SERVICE_DATE_PATTERN2 = /^\d{4}-\d{2}-\d{2}$/;
 var TITLE_MAX2 = 120;
 function clean2(value, max2) {
   const trimmed = String(value ?? "").trim();
@@ -321801,6 +321870,9 @@ function serializeSpaceSermon(row, seriesTitles) {
     seriesTitle: row.seriesId ? seriesTitles?.get(row.seriesId) ?? null : null,
     reference: row.reference,
     starterTemplateId: row.starterTemplateId,
+    /* Backlog order. `updatedAt` cannot stand in for it: editing an idea
+       would reshuffle the Ideas column under the pastor's cursor. */
+    createdAt: row.createdAt,
     updatedAt: row.updatedAt ?? row.createdAt
   };
 }
@@ -321858,10 +321930,14 @@ app17.post("/api/church/spaces/:spaceId/services/create", requireAuth, rateLimit
     const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
     if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
     const body = await c.req.json().catch(() => ({}));
-    const serviceDate = (body.serviceDate ?? "").trim();
-    if (!SERVICE_DATE_PATTERN2.test(serviceDate)) {
+    const parsedDate = parseServiceDateInput(body.serviceDate);
+    if (!parsedDate.ok) {
+      return c.json({ error: parsedDate.reason, code: "BAD_REQUEST" }, 400);
+    }
+    if (parsedDate.kind === "absent") {
       return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
     }
+    const serviceDate = parsedDate.kind === "date" ? parsedDate.value : null;
     const title = clean2(body.title, TITLE_MAX2);
     if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
     const passage = canonicalizeServiceReference(body.reference);
@@ -321951,13 +322027,12 @@ app17.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit
       return c.json({ error: "Gathering not found", code: "SERVICE_NOT_FOUND" }, 404);
     }
     const updates = { updatedBy: auth.userId, updatedAt: /* @__PURE__ */ new Date() };
-    if (body.serviceDate !== void 0) {
-      const serviceDate = (body.serviceDate ?? "").trim();
-      if (!SERVICE_DATE_PATTERN2.test(serviceDate)) {
-        return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
-      }
-      updates.serviceDate = serviceDate;
+    const parsedDate = parseServiceDateInput(body.serviceDate);
+    if (!parsedDate.ok) {
+      return c.json({ error: parsedDate.reason, code: "BAD_REQUEST" }, 400);
     }
+    if (parsedDate.kind === "date") updates.serviceDate = parsedDate.value;
+    if (parsedDate.kind === "backlog") updates.serviceDate = null;
     if (body.title !== void 0) {
       const title = clean2(body.title, TITLE_MAX2);
       if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
@@ -322033,6 +322108,15 @@ app17.post("/api/church/spaces/:spaceId/services/repeat", requireAuth, rateLimit
       await db.select().from(ChurchServices).where(and(eq(ChurchServices.id, serviceId), eq(ChurchServices.spaceId, gate.space.id))).limit(1)
     );
     if (!seed) return c.json({ error: "Gathering not found", code: "SERVICE_NOT_FOUND" }, 404);
+    if (seed.serviceDate === null) {
+      return c.json(
+        {
+          error: "Give this gathering a date first \u2014 repeat counts weeks from one.",
+          code: "BAD_REQUEST"
+        },
+        400
+      );
+    }
     const dates = weeklyDatesAfter(seed.serviceDate, Number(body.weeks ?? 0));
     if (dates.length === 0) {
       return c.json(

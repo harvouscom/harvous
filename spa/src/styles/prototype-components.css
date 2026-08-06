@@ -12746,6 +12746,73 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   margin: 0 0 10px;
 }
 
+/* ── Planner scope switcher (Church | channel ▾) ─────────────────────────── */
+
+/*
+ * Two positions, never more. The chips split the bar evenly so the control
+ * keeps a toggle's shape no matter how many channels a church runs — the
+ * caret, not a third chip, is where the rest of them live.
+ */
+.proto-chip-bar.proto-planner-scope {
+  margin: 0 0 10px;
+  /* Capped so it stays a toggle. Full-bleed it is fine at sidebar width and
+     absurd at 1040 — a two-position control stretched across a board reads as
+     a header band, not something you flip. */
+  max-width: 340px;
+}
+
+.proto-planner-scope .proto-chip {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.proto-planner-scope__channel {
+  gap: 4px;
+  /* Nothing escapes the pill. Belt to the ellipsis's braces: a long name that
+     did overflow would spill past a rounded edge, which reads as broken rather
+     than as truncated. */
+  overflow: hidden;
+}
+
+/* The name gives up room before the caret does: a caret that wraps or vanishes
+   stops advertising that there is a menu here at all.
+
+   `flex: 1 1 auto` is load-bearing, not decoration — the prototype reset sets
+   `flex-shrink: 0` on `*`, so a flex child that needs to truncate has to ask
+   for the ability. Without it the ellipsis never fires and the name runs out
+   of the chip entirely. */
+.proto-planner-scope__channel-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-planner-scope__caret {
+  flex: 0 0 auto;
+  opacity: 0.45;
+  transition: opacity 0.12s ease;
+}
+
+/* Full strength only on the active side, where one click really does open the
+   menu. On the church side this chip is a switch, and a bright caret would
+   promise a menu the first click does not give you. */
+.proto-planner-scope__channel.proto-chip--selected .proto-planner-scope__caret {
+  opacity: 0.75;
+}
+
+.proto-menu__popover--planner-scope {
+  max-height: min(320px, 60vh);
+  overflow-y: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-planner-scope__caret {
+    transition: none;
+  }
+}
+
 /* Leading role icon. Same chip geometry as `.proto-church-tools__row-icon`
    rather than that class itself — copying keeps the picker from depending on
    the tools-row block, and matching it is what makes the picker and the roster
@@ -12846,4 +12913,575 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 .proto-church-invite__role-note {
   margin: 6px 0 0;
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+/* =========================================================================
+   Expanded sidebar tool surface — chrome
+   Structure (position, size, animation) lives in prototype-shell.css; this is
+   only what the surface looks like once it is there.
+   ========================================================================= */
+
+.proto-sidebar-expanded-panel:focus {
+  outline: none;
+}
+
+.proto-sidebar-expanded-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px 8px 8px;
+  border-bottom: 0.5px solid var(--pds-border-control);
+  flex-shrink: 0;
+}
+
+.proto-sidebar-expanded-panel__header-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.proto-sidebar-expanded-panel__title {
+  font-family: var(--pds-font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--pds-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Centred between title and actions, and the first thing to give up room —
+   the view switcher is a segmented control that can shrink to icons. */
+.proto-sidebar-expanded-panel__toolbar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.proto-sidebar-expanded-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.proto-sidebar-expanded-panel__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+@media (max-width: 899px) {
+  /* No room to centre a switcher between two edges — it wraps to its own row. */
+  .proto-sidebar-expanded-panel__header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .proto-sidebar-expanded-panel__toolbar {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+
+  /* Pinned to the final desktop width by the shell rule — undo it here. */
+  .proto-sidebar-expanded-panel__body {
+    min-width: 0;
+  }
+}
+
+/* =========================================================================
+   Expanded planner — board, calendar, list, and the editor rail
+   ========================================================================= */
+
+.proto-planner {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.proto-planner__main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The view switcher rides in the panel header's centre slot, where the chip
+   bar's own list margins would push it off centre. */
+.proto-chip-bar.proto-planner__views {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.proto-chip-bar.proto-planner__scope {
+  margin: 10px 14px 4px;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  max-width: calc(100% - 28px);
+}
+
+.proto-planner__empty,
+.proto-planner__readonly {
+  padding: 14px;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-planner__error {
+  margin: 0 14px 4px;
+}
+
+/* ── Board ───────────────────────────────────────────────────────────────── */
+
+.proto-planner-board {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 10px 14px 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.proto-planner-column {
+  flex: 0 0 232px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: var(--pds-radius-card);
+  background: var(--pds-bg-chip);
+  /* Transparent at rest so the drop highlight is a change of border rather
+     than a layout shift — a column that grows a border on hover nudges every
+     column after it while you are aiming at one. */
+  border: 1px solid transparent;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+/* This week, so the eye lands on "now" before it starts scanning forward. */
+.proto-planner-column--current {
+  background: var(--pds-bg-modal-inset-highlight, var(--pds-bg-chip));
+}
+
+.proto-planner-column--over {
+  border-color: var(--pds-accent, var(--pds-text-primary));
+  background: var(--pds-bg-hover, var(--pds-bg-chip));
+}
+
+.proto-planner-column__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 8px 6px 12px;
+  flex-shrink: 0;
+}
+
+.proto-planner-column__head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.proto-planner-column__title {
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proto-planner-column__subtitle {
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-planner-column__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 8px 10px;
+}
+
+.proto-planner-column__empty {
+  padding: 6px 4px;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-planner-board__more {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  padding-top: 8px;
+}
+
+/* ── Card ────────────────────────────────────────────────────────────────── */
+
+.proto-planner-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-row);
+  background: var(--pds-bg-page);
+  text-align: left;
+  cursor: grab;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.proto-planner-card:hover {
+  border-color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-planner-card--static {
+  cursor: pointer;
+}
+
+.proto-planner-card--selected {
+  border-color: var(--pds-accent, var(--pds-text-primary));
+  box-shadow: 0 0 0 1px var(--pds-accent, var(--pds-text-primary));
+}
+
+/* Kept in place, not removed: unmounting the card would collapse the column
+   and slide the drop target out from under the cursor mid-drag. */
+.proto-planner-card--dragging {
+  opacity: 0.35;
+}
+
+.proto-planner-card--overlay {
+  width: 216px;
+  cursor: grabbing;
+  box-shadow: var(--pds-shadow-popover);
+  /* Opaque — it rides above the whole shell, including the glass. */
+  background: var(--pds-bg-popover-solid, var(--pds-bg-page));
+}
+
+.proto-planner-card__title {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-planner-card__meta {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-planner-card__series {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--pds-bg-chip);
+  font-size: 10px;
+  color: var(--pds-text-secondary);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-planner-card--compact {
+  padding: 4px 6px;
+  gap: 0;
+  font-size: 11px;
+}
+
+/* Two lines in a day cell rather than one truncated one: "The Spiri…" and
+   "The Spirit of adoption" are not the same information, and a month grid is
+   read at a glance. */
+.proto-planner-card--compact .proto-planner-card__title {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.25;
+}
+
+.proto-planner-card--compact .proto-planner-card__series {
+  display: none;
+}
+
+/* ── Calendar ────────────────────────────────────────────────────────────── */
+
+.proto-planner-calendar {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px 14px;
+  overflow: hidden;
+}
+
+.proto-planner-calendar__grid-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.proto-planner-calendar__head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.proto-planner-calendar__month {
+  font-family: var(--pds-font-display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+  min-width: 9rem;
+  text-align: center;
+}
+
+.proto-planner-calendar__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  padding-bottom: 4px;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-planner-calendar__grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.proto-planner-day {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 64px;
+  padding: 4px;
+  border-radius: var(--pds-radius-row);
+  background: var(--pds-bg-chip);
+  border: 1px solid transparent;
+  overflow-y: auto;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.proto-planner-day--outside {
+  opacity: 0.45;
+}
+
+/* Today is marked on the number, not the cell.
+   Swapping the cell background made today read *lighter* than its neighbours —
+   less prominent, which is backwards — and it would have collided with the
+   drop-target highlight the moment you dragged a card over it. */
+.proto-planner-day--today .proto-planner-day__number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--pds-accent);
+  color: var(--pds-on-accent, #fff);
+}
+
+.proto-planner-day--over {
+  border-color: var(--pds-accent, var(--pds-text-primary));
+}
+
+.proto-planner-day__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.proto-planner-day__number {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+}
+
+/* Revealed on hover: 42 always-visible plus signs would read as the grid's
+   main content rather than an affordance on the day you are pointing at. */
+.proto-planner-day__add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+
+.proto-planner-day:hover .proto-planner-day__add,
+.proto-planner-day__add:focus-visible {
+  opacity: 1;
+}
+
+.proto-planner-day__add:hover {
+  background: var(--pds-bg-hover, rgba(0, 0, 0, 0.06));
+}
+
+.proto-planner-calendar__rail {
+  flex: 0 0 190px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: var(--pds-radius-card);
+  background: var(--pds-bg-chip);
+  border: 1px solid transparent;
+  transition: border-color 0.12s ease;
+}
+
+.proto-planner-calendar__rail--over {
+  border-color: var(--pds-accent, var(--pds-text-primary));
+}
+
+/* ── List ────────────────────────────────────────────────────────────────── */
+
+.proto-planner-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 14px 14px;
+}
+
+/* Wider than the sidebar's, because a full weekday fits now and "Sun, Aug 9"
+   is what tells two consecutive Sundays apart at a glance. */
+.proto-planner-list__row-date {
+  min-width: 6.5rem;
+}
+
+.proto-planner-list__row--selected {
+  background: var(--pds-bg-modal-inset-highlight, var(--pds-bg-hover));
+}
+
+/* ── Editor rail ─────────────────────────────────────────────────────────── */
+
+.proto-planner-editor {
+  flex: 0 0 360px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 0.5px solid var(--pds-border-control);
+}
+
+.proto-planner-editor__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 14px 14px;
+}
+
+@media (max-width: 899px) {
+  /* One thing at a time: the editor covers the views rather than splitting a
+     phone's width three ways. */
+  .proto-planner {
+    position: relative;
+  }
+
+  .proto-planner-editor {
+    position: absolute;
+    inset: 0;
+    flex: 1;
+    z-index: 1;
+    background: var(--pds-bg-page);
+    border-left: none;
+    border-radius: var(--pds-shell-frame-radius);
+  }
+
+  .proto-planner-board {
+    /* Columns you swipe between, each wide enough to read a card in. */
+    scroll-snap-type: x mandatory;
+    touch-action: pan-x pan-y;
+    padding: 10px 10px 14px;
+  }
+
+  .proto-planner-column {
+    flex-basis: 78vw;
+    scroll-snap-align: start;
+  }
+
+  .proto-planner-calendar {
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 10px 10px 14px;
+  }
+
+  .proto-planner-calendar__grid {
+    overflow: visible;
+  }
+
+  .proto-planner-day {
+    min-height: 52px;
+  }
+
+  /* No hover on touch — the add button would never appear. */
+  .proto-planner-day__add {
+    opacity: 1;
+  }
+
+  .proto-planner-calendar__rail {
+    flex: 0 0 auto;
+    max-height: 40vh;
+  }
+
+  .proto-planner-list {
+    padding: 4px 10px 14px;
+  }
+
+  .proto-planner-list__row-date {
+    min-width: 5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-planner-card,
+  .proto-planner-column,
+  .proto-planner-day,
+  .proto-planner-calendar__rail,
+  .proto-planner-day__add {
+    transition: none;
+  }
 }

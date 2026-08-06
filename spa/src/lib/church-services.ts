@@ -262,6 +262,31 @@ export function formatServiceTime(value: string | null | undefined): string | nu
   return `${hour12}:${match[2]} ${suffix}`;
 }
 
+/**
+ * A planned sermon's time, resolved from the church's slots.
+ *
+ * The staff payload ships slot *ids* so the editor can check boxes; every
+ * surface that lists sermons needs clock readings instead, and it is the only
+ * thing distinguishing a morning sermon from an evening one on the same date.
+ *
+ * `slots` is empty for a space plan — a room gathers at its own `meetingTime`,
+ * rendered beside the plan rather than per row — and empty for an undated idea,
+ * which has no day for a slot to fall on.
+ */
+export function sermonTimeLabel(
+  sermon: { serviceTimeIds: string[]; serviceTime: string | null },
+  slots: readonly { id: string; startTime: string }[],
+): string | null {
+  const startById = new Map(slots.map((slot) => [slot.id, slot.startTime]));
+  const slotTimes = sermon.serviceTimeIds
+    .map((id) => startById.get(id))
+    .filter((time): time is string => Boolean(time))
+    .sort();
+  if (slotTimes.length > 0) return formatServiceTimes(slotTimes);
+  // A one-off only speaks when the sermon claims no usual service.
+  return formatServiceTime(sermon.serviceTime);
+}
+
 /** The series of whichever service is current — the card's context line. */
 export function currentSeriesTitle(
   services: readonly ChurchSermon[],

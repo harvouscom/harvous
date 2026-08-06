@@ -41,7 +41,7 @@ import {
   assertCanManageSpaceTeachingPlan,
   assertCanViewSpaceTeachingPlan,
 } from '../utils/church-space-plan';
-import { type ChurchServiceRow } from '../utils/church-teaching-plan';
+import { parseServiceDateInput, type ChurchServiceRow } from '../utils/church-teaching-plan';
 import {
   REPEAT_MAX_WEEKS,
   repeatTitleFor,
@@ -57,12 +57,12 @@ import {
 
 const app = new Hono();
 
-const SERVICE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TITLE_MAX = 120;
 
 type SpaceSermonInput = {
   serviceId?: string;
-  serviceDate?: string;
+  /** Explicit `null` files this as an undated backlog idea — see parseServiceDateInput. */
+  serviceDate?: string | null;
   title?: string;
   /** An existing ChurchSeries in *this space's* plan — never the church's. */
   seriesId?: string | null;
@@ -95,6 +95,9 @@ function serializeSpaceSermon(row: ChurchServiceRow, seriesTitles?: Map<string, 
     seriesTitle: row.seriesId ? seriesTitles?.get(row.seriesId) ?? null : null,
     reference: row.reference,
     starterTemplateId: row.starterTemplateId,
+    /* Backlog order. `updatedAt` cannot stand in for it: editing an idea
+       would reshuffle the Ideas column under the pastor's cursor. */
+    createdAt: row.createdAt,
     updatedAt: row.updatedAt ?? row.createdAt,
   };
 }
@@ -174,10 +177,15 @@ app.post('/api/church/spaces/:spaceId/services/create', requireAuth, rateLimit('
 
     const body = (await c.req.json().catch(() => ({}))) as SpaceSermonInput;
 
-    const serviceDate = (body.serviceDate ?? '').trim();
-    if (!SERVICE_DATE_PATTERN.test(serviceDate)) {
+    const parsedDate = parseServiceDateInput(body.serviceDate);
+    if (!parsedDate.ok) {
+      return c.json({ error: parsedDate.reason, code: 'BAD_REQUEST' }, 400);
+    }
+    if (parsedDate.kind === 'absent') {
       return c.json({ error: 'serviceDate must be YYYY-MM-DD', code: 'BAD_REQUEST' }, 400);
     }
+    /* NULL files this as an undated idea in the channel's backlog. */
+    const serviceDate = parsedDate.kind === 'date' ? parsedDate.value : null;
     const title = clean(body.title, TITLE_MAX);
     if (!title) return c.json({ error: 'A title is required', code: 'BAD_REQUEST' }, 400);
 
@@ -302,13 +310,14 @@ app.post('/api/church/spaces/:spaceId/services/update', requireAuth, rateLimit('
 
     const updates: Partial<ChurchServiceRow> = { updatedBy: auth.userId, updatedAt: new Date() };
 
-    if (body.serviceDate !== undefined) {
-      const serviceDate = (body.serviceDate ?? '').trim();
-      if (!SERVICE_DATE_PATTERN.test(serviceDate)) {
-        return c.json({ error: 'serviceDate must be YYYY-MM-DD', code: 'BAD_REQUEST' }, 400);
-      }
-      updates.serviceDate = serviceDate;
+    const parsedDate = parseServiceDateInput(body.serviceDate);
+    if (!parsedDate.ok) {
+      return c.json({ error: parsedDate.reason, code: 'BAD_REQUEST' }, 400);
     }
+    if (parsedDate.kind === 'date') updates.serviceDate = parsedDate.value;
+    /* Unscheduling — the board's drag back to Ideas. Nothing else to release
+       here: a space plan has no slot assignments and no one-off times. */
+    if (parsedDate.kind === 'backlog') updates.serviceDate = null;
     if (body.title !== undefined) {
       const title = clean(body.title, TITLE_MAX);
       if (!title) return c.json({ error: 'A title is required', code: 'BAD_REQUEST' }, 400);
@@ -408,6 +417,16 @@ app.post('/api/church/spaces/:spaceId/services/repeat', requireAuth, rateLimit('
         .limit(1),
     );
     if (!seed) return c.json({ error: 'Gathering not found', code: 'SERVICE_NOT_FOUND' }, 404);
+    /* Weekly repeats count forward from a date. An idea has none to count from. */
+    if (seed.serviceDate === null) {
+      return c.json(
+        {
+          error: 'Give this gathering a date first — repeat counts weeks from one.',
+          code: 'BAD_REQUEST',
+        },
+        400,
+      );
+    }
 
     const dates = weeklyDatesAfter(seed.serviceDate, Number(body.weeks ?? 0));
     if (dates.length === 0) {

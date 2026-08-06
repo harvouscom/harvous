@@ -108,6 +108,7 @@ import eyeSvg from '@fortawesome/fontawesome-free/svgs/solid/eye.svg?raw';
 import pasteSvg from '@fortawesome/fontawesome-free/svgs/solid/paste.svg?raw';
 import fileImageSvg from '@fortawesome/fontawesome-free/svgs/solid/file-image.svg?raw';
 import upRightAndDownLeftFromCenterSvg from '@fortawesome/fontawesome-free/svgs/solid/up-right-and-down-left-from-center.svg?raw';
+import downLeftAndUpRightToCenterSvg from '@fortawesome/fontawesome-free/svgs/solid/down-left-and-up-right-to-center.svg?raw';
 import arrowsLeftRightToLineSvg from '@fortawesome/fontawesome-free/svgs/solid/arrows-left-right-to-line.svg?raw';
 import sunSvg from '@fortawesome/fontawesome-free/svgs/solid/sun.svg?raw';
 import trophySvg from '@fortawesome/fontawesome-free/svgs/solid/trophy.svg?raw';
@@ -200,6 +201,7 @@ const icons = {
   newspaper: svgRootCurrentColor(newspaperSvg),
   'arrow-up-right-from-square': svgRootCurrentColor(arrowUpRightFromSquareSvg),
   'up-right-and-down-left-from-center': svgRootCurrentColor(upRightAndDownLeftFromCenterSvg),
+  'down-left-and-up-right-to-center': svgRootCurrentColor(downLeftAndUpRightToCenterSvg),
   'arrows-left-right': withCurrentColor(arrowsLeftRightSvg),
   'arrows-turn-to-dots': withCurrentColor(arrowsTurnToDotsSvg),
   shuffle: withCurrentColor(shuffleSvg),

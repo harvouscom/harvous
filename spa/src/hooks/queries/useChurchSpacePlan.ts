@@ -60,7 +60,8 @@ export function useChurchSpacePlan(
 }
 
 export type SpaceSermonDraft = {
-  serviceDate: string;
+  /** Explicit null files it as an undated idea; the server refuses an absent key. */
+  serviceDate: string | null;
   title: string;
   /** An existing series in *this space's* plan… */
   seriesId?: string | null;

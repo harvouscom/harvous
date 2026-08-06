@@ -31,6 +31,7 @@ import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
 import PrototypeSidebarSharedSpaceView from '../pages/prototype/PrototypeSidebarSharedSpaceView';
 import PrototypeSidebarChurchHubView from '../pages/prototype/PrototypeSidebarChurchHubView';
 import PrototypeAdminSidebar from '../pages/prototype/PrototypeAdminSidebar';
+import PrototypeExpandedSidebarHost from '../pages/prototype/PrototypeExpandedSidebarHost';
 import AdminToolbar from '@/components/react/AdminToolbar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
 import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
@@ -251,7 +252,12 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     composeDraftActive,
     clearComposeDraftActive,
     beginPrototypeComposeSession,
+    expandedSidebarTool,
+    expandedSidebarExiting,
+    closeExpandedSidebar,
   } = useProtoShell();
+  /* Mounted through the exit animation, like every other prototype panel. */
+  const expandedSidebarMounted = !hideSidebar && (Boolean(expandedSidebarTool) || expandedSidebarExiting);
   // Stamp visit for dashboard and notes-list alike (survives layer toggles).
   useSharedSpaceVisitStamp(isSharedSpace ? (shellActiveSpaceId ?? resolvedActiveSpaceId) : null);
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -614,6 +620,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     isMobileSidebar && drawerOpen && !hideSidebar ? 'proto-shell--drawer-open' : '',
     !hideSidebar && !isMobileSidebar && desktopSidebarCollapsed ? 'proto-shell--sidebar-collapsed' : '',
     !hideSidebar && sidebarExiting && !isMobileSidebar ? 'proto-shell--sidebar-closing' : '',
+    expandedSidebarMounted ? 'proto-shell--sidebar-tool-expanded' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -695,7 +702,11 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
             )}
           </aside>
         ) : null}
-        {!hideSidebar && !isMobileSidebar && !desktopSidebarCollapsed && !sidebarExiting ? (
+        {!hideSidebar &&
+        !isMobileSidebar &&
+        !desktopSidebarCollapsed &&
+        !sidebarExiting &&
+        !expandedSidebarMounted ? (
           <div
             ref={resizeHandleRef}
             className="proto-shell__sidebar-resize-handle"
@@ -730,6 +741,14 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         </main>
 
         <div className="proto-shell__right-panel-host" aria-hidden={!isNoteRoute} />
+
+        {expandedSidebarMounted ? (
+          <PrototypeExpandedSidebarHost
+            tool={expandedSidebarTool}
+            exiting={expandedSidebarExiting}
+            onClose={closeExpandedSidebar}
+          />
+        ) : null}
 
         {isNoteRoute ? <PrototypeEditorChromeBar /> : null}
         </div>

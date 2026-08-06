@@ -38,7 +38,18 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
 
   // Same selection the congregant card uses, so "next" means the same thing in
   // both places — including the grace window.
-  const gathering = data ? currentSermonFor(data.services) : null;
+  //
+  // Undated rows are dropped first: the staff plan carries a backlog of ideas
+  // now, and "coming up" must never be answered with something nobody has
+  // committed to a day.
+  const gathering = data
+    ? currentSermonFor(
+        data.services.filter(
+          (service): service is typeof service & { serviceDate: string } =>
+            service.serviceDate !== null,
+        ),
+      )
+    : null;
   if (!data || !gathering) return null;
 
   /*

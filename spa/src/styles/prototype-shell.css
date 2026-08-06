@@ -16,6 +16,15 @@
   /* Containing block for `position: fixed` drawer / inspector inside the shell.
      Avoid translateZ(0): extra compositor layers over a colored html canvas correlated with GPU tab kills. */
   isolation: isolate;
+  /*
+    …and for `position: absolute` — which `isolation` alone does not provide.
+    The frame got that for free from the `backdrop-filter` the prototype route
+    applies, right up until `prefers-reduced-transparency: reduce` removed it:
+    then the expanded sidebar panel resolved against the raw viewport instead,
+    landing outside the frame at full viewport height. Stated outright so the
+    geometry does not depend on a blur being switched on.
+  */
+  position: relative;
 }
 
 .proto-shell-frame > .proto-shell {
@@ -828,6 +837,63 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     }
   }
 
+  /*
+   * Expanded sidebar tool surface — mobile takeover.
+   *
+   * There is no room to grow into at this width, so the surface takes the whole
+   * frame below the toolbar. Above the drawer (150) and the mobile right panel
+   * (160) because it opens from inside the drawer; below `--pds-z-popover`
+   * (6000) so the tool's own sheets and pickers still stack over it.
+   */
+  .proto-sidebar-expanded-panel {
+    position: fixed;
+    top: calc(var(--pds-toolbar-h) + 8px);
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    z-index: 170;
+    border-radius: var(--pds-shell-frame-radius);
+    background: var(--pds-bg-page);
+    box-shadow: var(--pds-shadow-drawer);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: proto-sidebar-expanded-mobile-in var(--pds-duration-panel) var(--pds-ease-standard) both;
+  }
+
+  @keyframes proto-sidebar-expanded-mobile-in {
+    from {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  .proto-sidebar-expanded-panel--exiting {
+    animation: proto-sidebar-expanded-mobile-out var(--pds-duration-panel) var(--pds-ease-standard) both;
+  }
+
+  @keyframes proto-sidebar-expanded-mobile-out {
+    from {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .proto-sidebar-expanded-panel,
+    .proto-sidebar-expanded-panel--exiting {
+      animation: none;
+    }
+  }
+
   /* Reusable expandable right-side panel — mobile variants. */
   .proto-side-panel-mobile-backdrop {
     position: fixed;
@@ -1041,6 +1107,69 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     transition: none;
   }
 
+  /*
+   * Expanded sidebar tool surface — desktop.
+   *
+   * Anchored to the sidebar's own edge (left 8px, same inset and radius as the
+   * frame) and grown rightward over the main pane, so the move reads as "the
+   * sidebar took the room it needed" rather than "a modal appeared". The note
+   * editor stays mounted underneath, untouched.
+   *
+   * Above `.proto-side-panel` (21) and the right-panel host (7), below the
+   * toolbar cells (1300) — the toolbar stays live while a tool is open.
+   */
+  .proto-sidebar-expanded-panel {
+    position: absolute;
+    top: calc(var(--pds-toolbar-h) + 8px);
+    left: 8px;
+    bottom: 8px;
+    width: min(calc(100% - 16px), 1040px);
+    z-index: 30;
+    border-radius: var(--pds-shell-frame-radius);
+    /* Opaque: the frame already carries the one blur layer for this stack
+       (see PROTOTYPE_AW_SNAP_ERROR_5 — do not add a second). */
+    background: var(--pds-bg-page);
+    box-shadow: var(--pds-shadow-drawer);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: proto-sidebar-expanded-in var(--pds-duration-panel) var(--pds-ease-standard) both;
+  }
+
+  /* Width is the animated property so the panel unfurls from the sidebar's
+     footprint. The body below is pinned to the final width, so children lay out
+     once and each frame is a clip rather than a reflow. If this ever stutters on
+     low-end GPUs, swap to a translateX slide of a full-width panel. */
+  @keyframes proto-sidebar-expanded-in {
+    from {
+      width: var(--proto-sidebar-w-clamped);
+      opacity: 0.4;
+    }
+    to {
+      width: min(calc(100% - 16px), 1040px);
+      opacity: 1;
+    }
+  }
+
+  .proto-sidebar-expanded-panel--exiting {
+    animation: proto-sidebar-expanded-out var(--pds-duration-panel) var(--pds-ease-standard) both;
+  }
+
+  @keyframes proto-sidebar-expanded-out {
+    from {
+      width: min(calc(100% - 16px), 1040px);
+      opacity: 1;
+    }
+    to {
+      width: var(--proto-sidebar-w-clamped);
+      opacity: 0;
+    }
+  }
+
+  .proto-sidebar-expanded-panel__body {
+    min-width: min(calc(100vw - 32px), 1024px);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .proto-shell,
     .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
@@ -1048,7 +1177,9 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
     .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
     .proto-shell__study-dock-layer__slot:not(:empty),
-    .proto-shell-drawer-sidebar--exiting .proto-sidebar-root {
+    .proto-shell-drawer-sidebar--exiting .proto-sidebar-root,
+    .proto-sidebar-expanded-panel,
+    .proto-sidebar-expanded-panel--exiting {
       transition: none;
       animation: none;
     }

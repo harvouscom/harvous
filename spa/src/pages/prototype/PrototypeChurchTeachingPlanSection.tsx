@@ -26,11 +26,16 @@ import {
   useChurchSpacePlan,
   useChurchSpaceSermonActions,
 } from '../../hooks/queries/useChurchSpacePlan';
-import { formatServiceTime, formatServiceTimes, localTodayIso } from '../../lib/church-services';
+import { localTodayIso, sermonTimeLabel } from '../../lib/church-services';
 import PrototypeSermonEditorSheet from './PrototypeSermonEditorSheet';
 import PrototypeSeriesSheet from './PrototypeSeriesSheet';
+import PrototypePlannerScopeChips from './planner/PrototypePlannerScopeChips';
+import { usePlannerScope } from './planner/usePlannerScope';
 
-function formatServiceDate(iso: string): string {
+function formatServiceDate(iso: string | null): string {
+  /* An undated idea still needs something in the date column, and an em dash
+     reads as "not yet" where an empty cell reads as a rendering bug. */
+  if (!iso) return '—';
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!match) return iso;
   const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
@@ -112,8 +117,8 @@ export default function PrototypeChurchTeachingPlanSection({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [openSeries, setOpenSeries] = useState<TeachingPlanSeries | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
-  /** null = the church's own plan; a space id = that ministry's. */
-  const [planSpaceId, setPlanSpaceId] = useState<string | null>(null);
+  /* Shared with the expanded planner, so opening the board keeps your scope. */
+  const { planSpaceId, lastChannelId, selectPlanScope } = usePlannerScope(orgId, plannableSpaces);
 
   /*
     Both plans are always mounted but only the selected one is enabled, so
@@ -131,36 +136,29 @@ export default function PrototypeChurchTeachingPlanSection({
   const actions = onSpacePlan ? spaceActions : churchActions;
 
   const today = localTodayIso();
-  const { upcoming, past } = useMemo(() => {
+  /*
+    Three groups, not two. A null date fails *both* `>= today` and `< today` in
+    JS, so the obvious two-way split would have dropped every backlog idea on
+    the floor — visible in the expanded planner, silently gone here. The board
+    is where ideas are meant to live, but they must at least be reachable from
+    the compact pane that created them.
+  */
+  const { backlog, upcoming, past } = useMemo(() => {
     const services = data?.services ?? [];
+    const dated = services.filter((s) => s.serviceDate !== null);
     return {
-      upcoming: services.filter((s) => s.serviceDate >= today),
+      backlog: services.filter((s) => s.serviceDate === null),
+      upcoming: dated.filter((s) => s.serviceDate! >= today),
       // Most recent first — backfilling last Sunday is the common case.
-      past: [...services.filter((s) => s.serviceDate < today)].reverse(),
+      past: [...dated.filter((s) => s.serviceDate! < today)].reverse(),
     };
   }, [data, today]);
 
-  /**
-   * A sermon's times, resolved from the church's slots.
-   *
-   * The staff payload ships slot *ids* so the editor can check boxes; the list
-   * needs clock readings, and it is the only thing distinguishing a morning
-   * sermon from an evening one on the same date.
-   */
   const timeLabelFor = useMemo(() => {
     // Only the church plan has slots; a space row's time is the space's own
     // meetingTime, rendered in the switcher's subtitle rather than per row.
     const slots = onSpacePlan ? [] : (churchPlan.data?.serviceTimes ?? []);
-    const startById = new Map(slots.map((slot) => [slot.id, slot.startTime]));
-    return (sermon: TeachingPlanSermon): string | null => {
-      const slotTimes = sermon.serviceTimeIds
-        .map((id) => startById.get(id))
-        .filter((time): time is string => Boolean(time))
-        .sort();
-      if (slotTimes.length > 0) return formatServiceTimes(slotTimes);
-      // A one-off only speaks when the sermon claims no usual service.
-      return formatServiceTime(sermon.serviceTime);
-    };
+    return (sermon: TeachingPlanSermon): string | null => sermonTimeLabel(sermon, slots);
   }, [onSpacePlan, churchPlan.data?.serviceTimes]);
 
   if (!data) return null;
@@ -189,31 +187,12 @@ export default function PrototypeChurchTeachingPlanSection({
         saw before space plans existed. Radio semantics, not tabs: these are two
         different plans, not two views of one.
       */}
-      {plannableSpaces.length > 0 ? (
-        <div className="proto-chip-bar proto-teaching-plan__scope" role="radiogroup" aria-label="Plan">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={planSpaceId === null}
-            className={`proto-chip${planSpaceId === null ? ' proto-chip--selected' : ''}`}
-            onClick={() => setPlanSpaceId(null)}
-          >
-            Church
-          </button>
-          {plannableSpaces.map((space) => (
-            <button
-              key={space.id}
-              type="button"
-              role="radio"
-              aria-checked={planSpaceId === space.id}
-              className={`proto-chip${planSpaceId === space.id ? ' proto-chip--selected' : ''}`}
-              onClick={() => setPlanSpaceId(space.id)}
-            >
-              {space.title}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      <PrototypePlannerScopeChips
+        plannableSpaces={plannableSpaces}
+        planSpaceId={planSpaceId}
+        lastChannelId={lastChannelId}
+        onChange={selectPlanScope}
+      />
 
       {/* A pane, not a disclosure — the hub's Church tools row is what opens
           it, so the caret toggle that used to live here is gone. */}
@@ -260,9 +239,24 @@ export default function PrototypeChurchTeachingPlanSection({
             />
           ))}
 
+          {backlog.length > 0 ? (
+            <>
+              <p className="proto-caption proto-teaching-plan__divider">Ideas</p>
+              {backlog.map((service) => (
+                <SermonRow
+                  key={service.id}
+                  service={service}
+                  timeLabel={null}
+                  disabled={!canWrite}
+                  onEdit={openEditor}
+                />
+              ))}
+            </>
+          ) : null}
+
           {past.length > 0 ? (
             <>
-              {upcoming.length > 0 ? (
+              {upcoming.length > 0 || backlog.length > 0 ? (
                 <p className="proto-caption proto-teaching-plan__divider">Past</p>
               ) : null}
               {past.slice(0, 6).map((service) => (

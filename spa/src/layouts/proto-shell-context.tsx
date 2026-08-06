@@ -261,6 +261,21 @@ type ProtoShellContextValue = {
   expandThreadPanel: () => void;
   /** Expanded thread → inspector (note details); does not leave a docked thread panel. */
   backFromThreadPanelToInspector: (options?: { popHistory?: boolean }) => void;
+  /**
+   * Expanded sidebar tool — a left-anchored surface that grows out of the
+   * sidebar's footprint and covers the main pane, for tools the 304–420px
+   * sidebar cannot hold (boards, calendars, master-detail).
+   *
+   * Generic on purpose: the value is a tool key ('planner' today; challenges
+   * and reviews later), so the shell hosts one surface and each tool brings
+   * its own body. The editor underneath stays mounted — this overlays, it
+   * does not replace the main pane.
+   */
+  expandedSidebarTool: string | null;
+  /** True during the exit animation window — keep the panel mounted while this is true. */
+  expandedSidebarExiting: boolean;
+  openExpandedSidebar: (tool: string) => void;
+  closeExpandedSidebar: (options?: { preserveHistory?: boolean }) => void;
   setPrototypeFolderChip: (value: PrototypeFolderChip | null) => void;
   /** Backend note id after first autosave during compose-on-home — before URL replace. */
   composePersistedNoteId: string | null;
@@ -326,6 +341,14 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   drawerOpenRef.current = drawerOpen;
   const threadPanelExpandedRef = useRef(threadPanelExpanded);
   threadPanelExpandedRef.current = threadPanelExpanded;
+  const [expandedSidebarTool, setExpandedSidebarTool] = useState<string | null>(null);
+  const [expandedSidebarExiting, setExpandedSidebarExiting] = useState(false);
+  const expandedSidebarExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Skips the next popstate close when we called history.back() from an explicit close. */
+  const expandedSidebarHistorySkipRef = useRef(false);
+  const EXPANDED_SIDEBAR_HISTORY_FLAG = 'protoExpandedSidebarTool';
+  const expandedSidebarToolRef = useRef(expandedSidebarTool);
+  expandedSidebarToolRef.current = expandedSidebarTool;
   const [sidebarExiting, setSidebarExiting] = useState(false);
   const sidebarExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>(readStoredSidebarListMode);
@@ -379,10 +402,26 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       delete next[MOBILE_DRAWER_HISTORY_FLAG];
       window.history.replaceState(next, '');
     };
+    /* The two breakpoints render the tool surface differently enough (overlay vs
+       full-screen takeover) that carrying one across the flip lands mid-animation
+       in the wrong geometry. Drop it, same as the drawer. */
+    const clearExpandedSidebar = () => {
+      const state = window.history.state as Record<string, unknown> | null;
+      if (state?.[EXPANDED_SIDEBAR_HISTORY_FLAG]) {
+        const next = { ...state };
+        delete next[EXPANDED_SIDEBAR_HISTORY_FLAG];
+        window.history.replaceState(next, '');
+      }
+      if (expandedSidebarExitTimerRef.current) clearTimeout(expandedSidebarExitTimerRef.current);
+      expandedSidebarExitTimerRef.current = null;
+      setExpandedSidebarTool(null);
+      setExpandedSidebarExiting(false);
+    };
     const mq = window.matchMedia(MOBILE_MQ);
     const sync = () => {
       const mobile = mq.matches;
       setIsMobileSidebar(mobile);
+      clearExpandedSidebar();
       if (mobile) {
         clearMobileDrawerHistoryFlag();
         setDrawerOpen(false);
@@ -419,6 +458,59 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  /**
+   * The expanded-tool surface answers Back on both breakpoints, not just mobile:
+   * it covers the whole main pane, so Back reading as "close this" is the same
+   * bargain the expanded thread panel struck. The flag is pushed after the
+   * drawer's, so on mobile the first Back closes the tool and the second closes
+   * the drawer underneath it.
+   */
+  const pushExpandedSidebarHistory = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const state = window.history.state as Record<string, unknown> | null;
+    if (state?.[EXPANDED_SIDEBAR_HISTORY_FLAG]) return;
+    window.history.pushState({ ...(state ?? {}), [EXPANDED_SIDEBAR_HISTORY_FLAG]: true }, '');
+  }, []);
+
+  const popExpandedSidebarHistory = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const state = window.history.state as Record<string, unknown> | null;
+    if (!state?.[EXPANDED_SIDEBAR_HISTORY_FLAG]) return;
+    expandedSidebarHistorySkipRef.current = true;
+    window.history.back();
+  }, []);
+
+  const beginExpandedSidebarClose = useCallback(() => {
+    if (!expandedSidebarToolRef.current) return;
+    if (expandedSidebarExitTimerRef.current) clearTimeout(expandedSidebarExitTimerRef.current);
+    setExpandedSidebarExiting(true);
+    expandedSidebarExitTimerRef.current = setTimeout(() => {
+      setExpandedSidebarTool(null);
+      setExpandedSidebarExiting(false);
+      expandedSidebarExitTimerRef.current = null;
+    }, PROTO_PANEL_EXIT_MS);
+  }, []);
+
+  const openExpandedSidebar = useCallback(
+    (tool: string) => {
+      if (expandedSidebarExitTimerRef.current) clearTimeout(expandedSidebarExitTimerRef.current);
+      expandedSidebarExitTimerRef.current = null;
+      setExpandedSidebarExiting(false);
+      setExpandedSidebarTool(tool);
+      pushExpandedSidebarHistory();
+    },
+    [pushExpandedSidebarHistory],
+  );
+
+  const closeExpandedSidebar = useCallback(
+    (options?: { preserveHistory?: boolean }) => {
+      if (!expandedSidebarToolRef.current) return;
+      if (!options?.preserveHistory) popExpandedSidebarHistory();
+      beginExpandedSidebarClose();
+    },
+    [beginExpandedSidebarClose, popExpandedSidebarHistory],
+  );
+
   const pushMobileDrawerHistory = useCallback(() => {
     if (typeof window === 'undefined' || !isMobileSidebar) return;
     const state = window.history.state as Record<string, unknown> | null;
@@ -448,10 +540,13 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   );
   const collapseDesktopSidebar = useCallback(() => {
     if (desktopSidebarCollapsed || sidebarExiting) return;
+    /* The expanded tool is anchored to the sidebar's footprint — collapsing the
+       anchor out from under it reads as a bug, so the tool leaves with it. */
+    closeExpandedSidebar();
     /* Collapse grid immediately so main/editor ease in sync with the panel exit. */
     setDesktopSidebarCollapsed(true);
     beginSidebarClose(() => undefined);
-  }, [beginSidebarClose, desktopSidebarCollapsed, sidebarExiting]);
+  }, [beginSidebarClose, closeExpandedSidebar, desktopSidebarCollapsed, sidebarExiting]);
   const toggleDesktopSidebar = useCallback(() => {
     if (desktopSidebarCollapsed) {
       cancelSidebarExit();
@@ -485,7 +580,16 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
    * resets scope (mirrors native "switch context resets scope").
    */
   const setLocation = useCallback((next: ProtoLocation) => {
+    /*
+      Only on a real move. Tools belong to the context that opened them — a
+      church planner left hanging over My Home would be pointing at an org you
+      just left — but several callers re-assert the location they are already
+      at (the space switcher naming the current church, the note page following
+      `?space=`), and closing on those dismissed a planner the moment it opened.
+    */
+    const movedContext = !isSameLocation(locationRef.current, next);
     setLocationState((prev) => (isSameLocation(prev, next) ? prev : next));
+    if (movedContext) closeExpandedSidebar();
 
     const { activeSpaceId: nextSpaceId, activeChurchOrgId: nextOrgId } =
       storedPairFromLocation(next);
@@ -502,7 +606,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     setSidebarThreadDrilldownIdState(undefined);
     setScriptureDrillState({ level: 'books' });
     setSidebarLayerState('space');
-  }, []);
+  }, [closeExpandedSidebar]);
 
   /**
    * Compatibility shim for callers that only know a space id. Prefer
@@ -586,6 +690,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       if (sidebarExitTimerRef.current) clearTimeout(sidebarExitTimerRef.current);
       if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
       if (threadPanelExitTimerRef.current) clearTimeout(threadPanelExitTimerRef.current);
+      if (expandedSidebarExitTimerRef.current) clearTimeout(expandedSidebarExitTimerRef.current);
     },
     [],
   );
@@ -765,7 +870,18 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
         threadPanelHistorySkipRef.current = false;
         return;
       }
+      if (expandedSidebarHistorySkipRef.current) {
+        expandedSidebarHistorySkipRef.current = false;
+        return;
+      }
       const state = window.history.state as Record<string, unknown> | null;
+      /* Back out of the tool before the drawer branch below runs: on mobile both
+         flags are on the stack, and popping the tool's must not read as the
+         drawer's dismissal too. */
+      if (expandedSidebarToolRef.current && !state?.[EXPANDED_SIDEBAR_HISTORY_FLAG]) {
+        beginExpandedSidebarClose();
+        return;
+      }
       if (state?.[MOBILE_DRAWER_HISTORY_FLAG]) {
         cancelSidebarExit();
         setDrawerOpen(true);
@@ -785,7 +901,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [backFromThreadPanelToInspector, beginSidebarClose, cancelSidebarExit]);
+  }, [backFromThreadPanelToInspector, beginExpandedSidebarClose, beginSidebarClose, cancelSidebarExit]);
 
   const toggleInspector = useCallback(() => {
     setInspectorOpen((prev) => {
@@ -915,6 +1031,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       closeThreadPanel,
       expandThreadPanel,
       backFromThreadPanelToInspector,
+      expandedSidebarTool,
+      expandedSidebarExiting,
+      openExpandedSidebar,
+      closeExpandedSidebar,
       setPrototypeFolderChip,
       composePersistedNoteId,
       setComposePersistedNoteId,
@@ -987,6 +1107,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       closeThreadPanel,
       expandThreadPanel,
       backFromThreadPanelToInspector,
+      expandedSidebarTool,
+      expandedSidebarExiting,
+      openExpandedSidebar,
+      closeExpandedSidebar,
       setPrototypeFolderChip,
       composePersistedNoteId,
       setComposePersistedNoteId,

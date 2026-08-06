@@ -11,6 +11,7 @@ import { useNavigation } from '../../hooks/queries/useNavigation';
 import { isQuerySettled } from '@/utils/prototype-home-ready';
 import { useProfile } from '../../hooks/queries/useProfile';
 import { useChurchStaffStatus } from '../../hooks/queries/useChurchStaffStatus';
+import { useChurchPlannerAccess } from '../../hooks/useChurchPlannerAccess';
 import { useChurchBilling } from '../../hooks/queries/useChurchBilling';
 import {
   canCreateChurchOrgContent,
@@ -146,7 +147,7 @@ function ChurchHubBrowseRow({
 }
 
 export default function PrototypeSidebarChurchHubView() {
-  const { isMobileSidebar, activeChurchOrgId, ensureSidebarExpanded } = useProtoShell();
+  const { isMobileSidebar, activeChurchOrgId, ensureSidebarExpanded, openExpandedSidebar } = useProtoShell();
   const switchToSpace = useSwitchToSpace();
   const navQuery = useNavigation();
   const profileQuery = useProfile();
@@ -187,12 +188,12 @@ export default function PrototypeSidebarChurchHubView() {
   const { isStaff: isOrgStaff, can: canChurch, isLoading: staffStatusLoading } =
     useChurchStaffStatus(orgId);
   /*
-    Server's verdicts — never re-derived from the role string on the client.
-    Two of them, because seeing the plan and setting it are different jobs: a
-    teacher teaches from what's planned, a pastor decides what it is.
+    The planner's own gates come from the shared hook, because the expanded
+    planner reads the same verdicts: a board that lets you drag a card this
+    pane would have shown as read-only is worse than either surface alone.
   */
-  const canViewTeachingPlan = canChurch('sermon_tools');
-  const canEditTeachingPlan = canChurch('manage_teaching_plan');
+  const plannerAccess = useChurchPlannerAccess(orgId);
+  const canViewTeachingPlan = plannerAccess.canView;
   /** First client consumer of `manage_templates` — the church-starters gate. */
   const canManageChurchTemplates = canChurch('manage_templates');
   /** Admin-only: the church's own clock. */
@@ -239,15 +240,10 @@ export default function PrototypeSidebarChurchHubView() {
    */
   const churchPlanLapsed = channelsData?.sponsorship?.state === 'lapsed';
   /**
-   * Why the plan is read-only, when it is. Lapsed wins: it is the church-wide
-   * fact and it is true for the pastor too, so it outranks the role reason.
-   * `null` means fully writable.
+   * Why the plan is read-only, when it is — derived once in the shared hook so
+   * the compact pane and the expanded planner cannot disagree.
    */
-  const teachingPlanReadOnly: 'lapsed' | 'role' | null = churchPlanLapsed
-    ? 'lapsed'
-    : canEditTeachingPlan
-      ? null
-      : 'role';
+  const teachingPlanReadOnly = plannerAccess.readOnlyReason;
   const followChannel = useFollowChannel();
   const [manageOpen, setManageOpen] = useState(false);
   /**
@@ -360,6 +356,22 @@ export default function PrototypeSidebarChurchHubView() {
               <p className="proto-caption proto-shared-space-header__location">{churchName}</p>
             ) : null}
           </div>
+          {/*
+            Opt-in, not automatic: the compact list is still the right answer for
+            "what am I preaching Sunday", and the board is for the afternoon you
+            sit down to plan a quarter.
+          */}
+          {toolsView === 'teaching-plan' && canViewTeachingPlan ? (
+            <button
+              type="button"
+              className="proto-side-panel__action-btn"
+              title="Expand planner"
+              aria-label="Expand planner"
+              onClick={() => openExpandedSidebar('planner')}
+            >
+              <Icon name="up-right-and-down-left-from-center" size={14} />
+            </button>
+          ) : null}
         </div>
       </div>
 

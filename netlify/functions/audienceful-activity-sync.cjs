@@ -17416,8 +17416,19 @@ var ChurchServices = pgTable("ChurchServices", {
    * service is a day on the church's wall calendar, and a TIMESTAMPTZ drifts a
    * Sunday into Saturday for a viewer three zones away. Same choice as
    * VotdPublishHistory.publishedDate.
+   *
+   * **NULL means unscheduled** — an idea sitting in the planner's backlog,
+   * waiting for a Sunday. Planning starts before a date exists ("I want to
+   * preach Habakkuk this fall"), and forcing a placeholder date to hold the
+   * thought put fiction on the calendar. Two invariants ride along, enforced in
+   * the write routes because no index can express them: an undated row has no
+   * ChurchServiceTimeAssignments (that table mirrors a date it does not have)
+   * and a NULL `serviceTime`.
+   *
+   * Congregant reads must exclude these — see `listServicesForChurch`. The
+   * backlog is a staff surface; "This Sunday" never shows a maybe.
    */
-  serviceDate: text("serviceDate").notNull(),
+  serviceDate: text("serviceDate"),
   /**
    * A one-off time for a sermon that does not sit at any of the church's usual
    * services — a Christmas Eve 17:00, a Good Friday evening.
@@ -17465,6 +17476,10 @@ var ChurchServices = pgTable("ChurchServices", {
    * space has a single `meetingTime` and can never claim a church service slot
    * — so every space row is timeless and the DB can carry the whole invariant.
    * The church side cannot: its answer depends on which slots a sermon claims.
+   *
+   * Undated backlog rows fall out of this for free: Postgres treats NULLs as
+   * distinct in a unique index, so a space can hold as many unscheduled ideas
+   * as it likes while still having one gathering per actual date.
    */
   uniqueIndex("ChurchServices_space_date_unique").on(table.spaceId, table.serviceDate).where(sql`${table.spaceId} IS NOT NULL`)
 ]);
