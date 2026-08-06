@@ -28,6 +28,25 @@ When creating a new release:
 3. Use the existing files as templates for tone and structure
 4. Focus on benefits and user experience, not implementation details
 
+### The generator never overwrites a file here
+
+The post-commit hook runs `scripts/generate-release-notes.js`, which drafts from
+commit subjects. Filenames are keyed on **major.minor + month**, so every patch
+in a minor resolves to the same file — and it used to overwrite it. A routine
+`fix:` commit could replace a month of rewritten notes with boilerplate, which
+is how v2.21.0's hand-written notes were lost once.
+
+It now leaves any existing file alone and prints the new entries for you to fold
+in. A file it does write opens with a `DRAFT` banner: commit subjects are
+written for developers, about the change rather than about what it does for
+someone, and they are not publishable as-is. Rewrite, then delete the banner.
+
+To regenerate from scratch anyway:
+
+```bash
+npm run release-notes:generate -- <version> --force
+```
+
 ## Public changelog (harvous.com)
 
 The marketing site lives in [harvouscom/harvous.com](https://github.com/harvouscom/harvous.com) and deploys separately. Public release notes at [harvous.com/release-notes/](https://harvous.com/release-notes/) are built from that repo’s `data/webflow-changelog.csv`, synced automatically from `Changelog/*.md` via `npm run changelog:export` in the app repo (or the `sync-release-notes` GitHub Action on push to `main`). Use this folder for in-repo drafts and `/marketing-agent` copy.

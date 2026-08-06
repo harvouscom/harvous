@@ -300,7 +300,16 @@ function generateReleaseNotesMarkdown(version, groupedChanges) {
   let markdown = `# What's New in Harvous v${version}\n\n`;
   markdown += `**Release Date:** ${date}\n`;
   markdown += `**Version:** ${version}\n\n`;
-  markdown += `This release includes improvements to navigation, organization, and overall user experience.\n\n`;
+  /*
+    Says what it is, at the top, where nobody can miss it. Everything below is
+    derived from commit subjects — written for other developers, about the
+    change rather than about what it does for someone. Lines like "Stop asking
+    Clerk for the same roster four times a pane" shipped to users because this
+    file looked finished. Removing the banner is the last step of the rewrite.
+  */
+  markdown += `> DRAFT — generated from commit subjects, not written for users yet.\n`;
+  markdown += `> Rewrite each line as what changed for the reader, then delete this banner.\n`;
+  markdown += `> See release-notes/README.md for tone, or run /marketing-agent.\n\n`;
   markdown += `---\n\n`;
   markdown += `## Updates in This Release\n\n`;
   
@@ -350,33 +359,50 @@ function generateReleaseNotesMarkdown(version, groupedChanges) {
 }
 
 /**
- * Save release notes file
+ * Where this version's notes live. Keyed on major.minor + month, NOT the patch
+ * version — every patch in a minor shares one file, which is what makes the
+ * overwrite guard below load-bearing.
  */
-function saveReleaseNotes(version, content) {
+function releaseNotesPathFor(version) {
+  const versionMatch = version.match(/^(\d+\.\d+)/);
+  const shortVersion = versionMatch ? versionMatch[1] : version;
+  return join(__dirname, '..', 'release-notes', `v${shortVersion}-${getMonthYear()}.md`);
+}
+
+/**
+ * Save release notes — but never over a file that already exists.
+ *
+ * These are public, hand-edited copy: `release-notes/README.md` and CLAUDE.md
+ * put them under the marketing agent, and what this script emits is a draft
+ * from commit subjects, not publishable prose. Because the filename is keyed on
+ * major.minor, every patch release resolved to the same path — so a `fix:`
+ * commit silently replaced a whole month of rewritten notes with boilerplate.
+ * That is exactly what happened to v2.21.0's.
+ *
+ * Existing file → leave it alone and print the entries, so the new work is
+ * visible without anything being destroyed. `--force` is the deliberate escape
+ * hatch, and it is never taken by the post-commit hook.
+ */
+function saveReleaseNotes(version, content, { force = false } = {}) {
   const releaseNotesDir = join(__dirname, '..', 'release-notes');
-  
-  // Create release-notes directory if it doesn't exist
   if (!existsSync(releaseNotesDir)) {
     mkdirSync(releaseNotesDir, { recursive: true });
   }
-  
-  // Extract major.minor version for filename
-  const versionMatch = version.match(/^(\d+\.\d+)/);
-  const shortVersion = versionMatch ? versionMatch[1] : version;
-  
-  const monthYear = getMonthYear();
-  const filename = `v${shortVersion}-${monthYear}.md`;
-  const filepath = join(releaseNotesDir, filename);
-  
+
+  const filepath = releaseNotesPathFor(version);
+
+  if (existsSync(filepath) && !force) {
+    return { filepath, written: false };
+  }
+
   writeFileSync(filepath, content, 'utf-8');
-  
-  return filepath;
+  return { filepath, written: true };
 }
 
 /**
  * Main function
  */
-export function generateReleaseNotes(version) {
+export function generateReleaseNotes(version, { force = false } = {}) {
   try {
     console.log(`\n📝 Generating user-friendly release notes for v${version}...`);
     
@@ -410,13 +436,26 @@ export function generateReleaseNotes(version) {
     
     // Generate release notes markdown
     const markdown = generateReleaseNotesMarkdown(version, groupedChanges);
-    
-    // Save to file
-    const filepath = saveReleaseNotes(version, markdown);
-    
-    console.log(`✅ Release notes generated: ${filepath}`);
-    console.log(`   Review and refine the content before sharing with users!\n`);
-    
+
+    const { filepath, written } = saveReleaseNotes(version, markdown, { force });
+
+    if (!written) {
+      /*
+        The interesting case. Print what would have been added rather than
+        writing it, so a release still surfaces its own changes without
+        overwriting whatever someone wrote for this month.
+      */
+      const entries = Object.values(changes).flat();
+      console.log(`ℹ️  ${filepath.replace(join(__dirname, '..') + '/', '')} already exists — leaving it as written.`);
+      console.log(`   New in v${version}, to fold in by hand (or via /marketing-agent):`);
+      entries.forEach((entry) => console.log(`     - ${entry}`));
+      console.log(`   Regenerate from scratch with: npm run release-notes:generate -- ${version} --force\n`);
+      return null;
+    }
+
+    console.log(`✅ Release notes drafted: ${filepath}`);
+    console.log(`   A DRAFT built from commit subjects — rewrite before sharing.\n`);
+
     return filepath;
   } catch (error) {
     console.error(`❌ Error generating release notes: ${error.message}`);
@@ -429,13 +468,19 @@ const isMainModule = import.meta.url === `file://${process.argv[1]}` ||
                      process.argv[1]?.endsWith('generate-release-notes.js');
 
 if (isMainModule) {
-  const version = process.argv[2];
-  
+  const args = process.argv.slice(2);
+  const force = args.includes('--force');
+  const version = args.find((arg) => !arg.startsWith('--'));
+
   if (!version) {
-    console.error('Usage: node generate-release-notes.js <version>');
+    console.error('Usage: node generate-release-notes.js <version> [--force]');
     console.error('Example: node generate-release-notes.js 1.14.0');
+    console.error('');
+    console.error('  --force  Overwrite an existing notes file for this month.');
+    console.error('           Without it, an existing file is never touched —');
+    console.error('           these are hand-edited public copy.');
     process.exit(1);
   }
-  
-  generateReleaseNotes(version);
+
+  generateReleaseNotes(version, { force });
 }
