@@ -38,6 +38,20 @@ export const CHURCH_CAPABILITIES = [
    * giving a pastor the settings without giving them the money.
    */
   'manage_church_settings',
+  /**
+   * Curate the church's Resource Library — add, edit, scope, and archive its
+   * items, and review what congregants suggest for it.
+   *
+   * Reading the library is not gated by this and never should be: any
+   * connected congregant sees what their church has published to them, the
+   * same bargain `manage_templates` strikes for note starters. This is only
+   * the right to decide what is in it.
+   *
+   * A granted space leader holds no church capability at all (by hard rule in
+   * church-space-leaders.ts) and reaches their own space's items through the
+   * space lane's widened gate instead.
+   */
+  'manage_library',
 ] as const;
 
 export type ChurchCapability = (typeof CHURCH_CAPABILITIES)[number];
@@ -97,6 +111,9 @@ export function capabilitiesForChurchRole(role: string | null | undefined): Chur
   if (role === ROLE_ADMIN || role === ROLE_PASTOR) {
     capabilities.add('manage_templates');
     capabilities.add('manage_teaching_plan');
+    /* Same reasoning as templates: what the church studies from is a
+       pastor/admin decision. Widening to teachers later is one line. */
+    capabilities.add('manage_library');
   }
 
   return [...capabilities];

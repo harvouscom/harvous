@@ -1513,6 +1513,172 @@ export const LibraryItems = pgTable(
   ],
 );
 
+// ─── Church library scoping (RESOURCE_LIBRARY.md v0.1) ────────────────────────
+
+/**
+ * Who an item is for, inside a church.
+ *
+ * Rows rather than a column on `LibraryItems`, because one item is legitimately
+ * in several places at once — a commentary that belongs to the whole church
+ * *and* is surfaced in Youth. A column would have forced a copy per placement,
+ * and a copied item is two things to archive, two things to re-title, and two
+ * answers to "is this still current".
+ *
+ * `scopeKind`:
+ *   - `'org'`      — the whole church. `spaceId` and `ministryKey` null.
+ *   - `'space'`    — one Shared Space or channel. `spaceId` set.
+ *   - `'ministry'` — reserved. The column exists so the table never needs a
+ *     migration, but **the write routes refuse it**: there is no ministry
+ *     entity or key vocabulary anywhere in the app yet, so a free-text
+ *     `ministryKey` written today would be data no read path could group by.
+ *
+ * Row ids: `libsc_${crypto.randomUUID()}`.
+ */
+export const LibraryItemScopes = pgTable(
+  'LibraryItemScopes',
+  {
+    id: text('id').primaryKey(),
+    libraryItemId: text('libraryItemId').notNull(),
+    scopeKind: text('scopeKind').notNull(),
+    spaceId: text('spaceId'),
+    ministryKey: text('ministryKey'),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    /*
+      One partial unique per kind. A single index over all three columns would
+      not work: NULLs are distinct in a plain unique, so an item could be scoped
+      to the whole org twice. Same shape as ChurchSeries' per-scope uniques.
+    */
+    uniqueIndex('LibraryItemScopes_org_unique')
+      .on(table.libraryItemId)
+      .where(sql`${table.scopeKind} = 'org'`),
+    uniqueIndex('LibraryItemScopes_space_unique')
+      .on(table.libraryItemId, table.spaceId)
+      .where(sql`${table.scopeKind} = 'space'`),
+    uniqueIndex('LibraryItemScopes_ministry_unique')
+      .on(table.libraryItemId, table.ministryKey)
+      .where(sql`${table.scopeKind} = 'ministry'`),
+    index('LibraryItemScopes_libraryItemIdIndex').on(table.libraryItemId),
+    index('LibraryItemScopes_spaceIdIndex').on(table.spaceId),
+  ],
+);
+
+/**
+ * What a space surfaces, and in what order.
+ *
+ * `pinned = false` is not a deleted row and must not be cleaned up as one: it
+ * is a leader saying "not this one, not here", which has to outrank an
+ * org-wide default *without* editing the org's item — a space leader cannot be
+ * allowed to change what the rest of the church sees.
+ *
+ * Row ids: `libp_${crypto.randomUUID()}`.
+ */
+export const LibraryItemSpacePins = pgTable(
+  'LibraryItemSpacePins',
+  {
+    id: text('id').primaryKey(),
+    spaceId: text('spaceId').notNull(),
+    libraryItemId: text('libraryItemId').notNull(),
+    pinned: boolean('pinned').notNull().default(true),
+    sortOrder: integer('sortOrder').notNull().default(0),
+    pinnedByUserId: text('pinnedByUserId').notNull(),
+    pinnedAt: ts('pinnedAt').notNull(),
+  },
+  (table) => [
+    uniqueIndex('LibraryItemSpacePins_space_item_unique').on(table.spaceId, table.libraryItemId),
+    index('LibraryItemSpacePins_spaceIdIndex').on(table.spaceId),
+  ],
+);
+
+/**
+ * A congregant proposing a resource for their church's library.
+ *
+ * Shaped after `SupportTickets` — submit, queue, triage — because that is the
+ * one review flow this codebase already has, and its shape was earned.
+ *
+ * **`suggestedByUserId` is a deliberate exception to "review is never shared".**
+ * That rule protects *observed* behaviour: what someone read, wrote, or studied.
+ * A suggestion is the opposite — an affirmative submission addressed to the
+ * church, which a reviewer cannot act on or reply to anonymously. The exception
+ * is confined here: no other church-facing table names a congregant, and the
+ * attribution is serialized only into the `manage_library`-gated review queue.
+ *
+ * Links only in v0.1. A congregant file upload is an abuse surface with no
+ * reviewer story attached to it.
+ *
+ * Row ids: `libsg_${crypto.randomUUID()}`.
+ */
+export const LibraryItemSuggestions = pgTable(
+  'LibraryItemSuggestions',
+  {
+    id: text('id').primaryKey(),
+    churchId: text('churchId').notNull(),
+    suggestedByUserId: text('suggestedByUserId').notNull(),
+    url: text('url').notNull(),
+    title: text('title'),
+    /** The congregant's "why" — what a reviewer reads before deciding. */
+    note: text('note'),
+    /** 'open' | 'approved' | 'declined'. */
+    status: text('status').notNull().default('open'),
+    reviewedByUserId: text('reviewedByUserId'),
+    reviewedAt: ts('reviewedAt'),
+    /** Set on approval — the LibraryItems row this became. */
+    createdItemId: text('createdItemId'),
+    /** Drives the unread badge, the way SupportTickets.adminReadAt does. */
+    staffReadAt: ts('staffReadAt'),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    index('LibraryItemSuggestions_church_status_createdAtIndex').on(
+      table.churchId,
+      table.status,
+      table.createdAt,
+    ),
+    index('LibraryItemSuggestions_suggestedBy_createdAtIndex').on(
+      table.suggestedByUserId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/**
+ * Which library items a planned sermon or entry draws on.
+ *
+ * A join table, not a column, and deliberately so:
+ * `docs/future/CHURCH_STUDY_MATERIAL_LINKING.md` is the post-mortem of the
+ * single pointer (`ChurchServices.channelSpaceId`) that was built and removed,
+ * and it says in as many words not to add a cheaper one.
+ *
+ * This is **staff-side prep** — "the resources I am pulling from this week" —
+ * and is distinct from that doc's congregant-facing inversion, where published
+ * material claims the service it accompanies. That remains unbuilt; when it
+ * lands it attaches published items, not catalog entries, and gets its own row.
+ *
+ * Row ids: `svcli_${crypto.randomUUID()}`.
+ */
+export const ChurchServiceLibraryItems = pgTable(
+  'ChurchServiceLibraryItems',
+  {
+    id: text('id').primaryKey(),
+    serviceId: text('serviceId').notNull(),
+    libraryItemId: text('libraryItemId').notNull(),
+    attachedByUserId: text('attachedByUserId').notNull(),
+    sortOrder: integer('sortOrder').notNull().default(0),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    uniqueIndex('ChurchServiceLibraryItems_service_item_unique').on(
+      table.serviceId,
+      table.libraryItemId,
+    ),
+    index('ChurchServiceLibraryItems_serviceIdIndex').on(table.serviceId),
+    /* The reverse question — "which weeks used this?" — indexed now rather
+       than after someone writes it as a table scan. */
+    index('ChurchServiceLibraryItems_libraryItemIdIndex').on(table.libraryItemId),
+  ],
+);
+
 // ─── InboxItems ────────────────────────────────────────────────────────────────
 
 export const InboxItems = pgTable('InboxItems', {

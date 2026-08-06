@@ -159,3 +159,35 @@ describe('org-provisioned note templates', () => {
     expect(route()).toContain("code: 'INVALID_SCOPE'");
   });
 });
+
+describe('manage_library', () => {
+  it('is a pastor/admin act, like the note starters it sits beside', () => {
+    expect(capabilitiesForChurchRole(ROLE_ADMIN)).toContain('manage_library');
+    expect(capabilitiesForChurchRole(ROLE_PASTOR)).toContain('manage_library');
+  });
+
+  it('is not given to a teacher or a plain staff member', () => {
+    // A teacher browses and attaches; deciding what the church studies from is
+    // a different job. Widening later is one line — narrowing after churches
+    // have grown used to it is not.
+    expect(capabilitiesForChurchRole(ROLE_TEACHER)).not.toContain('manage_library');
+    expect(capabilitiesForChurchRole('org:member')).not.toContain('manage_library');
+  });
+
+  it('is never held by a non-staff congregant', () => {
+    expect(NO_CHURCH_CAPABILITIES).not.toContain('manage_library');
+  });
+
+  it('stays in lockstep with the client union that renders from it', () => {
+    // The union is duplicated in spa/src/hooks/queries/useChurchStaffStatus.ts
+    // because the client cannot import server code. A capability added on one
+    // side and not the other is a surface that silently never renders.
+    const clientSource = readFileSync(
+      resolve(process.cwd(), 'spa/src/hooks/queries/useChurchStaffStatus.ts'),
+      'utf8',
+    );
+    for (const capability of CHURCH_CAPABILITIES) {
+      expect(clientSource, `client union is missing '${capability}'`).toContain(`'${capability}'`);
+    }
+  });
+});
