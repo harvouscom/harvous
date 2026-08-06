@@ -16,7 +16,7 @@ describe('congregant church route contracts', () => {
   it('requires auth on every endpoint', () => {
     const endpoints = route().match(/app\.(get|post|put|delete|patch)\(/g) ?? [];
     const gated = route().match(/requireAuth/g) ?? [];
-    expect(endpoints.length).toBeGreaterThanOrEqual(6);
+    expect(endpoints.length).toBeGreaterThanOrEqual(7);
     // One requireAuth per endpoint, plus the import.
     expect(gated.length).toBeGreaterThanOrEqual(endpoints.length);
     // This is the congregant surface — the admin gate must never be *used*
@@ -29,7 +29,7 @@ describe('congregant church route contracts', () => {
     const paths = [...route().matchAll(/app\.(?:get|post|put|delete|patch)\(\s*'([^']+)'/g)].map(
       (m) => m[1],
     );
-    expect(paths.length).toBeGreaterThanOrEqual(6);
+    expect(paths.length).toBeGreaterThanOrEqual(7);
     for (const path of paths) {
       expect(path.startsWith('/api/church')).toBe(true);
     }

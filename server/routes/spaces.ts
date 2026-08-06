@@ -3358,6 +3358,14 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
         const meta = userMetadataMap[m.userId] || {};
         return {
           userId: m.userId, role: m.role, joinedAt: m.joinedAt || m.createdAt,
+          /*
+            How this row got its role: 'grant' means a church admin or the
+            space owner handed this person leadership of *this* room (P5).
+            Anything else — including null — is the staff-sync projection, which
+            the people sheet must not offer to revoke, since the roster sweep
+            owns it and would just restore it.
+          */
+          grantSource: m.grantSource ?? null,
           firstName: meta.firstName || null,
           lastName: meta.lastName || null,
           displayName: safeMemberDisplayName({

@@ -18,8 +18,9 @@ Companion docs: [BILLING_ARCHITECTURE.md](BILLING_ARCHITECTURE.md) (Polar, entit
 | Ministry channels | `Spaces` with `type='public'` + `orgId`. Staff author; congregants follow and read |
 | Congregant receive | Browse + follow channels in My Church; "From your church" study feed on Home |
 | Staff management | Church admins invite/remove their own staff; Clerk `organizationMembership.*` webhook reconciles membership rows |
-| Role gating | Capabilities derived server-side from the Clerk org role — `publish`, `manage_staff`, `manage_billing`, `manage_templates`, `sermon_tools` |
+| Role gating | Capabilities derived server-side from the Clerk org role — `publish`, `manage_staff`, `manage_billing`, `manage_templates`, `sermon_tools`, `manage_teaching_plan` |
 | Org templates | `NoteTemplates.orgId` — church-provisioned starters (the sermon template rides these rails) |
+| Teaching plan | `ChurchServices` — staff plan services (date, title, passage, series); congregants see the next one as "This Sunday" on Home and start a note from it. Seeing the plan needs `sermon_tools` (v2.19.0); changing it needs `manage_teaching_plan` (v2.21.0), so a teacher teaches from the plan without reshaping it. The staff read is never sponsorship-gated |
 | Sponsorship | `churchIsSponsored()` — paid **or** inside a pilot window. Gates **writes only** |
 | Billing | Product registry + checkout route + webhook branch exist; **Polar products are not created**, so checkout cannot complete |
 
@@ -49,8 +50,9 @@ The billing code is complete and dormant. Turning it on is configuration, not de
 1. **Create the Clerk Organization** (Clerk dashboard). Staff and volunteers only —
    congregants are *never* Clerk org members. Hard cap of 20; pending invites count toward it.
 2. **Add the staff owner** to that org, and give them the `org:admin` role if they should
-   manage the roster and billing. Custom roles `org:pastor` / `org:teacher` unlock teaching
-   tooling without roster access.
+   manage the roster and billing. Custom role `org:pastor` unlocks the teaching plan and
+   note templates; `org:teacher` unlocks seeing the plan and publishing, but not reshaping
+   what the church teaches. Neither gets roster access.
 3. **Register the church** at `/admin/churches` — pick the org from the list (no pasting
    opaque `org_` ids) and link its Here's My Church record so name and location stay accurate.
 4. **Start the pilot** — "Start 30-day pilot" or "90 days". Without this the church is
@@ -71,8 +73,9 @@ The billing code is complete and dormant. Turning it on is configuration, not de
 ## Turning billing on, when you want it
 
 1. **Create two Polar products** in the same Polar organization as Plus and Connector:
-   Church monthly (**$39**) and Church annual (**$390** — two months free, the one discount
-   offered to a church).
+   Church monthly (**$30**) and Church annual (**$216** — 40% off, the one discount
+   offered to a church). Create them at these figures, not the $39/$390 this doc carried
+   before v2.19 — nothing was ever sold at the old price, so there is no legacy row to keep.
 2. **Set four env vars** (Netlify and local `.env`) — server ids and their `VITE_` twins:
    ```
    POLAR_CHURCH_PRODUCT_MONTHLY / POLAR_CHURCH_PRODUCT_ANNUAL
@@ -128,30 +131,33 @@ church that cancels keeps whatever remains of its window.
 
 ## Docs that now contradict shipped behaviour
 
-These predate the v2.18.0 release and will mislead anyone reading them cold:
+Still stale, and will mislead anyone reading them cold:
 
 - **[future/CHURCH_ORG_AND_CURRICULUM.md](future/CHURCH_ORG_AND_CURRICULUM.md)** — describes
   delivery via `InboxItems` with `sharingType='organization'` and the frozen `Members` table.
   Both are retired; delivery is broadcast spaces + `SpaceMemberships`. Also still quotes the
-  old "3 shared spaces" limits.
+  old "3 shared spaces" limits, and a "Draft church tiers" line the reprice superseded.
 - **[future/CHURCH_CONNECTION_SYSTEM.md](future/CHURCH_CONNECTION_SYSTEM.md)** — asserts
   "v0 is staff-only" and that congregant connect / "From your church" are dark. Both shipped.
-- **[future/PASTOR_FEATURES_ROADMAP.md](future/PASTOR_FEATURES_ROADMAP.md)** — items 5 and 6
-  (note templates, sermon template) are built; the "none of the features above are built" line
-  is stale.
-- **[future/MONETIZATION_AND_PRICING.md](future/MONETIZATION_AND_PRICING.md) §7** — drafts a
-  four-tier church ladder (Connect / Study / Study Plus / Network). Shipped reality is a
-  **single Church product at one price**, consistent with the "one price per product, no tiers
-  within a product" principle the same document states in its own status banner.
-- **[../spa/src/pages/dev/church-design/sceneRegistry.ts](../spa/src/pages/dev/church-design/sceneRegistry.ts)** —
-  Connect and Receive scenes are still flagged `speculative: true`; those phases shipped.
+- **[future/SHARING_AND_GROUPS_INFRASTRUCTURE.md](future/SHARING_AND_GROUPS_INFRASTRUCTURE.md)** —
+  carries the full InboxItem org fan-out design with no banner saying it is historical.
+- **[future/CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md](future/CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md)** —
+  "one church per user" contradicts the locked multi-church model, and §8 still describes
+  InboxItem delivery.
+- **[future/README.md](future/README.md)** — says `Churches.billingPlan` and congregant connect
+  are "Not yet" built.
+- **`.claude/skills/marketing-agent/SKILL.md`** — "Never describe church org / curriculum as
+  shipped." Now false, and it actively suppresses accurate marketing copy.
+
+Fixed in v2.19.0 (kept here so the list reads as a changelog, not a standing debt):
+`PASTOR_FEATURES_ROADMAP.md` (item 7 + the stale v0 lock), `MONETIZATION_AND_PRICING.md` §7
+(the four-tier ladder is now explicitly marked superseded, and the price is current), and the
+church design gallery (`sceneRegistry.ts` speculative flags and the "Not built" phase labels).
 
 ---
 
 ## Deliberately deferred
 
-- **Sermon / service calendar** (roadmap item 7) — its own feature-sized build. The role gate
-  and org templates that make it cheap are in place.
 - **`ChurchConnectionRequests`** — a church-approves-the-congregant flow. Today connection is
   self-select via the Here's My Church directory, which is sufficient for concierge pilots.
 - **Aggregate engagement analytics** — deliberately last. "Review is never shared" is the

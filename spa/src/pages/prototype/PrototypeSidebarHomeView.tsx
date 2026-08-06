@@ -125,6 +125,7 @@ import { useConnectSuggestions } from '../../hooks/queries/useConnectSuggestions
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
 import PrototypeHomeChurchFeed from './PrototypeHomeChurchFeed';
+import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
 import { noteParamSlug } from './proto-route-slugs';
 import { bibleBookChapterCounts } from '@/utils/bible-book-chapters';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
@@ -1535,6 +1536,14 @@ export default function PrototypeSidebarHomeView({
       <div className="proto-home-section">
         <PrototypeFounderLetterPill />
       </div>
+
+      {/*
+        Above the daily passage on purpose: the church's Sunday is an
+        appointment, the verse of the day is a habit. Renders nothing unless the
+        viewer is connected to a church that has a plan, so for most users this
+        is a no-op and VOTD stays the first passage card on Home.
+      */}
+      <PrototypeHomeThisSunday homeSpaceId={homeSpaceId} />
 
       {votd ? (
         <div className="proto-home-section">

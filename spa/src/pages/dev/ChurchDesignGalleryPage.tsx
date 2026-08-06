@@ -23,11 +23,12 @@ import { HarvousLogoMark } from '../public/public-shared';
 
 const PHASE_ORDER = ['Admin', 'Connect', 'Receive', 'Staff'] as const;
 
+/** All four phases shipped in v2.18.0; the teaching plan followed in v2.19.0. */
 const PHASE_NOTE: Record<(typeof PHASE_ORDER)[number], string> = {
-  Admin: 'Built today',
-  Connect: 'Not built',
-  Receive: 'Not built',
-  Staff: 'Not built',
+  Admin: 'Shipped',
+  Connect: 'Shipped',
+  Receive: 'Shipped',
+  Staff: 'Shipped',
 };
 
 export default function ChurchDesignGalleryPage() {
@@ -74,6 +75,13 @@ export default function ChurchDesignGalleryPage() {
                     onClick={() => selectScene(scene)}
                   >
                     {scene.title}
+                    {/* The phase heading above says "shipped", but that is the
+                        phase, not the scene — several scenes inside a shipped
+                        phase are unbuilt explorations. Without this you had to
+                        open one to find out. */}
+                    {scene.speculative ? (
+                      <span className="pds-gallery__scene-tag">mockup</span>
+                    ) : null}
                   </button>
                 </li>
               ))}

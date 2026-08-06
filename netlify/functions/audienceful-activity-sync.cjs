@@ -16773,6 +16773,10 @@ __export(schema_exports, {
   BibleTranslations: () => BibleTranslations,
   BibleVerses: () => BibleVerses,
   ChurchMemberships: () => ChurchMemberships,
+  ChurchSeries: () => ChurchSeries,
+  ChurchServiceTimeAssignments: () => ChurchServiceTimeAssignments,
+  ChurchServiceTimes: () => ChurchServiceTimes,
+  ChurchServices: () => ChurchServices,
   Churches: () => Churches,
   ClerkUserMapping: () => ClerkUserMapping,
   Comments: () => Comments,
@@ -16782,6 +16786,7 @@ __export(schema_exports, {
   FeaturedItems: () => FeaturedItems,
   InboxItemNotes: () => InboxItemNotes,
   InboxItems: () => InboxItems,
+  LibraryItems: () => LibraryItems,
   Members: () => Members,
   MonthlyAnalytics: () => MonthlyAnalytics,
   NoteConnections: () => NoteConnections,
@@ -16793,6 +16798,7 @@ __export(schema_exports, {
   NoteVersions: () => NoteVersions,
   Notes: () => Notes,
   RecallEvents: () => RecallEvents,
+  ResourceLibraries: () => ResourceLibraries,
   ResourceMetadata: () => ResourceMetadata,
   ScriptureCrossReferences: () => ScriptureCrossReferences,
   ScriptureEntityRefs: () => ScriptureEntityRefs,
@@ -16835,6 +16841,23 @@ var Spaces = pgTable(
      * Values: daily | weekly | biweekly | monthly | quarterly | irregular | null.
      */
     publishCadence: text("publishCadence"),
+    /**
+     * When this org space gathers — "Youth meets Wednesdays at 6:30".
+     *
+     * Org spaces only (ministry channel or church Shared Space). The church's
+     * own times live in `ChurchServiceTimes`, which is a *list* because a church
+     * holds several services on one morning; a space gathers once, so a single
+     * day/time is the honest shape rather than a second slot table.
+     *
+     * Display and defaults only — this seeds the space plan's date picker and
+     * labels its card. Nothing here schedules, reminds, or recurs; staff still
+     * enter every gathering by hand. See
+     * docs/future/CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md §1.
+     */
+    /** 0–6, 0 = Sunday — Date.getDay() and the WEEKDAYS array in church-services.ts. */
+    meetingDay: integer("meetingDay"),
+    /** 'HH:MM' 24h on the church's wall clock; the zone is Churches.timezone. */
+    meetingTime: text("meetingTime"),
     color: text("color"),
     backgroundGradient: text("backgroundGradient"),
     /** JSON `SpaceCoverBg` — join-page / invite hero for light appearance. */
@@ -16957,10 +16980,10 @@ var Notes = pgTable(
     /** Latest immutable NoteVersions checkpoint for the canonical note. */
     currentVersionId: text("currentVersionId"),
     /**
-     * Author opt-in: members of any shared space this note is associated with may
-     * edit the body ("pass the pen"). Off by default — authorship is otherwise
-     * exclusive. Never true for encrypted notes; cleared when the last shared
-     * association is removed. userId stays the author regardless.
+     * Derived mirror: true iff any live shared SpaceNotes association has
+     * coEditEnabled. Source of truth is SpaceNotes.coEditEnabled (per space).
+     * Kept for native / broadcast / clients that only read the note-level field.
+     * Never true for encrypted notes; cleared when no association grants remain.
      */
     coEditEnabled: boolean("coEditEnabled").notNull().default(false),
     coEditEnabledAt: ts("coEditEnabledAt"),
@@ -16973,12 +16996,24 @@ var Notes = pgTable(
     /** Template applied to start/fill this note (`soap`, `ntpl_…`, etc.). */
     startedFromTemplateId: text("startedFromTemplateId"),
     /** Display name snapshot so provenance survives template rename/delete. */
-    startedFromTemplateName: text("startedFromTemplateName")
+    startedFromTemplateName: text("startedFromTemplateName"),
+    /**
+     * Teaching-plan service (`ChurchServices.id`) this note was started from.
+     * Distinct from startedFromTemplateId — a Sunday note is started from
+     * *both* the church's template and that week's service.
+     *
+     * Privacy: this is the congregant's own row. No church-facing route ever
+     * reads it, and no aggregate is derived from it. "Review is never shared."
+     */
+    startedFromServiceId: text("startedFromServiceId"),
+    /** Title snapshot so provenance survives the church editing or deleting the entry. */
+    startedFromServiceTitle: text("startedFromServiceTitle")
   },
   (table) => [
     index("Notes_userIdIndex").on(table.userId),
     index("Notes_linkedFromNoteIdIndex").on(table.linkedFromNoteId),
     index("Notes_copiedFromNoteIdIndex").on(table.copiedFromNoteId),
+    index("Notes_startedFromServiceIdIndex").on(table.startedFromServiceId),
     index("Notes_userId_updatedAtIndex").on(table.userId, table.updatedAt),
     index("Notes_spaceIdIndex").on(table.spaceId),
     index("Notes_threadIdIndex").on(table.threadId)
@@ -17028,7 +17063,14 @@ var SpaceNotes = pgTable(
     secondaryCollections: text("secondaryCollections"),
     collectionPinned: boolean("collectionPinned").notNull().default(false),
     collectionUserOverride: boolean("collectionUserOverride").notNull().default(false),
-    order: integer("order").notNull().default(0)
+    order: integer("order").notNull().default(0),
+    /**
+     * Author opt-in for this association: members of this shared space may edit
+     * the note body ("pass the pen"). Off by default. Notes.coEditEnabled is the
+     * OR-mirror across live associations.
+     */
+    coEditEnabled: boolean("coEditEnabled").notNull().default(false),
+    coEditEnabledAt: ts("coEditEnabledAt")
   },
   (table) => [
     uniqueIndex("SpaceNotes_space_note_unique").on(table.spaceId, table.noteId),
@@ -17162,6 +17204,22 @@ var SpaceMemberships = pgTable("SpaceMemberships", {
   invitedBy: text("invitedBy"),
   /** SpaceInvites.id that was redeemed to create this membership; null on the owner row. */
   inviteId: text("inviteId"),
+  /**
+   * Where this row's role came from: `'staff_sync'` (or NULL, same meaning) vs
+   * `'grant'` — an explicit act of giving one person leadership of one space.
+   *
+   * Load-bearing, and landed before the feature that needs it (P5 granted
+   * leadership). `computeStaffSyncPlan` deletes any `leader` row whose user is
+   * not in the Clerk roster, and sync runs on the organizationMembership
+   * webhook plus every staff invite, removal, and role change — so a granted
+   * volunteer would be reaped silently, probably within a day. The removal step
+   * therefore skips `'grant'` rows. A no-op until the first grant exists, which
+   * is the point: the rule cannot be forgotten later.
+   *
+   * No backfill needed — every `leader` row today is staff-projected, and NULL
+   * already reads as that.
+   */
+  grantSource: text("grantSource"),
   joinedAt: ts("joinedAt").notNull(),
   /** Last time this member opened the shared space dashboard (new-since watermark). */
   lastVisitedAt: ts("lastVisitedAt"),
@@ -17206,6 +17264,29 @@ var Churches = pgTable("Churches", {
   city: text("city"),
   state: text("state"),
   country: text("country"),
+  /*
+      ─── Self-serve church configuration ──────────────────────────────────────
+      Written ONLY by POST /api/church/settings/update (server/routes/
+      church-settings.ts), behind the admin-only `manage_church_settings`
+      capability. Deliberately *below* the HMC denorm block above and never part
+      of it: `hmcDenormFields` returns exactly {name, city, state, country} and
+      every writer spreads those four field-by-field, so a directory refresh
+      cannot reach these. Keep it that way — a church losing its own service time
+      to a name sync would be silent and baffling.
+  
+      Display and defaults only. These pre-fill a date picker and label a card;
+      nothing here schedules, reminds, notifies, or generates rows. "Scheduling"
+      is a named anti-goal (MY_CHURCH_SIDEBAR.md, CHMS_INTEGRATION_RESEARCH.md).
+      See docs/future/CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md §1.
+    */
+  /**
+   * IANA zone (e.g. 'America/Chicago'). Its whole job is to make the 'HH:MM'
+   * values in ChurchServiceTimes unambiguous — it records *whose* clock, and it
+   * is what lets the congregant card know whether this morning's service has
+   * started yet. Nothing converts to a viewer's timezone; congregants see the
+   * church's wall time verbatim.
+   */
+  timezone: text("timezone"),
   /** Staff user who created the church record (audit anchor); admin roles live in Clerk org roles. */
   createdBy: text("createdBy").notNull(),
   /**
@@ -17217,6 +17298,18 @@ var Churches = pgTable("Churches", {
    */
   billingPlan: text("billingPlan"),
   billingPlanUpdatedAt: ts("billingPlanUpdatedAt"),
+  /** Polar subscription id backing `billingPlan` — needed to reconcile cancels. */
+  billingSubscriptionId: text("billingSubscriptionId"),
+  /** Last Polar subscription status seen ('active', 'canceled', …). Audit/debug only — gates read billingPlan. */
+  billingStatus: text("billingStatus"),
+  /**
+   * Concierge-pilot window. A church is sponsored while `billingPlan` is set OR
+   * `pilotUntil` is in the future — see server/utils/church-entitlement.ts.
+   * Deliberately church-scoped rather than an expiring user Entitlement row:
+   * `listActiveFeatureKeys` never checks `Entitlements.expiresAt`, so an
+   * expiring user grant would never lapse.
+   */
+  pilotUntil: ts("pilotUntil"),
   /** Admin kill-switch (Spaces.isActive parity). */
   isActive: boolean("isActive").notNull().default(true),
   /** Soft-delete lifecycle — Spaces parity, for a future church-offboarding flow. */
@@ -17242,6 +17335,138 @@ var ChurchMemberships = pgTable("ChurchMemberships", {
   uniqueIndex("ChurchMemberships_church_user_unique").on(table.churchId, table.userId),
   index("ChurchMemberships_userIdIndex").on(table.userId),
   index("ChurchMemberships_churchIdIndex").on(table.churchId)
+]);
+var ChurchServiceTimes = pgTable("ChurchServiceTimes", {
+  id: text("id").primaryKey(),
+  churchId: text("churchId").notNull(),
+  /** 0–6, 0 = Sunday — Date.getDay() and the WEEKDAYS array in church-services.ts. */
+  dayOfWeek: integer("dayOfWeek").notNull(),
+  /** 'HH:MM' 24h on the church's own wall clock; the zone is Churches.timezone. */
+  startTime: text("startTime").notNull(),
+  /** Optional human name — "First service", "Evening". Null renders as the time alone. */
+  label: text("label"),
+  sortOrder: integer("sortOrder").notNull().default(0),
+  createdAt: ts("createdAt").notNull(),
+  updatedAt: ts("updatedAt")
+}, (table) => [
+  /** The same slot twice would give a sermon two identical checkboxes. */
+  uniqueIndex("ChurchServiceTimes_church_day_time_unique").on(
+    table.churchId,
+    table.dayOfWeek,
+    table.startTime
+  ),
+  index("ChurchServiceTimes_churchIdIndex").on(table.churchId)
+]);
+var ChurchServiceTimeAssignments = pgTable("ChurchServiceTimeAssignments", {
+  id: text("id").primaryKey(),
+  /** ChurchServices.id — the sermon. */
+  serviceId: text("serviceId").notNull(),
+  /** ChurchServiceTimes.id — the slot it is preached at. */
+  serviceTimeId: text("serviceTimeId").notNull(),
+  /** Mirrors ChurchServices.serviceDate. See the note above before touching. */
+  serviceDate: text("serviceDate").notNull(),
+  createdAt: ts("createdAt").notNull()
+}, (table) => [
+  /**
+   * One sermon per slot per date — the replacement for
+   * ChurchServices_church_date_unique. "This Sunday 9:00" still has exactly one
+   * answer; "this Sunday" now has as many as the church actually holds.
+   */
+  uniqueIndex("ChurchServiceTimeAssignments_slot_date_unique").on(
+    table.serviceTimeId,
+    table.serviceDate
+  ),
+  index("ChurchServiceTimeAssignments_serviceIdIndex").on(table.serviceId),
+  index("ChurchServiceTimeAssignments_serviceDateIndex").on(table.serviceDate)
+]);
+var ChurchSeries = pgTable("ChurchSeries", {
+  id: text("id").primaryKey(),
+  churchId: text("churchId").notNull(),
+  /** NULL = the church plan; set = that space's plan. Immutable after create. */
+  spaceId: text("spaceId"),
+  title: text("title").notNull(),
+  createdBy: text("createdBy").notNull(),
+  createdAt: ts("createdAt").notNull(),
+  updatedAt: ts("updatedAt")
+}, (table) => [
+  /**
+   * One series per name per plan, case-insensitively — the whole point is that
+   * "Life In the Spirit" cannot become a second series beside "Life in the
+   * Spirit". Two partial indexes because `spaceId IS NULL` is a distinct scope
+   * and Postgres treats NULLs as distinct in a plain unique index, so the
+   * church-plan half would not be constrained at all. Same shape and same
+   * reason as `ChurchServices_space_date_unique`.
+   */
+  uniqueIndex("ChurchSeries_church_title_unique").on(table.churchId, sql`lower(${table.title})`).where(sql`${table.spaceId} IS NULL`),
+  uniqueIndex("ChurchSeries_space_title_unique").on(table.spaceId, sql`lower(${table.title})`).where(sql`${table.spaceId} IS NOT NULL`),
+  index("ChurchSeries_churchIdIndex").on(table.churchId)
+]);
+var ChurchServices = pgTable("ChurchServices", {
+  id: text("id").primaryKey(),
+  churchId: text("churchId").notNull(),
+  /**
+   * Which plan this sermon belongs to. NULL = the church's own plan; set = a
+   * ministry channel or church Shared Space that carries its own (Youth meets
+   * Wednesdays). See the docblock above for the same-church invariant and why
+   * this column is allowed where a denormalized `orgId` is not.
+   */
+  spaceId: text("spaceId"),
+  /**
+   * Church-local calendar day, 'YYYY-MM-DD'. Deliberately NOT a timestamp: a
+   * service is a day on the church's wall calendar, and a TIMESTAMPTZ drifts a
+   * Sunday into Saturday for a viewer three zones away. Same choice as
+   * VotdPublishHistory.publishedDate.
+   */
+  serviceDate: text("serviceDate").notNull(),
+  /**
+   * A one-off time for a sermon that does not sit at any of the church's usual
+   * services — a Christmas Eve 17:00, a Good Friday evening.
+   *
+   * Normally NULL: the times come from ChurchServiceTimeAssignments, because
+   * those recur and this does not. Adding a permanent "Thursday 17:00" slot for
+   * one Christmas Eve would be a lie about the church's week, which is the
+   * whole reason this column survives the move to assignments.
+   *
+   * 'HH:MM' 24h, church wall clock — text for the same reason `serviceDate` is.
+   */
+  serviceTime: text("serviceTime"),
+  title: text("title").notNull(),
+  /**
+   * ChurchSeries.id, or NULL for a standalone sermon. Replaced the free-text
+   * `seriesTitle` outright rather than sitting beside it — a denormalized copy
+   * would reintroduce the exact bug the row exists to fix, two sources of truth
+   * and a rename that lands in only one. Reads join; the join is one row per
+   * sermon on payloads already bounded to a handful of weeks.
+   *
+   * Must share this sermon's plan scope (see the ChurchSeries docblock); the
+   * write routes enforce it, because no index can.
+   */
+  seriesId: text("seriesId"),
+  /** Canonical form written by canonicalizeServiceReference. Nullable — a
+   *  topical Sunday is legal, and every downstream path tolerates null. */
+  reference: text("reference"),
+  /** NoteTemplates.id, org-scoped — the starter a congregant's note begins from. */
+  starterTemplateId: text("starterTemplateId"),
+  createdBy: text("createdBy").notNull(),
+  updatedBy: text("updatedBy"),
+  createdAt: ts("createdAt").notNull(),
+  updatedAt: ts("updatedAt")
+}, (table) => [
+  /**
+   * Plain index, not unique — see the "no unique index" note in the docblock.
+   * The church-plan one-answer guarantee lives on ChurchServiceTimeAssignments.
+   */
+  index("ChurchServices_church_dateIndex").on(table.churchId, table.serviceDate),
+  index("ChurchServices_spaceIdIndex").on(table.spaceId),
+  /**
+   * One gathering per date, for space plans only.
+   *
+   * Spaces get a hard index where the church gets a route guard, because a
+   * space has a single `meetingTime` and can never claim a church service slot
+   * — so every space row is timeless and the DB can carry the whole invariant.
+   * The church side cannot: its answer depends on which slots a sermon claims.
+   */
+  uniqueIndex("ChurchServices_space_date_unique").on(table.spaceId, table.serviceDate).where(sql`${table.spaceId} IS NOT NULL`)
 ]);
 var NoteTemplates = pgTable(
   "NoteTemplates",
@@ -17706,6 +17931,65 @@ var ResourceMetadata = pgTable("ResourceMetadata", {
   sourceImage: text("sourceImage"),
   createdAt: ts("createdAt").notNull()
 });
+var ResourceLibraries = pgTable(
+  "ResourceLibraries",
+  {
+    id: text("id").primaryKey(),
+    /** 'user' | 'church' — 'school' later. */
+    ownerKind: text("ownerKind").notNull(),
+    /** Clerk userId when ownerKind='user'; Churches.id when 'church'. */
+    ownerId: text("ownerId").notNull(),
+    title: text("title").notNull(),
+    createdAt: ts("createdAt").notNull(),
+    updatedAt: ts("updatedAt")
+  },
+  (table) => [
+    // One library per owner. Also the race guard for lazy creation: concurrent
+    // first-saves collide here, and the loser re-reads instead of forking a
+    // second library.
+    uniqueIndex("ResourceLibraries_owner_unique").on(table.ownerKind, table.ownerId)
+  ]
+);
+var LibraryItems = pgTable(
+  "LibraryItems",
+  {
+    id: text("id").primaryKey(),
+    libraryId: text("libraryId").notNull(),
+    /** 'link' | 'file' | 'note_ref' | 'thread_ref' | 'template_ref' | 'pack'. */
+    kind: text("kind").notNull().default("link"),
+    title: text("title").notNull(),
+    description: text("description"),
+    /** kind='link': the destination. Normalized by validateResourceUrl on write. */
+    sourceUrl: text("sourceUrl"),
+    sourceDomain: text("sourceDomain"),
+    sourceSiteName: text("sourceSiteName"),
+    sourceImage: text("sourceImage"),
+    /**
+     * kind='file': Supabase storage object in the private `library-files`
+     * bucket (NOT the public note-attachments bucket — RESOURCE_LIBRARY.md §8).
+     * Opened via short-lived signed URLs, never a public link.
+     */
+    fileStorageKey: text("fileStorageKey"),
+    fileName: text("fileName"),
+    fileMime: text("fileMime"),
+    fileBytes: integer("fileBytes"),
+    /**
+     * 'leaders' | 'members' — dormant until church libraries land. Written with
+     * the default from day one so the church lane needs no backfill on a table
+     * that already holds user data.
+     */
+    access: text("access").notNull().default("members"),
+    createdByUserId: text("createdByUserId").notNull(),
+    createdAt: ts("createdAt").notNull(),
+    updatedAt: ts("updatedAt"),
+    /** Soft archive — items stay resolvable for pills that already cite them. */
+    archivedAt: ts("archivedAt")
+  },
+  (table) => [
+    index("LibraryItems_libraryId_archivedAtIndex").on(table.libraryId, table.archivedAt),
+    index("LibraryItems_libraryId_updatedAtIndex").on(table.libraryId, table.updatedAt)
+  ]
+);
 var InboxItems = pgTable("InboxItems", {
   id: text("id").primaryKey(),
   webflowItemId: text("webflowItemId").notNull().unique(),

@@ -2,10 +2,18 @@
  * Design-system gallery chrome — keep showcase styles here, not inline in JSX.
  */
 
+/*
+  Height, not min-height. The shell used to grow to whatever the taller column
+  needed, which — with `overflow: hidden` on html/body — meant a scene list
+  longer than the viewport was clipped outright: the nav's own `overflow-y`
+  had no constraint to scroll against. Capping the grid to the viewport lets
+  each column scroll itself.
+*/
 .pds-gallery {
   display: grid;
   grid-template-columns: 280px 1fr;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   background: var(--pds-bg-page);
   color: var(--pds-text-primary);
 }
@@ -13,6 +21,9 @@
 .pds-gallery__nav {
   border-right: 0.5px solid var(--pds-border);
   background: var(--pds-bg-sidebar);
+  /* Grid items floor at their content size; without this the column refuses to
+     shrink to the row and scrolls nothing. */
+  min-height: 0;
   overflow-y: auto;
   padding: var(--pds-space-4) var(--pds-space-3) var(--pds-space-8);
 }
@@ -358,4 +369,19 @@
   .pds-gallery-empty-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Marks a scene in the nav as an unbuilt exploration, not shipped UI. */
+.pds-gallery__scene-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--pds-bg-control);
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
 }

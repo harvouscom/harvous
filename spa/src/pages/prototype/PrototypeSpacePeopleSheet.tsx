@@ -29,6 +29,7 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useSpaceMembers, useSpaceInvites } from '../../hooks/queries/useSpace';
 import { useCreateSpaceInvite, useRevokeSpaceInvite } from '../../hooks/mutations/useSpaceInviteActions';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import { useSpaceLeadership } from '../../hooks/mutations/useSpaceLeadership';
 import { useRemoveSpaceMember } from '../../hooks/mutations/useRemoveSpaceMember';
 import { isDeletedSpaceUnavailableError, useDeleteSharedSpace } from '../../hooks/mutations/useDeleteSharedSpace';
 
@@ -57,6 +58,13 @@ export interface PrototypeSpacePeopleSheetProps {
   viewerCanModerate?: boolean;
   /** Ministry channel: follower moderation + color settings; no invite links. */
   ministryChannel?: boolean;
+  /**
+   * May the viewer hand out leadership of this room? Server's verdict
+   * (`manage_staff` or space ownership), passed down rather than re-derived —
+   * granting publish rights over a room the congregation follows is a real
+   * escalation, and the client must not decide it.
+   */
+  canGrantLeadership?: boolean;
 }
 
 export type PendingRemoveMember = {
@@ -111,6 +119,7 @@ export default function PrototypeSpacePeopleSheet({
   viewerIsOwner = false,
   viewerCanModerate = false,
   ministryChannel = false,
+  canGrantLeadership = false,
 }: PrototypeSpacePeopleSheetProps) {
   const [spaceTitle, setSpaceTitle] = useState(spaceTitleProp);
   const [view, setView] = useState<PeopleView>('hub');
@@ -145,6 +154,7 @@ export default function PrototypeSpacePeopleSheet({
   const createInvite = useCreateSpaceInvite(spaceId);
   const revokeInvite = useRevokeSpaceInvite(spaceId);
   const removeMember = useRemoveSpaceMember(spaceId);
+  const leadership = useSpaceLeadership(spaceId);
   const deleteSpace = useDeleteSharedSpace();
 
   useEffect(() => {
@@ -336,6 +346,16 @@ export default function PrototypeSpacePeopleSheet({
         ) : null}
         {members.map((m) => {
           const rowAction = memberRowAction(m);
+          /*
+            Offer the toggle only where pressing it would do something: not on
+            the owner, not on yourself, and not on a leader the roster sync owns
+            (see the tag below). Everyone else is grantable or revocable.
+          */
+          const showLeaderToggle =
+            canGrantLeadership &&
+            m.role !== 'owner' &&
+            m.userId !== authUserId &&
+            (m.role !== 'leader' || m.grantSource === 'grant');
           return (
             <div key={m.userId} className="proto-shared-people-row">
               <SharedSpaceMemberAvatar
@@ -349,6 +369,50 @@ export default function PrototypeSpacePeopleSheet({
               {m.userId === authUserId ? <span className="proto-shared-people-row__tag">You</span> : null}
               {m.role === 'owner' ? (
                 <span className="proto-shared-people-row__tag proto-shared-people-row__tag--owner">Owner</span>
+              ) : m.role === 'leader' && !showLeaderToggle ? (
+                /*
+                  Both kinds of leader read as "Leader" — the congregation does
+                  not care how someone got there. The tag carries the state only
+                  when no toggle does: a row showing "Remove leader" already says
+                  it, and three controls starve the name to an ellipsis.
+
+                  A staff-projected leader always lands here, because that row
+                  belongs to the roster sync — revoking it would just be undone,
+                  so it gets the state and no action at all.
+                */
+                <span
+                  className="proto-shared-people-row__tag"
+                  title={
+                    m.grantSource !== 'grant' && canGrantLeadership
+                      ? 'They lead as church staff — change their role on the Team'
+                      : undefined
+                  }
+                >
+                  Leader
+                </span>
+              ) : null}
+              {showLeaderToggle ? (
+                <button
+                  type="button"
+                  className="proto-shared-people-row__action"
+                  disabled={leadership.isPending}
+                  onClick={() =>
+                    leadership.mutate(
+                      { userId: m.userId, grant: m.grantSource !== 'grant' },
+                      {
+                        onSuccess: () =>
+                          toast.success(
+                            m.grantSource === 'grant'
+                              ? `${m.displayName} no longer leads this space`
+                              : `${m.displayName} now leads this space`,
+                          ),
+                        onError: (err) => toastError(err, 'Could not change who leads this space'),
+                      },
+                    )
+                  }
+                >
+                  {m.grantSource === 'grant' ? 'Remove leader' : 'Make leader'}
+                </button>
               ) : null}
               {rowAction ? (
                 <button

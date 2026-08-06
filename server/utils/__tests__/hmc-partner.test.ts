@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   HmcPartnerError,
@@ -179,6 +181,28 @@ describe('hmcDenormFields', () => {
       state: 'PE',
       country: 'CA',
     });
+  });
+
+  it('returns exactly the four HMC-owned columns, and nothing else', () => {
+    /*
+      Churches now also carries a self-serve config block — timezone,
+      defaultServiceDay, defaultServiceTime — written only by
+      POST /api/church/settings/update. Every Churches writer spreads these four
+      keys field-by-field rather than `...denorm`, so a directory refresh cannot
+      reach the config. If this ever grew a fifth key, or a writer switched to a
+      spread, a name sync would silently wipe a church's own service time.
+    */
+    expect(
+      Object.keys(hmcDenormFields({ id: 'TX-1', shortId: '1', name: 'Hope', city: 'Austin', state: 'TX' })),
+    ).toEqual(['name', 'city', 'state', 'country']);
+  });
+
+  it('is never spread wholesale into a Churches update', () => {
+    for (const path of ['server/routes/churches.ts', 'server/utils/hmc-denorm-sync.ts']) {
+      expect(readFileSync(resolve(process.cwd(), path), 'utf8'), path).not.toMatch(
+        /\.\.\.\s*denorm\b/,
+      );
+    }
   });
 });
 

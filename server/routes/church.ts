@@ -12,6 +12,7 @@
  *   POST /api/church/channels/:spaceId/follow       — follow (SpaceMemberships role='member')
  *   POST /api/church/channels/:spaceId/unfollow     — unfollow
  *   GET  /api/church/feed                           — recent notes from followed channels
+ *   GET  /api/church/services                       — the teaching plan ("This Sunday")
  *   GET  /api/church/billing                        — staff: sponsorship + purchasable plans
  *   POST /api/church/checkout                       — staff: Polar checkout for the Church plan
  *   GET  /api/church/staff                          — staff: roster + pending invites
@@ -39,6 +40,7 @@ import {
   db,
   first,
   Notes,
+  NoteTemplates,
   Spaces,
   SpaceNotes,
   SpaceMemberships,
@@ -52,6 +54,11 @@ import {
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
+import {
+  capabilitiesForChurchRole,
+  isAssignableChurchRole,
+  ROLE_ADMIN,
+} from '../utils/church-role-capabilities';
 import { stripHtmlForCard } from '@/utils/html-stripper';
 import { batchAuthorAttribution } from '../utils/dashboard-data';
 import {
@@ -70,7 +77,14 @@ import {
   type ChurchRow,
 } from '../utils/church-entitlement';
 import { getActiveChurchByOrgId, isChurchStaffForOrg } from '../utils/church-staff';
+import { listServicesForChurch, resolveViewerServiceNotes } from '../utils/church-teaching-plan';
 import { syncChurchStaffForOrg } from '../utils/church-staff-sync';
+import {
+  churchClockNow,
+  listServiceTimesForChurch,
+  serviceTimeIdsByService,
+} from '../utils/church-service-times';
+import { seriesTitlesByServiceRows } from '../utils/church-series';
 import {
   ClerkOrgError,
   ClerkOrgInviteError,
@@ -82,6 +96,7 @@ import {
   fetchClerkOrgPendingInvitations,
   isClerkOrgAdminRole,
   removeClerkOrgMember,
+  updateClerkOrgMemberRole,
   revokeClerkOrgInvitation,
 } from '../utils/clerk-org';
 import { getPolarClient, isPolarConfigured } from '../utils/polar-client';
@@ -99,6 +114,39 @@ const app = new Hono();
 const FEED_EXCERPT_LENGTH = 180;
 const FEED_LIMIT_DEFAULT = 12;
 const FEED_LIMIT_MAX = 50;
+
+/**
+ * How long a service stays visible after its date, in days.
+ *
+ * Four, not three or seven, and not arbitrary: it matches **the four-day wall**
+ * — the Center for Bible Engagement finding that anchors harvous.com/about,
+ * that one to three days a week barely moves the needle while four or more is
+ * where engagement research sees real shifts. Do not "tidy" this number.
+ *
+ * Practically it also covers the gap people actually hit: churches enter next
+ * week's plan mid-week, so Monday often has nothing upcoming — and Monday is
+ * when someone writes up Sunday.
+ *
+ * The client re-derives the same window from its own local date; this server
+ * bound is deliberately generous so no viewer's timezone can clip a service
+ * the client still wants to show.
+ */
+const SERVICE_GRACE_DAYS = 4;
+/** A couple of months of plan is plenty for a card that shows one service. */
+const SERVICES_PAYLOAD_LIMIT = 8;
+
+/**
+ * Lower bound for the services window as 'YYYY-MM-DD'.
+ *
+ * Computed in UTC with one extra day of slack, so a viewer west of UTC never
+ * loses a service the server has already aged out. Narrowing to the exact local
+ * window is the client's job (`currentSermonFor`).
+ */
+function serviceGraceWindowStart(): string {
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - (SERVICE_GRACE_DAYS + 1));
+  return cutoff.toISOString().slice(0, 10);
+}
 
 /** The caller's home church, or null when they haven't connected one. */
 async function getConnectedChurch(userId: string): Promise<ChurchRow | null> {
@@ -386,6 +434,126 @@ app.get('/api/church/feed', requireAuth, async (c) => {
   }
 });
 
+// ─── GET /api/church/services ───────────────────────────────────────────────
+/**
+ * The church's teaching plan, congregant side — what powers "This Sunday".
+ *
+ * Returns the next few services plus a grace window of recently-past ones, so
+ * Monday morning (the highest-intent moment for writing up a sermon) still has
+ * something to open. The client picks which one is "current" using its own
+ * local date; there is no timezone parameter and no server-side "today" logic,
+ * because a service is a day on the church's wall calendar, not an instant.
+ *
+ * Deliberately NOT sponsorship-gated. A lapsed church stops being able to
+ * *write* its plan; the congregation never loses the Sunday it already has.
+ *
+ * The `starter` payload inlines the church's org template so the card can build
+ * the note body without a second round trip. It exposes nothing new — org
+ * templates are already readable by any connected congregant via
+ * /api/note-templates/list.
+ */
+app.get('/api/church/services', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    const church = await getConnectedChurch(auth.userId);
+    if (!church) return c.json({ connected: false, services: [] });
+
+    const from = serviceGraceWindowStart();
+    const services = await listServicesForChurch(church.id, {
+      from,
+      limit: SERVICES_PAYLOAD_LIMIT,
+    });
+    if (services.length === 0) {
+      return c.json({ connected: true, church: { id: church.id, name: church.name }, services: [] });
+    }
+
+    const viewerNotes = await resolveViewerServiceNotes(
+      auth.userId,
+      services.map((service) => service.id),
+    );
+
+    // One fetch for every distinct starter template referenced by the window.
+    const templateIds = [
+      ...new Set(services.map((s) => s.starterTemplateId).filter((id): id is string => Boolean(id))),
+    ];
+    const templates = templateIds.length
+      ? await db
+          .select()
+          .from(NoteTemplates)
+          .where(
+            and(inArray(NoteTemplates.id, templateIds), eq(NoteTemplates.orgId, church.orgId)),
+          )
+      : [];
+    const templateById = new Map(templates.map((t) => [t.id, t]));
+
+
+    /*
+      Resolve each sermon's times server-side. A congregant gets clock readings,
+      never slot ids and never the church's whole schedule — the times of the
+      sermon in front of them, and nothing about the ones they aren't seeing.
+    */
+    const serviceTimeRows = await listServiceTimesForChurch(church.id);
+    const startTimeById = new Map(serviceTimeRows.map((row) => [row.id, row.startTime]));
+    const slotsByService = await serviceTimeIdsByService(services.map((row) => row.id));
+    // One keyed lookup for the whole payload — the congregant card renders the
+    // series name, and since ChurchSeries the name lives on the series row.
+    const seriesTitles = await seriesTitlesByServiceRows(services);
+
+    return c.json({
+      connected: true,
+      church: { id: church.id, name: church.name },
+      /*
+        The church's own wall clock, so the client can tell whether this
+        morning's service has already started without guessing from the
+        viewer's zone. The one place a timezone is ever applied.
+      */
+      churchNow: churchClockNow(church.timezone),
+      services: services.map((service) => {
+        const template = service.starterTemplateId
+          ? templateById.get(service.starterTemplateId)
+          : undefined;
+        const slotTimes = (slotsByService.get(service.id) ?? [])
+          .map((id) => startTimeById.get(id))
+          .filter((time): time is string => Boolean(time));
+        // A one-off time only speaks when the sermon claims no usual service.
+        const times = slotTimes.length > 0 ? [...slotTimes].sort() : service.serviceTime ? [service.serviceTime] : [];
+        return {
+          id: service.id,
+          serviceDate: service.serviceDate,
+          /*
+            Every time this sermon is preached, ascending — a church with 9:00
+            and 10:45 morning services sends both, because it is one sermon at
+            two services rather than two sermons.
+
+            The church's wall clock, never converted to the viewer's zone: a
+            service time is a clock reading on a wall calendar, not an instant.
+          */
+          serviceTimes: times,
+          title: service.title,
+          seriesTitle: service.seriesId ? seriesTitles.get(service.seriesId) ?? null : null,
+          reference: service.reference,
+          viewerNoteId: viewerNotes.get(service.id) ?? null,
+          starter: template
+            ? {
+                templateId: template.id,
+                templateName: template.name,
+                title: template.title,
+                content: template.content,
+              }
+            : null,
+        };
+      }),
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/services',
+      action: 'church_services',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── GET /api/church/billing ────────────────────────────────────────────────
 /**
  * Staff-only view of where the church stands: pilot countdown, paid state, and
@@ -620,7 +788,10 @@ app.post('/api/church/staff/invite', requireAuth, rateLimit('write'), async (c) 
       orgId: ctx.church.orgId,
       emailAddress: email,
       inviterUserId: auth.userId,
-      role: body.role === CLERK_ORG_ADMIN_ROLE ? CLERK_ORG_ADMIN_ROLE : undefined,
+      // Any role from the allowlist, not just admin — a church hiring a pastor
+      // shouldn't have to invite them as staff and then promote them. Undefined
+      // lets Clerk apply its own default (plain member = staff).
+      role: isAssignableChurchRole(body.role ?? '') ? body.role : undefined,
     });
 
     return c.json({ success: true, invitation });
@@ -707,6 +878,89 @@ app.post('/api/church/staff/remove', requireAuth, rateLimit('write'), async (c) 
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/staff/remove',
       action: 'remove_church_staff',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/church/staff/role ────────────────────────────────────────────
+/**
+ * Change a staff member's Clerk org role — the one write that grants or removes
+ * the teaching plan and church templates.
+ *
+ * Gated on the `manage_staff` capability rather than an inline admin check, so
+ * the capability that names this act is the thing that authorises it. (Today
+ * only `org:admin` derives it, so behaviour is unchanged; the difference shows
+ * up the moment a church defines a role that should manage the roster.)
+ *
+ * Two guardrails, both about not stranding a church:
+ *   - You cannot change your own role. Demoting yourself would drop your own
+ *     admin rights mid-request, leaving nobody able to undo it.
+ *   - You cannot demote the last admin. A church with no admin has no way back
+ *     into its own roster without a Harvous operator opening Clerk.
+ */
+app.post('/api/church/staff/role', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      orgId?: string;
+      userId?: string;
+      role?: string;
+    };
+
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? '');
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    if (!capabilitiesForChurchRole(ctx.role).includes('manage_staff')) {
+      return c.json(
+        { error: 'Only a church admin can change roles', code: 'CHURCH_ADMIN_REQUIRED' },
+        403,
+      );
+    }
+
+    const targetUserId = (body.userId ?? '').trim();
+    const nextRole = (body.role ?? '').trim();
+    if (!targetUserId) return c.json({ error: 'userId is required', code: 'BAD_REQUEST' }, 400);
+    if (!isAssignableChurchRole(nextRole)) {
+      return c.json({ error: 'Unknown role', code: 'BAD_REQUEST' }, 400);
+    }
+    if (targetUserId === auth.userId) {
+      return c.json(
+        { error: 'You cannot change your own role', code: 'CANNOT_CHANGE_SELF' },
+        400,
+      );
+    }
+
+    const target = ctx.roster.find((member) => member.userId === targetUserId);
+    if (!target) {
+      return c.json({ error: 'That person is not on your staff', code: 'NOT_STAFF' }, 404);
+    }
+    if (target.role === nextRole) return c.json({ success: true, unchanged: true });
+
+    if (target.role === ROLE_ADMIN) {
+      const admins = ctx.roster.filter((member) => member.role === ROLE_ADMIN).length;
+      if (admins <= 1) {
+        return c.json(
+          {
+            error: 'Your church needs at least one admin',
+            code: 'LAST_ADMIN',
+          },
+          409,
+        );
+      }
+    }
+
+    await updateClerkOrgMemberRole(ctx.church.orgId, targetUserId, nextRole);
+    // Reconcile immediately so their channel rows match the new role before the
+    // response lands, the way remove does.
+    const sync = await syncChurchStaffForOrg(ctx.church.orgId);
+
+    return c.json({ success: true, sync });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/staff/role',
+      action: 'set_church_staff_role',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

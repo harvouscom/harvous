@@ -62,6 +62,9 @@ export interface CreateSimpleNoteBody {
   threadId?: string;
   startedFromTemplateId?: string | null;
   startedFromTemplateName?: string | null;
+  /** Church teaching-plan lineage — set when a note starts from "This Sunday". */
+  startedFromServiceId?: string | null;
+  startedFromServiceTitle?: string | null;
   /** Shared spaces require connectivity in the foundation — pass `false` to fail loudly instead of queueing offline. */
   allowOffline?: boolean;
   /** Shared-space context used only for contextual cache seeding. */
@@ -132,6 +135,8 @@ export function useCreateSimpleNote() {
       threadId,
       startedFromTemplateId,
       startedFromTemplateName,
+      startedFromServiceId,
+      startedFromServiceTitle,
       allowOffline = true,
       primaryCollection,
       secondaryCollections,
@@ -152,6 +157,12 @@ export function useCreateSimpleNote() {
             ? {
                 startedFromTemplateId,
                 startedFromTemplateName: startedFromTemplateName ?? null,
+              }
+            : {}),
+          ...(startedFromServiceId
+            ? {
+                startedFromServiceId,
+                startedFromServiceTitle: startedFromServiceTitle ?? null,
               }
             : {}),
           ...(primaryCollection !== undefined ? { primaryCollection } : {}),

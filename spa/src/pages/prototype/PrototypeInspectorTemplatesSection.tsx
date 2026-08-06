@@ -27,6 +27,10 @@ export type PrototypeInspectorTemplatesSectionProps = {
   spaceTitle?: string | null;
   canAttachToSpace?: boolean;
   showSpaceAttachOption?: boolean;
+  /** Viewer's home church org — present only for connected staff. */
+  churchOrgId?: string | null;
+  /** Server's `manage_templates` verdict. Never re-derived from a role string. */
+  canManageChurchTemplates?: boolean;
   isEmpty: boolean;
   liveTitle: string;
   liveContent: string;
@@ -42,6 +46,8 @@ export default function PrototypeInspectorTemplatesSection({
   spaceTitle = null,
   canAttachToSpace = false,
   showSpaceAttachOption = false,
+  churchOrgId = null,
+  canManageChurchTemplates = false,
   isEmpty,
   liveTitle,
   liveContent,
@@ -58,10 +64,14 @@ export default function PrototypeInspectorTemplatesSection({
   const [description, setDescription] = useState('');
   const [iconColor, setIconColor] = useState<string>(NOTE_TEMPLATE_ICON_COLORS[0]!);
   const [attachToSpace, setAttachToSpace] = useState(false);
+  const [attachToChurch, setAttachToChurch] = useState(false);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const createTemplate = useCreateNoteTemplate();
   const updateTemplate = useUpdateNoteTemplate();
   const listSpaceId = spaceId?.trim() || null;
+  const listOrgId = churchOrgId?.trim() || null;
+  /** A starter is the church's, so provisioning one is gated on the capability. */
+  const canChooseChurch = Boolean(canManageChurchTemplates && listOrgId);
   const isEditing = Boolean(editingTemplateId);
   const saving = createTemplate.isPending || updateTemplate.isPending;
   const provenanceId = startedFromTemplateId?.trim() || '';
@@ -83,6 +93,7 @@ export default function PrototypeInspectorTemplatesSection({
     setDescription('');
     setIconColor(NOTE_TEMPLATE_ICON_COLORS[0]!);
     setAttachToSpace(false);
+    setAttachToChurch(false);
     setSaveOpen(true);
     requestAnimationFrame(() => nameInputRef.current?.focus());
   };
@@ -104,6 +115,7 @@ export default function PrototypeInspectorTemplatesSection({
     setDescription((template.description ?? '').trim());
     setIconColor(resolveNoteTemplateIconColor(template.id, template.iconColor));
     setAttachToSpace(Boolean(template.spaceId && listSpaceId && template.spaceId === listSpaceId));
+    setAttachToChurch(Boolean(template.orgId));
     setSaveOpen(true);
     requestAnimationFrame(() => nameInputRef.current?.focus());
   };
@@ -116,7 +128,10 @@ export default function PrototypeInspectorTemplatesSection({
     }
 
     const canChooseSpace = Boolean(showSpaceAttachOption && canAttachToSpace && listSpaceId);
-    const nextSpaceId = canChooseSpace && attachToSpace ? listSpaceId : null;
+    // Church wins when both are somehow set: the server rejects org+space
+    // together, and a starter is the more deliberate of the two choices.
+    const toChurch = canChooseChurch && attachToChurch;
+    const nextSpaceId = !toChurch && canChooseSpace && attachToSpace ? listSpaceId : null;
     const descriptionValue = description.trim() || null;
 
     try {
@@ -133,15 +148,20 @@ export default function PrototypeInspectorTemplatesSection({
           title: liveTitle,
           content: liveContent,
           noteType: noteType ?? 'default',
-          // Only send spaceId when the attach control is available; otherwise leave it.
-          ...(canChooseSpace ? { spaceId: nextSpaceId } : {}),
+          // Never send spaceId for a church starter — the server rejects
+          // re-scoping one into a space, and there is nothing to change here.
+          ...(canChooseSpace && !toChurch ? { spaceId: nextSpaceId } : {}),
         });
         if (provenanceId === editingTemplateId) {
           onTemplateProvenanceChange?.({ id: editingTemplateId, name });
         }
         closeSavePanel();
         toast.success(
-          canChooseSpace && nextSpaceId ? 'Space template updated' : 'Template updated',
+          toChurch
+            ? 'Church template updated'
+            : canChooseSpace && nextSpaceId
+              ? 'Space template updated'
+              : 'Template updated',
         );
         return;
       }
@@ -158,9 +178,16 @@ export default function PrototypeInspectorTemplatesSection({
         noteType: noteType ?? 'default',
         iconColor,
         spaceId: nextSpaceId,
+        orgId: toChurch ? listOrgId : null,
       });
       closeSavePanel();
-      toast.success(nextSpaceId ? 'Saved as a space template' : 'Saved as a template');
+      toast.success(
+        toChurch
+          ? 'Saved as a church template'
+          : nextSpaceId
+            ? 'Saved as a space template'
+            : 'Saved as a template',
+      );
     } catch (err) {
       const msg =
         err instanceof APIError
@@ -280,9 +307,29 @@ export default function PrototypeInspectorTemplatesSection({
               <input
                 type="checkbox"
                 checked={attachToSpace}
-                onChange={(e) => setAttachToSpace(e.target.checked)}
+                disabled={attachToChurch}
+                onChange={(e) => {
+                  setAttachToSpace(e.target.checked);
+                  if (e.target.checked) setAttachToChurch(false);
+                }}
               />
               <span className="pds-caption">Make available in this space</span>
+            </label>
+          ) : null}
+          {/* The one place a church starter gets created. Everyone connected to
+              the church can then *use* it; only `manage_templates` holders see
+              this control. */}
+          {canChooseChurch ? (
+            <label className="proto-inspector-templates__check">
+              <input
+                type="checkbox"
+                checked={attachToChurch}
+                onChange={(e) => {
+                  setAttachToChurch(e.target.checked);
+                  if (e.target.checked) setAttachToSpace(false);
+                }}
+              />
+              <span className="pds-caption">Make available to my church</span>
             </label>
           ) : null}
           {isEditing ? (
@@ -316,6 +363,7 @@ export default function PrototypeInspectorTemplatesSection({
         open={browseOpen}
         onOpenChange={setBrowseOpen}
         spaceId={spaceId}
+        canManageChurchTemplates={canChooseChurch}
         spaceTitle={spaceTitle}
         showSpaceSection={showSpaceAttachOption}
         canManageSpaceTemplates={canAttachToSpace}

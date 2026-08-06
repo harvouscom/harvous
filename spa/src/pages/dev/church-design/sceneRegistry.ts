@@ -80,16 +80,66 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
   },
   {
     id: '09-broadcast-note',
-    title: 'Sermon starter › start my note',
+    title: 'Home › This Sunday (start my note)',
     phase: 'Receive',
-    editFiles: ['docs/future/PASTOR_FEATURES_ROADMAP.md'],
-    speculative: true,
+    editFiles: ['spa/src/pages/prototype/PrototypeHomeThisSunday.tsx'],
   },
   {
     id: '10-staff-roles',
     title: 'Staff roles on a ministry channel',
     phase: 'Staff',
     editFiles: ['spa/src/pages/prototype/PrototypeChurchStaffSection.tsx'],
+  },
+  {
+    id: '11-teaching-plan',
+    title: 'My Church › Teaching plan (staff)',
+    phase: 'Staff',
+    editFiles: ['spa/src/pages/prototype/PrototypeChurchTeachingPlanSection.tsx'],
+  },
+  {
+    id: '12-teaching-plan-lapsed',
+    title: 'Teaching plan (church plan lapsed)',
+    phase: 'Staff',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeChurchTeachingPlanSection.tsx',
+      'server/utils/church-entitlement.ts',
+    ],
+  },
+  {
+    id: '13-service-page',
+    title: 'Service page — fresh',
+    phase: 'Receive',
+    editFiles: ['spa/src/styles/prototype-components.css'],
+    speculative: true,
+  },
+  {
+    id: '13b-service-page-returning',
+    title: 'Service page — already writing',
+    phase: 'Receive',
+    editFiles: ['spa/src/styles/prototype-components.css'],
+    speculative: true,
+  },
+  {
+    id: '13c-service-page-topical',
+    title: 'Service page — no passage',
+    phase: 'Receive',
+    editFiles: ['spa/src/styles/prototype-components.css'],
+    speculative: true,
+  },
+  {
+    id: '14-hub-congregant',
+    title: 'My Church hub — congregant (rework)',
+    phase: 'Receive',
+    editFiles: ['spa/src/pages/prototype/PrototypeSidebarChurchHubView.tsx'],
+  },
+  {
+    id: '15-hub-staff',
+    title: 'My Church hub — staff (rework)',
+    phase: 'Staff',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeSidebarChurchHubView.tsx',
+      'spa/src/pages/prototype/PrototypeChurchPlanRow.tsx',
+    ],
   },
 ];
 

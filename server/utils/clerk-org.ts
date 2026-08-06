@@ -330,6 +330,26 @@ export async function revokeClerkOrgInvitation(input: {
  * Remove someone from the staff org. Harvous membership rows are reconciled
  * separately by syncChurchStaffForOrg — this only touches Clerk.
  */
+/**
+ * Change a staff member's Clerk org role.
+ *
+ * Roles are the source of every church capability (see
+ * church-role-capabilities.ts), so this is the one write that can hand someone
+ * the teaching plan or take it away. Clerk is the record; Harvous never stores
+ * a role of its own to drift from it.
+ */
+export async function updateClerkOrgMemberRole(
+  orgId: string,
+  userId: string,
+  role: string,
+): Promise<void> {
+  const response = await clerkFetch(`/organizations/${orgId}/memberships/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role }),
+  });
+  if (!response.ok) throw classifyClerkFailure(response.status);
+}
+
 export async function removeClerkOrgMember(orgId: string, userId: string): Promise<void> {
   const response = await clerkFetch(`/organizations/${orgId}/memberships/${userId}`, {
     method: 'DELETE',
@@ -365,12 +385,13 @@ export type StaffSyncPlan = {
 /**
  * Pure planner for one space. Invariants: the owner row is never demoted or
  * removed (owner = Spaces.userId, exclusively); existing role 'member' rows
- * are never touched — they are (future) congregant followers, not staff.
+ * are never touched — they are (future) congregant followers, not staff; and
+ * **granted leaders are never reaped** (see `grantSource` below).
  */
 export function computeStaffSyncPlan(input: {
   spaceOwnerUserId: string;
   staff: ClerkOrgMember[];
-  existing: { userId: string; role: string }[];
+  existing: { userId: string; role: string; grantSource?: string | null }[];
 }): StaffSyncPlan {
   const staffIds = new Set(input.staff.map((m) => m.userId));
   const existingByUser = new Map(input.existing.map((row) => [row.userId, row.role]));
@@ -390,6 +411,13 @@ export function computeStaffSyncPlan(input: {
   for (const row of input.existing) {
     if (row.role !== 'leader') continue; // never touch 'owner' or 'member' rows
     if (row.userId === input.spaceOwnerUserId) continue;
+    /*
+      A granted leader is a volunteer who was explicitly given this one space —
+      they are not in the Clerk roster and never will be, so reaping them here
+      would silently undo the grant on the next webhook. NULL reads as
+      'staff_sync', which is what every row predating grants is.
+    */
+    if (row.grantSource === 'grant') continue;
     if (!staffIds.has(row.userId)) toRemove.push(row.userId);
   }
 

@@ -3,6 +3,7 @@ import { applyHtml5DragPreview } from '@/utils/html5-drag-preview';
 import { useUpdateSharedSpaceSwitcherOrder } from './mutations/useUpdateSharedSpaceSwitcherOrder';
 import { computeStudyThreadMemberMoveIndex } from './study-thread-member-move-index';
 import { normalizeSharedSpaceSwitcherId } from '../lib/shared-space-switcher-order';
+import { useCoarsePointer } from '../lib/use-coarse-pointer';
 
 function sameIdOrder(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((id, index) => id === b[index]);
@@ -51,7 +52,16 @@ export function useSharedSpaceSwitcherDragReorder({
     };
   }, []);
 
-  const showDragHandle = enabled && orderedSpaceIds.length > 1;
+  /**
+   * No drag handle on touch. Reordering here is HTML5 drag-and-drop
+   * (`draggable` + dragstart/dragover/drop), which does not fire on touch at
+   * all — so on a phone the handle was pure cost: a 22×28px `draggable` element
+   * sitting exactly where the thumb lands, swallowing the first tap on a menu
+   * row and buying nothing. Desktop keeps it; touch reordering would need a
+   * real pointer-events sort, which this does not attempt.
+   */
+  const coarsePointer = useCoarsePointer();
+  const showDragHandle = enabled && orderedSpaceIds.length > 1 && !coarsePointer;
 
   const moveItem = useCallback((draggedId: string, insertBeforeIndex: number) => {
     const currentIds = orderedIdsRef.current;

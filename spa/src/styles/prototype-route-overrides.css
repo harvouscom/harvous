@@ -40,6 +40,24 @@ html.harvous-prototype-route button.proto-sidebar-search__clear path {
   fill: currentColor !important;
 }
 
+/*
+  Destructive icon actions — white glyph on the red fill.
+
+  The fill itself lives with the component (`.proto-side-panel__action-btn--danger`
+  in prototype-components.css); only the *colour* has to be re-stated here,
+  because the blanket rule above pins every proto button and its descendants to
+  `--pds-text-primary !important`, which no amount of specificity beats. Same
+  reason the search-clear exception exists. Descendants are listed explicitly
+  since the glyph sits in a `<span style="color: inherit">`, and that span is
+  itself caught by the blanket `button *`.
+*/
+html.harvous-prototype-route button.proto-side-panel__action-btn--danger:hover:not(:disabled),
+html.harvous-prototype-route button.proto-side-panel__action-btn--danger:hover:not(:disabled) *,
+html.harvous-prototype-route button.proto-side-panel__action-btn--danger:focus-visible,
+html.harvous-prototype-route button.proto-side-panel__action-btn--danger:focus-visible * {
+  color: var(--pds-on-accent, #fff) !important;
+}
+
 /* Sidebar list view + toolbar folder chip — GSF axes inside buttons */
 html.harvous-prototype-route button.proto-sidebar-list-view__trigger,
 html.harvous-prototype-route button.proto-sidebar-list-view__trigger .proto-sidebar-list-view__label,
@@ -187,8 +205,13 @@ html.harvous-prototype-route a.proto-settings-btn:not(.proto-settings-btn--secon
 html.harvous-prototype-route a.proto-settings-btn:not(.proto-settings-btn--secondary) *,
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--destructive,
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--destructive *,
-html.harvous-prototype-route button.proto-votd-sheet__fab,
-html.harvous-prototype-route button.proto-votd-sheet__fab *,
+html.harvous-prototype-route button.proto-glass-action--primary,
+html.harvous-prototype-route button.proto-glass-action--primary *,
+/* `span` explicitly: the blanket rule above lists `button[class*='proto-'] span`
+   (0,2,3), which outranks a trailing `*` (0,2,2). Most buttons in this list wrap
+   bare text and never hit it; this one has a real label span. */
+html.harvous-prototype-route button.proto-glass-action--primary span,
+html.harvous-prototype-route button.proto-glass-action--primary svg,
 html.harvous-prototype-route button.proto-fte-field__btn--apply,
 html.harvous-prototype-route button.proto-fte-field__btn--apply *,
 html.harvous-prototype-route button.proto-share-popover__primary,

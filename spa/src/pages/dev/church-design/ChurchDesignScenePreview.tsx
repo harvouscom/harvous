@@ -8,9 +8,10 @@
  */
 import { useState, type ReactNode } from 'react';
 import Icon from '@/components/react/Icon';
+import { spaceCoverFromThreadColor } from '@/utils/space-cover';
 import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from '../../prototype/settings/SettingsShell';
 import ProtoSpaceMenuIcon from '../../prototype/ProtoSpaceMenuIcon';
-import PrototypeHomeCardCarousel from '../../prototype/PrototypeHomeCardCarousel';
+import PublicJoinSpaceHero from '../../public/PublicJoinSpaceHero';
 import type { ChurchDesignScene } from './sceneRegistry';
 import '@/styles/admin-usage.css';
 import '@/styles/admin-publish.css';
@@ -40,7 +41,15 @@ function AdminChrome({ children }: { children: ReactNode }) {
   );
 }
 
-/** Phone-ish frame for congregant-facing scenes. */
+/**
+ * Phone-ish frame for congregant-facing scenes.
+ *
+ * Scrolls like a phone screen. The gallery shell sets `overflow: hidden` on
+ * html and body, so nothing scrolls at the page level — a scene taller than
+ * the stage was simply clipped. Capping the frame to the stage and letting it
+ * scroll internally is also the truer preview: a real phone scrolls the
+ * screen, not the page.
+ */
 function PhoneChrome({ children }: { children: ReactNode }) {
   return (
     <div className="proto-theme" style={{ width: 380, maxWidth: '100%', margin: '0 auto' }}>
@@ -49,8 +58,12 @@ function PhoneChrome({ children }: { children: ReactNode }) {
           background: 'var(--pds-bg-canvas)',
           border: '0.5px solid var(--pds-border)',
           borderRadius: 20,
-          overflow: 'hidden',
+          overflowX: 'hidden',
+          overflowY: 'auto',
           minHeight: 460,
+          maxHeight: 'calc(100vh - 230px)',
+          // Keeps the rounded corners clipping the hero art while scrolling.
+          isolation: 'isolate',
         }}
       >
         {children}
@@ -200,13 +213,13 @@ function ChurchSettingsScene({ connected }: { connected: boolean }) {
     <div style={{ maxWidth: 520, margin: '0 auto' }}>
       {connected ? (
         <SpeculativeNote>
-          Mockup — connect is unbuilt. Live Settings › My Church already frames home vs other churches;
-          memberships land with congregant connect.
+          Mockup — congregant connect shipped in v2.18.0 (self-select from the Here&apos;s My Church
+          directory). Multi-church memberships are still design-only.
         </SpeculativeNote>
       ) : (
         <SpeculativeNote>
           Live page: discovery fields for matching + staff “churches you help lead” from ministry channels.
-          Connect / set home stay dark.
+          Connect and set-home shipped in v2.18.0.
         </SpeculativeNote>
       )}
       <SettingsShell>
@@ -352,37 +365,44 @@ function FromYourChurchScene() {
   return (
     <div>
       <SpeculativeNote>
-        Mockup — Home study feed from followed ministry education channels (not a bulletin). Dark until connect ships.
+        Mockup — Home study feed from followed ministry education channels (not a bulletin). Shipped
+        in v2.18.0; renders only for a viewer who follows at least one channel.
       </SpeculativeNote>
       <PhoneChrome>
         <div style={{ padding: 16 }}>
           <div className="proto-home-section">
             <p className="proto-caption proto-home-section__eyebrow">From your church</p>
-            <PrototypeHomeCardCarousel
-              items={[...FROM_YOUR_CHURCH_CARDS]}
-              ariaLabel="From your church"
-              renderItem={(card) => (
-                <button
-                  type="button"
-                  className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-                >
-                  <div className="proto-home-card__body">
-                    <div className="proto-home-card__title-row">
-                      <span className="proto-home-card__icon-orb" aria-hidden>
-                        <ProtoSpaceMenuIcon color="blue" size={13} />
-                      </span>
-                      <p className="pds-list-title proto-home-card__title">{card.title}</p>
-                      <span className="proto-home-card__chevron" aria-hidden>
-                        <Icon name="caret-right" size={11} />
-                      </span>
+            {/*
+              Mirrors the shipped ChurchFeedCard exactly: a stacked list (not a
+              carousel), a 28px rss orb, and the meta INSIDE row-text 2px under
+              the title. The old mock used proto-home-card__meta, which carries
+              `margin-top: 8px` — a gap the real card doesn't have.
+            */}
+            <ul className="proto-church-hub__list">
+              {FROM_YOUR_CHURCH_CARDS.map((card) => (
+                <li key={card.title}>
+                  <button
+                    type="button"
+                    className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+                  >
+                    <div className="proto-home-card__body">
+                      <div className="proto-home-card__title-row">
+                        <span className="proto-home-card__icon-orb" aria-hidden>
+                          <ProtoSpaceMenuIcon color="blue" size={28} radius={8} iconName="rss" />
+                        </span>
+                        <div className="proto-church-hub__row-text">
+                          <p className="pds-list-title proto-home-card__title">{card.title}</p>
+                          <p className="proto-caption proto-church-hub__row-meta">{card.meta}</p>
+                        </div>
+                        <span className="proto-home-card__chevron" aria-hidden>
+                          <Icon name="caret-right" size={11} />
+                        </span>
+                      </div>
                     </div>
-                    <div className="proto-home-card__meta">
-                      <span className="proto-home-card__meta-item">{card.meta}</span>
-                    </div>
-                  </div>
-                </button>
-              )}
-            />
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </PhoneChrome>
@@ -420,8 +440,7 @@ function BroadcastSpaceScene() {
               color: 'var(--pds-text-secondary)',
             }}
           >
-            <Icon name="circle-info" size={11} aria-hidden /> Curriculum from your church. Save or start a note of your
-            own.
+            <Icon name="circle-info" size={11} aria-hidden /> Keep any of this in your own words.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {['This Sunday — Romans 8', 'Midweek: Psalm 23 reflections', 'Fall study kickoff'].map((title) => (
@@ -448,30 +467,271 @@ function BroadcastSpaceScene() {
   );
 }
 
-function BroadcastNoteScene() {
+/**
+ * The shipped This Sunday card, in the real CSS.
+ *
+ * Rendered above the daily passage pill on Home so the two can be compared —
+ * the whole design question here is whether two passage cards read as crowded.
+ */
+function ThisSundayScene() {
+  return (
+    <div>
+      <PhoneChrome>
+        <div style={{ padding: 16 }}>
+          <div className="proto-home-section">
+            <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable proto-this-sunday">
+              <p className="proto-caption proto-home-card__eyebrow">Sunday&rsquo;s sermon</p>
+              <div className="proto-home-card__body">
+                <div className="proto-home-card__title-row">
+                  <span className="proto-home-card__icon-orb" aria-hidden>
+                    <Icon name="church" size={13} />
+                  </span>
+                  <p className="pds-list-title proto-home-card__title">No Condemnation</p>
+                  <span className="proto-home-card__chevron" aria-hidden>
+                    <Icon name="caret-right" size={11} />
+                  </span>
+                </div>
+                <div className="proto-home-card__meta">
+                  <span className="proto-home-card__meta-item">Life in the Spirit</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* The card it has to coexist with. */}
+          <div className="proto-home-section">
+            <div className="proto-daily-passage-pill proto-daily-passage-pill--home">
+              <div className="proto-daily-passage-pill__content">
+                <p className="proto-caption proto-daily-passage-pill__eyebrow">Today&apos;s Passage</p>
+                <p className="pds-list-title proto-daily-passage-pill__reference">Psalm 34:8</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </PhoneChrome>
+    </div>
+  );
+}
+
+const TEACHING_PLAN_ROWS = [
+  { date: 'Aug 9', title: 'No Condemnation', meta: 'Romans 8:1-11 · Life in the Spirit' },
+  { date: 'Aug 16', title: 'Led by the Spirit', meta: 'Romans 8:12-17 · Life in the Spirit' },
+  { date: 'Aug 23', title: 'Groaning and Glory', meta: 'No passage yet · Life in the Spirit' },
+];
+
+/**
+ * Staff planner — the destination the hub's "Planner" row opens.
+ *
+ * No caret disclosure: the collapsed-footnote pattern is what the hub rework
+ * retired. This is a proper view — a lane head with the one action as a glass
+ * pill, and the services contained in the same card anatomy as Church tools,
+ * with the date as a compact overline column where the tool icon would sit.
+ */
+function TeachingPlanScene({ mode }: { mode: 'list' | 'lapsed' }) {
+  const lapsed = mode === 'lapsed';
+  return (
+    <div>
+      <PhoneChrome>
+        <div style={{ padding: 16 }}>
+          <div className="proto-home-section">
+            <div className="proto-church-tools__lane-head">
+              <p className="proto-caption proto-home-section__eyebrow">Planner</p>
+              {lapsed ? null : (
+                <button
+                  type="button"
+                  className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                >
+                  <Icon name="plus" size={12} aria-hidden />
+                  <span className="proto-glass-action__label">Add service</span>
+                </button>
+              )}
+            </div>
+
+            <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+              {TEACHING_PLAN_ROWS.map((row) => (
+                <button
+                  key={row.date}
+                  type="button"
+                  className="proto-church-tools__row"
+                  disabled={lapsed}
+                >
+                  <span className="proto-church-tools__row-date">{row.date}</span>
+                  <span className="proto-church-tools__row-text">
+                    <span className="pds-list-title proto-church-tools__row-title">{row.title}</span>
+                    <span className="proto-caption proto-church-tools__row-meta">{row.meta}</span>
+                  </span>
+                  <span className="proto-church-tools__row-chevron" aria-hidden>
+                    <Icon name="caret-right" size={11} />
+                  </span>
+                </button>
+              ))}
+
+              {lapsed ? (
+                <div className="proto-church-tools__row proto-church-tools__row--status">
+                  <span className="proto-church-tools__row-icon" aria-hidden>
+                    <Icon name="circle-exclamation" size={13} />
+                  </span>
+                  <span className="proto-church-tools__row-text">
+                    {/* Short enough not to truncate at this width — a billing
+                        warning that reads "Your church plan has lap…" is worse
+                        than no warning. */}
+                    <span className="pds-list-title proto-church-tools__row-title">
+                      Plan ended
+                    </span>
+                    <span className="proto-caption proto-church-tools__row-meta">
+                      Planned services stay visible
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                  >
+                    <span className="proto-glass-action__label">Renew</span>
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </PhoneChrome>
+    </div>
+  );
+}
+
+// ─── Service page (the surface a service opens into) ────────────────────────
+
+const SERVICE_PASSAGE_HTML = `
+  <p><sup>1</sup>So now there is no condemnation for those who belong to Christ Jesus.
+  <sup>2</sup>And because you belong to him, the power of the life-giving Spirit has freed
+  you from the power of sin that leads to death.</p>
+  <p><sup>3</sup>The law of Moses was unable to save us because of the weakness of our
+  sinful nature.</p>
+`;
+
+/**
+ * One section of the service page.
+ *
+ * Buildability note: these are template headings inside ONE editor, not
+ * separately-stored fields. Per-section storage would be a new data model and
+ * would break "the note is canonical" — you must be able to open this note in
+ * the plain editor later and see the same content.
+ *
+ * `prompt` is the guided-studies upgrade path: today the section source is the
+ * church's org template headings; later it can be a staff-authored question,
+ * with no redesign of this chrome.
+ */
+function ServiceSection({
+  heading,
+  prompt,
+  body,
+}: {
+  heading: string;
+  prompt?: string;
+  body?: string;
+}) {
+  return (
+    <section className="proto-service-page__section">
+      {/* An H2 like any note heading — because in the real editor that is
+          literally what it is (the org template's heading). */}
+      <h2 className="proto-service-page__section-heading">{heading}</h2>
+      {/*
+        The prompt IS the placeholder. It used to be a third row above a
+        separate "Write here…" line, which said the same thing twice and made
+        every section three rows of chrome deep. One line now: their words, or
+        the invitation to write them — exactly how an empty paragraph under a
+        template heading behaves in TipTap.
+      */}
+      {body ? (
+        <p className="proto-service-page__section-body">{body}</p>
+      ) : (
+        <p className="proto-service-page__section-placeholder">{prompt ?? 'Write here…'}</p>
+      )}
+    </section>
+  );
+}
+
+function ServicePageScene({ mode }: { mode: 'fresh' | 'returning' | 'topical' }) {
+  const topical = mode === 'topical';
+  const returning = mode === 'returning';
+  // The series channel's cover art — the same identity system spaces use. This
+  // is what makes it a *place*: a note has no cover, no masthead, no art.
+  const cover = spaceCoverFromThreadColor(topical ? 'green' : 'blue');
+
   return (
     <div>
       <SpeculativeNote>
-        Mockup — sermon starter on the calendar. Start a personal note (templates + copy-lineage); do not co-edit the
-        pastor&apos;s note.
+        Design exploration — the surface a service opens into, instead of a blank note. Cover +
+        masthead speak the space About-dialog language; the writing area is still the
+        congregant&apos;s own note in My Home (same lineage, same Recall, same privacy), with
+        sections as template headings inside one editor, not stored fields.
       </SpeculativeNote>
       <PhoneChrome>
-        <div style={{ padding: 16 }}>
-          <p className="pds-caption" style={{ margin: '0 0 10px', color: 'var(--pds-text-secondary)' }}>
-            <Icon name="church" size={11} aria-hidden /> Testament Made · Sunday service starter
-          </p>
-          <p className="pds-list-title" style={{ margin: '0 0 8px' }}>
-            This Sunday — Romans 8
-          </p>
-          <p style={{ margin: '0 0 6px', fontSize: 14, lineHeight: 1.55 }}>
-            We&apos;ll be walking through the first seventeen verses. Come having read the chapter once.
-          </p>
-          <p style={{ margin: '0 0 16px', fontSize: 14, lineHeight: 1.55, color: 'var(--pds-text-secondary)' }}>
-            Big idea: there is therefore now no condemnation.
-          </p>
-          <button type="button" className="proto-settings-btn proto-settings-btn--primary">
-            Start my note
-          </button>
+        <div className="proto-service-page">
+          {/* The same paper sheet a note lives on (--pds-paper-sheet + subtle
+              shadow, inset from the column like proto-editor-paper). The
+              church chrome is the letterhead; the writing below is the note. */}
+          <div className="proto-service-page__paper">
+          <div className="proto-service-page__hero">
+            <PublicJoinSpaceHero space={{ color: topical ? 'green' : 'blue', cover }} />
+            <p className="proto-service-page__hero-eyebrow">
+              {returning ? 'Last Sunday' : 'This Sunday'}
+            </p>
+          </div>
+
+          <header className="proto-service-page__masthead">
+            <span className="proto-service-page__masthead-icon" aria-hidden>
+              <ProtoSpaceMenuIcon
+                color={topical ? 'green' : 'blue'}
+                size={44}
+                radius={12}
+                iconName="church"
+              />
+            </span>
+            {topical ? null : (
+              <p className="proto-caption proto-service-page__series">Life in the Spirit</p>
+            )}
+            <h1 className="proto-service-page__title">
+              {topical ? 'Carrying Each Other' : 'No Condemnation'}
+            </h1>
+            <p className="proto-caption proto-service-page__church">
+              {topical ? 'New Hope Assembly of God' : 'Romans 8:1-11 · New Hope Assembly of God'}
+            </p>
+          </header>
+
+          {topical ? null : (
+            <div className="proto-service-page__passage">
+              <div
+                className="proto-service-page__passage-html scripture-pill-chrome__passage-html"
+                dangerouslySetInnerHTML={{ __html: SERVICE_PASSAGE_HTML }}
+              />
+              <p className="proto-service-page__passage-credit">NLT</p>
+            </div>
+          )}
+
+          {/* From here down it is simply the note, on the same paper. */}
+          <div className="proto-service-page__notes">
+            <div className="proto-service-page__notes-head">
+              {/* The church can't see any of this — the one thing worth saying
+                  here, said once. */}
+              <p className="proto-caption proto-service-page__notes-label">
+                <Icon name="lock" size={9} aria-hidden /> Private to you
+              </p>
+            </div>
+
+            {/* Prompts are short because they render as placeholder text —
+                a question mark and a full sentence read as a worksheet. */}
+            <ServiceSection
+              heading="Big idea"
+              prompt="The one line worth keeping"
+              body={returning ? 'Condemnation is a verdict, not a feeling. It has already been given.' : undefined}
+            />
+            <ServiceSection
+              heading="Application"
+              prompt="Where this lands this week"
+              body={returning ? 'Stop re-litigating Tuesday.' : undefined}
+            />
+          </div>
+          </div>
         </div>
       </PhoneChrome>
     </div>
@@ -491,25 +751,30 @@ function StaffRolesScene() {
         <SettingsShell>
           <SettingsIntro>Adult education · Testament Made</SettingsIntro>
           <SettingsGroup>
+            {/*
+              Role is carried by the icon shape and the badge, not by colour.
+              These three sat in sky-blue, coral-rose and grey, which read as
+              three unrelated kinds of thing rather than one roster — and put
+              the loudest colour on the least interesting fact. All grey now;
+              the silhouettes do the work.
+            */}
             <SettingsRow
               label="Derek J"
               sublabel="Space owner · staff"
-              leadingIcon="person"
-              leadingAccent="var(--pds-highlight-sky-blue)"
+              leadingIcon="id-card-clip"
               badge="Owner"
               trailing="none"
             />
             <SettingsRow
               label="Hannah P"
               sublabel="Synced from Clerk org"
-              leadingIcon="person"
-              leadingAccent="var(--pds-highlight-coral-rose)"
+              leadingIcon="book-open-reader"
               badge="Leader"
               trailing="none"
             />
             <SettingsRow
               label="248 following"
-              sublabel="Congregants — read and copy only"
+              sublabel="They read and keep their own notes"
               leadingIcon="user-group"
               badge="Members"
               trailing="none"
@@ -517,6 +782,253 @@ function StaffRolesScene() {
           </SettingsGroup>
         </SettingsShell>
       </div>
+    </div>
+  );
+}
+
+// ─── Reworked hub ───────────────────────────────────────────────────────────
+
+function HubChannelRow({
+  title,
+  meta,
+  unseen,
+}: {
+  title: string;
+  meta: string;
+  unseen?: number;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+      >
+        <div className="proto-home-card__body">
+          <div className="proto-home-card__title-row">
+            <span className="proto-home-card__icon-orb" aria-hidden>
+              <ProtoSpaceMenuIcon color="paper" size={28} radius={8} iconName="rss" />
+              {unseen ? <span className="proto-space-switcher-dot" aria-hidden /> : null}
+            </span>
+            <div className="proto-church-hub__row-text">
+              <p className="pds-list-title proto-home-card__title">{title}</p>
+              <p className="proto-caption proto-church-hub__row-meta">{meta}</p>
+            </div>
+            {unseen ? <span className="proto-space-switcher-badge">{unseen}</span> : null}
+            <span className="proto-home-card__chevron" aria-hidden>
+              <Icon name="caret-right" size={11} />
+            </span>
+          </div>
+        </div>
+      </button>
+    </li>
+  );
+}
+
+/** Church identity header — same shape as the shipped hub. */
+function HubHeader() {
+  return (
+    <div className="proto-shared-space-header">
+      <div className="proto-shared-space-header__row">
+        <span className="proto-shared-space-header__church-icon" aria-hidden>
+          <Icon name="church" size={18} />
+        </span>
+        <div className="proto-shared-space-header__meta">
+          <div className="pds-list-title proto-shared-space-header__title">
+            New Hope Assembly of God
+          </div>
+          <p className="proto-caption proto-shared-space-header__location">Urbandale, IA</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Congregant hub — the catalog, and nothing else.
+ *
+ * The point of a separate scene: verify this view stands alone with zero staff
+ * chrome. Anything a congregant cannot act on has no business here.
+ */
+function HubCongregantScene() {
+  return (
+    <div>
+      <SpeculativeNote>
+        Design exploration — congregant view. This Sunday leads (it is the appointment);
+        channels are the catalog. No plan banner, no teaching plan, no team.
+      </SpeculativeNote>
+      <PhoneChrome>
+        <div className="proto-church-hub">
+          <HubHeader />
+          <div className="proto-home-view" style={{ padding: '4px 14px 18px' }}>
+            <div className="proto-home-section">
+                <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable proto-this-sunday">
+                <p className="proto-caption proto-home-card__eyebrow">Sunday&rsquo;s sermon</p>
+                <div className="proto-home-card__body">
+                  <div className="proto-home-card__title-row">
+                    <span className="proto-home-card__icon-orb" aria-hidden>
+                      <Icon name="church" size={13} />
+                    </span>
+                    <p className="pds-list-title proto-home-card__title">No Condemnation</p>
+                    <span className="proto-home-card__chevron" aria-hidden>
+                      <Icon name="caret-right" size={11} />
+                    </span>
+                  </div>
+                  <div className="proto-home-card__meta">
+                    <span className="proto-home-card__meta-item">Life in the Spirit</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="proto-home-section">
+              <p className="proto-caption proto-home-section__eyebrow">Following</p>
+              <ul className="proto-church-hub__list">
+                <HubChannelRow title="Youth" meta="Weekly · 2 days ago" unseen={2} />
+                <HubChannelRow title="Adult education" meta="Weekly · last week" />
+              </ul>
+            </div>
+
+            <div className="proto-home-section">
+              <p className="proto-caption proto-home-section__eyebrow">More from your church</p>
+              <ul className="proto-church-hub__list">
+                <li>
+                  <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-church-hub__browse-row">
+                    <div className="proto-home-card__body">
+                      <div className="proto-home-card__title-row">
+                        <span className="proto-home-card__icon-orb" aria-hidden>
+                          <ProtoSpaceMenuIcon color="paper" size={28} radius={8} iconName="rss" />
+                        </span>
+                        <div className="proto-church-hub__row-text">
+                          <p className="pds-list-title proto-home-card__title">Women&apos;s study</p>
+                          <p className="proto-caption proto-church-hub__row-meta">Every other week</p>
+                        </div>
+                        {/* Same control as New note — one action language everywhere. */}
+                        <button
+                          type="button"
+                          className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                        >
+                          <Icon name="plus" size={12} aria-hidden />
+                          <span className="proto-glass-action__label">Follow</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </PhoneChrome>
+    </div>
+  );
+}
+
+/**
+ * Staff hub — the screenshot that prompted this rework, redesigned.
+ *
+ * Three problems it fixes: the pilot banner was a text slab shouting at the
+ * top; create actions were bare text links; and staff tooling was interleaved
+ * with the congregation-facing catalog instead of grouped as its own thing.
+ */
+function HubStaffScene() {
+  return (
+    <div>
+      <SpeculativeNote>
+        Design exploration — staff view. The catalog reads the same as a congregant&apos;s;
+        everything staff-only is grouped into &ldquo;Tools&rdquo; at the bottom, with
+        plan status as a row inside it rather than a banner on top.
+      </SpeculativeNote>
+      <PhoneChrome>
+        <div className="proto-church-hub">
+          <HubHeader />
+          <div className="proto-home-view" style={{ padding: '4px 14px 18px' }}>
+            <div className="proto-home-section">
+              <p className="proto-caption proto-home-section__eyebrow">Channels</p>
+              <ul className="proto-church-hub__list">
+                <HubChannelRow title="Youth" meta="Weekly · you publish here" />
+              </ul>
+              <button
+                type="button"
+                className="proto-glass-surface proto-glass-surface--control proto-glass-action proto-church-tools__add"
+              >
+                <Icon name="plus" size={12} aria-hidden />
+                <span className="proto-glass-action__label">New channel</span>
+              </button>
+            </div>
+
+            {/* Empty lane: caption and action collapse into one quiet row rather
+                than a heading, an apology, and a link stacked three deep. */}
+            <div className="proto-home-section">
+              <p className="proto-caption proto-home-section__eyebrow">Shared spaces</p>
+              <div className="proto-church-tools__empty-row">
+                <p className="proto-caption proto-church-hub__empty-lane">None yet</p>
+                <button
+                  type="button"
+                  className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                >
+                  <Icon name="plus" size={12} aria-hidden />
+                  <span className="proto-glass-action__label">New space</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="proto-home-section">
+              <p className="proto-caption proto-home-section__eyebrow">Tools</p>
+              <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+                <button type="button" className="proto-church-tools__row">
+                  <span className="proto-church-tools__row-icon" aria-hidden>
+                    <Icon name="calendar" size={13} />
+                  </span>
+                  <span className="proto-church-tools__row-text">
+                    <span className="pds-list-title proto-church-tools__row-title">Planner</span>
+                    <span className="proto-caption proto-church-tools__row-meta">
+                      Next: Aug 9 · Romans 8:1-11
+                    </span>
+                  </span>
+                  <span className="proto-church-tools__row-chevron" aria-hidden>
+                    <Icon name="caret-right" size={11} />
+                  </span>
+                </button>
+
+                <button type="button" className="proto-church-tools__row">
+                  <span className="proto-church-tools__row-icon" aria-hidden>
+                    <Icon name="user-group" size={13} />
+                  </span>
+                  <span className="proto-church-tools__row-text">
+                    <span className="pds-list-title proto-church-tools__row-title">Team</span>
+                    <span className="proto-caption proto-church-tools__row-meta">1 person</span>
+                  </span>
+                  <span className="proto-church-tools__row-chevron" aria-hidden>
+                    <Icon name="caret-right" size={11} />
+                  </span>
+                </button>
+
+                {/* Plan status: a row, not a banner. Lapsed is the only state
+                    that earns prominence, and it gets it by colour, not size. */}
+                <div className="proto-church-tools__row proto-church-tools__row--status">
+                  <span className="proto-church-tools__row-icon" aria-hidden>
+                    <Icon name="clock" size={13} />
+                  </span>
+                  <span className="proto-church-tools__row-text">
+                    <span className="pds-list-title proto-church-tools__row-title">
+                      29 days left in your pilot
+                    </span>
+                    <span className="proto-caption proto-church-tools__row-meta">
+                      Congregation unaffected
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                  >
+                    <span className="proto-glass-action__label">Continue</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </PhoneChrome>
     </div>
   );
 }
@@ -540,9 +1052,23 @@ export default function ChurchDesignScenePreview({ scene }: { scene: ChurchDesig
     case '08-broadcast-space':
       return <BroadcastSpaceScene />;
     case '09-broadcast-note':
-      return <BroadcastNoteScene />;
+      return <ThisSundayScene />;
     case '10-staff-roles':
       return <StaffRolesScene />;
+    case '11-teaching-plan':
+      return <TeachingPlanScene mode="list" />;
+    case '12-teaching-plan-lapsed':
+      return <TeachingPlanScene mode="lapsed" />;
+    case '13-service-page':
+      return <ServicePageScene mode="fresh" />;
+    case '13b-service-page-returning':
+      return <ServicePageScene mode="returning" />;
+    case '13c-service-page-topical':
+      return <ServicePageScene mode="topical" />;
+    case '14-hub-congregant':
+      return <HubCongregantScene />;
+    case '15-hub-staff':
+      return <HubStaffScene />;
     default:
       return null;
   }

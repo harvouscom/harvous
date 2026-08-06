@@ -1,4 +1,5 @@
 import { stashComposeRestore } from '../../lib/compose-session-restore';
+import { consumePendingNoteFocus } from '../../lib/pending-note-focus';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
@@ -50,6 +51,8 @@ import {
 import SharedStudyHighlightOverlay from './SharedStudyHighlightOverlay';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { useNavigation } from '../../hooks/queries/useNavigation';
+import { useProfile } from '../../hooks/queries/useProfile';
+import { useChurchStaffStatus } from '../../hooks/queries/useChurchStaffStatus';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { useNoteEditLease } from '@/hooks/useNoteEditLease';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
@@ -1830,6 +1833,15 @@ export default function PrototypeNotePage() {
       ? { id: note.startedFromTemplateId, name: note.startedFromTemplateName }
       : null;
 
+  /*
+    Church starters are authored from a note, so the capability has to reach the
+    inspector. Server's verdict only — never re-derived from a role string here.
+  */
+  const profileForTemplates = useProfile();
+  const churchOrgId = profileForTemplates.data?.connectedOrgId ?? null;
+  const { can: canChurchForTemplates } = useChurchStaffStatus(churchOrgId);
+  const canManageChurchTemplates = canChurchForTemplates('manage_templates');
+
   const inspectorTemplates = showTemplatesInInspector
     ? {
         spaceId: templateSpaceId,
@@ -1838,6 +1850,8 @@ export default function PrototypeNotePage() {
           : null,
         canAttachToSpace: canAttachSpaceTemplate,
         showSpaceAttachOption,
+        churchOrgId,
+        canManageChurchTemplates,
         isEmpty: noteIsEffectivelyEmpty,
         liveTitle: liveNoteSnapshot.title || prototypeDisplayTitle,
         liveContent: liveNoteSnapshot.content || editorNote.content || '',
@@ -2078,6 +2092,19 @@ export default function PrototypeNotePage() {
                 sharedOverlayPmRanges={sharedOverlayPmRanges}
                 onEditorInstanceReady={(editor) => {
                   setSharedOverlayEditor(editor as typeof sharedOverlayEditor);
+                  // Just created from "This Sunday" (or any future pre-filled
+                  // starter): drop the caret on the empty line the starter left
+                  // after the scripture pill, so you can type immediately
+                  // instead of hunting for a cursor. One-shot and id-keyed.
+                  if (consumePendingNoteFocus(noteId)) {
+                    requestAnimationFrame(() => {
+                      try {
+                        (editor as { commands?: { focus?: (pos: string) => void } })?.commands?.focus?.('end');
+                      } catch {
+                        /* a missed caret is not worth breaking the editor over */
+                      }
+                    });
+                  }
                 }}
                 spaceId={effectiveSpaceId ?? undefined}
                 mentionSource={readOnlyInSharedSpace ? undefined : mentionSource}

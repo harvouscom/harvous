@@ -18168,6 +18168,10 @@ __export(schema_exports, {
   BibleTranslations: () => BibleTranslations,
   BibleVerses: () => BibleVerses,
   ChurchMemberships: () => ChurchMemberships,
+  ChurchSeries: () => ChurchSeries,
+  ChurchServiceTimeAssignments: () => ChurchServiceTimeAssignments,
+  ChurchServiceTimes: () => ChurchServiceTimes,
+  ChurchServices: () => ChurchServices,
   Churches: () => Churches,
   ClerkUserMapping: () => ClerkUserMapping,
   Comments: () => Comments,
@@ -18177,6 +18181,7 @@ __export(schema_exports, {
   FeaturedItems: () => FeaturedItems,
   InboxItemNotes: () => InboxItemNotes,
   InboxItems: () => InboxItems,
+  LibraryItems: () => LibraryItems,
   Members: () => Members,
   MonthlyAnalytics: () => MonthlyAnalytics,
   NoteConnections: () => NoteConnections,
@@ -18188,6 +18193,7 @@ __export(schema_exports, {
   NoteVersions: () => NoteVersions,
   Notes: () => Notes,
   RecallEvents: () => RecallEvents,
+  ResourceLibraries: () => ResourceLibraries,
   ResourceMetadata: () => ResourceMetadata,
   ScriptureCrossReferences: () => ScriptureCrossReferences,
   ScriptureEntityRefs: () => ScriptureEntityRefs,
@@ -18218,7 +18224,7 @@ __export(schema_exports, {
   VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
+var ts, Spaces, Threads, Notes, NoteVersions, SpaceNotes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, SpaceMemberships, SpaceInvites, Churches, ChurchMemberships, ChurchServiceTimes, ChurchServiceTimeAssignments, ChurchSeries, ChurchServices, NoteTemplates, UserMetadata, Entitlements, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, NoteFingerprints, RecallEvents, SupportTickets, SupportTicketNotes, DiagnosticEvents, DiagnosticIssueTriage, NoteConnections, StudyThreadMemberOrders, VerseTextCache, BibleTranslations, BibleVerses, ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePeople, BiblePlaces, ScriptureEntityRefs, TopicRelations, ResourceMetadata, ResourceLibraries, LibraryItems, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics, AdminMonthlyReports, AppSyncCursors;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -18236,6 +18242,23 @@ var init_schema2 = __esm({
          * Values: daily | weekly | biweekly | monthly | quarterly | irregular | null.
          */
         publishCadence: text("publishCadence"),
+        /**
+         * When this org space gathers — "Youth meets Wednesdays at 6:30".
+         *
+         * Org spaces only (ministry channel or church Shared Space). The church's
+         * own times live in `ChurchServiceTimes`, which is a *list* because a church
+         * holds several services on one morning; a space gathers once, so a single
+         * day/time is the honest shape rather than a second slot table.
+         *
+         * Display and defaults only — this seeds the space plan's date picker and
+         * labels its card. Nothing here schedules, reminds, or recurs; staff still
+         * enter every gathering by hand. See
+         * docs/future/CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md §1.
+         */
+        /** 0–6, 0 = Sunday — Date.getDay() and the WEEKDAYS array in church-services.ts. */
+        meetingDay: integer("meetingDay"),
+        /** 'HH:MM' 24h on the church's wall clock; the zone is Churches.timezone. */
+        meetingTime: text("meetingTime"),
         color: text("color"),
         backgroundGradient: text("backgroundGradient"),
         /** JSON `SpaceCoverBg` — join-page / invite hero for light appearance. */
@@ -18358,10 +18381,10 @@ var init_schema2 = __esm({
         /** Latest immutable NoteVersions checkpoint for the canonical note. */
         currentVersionId: text("currentVersionId"),
         /**
-         * Author opt-in: members of any shared space this note is associated with may
-         * edit the body ("pass the pen"). Off by default — authorship is otherwise
-         * exclusive. Never true for encrypted notes; cleared when the last shared
-         * association is removed. userId stays the author regardless.
+         * Derived mirror: true iff any live shared SpaceNotes association has
+         * coEditEnabled. Source of truth is SpaceNotes.coEditEnabled (per space).
+         * Kept for native / broadcast / clients that only read the note-level field.
+         * Never true for encrypted notes; cleared when no association grants remain.
          */
         coEditEnabled: boolean("coEditEnabled").notNull().default(false),
         coEditEnabledAt: ts("coEditEnabledAt"),
@@ -18374,12 +18397,24 @@ var init_schema2 = __esm({
         /** Template applied to start/fill this note (`soap`, `ntpl_…`, etc.). */
         startedFromTemplateId: text("startedFromTemplateId"),
         /** Display name snapshot so provenance survives template rename/delete. */
-        startedFromTemplateName: text("startedFromTemplateName")
+        startedFromTemplateName: text("startedFromTemplateName"),
+        /**
+         * Teaching-plan service (`ChurchServices.id`) this note was started from.
+         * Distinct from startedFromTemplateId — a Sunday note is started from
+         * *both* the church's template and that week's service.
+         *
+         * Privacy: this is the congregant's own row. No church-facing route ever
+         * reads it, and no aggregate is derived from it. "Review is never shared."
+         */
+        startedFromServiceId: text("startedFromServiceId"),
+        /** Title snapshot so provenance survives the church editing or deleting the entry. */
+        startedFromServiceTitle: text("startedFromServiceTitle")
       },
       (table) => [
         index("Notes_userIdIndex").on(table.userId),
         index("Notes_linkedFromNoteIdIndex").on(table.linkedFromNoteId),
         index("Notes_copiedFromNoteIdIndex").on(table.copiedFromNoteId),
+        index("Notes_startedFromServiceIdIndex").on(table.startedFromServiceId),
         index("Notes_userId_updatedAtIndex").on(table.userId, table.updatedAt),
         index("Notes_spaceIdIndex").on(table.spaceId),
         index("Notes_threadIdIndex").on(table.threadId)
@@ -18429,7 +18464,14 @@ var init_schema2 = __esm({
         secondaryCollections: text("secondaryCollections"),
         collectionPinned: boolean("collectionPinned").notNull().default(false),
         collectionUserOverride: boolean("collectionUserOverride").notNull().default(false),
-        order: integer("order").notNull().default(0)
+        order: integer("order").notNull().default(0),
+        /**
+         * Author opt-in for this association: members of this shared space may edit
+         * the note body ("pass the pen"). Off by default. Notes.coEditEnabled is the
+         * OR-mirror across live associations.
+         */
+        coEditEnabled: boolean("coEditEnabled").notNull().default(false),
+        coEditEnabledAt: ts("coEditEnabledAt")
       },
       (table) => [
         uniqueIndex("SpaceNotes_space_note_unique").on(table.spaceId, table.noteId),
@@ -18563,6 +18605,22 @@ var init_schema2 = __esm({
       invitedBy: text("invitedBy"),
       /** SpaceInvites.id that was redeemed to create this membership; null on the owner row. */
       inviteId: text("inviteId"),
+      /**
+       * Where this row's role came from: `'staff_sync'` (or NULL, same meaning) vs
+       * `'grant'` — an explicit act of giving one person leadership of one space.
+       *
+       * Load-bearing, and landed before the feature that needs it (P5 granted
+       * leadership). `computeStaffSyncPlan` deletes any `leader` row whose user is
+       * not in the Clerk roster, and sync runs on the organizationMembership
+       * webhook plus every staff invite, removal, and role change — so a granted
+       * volunteer would be reaped silently, probably within a day. The removal step
+       * therefore skips `'grant'` rows. A no-op until the first grant exists, which
+       * is the point: the rule cannot be forgotten later.
+       *
+       * No backfill needed — every `leader` row today is staff-projected, and NULL
+       * already reads as that.
+       */
+      grantSource: text("grantSource"),
       joinedAt: ts("joinedAt").notNull(),
       /** Last time this member opened the shared space dashboard (new-since watermark). */
       lastVisitedAt: ts("lastVisitedAt"),
@@ -18607,6 +18665,29 @@ var init_schema2 = __esm({
       city: text("city"),
       state: text("state"),
       country: text("country"),
+      /*
+          ─── Self-serve church configuration ──────────────────────────────────────
+          Written ONLY by POST /api/church/settings/update (server/routes/
+          church-settings.ts), behind the admin-only `manage_church_settings`
+          capability. Deliberately *below* the HMC denorm block above and never part
+          of it: `hmcDenormFields` returns exactly {name, city, state, country} and
+          every writer spreads those four field-by-field, so a directory refresh
+          cannot reach these. Keep it that way — a church losing its own service time
+          to a name sync would be silent and baffling.
+      
+          Display and defaults only. These pre-fill a date picker and label a card;
+          nothing here schedules, reminds, notifies, or generates rows. "Scheduling"
+          is a named anti-goal (MY_CHURCH_SIDEBAR.md, CHMS_INTEGRATION_RESEARCH.md).
+          See docs/future/CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md §1.
+        */
+      /**
+       * IANA zone (e.g. 'America/Chicago'). Its whole job is to make the 'HH:MM'
+       * values in ChurchServiceTimes unambiguous — it records *whose* clock, and it
+       * is what lets the congregant card know whether this morning's service has
+       * started yet. Nothing converts to a viewer's timezone; congregants see the
+       * church's wall time verbatim.
+       */
+      timezone: text("timezone"),
       /** Staff user who created the church record (audit anchor); admin roles live in Clerk org roles. */
       createdBy: text("createdBy").notNull(),
       /**
@@ -18618,6 +18699,18 @@ var init_schema2 = __esm({
        */
       billingPlan: text("billingPlan"),
       billingPlanUpdatedAt: ts("billingPlanUpdatedAt"),
+      /** Polar subscription id backing `billingPlan` — needed to reconcile cancels. */
+      billingSubscriptionId: text("billingSubscriptionId"),
+      /** Last Polar subscription status seen ('active', 'canceled', …). Audit/debug only — gates read billingPlan. */
+      billingStatus: text("billingStatus"),
+      /**
+       * Concierge-pilot window. A church is sponsored while `billingPlan` is set OR
+       * `pilotUntil` is in the future — see server/utils/church-entitlement.ts.
+       * Deliberately church-scoped rather than an expiring user Entitlement row:
+       * `listActiveFeatureKeys` never checks `Entitlements.expiresAt`, so an
+       * expiring user grant would never lapse.
+       */
+      pilotUntil: ts("pilotUntil"),
       /** Admin kill-switch (Spaces.isActive parity). */
       isActive: boolean("isActive").notNull().default(true),
       /** Soft-delete lifecycle — Spaces parity, for a future church-offboarding flow. */
@@ -18643,6 +18736,138 @@ var init_schema2 = __esm({
       uniqueIndex("ChurchMemberships_church_user_unique").on(table.churchId, table.userId),
       index("ChurchMemberships_userIdIndex").on(table.userId),
       index("ChurchMemberships_churchIdIndex").on(table.churchId)
+    ]);
+    ChurchServiceTimes = pgTable("ChurchServiceTimes", {
+      id: text("id").primaryKey(),
+      churchId: text("churchId").notNull(),
+      /** 0–6, 0 = Sunday — Date.getDay() and the WEEKDAYS array in church-services.ts. */
+      dayOfWeek: integer("dayOfWeek").notNull(),
+      /** 'HH:MM' 24h on the church's own wall clock; the zone is Churches.timezone. */
+      startTime: text("startTime").notNull(),
+      /** Optional human name — "First service", "Evening". Null renders as the time alone. */
+      label: text("label"),
+      sortOrder: integer("sortOrder").notNull().default(0),
+      createdAt: ts("createdAt").notNull(),
+      updatedAt: ts("updatedAt")
+    }, (table) => [
+      /** The same slot twice would give a sermon two identical checkboxes. */
+      uniqueIndex("ChurchServiceTimes_church_day_time_unique").on(
+        table.churchId,
+        table.dayOfWeek,
+        table.startTime
+      ),
+      index("ChurchServiceTimes_churchIdIndex").on(table.churchId)
+    ]);
+    ChurchServiceTimeAssignments = pgTable("ChurchServiceTimeAssignments", {
+      id: text("id").primaryKey(),
+      /** ChurchServices.id — the sermon. */
+      serviceId: text("serviceId").notNull(),
+      /** ChurchServiceTimes.id — the slot it is preached at. */
+      serviceTimeId: text("serviceTimeId").notNull(),
+      /** Mirrors ChurchServices.serviceDate. See the note above before touching. */
+      serviceDate: text("serviceDate").notNull(),
+      createdAt: ts("createdAt").notNull()
+    }, (table) => [
+      /**
+       * One sermon per slot per date — the replacement for
+       * ChurchServices_church_date_unique. "This Sunday 9:00" still has exactly one
+       * answer; "this Sunday" now has as many as the church actually holds.
+       */
+      uniqueIndex("ChurchServiceTimeAssignments_slot_date_unique").on(
+        table.serviceTimeId,
+        table.serviceDate
+      ),
+      index("ChurchServiceTimeAssignments_serviceIdIndex").on(table.serviceId),
+      index("ChurchServiceTimeAssignments_serviceDateIndex").on(table.serviceDate)
+    ]);
+    ChurchSeries = pgTable("ChurchSeries", {
+      id: text("id").primaryKey(),
+      churchId: text("churchId").notNull(),
+      /** NULL = the church plan; set = that space's plan. Immutable after create. */
+      spaceId: text("spaceId"),
+      title: text("title").notNull(),
+      createdBy: text("createdBy").notNull(),
+      createdAt: ts("createdAt").notNull(),
+      updatedAt: ts("updatedAt")
+    }, (table) => [
+      /**
+       * One series per name per plan, case-insensitively — the whole point is that
+       * "Life In the Spirit" cannot become a second series beside "Life in the
+       * Spirit". Two partial indexes because `spaceId IS NULL` is a distinct scope
+       * and Postgres treats NULLs as distinct in a plain unique index, so the
+       * church-plan half would not be constrained at all. Same shape and same
+       * reason as `ChurchServices_space_date_unique`.
+       */
+      uniqueIndex("ChurchSeries_church_title_unique").on(table.churchId, sql`lower(${table.title})`).where(sql`${table.spaceId} IS NULL`),
+      uniqueIndex("ChurchSeries_space_title_unique").on(table.spaceId, sql`lower(${table.title})`).where(sql`${table.spaceId} IS NOT NULL`),
+      index("ChurchSeries_churchIdIndex").on(table.churchId)
+    ]);
+    ChurchServices = pgTable("ChurchServices", {
+      id: text("id").primaryKey(),
+      churchId: text("churchId").notNull(),
+      /**
+       * Which plan this sermon belongs to. NULL = the church's own plan; set = a
+       * ministry channel or church Shared Space that carries its own (Youth meets
+       * Wednesdays). See the docblock above for the same-church invariant and why
+       * this column is allowed where a denormalized `orgId` is not.
+       */
+      spaceId: text("spaceId"),
+      /**
+       * Church-local calendar day, 'YYYY-MM-DD'. Deliberately NOT a timestamp: a
+       * service is a day on the church's wall calendar, and a TIMESTAMPTZ drifts a
+       * Sunday into Saturday for a viewer three zones away. Same choice as
+       * VotdPublishHistory.publishedDate.
+       */
+      serviceDate: text("serviceDate").notNull(),
+      /**
+       * A one-off time for a sermon that does not sit at any of the church's usual
+       * services — a Christmas Eve 17:00, a Good Friday evening.
+       *
+       * Normally NULL: the times come from ChurchServiceTimeAssignments, because
+       * those recur and this does not. Adding a permanent "Thursday 17:00" slot for
+       * one Christmas Eve would be a lie about the church's week, which is the
+       * whole reason this column survives the move to assignments.
+       *
+       * 'HH:MM' 24h, church wall clock — text for the same reason `serviceDate` is.
+       */
+      serviceTime: text("serviceTime"),
+      title: text("title").notNull(),
+      /**
+       * ChurchSeries.id, or NULL for a standalone sermon. Replaced the free-text
+       * `seriesTitle` outright rather than sitting beside it — a denormalized copy
+       * would reintroduce the exact bug the row exists to fix, two sources of truth
+       * and a rename that lands in only one. Reads join; the join is one row per
+       * sermon on payloads already bounded to a handful of weeks.
+       *
+       * Must share this sermon's plan scope (see the ChurchSeries docblock); the
+       * write routes enforce it, because no index can.
+       */
+      seriesId: text("seriesId"),
+      /** Canonical form written by canonicalizeServiceReference. Nullable — a
+       *  topical Sunday is legal, and every downstream path tolerates null. */
+      reference: text("reference"),
+      /** NoteTemplates.id, org-scoped — the starter a congregant's note begins from. */
+      starterTemplateId: text("starterTemplateId"),
+      createdBy: text("createdBy").notNull(),
+      updatedBy: text("updatedBy"),
+      createdAt: ts("createdAt").notNull(),
+      updatedAt: ts("updatedAt")
+    }, (table) => [
+      /**
+       * Plain index, not unique — see the "no unique index" note in the docblock.
+       * The church-plan one-answer guarantee lives on ChurchServiceTimeAssignments.
+       */
+      index("ChurchServices_church_dateIndex").on(table.churchId, table.serviceDate),
+      index("ChurchServices_spaceIdIndex").on(table.spaceId),
+      /**
+       * One gathering per date, for space plans only.
+       *
+       * Spaces get a hard index where the church gets a route guard, because a
+       * space has a single `meetingTime` and can never claim a church service slot
+       * — so every space row is timeless and the DB can carry the whole invariant.
+       * The church side cannot: its answer depends on which slots a sermon claims.
+       */
+      uniqueIndex("ChurchServices_space_date_unique").on(table.spaceId, table.serviceDate).where(sql`${table.spaceId} IS NOT NULL`)
     ]);
     NoteTemplates = pgTable(
       "NoteTemplates",
@@ -19107,6 +19332,65 @@ var init_schema2 = __esm({
       sourceImage: text("sourceImage"),
       createdAt: ts("createdAt").notNull()
     });
+    ResourceLibraries = pgTable(
+      "ResourceLibraries",
+      {
+        id: text("id").primaryKey(),
+        /** 'user' | 'church' — 'school' later. */
+        ownerKind: text("ownerKind").notNull(),
+        /** Clerk userId when ownerKind='user'; Churches.id when 'church'. */
+        ownerId: text("ownerId").notNull(),
+        title: text("title").notNull(),
+        createdAt: ts("createdAt").notNull(),
+        updatedAt: ts("updatedAt")
+      },
+      (table) => [
+        // One library per owner. Also the race guard for lazy creation: concurrent
+        // first-saves collide here, and the loser re-reads instead of forking a
+        // second library.
+        uniqueIndex("ResourceLibraries_owner_unique").on(table.ownerKind, table.ownerId)
+      ]
+    );
+    LibraryItems = pgTable(
+      "LibraryItems",
+      {
+        id: text("id").primaryKey(),
+        libraryId: text("libraryId").notNull(),
+        /** 'link' | 'file' | 'note_ref' | 'thread_ref' | 'template_ref' | 'pack'. */
+        kind: text("kind").notNull().default("link"),
+        title: text("title").notNull(),
+        description: text("description"),
+        /** kind='link': the destination. Normalized by validateResourceUrl on write. */
+        sourceUrl: text("sourceUrl"),
+        sourceDomain: text("sourceDomain"),
+        sourceSiteName: text("sourceSiteName"),
+        sourceImage: text("sourceImage"),
+        /**
+         * kind='file': Supabase storage object in the private `library-files`
+         * bucket (NOT the public note-attachments bucket — RESOURCE_LIBRARY.md §8).
+         * Opened via short-lived signed URLs, never a public link.
+         */
+        fileStorageKey: text("fileStorageKey"),
+        fileName: text("fileName"),
+        fileMime: text("fileMime"),
+        fileBytes: integer("fileBytes"),
+        /**
+         * 'leaders' | 'members' — dormant until church libraries land. Written with
+         * the default from day one so the church lane needs no backfill on a table
+         * that already holds user data.
+         */
+        access: text("access").notNull().default("members"),
+        createdByUserId: text("createdByUserId").notNull(),
+        createdAt: ts("createdAt").notNull(),
+        updatedAt: ts("updatedAt"),
+        /** Soft archive — items stay resolvable for pills that already cite them. */
+        archivedAt: ts("archivedAt")
+      },
+      (table) => [
+        index("LibraryItems_libraryId_archivedAtIndex").on(table.libraryId, table.archivedAt),
+        index("LibraryItems_libraryId_updatedAtIndex").on(table.libraryId, table.updatedAt)
+      ]
+    );
     InboxItems = pgTable("InboxItems", {
       id: text("id").primaryKey(),
       webflowItemId: text("webflowItemId").notNull().unique(),
@@ -19316,6 +19600,12 @@ var init_helpers = __esm({
 // server/db/dates.ts
 function now() {
   return /* @__PURE__ */ new Date();
+}
+function toDate(val) {
+  if (val == null) return null;
+  if (val instanceof Date) return val;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
 }
 var nowISO;
 var init_dates = __esm({
@@ -30271,6 +30561,133 @@ function validateCrossChapterRange(book, startChapter, startVerse, endChapter, e
   const orderOk = startChapter < endChapter || startChapter === endChapter && startVerse <= endVerse;
   return startOk && endOk && orderOk;
 }
+function splitBookAndNumericTail(reference) {
+  const trimmed = reference.trim();
+  const match4 = trimmed.match(/\s(\d.*)$/);
+  if (!match4 || match4.index == null) {
+    return null;
+  }
+  const book = trimmed.slice(0, match4.index).trim();
+  if (!book) {
+    return null;
+  }
+  return { book, tail: match4[1].trim() };
+}
+function getBookChapterCount(book) {
+  const bookMap = buildBibleChaptersMap().get(book);
+  if (!bookMap || bookMap.size === 0) {
+    return null;
+  }
+  let max2 = 0;
+  for (const chapter of bookMap.keys()) {
+    if (chapter > max2) max2 = chapter;
+  }
+  return max2;
+}
+function checkScriptureReferenceValidity(reference) {
+  const raw2 = String(reference ?? "").trim();
+  const tooManyChapters = (book2, count3) => ({
+    ok: false,
+    reason: `${book2} has ${count3} chapter${count3 === 1 ? "" : "s"}.`
+  });
+  const split2 = splitBookAndNumericTail(raw2);
+  if (split2 && !raw2.includes(":")) {
+    const canonicalBook = resolveCanonicalBookName(split2.book, getBookNameVariations());
+    if (!canonicalBook) {
+      return { ok: false, reason: `We don't recognize the book "${split2.book}".` };
+    }
+    const chapterCount2 = getBookChapterCount(canonicalBook);
+    if (chapterCount2 == null) {
+      return { ok: false, reason: `We don't recognize the book "${canonicalBook}".` };
+    }
+    const chapters = (split2.tail.match(/\d+/g) ?? []).map((n) => parseInt(n, 10));
+    if (chapters.length === 0) {
+      return { ok: false, reason: "Not a complete scripture reference yet." };
+    }
+    for (const ch of chapters) {
+      if (ch < 1 || ch > chapterCount2) {
+        return tooManyChapters(canonicalBook, chapterCount2);
+      }
+    }
+    if (chapters.length === 2 && chapters[0] > chapters[1]) {
+      return { ok: false, reason: "That range runs backwards." };
+    }
+    return { ok: true };
+  }
+  const parsed = parseReference(raw2);
+  if (!parsed) {
+    return { ok: false, reason: "Not a complete scripture reference yet." };
+  }
+  const { book, chapter, verse, endChapter } = parsed;
+  const chapterCount = getBookChapterCount(book);
+  if (chapterCount == null) {
+    return { ok: false, reason: `We don't recognize the book "${book}".` };
+  }
+  if (chapter < 1 || chapter > chapterCount) {
+    return tooManyChapters(book, chapterCount);
+  }
+  const describeChapter = (ch) => {
+    const range = getChapterVerseRange(book, ch);
+    return range ? `${book} ${ch} has ${range.end} verses.` : `${book} has no chapter ${ch}.`;
+  };
+  if (endChapter != null && Array.isArray(verse)) {
+    const [start, end] = verse;
+    if (endChapter > chapterCount) {
+      return tooManyChapters(book, chapterCount);
+    }
+    if (validateCrossChapterRange(book, chapter, start, endChapter, end)) {
+      return { ok: true };
+    }
+    if (!validateVerseNumber(book, chapter, start)) {
+      return { ok: false, reason: describeChapter(chapter) };
+    }
+    if (!validateVerseNumber(book, endChapter, end)) {
+      return { ok: false, reason: describeChapter(endChapter) };
+    }
+    return { ok: false, reason: "That range runs backwards." };
+  }
+  if (Array.isArray(verse)) {
+    const [start, end] = verse;
+    if (validateVerseRange(book, chapter, start, end)) {
+      return { ok: true };
+    }
+    if (start > end) {
+      return { ok: false, reason: "That range runs backwards." };
+    }
+    return { ok: false, reason: describeChapter(chapter) };
+  }
+  if (!validateVerseNumber(book, chapter, verse)) {
+    return { ok: false, reason: describeChapter(chapter) };
+  }
+  return { ok: true };
+}
+function isResolvableScriptureReference(reference) {
+  return checkScriptureReferenceValidity(reference).ok;
+}
+function repairUnresolvableReference(reference) {
+  const raw2 = String(reference ?? "").trim();
+  if (!raw2 || isResolvableScriptureReference(raw2)) return null;
+  const match4 = raw2.match(/^(.+?)\s+(\d+):(\d+)$/);
+  if (!match4) return null;
+  const [, bookPart, chapterPart, digits] = match4;
+  if (digits.length < 2) return null;
+  const canonicalBook = resolveCanonicalBookName(bookPart.trim(), getBookNameVariations());
+  if (!canonicalBook) return null;
+  const chapter = parseInt(chapterPart, 10);
+  const candidates = [];
+  for (let cut = 1; cut < digits.length; cut++) {
+    const startText = digits.slice(0, cut);
+    const endText = digits.slice(cut);
+    if (startText.length > 1 && startText.startsWith("0")) continue;
+    if (endText.length > 1 && endText.startsWith("0")) continue;
+    const start = parseInt(startText, 10);
+    const end = parseInt(endText, 10);
+    if (start >= end) continue;
+    if (!validateVerseRange(canonicalBook, chapter, start, end)) continue;
+    candidates.push(`${canonicalBook} ${chapter}:${start}-${end}`);
+  }
+  return candidates.length === 1 ? candidates[0] : null;
+}
 function normalizeChapterReference(book, chapter) {
   const range = getChapterVerseRange(book, chapter);
   if (!range) {
@@ -30278,12 +30695,19 @@ function normalizeChapterReference(book, chapter) {
   }
   return `${book} ${chapter}:${range.start}-${range.end}`;
 }
+function warnOnceAboutReference(message) {
+  if (typeof import_meta !== "undefined" && !import_meta.env?.DEV) return;
+  if (WARNED_REFERENCES.has(message)) return;
+  if (WARNED_REFERENCES.size >= MAX_DISTINCT_REFERENCE_WARNINGS) return;
+  WARNED_REFERENCES.add(message);
+  console.warn(message);
+}
 function validateAndWarn(ref) {
   const { book, chapter, verse, endChapter } = ref;
   if (endChapter != null && Array.isArray(verse)) {
     const [start, end] = verse;
     if (!validateCrossChapterRange(book, chapter, start, endChapter, end)) {
-      console.warn(`Invalid cross-chapter range: ${ref.reference}`);
+      warnOnceAboutReference(`Invalid cross-chapter range: ${ref.reference}`);
     }
     return ref;
   }
@@ -30299,18 +30723,18 @@ function validateAndWarn(ref) {
     if (!validateVerseRange(book, chapter, start, end)) {
       const range = getChapterVerseRange(book, chapter);
       if (range) {
-        console.warn(`Invalid verse range: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
+        warnOnceAboutReference(`Invalid verse range: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
       } else {
-        console.warn(`Unknown book/chapter: ${book} ${chapter}`);
+        warnOnceAboutReference(`Unknown book/chapter: ${book} ${chapter}`);
       }
     }
   } else {
     if (!validateVerseNumber(book, chapter, verse)) {
       const range = getChapterVerseRange(book, chapter);
       if (range) {
-        console.warn(`Invalid verse number: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
+        warnOnceAboutReference(`Invalid verse number: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
       } else {
-        console.warn(`Unknown book/chapter: ${book} ${chapter}`);
+        warnOnceAboutReference(`Unknown book/chapter: ${book} ${chapter}`);
       }
     }
   }
@@ -30362,13 +30786,14 @@ function isValidScriptureContext(text3, matchIndex, matchLength) {
   }
   return true;
 }
-var INLINE_TRANSLATION_ALT, ANCHORED_TRANSLATION_CODES, DEBUG, BIBLE_CHAPTERS_MAP, getBookNameVariations, normalizeText, parseReference, detectScriptureReferences, parseScriptureReference, detectScripture, getPrimaryReference, normalizeScriptureReference, parseVerseGroups;
+var import_meta, INLINE_TRANSLATION_ALT, ANCHORED_TRANSLATION_CODES, DEBUG, BIBLE_CHAPTERS_MAP, getBookNameVariations, normalizeText, WARNED_REFERENCES, MAX_DISTINCT_REFERENCE_WARNINGS, parseReference, detectScriptureReferences, parseScriptureReference, detectScripture, getPrimaryReference, normalizeScriptureReference, parseVerseGroups;
 var init_scripture_detector = __esm({
   "src/utils/scripture-detector.ts"() {
     "use strict";
     init_bible_study_keywords();
     init_bible_chapters();
     init_translations();
+    import_meta = {};
     INLINE_TRANSLATION_ALT = buildInlineTranslationAlternation();
     ANCHORED_TRANSLATION_CODES = (() => {
       const sorted = [...TRANSLATION_ORDER].sort((a, b3) => b3.length - a.length || a.localeCompare(b3));
@@ -30387,6 +30812,8 @@ var init_scripture_detector = __esm({
     normalizeText = (text3) => {
       return text3.toLowerCase().replace(/[.,;:!?'"()\-–—]/g, "").replace(/\s+/g, " ").trim();
     };
+    WARNED_REFERENCES = /* @__PURE__ */ new Set();
+    MAX_DISTINCT_REFERENCE_WARNINGS = 50;
     parseReference = (match4) => {
       const patterns = [
         // Comma-separated verse groups: "Book 1:2-3, 5-7, 10" or "Book 1:2 - 3, 5 - 7, 10"
@@ -44361,6 +44788,126 @@ var init_durable_note_anchor = __esm({
   }
 });
 
+// server/utils/note-collaboration.ts
+var note_collaboration_exports = {};
+__export(note_collaboration_exports, {
+  canEditNoteAsCollaborator: () => canEditNoteAsCollaborator,
+  clearAllCoEditForNote: () => clearAllCoEditForNote,
+  findLiveSharedSpaceAssociation: () => findLiveSharedSpaceAssociation,
+  resolveNoteContributorIds: () => resolveNoteContributorIds,
+  resolveNoteEditAuthorization: () => resolveNoteEditAuthorization,
+  resolveSharedSpacesGrantingEdit: () => resolveSharedSpacesGrantingEdit,
+  syncNoteCoEditMirror: () => syncNoteCoEditMirror
+});
+function canEditNoteAsCollaborator(input) {
+  const { note, actorId, sharedSpaceIdsActorBelongsTo } = input;
+  if (isOnboardingSystemNote(note)) return { allowed: false, code: "ONBOARDING" };
+  if (note.userId === actorId) return { allowed: true, role: "author", viaSpaceId: null };
+  if (note.contentEncrypted) return { allowed: false, code: "ENCRYPTED" };
+  if (sharedSpaceIdsActorBelongsTo.length === 0) return { allowed: false, code: "NO_SHARED_SPACE" };
+  return { allowed: true, role: "collaborator", viaSpaceId: sharedSpaceIdsActorBelongsTo[0] };
+}
+async function resolveSharedSpacesGrantingEdit(noteId, actorId) {
+  const rows = await db.select({ spaceId: SpaceNotes.spaceId }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).innerJoin(
+    SpaceMemberships,
+    and(eq(SpaceMemberships.spaceId, Spaces.id), eq(SpaceMemberships.userId, actorId))
+  ).where(
+    and(
+      eq(SpaceNotes.noteId, noteId),
+      isNull(SpaceNotes.removedAt),
+      eq(SpaceNotes.coEditEnabled, true),
+      isNull(Spaces.deletedAt),
+      eq(Spaces.type, "shared")
+    )
+  );
+  return rows.map((row) => row.spaceId);
+}
+async function resolveNoteEditAuthorization(noteId, actorId) {
+  const note = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
+  if (!note) return null;
+  const needsSpaceLookup = note.userId !== actorId && !note.contentEncrypted;
+  const sharedSpaceIdsActorBelongsTo = needsSpaceLookup ? await resolveSharedSpacesGrantingEdit(noteId, actorId) : [];
+  return {
+    note,
+    decision: canEditNoteAsCollaborator({ note, actorId, sharedSpaceIdsActorBelongsTo })
+  };
+}
+async function resolveNoteContributorIds(noteId, authorId) {
+  const rows = await db.select({ editedBy: NoteVersions.editedBy, authorId: NoteVersions.authorId }).from(NoteVersions).where(eq(NoteVersions.noteId, noteId));
+  const ids = /* @__PURE__ */ new Set([authorId]);
+  for (const row of rows) {
+    const savedBy = row.editedBy ?? row.authorId;
+    if (savedBy) ids.add(savedBy);
+  }
+  return [authorId, ...[...ids].filter((id) => id !== authorId)];
+}
+async function findLiveSharedSpaceAssociation(noteId, spaceId) {
+  const row = first(
+    await db.select({ id: SpaceNotes.id, coEditEnabled: SpaceNotes.coEditEnabled }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).where(
+      and(
+        eq(SpaceNotes.noteId, noteId),
+        eq(SpaceNotes.spaceId, spaceId),
+        isNull(SpaceNotes.removedAt),
+        isNull(Spaces.deletedAt),
+        eq(Spaces.type, "shared")
+      )
+    ).limit(1)
+  );
+  return row ?? null;
+}
+async function syncNoteCoEditMirror(executor, noteId) {
+  const grant = first(
+    await executor.select({ enabledAt: SpaceNotes.coEditEnabledAt }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).where(
+      and(
+        eq(SpaceNotes.noteId, noteId),
+        isNull(SpaceNotes.removedAt),
+        eq(SpaceNotes.coEditEnabled, true),
+        isNull(Spaces.deletedAt),
+        eq(Spaces.type, "shared")
+      )
+    ).limit(1)
+  );
+  const enabled = Boolean(grant);
+  await executor.update(Notes).set({
+    coEditEnabled: enabled,
+    coEditEnabledAt: enabled ? grant?.enabledAt ?? nowISO() : null
+  }).where(eq(Notes.id, noteId));
+  return enabled;
+}
+async function clearAllCoEditForNote(executor, noteId) {
+  await executor.update(SpaceNotes).set({ coEditEnabled: false, coEditEnabledAt: null }).where(and(eq(SpaceNotes.noteId, noteId), eq(SpaceNotes.coEditEnabled, true)));
+  await executor.update(Notes).set({ coEditEnabled: false, coEditEnabledAt: null }).where(eq(Notes.id, noteId));
+}
+var init_note_collaboration = __esm({
+  "server/utils/note-collaboration.ts"() {
+    "use strict";
+    init_db2();
+    init_dates();
+    init_purge_onboarding_content();
+  }
+});
+
+// src/utils/note-truncated-write-guard.ts
+function endsWithTagBoundary(html) {
+  return />\s*$/.test(html);
+}
+function isRawListPreviewWrite(incoming, stored, maxChars) {
+  if (typeof incoming !== "string" || typeof stored !== "string") return false;
+  if (incoming.length !== maxChars) return false;
+  if (stored.length <= maxChars) return false;
+  return stored.startsWith(incoming);
+}
+function isSuspiciousNoteShrink(incoming, stored, minStoredLength = 4e3) {
+  if (typeof incoming !== "string" || typeof stored !== "string") return false;
+  if (stored.length <= minStoredLength) return false;
+  return incoming.length < stored.length * 0.5;
+}
+var init_note_truncated_write_guard = __esm({
+  "src/utils/note-truncated-write-guard.ts"() {
+    "use strict";
+  }
+});
+
 // server/utils/note-version-service.ts
 function isProtectedNoteVersion(input) {
   return input.id === input.currentVersionId || input.version === 1 || input.source === "restore" || input.referencedVersionIds.has(input.id);
@@ -44557,7 +45104,45 @@ async function updateCanonicalNoteInTransaction(tx, input) {
   if (input.actorRole !== "collaborator") {
     assertCanAccessNoteVersions(note.userId, input.actorId);
   }
-  const { patch: resolvedPatch, nextContent: resolvedNextContent } = resolveLockedCanonicalMutation(note, input);
+  let { patch: resolvedPatch, nextContent: resolvedNextContent } = resolveLockedCanonicalMutation(note, input);
+  if (typeof input.incomingRawContent === "string") {
+    const incoming = input.incomingRawContent;
+    const stored = note.content ?? "";
+    if (isRawListPreviewWrite(incoming, stored, NOTE_LIST_CONTENT_MAX_CHARS)) {
+      console.warn(
+        "[note-truncation-guard] dropped list-preview body write",
+        JSON.stringify({
+          noteId: note.id,
+          actorId: input.actorId,
+          source: input.source ?? "save",
+          storedLen: stored.length,
+          incomingLen: incoming.length,
+          endsWithTagBoundary: endsWithTagBoundary(incoming)
+        })
+      );
+      resolvedNextContent = {
+        ...resolvedNextContent,
+        content: stored,
+        contentEncrypted: note.contentEncrypted
+      };
+      const { updatedAt: _droppedUpdatedAt, ...patchWithoutUpdatedAt } = resolvedPatch;
+      resolvedPatch = patchWithoutUpdatedAt;
+    } else if (isSuspiciousNoteShrink(incoming, stored)) {
+      console.warn(
+        "[note-truncation-telemetry] large body shrink",
+        JSON.stringify({
+          noteId: note.id,
+          actorId: input.actorId,
+          source: input.source ?? "save",
+          storedLen: stored.length,
+          incomingLen: incoming.length,
+          isExactPrefix: stored.startsWith(incoming),
+          endsWithTagBoundary: endsWithTagBoundary(incoming),
+          expectedVersion: input.expectedVersion ?? null
+        })
+      );
+    }
+  }
   if (resolvedNextContent.contentEncrypted) {
     const activeAssociation = first(
       await tx.select({ id: SpaceNotes.id }).from(SpaceNotes).where(and(eq(SpaceNotes.noteId, note.id), isNull(SpaceNotes.removedAt))).limit(1)
@@ -44579,6 +45164,9 @@ async function updateCanonicalNoteInTransaction(tx, input) {
     });
   }
   assertExpectedNoteVersion(input.expectedVersion, current.version);
+  if (resolvedNextContent.contentEncrypted && !note.contentEncrypted) {
+    await clearAllCoEditForNote(tx, note.id);
+  }
   const latest = asVersionRecord(current);
   const shouldCheckpoint = shouldAdvanceCanonicalVersion({
     current: latest,
@@ -44676,6 +45264,16 @@ function noteVersionErrorResponse(error) {
   }
   return null;
 }
+async function readCurrentNoteVersion(noteId, fallbackVersionId) {
+  const note = first(
+    await db.select({ currentVersionId: Notes.currentVersionId }).from(Notes).where(eq(Notes.id, noteId)).limit(1)
+  );
+  const versionId = note?.currentVersionId ?? fallbackVersionId ?? null;
+  if (!versionId) return null;
+  return first(
+    await db.select({ id: NoteVersions.id, version: NoteVersions.version }).from(NoteVersions).where(and(eq(NoteVersions.id, versionId), eq(NoteVersions.noteId, noteId))).limit(1)
+  ) ?? null;
+}
 var NOTE_VERSION_RETENTION_LATEST_COUNT, NOTE_VERSION_RETENTION_MAX_AGE_MS, NoteVersionConflictError, NoteVersionNotFoundError, ActiveSharedAssociationEncryptionError;
 var init_note_version_service = __esm({
   "server/utils/note-version-service.ts"() {
@@ -44684,6 +45282,9 @@ var init_note_version_service = __esm({
     init_db2();
     init_note_versioning();
     init_durable_note_anchor();
+    init_note_collaboration();
+    init_dashboard_data();
+    init_note_truncated_write_guard();
     NOTE_VERSION_RETENTION_LATEST_COUNT = 100;
     NOTE_VERSION_RETENTION_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1e3;
     NoteVersionConflictError = class extends Error {
@@ -44775,6 +45376,8 @@ async function deleteNotesCascadeForUser(userId, noteIds) {
       );
       await tx.delete(SpaceNotes).where(inArray(SpaceNotes.noteId, chunk));
       await tx.delete(NoteVersions).where(inArray(NoteVersions.noteId, chunk));
+      await tx.delete(NoteFingerprints).where(inArray(NoteFingerprints.noteId, chunk));
+      await tx.delete(RecallEvents).where(inArray(RecallEvents.noteId, chunk));
       await tx.delete(Notes).where(and(eq(Notes.userId, userId), inArray(Notes.id, chunk)));
     }
     return {
@@ -45052,7 +45655,7 @@ function serializeSharedCanonicalNote(input) {
     authorDisplayName: input.authorDisplayName?.trim() || "Member",
     authorColor: input.authorColor ?? "blue",
     isOwnNote: Boolean(input.isOwnNote),
-    /** Author opted this note into co-editing for its shared spaces. */
+    /** OR-mirror: true if any live shared association has co-edit on. */
     coEditEnabled: Boolean(input.coEditEnabled),
     /**
      * The server's own verdict on whether this viewer may write the body. The
@@ -45066,7 +45669,9 @@ function serializeSharedCanonicalNote(input) {
     resourceTitle: input.resourceTitle ?? null,
     resourceDescription: input.resourceDescription ?? null,
     resourceImage: input.resourceImage ?? null,
-    threadColors: input.threadColors
+    threadColors: input.threadColors,
+    /** Viewer's own tag names only — callers must scope by the viewer's userId. */
+    tags: Array.isArray(input.tags) && input.tags.length > 0 ? input.tags : void 0
   };
 }
 function canExposeCanonicalTagInContext(input) {
@@ -45352,18 +45957,11 @@ function buildAssociationRemovalPatch(actorId, now2) {
 }
 async function revokeCoEditForUnsharedNotes(tx, noteIds) {
   if (noteIds.length === 0) return;
-  const stillShared = await tx.select({ noteId: SpaceNotes.noteId }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).where(
-    and(
-      inArray(SpaceNotes.noteId, noteIds),
-      isNull(SpaceNotes.removedAt),
-      isNull(Spaces.deletedAt),
-      eq(Spaces.type, "shared")
-    )
-  );
-  const stillSharedIds = new Set(stillShared.map((row) => row.noteId));
-  const orphaned = noteIds.filter((noteId) => !stillSharedIds.has(noteId));
-  if (orphaned.length === 0) return;
-  await tx.update(Notes).set({ coEditEnabled: false, coEditEnabledAt: null }).where(and(inArray(Notes.id, orphaned), eq(Notes.coEditEnabled, true)));
+  const { syncNoteCoEditMirror: syncNoteCoEditMirror2 } = await Promise.resolve().then(() => (init_note_collaboration(), note_collaboration_exports));
+  const unique2 = [...new Set(noteIds)];
+  for (const noteId of unique2) {
+    await syncNoteCoEditMirror2(tx, noteId);
+  }
 }
 function buildAssociationReactivationPatch(actorId, now2) {
   return {
@@ -45377,7 +45975,10 @@ function buildAssociationReactivationPatch(actorId, now2) {
     secondaryCollections: null,
     collectionPinned: false,
     collectionUserOverride: false,
-    order: 0
+    order: 0,
+    // Soft-delete keeps the old row; never re-open co-edit on reactivate.
+    coEditEnabled: false,
+    coEditEnabledAt: null
   };
 }
 async function associateAuthoredNoteWithSpace(tx, input) {
@@ -45433,12 +46034,12 @@ async function associateAuthoredNoteWithSpace(tx, input) {
   );
   if (existing) {
     if (!existing.removedAt) {
-      return { association: existing, reactivated: false };
+      return { association: existing, reactivated: false, alreadyAssociated: true };
     }
     const association2 = first(
       await tx.update(SpaceNotes).set(buildAssociationReactivationPatch(input.actorId, input.now)).where(eq(SpaceNotes.id, existing.id)).returning()
     );
-    return { association: association2, reactivated: true };
+    return { association: association2, reactivated: true, alreadyAssociated: false };
   }
   const association = first(
     await tx.insert(SpaceNotes).values(
@@ -45451,7 +46052,7 @@ async function associateAuthoredNoteWithSpace(tx, input) {
       })
     ).returning()
   );
-  return { association, reactivated: false };
+  return { association, reactivated: false, alreadyAssociated: false };
 }
 async function archiveNoteFromSpace(tx, input) {
   const note = first(
@@ -46256,6 +46857,27 @@ async function getThreadsWithCountsLimited(userId, limit) {
     return [];
   }
 }
+async function getSharedSpaceCountsForNotesBatch(noteIds, userId) {
+  if (noteIds.length === 0) return /* @__PURE__ */ new Map();
+  try {
+    const rows = await db.select({ noteId: SpaceNotes.noteId }).from(SpaceNotes).innerJoin(Spaces, eq(SpaceNotes.spaceId, Spaces.id)).innerJoin(
+      SpaceMemberships,
+      and(eq(SpaceMemberships.spaceId, Spaces.id), eq(SpaceMemberships.userId, userId))
+    ).where(and(
+      inArray(SpaceNotes.noteId, noteIds),
+      isNull(SpaceNotes.removedAt),
+      isNull(Spaces.deletedAt),
+      inArray(Spaces.type, ["shared", "public"])
+    ));
+    const counts = /* @__PURE__ */ new Map();
+    for (const row of rows) {
+      counts.set(row.noteId, (counts.get(row.noteId) ?? 0) + 1);
+    }
+    return counts;
+  } catch (_3) {
+    return /* @__PURE__ */ new Map();
+  }
+}
 async function getThreadColorsForNotesBatch(noteIds, userId) {
   if (noteIds.length === 0) return /* @__PURE__ */ new Map();
   try {
@@ -46279,6 +46901,27 @@ async function getThreadColorsForNotesBatch(noteIds, userId) {
     return result;
   } catch (error) {
     console.error("Error batch fetching thread colors for notes:", error);
+    return /* @__PURE__ */ new Map();
+  }
+}
+async function getTagNamesForNotesBatch(noteIds, userId) {
+  if (noteIds.length === 0) return /* @__PURE__ */ new Map();
+  try {
+    const rows = await db.select({ noteId: NoteTags.noteId, name: Tags.name }).from(NoteTags).innerJoin(Tags, eq(Tags.id, NoteTags.tagId)).where(and(inArray(NoteTags.noteId, noteIds), eq(Tags.userId, userId)));
+    const result = /* @__PURE__ */ new Map();
+    for (const row of rows) {
+      const name = row.name?.trim();
+      if (!name) continue;
+      const existing = result.get(row.noteId);
+      if (!existing) {
+        result.set(row.noteId, [name]);
+      } else if (existing.length < NOTE_LIST_MAX_TAGS && !existing.includes(name)) {
+        existing.push(name);
+      }
+    }
+    return result;
+  } catch (error) {
+    console.error("Error batch fetching tag names for notes:", error);
     return /* @__PURE__ */ new Map();
   }
 }
@@ -47027,7 +47670,7 @@ async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0, options
     const resourceNoteIds = sortedNotes.filter((n) => n.noteType === "resource").map((n) => n.id);
     const scriptureNoteIds = sortedNotes.filter((n) => n.noteType === "scripture").map((n) => n.id).filter(Boolean);
     const noteIds = sortedNotes.map((n) => n.id).filter(Boolean);
-    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap] = await Promise.all([
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap, sharedSpaceCountsMap, tagNamesMap] = await Promise.all([
       (async () => {
         if (resourceNoteIds.length === 0) return {};
         try {
@@ -47059,11 +47702,17 @@ async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0, options
           return {};
         }
       })(),
-      getThreadColorsForNotesBatch(noteIds, userId)
+      getThreadColorsForNotesBatch(noteIds, userId),
+      // Only My Home needs it: inside a shared space every row is by definition
+      // in that space, so a "shared" badge there would be noise on every row.
+      isMyHomeAggregate ? getSharedSpaceCountsForNotesBatch(noteIds, userId) : Promise.resolve(/* @__PURE__ */ new Map()),
+      getTagNamesForNotesBatch(noteIds, userId)
     ]);
     const notesWithMeta = sortedNotes.map((note) => {
       const resourceMeta = note.noteType === "resource" ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
+      const sharedSpaceCount = sharedSpaceCountsMap.get(note.id) ?? 0;
+      const tags = tagNamesMap.get(note.id);
       const version6 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET" : void 0;
       return {
         ...note,
@@ -47075,6 +47724,8 @@ async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0, options
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0,
+        sharedSpaceCount: sharedSpaceCount > 0 ? sharedSpaceCount : void 0,
+        tags: tags && tags.length > 0 ? tags : void 0,
         version: version6
       };
     });
@@ -47124,7 +47775,7 @@ async function getNotesForSharedSpace(spaceId, viewerUserId, limit = 20, offset 
     const scriptureNoteIds = sortedNotes.filter((n) => n.noteType === "scripture").map((n) => n.id).filter(Boolean);
     const noteIds = sortedNotes.map((n) => n.id).filter(Boolean);
     const authorIds = [...new Set(sortedNotes.map((n) => n.userId).filter(Boolean))];
-    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap, authorMap] = await Promise.all([
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap, authorMap, tagNamesMap] = await Promise.all([
       (async () => {
         if (resourceNoteIds.length === 0) return {};
         try {
@@ -47157,12 +47808,16 @@ async function getNotesForSharedSpace(spaceId, viewerUserId, limit = 20, offset 
         }
       })(),
       Promise.resolve(/* @__PURE__ */ new Map()),
-      batchAuthorAttribution(authorIds)
+      batchAuthorAttribution(authorIds),
+      // Viewer-scoped: only tags this member applied themselves, never another
+      // member's private labels on the same shared note.
+      getTagNamesForNotesBatch(noteIds, viewerUserId)
     ]);
     const notesWithMeta = sortedNotes.map((note) => {
       const resourceMeta = note.noteType === "resource" ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
       const author = authorMap[note.userId];
+      const tags = tagNamesMap.get(note.id);
       const version6 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET" : void 0;
       return serializeSharedCanonicalNote({
         ...note,
@@ -47173,6 +47828,7 @@ async function getNotesForSharedSpace(spaceId, viewerUserId, limit = 20, offset 
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0,
+        tags: tags && tags.length > 0 ? tags : void 0,
         version: version6,
         authorUserId: note.userId,
         authorDisplayName: author?.displayName ?? "Member",
@@ -47186,7 +47842,7 @@ async function getNotesForSharedSpace(spaceId, viewerUserId, limit = 20, offset 
     return { notes: [], hasMore: false, total: 0 };
   }
 }
-var SCRIPTURE_TRANSLATION_ATTR_RE, NOTE_SELECT_COLUMNS, NOTE_LIST_CONTENT_MAX_CHARS, NOTE_LIST_SELECT;
+var SCRIPTURE_TRANSLATION_ATTR_RE, NOTE_LIST_MAX_TAGS, NOTE_SELECT_COLUMNS, NOTE_LIST_CONTENT_MAX_CHARS, NOTE_LIST_SELECT;
 var init_dashboard_data = __esm({
   "server/utils/dashboard-data.ts"() {
     "use strict";
@@ -47203,6 +47859,7 @@ var init_dashboard_data = __esm({
     init_shared_note_serializer();
     init_shared_space_lifecycle();
     SCRIPTURE_TRANSLATION_ATTR_RE = /data-scripture-translation\s*=\s*["']([^"']+)["']/i;
+    NOTE_LIST_MAX_TAGS = 12;
     NOTE_SELECT_COLUMNS = {
       id: Notes.id,
       title: Notes.title,
@@ -47227,7 +47884,8 @@ var init_dashboard_data = __esm({
     NOTE_LIST_CONTENT_MAX_CHARS = 2e3;
     NOTE_LIST_SELECT = {
       ...NOTE_SELECT_COLUMNS,
-      content: sql`left(${Notes.content}, ${NOTE_LIST_CONTENT_MAX_CHARS})`
+      content: sql`left(${Notes.content}, ${NOTE_LIST_CONTENT_MAX_CHARS})`,
+      contentLength: sql`length(${Notes.content})`
     };
   }
 });
@@ -88921,11 +89579,11 @@ var require_clean = __commonJS({
   "node_modules/semver/functions/clean.js"(exports2, module2) {
     "use strict";
     var parse10 = require_parse3();
-    var clean = (version6, options) => {
+    var clean3 = (version6, options) => {
       const s2 = parse10(version6.trim().replace(/^[=v]+/, ""), options);
       return s2 ? s2.version : null;
     };
-    module2.exports = clean;
+    module2.exports = clean3;
   }
 });
 
@@ -90273,7 +90931,7 @@ var require_semver2 = __commonJS({
     var identifiers = require_identifiers();
     var parse10 = require_parse3();
     var valid = require_valid();
-    var clean = require_clean();
+    var clean3 = require_clean();
     var inc = require_inc();
     var diff = require_diff();
     var major = require_major();
@@ -90311,7 +90969,7 @@ var require_semver2 = __commonJS({
     module2.exports = {
       parse: parse10,
       valid,
-      clean,
+      clean: clean3,
       inc,
       diff,
       major,
@@ -126155,7 +126813,7 @@ var init_y18n = __esm({
 });
 
 // node_modules/yargs/lib/platform-shims/esm.mjs
-var import_assert29, import_util45, import_fs8, import_url9, import_path10, import_meta, REQUIRE_ERROR, REQUIRE_DIRECTORY_ERROR, __dirname2, mainFilename, esm_default3;
+var import_assert29, import_util45, import_fs8, import_url9, import_path10, import_meta2, REQUIRE_ERROR, REQUIRE_DIRECTORY_ERROR, __dirname2, mainFilename, esm_default3;
 var init_esm11 = __esm({
   "node_modules/yargs/lib/platform-shims/esm.mjs"() {
     "use strict";
@@ -126170,11 +126828,11 @@ var init_esm11 = __esm({
     init_process_argv();
     init_yerror();
     init_y18n();
-    import_meta = {};
+    import_meta2 = {};
     REQUIRE_ERROR = "require is not supported by ESM";
     REQUIRE_DIRECTORY_ERROR = "loading a directory of commands is not supported yet for ESM";
     try {
-      __dirname2 = (0, import_url9.fileURLToPath)(import_meta.url);
+      __dirname2 = (0, import_url9.fileURLToPath)(import_meta2.url);
     } catch (e) {
       __dirname2 = process.cwd();
     }
@@ -153714,7 +154372,7 @@ async function getNotePassages(noteId) {
   const seen = /* @__PURE__ */ new Set();
   const out = [];
   for (const r of rows) {
-    const k2 = verseKey(r);
+    const k2 = verseKey2(r);
     if (!seen.has(k2)) {
       seen.add(k2);
       out.push(r);
@@ -153794,7 +154452,7 @@ async function getRelatedNotesForPassages(userId, sourcePassages, opts = {}) {
   const deduped = [];
   const sourceKeys = /* @__PURE__ */ new Set();
   for (const p of sourcePassages) {
-    const k2 = verseKey(p);
+    const k2 = verseKey2(p);
     if (!sourceKeys.has(k2)) {
       sourceKeys.add(k2);
       deduped.push(p);
@@ -153808,20 +154466,20 @@ async function getRelatedNotesForPassages(userId, sourcePassages, opts = {}) {
     chapter: ScriptureCrossReferences.toChapterStart,
     verse: ScriptureCrossReferences.toVerseStart
   }).from(ScriptureCrossReferences).where(anyOf(ScriptureCrossReferences.fromBook, ScriptureCrossReferences.fromChapter, ScriptureCrossReferences.fromVerse)).orderBy(desc(ScriptureCrossReferences.votes)).limit(maxCrossRefs);
-  const crossRefKeys = new Set(crossRows.map(verseKey));
+  const crossRefKeys = new Set(crossRows.map(verseKey2));
   const themeRows = await db.select({ topicId: ScriptureTopicVerses.topicId, relevance: ScriptureTopicVerses.relevance }).from(ScriptureTopicVerses).where(anyOf(ScriptureTopicVerses.book, ScriptureTopicVerses.chapter, ScriptureTopicVerses.verse)).orderBy(desc(ScriptureTopicVerses.relevance)).limit(maxThemes);
   const themeIds = [...new Set(themeRows.map((t) => t.topicId))];
   const candidateWhere = excludeNoteId ? and(eq(Notes.userId, userId), ne(Notes.noteType, "scripture"), ne(ScriptureMetadata.noteId, excludeNoteId)) : and(eq(Notes.userId, userId), ne(Notes.noteType, "scripture"));
   const candidates = await db.select({ noteId: ScriptureMetadata.noteId, book: ScriptureMetadata.book, chapter: ScriptureMetadata.chapter, verse: ScriptureMetadata.verse }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(candidateWhere);
   const verseToNotes = /* @__PURE__ */ new Map();
   for (const c of candidates) {
-    const key2 = verseKey(c);
+    const key2 = verseKey2(c);
     if (!verseToNotes.has(key2)) verseToNotes.set(key2, /* @__PURE__ */ new Set());
     verseToNotes.get(key2).add(c.noteId);
   }
   const signals = [];
   for (const c of candidates) {
-    const key2 = verseKey(c);
+    const key2 = verseKey2(c);
     if (sourceKeys.has(key2)) signals.push({ noteId: c.noteId, kind: "passage", detail: key2 });
     if (crossRefKeys.has(key2)) signals.push({ noteId: c.noteId, kind: "crossref", detail: key2 });
   }
@@ -153829,7 +154487,7 @@ async function getRelatedNotesForPassages(userId, sourcePassages, opts = {}) {
     const candidateBooks = [...new Set(candidates.map((c) => c.book))];
     const themeHits = await db.select({ topicId: ScriptureTopicVerses.topicId, book: ScriptureTopicVerses.book, chapter: ScriptureTopicVerses.chapter, verse: ScriptureTopicVerses.verse }).from(ScriptureTopicVerses).where(and(inArray(ScriptureTopicVerses.topicId, themeIds), inArray(ScriptureTopicVerses.book, candidateBooks)));
     for (const hit of themeHits) {
-      const notes = verseToNotes.get(verseKey(hit));
+      const notes = verseToNotes.get(verseKey2(hit));
       if (!notes) continue;
       for (const nid of notes) signals.push({ noteId: nid, kind: "theme", detail: hit.topicId });
     }
@@ -153922,7 +154580,7 @@ async function getUserPassageKnowledge(userId, opts = {}) {
   const verses = [];
   const seen = /* @__PURE__ */ new Set();
   for (const r of cited) {
-    const k2 = verseKey(r);
+    const k2 = verseKey2(r);
     if (!seen.has(k2)) {
       seen.add(k2);
       verses.push(r);
@@ -153936,31 +154594,31 @@ async function getUserPassageKnowledge(userId, opts = {}) {
     const chunk = verses.slice(i, i + CHUNK);
     const peopleRows = await db.select({ book: ScriptureEntityRefs.book, chapter: ScriptureEntityRefs.chapter, verse: ScriptureEntityRefs.verse, name: BiblePeople.name }).from(ScriptureEntityRefs).innerJoin(BiblePeople, eq(ScriptureEntityRefs.entityId, BiblePeople.id)).where(and(eq(ScriptureEntityRefs.entityType, "person"), or(...chunk.map((p) => and(eq(ScriptureEntityRefs.book, p.book), eq(ScriptureEntityRefs.chapter, p.chapter), eq(ScriptureEntityRefs.verse, p.verse))))));
     for (const r of peopleRows) {
-      const e = entry(verseKey(r));
+      const e = entry(verseKey2(r));
       if (!e.people.includes(r.name)) e.people.push(r.name);
     }
     const placeRows = await db.select({ book: ScriptureEntityRefs.book, chapter: ScriptureEntityRefs.chapter, verse: ScriptureEntityRefs.verse, name: BiblePlaces.name }).from(ScriptureEntityRefs).innerJoin(BiblePlaces, eq(ScriptureEntityRefs.entityId, BiblePlaces.id)).where(and(eq(ScriptureEntityRefs.entityType, "place"), or(...chunk.map((p) => and(eq(ScriptureEntityRefs.book, p.book), eq(ScriptureEntityRefs.chapter, p.chapter), eq(ScriptureEntityRefs.verse, p.verse))))));
     for (const r of placeRows) {
-      const e = entry(verseKey(r));
+      const e = entry(verseKey2(r));
       const nm = normalizePlaceName(r.name);
       if (!e.places.includes(nm)) e.places.push(nm);
     }
     const themeRows = await db.select({ book: ScriptureTopicVerses.book, chapter: ScriptureTopicVerses.chapter, verse: ScriptureTopicVerses.verse, label: ScriptureTopics.label }).from(ScriptureTopicVerses).innerJoin(ScriptureTopics, eq(ScriptureTopicVerses.topicId, ScriptureTopics.id)).where(or(...chunk.map((p) => and(eq(ScriptureTopicVerses.book, p.book), eq(ScriptureTopicVerses.chapter, p.chapter), eq(ScriptureTopicVerses.verse, p.verse))))).orderBy(desc(ScriptureTopicVerses.relevance));
     for (const r of themeRows) {
-      const e = entry(verseKey(r));
+      const e = entry(verseKey2(r));
       if (e.themes.length < themesPerVerse) e.themes.push(r.label);
     }
   }
   return out;
 }
-var verseKey, MIN_THEME_CORROBORATION_RELEVANCE, SIGNAL_WEIGHT, SECTION_MATCH_BOOST, MAX_THEME_SIGNALS;
+var verseKey2, MIN_THEME_CORROBORATION_RELEVANCE, SIGNAL_WEIGHT, SECTION_MATCH_BOOST, MAX_THEME_SIGNALS;
 var init_scripture_knowledge = __esm({
   "server/utils/scripture-knowledge.ts"() {
     "use strict";
     init_db2();
     init_bible_place_name();
     init_admin_pulse_canon_groups();
-    verseKey = (v2) => `${v2.book}|${v2.chapter}|${v2.verse}`;
+    verseKey2 = (v2) => `${v2.book}|${v2.chapter}|${v2.verse}`;
     MIN_THEME_CORROBORATION_RELEVANCE = 50;
     SIGNAL_WEIGHT = { passage: 3, crossref: 2, theme: 1 };
     SECTION_MATCH_BOOST = 1;
@@ -154098,8 +154756,8 @@ function pickPreferredTag(a, b3) {
   const aAuto = a.isAutoGenerated === true;
   const bAuto = b3.isAutoGenerated === true;
   if (aAuto !== bAuto) return aAuto ? b3 : a;
-  const aCreated = a.createdAt ? Date.parse(a.createdAt) : Number.MAX_SAFE_INTEGER;
-  const bCreated = b3.createdAt ? Date.parse(b3.createdAt) : Number.MAX_SAFE_INTEGER;
+  const aCreated = toDate(a.createdAt)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+  const bCreated = toDate(b3.createdAt)?.getTime() ?? Number.MAX_SAFE_INTEGER;
   if (aCreated !== bCreated) return aCreated < bCreated ? a : b3;
   return a.id < b3.id ? a : b3;
 }
@@ -154718,8 +155376,11 @@ async function getNoteFingerprint(noteId) {
 }
 async function getUserNoteFingerprints(userId) {
   try {
-    const rows = await db.select().from(NoteFingerprints).where(eq(NoteFingerprints.userId, userId));
-    return rows.map(deserializeFingerprint);
+    const rows = await db.select().from(NoteFingerprints).innerJoin(
+      Notes,
+      and(eq(Notes.id, NoteFingerprints.noteId), eq(Notes.userId, NoteFingerprints.userId))
+    ).where(eq(NoteFingerprints.userId, userId));
+    return rows.map((row) => deserializeFingerprint(row.NoteFingerprints));
   } catch (err) {
     if (isNoteFingerprintsTableMissing(err)) return [];
     throw err;
@@ -166832,30 +167493,30 @@ var require_parser = __commonJS({
         let token, type2;
         let length = tokens.length;
         let value = "";
-        let clean = true;
+        let clean3 = true;
         let next, prev;
         for (let i = 0; i < length; i += 1) {
           token = tokens[i];
           type2 = token[0];
           if (type2 === "space" && i === length - 1 && !customProperty) {
-            clean = false;
+            clean3 = false;
           } else if (type2 === "comment") {
             prev = tokens[i - 1] ? tokens[i - 1][0] : "empty";
             next = tokens[i + 1] ? tokens[i + 1][0] : "empty";
             if (!SAFE_COMMENT_NEIGHBOR[prev] && !SAFE_COMMENT_NEIGHBOR[next]) {
               if (value.slice(-1) === ",") {
-                clean = false;
+                clean3 = false;
               } else {
                 value += token[1];
               }
             } else {
-              clean = false;
+              clean3 = false;
             }
           } else {
             value += token[1];
           }
         }
-        if (!clean) {
+        if (!clean3) {
           let raw2 = tokens.reduce((all, i) => all + i[1], "");
           node.raws[prop2] = { raw: raw2, value };
         }
@@ -193477,11 +194138,11 @@ var require_turndown_cjs = __commonJS({
     function Node7(node, options) {
       node.isBlock = isBlock(node);
       node.isCode = node.nodeName === "CODE" || node.parentNode.isCode;
-      node.isBlank = isBlank(node);
+      node.isBlank = isBlank2(node);
       node.flankingWhitespace = flankingWhitespace(node, options);
       return node;
     }
-    function isBlank(node) {
+    function isBlank2(node) {
       return !isVoid2(node) && !isMeaningfulWhenBlank(node) && /^\s*$/i.test(node.textContent) && !hasVoid(node) && !hasMeaningfulWhenBlank(node);
     }
     function flankingWhitespace(node, options) {
@@ -205054,10 +205715,10 @@ function makeColorComp(n) {
 function scaleAndClamp(x2) {
   return Math.max(0, Math.min(255, 255 * x2));
 }
-var import_meta3, __webpack_modules__, __webpack_module_cache__, es_array_push, es_array_buffer_detached, es_array_buffer_transfer, es_array_buffer_transfer_to_fixed_length, es_iterator_constructor, es_iterator_reduce, es_promise_try, es_typed_array_with, esnext_math_sum_precise, esnext_uint8_array_from_base64, esnext_uint8_array_set_from_base64, esnext_uint8_array_set_from_hex, esnext_uint8_array_to_base64, esnext_uint8_array_to_hex, web_dom_exception_stack, web_url_parse, isNodeJS, FONT_IDENTITY_MATRIX, LINE_FACTOR, LINE_DESCENT_FACTOR, BASELINE_FACTOR, RenderingIntentFlag, AnnotationMode, AnnotationEditorPrefix, AnnotationEditorType, AnnotationEditorParamsType, PermissionFlag, TextRenderingMode, util_ImageKind, AnnotationType, AnnotationBorderStyleType, VerbosityLevel, OPS, DrawOPS, PasswordResponses, verbosity, BaseException, PasswordException, UnknownErrorException, InvalidPDFException, ResponseException, FormatError, AbortException, util_FeatureTest, hexNumbers, Util, NormalizeRegex, NormalizationMap, AnnotationPrefix, es_iterator_map, web_url_search_params_delete, web_url_search_params_has, web_url_search_params_size, XfaText, XfaLayer, SVG_NS, PixelsPerInch, PageViewport, RenderingCancelledException, StatTimer, PDFDateString, OutputScale, SupportedImageMimeTypes, ColorScheme, CSSConstants, contrastCache, es_iterator_take, es_promise_with_resolvers, es_set_difference_v2, es_set_intersection_v2, es_set_is_disjoint_from_v2, es_set_is_subset_of_v2, es_set_is_superset_of_v2, es_set_symmetric_difference_v2, es_set_union_v2, es_iterator_drop, es_iterator_every, es_iterator_some, esnext_json_parse, EditorToolbar, FloatingToolbar, IdManager, ImageManager, CommandManager, KeyboardManager, ColorManager, AnnotationEditorUIManager, AltText, Comment5, TouchManager, AnnotationEditor, FakeEditor, SEED, MASK_HIGH, MASK_LOW, MurmurHash3_64, SerializableEmpty, AnnotationStorage, PrintAnnotationStorage, FontLoader, FontFaceObject, isRefProxy, isNameProxy, isValidExplicitDest, LoopbackPort, CallbackKind, StreamKind, MessageHandler, BaseCanvasFactory, DOMCanvasFactory, BaseCMapReaderFactory, DOMCMapReaderFactory, es_iterator_filter, BaseFilterFactory, DOMFilterFactory, BaseStandardFontDataFactory, DOMStandardFontDataFactory, BaseWasmFactory, DOMWasmFactory, NodeFilterFactory, NodeCanvasFactory, NodeCMapReaderFactory, NodeStandardFontDataFactory, NodeWasmFactory, es_iterator_for_each, FORCED_DEPENDENCY_LABEL, floor, ceil, EMPTY_BBOX, BBoxReader, ensureDebugMetadata, CanvasDependencyTracker, CanvasNestedDependencyTracker, Dependencies, PathType, BaseShadingPattern, RadialAxialShadingPattern, MeshShadingPattern, DummyShadingPattern, PaintType, TilingPattern, MIN_FONT_SIZE, MAX_FONT_SIZE, EXECUTION_TIME, EXECUTION_STEPS, FULL_CHUNK_HEIGHT, SCALE_MATRIX, XY, MIN_MAX_INIT, CachedCanvases, CanvasExtraState, LINE_CAP_STYLES, LINE_JOIN_STYLES, NORMAL_CLIP, EO_CLIP, CanvasGraphics, CssFontInfo, SystemFontInfo, FontInfo, GlobalWorkerOptions, Metadata, INTERNAL, OptionalContentGroup, OptionalContentConfig, PDFDataTransportStream, PDFDataTransportStreamReader, PDFDataTransportStreamRangeReader, PDFFetchStream, PDFFetchStreamReader, PDFFetchStreamRangeReader, OK_RESPONSE, PARTIAL_CONTENT_RESPONSE, NetworkManager2, PDFNetworkStream, PDFNetworkStreamFullRequestReader, PDFNetworkStreamRangeRequestReader, urlRegex, PDFNodeStream, PDFNodeStreamFsFullReader, PDFNodeStreamFsRangeReader, INITIAL_DATA, PDFObjects, MAX_TEXT_DIVS_TO_RENDER, DEFAULT_FONT_SIZE, TextLayer, RENDERING_CANCELLED_TIMEOUT, PDFDocumentLoadingTask, PDFDataRangeTransport, PDFDocumentProxy, PDFPageProxy, PDFWorker, WorkerTransport, RenderTask, InternalRenderTask, version5, build, ColorPicker, BasicColorPicker, es_iterator_find, es_iterator_flat_map, ColorConverters, BaseSVGFactory, DOMSVGFactory, annotation_layer_DEFAULT_FONT_SIZE, GetElementsByNameSet, TIMEZONE_OFFSET, AnnotationElementFactory, AnnotationElement, EditorAnnotationElement, LinkAnnotationElement, TextAnnotationElement, WidgetAnnotationElement, TextWidgetAnnotationElement, SignatureWidgetAnnotationElement, CheckboxWidgetAnnotationElement, RadioButtonWidgetAnnotationElement, PushButtonWidgetAnnotationElement, ChoiceWidgetAnnotationElement, PopupAnnotationElement, PopupElement, FreeTextAnnotationElement, LineAnnotationElement, SquareAnnotationElement, CircleAnnotationElement, PolylineAnnotationElement, PolygonAnnotationElement, CaretAnnotationElement, InkAnnotationElement, HighlightAnnotationElement, UnderlineAnnotationElement, SquigglyAnnotationElement, StrikeOutAnnotationElement, StampAnnotationElement, FileAttachmentAnnotationElement, AnnotationLayer, EOL_PATTERN, FreeTextEditor, Outline, FreeDrawOutliner, FreeDrawOutline, HighlightOutliner, HighlightOutline, FreeHighlightOutliner, FreeHighlightOutline, HighlightEditor, DrawingOptions, DrawingEditor, InkDrawOutliner, InkDrawOutline, InkDrawingOptions, InkEditor, ContourDrawOutline, BASE_HEADER_LENGTH, POINTS_PROPERTIES_NUMBER, SignatureExtractor, SignatureOptions, DrawnSignatureOptions, SignatureEditor, StampEditor, AnnotationEditorLayer, DrawLayer;
+var import_meta4, __webpack_modules__, __webpack_module_cache__, es_array_push, es_array_buffer_detached, es_array_buffer_transfer, es_array_buffer_transfer_to_fixed_length, es_iterator_constructor, es_iterator_reduce, es_promise_try, es_typed_array_with, esnext_math_sum_precise, esnext_uint8_array_from_base64, esnext_uint8_array_set_from_base64, esnext_uint8_array_set_from_hex, esnext_uint8_array_to_base64, esnext_uint8_array_to_hex, web_dom_exception_stack, web_url_parse, isNodeJS, FONT_IDENTITY_MATRIX, LINE_FACTOR, LINE_DESCENT_FACTOR, BASELINE_FACTOR, RenderingIntentFlag, AnnotationMode, AnnotationEditorPrefix, AnnotationEditorType, AnnotationEditorParamsType, PermissionFlag, TextRenderingMode, util_ImageKind, AnnotationType, AnnotationBorderStyleType, VerbosityLevel, OPS, DrawOPS, PasswordResponses, verbosity, BaseException, PasswordException, UnknownErrorException, InvalidPDFException, ResponseException, FormatError, AbortException, util_FeatureTest, hexNumbers, Util, NormalizeRegex, NormalizationMap, AnnotationPrefix, es_iterator_map, web_url_search_params_delete, web_url_search_params_has, web_url_search_params_size, XfaText, XfaLayer, SVG_NS, PixelsPerInch, PageViewport, RenderingCancelledException, StatTimer, PDFDateString, OutputScale, SupportedImageMimeTypes, ColorScheme, CSSConstants, contrastCache, es_iterator_take, es_promise_with_resolvers, es_set_difference_v2, es_set_intersection_v2, es_set_is_disjoint_from_v2, es_set_is_subset_of_v2, es_set_is_superset_of_v2, es_set_symmetric_difference_v2, es_set_union_v2, es_iterator_drop, es_iterator_every, es_iterator_some, esnext_json_parse, EditorToolbar, FloatingToolbar, IdManager, ImageManager, CommandManager, KeyboardManager, ColorManager, AnnotationEditorUIManager, AltText, Comment5, TouchManager, AnnotationEditor, FakeEditor, SEED, MASK_HIGH, MASK_LOW, MurmurHash3_64, SerializableEmpty, AnnotationStorage, PrintAnnotationStorage, FontLoader, FontFaceObject, isRefProxy, isNameProxy, isValidExplicitDest, LoopbackPort, CallbackKind, StreamKind, MessageHandler, BaseCanvasFactory, DOMCanvasFactory, BaseCMapReaderFactory, DOMCMapReaderFactory, es_iterator_filter, BaseFilterFactory, DOMFilterFactory, BaseStandardFontDataFactory, DOMStandardFontDataFactory, BaseWasmFactory, DOMWasmFactory, NodeFilterFactory, NodeCanvasFactory, NodeCMapReaderFactory, NodeStandardFontDataFactory, NodeWasmFactory, es_iterator_for_each, FORCED_DEPENDENCY_LABEL, floor, ceil, EMPTY_BBOX, BBoxReader, ensureDebugMetadata, CanvasDependencyTracker, CanvasNestedDependencyTracker, Dependencies, PathType, BaseShadingPattern, RadialAxialShadingPattern, MeshShadingPattern, DummyShadingPattern, PaintType, TilingPattern, MIN_FONT_SIZE, MAX_FONT_SIZE, EXECUTION_TIME, EXECUTION_STEPS, FULL_CHUNK_HEIGHT, SCALE_MATRIX, XY, MIN_MAX_INIT, CachedCanvases, CanvasExtraState, LINE_CAP_STYLES, LINE_JOIN_STYLES, NORMAL_CLIP, EO_CLIP, CanvasGraphics, CssFontInfo, SystemFontInfo, FontInfo, GlobalWorkerOptions, Metadata, INTERNAL, OptionalContentGroup, OptionalContentConfig, PDFDataTransportStream, PDFDataTransportStreamReader, PDFDataTransportStreamRangeReader, PDFFetchStream, PDFFetchStreamReader, PDFFetchStreamRangeReader, OK_RESPONSE, PARTIAL_CONTENT_RESPONSE, NetworkManager2, PDFNetworkStream, PDFNetworkStreamFullRequestReader, PDFNetworkStreamRangeRequestReader, urlRegex, PDFNodeStream, PDFNodeStreamFsFullReader, PDFNodeStreamFsRangeReader, INITIAL_DATA, PDFObjects, MAX_TEXT_DIVS_TO_RENDER, DEFAULT_FONT_SIZE, TextLayer, RENDERING_CANCELLED_TIMEOUT, PDFDocumentLoadingTask, PDFDataRangeTransport, PDFDocumentProxy, PDFPageProxy, PDFWorker, WorkerTransport, RenderTask, InternalRenderTask, version5, build, ColorPicker, BasicColorPicker, es_iterator_find, es_iterator_flat_map, ColorConverters, BaseSVGFactory, DOMSVGFactory, annotation_layer_DEFAULT_FONT_SIZE, GetElementsByNameSet, TIMEZONE_OFFSET, AnnotationElementFactory, AnnotationElement, EditorAnnotationElement, LinkAnnotationElement, TextAnnotationElement, WidgetAnnotationElement, TextWidgetAnnotationElement, SignatureWidgetAnnotationElement, CheckboxWidgetAnnotationElement, RadioButtonWidgetAnnotationElement, PushButtonWidgetAnnotationElement, ChoiceWidgetAnnotationElement, PopupAnnotationElement, PopupElement, FreeTextAnnotationElement, LineAnnotationElement, SquareAnnotationElement, CircleAnnotationElement, PolylineAnnotationElement, PolygonAnnotationElement, CaretAnnotationElement, InkAnnotationElement, HighlightAnnotationElement, UnderlineAnnotationElement, SquigglyAnnotationElement, StrikeOutAnnotationElement, StampAnnotationElement, FileAttachmentAnnotationElement, AnnotationLayer, EOL_PATTERN, FreeTextEditor, Outline, FreeDrawOutliner, FreeDrawOutline, HighlightOutliner, HighlightOutline, FreeHighlightOutliner, FreeHighlightOutline, HighlightEditor, DrawingOptions, DrawingEditor, InkDrawOutliner, InkDrawOutline, InkDrawingOptions, InkEditor, ContourDrawOutline, BASE_HEADER_LENGTH, POINTS_PROPERTIES_NUMBER, SignatureExtractor, SignatureOptions, DrawnSignatureOptions, SignatureEditor, StampEditor, AnnotationEditorLayer, DrawLayer;
 var init_pdf = __esm({
   "node_modules/pdfjs-dist/legacy/build/pdf.mjs"() {
-    import_meta3 = {};
+    import_meta4 = {};
     __webpack_modules__ = {
       /***/
       34: (
@@ -217077,7 +217738,7 @@ var init_pdf = __esm({
     if (isNodeJS) {
       let canvas;
       try {
-        const require2 = process.getBuiltinModule("module").createRequire(import_meta3.url);
+        const require2 = process.getBuiltinModule("module").createRequire(import_meta4.url);
         try {
           canvas = require2("@napi-rs/canvas");
         } catch (ex) {
@@ -217119,7 +217780,7 @@ var init_pdf = __esm({
     };
     NodeCanvasFactory = class extends BaseCanvasFactory {
       _createCanvas(width, height) {
-        const require2 = process.getBuiltinModule("module").createRequire(import_meta3.url);
+        const require2 = process.getBuiltinModule("module").createRequire(import_meta4.url);
         const canvas = require2("@napi-rs/canvas");
         return canvas.createCanvas(width, height);
       }
@@ -236337,9 +236998,9 @@ __export(netlify_exports, {
 module.exports = __toCommonJS(netlify_exports);
 
 // node_modules/hono/dist/adapter/netlify/handler.js
-var handle = (app17) => {
+var handle = (app24) => {
   return (req, context2) => {
-    return app17.fetch(req, { context: context2 });
+    return app24.fetch(req, { context: context2 });
   };
 };
 
@@ -237502,14 +238163,14 @@ var Hono = class _Hono {
    * app.route("/api", app2) // GET /api/user
    * ```
    */
-  route(path10, app17) {
+  route(path10, app24) {
     const subApp = this.basePath(path10);
-    app17.routes.map((r) => {
+    app24.routes.map((r) => {
       let handler5;
-      if (app17.errorHandler === errorHandler) {
+      if (app24.errorHandler === errorHandler) {
         handler5 = r.handler;
       } else {
-        handler5 = async (c, next) => (await compose([], app17.errorHandler)(c, () => r.handler(c, next))).res;
+        handler5 = async (c, next) => (await compose([], app24.errorHandler)(c, () => r.handler(c, next))).res;
         handler5[COMPOSED_HANDLER] = r.handler;
       }
       subApp.#addRoute(r.method, r.path, handler5);
@@ -238916,7 +239577,10 @@ function generateDisplayName(firstName, lastName) {
 async function invalidateUserCache(userId) {
   try {
     await db.update(UserMetadata).set({
-      clerkDataUpdatedAt: (/* @__PURE__ */ new Date(0)).toISOString()
+      // A Date, not an ISO string. clerkDataUpdatedAt is a ts() column, and Drizzle's
+      // date-mode mapper calls value.toISOString() on whatever it is given — so a
+      // string threw TypeError here and invalidation silently never happened.
+      clerkDataUpdatedAt: /* @__PURE__ */ new Date(0)
     }).where(eq(UserMetadata.userId, userId));
   } catch (error) {
     console.error("Error invalidating user cache:", error);
@@ -238992,6 +239656,9 @@ function isCadenceStale(lastNoteAt, cadence, now2 = /* @__PURE__ */ new Date()) 
 // server/utils/channel-publish-cadence.ts
 function isMinistryBroadcastSpaceRow(space) {
   return space.type === "public" && Boolean(space.orgId);
+}
+function isChurchOrgSpaceRow(space) {
+  return Boolean(space.orgId) && (space.type === "shared" || space.type === "public");
 }
 async function getLastCurriculumAtBySpaceIds(spaceIds) {
   const out = /* @__PURE__ */ new Map();
@@ -240778,6 +241445,10 @@ function rateLimitMiddleware(userId, endpoint, type2, ip) {
     resetTime: result.resetTime
   };
 }
+function retryAfterSecondsFrom(resetTime, now2 = Date.now()) {
+  if (typeof resetTime !== "number" || !Number.isFinite(resetTime)) return 1;
+  return Math.max(1, Math.ceil((resetTime - now2) / 1e3));
+}
 function rateLimit(type2) {
   return async (c, next) => {
     const auth = c.get("auth");
@@ -240785,7 +241456,11 @@ function rateLimit(type2) {
     const endpoint = c.req.path;
     const result = rateLimitMiddleware(auth?.userId ?? null, endpoint, type2, ip);
     if (!result.allowed) {
-      return c.json({ error: result.error || "Rate limit exceeded", code: "RATE_LIMIT_EXCEEDED" }, 429);
+      return c.json(
+        { error: result.error || "Rate limit exceeded", code: "RATE_LIMIT_EXCEEDED" },
+        429,
+        { "Retry-After": String(retryAfterSecondsFrom(result.resetTime)) }
+      );
     }
     return next();
   };
@@ -240907,7 +241582,13 @@ function noteOgDescription(content, noteType, scriptureMetadata, resourceMetadat
 var route5 = new Hono2();
 var OG_IMAGE_VERSION = "7";
 route5.get("/api/og/referral/:code", (c) => {
-  return c.text("OG image temporarily disabled", 200);
+  return new Response(null, {
+    status: 404,
+    headers: {
+      "Cache-Control": "public, max-age=60, s-maxage=60",
+      "X-Og-Source": "none"
+    }
+  });
 });
 async function loadPublicNote(shareToken) {
   return first(
@@ -241193,6 +241874,13 @@ route7.get("/api/search", requireAuth, async (c) => {
     ] : [];
     const useFTS = trimmedQuery.length >= MIN_SEARCH_QUERY_LENGTH;
     const ftsSubstringPattern = useFTS ? `%${trimmedQuery}%` : "";
+    const noteTagMatchSql = (pattern) => sql`EXISTS (
+      SELECT 1 FROM ${NoteTags}
+      INNER JOIN ${Tags} ON ${Tags.id} = ${NoteTags.tagId}
+      WHERE ${NoteTags.noteId} = ${Notes.id}
+        AND ${Tags.userId} = ${userId}
+        AND ${Tags.name} ILIKE ${pattern}
+    )`;
     let notesRows = [];
     let threadsRows = [];
     if (searchNotes) {
@@ -241234,7 +241922,8 @@ route7.get("/api/search", requireAuth, async (c) => {
                 sql`${noteTsVector} @@ ${tsQuery}`,
                 like(Notes.title, ftsSubstringPattern),
                 like(Notes.content, ftsSubstringPattern),
-                sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${ftsSubstringPattern}`
+                sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${ftsSubstringPattern}`,
+                noteTagMatchSql(ftsSubstringPattern)
               )
             )
           ).orderBy(
@@ -241253,7 +241942,8 @@ route7.get("/api/search", requireAuth, async (c) => {
               or(
                 like(Notes.title, searchTerm),
                 like(Notes.content, searchTerm),
-                sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${searchTerm}`
+                sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${searchTerm}`,
+                noteTagMatchSql(searchTerm)
               )
             )
           ).orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id).limit(limit);
@@ -241283,7 +241973,8 @@ route7.get("/api/search", requireAuth, async (c) => {
               sql`${noteTsVector} @@ ${tsQuery}`,
               like(Notes.title, ftsSubstringPattern),
               like(Notes.content, ftsSubstringPattern),
-              sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${ftsSubstringPattern}`
+              sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${ftsSubstringPattern}`,
+              noteTagMatchSql(ftsSubstringPattern)
             )
           )
         ).orderBy(
@@ -241313,7 +242004,8 @@ route7.get("/api/search", requireAuth, async (c) => {
             or(
               like(Notes.title, searchTerm),
               like(Notes.content, searchTerm),
-              sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${searchTerm}`
+              sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${searchTerm}`,
+              noteTagMatchSql(searchTerm)
             )
           )
         ).orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id).limit(limit);
@@ -243136,15 +243828,26 @@ init_sync_deletion_log();
 // server/utils/realtime.ts
 init_dist5();
 var adminClient = null;
+var adminClientUnavailable = false;
 function getAdminClient() {
   if (adminClient) return adminClient;
+  if (adminClientUnavailable) return null;
   const url = process.env.SUPABASE_URL?.trim();
   const key2 = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!url || !key2) return null;
-  adminClient = createClient(url, key2, {
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-  return adminClient;
+  try {
+    adminClient = createClient(url, key2, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+    return adminClient;
+  } catch (err) {
+    adminClientUnavailable = true;
+    console.error(
+      "[realtime] disabled \u2014 could not create admin client:",
+      err instanceof Error ? err.message : err
+    );
+    return null;
+  }
 }
 function syncChannelName(userId) {
   return `sync-${userId}`;
@@ -243154,7 +243857,9 @@ function broadcastInvalidation(userId, payload) {
   if (!client) return;
   void (async () => {
     try {
-      const channel = client.channel(syncChannelName(userId));
+      const channel = client.channel(syncChannelName(userId), {
+        config: { private: true }
+      });
       const status = await channel.send({
         type: "broadcast",
         event: "invalidate",
@@ -244302,6 +245007,7 @@ route9.get("/api/threads/:threadId/referenced-scripture-notes", requireAuth, asy
 var threads_default = route9;
 
 // server/routes/notes.ts
+var import_node_fs = require("node:fs");
 init_auth();
 init_db2();
 init_dates();
@@ -244877,6 +245583,268 @@ async function userNeedsCollectionBackfill(userId) {
 // server/routes/notes.ts
 init_pg_undefined_relation();
 init_scripture_detector();
+
+// server/utils/church-service-passage.ts
+init_scripture_detector();
+function canonicalizeServiceReference(raw2) {
+  const trimmed = String(raw2 ?? "").trim();
+  if (!trimmed) return { ok: true, reference: null };
+  const normalized = normalizeScriptureReference(trimmed);
+  const firstPass = checkScriptureReferenceValidity(normalized);
+  if (firstPass.ok) return { ok: true, reference: normalized };
+  const repaired = repairUnresolvableReference(normalized);
+  if (repaired) {
+    const secondPass = checkScriptureReferenceValidity(repaired);
+    if (secondPass.ok) return { ok: true, reference: repaired };
+  }
+  return { ok: false, reason: firstPass.reason };
+}
+
+// src/utils/scripture-verse-keys.ts
+init_scripture_detector();
+var verseKeyFromParts = (v2) => `${v2.book}|${v2.chapter}|${v2.verse}`;
+function verseKeysFromScriptureReference(reference) {
+  const normalized = normalizeScriptureReference(reference.trim()) ?? reference.trim();
+  if (!normalized) return [];
+  const parsed = parseScriptureReference(normalized.replace(/,\s+/g, ","));
+  if (!parsed) return [];
+  const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+  const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : verseStart;
+  const keys2 = [];
+  for (let v2 = verseStart; v2 <= verseEnd; v2++) {
+    keys2.push(verseKeyFromParts({ book: parsed.book, chapter: parsed.chapter, verse: v2 }));
+  }
+  return keys2;
+}
+
+// server/utils/crossref-gaps.ts
+init_scripture_detector();
+init_db2();
+var verseKey = (v2) => verseKeyFromParts(v2);
+function displayRef(v2) {
+  return `${v2.book} ${v2.chapter}:${v2.verse}`;
+}
+function extractScripturePillsFromHtml(html) {
+  const out = [];
+  const re2 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  let match4;
+  while ((match4 = re2.exec(html)) !== null) {
+    const reference = match4[1]?.trim();
+    if (!reference) continue;
+    const transMatch = match4[0].match(/data-scripture-translation\s*=\s*["']([^"']+)["']/i);
+    const translation = transMatch?.[1]?.trim().toUpperCase() || "NET";
+    out.push({ reference, translation });
+  }
+  return out;
+}
+function buildVerseSourceNoteMapFromPillNotes(notes) {
+  const rows = [];
+  for (const note of notes) {
+    if (!note.content) continue;
+    for (const pill of extractScripturePillsFromHtml(note.content)) {
+      const normalized = normalizeScriptureReference(pill.reference) ?? pill.reference;
+      const parsed = parseScriptureReference(normalized.replace(/,\s+/g, ","));
+      if (!parsed) continue;
+      const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+      const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : verseStart;
+      for (let verse = verseStart; verse <= verseEnd; verse++) {
+        rows.push({
+          book: parsed.book,
+          chapter: parsed.chapter,
+          verse,
+          noteId: note.id,
+          translation: pill.translation,
+          noteUpdatedAt: note.updatedAt
+        });
+      }
+    }
+  }
+  return buildVerseSourceNoteMap(rows);
+}
+function buildVerseSourceNoteMapFromLegacyJunctions(rows) {
+  return buildVerseSourceNoteMap(rows);
+}
+function mergeVerseSourceNoteMaps(primary, fallback) {
+  const out = new Map(primary);
+  for (const [key2, value] of fallback) {
+    if (!out.has(key2)) out.set(key2, value);
+  }
+  return out;
+}
+function verseRefFromKey(key2) {
+  const [book, chapterRaw, verseRaw] = key2.split("|");
+  const chapter = Number(chapterRaw);
+  const verse = Number(verseRaw);
+  if (!book || !Number.isFinite(chapter) || !Number.isFinite(verse)) return null;
+  return { book, chapter, verse };
+}
+function addHighlightRefsToCitedKeys(citedKeys, references) {
+  for (const ref of references) {
+    for (const k2 of verseKeysFromScriptureReference(ref)) {
+      citedKeys.add(k2);
+    }
+  }
+}
+function buildVerseSourceNoteMap(rows) {
+  const out = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    const key2 = verseKey(row);
+    const updatedAtMs = row.noteUpdatedAt?.getTime() ?? 0;
+    const existing = out.get(key2);
+    if (existing && existing.updatedAtMs >= updatedAtMs) continue;
+    out.set(key2, { noteId: row.noteId, translation: row.translation, updatedAtMs });
+  }
+  const trimmed = /* @__PURE__ */ new Map();
+  for (const [key2, value] of out) {
+    trimmed.set(key2, { noteId: value.noteId, translation: value.translation });
+  }
+  return trimmed;
+}
+function rankCrossRefGaps(crossRefs, citedKeys, verseSourceNotes, opts = {}) {
+  const { limit = 5 } = opts;
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const cr of crossRefs) {
+    const toKey = verseKey(cr.to);
+    if (citedKeys.has(toKey)) continue;
+    if (seen.has(toKey)) continue;
+    const source2 = verseSourceNotes.get(verseKey(cr.from));
+    if (!source2) continue;
+    seen.add(toKey);
+    out.push({
+      from: { ...cr.from, displayRef: displayRef(cr.from) },
+      to: { ...cr.to, displayRef: displayRef(cr.to) },
+      votes: cr.votes,
+      fromNoteId: source2.noteId,
+      fromTranslation: source2.translation
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+async function getCrossRefGaps(userId, opts = {}) {
+  const { limit = 5, minVotes = 1 } = opts;
+  const parentNotes = await db.select({
+    id: Notes.id,
+    content: Notes.content,
+    updatedAt: Notes.updatedAt
+  }).from(Notes).where(
+    and(eq(Notes.userId, userId), eq(Notes.contentEncrypted, false), ne(Notes.noteType, "scripture"))
+  );
+  const pillSourceNotes = buildVerseSourceNoteMapFromPillNotes(parentNotes);
+  const legacyJunctionRows = await db.select({
+    book: ScriptureMetadata.book,
+    chapter: ScriptureMetadata.chapter,
+    verse: ScriptureMetadata.verse,
+    noteId: NoteScriptureReferences.noteId,
+    translation: ScriptureMetadata.translation,
+    noteUpdatedAt: Notes.updatedAt
+  }).from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.noteId, Notes.id)).innerJoin(ScriptureMetadata, eq(ScriptureMetadata.noteId, NoteScriptureReferences.scriptureNoteId)).where(and(eq(Notes.userId, userId), ne(Notes.noteType, "scripture")));
+  const verseSourceNotes = mergeVerseSourceNoteMaps(
+    pillSourceNotes,
+    buildVerseSourceNoteMapFromLegacyJunctions(legacyJunctionRows)
+  );
+  const citedKeys = /* @__PURE__ */ new Set();
+  for (const key2 of verseSourceNotes.keys()) {
+    citedKeys.add(key2);
+  }
+  const metadataRows = await db.select({
+    book: ScriptureMetadata.book,
+    chapter: ScriptureMetadata.chapter,
+    verse: ScriptureMetadata.verse,
+    verseEnd: ScriptureMetadata.verseEnd,
+    reference: ScriptureMetadata.reference
+  }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(eq(Notes.userId, userId));
+  for (const row of metadataRows) {
+    const ref = row.reference?.trim() || `${row.book} ${row.chapter}:${row.verse}${row.verseEnd && row.verseEnd !== row.verse ? `-${row.verseEnd}` : ""}`;
+    addHighlightRefsToCitedKeys(citedKeys, [ref]);
+  }
+  const highlighted = await db.select({ scriptureReference: StudyThreadEntries.scriptureReference }).from(StudyThreadEntries).where(
+    and(
+      eq(StudyThreadEntries.userId, userId),
+      eq(StudyThreadEntries.isArchived, false),
+      isNotNull(StudyThreadEntries.scriptureReference)
+    )
+  );
+  addHighlightRefsToCitedKeys(
+    citedKeys,
+    highlighted.map((r) => r.scriptureReference).filter((ref) => Boolean(ref?.trim()))
+  );
+  if (!citedKeys.size) return [];
+  const deduped = [];
+  const seenSource = /* @__PURE__ */ new Set();
+  for (const key2 of citedKeys) {
+    if (seenSource.has(key2)) continue;
+    seenSource.add(key2);
+    const ref = verseRefFromKey(key2);
+    if (ref) deduped.push(ref);
+  }
+  const sourceChunk = deduped.slice(0, 50);
+  if (!sourceChunk.length) return [];
+  const fromAny = or(
+    ...sourceChunk.map(
+      (p) => and(
+        eq(ScriptureCrossReferences.fromBook, p.book),
+        eq(ScriptureCrossReferences.fromChapter, p.chapter),
+        eq(ScriptureCrossReferences.fromVerse, p.verse)
+      )
+    )
+  );
+  const crossRows = await db.select({
+    fromBook: ScriptureCrossReferences.fromBook,
+    fromChapter: ScriptureCrossReferences.fromChapter,
+    fromVerse: ScriptureCrossReferences.fromVerse,
+    toBook: ScriptureCrossReferences.toBook,
+    toChapter: ScriptureCrossReferences.toChapterStart,
+    toVerse: ScriptureCrossReferences.toVerseStart,
+    votes: ScriptureCrossReferences.votes
+  }).from(ScriptureCrossReferences).where(and(fromAny, gte(ScriptureCrossReferences.votes, minVotes))).orderBy(desc(ScriptureCrossReferences.votes)).limit(200);
+  const mapped = crossRows.map((r) => ({
+    from: { book: r.fromBook, chapter: r.fromChapter, verse: r.fromVerse },
+    to: { book: r.toBook, chapter: r.toChapter, verse: r.toVerse },
+    votes: r.votes
+  }));
+  return rankCrossRefGaps(mapped, citedKeys, verseSourceNotes, { limit });
+}
+
+// server/utils/notes-by-reference.ts
+function timeOf(value) {
+  if (!value) return 0;
+  const d = value instanceof Date ? value : new Date(value);
+  const t = d.getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+function matchNotesToReference(input) {
+  const targetKeys = new Set(verseKeysFromScriptureReference(input.reference));
+  if (targetKeys.size === 0) return [];
+  const excluded = new Set(input.excludeNoteIds ?? []);
+  const byId = /* @__PURE__ */ new Map();
+  const overlaps = (candidateRef) => {
+    for (const key2 of verseKeysFromScriptureReference(candidateRef)) {
+      if (targetKeys.has(key2)) return true;
+    }
+    return false;
+  };
+  const remember = (note) => {
+    if (excluded.has(note.id) || byId.has(note.id)) return;
+    byId.set(note.id, { id: note.id, title: note.title, updatedAt: note.updatedAt });
+  };
+  for (const note of input.pillNotes) {
+    if (excluded.has(note.id) || byId.has(note.id)) continue;
+    for (const pill of extractScripturePillsFromHtml(note.content ?? "")) {
+      if (overlaps(pill.reference)) {
+        remember(note);
+        break;
+      }
+    }
+  }
+  for (const row of input.legacyNotes) {
+    if (overlaps(row.reference)) remember(row);
+  }
+  return [...byId.values()].sort((a, b3) => timeOf(b3.updatedAt) - timeOf(a.updatedAt));
+}
+
+// server/routes/notes.ts
 init_bible_study_keywords();
 init_bible_study_concept_overlaps();
 
@@ -245947,7 +246915,7 @@ function transformCanonicalScriptureContent(input) {
   const plainText = canonicalContent.replace(/<span[^>]*data-scripture-reference[^>]*>([\s\S]*?)<\/span>/gi, "$1").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
   const references = [
     ...new Set(
-      detectScriptureReferences(plainText).map((detected) => normalizeScriptureReference(detected.reference)).filter(Boolean)
+      detectScriptureReferences(plainText).map((detected) => normalizeScriptureReference(detected.reference)).filter(Boolean).filter((reference) => isResolvableScriptureReference(reference))
     )
   ];
   const highlighted = highlightScriptureReferences(
@@ -246213,7 +247181,7 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
   const detectedReferences = mergeAdditionalScriptureReferences(
     detectScriptureReferences(plainText),
     options?.additionalReferences
-  );
+  ).filter((detected) => isResolvableScriptureReference(detected.reference));
   console.log("[processScriptureReferences] Detection", {
     noteId,
     plainTextLength: plainText.length,
@@ -246374,8 +247342,8 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
           const pendingPillInfo = pendingPills.get(normalizedReference);
           const effectiveTranslation = pendingPillInfo?.pillTranslation || translation;
           const verseText = await fetchVerseText(normalizedReference, effectiveTranslation);
-          let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
-          if (!userMetadata) {
+          const existingUserMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
+          if (!existingUserMetadata) {
             const existingNotes = await db.select({
               simpleNoteId: Notes.simpleNoteId
             }).from(Notes).where(and(
@@ -246392,37 +247360,6 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
               currentSeason: season,
               createdAt: /* @__PURE__ */ new Date()
             });
-            userMetadata = {
-              id: `user_metadata_${userId}`,
-              userId,
-              highestSimpleNoteId: highestExistingId,
-              userColor: "blue",
-              email: null,
-              firstName: null,
-              lastName: null,
-              profileImageUrl: null,
-              clerkDataUpdatedAt: null,
-              churchName: null,
-              churchCity: null,
-              churchState: null,
-              churchCountry: null,
-              currentSeason: season,
-              lastMonthlyVisit: null,
-              churchAddedAt: null,
-              connectedChurchId: null,
-              connectedOrgId: null,
-              connectedChurchAt: null,
-              referralBonusNotes: 0,
-              referralCode: null,
-              lockPinSalt: null,
-              lockPinHash: null,
-              defaultTranslation: "NET",
-              appearanceSettings: null,
-              onboardingPackVersionApplied: 0,
-              tier: "free",
-              createdAt: /* @__PURE__ */ new Date(),
-              updatedAt: null
-            };
           }
           const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
           const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
@@ -246667,8 +247604,8 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
         } else {
           try {
             const verseText = await fetchVerseText(normalizedRef, translation);
-            let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
-            if (!userMetadata) {
+            const existingUserMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
+            if (!existingUserMetadata) {
               const existingNotes = await db.select({
                 simpleNoteId: Notes.simpleNoteId
               }).from(Notes).where(and(
@@ -246685,37 +247622,6 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
                 currentSeason: season,
                 createdAt: /* @__PURE__ */ new Date()
               });
-              userMetadata = {
-                id: `user_metadata_${userId}`,
-                userId,
-                highestSimpleNoteId: highestExistingId,
-                userColor: "blue",
-                email: null,
-                firstName: null,
-                lastName: null,
-                profileImageUrl: null,
-                clerkDataUpdatedAt: null,
-                churchName: null,
-                churchCity: null,
-                churchState: null,
-                churchCountry: null,
-                currentSeason: season,
-                lastMonthlyVisit: null,
-                churchAddedAt: null,
-                connectedChurchId: null,
-                connectedOrgId: null,
-                connectedChurchAt: null,
-                referralBonusNotes: 0,
-                referralCode: null,
-                lockPinSalt: null,
-                lockPinHash: null,
-                defaultTranslation: "NET",
-                appearanceSettings: null,
-                onboardingPackVersionApplied: 0,
-                tier: "free",
-                createdAt: /* @__PURE__ */ new Date(),
-                updatedAt: null
-              };
             }
             const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
             const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
@@ -249099,6 +250005,7 @@ ${callout.content}
 
 // server/utils/broadcast-shared-space-note.ts
 init_db2();
+var REALTIME_NOTE_PATCH_MAX_BYTES = 64 * 1024;
 async function broadcastNoteInvalidation(actorUserId, spaceId, payload) {
   broadcastInvalidation(actorUserId, payload);
   if (!spaceId) return;
@@ -249116,8 +250023,41 @@ function dedupeBroadcastRecipientIds(memberIdsBySpace, actorUserId) {
   recipients.delete(actorUserId);
   return [...recipients];
 }
+function buildCoEditRealtimeNotePatch(row) {
+  if (!row.coEditEnabled || row.contentEncrypted) return null;
+  const content = typeof row.content === "string" ? row.content : "";
+  const title = row.title ?? null;
+  const updatedAt = row.updatedAt instanceof Date ? row.updatedAt.toISOString() : typeof row.updatedAt === "string" ? row.updatedAt : void 0;
+  const patch = {
+    title,
+    content,
+    ...updatedAt ? { updatedAt } : {},
+    spaceId: null
+  };
+  const bytes = Buffer.byteLength(JSON.stringify(patch), "utf8");
+  if (bytes > REALTIME_NOTE_PATCH_MAX_BYTES) return null;
+  return patch;
+}
+async function withCoEditLiveBody(noteId, payload) {
+  if (payload.note) return payload;
+  if (payload.type !== "note:updated" && payload.type !== "note:created") return payload;
+  const row = first(
+    await db.select({
+      coEditEnabled: Notes.coEditEnabled,
+      contentEncrypted: Notes.contentEncrypted,
+      title: Notes.title,
+      content: Notes.content,
+      updatedAt: Notes.updatedAt
+    }).from(Notes).where(eq(Notes.id, noteId)).limit(1)
+  );
+  if (!row) return payload;
+  const note = buildCoEditRealtimeNotePatch(row);
+  if (!note) return payload;
+  return { ...payload, note };
+}
 async function broadcastCanonicalNoteInvalidation(actorUserId, noteId, payload) {
-  broadcastInvalidation(actorUserId, payload);
+  const enriched = await withCoEditLiveBody(noteId, payload);
+  broadcastInvalidation(actorUserId, enriched);
   const associationRows = await db.select({ spaceId: SpaceNotes.spaceId }).from(SpaceNotes).innerJoin(
     Spaces,
     and(
@@ -249144,283 +250084,16 @@ async function broadcastCanonicalNoteInvalidation(actorUserId, noteId, payload) 
     memberIdsBySpace,
     actorUserId
   )) {
-    broadcastInvalidation(recipientUserId, payload);
+    broadcastInvalidation(recipientUserId, enriched);
   }
 }
 
 // server/routes/notes.ts
 init_delete_note_cascade();
 init_purge_onboarding_content();
-
-// server/utils/note-collaboration.ts
-init_db2();
-init_purge_onboarding_content();
-function canEditNoteAsCollaborator(input) {
-  const { note, actorId, sharedSpaceIdsActorBelongsTo } = input;
-  if (isOnboardingSystemNote(note)) return { allowed: false, code: "ONBOARDING" };
-  if (note.userId === actorId) return { allowed: true, role: "author", viaSpaceId: null };
-  if (note.contentEncrypted) return { allowed: false, code: "ENCRYPTED" };
-  if (note.coEditEnabled !== true) return { allowed: false, code: "NOT_AUTHOR" };
-  if (sharedSpaceIdsActorBelongsTo.length === 0) return { allowed: false, code: "NO_SHARED_SPACE" };
-  return { allowed: true, role: "collaborator", viaSpaceId: sharedSpaceIdsActorBelongsTo[0] };
-}
-async function resolveSharedSpacesGrantingEdit(noteId, actorId) {
-  const rows = await db.select({ spaceId: SpaceNotes.spaceId }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).innerJoin(
-    SpaceMemberships,
-    and(eq(SpaceMemberships.spaceId, Spaces.id), eq(SpaceMemberships.userId, actorId))
-  ).where(
-    and(
-      eq(SpaceNotes.noteId, noteId),
-      isNull(SpaceNotes.removedAt),
-      isNull(Spaces.deletedAt),
-      eq(Spaces.type, "shared")
-    )
-  );
-  return rows.map((row) => row.spaceId);
-}
-async function resolveNoteEditAuthorization(noteId, actorId) {
-  const note = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
-  if (!note) return null;
-  const needsSpaceLookup = note.userId !== actorId && note.coEditEnabled === true && !note.contentEncrypted;
-  const sharedSpaceIdsActorBelongsTo = needsSpaceLookup ? await resolveSharedSpacesGrantingEdit(noteId, actorId) : [];
-  return {
-    note,
-    decision: canEditNoteAsCollaborator({ note, actorId, sharedSpaceIdsActorBelongsTo })
-  };
-}
-async function resolveNoteContributorIds(noteId, authorId) {
-  const rows = await db.select({ editedBy: NoteVersions.editedBy, authorId: NoteVersions.authorId }).from(NoteVersions).where(eq(NoteVersions.noteId, noteId));
-  const ids = /* @__PURE__ */ new Set([authorId]);
-  for (const row of rows) {
-    const savedBy = row.editedBy ?? row.authorId;
-    if (savedBy) ids.add(savedBy);
-  }
-  return [authorId, ...[...ids].filter((id) => id !== authorId)];
-}
-async function noteHasLiveSharedSpaceAssociation(noteId) {
-  const row = first(
-    await db.select({ id: SpaceNotes.id }).from(SpaceNotes).innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId)).where(
-      and(
-        eq(SpaceNotes.noteId, noteId),
-        isNull(SpaceNotes.removedAt),
-        isNull(Spaces.deletedAt),
-        eq(Spaces.type, "shared")
-      )
-    ).limit(1)
-  );
-  return Boolean(row);
-}
-
-// server/routes/notes.ts
+init_note_collaboration();
 init_sync_deletion_log();
 init_note_fingerprint();
-
-// src/utils/scripture-verse-keys.ts
-init_scripture_detector();
-var verseKeyFromParts = (v2) => `${v2.book}|${v2.chapter}|${v2.verse}`;
-function verseKeysFromScriptureReference(reference) {
-  const normalized = normalizeScriptureReference(reference.trim()) ?? reference.trim();
-  if (!normalized) return [];
-  const parsed = parseScriptureReference(normalized.replace(/,\s+/g, ","));
-  if (!parsed) return [];
-  const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
-  const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : verseStart;
-  const keys2 = [];
-  for (let v2 = verseStart; v2 <= verseEnd; v2++) {
-    keys2.push(verseKeyFromParts({ book: parsed.book, chapter: parsed.chapter, verse: v2 }));
-  }
-  return keys2;
-}
-
-// server/utils/crossref-gaps.ts
-init_scripture_detector();
-init_db2();
-var verseKey2 = (v2) => verseKeyFromParts(v2);
-function displayRef(v2) {
-  return `${v2.book} ${v2.chapter}:${v2.verse}`;
-}
-function extractScripturePillsFromHtml(html) {
-  const out = [];
-  const re2 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
-  let match4;
-  while ((match4 = re2.exec(html)) !== null) {
-    const reference = match4[1]?.trim();
-    if (!reference) continue;
-    const transMatch = match4[0].match(/data-scripture-translation\s*=\s*["']([^"']+)["']/i);
-    const translation = transMatch?.[1]?.trim().toUpperCase() || "NET";
-    out.push({ reference, translation });
-  }
-  return out;
-}
-function buildVerseSourceNoteMapFromPillNotes(notes) {
-  const rows = [];
-  for (const note of notes) {
-    if (!note.content) continue;
-    for (const pill of extractScripturePillsFromHtml(note.content)) {
-      const normalized = normalizeScriptureReference(pill.reference) ?? pill.reference;
-      const parsed = parseScriptureReference(normalized.replace(/,\s+/g, ","));
-      if (!parsed) continue;
-      const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
-      const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : verseStart;
-      for (let verse = verseStart; verse <= verseEnd; verse++) {
-        rows.push({
-          book: parsed.book,
-          chapter: parsed.chapter,
-          verse,
-          noteId: note.id,
-          translation: pill.translation,
-          noteUpdatedAt: note.updatedAt
-        });
-      }
-    }
-  }
-  return buildVerseSourceNoteMap(rows);
-}
-function buildVerseSourceNoteMapFromLegacyJunctions(rows) {
-  return buildVerseSourceNoteMap(rows);
-}
-function mergeVerseSourceNoteMaps(primary, fallback) {
-  const out = new Map(primary);
-  for (const [key2, value] of fallback) {
-    if (!out.has(key2)) out.set(key2, value);
-  }
-  return out;
-}
-function verseRefFromKey(key2) {
-  const [book, chapterRaw, verseRaw] = key2.split("|");
-  const chapter = Number(chapterRaw);
-  const verse = Number(verseRaw);
-  if (!book || !Number.isFinite(chapter) || !Number.isFinite(verse)) return null;
-  return { book, chapter, verse };
-}
-function addHighlightRefsToCitedKeys(citedKeys, references) {
-  for (const ref of references) {
-    for (const k2 of verseKeysFromScriptureReference(ref)) {
-      citedKeys.add(k2);
-    }
-  }
-}
-function buildVerseSourceNoteMap(rows) {
-  const out = /* @__PURE__ */ new Map();
-  for (const row of rows) {
-    const key2 = verseKey2(row);
-    const updatedAtMs = row.noteUpdatedAt?.getTime() ?? 0;
-    const existing = out.get(key2);
-    if (existing && existing.updatedAtMs >= updatedAtMs) continue;
-    out.set(key2, { noteId: row.noteId, translation: row.translation, updatedAtMs });
-  }
-  const trimmed = /* @__PURE__ */ new Map();
-  for (const [key2, value] of out) {
-    trimmed.set(key2, { noteId: value.noteId, translation: value.translation });
-  }
-  return trimmed;
-}
-function rankCrossRefGaps(crossRefs, citedKeys, verseSourceNotes, opts = {}) {
-  const { limit = 5 } = opts;
-  const seen = /* @__PURE__ */ new Set();
-  const out = [];
-  for (const cr of crossRefs) {
-    const toKey = verseKey2(cr.to);
-    if (citedKeys.has(toKey)) continue;
-    if (seen.has(toKey)) continue;
-    const source2 = verseSourceNotes.get(verseKey2(cr.from));
-    if (!source2) continue;
-    seen.add(toKey);
-    out.push({
-      from: { ...cr.from, displayRef: displayRef(cr.from) },
-      to: { ...cr.to, displayRef: displayRef(cr.to) },
-      votes: cr.votes,
-      fromNoteId: source2.noteId,
-      fromTranslation: source2.translation
-    });
-    if (out.length >= limit) break;
-  }
-  return out;
-}
-async function getCrossRefGaps(userId, opts = {}) {
-  const { limit = 5, minVotes = 1 } = opts;
-  const parentNotes = await db.select({
-    id: Notes.id,
-    content: Notes.content,
-    updatedAt: Notes.updatedAt
-  }).from(Notes).where(
-    and(eq(Notes.userId, userId), eq(Notes.contentEncrypted, false), ne(Notes.noteType, "scripture"))
-  );
-  const pillSourceNotes = buildVerseSourceNoteMapFromPillNotes(parentNotes);
-  const legacyJunctionRows = await db.select({
-    book: ScriptureMetadata.book,
-    chapter: ScriptureMetadata.chapter,
-    verse: ScriptureMetadata.verse,
-    noteId: NoteScriptureReferences.noteId,
-    translation: ScriptureMetadata.translation,
-    noteUpdatedAt: Notes.updatedAt
-  }).from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.noteId, Notes.id)).innerJoin(ScriptureMetadata, eq(ScriptureMetadata.noteId, NoteScriptureReferences.scriptureNoteId)).where(and(eq(Notes.userId, userId), ne(Notes.noteType, "scripture")));
-  const verseSourceNotes = mergeVerseSourceNoteMaps(
-    pillSourceNotes,
-    buildVerseSourceNoteMapFromLegacyJunctions(legacyJunctionRows)
-  );
-  const citedKeys = /* @__PURE__ */ new Set();
-  for (const key2 of verseSourceNotes.keys()) {
-    citedKeys.add(key2);
-  }
-  const metadataRows = await db.select({
-    book: ScriptureMetadata.book,
-    chapter: ScriptureMetadata.chapter,
-    verse: ScriptureMetadata.verse,
-    verseEnd: ScriptureMetadata.verseEnd,
-    reference: ScriptureMetadata.reference
-  }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(eq(Notes.userId, userId));
-  for (const row of metadataRows) {
-    const ref = row.reference?.trim() || `${row.book} ${row.chapter}:${row.verse}${row.verseEnd && row.verseEnd !== row.verse ? `-${row.verseEnd}` : ""}`;
-    addHighlightRefsToCitedKeys(citedKeys, [ref]);
-  }
-  const highlighted = await db.select({ scriptureReference: StudyThreadEntries.scriptureReference }).from(StudyThreadEntries).where(
-    and(
-      eq(StudyThreadEntries.userId, userId),
-      eq(StudyThreadEntries.isArchived, false),
-      isNotNull(StudyThreadEntries.scriptureReference)
-    )
-  );
-  addHighlightRefsToCitedKeys(
-    citedKeys,
-    highlighted.map((r) => r.scriptureReference).filter((ref) => Boolean(ref?.trim()))
-  );
-  if (!citedKeys.size) return [];
-  const deduped = [];
-  const seenSource = /* @__PURE__ */ new Set();
-  for (const key2 of citedKeys) {
-    if (seenSource.has(key2)) continue;
-    seenSource.add(key2);
-    const ref = verseRefFromKey(key2);
-    if (ref) deduped.push(ref);
-  }
-  const sourceChunk = deduped.slice(0, 50);
-  if (!sourceChunk.length) return [];
-  const fromAny = or(
-    ...sourceChunk.map(
-      (p) => and(
-        eq(ScriptureCrossReferences.fromBook, p.book),
-        eq(ScriptureCrossReferences.fromChapter, p.chapter),
-        eq(ScriptureCrossReferences.fromVerse, p.verse)
-      )
-    )
-  );
-  const crossRows = await db.select({
-    fromBook: ScriptureCrossReferences.fromBook,
-    fromChapter: ScriptureCrossReferences.fromChapter,
-    fromVerse: ScriptureCrossReferences.fromVerse,
-    toBook: ScriptureCrossReferences.toBook,
-    toChapter: ScriptureCrossReferences.toChapterStart,
-    toVerse: ScriptureCrossReferences.toVerseStart,
-    votes: ScriptureCrossReferences.votes
-  }).from(ScriptureCrossReferences).where(and(fromAny, gte(ScriptureCrossReferences.votes, minVotes))).orderBy(desc(ScriptureCrossReferences.votes)).limit(200);
-  const mapped = crossRows.map((r) => ({
-    from: { book: r.fromBook, chapter: r.fromChapter, verse: r.fromVerse },
-    to: { book: r.toBook, chapter: r.toChapter, verse: r.toVerse },
-    votes: r.votes
-  }));
-  return rankCrossRefGaps(mapped, citedKeys, verseSourceNotes, { limit });
-}
 
 // server/utils/votd-record-engagement.ts
 init_db2();
@@ -249934,6 +250607,12 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
     let linkedFromNoteIdRaw = null;
     let startedFromTemplateIdRaw = null;
     let startedFromTemplateNameRaw = null;
+    let startedFromServiceIdRaw = null;
+    let startedFromServiceTitleRaw = null;
+    let primaryCollectionRaw = null;
+    let secondaryCollectionsRaw = void 0;
+    let collectionPinnedRaw;
+    let collectionUserOverrideRaw;
     if (contentType.includes("application/json")) {
       const body = await c.req.json().catch(() => ({}));
       content = body.content ?? "";
@@ -249941,6 +250620,12 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       threadId = body.threadId ?? "";
       noteType = body.noteType ?? "default";
       scriptureReference = body.scriptureReference ?? null;
+      primaryCollectionRaw = typeof body.primaryCollection === "string" ? body.primaryCollection : null;
+      secondaryCollectionsRaw = body.secondaryCollections;
+      if (typeof body.collectionPinned === "boolean") collectionPinnedRaw = body.collectionPinned;
+      if (typeof body.collectionUserOverride === "boolean") {
+        collectionUserOverrideRaw = body.collectionUserOverride;
+      }
       scriptureVersion = body.scriptureVersion ?? null;
       resourceUrl = body.resourceUrl ?? null;
       const meta2 = body.resourceMetadata;
@@ -249951,6 +250636,8 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       linkedFromNoteIdRaw = typeof lfn === "string" && lfn.trim() ? lfn.trim() : null;
       startedFromTemplateIdRaw = typeof body.startedFromTemplateId === "string" && body.startedFromTemplateId.trim() ? body.startedFromTemplateId.trim() : null;
       startedFromTemplateNameRaw = typeof body.startedFromTemplateName === "string" && body.startedFromTemplateName.trim() ? body.startedFromTemplateName.trim().slice(0, 80) : null;
+      startedFromServiceIdRaw = typeof body.startedFromServiceId === "string" && body.startedFromServiceId.trim() ? body.startedFromServiceId.trim() : null;
+      startedFromServiceTitleRaw = typeof body.startedFromServiceTitle === "string" && body.startedFromServiceTitle.trim() ? body.startedFromServiceTitle.trim().slice(0, 120) : null;
     } else {
       const formData = await c.req.formData();
       content = formData.get("content");
@@ -249969,6 +250656,10 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       startedFromTemplateIdRaw = tplIdForm && tplIdForm.trim() ? tplIdForm.trim() : null;
       const tplNameForm = formData.get("startedFromTemplateName");
       startedFromTemplateNameRaw = tplNameForm && tplNameForm.trim() ? tplNameForm.trim().slice(0, 80) : null;
+      const svcIdForm = formData.get("startedFromServiceId");
+      startedFromServiceIdRaw = svcIdForm && svcIdForm.trim() ? svcIdForm.trim() : null;
+      const svcTitleForm = formData.get("startedFromServiceTitle");
+      startedFromServiceTitleRaw = svcTitleForm && svcTitleForm.trim() ? svcTitleForm.trim().slice(0, 120) : null;
     }
     let prefetchedResourceMetadata = null;
     if (resourceMetadataStr) {
@@ -250141,6 +250832,18 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
         thread: targetThread ?? null
       });
       attachedThreadId = threadPlan.attachThreadId;
+      const createPrimary = primaryCollectionRaw?.trim() || null;
+      const createSecondaryList = Array.isArray(secondaryCollectionsRaw) ? secondaryCollectionsRaw.filter((x2) => typeof x2 === "string") : null;
+      const createCollectionFields = {
+        ...primaryCollectionRaw !== null ? { primaryCollection: createPrimary } : {},
+        ...createSecondaryList ? {
+          secondaryCollections: serializeNoteSecondaryCollections(
+            normalizeSecondaryLabels(createSecondaryList, createPrimary)
+          )
+        } : {},
+        ...collectionPinnedRaw !== void 0 ? { collectionPinned: collectionPinnedRaw } : {},
+        ...collectionUserOverrideRaw !== void 0 ? { collectionUserOverride: collectionUserOverrideRaw } : {}
+      };
       const inserted = first(
         await tx.insert(Notes).values({
           id: noteId,
@@ -250160,7 +250863,10 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
           lastVisited: now2,
           linkedFromNoteId: resolvedLinkedFromNoteId,
           startedFromTemplateId: startedFromTemplateIdRaw,
-          startedFromTemplateName: startedFromTemplateNameRaw
+          startedFromTemplateName: startedFromTemplateNameRaw,
+          startedFromServiceId: startedFromServiceIdRaw,
+          startedFromServiceTitle: startedFromServiceTitleRaw,
+          ...createCollectionFields
         }).returning()
       );
       if (!inserted) throw new Error("Failed to create note");
@@ -250357,14 +251063,7 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       createdAt: newNote.createdAt
     }).catch(() => {
     });
-    const responseVersion = newNote.currentVersionId ? first(
-      await db.select({ id: NoteVersions.id, version: NoteVersions.version }).from(NoteVersions).where(
-        and(
-          eq(NoteVersions.id, newNote.currentVersionId),
-          eq(NoteVersions.noteId, newNote.id)
-        )
-      ).limit(1)
-    ) : null;
+    const responseVersion = await readCurrentNoteVersion(newNote.id, newNote.currentVersionId);
     queueAudiencefulProductFlagsForUser(auth.userId, {
       has_created_note: true,
       ...shouldAutoShare && shareToken ? { has_shared: true } : {}
@@ -250401,7 +251100,21 @@ route11.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
     return c.json({ error: error.message || "Failed to create note" }, 500);
   }
 });
+var NOTE_SAVE_TRAIL_PATH = ".dev-note-saves.log";
+function logNoteSaveTrail(entry) {
+  if (process.env.NETLIFY) return;
+  try {
+    (0, import_node_fs.appendFileSync)(
+      NOTE_SAVE_TRAIL_PATH,
+      `${JSON.stringify({ at: (/* @__PURE__ */ new Date()).toISOString(), ...entry })}
+`
+    );
+  } catch {
+  }
+}
 route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
+  let noteIdForLog = null;
+  let saveOriginForLog = null;
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
@@ -250421,11 +251134,25 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
       bumpUpdatedAt: bumpUpdatedAtRaw,
       expectedVersion: expectedVersionRaw,
       startedFromTemplateId: startedFromTemplateIdRaw,
-      startedFromTemplateName: startedFromTemplateNameRaw
+      startedFromTemplateName: startedFromTemplateNameRaw,
+      saveOrigin: saveOriginRaw
     } = body;
     if (!noteId) return c.json({ error: "Note ID is required" }, 400);
-    const contentValidation = validateContent(content, true);
-    if (!contentValidation.isValid) return c.json({ error: contentValidation.error, code: contentValidation.code }, 400);
+    noteIdForLog = noteId;
+    saveOriginForLog = typeof saveOriginRaw === "string" ? saveOriginRaw : null;
+    logNoteSaveTrail({
+      event: "attempt",
+      noteId,
+      origin: saveOriginForLog,
+      expectedVersion: expectedVersionRaw ?? null,
+      contentLength: typeof content === "string" ? content.length : null
+    });
+    const contentProvided = content !== void 0;
+    if (contentProvided) {
+      const contentValidation = validateContent(content, true);
+      if (!contentValidation.isValid) return c.json({ error: contentValidation.error, code: contentValidation.code }, 400);
+    }
+    const titleProvided = title !== void 0;
     const editAuth = await resolveNoteEditAuthorization(noteId, auth.userId);
     if (!editAuth) return c.json({ error: "Note not found" }, 404);
     if (!editAuth.decision.allowed) {
@@ -250437,10 +251164,10 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     const existingNote = editAuth.note;
     const actorRole = editAuth.decision.role;
     const targetEncrypted = typeof contentEncrypted === "boolean" ? contentEncrypted : existingNote.contentEncrypted;
-    const contentForStore = targetEncrypted ? content : canonicalizeNoteHtmlLineBreaks(typeof content === "string" ? content : "");
-    let capitalizedContent = targetEncrypted ? contentForStore : contentForStore.charAt(0).toUpperCase() + contentForStore.slice(1);
-    const capitalizedTitle = title ? title.charAt(0).toUpperCase() + title.slice(1) : title;
-    if (!targetEncrypted) {
+    const contentForStore = !contentProvided ? void 0 : targetEncrypted ? content : canonicalizeNoteHtmlLineBreaks(typeof content === "string" ? content : "");
+    let capitalizedContent = contentForStore === void 0 ? void 0 : targetEncrypted ? contentForStore : contentForStore.charAt(0).toUpperCase() + contentForStore.slice(1);
+    const capitalizedTitle = !titleProvided ? void 0 : title ? title.charAt(0).toUpperCase() + title.slice(1) : title;
+    if (!targetEncrypted && capitalizedContent !== void 0) {
       capitalizedContent = transformCanonicalScriptureContent({
         noteId,
         content: capitalizedContent,
@@ -250448,12 +251175,15 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
         pillsOnly: existingNote.noteType === "default"
       }).updatedContent;
     }
-    const titleChanged = capitalizedTitle !== existingNote.title;
-    const contentChanged = capitalizedContent !== existingNote.content;
+    const titleChanged = titleProvided && capitalizedTitle !== existingNote.title;
+    const contentChanged = contentProvided && capitalizedContent !== existingNote.content;
     const encryptionToggled = typeof contentEncrypted === "boolean" && contentEncrypted !== existingNote.contentEncrypted;
     const contentTouched = titleChanged || contentChanged || encryptionToggled;
     const shouldBumpUpdatedAt = bumpUpdatedAtRaw === false ? false : contentTouched;
-    const updateData = { title: capitalizedTitle, content: capitalizedContent };
+    const updateData = {
+      ...titleProvided ? { title: capitalizedTitle } : {},
+      ...contentProvided ? { content: capitalizedContent } : {}
+    };
     if (shouldBumpUpdatedAt) updateData.updatedAt = nowISO();
     let nextPrimaryForSecondaries = existingNote.primaryCollection ?? null;
     if (primaryCollectionRaw !== void 0) {
@@ -250509,8 +251239,8 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
             contentEncrypted,
             lockedNote.contentEncrypted
           );
-          const lockedTitleChanged = (capitalizedTitle ?? lockedNote.title) !== lockedNote.title;
-          const lockedContentChanged = capitalizedContent !== lockedNote.content;
+          const lockedTitleChanged = titleProvided && (capitalizedTitle ?? lockedNote.title) !== lockedNote.title;
+          const lockedContentChanged = contentProvided && capitalizedContent !== lockedNote.content;
           const lockedEncryptionChanged = lockedTargetEncrypted !== lockedNote.contentEncrypted;
           if (bumpUpdatedAtRaw === false) delete lockedPatch.updatedAt;
           else if (lockedTitleChanged || lockedContentChanged || lockedEncryptionChanged) {
@@ -250528,9 +251258,11 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
           }
           return lockedPatch;
         },
+        // No body sent → carry the locked note's own content through unchanged.
+        // Both branches must fall back, including the encrypted one.
         nextContent: (lockedNote) => ({
-          title: capitalizedTitle ?? lockedNote.title,
-          content: resolveLockedEncryptionState(contentEncrypted, lockedNote.contentEncrypted) ? content : capitalizedContent,
+          title: titleProvided ? capitalizedTitle ?? lockedNote.title : lockedNote.title,
+          content: !contentProvided ? lockedNote.content : resolveLockedEncryptionState(contentEncrypted, lockedNote.contentEncrypted) ? content : capitalizedContent,
           contentEncrypted: resolveLockedEncryptionState(
             contentEncrypted,
             lockedNote.contentEncrypted
@@ -250538,7 +251270,9 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
         }),
         source: "save",
         now: nowISO(),
-        actorRole
+        actorRole,
+        // Pre-transform body, for the list-preview truncation guard.
+        incomingRawContent: typeof content === "string" ? content : void 0
       })
     );
     const updatedNote = versionedUpdate.note;
@@ -250625,11 +251359,21 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
       type: "note:updated",
       id: noteId
     });
+    const freshVersion = await readCurrentNoteVersion(noteId, versionedUpdate.currentVersion.id);
+    logNoteSaveTrail({
+      event: "ok",
+      noteId,
+      origin: saveOriginForLog,
+      version: freshVersion?.version ?? versionedUpdate.currentVersion.version
+    });
     return c.json({
       success: "Note updated!",
       note: noteJsonWithParsedSecondaries(updatedNote),
-      currentVersion: versionedUpdate.currentVersion.version,
-      currentVersionId: versionedUpdate.currentVersion.id,
+      // Resolved fresh: scripture processing above can bump the note past the version
+      // captured in `versionedUpdate`, and returning the stale one made the editor's very
+      // next autosave send an expectedVersion the server had already moved past.
+      currentVersion: freshVersion?.version ?? versionedUpdate.currentVersion.version,
+      currentVersionId: freshVersion?.id ?? versionedUpdate.currentVersion.id,
       tags: tagsPatch,
       scriptureResults,
       processedContent,
@@ -250638,7 +251382,22 @@ route11.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     });
   } catch (error) {
     const mapped = noteVersionErrorResponse(error);
-    if (mapped) return c.json({ error: mapped.message, code: mapped.code, ...mapped.details ?? {} }, mapped.status);
+    if (mapped) {
+      if (mapped.status === 409) {
+        console.warn("[api/notes/update] version conflict", {
+          noteId: noteIdForLog,
+          origin: saveOriginForLog,
+          ...mapped.details ?? {}
+        });
+        logNoteSaveTrail({
+          event: "conflict",
+          noteId: noteIdForLog,
+          origin: saveOriginForLog,
+          ...mapped.details ?? {}
+        });
+      }
+      return c.json({ error: mapped.message, code: mapped.code, ...mapped.details ?? {} }, mapped.status);
+    }
     return c.json({ error: error.message || "Failed to update note" }, 500);
   }
 });
@@ -250928,6 +251687,11 @@ route11.patch("/api/notes/:id/co-edit", requireAuth, rateLimit("write"), async (
     if (typeof body.enabled !== "boolean") {
       return c.json({ success: false, error: "`enabled` must be a boolean" }, 400);
     }
+    const spaceIdRaw = typeof body.spaceId === "string" ? body.spaceId.trim() : "";
+    if (!spaceIdRaw) {
+      return c.json({ success: false, error: "`spaceId` is required" }, 400);
+    }
+    const spaceId = spaceIdRaw.startsWith("space_") ? spaceIdRaw : `space_${spaceIdRaw}`;
     const enabled = body.enabled;
     const note = first(
       await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1)
@@ -250942,19 +251706,29 @@ route11.patch("/api/notes/:id/co-edit", requireAuth, rateLimit("write"), async (
         400
       );
     }
-    if (enabled && !await noteHasLiveSharedSpaceAssociation(noteId)) {
+    const association = await findLiveSharedSpaceAssociation(noteId, spaceId);
+    if (!association) {
       return c.json(
         {
           success: false,
-          error: "Share this note to a shared space before opening it for editing.",
+          error: "Share this note to that shared space before opening it for editing.",
           code: "CO_EDIT_REQUIRES_SHARED_SPACE"
         },
         400
       );
     }
-    await db.update(Notes).set({ coEditEnabled: enabled, coEditEnabledAt: enabled ? nowISO() : null }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+    await db.update(SpaceNotes).set({
+      coEditEnabled: enabled,
+      coEditEnabledAt: enabled ? nowISO() : null
+    }).where(eq(SpaceNotes.id, association.id));
+    const noteCoEditEnabled = await syncNoteCoEditMirror(db, noteId);
     await broadcastCanonicalNoteInvalidation(auth.userId, noteId, { type: "note:updated", id: noteId });
-    return c.json({ success: true, coEditEnabled: enabled });
+    return c.json({
+      success: true,
+      spaceId,
+      coEditEnabled: enabled,
+      noteCoEditEnabled
+    });
   } catch (error) {
     console.error("Error updating note co-edit setting:", error);
     return c.json({ success: false, error: "Failed to update co-editing" }, 500);
@@ -251178,6 +251952,78 @@ route11.get("/api/notes/crossref-gaps", requireAuth, async (c) => {
     return c.json({ success: true, gaps });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/notes/crossref-gaps", action: "get_crossref_gaps" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route11.get("/api/notes/by-reference", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const raw2 = (c.req.query("reference") ?? "").trim();
+    if (!raw2) {
+      return c.json({ error: "A scripture reference is required", code: "BAD_REQUEST" }, 400);
+    }
+    const canonical = canonicalizeServiceReference(raw2);
+    if (!canonical.ok) {
+      return c.json({ error: canonical.reason, code: "INVALID_REFERENCE" }, 400);
+    }
+    const reference = canonical.reference;
+    if (!reference) {
+      return c.json({ error: "A scripture reference is required", code: "BAD_REQUEST" }, 400);
+    }
+    const parsed = parseScriptureReference(reference);
+    if (!parsed) {
+      return c.json({ error: "A scripture reference is required", code: "BAD_REQUEST" }, 400);
+    }
+    const pillNotes = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      updatedAt: Notes.updatedAt
+    }).from(Notes).where(
+      and(
+        eq(Notes.userId, auth.userId),
+        ne(Notes.noteType, "scripture"),
+        eq(Notes.contentEncrypted, false),
+        like(Notes.content, "%data-scripture-reference%"),
+        like(Notes.content, `%${parsed.book}%`)
+      )
+    );
+    const legacyRows = await db.select({
+      id: NoteScriptureReferences.noteId,
+      title: Notes.title,
+      updatedAt: Notes.updatedAt,
+      reference: ScriptureMetadata.reference
+    }).from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.noteId, Notes.id)).innerJoin(
+      ScriptureMetadata,
+      eq(ScriptureMetadata.noteId, NoteScriptureReferences.scriptureNoteId)
+    ).where(
+      and(
+        eq(Notes.userId, auth.userId),
+        ne(Notes.noteType, "scripture"),
+        eq(ScriptureMetadata.book, parsed.book)
+      )
+    );
+    const matches3 = matchNotesToReference({
+      reference,
+      pillNotes,
+      legacyNotes: legacyRows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        updatedAt: row.updatedAt,
+        reference: row.reference ?? ""
+      }))
+    });
+    return c.json({
+      success: true,
+      reference,
+      totalCount: matches3.length,
+      notes: matches3.slice(0, 3)
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/notes/by-reference",
+      action: "get_notes_by_reference"
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
@@ -251700,6 +252546,7 @@ route11.get("/api/notes/:id/details", requireAuth, async (c) => {
       spaceId: SpaceNotes.spaceId,
       spaceTitle: Spaces.title,
       spaceType: Spaces.type,
+      coEditEnabled: SpaceNotes.coEditEnabled,
       isPinned: SpaceNotes.isPinned,
       primaryCollection: SpaceNotes.primaryCollection,
       secondaryCollections: SpaceNotes.secondaryCollections,
@@ -251800,7 +252647,14 @@ route11.get("/api/notes/:id/details", requireAuth, async (c) => {
         isShared: readContext.isShared,
         organization: contextOrganization
       },
-      activeSharedAssociations: readContext.isShared ? [{ spaceId: readContext.space.id, spaceTitle: readContext.space.title, spaceType: readContext.space.type }] : activeAssociationRows.map((row) => ({
+      activeSharedAssociations: readContext.isShared ? [
+        {
+          spaceId: readContext.space.id,
+          spaceTitle: readContext.space.title,
+          spaceType: readContext.space.type,
+          coEditEnabled: activeAssociationRows.find((row) => row.spaceId === readContext.space.id)?.coEditEnabled === true
+        }
+      ] : activeAssociationRows.map((row) => ({
         ...row,
         secondaryCollections: parseNoteSecondaryCollections(row.secondaryCollections)
       })),
@@ -252590,8 +253444,465 @@ function isNoteTemplateIconColor(value) {
   return typeof value === "string" && THREAD_COLORS.includes(value) && value !== "paper";
 }
 
+// server/utils/church-staff.ts
+init_db2();
+
+// server/utils/clerk-org.ts
+var CLERK_ORG_STAFF_CAP = 20;
+function isWithinClerkOrgStaffCap(memberCount) {
+  return memberCount <= CLERK_ORG_STAFF_CAP;
+}
+var ClerkOrgError = class extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+    this.name = "ClerkOrgError";
+  }
+};
+function classifyClerkFailure(status) {
+  if (status === 403) {
+    return new ClerkOrgError(
+      "CLERK_ORGS_NOT_ENABLED",
+      "Clerk Organizations is not enabled for this instance \u2014 enable it in the Clerk dashboard"
+    );
+  }
+  return new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk request returned ${status}`);
+}
+function isValidClerkOrgId(orgId) {
+  return /^org_[A-Za-z0-9]+$/.test(orgId);
+}
+function clerkSecretKey() {
+  const key2 = process.env.CLERK_SECRET_KEY;
+  if (!key2) throw new ClerkOrgError("CLERK_KEY_MISSING", "Missing env CLERK_SECRET_KEY");
+  return key2;
+}
+async function fetchClerkOrganization(orgId) {
+  const key2 = clerkSecretKey();
+  let response;
+  try {
+    response = await fetch(`https://api.clerk.com/v1/organizations/${orgId}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${key2}`, "Content-Type": "application/json" }
+    });
+  } catch (error) {
+    throw new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk organization fetch failed: ${error}`);
+  }
+  if (response.status === 404 || response.status === 400) return null;
+  if (!response.ok) {
+    throw classifyClerkFailure(response.status);
+  }
+  const data = await response.json();
+  if (!data.id || !data.name) {
+    throw new ClerkOrgError("CLERK_UNAVAILABLE", "Clerk organization response missing id/name");
+  }
+  return { id: data.id, name: data.name, slug: data.slug ?? null };
+}
+async function fetchClerkOrganizations() {
+  const key2 = clerkSecretKey();
+  const orgs = [];
+  let offset = 0;
+  for (; ; ) {
+    let response;
+    try {
+      response = await fetch(
+        `https://api.clerk.com/v1/organizations?limit=${ORGS_PAGE_SIZE}&offset=${offset}`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${key2}`, "Content-Type": "application/json" }
+        }
+      );
+    } catch (error) {
+      throw new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk organizations fetch failed: ${error}`);
+    }
+    if (!response.ok) throw classifyClerkFailure(response.status);
+    const payload = await response.json();
+    const rows = Array.isArray(payload.data) ? payload.data : [];
+    for (const row of rows) {
+      if (!row.id || !row.name) continue;
+      orgs.push({
+        id: row.id,
+        name: row.name,
+        slug: row.slug ?? null,
+        memberCount: typeof row.members_count === "number" ? row.members_count : void 0
+      });
+    }
+    offset += rows.length;
+    const total = typeof payload.total_count === "number" ? payload.total_count : offset;
+    if (rows.length < ORGS_PAGE_SIZE || offset >= total) break;
+  }
+  return orgs;
+}
+var MEMBERSHIPS_PAGE_SIZE = 100;
+var ORGS_PAGE_SIZE = 100;
+async function fetchClerkOrgMemberships(orgId) {
+  const key2 = clerkSecretKey();
+  const members = [];
+  let offset = 0;
+  for (; ; ) {
+    let response;
+    try {
+      response = await fetch(
+        `https://api.clerk.com/v1/organizations/${orgId}/memberships?limit=${MEMBERSHIPS_PAGE_SIZE}&offset=${offset}`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${key2}`, "Content-Type": "application/json" }
+        }
+      );
+    } catch (error) {
+      throw new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk memberships fetch failed: ${error}`);
+    }
+    if (!response.ok) {
+      throw classifyClerkFailure(response.status);
+    }
+    const payload = await response.json();
+    const rows = Array.isArray(payload.data) ? payload.data : [];
+    for (const row of rows) {
+      const userId = row.public_user_data?.user_id;
+      if (!userId) continue;
+      members.push({ userId, role: row.role ?? "org:member" });
+    }
+    offset += rows.length;
+    const total = typeof payload.total_count === "number" ? payload.total_count : offset;
+    if (rows.length < MEMBERSHIPS_PAGE_SIZE || offset >= total) break;
+  }
+  return members;
+}
+var CLERK_ORG_ADMIN_ROLE = "org:admin";
+var CLERK_ORG_MEMBER_ROLE = "org:member";
+function isClerkOrgAdminRole(role) {
+  return role === CLERK_ORG_ADMIN_ROLE;
+}
+async function clerkFetch(path10, init) {
+  const key2 = clerkSecretKey();
+  try {
+    return await fetch(`https://api.clerk.com/v1${path10}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${key2}`,
+        "Content-Type": "application/json",
+        ...init?.headers ?? {}
+      }
+    });
+  } catch (error) {
+    throw new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk request failed: ${error}`);
+  }
+}
+async function fetchClerkOrgPendingInvitations(orgId) {
+  const response = await clerkFetch(
+    `/organizations/${orgId}/invitations?status=pending&limit=${MEMBERSHIPS_PAGE_SIZE}`
+  );
+  if (!response.ok) throw classifyClerkFailure(response.status);
+  const payload = await response.json();
+  const rows = Array.isArray(payload.data) ? payload.data : [];
+  return rows.filter(
+    (row) => Boolean(row.id && row.email_address)
+  ).map((row) => ({
+    id: row.id,
+    emailAddress: row.email_address,
+    role: row.role ?? CLERK_ORG_MEMBER_ROLE,
+    status: row.status ?? "pending",
+    createdAt: typeof row.created_at === "number" ? row.created_at : null
+  }));
+}
+async function createClerkOrgInvitation(input) {
+  const response = await clerkFetch(`/organizations/${input.orgId}/invitations`, {
+    method: "POST",
+    body: JSON.stringify({
+      email_address: input.emailAddress,
+      inviter_user_id: input.inviterUserId,
+      role: input.role ?? CLERK_ORG_MEMBER_ROLE
+    })
+  });
+  if (!response.ok) {
+    if (response.status === 400 || response.status === 422) {
+      const body = await response.json().catch(() => null);
+      const message = body?.errors?.[0]?.long_message ?? body?.errors?.[0]?.message ?? "Clerk rejected the invitation";
+      throw new ClerkOrgInviteError(message);
+    }
+    throw classifyClerkFailure(response.status);
+  }
+  const row = await response.json();
+  return {
+    id: row.id ?? "",
+    emailAddress: row.email_address ?? input.emailAddress,
+    role: row.role ?? CLERK_ORG_MEMBER_ROLE,
+    status: row.status ?? "pending",
+    createdAt: typeof row.created_at === "number" ? row.created_at : null
+  };
+}
+var ClerkOrgInviteError = class extends Error {
+  code = "CLERK_INVITE_REJECTED";
+  constructor(message) {
+    super(message);
+    this.name = "ClerkOrgInviteError";
+  }
+};
+async function revokeClerkOrgInvitation(input) {
+  const response = await clerkFetch(
+    `/organizations/${input.orgId}/invitations/${input.invitationId}/revoke`,
+    { method: "POST", body: JSON.stringify({ requesting_user_id: input.requestingUserId }) }
+  );
+  if (!response.ok && response.status !== 404) throw classifyClerkFailure(response.status);
+}
+async function updateClerkOrgMemberRole(orgId, userId, role) {
+  const response = await clerkFetch(`/organizations/${orgId}/memberships/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ role })
+  });
+  if (!response.ok) throw classifyClerkFailure(response.status);
+}
+async function removeClerkOrgMember(orgId, userId) {
+  const response = await clerkFetch(`/organizations/${orgId}/memberships/${userId}`, {
+    method: "DELETE"
+  });
+  if (!response.ok && response.status !== 404) throw classifyClerkFailure(response.status);
+}
+function canInviteMoreStaff(input) {
+  const adding = input.adding ?? 1;
+  return input.memberCount + input.pendingInviteCount + adding <= CLERK_ORG_STAFF_CAP;
+}
+function computeStaffSyncPlan(input) {
+  const staffIds = new Set(input.staff.map((m2) => m2.userId));
+  const existingByUser = new Map(input.existing.map((row) => [row.userId, row.role]));
+  const warnings = [];
+  const toInsertLeaders = [];
+  const toPromoteToLeader = [];
+  for (const staffId of staffIds) {
+    if (staffId === input.spaceOwnerUserId) continue;
+    const existingRole = existingByUser.get(staffId);
+    if (existingRole === void 0) toInsertLeaders.push(staffId);
+    else if (existingRole === "member") toPromoteToLeader.push(staffId);
+  }
+  const toRemove = [];
+  for (const row of input.existing) {
+    if (row.role !== "leader") continue;
+    if (row.userId === input.spaceOwnerUserId) continue;
+    if (row.grantSource === "grant") continue;
+    if (!staffIds.has(row.userId)) toRemove.push(row.userId);
+  }
+  const healOwnerRow = !existingByUser.has(input.spaceOwnerUserId);
+  if (!staffIds.has(input.spaceOwnerUserId)) {
+    warnings.push(`Space owner ${input.spaceOwnerUserId} is not a member of the Clerk org`);
+  }
+  return { toInsertLeaders, toPromoteToLeader, toRemove, healOwnerRow, warnings };
+}
+
+// server/utils/church-entitlement.ts
+init_db2();
+var CHURCH_PLAN_SLUG = "church";
+var MS_PER_DAY3 = 24 * 60 * 60 * 1e3;
+function toDate2(value) {
+  if (!value) return null;
+  const date6 = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date6.getTime()) ? null : date6;
+}
+function churchSponsorship(church, now2 = /* @__PURE__ */ new Date()) {
+  const lapsed = {
+    sponsored: false,
+    state: "lapsed",
+    pilotUntil: null,
+    pilotDaysLeft: null
+  };
+  if (!church) return lapsed;
+  if (!church.isActive || church.deletedAt) return lapsed;
+  if (church.billingPlan) {
+    return { sponsored: true, state: "paid", pilotUntil: null, pilotDaysLeft: null };
+  }
+  const pilotUntil = toDate2(church.pilotUntil);
+  if (pilotUntil && pilotUntil.getTime() > now2.getTime()) {
+    return {
+      sponsored: true,
+      state: "pilot",
+      pilotUntil: pilotUntil.toISOString(),
+      pilotDaysLeft: Math.ceil((pilotUntil.getTime() - now2.getTime()) / MS_PER_DAY3)
+    };
+  }
+  return lapsed;
+}
+function churchIsSponsored(church, now2 = /* @__PURE__ */ new Date()) {
+  return churchSponsorship(church, now2).sponsored;
+}
+var CHURCH_LAPSED_ERROR = "This church\u2019s Harvous plan has ended. Existing study stays readable \u2014 subscribe to publish again.";
+var CHURCH_LAPSED_CODE = "CHURCH_NOT_SPONSORED";
+async function applyChurchSubscription(input) {
+  const now2 = /* @__PURE__ */ new Date();
+  const updated = await db.update(Churches).set({
+    billingPlan: input.enabled ? CHURCH_PLAN_SLUG : null,
+    billingPlanUpdatedAt: now2,
+    billingSubscriptionId: input.subscriptionId ?? null,
+    billingStatus: input.status ?? (input.enabled ? "active" : "canceled"),
+    updatedAt: now2
+  }).where(eq(Churches.id, input.churchId)).returning({ id: Churches.id });
+  return updated.length > 0;
+}
+async function findChurchBySubscriptionId(subscriptionId) {
+  const trimmed = subscriptionId.trim();
+  if (!trimmed) return null;
+  return first(
+    await db.select().from(Churches).where(eq(Churches.billingSubscriptionId, trimmed)).limit(1)
+  ) ?? null;
+}
+
+// server/utils/church-staff.ts
+async function getActiveChurchByOrgId(orgId) {
+  const trimmed = orgId.trim();
+  if (!trimmed) return null;
+  const church = first(
+    await db.select().from(Churches).where(eq(Churches.orgId, trimmed)).limit(1)
+  );
+  if (!church || church.deletedAt) return null;
+  return church;
+}
+async function isChurchStaffForOrg(userId, orgId) {
+  const church = await getActiveChurchByOrgId(orgId);
+  if (!church) return false;
+  if (church.createdBy === userId) return true;
+  const orgSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(and(eq(Spaces.orgId, church.orgId), isNull(Spaces.deletedAt)));
+  if (orgSpaces.length > 0) {
+    const membership = first(
+      await db.select({ id: SpaceMemberships.id, role: SpaceMemberships.role }).from(SpaceMemberships).where(
+        and(
+          eq(SpaceMemberships.userId, userId),
+          inArray(
+            SpaceMemberships.spaceId,
+            orgSpaces.map((s2) => s2.id)
+          ),
+          inArray(SpaceMemberships.role, ["owner", "leader"]),
+          // NULL reads as a staff projection, which is what every row
+          // predating grants is.
+          or(
+            isNull(SpaceMemberships.grantSource),
+            ne(SpaceMemberships.grantSource, "grant")
+          )
+        )
+      ).limit(1)
+    );
+    if (membership) return true;
+  }
+  try {
+    const staff = await fetchClerkOrgMemberships(church.orgId);
+    return staff.some((member) => member.userId === userId);
+  } catch (error) {
+    console.warn("[isChurchStaffForOrg] Clerk org membership check failed", {
+      orgId: church.orgId,
+      userId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    return false;
+  }
+}
+async function assertChurchStaffOrgWrite(userId, orgId, staffError) {
+  const church = await getActiveChurchByOrgId(orgId);
+  if (!church) {
+    return { ok: false, status: 404, code: "CHURCH_NOT_FOUND", error: "Church not found" };
+  }
+  if (!church.isActive) {
+    return { ok: false, status: 409, code: "CHURCH_INACTIVE", error: "Church is not active" };
+  }
+  if (!churchIsSponsored(church)) {
+    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
+  }
+  if (!await isChurchStaffForOrg(userId, church.orgId)) {
+    return {
+      ok: false,
+      status: 403,
+      code: "CHURCH_STAFF_REQUIRED",
+      error: staffError
+    };
+  }
+  return { ok: true, church };
+}
+async function assertCanCreateChurchSharedSpace(userId, orgId) {
+  return assertChurchStaffOrgWrite(
+    userId,
+    orgId,
+    "Only church staff can create church Shared Spaces"
+  );
+}
+async function assertCanCreateMinistryChannel(userId, orgId) {
+  return assertChurchStaffOrgWrite(
+    userId,
+    orgId,
+    "Only church staff can create ministry channels"
+  );
+}
+
+// server/utils/church-role-capabilities.ts
+var ROLE_ADMIN = "org:admin";
+var ROLE_PASTOR = "org:pastor";
+var ROLE_TEACHER = "org:teacher";
+var ASSIGNABLE_CHURCH_ROLES = [
+  ROLE_ADMIN,
+  ROLE_PASTOR,
+  ROLE_TEACHER,
+  "org:member"
+];
+function isAssignableChurchRole(role) {
+  return ASSIGNABLE_CHURCH_ROLES.includes(role);
+}
+function capabilitiesForChurchRole(role) {
+  const capabilities = /* @__PURE__ */ new Set(["publish"]);
+  if (role === ROLE_ADMIN) {
+    capabilities.add("manage_staff");
+    capabilities.add("manage_billing");
+    capabilities.add("manage_church_settings");
+  }
+  if (role === ROLE_ADMIN || role === ROLE_PASTOR || role === ROLE_TEACHER) {
+    capabilities.add("sermon_tools");
+  }
+  if (role === ROLE_ADMIN || role === ROLE_PASTOR) {
+    capabilities.add("manage_templates");
+    capabilities.add("manage_teaching_plan");
+  }
+  return [...capabilities];
+}
+var NO_CHURCH_CAPABILITIES = [];
+
 // server/routes/note-templates.ts
 var app = new Hono2();
+async function connectedOrgIdFor(userId) {
+  const row = first(
+    await db.select({ connectedOrgId: UserMetadata.connectedOrgId }).from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1)
+  );
+  return row?.connectedOrgId ?? null;
+}
+async function assertCanManageOrgTemplates(userId, orgId) {
+  const church = await getActiveChurchByOrgId(orgId);
+  if (!church) {
+    return { ok: false, status: 404, code: "CHURCH_NOT_FOUND", error: "Church not found" };
+  }
+  if (!await isChurchStaffForOrg(userId, orgId)) {
+    return {
+      ok: false,
+      status: 403,
+      code: "CHURCH_TEMPLATE_FORBIDDEN",
+      error: "Only church staff can manage church templates"
+    };
+  }
+  if (!churchIsSponsored(church)) {
+    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
+  }
+  try {
+    const roster = await fetchClerkOrgMemberships(orgId);
+    const role = roster.find((member) => member.userId === userId)?.role ?? null;
+    if (!capabilitiesForChurchRole(role).includes("manage_templates")) {
+      return {
+        ok: false,
+        status: 403,
+        code: "CHURCH_TEMPLATE_FORBIDDEN",
+        error: "Your role does not include church starters"
+      };
+    }
+    return { ok: true };
+  } catch {
+    return {
+      ok: false,
+      status: 403,
+      code: "CHURCH_TEMPLATE_FORBIDDEN",
+      error: "Could not confirm your role. Try again in a moment."
+    };
+  }
+}
 function serializeStored(row) {
   return {
     id: row.id,
@@ -252641,10 +253952,16 @@ app.get("/api/note-templates/list", requireAuth, async (c) => {
       }
       space = await db.select().from(NoteTemplates).where(eq(NoteTemplates.spaceId, spaceId)).orderBy(desc(NoteTemplates.createdAt));
     }
+    let org = [];
+    const orgId = await connectedOrgIdFor(auth.userId);
+    if (orgId && await getActiveChurchByOrgId(orgId)) {
+      org = await db.select().from(NoteTemplates).where(eq(NoteTemplates.orgId, orgId)).orderBy(desc(NoteTemplates.createdAt));
+    }
     return c.json({
       builtIn: serializeBuiltIn(),
       personal: personal.map(serializeStored),
-      ...spaceId ? { space: space.map(serializeStored) } : {}
+      ...spaceId ? { space: space.map(serializeStored) } : {},
+      ...org.length > 0 ? { org: org.map(serializeStored) } : {}
     });
   } catch (error) {
     const standardError = handleAPIError(error, {
@@ -252672,6 +253989,17 @@ app.post("/api/note-templates/create", requireAuth, rateLimit("write"), async (c
     const descriptionRaw = typeof body.description === "string" ? body.description.trim() : "";
     const description = descriptionRaw ? descriptionRaw.slice(0, NOTE_TEMPLATE_DESCRIPTION_MAX_LENGTH) : null;
     const spaceId = typeof body.spaceId === "string" && body.spaceId.trim() ? body.spaceId.trim() : null;
+    const orgId = typeof body.orgId === "string" && body.orgId.trim() ? body.orgId.trim() : null;
+    if (orgId && spaceId) {
+      return c.json(
+        { error: "A template is scoped to a space or an org, not both", code: "INVALID_SCOPE" },
+        400
+      );
+    }
+    if (orgId) {
+      const gate = await assertCanManageOrgTemplates(auth.userId, orgId);
+      if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    }
     if (spaceId) {
       let access;
       try {
@@ -252698,7 +254026,7 @@ app.post("/api/note-templates/create", requireAuth, rateLimit("write"), async (c
       id,
       userId: auth.userId,
       spaceId,
-      orgId: null,
+      orgId,
       name,
       description,
       title,
@@ -252712,7 +254040,7 @@ app.post("/api/note-templates/create", requireAuth, rateLimit("write"), async (c
       id,
       userId: auth.userId,
       spaceId,
-      orgId: null,
+      orgId,
       name,
       description,
       title,
@@ -252732,6 +254060,11 @@ app.post("/api/note-templates/create", requireAuth, rateLimit("write"), async (c
   }
 });
 async function assertCanManageTemplate(row, userId) {
+  if (row.orgId) {
+    const gate = await assertCanManageOrgTemplates(userId, row.orgId);
+    if (!gate.ok) return { ok: false, status: gate.status, error: gate.error, code: gate.code };
+    return { ok: true };
+  }
   if (row.spaceId) {
     let access;
     try {
@@ -252784,6 +254117,12 @@ app.post("/api/note-templates/update", requireAuth, rateLimit("write"), async (c
     let nextSpaceId = existing.spaceId;
     if ("spaceId" in body) {
       nextSpaceId = typeof body.spaceId === "string" && body.spaceId.trim() ? body.spaceId.trim() : null;
+      if (nextSpaceId && existing.orgId) {
+        return c.json(
+          { error: "A template is scoped to a space or an org, not both", code: "INVALID_SCOPE" },
+          400
+        );
+      }
       if (nextSpaceId && nextSpaceId !== existing.spaceId) {
         let access;
         try {
@@ -253043,7 +254382,7 @@ init_db2();
 init_db2();
 
 // src/lib/billing-plans.ts
-var import_meta2 = {};
+var import_meta3 = {};
 var FEATURE_KEYS = ["shared_spaces", "review", "challenges", "connector"];
 var UNLIMITED = -1;
 function isUnlimited(limit) {
@@ -253052,6 +254391,7 @@ function isUnlimited(limit) {
 var FOUNDING_CAP = 99;
 var PLUS_FEATURES = ["shared_spaces", "review", "challenges"];
 var CONNECTOR_FEATURES = ["connector"];
+var CHURCH_FEATURES = [];
 var PLUS_LIMITS = {
   ownedSpaces: UNLIMITED,
   membersPerSpace: 50
@@ -253065,7 +254405,7 @@ function envProduct(name, viteName) {
     return process.env[name];
   }
   try {
-    const meta2 = typeof import_meta2 !== "undefined" ? import_meta2.env : void 0;
+    const meta2 = typeof import_meta3 !== "undefined" ? import_meta3.env : void 0;
     if (meta2?.[viteName]) return String(meta2[viteName]);
   } catch {
   }
@@ -253085,6 +254425,12 @@ function getConnectorProductMonthlyId() {
 }
 function getConnectorProductAnnualId() {
   return envProduct("POLAR_CONNECTOR_PRODUCT_ANNUAL", "VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL");
+}
+function getChurchProductMonthlyId() {
+  return envProduct("POLAR_CHURCH_PRODUCT_MONTHLY", "VITE_POLAR_CHURCH_PRODUCT_MONTHLY");
+}
+function getChurchProductAnnualId() {
+  return envProduct("POLAR_CHURCH_PRODUCT_ANNUAL", "VITE_POLAR_CHURCH_PRODUCT_ANNUAL");
 }
 function getPlans() {
   return [
@@ -253145,8 +254491,43 @@ function getPlans() {
       limits: FREE_LIMITS,
       listed: false,
       productId: getConnectorProductAnnualId()
+    },
+    {
+      key: "church",
+      name: "Harvous for Churches",
+      interval: "month",
+      amountCents: 3e3,
+      currencyCode: "USD",
+      features: CHURCH_FEATURES,
+      limits: FREE_LIMITS,
+      // Never on the personal /upgrade page — churches buy from the My Church
+      // hub, and the buyer is a staff member paying for the org.
+      listed: false,
+      productId: getChurchProductMonthlyId()
+    },
+    {
+      key: "church",
+      name: "Harvous for Churches",
+      interval: "year",
+      // 40% off twelve months at $30 ($360 → $216). Churches respond to a
+      // steep, legible break far better than a shallow one.
+      amountCents: 21600,
+      currencyCode: "USD",
+      features: CHURCH_FEATURES,
+      limits: FREE_LIMITS,
+      listed: false,
+      productId: getChurchProductAnnualId()
     }
   ];
+}
+function isChurchProductId(productId) {
+  return planForProductId(productId)?.key === "church";
+}
+function churchPlans() {
+  return getPlans().filter((p) => p.key === "church" && p.productId);
+}
+function churchPlanFor(interval2) {
+  return churchPlans().find((p) => p.interval === interval2) ?? null;
 }
 var PLANS = new Proxy([], {
   get(_target, prop2, _receiver) {
@@ -253190,6 +254571,11 @@ function foundingPlan() {
 }
 function planFor(key2, interval2) {
   return listedPlans().find((p) => p.key === key2 && p.interval === interval2 && !p.founding) ?? null;
+}
+function formatPlanPrice(plan) {
+  const dollars = plan.amountCents / 100;
+  if (Number.isInteger(dollars)) return `$${dollars}`;
+  return `$${dollars.toFixed(2)}`;
 }
 function isFeatureKey(value) {
   return FEATURE_KEYS.includes(value);
@@ -255485,10 +256871,10 @@ function abortSignalAny(signals) {
   }
   function abort() {
     controller.abort(this.reason);
-    clean();
+    clean3();
   }
   const signalRefs = [];
-  function clean() {
+  function clean3() {
     for (const signalRef of signalRefs) {
       const signal = signalRef.deref();
       if (signal) {
@@ -292434,6 +293820,7 @@ async function syncEntitlementsFromProvider(userId, options) {
       if (!subIsActive(sub.status)) continue;
       const productId = sub.productId ?? null;
       if (!productId || !planForProductId(productId)) continue;
+      if (isChurchProductId(productId)) continue;
       grantedFromPolar = true;
       const had = before2.includes("shared_spaces");
       await setEntitlementsForProduct(userId, productId, true, "billing", sub.id ?? null);
@@ -292557,229 +293944,6 @@ async function getTierForAuth(auth) {
   } catch {
     return "free";
   }
-}
-
-// server/utils/church-staff.ts
-init_db2();
-
-// server/utils/clerk-org.ts
-var CLERK_ORG_STAFF_CAP = 20;
-function isWithinClerkOrgStaffCap(memberCount) {
-  return memberCount <= CLERK_ORG_STAFF_CAP;
-}
-var ClerkOrgError = class extends Error {
-  constructor(code, message) {
-    super(message);
-    this.code = code;
-    this.name = "ClerkOrgError";
-  }
-};
-function classifyClerkFailure(status) {
-  if (status === 403) {
-    return new ClerkOrgError(
-      "CLERK_ORGS_NOT_ENABLED",
-      "Clerk Organizations is not enabled for this instance \u2014 enable it in the Clerk dashboard"
-    );
-  }
-  return new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk request returned ${status}`);
-}
-function isValidClerkOrgId(orgId) {
-  return /^org_[A-Za-z0-9]+$/.test(orgId);
-}
-function clerkSecretKey() {
-  const key2 = process.env.CLERK_SECRET_KEY;
-  if (!key2) throw new ClerkOrgError("CLERK_KEY_MISSING", "Missing env CLERK_SECRET_KEY");
-  return key2;
-}
-async function fetchClerkOrganization(orgId) {
-  const key2 = clerkSecretKey();
-  let response;
-  try {
-    response = await fetch(`https://api.clerk.com/v1/organizations/${orgId}`, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${key2}`, "Content-Type": "application/json" }
-    });
-  } catch (error) {
-    throw new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk organization fetch failed: ${error}`);
-  }
-  if (response.status === 404 || response.status === 400) return null;
-  if (!response.ok) {
-    throw classifyClerkFailure(response.status);
-  }
-  const data = await response.json();
-  if (!data.id || !data.name) {
-    throw new ClerkOrgError("CLERK_UNAVAILABLE", "Clerk organization response missing id/name");
-  }
-  return { id: data.id, name: data.name, slug: data.slug ?? null };
-}
-async function fetchClerkOrganizations() {
-  const key2 = clerkSecretKey();
-  const orgs = [];
-  let offset = 0;
-  for (; ; ) {
-    let response;
-    try {
-      response = await fetch(
-        `https://api.clerk.com/v1/organizations?limit=${ORGS_PAGE_SIZE}&offset=${offset}`,
-        {
-          method: "GET",
-          headers: { Authorization: `Bearer ${key2}`, "Content-Type": "application/json" }
-        }
-      );
-    } catch (error) {
-      throw new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk organizations fetch failed: ${error}`);
-    }
-    if (!response.ok) throw classifyClerkFailure(response.status);
-    const payload = await response.json();
-    const rows = Array.isArray(payload.data) ? payload.data : [];
-    for (const row of rows) {
-      if (!row.id || !row.name) continue;
-      orgs.push({
-        id: row.id,
-        name: row.name,
-        slug: row.slug ?? null,
-        memberCount: typeof row.members_count === "number" ? row.members_count : void 0
-      });
-    }
-    offset += rows.length;
-    const total = typeof payload.total_count === "number" ? payload.total_count : offset;
-    if (rows.length < ORGS_PAGE_SIZE || offset >= total) break;
-  }
-  return orgs;
-}
-var MEMBERSHIPS_PAGE_SIZE = 100;
-var ORGS_PAGE_SIZE = 100;
-async function fetchClerkOrgMemberships(orgId) {
-  const key2 = clerkSecretKey();
-  const members = [];
-  let offset = 0;
-  for (; ; ) {
-    let response;
-    try {
-      response = await fetch(
-        `https://api.clerk.com/v1/organizations/${orgId}/memberships?limit=${MEMBERSHIPS_PAGE_SIZE}&offset=${offset}`,
-        {
-          method: "GET",
-          headers: { Authorization: `Bearer ${key2}`, "Content-Type": "application/json" }
-        }
-      );
-    } catch (error) {
-      throw new ClerkOrgError("CLERK_UNAVAILABLE", `Clerk memberships fetch failed: ${error}`);
-    }
-    if (!response.ok) {
-      throw classifyClerkFailure(response.status);
-    }
-    const payload = await response.json();
-    const rows = Array.isArray(payload.data) ? payload.data : [];
-    for (const row of rows) {
-      const userId = row.public_user_data?.user_id;
-      if (!userId) continue;
-      members.push({ userId, role: row.role ?? "org:member" });
-    }
-    offset += rows.length;
-    const total = typeof payload.total_count === "number" ? payload.total_count : offset;
-    if (rows.length < MEMBERSHIPS_PAGE_SIZE || offset >= total) break;
-  }
-  return members;
-}
-function computeStaffSyncPlan(input) {
-  const staffIds = new Set(input.staff.map((m2) => m2.userId));
-  const existingByUser = new Map(input.existing.map((row) => [row.userId, row.role]));
-  const warnings = [];
-  const toInsertLeaders = [];
-  const toPromoteToLeader = [];
-  for (const staffId of staffIds) {
-    if (staffId === input.spaceOwnerUserId) continue;
-    const existingRole = existingByUser.get(staffId);
-    if (existingRole === void 0) toInsertLeaders.push(staffId);
-    else if (existingRole === "member") toPromoteToLeader.push(staffId);
-  }
-  const toRemove = [];
-  for (const row of input.existing) {
-    if (row.role !== "leader") continue;
-    if (row.userId === input.spaceOwnerUserId) continue;
-    if (!staffIds.has(row.userId)) toRemove.push(row.userId);
-  }
-  const healOwnerRow = !existingByUser.has(input.spaceOwnerUserId);
-  if (!staffIds.has(input.spaceOwnerUserId)) {
-    warnings.push(`Space owner ${input.spaceOwnerUserId} is not a member of the Clerk org`);
-  }
-  return { toInsertLeaders, toPromoteToLeader, toRemove, healOwnerRow, warnings };
-}
-
-// server/utils/church-staff.ts
-async function getActiveChurchByOrgId(orgId) {
-  const trimmed = orgId.trim();
-  if (!trimmed) return null;
-  const church = first(
-    await db.select().from(Churches).where(eq(Churches.orgId, trimmed)).limit(1)
-  );
-  if (!church || church.deletedAt) return null;
-  return church;
-}
-async function isChurchStaffForOrg(userId, orgId) {
-  const church = await getActiveChurchByOrgId(orgId);
-  if (!church) return false;
-  if (church.createdBy === userId) return true;
-  const orgSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(and(eq(Spaces.orgId, church.orgId), isNull(Spaces.deletedAt)));
-  if (orgSpaces.length > 0) {
-    const membership = first(
-      await db.select({ id: SpaceMemberships.id, role: SpaceMemberships.role }).from(SpaceMemberships).where(
-        and(
-          eq(SpaceMemberships.userId, userId),
-          inArray(
-            SpaceMemberships.spaceId,
-            orgSpaces.map((s2) => s2.id)
-          ),
-          inArray(SpaceMemberships.role, ["owner", "leader"])
-        )
-      ).limit(1)
-    );
-    if (membership) return true;
-  }
-  try {
-    const staff = await fetchClerkOrgMemberships(church.orgId);
-    return staff.some((member) => member.userId === userId);
-  } catch (error) {
-    console.warn("[isChurchStaffForOrg] Clerk org membership check failed", {
-      orgId: church.orgId,
-      userId,
-      error: error instanceof Error ? error.message : String(error)
-    });
-    return false;
-  }
-}
-async function assertChurchStaffOrgWrite(userId, orgId, staffError) {
-  const church = await getActiveChurchByOrgId(orgId);
-  if (!church) {
-    return { ok: false, status: 404, code: "CHURCH_NOT_FOUND", error: "Church not found" };
-  }
-  if (!church.isActive) {
-    return { ok: false, status: 409, code: "CHURCH_INACTIVE", error: "Church is not active" };
-  }
-  if (!await isChurchStaffForOrg(userId, church.orgId)) {
-    return {
-      ok: false,
-      status: 403,
-      code: "CHURCH_STAFF_REQUIRED",
-      error: staffError
-    };
-  }
-  return { ok: true, church };
-}
-async function assertCanCreateChurchSharedSpace(userId, orgId) {
-  return assertChurchStaffOrgWrite(
-    userId,
-    orgId,
-    "Only church staff can create church Shared Spaces"
-  );
-}
-async function assertCanCreateMinistryChannel(userId, orgId) {
-  return assertChurchStaffOrgWrite(
-    userId,
-    orgId,
-    "Only church staff can create ministry channels"
-  );
 }
 
 // server/routes/spaces.ts
@@ -295276,10 +296440,12 @@ route12.post("/api/spaces/:spaceId/add-note", requireAuth, rateLimit("write"), a
     });
     return c.json({
       success: true,
-      message: result.reactivated ? "Note restored to space" : "Note added to space",
+      message: result.alreadyAssociated ? "Note is already in this space" : result.reactivated ? "Note restored to space" : "Note added to space",
       noteId,
       associationId: result.association?.id,
-      reactivated: result.reactivated
+      reactivated: result.reactivated,
+      /** Idempotent no-op — the note was already live in this space. */
+      alreadyAssociated: result.alreadyAssociated
     });
   } catch (error) {
     if (error instanceof SharedSpaceLifecycleError) {
@@ -295727,17 +296893,22 @@ route12.post("/api/spaces/:spaceId/pin-item", requireAuth, async (c) => {
       return c.json({ error: "itemId, itemType, and isPinned are required", code: "BAD_REQUEST" }, 400);
     }
     if (itemType === "note") {
-      const association = first(
-        await db.select({ id: SpaceNotes.id }).from(SpaceNotes).where(
-          and(
-            eq(SpaceNotes.noteId, itemId),
-            eq(SpaceNotes.spaceId, spaceId),
-            isNull(SpaceNotes.removedAt)
-          )
-        ).limit(1)
-      );
-      if (!association) return c.json({ error: "Note not found in space", code: "NOT_FOUND" }, 404);
-      await db.update(SpaceNotes).set({ isPinned, updatedAt: nowISO() }).where(eq(SpaceNotes.id, association.id));
+      if (accessInfo.space?.type === "personal") {
+        const updated = await db.update(Notes).set({ isPinned, updatedAt: nowISO() }).where(and(eq(Notes.id, itemId), eq(Notes.userId, auth.userId))).returning({ id: Notes.id });
+        if (!first(updated)) return c.json({ error: "Note not found", code: "NOT_FOUND" }, 404);
+      } else {
+        const association = first(
+          await db.select({ id: SpaceNotes.id }).from(SpaceNotes).where(
+            and(
+              eq(SpaceNotes.noteId, itemId),
+              eq(SpaceNotes.spaceId, spaceId),
+              isNull(SpaceNotes.removedAt)
+            )
+          ).limit(1)
+        );
+        if (!association) return c.json({ error: "Note not found in space", code: "NOT_FOUND" }, 404);
+        await db.update(SpaceNotes).set({ isPinned, updatedAt: nowISO() }).where(eq(SpaceNotes.id, association.id));
+      }
     } else if (itemType === "thread") {
       await db.transaction(
         (tx) => setSingularThreadPin(tx, {
@@ -296099,6 +297270,14 @@ route12.get("/api/spaces/:spaceId/members", requireAuth, async (c) => {
           userId: m2.userId,
           role: m2.role,
           joinedAt: m2.joinedAt || m2.createdAt,
+          /*
+            How this row got its role: 'grant' means a church admin or the
+            space owner handed this person leadership of *this* room (P5).
+            Anything else — including null — is the staff-sync projection, which
+            the people sheet must not offer to revoke, since the roster sweep
+            owns it and would just restore it.
+          */
+          grantSource: m2.grantSource ?? null,
           firstName: meta2.firstName || null,
           lastName: meta2.lastName || null,
           displayName: safeMemberDisplayName({
@@ -297957,7 +299136,7 @@ async function connectionFieldsForHmcChurchId(hmcChurchId, options) {
   if (!hmcChurchId) return { ...CLEARED_CHURCH_CONNECTION };
   const church = await findActiveChurchByHmcId(hmcChurchId);
   if (!church) return { ...CLEARED_CHURCH_CONNECTION };
-  const preserved = options?.preserveConnectedAt?.trim() || null;
+  const preserved = toDate(options?.preserveConnectedAt ?? null);
   return {
     connectedChurchId: church.id,
     connectedOrgId: church.orgId,
@@ -306774,7 +307953,20 @@ app2.get("/api/user/church-staff-status", requireAuth, async (c) => {
       return c.json({ error: "orgId is required", code: "ORG_ID_REQUIRED" }, 400);
     }
     const isStaff = await isChurchStaffForOrg(auth.userId, orgId);
-    return c.json({ orgId, isStaff });
+    if (!isStaff) {
+      return c.json({ orgId, isStaff: false, role: null, capabilities: NO_CHURCH_CAPABILITIES });
+    }
+    let role = null;
+    try {
+      const roster = await fetchClerkOrgMemberships(orgId);
+      role = roster.find((member) => member.userId === auth.userId)?.role ?? null;
+    } catch (error) {
+      console.warn("[church-staff-status] Clerk role lookup failed; defaulting to staff", {
+        orgId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+    return c.json({ orgId, isStaff: true, role, capabilities: capabilitiesForChurchRole(role) });
   } catch (error) {
     const e = handleAPIError(error, {
       endpoint: "/api/user/church-staff-status",
@@ -309629,6 +310821,391 @@ app6.post("/api/resource/update-metadata", requireAuth, rateLimit("write"), asyn
 });
 var resource_default = app6;
 
+// server/routes/library.ts
+init_auth();
+init_db2();
+init_dates();
+init_db_errors();
+
+// server/utils/library-file-upload.ts
+var import_crypto5 = require("crypto");
+init_dist5();
+var LIBRARY_FILES_BUCKET = "library-files";
+var LIBRARY_FILE_MAX_BYTES = 50 * 1024 * 1024;
+var LIBRARY_FILE_SIGNED_URL_TTL_SECONDS = 60 * 10;
+var ALLOWED_MIME2 = /* @__PURE__ */ new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/markdown",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/x-m4a"
+]);
+var adminClient3 = null;
+function isLibraryFileStorageConfigured() {
+  const url = process.env.SUPABASE_URL?.trim();
+  const key2 = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  return Boolean(url && key2);
+}
+function getAdminClient3() {
+  if (adminClient3) return adminClient3;
+  const url = process.env.SUPABASE_URL?.trim();
+  const key2 = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url || !key2) return null;
+  adminClient3 = createClient(url, key2, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+  return adminClient3;
+}
+function sanitizeLibraryFileName(name) {
+  const trimmed = name.trim().replace(/[/\\]/g, "_");
+  const cleaned = trimmed.replace(/[^\w.\- ()]/g, "_").replace(/\s+/g, " ").trim();
+  return (cleaned || "file").slice(0, 140);
+}
+async function uploadLibraryFile(params) {
+  const { userId, itemId, fileName, bytes, mimeType } = params;
+  if (!isLibraryFileStorageConfigured()) {
+    return { ok: false, status: 503, error: "File storage is not configured" };
+  }
+  const normalizedMime = mimeType.split(";")[0].trim().toLowerCase();
+  if (!ALLOWED_MIME2.has(normalizedMime)) {
+    return { ok: false, status: 400, error: "Unsupported file type" };
+  }
+  if (bytes.length === 0) {
+    return { ok: false, status: 400, error: "File is empty" };
+  }
+  if (bytes.length > LIBRARY_FILE_MAX_BYTES) {
+    return { ok: false, status: 413, error: "File is larger than 50MB \u2014 link to it instead" };
+  }
+  const client = getAdminClient3();
+  if (!client) {
+    return { ok: false, status: 503, error: "File storage is not configured" };
+  }
+  const objectName = `${userId}/${itemId}/${(0, import_crypto5.randomUUID)()}-${sanitizeLibraryFileName(fileName)}`;
+  const { error } = await client.storage.from(LIBRARY_FILES_BUCKET).upload(objectName, bytes, {
+    contentType: normalizedMime,
+    upsert: false
+  });
+  if (error) {
+    console.error("[library-file-upload] storage upload failed:", error.message);
+    return { ok: false, status: 503, error: "Failed to upload file" };
+  }
+  return { ok: true, storageKey: objectName };
+}
+async function signedLibraryFileUrl(storageKey) {
+  const client = getAdminClient3();
+  if (!client) return null;
+  const { data, error } = await client.storage.from(LIBRARY_FILES_BUCKET).createSignedUrl(storageKey, LIBRARY_FILE_SIGNED_URL_TTL_SECONDS);
+  if (error || !data?.signedUrl) {
+    console.error("[library-file-upload] sign failed:", error?.message);
+    return null;
+  }
+  return data.signedUrl;
+}
+
+// server/routes/library.ts
+var app7 = new Hono2();
+var TITLE_MAX_LENGTH = 200;
+var DESCRIPTION_MAX_LENGTH = 1e3;
+var DEFAULT_PERSONAL_LIBRARY_TITLE = "My Library";
+function serializeItem(row) {
+  return {
+    id: row.id,
+    libraryId: row.libraryId,
+    kind: row.kind,
+    title: row.title,
+    description: row.description,
+    sourceUrl: row.sourceUrl,
+    sourceDomain: row.sourceDomain,
+    sourceSiteName: row.sourceSiteName,
+    sourceImage: row.sourceImage,
+    // fileStorageKey stays server-side — clients open files via /items/:id/file.
+    fileName: row.fileName,
+    fileMime: row.fileMime,
+    fileBytes: row.fileBytes,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  };
+}
+async function findPersonalLibrary(userId) {
+  return first(
+    await db.select().from(ResourceLibraries).where(and(eq(ResourceLibraries.ownerKind, "user"), eq(ResourceLibraries.ownerId, userId))).limit(1)
+  ) ?? null;
+}
+async function ensurePersonalLibrary(userId) {
+  const existing = await findPersonalLibrary(userId);
+  if (existing) return existing;
+  const timestamp3 = now();
+  const row = {
+    id: `lib_${crypto.randomUUID()}`,
+    ownerKind: "user",
+    ownerId: userId,
+    title: DEFAULT_PERSONAL_LIBRARY_TITLE,
+    createdAt: timestamp3,
+    updatedAt: timestamp3
+  };
+  try {
+    await db.insert(ResourceLibraries).values(row);
+    return row;
+  } catch (error) {
+    if (!isUniqueViolationError(error)) throw error;
+    const raced = await findPersonalLibrary(userId);
+    if (!raced) throw error;
+    return raced;
+  }
+}
+async function findOwnedItem(userId, itemId) {
+  return first(
+    await db.select({ item: LibraryItems }).from(LibraryItems).innerJoin(ResourceLibraries, eq(LibraryItems.libraryId, ResourceLibraries.id)).where(
+      and(
+        eq(LibraryItems.id, itemId),
+        eq(ResourceLibraries.ownerKind, "user"),
+        eq(ResourceLibraries.ownerId, userId)
+      )
+    ).limit(1)
+  )?.item ?? null;
+}
+function normalizeTitle2(value, fallback) {
+  const text3 = typeof value === "string" ? value.trim() : "";
+  const chosen = text3 || fallback;
+  return chosen.slice(0, TITLE_MAX_LENGTH);
+}
+function normalizeDescription(value) {
+  if (typeof value !== "string") return null;
+  const text3 = value.trim();
+  return text3 ? text3.slice(0, DESCRIPTION_MAX_LENGTH) : null;
+}
+function normalizeOptionalText(value, maxLength = TITLE_MAX_LENGTH) {
+  if (typeof value !== "string") return null;
+  const text3 = value.trim();
+  return text3 ? text3.slice(0, maxLength) : null;
+}
+app7.get("/api/library", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const library = await findPersonalLibrary(auth.userId);
+    if (!library) return c.json({ library: null, items: [] });
+    const items = await db.select().from(LibraryItems).where(and(eq(LibraryItems.libraryId, library.id), isNull(LibraryItems.archivedAt))).orderBy(desc(LibraryItems.updatedAt), desc(LibraryItems.createdAt));
+    return c.json({
+      library: { id: library.id, ownerKind: library.ownerKind, title: library.title },
+      items: items.map(serializeItem)
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/library",
+      action: "list_library_items"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app7.get("/api/library/items/:id", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const id = requireParam(c, "id");
+    const item = await findOwnedItem(auth.userId, id);
+    if (!item) return c.json({ error: "Library item not found", code: "NOT_FOUND" }, 404);
+    return c.json({ item: serializeItem(item), archived: item.archivedAt !== null });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/library/items/[id]",
+      action: "get_library_item"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app7.post("/api/library/items/create", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json();
+    const validation2 = validateResourceUrl(body?.url);
+    if (!validation2.isValid || !validation2.normalizedUrl) {
+      return c.json(
+        { error: validation2.error || "Invalid URL", code: validation2.code || "INVALID_URL" },
+        400
+      );
+    }
+    const normalizedUrl = validation2.normalizedUrl;
+    const domain = extractDomain(normalizedUrl);
+    const library = await ensurePersonalLibrary(auth.userId);
+    const duplicate = first(
+      await db.select().from(LibraryItems).where(
+        and(
+          eq(LibraryItems.libraryId, library.id),
+          eq(LibraryItems.sourceUrl, normalizedUrl),
+          isNull(LibraryItems.archivedAt)
+        )
+      ).limit(1)
+    );
+    if (duplicate) {
+      return c.json({ success: true, duplicate: true, item: serializeItem(duplicate) });
+    }
+    const timestamp3 = now();
+    const row = {
+      id: `libi_${crypto.randomUUID()}`,
+      libraryId: library.id,
+      kind: "link",
+      title: normalizeTitle2(body?.title, domain || normalizedUrl),
+      description: normalizeDescription(body?.description),
+      sourceUrl: normalizedUrl,
+      sourceDomain: domain,
+      sourceSiteName: normalizeOptionalText(body?.siteName),
+      sourceImage: normalizeOptionalText(body?.image, 2048),
+      fileStorageKey: null,
+      fileName: null,
+      fileMime: null,
+      fileBytes: null,
+      access: "members",
+      createdByUserId: auth.userId,
+      createdAt: timestamp3,
+      updatedAt: timestamp3,
+      archivedAt: null
+    };
+    await db.insert(LibraryItems).values(row);
+    return c.json({ success: true, duplicate: false, item: serializeItem(row) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/library/items/create",
+      action: "create_library_item"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app7.post("/api/library/items/upload", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    if (!isLibraryFileStorageConfigured()) {
+      return c.json({ error: "File storage is not configured", code: "STORAGE_UNAVAILABLE" }, 503);
+    }
+    const formData = await c.req.formData();
+    const file = formData.get("file");
+    if (!(file instanceof File)) {
+      return c.json({ error: "A file is required", code: "MISSING_FILE" }, 400);
+    }
+    if (file.size > LIBRARY_FILE_MAX_BYTES) {
+      return c.json(
+        { error: "File is larger than 50MB \u2014 link to it instead", code: "FILE_TOO_LARGE" },
+        413
+      );
+    }
+    const fileName = sanitizeLibraryFileName(file.name || "file");
+    const titleField = formData.get("title");
+    const library = await ensurePersonalLibrary(auth.userId);
+    const itemId = `libi_${crypto.randomUUID()}`;
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const uploaded = await uploadLibraryFile({
+      userId: auth.userId,
+      itemId,
+      fileName,
+      bytes,
+      mimeType: file.type || "application/octet-stream"
+    });
+    if (!uploaded.ok) {
+      return c.json({ error: uploaded.error, code: "UPLOAD_FAILED" }, uploaded.status);
+    }
+    const timestamp3 = now();
+    const row = {
+      id: itemId,
+      libraryId: library.id,
+      kind: "file",
+      title: normalizeTitle2(typeof titleField === "string" ? titleField : "", fileName),
+      description: null,
+      sourceUrl: null,
+      sourceDomain: null,
+      sourceSiteName: null,
+      sourceImage: null,
+      fileStorageKey: uploaded.storageKey,
+      fileName,
+      fileMime: file.type.split(";")[0].trim().toLowerCase() || null,
+      fileBytes: bytes.length,
+      access: "members",
+      createdByUserId: auth.userId,
+      createdAt: timestamp3,
+      updatedAt: timestamp3,
+      archivedAt: null
+    };
+    await db.insert(LibraryItems).values(row);
+    return c.json({ success: true, item: serializeItem(row) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/library/items/upload",
+      action: "upload_library_file"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app7.get("/api/library/items/:id/file", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const id = requireParam(c, "id");
+    const item = await findOwnedItem(auth.userId, id);
+    if (!item) return c.json({ error: "Library item not found", code: "NOT_FOUND" }, 404);
+    if (item.kind !== "file" || !item.fileStorageKey) {
+      return c.json({ error: "Item has no file", code: "NOT_A_FILE" }, 400);
+    }
+    const url = await signedLibraryFileUrl(item.fileStorageKey);
+    if (!url) {
+      return c.json({ error: "File storage is not configured", code: "STORAGE_UNAVAILABLE" }, 503);
+    }
+    return c.json({ url, fileName: item.fileName, fileMime: item.fileMime });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/library/items/[id]/file",
+      action: "sign_library_file"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app7.post("/api/library/items/update", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json();
+    const id = typeof body?.id === "string" ? body.id.trim() : "";
+    if (!id) return c.json({ error: "Item id is required", code: "MISSING_ID" }, 400);
+    const item = await findOwnedItem(auth.userId, id);
+    if (!item) return c.json({ error: "Library item not found", code: "NOT_FOUND" }, 404);
+    const updates = { updatedAt: now() };
+    if (body?.title !== void 0) updates.title = normalizeTitle2(body.title, item.title);
+    if (body?.description !== void 0) updates.description = normalizeDescription(body.description);
+    await db.update(LibraryItems).set(updates).where(eq(LibraryItems.id, id));
+    return c.json({ success: true, item: serializeItem({ ...item, ...updates }) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/library/items/update",
+      action: "update_library_item"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app7.post("/api/library/items/archive", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json();
+    const id = typeof body?.id === "string" ? body.id.trim() : "";
+    if (!id) return c.json({ error: "Item id is required", code: "MISSING_ID" }, 400);
+    const item = await findOwnedItem(auth.userId, id);
+    if (!item) return c.json({ error: "Library item not found", code: "NOT_FOUND" }, 404);
+    if (item.archivedAt) return c.json({ success: true, alreadyArchived: true });
+    const timestamp3 = now();
+    await db.update(LibraryItems).set({ archivedAt: timestamp3, updatedAt: timestamp3 }).where(eq(LibraryItems.id, id));
+    return c.json({ success: true, alreadyArchived: false });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/library/items/archive",
+      action: "archive_library_item"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var library_default = app7;
+
 // server/routes/inbox.ts
 init_auth();
 init_db2();
@@ -309686,7 +311263,7 @@ async function verifyInboxItemInWebflow(webflowItemId, collectionId = "690ed2f0e
 // server/routes/inbox.ts
 init_note_version_service();
 init_space_note_associations();
-var app7 = new Hono2();
+var app8 = new Hono2();
 var INBOX_BULK_INSERT_CHUNK = 400;
 var INBOX_XP_AWARD_CONCURRENCY = 8;
 var InboxTargetError = class extends Error {
@@ -309741,7 +311318,7 @@ function convertInboxColorToThreadColor(inboxColor) {
   if (mappedColor && THREAD_COLORS.includes(mappedColor)) return mappedColor;
   return null;
 }
-app7.post("/api/inbox/archive", requireAuth, rateLimit("write"), async (c) => {
+app8.post("/api/inbox/archive", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { inboxItemId } = await c.req.json();
@@ -309755,7 +311332,7 @@ app7.post("/api/inbox/archive", requireAuth, rateLimit("write"), async (c) => {
     return c.json({ error: "Failed to archive inbox item", details: error.message }, 500);
   }
 });
-app7.post("/api/inbox/unarchive", requireAuth, rateLimit("write"), async (c) => {
+app8.post("/api/inbox/unarchive", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { inboxItemId } = await c.req.json();
@@ -309773,7 +311350,7 @@ app7.post("/api/inbox/unarchive", requireAuth, rateLimit("write"), async (c) => 
     return c.json({ error: "Failed to unarchive inbox item", details: error.message }, 500);
   }
 });
-app7.get("/api/inbox/preview", requireAuth, async (c) => {
+app8.get("/api/inbox/preview", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const inboxItemId = c.req.query("inboxItemId");
@@ -309788,7 +311365,7 @@ app7.get("/api/inbox/preview", requireAuth, async (c) => {
     return c.json({ error: "Failed to fetch inbox item preview", details: error.message }, 500);
   }
 });
-app7.post("/api/inbox/add-to-harvous", requireAuth, rateLimit("write"), async (c) => {
+app8.post("/api/inbox/add-to-harvous", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { inboxItemId, targetThreadId, targetSpaceId } = await c.req.json();
@@ -310225,8 +311802,8 @@ async function handleAutoArchive(c) {
     return c.json({ error: "Failed to auto-archive items", details: error.message }, 500);
   }
 }
-app7.post("/api/inbox/auto-archive", handleAutoArchive);
-app7.get("/api/inbox/auto-archive", handleAutoArchive);
+app8.post("/api/inbox/auto-archive", handleAutoArchive);
+app8.get("/api/inbox/auto-archive", handleAutoArchive);
 async function handleAutoDelete(c) {
   try {
     const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
@@ -310297,9 +311874,9 @@ async function handleAutoDelete(c) {
     return c.json({ error: "Failed to auto-delete archived items", details: error.message }, 500);
   }
 }
-app7.post("/api/inbox/auto-delete", handleAutoDelete);
-app7.get("/api/inbox/auto-delete", handleAutoDelete);
-app7.post("/api/inbox/assign-to-users", async (c) => {
+app8.post("/api/inbox/auto-delete", handleAutoDelete);
+app8.get("/api/inbox/auto-delete", handleAutoDelete);
+app8.post("/api/inbox/assign-to-users", async (c) => {
   return c.json(
     {
       error: "Gone",
@@ -310308,7 +311885,7 @@ app7.post("/api/inbox/assign-to-users", async (c) => {
     410
   );
 });
-app7.post("/api/inbox/reset-all-users", async (c) => {
+app8.post("/api/inbox/reset-all-users", async (c) => {
   try {
     const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
     const expectedToken = process.env.INBOX_RESET_SECRET_TOKEN;
@@ -310405,7 +311982,7 @@ app7.post("/api/inbox/reset-all-users", async (c) => {
     return c.json({ error: "Failed to reset inbox items", details: error.message }, 500);
   }
 });
-app7.get("/api/inbox/reset-all-users", async (c) => {
+app8.get("/api/inbox/reset-all-users", async (c) => {
   return c.json({
     message: "Use POST method to reset inbox items",
     endpoint: "/api/inbox/reset-all-users",
@@ -310413,14 +311990,14 @@ app7.get("/api/inbox/reset-all-users", async (c) => {
     note: "Requires Authorization: Bearer <INBOX_RESET_SECRET_TOKEN>"
   });
 });
-var inbox_default = app7;
+var inbox_default = app8;
 
 // node_modules/@clerk/backend/dist/webhooks.mjs
 init_chunk_YBVFDYDR();
 init_chunk_TOROEX6P();
 
 // node_modules/@clerk/shared/dist/runtime/getEnvVariable-BSXrgsT3.mjs
-var import_meta4 = {};
+var import_meta5 = {};
 var hasCloudflareProxyContext = (context2) => {
   return !!context2?.cloudflare?.env;
 };
@@ -310429,7 +312006,7 @@ var hasCloudflareContext = (context2) => {
 };
 var getEnvVariable = (name, context2) => {
   if (typeof process !== "undefined" && process.env && typeof process.env[name] === "string") return process.env[name];
-  if (typeof import_meta4 !== "undefined" && import_meta4.env && typeof import_meta4.env[name] === "string") return import_meta4.env[name];
+  if (typeof import_meta5 !== "undefined" && import_meta5.env && typeof import_meta5.env[name] === "string") return import_meta5.env[name];
   if (hasCloudflareProxyContext(context2)) return context2.cloudflare.env[name] || "";
   if (hasCloudflareContext(context2)) return context2.env[name] || "";
   if (context2 && typeof context2[name] === "string") return context2[name];
@@ -310640,9 +312217,92 @@ function customerIdFromPolarData(data) {
 function subscriptionStatusFromPolarData(data) {
   return data?.status ?? null;
 }
+function churchIdFromPolarData(data) {
+  const value = data?.metadata?.churchId;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+// server/utils/church-staff-sync.ts
+init_db2();
+init_dates();
+async function syncChurchStaffForOrg(orgId, options) {
+  const staff = options?.staff ?? await fetchClerkOrgMemberships(orgId);
+  if (!isWithinClerkOrgStaffCap(staff.length)) {
+    return {
+      ok: false,
+      code: "CLERK_ORG_MEMBER_LIMIT",
+      staffCount: staff.length,
+      limit: CLERK_ORG_STAFF_CAP
+    };
+  }
+  const orgSpaces = await db.select().from(Spaces).where(and(eq(Spaces.orgId, orgId), isNull(Spaces.deletedAt)));
+  if (orgSpaces.length === 0) {
+    return { ok: true, staffCount: staff.length, spaces: [], warnings: ["This church has no org spaces yet"] };
+  }
+  const now2 = nowISO();
+  const warnings = [];
+  const results = [];
+  for (const space of orgSpaces) {
+    const existing = await db.select({
+      userId: SpaceMemberships.userId,
+      role: SpaceMemberships.role,
+      // Feeds the planner's never-reap-a-granted-leader rule.
+      grantSource: SpaceMemberships.grantSource
+    }).from(SpaceMemberships).where(eq(SpaceMemberships.spaceId, space.id));
+    const plan = computeStaffSyncPlan({ spaceOwnerUserId: space.userId, staff, existing });
+    warnings.push(...plan.warnings);
+    await db.transaction(async (tx) => {
+      if (plan.healOwnerRow) {
+        await tx.insert(SpaceMemberships).values({
+          id: `smem_${crypto.randomUUID()}`,
+          spaceId: space.id,
+          userId: space.userId,
+          role: "owner",
+          joinedAt: now2,
+          createdAt: now2
+        }).onConflictDoNothing();
+      }
+      for (const userId of plan.toInsertLeaders) {
+        await tx.insert(SpaceMemberships).values({
+          id: `smem_${crypto.randomUUID()}`,
+          spaceId: space.id,
+          userId,
+          role: "leader",
+          joinedAt: now2,
+          createdAt: now2
+        }).onConflictDoNothing();
+      }
+      for (const userId of plan.toPromoteToLeader) {
+        await tx.update(SpaceMemberships).set({ role: "leader", updatedAt: now2 }).where(and(eq(SpaceMemberships.spaceId, space.id), eq(SpaceMemberships.userId, userId)));
+      }
+      for (const userId of plan.toRemove) {
+        await tx.delete(SpaceMemberships).where(
+          and(
+            eq(SpaceMemberships.spaceId, space.id),
+            eq(SpaceMemberships.userId, userId),
+            eq(SpaceMemberships.role, "leader"),
+            or(
+              isNull(SpaceMemberships.grantSource),
+              ne(SpaceMemberships.grantSource, "grant")
+            )
+          )
+        );
+      }
+    });
+    results.push({
+      spaceId: space.id,
+      title: space.title,
+      added: plan.toInsertLeaders.length,
+      promoted: plan.toPromoteToLeader.length,
+      removed: plan.toRemove.length,
+      healedOwner: plan.healOwnerRow
+    });
+  }
+  return { ok: true, staffCount: staff.length, spaces: results, warnings: [...new Set(warnings)] };
+}
 
 // server/routes/webhooks.ts
-var app8 = new Hono2();
+var app9 = new Hono2();
 var SVIX_HEADER_NAMES = ["svix-id", "svix-timestamp", "svix-signature"];
 async function dedupeSvixHeaders(req) {
   const headers = new Headers(req.headers);
@@ -310782,7 +312442,32 @@ async function handleUserUpdated(event) {
 async function handleUserDeleted(event) {
   console.log("User deleted in Clerk:", event.data.id);
 }
-app8.post("/api/webhooks/clerk", async (c) => {
+async function handleOrgMembershipChanged(event) {
+  const orgId = event.data?.organization?.id;
+  if (!orgId) {
+    console.warn("[Webhook] Org membership event with no organization id:", event.type);
+    return;
+  }
+  try {
+    const church = await getActiveChurchByOrgId(orgId);
+    if (!church) {
+      return;
+    }
+    const result = await syncChurchStaffForOrg(orgId);
+    console.log("[Webhook] Church staff reconciled:", {
+      orgId,
+      type: event.type,
+      ok: result.ok,
+      ...result.ok ? { staffCount: result.staffCount, spaces: result.spaces.length } : { code: result.code }
+    });
+  } catch (error) {
+    console.error("[Webhook] Church staff reconcile failed (manual sync still available):", {
+      orgId,
+      error: error?.message ?? error
+    });
+  }
+}
+app9.post("/api/webhooks/clerk", async (c) => {
   const startTime = Date.now();
   try {
     console.log("[Webhook] Webhook request received:", {
@@ -310811,6 +312496,11 @@ app8.post("/api/webhooks/clerk", async (c) => {
     } catch (error) {
       console.error("[Webhook] Signature verification failed:", error.message);
       return c.json({ error: "Invalid webhook signature" }, 401);
+    }
+    const eventType = event.type;
+    if (eventType === "organizationMembership.created" || eventType === "organizationMembership.updated" || eventType === "organizationMembership.deleted") {
+      await handleOrgMembershipChanged(event);
+      return c.json({ received: true });
     }
     let userId;
     try {
@@ -310874,7 +312564,7 @@ app8.post("/api/webhooks/clerk", async (c) => {
     return c.json({ error: "Internal server error", message: error?.message || "An unexpected error occurred" }, 500);
   }
 });
-app8.post("/api/webhooks/polar", async (c) => {
+app9.post("/api/webhooks/polar", async (c) => {
   try {
     const secret = process.env.POLAR_WEBHOOK_SECRET;
     if (!secret) {
@@ -310904,6 +312594,28 @@ app8.post("/api/webhooks/polar", async (c) => {
     if (!intent) {
       return c.json({ ok: true, skipped: true });
     }
+    const eventProductId = productIdFromPolarData(data);
+    const eventSubscriptionId = typeof data?.id === "string" ? data.id : null;
+    if (isChurchProductId(eventProductId) || churchIdFromPolarData(data)) {
+      const churchId = churchIdFromPolarData(data) ?? (eventSubscriptionId ? (await findChurchBySubscriptionId(eventSubscriptionId))?.id ?? null : null);
+      if (!churchId) {
+        console.warn("[Polar webhook] Church product with no resolvable church", {
+          eventType,
+          eventSubscriptionId
+        });
+        return c.json({ ok: true, skipped: true });
+      }
+      const applied = await applyChurchSubscription({
+        churchId,
+        enabled: intent === "enable",
+        subscriptionId: eventSubscriptionId,
+        status: subscriptionStatusFromPolarData(data)
+      });
+      if (!applied) {
+        console.warn("[Polar webhook] Church not found for subscription", { churchId, eventType });
+      }
+      return c.json({ ok: true, church: churchId, enabled: intent === "enable" });
+    }
     const userId = externalUserIdFromPolarData(data);
     if (!userId) {
       console.warn("[Polar webhook] Could not resolve user id (no external_customer_id)", { eventType });
@@ -310914,8 +312626,8 @@ app8.post("/api/webhooks/polar", async (c) => {
       const existing = await getPolarCustomerId(userId);
       if (!existing) await setPolarCustomerId(userId, customerId);
     }
-    const productId = productIdFromPolarData(data);
-    const subscriptionId = typeof data?.id === "string" ? data.id : null;
+    const productId = eventProductId;
+    const subscriptionId = eventSubscriptionId;
     if (intent === "enable") {
       if (productId && planForProductId(productId)) {
         await applyPolarSubscriptionEntitlement({ userId, productId, subscriptionId, enabled: true });
@@ -310929,7 +312641,7 @@ app8.post("/api/webhooks/polar", async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-var webhooks_default = app8;
+var webhooks_default = app9;
 
 // server/routes/sync.ts
 init_auth();
@@ -310958,7 +312670,7 @@ init_note_version_service();
 init_shared_space_lifecycle();
 init_shared_note_serializer();
 init_space_note_associations();
-var app9 = new Hono2();
+var app10 = new Hono2();
 var processedMutations = /* @__PURE__ */ new Map();
 var MUTATION_CACHE_TTL = 5 * 60 * 1e3;
 setInterval(() => {
@@ -311562,7 +313274,9 @@ async function processNoteMutation(userId, operation, entityId, data, clientMuta
           };
         },
         source: "sync-update",
-        now: nowISO()
+        now: nowISO(),
+        // Pre-transform body, for the list-preview truncation guard.
+        incomingRawContent: typeof data.content === "string" ? data.content : void 0
       });
       if (updateSpaceGate?.spaceId && (updateSpaceGate.spaceType === "shared" || updateSpaceGate.spaceType === "public")) {
         if (!explicitContextGate) {
@@ -311883,7 +313597,7 @@ async function processStudyThreadEntryMutation(userId, operation, entityId, data
   }
   return { success: false, error: `Unknown operation: ${operation}` };
 }
-app9.post("/api/sync/push", requireAuth, async (c) => {
+app10.post("/api/sync/push", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const { mutations } = await c.req.json();
@@ -311962,7 +313676,7 @@ app9.post("/api/sync/push", requireAuth, async (c) => {
   }
 });
 var SYNC_NOTE_PAGE_LIMIT = 1e3;
-app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
+app10.get("/api/sync/bootstrap", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const [spaces, threads, notes, noteThreads, noteConnections, tags, noteTags, studyThreadEntries, userMetadataRows] = await Promise.all([
@@ -312165,7 +313879,7 @@ app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app9.get("/api/sync/changes", requireAuth, async (c) => {
+app10.get("/api/sync/changes", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const sinceParam = c.req.query("since");
@@ -312390,12 +314104,12 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var sync_default2 = app9;
+var sync_default2 = app10;
 
 // server/routes/migrations.ts
 init_db2();
 init_dist();
-var app10 = new Hono2();
+var app11 = new Hono2();
 function requireMigrationKey(c) {
   const migrationKey = process.env.MIGRATION_KEY;
   if (!migrationKey) {
@@ -312410,7 +314124,7 @@ function requireMigrationKey(c) {
   }
   return null;
 }
-app10.post("/api/migrations/backfill-last-visited", async (c) => {
+app11.post("/api/migrations/backfill-last-visited", async (c) => {
   try {
     const unauthorized = requireMigrationKey(c);
     if (unauthorized) return unauthorized;
@@ -312478,7 +314192,7 @@ app10.post("/api/migrations/backfill-last-visited", async (c) => {
     return c.json({ success: false, error: "Migration failed", message: error.message }, 500);
   }
 });
-app10.post("/api/migrations/retry-failed-users", async (c) => {
+app11.post("/api/migrations/retry-failed-users", async (c) => {
   try {
     const unauthorized = requireMigrationKey(c);
     if (unauthorized) return unauthorized;
@@ -312561,7 +314275,7 @@ app10.post("/api/migrations/retry-failed-users", async (c) => {
     return c.json({ error: "Retry failed", message: error.message }, 500);
   }
 });
-app10.post("/api/migrations/sync-clerk-to-audienceful", async (c) => {
+app11.post("/api/migrations/sync-clerk-to-audienceful", async (c) => {
   try {
     const unauthorized = requireMigrationKey(c);
     if (unauthorized) return unauthorized;
@@ -312624,7 +314338,7 @@ app10.post("/api/migrations/sync-clerk-to-audienceful", async (c) => {
     return c.json({ error: "Migration failed", message: error.message, isTimeout }, isTimeout ? 504 : 500);
   }
 });
-var migrations_default = app10;
+var migrations_default = app11;
 
 // node_modules/@netlify/runtime-utils/dist/main.js
 var getString = (input) => typeof input === "string" ? input : JSON.stringify(input);
@@ -315538,7 +317252,10 @@ function sumUsage(payloads) {
       studyThreadEntries: 0,
       pinnedNotes: 0
     },
-    recall: { opens: 0, snoozes: 0, snoozeRatePct: 0, usersActive: 0 }
+    recall: { opens: 0, snoozes: 0, snoozeRatePct: 0, usersActive: 0 },
+    // Required by AdminMonthlyReportUsage and previously omitted, so every season and
+    // year rollup returned `usage.passage === undefined` while monthly reports carried it.
+    passage: { usersWhoAddedPassage: 0, dismissCloseEvents: 0, createNoteEvents: 0 }
   };
   for (const p of payloads) {
     base.signups += p.usage.signups;
@@ -315557,6 +317274,9 @@ function sumUsage(payloads) {
     base.recall.opens += p.usage.recall.opens;
     base.recall.snoozes += p.usage.recall.snoozes;
     base.recall.usersActive += p.usage.recall.usersActive;
+    base.passage.usersWhoAddedPassage += p.usage.passage.usersWhoAddedPassage;
+    base.passage.dismissCloseEvents += p.usage.passage.dismissCloseEvents;
+    base.passage.createNoteEvents += p.usage.passage.createNoteEvents;
   }
   const notesCreated = base.notesCreated;
   base.study.linkRatePct = notesCreated > 0 ? Math.round(base.study.notesLinkedInThreads / notesCreated * 100) : 0;
@@ -315775,6 +317495,7 @@ function yearRollupToJson(year, seasons) {
 
 // server/utils/admin-cleanup-duplicates.ts
 init_db2();
+init_dates();
 function groupKeyNoteThread(entry) {
   return `${entry.noteId}::${entry.threadId}`;
 }
@@ -315791,7 +317512,8 @@ function planDuplicateDeletions(entries2, keyFn) {
   const duplicateGroups = Array.from(grouped.values()).filter((group) => group.length > 1);
   const report = [];
   for (const group of duplicateGroups) {
-    const sorted = [...group].sort((a, b3) => (a.createdAt || "").localeCompare(b3.createdAt || ""));
+    const createdMs = (entry) => toDate(entry.createdAt)?.getTime() ?? 0;
+    const sorted = [...group].sort((a, b3) => createdMs(a) - createdMs(b3));
     const [kept, ...toDelete] = sorted;
     report.push({ kept, toDelete });
   }
@@ -315972,8 +317694,8 @@ function isFeedbackTopic(value) {
 }
 
 // src/utils/support-tickets.ts
-var import_meta5 = {};
-var API_BASE = typeof import_meta5 !== "undefined" && import_meta5.env?.VITE_API_BASE_URL ? String(import_meta5.env.VITE_API_BASE_URL) : "";
+var import_meta6 = {};
+var API_BASE = typeof import_meta6 !== "undefined" && import_meta6.env?.VITE_API_BASE_URL ? String(import_meta6.env.VITE_API_BASE_URL) : "";
 function formatSupportTicketRef(ticketNumber, id) {
   if (ticketNumber != null) return String(ticketNumber);
   if (/^\d+$/.test(id)) return id;
@@ -316452,8 +318174,8 @@ async function bulkUpdateDiagnosticIssueTriage(issueSignatures, status, adminNot
 }
 
 // server/routes/admin.ts
-var app11 = new Hono2();
-app11.get("/api/admin/usage/overview", async (c) => {
+var app12 = new Hono2();
+app12.get("/api/admin/usage/overview", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -316465,7 +318187,7 @@ app11.get("/api/admin/usage/overview", async (c) => {
     return c.json({ error: "Failed to load usage overview" }, 500);
   }
 });
-app11.get("/api/admin/usage/trends", async (c) => {
+app12.get("/api/admin/usage/trends", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -316477,7 +318199,7 @@ app11.get("/api/admin/usage/trends", async (c) => {
     return c.json({ error: "Failed to load usage trends" }, 500);
   }
 });
-app11.get("/api/admin/usage/discovery", async (c) => {
+app12.get("/api/admin/usage/discovery", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -316489,7 +318211,7 @@ app11.get("/api/admin/usage/discovery", async (c) => {
     return c.json({ error: "Failed to load usage discovery" }, 500);
   }
 });
-app11.get("/api/admin/pulse", async (c) => {
+app12.get("/api/admin/pulse", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -316501,7 +318223,7 @@ app11.get("/api/admin/pulse", async (c) => {
     return c.json({ error: "Failed to load pulse" }, 500);
   }
 });
-app11.get("/api/admin/reports/catalog", async (c) => {
+app12.get("/api/admin/reports/catalog", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   try {
@@ -316512,7 +318234,7 @@ app11.get("/api/admin/reports/catalog", async (c) => {
     return c.json({ error: "Failed to load reports catalog" }, 500);
   }
 });
-app11.post("/api/admin/reports/generate", async (c) => {
+app12.post("/api/admin/reports/generate", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const month = c.req.query("month");
@@ -316531,7 +318253,7 @@ app11.post("/api/admin/reports/generate", async (c) => {
     return c.json({ error: "Failed to generate report", details }, 500);
   }
 });
-app11.get("/api/admin/reports/season/:seasonId", async (c) => {
+app12.get("/api/admin/reports/season/:seasonId", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const seasonId = c.req.param("seasonId");
@@ -316565,7 +318287,7 @@ app11.get("/api/admin/reports/season/:seasonId", async (c) => {
     return c.json({ error: "Failed to load season report" }, 500);
   }
 });
-app11.get("/api/admin/reports/year/:year", async (c) => {
+app12.get("/api/admin/reports/year/:year", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const yearParam = c.req.param("year");
@@ -316611,7 +318333,7 @@ app11.get("/api/admin/reports/year/:year", async (c) => {
     return c.json({ error: "Failed to load year report" }, 500);
   }
 });
-app11.get("/api/admin/reports/:month", async (c) => {
+app12.get("/api/admin/reports/:month", async (c) => {
   const denied = await requireHarvousAdmin(c);
   if (denied) return denied;
   const month = c.req.param("month");
@@ -316728,11 +318450,11 @@ async function handleAggregateAnalytics(c) {
     message: reportGenerated ? `Analytics and monthly report generated for ${targetMonth}` : `Analytics aggregated for ${targetMonth} (before reports launch; no report snapshot)`
   });
 }
-app11.post("/api/admin/aggregate-analytics", handleAggregateAnalytics);
-app11.get("/api/admin/aggregate-analytics", handleAggregateAnalytics);
+app12.post("/api/admin/aggregate-analytics", handleAggregateAnalytics);
+app12.get("/api/admin/aggregate-analytics", handleAggregateAnalytics);
 var BACKUP_STORE_NAME = "user-exports";
 var DEFAULT_RETENTION_DAYS = 30;
-app11.post("/api/admin/backup-exports", async (c) => {
+app12.post("/api/admin/backup-exports", async (c) => {
   try {
     const secret = process.env.BACKUP_CRON_SECRET;
     const authHeader = c.req.header("authorization")?.split(",")[0]?.trim();
@@ -316784,7 +318506,7 @@ app11.post("/api/admin/backup-exports", async (c) => {
     return c.json({ error: error.message || "Backup failed", success: false }, 500);
   }
 });
-app11.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
+app12.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316799,7 +318521,7 @@ app11.get("/api/admin/cleanup-duplicate-note-threads", async (c) => {
     );
   }
 });
-app11.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
+app12.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316814,7 +318536,7 @@ app11.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
     );
   }
 });
-app11.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
+app12.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const dryRun = c.req.query("dryRun") === "true";
@@ -316922,7 +318644,7 @@ app11.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
-app11.get("/api/admin/debug-thread-counts", requireAuth, async (c) => {
+app12.get("/api/admin/debug-thread-counts", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const threadId = c.req.query("threadId");
@@ -316957,7 +318679,7 @@ app11.get("/api/admin/debug-thread-counts", requireAuth, async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
-app11.get("/api/admin/list-threads", requireAuth, async (c) => {
+app12.get("/api/admin/list-threads", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const threads = await db.select().from(Threads).where(eq(Threads.userId, auth.userId));
@@ -316972,7 +318694,7 @@ app11.get("/api/admin/list-threads", requireAuth, async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
-app11.get("/api/admin/content/spaces", async (c) => {
+app12.get("/api/admin/content/spaces", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -316985,7 +318707,7 @@ app11.get("/api/admin/content/spaces", async (c) => {
     return c.json({ error: "Failed to load curated spaces" }, 500);
   }
 });
-app11.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
+app12.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317000,7 +318722,7 @@ app11.get("/api/admin/content/spaces/:spaceId/threads", async (c) => {
     return c.json({ error: "Failed to load threads" }, 500);
   }
 });
-app11.post("/api/admin/spaces", async (c) => {
+app12.post("/api/admin/spaces", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317045,7 +318767,7 @@ app11.post("/api/admin/spaces", async (c) => {
     return c.json({ error: error.message || "Error creating space" }, 500);
   }
 });
-app11.post("/api/admin/spaces/:spaceId/threads", async (c) => {
+app12.post("/api/admin/spaces/:spaceId/threads", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317086,7 +318808,7 @@ app11.post("/api/admin/spaces/:spaceId/threads", async (c) => {
     return c.json({ error: error.message || "Error creating thread" }, 500);
   }
 });
-app11.post("/api/admin/spaces/:spaceId/members", async (c) => {
+app12.post("/api/admin/spaces/:spaceId/members", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317134,7 +318856,7 @@ app11.post("/api/admin/spaces/:spaceId/members", async (c) => {
     return c.json({ error: error.message || "Error adding member" }, 500);
   }
 });
-app11.post("/api/admin/threads/:threadId/notes", async (c) => {
+app12.post("/api/admin/threads/:threadId/notes", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317238,7 +318960,7 @@ app11.post("/api/admin/threads/:threadId/notes", async (c) => {
     return c.json({ error: error.message || "Error creating note" }, 500);
   }
 });
-app11.post("/api/admin/regenerate-note-tags", async (c) => {
+app12.post("/api/admin/regenerate-note-tags", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317284,7 +319006,7 @@ app11.post("/api/admin/regenerate-note-tags", async (c) => {
     );
   }
 });
-app11.post("/api/admin/backfill-auto-tags", async (c) => {
+app12.post("/api/admin/backfill-auto-tags", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317365,7 +319087,7 @@ app11.post("/api/admin/backfill-auto-tags", async (c) => {
     );
   }
 });
-app11.get("/api/admin/support/tickets", async (c) => {
+app12.get("/api/admin/support/tickets", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317381,7 +319103,7 @@ app11.get("/api/admin/support/tickets", async (c) => {
     return c.json({ error: "Failed to load support tickets" }, 500);
   }
 });
-app11.get("/api/admin/support/tickets/:id", async (c) => {
+app12.get("/api/admin/support/tickets/:id", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317395,7 +319117,7 @@ app11.get("/api/admin/support/tickets/:id", async (c) => {
     return c.json({ error: "Failed to load support ticket" }, 500);
   }
 });
-app11.patch("/api/admin/support/tickets/:id", async (c) => {
+app12.patch("/api/admin/support/tickets/:id", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317413,7 +319135,7 @@ app11.patch("/api/admin/support/tickets/:id", async (c) => {
   }
 });
 var MAX_SUPPORT_NOTE_LENGTH = 2e3;
-app11.post("/api/admin/support/tickets/:id/notes", async (c) => {
+app12.post("/api/admin/support/tickets/:id/notes", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317453,9 +319175,9 @@ async function handleSupportNotifyCheck(c) {
     return c.json({ error: "Failed to run notify-check" }, 500);
   }
 }
-app11.post("/api/admin/support/notify-check", handleSupportNotifyCheck);
-app11.get("/api/admin/support/notify-check", handleSupportNotifyCheck);
-app11.get("/api/admin/diagnostics/issues", async (c) => {
+app12.post("/api/admin/support/notify-check", handleSupportNotifyCheck);
+app12.get("/api/admin/support/notify-check", handleSupportNotifyCheck);
+app12.get("/api/admin/diagnostics/issues", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317473,7 +319195,7 @@ app11.get("/api/admin/diagnostics/issues", async (c) => {
     return c.json({ error: "Failed to load diagnostic issues" }, 500);
   }
 });
-app11.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
+app12.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317488,7 +319210,7 @@ app11.get("/api/admin/diagnostics/issues/:signature/events", async (c) => {
     return c.json({ error: "Failed to load diagnostic events" }, 500);
   }
 });
-app11.patch("/api/admin/diagnostics/issues/bulk", async (c) => {
+app12.patch("/api/admin/diagnostics/issues/bulk", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317510,7 +319232,7 @@ app11.patch("/api/admin/diagnostics/issues/bulk", async (c) => {
     return c.json({ error: "Failed to update triage" }, 500);
   }
 });
-app11.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
+app12.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317529,12 +319251,23 @@ app11.patch("/api/admin/diagnostics/issues/:signature", async (c) => {
     return c.json({ error: "Failed to update triage" }, 500);
   }
 });
-var admin_default = app11;
+var admin_default = app12;
 
 // server/routes/churches.ts
 init_db2();
 init_harvous_admin();
 init_auth();
+
+// server/utils/church-country.ts
+function deriveChurchCountry(country, state) {
+  const explicit = String(country ?? "").trim();
+  if (explicit) {
+    return /^[A-Za-z]{2}$/.test(explicit) ? explicit.toUpperCase() : explicit;
+  }
+  return hmcCountryForRegion(state) ?? null;
+}
+
+// server/routes/churches.ts
 init_colors();
 init_ids();
 
@@ -317757,7 +319490,7 @@ async function listHmcChurchInterest() {
 }
 
 // server/routes/churches.ts
-var app12 = new Hono2();
+var app13 = new Hono2();
 function hmcErrorResponse(c, error) {
   if (error instanceof HmcPartnerError) {
     return c.json({ error: error.message, code: error.code }, error.status);
@@ -317776,7 +319509,7 @@ function clerkErrorResponse(c, error) {
   }
   return null;
 }
-app12.get("/api/admin/churches", async (c) => {
+app13.get("/api/admin/churches", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317793,7 +319526,7 @@ app12.get("/api/admin/churches", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app12.get("/api/admin/churches/hmc-interest", async (c) => {
+app13.get("/api/admin/churches/hmc-interest", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317807,7 +319540,7 @@ app12.get("/api/admin/churches/hmc-interest", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app12.get("/api/admin/churches/hmc/search", async (c) => {
+app13.get("/api/admin/churches/hmc/search", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317830,7 +319563,7 @@ app12.get("/api/admin/churches/hmc/search", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app12.get("/api/admin/churches/clerk-orgs", async (c) => {
+app13.get("/api/admin/churches/clerk-orgs", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317854,7 +319587,7 @@ app12.get("/api/admin/churches/clerk-orgs", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app12.post("/api/admin/churches", async (c) => {
+app13.post("/api/admin/churches", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317879,6 +319612,7 @@ app12.post("/api/admin/churches", async (c) => {
       state = denorm.state;
       country = denorm.country;
     }
+    country = deriveChurchCountry(country, state);
     const titleValidation = validateTitle(name, true);
     if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
     const existing = first(await db.select({ id: Churches.id }).from(Churches).where(eq(Churches.orgId, orgId)).limit(1));
@@ -317924,7 +319658,7 @@ app12.post("/api/admin/churches", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app12.post("/api/admin/churches/:churchId/update", async (c) => {
+app13.post("/api/admin/churches/:churchId/update", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -317989,6 +319723,10 @@ app12.post("/api/admin/churches/:churchId/update", async (c) => {
     if (patch.hmcChurchId === void 0 && patch.name === void 0 && patch.city === void 0 && patch.state === void 0 && patch.country === void 0) {
       return c.json({ error: "No fields to update", code: "EMPTY_PATCH" }, 400);
     }
+    const nextState = patch.state !== void 0 ? patch.state : existing.state;
+    const nextCountry = patch.country !== void 0 ? patch.country : existing.country;
+    const derivedCountry = deriveChurchCountry(nextCountry, nextState);
+    if (derivedCountry !== nextCountry) patch.country = derivedCountry;
     const church = first(
       await db.update(Churches).set(patch).where(eq(Churches.id, churchId)).returning()
     );
@@ -318003,7 +319741,7 @@ app12.post("/api/admin/churches/:churchId/update", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app12.post("/api/admin/churches/:churchId/refresh-hmc", async (c) => {
+app13.post("/api/admin/churches/:churchId/refresh-hmc", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -318061,8 +319799,8 @@ async function handleHmcSyncDenorm(c) {
     return c.json({ error: "Failed to sync HMC denorm" }, 500);
   }
 }
-app12.post("/api/admin/hmc/sync-denorm", handleHmcSyncDenorm);
-app12.get("/api/admin/hmc/sync-denorm", handleHmcSyncDenorm);
+app13.post("/api/admin/hmc/sync-denorm", handleHmcSyncDenorm);
+app13.get("/api/admin/hmc/sync-denorm", handleHmcSyncDenorm);
 async function setChurchActive(c, active) {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
@@ -318076,9 +319814,36 @@ async function setChurchActive(c, active) {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 }
-app12.post("/api/admin/churches/:churchId/deactivate", (c) => setChurchActive(c, false));
-app12.post("/api/admin/churches/:churchId/reactivate", (c) => setChurchActive(c, true));
-app12.post("/api/admin/churches/:churchId/spaces", async (c) => {
+app13.post("/api/admin/churches/:churchId/deactivate", (c) => setChurchActive(c, false));
+app13.post("/api/admin/churches/:churchId/reactivate", (c) => setChurchActive(c, true));
+app13.post("/api/admin/churches/:churchId/pilot", async (c) => {
+  const gate = await requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const churchId = c.req.param("churchId");
+    const body = await c.req.json().catch(() => ({}));
+    let pilotUntil = null;
+    if (body.days !== null && body.days !== void 0) {
+      const days = Number(body.days);
+      if (!Number.isFinite(days) || days <= 0 || days > 365) {
+        return c.json({ error: "days must be between 1 and 365, or null to end", code: "INVALID_PILOT_DAYS" }, 400);
+      }
+      pilotUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1e3);
+    }
+    const church = first(
+      await db.update(Churches).set({ pilotUntil, updatedAt: nowISO() }).where(eq(Churches.id, churchId)).returning()
+    );
+    if (!church) return c.json({ error: "Church not found", code: "CHURCH_NOT_FOUND" }, 404);
+    return c.json({ success: true, church, sponsorship: churchSponsorship(church) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/admin/churches/[churchId]/pilot",
+      action: "set_church_pilot"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app13.post("/api/admin/churches/:churchId/spaces", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -318148,7 +319913,7 @@ app12.post("/api/admin/churches/:churchId/spaces", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app12.post("/api/admin/churches/:churchId/sync-staff", async (c) => {
+app13.post("/api/admin/churches/:churchId/sync-staff", async (c) => {
   const gate = await requireHarvousAdmin(c);
   if (gate) return gate;
   try {
@@ -318158,84 +319923,2387 @@ app12.post("/api/admin/churches/:churchId/sync-staff", async (c) => {
     if (!church.isActive || church.deletedAt) {
       return c.json({ error: "Church is not active", code: "CHURCH_INACTIVE" }, 409);
     }
-    let staff;
+    let result;
     try {
-      staff = await fetchClerkOrgMemberships(church.orgId);
+      result = await syncChurchStaffForOrg(church.orgId);
     } catch (error) {
       const resp = clerkErrorResponse(c, error);
       if (resp) return resp;
       throw error;
     }
-    if (!isWithinClerkOrgStaffCap(staff.length)) {
+    if (!result.ok) {
       return c.json(
         {
-          error: `This Clerk org has ${staff.length} members; Church base allows ${CLERK_ORG_STAFF_CAP} staff. Remove members in Clerk, or use Unlimited staff (requires Clerk Enhanced) when that add-on ships.`,
-          code: "CLERK_ORG_MEMBER_LIMIT",
-          staffCount: staff.length,
-          limit: CLERK_ORG_STAFF_CAP
+          error: `This Clerk org has ${result.staffCount} members; Church base allows ${result.limit} staff. Remove members in Clerk, or use Unlimited staff (requires Clerk Enhanced) when that add-on ships.`,
+          code: result.code,
+          staffCount: result.staffCount,
+          limit: result.limit
         },
         409
       );
     }
-    const orgSpaces = await db.select().from(Spaces).where(and(eq(Spaces.orgId, church.orgId), isNull(Spaces.deletedAt)));
-    if (orgSpaces.length === 0) {
-      return c.json({ success: true, staffCount: staff.length, spaces: [], warnings: ["This church has no org spaces yet"] });
-    }
-    const now2 = nowISO();
-    const warnings = [];
-    const results = [];
-    for (const space of orgSpaces) {
-      const existing = await db.select({ userId: SpaceMemberships.userId, role: SpaceMemberships.role }).from(SpaceMemberships).where(eq(SpaceMemberships.spaceId, space.id));
-      const plan = computeStaffSyncPlan({ spaceOwnerUserId: space.userId, staff, existing });
-      warnings.push(...plan.warnings);
-      await db.transaction(async (tx) => {
-        if (plan.healOwnerRow) {
-          await tx.insert(SpaceMemberships).values({
-            id: `smem_${crypto.randomUUID()}`,
-            spaceId: space.id,
-            userId: space.userId,
-            role: "owner",
-            joinedAt: now2,
-            createdAt: now2
-          }).onConflictDoNothing();
-        }
-        for (const userId of plan.toInsertLeaders) {
-          await tx.insert(SpaceMemberships).values({
-            id: `smem_${crypto.randomUUID()}`,
-            spaceId: space.id,
-            userId,
-            role: "leader",
-            joinedAt: now2,
-            createdAt: now2
-          }).onConflictDoNothing();
-        }
-        for (const userId of plan.toPromoteToLeader) {
-          await tx.update(SpaceMemberships).set({ role: "leader", updatedAt: now2 }).where(and(eq(SpaceMemberships.spaceId, space.id), eq(SpaceMemberships.userId, userId)));
-        }
-        for (const userId of plan.toRemove) {
-          await tx.delete(SpaceMemberships).where(and(
-            eq(SpaceMemberships.spaceId, space.id),
-            eq(SpaceMemberships.userId, userId),
-            eq(SpaceMemberships.role, "leader")
-          ));
-        }
-      });
-      results.push({
-        spaceId: space.id,
-        title: space.title,
-        added: plan.toInsertLeaders.length,
-        promoted: plan.toPromoteToLeader.length,
-        removed: plan.toRemove.length,
-        healedOwner: plan.healOwnerRow
-      });
-    }
-    return c.json({ success: true, staffCount: staff.length, spaces: results, warnings: [...new Set(warnings)] });
+    return c.json({
+      success: true,
+      staffCount: result.staffCount,
+      spaces: result.spaces,
+      warnings: result.warnings
+    });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/admin/churches/[churchId]/sync-staff", action: "sync_church_staff" });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-var churches_default = app12;
+var churches_default = app13;
+
+// server/routes/church.ts
+init_db2();
+init_auth();
+init_html_stripper();
+init_dashboard_data();
+
+// server/utils/ministry-channel-follow.ts
+init_db2();
+init_dates();
+function planMinistryChannelFollow(options) {
+  if (!options.space) return { action: "reject", code: "SPACE_NOT_FOUND" };
+  if (options.space.deletedAt) return { action: "reject", code: "SPACE_INACTIVE" };
+  if (!isMinistryBroadcastSpaceRow(options.space)) {
+    return { action: "reject", code: "NOT_MINISTRY_CHANNEL" };
+  }
+  if (options.existingRole === "owner" || options.existingRole === "leader") {
+    return { action: "noop", reason: "already_staff" };
+  }
+  if (options.existingRole === "member") {
+    return { action: "noop", reason: "already_member" };
+  }
+  return { action: "insert" };
+}
+function planMinistryChannelUnfollow(options) {
+  if (!options.space) return { action: "reject", code: "SPACE_NOT_FOUND" };
+  if (!isMinistryBroadcastSpaceRow(options.space)) {
+    return { action: "reject", code: "NOT_MINISTRY_CHANNEL" };
+  }
+  if (options.existingRole === "owner" || options.existingRole === "leader") {
+    return { action: "reject", code: "STAFF_ROW" };
+  }
+  if (options.existingRole !== "member") {
+    return { action: "noop", reason: "not_following" };
+  }
+  return { action: "delete" };
+}
+async function loadSpaceAndMembership(spaceId, userId) {
+  const space = first(
+    await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).limit(1)
+  );
+  const membership = first(
+    await db.select().from(SpaceMemberships).where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, userId))).limit(1)
+  );
+  return { space, membership };
+}
+async function followMinistryChannel(userId, spaceId) {
+  const id = spaceId.trim();
+  const uid2 = userId.trim();
+  if (!id || !uid2) return { followed: false, code: "SPACE_NOT_FOUND", reason: "Missing ids" };
+  const { space, membership } = await loadSpaceAndMembership(id, uid2);
+  const plan = planMinistryChannelFollow({
+    space,
+    existingRole: membership?.role ?? null
+  });
+  if (plan.action === "reject") {
+    return { followed: false, code: plan.code, reason: plan.code };
+  }
+  if (plan.action === "noop") {
+    return { followed: false, reason: plan.reason };
+  }
+  const now2 = nowISO();
+  await db.insert(SpaceMemberships).values({
+    id: `smem_${crypto.randomUUID()}`,
+    spaceId: id,
+    userId: uid2,
+    role: "member",
+    joinedAt: now2,
+    createdAt: now2
+  });
+  return { followed: true };
+}
+async function unfollowMinistryChannel(userId, spaceId) {
+  const id = spaceId.trim();
+  const uid2 = userId.trim();
+  if (!id || !uid2) return { unfollowed: false, code: "SPACE_NOT_FOUND", reason: "Missing ids" };
+  const { space, membership } = await loadSpaceAndMembership(id, uid2);
+  const plan = planMinistryChannelUnfollow({
+    space,
+    existingRole: membership?.role ?? null
+  });
+  if (plan.action === "reject") {
+    return { unfollowed: false, code: plan.code, reason: plan.code };
+  }
+  if (plan.action === "noop") {
+    return { unfollowed: false, reason: plan.reason };
+  }
+  await db.delete(SpaceMemberships).where(
+    and(
+      eq(SpaceMemberships.spaceId, id),
+      eq(SpaceMemberships.userId, uid2),
+      eq(SpaceMemberships.role, "member")
+    )
+  );
+  return { unfollowed: true };
+}
+
+// server/utils/church-teaching-plan.ts
+init_db2();
+
+// server/utils/church-org-access.ts
+async function resolveChurchOrgAccess(userId, orgId, rule) {
+  const church = await getActiveChurchByOrgId(orgId);
+  if (!church) {
+    return { ok: false, status: 404, code: "CHURCH_NOT_FOUND", error: "Church not found" };
+  }
+  if (!church.isActive) {
+    return { ok: false, status: 409, code: "CHURCH_INACTIVE", error: "Church is not active" };
+  }
+  if (!await isChurchStaffForOrg(userId, church.orgId)) {
+    return { ok: false, status: 403, code: "CHURCH_STAFF_REQUIRED", error: rule.staffError };
+  }
+  if (rule.sponsorshipGated && !churchIsSponsored(church)) {
+    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
+  }
+  let role = null;
+  try {
+    const roster = await fetchClerkOrgMemberships(church.orgId);
+    role = roster.find((member) => member.userId === userId)?.role ?? null;
+  } catch {
+    return {
+      ok: false,
+      status: 403,
+      code: rule.code,
+      error: "Could not confirm your role. Try again in a moment."
+    };
+  }
+  if (!capabilitiesForChurchRole(role).includes(rule.capability)) {
+    return { ok: false, status: 403, code: rule.code, error: rule.roleError };
+  }
+  return { ok: true, church };
+}
+
+// server/utils/church-teaching-plan.ts
+var TEACHING_PLAN_ACCESS = {
+  view: {
+    capability: "sermon_tools",
+    code: "SERMON_TOOLS_REQUIRED",
+    staffError: "Only church staff can see the teaching plan",
+    roleError: "Your role does not include the teaching plan",
+    // Reading the plan is never sponsorship-gated — a lapsed church must never
+    // take its congregation's Sunday away, and its staff must still be able to
+    // look at what they already planned.
+    sponsorshipGated: false
+  },
+  manage: {
+    capability: "manage_teaching_plan",
+    code: "TEACHING_PLAN_ROLE_REQUIRED",
+    staffError: "Only church staff can manage the teaching plan",
+    roleError: "A pastor or admin plans the services here",
+    sponsorshipGated: true
+  }
+};
+function assertCanViewTeachingPlan(userId, orgId) {
+  return resolveChurchOrgAccess(userId, orgId, TEACHING_PLAN_ACCESS.view);
+}
+function assertCanManageTeachingPlan(userId, orgId) {
+  return resolveChurchOrgAccess(userId, orgId, TEACHING_PLAN_ACCESS.manage);
+}
+async function listServicesForChurch(churchId, options = {}) {
+  const { from: from2, limit = 50, plan } = options;
+  const spaceId = plan ? plan.spaceId : null;
+  const scope = spaceId === null ? isNull(ChurchServices.spaceId) : eq(ChurchServices.spaceId, spaceId);
+  const where = from2 ? and(eq(ChurchServices.churchId, churchId), scope, gte(ChurchServices.serviceDate, from2)) : and(eq(ChurchServices.churchId, churchId), scope);
+  return db.select().from(ChurchServices).where(where).orderBy(asc(ChurchServices.serviceDate)).limit(limit);
+}
+async function resolveViewerServiceNotes(userId, serviceIds) {
+  const ids = serviceIds.filter(Boolean);
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const rows = await db.select({ noteId: Notes.id, serviceId: Notes.startedFromServiceId }).from(Notes).where(
+    and(
+      eq(Notes.userId, userId),
+      isNotNull(Notes.startedFromServiceId),
+      inArray(Notes.startedFromServiceId, ids)
+    )
+  );
+  const map3 = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    if (row.serviceId && !map3.has(row.serviceId)) map3.set(row.serviceId, row.noteId);
+  }
+  return map3;
+}
+
+// server/utils/church-service-times.ts
+init_db2();
+async function listServiceTimesForChurch(churchId) {
+  return db.select().from(ChurchServiceTimes).where(eq(ChurchServiceTimes.churchId, churchId)).orderBy(
+    asc(ChurchServiceTimes.sortOrder),
+    asc(ChurchServiceTimes.dayOfWeek),
+    asc(ChurchServiceTimes.startTime)
+  );
+}
+async function serviceTimeIdsByService(serviceIds) {
+  const out = /* @__PURE__ */ new Map();
+  if (serviceIds.length === 0) return out;
+  const rows = await db.select({
+    serviceId: ChurchServiceTimeAssignments.serviceId,
+    serviceTimeId: ChurchServiceTimeAssignments.serviceTimeId
+  }).from(ChurchServiceTimeAssignments).where(inArray(ChurchServiceTimeAssignments.serviceId, serviceIds));
+  for (const row of rows) {
+    const list = out.get(row.serviceId);
+    if (list) list.push(row.serviceTimeId);
+    else out.set(row.serviceId, [row.serviceTimeId]);
+  }
+  return out;
+}
+async function replaceServiceTimeAssignments(tx, input) {
+  await tx.delete(ChurchServiceTimeAssignments).where(eq(ChurchServiceTimeAssignments.serviceId, input.serviceId));
+  if (input.serviceTimeIds.length === 0) return;
+  const now2 = /* @__PURE__ */ new Date();
+  await tx.insert(ChurchServiceTimeAssignments).values(
+    input.serviceTimeIds.map((serviceTimeId) => ({
+      id: `csta_${crypto.randomUUID()}`,
+      serviceId: input.serviceId,
+      serviceTimeId,
+      // Denormalized so the unique index can guarantee one sermon per slot per
+      // date. Written only here, always from the parent's own date.
+      serviceDate: input.serviceDate,
+      createdAt: now2
+    }))
+  );
+}
+async function clearServiceTimeAssignments(tx, serviceId) {
+  await tx.delete(ChurchServiceTimeAssignments).where(eq(ChurchServiceTimeAssignments.serviceId, serviceId));
+}
+async function filterServiceTimeIdsForChurch(churchId, serviceTimeIds) {
+  if (serviceTimeIds.length === 0) return [];
+  const rows = await db.select({ id: ChurchServiceTimes.id }).from(ChurchServiceTimes).where(
+    and(eq(ChurchServiceTimes.churchId, churchId), inArray(ChurchServiceTimes.id, serviceTimeIds))
+  );
+  return rows.map((row) => row.id);
+}
+function churchClockNow(timezone, now2 = /* @__PURE__ */ new Date()) {
+  const zone = timezone || "UTC";
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: zone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    }).formatToParts(now2);
+    const get2 = (type2) => parts.find((p) => p.type === type2)?.value ?? "";
+    const hour = get2("hour") === "24" ? "00" : get2("hour");
+    return {
+      date: `${get2("year")}-${get2("month")}-${get2("day")}`,
+      time: `${hour}:${get2("minute")}`
+    };
+  } catch {
+    return churchClockNow("UTC", now2);
+  }
+}
+
+// server/utils/church-series.ts
+init_db2();
+var SERIES_TITLE_MAX = 120;
+function scopeWhere(scope) {
+  return and(
+    eq(ChurchSeries.churchId, scope.churchId),
+    scope.spaceId === null ? isNull(ChurchSeries.spaceId) : eq(ChurchSeries.spaceId, scope.spaceId)
+  );
+}
+async function listSeriesForPlan(scope) {
+  const rows = await db.select({
+    id: ChurchSeries.id,
+    title: ChurchSeries.title,
+    serviceCount: sql`count(${ChurchServices.id})::int`,
+    lastDate: sql`max(${ChurchServices.serviceDate})`
+  }).from(ChurchSeries).leftJoin(ChurchServices, eq(ChurchServices.seriesId, ChurchSeries.id)).where(scopeWhere(scope)).groupBy(ChurchSeries.id, ChurchSeries.title, ChurchSeries.createdAt).orderBy(sql`max(${ChurchServices.serviceDate}) DESC NULLS LAST`, desc(ChurchSeries.createdAt));
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    serviceCount: Number(row.serviceCount ?? 0)
+  }));
+}
+async function seriesTitlesByServiceRows(rows) {
+  const ids = [...new Set(rows.map((row) => row.seriesId).filter((id) => Boolean(id)))];
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const found = await db.select({ id: ChurchSeries.id, title: ChurchSeries.title }).from(ChurchSeries).where(inArray(ChurchSeries.id, ids));
+  return new Map(found.map((row) => [row.id, row.title]));
+}
+async function resolveSeriesForWrite(options) {
+  const { scope, userId } = options;
+  const exec = options.executor ?? db;
+  if (options.seriesId !== void 0) {
+    const id = String(options.seriesId ?? "").trim();
+    if (!id) return { ok: true, seriesId: null };
+    const row = first(
+      await exec.select({ id: ChurchSeries.id }).from(ChurchSeries).where(and(eq(ChurchSeries.id, id), scopeWhere(scope))).limit(1)
+    );
+    if (!row) {
+      return {
+        ok: false,
+        code: "SERIES_NOT_FOUND",
+        error: "That series is not part of this plan"
+      };
+    }
+    return { ok: true, seriesId: row.id };
+  }
+  if (options.seriesTitle !== void 0) {
+    const title = String(options.seriesTitle ?? "").trim().slice(0, SERIES_TITLE_MAX);
+    if (!title) return { ok: true, seriesId: null };
+    return { ok: true, seriesId: await findOrCreateSeries(scope, title, userId, exec) };
+  }
+  return { ok: true, seriesId: null };
+}
+async function findOrCreateSeries(scope, title, userId, executor = db) {
+  const existing = await findSeriesByTitle(scope, title, executor);
+  if (existing) return existing;
+  await executor.insert(ChurchSeries).values({
+    id: `csrs_${crypto.randomUUID()}`,
+    churchId: scope.churchId,
+    spaceId: scope.spaceId,
+    title,
+    createdBy: userId,
+    createdAt: /* @__PURE__ */ new Date(),
+    updatedAt: null
+  }).onConflictDoNothing();
+  const settled = await findSeriesByTitle(scope, title, executor);
+  if (!settled) throw new Error(`Could not resolve series "${title}"`);
+  return settled;
+}
+async function findSeriesByTitle(scope, title, executor = db) {
+  const row = first(
+    await executor.select({ id: ChurchSeries.id }).from(ChurchSeries).where(and(scopeWhere(scope), sql`lower(${ChurchSeries.title}) = lower(${title})`)).limit(1)
+  );
+  return row?.id ?? null;
+}
+async function renameSeries(scope, seriesId, title) {
+  const trimmed = title.trim().slice(0, SERIES_TITLE_MAX);
+  if (!trimmed) return { ok: false, code: "BAD_REQUEST", error: "A series name is required" };
+  const clash = await findSeriesByTitle(scope, trimmed);
+  if (clash && clash !== seriesId) {
+    return {
+      ok: false,
+      code: "SERIES_TITLE_TAKEN",
+      error: "This plan already has a series with that name"
+    };
+  }
+  const updated = await db.update(ChurchSeries).set({ title: trimmed, updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(ChurchSeries.id, seriesId), scopeWhere(scope))).returning();
+  const row = first(updated);
+  if (!row) return { ok: false, code: "SERIES_NOT_FOUND", error: "That series is not part of this plan" };
+  return { ok: true, series: row };
+}
+async function deleteSeries(scope, seriesId) {
+  const exists2 = first(
+    await db.select({ id: ChurchSeries.id }).from(ChurchSeries).where(and(eq(ChurchSeries.id, seriesId), scopeWhere(scope))).limit(1)
+  );
+  if (!exists2) {
+    return { ok: false, code: "SERIES_NOT_FOUND", error: "That series is not part of this plan" };
+  }
+  let detached = 0;
+  await db.transaction(async (tx) => {
+    const cleared = await tx.update(ChurchServices).set({ seriesId: null }).where(eq(ChurchServices.seriesId, seriesId)).returning({ id: ChurchServices.id });
+    detached = cleared.length;
+    await tx.delete(ChurchSeries).where(eq(ChurchSeries.id, seriesId));
+  });
+  return { ok: true, detached };
+}
+
+// server/routes/church.ts
+var app14 = new Hono2();
+var FEED_EXCERPT_LENGTH = 180;
+var FEED_LIMIT_DEFAULT = 12;
+var FEED_LIMIT_MAX = 50;
+var SERVICE_GRACE_DAYS = 4;
+var SERVICES_PAYLOAD_LIMIT = 8;
+function serviceGraceWindowStart() {
+  const cutoff = /* @__PURE__ */ new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - (SERVICE_GRACE_DAYS + 1));
+  return cutoff.toISOString().slice(0, 10);
+}
+async function getConnectedChurch(userId) {
+  const meta2 = first(
+    await db.select({ connectedOrgId: UserMetadata.connectedOrgId }).from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1)
+  );
+  if (!meta2?.connectedOrgId) return null;
+  return getActiveChurchByOrgId(meta2.connectedOrgId);
+}
+async function listOrgChannels(orgId) {
+  return db.select({
+    id: Spaces.id,
+    title: Spaces.title,
+    description: Spaces.description,
+    color: Spaces.color,
+    type: Spaces.type,
+    orgId: Spaces.orgId,
+    publishCadence: Spaces.publishCadence,
+    isActive: Spaces.isActive
+  }).from(Spaces).where(and(eq(Spaces.orgId, orgId), eq(Spaces.type, "public"), isNull(Spaces.deletedAt)));
+}
+app14.get("/api/church/channels", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const church = await getConnectedChurch(auth.userId);
+    if (!church) {
+      return c.json({ connected: false, church: null, channels: [] });
+    }
+    const sponsorship = churchSponsorship(church);
+    const channels = (await listOrgChannels(church.orgId)).filter((space) => space.isActive);
+    if (channels.length === 0) {
+      return c.json({
+        connected: true,
+        church: { id: church.id, name: church.name, orgId: church.orgId },
+        sponsorship,
+        channels: []
+      });
+    }
+    const channelIds = channels.map((space) => space.id);
+    const [memberships, lastCurriculumById] = await Promise.all([
+      db.select({ spaceId: SpaceMemberships.spaceId, role: SpaceMemberships.role }).from(SpaceMemberships).where(
+        and(
+          eq(SpaceMemberships.userId, auth.userId),
+          inArray(SpaceMemberships.spaceId, channelIds)
+        )
+      ),
+      getLastCurriculumAtBySpaceIds(channelIds)
+    ]);
+    const roleBySpace = new Map(memberships.map((row) => [row.spaceId, row.role]));
+    const payload = channels.map((space) => {
+      const role = roleBySpace.get(space.id) ?? null;
+      return {
+        id: space.id,
+        title: space.title,
+        description: space.description,
+        color: space.color,
+        role,
+        isFollowing: role === "member",
+        // Staff already reach their channels through the hub's staff lane;
+        // the browse list flags them so it never offers "Follow" to an author.
+        isStaff: role === "owner" || role === "leader",
+        ...buildChannelCadenceFields(
+          space.publishCadence,
+          lastCurriculumById.get(space.id) ?? null
+        )
+      };
+    }).sort((a, b3) => a.title.localeCompare(b3.title, void 0, { sensitivity: "base" }));
+    return c.json({
+      connected: true,
+      church: { id: church.id, name: church.name, orgId: church.orgId },
+      sponsorship,
+      channels: payload
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/channels",
+      action: "list_church_channels"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+async function resolveFollowTarget(userId, spaceId) {
+  const space = first(await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).limit(1));
+  if (!space || space.deletedAt || !isMinistryBroadcastSpaceRow(space)) {
+    return { ok: false, status: 404, code: "CHANNEL_NOT_FOUND", error: "Ministry channel not found" };
+  }
+  const church = await getConnectedChurch(userId);
+  if (!church || church.orgId !== space.orgId) {
+    return { ok: false, status: 404, code: "CHANNEL_NOT_FOUND", error: "Ministry channel not found" };
+  }
+  return { ok: true, space, church };
+}
+app14.post("/api/church/channels/:spaceId/follow", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const target = await resolveFollowTarget(auth.userId, c.req.param("spaceId") ?? "");
+    if (!target.ok) return c.json({ error: target.error, code: target.code }, target.status);
+    if (!churchSponsorship(target.church).sponsored) {
+      return c.json({ error: CHURCH_LAPSED_ERROR, code: CHURCH_LAPSED_CODE }, 402);
+    }
+    if (!target.space.isActive) {
+      return c.json({ error: "This channel is not active", code: "CHANNEL_INACTIVE" }, 409);
+    }
+    const result = await followMinistryChannel(auth.userId, target.space.id);
+    if (!result.followed && result.code) {
+      return c.json({ error: result.reason ?? "Could not follow", code: result.code }, 409);
+    }
+    return c.json({ success: true, spaceId: target.space.id, following: true, reason: result.reason ?? null });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/channels/[spaceId]/follow",
+      action: "follow_ministry_channel"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.post("/api/church/channels/:spaceId/unfollow", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const target = await resolveFollowTarget(auth.userId, c.req.param("spaceId") ?? "");
+    if (!target.ok) return c.json({ error: target.error, code: target.code }, target.status);
+    const result = await unfollowMinistryChannel(auth.userId, target.space.id);
+    if (!result.unfollowed && result.code) {
+      const status = result.code === "STAFF_ROW" ? 409 : 404;
+      return c.json({ error: result.reason ?? "Could not unfollow", code: result.code }, status);
+    }
+    return c.json({ success: true, spaceId: target.space.id, following: false, reason: result.reason ?? null });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/channels/[spaceId]/unfollow",
+      action: "unfollow_ministry_channel"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.get("/api/church/feed", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const limitRaw = Number(c.req.query("limit") ?? FEED_LIMIT_DEFAULT);
+    const limit = Number.isFinite(limitRaw) ? Math.min(FEED_LIMIT_MAX, Math.max(1, Math.trunc(limitRaw))) : FEED_LIMIT_DEFAULT;
+    const church = await getConnectedChurch(auth.userId);
+    if (!church) return c.json({ connected: false, items: [] });
+    const followed = await db.select({
+      id: Spaces.id,
+      title: Spaces.title,
+      color: Spaces.color
+    }).from(SpaceMemberships).innerJoin(Spaces, eq(SpaceMemberships.spaceId, Spaces.id)).where(
+      and(
+        eq(SpaceMemberships.userId, auth.userId),
+        eq(SpaceMemberships.role, "member"),
+        eq(Spaces.orgId, church.orgId),
+        eq(Spaces.type, "public"),
+        eq(Spaces.isActive, true),
+        isNull(Spaces.deletedAt)
+      )
+    );
+    if (followed.length === 0) {
+      return c.json({ connected: true, church: { id: church.id, name: church.name }, items: [] });
+    }
+    const spaceById = new Map(followed.map((space) => [space.id, space]));
+    const rows = await db.select({
+      noteId: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      noteType: Notes.noteType,
+      authorUserId: Notes.userId,
+      createdAt: Notes.createdAt,
+      updatedAt: Notes.updatedAt,
+      spaceId: SpaceNotes.spaceId,
+      addedAt: SpaceNotes.addedAt
+    }).from(SpaceNotes).innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId)).where(
+      and(
+        inArray(SpaceNotes.spaceId, [...spaceById.keys()]),
+        isNull(SpaceNotes.removedAt),
+        eq(Notes.contentEncrypted, false)
+      )
+    ).orderBy(desc(SpaceNotes.addedAt)).limit(limit);
+    const authors = await batchAuthorAttribution(rows.map((row) => row.authorUserId));
+    const items = rows.map((row) => {
+      const space = spaceById.get(row.spaceId);
+      const author = authors[row.authorUserId];
+      return {
+        noteId: row.noteId,
+        title: row.title,
+        excerpt: stripHtmlForCard(row.content ?? "").slice(0, FEED_EXCERPT_LENGTH),
+        noteType: row.noteType ?? "default",
+        publishedAt: row.addedAt ?? row.createdAt ?? null,
+        updatedAt: row.updatedAt ?? row.createdAt ?? null,
+        channel: { id: space.id, title: space.title, color: space.color },
+        author: {
+          displayName: author?.displayName ?? "Church staff",
+          userColor: author?.userColor ?? "blue",
+          profileImageUrl: author?.profileImageUrl ?? null
+        }
+      };
+    });
+    return c.json({
+      connected: true,
+      church: { id: church.id, name: church.name },
+      items
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/feed",
+      action: "church_feed"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.get("/api/church/services", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const church = await getConnectedChurch(auth.userId);
+    if (!church) return c.json({ connected: false, services: [] });
+    const from2 = serviceGraceWindowStart();
+    const services = await listServicesForChurch(church.id, {
+      from: from2,
+      limit: SERVICES_PAYLOAD_LIMIT
+    });
+    if (services.length === 0) {
+      return c.json({ connected: true, church: { id: church.id, name: church.name }, services: [] });
+    }
+    const viewerNotes = await resolveViewerServiceNotes(
+      auth.userId,
+      services.map((service) => service.id)
+    );
+    const templateIds = [
+      ...new Set(services.map((s2) => s2.starterTemplateId).filter((id) => Boolean(id)))
+    ];
+    const templates = templateIds.length ? await db.select().from(NoteTemplates).where(
+      and(inArray(NoteTemplates.id, templateIds), eq(NoteTemplates.orgId, church.orgId))
+    ) : [];
+    const templateById = new Map(templates.map((t) => [t.id, t]));
+    const serviceTimeRows = await listServiceTimesForChurch(church.id);
+    const startTimeById = new Map(serviceTimeRows.map((row) => [row.id, row.startTime]));
+    const slotsByService = await serviceTimeIdsByService(services.map((row) => row.id));
+    const seriesTitles = await seriesTitlesByServiceRows(services);
+    return c.json({
+      connected: true,
+      church: { id: church.id, name: church.name },
+      /*
+        The church's own wall clock, so the client can tell whether this
+        morning's service has already started without guessing from the
+        viewer's zone. The one place a timezone is ever applied.
+      */
+      churchNow: churchClockNow(church.timezone),
+      services: services.map((service) => {
+        const template = service.starterTemplateId ? templateById.get(service.starterTemplateId) : void 0;
+        const slotTimes = (slotsByService.get(service.id) ?? []).map((id) => startTimeById.get(id)).filter((time4) => Boolean(time4));
+        const times = slotTimes.length > 0 ? [...slotTimes].sort() : service.serviceTime ? [service.serviceTime] : [];
+        return {
+          id: service.id,
+          serviceDate: service.serviceDate,
+          /*
+                      Every time this sermon is preached, ascending — a church with 9:00
+                      and 10:45 morning services sends both, because it is one sermon at
+                      two services rather than two sermons.
+          
+                      The church's wall clock, never converted to the viewer's zone: a
+                      service time is a clock reading on a wall calendar, not an instant.
+                    */
+          serviceTimes: times,
+          title: service.title,
+          seriesTitle: service.seriesId ? seriesTitles.get(service.seriesId) ?? null : null,
+          reference: service.reference,
+          viewerNoteId: viewerNotes.get(service.id) ?? null,
+          starter: template ? {
+            templateId: template.id,
+            templateName: template.name,
+            title: template.title,
+            content: template.content
+          } : null
+        };
+      })
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/services",
+      action: "church_services"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.get("/api/church/billing", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const orgId = (c.req.query("orgId") ?? "").trim();
+    const church = orgId ? await getActiveChurchByOrgId(orgId) : await getConnectedChurch(auth.userId);
+    if (!church) return c.json({ error: "Church not found", code: "CHURCH_NOT_FOUND" }, 404);
+    if (!await isChurchStaffForOrg(auth.userId, church.orgId)) {
+      return c.json({ error: "Only church staff can view billing", code: "CHURCH_STAFF_REQUIRED" }, 403);
+    }
+    return c.json({
+      church: { id: church.id, name: church.name, orgId: church.orgId },
+      sponsorship: churchSponsorship(church),
+      billingStatus: church.billingStatus,
+      plans: churchPlans().map((plan) => ({
+        key: plan.key,
+        name: plan.name,
+        interval: plan.interval,
+        amountCents: plan.amountCents,
+        currencyCode: plan.currencyCode,
+        price: formatPlanPrice(plan)
+      }))
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/billing",
+      action: "church_billing_status"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.post("/api/church/checkout", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    if (!isPolarConfigured()) {
+      return c.json({ error: "Billing is not configured", code: "BILLING_UNCONFIGURED" }, 503);
+    }
+    const body = await c.req.json().catch(() => ({}));
+    const orgId = (body.orgId ?? "").trim();
+    const church = orgId ? await getActiveChurchByOrgId(orgId) : await getConnectedChurch(auth.userId);
+    if (!church) return c.json({ error: "Church not found", code: "CHURCH_NOT_FOUND" }, 404);
+    if (!await isChurchStaffForOrg(auth.userId, church.orgId)) {
+      return c.json({ error: "Only church staff can subscribe", code: "CHURCH_STAFF_REQUIRED" }, 403);
+    }
+    if (church.billingPlan) {
+      return c.json({ error: "This church already has a plan", code: "CHURCH_ALREADY_PAID" }, 409);
+    }
+    const interval2 = body.interval === "year" ? "year" : "month";
+    const plan = churchPlanFor(interval2);
+    if (!plan?.productId) {
+      return c.json({ error: "Church plan is not configured", code: "PLAN_UNCONFIGURED" }, 503);
+    }
+    const meta2 = first(
+      await db.select({ email: UserMetadata.email }).from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1)
+    );
+    const origin = getPublicAppOrigin(c);
+    const polar = getPolarClient();
+    const checkout = await polar.checkouts.create({
+      products: [plan.productId],
+      externalCustomerId: auth.userId,
+      ...meta2?.email?.includes("@") ? { customerEmail: meta2.email } : {},
+      successUrl: `${origin}/?church_checkout={CHECKOUT_ID}`,
+      metadata: { clerkUserId: auth.userId, churchId: church.id, orgId: church.orgId }
+    });
+    return c.json({ url: checkout.url, interval: plan.interval, plan: plan.key });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/checkout",
+      action: "create_church_checkout"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+async function resolveStaffContext(userId, orgIdInput) {
+  const orgId = orgIdInput.trim();
+  const church = orgId ? await getActiveChurchByOrgId(orgId) : await getConnectedChurch(userId);
+  if (!church) {
+    return { ok: false, status: 404, code: "CHURCH_NOT_FOUND", error: "Church not found" };
+  }
+  if (!await isChurchStaffForOrg(userId, church.orgId)) {
+    return { ok: false, status: 403, code: "CHURCH_STAFF_REQUIRED", error: "Only church staff can manage the team" };
+  }
+  const roster = await fetchClerkOrgMemberships(church.orgId);
+  const role = roster.find((member) => member.userId === userId)?.role ?? null;
+  return { ok: true, church, roster, role };
+}
+function clerkFailureResponse(c, error) {
+  if (error instanceof ClerkOrgInviteError) {
+    return c.json({ error: error.message, code: error.code }, 409);
+  }
+  if (error instanceof ClerkOrgError) {
+    if (error.code === "CLERK_ORGS_NOT_ENABLED") {
+      return c.json(
+        { error: "Staff management is unavailable right now", code: "CLERK_ORGS_NOT_ENABLED" },
+        503
+      );
+    }
+    return c.json({ error: "Staff directory is unavailable \u2014 try again", code: "CLERK_UNAVAILABLE" }, 502);
+  }
+  return null;
+}
+app14.get("/api/church/staff", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const ctx = await resolveStaffContext(auth.userId, c.req.query("orgId") ?? "");
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    const pending = await fetchClerkOrgPendingInvitations(ctx.church.orgId);
+    const attribution = await batchAuthorAttribution(ctx.roster.map((m2) => m2.userId));
+    return c.json({
+      church: { id: ctx.church.id, name: ctx.church.name, orgId: ctx.church.orgId },
+      canManage: isClerkOrgAdminRole(ctx.role),
+      viewerRole: ctx.role,
+      staffCap: CLERK_ORG_STAFF_CAP,
+      seatsUsed: ctx.roster.length + pending.length,
+      staff: ctx.roster.map((member) => ({
+        userId: member.userId,
+        role: member.role,
+        isSelf: member.userId === auth.userId,
+        displayName: attribution[member.userId]?.displayName ?? "Staff member",
+        profileImageUrl: attribution[member.userId]?.profileImageUrl ?? null,
+        userColor: attribution[member.userId]?.userColor ?? "blue"
+      })),
+      pendingInvites: pending
+    });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/staff",
+      action: "list_church_staff"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.post("/api/church/staff/invite", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? "");
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    if (!isClerkOrgAdminRole(ctx.role)) {
+      return c.json({ error: "Only a church admin can invite staff", code: "CHURCH_ADMIN_REQUIRED" }, 403);
+    }
+    if (!churchSponsorship(ctx.church).sponsored) {
+      return c.json({ error: CHURCH_LAPSED_ERROR, code: CHURCH_LAPSED_CODE }, 402);
+    }
+    const email2 = (body.email ?? "").trim().toLowerCase();
+    if (!email2 || !email2.includes("@")) {
+      return c.json({ error: "A valid email address is required", code: "INVALID_EMAIL" }, 400);
+    }
+    const pending = await fetchClerkOrgPendingInvitations(ctx.church.orgId);
+    if (!canInviteMoreStaff({ memberCount: ctx.roster.length, pendingInviteCount: pending.length })) {
+      return c.json(
+        {
+          error: `Your church has ${ctx.roster.length} staff and ${pending.length} pending invite(s) \u2014 the limit is ${CLERK_ORG_STAFF_CAP}. Remove someone first.`,
+          code: "CLERK_ORG_MEMBER_LIMIT",
+          seatsUsed: ctx.roster.length + pending.length,
+          limit: CLERK_ORG_STAFF_CAP
+        },
+        409
+      );
+    }
+    const invitation = await createClerkOrgInvitation({
+      orgId: ctx.church.orgId,
+      emailAddress: email2,
+      inviterUserId: auth.userId,
+      // Any role from the allowlist, not just admin — a church hiring a pastor
+      // shouldn't have to invite them as staff and then promote them. Undefined
+      // lets Clerk apply its own default (plain member = staff).
+      role: isAssignableChurchRole(body.role ?? "") ? body.role : void 0
+    });
+    return c.json({ success: true, invitation });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/staff/invite",
+      action: "invite_church_staff"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.post("/api/church/staff/revoke-invite", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? "");
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    if (!isClerkOrgAdminRole(ctx.role)) {
+      return c.json({ error: "Only a church admin can revoke invites", code: "CHURCH_ADMIN_REQUIRED" }, 403);
+    }
+    const invitationId = (body.invitationId ?? "").trim();
+    if (!invitationId) {
+      return c.json({ error: "invitationId is required", code: "BAD_REQUEST" }, 400);
+    }
+    await revokeClerkOrgInvitation({
+      orgId: ctx.church.orgId,
+      invitationId,
+      requestingUserId: auth.userId
+    });
+    return c.json({ success: true });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/staff/revoke-invite",
+      action: "revoke_church_invite"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.post("/api/church/staff/remove", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? "");
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    if (!isClerkOrgAdminRole(ctx.role)) {
+      return c.json({ error: "Only a church admin can remove staff", code: "CHURCH_ADMIN_REQUIRED" }, 403);
+    }
+    const targetUserId = (body.userId ?? "").trim();
+    if (!targetUserId) return c.json({ error: "userId is required", code: "BAD_REQUEST" }, 400);
+    if (targetUserId === auth.userId) {
+      return c.json({ error: "You cannot remove yourself", code: "CANNOT_REMOVE_SELF" }, 400);
+    }
+    if (!ctx.roster.some((member) => member.userId === targetUserId)) {
+      return c.json({ error: "That person is not on your staff", code: "NOT_STAFF" }, 404);
+    }
+    await removeClerkOrgMember(ctx.church.orgId, targetUserId);
+    const sync = await syncChurchStaffForOrg(ctx.church.orgId);
+    return c.json({ success: true, sync });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/staff/remove",
+      action: "remove_church_staff"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.post("/api/church/staff/role", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? "");
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    if (!capabilitiesForChurchRole(ctx.role).includes("manage_staff")) {
+      return c.json(
+        { error: "Only a church admin can change roles", code: "CHURCH_ADMIN_REQUIRED" },
+        403
+      );
+    }
+    const targetUserId = (body.userId ?? "").trim();
+    const nextRole = (body.role ?? "").trim();
+    if (!targetUserId) return c.json({ error: "userId is required", code: "BAD_REQUEST" }, 400);
+    if (!isAssignableChurchRole(nextRole)) {
+      return c.json({ error: "Unknown role", code: "BAD_REQUEST" }, 400);
+    }
+    if (targetUserId === auth.userId) {
+      return c.json(
+        { error: "You cannot change your own role", code: "CANNOT_CHANGE_SELF" },
+        400
+      );
+    }
+    const target = ctx.roster.find((member) => member.userId === targetUserId);
+    if (!target) {
+      return c.json({ error: "That person is not on your staff", code: "NOT_STAFF" }, 404);
+    }
+    if (target.role === nextRole) return c.json({ success: true, unchanged: true });
+    if (target.role === ROLE_ADMIN) {
+      const admins = ctx.roster.filter((member) => member.role === ROLE_ADMIN).length;
+      if (admins <= 1) {
+        return c.json(
+          {
+            error: "Your church needs at least one admin",
+            code: "LAST_ADMIN"
+          },
+          409
+        );
+      }
+    }
+    await updateClerkOrgMemberRole(ctx.church.orgId, targetUserId, nextRole);
+    const sync = await syncChurchStaffForOrg(ctx.church.orgId);
+    return c.json({ success: true, sync });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/staff/role",
+      action: "set_church_staff_role"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app14.post("/api/church/staff/sync", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const ctx = await resolveStaffContext(auth.userId, body.orgId ?? "");
+    if (!ctx.ok) return c.json({ error: ctx.error, code: ctx.code }, ctx.status);
+    const result = await syncChurchStaffForOrg(ctx.church.orgId, { staff: ctx.roster });
+    if (!result.ok) {
+      return c.json(
+        {
+          error: `Your church has ${result.staffCount} staff \u2014 the limit is ${result.limit}.`,
+          code: result.code,
+          staffCount: result.staffCount,
+          limit: result.limit
+        },
+        409
+      );
+    }
+    return c.json({ success: true, ...result });
+  } catch (error) {
+    const clerk = clerkFailureResponse(c, error);
+    if (clerk) return clerk;
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/staff/sync",
+      action: "sync_church_staff_self_serve"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var church_default = app14;
+
+// server/routes/church-teaching-plan.ts
+init_db2();
+init_auth();
+
+// server/utils/db-unique-violation.ts
+function isUniqueViolation(error, constraintName) {
+  const seen = /* @__PURE__ */ new Set();
+  let current = error;
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    const candidate = current;
+    if (candidate.constraint_name === constraintName || candidate.constraint === constraintName) {
+      return true;
+    }
+    if (typeof candidate.message === "string" && candidate.message.includes(constraintName)) {
+      return true;
+    }
+    current = candidate.cause;
+  }
+  return false;
+}
+
+// server/utils/church-service-time.ts
+var SERVICE_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+function isBlank(raw2) {
+  return raw2 === null || raw2 === void 0 || typeof raw2 === "string" && raw2.trim() === "";
+}
+function normalizeServiceTime(raw2) {
+  if (isBlank(raw2)) return { ok: true, value: null };
+  if (typeof raw2 !== "string") return { ok: false, reason: "Time must be text like 10:30" };
+  const trimmed = raw2.trim();
+  if (!SERVICE_TIME_PATTERN.test(trimmed)) {
+    return { ok: false, reason: "Time must be HH:MM on a 24-hour clock, like 09:30 or 18:00" };
+  }
+  return { ok: true, value: trimmed };
+}
+function normalizeServiceDay(raw2) {
+  if (isBlank(raw2)) return { ok: true, value: null };
+  if (typeof raw2 !== "number" || !Number.isInteger(raw2) || raw2 < 0 || raw2 > 6) {
+    return { ok: false, reason: "Day must be a whole number from 0 (Sunday) to 6 (Saturday)" };
+  }
+  return { ok: true, value: raw2 };
+}
+function normalizeChurchTimezone(raw2) {
+  if (isBlank(raw2)) return { ok: true, value: null };
+  if (typeof raw2 !== "string") return { ok: false, reason: "Time zone must be text" };
+  const trimmed = raw2.trim();
+  if (!isValidIanaTimeZone(trimmed)) {
+    return { ok: false, reason: "That is not a recognised time zone" };
+  }
+  return { ok: true, value: trimmed };
+}
+
+// server/utils/church-sermon-repeat.ts
+var REPEAT_MAX_WEEKS = 12;
+var ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+function weeklyDatesAfter(seedDate, count3) {
+  const match4 = ISO_DATE.exec(seedDate);
+  if (!match4) return [];
+  const weeks = Math.min(Math.floor(count3), REPEAT_MAX_WEEKS);
+  if (!Number.isFinite(weeks) || weeks < 1) return [];
+  const start = Date.UTC(Number(match4[1]), Number(match4[2]) - 1, Number(match4[3]));
+  if (new Date(start).toISOString().slice(0, 10) !== seedDate) return [];
+  const dates = [];
+  for (let i = 1; i <= weeks; i++) {
+    dates.push(new Date(start + i * 7 * 864e5).toISOString().slice(0, 10));
+  }
+  return dates;
+}
+function repeatTitleFor(input) {
+  return input.seriesTitle?.trim() || input.seedTitle;
+}
+
+// server/routes/church-teaching-plan.ts
+var app15 = new Hono2();
+var SERVICE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+var TITLE_MAX = 120;
+function clean(value, max2) {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, max2);
+}
+function serializeSermon(row, serviceTimeIds = [], seriesTitles) {
+  return {
+    id: row.id,
+    serviceDate: row.serviceDate,
+    /** The church's slots this sermon fills; the editor renders them as checks. */
+    serviceTimeIds,
+    /** A one-off time, set only when the sermon sits at no usual service. */
+    serviceTime: row.serviceTime,
+    title: row.title,
+    seriesId: row.seriesId,
+    /*
+      The joined label, not a stored copy — `seriesTitle` as a column is exactly
+      the two-sources-of-truth bug ChurchSeries removed. Kept on the wire because
+      every card and row renders the name, and a client that had only an id would
+      have to hold the whole series list to draw one line.
+    */
+    seriesTitle: row.seriesId ? seriesTitles?.get(row.seriesId) ?? null : null,
+    reference: row.reference,
+    starterTemplateId: row.starterTemplateId,
+    updatedAt: row.updatedAt ?? row.createdAt
+  };
+}
+async function validateReferences(orgId, input) {
+  const templateId = clean(input.starterTemplateId, 200);
+  if (templateId) {
+    const template = first(
+      await db.select({ id: NoteTemplates.id }).from(NoteTemplates).where(and(eq(NoteTemplates.id, templateId), eq(NoteTemplates.orgId, orgId))).limit(1)
+    );
+    if (!template) {
+      return { ok: false, code: "TEMPLATE_NOT_FOUND", error: "That starter template is not one of your church templates" };
+    }
+  }
+  return { ok: true };
+}
+app15.get("/api/church/services/plan", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const orgId = (c.req.query("orgId") ?? "").trim();
+    const gate = await assertCanViewTeachingPlan(auth.userId, orgId);
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const services = await db.select().from(ChurchServices).where(and(eq(ChurchServices.churchId, gate.church.id), isNull(ChurchServices.spaceId))).orderBy(asc(ChurchServices.serviceDate));
+    const serviceTimes = await listServiceTimesForChurch(gate.church.id);
+    const assignments = await serviceTimeIdsByService(services.map((row) => row.id));
+    const scope = { churchId: gate.church.id, spaceId: null };
+    const seriesTitles = await seriesTitlesByServiceRows(services);
+    return c.json({
+      church: { id: gate.church.id, name: gate.church.name },
+      /*
+        The church's recurring services — the checkboxes in the editor, and what
+        seeds its date picker. Kept out of the `church` envelope so that object
+        stays identical to the congregant payload's; a space plan will fill this
+        same key from the space's own meeting times, with no rename.
+      */
+      serviceTimes: serviceTimes.map((row) => ({
+        id: row.id,
+        dayOfWeek: row.dayOfWeek,
+        startTime: row.startTime,
+        label: row.label
+      })),
+      services: services.map(
+        (row) => serializeSermon(row, assignments.get(row.id) ?? [], seriesTitles)
+      ),
+      /*
+        The church plan's own series, most recently *taught* first — what the
+        editor's picker offers so weeks group without typo-splitting in two.
+        Replaced a list of bare strings derived from the sermon rows: a picker of
+        objects can rename, delete, and be attached to, and a string cannot.
+      */
+      series: await listSeriesForPlan(scope)
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/services/plan",
+      action: "church_teaching_plan"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app15.post("/api/church/services/create", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const serviceDate = (body.serviceDate ?? "").trim();
+    if (!SERVICE_DATE_PATTERN.test(serviceDate)) {
+      return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
+    }
+    const title = clean(body.title, TITLE_MAX);
+    if (!title) {
+      return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
+    }
+    const time4 = normalizeServiceTime(body.serviceTime);
+    if (!time4.ok) return c.json({ error: time4.reason, code: "BAD_REQUEST" }, 400);
+    const serviceTime = time4.value;
+    const serviceTimeIds = await filterServiceTimeIdsForChurch(
+      gate.church.id,
+      Array.isArray(body.serviceTimeIds) ? body.serviceTimeIds : []
+    );
+    const passage = canonicalizeServiceReference(body.reference);
+    if (!passage.ok) {
+      return c.json({ error: passage.reason, code: "INVALID_REFERENCE" }, 400);
+    }
+    const refs3 = await validateReferences(gate.church.orgId, body);
+    if (!refs3.ok) return c.json({ error: refs3.error, code: refs3.code }, 400);
+    if (serviceTimeIds.length === 0) {
+      const clash = first(
+        await db.select({ id: ChurchServices.id }).from(ChurchServices).where(
+          and(
+            eq(ChurchServices.churchId, gate.church.id),
+            isNull(ChurchServices.spaceId),
+            eq(ChurchServices.serviceDate, serviceDate),
+            isNull(ChurchServices.serviceTime)
+          )
+        ).limit(1)
+      );
+      if (clash) {
+        return c.json(
+          {
+            error: "That date already has a sermon. Edit it, or give this one a service time.",
+            code: "SERVICE_DATE_TAKEN",
+            serviceId: clash.id
+          },
+          409
+        );
+      }
+    }
+    const now2 = /* @__PURE__ */ new Date();
+    let seriesId = null;
+    const refusal = { reason: null };
+    const row = {
+      id: `svc_${crypto.randomUUID()}`,
+      churchId: gate.church.id,
+      serviceDate,
+      // Explicit, never omitted: this literal is what serializeSermon echoes
+      // back, so an absent key would ship a create response whose shape differs
+      // from every read.
+      serviceTime,
+      title,
+      seriesId: null,
+      reference: passage.reference,
+      starterTemplateId: clean(body.starterTemplateId, 200),
+      createdBy: auth.userId,
+      updatedBy: null,
+      createdAt: now2,
+      updatedAt: null
+    };
+    try {
+      await db.transaction(async (tx) => {
+        const series = await resolveSeriesForWrite({
+          scope: { churchId: gate.church.id, spaceId: null },
+          seriesId: body.seriesId,
+          seriesTitle: body.seriesTitle,
+          userId: auth.userId,
+          executor: tx
+        });
+        if (!series.ok) {
+          refusal.reason = { code: series.code, error: series.error };
+          return;
+        }
+        seriesId = series.seriesId;
+        row.seriesId = seriesId;
+        await tx.insert(ChurchServices).values(row);
+        await replaceServiceTimeAssignments(tx, { serviceId: row.id, serviceDate, serviceTimeIds });
+      });
+      if (refusal.reason) {
+        return c.json({ error: refusal.reason.error, code: refusal.reason.code }, 404);
+      }
+    } catch (error) {
+      if (isUniqueViolation(error, "ChurchServiceTimeAssignments_slot_date_unique")) {
+        return c.json(
+          {
+            error: "One of those services already has a sermon that day.",
+            code: "SERVICE_TIME_TAKEN"
+          },
+          409
+        );
+      }
+      throw error;
+    }
+    return c.json({
+      success: true,
+      service: serializeSermon(
+        { ...row, seriesId },
+        serviceTimeIds,
+        await seriesTitlesByServiceRows([{ seriesId }])
+      )
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/services/create",
+      action: "create_church_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app15.post("/api/church/services/update", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const serviceId = (body.serviceId ?? "").trim();
+    if (!serviceId) {
+      return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
+    }
+    const existing = first(
+      await db.select().from(ChurchServices).where(
+        and(eq(ChurchServices.id, serviceId), eq(ChurchServices.churchId, gate.church.id))
+      ).limit(1)
+    );
+    if (!existing) {
+      return c.json({ error: "Service not found", code: "SERVICE_NOT_FOUND" }, 404);
+    }
+    const updates = { updatedBy: auth.userId, updatedAt: /* @__PURE__ */ new Date() };
+    if (body.serviceDate !== void 0) {
+      const serviceDate = (body.serviceDate ?? "").trim();
+      if (!SERVICE_DATE_PATTERN.test(serviceDate)) {
+        return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
+      }
+      updates.serviceDate = serviceDate;
+    }
+    if (body.serviceTime !== void 0) {
+      const time4 = normalizeServiceTime(body.serviceTime);
+      if (!time4.ok) return c.json({ error: time4.reason, code: "BAD_REQUEST" }, 400);
+      updates.serviceTime = time4.value;
+    }
+    const nextServiceTimeIds = body.serviceTimeIds === void 0 ? null : await filterServiceTimeIdsForChurch(
+      gate.church.id,
+      Array.isArray(body.serviceTimeIds) ? body.serviceTimeIds : []
+    );
+    const nextDate = updates.serviceDate ?? existing.serviceDate;
+    if (body.title !== void 0) {
+      const title = clean(body.title, TITLE_MAX);
+      if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
+      updates.title = title;
+    }
+    if (body.reference !== void 0) {
+      const passage = canonicalizeServiceReference(body.reference);
+      if (!passage.ok) {
+        return c.json({ error: passage.reason, code: "INVALID_REFERENCE" }, 400);
+      }
+      updates.reference = passage.reference;
+    }
+    if (body.starterTemplateId !== void 0) {
+      const refs3 = await validateReferences(gate.church.orgId, body);
+      if (!refs3.ok) return c.json({ error: refs3.error, code: refs3.code }, 400);
+      updates.starterTemplateId = clean(body.starterTemplateId, 200);
+    }
+    const finalIds = nextServiceTimeIds ?? (await serviceTimeIdsByService([serviceId])).get(serviceId) ?? [];
+    const refusal = { reason: null };
+    try {
+      await db.transaction(async (tx) => {
+        if (body.seriesId !== void 0 || body.seriesTitle !== void 0) {
+          const series = await resolveSeriesForWrite({
+            scope: { churchId: gate.church.id, spaceId: null },
+            seriesId: body.seriesId,
+            seriesTitle: body.seriesTitle,
+            userId: auth.userId,
+            executor: tx
+          });
+          if (!series.ok) {
+            refusal.reason = { code: series.code, error: series.error };
+            return;
+          }
+          updates.seriesId = series.seriesId;
+        }
+        await tx.update(ChurchServices).set(updates).where(eq(ChurchServices.id, serviceId));
+        if (nextServiceTimeIds !== null || updates.serviceDate !== void 0) {
+          await replaceServiceTimeAssignments(tx, {
+            serviceId,
+            serviceDate: nextDate,
+            serviceTimeIds: finalIds
+          });
+        }
+      });
+      if (refusal.reason) {
+        return c.json({ error: refusal.reason.error, code: refusal.reason.code }, 404);
+      }
+    } catch (error) {
+      if (isUniqueViolation(error, "ChurchServiceTimeAssignments_slot_date_unique")) {
+        return c.json(
+          {
+            error: "One of those services already has a sermon that day.",
+            code: "SERVICE_TIME_TAKEN"
+          },
+          409
+        );
+      }
+      throw error;
+    }
+    const merged = { ...existing, ...updates };
+    return c.json({
+      success: true,
+      service: serializeSermon(merged, finalIds, await seriesTitlesByServiceRows([merged]))
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/services/update",
+      action: "update_church_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app15.post("/api/church/services/repeat", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const serviceId = (body.serviceId ?? "").trim();
+    if (!serviceId) return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
+    const seed = first(
+      await db.select().from(ChurchServices).where(
+        and(
+          eq(ChurchServices.id, serviceId),
+          eq(ChurchServices.churchId, gate.church.id),
+          // Church plan only: a space's gathering repeats through its own
+          // endpoint, where the rules about slots are different.
+          isNull(ChurchServices.spaceId)
+        )
+      ).limit(1)
+    );
+    if (!seed) return c.json({ error: "Service not found", code: "SERVICE_NOT_FOUND" }, 404);
+    const dates = weeklyDatesAfter(seed.serviceDate, Number(body.weeks ?? 0));
+    if (dates.length === 0) {
+      return c.json(
+        { error: `weeks must be between 1 and ${REPEAT_MAX_WEEKS}`, code: "BAD_REQUEST" },
+        400
+      );
+    }
+    const seedSlots = (await serviceTimeIdsByService([seed.id])).get(seed.id) ?? [];
+    const seriesTitles = await seriesTitlesByServiceRows([seed]);
+    const title = repeatTitleFor({
+      seedTitle: seed.title,
+      seriesTitle: seed.seriesId ? seriesTitles.get(seed.seriesId) ?? null : null
+    });
+    const created = [];
+    let stoppedAt = null;
+    for (const serviceDate of dates) {
+      if (seedSlots.length === 0) {
+        const clash = first(
+          await db.select({ id: ChurchServices.id }).from(ChurchServices).where(
+            and(
+              eq(ChurchServices.churchId, gate.church.id),
+              isNull(ChurchServices.spaceId),
+              eq(ChurchServices.serviceDate, serviceDate),
+              isNull(ChurchServices.serviceTime)
+            )
+          ).limit(1)
+        );
+        if (clash) {
+          stoppedAt = serviceDate;
+          break;
+        }
+      }
+      const now2 = /* @__PURE__ */ new Date();
+      const row = {
+        id: `svc_${crypto.randomUUID()}`,
+        churchId: gate.church.id,
+        serviceDate,
+        serviceTime: seed.serviceTime,
+        title,
+        seriesId: seed.seriesId,
+        // Deliberately not the seed's: next week is a different passage, and
+        // guessing it would put words in the pastor's mouth.
+        reference: null,
+        starterTemplateId: seed.starterTemplateId,
+        createdBy: auth.userId,
+        updatedBy: null,
+        createdAt: now2,
+        updatedAt: null
+      };
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(ChurchServices).values(row);
+          await replaceServiceTimeAssignments(tx, {
+            serviceId: row.id,
+            serviceDate,
+            serviceTimeIds: seedSlots
+          });
+        });
+      } catch (error) {
+        if (isUniqueViolation(error, "ChurchServiceTimeAssignments_slot_date_unique")) {
+          stoppedAt = serviceDate;
+          break;
+        }
+        throw error;
+      }
+      created.push(serializeSermon(row, seedSlots, seriesTitles));
+    }
+    return c.json({
+      success: true,
+      services: created,
+      /** The week it ran into, or null if it planned the whole run. */
+      stoppedAt
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/services/repeat",
+      action: "repeat_church_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app15.post("/api/church/services/delete", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const serviceId = (body.serviceId ?? "").trim();
+    if (!serviceId) {
+      return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
+    }
+    const existing = first(
+      await db.select({ id: ChurchServices.id }).from(ChurchServices).where(
+        and(eq(ChurchServices.id, serviceId), eq(ChurchServices.churchId, gate.church.id))
+      ).limit(1)
+    );
+    if (!existing) {
+      return c.json({ error: "Service not found", code: "SERVICE_NOT_FOUND" }, 404);
+    }
+    await db.transaction(async (tx) => {
+      await clearServiceTimeAssignments(tx, serviceId);
+      await tx.delete(ChurchServices).where(eq(ChurchServices.id, serviceId));
+    });
+    return c.json({ success: true });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/services/delete",
+      action: "delete_church_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app15.post("/api/church/series/rename", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const seriesId = (body.seriesId ?? "").trim();
+    if (!seriesId) return c.json({ error: "seriesId is required", code: "BAD_REQUEST" }, 400);
+    const result = await renameSeries(
+      { churchId: gate.church.id, spaceId: null },
+      seriesId,
+      String(body.title ?? "")
+    );
+    if (!result.ok) {
+      const status = result.code === "BAD_REQUEST" ? 400 : result.code === "SERIES_NOT_FOUND" ? 404 : 409;
+      return c.json({ error: result.error, code: result.code }, status);
+    }
+    return c.json({
+      success: true,
+      series: { id: result.series.id, title: result.series.title }
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/series/rename",
+      action: "rename_church_series"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app15.post("/api/church/series/delete", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const seriesId = (body.seriesId ?? "").trim();
+    if (!seriesId) return c.json({ error: "seriesId is required", code: "BAD_REQUEST" }, 400);
+    const result = await deleteSeries({ churchId: gate.church.id, spaceId: null }, seriesId);
+    if (!result.ok) return c.json({ error: result.error, code: result.code }, 404);
+    return c.json({ success: true, detached: result.detached });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/series/delete",
+      action: "delete_church_series"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var church_teaching_plan_default = app15;
+
+// server/routes/church-settings.ts
+init_db2();
+init_auth();
+
+// server/utils/church-settings-access.ts
+var CHURCH_SETTINGS_ACCESS = {
+  view: {
+    capability: "publish",
+    code: "CHURCH_SETTINGS_FORBIDDEN",
+    staffError: "Only church staff can see these settings",
+    roleError: "Your role does not include church settings",
+    sponsorshipGated: false
+  },
+  manage: {
+    capability: "manage_church_settings",
+    code: "CHURCH_SETTINGS_ROLE_REQUIRED",
+    staffError: "Only church staff can change these settings",
+    roleError: "A church admin sets your times",
+    sponsorshipGated: true
+  }
+};
+function assertCanViewChurchSettings(userId, orgId) {
+  return resolveChurchOrgAccess(userId, orgId, CHURCH_SETTINGS_ACCESS.view);
+}
+function assertCanManageChurchSettings(userId, orgId) {
+  return resolveChurchOrgAccess(userId, orgId, CHURCH_SETTINGS_ACCESS.manage);
+}
+
+// server/routes/church-settings.ts
+var app16 = new Hono2();
+var LABEL_MAX = 40;
+function serializeServiceTime(row) {
+  return {
+    id: row.id,
+    dayOfWeek: row.dayOfWeek,
+    startTime: row.startTime,
+    label: row.label,
+    sortOrder: row.sortOrder
+  };
+}
+async function settingsPayload(church) {
+  const serviceTimes = await listServiceTimesForChurch(church.id);
+  return {
+    church: { id: church.id, name: church.name, orgId: church.orgId },
+    /*
+      Raw, null intact: the form must be able to show "not set". `country` and
+      `state` ride along so the time-zone picker can narrow to where the church
+      actually is — Iowa is one zone where the US is 29. Both are read-only
+      here, since they are set at registration (usually denormalized from
+      Here's My Church), not by the church itself.
+    */
+    settings: {
+      timezone: church.timezone,
+      country: church.country,
+      state: church.state
+    },
+    serviceTimes: serviceTimes.map(serializeServiceTime)
+  };
+}
+app16.get("/api/church/settings", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const orgId = (c.req.query("orgId") ?? "").trim();
+    const gate = await assertCanViewChurchSettings(auth.userId, orgId);
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    return c.json(await settingsPayload(gate.church));
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/settings",
+      action: "church_settings_read"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app16.post("/api/church/settings/update", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageChurchSettings(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    if (body.timezone === void 0) {
+      return c.json(await settingsPayload(gate.church));
+    }
+    const tz = normalizeChurchTimezone(body.timezone);
+    if (!tz.ok) return c.json({ error: tz.reason, code: "BAD_REQUEST" }, 400);
+    const saved = await db.update(Churches).set({ timezone: tz.value, updatedAt: /* @__PURE__ */ new Date() }).where(eq(Churches.id, gate.church.id)).returning();
+    return c.json({ success: true, ...await settingsPayload(saved[0] ?? gate.church) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/settings/update",
+      action: "church_settings_update"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app16.post("/api/church/settings/service-times/create", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageChurchSettings(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const day = normalizeServiceDay(body.dayOfWeek);
+    if (!day.ok) return c.json({ error: day.reason, code: "BAD_REQUEST" }, 400);
+    if (day.value === null) {
+      return c.json({ error: "Pick a day for this service", code: "BAD_REQUEST" }, 400);
+    }
+    const time4 = normalizeServiceTime(body.startTime);
+    if (!time4.ok) return c.json({ error: time4.reason, code: "BAD_REQUEST" }, 400);
+    if (time4.value === null) {
+      return c.json({ error: "Pick a time for this service", code: "BAD_REQUEST" }, 400);
+    }
+    const label = String(body.label ?? "").trim().slice(0, LABEL_MAX) || null;
+    const now2 = /* @__PURE__ */ new Date();
+    try {
+      const saved = await db.insert(ChurchServiceTimes).values({
+        id: `cstm_${crypto.randomUUID()}`,
+        churchId: gate.church.id,
+        dayOfWeek: day.value,
+        startTime: time4.value,
+        label,
+        /*
+          Always 0: the read orders by sortOrder, then day, then clock, so
+          leaving every row equal makes the list read chronologically through
+          the week — which is the order a church thinks in. The column exists
+          for a future drag-to-reorder; nothing sets it yet, deliberately.
+        */
+        sortOrder: 0,
+        createdAt: now2
+      }).returning();
+      return c.json({ success: true, serviceTime: serializeServiceTime(saved[0]) });
+    } catch (error) {
+      if (isUniqueViolation(error, "ChurchServiceTimes_church_day_time_unique")) {
+        return c.json(
+          { error: "You already have a service at that day and time.", code: "SERVICE_TIME_TAKEN" },
+          409
+        );
+      }
+      throw error;
+    }
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/settings/service-times/create",
+      action: "church_service_time_create"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app16.post("/api/church/settings/service-times/delete", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const gate = await assertCanManageChurchSettings(auth.userId, (body.orgId ?? "").trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const serviceTimeId = (body.serviceTimeId ?? "").trim();
+    if (!serviceTimeId) {
+      return c.json({ error: "serviceTimeId is required", code: "BAD_REQUEST" }, 400);
+    }
+    const removed = await db.delete(ChurchServiceTimes).where(
+      and(eq(ChurchServiceTimes.id, serviceTimeId), eq(ChurchServiceTimes.churchId, gate.church.id))
+    ).returning({ id: ChurchServiceTimes.id });
+    if (removed.length === 0) {
+      return c.json({ error: "That service time was not found", code: "SERVICE_TIME_NOT_FOUND" }, 404);
+    }
+    await db.delete(ChurchServiceTimeAssignments).where(eq(ChurchServiceTimeAssignments.serviceTimeId, serviceTimeId));
+    return c.json({ success: true, serviceTimeId });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/settings/service-times/delete",
+      action: "church_service_time_delete"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var church_settings_default = app16;
+
+// server/routes/church-space-plan.ts
+init_db2();
+init_auth();
+
+// server/utils/church-space-plan.ts
+init_db2();
+
+// server/utils/church-space-leaders.ts
+init_db2();
+var GRANT_SOURCE = "grant";
+async function isGrantedSpaceLeader(userId, spaceId) {
+  if (!userId || !spaceId) return false;
+  const row = first(
+    await db.select({ role: SpaceMemberships.role, grantSource: SpaceMemberships.grantSource }).from(SpaceMemberships).where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, userId))).limit(1)
+  );
+  return row?.role === "leader" && row.grantSource === GRANT_SOURCE;
+}
+async function assertCanGrantSpaceLeadership(userId, spaceId) {
+  const id = String(spaceId ?? "").trim();
+  if (!id) {
+    return { ok: false, status: 404, code: "SPACE_NOT_FOUND", error: "Space not found" };
+  }
+  const space = first(
+    await db.select().from(Spaces).where(and(eq(Spaces.id, id), isNull(Spaces.deletedAt))).limit(1)
+  );
+  if (!space || !space.isActive || !isChurchOrgSpaceRow(space) || !space.orgId) {
+    return { ok: false, status: 404, code: "SPACE_NOT_FOUND", error: "Space not found" };
+  }
+  const access = await resolveChurchOrgAccess(userId, space.orgId, {
+    capability: "manage_staff",
+    code: "CHURCH_STAFF_REQUIRED",
+    staffError: "Only church staff can change who leads this space",
+    roleError: "A church admin or this space\u2019s owner grants leadership here",
+    sponsorshipGated: true
+  });
+  if (access.ok) return { ok: true, church: access.church, space };
+  if (space.userId === userId && access.status === 403 && access.code === "CHURCH_STAFF_REQUIRED") {
+    const asOwner = await resolveChurchOrgAccess(userId, space.orgId, {
+      capability: "publish",
+      code: "CHURCH_STAFF_REQUIRED",
+      staffError: "Only church staff can change who leads this space",
+      roleError: "You cannot grant leadership here",
+      sponsorshipGated: true
+    });
+    if (asOwner.ok) return { ok: true, church: asOwner.church, space };
+    return asOwner;
+  }
+  return access;
+}
+
+// server/utils/church-space-plan.ts
+async function resolveSpacePlanAccess(userId, spaceId, rule) {
+  const id = String(spaceId ?? "").trim();
+  if (!id) {
+    return { ok: false, status: 404, code: "SPACE_NOT_FOUND", error: "Space not found" };
+  }
+  const space = first(
+    await db.select().from(Spaces).where(and(eq(Spaces.id, id), isNull(Spaces.deletedAt))).limit(1)
+  );
+  if (!space || !space.isActive || !isChurchOrgSpaceRow(space) || !space.orgId) {
+    return { ok: false, status: 404, code: "SPACE_NOT_FOUND", error: "Space not found" };
+  }
+  const access = await resolveChurchOrgAccess(userId, space.orgId, rule);
+  if (!access.ok) return access;
+  return { ok: true, church: access.church, space };
+}
+function assertCanViewSpaceTeachingPlan(userId, spaceId) {
+  return resolveSpacePlanAccess(userId, spaceId, {
+    capability: "sermon_tools",
+    code: "SERMON_TOOLS_REQUIRED",
+    staffError: "Only church staff can see this plan",
+    roleError: "Your role does not include the teaching plan",
+    sponsorshipGated: false
+  });
+}
+async function assertCanManageSpaceTeachingPlan(userId, spaceId) {
+  const viaCapability = await resolveSpacePlanAccess(userId, spaceId, {
+    capability: "manage_teaching_plan",
+    code: "TEACHING_PLAN_ROLE_REQUIRED",
+    staffError: "Only church staff can manage this plan",
+    roleError: "A pastor or admin plans this ministry",
+    sponsorshipGated: true
+  });
+  if (viaCapability.ok) return viaCapability;
+  const fellThrough = viaCapability.status === 403 && (viaCapability.code === "TEACHING_PLAN_ROLE_REQUIRED" || viaCapability.code === "CHURCH_STAFF_REQUIRED");
+  if (!fellThrough) return viaCapability;
+  return resolveGrantedLeaderAccess(userId, spaceId, viaCapability);
+}
+async function resolveGrantedLeaderAccess(userId, spaceId, refusal) {
+  const space = first(
+    await db.select().from(Spaces).where(and(eq(Spaces.id, String(spaceId ?? "").trim()), isNull(Spaces.deletedAt))).limit(1)
+  );
+  if (!space || !space.isActive || !isChurchOrgSpaceRow(space) || !space.orgId) return refusal;
+  const church = await getActiveChurchByOrgId(space.orgId);
+  if (!church || !church.isActive) return refusal;
+  if (!await isGrantedSpaceLeader(userId, space.id)) return refusal;
+  if (!churchIsSponsored(church)) {
+    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
+  }
+  return { ok: true, church, space };
+}
+
+// server/routes/church-space-plan.ts
+var app17 = new Hono2();
+var SERVICE_DATE_PATTERN2 = /^\d{4}-\d{2}-\d{2}$/;
+var TITLE_MAX2 = 120;
+function clean2(value, max2) {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, max2);
+}
+function serializeSpaceSermon(row, seriesTitles) {
+  return {
+    id: row.id,
+    serviceDate: row.serviceDate,
+    /** Always empty for a space row — slots are the church's. */
+    serviceTimeIds: [],
+    serviceTime: row.serviceTime,
+    title: row.title,
+    seriesId: row.seriesId,
+    /** Joined, not stored — see the church plan's serializer. */
+    seriesTitle: row.seriesId ? seriesTitles?.get(row.seriesId) ?? null : null,
+    reference: row.reference,
+    starterTemplateId: row.starterTemplateId,
+    updatedAt: row.updatedAt ?? row.createdAt
+  };
+}
+async function validateStarter(orgId, starterTemplateId) {
+  if (!starterTemplateId) return { ok: true };
+  const template = first(
+    await db.select({ id: NoteTemplates.id }).from(NoteTemplates).where(and(eq(NoteTemplates.id, starterTemplateId), eq(NoteTemplates.orgId, orgId))).limit(1)
+  );
+  if (!template) {
+    return {
+      ok: false,
+      code: "TEMPLATE_NOT_FOUND",
+      error: "That starter template is not one of your church templates"
+    };
+  }
+  return { ok: true };
+}
+app17.get("/api/church/spaces/:spaceId/plan", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanViewSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const services = await db.select().from(ChurchServices).where(eq(ChurchServices.spaceId, gate.space.id)).orderBy(asc(ChurchServices.serviceDate));
+    const scope = { churchId: gate.church.id, spaceId: gate.space.id };
+    const seriesTitles = await seriesTitlesByServiceRows(services);
+    return c.json({
+      church: { id: gate.church.id, name: gate.church.name },
+      space: {
+        id: gate.space.id,
+        title: gate.space.title,
+        /*
+          The space's own gathering rhythm, filling the same payload key the
+          church plan uses for its service times. One entry, because a space
+          gathers once — the shape matches so the editor needs no branch.
+        */
+        meetingDay: gate.space.meetingDay,
+        meetingTime: gate.space.meetingTime
+      },
+      services: services.map((row) => serializeSpaceSermon(row, seriesTitles)),
+      // Per-plan vocabulary: Youth's series and the church's stay separate — the
+      // scope is what keeps a volunteer leader out of the main service's rows.
+      series: await listSeriesForPlan(scope)
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/plan",
+      action: "church_space_plan"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app17.post("/api/church/spaces/:spaceId/services/create", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const serviceDate = (body.serviceDate ?? "").trim();
+    if (!SERVICE_DATE_PATTERN2.test(serviceDate)) {
+      return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
+    }
+    const title = clean2(body.title, TITLE_MAX2);
+    if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
+    const passage = canonicalizeServiceReference(body.reference);
+    if (!passage.ok) return c.json({ error: passage.reason, code: "INVALID_REFERENCE" }, 400);
+    const starterTemplateId = clean2(body.starterTemplateId, 200);
+    const starter = await validateStarter(gate.church.orgId, starterTemplateId);
+    if (!starter.ok) return c.json({ error: starter.error, code: starter.code }, 400);
+    const now2 = /* @__PURE__ */ new Date();
+    let seriesId = null;
+    const refusal = { reason: null };
+    const row = {
+      id: `svc_${crypto.randomUUID()}`,
+      churchId: gate.church.id,
+      spaceId: gate.space.id,
+      serviceDate,
+      // A space gathers at its own meetingTime; a per-row override is the
+      // church plan's concern, so this stays null rather than accepting input.
+      serviceTime: null,
+      title,
+      seriesId: null,
+      reference: passage.reference,
+      starterTemplateId,
+      createdBy: auth.userId,
+      updatedBy: null,
+      createdAt: now2,
+      updatedAt: null
+    };
+    try {
+      await db.transaction(async (tx) => {
+        const series = await resolveSeriesForWrite({
+          scope: { churchId: gate.church.id, spaceId: gate.space.id },
+          seriesId: body.seriesId,
+          seriesTitle: body.seriesTitle,
+          userId: auth.userId,
+          executor: tx
+        });
+        if (!series.ok) {
+          refusal.reason = { code: series.code, error: series.error };
+          return;
+        }
+        seriesId = series.seriesId;
+        row.seriesId = seriesId;
+        await tx.insert(ChurchServices).values(row);
+      });
+      if (refusal.reason) {
+        return c.json({ error: refusal.reason.error, code: refusal.reason.code }, 404);
+      }
+    } catch (error) {
+      if (isUniqueViolation(error, "ChurchServices_space_date_unique")) {
+        return c.json(
+          {
+            error: "This ministry already has a gathering planned that day.",
+            code: "SERVICE_DATE_TAKEN"
+          },
+          409
+        );
+      }
+      throw error;
+    }
+    return c.json({
+      success: true,
+      service: serializeSpaceSermon(
+        { ...row, seriesId },
+        await seriesTitlesByServiceRows([{ seriesId }])
+      )
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/services/create",
+      action: "create_church_space_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app17.post("/api/church/spaces/:spaceId/services/update", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const serviceId = (body.serviceId ?? "").trim();
+    if (!serviceId) return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
+    const existing = first(
+      await db.select().from(ChurchServices).where(and(eq(ChurchServices.id, serviceId), eq(ChurchServices.spaceId, gate.space.id))).limit(1)
+    );
+    if (!existing) {
+      return c.json({ error: "Gathering not found", code: "SERVICE_NOT_FOUND" }, 404);
+    }
+    const updates = { updatedBy: auth.userId, updatedAt: /* @__PURE__ */ new Date() };
+    if (body.serviceDate !== void 0) {
+      const serviceDate = (body.serviceDate ?? "").trim();
+      if (!SERVICE_DATE_PATTERN2.test(serviceDate)) {
+        return c.json({ error: "serviceDate must be YYYY-MM-DD", code: "BAD_REQUEST" }, 400);
+      }
+      updates.serviceDate = serviceDate;
+    }
+    if (body.title !== void 0) {
+      const title = clean2(body.title, TITLE_MAX2);
+      if (!title) return c.json({ error: "A title is required", code: "BAD_REQUEST" }, 400);
+      updates.title = title;
+    }
+    if (body.reference !== void 0) {
+      const passage = canonicalizeServiceReference(body.reference);
+      if (!passage.ok) return c.json({ error: passage.reason, code: "INVALID_REFERENCE" }, 400);
+      updates.reference = passage.reference;
+    }
+    if (body.starterTemplateId !== void 0) {
+      const starterTemplateId = clean2(body.starterTemplateId, 200);
+      const starter = await validateStarter(gate.church.orgId, starterTemplateId);
+      if (!starter.ok) return c.json({ error: starter.error, code: starter.code }, 400);
+      updates.starterTemplateId = starterTemplateId;
+    }
+    const refusal = { reason: null };
+    try {
+      await db.transaction(async (tx) => {
+        if (body.seriesId !== void 0 || body.seriesTitle !== void 0) {
+          const series = await resolveSeriesForWrite({
+            scope: { churchId: gate.church.id, spaceId: gate.space.id },
+            seriesId: body.seriesId,
+            seriesTitle: body.seriesTitle,
+            userId: auth.userId,
+            executor: tx
+          });
+          if (!series.ok) {
+            refusal.reason = { code: series.code, error: series.error };
+            return;
+          }
+          updates.seriesId = series.seriesId;
+        }
+        await tx.update(ChurchServices).set(updates).where(eq(ChurchServices.id, serviceId));
+      });
+      if (refusal.reason) {
+        return c.json({ error: refusal.reason.error, code: refusal.reason.code }, 404);
+      }
+    } catch (error) {
+      if (isUniqueViolation(error, "ChurchServices_space_date_unique")) {
+        return c.json(
+          {
+            error: "This ministry already has a gathering planned that day.",
+            code: "SERVICE_DATE_TAKEN"
+          },
+          409
+        );
+      }
+      throw error;
+    }
+    const merged = { ...existing, ...updates };
+    return c.json({
+      success: true,
+      service: serializeSpaceSermon(merged, await seriesTitlesByServiceRows([merged]))
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/services/update",
+      action: "update_church_space_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app17.post("/api/church/spaces/:spaceId/services/repeat", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const serviceId = (body.serviceId ?? "").trim();
+    if (!serviceId) return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
+    const seed = first(
+      await db.select().from(ChurchServices).where(and(eq(ChurchServices.id, serviceId), eq(ChurchServices.spaceId, gate.space.id))).limit(1)
+    );
+    if (!seed) return c.json({ error: "Gathering not found", code: "SERVICE_NOT_FOUND" }, 404);
+    const dates = weeklyDatesAfter(seed.serviceDate, Number(body.weeks ?? 0));
+    if (dates.length === 0) {
+      return c.json(
+        { error: `weeks must be between 1 and ${REPEAT_MAX_WEEKS}`, code: "BAD_REQUEST" },
+        400
+      );
+    }
+    const seriesTitles = await seriesTitlesByServiceRows([seed]);
+    const title = repeatTitleFor({
+      seedTitle: seed.title,
+      seriesTitle: seed.seriesId ? seriesTitles.get(seed.seriesId) ?? null : null
+    });
+    const created = [];
+    let stoppedAt = null;
+    for (const serviceDate of dates) {
+      const row = {
+        id: `svc_${crypto.randomUUID()}`,
+        churchId: gate.church.id,
+        spaceId: gate.space.id,
+        serviceDate,
+        serviceTime: null,
+        title,
+        seriesId: seed.seriesId,
+        // Next week is a different passage; guessing it would put words in the
+        // leader's mouth.
+        reference: null,
+        starterTemplateId: seed.starterTemplateId,
+        createdBy: auth.userId,
+        updatedBy: null,
+        createdAt: /* @__PURE__ */ new Date(),
+        updatedAt: null
+      };
+      try {
+        await db.insert(ChurchServices).values(row);
+      } catch (error) {
+        if (isUniqueViolation(error, "ChurchServices_space_date_unique")) {
+          stoppedAt = serviceDate;
+          break;
+        }
+        throw error;
+      }
+      created.push(serializeSpaceSermon(row, seriesTitles));
+    }
+    return c.json({ success: true, services: created, stoppedAt });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/services/repeat",
+      action: "repeat_church_space_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app17.post("/api/church/spaces/:spaceId/services/delete", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const serviceId = (body.serviceId ?? "").trim();
+    if (!serviceId) return c.json({ error: "serviceId is required", code: "BAD_REQUEST" }, 400);
+    const removed = await db.delete(ChurchServices).where(and(eq(ChurchServices.id, serviceId), eq(ChurchServices.spaceId, gate.space.id))).returning({ id: ChurchServices.id });
+    if (removed.length === 0) {
+      return c.json({ error: "Gathering not found", code: "SERVICE_NOT_FOUND" }, 404);
+    }
+    return c.json({ success: true, serviceId });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/services/delete",
+      action: "delete_church_space_service"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app17.post("/api/church/spaces/:spaceId/series/rename", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const seriesId = (body.seriesId ?? "").trim();
+    if (!seriesId) return c.json({ error: "seriesId is required", code: "BAD_REQUEST" }, 400);
+    const result = await renameSeries(
+      { churchId: gate.church.id, spaceId: gate.space.id },
+      seriesId,
+      String(body.title ?? "")
+    );
+    if (!result.ok) {
+      const status = result.code === "BAD_REQUEST" ? 400 : result.code === "SERIES_NOT_FOUND" ? 404 : 409;
+      return c.json({ error: result.error, code: result.code }, status);
+    }
+    return c.json({ success: true, series: { id: result.series.id, title: result.series.title } });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/series/rename",
+      action: "rename_church_space_series"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app17.post("/api/church/spaces/:spaceId/series/delete", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const seriesId = (body.seriesId ?? "").trim();
+    if (!seriesId) return c.json({ error: "seriesId is required", code: "BAD_REQUEST" }, 400);
+    const result = await deleteSeries({ churchId: gate.church.id, spaceId: gate.space.id }, seriesId);
+    if (!result.ok) return c.json({ error: result.error, code: result.code }, 404);
+    return c.json({ success: true, detached: result.detached });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/series/delete",
+      action: "delete_church_space_series"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var church_space_plan_default = app17;
+
+// server/routes/church-engagement.ts
+init_auth();
+
+// server/utils/church-engagement.ts
+init_db2();
+async function assertCanViewChurchEngagement(userId, orgId) {
+  return resolveChurchOrgAccess(userId, orgId, {
+    capability: "manage_staff",
+    code: "CHURCH_ENGAGEMENT_ROLE_REQUIRED",
+    staffError: "Only church staff can see engagement",
+    roleError: "Only a church admin can see engagement",
+    sponsorshipGated: false
+  });
+}
+async function countConnectedCongregants(churchId) {
+  const rows = await db.select({ n: sql`count(*)::int` }).from(UserMetadata).where(eq(UserMetadata.connectedChurchId, churchId));
+  return Number(rows[0]?.n ?? 0);
+}
+async function countFollowersByChannel(orgId) {
+  const spaces = await db.select({ id: Spaces.id, title: Spaces.title, type: Spaces.type, orgId: Spaces.orgId }).from(Spaces).where(and(eq(Spaces.orgId, orgId), eq(Spaces.isActive, true), isNull(Spaces.deletedAt)));
+  const channels = spaces.filter((space) => isMinistryBroadcastSpaceRow(space));
+  if (channels.length === 0) return [];
+  const counts = await db.select({
+    spaceId: SpaceMemberships.spaceId,
+    n: sql`count(*)::int`
+  }).from(SpaceMemberships).where(
+    and(
+      inArray(
+        SpaceMemberships.spaceId,
+        channels.map((channel) => channel.id)
+      ),
+      eq(SpaceMemberships.role, "member")
+    )
+  ).groupBy(SpaceMemberships.spaceId);
+  const bySpace = new Map(counts.map((row) => [row.spaceId, Number(row.n ?? 0)]));
+  return channels.map((channel) => ({
+    spaceId: channel.id,
+    title: channel.title,
+    followerCount: bySpace.get(channel.id) ?? 0
+  }));
+}
+async function getChurchEngagement(church) {
+  const [connectedCount, channels] = await Promise.all([
+    countConnectedCongregants(church.id),
+    countFollowersByChannel(church.orgId)
+  ]);
+  return { connectedCount, channels };
+}
+
+// server/routes/church-engagement.ts
+var app18 = new Hono2();
+app18.get("/api/church/engagement", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const orgId = (c.req.query("orgId") ?? "").trim();
+    const gate = await assertCanViewChurchEngagement(auth.userId, orgId);
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const engagement = await getChurchEngagement(gate.church);
+    return c.json({
+      church: { id: gate.church.id, name: gate.church.name },
+      ...engagement
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/engagement",
+      action: "church_engagement"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var church_engagement_default = app18;
+
+// server/routes/church-space-leaders.ts
+init_db2();
+init_auth();
+init_dates();
+var app19 = new Hono2();
+async function loadTarget(spaceId, targetUserId) {
+  return first(
+    await db.select().from(SpaceMemberships).where(and(eq(SpaceMemberships.spaceId, spaceId), eq(SpaceMemberships.userId, targetUserId))).limit(1)
+  );
+}
+app19.post("/api/church/spaces/:spaceId/leaders/grant", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanGrantSpaceLeadership(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const targetUserId = (body.userId ?? "").trim();
+    if (!targetUserId) return c.json({ error: "userId is required", code: "BAD_REQUEST" }, 400);
+    const membership = await loadTarget(gate.space.id, targetUserId);
+    if (!membership) {
+      return c.json(
+        { error: "That person is not in this space yet", code: "NOT_A_MEMBER" },
+        404
+      );
+    }
+    if (membership.role === "owner") {
+      return c.json(
+        { error: "The space owner already leads this space", code: "ALREADY_LEADS" },
+        409
+      );
+    }
+    if (membership.role === "leader" && membership.grantSource !== GRANT_SOURCE) {
+      return c.json(
+        { error: "They already lead this space as church staff", code: "STAFF_LEADER" },
+        409
+      );
+    }
+    await db.update(SpaceMemberships).set({ role: "leader", grantSource: GRANT_SOURCE, updatedAt: nowISO() }).where(and(eq(SpaceMemberships.spaceId, gate.space.id), eq(SpaceMemberships.userId, targetUserId)));
+    return c.json({ success: true, userId: targetUserId, role: "leader", grantSource: GRANT_SOURCE });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/leaders/grant",
+      action: "grant_space_leadership"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+app19.post("/api/church/spaces/:spaceId/leaders/revoke", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanGrantSpaceLeadership(auth.userId, c.req.param("spaceId") ?? "");
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const body = await c.req.json().catch(() => ({}));
+    const targetUserId = (body.userId ?? "").trim();
+    if (!targetUserId) return c.json({ error: "userId is required", code: "BAD_REQUEST" }, 400);
+    const membership = await loadTarget(gate.space.id, targetUserId);
+    if (!membership) {
+      return c.json({ error: "That person is not in this space", code: "NOT_A_MEMBER" }, 404);
+    }
+    if (membership.role !== "leader" || membership.grantSource !== GRANT_SOURCE) {
+      return c.json(
+        {
+          error: membership.role === "leader" ? "They lead this space as church staff. Change their role on the Team instead." : "They do not lead this space",
+          code: membership.role === "leader" ? "STAFF_LEADER" : "NOT_A_LEADER"
+        },
+        409
+      );
+    }
+    await db.update(SpaceMemberships).set({ role: "member", grantSource: null, updatedAt: nowISO() }).where(and(eq(SpaceMemberships.spaceId, gate.space.id), eq(SpaceMemberships.userId, targetUserId)));
+    return c.json({ success: true, userId: targetUserId, role: "member" });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/church/spaces/[spaceId]/leaders/revoke",
+      action: "revoke_space_leadership"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var church_space_leaders_default = app19;
 
 // server/routes/featured.ts
 init_db2();
@@ -318317,8 +322385,8 @@ function isTestRoutesForbidden() {
 
 // server/routes/featured.ts
 init_note_version_service();
-var app13 = new Hono2();
-app13.get("/api/featured/items", async (c) => {
+var app20 = new Hono2();
+app20.get("/api/featured/items", async (c) => {
   try {
     const auth = getAuth(c);
     if (!auth.userId) {
@@ -318514,7 +322582,7 @@ app13.get("/api/featured/items", async (c) => {
     return c.json({ error: message }, 500);
   }
 });
-app13.post("/api/featured/erase", requireAuth, async (c) => {
+app20.post("/api/featured/erase", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -318539,7 +322607,7 @@ app13.post("/api/featured/erase", requireAuth, async (c) => {
   });
   return c.json({ success: true });
 });
-app13.post("/api/featured/dismiss", requireAuth, async (c) => {
+app20.post("/api/featured/dismiss", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -318573,7 +322641,7 @@ app13.post("/api/featured/dismiss", requireAuth, async (c) => {
   }
   return c.json({ success: true });
 });
-app13.get("/api/featured/dismissed", requireAuth, async (c) => {
+app20.get("/api/featured/dismissed", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const dismissedConditions = [
     eq(UserFeaturedItems.userId, auth.userId),
@@ -318609,12 +322677,12 @@ app13.get("/api/featured/dismissed", requireAuth, async (c) => {
     }))
   );
 });
-app13.get("/api/admin/check", async (c) => {
+app20.get("/api/admin/check", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   return c.json({ isAdmin: true });
 });
-app13.get("/api/admin/featured/by-space/:shareToken", async (c) => {
+app20.get("/api/admin/featured/by-space/:shareToken", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const shareToken = c.req.param("shareToken")?.trim() ?? "";
@@ -318624,7 +322692,7 @@ app13.get("/api/admin/featured/by-space/:shareToken", async (c) => {
   );
   return c.json(item ?? null);
 });
-app13.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
+app20.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const shareToken = c.req.param("shareToken")?.trim() ?? "";
@@ -318634,7 +322702,7 @@ app13.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
   );
   return c.json(item ?? null);
 });
-app13.post("/api/admin/featured", async (c) => {
+app20.post("/api/admin/featured", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -318678,7 +322746,7 @@ app13.post("/api/admin/featured", async (c) => {
   );
   return c.json(inserted ?? { success: true });
 });
-app13.patch("/api/admin/featured/:id", async (c) => {
+app20.patch("/api/admin/featured/:id", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
@@ -318695,7 +322763,7 @@ app13.patch("/api/admin/featured/:id", async (c) => {
   if (!updated) return c.json({ error: "Not found" }, 404);
   return c.json(updated);
 });
-app13.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
+app20.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const featuredItemId = body.featuredItemId?.trim() ?? "";
@@ -318839,7 +322907,7 @@ app13.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
   });
   return c.json({ success: true, noteId: newNote.id });
 });
-app13.get("/api/featured/space", async (c) => {
+app20.get("/api/featured/space", async (c) => {
   try {
     const systemUserId = getHarvousSystemUserId();
     const space = first(
@@ -318876,7 +322944,7 @@ app13.get("/api/featured/space", async (c) => {
     return c.json(null);
   }
 });
-var featured_default = app13;
+var featured_default = app20;
 
 // server/routes/votd.ts
 init_db2();
@@ -319046,10 +323114,10 @@ function clampReferenceToMaxVerseSpan(reference, maxVerses) {
   const p = parseScriptureReference(norm);
   if (!p) return null;
   const ch = p.chapter;
-  if (typeof p.verse === "number") return p.reference;
+  if (typeof p.verse === "number") return norm;
   const [a, b3] = p.verse;
   const span = b3 - a + 1;
-  if (span <= maxVerses) return p.reference;
+  if (span <= maxVerses) return norm;
   const end = a + maxVerses - 1;
   return `${p.book} ${ch}:${a}-${end}`;
 }
@@ -319674,7 +323742,7 @@ function pickPoolVerseForPreview(dateStr, usedRefs, avoidBook) {
 }
 
 // server/routes/votd.ts
-var app14 = new Hono2();
+var app21 = new Hono2();
 async function requireVotdAuth(c) {
   if (c.get("cronAuthed")) return null;
   const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
@@ -319766,7 +323834,7 @@ async function publishVotdCore(params) {
   });
   return { featuredItemId };
 }
-app14.post("/api/admin/votd/schedule", async (c) => {
+app21.post("/api/admin/votd/schedule", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -319806,13 +323874,13 @@ app14.post("/api/admin/votd/schedule", async (c) => {
   );
   return c.json(inserted ?? { success: true }, 201);
 });
-app14.get("/api/admin/votd/schedule", async (c) => {
+app21.get("/api/admin/votd/schedule", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const rows = await db.select().from(VotdSchedule).orderBy(desc(VotdSchedule.createdAt));
   return c.json(rows);
 });
-app14.delete("/api/admin/votd/schedule/:id", async (c) => {
+app21.delete("/api/admin/votd/schedule/:id", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
@@ -319883,7 +323951,7 @@ async function publishForDate(dateStr) {
   });
   return { alreadyPublished: false, featuredItemId: result.featuredItemId, reference: pick2.reference, source: pick2.source };
 }
-app14.post("/api/admin/votd/publish-daily", async (c) => {
+app21.post("/api/admin/votd/publish-daily", async (c) => {
   const unauthorized = await requireVotdAuth(c);
   if (unauthorized) return unauthorized;
   const target = c.req.query("target");
@@ -319946,7 +324014,7 @@ function daysBetweenUtcInclusive(start, end) {
   const msPerDay = 24 * 60 * 60 * 1e3;
   return Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
 }
-app14.get("/api/admin/votd/preview", async (c) => {
+app21.get("/api/admin/votd/preview", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const monthParam = c.req.query("month")?.trim();
@@ -320105,7 +324173,7 @@ app14.get("/api/admin/votd/preview", async (c) => {
   }
   return c.json({ days: out });
 });
-app14.post("/api/admin/votd/override", async (c) => {
+app21.post("/api/admin/votd/override", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -320149,7 +324217,7 @@ app14.post("/api/admin/votd/override", async (c) => {
   );
   return c.json(inserted ?? { success: true });
 });
-app14.post("/api/admin/votd/refresh", async (c) => {
+app21.post("/api/admin/votd/refresh", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const body = await c.req.json().catch(() => ({}));
@@ -320214,7 +324282,7 @@ app14.post("/api/admin/votd/refresh", async (c) => {
   );
   return c.json({ success: true, reference: normalizedRef, row: inserted });
 });
-app14.delete("/api/admin/votd/override/:date", async (c) => {
+app21.delete("/api/admin/votd/override/:date", async (c) => {
   const unauthorized = await requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
   const dateStr = c.req.param("date")?.trim() ?? "";
@@ -320224,7 +324292,7 @@ app14.delete("/api/admin/votd/override/:date", async (c) => {
   await db.delete(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, dateStr), eq(VotdSchedule.isPublished, false)));
   return c.json({ success: true });
 });
-app14.post("/api/votd/record-engagement", requireAuth, async (c) => {
+app21.post("/api/votd/record-engagement", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = await c.req.json().catch(() => ({}));
   const action = body.action?.trim();
@@ -320240,7 +324308,7 @@ app14.post("/api/votd/record-engagement", requireAuth, async (c) => {
   }
   return c.json({ success: true, featuredItemId: result.featuredItemId });
 });
-var votd_default = app14;
+var votd_default = app21;
 
 // server/routes/test.ts
 init_auth();
@@ -320280,8 +324348,8 @@ async function resetUserToNew(userId) {
 init_db2();
 init_dates();
 init_schema2();
-var app15 = new Hono2();
-app15.post("/api/test/reset-to-new-user", async (c) => {
+var app22 = new Hono2();
+app22.post("/api/test/reset-to-new-user", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -320306,7 +324374,7 @@ app15.post("/api/test/reset-to-new-user", async (c) => {
     return c.json({ error: error.message || "Failed to reset user" }, 500);
   }
 });
-app15.post("/api/test/set-shared-spaces-addon", async (c) => {
+app22.post("/api/test/set-shared-spaces-addon", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -320329,7 +324397,7 @@ app15.post("/api/test/set-shared-spaces-addon", async (c) => {
     return c.json({ error: error.message || "Failed to update Shared Spaces add-on" }, 500);
   }
 });
-app15.post("/api/test/reset-featured", async (c) => {
+app22.post("/api/test/reset-featured", async (c) => {
   if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -320351,7 +324419,7 @@ app15.post("/api/test/reset-featured", async (c) => {
     return c.json({ error: error.message || "Failed to reset featured items" }, 500);
   }
 });
-app15.post("/api/test/seed-sample-votd", async (c) => {
+app22.post("/api/test/seed-sample-votd", async (c) => {
   const seedBlock = featuredSampleSeedForbiddenResponse(c);
   if (seedBlock) return seedBlock;
   try {
@@ -320416,7 +324484,7 @@ app15.post("/api/test/seed-sample-votd", async (c) => {
     return c.json({ error: error.message || "Failed to seed sample VOTD" }, 500);
   }
 });
-app15.post("/api/test/seed-sample-featured", async (c) => {
+app22.post("/api/test/seed-sample-featured", async (c) => {
   const seedBlock = featuredSampleSeedForbiddenResponse(c);
   if (seedBlock) return seedBlock;
   try {
@@ -320560,7 +324628,7 @@ app15.post("/api/test/seed-sample-featured", async (c) => {
     return c.json({ error: error.message || "Failed to seed sample featured items" }, 500);
   }
 });
-var test_default = app15;
+var test_default = app22;
 
 // server/data/dictionaries/eastons-slug-index.json
 var eastons_slug_index_default = [
@@ -368234,6 +372302,19 @@ init_db2();
 init_dates();
 init_ids();
 init_pg_undefined_relation();
+function collapseRecallHistory(rows) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    if (row.action !== "open" && row.action !== "snooze") continue;
+    if (!row.opportunityId) continue;
+    const key2 = `${row.opportunityId}\0${row.action}`;
+    if (seen.has(key2)) continue;
+    const createdAt = row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt ?? "");
+    if (!createdAt) continue;
+    seen.set(key2, { opportunityId: row.opportunityId, action: row.action, createdAt });
+  }
+  return [...seen.values()];
+}
 function validateRecallEventInput(body) {
   if (!body || typeof body !== "object") return null;
   const { opportunityId, kind, action, noteId } = body;
@@ -368275,7 +372356,11 @@ async function recordRecallEvent(userId, input) {
 }
 
 // server/routes/recall.ts
+init_db2();
+init_pg_undefined_relation();
 var route14 = new Hono2();
+var RECALL_HISTORY_WINDOW_DAYS = 21;
+var RECALL_HISTORY_MAX_ROWS = 500;
 route14.post("/api/recall/event", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -368288,6 +372373,33 @@ route14.post("/api/recall/event", requireAuth, rateLimit("write"), async (c) => 
     return c.json({ success: true });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/recall/event", action: "recall_event" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route14.get("/api/recall/events/recent", requireAuth, rateLimit("read"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const since = new Date(Date.now() - RECALL_HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1e3);
+    const rows = await db.select({
+      opportunityId: RecallEvents.opportunityId,
+      action: RecallEvents.action,
+      createdAt: RecallEvents.createdAt
+    }).from(RecallEvents).where(
+      and(
+        eq(RecallEvents.userId, auth.userId),
+        inArray(RecallEvents.action, ["open", "snooze"]),
+        gte(RecallEvents.createdAt, since)
+      )
+    ).orderBy(desc(RecallEvents.createdAt)).limit(RECALL_HISTORY_MAX_ROWS);
+    return c.json({ success: true, events: collapseRecallHistory(rows) });
+  } catch (error) {
+    if (isRecallEventsTableMissing(error)) {
+      return c.json({ success: true, events: [] });
+    }
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/recall/events/recent",
+      action: "recall_events_recent"
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
@@ -368323,7 +372435,7 @@ init_ids();
 init_pg_undefined_relation();
 
 // server/utils/diagnostics-sanitize.ts
-var import_crypto5 = require("crypto");
+var import_crypto6 = require("crypto");
 
 // src/lib/prototype-path.ts
 var RESERVED_PROTOTYPE_SEGMENTS = /* @__PURE__ */ new Set([
@@ -368407,7 +372519,7 @@ function computeIssueSignature(message, _route, stack) {
     normalizeDiagnosticMessageForSignature(scrubDiagnosticText(message)).toLowerCase(),
     topStackFrame(stack)
   ].join("::");
-  return (0, import_crypto5.createHash)("sha256").update(normalized).digest("hex").slice(0, 32);
+  return (0, import_crypto6.createHash)("sha256").update(normalized).digest("hex").slice(0, 32);
 }
 function sanitizeMetadata(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -368786,49 +372898,56 @@ route17.get("/api/status/public", async (c) => {
 var status_public_default = route17;
 
 // server/app.ts
-var app16 = new Hono2();
-app16.use("/api/*", requestId());
-app16.use("/api/*", cors());
-app16.use("/api/*", clerkAuth);
-app16.use("/api/*", async (c, next) => {
+var app23 = new Hono2();
+app23.use("/api/*", requestId());
+app23.use("/api/*", cors());
+app23.use("/api/*", clerkAuth);
+app23.use("/api/*", async (c, next) => {
   await next();
   if (c.req.method === "GET" && !c.res.headers.has("Cache-Control")) {
     c.res.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
   }
 });
-app16.route("/", health_default);
-app16.route("/", navigation_default);
-app16.route("/", debug_default);
-app16.route("/", about_default);
-app16.route("/", og_default);
-app16.route("/", stats_default);
-app16.route("/", search_default);
-app16.route("/", content_default);
-app16.route("/", threads_default);
-app16.route("/", notes_default);
-app16.route("/", note_templates_default);
-app16.route("/", study_threads_default);
-app16.route("/", spaces_default);
-app16.route("/", user_default);
-app16.route("/", tags_scripture_default);
-app16.route("/", shared_default);
-app16.route("/", billing_default);
-app16.route("/", resource_default);
-app16.route("/", inbox_default);
-app16.route("/", webhooks_default);
-app16.route("/", sync_default2);
-app16.route("/", migrations_default);
-app16.route("/", admin_default);
-app16.route("/", churches_default);
-app16.route("/", featured_default);
-app16.route("/", votd_default);
-app16.route("/", test_default);
-app16.route("/", dictionary_default);
-app16.route("/", recall_default);
-app16.route("/", support_default);
-app16.route("/", diagnostics_default);
-app16.route("/", status_public_default);
-var app_default = app16;
+app23.route("/", health_default);
+app23.route("/", navigation_default);
+app23.route("/", debug_default);
+app23.route("/", about_default);
+app23.route("/", og_default);
+app23.route("/", stats_default);
+app23.route("/", search_default);
+app23.route("/", content_default);
+app23.route("/", threads_default);
+app23.route("/", notes_default);
+app23.route("/", note_templates_default);
+app23.route("/", study_threads_default);
+app23.route("/", spaces_default);
+app23.route("/", user_default);
+app23.route("/", tags_scripture_default);
+app23.route("/", shared_default);
+app23.route("/", billing_default);
+app23.route("/", resource_default);
+app23.route("/", library_default);
+app23.route("/", inbox_default);
+app23.route("/", webhooks_default);
+app23.route("/", sync_default2);
+app23.route("/", migrations_default);
+app23.route("/", admin_default);
+app23.route("/", churches_default);
+app23.route("/", church_default);
+app23.route("/", church_teaching_plan_default);
+app23.route("/", church_settings_default);
+app23.route("/", church_space_plan_default);
+app23.route("/", church_engagement_default);
+app23.route("/", church_space_leaders_default);
+app23.route("/", featured_default);
+app23.route("/", votd_default);
+app23.route("/", test_default);
+app23.route("/", dictionary_default);
+app23.route("/", recall_default);
+app23.route("/", support_default);
+app23.route("/", diagnostics_default);
+app23.route("/", status_public_default);
+var app_default = app23;
 
 // server/netlify.ts
 init_client();

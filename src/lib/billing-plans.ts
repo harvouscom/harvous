@@ -163,12 +163,17 @@ export function getConnectorProductAnnualId(): string {
   return envProduct('POLAR_CONNECTOR_PRODUCT_ANNUAL', 'VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL');
 }
 
-/** Church monthly ($39). */
+/**
+ * Church monthly ($30).
+ *
+ * Note the collision with Founding, which is also 3000 cents — but that is
+ * $30 *per year*, while this is $30 *per month*. Same integer, different unit.
+ */
 export function getChurchProductMonthlyId(): string {
   return envProduct('POLAR_CHURCH_PRODUCT_MONTHLY', 'VITE_POLAR_CHURCH_PRODUCT_MONTHLY');
 }
 
-/** Church annual ($390 — two months free, the one discount we do offer a church). */
+/** Church annual ($216 — 40% off, the one discount we do offer a church). */
 export function getChurchProductAnnualId(): string {
   return envProduct('POLAR_CHURCH_PRODUCT_ANNUAL', 'VITE_POLAR_CHURCH_PRODUCT_ANNUAL');
 }
@@ -243,7 +248,7 @@ export function getPlans(): PlanDefinition[] {
       key: 'church',
       name: 'Harvous for Churches',
       interval: 'month',
-      amountCents: 3900,
+      amountCents: 3000,
       currencyCode: 'USD',
       features: CHURCH_FEATURES,
       limits: FREE_LIMITS,
@@ -256,7 +261,9 @@ export function getPlans(): PlanDefinition[] {
       key: 'church',
       name: 'Harvous for Churches',
       interval: 'year',
-      amountCents: 39000,
+      // 40% off twelve months at $30 ($360 → $216). Churches respond to a
+      // steep, legible break far better than a shallow one.
+      amountCents: 21600,
       currencyCode: 'USD',
       features: CHURCH_FEATURES,
       limits: FREE_LIMITS,

@@ -94,6 +94,39 @@ describe('computeStaffSyncPlan', () => {
     expect(plan.toRemove).toEqual(['user_gone']);
   });
 
+  it('never reaps a granted leader, who is not in the Clerk roster by design', () => {
+    /*
+      The landmine this guard exists for: a volunteer granted one space is not a
+      Clerk staffer and never will be, so the roster sweep would delete the
+      grant on the next webhook — silently, and within a day, since sync runs on
+      every staff invite, removal and role change.
+    */
+    const plan = computeStaffSyncPlan({
+      spaceOwnerUserId: owner,
+      staff: [],
+      existing: [
+        { userId: owner, role: 'owner' },
+        { userId: 'user_volunteer', role: 'leader', grantSource: 'grant' },
+        { userId: 'user_gone', role: 'leader', grantSource: 'staff_sync' },
+      ],
+    });
+    expect(plan.toRemove).toEqual(['user_gone']);
+  });
+
+  it('treats a null grantSource as staff-projected, so old rows still reap', () => {
+    // Every leader row predating grants has NULL here; it must keep meaning
+    // "the sync put this here", or the sweep would quietly stop working.
+    const plan = computeStaffSyncPlan({
+      spaceOwnerUserId: owner,
+      staff: [],
+      existing: [
+        { userId: owner, role: 'owner' },
+        { userId: 'user_legacy', role: 'leader', grantSource: null },
+      ],
+    });
+    expect(plan.toRemove).toEqual(['user_legacy']);
+  });
+
   it('never touches congregant member rows', () => {
     const plan = computeStaffSyncPlan({
       spaceOwnerUserId: owner,

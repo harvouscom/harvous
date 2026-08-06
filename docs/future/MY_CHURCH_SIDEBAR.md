@@ -59,16 +59,24 @@ both create buttons under that empty state.
 | Staff-only footer: Church tools | Staff | Later (if needed) | Quiet link — not the hub itself; Settings covers this today |
 | Empty state explaining both lanes | Both | **Built** | Teach Groups vs Resources before content exists |
 | Soft “Home church” cue | Both | Later (multi-church) | Redundant while home = sole connected church |
-| Pinned or “this series” channel | Both | Later | Sermon/series companions without a bulletin |
+| Pinned or “this series” channel | Both | Later — unblocked by design | Sermon/series companions without a bulletin. Waited on series being a row rather than a repeated string; that is now decided as `ChurchSeries` ([CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md](./CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md) §9), so a channel can point at one. |
 | Followed vs not-yet-followed channels | Congregant | Later | If opted tracks win over auto-follow-all |
 | Pending connect / “your church is on Harvous” | Congregant | Connect era | Banner when HMC matches but membership isn’t accepted |
+| Per-space teaching plans + service times | Staff author; congregants see a card per ministry they joined | **Designed, not built** — [CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md](./CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md) | A ministry channel or church Shared Space may carry its own plan (Youth meets Wednesdays), plus church-level timezone and default meeting time. The church card is unchanged; each joined ministry with a plan gets **its own** card showing **one** next gathering — never a list. The anti-goal below is amended accordingly (the line becomes *services per card*, not *cards*), landing with its Phase 3, not before. |
+| Teaching plan (collapsed) | **Staff only** | **Built** (v2.19.0; read `sermon_tools` / write `manage_teaching_plan` from v2.21.0) | A staff door into planning what the church teaches — the same “administration, not the daily job” shape as the roster. **Congregants get no plan lane here**; they get one card on Home. |
 
 ## Layer 3 — Useful later; easy to put in the wrong place
 
 Prefer **Home**, **Settings**, or a **staff surface** unless one-line and optional:
 
 - **“From your church” feed** — Home only (home church study feed)
-- **Sermon calendar / service dates** — pastor tool; maybe a pinned companion channel, not a calendar widget
+- **A congregant-facing calendar** — still an anti-goal, and the v2.19.0 build honours it. The
+  staff Teaching plan lives in the hub (Layer 2 above); a congregant sees exactly **one**
+  service — the next one — as a "This Sunday" card on Home. No schedule, no "coming up" list,
+  no series page. If a congregant calendar is ever proposed again, this is the line it crosses.
+  **`ChurchSeries` does not move this line.** A series page is a *staff* surface inside the
+  teaching plan; the congregant still gets one card and one next gathering. A series row makes
+  material attachable at series grain — it does not make the schedule visible.
 - **Teaching-team prep / quarterly curriculum** — inside a channel or shared space once opened
 - **Switch home church / other churches** — Settings (picker B deferred)
 - **Aggregate engagement / analytics** — church dashboard, staff-only

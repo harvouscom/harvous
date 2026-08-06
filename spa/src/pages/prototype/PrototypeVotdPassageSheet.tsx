@@ -109,7 +109,7 @@ export default function PrototypeVotdPassageSheet({ votd, open, showsAddFAB, onC
 
         <div className="proto-votd-sheet__divider" aria-hidden />
 
-        <div className={`proto-votd-sheet__body${showsAddFAB ? ' proto-votd-sheet__body--fab' : ''}`}>
+        <div className="proto-votd-sheet__body">
           {loadingPassage ? (
             <p className="proto-caption">Loading passage…</p>
           ) : html ? (
@@ -122,41 +122,52 @@ export default function PrototypeVotdPassageSheet({ votd, open, showsAddFAB, onC
           )}
         </div>
 
-        {translationCopyright ? (
-          <footer
-            className={[
-              'proto-votd-sheet__attribution',
-              'scripture-pill-chrome__attribution',
-              showsAddFAB ? 'proto-votd-sheet__attribution--fab' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-          >
-            <Icon name="circle-info" size={9} className="scripture-pill-chrome__attribution-icon" aria-hidden />
-            <p className="scripture-pill-chrome__attribution-copyright">{translationCopyright}</p>
-            {translationInfo?.website ? (
-              <a
-                className="scripture-pill-chrome__attribution-link"
-                href={translationInfo.website}
-                target="_blank"
-                rel="noopener noreferrer"
+        {/*
+          Footer holds the credit AND the action side by side. The action used
+          to be an absolutely-positioned FAB floating over this text, which
+          overlapped the copyright line at every width — the clearance padding
+          it relied on was silently overridden. In normal flow it cannot.
+        */}
+        {translationCopyright || showsAddFAB ? (
+          <footer className="proto-votd-sheet__footer">
+            {translationCopyright ? (
+              /*
+                The calm credit line, not the boxed banner. The banner variant
+                clamps to one line with `white-space: nowrap`, which truncated
+                the copyright mid-word ("New Living Translatio…") — legally the
+                notice should be readable, so it wraps here instead.
+              */
+              <p className="proto-votd-sheet__credit">
+                {translationCopyright}
+                {translationInfo?.website ? (
+                  <>
+                    {' '}
+                    <a
+                      className="proto-votd-sheet__credit-link"
+                      href={translationInfo.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {translationLabel}
+                      <Icon name="arrow-up-right-from-square" size={7} aria-hidden />
+                    </a>
+                  </>
+                ) : null}
+              </p>
+            ) : null}
+
+            {showsAddFAB ? (
+              <button
+                type="button"
+                className="proto-glass-action proto-glass-action--primary proto-votd-sheet__add"
+                aria-label="Add passage to notes"
+                onClick={onAdd}
               >
-                {translationLabel}
-                <Icon name="arrow-up-right-from-square" size={7} aria-hidden />
-              </a>
+                <Icon name="plus" size={12} aria-hidden />
+                <span className="proto-glass-action__label">New note</span>
+              </button>
             ) : null}
           </footer>
-        ) : null}
-
-        {showsAddFAB ? (
-          <button
-            type="button"
-            className="proto-votd-sheet__fab"
-            aria-label="Add passage to notes"
-            onClick={onAdd}
-          >
-            <Icon name="plus" size={17} />
-          </button>
         ) : null}
       </div>
     </div>,

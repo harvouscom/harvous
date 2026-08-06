@@ -145,6 +145,21 @@ describe('shared Thread create and pin contracts', () => {
     });
   });
 
+  it('unpins on the same endpoint, so a space can go back to no current Thread', () => {
+    // Setting a current Thread used to be a one-way door: the client only ever
+    // sent `isPinned: true`, even though the endpoint has always taken false.
+    expect(
+      buildSetCurrentSpaceThreadRequest({
+        spaceId: 'shared',
+        threadId: 'thread_real',
+        isPinned: false,
+      }),
+    ).toEqual({
+      url: '/api/spaces/space_shared/pin-item',
+      body: { itemId: 'thread_real', itemType: 'thread', isPinned: false },
+    });
+  });
+
   it('retries pinning the stored Thread even if the title is empty', () => {
     expect(sharedThreadSubmitMode('thread_created', '', false)).toBe('retry-pin');
     expect(sharedThreadSubmitMode(null, '', false)).toBeNull();

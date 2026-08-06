@@ -22,6 +22,8 @@ type Props = {
   isOwner: boolean;
   onStartThread: () => void;
   onChanged?: (threadId: string) => void;
+  /** Fired after the space is left with no current Thread. */
+  onCleared?: () => void;
 };
 
 export default function PrototypeChangeSharedThreadSheet({
@@ -33,6 +35,7 @@ export default function PrototypeChangeSharedThreadSheet({
   isOwner,
   onStartThread,
   onChanged,
+  onCleared,
 }: Props) {
   const { isMobileSidebar } = useProtoShell();
   const setCurrent = useSetCurrentSpaceThread();
@@ -71,6 +74,25 @@ export default function PrototypeChangeSharedThreadSheet({
       onOpenChange(false);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Could not set this Thread as current.');
+    }
+  };
+
+  /**
+   * Clearing is not deleting: the Thread keeps its notes and reappears in the
+   * space's Threads list. Without this the space could never get back to the
+   * no-current-Thread state it starts in.
+   */
+  const clearCurrent = async () => {
+    if (!currentThreadId) return;
+    setActionError(null);
+    try {
+      await setCurrent.mutateAsync({ spaceId, threadId: currentThreadId, isPinned: false });
+      onCleared?.();
+      onOpenChange(false);
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : 'Could not clear the current Thread.',
+      );
     }
   };
 
@@ -148,7 +170,7 @@ export default function PrototypeChangeSharedThreadSheet({
         ) : null}
       </div>
 
-      <div className="proto-add-notes-sheet__footer">
+      <div className="proto-add-notes-sheet__footer proto-sheet-footer--stacked">
         <button
           type="button"
           className="proto-share-popover__primary"
@@ -160,6 +182,16 @@ export default function PrototypeChangeSharedThreadSheet({
         >
           Start a Thread
         </button>
+        {currentThreadId ? (
+          <button
+            type="button"
+            className="proto-sheet-quiet-action"
+            disabled={isPending}
+            onClick={() => void clearCurrent()}
+          >
+            Clear current Thread
+          </button>
+        ) : null}
       </div>
     </>
   );

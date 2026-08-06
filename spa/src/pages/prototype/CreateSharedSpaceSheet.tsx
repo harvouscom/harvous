@@ -167,7 +167,7 @@ export default function CreateSharedSpaceSheet({
       if (!result.space?.id) {
         setError(
           ministryChannel
-            ? 'Ministry channel was created but the response was incomplete. Try refreshing.'
+            ? 'Channel was created but the response was incomplete. Try refreshing.'
             : 'Shared space was created but the response was incomplete. Try refreshing.',
         );
         return;
@@ -187,21 +187,18 @@ export default function CreateSharedSpaceSheet({
       } else if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError(ministryChannel ? 'Could not create ministry channel. Try again.' : 'Could not create shared space. Try again.');
+        setError(ministryChannel ? 'Could not create channel. Try again.' : 'Could not create shared space. Try again.');
       }
     }
   }
 
-  const headerTitle = ministryChannel
-    ? 'New ministry channel'
-    : churchScoped
-      ? 'New church shared space'
-      : 'New shared space';
-  const titlePlaceholder = ministryChannel
-    ? 'Channel name'
-    : churchScoped
-      ? 'Church space name'
-      : 'Space name';
+  /*
+    No church qualifier in either string. The sheet only opens from My Church
+    when `churchScoped`, so the header above it already names the church —
+    "New church shared space" was repeating context the user could see.
+  */
+  const headerTitle = ministryChannel ? 'New channel' : 'New shared space';
+  const titlePlaceholder = ministryChannel ? 'Channel name' : 'Space name';
   const tileIconName = ministryChannel ? 'rss' : 'user-group';
 
   const content = (

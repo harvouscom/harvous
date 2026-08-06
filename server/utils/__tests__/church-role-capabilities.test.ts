@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   capabilitiesForChurchRole,
+  CHURCH_CAPABILITIES,
   hasChurchCapability,
   NO_CHURCH_CAPABILITIES,
   ROLE_ADMIN,
@@ -13,26 +14,50 @@ import {
 const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 
 describe('church role capabilities', () => {
-  it('gives an admin the roster and the money', () => {
+  it('gives an admin the roster, the money, and the church settings', () => {
     const caps = capabilitiesForChurchRole(ROLE_ADMIN);
     expect(caps).toContain('manage_staff');
     expect(caps).toContain('manage_billing');
+    expect(caps).toContain('manage_church_settings');
     expect(caps).toContain('publish');
   });
 
-  it('gives pastor and teacher the teaching tooling but not the roster', () => {
-    for (const role of [ROLE_PASTOR, ROLE_TEACHER]) {
-      const caps = capabilitiesForChurchRole(role);
-      expect(caps).toContain('sermon_tools');
-      expect(caps).toContain('manage_templates');
-      expect(caps).toContain('publish');
-      expect(caps).not.toContain('manage_staff');
-      expect(caps).not.toContain('manage_billing');
+  it('gives a pastor the teaching tooling but not the roster', () => {
+    const caps = capabilitiesForChurchRole(ROLE_PASTOR);
+    expect(caps).toContain('sermon_tools');
+    expect(caps).toContain('manage_teaching_plan');
+    expect(caps).toContain('manage_templates');
+    expect(caps).toContain('publish');
+    expect(caps).not.toContain('manage_staff');
+    expect(caps).not.toContain('manage_billing');
+    // Setting the church's clock is administration, not teaching.
+    expect(caps).not.toContain('manage_church_settings');
+  });
+
+  it('gives a teacher the sermon surfaces only — teaching from the plan is not setting it', () => {
+    const caps = capabilitiesForChurchRole(ROLE_TEACHER);
+    expect(caps).toContain('sermon_tools');
+    expect(caps).toContain('publish');
+    // The distinction the two roles exist for: a teacher neither reshapes the
+    // plan nor provisions what the whole church writes from.
+    expect(caps).not.toContain('manage_teaching_plan');
+    expect(caps).not.toContain('manage_templates');
+    expect(caps).not.toContain('manage_staff');
+    expect(caps).not.toContain('manage_billing');
+    expect(caps).not.toContain('manage_church_settings');
+  });
+
+  it('lets every teaching role see the plan', () => {
+    // `sermon_tools` is the *read*. Narrowing it would take the plan away from
+    // the teachers who teach out of it, which is the regression to guard.
+    for (const role of [ROLE_ADMIN, ROLE_PASTOR, ROLE_TEACHER]) {
+      expect(capabilitiesForChurchRole(role)).toContain('sermon_tools');
     }
   });
 
   it('gives an admin the teaching tooling too — a one-person church still works', () => {
     expect(capabilitiesForChurchRole(ROLE_ADMIN)).toContain('sermon_tools');
+    expect(capabilitiesForChurchRole(ROLE_ADMIN)).toContain('manage_teaching_plan');
     expect(capabilitiesForChurchRole(ROLE_ADMIN)).toContain('manage_templates');
   });
 
@@ -81,6 +106,15 @@ describe('role payload is server-derived', () => {
     expect(hook).not.toContain('capabilitiesForChurchRole');
     expect(hook).not.toMatch(/role === 'org:pastor'/);
   });
+
+  it('mirrors every server capability in the hand-written client union', () => {
+    // The union in useChurchStaffStatus is maintained by hand. A capability the
+    // server grants but the client can't name is one no surface can gate on.
+    const hook = source('spa/src/hooks/queries/useChurchStaffStatus.ts');
+    for (const capability of CHURCH_CAPABILITIES) {
+      expect(hook, `${capability} missing from the client union`).toContain(`'${capability}'`);
+    }
+  });
 });
 
 describe('org-provisioned note templates', () => {
@@ -94,21 +128,25 @@ describe('org-provisioned note templates', () => {
     // Availability keys off connection, not staff — a congregant using the
     // sermon template is the point.
     expect(list).toContain('connectedOrgIdFor');
-    expect(list).not.toContain('canManageOrgTemplates');
+    expect(list).not.toContain('assertCanManageOrgTemplates(');
   });
 
   it('restricts writing them to staff with manage_templates', () => {
-    expect(route()).toContain('canManageOrgTemplates');
+    expect(route()).toContain('assertCanManageOrgTemplates');
     expect(route()).toContain("includes('manage_templates')");
     expect(route()).toContain("code: 'CHURCH_TEMPLATE_FORBIDDEN'");
   });
 
   it('fails closed when Clerk is unreachable for a provisioning write', () => {
+    // The gate returns a typed result rather than a boolean now, so "closed"
+    // is `ok: false` — but the rule is unchanged: an outage denies.
     const gate = route().slice(
-      route().indexOf('async function canManageOrgTemplates'),
+      route().indexOf('async function assertCanManageOrgTemplates'),
       route().indexOf('type StoredTemplateRow'),
     );
-    expect(gate).toMatch(/catch\s*{[\s\S]*?return false;/);
+    const tail = gate.slice(gate.indexOf('} catch {'));
+    expect(tail).toContain('ok: false');
+    expect(tail).not.toContain('ok: true');
   });
 
   it('checks org ownership before the author fallback', () => {

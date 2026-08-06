@@ -1,0 +1,169 @@
+/**
+ * Gates for a *space's* teaching plan — Youth meets Wednesdays.
+ *
+ * The church's own plan hangs off `Churches` and is gated by org id
+ * (`church-teaching-plan.ts`). A space plan is the same rows narrowed by
+ * `ChurchServices.spaceId`, so the gate has one extra job before the church
+ * ordering runs: resolve the space, prove it is one of *this* church's org
+ * spaces, and hand its `orgId` to the shared resolver.
+ *
+ * It composes `resolveChurchOrgAccess` rather than re-implementing the sequence
+ * — exists → active → **staff** → [write: sponsored] → Clerk role → capability.
+ * That ordering is what keeps a signed-in stranger from learning whether a
+ * church has lapsed, and it goes subtly wrong on the second copy.
+ */
+import { db, first, Spaces, and, eq, isNull } from '../db';
+import { isChurchOrgSpaceRow } from './channel-publish-cadence';
+import { isGrantedSpaceLeader } from './church-space-leaders';
+import { CHURCH_LAPSED_CODE, CHURCH_LAPSED_ERROR, churchIsSponsored } from './church-entitlement';
+import { getActiveChurchByOrgId } from './church-staff';
+import {
+  resolveChurchOrgAccess,
+  type ChurchOrgAccessResult,
+  type ChurchOrgAccessRule,
+} from './church-org-access';
+
+export type SpaceRow = typeof Spaces.$inferSelect;
+
+export type SpacePlanGateResult =
+  | { ok: true; church: Extract<ChurchOrgAccessResult, { ok: true }>['church']; space: SpaceRow }
+  | Extract<ChurchOrgAccessResult, { ok: false }>;
+
+/**
+ * Same rules as the church plan, applied to one space.
+ *
+ * `SPACE_NOT_FOUND` covers three different failures on purpose — no such space,
+ * a deleted/inactive one, and a space that is not a church room at all. Telling
+ * them apart would let anyone with an id discover what kind of room it names,
+ * and none of the three is actionable to a caller who should not see it.
+ */
+async function resolveSpacePlanAccess(
+  userId: string,
+  spaceId: string,
+  rule: ChurchOrgAccessRule,
+): Promise<SpacePlanGateResult> {
+  const id = String(spaceId ?? '').trim();
+  if (!id) {
+    return { ok: false, status: 404, code: 'SPACE_NOT_FOUND', error: 'Space not found' };
+  }
+
+  const space = first(
+    await db
+      .select()
+      .from(Spaces)
+      .where(and(eq(Spaces.id, id), isNull(Spaces.deletedAt)))
+      .limit(1),
+  );
+  if (!space || !space.isActive || !isChurchOrgSpaceRow(space) || !space.orgId) {
+    return { ok: false, status: 404, code: 'SPACE_NOT_FOUND', error: 'Space not found' };
+  }
+
+  /*
+    The space's own org, never one supplied by the caller. This is what enforces
+    the cross-row invariant from the schema comment — a plan row's space must
+    belong to the same church — because the church we end up gating against is
+    derived from the space itself.
+  */
+  const access = await resolveChurchOrgAccess(userId, space.orgId, rule);
+  if (!access.ok) return access;
+
+  return { ok: true, church: access.church, space };
+}
+
+/** The staff *read* of a space plan. `sermon_tools`; never sponsorship-gated. */
+export function assertCanViewSpaceTeachingPlan(
+  userId: string,
+  spaceId: string,
+): Promise<SpacePlanGateResult> {
+  return resolveSpacePlanAccess(userId, spaceId, {
+    capability: 'sermon_tools',
+    code: 'SERMON_TOOLS_REQUIRED',
+    staffError: 'Only church staff can see this plan',
+    roleError: 'Your role does not include the teaching plan',
+    sponsorshipGated: false,
+  });
+}
+
+/**
+ * The staff *write* of a space plan:
+ *
+ *     church-wide `manage_teaching_plan`   OR   granted leader of THIS space
+ *
+ * The single place that OR exists. A granted leader is a volunteer handed one
+ * ministry (see church-space-leaders.ts) — they hold no `ChurchCapability`, so
+ * the capability arm refuses them and the grant arm is what lets them plan
+ * their own Wednesdays.
+ *
+ * The **church-level** plan gate never widens. A grant is authority over one
+ * room, and `assertCanManageTeachingPlan` must stay Clerk-capability-only.
+ */
+export async function assertCanManageSpaceTeachingPlan(
+  userId: string,
+  spaceId: string,
+): Promise<SpacePlanGateResult> {
+  const viaCapability = await resolveSpacePlanAccess(userId, spaceId, {
+    capability: 'manage_teaching_plan',
+    code: 'TEACHING_PLAN_ROLE_REQUIRED',
+    staffError: 'Only church staff can manage this plan',
+    roleError: 'A pastor or admin plans this ministry',
+    sponsorshipGated: true,
+  });
+  if (viaCapability.ok) return viaCapability;
+
+  /*
+    Only a *belonging* or *role* refusal falls through to the grant. A 404 (not
+    a church room), a 409 (church deactivated), or a 402 (lapsed) must stand for
+    a granted leader exactly as for a pastor — the grant widens who may plan,
+    never what state the church has to be in.
+
+    `CHURCH_STAFF_REQUIRED` is in the list because a granted volunteer is
+    genuinely *not* staff: `isChurchStaffForOrg` deliberately excludes grants,
+    since several callers treat staff as sufficient for billing and checkout.
+    So the shared ordering rejects them before it ever reaches a capability,
+    and the grant arm below has to prove belonging its own way.
+  */
+  const fellThrough =
+    viaCapability.status === 403 &&
+    (viaCapability.code === 'TEACHING_PLAN_ROLE_REQUIRED' ||
+      viaCapability.code === 'CHURCH_STAFF_REQUIRED');
+  if (!fellThrough) return viaCapability;
+
+  return resolveGrantedLeaderAccess(userId, spaceId, viaCapability);
+}
+
+/**
+ * The grant arm: the same ordering minus the staff check, with the grant
+ * itself standing in for it.
+ *
+ * Order is deliberate and mirrors the shared resolver's reason for existing —
+ * **belonging is proven before billing state is revealed.** A grant is proof of
+ * belonging, so it sits exactly where the staff check sits, and a stranger
+ * still never learns whether a church has lapsed.
+ */
+async function resolveGrantedLeaderAccess(
+  userId: string,
+  spaceId: string,
+  refusal: Extract<SpacePlanGateResult, { ok: false }>,
+): Promise<SpacePlanGateResult> {
+  const space = first(
+    await db
+      .select()
+      .from(Spaces)
+      .where(and(eq(Spaces.id, String(spaceId ?? '').trim()), isNull(Spaces.deletedAt)))
+      .limit(1),
+  );
+  if (!space || !space.isActive || !isChurchOrgSpaceRow(space) || !space.orgId) return refusal;
+
+  const church = await getActiveChurchByOrgId(space.orgId);
+  if (!church || !church.isActive) return refusal;
+
+  // Belonging first — this is the staff check's seat in the order.
+  if (!(await isGrantedSpaceLeader(userId, space.id))) return refusal;
+
+  // Then, and only then, the billing state.
+  if (!churchIsSponsored(church)) {
+    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
+  }
+
+  return { ok: true, church, space };
+}

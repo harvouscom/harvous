@@ -58,9 +58,10 @@ type StaffAction =
   | { kind: 'invite'; email: string; role?: string }
   | { kind: 'revoke'; invitationId: string }
   | { kind: 'remove'; userId: string }
+  | { kind: 'role'; userId: string; role: string }
   | { kind: 'sync' };
 
-/** Invite / revoke / remove / sync, all invalidating the roster and navigation. */
+/** Invite / revoke / remove / role / sync, all invalidating the roster and navigation. */
 export function useChurchStaffActions(orgId: string | null | undefined) {
   const queryClient = useQueryClient();
   const { userId } = useAuth();
@@ -84,6 +85,12 @@ export function useChurchStaffActions(orgId: string | null | undefined) {
           return api.post('/api/church/staff/remove', {
             orgId: trimmedOrgId,
             userId: action.userId,
+          });
+        case 'role':
+          return api.post('/api/church/staff/role', {
+            orgId: trimmedOrgId,
+            userId: action.userId,
+            role: action.role,
           });
         case 'sync':
           return api.post('/api/church/staff/sync', { orgId: trimmedOrgId });

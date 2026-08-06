@@ -296,6 +296,12 @@ export function useSpaceNotes(
 export interface SpaceMemberRow {
   userId: string;
   role: 'owner' | 'leader' | 'member';
+  /**
+   * `'grant'` when a church admin or the space owner handed this person
+   * leadership of this one room. Anything else — including null — is the staff
+   * sync's projection, which the people sheet must not offer to revoke.
+   */
+  grantSource?: string | null;
   joinedAt: string;
   firstName: string | null;
   lastName: string | null;

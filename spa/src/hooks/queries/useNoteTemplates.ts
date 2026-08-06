@@ -53,6 +53,16 @@ export function noteTemplatesQueryKey(spaceId?: string | null) {
   return ['note-templates', spaceId ?? null] as const;
 }
 
+/**
+ * Church starters are *inlined* into the congregant `/api/church/services`
+ * payload (see the `starter` block on each service), so editing one leaves a
+ * stale body on every congregant's This Sunday card until that query refetches.
+ * Any mutation touching an org template has to invalidate both lists.
+ */
+export function invalidateChurchStarterConsumers(queryClient: QueryClient) {
+  return queryClient.invalidateQueries({ queryKey: ['church-services'] });
+}
+
 /** Mark every templates list stale and refetch — including inactive browse sheets. */
 export function invalidateNoteTemplatesQueries(queryClient: QueryClient) {
   return queryClient.invalidateQueries({
@@ -63,7 +73,7 @@ export function invalidateNoteTemplatesQueries(queryClient: QueryClient) {
 
 /**
  * Patch cached list responses after create/update so Browse reflects changes without a reload.
- * Handles personal ↔ space moves when `spaceId` changes.
+ * Handles personal ↔ space ↔ org moves when the template's scope changes.
  */
 export function syncStoredNoteTemplateInCaches(
   queryClient: QueryClient,
@@ -75,6 +85,24 @@ export function syncStoredNoteTemplateInCaches(
     const id = next.id;
     const personalWithout = old.personal.filter((t) => t.id !== id);
     const spaceWithout = (old.space ?? []).filter((t) => t.id !== id);
+    const orgWithout = (old.org ?? []).filter((t) => t.id !== id);
+
+    // Church starters have no spaceId, so without this branch they fell through
+    // to the personal path below and a newly saved church template appeared
+    // under the viewer's own templates.
+    if (next.orgId) {
+      const orgIdx = (old.org ?? []).findIndex((t) => t.id === id);
+      const org =
+        orgIdx === -1
+          ? [next, ...orgWithout]
+          : (old.org ?? []).map((t) => (t.id === id ? next : t));
+      return {
+        ...old,
+        personal: personalWithout,
+        ...(old.space !== undefined ? { space: spaceWithout } : {}),
+        org,
+      };
+    }
 
     if (next.spaceId) {
       const space =
@@ -91,6 +119,7 @@ export function syncStoredNoteTemplateInCaches(
         ...old,
         personal: personalWithout,
         ...(old.space !== undefined ? { space: space ?? [] } : {}),
+        ...(old.org !== undefined ? { org: orgWithout } : {}),
       };
     }
 
@@ -103,6 +132,7 @@ export function syncStoredNoteTemplateInCaches(
       ...old,
       personal,
       ...(old.space !== undefined ? { space: spaceWithout } : {}),
+      ...(old.org !== undefined ? { org: orgWithout } : {}),
     };
   });
 }
@@ -116,6 +146,7 @@ export function removeStoredNoteTemplateFromCaches(queryClient: QueryClient, id:
       ...(old.space !== undefined
         ? { space: (old.space ?? []).filter((t) => t.id !== id) }
         : {}),
+      ...(old.org !== undefined ? { org: (old.org ?? []).filter((t) => t.id !== id) } : {}),
     };
   });
 }

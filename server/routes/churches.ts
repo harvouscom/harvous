@@ -38,6 +38,7 @@ import {
   isValidClerkOrgId,
 } from '../utils/clerk-org';
 import { syncChurchStaffForOrg } from '../utils/church-staff-sync';
+import { deriveChurchCountry } from '../utils/church-country';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { serializeSpaceCoverForDb, spaceCoverFromThreadColor } from '@/utils/space-cover';
 import { validateTitle, validateColor } from '@/utils/validation';
@@ -215,6 +216,14 @@ app.post('/api/admin/churches', async (c) => {
       country = denorm.country;
     }
 
+    /*
+      Fill the country from the region when nobody gave one — 'IA' is 'US'.
+      After the HMC branch on purpose: a linked church already has it from the
+      same mapper, and this catches the manually registered ones that would
+      otherwise store null and leave the settings picker unable to shortlist.
+    */
+    country = deriveChurchCountry(country, state);
+
     const titleValidation = validateTitle(name, true);
     if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
 
@@ -380,6 +389,17 @@ app.post('/api/admin/churches/:churchId/update', async (c) => {
     ) {
       return c.json({ error: 'No fields to update', code: 'EMPTY_PATCH' }, 400);
     }
+
+    /*
+      Derive the country from the *resulting* row, not the patch: a church whose
+      state is unchanged but whose country is null still gets filled, so any
+      ordinary edit heals a row the backfill missed. Only assigned when it
+      actually changes, so this never turns a no-op edit into a write.
+    */
+    const nextState = patch.state !== undefined ? patch.state : existing.state;
+    const nextCountry = patch.country !== undefined ? patch.country : existing.country;
+    const derivedCountry = deriveChurchCountry(nextCountry, nextState);
+    if (derivedCountry !== nextCountry) patch.country = derivedCountry;
 
     const church = first(
       await db.update(Churches).set(patch).where(eq(Churches.id, churchId)).returning(),

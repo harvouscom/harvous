@@ -1,0 +1,371 @@
+import { describe, it, expect } from 'vitest';
+import {
+  SERVICE_GRACE_DAYS,
+  buildStarterContent,
+  currentSeriesTitle,
+  currentSermonFor,
+  formatServiceTime,
+  formatServiceTimes,
+  nextOccurrenceOfDay,
+  sermonEyebrow,
+  starterFolderForSermon,
+  starterNoteTitle,
+  weekdayLabel,
+  type ChurchSermon,
+} from '../church-services';
+
+function service(overrides: Partial<ChurchSermon> & { serviceDate: string }): ChurchSermon {
+  return {
+    id: `svc_${overrides.serviceDate}`,
+    title: 'No Condemnation',
+    seriesTitle: 'Life in the Spirit',
+    reference: 'Romans 8:1-11',
+    viewerNoteId: null,
+    starter: null,
+    ...overrides,
+  };
+}
+
+describe('SERVICE_GRACE_DAYS', () => {
+  it('is the four-day wall, not a round number', () => {
+    // Tied to the Center for Bible Engagement finding on harvous.com/about.
+    // If this ever "tidies" to 3 or 7, the card stops covering Monday-morning
+    // sermon write-ups (or overstays into the next week).
+    expect(SERVICE_GRACE_DAYS).toBe(4);
+  });
+});
+
+describe('currentSermonFor', () => {
+  const sunday = service({ serviceDate: '2026-08-09' });
+  const nextSunday = service({ serviceDate: '2026-08-16', title: 'Led by the Spirit' });
+
+  it('prefers the soonest upcoming service', () => {
+    const current = currentSermonFor([sunday, nextSunday], '2026-08-05');
+    expect(current?.serviceDate).toBe('2026-08-09');
+  });
+
+  it('counts today as upcoming, so Sunday morning still shows Sunday', () => {
+    const current = currentSermonFor([sunday, nextSunday], '2026-08-09');
+    expect(current?.serviceDate).toBe('2026-08-09');
+  });
+
+  it('skips past services when a future one exists', () => {
+    const current = currentSermonFor([sunday, nextSunday], '2026-08-10');
+    expect(current?.serviceDate).toBe('2026-08-16');
+  });
+
+  it('falls back to the most recent past service inside the grace window', () => {
+    // Monday: the church has not entered next week yet, and this is exactly
+    // when someone writes up Sunday.
+    const current = currentSermonFor([sunday], '2026-08-10');
+    expect(current?.serviceDate).toBe('2026-08-09');
+  });
+
+  it('still shows a service on day 4 after', () => {
+    const current = currentSermonFor([sunday], '2026-08-13');
+    expect(current?.serviceDate).toBe('2026-08-09');
+  });
+
+  it('shows nothing on day 5 after', () => {
+    expect(currentSermonFor([sunday], '2026-08-14')).toBeNull();
+  });
+
+  it('returns null for an empty plan', () => {
+    expect(currentSermonFor([], '2026-08-09')).toBeNull();
+  });
+
+  it('does not rely on input ordering', () => {
+    const current = currentSermonFor([nextSunday, sunday], '2026-08-05');
+    expect(current?.serviceDate).toBe('2026-08-09');
+  });
+
+  it('ignores malformed dates rather than throwing', () => {
+    const bad = service({ serviceDate: 'not-a-date' });
+    expect(currentSermonFor([bad, sunday], '2026-08-05')?.serviceDate).toBe('2026-08-09');
+  });
+});
+
+describe('sermonEyebrow', () => {
+  // 2026-08-09 is a Sunday.
+  it('reads "Today" on the day itself', () => {
+    expect(sermonEyebrow({ serviceDate: '2026-08-09' }, '2026-08-09')).toBe('Today');
+  });
+
+  it('reads "This Sunday" in the run-up', () => {
+    expect(sermonEyebrow({ serviceDate: '2026-08-09' }, '2026-08-07')).toBe('This Sunday');
+  });
+
+  it('reads "Last Sunday" after it passes', () => {
+    expect(sermonEyebrow({ serviceDate: '2026-08-09' }, '2026-08-10')).toBe('Last Sunday');
+  });
+
+  it('does not call a service three weeks out "This Sunday"', () => {
+    // A small lie here makes the whole card untrustworthy.
+    expect(sermonEyebrow({ serviceDate: '2026-08-30' }, '2026-08-05')).toBe('Sunday, Aug 30');
+  });
+
+  it('uses the service’s real weekday, so a midweek study is not called Sunday', () => {
+    // 2026-08-12 is a Wednesday.
+    expect(sermonEyebrow({ serviceDate: '2026-08-12' }, '2026-08-10')).toBe('This Wednesday');
+  });
+
+  it('a Saturday viewer and a Monday viewer read the same service differently', () => {
+    const svc = { serviceDate: '2026-08-09' };
+    expect(sermonEyebrow(svc, '2026-08-08')).toBe('This Sunday');
+    expect(sermonEyebrow(svc, '2026-08-10')).toBe('Last Sunday');
+  });
+});
+
+describe('currentSeriesTitle', () => {
+  it('returns the series of the current service', () => {
+    expect(currentSeriesTitle([service({ serviceDate: '2026-08-09' })], '2026-08-07')).toBe(
+      'Life in the Spirit',
+    );
+  });
+
+  it('is null when the current service has no series', () => {
+    const svc = service({ serviceDate: '2026-08-09', seriesTitle: null });
+    expect(currentSeriesTitle([svc], '2026-08-07')).toBeNull();
+  });
+});
+
+describe('starterNoteTitle', () => {
+  it('uses the pastor’s title', () => {
+    expect(starterNoteTitle(service({ serviceDate: '2026-08-09' }))).toBe('No Condemnation');
+  });
+
+  it('falls back to the passage when the service has no title yet', () => {
+    expect(starterNoteTitle(service({ serviceDate: '2026-08-09', title: '   ' }))).toBe(
+      'Romans 8:1-11',
+    );
+  });
+
+  it('falls back to a generic label for a titleless topical Sunday', () => {
+    expect(
+      starterNoteTitle(service({ serviceDate: '2026-08-09', title: '', reference: null })),
+    ).toBe('Sermon notes');
+  });
+});
+
+describe('starterFolderForSermon', () => {
+  it('uses the series as the folder', () => {
+    expect(starterFolderForSermon(service({ serviceDate: '2026-08-09' }))).toBe(
+      'Life in the Spirit',
+    );
+  });
+
+  it('is null for a one-off Sunday', () => {
+    // A folder of one is worse than the person's own auto-folder.
+    expect(
+      starterFolderForSermon(service({ serviceDate: '2026-08-09', seriesTitle: null })),
+    ).toBeNull();
+    expect(
+      starterFolderForSermon(service({ serviceDate: '2026-08-09', seriesTitle: '   ' })),
+    ).toBeNull();
+  });
+});
+
+describe('buildStarterContent', () => {
+  const starter = {
+    templateId: 'ntpl_sermon',
+    templateName: 'Sermon Notes',
+    title: 'Sermon Notes',
+    content: '<h2>Big idea</h2><p></p>',
+  };
+
+  it('puts a pending scripture pill ahead of the template body', () => {
+    const html = buildStarterContent(
+      service({ serviceDate: '2026-08-09', starter }),
+      'ESV',
+    );
+    // "pending" is what processScriptureReferences resolves into a real pill
+    // on /api/notes/create — without it the reference stays dead text.
+    expect(html).toContain('data-note-id="pending"');
+    expect(html).toContain('Romans 8:1-11');
+    expect(html).toContain('ESV');
+    expect(html.indexOf('data-scripture-reference')).toBeLessThan(html.indexOf('Big idea'));
+  });
+
+  it('works with a passage and no template', () => {
+    const html = buildStarterContent(service({ serviceDate: '2026-08-09' }), 'NET');
+    expect(html).toContain('data-scripture-reference="Romans 8:1-11"');
+    expect(html).not.toContain('Big idea');
+  });
+
+  it('works with a template and no passage (a topical Sunday)', () => {
+    const html = buildStarterContent(
+      service({ serviceDate: '2026-08-09', reference: null, starter }),
+      'NET',
+    );
+    expect(html).toContain('Big idea');
+    expect(html).not.toContain('data-scripture-reference');
+  });
+
+  it('never returns an empty document', () => {
+    const html = buildStarterContent(
+      service({ serviceDate: '2026-08-09', reference: null }),
+      'NET',
+    );
+    expect(html.trim()).not.toBe('');
+  });
+});
+
+describe('nextOccurrenceOfDay', () => {
+  /** The exact formula the service editor hardcoded before meeting defaults existed. */
+  function legacyNextSunday(from: Date): string {
+    const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+    d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  it('matches the old nextSunday() for day 0, from every weekday', () => {
+    // The regression that matters: a church with no configured day must keep
+    // getting exactly the date the editor used to offer.
+    for (let offset = 0; offset < 7; offset++) {
+      const from = new Date(2026, 7, 3 + offset); // Mon Aug 3 2026 onward
+      expect(nextOccurrenceOfDay(0, from), from.toDateString()).toBe(legacyNextSunday(from));
+    }
+  });
+
+  it('counts today as the next occurrence', () => {
+    const wednesday = new Date(2026, 7, 5); // Wed Aug 5 2026
+    expect(wednesday.getDay()).toBe(3);
+    expect(nextOccurrenceOfDay(3, wednesday)).toBe('2026-08-05');
+  });
+
+  it('wraps to next week when the day has passed', () => {
+    const friday = new Date(2026, 7, 7); // Fri Aug 7 2026
+    expect(nextOccurrenceOfDay(3, friday)).toBe('2026-08-12'); // the coming Wednesday
+  });
+
+  it('crosses month and year boundaries', () => {
+    expect(nextOccurrenceOfDay(3, new Date(2026, 7, 30))).toBe('2026-09-02');
+    expect(nextOccurrenceOfDay(5, new Date(2026, 11, 30))).toBe('2027-01-01');
+  });
+
+  it('falls back to Sunday for a null or out-of-range day', () => {
+    const monday = new Date(2026, 7, 3);
+    const sunday = nextOccurrenceOfDay(0, monday);
+    for (const bad of [null, undefined, -1, 7, 2.5, NaN]) {
+      expect(nextOccurrenceOfDay(bad as number | null | undefined, monday)).toBe(sunday);
+    }
+  });
+
+  it('survives a DST spring-forward week as plain calendar arithmetic', () => {
+    // US DST began Sun Mar 8 2026; the answer is a calendar day, not an instant.
+    expect(nextOccurrenceOfDay(0, new Date(2026, 2, 4))).toBe('2026-03-08');
+  });
+});
+
+describe('formatServiceTime', () => {
+  it('renders a 12-hour clock with a meridiem', () => {
+    expect(formatServiceTime('10:30')).toBe('10:30 AM');
+    expect(formatServiceTime('09:00')).toBe('9:00 AM');
+    expect(formatServiceTime('18:00')).toBe('6:00 PM');
+    expect(formatServiceTime('23:45')).toBe('11:45 PM');
+  });
+
+  it('gets the two midnight/noon edges right', () => {
+    expect(formatServiceTime('00:15')).toBe('12:15 AM');
+    expect(formatServiceTime('12:00')).toBe('12:00 PM');
+    expect(formatServiceTime('12:30')).toBe('12:30 PM');
+    expect(formatServiceTime('00:00')).toBe('12:00 AM');
+  });
+
+  it('returns null for anything that is not a padded HH:MM', () => {
+    for (const bad of [null, undefined, '', '9:30', '24:00', '10:60', 'noon', '1030']) {
+      expect(formatServiceTime(bad), String(bad)).toBeNull();
+    }
+  });
+});
+
+describe('weekdayLabel', () => {
+  it('names each weekday and falls back to Sunday', () => {
+    expect(weekdayLabel(0)).toBe('Sunday');
+    expect(weekdayLabel(3)).toBe('Wednesday');
+    expect(weekdayLabel(6)).toBe('Saturday');
+    for (const bad of [null, undefined, -1, 7, 1.5]) {
+      expect(weekdayLabel(bad as number | null)).toBe('Sunday');
+    }
+  });
+});
+
+describe('across different dates, time never overrides the calendar', () => {
+  it('picks the sooner date even when the later one starts earlier in the day', () => {
+    // Time only breaks ties *within* a date; it never reaches across days.
+    const services = [
+      service({ serviceDate: '2026-08-09', serviceTimes: ['18:00'] }),
+      service({ serviceDate: '2026-08-16', serviceTimes: ['08:00'] }),
+    ];
+    expect(currentSermonFor(services, '2026-08-05')?.serviceDate).toBe('2026-08-09');
+  });
+});
+
+describe('formatServiceTimes', () => {
+  it('renders a single time', () => {
+    expect(formatServiceTimes(['10:45'])).toBe('10:45 AM');
+  });
+
+  it('joins two morning services under one meridiem', () => {
+    // One sermon at both services reads as "come to either", not as two things.
+    expect(formatServiceTimes(['09:00', '10:45'])).toBe('9:00 & 10:45 AM');
+  });
+
+  it('keeps both meridiems when they differ', () => {
+    expect(formatServiceTimes(['10:45', '18:00'])).toBe('10:45 AM & 6:00 PM');
+  });
+
+  it('is null for none, and skips malformed entries', () => {
+    expect(formatServiceTimes([])).toBeNull();
+    expect(formatServiceTimes(null)).toBeNull();
+    expect(formatServiceTimes(['nope'])).toBeNull();
+    expect(formatServiceTimes(['nope', '09:00'])).toBe('9:00 AM');
+  });
+});
+
+describe('currentSermonFor with two sermons on one date', () => {
+  const morning = service({ serviceDate: '2026-08-09', title: 'Morning', serviceTimes: ['09:00', '10:45'] });
+  const evening = service({ serviceDate: '2026-08-09', title: 'Evening', serviceTimes: ['18:00'] });
+
+  it('shows the morning sermon before it has started', () => {
+    const pick = currentSermonFor([morning, evening], '2026-08-09', { date: '2026-08-09', time: '07:30' });
+    expect(pick?.title).toBe('Morning');
+  });
+
+  it('switches to the evening sermon once the morning has passed', () => {
+    const pick = currentSermonFor([morning, evening], '2026-08-09', { date: '2026-08-09', time: '12:00' });
+    expect(pick?.title).toBe('Evening');
+  });
+
+  it('stays on the evening sermon after it too has started', () => {
+    // The one just gone beats the one long gone — you write up what you heard.
+    const pick = currentSermonFor([morning, evening], '2026-08-09', { date: '2026-08-09', time: '20:00' });
+    expect(pick?.title).toBe('Evening');
+  });
+
+  it('uses the church clock, not the viewer date, to decide "started"', () => {
+    // Viewer is a day ahead; the church is still on Sunday morning.
+    const pick = currentSermonFor([morning, evening], '2026-08-09', { date: '2026-08-09', time: '06:00' });
+    expect(pick?.title).toBe('Morning');
+  });
+
+  it('prefers the earliest when no church clock is available', () => {
+    // No timezone set, or a payload cached before churchNow shipped.
+    expect(currentSermonFor([evening, morning], '2026-08-09', null)?.title).toBe('Morning');
+  });
+
+  it('does not apply the started-yet rule to a future date', () => {
+    // Next Sunday's evening service has not "already started" on Wednesday.
+    const pick = currentSermonFor([morning, evening], '2026-08-05', { date: '2026-08-05', time: '23:00' });
+    expect(pick?.title).toBe('Morning');
+  });
+
+  it('keeps a timeless sermon out of the way of a timed one', () => {
+    const timeless = service({ serviceDate: '2026-08-09', title: 'Timeless' });
+    expect(currentSermonFor([timeless, morning], '2026-08-09', null)?.title).toBe('Morning');
+    expect(currentSermonFor([morning, timeless], '2026-08-09', null)?.title).toBe('Morning');
+  });
+});
