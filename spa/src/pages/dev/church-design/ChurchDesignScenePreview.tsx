@@ -16,6 +16,8 @@ import PrototypePlannerBoard from '../../prototype/planner/PrototypePlannerBoard
 import PrototypePlannerCalendar from '../../prototype/planner/PrototypePlannerCalendar';
 import PrototypePlannerList from '../../prototype/planner/PrototypePlannerList';
 import PrototypePlannerScopeChips from '../../prototype/planner/PrototypePlannerScopeChips';
+import PrototypeLibraryManagerItems from '../../prototype/library/PrototypeLibraryManagerItems';
+import type { LibrarySelection } from '../../prototype/library/PrototypeExpandedLibraryManager';
 import type {
   PlannerSelection,
   PlannerView,
@@ -1409,6 +1411,94 @@ function MarqueeScene() {
   );
 }
 
+const LIBRARY_FIXTURES = [
+  {
+    id: 'libi_1',
+    kind: 'link',
+    title: 'Romans 8 — Douglas Moo commentary notes',
+    description: null,
+    sourceUrl: 'https://example.org/moo-romans-8',
+    sourceDomain: 'example.org',
+    sourceSiteName: null,
+    sourceImage: null,
+    fileName: null,
+    fileMime: null,
+    fileBytes: null,
+    access: 'members' as const,
+    scopes: [],
+    createdByUserId: 'user_1',
+    archivedAt: null,
+    createdAt: null,
+    updatedAt: null,
+  },
+  {
+    id: 'libi_2',
+    kind: 'link',
+    title: 'Leader prep: handling hard questions about suffering',
+    description: null,
+    sourceUrl: 'https://example.org/leader-prep',
+    sourceDomain: 'example.org',
+    sourceSiteName: null,
+    sourceImage: null,
+    fileName: null,
+    fileMime: null,
+    fileBytes: null,
+    access: 'leaders' as const,
+    scopes: [{ scopeKind: 'space' as const, spaceId: 'space_youth' }],
+    createdByUserId: 'user_1',
+    archivedAt: null,
+    createdAt: null,
+    updatedAt: null,
+  },
+  {
+    id: 'libi_3',
+    kind: 'link',
+    title: 'Advent readings for families',
+    description: null,
+    sourceUrl: 'https://example.org/advent',
+    sourceDomain: 'example.org',
+    sourceSiteName: null,
+    sourceImage: null,
+    fileName: null,
+    fileMime: null,
+    fileBytes: null,
+    access: 'members' as const,
+    scopes: [
+      { scopeKind: 'space' as const, spaceId: 'space_youth' },
+      { scopeKind: 'space' as const, spaceId: 'space_kids' },
+    ],
+    createdByUserId: 'user_1',
+    archivedAt: null,
+    createdAt: null,
+    updatedAt: null,
+  },
+];
+
+const LIBRARY_SPACES = [
+  { id: 'space_youth', title: 'Youth' },
+  { id: 'space_kids', title: 'Kids' },
+];
+
+/** The catalog at the width where audience and rooms fit on the row. */
+function LibraryManagerScene() {
+  const [selection, setSelection] = useState<LibrarySelection>(null);
+  return (
+    <ExpandedPanelChrome title="Resource library">
+      <div className="proto-planner">
+        <div className="proto-planner__main">
+          <PrototypeLibraryManagerItems
+            items={LIBRARY_FIXTURES}
+            canCurate
+            plannableSpaces={LIBRARY_SPACES}
+            selection={selection}
+            onSelect={setSelection}
+          />
+        </div>
+      </div>
+    </ExpandedPanelChrome>
+  );
+}
+
 export default function ChurchDesignScenePreview({ scene }: { scene: ChurchDesignScene }) {
   switch (scene.id) {
     case '01-admin-empty':
@@ -1455,6 +1545,8 @@ export default function ChurchDesignScenePreview({ scene }: { scene: ChurchDesig
       return <PlannerScene view="board" canWrite={false} />;
     case '20-marquee-labels':
       return <MarqueeScene />;
+    case '21-library-manager':
+      return <LibraryManagerScene />;
     default:
       return null;
   }

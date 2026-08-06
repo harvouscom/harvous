@@ -204,6 +204,9 @@ export default function PrototypeSidebarChurchHubView() {
     while narrowing after a church has grown used to it is not.
   */
   const canViewEngagement = canChurch('manage_staff');
+  /* Browsing the catalog is `sermon_tools`; curating it is `manage_library`.
+     A teacher gets the row and a read-only view inside it. */
+  const canBrowseLibrary = canChurch('sermon_tools');
   const canCreateChurchContent = useMemo(
     () =>
       canCreateChurchOrgContent({
@@ -666,6 +669,35 @@ export default function PrototypeSidebarChurchHubView() {
                       </span>
                       <span className="proto-church-tools__row-chevron" aria-hidden>
                         <Icon name="caret-right" size={11} />
+                      </span>
+                    </button>
+                  ) : null}
+
+                  {/*
+                    Opens straight into the expanded surface rather than a
+                    sidebar pane: a catalog whose rows carry an audience and a
+                    set of rooms has nothing useful to say at 304px, so there is
+                    no compact version worth stepping through.
+                  */}
+                  {canBrowseLibrary ? (
+                    <button
+                      type="button"
+                      className="proto-church-tools__row"
+                      onClick={() => openExpandedSidebar('library')}
+                    >
+                      <span className="proto-church-tools__row-icon" aria-hidden>
+                        <Icon name="newspaper" size={13} />
+                      </span>
+                      <span className="proto-church-tools__row-text">
+                        <span className="pds-list-title proto-church-tools__row-title">
+                          Resource library
+                        </span>
+                        <span className="proto-caption proto-church-tools__row-meta">
+                          What your church studies from
+                        </span>
+                      </span>
+                      <span className="proto-church-tools__row-chevron" aria-hidden>
+                        <Icon name="up-right-and-down-left-from-center" size={11} />
                       </span>
                     </button>
                   ) : null}

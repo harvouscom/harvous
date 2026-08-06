@@ -110,6 +110,7 @@ import fileImageSvg from '@fortawesome/fontawesome-free/svgs/solid/file-image.sv
 import upRightAndDownLeftFromCenterSvg from '@fortawesome/fontawesome-free/svgs/solid/up-right-and-down-left-from-center.svg?raw';
 import downLeftAndUpRightToCenterSvg from '@fortawesome/fontawesome-free/svgs/solid/down-left-and-up-right-to-center.svg?raw';
 import timelineSvg from '@fortawesome/fontawesome-free/svgs/solid/timeline.svg?raw';
+import inboxSvg from '@fortawesome/fontawesome-free/svgs/solid/inbox.svg?raw';
 import arrowsLeftRightToLineSvg from '@fortawesome/fontawesome-free/svgs/solid/arrows-left-right-to-line.svg?raw';
 import sunSvg from '@fortawesome/fontawesome-free/svgs/solid/sun.svg?raw';
 import trophySvg from '@fortawesome/fontawesome-free/svgs/solid/trophy.svg?raw';
@@ -204,6 +205,7 @@ const icons = {
   'up-right-and-down-left-from-center': svgRootCurrentColor(upRightAndDownLeftFromCenterSvg),
   'down-left-and-up-right-to-center': svgRootCurrentColor(downLeftAndUpRightToCenterSvg),
   timeline: withCurrentColor(timelineSvg),
+  inbox: withCurrentColor(inboxSvg),
   'arrows-left-right': withCurrentColor(arrowsLeftRightSvg),
   'arrows-turn-to-dots': withCurrentColor(arrowsTurnToDotsSvg),
   shuffle: withCurrentColor(shuffleSvg),

@@ -11,6 +11,15 @@
   outline: none;
 }
 
+/* Section heading inside a sidebar list — "Yours" over "From New Hope".
+   Only rendered when there are two sections; one section needs no label. */
+.proto-resource-section-head {
+  margin: 10px 18px 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.62;
+}
+
 /* ─── Marquee: the standard treatment for truncated text ─────────────────────
  *
  * Wherever a user-authored name is clipped, hovering should reveal the rest.

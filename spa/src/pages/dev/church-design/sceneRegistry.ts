@@ -172,6 +172,15 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
     ],
   },
   {
+    id: '21-library-manager',
+    title: 'Resource library — staff catalog',
+    phase: 'Staff',
+    editFiles: [
+      'spa/src/pages/prototype/library/PrototypeLibraryManagerItems.tsx',
+      'spa/src/pages/prototype/library/PrototypeLibraryItemEditorPane.tsx',
+    ],
+  },
+  {
     id: '20-marquee-labels',
     title: 'Marquee — truncated labels',
     phase: 'Staff',

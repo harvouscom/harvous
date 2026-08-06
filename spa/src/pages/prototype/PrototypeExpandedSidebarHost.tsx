@@ -7,6 +7,7 @@
  * it can fill the header's title, view switcher, and action slots itself.
  */
 import PrototypeExpandedPlanner from './planner/PrototypeExpandedPlanner';
+import PrototypeExpandedLibraryManager from './library/PrototypeExpandedLibraryManager';
 
 export type ExpandedSidebarToolProps = {
   exiting: boolean;
@@ -25,6 +26,8 @@ export default function PrototypeExpandedSidebarHost({
   switch (tool) {
     case 'planner':
       return <PrototypeExpandedPlanner exiting={exiting} onClose={onClose} />;
+    case 'library':
+      return <PrototypeExpandedLibraryManager exiting={exiting} onClose={onClose} />;
     default:
       return null;
   }
