@@ -9,6 +9,7 @@ import Icon from '@/components/react/Icon';
 import { resourceSourceLabel } from '@/utils/resource-source-label';
 import type { PlannableSpace } from '../../../hooks/useChurchPlannerAccess';
 import type { ChurchLibraryStaffItem } from '../../../hooks/queries/useChurchLibrary';
+import PrototypeListEmptyState from '../PrototypeListEmptyState';
 import type { LibrarySelection } from './PrototypeExpandedLibraryManager';
 
 /** "Whole church", or the rooms it is scoped to, in the church's own words. */
@@ -38,13 +39,27 @@ export default function PrototypeLibraryManagerItems({
   selection: LibrarySelection;
   onSelect: (selection: LibrarySelection) => void;
 }) {
+  /*
+    The full empty state, not the one-line caption the other panes use. This is
+    a whole panel of blank space — a sentence pinned to the top-left of it read
+    as a stray label rather than the state of the shelf. `proto-list-empty-state`
+    is `flex: 1 0 auto` and centres its own children, so as the only child of
+    the column it fills the body and lands in the middle of it.
+
+    Same icon and voice as the sidebar's own library list: one shelf, seen at
+    two widths, should not introduce itself twice.
+  */
   if (items.length === 0) {
     return (
-      <p className="proto-caption proto-planner__empty">
-        {canCurate
-          ? 'Nothing here yet. Add the commentary, handout, or talk your church keeps coming back to.'
-          : 'Your church has not added any resources yet.'}
-      </p>
+      <PrototypeListEmptyState
+        iconName="newspaper"
+        title="No Resources"
+        description={
+          canCurate
+            ? 'Add the commentary, handout, or talk your church keeps coming back to.'
+            : 'Your church has not added any resources yet.'
+        }
+      />
     );
   }
 
