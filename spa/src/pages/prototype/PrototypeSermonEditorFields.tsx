@@ -31,7 +31,7 @@ import {
   type TeachingPlanSeries,
   type TeachingPlanSermon,
 } from '../../hooks/queries/useChurchTeachingPlan';
-import { formatServiceTime, nextOccurrenceOfDay } from '../../lib/church-services';
+import { formatServiceTime, nextOccurrenceOfDay, planVocabulary } from '../../lib/church-services';
 import { formatLocalDateInput, parseLocalDateInput } from '../../lib/proto-date-picker';
 import { useNotesByReference } from '../../hooks/queries/useNotesByReference';
 import { checkScriptureReferenceValidity, normalizeScriptureReference } from '@/utils/scripture-detector';
@@ -126,6 +126,10 @@ export default function PrototypeSermonEditorFields({
   onLayoutChange,
 }: PrototypeSermonEditorFieldsProps) {
   const navigate = useNavigate();
+  /* The word for what is being planned. "Sermon title" was hardcoded here, so
+     a channel that had been told it was adding content was still asked for a
+     sermon by the field it had to type into first. */
+  const noun = planVocabulary({ onSpacePlan: planSpaceId != null, planKind }).itemNoun;
   /*
     Both hooks are always called — hook order is fixed — and only the one for
     the plan in hand is used. Choosing here rather than at the call site means
@@ -433,7 +437,7 @@ export default function PrototypeSermonEditorFields({
                 // Picking a date is the whole reason it was open.
                 setDatePickerOpen(false);
               }}
-              aria-label="Sermon date"
+              aria-label={`${noun.charAt(0).toUpperCase()}${noun.slice(1)} date`}
             />
           </div>
         ) : null}
@@ -512,7 +516,7 @@ export default function PrototypeSermonEditorFields({
           type="text"
           className="proto-create-folder-sheet__name-input"
           value={title}
-          placeholder="Sermon title"
+          placeholder={`${noun.charAt(0).toUpperCase()}${noun.slice(1)} title`}
           onChange={(e) => {
             setTitle(e.target.value);
             setError(null);

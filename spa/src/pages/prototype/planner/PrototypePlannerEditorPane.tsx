@@ -13,6 +13,7 @@
  */
 import { useEffect, useRef } from 'react';
 import Icon from '@/components/react/Icon';
+import { planVocabulary } from '../../../lib/church-services';
 import PrototypeSermonEditorFields from '../PrototypeSermonEditorFields';
 import PrototypePlannerResourcesField from './PrototypePlannerResourcesField';
 import { useChurchSermonActions } from '../../../hooks/queries/useChurchTeachingPlan';
@@ -96,9 +97,14 @@ export default function PrototypePlannerEditorPane({
   }, [onClose]);
 
   const isEditing = Boolean(service);
-  /* A channel publishes entries; calling one a "sermon" in its own editor is
-     the same mismatch the plan's buttons had. */
-  const noun = planKind === 'content' ? 'entry' : 'sermon';
+  /*
+    From the shared vocabulary, not a local ternary. The hand-rolled version
+    read `planKind === 'content' ? 'entry' : 'sermon'`, which is right for a
+    channel and wrong for a ministry — a Youth gathering was headed "New
+    sermon". One source for the noun is what keeps this pane, the compact
+    sheet, and the button that opened either of them saying the same word.
+  */
+  const noun = planVocabulary({ onSpacePlan: planSpaceId !== null, planKind }).itemNoun;
   const heading = isEditing
     ? `Edit ${noun}`
     : createDate

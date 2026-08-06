@@ -24,6 +24,7 @@ import type {
   TeachingPlanSeries,
   TeachingPlanSermon,
 } from '../../hooks/queries/useChurchTeachingPlan';
+import { planVocabulary } from '../../lib/church-services';
 import PrototypeSermonEditorFields from './PrototypeSermonEditorFields';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
@@ -47,6 +48,13 @@ export interface PrototypeSermonEditorSheetProps {
    * can never post into the church's — the failure this prop exists to prevent.
    */
   planSpaceId?: string | null;
+  /**
+   * What this plan holds, server-decided. A channel plans content; everything
+   * else gathers. It picks the sheet's whole vocabulary and hides the
+   * gathering-only fields — without it, tapping "Add content" on a channel
+   * opened a window headed "Add a sermon".
+   */
+  planKind?: 'gathering' | 'content';
   /** Server's `manage_templates` verdict — gates the empty-state nudge only. */
   canManageChurchTemplates?: boolean;
   /** Opens the Church starters pane; the sheet closes itself first. */
@@ -61,6 +69,7 @@ export default function PrototypeSermonEditorSheet({
   series,
   serviceTimes = [],
   planSpaceId = null,
+  planKind,
   canManageChurchTemplates = false,
   onOpenStarters,
   onOpenChange,
@@ -69,6 +78,9 @@ export default function PrototypeSermonEditorSheet({
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const isEditing = Boolean(service);
+  /* The same source the button that opened this sheet reads, so the two can
+     never disagree again — `planSpaceId` already tells us which plan we're on. */
+  const vocab = planVocabulary({ onSpacePlan: planSpaceId !== null, planKind });
 
   const shouldUseSheetPresentation =
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
@@ -105,7 +117,7 @@ export default function PrototypeSermonEditorSheet({
         <div className="proto-study-thread-popover__title-row">
           <Icon name="calendar-check" size={13} aria-hidden />
           <span className="proto-study-thread-popover__title">
-            {isEditing ? 'Edit sermon' : 'Add a sermon'}
+            {isEditing ? `Edit ${vocab.itemNoun}` : vocab.addLabel}
           </span>
         </div>
         <button
@@ -125,6 +137,7 @@ export default function PrototypeSermonEditorSheet({
         series={series}
         serviceTimes={serviceTimes}
         planSpaceId={planSpaceId}
+        planKind={planKind}
         canManageChurchTemplates={canManageChurchTemplates}
         onOpenStarters={onOpenStarters}
         active={open}

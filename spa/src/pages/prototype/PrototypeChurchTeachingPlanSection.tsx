@@ -362,6 +362,7 @@ export default function PrototypeChurchTeachingPlanSection({
         series={data.series}
         serviceTimes={onSpacePlan ? [] : (churchPlan.data?.serviceTimes ?? [])}
         planSpaceId={planSpaceId}
+        planKind={planKind}
         canManageChurchTemplates={canManageChurchTemplates}
         onOpenStarters={onOpenStarters}
         onOpenChange={(next) => {
