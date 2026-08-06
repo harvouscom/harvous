@@ -52,7 +52,7 @@ import {
 } from '@/utils/autosave-retry';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { formatNoteDefaultTitle } from '@/utils/date-formatting';
-import type { HighlightDockOpenMetadata } from '@/utils/study-dock-stack';
+import type { HighlightDockOpenMetadata, ResourceDockSession } from '@/utils/study-dock-stack';
 
 // Prototype notes use alwaysEditing — load TipTap synchronously so the body is typeable on first paint.
 import TiptapEditorEager from './TiptapEditor';
@@ -246,6 +246,13 @@ interface CardFullEditableProps {
   initialReferenceWord?: string | null;
   /** Distinct per request (e.g. dockReq nonce) so re-opens fire each time. */
   initialReferenceRequestKey?: string | null;
+  /** Prototype-only: docks a Resource Library chip once the editor is ready (`?libItem=`). */
+  initialResourceDock?: {
+    requestKey: string;
+    session: ResourceDockSession;
+  } | null;
+  /** Opens a file library item (signed-URL resolve lives with the SPA's data layer). */
+  onOpenResourceFile?: (libraryItemId: string) => void;
   /**
    * Prototype-only: when set, auto-opens the scripture dock for this reference/translation once
    * the editor has rendered the matching pill (e.g. navigated from the sidebar Highlights list).
@@ -329,6 +336,8 @@ interface CardFullEditableProps {
   spaceId?: string;
   /** Enables @ mention pills in the body editor. Absent → the @ typeahead never triggers. */
   mentionSource?: (query: string) => import('./mention-pill-types').MentionPickerItem[] | Promise<import('./mention-pill-types').MentionPickerItem[]>;
+  /** Mention kinds this context can offer — omit for all kinds. */
+  mentionKinds?: readonly import('./mention-pill-types').MentionKind[];
   /** Tap/click on a mention pill (editable and read-only content-html views). */
   onMentionPillClick?: (payload: import('./mention-pill-types').MentionPillClickPayload) => void;
   /** Explicit shared-space read context. My Home remains context-free. */
@@ -384,6 +393,8 @@ export default function CardFullEditable({
   studyDockCarouselPortalTarget = null,
   initialReferenceWord = null,
   initialReferenceRequestKey = null,
+  initialResourceDock = null,
+  onOpenResourceFile,
   initialScriptureDock = null,
   initialCrossRefTarget = null,
   initialHighlightDock = null,
@@ -403,6 +414,7 @@ export default function CardFullEditable({
   noteCreatedAtIso = null,
   spaceId,
   mentionSource,
+  mentionKinds,
   onMentionPillClick,
   contextSpaceId = null,
 }: CardFullEditableProps) {
@@ -3393,6 +3405,7 @@ export default function CardFullEditable({
                       sourceNoteId={noteId}
                       spaceId={spaceId}
                       mentionSource={mentionSource}
+                      mentionKinds={mentionKinds}
                       onMentionPillClick={onMentionPillClick}
                       contextSpaceId={contextSpaceId}
                       onEditorReady={handleEditorReady}
@@ -3419,6 +3432,10 @@ export default function CardFullEditable({
                       initialReferenceRequestKey={
                         editorChromeMode === 'prototypeNative' ? initialReferenceRequestKey : null
                       }
+                      initialResourceDock={
+                        editorChromeMode === 'prototypeNative' ? initialResourceDock : null
+                      }
+                      onOpenResourceFile={onOpenResourceFile}
                       onReferenceDeepLinkHandoff={
                         editorChromeMode === 'prototypeNative' ? onReferenceDeepLinkHandoff : undefined
                       }
@@ -3808,6 +3825,7 @@ export default function CardFullEditable({
                     sourceNoteId={noteId}
                     spaceId={spaceId}
                     mentionSource={mentionSource}
+                    mentionKinds={mentionKinds}
                     onMentionPillClick={onMentionPillClick}
                     contextSpaceId={contextSpaceId}
                     onEditorReady={handleEditorReady}
@@ -3834,6 +3852,10 @@ export default function CardFullEditable({
                     initialReferenceRequestKey={
                       editorChromeMode === 'prototypeNative' ? initialReferenceRequestKey : null
                     }
+                    initialResourceDock={
+                      editorChromeMode === 'prototypeNative' ? initialResourceDock : null
+                    }
+                    onOpenResourceFile={onOpenResourceFile}
                     onReferenceDeepLinkHandoff={
                       editorChromeMode === 'prototypeNative' ? onReferenceDeepLinkHandoff : undefined
                     }

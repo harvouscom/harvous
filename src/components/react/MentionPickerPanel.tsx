@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Icon, { type IconName } from './Icon';
-import type { MentionKind, MentionPickerItem } from './mention-pill-types';
+import { MENTION_KINDS, type MentionKind, type MentionPickerItem } from './mention-pill-types';
 
 export type MentionKindFilter = 'all' | MentionKind;
 
@@ -8,6 +8,7 @@ const KIND_SECTION_LABELS: Record<MentionKind, string> = {
   note: 'Notes',
   thread: 'Threads',
   folder: 'Folders',
+  library: 'Resources',
 };
 
 // Same kind → icon mapping the sidebar search results use.
@@ -15,23 +16,45 @@ const KIND_ICON_NAMES: Record<MentionKind, IconName> = {
   note: 'note-sticky',
   thread: 'arrow-right-arrow-left',
   folder: 'folder',
+  library: 'newspaper',
 };
 
-// Matches the sidebar's own list-mode order (notes, folders, threads).
+// Matches the sidebar's own list-mode order (notes, folders, threads, resources).
 const KIND_TABS: { id: MentionKindFilter; label: string; iconName?: IconName }[] = [
   { id: 'all', label: 'All' },
   { id: 'note', label: 'Notes', iconName: 'note-sticky' },
   { id: 'folder', label: 'Folders', iconName: 'folder' },
   { id: 'thread', label: 'Threads', iconName: 'arrow-right-arrow-left' },
+  { id: 'library', label: 'Resources', iconName: 'newspaper' },
 ];
+
+/**
+ * Tabs for a picker offering `kinds`.
+ *
+ * Kinds are per-context, not global: a shared-space note offers no Resources tab
+ * because the author's personal library items can't resolve for other members
+ * (docs/future/RESOURCE_LIBRARY.md §5.3). Showing a tab that is structurally
+ * always empty would read as a bug.
+ */
+export function mentionKindTabsFor(kinds: readonly MentionKind[]): typeof KIND_TABS {
+  return KIND_TABS.filter((tab) => tab.id === 'all' || kinds.includes(tab.id as MentionKind));
+}
+
+export function mentionKindFilterOrderFor(kinds: readonly MentionKind[]): MentionKindFilter[] {
+  return mentionKindTabsFor(kinds).map((tab) => tab.id);
+}
 
 /** Chip order for Shift+← / Shift+→ cycling (same gesture as sidebar list mode). */
 export const MENTION_KIND_FILTER_ORDER: MentionKindFilter[] = KIND_TABS.map((tab) => tab.id);
 
-export function cycleMentionKindFilter(current: MentionKindFilter, step: number): MentionKindFilter {
-  const index = Math.max(0, MENTION_KIND_FILTER_ORDER.indexOf(current));
-  const next = (index + step + MENTION_KIND_FILTER_ORDER.length) % MENTION_KIND_FILTER_ORDER.length;
-  return MENTION_KIND_FILTER_ORDER[next]!;
+export function cycleMentionKindFilter(
+  current: MentionKindFilter,
+  step: number,
+  order: MentionKindFilter[] = MENTION_KIND_FILTER_ORDER,
+): MentionKindFilter {
+  const index = Math.max(0, order.indexOf(current));
+  const next = (index + step + order.length) % order.length;
+  return order[next]!;
 }
 
 /** Highlight the first case-insensitive match of `query` inside `text`. */
@@ -69,6 +92,8 @@ interface MentionPickerPanelProps {
   onKindFilterChange: (kind: MentionKindFilter) => void;
   onCommit: (item: MentionPickerItem) => void;
   onActiveIndexChange: (index: number) => void;
+  /** Kinds this context can offer — see {@link mentionKindTabsFor}. Defaults to all. */
+  availableKinds?: readonly MentionKind[];
 }
 
 /**
@@ -85,7 +110,9 @@ const MentionPickerPanel: React.FC<MentionPickerPanelProps> = ({
   onKindFilterChange,
   onCommit,
   onActiveIndexChange,
+  availableKinds = MENTION_KINDS,
 }) => {
+  const tabs = mentionKindTabsFor(availableKinds);
   const listRef = useRef<HTMLDivElement | null>(null);
   const [fadeTop, setFadeTop] = useState(false);
   const [fadeBottom, setFadeBottom] = useState(false);
@@ -135,7 +162,7 @@ const MentionPickerPanel: React.FC<MentionPickerPanelProps> = ({
     <>
       <div className="mention-picker__header">
         <div className="proto-chip-bar mention-picker__tabs" role="tablist" aria-label="Mention content type">
-          {KIND_TABS.map((tab) => {
+          {tabs.map((tab) => {
             const selected = kindFilter === tab.id;
             return (
               <button

@@ -1395,6 +1395,85 @@ export const ResourceMetadata = pgTable('ResourceMetadata', {
   createdAt: ts('createdAt').notNull(),
 });
 
+// ─── Resource Library ──────────────────────────────────────────────────────────
+
+/**
+ * A catalog of study resources belonging to one owner.
+ *
+ * `ownerKind` is the only thing that separates a personal library from a
+ * church's — same table, same items, same surfaces; only the permission check
+ * differs (see docs/future/RESOURCE_LIBRARY.md). Rows are created lazily on the
+ * owner's first item, so accounts that never touch the feature carry none.
+ *
+ * NOTE: unrelated to `ResourceMetadata` above, which is the *bookmark note*
+ * (`Notes.noteType = 'resource'`). That naming is load-bearing and stays; the
+ * library product uses Library / LibraryItem vocabulary throughout.
+ */
+export const ResourceLibraries = pgTable(
+  'ResourceLibraries',
+  {
+    id: text('id').primaryKey(),
+    /** 'user' | 'church' — 'school' later. */
+    ownerKind: text('ownerKind').notNull(),
+    /** Clerk userId when ownerKind='user'; Churches.id when 'church'. */
+    ownerId: text('ownerId').notNull(),
+    title: text('title').notNull(),
+    createdAt: ts('createdAt').notNull(),
+    updatedAt: ts('updatedAt'),
+  },
+  (table) => [
+    // One library per owner. Also the race guard for lazy creation: concurrent
+    // first-saves collide here, and the loser re-reads instead of forking a
+    // second library.
+    uniqueIndex('ResourceLibraries_owner_unique').on(table.ownerKind, table.ownerId),
+  ],
+);
+
+/**
+ * One entry in a library. `kind='link'` is the only kind written today; file,
+ * note_ref, thread_ref, template_ref, and pack are phased (RESOURCE_LIBRARY.md §6).
+ */
+export const LibraryItems = pgTable(
+  'LibraryItems',
+  {
+    id: text('id').primaryKey(),
+    libraryId: text('libraryId').notNull(),
+    /** 'link' | 'file' | 'note_ref' | 'thread_ref' | 'template_ref' | 'pack'. */
+    kind: text('kind').notNull().default('link'),
+    title: text('title').notNull(),
+    description: text('description'),
+    /** kind='link': the destination. Normalized by validateResourceUrl on write. */
+    sourceUrl: text('sourceUrl'),
+    sourceDomain: text('sourceDomain'),
+    sourceSiteName: text('sourceSiteName'),
+    sourceImage: text('sourceImage'),
+    /**
+     * kind='file': Supabase storage object in the private `library-files`
+     * bucket (NOT the public note-attachments bucket — RESOURCE_LIBRARY.md §8).
+     * Opened via short-lived signed URLs, never a public link.
+     */
+    fileStorageKey: text('fileStorageKey'),
+    fileName: text('fileName'),
+    fileMime: text('fileMime'),
+    fileBytes: integer('fileBytes'),
+    /**
+     * 'leaders' | 'members' — dormant until church libraries land. Written with
+     * the default from day one so the church lane needs no backfill on a table
+     * that already holds user data.
+     */
+    access: text('access').notNull().default('members'),
+    createdByUserId: text('createdByUserId').notNull(),
+    createdAt: ts('createdAt').notNull(),
+    updatedAt: ts('updatedAt'),
+    /** Soft archive — items stay resolvable for pills that already cite them. */
+    archivedAt: ts('archivedAt'),
+  },
+  (table) => [
+    index('LibraryItems_libraryId_archivedAtIndex').on(table.libraryId, table.archivedAt),
+    index('LibraryItems_libraryId_updatedAtIndex').on(table.libraryId, table.updatedAt),
+  ],
+);
+
 // ─── InboxItems ────────────────────────────────────────────────────────────────
 
 export const InboxItems = pgTable('InboxItems', {

@@ -1,0 +1,52 @@
+/* Resource dock chip — collapsed-only card (chrome in study-dock-card.css).
+   No body rules here on purpose: this kind never expands, so anything below
+   the header would be unreachable. See docs/STUDY_DOCK_CAROUSEL.md. */
+
+/* Title typography comes from the shared .study-dock-card__header-primary-text
+   rule so this chip matches the scripture/highlight/reference headers. */
+.resource-dock-chip .study-dock-card__header-title {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.resource-dock-chip__header-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Title yields to the source chip: the destination must stay readable even when
+   the title is long, because it is the thing you check before leaving the app. */
+.resource-dock-chip__title {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* Same shape as .scripture-pill-chrome__trans-chip, lowercase since it's a host. */
+.resource-dock-chip__source {
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 45%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 0.5px solid var(--pds-border-control-soft, rgba(0, 0, 0, 0.1));
+  background: var(--pds-bg-faint, rgba(0, 0, 0, 0.04));
+  font-family: var(--pds-font-body, system-ui, sans-serif);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--pds-text-secondary, #888);
+  line-height: 1.2;
+}
+
+/* The card reads as a link target, so the whole chip takes the pointer cursor
+   rather than the expand affordance the other collapsed kinds imply. */
+.resource-dock-chip .study-dock-card__card--collapsed {
+  cursor: pointer;
+}

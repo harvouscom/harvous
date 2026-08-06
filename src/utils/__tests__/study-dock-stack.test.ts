@@ -5,6 +5,8 @@ import {
   buildHighlightDockSessionFromStudyThread,
   activeHighlightEntryId,
   closeDockEntry,
+  dockChipLabel,
+  dockKindSupportsExpanded,
   collapseActiveScriptureIfActive,
   clearStudyDockStackLocalCache,
   deserializeStudyDockStack,
@@ -15,10 +17,12 @@ import {
   isHighlightDockReadOnly,
   openOrFocusHighlight,
   openOrFocusReference,
+  openOrFocusResource,
   openOrFocusScripture,
   pruneStudyDockStack,
   resolveScriptureLinkPassageContext,
   scriptureDockStableKey,
+  setActiveDockEntry,
   serializeStudyDockStack,
   shouldOpenHighlightRequestImmediately,
   STUDY_DOCK_STACK_MAX_ENTRIES,
@@ -462,5 +466,123 @@ describe('resolveScriptureLinkPassageContext', () => {
       translation: 'NET',
       word: 'so loved',
     });
+  });
+});
+
+describe('resource dock entries (collapsed-only)', () => {
+  const resourceSession = {
+    libraryItemId: 'libi_1',
+    title: 'Epistle to the Romans',
+    url: 'https://en.wikipedia.org/wiki/Epistle_to_the_Romans',
+    domain: 'en.wikipedia.org',
+  };
+
+  it('opens collapsed and stays the active entry', () => {
+    const stack = openOrFocusResource(emptyStudyDockStack(), resourceSession);
+    expect(stack.entries).toHaveLength(1);
+    expect(stack.entries[0].kind).toBe('resource');
+    expect(stack.entries[0].expanded).toBe(false);
+    // Activation still applies — roving focus and reorder key off activeId.
+    expect(stack.activeId).toBe(stack.entries[0].id);
+  });
+
+  it('dedupes by library item id rather than stacking duplicates', () => {
+    let stack = openOrFocusResource(emptyStudyDockStack(), resourceSession);
+    const firstId = stack.entries[0].id;
+    stack = openOrFocusResource(stack, { ...resourceSession, title: 'Renamed' });
+    expect(stack.entries).toHaveLength(1);
+    const entry = stack.entries[0];
+    expect(entry.id).toBe(firstId);
+    expect(entry.kind).toBe('resource');
+    if (entry.kind !== 'resource') throw new Error('expected a resource entry');
+    expect(entry.session.title).toBe('Renamed');
+  });
+
+  it('collapses a previously expanded sibling when it opens', () => {
+    let stack = openOrFocusScripture(emptyStudyDockStack(), scriptureSession);
+    expect(stack.entries[0].expanded).toBe(true);
+    stack = openOrFocusResource(stack, resourceSession);
+    expect(stack.entries.every((e) => e.expanded === false)).toBe(true);
+  });
+
+  it('never expands via setActiveDockEntry', () => {
+    let stack = openOrFocusResource(emptyStudyDockStack(), resourceSession);
+    stack = openOrFocusScripture(stack, scriptureSession);
+    const resourceId = stack.entries.find((e) => e.kind === 'resource')!.id;
+    stack = setActiveDockEntry(stack, resourceId);
+    expect(stack.activeId).toBe(resourceId);
+    expect(stack.entries.find((e) => e.id === resourceId)!.expanded).toBe(false);
+  });
+
+  it('never expands when close-follow returns to a resource parent', () => {
+    let stack = openOrFocusResource(emptyStudyDockStack(), resourceSession);
+    const parentId = stack.entries[0].id;
+    stack = openOrFocusScripture(stack, scriptureSession, { openedFromDockId: parentId });
+    const childId = stack.activeId!;
+    stack = closeDockEntry(stack, childId);
+    expect(stack.activeId).toBe(parentId);
+    expect(stack.entries.find((e) => e.id === parentId)!.expanded).toBe(false);
+  });
+
+  it('never expands when prune re-activates a resource', () => {
+    let stack = openOrFocusScripture(emptyStudyDockStack(), scriptureSession);
+    stack = openOrFocusResource(stack, resourceSession);
+    // Drop the scripture entry; the resource becomes the only survivor.
+    stack = pruneStudyDockStack(stack, (e) => e.kind === 'resource');
+    expect(stack.entries).toHaveLength(1);
+    expect(stack.activeId).toBe(stack.entries[0].id);
+    expect(stack.entries[0].expanded).toBe(false);
+  });
+
+  it('round-trips through serialize/deserialize', () => {
+    const stack = openOrFocusResource(emptyStudyDockStack(), resourceSession);
+    const restored = deserializeStudyDockStack(serializeStudyDockStack(stack));
+    expect(restored).not.toBeNull();
+    expect(restored!.entries).toHaveLength(1);
+    expect(restored!.entries[0].kind).toBe('resource');
+    expect(restored!.entries[0].session).toEqual(resourceSession);
+  });
+
+  it('normalizes a tampered expanded:true back to a chip on deserialize', () => {
+    const stack = openOrFocusResource(emptyStudyDockStack(), resourceSession);
+    const payload = JSON.parse(serializeStudyDockStack(stack));
+    payload.stack.entries[0].expanded = true;
+    const restored = deserializeStudyDockStack(JSON.stringify(payload));
+    // Normalized, not rejected — a bad payload must degrade to a chip, not drop
+    // the whole stack.
+    expect(restored).not.toBeNull();
+    expect(restored!.entries[0].expanded).toBe(false);
+  });
+
+  it('leaves expandable kinds alone when normalizing', () => {
+    const stack = openOrFocusScripture(emptyStudyDockStack(), scriptureSession);
+    const restored = deserializeStudyDockStack(serializeStudyDockStack(stack));
+    expect(restored!.entries[0].expanded).toBe(true);
+  });
+
+  it('declares which kinds support an expanded body', () => {
+    expect(dockKindSupportsExpanded('resource')).toBe(false);
+    expect(dockKindSupportsExpanded('scripture')).toBe(true);
+    expect(dockKindSupportsExpanded('highlight')).toBe(true);
+    expect(dockKindSupportsExpanded('reference')).toBe(true);
+  });
+
+  it('labels the chip with the title, falling back to the domain', () => {
+    const stack = openOrFocusResource(emptyStudyDockStack(), resourceSession);
+    expect(dockChipLabel(stack.entries[0])).toBe('Epistle to the Romans');
+
+    const untitled = openOrFocusResource(emptyStudyDockStack(), {
+      ...resourceSession,
+      title: '',
+    });
+    expect(dockChipLabel(untitled.entries[0])).toBe('en.wikipedia.org');
+  });
+
+  it('truncates long titles for the chip', () => {
+    const stack = openOrFocusResource(emptyStudyDockStack(), {
+      ...resourceSession,
+      title: 'A'.repeat(50),
+    });
+    expect(dockChipLabel(stack.entries[0])).toBe(`${'A'.repeat(28)}…`);
   });
 });

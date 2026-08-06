@@ -57,6 +57,10 @@ import thumbtackSvg from '@fortawesome/fontawesome-free/svgs/solid/thumbtack.svg
 import trashCanSvg from '@fortawesome/fontawesome-free/svgs/solid/trash-can.svg?raw';
 import penSvg from '@fortawesome/fontawesome-free/svgs/solid/pen.svg?raw';
 import linkSvg from '@fortawesome/fontawesome-free/svgs/solid/link.svg?raw';
+import newspaperSvg from '@fortawesome/fontawesome-free/svgs/solid/newspaper.svg?raw';
+import scrollSvg from '@fortawesome/fontawesome-free/svgs/solid/scroll.svg?raw';
+import paperclipSvg from '@fortawesome/fontawesome-free/svgs/solid/paperclip.svg?raw';
+import arrowUpRightFromSquareSvg from '@fortawesome/fontawesome-free/svgs/solid/arrow-up-right-from-square.svg?raw';
 import imageSvg from '@fortawesome/fontawesome-free/svgs/solid/image.svg?raw';
 import personSvg from '@fortawesome/fontawesome-free/svgs/solid/person.svg?raw';
 import bookOpenSvg from '@fortawesome/fontawesome-free/svgs/solid/book-open.svg?raw';
@@ -102,10 +106,7 @@ import userSvg from '@fortawesome/fontawesome-free/svgs/solid/user.svg?raw';
 import userGroupSvg from '@fortawesome/fontawesome-free/svgs/solid/user-group.svg?raw';
 import eyeSvg from '@fortawesome/fontawesome-free/svgs/solid/eye.svg?raw';
 import pasteSvg from '@fortawesome/fontawesome-free/svgs/solid/paste.svg?raw';
-import scrollSvg from '@fortawesome/fontawesome-free/svgs/solid/scroll.svg?raw';
 import fileImageSvg from '@fortawesome/fontawesome-free/svgs/solid/file-image.svg?raw';
-import newspaperSvg from '@fortawesome/fontawesome-free/svgs/solid/newspaper.svg?raw';
-import arrowUpRightFromSquareSvg from '@fortawesome/fontawesome-free/svgs/solid/arrow-up-right-from-square.svg?raw';
 import upRightAndDownLeftFromCenterSvg from '@fortawesome/fontawesome-free/svgs/solid/up-right-and-down-left-from-center.svg?raw';
 import arrowsLeftRightToLineSvg from '@fortawesome/fontawesome-free/svgs/solid/arrows-left-right-to-line.svg?raw';
 import sunSvg from '@fortawesome/fontawesome-free/svgs/solid/sun.svg?raw';
@@ -193,6 +194,8 @@ const icons = {
   'rectangle-list': withCurrentColor(rectangleListSvg),
   'list-check': withCurrentColor(listCheckSvg),
   scroll: svgRootCurrentColor(scrollSvg),
+  /* Added on main by the Resource Library; kept as its package import. */
+  paperclip: withCurrentColor(paperclipSvg),
   'file-image': svgRootCurrentColor(fileImageSvg),
   newspaper: svgRootCurrentColor(newspaperSvg),
   'arrow-up-right-from-square': svgRootCurrentColor(arrowUpRightFromSquareSvg),

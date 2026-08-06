@@ -1920,6 +1920,234 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   box-shadow: var(--pds-shadow-chip-selected);
 }
 
+/* ─── Resource library add ───────────────────────────────────────────────── */
+/* Three states, one slot. Idle is a single quiet button so the sidebar isn't
+   two stacked input pills; choose presents link and file as alternatives;
+   confirm is a title field. See AddResourceForm. */
+.proto-resource-add {
+  margin: 8px 12px 10px;
+}
+
+.proto-resource-add--open {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-menu, 12px);
+  background: var(--pds-bg-page);
+}
+
+/* Solid neutral, not accent: this is the list's primary action and should read
+   as a real button, but the sidebar reserves accent colour for selection state —
+   a blue button here would out-shout the active row. */
+.proto-resource-add__open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-control-hover, rgba(0, 0, 0, 0.06));
+  box-shadow: var(--pds-shadow-chip-selected);
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.proto-resource-add__open:hover {
+  background: var(--pds-bg-chip);
+  box-shadow: none;
+}
+
+.proto-resource-add__row {
+  display: flex;
+  gap: 6px;
+}
+
+.proto-resource-add__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-input);
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  color: var(--pds-text-primary);
+}
+
+.proto-resource-add__input::placeholder {
+  color: var(--pds-text-tertiary);
+}
+
+.proto-resource-add__input:focus-visible {
+  outline: none;
+  border-color: var(--pds-accent);
+}
+
+.proto-resource-add__submit {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-chip);
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+  transition: background 0.12s ease, opacity 0.12s ease;
+}
+
+.proto-resource-add__submit:hover:not(:disabled) {
+  background: var(--pds-bg-control-hover);
+}
+
+.proto-resource-add__submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* "or" rule — makes link and file read as alternatives rather than steps. */
+.proto-resource-add__or {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--pds-font-body);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-resource-add__or::before,
+.proto-resource-add__or::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 0.5px;
+  background: var(--pds-border);
+}
+
+.proto-resource-add__file-pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 12px;
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-input);
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.proto-resource-add__file-pick:hover:not(:disabled) {
+  background: var(--pds-bg-control-hover);
+}
+
+.proto-resource-add__file-pick:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.proto-resource-add__hint,
+.proto-resource-add__error {
+  margin: 0;
+  padding: 0 2px;
+  font-family: var(--pds-font-body);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-resource-add__error {
+  color: var(--pds-text-muted);
+}
+
+.proto-resource-add__cancel {
+  align-self: flex-start;
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  font-family: var(--pds-font-body);
+  font-size: 11px;
+  color: var(--pds-text-tertiary);
+  cursor: pointer;
+}
+
+.proto-resource-add__cancel:hover {
+  color: var(--pds-text-primary);
+}
+
+/* Confirm step: what you picked, above the title you're giving it. */
+.proto-resource-add__source {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: var(--pds-bg-faint, rgba(0, 0, 0, 0.04));
+  font-family: var(--pds-font-body);
+  font-size: 11px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-resource-add__source-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proto-resource-add__file-size {
+  flex: 0 0 auto;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-resource-add__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Drop anywhere on the Resources list to attach a file. */
+.proto-resource-drop {
+  position: relative;
+}
+
+.proto-resource-drop__overlay {
+  position: absolute;
+  inset: 4px 12px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px dashed var(--pds-accent);
+  border-radius: var(--pds-radius-menu, 12px);
+  background: var(--pds-bg-page);
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+  pointer-events: none;
+}
+
 /* ─── Dictionary entry drilldown ─────────────────────────────────────────── */
 .proto-dict-entry__header {
   display: flex;

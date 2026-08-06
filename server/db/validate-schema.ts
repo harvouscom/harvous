@@ -120,6 +120,27 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
   ChurchServiceTimeAssignments: ['id', 'serviceId', 'serviceTimeId', 'serviceDate', 'createdAt'],
   ChurchSeries: ['id', 'churchId', 'spaceId', 'title', 'createdBy', 'createdAt', 'updatedAt'],
   UserMetadata: ['hmcChurchId', 'connectedChurchId', 'connectedOrgId', 'connectedChurchAt'],
+  ResourceLibraries: ['id', 'ownerKind', 'ownerId', 'title', 'createdAt', 'updatedAt'],
+  LibraryItems: [
+    'id',
+    'libraryId',
+    'kind',
+    'title',
+    'description',
+    'sourceUrl',
+    'sourceDomain',
+    'sourceSiteName',
+    'sourceImage',
+    'fileStorageKey',
+    'fileName',
+    'fileMime',
+    'fileBytes',
+    'access',
+    'createdByUserId',
+    'createdAt',
+    'updatedAt',
+    'archivedAt',
+  ],
 };
 
 const REQUIRED_INDEXES: Record<string, readonly string[]> = {
@@ -152,6 +173,12 @@ const REQUIRED_INDEXES: Record<string, readonly string[]> = {
   /** Both halves required — one index per plan scope, neither optional. */
   ChurchSeries: ['ChurchSeries_church_title_unique', 'ChurchSeries_space_title_unique'],
   UserMetadata: ['UserMetadata_connectedChurchIdIndex', 'UserMetadata_hmcChurchIdIndex'],
+  // The owner unique index is the lazy-creation race guard, not just a constraint.
+  ResourceLibraries: ['ResourceLibraries_owner_unique'],
+  LibraryItems: [
+    'LibraryItems_libraryId_archivedAtIndex',
+    'LibraryItems_libraryId_updatedAtIndex',
+  ],
 };
 
 export function validateRequiredTableColumns(
@@ -200,6 +227,8 @@ async function main() {
     'ScriptureMetadata',
     'NoteScriptureReferences',
     'ResourceMetadata',
+    'ResourceLibraries',
+    'LibraryItems',
     'InboxItems',
     'InboxItemNotes',
     'UserInboxItems',

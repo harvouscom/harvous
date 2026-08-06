@@ -11,6 +11,8 @@ import { fuzzyFilter } from './fuzzy-search';
 import { buildFoldersFromNotes, mergeFoldersWithRegistry, type FolderBucket } from './sidebar-universal-search';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import type { MentionPickerItem } from '@/components/react/mention-pill-types';
+import { useLibrary, type LibraryItem } from '../../hooks/queries/useLibrary';
+import { resourceFileLabel, resourceSourceLabel } from '@/utils/resource-source-label';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 
 export const MENTION_ITEMS_PER_KIND = 6;
@@ -76,6 +78,30 @@ export function foldersToItems(folders: FolderBucket[], query: string, spaceId: 
   }));
 }
 
+/**
+ * Library items are owner-scoped, not space-scoped, so they carry no spaceId —
+ * the pill resolves through /api/library/items/:id, which fails closed for
+ * anyone but the owner. Only offered in personal notes for that reason.
+ */
+export function libraryItemsToItems(items: LibraryItem[], query: string): MentionPickerItem[] {
+  const searchable = items.map((item) => ({
+    item,
+    title: item.title,
+    site:
+      item.kind === 'file'
+        ? resourceFileLabel(item.fileMime, item.fileBytes, item.fileName)
+        : resourceSourceLabel(item.sourceDomain, item.sourceSiteName),
+  }));
+  const matched = query.trim() ? fuzzyFilter(searchable, ['title', 'site'], query) : searchable;
+  return matched.slice(0, ITEMS_PER_KIND).map(({ item, site }) => ({
+    kind: 'library' as const,
+    entityId: item.id,
+    spaceId: '',
+    title: item.title,
+    subtitle: site || undefined,
+  }));
+}
+
 export function dedupeNoteItemsById(items: MentionPickerItem[]): MentionPickerItem[] {
   const seen = new Set<string>();
   const result: MentionPickerItem[] = [];
@@ -122,6 +148,10 @@ export function useMentionSource(scope: MentionSourceScope): (query: string) => 
 
   const personalHomeId = scope.mode === 'personal' ? scope.personalSpaceId : undefined;
   const personalHome = useSpaceMentionData(personalHomeId);
+
+  // Shares the cache key with the Resources sidebar list — usually already warm.
+  const { data: libraryData } = useLibrary();
+  const libraryItems = scope.mode === 'personal' ? (libraryData?.items ?? []) : [];
 
   const { data: nav } = useNavigation({ enabled: scope.mode === 'personal' });
   const otherSpaces = useMemo<NavSpace[]>(() => {
@@ -225,13 +255,14 @@ export function useMentionSource(scope: MentionSourceScope): (query: string) => 
         folderItems.push(...foldersToItems(data.folders, query, data.spaceId));
       }
 
-      // Matches the sidebar's own list-mode order (notes, folders, threads).
+      // Matches the sidebar's own list-mode order (notes, folders, threads, resources).
       return [
         ...notes,
         ...folderItems.slice(0, ITEMS_PER_KIND),
         ...threadItems.slice(0, ITEMS_PER_KIND),
+        ...libraryItemsToItems(libraryItems, query),
       ];
     },
-    [scope, shared.notes, shared.threads, shared.folders, personalHome.notes, personalHome.threads, personalHome.folders, otherSpaceQueries],
+    [scope, shared.notes, shared.threads, shared.folders, personalHome.notes, personalHome.threads, personalHome.folders, otherSpaceQueries, libraryItems],
   );
 }

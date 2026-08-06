@@ -103,6 +103,13 @@ export interface StudyDockCardShellProps {
   accentColor: string;
   expanded: boolean;
   onToggleExpanded: () => void;
+  /**
+   * This kind has no expanded state (resource chips). The card stays activatable
+   * — `onToggleExpanded` becomes the activation handler — but drops the
+   * `aria-expanded` claim, which would otherwise promise a region that will
+   * never open.
+   */
+  collapsedOnly?: boolean;
   onDismiss: () => void;
   /** Region label for aria. */
   ariaLabel: string;
@@ -135,6 +142,7 @@ export default function StudyDockCardShell({
   accentColor,
   expanded,
   onToggleExpanded,
+  collapsedOnly = false,
   onDismiss,
   ariaLabel,
   rootClassName = '',
@@ -212,7 +220,7 @@ export default function StudyDockCardShell({
           data-expanded={expanded ? 'true' : 'false'}
           style={{ '--study-dock-accent': accentColor } as React.CSSProperties}
           tabIndex={expanded ? undefined : 0}
-          aria-expanded={expanded}
+          aria-expanded={collapsedOnly ? undefined : expanded}
           onClick={
             expanded
               ? undefined

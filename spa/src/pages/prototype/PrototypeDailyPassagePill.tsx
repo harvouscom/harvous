@@ -175,7 +175,7 @@ export default function PrototypeDailyPassagePill({
             aria-label="View today's passage"
             onClick={() => setSheetOpen(true)}
           >
-            <Icon name="book-open" size={12} />
+            <Icon name="scroll" size={12} />
           </button>
           {dailyPassageNoteExists ? (
             <button

@@ -60,6 +60,8 @@ export {
   ScriptureEntityRefs,
   TopicRelations,
   ResourceMetadata,
+  ResourceLibraries,
+  LibraryItems,
   InboxItems,
   InboxItemNotes,
   UserInboxItems,

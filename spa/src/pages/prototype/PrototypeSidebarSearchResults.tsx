@@ -30,7 +30,7 @@ const HIGHLIGHT_KIND_OPTIONS: ProtoChipOption<HighlightKindFilter>[] = [
   { id: 'all', label: 'All' },
   { id: 'notes', label: 'Notes', iconName: 'note-sticky' },
   { id: 'connected', label: 'Connected', iconName: 'arrow-right-arrow-left' },
-  { id: 'scripture', label: 'Scripture', iconName: 'book-open' },
+  { id: 'scripture', label: 'Scripture', iconName: 'scroll' },
   { id: 'references', label: 'References', iconName: 'lines-leaning' },
 ];
 
