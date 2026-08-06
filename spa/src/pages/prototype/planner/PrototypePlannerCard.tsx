@@ -32,9 +32,12 @@ export function PlannerCardBody({
         </span>
       )}
       {service.seriesTitle ? (
-        <span className="proto-planner-card__series">
-          <Icon name="layer-group" size={9} aria-hidden />
-          {service.seriesTitle}
+        /* Caption weight, not a badge. The pill this replaced gave a series more
+           visual weight than the sermon's own passage, which inverted the row:
+           what you preach outranks which run it belongs to. */
+        <span className="proto-caption proto-planner-card__series">
+          <Icon name="timeline" size={9} aria-hidden />
+          <span className="proto-planner-card__series-name">{service.seriesTitle}</span>
         </span>
       ) : null}
     </>

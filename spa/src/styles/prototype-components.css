@@ -10093,15 +10093,42 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 
 /* Date column for schedule rows (teaching plan) — sits where a tool icon
    would, small-caps and tabular so the column reads as a calendar rail. */
+/*
+ * A date tile on exactly the icon block's footprint (26x26, radius 8, the same
+ * 5% tint). The two lanes in this pane — sermons led by a date, series led by
+ * an icon — used to start their titles 18px apart, which read as two lists
+ * stacked rather than one. Month over day is what fits a date in a square.
+ */
 .proto-church-tools__row-date {
   flex: 0 0 auto;
-  min-width: 44px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  opacity: 0.6;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  opacity: 0.75;
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 5%, transparent);
   font-variant-numeric: tabular-nums;
+  /* `line-height: 1` trims the glyph boxes to the text, which is what makes two
+     stacked lines fit a 26px square at all — but it also butts them together,
+     so the breathing room has to come back as an explicit gap. */
+  line-height: 1;
+  gap: 2px;
+}
+
+.proto-church-tools__row-date-month {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.proto-church-tools__row-date-day {
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .proto-church-tools__row:disabled {
@@ -10343,10 +10370,30 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   flex-shrink: 1;
 }
 
+/*
+ * A group heading *between rows, inside the card* — Ideas, Upcoming, Past.
+ *
+ * The card carries no padding of its own (`.proto-church-tools__row` does, at
+ * 11px 13px), so a bare `<p>` in here sat flush against the card edge, 13px
+ * left of every row it was introducing. It has to borrow the row's horizontal
+ * inset to line up with them.
+ */
 .proto-teaching-plan__divider {
-  margin-top: 4px;
+  padding: 10px 13px 4px;
+  margin-top: 0;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/*
+ * A second lane head in the same section — Series under the sermons.
+ *
+ * The gap above is what makes it read as introducing the card below rather than
+ * trailing the card above; without it the label sat 4px under one card and 0px
+ * over the next, which put it on the wrong side of the thing it names.
+ */
+.proto-church-tools__lane-head--stacked {
+  margin-top: 16px;
 }
 
 /* ─── Service editor sheet ───────────────────────────────────────────────── */
@@ -13190,17 +13237,28 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
 
+/* Metadata, not a badge — same tertiary caption as the passage line above it,
+   with a glyph instead of a `·` because a card has no row to sit on. */
 .proto-planner-card__series {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 2px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--pds-bg-chip);
-  font-size: 10px;
-  color: var(--pds-text-secondary);
+  margin-top: 1px;
   max-width: 100%;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-planner-card__series .proto-icon,
+.proto-planner-card__series svg {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+/* `flex: 1 1 auto` is load-bearing: the prototype reset sets `flex-shrink: 0`
+   on `*`, so ellipsis never fires on a flex child without it. */
+.proto-planner-card__series-name {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

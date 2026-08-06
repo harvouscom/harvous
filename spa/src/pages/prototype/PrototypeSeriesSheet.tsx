@@ -45,14 +45,36 @@ export interface PrototypeSeriesSheetProps {
   onOpenChange: (open: boolean) => void;
 }
 
-function formatServiceDate(iso: string | null): string {
-  /* A series can hold an undated idea — someone planning the run before the
-     dates exist. An em dash reads as "not yet"; an empty cell reads as a bug. */
-  if (!iso) return '—';
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (!match) return iso;
+/**
+ * Same tile as the plan pane's rows — this sheet reuses their anatomy, so the
+ * leading slot has to be the same square or the two lists disagree about where
+ * a title starts.
+ */
+function ServiceDateTile({ iso }: { iso: string | null }) {
+  const match = iso ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso) : null;
+  if (!match) {
+    /* A series can hold an undated idea — someone planning the run before the
+       dates exist. A dash reads as "not yet"; an empty tile reads as a bug. */
+    return (
+      <span className="proto-church-tools__row-date" aria-label="No date yet">
+        <span className="proto-church-tools__row-date-day">—</span>
+      </span>
+    );
+  }
   const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return (
+    <span
+      className="proto-church-tools__row-date"
+      aria-label={date.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}
+    >
+      <span className="proto-church-tools__row-date-month" aria-hidden>
+        {date.toLocaleDateString(undefined, { month: 'short' })}
+      </span>
+      <span className="proto-church-tools__row-date-day" aria-hidden>
+        {date.getDate()}
+      </span>
+    </span>
+  );
 }
 
 export default function PrototypeSeriesSheet({
@@ -107,7 +129,7 @@ export default function PrototypeSeriesSheet({
     <>
       <div className="proto-study-thread-popover__header">
         <div className="proto-study-thread-popover__title-row">
-          <Icon name="layer-group" size={13} aria-hidden />
+          <Icon name="timeline" size={13} aria-hidden />
           <span className="proto-study-thread-popover__title">{series.title}</span>
         </div>
         <button
@@ -158,9 +180,7 @@ export default function PrototypeSeriesSheet({
         <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
           {services.map((service) => (
             <div key={service.id} className="proto-church-tools__row proto-church-tools__row--status">
-              <span className="proto-church-tools__row-date">
-                {formatServiceDate(service.serviceDate)}
-              </span>
+              <ServiceDateTile iso={service.serviceDate} />
               <span className="proto-church-tools__row-text">
                 <span className="pds-list-title proto-church-tools__row-title">{service.title}</span>
                 <span className="proto-caption proto-church-tools__row-meta">

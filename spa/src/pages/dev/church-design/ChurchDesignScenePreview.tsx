@@ -571,9 +571,16 @@ function ThisSundayScene() {
 }
 
 const TEACHING_PLAN_ROWS = [
-  { date: 'Aug 9', title: 'No Condemnation', meta: 'Romans 8:1-11 · Life in the Spirit' },
-  { date: 'Aug 16', title: 'Led by the Spirit', meta: 'Romans 8:12-17 · Life in the Spirit' },
-  { date: 'Aug 23', title: 'Groaning and Glory', meta: 'No passage yet · Life in the Spirit' },
+  { month: 'Aug', day: '9', title: 'No Condemnation', meta: 'Romans 8:1-11 · Life in the Spirit' },
+  { month: 'Aug', day: '16', title: 'Led by the Spirit', meta: 'Romans 8:12-17 · Life in the Spirit' },
+  { month: 'Aug', day: '23', title: 'Groaning and Glory', meta: 'No passage yet · Life in the Spirit' },
+];
+
+/* The lane below the sermons, and the reason the date is a tile: both lanes
+   have to start their titles on the same edge. */
+const TEACHING_PLAN_SERIES = [
+  { title: 'Life in the Spirit', weeks: '8 weeks' },
+  { title: 'Advent', weeks: '4 weeks' },
 ];
 
 /**
@@ -607,12 +614,15 @@ function TeachingPlanScene({ mode }: { mode: 'list' | 'lapsed' }) {
             <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
               {TEACHING_PLAN_ROWS.map((row) => (
                 <button
-                  key={row.date}
+                  key={row.day}
                   type="button"
                   className="proto-church-tools__row"
                   disabled={lapsed}
                 >
-                  <span className="proto-church-tools__row-date">{row.date}</span>
+                  <span className="proto-church-tools__row-date">
+                    <span className="proto-church-tools__row-date-month">{row.month}</span>
+                    <span className="proto-church-tools__row-date-day">{row.day}</span>
+                  </span>
                   <span className="proto-church-tools__row-text">
                     <span className="pds-list-title proto-church-tools__row-title">{row.title}</span>
                     <span className="proto-caption proto-church-tools__row-meta">{row.meta}</span>
@@ -647,6 +657,34 @@ function TeachingPlanScene({ mode }: { mode: 'list' | 'lapsed' }) {
                   </button>
                 </div>
               ) : null}
+            </div>
+
+            {/* The Series lane, present so the two leading slots can be checked
+                against each other — a date tile and an icon tile on one edge is
+                the whole reason the date stopped being a text column. */}
+            <div className="proto-church-tools__lane-head proto-church-tools__lane-head--stacked">
+              <p className="proto-caption proto-home-section__eyebrow">Series</p>
+            </div>
+            <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+              {TEACHING_PLAN_SERIES.map((entry) => (
+                <button
+                  key={entry.title}
+                  type="button"
+                  className="proto-church-tools__row"
+                  disabled={lapsed}
+                >
+                  <span className="proto-church-tools__row-icon" aria-hidden>
+                    <Icon name="timeline" size={13} />
+                  </span>
+                  <span className="proto-church-tools__row-text">
+                    <span className="pds-list-title proto-church-tools__row-title">{entry.title}</span>
+                    <span className="proto-caption proto-church-tools__row-meta">{entry.weeks}</span>
+                  </span>
+                  <span className="proto-church-tools__row-chevron" aria-hidden>
+                    <Icon name="caret-right" size={11} />
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
