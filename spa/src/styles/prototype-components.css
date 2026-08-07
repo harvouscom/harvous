@@ -13450,21 +13450,55 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 }
 
 .proto-planner-card--compact {
-  padding: 4px 6px;
+  padding: 3px 6px;
   gap: 0;
-  font-size: 11px;
+  /* Tighter corner than a board card — a day cell holds chips, not cards. */
+  border-radius: 6px;
 }
 
 /* Two lines in a day cell rather than one truncated one: "The Spiri…" and
    "The Spirit of adoption" are not the same information, and a month grid is
-   read at a glance. */
+   read at a glance.
+ *
+ * The `font-size` belongs here, on the title, and not on the card: the title
+ * carries `pds-list-title`, which hard-sets 15px and so ignored anything the
+ * card inherited down. The chip was therefore "compact" in padding only, its
+ * title rendering at the board's size — one chip filled 64% of its day cell
+ * and two overflowed it by 27%. */
 .proto-planner-card--compact .proto-planner-card__title {
+  font-size: 11.5px;
+  line-height: 1.25;
   white-space: normal;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  line-height: 1.25;
+}
+
+/*
+  Two lines is what a day cell can afford for ONE sermon. A day with a morning
+  and an evening service has about 53px under its date once padding and the
+  head are taken, and two two-line chips want 74 — so they overflowed and the
+  cell scrolled, hiding the second sermon behind a gesture nobody makes in a
+  month grid.
+
+  `:only-of-type` is the card among its siblings (the date head is a div), so
+  a lone sermon keeps both lines and a doubled-up day gives each one line.
+  Both fit; neither is hidden.
+*/
+.proto-planner-day .proto-planner-card--compact:not(:only-of-type) .proto-planner-card__title {
+  /*
+    A plain ellipsis, not `-webkit-line-clamp: 1`. Clamping keeps
+    `white-space: normal`, so the line breaks at a word boundary before it
+    truncates: "No Condemnation" lost its second word entirely and rendered as
+    "No…", because "Condemnation" would not fit beside it. Cutting mid-word
+    gives "No Condemnat…", which still says which sermon it is.
+  */
+  display: block;
+  -webkit-line-clamp: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 
 .proto-planner-card--compact .proto-planner-card__series {
@@ -13694,11 +13728,38 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   border-left: 0.5px solid var(--pds-border-control);
 }
 
+/* The form scrolls; the footer stays put. This used to scroll as one block, so
+   Save sat wherever the content happened to end — mid-pane on a short sermon,
+   and below the fold on a long one. */
 .proto-planner-editor__body {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 4px 14px 14px;
+}
+
+.proto-planner-editor__body > .proto-service-editor {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.proto-planner-editor__body > .proto-add-notes-sheet__footer {
+  flex: 0 0 auto;
+}
+
+/* Two secondary actions abreast, under the primary. */
+.proto-sheet-footer__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.proto-sheet-footer__row > .proto-sheet-quiet-action {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 @media (max-width: 899px) {
@@ -13895,4 +13956,693 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   border-top: 0.5px solid var(--pds-border-control);
   margin-top: 6px;
   padding-top: 10px;
+}
+
+/* ─── Progress bar (design-system primitive) ──────────────────────────────── */
+/* The fill is eased rather than linear so backend progress, which arrives in
+   lumps, reads as motion instead of a snap. */
+
+.proto-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+}
+
+.proto-progress__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proto-progress__track {
+  position: relative;
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--pds-bg-track);
+  overflow: hidden;
+}
+
+.proto-progress__fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--pds-accent);
+  transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.proto-progress__track--positive .proto-progress__fill {
+  background: var(--pds-success);
+}
+
+.proto-progress__track--critical .proto-progress__fill {
+  background: var(--pds-destructive);
+}
+
+.proto-progress__track--indeterminate .proto-progress__fill {
+  width: 38%;
+  animation: proto-progress-slide 1.15s ease-in-out infinite;
+}
+
+@keyframes proto-progress-slide {
+  0% { transform: translateX(-105%); }
+  100% { transform: translateX(320%); }
+}
+
+.proto-progress__percent {
+  min-width: 34px;
+  text-align: right;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--pds-text-secondary);
+}
+
+.proto-progress__label {
+  font-size: 11px;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+/* ─── Import surface ──────────────────────────────────────────────────────── */
+
+.proto-import-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 28px 20px 120px;
+}
+
+.proto-import-page__title {
+  margin: 0;
+  font-family: var(--pds-font-display, var(--pds-font-body));
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--pds-text-primary);
+}
+
+.proto-import-page__subtitle {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--pds-text-secondary);
+}
+
+/* Drop zone ---------------------------------------------------------------- */
+
+.proto-import-drop {
+  position: relative;
+  border-radius: var(--pds-radius-card, 16px);
+  background: var(--pds-bg-section);
+  border: 1px solid var(--pds-border-control-soft, var(--pds-border-control));
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.proto-import-drop--active {
+  border-color: var(--pds-accent);
+  background: var(--pds-accent-active-bg);
+}
+
+.proto-import-drop--full {
+  padding: 44px 24px 34px;
+  text-align: center;
+}
+
+.proto-import-drop--compact {
+  padding: 12px 16px;
+}
+
+.proto-import-drop__stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.proto-import-drop__rings {
+  position: relative;
+  width: 132px;
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+/* Rings scale outward while fading, so hover reads as a pulse inviting release
+   rather than a dashed box waiting for a click. */
+.proto-import-drop__ring {
+  position: absolute;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 1.5px solid var(--pds-accent);
+  opacity: 0;
+}
+
+.proto-import-drop--active .proto-import-drop__ring {
+  animation: proto-import-ring 1.3s ease-in-out infinite alternate;
+}
+
+.proto-import-drop--active .proto-import-drop__ring:nth-child(2) {
+  animation-delay: 0.28s;
+}
+
+@keyframes proto-import-ring {
+  from { transform: scale(1); opacity: 0.42; }
+  to { transform: scale(1.42); opacity: 0.08; }
+}
+
+.proto-import-drop__orb {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+  box-shadow: var(--pds-shadow-accent-button);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.proto-import-drop--active .proto-import-drop__orb {
+  transform: scale(1.06);
+  animation: proto-import-orb-bob 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes proto-import-orb-bob {
+  from { transform: scale(1.06) translateY(0); }
+  to { transform: scale(1.06) translateY(4px); }
+}
+
+.proto-import-drop__title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 650;
+  color: var(--pds-text-primary);
+}
+
+.proto-import-drop__hint {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--pds-text-secondary);
+}
+
+.proto-import-drop__actions,
+.proto-import-drop__strip-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.proto-import-drop__actions .proto-settings-btn,
+.proto-import-drop__strip-actions .proto-settings-btn,
+.proto-import-footer .proto-settings-btn,
+.proto-import-summary .proto-settings-btn,
+.proto-import-list__toolbar .proto-settings-btn,
+.proto-import-row .proto-settings-btn {
+  width: auto;
+  padding: 8px 15px;
+  font-size: 13px;
+}
+
+.proto-import-drop__strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.proto-import-drop__strip-label {
+  font-size: 13px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-import-drop__strip-actions {
+  margin-top: 0;
+}
+
+/* Notices ------------------------------------------------------------------ */
+
+.proto-import-notices {
+  list-style: none;
+  margin: 0;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-radius: var(--pds-radius-card, 14px);
+  background: var(--pds-warning-bg);
+  border: 1px solid var(--pds-warning-border);
+  font-size: 12.5px;
+  color: var(--pds-text-secondary);
+}
+
+/* Row list ----------------------------------------------------------------- */
+
+.proto-import-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.proto-import-list__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.proto-import-list__receipt,
+.proto-import-list__wait {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--pds-radius-row, 10px);
+  background: var(--pds-bg-chip);
+  font-size: 12.5px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-import-list__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proto-import-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 13px;
+  border-radius: var(--pds-radius-row, 12px);
+  background: var(--pds-bg-section);
+  border: 1px solid var(--pds-border-control-soft, var(--pds-border-control));
+  animation: proto-import-row-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes proto-import-row-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.proto-import-row--excluded {
+  opacity: 0.55;
+}
+
+.proto-import-row--done {
+  border-color: var(--pds-success-border);
+}
+
+.proto-import-row--failed,
+.proto-import-row--parse-failed {
+  border-color: var(--pds-destructive);
+}
+
+.proto-import-row__type {
+  flex: none;
+  min-width: 38px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: var(--pds-bg-chip);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--pds-text-secondary);
+}
+
+.proto-import-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.proto-import-row__heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.proto-import-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-import-row__size {
+  flex: none;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-import-row__meta,
+.proto-import-row__preview {
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-import-row__error {
+  font-size: 12px;
+  color: var(--pds-destructive);
+}
+
+.proto-import-row__trailing {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proto-import-row__chip {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-secondary);
+}
+
+.proto-import-row__chip--active {
+  background: var(--pds-accent-active-bg);
+  color: var(--pds-accent);
+}
+
+.proto-import-row__chip--positive {
+  background: var(--pds-success-bg);
+  color: var(--pds-success);
+}
+
+.proto-import-row__chip--warning {
+  background: var(--pds-warning-bg);
+  color: var(--pds-warning);
+}
+
+.proto-import-row__chip--critical {
+  background: var(--pds-destructive-bg);
+  color: var(--pds-destructive);
+}
+
+.proto-import-row__include {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  color: var(--pds-text-secondary);
+}
+
+.proto-import-row__remove {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-import-row__remove:hover {
+  background: var(--pds-bg-row-hover);
+  color: var(--pds-text-primary);
+}
+
+/* Footer ------------------------------------------------------------------- */
+
+.proto-import-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: var(--pds-radius-card, 14px);
+  background: var(--pds-bg-chrome-opaque);
+  border: 1px solid var(--pds-border-control-soft, var(--pds-border-control));
+  backdrop-filter: blur(12px);
+  box-shadow: var(--pds-shadow-card);
+}
+
+.proto-import-footer__progress {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.proto-import-footer__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Summary ------------------------------------------------------------------ */
+
+.proto-import-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 24px 26px;
+  text-align: center;
+  border-radius: var(--pds-radius-card, 16px);
+  background: var(--pds-bg-section);
+  border: 1px solid var(--pds-border-control-soft, var(--pds-border-control));
+}
+
+.proto-import-summary__burst {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.proto-import-summary__check {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pds-success);
+  color: var(--pds-on-accent);
+  animation: proto-import-check-pop 450ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes proto-import-check-pop {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* Six sprites thrown outward on a spring, fading before they land — a burst,
+   not a bloom, and no confetti library. */
+.proto-import-summary__spark {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pds-accent);
+  opacity: 0;
+  animation: proto-import-spark 750ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+.proto-import-summary__spark:nth-child(1) { --proto-spark-x: 46px; --proto-spark-y: 0px; }
+.proto-import-summary__spark:nth-child(2) { --proto-spark-x: 23px; --proto-spark-y: 40px; background: var(--pds-success); }
+.proto-import-summary__spark:nth-child(3) { --proto-spark-x: -23px; --proto-spark-y: 40px; }
+.proto-import-summary__spark:nth-child(4) { --proto-spark-x: -46px; --proto-spark-y: 0px; background: var(--pds-warning); }
+.proto-import-summary__spark:nth-child(5) { --proto-spark-x: -23px; --proto-spark-y: -40px; }
+.proto-import-summary__spark:nth-child(6) { --proto-spark-x: 23px; --proto-spark-y: -40px; background: var(--pds-success); }
+
+@keyframes proto-import-spark {
+  0% { transform: translate(0, 0) scale(0.2); opacity: 1; }
+  55% { opacity: 1; }
+  100% {
+    transform: translate(var(--proto-spark-x), var(--proto-spark-y)) scale(1);
+    opacity: 0;
+  }
+}
+
+.proto-import-summary__title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 680;
+  color: var(--pds-text-primary);
+}
+
+.proto-import-summary__perspective {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-import-summary__stats {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 22px;
+}
+
+.proto-import-summary__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.proto-import-summary__stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--pds-text-primary);
+}
+
+.proto-import-summary__stat-label {
+  font-size: 11.5px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-import-summary__issues {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  text-align: left;
+}
+
+.proto-import-summary__issue {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: var(--pds-radius-row, 10px);
+  background: var(--pds-bg-chip);
+}
+
+.proto-import-summary__issue-icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.proto-import-summary__issue-icon--critical {
+  background: var(--pds-destructive-bg);
+  color: var(--pds-destructive);
+}
+
+.proto-import-summary__issue-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.proto-import-summary__issue-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-import-summary__issue-reason {
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-import-summary__note {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-import-summary__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+@media (max-width: 600px) {
+  .proto-import-page {
+    padding: 18px 14px 120px;
+  }
+
+  .proto-import-row {
+    flex-wrap: wrap;
+  }
+
+  .proto-import-row__trailing {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .proto-import-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* Motion is decoration here — every state is legible without it. */
+@media (prefers-reduced-motion: reduce) {
+  .proto-progress__fill {
+    transition: none;
+  }
+
+  .proto-progress__track--indeterminate .proto-progress__fill {
+    width: 100%;
+    animation: none;
+    opacity: 0.45;
+  }
+
+  .proto-import-drop--active .proto-import-drop__ring {
+    animation: none;
+    opacity: 0.3;
+  }
+
+  .proto-import-drop--active .proto-import-drop__orb {
+    animation: none;
+    transform: none;
+  }
+
+  .proto-import-row,
+  .proto-import-summary__check,
+  .proto-import-summary__spark {
+    animation: none;
+  }
+
+  .proto-import-summary__spark {
+    display: none;
+  }
 }
