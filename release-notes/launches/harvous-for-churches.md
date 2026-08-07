@@ -75,7 +75,7 @@ If you have picked your church in Settings, Home shows what your church is teach
 
 "Start notes" makes a new note in My Home with the passage already set up as a scripture pill and your church's own note template already in the body. If you have already started notes for that service, the card opens them rather than making a second one. The card stays for a few days afterwards, so writing up Sunday on a Monday still works.
 
-You arrive on Sunday already knowing the passage, and leave with notes in your own words rather than a photo of a slide. Because those notes are anchored to the passage, they come back to you later through Review, like anything else you write.
+You arrive on Sunday already knowing the passage, and leave with notes in your own words rather than a photo of a slide. Because those notes are anchored to the passage, they come back to you later through Recall, like anything else you write.
 
 Nothing about church features appears for anyone who has not connected a church in Settings.
 
