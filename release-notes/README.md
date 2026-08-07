@@ -14,6 +14,24 @@ While the `Changelog/` folder contains technical commit messages for developers,
 
 - **No emoji** in release note files: not in the title, `###` section headers, or body text. Use clear headings and plain language instead.
 
+## Two kinds of document
+
+**Dated notes** (`2026-08-06.md`, in this folder) are the record of a day. One
+per day, generated then rewritten, terse. They answer "what changed on the 6th".
+
+**Launch notes** (`launches/harvous-for-churches.md`) are the story of a feature.
+They answer "what is this thing and why would I want it". A launch note is not
+day-shaped — Harvous for churches shipped across August 4th and 6th and a dozen
+versions between — which is exactly why it cannot live in a dated file.
+
+Write a launch note only when a release is genuinely a product story someone
+would read on its own. Most releases are not. When one exists, the dated notes
+stay terse and link to it rather than retelling it; duplicated copy in two
+places is how this folder rots.
+
+The generator only ever writes to `release-notes/*.md`, so anything in
+`launches/` or `social/` is structurally safe from it.
+
 ## File Naming Convention
 
 **One note per day, named for the day:** `2026-08-06.md`.
@@ -82,7 +100,9 @@ These release notes help you understand:
 
 Start with the most recent file to see the latest updates!
 
-**August 6, 2026:** [2026-08-06.md](2026-08-06.md) — the church Planner at full size, a resource shelf for your church, and a Resource Library of your own (v2.21.0–v2.33.0).
+**Harvous for churches** (August 2026): [launches/harvous-for-churches.md](launches/harvous-for-churches.md) — the whole church release in one place, across v2.14.0–v2.33.0.
+
+**August 6, 2026:** [2026-08-06.md](2026-08-06.md) — the Planner at full size, series that know how long they run, and a resource shelf for your church (v2.21.0–v2.33.0).
 
 **July 2026:** [v2.0-july-2026.md](v2.0-july-2026.md) — **Harvous 2.0** (Classic retired; prototype shell is production web). Social copy: [social/v2.0-july-2026-launch.md](social/v2.0-july-2026-launch.md).
 
