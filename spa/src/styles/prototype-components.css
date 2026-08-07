@@ -11,6 +11,108 @@
   outline: none;
 }
 
+/* ─── Checkbox ───────────────────────────────────────────────────────────────
+   Styled on the bare element rather than behind a class, so every checkbox in
+   the prototype is this one — including the ones written before this existed and
+   the ones written after. There is no opt-in to forget.
+
+   A ticked box is the round mark Harvous already confirms things with on the
+   pricing and upgrade cards: an 18px circle, soft chip-grey fill, a muted tick
+   stroked with round caps. No gradient, no shadow, no saturated blue — that
+   treatment belongs to buttons, and stamped down a column of rows it reads as a
+   row of shiny bubbles rather than a list you're choosing from.
+
+   Geometry is lifted from .pricing-plan-card__check on harvous.com: 18px circle,
+   10px tick, path M3 8.5l3.5 3.5L13 4.5 on a 16 viewBox at stroke-width 2. Drawn
+   as a mask so the stroke keeps its round caps at 10px, which a clip-path
+   polygon can't do.
+
+   One deliberate departure: the tick is a step darker than the marketing page's.
+   There every row is on, so the mark can whisper; here it carries state, and has
+   to be readable at a glance against the empty circle next to it.
+
+   The tick fades in on the paper curve with no overshoot, and the circle itself
+   never moves — a control that bounces under the cursor feels unreliable. */
+:is(.proto-theme, .proto-settings-modal) input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  display: inline-grid;
+  place-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1.5px solid var(--pds-border-control-soft, var(--pds-border-control));
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+:is(.proto-theme, .proto-settings-modal) input[type='checkbox']::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: var(--pds-text-secondary);
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3 8.5l3.5 3.5L13 4.5' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3 8.5l3.5 3.5L13 4.5' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  transform: scale(0.7);
+  opacity: 0;
+  transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1), opacity 110ms ease;
+}
+
+:is(.proto-theme, .proto-settings-modal) input[type='checkbox']:hover:not(:disabled) {
+  border-color: var(--pds-border-control-strong, var(--pds-text-tertiary));
+}
+
+:is(.proto-theme, .proto-settings-modal) input[type='checkbox']:checked,
+:is(.proto-theme, .proto-settings-modal) input[type='checkbox']:indeterminate {
+  border-color: transparent;
+  /* Chip fill flips with the theme on its own — black at 6% on light, white at
+     10% on dark — so the circle stays visible against either surface. */
+  background: var(--pds-bg-chip);
+}
+
+:is(.proto-theme, .proto-settings-modal) input[type='checkbox']:checked::before {
+  transform: scale(1);
+  opacity: 1;
+}
+
+/* Partly-selected lists (a "select all" over a mixed set) get a bar, not a tick —
+   the distinction matters most on exactly the screens that have a select-all. */
+:is(.proto-theme, .proto-settings-modal) input[type='checkbox']:indeterminate::before {
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  mask-image: none;
+  -webkit-mask-image: none;
+  transform: scale(1);
+  opacity: 1;
+}
+
+:is(.proto-theme, .proto-settings-modal) input[type='checkbox']:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--pds-accent-focus-ring) 34%, transparent);
+}
+
+:is(.proto-theme, .proto-settings-modal) input[type='checkbox']:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.proto-theme, .proto-settings-modal) input[type='checkbox'],
+  :is(.proto-theme, .proto-settings-modal) input[type='checkbox']::before {
+    transition: none;
+  }
+}
+
 /* Section heading inside a sidebar list — "Yours" over "From New Hope".
    Only rendered when there are two sections; one section needs no label. */
 .proto-resource-section-head {
@@ -11776,9 +11878,10 @@ p.proto-teaching-plan__divider {
   }
 }
 
+/* accent-color used to tint the native box here; the shared checkbox style now
+   draws the whole control, so there is nothing left for it to tint. */
 .proto-service-editor__slot input {
   flex: 0 0 auto;
-  accent-color: var(--pds-accent, #2f6fed);
 }
 
 /* Sits under a settings control to say what it governs, not to nag. */
@@ -13418,11 +13521,43 @@ p.proto-teaching-plan__divider {
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
 
+/* A column-shaped invitation at the end of the run. Narrower than a real week,
+   so it reads as the edge of the board rather than another week on it. */
 .proto-planner-board__more {
-  flex: 0 0 auto;
+  flex: 0 0 176px;
   display: flex;
-  align-items: flex-start;
-  padding-top: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px dashed var(--pds-border-control);
+  border-radius: var(--pds-radius-card);
+  background: transparent;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+
+.proto-planner-board__more:hover {
+  border-color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  color: var(--pds-text-primary);
+}
+
+.proto-planner-board__more:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: -2px;
+}
+
+.proto-planner-board__more-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
 }
 
 /* ── Card ────────────────────────────────────────────────────────────────── */
@@ -14263,29 +14398,23 @@ p.proto-teaching-plan__divider {
 .proto-import-drop--active .proto-import-fan__card--right { --proto-fan-x: 3px; --proto-fan-y: 3px; --proto-fan-rot: -1deg; }
 .proto-import-drop--active .proto-import-fan__card--far-right { --proto-fan-x: 8px; --proto-fan-y: 6px; --proto-fan-rot: 3deg; }
 
-/* Gathered, the pile breathes on one clock — no per-card delay, because a stagger
-   reads as four sheets and the whole point of the gather is that they're now one
-   thing. The keyframes restate the layout transform since they share the element
-   with it. */
-.proto-import-drop--active .proto-import-fan__card {
-  animation: proto-import-fan-lift 2.6s ease-in-out infinite alternate;
-}
+/* Once gathered, the pile rests. Paper doesn't hover, and a looping float made the
+   whole thing read as a magic trick — the founder letter's stack settles and stays
+   settled, and this is the same paper.
 
-@keyframes proto-import-fan-lift {
-  from {
-    transform:
-      translate(-50%, -50%)
-      translate(var(--proto-fan-x, 0px), var(--proto-fan-y, 0px))
-      rotate(var(--proto-fan-rot, 0deg));
-  }
-  to {
-    transform:
-      translate(-50%, -50%)
-      translate(var(--proto-fan-x, 0px), calc(var(--proto-fan-y, 0px) - 7px))
-      rotate(var(--proto-fan-rot, 0deg))
-      scale(1.02);
-  }
-}
+   The life is in the landing instead: the sheets arrive a beat apart, outermost
+   first, the way a stack squares up when you tap it on a desk. Delays reverse when
+   the pointer leaves so the scatter is the same motion played backwards. Matches
+   the staggered transition-delays on .proto-paper-leaf. */
+.proto-import-drop--active .proto-import-fan__card--far-left { transition-delay: 0ms; }
+.proto-import-drop--active .proto-import-fan__card--far-right { transition-delay: 55ms; }
+.proto-import-drop--active .proto-import-fan__card--left { transition-delay: 110ms; }
+.proto-import-drop--active .proto-import-fan__card--right { transition-delay: 155ms; }
+
+.proto-import-drop:not(.proto-import-drop--active) .proto-import-fan__card--right { transition-delay: 0ms; }
+.proto-import-drop:not(.proto-import-drop--active) .proto-import-fan__card--left { transition-delay: 45ms; }
+.proto-import-drop:not(.proto-import-drop--active) .proto-import-fan__card--far-right { transition-delay: 100ms; }
+.proto-import-drop:not(.proto-import-drop--active) .proto-import-fan__card--far-left { transition-delay: 145ms; }
 
 .proto-import-fan__tag {
   align-self: flex-start;

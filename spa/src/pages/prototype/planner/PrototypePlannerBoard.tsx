@@ -223,15 +223,24 @@ export default function PrototypePlannerBoard({
           );
         })}
 
-        <div className="proto-planner-board__more">
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--control proto-glass-action"
-            onClick={() => setWeekCount((count) => count + WEEKS_STEP)}
-          >
-            <span className="proto-glass-action__label">{WEEKS_STEP} more weeks</span>
-          </button>
-        </div>
+        {/*
+          The next column, rather than a button parked beside the last one.
+          The board is a run of weeks you scroll through, so "further out" is a
+          place on it — a pill wedged against the final column read as a
+          toolbar control that had drifted into the canvas, and had nowhere to
+          breathe. Dashed and unfilled: it is where the plan could go, not a
+          week that exists.
+        */}
+        <button
+          type="button"
+          className="proto-planner-board__more"
+          onClick={() => setWeekCount((count) => count + WEEKS_STEP)}
+        >
+          <span className="proto-planner-board__more-label">
+            <Icon name="plus" size={12} aria-hidden />
+            {WEEKS_STEP} more weeks
+          </span>
+        </button>
       </div>
 
       {readOnlyReason ? (
