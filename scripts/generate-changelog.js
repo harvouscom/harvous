@@ -60,27 +60,31 @@ function getCommitsBetweenVersions(previousVersion, currentVersion) {
   try {
     let gitCommand;
     
-    // Find the last commit that modified package.json (the last version bump)
-    // We'll get commits since that commit
+    // Find the newest commit that bumped the version. Everything after it is the
+    // release being generated now.
     try {
-      // Get commits that modified package.json, excluding the current one
-      // The version bump script runs after a commit, so we want commits since the last package.json change
+      // The bump is amended into the release commit, so every release commit
+      // touches package.json. This hook runs post-commit but pre-amend, so HEAD
+      // normally has no package.json change yet — when it does (a re-run, or a
+      // separate bump commit), skip it, or the range comes back empty.
+      const headSha = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
       const packageJsonCommits = execSync(
-        `git log --oneline --format="%H" -- package.json | head -2`,
+        `git log --format=%H -n 5 -- package.json`,
         { encoding: 'utf-8' }
-      ).trim().split('\n');
-      
-      if (packageJsonCommits.length > 1) {
-        // The second commit is the previous version bump
-        const lastVersionCommit = packageJsonCommits[1];
-        // Get commits since that commit (including the current commit)
+      )
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .filter((sha) => sha !== headSha);
+
+      if (packageJsonCommits.length > 0) {
+        // Commits since the previous release, exclusive of it. Taking the second
+        // entry here instead spans two releases, which is how every changelog
+        // came to repeat its predecessor's bullets.
+        const lastVersionCommit = packageJsonCommits[0];
         gitCommand = `git log ${lastVersionCommit}..HEAD --pretty=format:"%H|%s|%b" --no-merges`;
-      } else if (packageJsonCommits.length === 1) {
-        // Only one commit modified package.json, get commits since HEAD~1
-        // This means we're on the first version bump
-        gitCommand = `git log HEAD~1..HEAD --pretty=format:"%H|%s|%b" --no-merges`;
       } else {
-        // No commits modified package.json yet, get recent commits
+        // No prior version bump, so this is the first release
         gitCommand = `git log -10 --pretty=format:"%H|%s|%b" --no-merges`;
       }
     } catch (error) {
