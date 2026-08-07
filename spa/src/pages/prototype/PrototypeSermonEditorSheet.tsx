@@ -131,8 +131,9 @@ export default function PrototypeSermonEditorSheet({
   const content = (
     <>
       <div className="proto-study-thread-popover__header">
+        {/* No glyph. "Add a sermon" and "Edit sermon" are already the whole
+            statement; a calendar tick beside them decorated it. */}
         <div className="proto-study-thread-popover__title-row">
-          <Icon name="calendar-check" size={13} aria-hidden />
           <span className="proto-study-thread-popover__title">
             {isEditing ? `Edit ${vocab.itemNoun}` : vocab.addLabel}
           </span>

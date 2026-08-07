@@ -114,10 +114,8 @@ export default function PrototypePlannerEditorPane({
   return (
     <aside ref={paneRef} className="proto-planner-editor" aria-label={heading}>
       <div className="proto-side-panel__header proto-side-panel__header--minimal">
-        <span className="proto-side-panel__header-label">
-          <Icon name="calendar-check" size={13} aria-hidden />
-          {heading}
-        </span>
+        {/* Same as the sheet it shares a form with: the heading says it. */}
+        <span className="proto-side-panel__header-label">{heading}</span>
         <div className="proto-side-panel__header-actions">
           <button
             type="button"
