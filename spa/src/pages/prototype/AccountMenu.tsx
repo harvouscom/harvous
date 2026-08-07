@@ -17,6 +17,7 @@ import { updateCachedProfile, useProfile } from '../../hooks/queries/useProfile'
 import { usePopoverDismiss } from '../../hooks/usePopoverDismiss';
 import { prefetchSettingsOpenPath } from './settings/prefetch-settings-chunks';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 
 export default function AccountMenu({ iconSize, disabled = false }: { iconSize: number; disabled?: boolean }) {
   const clerk = useClerk();
@@ -110,7 +111,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               }}
             >
               <span className="proto-menu-item__icon" aria-hidden>
-                <Icon name="gear" size={15} />
+                <Icon name="gear" size={PROTO_TOOLBAR_ICON_SIZE} />
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>Settings</span>
             </button>
@@ -128,7 +129,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               }}
             >
               <span className="proto-menu-item__icon" aria-hidden>
-                <Icon name="right-from-bracket" size={15} />
+                <Icon name="right-from-bracket" size={PROTO_TOOLBAR_ICON_SIZE} />
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>{isSigningOut ? 'Logging out…' : 'Log out'}</span>
             </button>

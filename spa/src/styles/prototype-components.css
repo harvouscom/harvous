@@ -436,7 +436,9 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--pds-font-body);
-  font-size: calc(var(--pds-list-title-size) - 2px);
+  /* The label carries its own size rather than inheriting the row's, so raising
+     `.proto-menu-item` alone left every menu label at the old 13px. */
+  font-size: calc(var(--pds-list-title-size) - 1px);
   font-weight: 500;
   font-synthesis: none;
   font-variation-settings: var(--pds-font-body-variation-list-title);
@@ -958,9 +960,11 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   padding: 4px;
 }
 
+/* Sizing only. The `gap: 8px; padding: 5px 10px` that used to sit here held
+   this whole family — the note "..." menu, the sidebar list-view menus, the
+   planner scope picker — at the old 28px row while every other menu grew.
+   Density belongs to `.proto-menu-item`; this rule decides width. */
 .proto-menu__popover--list-view .proto-menu-item {
-  gap: 8px;
-  padding: 5px 10px;
   width: auto;
   min-width: 148px;
 }

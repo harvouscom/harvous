@@ -38,7 +38,7 @@ import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import CreateSharedSpaceSheet, { type CreateSpaceSheetKind } from './CreateSharedSpaceSheet';
 import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
-import { PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE, PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
+import { PROTO_MENU_CHECK_ICON_SIZE, PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE, PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
 import { UNLIMITED, isUnlimited } from '@/lib/shared-spaces-limits';
 
 const SPACE_SWITCHER_POPOVER_WIDTH = 260;
@@ -410,7 +410,7 @@ export default function SpaceSwitcherMenu({
             <span>{row.title}</span>
           </span>
           <span className="proto-menu-item__check" aria-hidden>
-            {checked ? <Icon name="check" size={12} /> : null}
+            {checked ? <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} /> : null}
           </span>
         </button>
       </div>
@@ -441,7 +441,7 @@ export default function SpaceSwitcherMenu({
               </span>
               <span className="proto-menu-item__label">My Home</span>
               <span className="proto-menu-item__check" aria-hidden>
-                {atHomeHub ? <Icon name="check" size={12} /> : null}
+                {atHomeHub ? <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} /> : null}
               </span>
             </button>
 
@@ -486,7 +486,7 @@ export default function SpaceSwitcherMenu({
                   <span>{myChurch.churchName}</span>
                 </span>
                 <span className="proto-menu-item__check" aria-hidden>
-                  {atChurchHub ? <Icon name="check" size={12} /> : null}
+                  {atChurchHub ? <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} /> : null}
                 </span>
               </button>
 

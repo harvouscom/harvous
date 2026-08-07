@@ -23,7 +23,7 @@ import PrototypeSpaceSettingsSection from '../../prototype/PrototypeSpaceSetting
 import SharedSpaceInviteExpiryPicker from '../../prototype/SharedSpaceInviteExpiryPicker';
 import type { InviteExpiryPreset } from '../../../lib/shared-space-invite-expiry';
 import { ProtoShellProvider } from '../../../layouts/proto-shell-context';
-import { PROTO_TOOLBAR_ICON_SIZE } from '../../prototype/proto-toolbar-tokens';
+import { PROTO_MENU_CHECK_ICON_SIZE, PROTO_TOOLBAR_ICON_SIZE } from '../../prototype/proto-toolbar-tokens';
 import { SPACE_COVER_PICKER_COLORS, spacePickerSwatchColor, spaceIconAccentHex, avatarGlyphColorForAccent, spaceCoverFromThreadColor } from '@/utils/space-cover';
 import { imagePresetById, imagePresetUrl } from '../../../lib/prototype-background';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../../lib/prototype-background';
@@ -169,7 +169,7 @@ function SpaceSwitcherScene({ creating }: { creating?: boolean }) {
                       }`}
                       style={{ ['--swatch-accent' as string]: spacePickerSwatchColor(color) }}
                     >
-                      {color === 'blue' ? <Icon name="check" size={12} /> : null}
+                      {color === 'blue' ? <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} /> : null}
                     </button>
                   ))}
                 </div>
@@ -209,7 +209,7 @@ function SpaceSwitcherScene({ creating }: { creating?: boolean }) {
               {FIXTURE_SPACE.title}
             </span>
             <span className="proto-menu-item__check" aria-hidden>
-              <Icon name="check" size={12} />
+              <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} />
             </span>
           </button>
         </div>

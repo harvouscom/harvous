@@ -22,6 +22,7 @@ import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from '../ProtoPopoverShell';
 import ProtoSpaceMenuIcon from '../ProtoSpaceMenuIcon';
 import { computeRightAnchoredPopoverPosition } from '../proto-popover-position';
+import { PROTO_MENU_CHECK_ICON_SIZE } from '../proto-toolbar-tokens';
 import type { PlannableSpace } from '../../../hooks/useChurchPlannerAccess';
 
 const POPOVER_WIDTH = 240;
@@ -177,7 +178,7 @@ export default function PrototypePlannerScopeChips({
                     {/* The switcher's tick. `aria-checked` already carries it
                         for assistive tech; this is the sighted half. */}
                     <span className="proto-menu-item__check" aria-hidden>
-                      {checked ? <Icon name="check" size={12} /> : null}
+                      {checked ? <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} /> : null}
                     </span>
                   </button>
                 );
