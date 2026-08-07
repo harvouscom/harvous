@@ -125,6 +125,7 @@ import calendarCheckSvg from '@fortawesome/fontawesome-free/svgs/solid/calendar-
 import circleExclamationSvg from '@fortawesome/fontawesome-free/svgs/solid/circle-exclamation.svg?raw';
 import arrowsRotateSvg from '@fortawesome/fontawesome-free/svgs/solid/arrows-rotate.svg?raw';
 import spinnerSvg from '@fortawesome/fontawesome-free/svgs/solid/spinner.svg?raw';
+import cloudSvg from '@fortawesome/fontawesome-free/svgs/solid/cloud.svg?raw';
 import cloudArrowUpSvg from '@fortawesome/fontawesome-free/svgs/solid/cloud-arrow-up.svg?raw';
 import copySvg from '@fortawesome/fontawesome-free/svgs/solid/copy.svg?raw';
 import globeSvg from '@fortawesome/fontawesome-free/svgs/solid/globe.svg?raw';
@@ -260,6 +261,7 @@ const icons = {
   'circle-exclamation': svgRootCurrentColor(circleExclamationSvg),
   'arrows-rotate': svgRootCurrentColor(arrowsRotateSvg),
   spinner: svgRootCurrentColor(spinnerSvg),
+  cloud: svgRootCurrentColor(cloudSvg),
   'cloud-arrow-up': svgRootCurrentColor(cloudArrowUpSvg),
   // Share icons
   copy: svgRootCurrentColor(copySvg),

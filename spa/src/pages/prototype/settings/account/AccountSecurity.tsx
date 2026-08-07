@@ -133,7 +133,7 @@ export default function AccountSecurity({ onBack }: { onBack: () => void }) {
             Delete account
           </h2>
           <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 12px' }}>
-            Permanently deletes your account and sign-in. Your Harvous study data must be removed separately from My Data.
+            Permanently deletes your account and sign-in. Your Harvous study data must be removed separately from My Notes.
           </p>
           <ErrorText>{error}</ErrorText>
           {confirmDelete ? (

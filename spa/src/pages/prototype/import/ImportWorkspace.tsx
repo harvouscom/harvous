@@ -3,7 +3,7 @@
  * it will create and then how far along it is, and one button starts the run.
  *
  * It has no page chrome of its own because it doesn't own a screen — it lives in
- * Settings → My Data → Import. Import is a thing you do *to* your library, not a
+ * Settings → My Notes → Import. Import is a thing you do *to* your library, not a
  * place in it, so it shouldn't take over the surface where notes are read.
  *
  * `onExit` is what "Go to my notes" does; the host decides (settings closes itself).

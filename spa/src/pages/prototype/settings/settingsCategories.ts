@@ -77,9 +77,11 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     key: 'data',
-    title: 'My Data',
+    title: 'My Notes',
     route: prototypeHref('settings/data'),
-    icon: 'cloud-arrow-up',
+    // Plain cloud, not cloud-arrow-up: the pane is import *and* export, so an
+    // upload arrow only tells half of it.
+    icon: 'cloud',
     footnote: 'Export, import, or delete your data.',
   },
   {

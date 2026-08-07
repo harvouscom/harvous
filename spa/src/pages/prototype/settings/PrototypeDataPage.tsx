@@ -109,7 +109,7 @@ export default function PrototypeDataPage() {
     // Import needs the room; export and danger are row lists that don't mind it.
     <SettingsShell wide={tab === 'import'}>
       <ProtoChipBar
-        ariaLabel="My Data sections"
+        ariaLabel="My Notes sections"
         options={DATA_TABS}
         selectedId={tab}
         onSelect={(next) => {
