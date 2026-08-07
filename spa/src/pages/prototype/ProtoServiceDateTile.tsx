@@ -12,22 +12,39 @@
  * — the expanded list is proof, since it kept a 104px text column while the
  * other two moved to the square.
  */
-export default function ProtoServiceDateTile({ iso }: { iso: string | null }) {
+export default function ProtoServiceDateTile({
+  iso,
+  unwritten,
+}: {
+  iso: string | null;
+  /**
+   * Nothing written into this week yet. Hollows the tile, so a run's unfilled
+   * slots read straight down a list — the same "held open" language the board
+   * and calendar draw with a dashed card.
+   */
+  unwritten?: boolean;
+}) {
+  const className = `proto-church-tools__row-date${
+    unwritten ? ' proto-church-tools__row-date--unwritten' : ''
+  }`;
   const match = iso ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso) : null;
   if (!match) {
     /* An undated idea still needs the slot filled — an empty tile reads as a
        rendering bug where a dash reads as "not yet". */
     return (
-      <span className="proto-church-tools__row-date" aria-label="No date yet">
+      <span className={className} aria-label="No date yet">
         <span className="proto-church-tools__row-date-day">—</span>
       </span>
     );
   }
   const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const spoken = date.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
   return (
     <span
-      className="proto-church-tools__row-date"
-      aria-label={date.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}
+      className={className}
+      /* The state is said, not only drawn — a hollow tile is invisible to a
+         screen reader otherwise. */
+      aria-label={unwritten ? `${spoken}, nothing written yet` : spoken}
     >
       <span className="proto-church-tools__row-date-month" aria-hidden>
         {date.toLocaleDateString(undefined, { month: 'short' })}

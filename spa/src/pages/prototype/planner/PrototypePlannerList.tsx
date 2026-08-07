@@ -43,7 +43,7 @@ function Row({
         .join(' ')}
       onClick={onSelect}
     >
-      <ProtoServiceDateTile iso={service.serviceDate} />
+      <ProtoServiceDateTile iso={service.serviceDate} unwritten={!service.reference} />
       <span className="proto-church-tools__row-text">
         <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={service.title}><span>{service.title}</span></span>
         <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">

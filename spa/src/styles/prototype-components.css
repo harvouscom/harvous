@@ -10368,6 +10368,16 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   gap: 2px;
 }
 
+/* Nothing written into this week yet. Hollow rather than dimmed: the date is
+   still true and still needs reading — it is the content that is missing, not
+   the row's importance. Same language as the dashed card on the board. */
+.proto-church-tools__row-date--unwritten {
+  background: transparent;
+  border: 1px dashed var(--pds-border-control-strong, var(--pds-border-control));
+  opacity: 1;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
 .proto-church-tools__row-date-month {
   font-size: 7px;
   font-weight: 700;

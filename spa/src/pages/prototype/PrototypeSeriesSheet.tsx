@@ -196,7 +196,7 @@ export default function PrototypeSeriesSheet({
         <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
           {services.map((service) => (
             <div key={service.id} className="proto-church-tools__row proto-church-tools__row--status">
-              <ProtoServiceDateTile iso={service.serviceDate} />
+              <ProtoServiceDateTile iso={service.serviceDate} unwritten={!service.reference} />
               <span className="proto-church-tools__row-text">
                 <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={service.title}><span>{service.title}</span></span>
                 <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
