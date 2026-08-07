@@ -14640,9 +14640,12 @@ p.proto-teaching-plan__divider {
   margin-left: auto;
 }
 
-/* Plain words, no red at rest. The "Danger zone" label and the confirm step both
-   say what these are; tinting the buttons as well made the corner shout before
-   anyone had touched it. Red appears once, on the Confirm button. */
+/* Plain words at rest, solid red the moment you reach for one. Nothing about the
+   corner shouts until you go near it, and then there's no mistaking what you're
+   about to click — better than a permanent tint that everyone learns to ignore.
+
+   Flat fill, not the `--destructive` button's gradient-and-shadow slab: that
+   weight is for the Confirm this leads to, not for a word in a row. */
 .proto-settings-danger__btn {
   appearance: none;
   padding: 5px 9px;
@@ -14657,16 +14660,23 @@ p.proto-teaching-plan__divider {
   transition: background 140ms ease, color 140ms ease;
 }
 
-.proto-settings-danger__btn:hover {
-  background: var(--pds-bg-chip);
-  color: var(--pds-text-primary);
+/* The long prefix is not decoration. A global rule —
+   `html.harvous-prototype-route button[class*="proto-"]` — pins every prototype
+   button to text-primary with !important, and at (0,2,2) it outranks anything
+   shorter, so a bare `.proto-settings-danger__btn:hover` leaves the fill red and
+   the label dark. Prefixing the same selector and adding our own class is how
+   `.proto-settings-btn` already wins its white text; this follows it. */
+html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:hover {
+  background: var(--pds-destructive);
+  color: var(--pds-on-accent) !important;
 }
 
-.proto-settings-danger__btn:focus-visible {
+/* Keyboard gets the same warning as the pointer, plus a ring to locate it. */
+html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:focus-visible {
   outline: none;
-  background: var(--pds-bg-chip);
-  color: var(--pds-text-primary);
-  box-shadow: 0 0 0 2px var(--pds-accent-focus-ring);
+  background: var(--pds-destructive);
+  color: var(--pds-on-accent) !important;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--pds-destructive) 40%, transparent);
 }
 
 /* The confirm needs the whole width, so it drops to its own line under the label. */
