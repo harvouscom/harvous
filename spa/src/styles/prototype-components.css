@@ -13473,10 +13473,15 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 
 /* ── Calendar ────────────────────────────────────────────────────────────── */
 
+/* Column, so the backlog is a strip under the month rather than a tall rail
+   beside it. As a right-hand column it took width from the days permanently —
+   seven columns squeezed for a list that is usually empty — and it read as a
+   peer of the calendar rather than a shelf the calendar draws from. */
 .proto-planner-calendar {
   flex: 1;
   min-height: 0;
   display: flex;
+  flex-direction: column;
   gap: 10px;
   padding: 10px 14px 14px;
   overflow: hidden;
@@ -13485,6 +13490,12 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 .proto-planner-calendar__grid-wrap {
   flex: 1;
   min-width: 0;
+  /* Without this it cannot shrink below its content — `flex: 1` grows but a
+     flex item's default `min-height: auto` refuses to give ground. Harmless
+     while the rail sat beside it (the constraint was horizontal); the moment
+     the rail moved underneath, the month pushed it off the bottom of the
+     panel. `__grid` already scrolls, so shrinking costs nothing. */
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -13606,15 +13617,48 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   background: var(--pds-bg-hover, rgba(0, 0, 0, 0.06));
 }
 
+/* One horizontal line under the month: its label at the left, its cards
+   running right. Height is the content's, so an empty backlog costs a strip
+   rather than a column. */
 .proto-planner-calendar__rail {
-  flex: 0 0 190px;
+  flex: 0 0 auto;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: stretch;
   min-height: 0;
   border-radius: var(--pds-radius-card);
   background: var(--pds-bg-chip);
   border: 1px solid transparent;
   transition: border-color 0.12s ease;
+}
+
+/* The head sits beside the cards now, not above them. */
+.proto-planner-calendar__rail .proto-planner-column__head {
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 8px 4px 8px 12px;
+}
+
+/* Cards run along the strip and scroll sideways when they outgrow it. The
+   column rules this overrides stack them and scroll vertically. */
+.proto-planner-calendar__rail .proto-planner-column__body {
+  flex-direction: row;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 12px 8px 6px;
+  scrollbar-width: thin;
+}
+
+/* A card in the strip keeps a readable width instead of filling the row. */
+.proto-planner-calendar__rail .proto-planner-card {
+  flex: 0 0 200px;
+  width: 200px;
+}
+
+.proto-planner-calendar__rail .proto-planner-column__empty {
+  padding: 0;
+  white-space: nowrap;
 }
 
 .proto-planner-calendar__rail--over {
@@ -13686,8 +13730,9 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
     scroll-snap-align: start;
   }
 
+  /* `flex-direction: column` is the default now — only the padding and the
+     scroll behaviour are narrow-screen concerns. */
   .proto-planner-calendar {
-    flex-direction: column;
     overflow-y: auto;
     padding: 10px 10px 14px;
   }
@@ -13705,9 +13750,11 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
     opacity: 1;
   }
 
+  /* `max-height: 40vh` belonged to the rail's vertical era, when stacking it
+     below the month could otherwise have handed it half the screen. A strip is
+     one card tall by construction, so the cap has nothing left to do. */
   .proto-planner-calendar__rail {
     flex: 0 0 auto;
-    max-height: 40vh;
   }
 
   .proto-planner-list {
