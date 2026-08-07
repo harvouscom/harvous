@@ -31,6 +31,7 @@ import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import ProtoServiceDateTile from './ProtoServiceDateTile';
+import ProtoSelectMenu from './ProtoSelectMenu';
 
 export interface PrototypeSeriesSheetProps {
   open: boolean;
@@ -223,19 +224,17 @@ export default function PrototypeSeriesSheet({
           <div className="proto-service-editor__repeat proto-series-sheet__run">
             {seed ? (
               <>
-                <select
-                  aria-label="How many weeks to add"
-                  className="proto-create-folder-sheet__name-input proto-service-editor__repeat-select"
+                <ProtoSelectMenu
+                  label="How many weeks to add"
+                  className="proto-service-editor__repeat-select"
                   value={addWeeks}
                   disabled={pending}
-                  onChange={(e) => setAddWeeks(Number(e.target.value))}
-                >
-                  {ADD_WEEK_CHOICES.map((weeks) => (
-                    <option key={weeks} value={weeks}>
-                      {weeks === 1 ? '1 more week' : `${weeks} more weeks`}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setAddWeeks}
+                  options={ADD_WEEK_CHOICES.map((weeks) => ({
+                    value: weeks,
+                    label: weeks === 1 ? '1 more week' : `${weeks} more weeks`,
+                  }))}
+                />
                 <button
                   type="button"
                   className="proto-glass-surface proto-glass-surface--control proto-glass-action"
