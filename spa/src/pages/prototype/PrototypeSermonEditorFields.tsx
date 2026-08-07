@@ -467,8 +467,15 @@ export default function PrototypeSermonEditorFields({
                 const checked = serviceTimeIds.includes(slot.id);
                 return (
                   <label key={slot.id} className="proto-service-editor__slot">
+                    {/*
+                      The input stays and stays real — it carries the checked
+                      state, the keyboard, and the label association. It is
+                      visually replaced, not removed, so the orb the rest of
+                      the app selects with is what you see here too.
+                    */}
                     <input
                       type="checkbox"
+                      className="proto-service-editor__slot-input"
                       checked={checked}
                       onChange={() =>
                         setServiceTimeIds((ids) =>
@@ -476,6 +483,15 @@ export default function PrototypeSermonEditorFields({
                         )
                       }
                     />
+                    <span className="proto-service-editor__slot-orb" aria-hidden>
+                      {checked ? (
+                        <span className="proto-accent-check-orb">
+                          <Icon name="check" size={9} />
+                        </span>
+                      ) : (
+                        <span className="proto-select-orb-idle" />
+                      )}
+                    </span>
                     <span>
                       {formatServiceTime(slot.startTime)}
                       {slot.label ? ` · ${slot.label}` : ''}

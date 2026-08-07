@@ -11872,6 +11872,50 @@ p.proto-teaching-plan__divider {
   cursor: pointer;
 }
 
+/*
+  Visually replaced by the orb, not removed: the input still holds the checked
+  state, takes the keyboard, and is what the label points at. `appearance:
+  none` with a zero footprint rather than `display: none`, which would take it
+  out of the tab order and off the accessibility tree with it.
+*/
+.proto-service-editor__slot-input {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.proto-service-editor__slot-orb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/*
+  16px, not the shared 20px. These sit beside a 13px label in a form field,
+  where the settings lists this orb comes from pair it with list titles half
+  again as large — at full size it outweighed the time it was marking. Scoped
+  here rather than changed at source, so the add-ons and translation pages
+  keep the proportion they were drawn for.
+*/
+.proto-service-editor__slot-orb .proto-accent-check-orb,
+.proto-service-editor__slot-orb .proto-select-orb-idle {
+  width: 16px;
+  height: 16px;
+}
+
+/* The focus ring belongs on the orb, since that is what a keyboard user sees. */
+.proto-service-editor__slot-input:focus-visible + .proto-service-editor__slot-orb {
+  border-radius: 50%;
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: 2px;
+}
+
 @media (pointer: coarse) {
   .proto-service-editor__slot {
     min-height: 44px;
