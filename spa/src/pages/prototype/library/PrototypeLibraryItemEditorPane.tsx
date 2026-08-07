@@ -15,6 +15,113 @@ import {
   type LibraryItemAccess,
 } from '../../../hooks/queries/useChurchLibrary';
 import { useLibraryLinkPreview } from '../../../hooks/queries/useLibrary';
+import ProtoChipBar from '../components/ProtoChipBar';
+import { formatFileSize } from '../import/import-file-sources';
+
+type ResourceSource = 'link' | 'file';
+
+const SOURCE_OPTIONS = [
+  { id: 'link' as const, label: 'A link' },
+  { id: 'file' as const, label: 'A file' },
+];
+
+/**
+ * Pick or drop one file, in the import surface's language — paper, ink, a drop
+ * target you can also click.
+ *
+ * One file, not a queue: a library entry is a single resource, so the row
+ * replaces the drop zone once something is chosen rather than stacking under it.
+ */
+function ResourceFileField({
+  file,
+  onPick,
+  onClear,
+}: {
+  file: File | null;
+  onPick: (file: File | null) => void;
+  onClear: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  /* Counted, so a drag crossing a child element doesn't flicker the state. */
+  const dragDepth = useRef(0);
+  const hasFiles = (e: React.DragEvent) => e.dataTransfer?.types?.includes('Files');
+
+  if (file) {
+    return (
+      <div className="proto-resource-file-row">
+        <span className="proto-resource-file-row__ext" aria-hidden>
+          {(file.name.split('.').pop() || 'file').slice(0, 4)}
+        </span>
+        <span className="proto-resource-file-row__body">
+          <span className="proto-resource-file-row__name" title={file.name}>
+            {file.name}
+          </span>
+          <span className="proto-resource-file-row__size">{formatFileSize(file.size)}</span>
+        </span>
+        <button
+          type="button"
+          className="proto-import-row__icon-btn"
+          onClick={onClear}
+          aria-label={`Remove ${file.name}`}
+        >
+          <Icon name="xmark" size={13} aria-hidden />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className={`proto-resource-file-drop${dragOver ? ' proto-resource-file-drop--active' : ''}`}
+      onClick={() => inputRef.current?.click()}
+      onDragEnter={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        dragDepth.current += 1;
+        setDragOver(true);
+      }}
+      onDragOver={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }}
+      onDragLeave={(e) => {
+        if (!hasFiles(e)) return;
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setDragOver(false);
+      }}
+      onDrop={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        dragDepth.current = 0;
+        setDragOver(false);
+        onPick(e.dataTransfer.files?.[0] ?? null);
+      }}
+    >
+      <span className="proto-resource-file-drop__sheet" aria-hidden>
+        <span className="proto-resource-file-drop__rule" style={{ width: '78%' }} />
+        <span className="proto-resource-file-drop__rule" style={{ width: '56%' }} />
+        <span className="proto-resource-file-drop__rule" style={{ width: '68%' }} />
+      </span>
+      <span className="proto-resource-file-drop__label">
+        {dragOver ? 'Release to attach' : 'Drop a file, or click to choose'}
+      </span>
+      <span className="proto-resource-file-drop__hint">PDF, Word, slides, images — up to 50MB</span>
+      <input
+        ref={inputRef}
+        type="file"
+        hidden
+        onChange={(e) => {
+          onPick(e.target.files?.[0] ?? null);
+          // Cleared so picking the same file twice still fires a change.
+          e.target.value = '';
+        }}
+      />
+    </button>
+  );
+}
 
 export default function PrototypeLibraryItemEditorPane({
   orgId,
@@ -33,6 +140,8 @@ export default function PrototypeLibraryItemEditorPane({
   const preview = useLibraryLinkPreview();
 
   const isEditing = Boolean(item);
+  const [source, setSource] = useState<ResourceSource>('link');
+  const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState(item?.title ?? '');
   const [description, setDescription] = useState(item?.description ?? '');
@@ -57,6 +166,14 @@ export default function PrototypeLibraryItemEditorPane({
     return () => pane.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
 
+  /** Filename minus extension is usually the title someone would have typed. */
+  const adoptFile = (picked: File | null) => {
+    if (!picked) return;
+    setFile(picked);
+    setError(null);
+    if (!title.trim()) setTitle(picked.name.replace(/\.[^.]+$/, ''));
+  };
+
   const toggleSpace = (spaceId: string) => {
     setSpaceIds((ids) =>
       ids.includes(spaceId) ? ids.filter((id) => id !== spaceId) : [...ids, spaceId],
@@ -70,7 +187,7 @@ export default function PrototypeLibraryItemEditorPane({
 
   const canSubmit = isEditing
     ? title.trim().length > 0 && !actions.isPending
-    : url.trim().length > 0 && !actions.isPending;
+    : !actions.isPending && (source === 'file' ? file != null : url.trim().length > 0);
 
   const submit = () => {
     if (!canSubmit) return;
@@ -90,6 +207,22 @@ export default function PrototypeLibraryItemEditorPane({
           kind: 'update',
           id: item.id,
           title: title.trim(),
+          description: description.trim() || null,
+          access,
+          scopes: scopePayload(),
+        },
+        { onSuccess: () => onClose(), onError },
+      );
+      return;
+    }
+
+    if (source === 'file') {
+      if (!file) return;
+      actions.mutate(
+        {
+          kind: 'upload',
+          file,
+          title: title.trim() || null,
           description: description.trim() || null,
           access,
           scopes: scopePayload(),
@@ -147,7 +280,26 @@ export default function PrototypeLibraryItemEditorPane({
 
       <div className="proto-planner-editor__body proto-create-folder-sheet">
         <div className="proto-service-editor">
+          {/* Source is only a question when adding — an existing item is already
+              one or the other, and changing it would be a different resource. */}
           {!isEditing ? (
+            <>
+              <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+                What are you adding
+              </label>
+              <ProtoChipBar
+                ariaLabel="Resource source"
+                options={SOURCE_OPTIONS}
+                selectedId={source}
+                onSelect={(next) => {
+                  setSource(next);
+                  setError(null);
+                }}
+              />
+            </>
+          ) : null}
+
+          {!isEditing && source === 'link' ? (
             <>
               <label
                 className="proto-inspector-section-title proto-create-folder-sheet__field-label"
@@ -176,6 +328,22 @@ export default function PrototypeLibraryItemEditorPane({
                       if (!title.trim() && data?.title) setTitle(data.title);
                     },
                   });
+                }}
+              />
+            </>
+          ) : null}
+
+          {!isEditing && source === 'file' ? (
+            <>
+              <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+                File
+              </label>
+              <ResourceFileField
+                file={file}
+                onPick={adoptFile}
+                onClear={() => {
+                  setFile(null);
+                  setError(null);
                 }}
               />
             </>
@@ -243,14 +411,28 @@ export default function PrototypeLibraryItemEditorPane({
             <>
               <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
                 <span>Where it shows up</span>
-                <span className="proto-service-editor__optional">
-                  {spaceIds.length === 0 ? 'whole church' : `${spaceIds.length} selected`}
-                </span>
+                {spaceIds.length > 0 ? (
+                  <span className="proto-service-editor__optional">
+                    {spaceIds.length} selected
+                  </span>
+                ) : null}
               </label>
-              {/* No "whole church" checkbox: it is what an empty selection
-                  means, and a checkbox that unchecks itself when you pick a
-                  room is a worse explanation than the caption above. */}
-              <div className="proto-service-editor__slots" role="group" aria-label="Rooms">
+              {/* "Whole church" is a row you can pick, not a caption off to the
+                  side. It stays a checkbox rather than a radio: the rooms below it
+                  are genuinely multi-select, and one radio sitting above two
+                  checkboxes — all of them circles — reads as "pick exactly one".
+                  It behaves like the "All" row in a filter list: choosing it clears
+                  the rooms, and choosing a room clears it. */}
+              <div className="proto-service-editor__slots" role="group" aria-label="Where it shows up">
+                <label className="proto-service-editor__slot">
+                  <input
+                    type="checkbox"
+                    checked={spaceIds.length === 0}
+                    // Already the state — clicking again would leave it nowhere.
+                    onChange={() => setSpaceIds([])}
+                  />
+                  <span>Whole church</span>
+                </label>
                 {plannableSpaces.map((space) => (
                   <label key={space.id} className="proto-service-editor__slot">
                     <input

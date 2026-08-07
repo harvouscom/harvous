@@ -33,7 +33,7 @@
 
    The tick fades in on the paper curve with no overshoot, and the circle itself
    never moves — a control that bounces under the cursor feels unreliable. */
-:is(.proto-theme, .proto-settings-modal) input[type='checkbox'] {
+:is(.proto-theme, .proto-settings-modal) :is(input[type='checkbox'], input[type='radio']) {
   appearance: none;
   -webkit-appearance: none;
   flex: none;
@@ -49,7 +49,7 @@
   transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
-:is(.proto-theme, .proto-settings-modal) input[type='checkbox']::before {
+:is(.proto-theme, .proto-settings-modal) :is(input[type='checkbox'], input[type='radio'])::before {
   content: "";
   width: 10px;
   height: 10px;
@@ -67,12 +67,12 @@
   transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1), opacity 110ms ease;
 }
 
-:is(.proto-theme, .proto-settings-modal) input[type='checkbox']:hover:not(:disabled) {
+:is(.proto-theme, .proto-settings-modal) :is(input[type='checkbox'], input[type='radio']):hover:not(:disabled) {
   border-color: var(--pds-border-control-strong, var(--pds-text-tertiary));
 }
 
-:is(.proto-theme, .proto-settings-modal) input[type='checkbox']:checked,
-:is(.proto-theme, .proto-settings-modal) input[type='checkbox']:indeterminate {
+:is(.proto-theme, .proto-settings-modal) :is(input[type='checkbox'], input[type='radio']):checked,
+:is(.proto-theme, .proto-settings-modal) :is(input[type='checkbox'], input[type='radio']):indeterminate {
   border-color: transparent;
   /* Chip fill flips with the theme on its own — black at 6% on light, white at
      10% on dark — so the circle stays visible against either surface. */
@@ -97,14 +97,25 @@
   opacity: 0;
 }
 
-:is(.proto-theme, .proto-settings-modal) input[type='checkbox']:checked::before {
+:is(.proto-theme, .proto-settings-modal) :is(input[type='checkbox'], input[type='radio']):checked::before {
   transform: scale(1);
   opacity: 1;
 }
 
+/* A radio is the same circle with a dot instead of a tick: a tick says "this is
+   done", a dot says "this is the one you picked", which is the whole difference
+   between the two controls. */
+:is(.proto-theme, .proto-settings-modal) input[type='radio']::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
 /* Partly-selected lists (a "select all" over a mixed set) get a bar, not a tick —
    the distinction matters most on exactly the screens that have a select-all. */
-:is(.proto-theme, .proto-settings-modal) input[type='checkbox']:indeterminate::before {
+:is(.proto-theme, .proto-settings-modal) :is(input[type='checkbox'], input[type='radio']):indeterminate::before {
   width: 8px;
   height: 2px;
   border-radius: 1px;
@@ -114,30 +125,21 @@
   opacity: 1;
 }
 
-:is(.proto-theme, .proto-settings-modal) input[type='checkbox']:focus-visible {
+:is(.proto-theme, .proto-settings-modal) :is(input[type='checkbox'], input[type='radio']):focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--pds-accent-focus-ring) 34%, transparent);
 }
 
-:is(.proto-theme, .proto-settings-modal) input[type='checkbox']:disabled {
+:is(.proto-theme, .proto-settings-modal) :is(input[type='checkbox'], input[type='radio']):disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :is(.proto-theme, .proto-settings-modal) input[type='checkbox'],
-  :is(.proto-theme, .proto-settings-modal) input[type='checkbox']::before {
+  :is(.proto-theme, .proto-settings-modal) :is(input[type='checkbox'], input[type='radio']),
+  :is(.proto-theme, .proto-settings-modal) :is(input[type='checkbox'], input[type='radio'])::before {
     transition: none;
   }
-}
-
-/* Section heading inside a sidebar list — "Yours" over "From New Hope".
-   Only rendered when there are two sections; one section needs no label. */
-.proto-resource-section-head {
-  margin: 10px 18px 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  opacity: 0.62;
 }
 
 /* ─── Marquee: the standard treatment for truncated text ─────────────────────
@@ -2161,6 +2163,14 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   margin-right: 0;
 }
 
+/* Same story in a form: the bar is a field like the inputs above it, and the
+   shared 12px inset left it hanging inboard of every other control in the
+   column. */
+.proto-service-editor > .proto-chip-bar {
+  margin-left: 0;
+  margin-right: 0;
+}
+
 /* Leading a list, the chip bar sits directly under the search field, which already
    carries its own bottom spacing — the extra top margin read as a hole. */
 .proto-sidebar-scroll > .proto-chip-bar:first-child {
@@ -2200,8 +2210,62 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 /* Three states, one slot. Idle is a single quiet button so the sidebar isn't
    two stacked input pills; choose presents link and file as alternatives;
    confirm is a title field. See AddResourceForm. */
+/* Pinned under the list, on the sheet-footer pattern: a divider, the ghost fill,
+   and the primary sitting on it. `margin-top: auto` is what holds it at the
+   bottom when the list is short — the drop container is a flex column. */
+.proto-resource-footer {
+  flex-shrink: 0;
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+  padding: 10px 14px 14px;
+  border-top: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-ghost);
+}
+
+.proto-resource-footer .proto-resource-add {
+  margin: 0;
+}
+
 .proto-resource-add {
-  margin: 8px 12px 10px;
+  margin: 8px 14px 10px;
+}
+
+.proto-resource-add__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.proto-resource-add__head-title {
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+}
+
+.proto-resource-add__dismiss {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-right: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.proto-resource-add__dismiss:hover {
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary);
 }
 
 .proto-resource-add--open {
@@ -2214,31 +2278,38 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   background: var(--pds-bg-page);
 }
 
-/* Solid neutral, not accent: this is the list's primary action and should read
-   as a real button, but the sidebar reserves accent colour for selection state —
-   a blue button here would out-shout the active row. */
+/* The gradient primary, matching the expanded planner's footer and the sheets.
+   It used to be a neutral pill, on the reasoning that the sidebar reserves accent
+   for selection — but that held when it sat *inside* the scrolling list, beside
+   the rows. Pinned in a footer below a divider it's out of that conversation, and
+   being the one saturated thing down there is what makes it findable. */
 .proto-resource-add__open {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   width: 100%;
+  min-height: 36px;
   padding: 8px 12px;
   border: none;
-  border-radius: var(--pds-radius-pill);
-  background: var(--pds-bg-control-hover, rgba(0, 0, 0, 0.06));
-  box-shadow: var(--pds-shadow-chip-selected);
+  border-radius: var(--pds-radius-button);
+  background: var(--pds-bg-accent-button);
+  box-shadow: var(--pds-shadow-accent-button);
   font-family: var(--pds-font-body);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--pds-text-primary);
+  color: var(--pds-on-accent);
   cursor: pointer;
-  transition: background 0.12s ease, box-shadow 0.12s ease;
+  transition: filter 0.12s ease;
+}
+
+html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open,
+html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open span {
+  color: var(--pds-on-accent) !important;
 }
 
 .proto-resource-add__open:hover {
-  background: var(--pds-bg-chip);
-  box-shadow: none;
+  filter: brightness(1.05);
 }
 
 .proto-resource-add__row {
@@ -2246,15 +2317,21 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   gap: 6px;
 }
 
+/* Same field as the search above it: 34px tall, --pds-radius-input corners, the
+   faint fill and the control border. It was a 26px pill on a different
+   background, so two inputs eight pixels apart disagreed about what an input
+   looks like in this sidebar. */
 .proto-resource-add__input {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 6px 10px;
-  border: 0.5px solid var(--pds-border);
-  border-radius: var(--pds-radius-pill);
-  background: var(--pds-bg-input);
+  box-sizing: border-box;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-input);
+  background: var(--pds-bg-faint);
   font-family: var(--pds-font-body);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--pds-text-primary);
 }
 
@@ -2267,14 +2344,18 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   border-color: var(--pds-accent);
 }
 
+/* Squared to the field's corners and matched to its height, so the pair reads as
+   one control rather than a button parked beside a box. */
 .proto-resource-add__submit {
   flex: 0 0 auto;
-  padding: 6px 12px;
+  box-sizing: border-box;
+  min-height: 34px;
+  padding: 0 14px;
   border: none;
-  border-radius: var(--pds-radius-pill);
+  border-radius: var(--pds-radius-input);
   background: var(--pds-bg-chip);
   font-family: var(--pds-font-body);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--pds-text-primary);
   cursor: pointer;
@@ -2316,12 +2397,14 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   justify-content: center;
   gap: 6px;
   width: 100%;
-  padding: 7px 12px;
-  border: 0.5px solid var(--pds-border);
-  border-radius: var(--pds-radius-pill);
-  background: var(--pds-bg-input);
+  box-sizing: border-box;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-input);
+  background: var(--pds-bg-faint);
   font-family: var(--pds-font-body);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--pds-text-primary);
   cursor: pointer;
@@ -2401,8 +2484,14 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 }
 
 /* Drop anywhere on the Resources list to attach a file. */
+/* A column at least as tall as the scroll viewport, so the footer's `margin-top:
+   auto` has somewhere to push to on a short list and its `position: sticky`
+   has somewhere to stick on a long one. */
 .proto-resource-drop {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
 
 .proto-resource-drop__overlay {
@@ -4557,8 +4646,48 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   max-height: min(520px, 72vh);
 }
 
+/* Pinned under the list it belongs to, matching the resource library and the
+   expanded planner's footer: the primary action for a list lives in the same
+   place in every list, and it's the gradient button. Above the grid it was a
+   control you scrolled past to reach what you came to read. */
 .proto-collection-grid-actions {
-  padding: 0 14px 8px;
+  flex-shrink: 0;
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+  padding: 10px 14px 14px;
+  border-top: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-ghost);
+}
+
+/* The gradient primary — but only in the footer. The same `__btn` class is
+   shared with `.proto-list-create-empty__btn` and `.proto-drill-empty__cta`,
+   which are empty-state CTAs sitting in the middle of a blank pane; those keep
+   the quiet outline they already had. */
+.proto-collection-grid-actions .proto-collection-grid-actions__btn {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--pds-radius-button);
+  background: var(--pds-bg-accent-button);
+  box-shadow: var(--pds-shadow-accent-button);
+  font-size: 13px;
+  font-weight: 600;
+  transition: filter 0.12s ease;
+}
+
+html.harvous-prototype-route
+  .proto-collection-grid-actions
+  button[class*='proto-'].proto-collection-grid-actions__btn {
+  color: var(--pds-on-accent) !important;
+}
+
+.proto-collection-grid-actions .proto-collection-grid-actions__btn:hover {
+  background: var(--pds-bg-accent-button);
+  filter: brightness(1.05);
 }
 
 .proto-collection-grid-actions__btn,
@@ -4586,7 +4715,9 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   justify-content: center;
   gap: 12px;
   box-sizing: border-box;
-  padding: 20px 24px;
+  /* Side inset trimmed with the same reasoning as .proto-list-empty-state: this
+     wrapper's 24px, not the child's, is what squeezed the copy in the sidebar. */
+  padding: 20px 12px;
 }
 
 .proto-list-create-empty .proto-list-empty-state {
@@ -5811,7 +5942,9 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  padding: 12px 24px;
+  /* 14px, not 24px. In a ~300px sidebar the wider inset cost four lines of
+     wrapping to save gutter nobody was reading. */
+  padding: 12px 14px;
   text-align: center;
   color: var(--pds-text-secondary);
 }
@@ -5827,27 +5960,34 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
   color: inherit;
 }
 
-/* Balanced: 18pt / 580 / rounded */
+/* Balanced: 19pt / 580 / rounded */
 html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__title {
   margin: 8px 0 0;
   font-family: var(--pds-font-display) !important;
   font-variation-settings: var(--pds-font-display-variation) !important;
-  font-size: 1.125rem;
+  font-size: 1.1875rem;
   font-weight: 580 !important;
   letter-spacing: -0.018em;
   line-height: 1.2;
   color: var(--pds-text-secondary) !important;
 }
 
+/* Steps down from the title on all three axes — size, weight and colour. It used
+   to inherit the title's exact colour, which left an 18px line and a 13px line in
+   the same grey doing the same job. */
 .proto-list-empty-state__description {
-  margin: 3px 0 0;
+  margin: 5px 0 0;
   font-family: var(--pds-font-body);
   font-variation-settings: var(--pds-font-body-variation);
-  font-size: 0.8125rem;
+  font-size: 0.78125rem;
   font-weight: 400;
   line-height: 1.45;
-  color: inherit;
-  text-wrap: balance;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  /* `pretty`, not `balance`. Balance equalises line lengths, which on a
+     three-sentence description means every line shrinks to the shortest one can
+     be — a tall narrow column in a pane that had width to spare. `pretty` keeps
+     the orphan control and lets the lines run full. */
+  text-wrap: pretty;
 }
 
 /* Enough air that the action reads as a next step rather than a caption's
@@ -13315,6 +13455,15 @@ p.proto-teaching-plan__divider {
   outline: none;
 }
 
+/* A container, so the header wraps on the panel's own width rather than the
+   window's. They aren't the same number — the panel is inset from both edges and
+   sits beside whatever else the shell is showing — and it was the panel the
+   toolbar had to fit inside. Safe to contain: the panel is position:fixed with
+   left/right insets, so its width never came from its contents. */
+.proto-sidebar-expanded-panel {
+  container: proto-expanded-panel / inline-size;
+}
+
 /* Three columns, not a flex row. The view switcher belongs on the panel's own
    centre line, and a flex `justify-content: center` only centres it in whatever
    the sides left over — so it slid 114px right the moment the scope control
@@ -13384,9 +13533,15 @@ p.proto-teaching-plan__divider {
   min-height: 0;
   display: flex;
   overflow: hidden;
+  /* Without this the body is a flex item at `min-width: auto`, so it can't shrink
+     below its contents — a list plus a fixed-width editor rail made it wider than
+     the panel, and the panel's own `overflow: hidden` quietly sliced the right
+     edge off. The narrow container query already set this; it was needed at every
+     width. */
+  min-width: 0;
 }
 
-@media (max-width: 899px) {
+@container proto-expanded-panel (max-width: 899px) {
   /*
     No room to centre a switcher between two edges — it drops to its own row.
 
@@ -13416,6 +13571,22 @@ p.proto-teaching-plan__divider {
   .proto-sidebar-expanded-panel__toolbar {
     grid-area: toolbar;
     justify-content: flex-start;
+  }
+
+  /* Once it has a row to itself, it takes the row. Left-clustered chips under a
+     full-width header read as leftovers from the line above; stretched, the
+     second row looks deliberate — and the targets get bigger for free, which is
+     the width people actually needed on a narrow panel. */
+  .proto-sidebar-expanded-panel__toolbar > .proto-chip-bar {
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .proto-sidebar-expanded-panel__toolbar > .proto-chip-bar > .proto-chip {
+    flex: 1 1 0;
+    justify-content: center;
+    min-width: 0;
   }
 
   /* Pinned to the final desktop width by the shell rule — undo it here. */
@@ -14041,12 +14212,25 @@ p.proto-teaching-plan__divider {
 
 /* ── Editor rail ─────────────────────────────────────────────────────────── */
 
+/* Inset from the panel rather than welded to it. Flush against the card's right
+   and bottom edges, a square-cornered rail inside an 18px-radius panel read as a
+   slab wedged in — and its own bottom-right corner was being clipped by that
+   radius. A margin and matching corners make it a panel sitting inside the card,
+   which is what it is. The border runs all the way round now, so it no longer
+   needs the left divider to separate it from the list. */
 .proto-planner-editor {
-  flex: 0 0 360px;
+  /* 344 + 8px margins either side = the 360px footprint this rail always had, so
+     the list beside it keeps exactly the width it had before. flex-basis is the
+     box, not the box plus margins — leaving it at 360 pushed the rail past the
+     panel's edge. */
+  flex: 0 0 344px;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-left: 0.5px solid var(--pds-border-control);
+  margin: 8px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: 14px;
+  overflow: hidden;
 }
 
 /* The form scrolls; the footer stays put. This used to scroll as one block, so
@@ -14058,13 +14242,37 @@ p.proto-teaching-plan__divider {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 4px 14px 14px;
+  /* 12px sides, not 14: the rail is inset from the panel now and carries its own
+     border, so the form was sitting 22px in from the panel edge. */
+  padding: 4px 12px 12px;
+}
+
+/* A footer brings its own bottom padding, so the body's stacked under it — 28px
+   of dead space beneath the button. When there's a footer it owns the bottom
+   edge; without one the body keeps its own. */
+.proto-planner-editor__body:has(> [class*='__footer']) {
+  padding-bottom: 0;
+}
+
+/* The footer is a bar, not a field: its fill and top rule should run the whole
+   width of the rail, so it pulls back out through the body's side padding and
+   re-applies the same inset itself. That keeps the button on the column the
+   inputs above it sit on while the background reaches both edges. */
+.proto-planner-editor__body > [class*='__footer'] {
+  margin-left: -12px;
+  margin-right: -12px;
+  padding: 10px 12px 12px;
 }
 
 .proto-planner-editor__body > .proto-service-editor {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* The body already sets the side inset; this element's own 14px stacked on top
+     of it, holding every field 27px in from a rail that's only 344px wide. It
+     keeps its vertical padding — only the doubled sides go. */
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .proto-planner-editor__body > .proto-add-notes-sheet__footer {
@@ -14259,25 +14467,41 @@ p.proto-teaching-plan__divider {
   }
 }
 
-/* The church section's heading shares its row with "Suggest one" — the moment
-   someone is looking at what their church keeps is the moment they notice a
-   gap in it. */
-.proto-resource-section-head-row {
+/* Closes the church's shelf with an invitation rather than another row. A card
+   because it isn't a resource — anything row-shaped in a list of resources reads
+   as one, which is why the plain row version kept being mistaken for an item. */
+.proto-resource-suggest-card {
+  appearance: none;
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 10px 18px 4px;
+  flex-direction: column;
+  gap: 2px;
+  width: calc(100% - 36px);
+  margin: 10px 18px 8px;
+  padding: 12px 14px;
+  border: 0.5px dashed var(--pds-border-control);
+  border-radius: var(--pds-radius-row, 10px);
+  background: transparent;
+  font-family: var(--pds-font-body);
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
 }
 
-.proto-resource-section-head-row .proto-resource-section-head {
-  margin: 0;
+.proto-resource-suggest-card:hover {
+  border-color: var(--pds-border-control-strong, var(--pds-text-tertiary));
+  background: var(--pds-bg-chip);
 }
 
-.proto-resource-suggest-btn {
-  padding: 0;
-  font-size: 11px;
-  flex-shrink: 0;
+.proto-resource-suggest-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-resource-suggest-card__body {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
 
 /* ─── Planner: attached resources ─────────────────────────────────────────── */
@@ -14611,6 +14835,113 @@ p.proto-teaching-plan__divider {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* ─── Resource file field ─────────────────────────────────────────────────────
+   The import surface's vocabulary at field scale: a sheet of ruled paper you can
+   drop onto. Deliberately the same material, because attaching a file to the
+   library and importing notes are the same gesture with different destinations —
+   learning one should teach the other. */
+.proto-resource-file-drop {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 18px 14px 16px;
+  border: 1px dashed var(--pds-border-control);
+  border-radius: var(--pds-radius-input, 10px);
+  background: var(--pds-bg-section);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.proto-resource-file-drop:hover,
+.proto-resource-file-drop--active {
+  border-color: var(--pds-accent);
+  background: color-mix(in oklab, var(--pds-accent) 6%, var(--pds-bg-section));
+}
+
+/* A miniature of the import fan's sheet — one page instead of four. */
+.proto-resource-file-drop__sheet {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+  width: 42px;
+  height: 54px;
+  padding: 8px 7px;
+  border: 0.5px solid color-mix(in oklab, var(--pds-text-primary) 11%, transparent);
+  border-radius: 4px;
+  background: var(--pds-bg-page);
+  box-shadow: 0 1px 2px rgba(20, 18, 12, 0.05), 0 8px 18px -12px rgba(20, 18, 12, 0.35);
+}
+
+.proto-resource-file-drop__rule {
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in oklab, var(--pds-text-primary) 13%, transparent);
+}
+
+.proto-resource-file-drop__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+}
+
+.proto-resource-file-drop__hint {
+  font-size: 11.5px;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+/* Chosen: the drop zone is replaced, not stacked under — one file, one entry. */
+.proto-resource-file-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--pds-border-control-soft, var(--pds-border-control));
+  border-radius: var(--pds-radius-input, 10px);
+  background: var(--pds-bg-section);
+}
+
+.proto-resource-file-row__ext {
+  flex: none;
+  min-width: 34px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: var(--pds-bg-chip);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--pds-text-secondary);
+}
+
+.proto-resource-file-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.proto-resource-file-row__name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-resource-file-row__size {
+  font-size: 11.5px;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
 
 /* ─── Danger zone ─────────────────────────────────────────────────────────────

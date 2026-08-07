@@ -1166,8 +1166,24 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     }
   }
 
+  /*
+   * Pinned to the panel's final width so children lay out once and each frame of
+   * the width animation is a clip, not a reflow.
+   *
+   * `100%` of the panel, not a viewport sum. The old value was
+   * `min(100vw - 32px, 1024px)`, which measured from the window while the panel
+   * measures from the shell — and the shell is itself inset, so the body came out
+   * ~12px wider than the panel it lives in. The panel clips (`overflow: hidden`),
+   * so that difference was quietly shaving the right edge off whatever sat there:
+   * the editor rail's border, the top-right of its header.
+   *
+   * During the animation `100%` tracks the panel rather than jumping to the final
+   * width, so this trades a little of the original optimisation for a body that
+   * always fits. If the unfurl ever stutters, the fix is the translateX slide the
+   * note above suggests — not a wider body.
+   */
   .proto-sidebar-expanded-panel__body {
-    min-width: min(calc(100vw - 32px), 1024px);
+    min-width: 100%;
   }
 
   @media (prefers-reduced-motion: reduce) {

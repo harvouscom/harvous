@@ -157,6 +157,14 @@ type ChurchLibraryAction =
       scopes?: { scopeKind: 'org' | 'space'; spaceId?: string | null }[];
     }
   | {
+      kind: 'upload';
+      file: File;
+      title?: string | null;
+      description?: string | null;
+      access?: LibraryItemAccess;
+      scopes?: { scopeKind: 'org' | 'space'; spaceId?: string | null }[];
+    }
+  | {
       kind: 'update';
       id: string;
       title?: string;
@@ -184,6 +192,19 @@ export function useChurchLibraryActions(orgId: string | null | undefined) {
       switch (kind) {
         case 'create':
           return api.post('/api/church/library/items/create', { orgId: trimmed, ...rest });
+        case 'upload': {
+          /* Multipart, so the file rides along — scopes go as JSON and the route
+             parses them back before validating, same as the create body. */
+          const { file, title, description, access, scopes } = action;
+          const form = new FormData();
+          form.append('file', file);
+          if (trimmed) form.append('orgId', trimmed);
+          if (title?.trim()) form.append('title', title.trim());
+          if (description?.trim()) form.append('description', description.trim());
+          if (access) form.append('access', access);
+          if (scopes) form.append('scopes', JSON.stringify(scopes));
+          return api.post('/api/church/library/items/upload', form);
+        }
         case 'update':
           return api.post('/api/church/library/items/update', { orgId: trimmed, ...rest });
         case 'archive':

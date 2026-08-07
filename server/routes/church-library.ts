@@ -39,6 +39,12 @@ import { handleAPIError } from '@/utils/error-handling';
 import { validateResourceUrl, extractDomain } from '@/utils/validation';
 import { isChurchOrgSpaceRow } from '../utils/channel-publish-cadence';
 import {
+  uploadLibraryFile,
+  isLibraryFileStorageConfigured,
+  sanitizeLibraryFileName,
+  LIBRARY_FILE_MAX_BYTES,
+} from '../utils/library-file-upload';
+import {
   assertCanManageChurchLibrary,
   assertCanViewChurchLibrary,
   ensureChurchLibrary,
@@ -360,6 +366,120 @@ app.post('/api/church/library/items/create', requireAuth, rateLimit('write'), as
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/library/items/create',
       action: 'church_library_create',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/church/library/items/upload ──────────────────────────────────
+/**
+ * Attach a file as a church resource — the same row as `create`, sourced from an
+ * upload instead of a URL.
+ *
+ * Multipart rather than JSON, so `scopes` arrives as a JSON string and is parsed
+ * before it reaches `resolveScopes` — which still does the validating, since a
+ * form field is no more trustworthy than a body field.
+ *
+ * The upload runs before the insert. A stored object with no row is a bounded
+ * cost (an orphan in the bucket); a row pointing at an object that failed to
+ * store is a resource nobody can open.
+ */
+app.post('/api/church/library/items/upload', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    if (!isLibraryFileStorageConfigured()) {
+      return c.json({ error: 'File storage is not configured', code: 'STORAGE_UNAVAILABLE' }, 503);
+    }
+
+    const formData = await c.req.formData();
+    const orgId = String(formData.get('orgId') ?? '').trim();
+    const gate = await assertCanManageChurchLibrary(auth.userId, orgId);
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    const file = formData.get('file');
+    if (!(file instanceof File)) {
+      return c.json({ error: 'A file is required', code: 'MISSING_FILE' }, 400);
+    }
+    if (file.size > LIBRARY_FILE_MAX_BYTES) {
+      return c.json(
+        { error: 'File is larger than 50MB — link to it instead', code: 'FILE_TOO_LARGE' },
+        413,
+      );
+    }
+
+    const access = formData.get('access') === 'leaders' ? 'leaders' : 'members';
+    const rawScopes = formData.get('scopes');
+    let parsedScopes: unknown = undefined;
+    if (typeof rawScopes === 'string' && rawScopes.trim()) {
+      try {
+        parsedScopes = JSON.parse(rawScopes);
+      } catch {
+        return c.json({ error: 'Invalid scopes', code: 'INVALID_SCOPES' }, 400);
+      }
+    }
+    const scopeResult = await resolveScopes(gate.church.orgId, parsedScopes);
+    if (!scopeResult.ok) {
+      return c.json({ error: scopeResult.error, code: scopeResult.code }, 400);
+    }
+
+    const fileName = sanitizeLibraryFileName(file.name || 'file');
+    const library = await ensureChurchLibrary(gate.church.id, gate.church.name);
+    const itemId = `libi_${crypto.randomUUID()}`;
+
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const uploaded = await uploadLibraryFile({
+      userId: auth.userId,
+      itemId,
+      fileName,
+      bytes,
+      mimeType: file.type || 'application/octet-stream',
+    });
+    if (!uploaded.ok) {
+      return c.json({ error: uploaded.error, code: 'UPLOAD_FAILED' }, uploaded.status);
+    }
+
+    const titleField = formData.get('title');
+    const descriptionField = formData.get('description');
+    const timestamp = new Date();
+    const row = {
+      id: itemId,
+      libraryId: library.id,
+      kind: 'file',
+      // Filename minus extension beats "file" when nobody typed a title.
+      title:
+        clean(typeof titleField === 'string' ? titleField : null, TITLE_MAX_LENGTH) ??
+        fileName.replace(/\.[^.]+$/, '') ??
+        fileName,
+      description: clean(
+        typeof descriptionField === 'string' ? descriptionField : null,
+        DESCRIPTION_MAX_LENGTH,
+      ),
+      sourceUrl: null,
+      sourceDomain: null,
+      sourceSiteName: null,
+      sourceImage: null,
+      fileStorageKey: uploaded.storageKey,
+      fileName,
+      fileMime: file.type.split(';')[0].trim().toLowerCase() || null,
+      fileBytes: bytes.length,
+      access,
+      createdByUserId: auth.userId,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+    };
+
+    await db.transaction(async (tx) => {
+      await tx.insert(LibraryItems).values(row);
+      await replaceScopes(tx, row.id, scopeResult.scopes);
+    });
+
+    return c.json({ success: true, item: serializeStaffItem(row, []) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/library/items/upload',
+      action: 'church_library_upload',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

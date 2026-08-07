@@ -43,6 +43,7 @@ import {
   sanitizeLibraryFileName,
   LIBRARY_FILE_MAX_BYTES,
 } from '../utils/library-file-upload';
+import { resolveVisibleItem } from '../utils/church-library-access';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
 import { validateResourceUrl, extractDomain } from '@/utils/validation';
@@ -375,15 +376,21 @@ app.post('/api/library/items/upload', requireAuth, rateLimit('write'), async (c)
 /**
  * GET /api/library/items/:id/file — mint a short-lived download URL.
  *
- * The owner check happens here, at mint time, which is what lets the bucket
+ * The access check happens here, at mint time, which is what lets the bucket
  * stay private with no client-role storage policies at all.
+ *
+ * `resolveVisibleItem`, not `findOwnedItem`: a church file belongs to the
+ * church's library, not to the person opening it, so an ownership test would
+ * 404 every member including the staffer who uploaded it. That helper checks
+ * personal ownership first (unchanged for personal files) and then the church
+ * rules the item itself declares — leaders-only, and space scopes.
  */
 app.get('/api/library/items/:id/file', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const id = requireParam(c, 'id');
 
-    const item = await findOwnedItem(auth.userId, id);
+    const item = await resolveVisibleItem(auth.userId, id);
     if (!item) return c.json({ error: 'Library item not found', code: 'NOT_FOUND' }, 404);
     if (item.kind !== 'file' || !item.fileStorageKey) {
       return c.json({ error: 'Item has no file', code: 'NOT_A_FILE' }, 400);

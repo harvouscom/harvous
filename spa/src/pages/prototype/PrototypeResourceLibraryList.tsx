@@ -19,6 +19,7 @@ import {
 import PrototypeSuggestResourceSheet from './PrototypeSuggestResourceSheet';
 import PrototypeListEmptyState, { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
 import PrototypeSidebarRowMenuPopover from './PrototypeSidebarRowMenuPopover';
+import ProtoChipBar from './components/ProtoChipBar';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import {
   formatResourceFileBytes,
@@ -50,9 +51,18 @@ function ResourceRow({
   const rowRef = useRef<HTMLLIElement>(null);
   const menuRootRef = useRef<HTMLDivElement>(null);
   const isFile = item.kind === 'file';
-  const subtitle = isFile
-    ? resourceFileLabel(item.fileMime, item.fileBytes, item.fileName)
-    : resourceSourceLabel(item.sourceDomain, item.sourceSiteName);
+  /* What it is, then whose shelf it's on — the second line carries the source so
+     the list needs no section headings to explain itself.
+     `null` bytes so a file says "PDF" without its weight: how big it is only
+     matters once you've decided to open it. */
+  const subtitle = [
+    isFile
+      ? resourceFileLabel(item.fileMime, null, item.fileName)
+      : resourceSourceLabel(item.sourceDomain, item.sourceSiteName),
+    'My Library',
+  ]
+    .filter(Boolean)
+    .join('  ·  ');
 
   return (
     <li
@@ -78,11 +88,12 @@ function ResourceRow({
           </span>
           <span className="pds-list-title proto-note-row__title-text">{item.title}</span>
         </div>
-        {subtitle || item.description ? (
+        {/* No description preview. A resource is a thing you go and open, so its
+            own blurb is noise on the way there — the line says what it is and
+            where it lives, and nothing else. */}
+        {subtitle ? (
           <div className="pds-list-preview proto-note-row__preview">
-            {subtitle ? <span className="pds-list-timestamp">{subtitle}</span> : null}
-            {subtitle && item.description ? '  ' : null}
-            {item.description ? <span>{item.description}</span> : null}
+            <span className="pds-list-timestamp">{subtitle}</span>
           </div>
         ) : null}
       </button>
@@ -291,7 +302,6 @@ function AddResourceForm({
             requestAnimationFrame(() => urlInputRef.current?.focus());
           }}
         >
-          <Icon name="plus" size={11} aria-hidden />
           <span>Add resource</span>
         </button>
       </div>
@@ -311,6 +321,22 @@ function AddResourceForm({
   if (stage.step === 'choose') {
     return (
       <div className="proto-resource-add proto-resource-add--open">
+        {/* Cancel is a dismiss on the panel it closes, not a button competing in
+            the column of things you came here to press. Full-width and last, it
+            sat exactly where the eye lands after "Choose a file" — the one place
+            a "no thanks" should never be. */}
+        <div className="proto-resource-add__head">
+          <span className="proto-resource-add__head-title">Add a resource</span>
+          <button
+            type="button"
+            className="proto-resource-add__dismiss"
+            onClick={reset}
+            aria-label="Cancel adding a resource"
+          >
+            <Icon name="xmark" size={12} aria-hidden />
+          </button>
+        </div>
+
         <div className="proto-resource-add__row">
           <input
             ref={urlInputRef}
@@ -354,10 +380,6 @@ function AddResourceForm({
           PDF, doc, image, or audio — up to 50MB. You can also drop one on the list.
         </p>
         {hiddenFileInput}
-
-        <button type="button" className="proto-resource-add__cancel" onClick={reset}>
-          Cancel
-        </button>
         {error ? <p className="proto-resource-add__error">{error}</p> : null}
       </div>
     );
@@ -426,14 +448,33 @@ function hostOf(raw: string): string {
  * church, and a member "removing" one would either be a lie — it returns on
  * the next refetch — or a right they do not have. Opening is the interaction.
  */
+type ResourceSourceTab = 'all' | 'yours' | 'church';
+
+/** One row in the merged list, tagged so it can be rendered by the right component. */
+type MergedResourceRow =
+  | { key: string; source: 'mine'; item: LibraryItem }
+  | { key: string; source: 'church'; item: ChurchLibraryItem };
+
 function ChurchResourceRow({
   item,
+  churchName,
   onOpen,
 }: {
   item: ChurchLibraryItem;
+  churchName: string | null;
   onOpen: () => void;
 }) {
-  const subtitle = resourceSourceLabel(item.sourceDomain, item.sourceSiteName);
+  /* What it is, then whose shelf. The church is named here rather than in a
+     heading — a row that says where it came from travels with the item, so the
+     list reads the same whether it's filtered or not. */
+  const subtitle = [
+    item.kind === 'file'
+      ? resourceFileLabel(item.fileMime, null, item.fileName)
+      : resourceSourceLabel(item.sourceDomain, item.sourceSiteName),
+    churchName ?? 'Church Library',
+  ]
+    .filter(Boolean)
+    .join('  ·  ');
   return (
     <li className="proto-note-row-item">
       <button
@@ -453,14 +494,15 @@ function ChurchResourceRow({
             <span>{item.title}</span>
           </span>
         </div>
-        {subtitle || item.description || item.access === 'leaders' ? (
+        {/* Description dropped for the same reason as the personal row. "Leaders"
+            stays: it explains why an item is visible to this reader and not to
+            the person beside them, which nothing else on the row says. */}
+        {subtitle || item.access === 'leaders' ? (
           <div className="pds-list-preview proto-note-row__preview">
             {subtitle ? <span className="pds-list-timestamp">{subtitle}</span> : null}
-            {/* Says why this is visible when it is not visible to everyone. */}
             {item.access === 'leaders' ? (
               <span className="pds-list-timestamp">{subtitle ? '  ·  Leaders' : 'Leaders'}</span>
             ) : null}
-            {item.description ? <span>{item.description}</span> : null}
           </div>
         ) : null}
       </button>
@@ -513,8 +555,48 @@ export default function PrototypeResourceLibraryList({
     );
   }, [churchItems, trimmedQuery]);
 
-  /* Only worth a heading when there is a second section to tell it apart from. */
+  /* Only worth splitting when there is a second shelf to tell it apart from. */
   const showSections = filteredChurch.length > 0;
+
+  const [sourceTab, setSourceTab] = useState<ResourceSourceTab>('all');
+  /* Not the church's own name: "New Hope Assembly of God Church" is longer than
+     the sidebar and pushes the other two chips off the edge. Whose shelf it is
+     answers the question the tab exists for, and it stays the same width for
+     every church. */
+  const sourceTabs = useMemo(
+    () => [
+      { id: 'all' as const, label: 'All' },
+      { id: 'yours' as const, label: 'My Library' },
+      { id: 'church' as const, label: 'Church Library' },
+    ],
+    [],
+  );
+  const showYours = !showSections || sourceTab === 'all' || sourceTab === 'yours';
+  const showChurch = sourceTab === 'all' || sourceTab === 'church';
+
+  /**
+   * One list, newest first — not a personal block stacked on a church block.
+   * Two adjacent `<ul>`s read as sections even with the headings gone, which is
+   * the opposite of what the per-row source label is for: the label frees the
+   * list to sort by recency like every other list in the app.
+   */
+  const mergedRows = useMemo(() => {
+    const at = (value: string | Date | null | undefined) =>
+      value ? new Date(value).getTime() || 0 : 0;
+    const rows: MergedResourceRow[] = [];
+    if (showYours) {
+      for (const item of filtered) rows.push({ key: `mine:${item.id}`, source: 'mine', item });
+    }
+    if (showChurch) {
+      for (const item of filteredChurch) {
+        rows.push({ key: `church:${item.id}`, source: 'church', item });
+      }
+    }
+    return rows.sort(
+      (a, b) =>
+        at(b.item.updatedAt ?? b.item.createdAt) - at(a.item.updatedAt ?? a.item.createdAt),
+    );
+  }, [filtered, filteredChurch, showYours, showChurch]);
 
   const hasFiles = (e: DragEvent) => e.dataTransfer?.types?.includes('Files');
 
@@ -552,11 +634,6 @@ export default function PrototypeResourceLibraryList({
           <span>Drop to add a resource</span>
         </div>
       ) : null}
-      <AddResourceForm
-        onSaved={() => libraryQuery.refetch()}
-        droppedFile={droppedFile}
-        onDroppedFileConsumed={() => setDroppedFile(null)}
-      />
       {libraryQuery.isLoading ? (
         <ProtoSpaceLoading label="Loading resources" />
       ) : libraryQuery.isError ? (
@@ -575,59 +652,87 @@ export default function PrototypeResourceLibraryList({
         )
       ) : (
         <>
-          {filtered.length > 0 ? (
-            <>
-              {showSections ? (
-                <p className="proto-caption proto-resource-section-head">Yours</p>
-              ) : null}
-              <ul className="proto-note-list">
-                {filtered.map((item) => (
-                  <ResourceRow
-                    key={item.id}
-                    item={item}
-                    onOpen={() => onOpenResource(item)}
-                    isArchiving={archive.isPending && archivingId === item.id}
-                    onArchive={() => {
-                      setArchivingId(item.id);
-                      void archive.mutateAsync(item.id).finally(() => setArchivingId(null));
-                    }}
-                  />
-                ))}
-              </ul>
-            </>
+          {/* Chips instead of stacked section headings, matching the church
+              surfaces. "All" leads and stays the default so the list still
+              answers "what can I reach for" in one view — the reason these were
+              one list to begin with; the other two are for when you know which
+              shelf you want. */}
+          {showSections ? (
+            <ProtoChipBar
+              ariaLabel="Which resources"
+              options={sourceTabs}
+              selectedId={sourceTab}
+              onSelect={setSourceTab}
+            />
           ) : null}
 
-          {filteredChurch.length > 0 ? (
-            <>
-              <div className="proto-resource-section-head-row">
-                <p className="proto-caption proto-resource-section-head">
-                  {churchName ? `From ${churchName}` : 'From your church'}
-                </p>
-                {/* Sits with the church's own section, where someone is already
-                    looking at what their church keeps and noticing a gap. */}
-                <button
-                  type="button"
-                  className="proto-sheet-quiet-action proto-resource-suggest-btn"
-                  onClick={() => setSuggestOpen(true)}
-                >
-                  Suggest one
-                </button>
-              </div>
-              <ul className="proto-note-list">
-                {filteredChurch.map((item) => (
-                  <ChurchResourceRow
-                    key={item.id}
-                    item={item}
-                    onOpen={() => {
-                      if (item.sourceUrl) window.open(item.sourceUrl, '_blank', 'noopener');
-                    }}
-                  />
-                ))}
-              </ul>
-            </>
+          {/* One list, newest first. No headings: every row names its own shelf
+              on its second line, and that label travels with the item — a heading
+              only holds while the list is grouped, and stops being true the
+              moment you filter or search. */}
+          <ul className="proto-note-list">
+            {mergedRows.map((row) =>
+              row.source === 'mine' ? (
+                <ResourceRow
+                  key={row.key}
+                  item={row.item}
+                  onOpen={() => onOpenResource(row.item)}
+                  isArchiving={archive.isPending && archivingId === row.item.id}
+                  onArchive={() => {
+                    setArchivingId(row.item.id);
+                    void archive.mutateAsync(row.item.id).finally(() => setArchivingId(null));
+                  }}
+                />
+              ) : (
+                <ChurchResourceRow
+                  key={row.key}
+                  item={row.item}
+                  churchName={churchName}
+                  onOpen={() => {
+                    /* A church file lives in a private bucket with no sourceUrl,
+                       so opening it means minting a signed URL — without this the
+                       row was inert. */
+                    if (row.item.kind === 'file') void openLibraryFileItem(row.item.id);
+                    else if (row.item.sourceUrl) {
+                      window.open(row.item.sourceUrl, '_blank', 'noopener');
+                    }
+                  }}
+                />
+              ),
+            )}
+          </ul>
+
+          {/* Only on the church's own tab. On "All" it read as an action for the
+              whole list, which it isn't — and it sat under personal rows it has
+              nothing to do with. A card, because here it's the invitation at the
+              end of that shelf rather than a row you might mistake for one. */}
+          {sourceTab === 'church' && churchQuery.data?.church ? (
+            <button
+              type="button"
+              className="proto-resource-suggest-card"
+              onClick={() => setSuggestOpen(true)}
+            >
+              <span className="proto-resource-suggest-card__title">Missing something?</span>
+              <span className="proto-resource-suggest-card__body">
+                Suggest a resource for {churchName ?? 'your church'} to add.
+              </span>
+            </button>
           ) : null}
         </>
       )}
+
+      {/* The list's own action, pinned to the bottom — the same footer the
+          expanded planner and the sheets use, so "the primary thing you can do
+          here" is always in the same place and always the gradient button.
+          At the top it was a full-width control you had to scroll past to reach
+          what you came to read. */}
+      <div className="proto-resource-footer">
+        <AddResourceForm
+          onSaved={() => libraryQuery.refetch()}
+          droppedFile={droppedFile}
+          onDroppedFileConsumed={() => setDroppedFile(null)}
+        />
+      </div>
 
       <PrototypeSuggestResourceSheet
         open={suggestOpen}

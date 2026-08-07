@@ -2873,18 +2873,6 @@ export default function PrototypeSidebar({
                 )
               ) : (
                 <>
-                  {!q.trim() && canCreateSidebarCollections ? (
-                    <div className="proto-collection-grid-actions">
-                      <button
-                        type="button"
-                        className="proto-collection-grid-actions__btn"
-                        onClick={openCreateFolderSheet}
-                      >
-                        <Icon name="plus" size={12} aria-hidden />
-                        New folder
-                      </button>
-                    </div>
-                  ) : null}
                   <ul className="proto-collection-grid">
                   {filteredFolders.map((col) => (
                     <PrototypeSidebarFolderCard
@@ -2901,6 +2889,19 @@ export default function PrototypeSidebar({
                     />
                   ))}
                 </ul>
+                {/* After the grid, not before it: the footer is the last thing in
+                    the pane, so the list starts at the top where reading starts. */}
+                {!q.trim() && canCreateSidebarCollections ? (
+                  <div className="proto-collection-grid-actions">
+                    <button
+                      type="button"
+                      className="proto-collection-grid-actions__btn"
+                      onClick={openCreateFolderSheet}
+                    >
+                      New folder
+                    </button>
+                  </div>
+                ) : null}
                 </>
               )
             ) : null}
@@ -3114,18 +3115,6 @@ export default function PrototypeSidebar({
                   )
                 ) : (
                   <>
-                    {!q.trim() && canCreateSidebarCollections ? (
-                      <div className="proto-collection-grid-actions">
-                        <button
-                          type="button"
-                          className="proto-collection-grid-actions__btn"
-                          onClick={() => openCreateThreadSheet()}
-                        >
-                          <Icon name="plus" size={12} aria-hidden />
-                          New thread
-                        </button>
-                      </div>
-                    ) : null}
                     <ul className="proto-collection-grid">
                       {filteredSharedThreads.map((thread) => (
                         <PrototypeSidebarSharedThreadCard
@@ -3149,6 +3138,17 @@ export default function PrototypeSidebar({
                         />
                       ))}
                     </ul>
+                    {!q.trim() && canCreateSidebarCollections ? (
+                      <div className="proto-collection-grid-actions">
+                        <button
+                          type="button"
+                          className="proto-collection-grid-actions__btn"
+                          onClick={() => openCreateThreadSheet()}
+                        >
+                          New thread
+                        </button>
+                      </div>
+                    ) : null}
                   </>
                 )}
               </>
@@ -3200,18 +3200,6 @@ export default function PrototypeSidebar({
                   )
                 ) : (
                   <>
-                    {!q.trim() && canCreateSidebarCollections ? (
-                      <div className="proto-collection-grid-actions">
-                        <button
-                          type="button"
-                          className="proto-collection-grid-actions__btn"
-                          onClick={() => openCreateThreadSheet()}
-                        >
-                          <Icon name="plus" size={12} aria-hidden />
-                          New thread
-                        </button>
-                      </div>
-                    ) : null}
                     <ul className="proto-collection-grid">
                     {filteredThreads.map((cluster) => {
                       const title = resolveClusterListTitle(
@@ -3235,6 +3223,17 @@ export default function PrototypeSidebar({
                       );
                     })}
                   </ul>
+                  {!q.trim() && canCreateSidebarCollections ? (
+                    <div className="proto-collection-grid-actions">
+                      <button
+                        type="button"
+                        className="proto-collection-grid-actions__btn"
+                        onClick={() => openCreateThreadSheet()}
+                      >
+                        New thread
+                      </button>
+                    </div>
+                  ) : null}
                   </>
                 )}
               </>

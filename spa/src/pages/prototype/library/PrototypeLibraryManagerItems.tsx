@@ -7,6 +7,8 @@
  */
 import Icon from '@/components/react/Icon';
 import { resourceSourceLabel } from '@/utils/resource-source-label';
+import { openLibraryFileItem } from '../../../hooks/queries/useLibrary';
+import { formatFileSize } from '../import/import-file-sources';
 import type { PlannableSpace } from '../../../hooks/useChurchPlannerAccess';
 import type { ChurchLibraryStaffItem } from '../../../hooks/queries/useChurchLibrary';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
@@ -67,7 +69,17 @@ export default function PrototypeLibraryManagerItems({
     <div className="proto-planner-list">
       <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
         {items.map((item) => {
-          const subtitle = resourceSourceLabel(item.sourceDomain, item.sourceSiteName);
+          const isFile = item.kind === 'file';
+          /* A file has no domain to name, so it says what it is instead — the
+             extension people recognise, and how big before they open it. */
+          const subtitle = isFile
+            ? [
+                (item.fileName?.split('.').pop() || 'File').toUpperCase(),
+                item.fileBytes ? formatFileSize(item.fileBytes) : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : resourceSourceLabel(item.sourceDomain, item.sourceSiteName);
           const selected = selection?.mode === 'edit' && selection.itemId === item.id;
           return (
             <button
@@ -84,11 +96,15 @@ export default function PrototypeLibraryManagerItems({
                  Same row, different job, decided by what they may do. */
               onClick={() => {
                 if (canCurate) onSelect({ mode: 'edit', itemId: item.id });
+                /* A file has no sourceUrl — it lives in a private bucket, so
+                   opening it means minting a signed URL for this reader. Without
+                   this branch a teacher's click on a file row did nothing. */
+                else if (isFile) void openLibraryFileItem(item.id);
                 else if (item.sourceUrl) window.open(item.sourceUrl, '_blank', 'noopener');
               }}
             >
               <span className="proto-church-tools__row-icon" aria-hidden>
-                <Icon name="newspaper" size={13} />
+                <Icon name={isFile ? 'file-lines' : 'newspaper'} size={13} />
               </span>
               <span className="proto-church-tools__row-text">
                 <span
