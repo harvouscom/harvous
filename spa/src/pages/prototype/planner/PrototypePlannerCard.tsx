@@ -71,6 +71,17 @@ export default function PrototypePlannerCard({
     disabled: !draggable,
   });
 
+  /*
+    A week held open rather than written: it belongs to a series, carries that
+    series' name, and has no passage — exactly what "Add weeks" generates. It
+    is a real row and stays fully editable; it just should not read as a
+    finished sermon when a pastor is scanning for what still needs work.
+  */
+  const placeholder =
+    Boolean(service.seriesId) &&
+    !service.reference &&
+    service.title.trim() === (service.seriesTitle ?? '').trim();
+
   return (
     <button
       ref={setNodeRef}
@@ -84,6 +95,7 @@ export default function PrototypePlannerCard({
            grab cursor would promise a drag that will not start. */
         draggable ? '' : 'proto-planner-card--static',
         compact ? 'proto-planner-card--compact' : '',
+        placeholder ? 'proto-planner-card--placeholder' : '',
         selected ? 'proto-planner-card--selected' : '',
         /* Left in place but faded while the DragOverlay carries the real card —
            removing it would collapse the column and make the drop target move

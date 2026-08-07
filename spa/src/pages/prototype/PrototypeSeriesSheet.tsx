@@ -43,8 +43,18 @@ export interface PrototypeSeriesSheetProps {
   error: string | null;
   onRename: (series: TeachingPlanSeries, title: string) => void;
   onDelete: (series: TeachingPlanSeries) => void;
+  /**
+   * Extend the run: `weeks` more Sundays after its last dated one, each a
+   * placeholder carrying the series name and no passage.
+   */
+  onAddWeeks: (series: TeachingPlanSeries, seedServiceId: string, weeks: number) => void;
+  /** Drop the untouched placeholders — never a week anyone has written into. */
+  onRemoveEmpty: (series: TeachingPlanSeries, serviceIds: string[]) => void;
   onOpenChange: (open: boolean) => void;
 }
+
+/** Twelve, matching `REPEAT_MAX_WEEKS` — the server refuses more. */
+const ADD_WEEK_CHOICES = [1, 2, 3, 5, 7, 11];
 
 
 export default function PrototypeSeriesSheet({
@@ -56,12 +66,16 @@ export default function PrototypeSeriesSheet({
   error,
   onRename,
   onDelete,
+  onAddWeeks,
+  onRemoveEmpty,
   onOpenChange,
 }: PrototypeSeriesSheetProps) {
   const { isMobileSidebar } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [title, setTitle] = useState('');
+  /** How many weeks the "Add weeks" control will append. */
+  const [addWeeks, setAddWeeks] = useState(3);
 
   // Reset from the row each time the sheet opens, so an abandoned rename never
   // leaks into the next series you look at.
@@ -94,6 +108,31 @@ export default function PrototypeSeriesSheet({
 
   const trimmed = title.trim();
   const renamed = trimmed.length > 0 && trimmed !== series.title;
+
+  /*
+    Weeks are appended after the run's last dated one, so the seed is that row.
+    Undated members are skipped: `repeat` counts weeks forward from a date and
+    refuses a row without one.
+  */
+  const dated = services.filter((s) => s.serviceDate !== null);
+  const seed = dated.length > 0 ? dated[dated.length - 1] : null;
+
+  /*
+    A week with no passage is one still to write. That is the honest measure of
+    "how far through am I" — a placeholder and a half-written week both read as
+    unfinished, and neither is something to teach from yet.
+  */
+  const toFill = services.filter((s) => !s.reference).length;
+
+  /*
+    Removable = exactly what "Add weeks" generated and nobody has touched: no
+    passage, and still carrying the series' own name. A week someone has
+    retitled or given a passage is their work, not scaffolding, and must
+    survive a control called "remove empty weeks".
+  */
+  const removable = services.filter(
+    (s) => !s.reference && s.title.trim() === series.title.trim(),
+  );
 
   const content = (
     <>
@@ -139,13 +178,18 @@ export default function PrototypeSeriesSheet({
         )}
 
         <p className="proto-inspector-section-title proto-create-folder-sheet__field-label">
-          {services.length === 1 ? '1 week' : `${services.length} weeks`}
+          <span>{services.length === 1 ? '1 week' : `${services.length} weeks`}</span>
+          {/* The count that answers "how much of this is actually written". */}
+          {toFill > 0 ? (
+            <span className="proto-service-editor__optional">{toFill} to fill</span>
+          ) : null}
         </p>
         {/*
-          The extent, which is the thing a series has and a repeated string did
-          not. Read-only: a week is edited from the plan, where its date and
-          passage live — offering a second door to the same row would be two
-          places to change one thing.
+          Each week stays read-only here — it is edited from the plan, where its
+          date and passage live, and a second door to the same row would be two
+          places to change one thing. The run's *length* is different: it is a
+          property of the series, so it is edited here rather than by opening a
+          week and repeating from it.
         */}
         <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
           {services.map((service) => (
@@ -165,6 +209,76 @@ export default function PrototypeSeriesSheet({
             </p>
           ) : null}
         </div>
+
+        {/*
+          How long the run is, edited where you think about it.
+
+          The weeks this adds are placeholders: the series' name, the right
+          Sunday, no passage. That is the point — you know it is a six-week run
+          before you know what week four is about, and the plan should be able
+          to say so.
+        */}
+        {canWrite ? (
+          <div className="proto-service-editor__repeat proto-series-sheet__run">
+            {seed ? (
+              <>
+                <select
+                  aria-label="How many weeks to add"
+                  className="proto-create-folder-sheet__name-input proto-service-editor__repeat-select"
+                  value={addWeeks}
+                  disabled={pending}
+                  onChange={(e) => setAddWeeks(Number(e.target.value))}
+                >
+                  {ADD_WEEK_CHOICES.map((weeks) => (
+                    <option key={weeks} value={weeks}>
+                      {weeks === 1 ? '1 more week' : `${weeks} more weeks`}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                  disabled={pending}
+                  onClick={() => onAddWeeks(series, seed.id, addWeeks)}
+                >
+                  <Icon name="plus" size={12} aria-hidden />
+                  <span className="proto-glass-action__label">
+                    {pending ? 'Adding…' : 'Add weeks'}
+                  </span>
+                </button>
+              </>
+            ) : (
+              /* Nothing to count forward from. Saying so beats a disabled
+                 control that never explains itself. */
+              <p className="proto-caption proto-teaching-plan__empty">
+                Give one week a date first — a run is counted forward from one.
+              </p>
+            )}
+          </div>
+        ) : null}
+
+        {canWrite && removable.length > 0 ? (
+          <button
+            type="button"
+            className="proto-sheet-quiet-action"
+            disabled={pending}
+            onClick={() => {
+              const count = removable.length;
+              if (
+                !window.confirm(
+                  count === 1
+                    ? 'Remove the one empty week from this series? Nothing written is touched.'
+                    : `Remove ${count} empty weeks from this series? Nothing written is touched.`,
+                )
+              ) {
+                return;
+              }
+              onRemoveEmpty(series, removable.map((s) => s.id));
+            }}
+          >
+            {removable.length === 1 ? 'Remove 1 empty week' : `Remove ${removable.length} empty weeks`}
+          </button>
+        ) : null}
 
         {error ? (
           <p className="proto-connect-note-sheet__error" role="alert">

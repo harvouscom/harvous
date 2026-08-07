@@ -13396,6 +13396,19 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   cursor: pointer;
 }
 
+/* A week the run is holding open — the series' name on the right Sunday with
+   nothing written into it yet. Dashed, because that is what a slot looks like
+   everywhere else, and quieter so a scan for unfinished weeks lands on it
+   without it competing with the sermons that are ready. */
+.proto-planner-card--placeholder {
+  border-style: dashed;
+  background: transparent;
+}
+
+.proto-planner-card--placeholder .proto-planner-card__title {
+  color: var(--pds-text-secondary);
+}
+
 .proto-planner-card--selected {
   border-color: var(--pds-accent, var(--pds-text-primary));
   box-shadow: 0 0 0 1px var(--pds-accent, var(--pds-text-primary));
@@ -13760,6 +13773,11 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   flex: 0 0 auto;
 }
 
+/* The run-length row: a week count beside the button that appends them. */
+.proto-series-sheet__run {
+  margin-top: 8px;
+}
+
 /* Two secondary actions abreast, under the primary. */
 .proto-sheet-footer__row {
   display: flex;
@@ -14050,6 +14068,7 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   font-family: var(--pds-font-display, var(--pds-font-body));
   font-size: 26px;
   font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--pds-text-primary);
 }
 
@@ -14070,9 +14089,40 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
 
+/* Hover reads as the surface warming up rather than a box turning blue: a soft
+   gradient wash in the brand blues, lit from the top where the files are coming
+   from, and a slow sheen that keeps drifting so the state feels live while the
+   pointer is held still. No outline — the colour shift and the moving stack say
+   "let go" on their own, and a hard edge only makes it look like a form field. */
 .proto-import-drop--active {
-  border-color: var(--pds-accent);
-  background: var(--pds-accent-active-bg);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--pds-accent-gradient-start) 18%, transparent) 0%,
+      color-mix(in oklab, var(--pds-accent-gradient-end) 10%, transparent) 100%
+    ),
+    var(--pds-bg-section);
+}
+
+.proto-import-drop--active::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    color-mix(in oklab, var(--pds-accent-gradient-start) 18%, transparent) 50%,
+    transparent 65%
+  );
+  background-size: 260% 100%;
+  animation: proto-import-sheen 3.4s ease-in-out infinite;
+}
+
+@keyframes proto-import-sheen {
+  from { background-position: 130% 0; }
+  to { background-position: -30% 0; }
 }
 
 .proto-import-drop--full {
@@ -14097,10 +14147,14 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
    is notes, not a file transfer. */
 
 .proto-import-fan {
+  /* One knob for the whole hand: every card sits at a multiple of the step, so a
+     narrow screen tightens the spread without shrinking the format labels. */
+  --proto-fan-step: 57px;
+  --proto-fan-card-w: 108px;
   position: relative;
-  width: 340px;
+  width: 100%;
+  max-width: calc(var(--proto-fan-step) * 4 + var(--proto-fan-card-w));
   height: 140px;
-  max-width: 100%;
   margin-bottom: 10px;
 }
 
@@ -14108,7 +14162,7 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 108px;
+  width: var(--proto-fan-card-w);
   height: 88px;
   padding: 9px 10px;
   display: flex;
@@ -14151,38 +14205,73 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   );
 }
 
-/* A hand of cards. Every sheet is the same size and the horizontal step is wider
-   than the format tag, so no card can hide another's label — the point of the
-   illustration is that it names five formats at a glance. */
-.proto-import-fan__card--far-left { --proto-fan-x: -114px; --proto-fan-y: -12px; --proto-fan-rot: -13deg; z-index: 1; }
-.proto-import-fan__card--far-right { --proto-fan-x: 114px; --proto-fan-y: -12px; --proto-fan-rot: 13deg; z-index: 1; }
-.proto-import-fan__card--left { --proto-fan-x: -57px; --proto-fan-y: -4px; --proto-fan-rot: -6.5deg; z-index: 2; }
-.proto-import-fan__card--right { --proto-fan-x: 57px; --proto-fan-y: -4px; --proto-fan-rot: 6.5deg; z-index: 2; }
+/* Papers as they'd actually be lying there. Every offset, angle and z-position is
+   its own number — no mirrored pairs — because the moment two cards answer each
+   other the whole thing reads as a logo rather than a pile someone left out. The
+   steps still stay wider than a format tag so no card hides another's label.
 
-.proto-import-fan__card--center {
-  --proto-fan-y: 4px;
-  --proto-fan-rot: 0deg;
-  z-index: 3;
-  box-shadow: var(--pds-paper-shadow);
+   z-order interleaves (csv under pdf, docx on top, md tucked under docx), which is
+   what stops the depth from marching evenly left to right. Each card's tag sits on
+   its uncovered edge — left for the left pair, right for the right pair. */
+.proto-import-fan__card--far-left { --proto-fan-x: calc(var(--proto-fan-step) * -1.62); --proto-fan-y: -13px; --proto-fan-rot: -15deg; z-index: 1; }
+.proto-import-fan__card--left { --proto-fan-x: calc(var(--proto-fan-step) * -0.54); --proto-fan-y: 5px; --proto-fan-rot: -3deg; z-index: 3; }
+.proto-import-fan__card--right { --proto-fan-x: calc(var(--proto-fan-step) * 0.46); --proto-fan-y: -7px; --proto-fan-rot: 6.5deg; z-index: 4; }
+.proto-import-fan__card--far-right { --proto-fan-x: calc(var(--proto-fan-step) * 1.5); --proto-fan-y: 8px; --proto-fan-rot: 11deg; z-index: 2; }
+
+/* Hover: the scatter collects itself into one squared-up pile. Gathering says what
+   the feature actually does — four loose files become one library — where spreading
+   only said "look, four files", which the idle state already said. The labels going
+   illegible as they stack is the point, not a cost. */
+.proto-import-drop--active .proto-import-fan__card--far-left { --proto-fan-x: -7px; --proto-fan-y: -5px; --proto-fan-rot: -2.5deg; }
+.proto-import-drop--active .proto-import-fan__card--left { --proto-fan-x: -2px; --proto-fan-y: -1px; --proto-fan-rot: 1.5deg; }
+.proto-import-drop--active .proto-import-fan__card--right { --proto-fan-x: 3px; --proto-fan-y: 3px; --proto-fan-rot: -1deg; }
+.proto-import-drop--active .proto-import-fan__card--far-right { --proto-fan-x: 8px; --proto-fan-y: 6px; --proto-fan-rot: 3deg; }
+
+/* Gathered, the pile breathes on one clock — no per-card delay, because a stagger
+   reads as four sheets and the whole point of the gather is that they're now one
+   thing. The keyframes restate the layout transform since they share the element
+   with it. */
+.proto-import-drop--active .proto-import-fan__card {
+  animation: proto-import-fan-lift 2.6s ease-in-out infinite alternate;
 }
 
-/* Hover: the hand opens to take the drop. */
-.proto-import-drop--active .proto-import-fan__card--far-left { --proto-fan-x: -134px; --proto-fan-y: -22px; --proto-fan-rot: -19deg; }
-.proto-import-drop--active .proto-import-fan__card--far-right { --proto-fan-x: 134px; --proto-fan-y: -22px; --proto-fan-rot: 19deg; }
-.proto-import-drop--active .proto-import-fan__card--left { --proto-fan-x: -68px; --proto-fan-y: -10px; --proto-fan-rot: -10deg; }
-.proto-import-drop--active .proto-import-fan__card--right { --proto-fan-x: 68px; --proto-fan-y: -10px; --proto-fan-rot: 10deg; }
-
-.proto-import-drop--active .proto-import-fan__card--center {
-  --proto-fan-y: -4px;
-  box-shadow: var(--pds-paper-shadow), 0 0 0 1.5px var(--pds-accent);
+@keyframes proto-import-fan-lift {
+  from {
+    transform:
+      translate(-50%, -50%)
+      translate(var(--proto-fan-x, 0px), var(--proto-fan-y, 0px))
+      rotate(var(--proto-fan-rot, 0deg));
+  }
+  to {
+    transform:
+      translate(-50%, -50%)
+      translate(var(--proto-fan-x, 0px), calc(var(--proto-fan-y, 0px) - 7px))
+      rotate(var(--proto-fan-rot, 0deg))
+      scale(1.02);
+  }
 }
 
 .proto-import-fan__tag {
+  align-self: flex-start;
   font-size: 8.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  transition: opacity 320ms ease;
+}
+
+/* Gathered, the labels go with the scatter. Leaving one on top would make the pile
+   read as "a DOCX" instead of as everything you brought. */
+.proto-import-drop--active .proto-import-fan__tag {
+  opacity: 0;
+}
+
+/* Cards on the right are overlapped from their left, so their labels live on the
+   outer edge. Mirroring the two halves is what keeps all five readable. */
+.proto-import-fan__card--right .proto-import-fan__tag,
+.proto-import-fan__card--far-right .proto-import-fan__tag {
+  align-self: flex-end;
 }
 
 .proto-import-fan__rules {
@@ -14197,15 +14286,12 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   background: var(--pds-paper-rule);
 }
 
-/* Highlights survive the trip from Markdown and Word, so the pile already has them. */
-.proto-import-fan__rule--highlight {
-  background: var(--pds-highlight-warm-amber);
-}
 
 .proto-import-drop__title {
   margin: 0;
-  font-size: 19px;
-  font-weight: 650;
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   color: var(--pds-text-primary);
 }
 
@@ -14554,6 +14640,7 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   margin: 0;
   font-size: 21px;
   font-weight: 680;
+  letter-spacing: -0.02em;
   color: var(--pds-text-primary);
 }
 
@@ -14662,11 +14749,18 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
     padding: 18px 14px 120px;
   }
 
-  /* The fan's offsets are absolute, so it can't reflow — scale the whole hand
-     down instead of letting the outer sheets run off the edge. */
+  /* Tighten the spread and the sheets rather than scaling the hand, so the format
+     labels stay at full size — they're the whole point of the illustration. */
   .proto-import-fan {
-    transform: scale(0.82);
-    transform-origin: center;
+    --proto-fan-step: 42px;
+    --proto-fan-card-w: 86px;
+    height: 124px;
+  }
+
+  .proto-import-fan__card {
+    height: 76px;
+    padding: 7px 8px;
+    gap: 5px;
   }
 
   .proto-import-row {
@@ -14697,9 +14791,17 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   }
 
   /* The fan keeps its arrangement — that's the illustration — but stops sliding
-     between the two layouts. */
-  .proto-import-fan__card {
+     between the two layouts, drifting, or catching the sheen. */
+  .proto-import-fan__card,
+  .proto-import-drop--active .proto-import-fan__card,
+  .proto-import-fan__tag {
     transition: none;
+    animation: none;
+  }
+
+  .proto-import-drop--active::after {
+    animation: none;
+    opacity: 0;
   }
 
   .proto-import-row,

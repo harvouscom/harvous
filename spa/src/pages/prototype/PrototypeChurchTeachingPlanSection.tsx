@@ -190,16 +190,25 @@ export default function PrototypeChurchTeachingPlanSection({
    * hold a backlog idea, and "starts —" would be worse than saying nothing.
    */
   const seriesRunById = useMemo(() => {
-    const runs = new Map<string, { first: string; last: string }>();
+    const runs = new Map<string, { first: string; last: string; toFill: number }>();
     for (const service of data?.services ?? []) {
-      if (!service.seriesId || !service.serviceDate) continue;
+      if (!service.seriesId) continue;
       const run = runs.get(service.seriesId);
+      /* Counted across every member, dated or not — an undated idea in a series
+         is still a week nobody has written. */
+      const unfilled = service.reference ? 0 : 1;
       if (!run) {
-        runs.set(service.seriesId, { first: service.serviceDate, last: service.serviceDate });
+        runs.set(service.seriesId, {
+          first: service.serviceDate ?? '',
+          last: service.serviceDate ?? '',
+          toFill: unfilled,
+        });
         continue;
       }
-      if (service.serviceDate < run.first) run.first = service.serviceDate;
-      if (service.serviceDate > run.last) run.last = service.serviceDate;
+      run.toFill += unfilled;
+      if (!service.serviceDate) continue;
+      if (!run.first || service.serviceDate < run.first) run.first = service.serviceDate;
+      if (!run.last || service.serviceDate > run.last) run.last = service.serviceDate;
     }
     return runs;
   }, [data]);
@@ -391,18 +400,20 @@ export default function PrototypeChurchTeachingPlanSection({
                   own heading already says; the date says when it starts, and
                   keeps both lanes' titles on one edge.
                 */}
-                <ProtoServiceDateTile iso={seriesRunById.get(entry.id)?.first ?? null} />
+                <ProtoServiceDateTile iso={seriesRunById.get(entry.id)?.first || null} />
                 <span className="proto-church-tools__row-text">
                   <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={entry.title}><span>{entry.title}</span></span>
                   <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                     {entry.serviceCount === 1 ? '1 week' : `${entry.serviceCount} weeks`}
                     {(() => {
                       const run = seriesRunById.get(entry.id);
-                      const span = run ? formatSeriesRun(run) : null;
-                      /* The tile answers when it starts; this answers how far
-                         it runs. Absent for a single week, where the tile has
-                         already said everything there is to say. */
-                      return span ? ` · ${span}` : '';
+                      if (!run) return '';
+                      const span = run.first ? formatSeriesRun(run) : null;
+                      /* The tile answers when it starts, the span how far it
+                         runs, and the count how much of it is actually
+                         written. Each is absent when it would only repeat
+                         what a neighbour already said. */
+                      return `${span ? ` · ${span}` : ''}${run.toFill > 0 ? ` · ${run.toFill} to fill` : ''}`;
                     })()}
                   </span>
                 </span>
@@ -459,6 +470,35 @@ export default function PrototypeChurchTeachingPlanSection({
             return;
           }
           runSeries({ kind: 'series-delete', seriesId: entry.id }, () => setOpenSeries(null));
+        }}
+        /*
+          Extending reuses `repeat`, which already generates exactly the right
+          rows: the series' name, the next Sundays, and deliberately no passage
+          because next week is a different one. The sheet stays open — you are
+          shaping the run, and closing would hide the result.
+        */
+        onAddWeeks={(_entry, seedServiceId, weeks) =>
+          runSeries({ kind: 'repeat', serviceId: seedServiceId, weeks })
+        }
+        /*
+          One delete per week rather than a bulk endpoint: each is independent
+          and already gated, so a failure part-way leaves a shorter run rather
+          than an inconsistent one. The sheet's own filter has already proven
+          every id is an untouched placeholder.
+        */
+        onRemoveEmpty={(_entry, serviceIds) => {
+          setSeriesError(null);
+          void (async () => {
+            try {
+              for (const serviceId of serviceIds) {
+                await actions.mutateAsync({ kind: 'delete', serviceId });
+              }
+            } catch (err) {
+              setSeriesError(
+                err instanceof Error ? err.message : 'Could not remove those weeks',
+              );
+            }
+          })();
         }}
         onOpenChange={(next) => {
           if (!next) {
