@@ -12,7 +12,7 @@
  *   node scripts/generate-release-notes.js 1.14.0
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -289,17 +289,25 @@ function getMonthYear() {
 /**
  * Generate release notes markdown
  */
-function generateReleaseNotesMarkdown(version, groupedChanges) {
+function generateReleaseNotesMarkdown(version, groupedChanges, covered = [version]) {
   const monthYear = getMonthYear();
-  const date = new Date().toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
+  const date = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
   });
-  
-  let markdown = `# What's New in Harvous v${version}\n\n`;
+
+  /*
+    Titled by date, because that is what the file is. A version number in the
+    heading would be a lie the moment the day's next release folds in — and it
+    is not what a reader is looking for anyway. The versions covered stay in
+    the metadata line, where someone tracing a specific change can find them.
+  */
+  let markdown = `# What's New in Harvous — ${date}\n\n`;
   markdown += `**Release Date:** ${date}\n`;
-  markdown += `**Version:** ${version}\n\n`;
+  markdown += covered.length > 1
+    ? `**Versions:** v${covered[0]}–v${covered[covered.length - 1]}\n\n`
+    : `**Version:** v${version}\n\n`;
   /*
     Says what it is, at the top, where nobody can miss it. Everything below is
     derived from commit subjects — written for other developers, about the
@@ -358,15 +366,60 @@ function generateReleaseNotesMarkdown(version, groupedChanges) {
   return markdown;
 }
 
+/** Local calendar day, which is the unit a release note is written in. */
+function todayIsoDate() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 /**
- * Where this version's notes live. Keyed on major.minor + month, NOT the patch
- * version — every patch in a minor shares one file, which is what makes the
- * overwrite guard below load-bearing.
+ * One note per day.
+ *
+ * Named `vX.Y-month-year` until now, which meant a new file per *minor* — and
+ * the post-commit hook bumps a minor on every `feat:`. One busy day produced
+ * 108 files, and 15 more the day this changed. Nobody reads fifteen release
+ * notes for one afternoon, and no reader thinks in minor versions anyway.
+ *
+ * A day is the honest unit: "here is what changed on the 6th". Nothing reads
+ * this folder programmatically — the public changelog is built from
+ * `Changelog/*.md` — so the name is free to describe the thing it is.
  */
-function releaseNotesPathFor(version) {
-  const versionMatch = version.match(/^(\d+\.\d+)/);
-  const shortVersion = versionMatch ? versionMatch[1] : version;
-  return join(__dirname, '..', 'release-notes', `v${shortVersion}-${getMonthYear()}.md`);
+function releaseNotesPathFor() {
+  return join(__dirname, '..', 'release-notes', `${todayIsoDate()}.md`);
+}
+
+/**
+ * Every version whose changelog is dated today, oldest first.
+ *
+ * A daily note has to cover the whole day, not the one version that happened
+ * to trigger this run — otherwise the third release of an afternoon would
+ * describe itself and silently drop the two before it.
+ */
+function versionsReleasedToday() {
+  const changelogDir = join(__dirname, '..', 'Changelog');
+  if (!existsSync(changelogDir)) return [];
+  const today = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  return readdirSync(changelogDir)
+    .filter((name) => /^\d+\.\d+\.\d+\.md$/.test(name))
+    .filter((name) => {
+      const body = readFileSync(join(changelogDir, name), 'utf-8');
+      return body.includes(`**Release Date**: ${today}`);
+    })
+    .map((name) => name.replace(/\.md$/, ''))
+    .sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }),
+    );
+}
+
+/** True while a note is still the generated draft nobody has rewritten. */
+function isUnwrittenDraft(path) {
+  if (!existsSync(path)) return false;
+  return readFileSync(path, 'utf-8').includes('> DRAFT —');
 }
 
 /**
@@ -389,9 +442,21 @@ function saveReleaseNotes(version, content, { force = false } = {}) {
     mkdirSync(releaseNotesDir, { recursive: true });
   }
 
-  const filepath = releaseNotesPathFor(version);
+  const filepath = releaseNotesPathFor();
 
-  if (existsSync(filepath) && !force) {
+  /*
+    The DRAFT banner is the lock, and deleting it is how you turn the key.
+
+    While it is there, nobody has invested anything in this file, so the day's
+    third release can rewrite it to cover all three. The moment a human takes
+    the banner off — which is the same moment they rewrite the copy — the file
+    stops being generated output and is never touched again.
+
+    That is what makes one-file-per-day safe. Without it, either every release
+    clobbers the day's written note (the v2.21.0 bug) or the first release of
+    the day claims the file and the rest of the day goes unrecorded.
+  */
+  if (existsSync(filepath) && !isUnwrittenDraft(filepath) && !force) {
     return { filepath, written: false };
   }
 
@@ -415,14 +480,36 @@ export function generateReleaseNotes(version, { force = false } = {}) {
       return null;
     }
     
-    // Parse technical changelog
-    const changes = parseChangelog(changelogPath);
-    
-    if (!changes) {
+    /*
+      Parse every version released today, not just this one.
+
+      The note is dated, so it has to describe the day. Three releases between
+      lunch and dinner are one afternoon's work to a reader, and a note that
+      covered only the last of them would quietly drop the other two.
+
+      Falls back to this version alone if the day scan finds nothing — a
+      changelog written without today's date should still produce its note.
+    */
+    const dayVersions = versionsReleasedToday();
+    const covered = dayVersions.includes(version)
+      ? dayVersions
+      : [...dayVersions, version];
+
+    const changes = covered
+      .map((v) => parseChangelog(join(__dirname, '..', 'Changelog', `${v}.md`)))
+      .filter(Boolean)
+      .reduce((all, parsed) => {
+        Object.keys(parsed).forEach((key) => {
+          all[key] = [...(all[key] ?? []), ...parsed[key]];
+        });
+        return all;
+      }, {});
+
+    if (!Object.keys(changes).length) {
       console.log(`❌ Could not parse changelog`);
       return null;
     }
-    
+
     // Check if there are any changes
     const hasChanges = Object.values(changes).some(arr => arr.length > 0);
     
@@ -435,18 +522,21 @@ export function generateReleaseNotes(version, { force = false } = {}) {
     const groupedChanges = groupChangesByCategory(changes);
     
     // Generate release notes markdown
-    const markdown = generateReleaseNotesMarkdown(version, groupedChanges);
+    const markdown = generateReleaseNotesMarkdown(version, groupedChanges, covered);
 
     const { filepath, written } = saveReleaseNotes(version, markdown, { force });
 
     if (!written) {
       /*
-        The interesting case. Print what would have been added rather than
-        writing it, so a release still surfaces its own changes without
-        overwriting whatever someone wrote for this month.
+        The day's note has already been rewritten by a human. Print what would
+        have been added rather than writing it, so a late release still
+        surfaces its own changes without overwriting their copy.
+
+        Only this version's entries — the rest of the day is already in the
+        file they wrote.
       */
-      const entries = Object.values(changes).flat();
-      console.log(`ℹ️  ${filepath.replace(join(__dirname, '..') + '/', '')} already exists — leaving it as written.`);
+      const entries = Object.values(parseChangelog(changelogPath) ?? {}).flat();
+      console.log(`ℹ️  ${filepath.replace(join(__dirname, '..') + '/', '')} is already written — leaving it alone.`);
       console.log(`   New in v${version}, to fold in by hand (or via /marketing-agent):`);
       entries.forEach((entry) => console.log(`     - ${entry}`));
       console.log(`   Regenerate from scratch with: npm run release-notes:generate -- ${version} --force\n`);

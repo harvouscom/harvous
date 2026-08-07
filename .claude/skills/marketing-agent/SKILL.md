@@ -21,7 +21,7 @@ $ARGUMENTS
 
 Identify which task type this is:
 - **Changelog** — writing/updating `Changelog/X.Y.Z.md`
-- **Release note** — writing `release-notes/vX.Y-month-year.md`
+- **Release note** — writing `release-notes/YYYY-MM-DD.md` (one per day)
 - **Blog / editorial** — planning or drafting harvous.com posts (`src/content/blog/` in the harvous.com repo); church-education destination strategy
 - **Social content** — tweet threads or Threads-app posts (product claims still changelog-grounded)
 - **Admin content** — creating notes/threads via admin API and/or pushing a featured card to all dashboards
@@ -57,7 +57,8 @@ Identify which task type this is:
 - Developer-facing, concise, imperative form. No implementation details ("refactored", "extracted"). Omit empty sections.
 
 ### Release note
-- Path: `release-notes/vX.Y-month-year.md` (e.g. `v1.216-april-2026.md`)
+- Path: `release-notes/YYYY-MM-DD.md` (e.g. `2026-08-06.md`) — **one note per day**, covering every version released that day. Never one file per version.
+- If the day's note already exists as a DRAFT, rewrite it in place and delete the `> DRAFT —` banner. If the banner is already gone, someone wrote it: fold new entries in, do not regenerate
 - Follow `release-notes/TEMPLATE.md` strictly — **no emoji** anywhere in the file; use "What changed / How it helps you" framing
 - User-facing language only: no jargon, use "you", describe outcomes not implementation
 - Verify version number and release date before writing
