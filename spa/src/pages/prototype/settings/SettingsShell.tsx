@@ -32,10 +32,17 @@ export function SettingsShell({
   appearanceLayout = false,
   /** Column flex + min-height 100% so children can use margin-top: auto (e.g. footer callouts). */
   fillHeight = false,
+  /**
+   * A roomier column, still inset. For panes holding a working surface rather than
+   * a list of rows — the import workspace's file rows carry a name, size, progress
+   * bar, status chip and two buttons, which 480px can't seat.
+   */
+  wide = false,
 }: {
   children: ReactNode;
   appearanceLayout?: boolean;
   fillHeight?: boolean;
+  wide?: boolean;
 }) {
   const className = [
     'proto-settings__content',
@@ -51,7 +58,7 @@ export function SettingsShell({
       style={
         appearanceLayout
           ? { width: '100%', padding: '24px 0 64px' }
-          : { maxWidth: 480, width: '100%', margin: '0 auto', padding: '24px 20px 64px' }
+          : { maxWidth: wide ? 640 : 480, width: '100%', margin: '0 auto', padding: '24px 20px 64px' }
       }
     >
       {children}

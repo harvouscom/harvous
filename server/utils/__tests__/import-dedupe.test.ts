@@ -73,6 +73,25 @@ describe('noteDedupeKey', () => {
     // "ab" + "" must not equal "a" + "b".
     expect(noteDedupeKey('ab', '')).not.toBe(noteDedupeKey('a', 'b'));
   });
+
+  it('matches a note before and after scripture pills wrap its references', () => {
+    // Pills turn `John 3:16.` into `<span>John 3:16</span>.`, which converts back to
+    // plaintext with a space before the period. Re-importing an export must still
+    // recognise the note rather than creating a second copy of the whole library.
+    const beforeImport = '<p>See Romans 8:1 and also John 3:16.</p>';
+    const afterProcessing =
+      '<p>See <span data-scripture-reference="Romans 8:1" class="scripture-pill">Romans 8:1</span>' +
+      ' and also <span data-scripture-reference="John 3:16" class="scripture-pill">John 3:16</span>.</p>';
+    expect(noteDedupeKey('Romans 8 study', beforeImport)).toBe(
+      noteDedupeKey('Romans 8 study', afterProcessing),
+    );
+  });
+
+  it('still tells genuinely different content apart', () => {
+    expect(noteDedupeKey('A', '<p>See John 3:16.</p>')).not.toBe(
+      noteDedupeKey('A', '<p>See John 3:17.</p>'),
+    );
+  });
 });
 
 describe('chooseSurvivor', () => {

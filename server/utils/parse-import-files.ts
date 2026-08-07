@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 import { parseCSV, type ParsedCSVNote } from '@/utils/csv-parser';
 import { parseMarkdownExport, type ParsedMarkdownNote } from '@/utils/markdown-import-parser';
 import { buildImportFromPortableDocument } from '@/utils/portable-markdown';
-import { ingestFileToPortable } from '@/utils/portable-ingest';
+import { ingestFileToPortableDocs } from '@/utils/portable-ingest';
 import { generateStudyThreadEntryId } from '@/utils/ids';
 import { markdownToHtml } from '@/utils/markdown-to-html';
 import { resolveImportCollections } from './note-secondary-collections';
@@ -47,11 +47,34 @@ function getFolderPath(file: File): string | null {
   return null;
 }
 
-interface ParseEntry {
+export interface ParseEntry {
   fileName: string;
   folderPath: string | null;
   text: () => Promise<string>;
   buffer: () => Promise<ArrayBuffer>;
+}
+
+/** CSVs carry thread rows; everything else goes down the markdown/portable path. */
+export function importFormatForFileName(fileName: string): ImportFormat {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  return ext === 'csv' ? 'csv-threads' : 'markdown';
+}
+
+/**
+ * Parse a single file into import rows. The session-based import calls this once
+ * per uploaded file so each request stays small; `parseImportFiles` below is the
+ * batch wrapper the legacy single-request endpoint still uses.
+ */
+export async function parseImportEntry(
+  entry: ParseEntry,
+  format: ImportFormat,
+  startIndex = 0,
+): Promise<{ rows: ParsedImportRow[]; warnings: string[]; unsupported: string[] }> {
+  const rows: ParsedImportRow[] = [];
+  const warnings: string[] = [];
+  const unsupported: string[] = [];
+  await parseEntry(entry, format, rows, warnings, unsupported, { index: startIndex });
+  return { rows, warnings, unsupported };
 }
 
 export async function parseImportFiles(
@@ -160,43 +183,46 @@ async function parseEntry(
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
 
   if (BINARY_EXTS.has(ext)) {
-    let portable;
+    let portableDocs;
     try {
-      portable = await ingestFileToPortable(fileName, await entry.buffer());
+      portableDocs = await ingestFileToPortableDocs(fileName, await entry.buffer());
     } catch {
       unsupported.push(fileName);
       return;
     }
-    if (!portable) {
+    if (portableDocs.length === 0) {
       warnings.push(`${fileName}: no content recognized.`);
       return;
     }
-    const built = buildImportFromPortableDocument(portable, generateStudyThreadEntryId, markdownToHtml);
-    const collections = resolveImportCollections(portable.meta.folder, portable.meta.folders, folderPath);
-    rows.push({
-      index: counter.index++,
-      fileName,
-      folderPath,
-      title: built.title || portable.meta.title || 'Untitled',
-      highlightCount: portable.highlights.length,
-      tagCount: portable.meta.tags?.length ?? 0,
-      sourceType: ext,
-      primaryCollection: collections.primary,
-      secondaryCollections: collections.secondary,
-      note: {
+    // An .enex export is a whole notebook — one file, many notes.
+    for (const portable of portableDocs) {
+      const built = buildImportFromPortableDocument(portable, generateStudyThreadEntryId, markdownToHtml);
+      const collections = resolveImportCollections(portable.meta.folder, portable.meta.folders, folderPath);
+      rows.push({
+        index: counter.index++,
+        fileName,
+        folderPath,
         title: built.title || portable.meta.title || 'Untitled',
-        content: portable.body,
-        createdDate: portable.meta.created || null,
-        updatedDate: portable.meta.updated || null,
-        threadName: portable.meta.thread || null,
-        threadColor: portable.meta.threadColor || null,
-        tags: portable.meta.tags || [],
-        scriptureReference: portable.meta.scriptureReference || null,
-        scriptureTranslation: portable.meta.scriptureTranslation || null,
-        portable,
-      },
-      portableBuild: built,
-    });
+        highlightCount: portable.highlights.length,
+        tagCount: portable.meta.tags?.length ?? 0,
+        sourceType: ext,
+        primaryCollection: collections.primary,
+        secondaryCollections: collections.secondary,
+        note: {
+          title: built.title || portable.meta.title || 'Untitled',
+          content: portable.body,
+          createdDate: portable.meta.created || null,
+          updatedDate: portable.meta.updated || null,
+          threadName: portable.meta.thread || null,
+          threadColor: portable.meta.threadColor || null,
+          tags: portable.meta.tags || [],
+          scriptureReference: portable.meta.scriptureReference || null,
+          scriptureTranslation: portable.meta.scriptureTranslation || null,
+          portable,
+        },
+        portableBuild: built,
+      });
+    }
     return;
   }
 

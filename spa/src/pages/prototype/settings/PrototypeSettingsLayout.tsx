@@ -7,6 +7,7 @@ import { prototypeSettingsAccountRouteTo, prototypeSettingsRouteTo } from '@/lib
 import { readSettingsOpenerPath } from '../../../lib/prototype-settings-opener';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { prefetchSettingsCategoryChunks } from './prefetch-settings-chunks';
+import { isSettingsCloseBlocked } from './settings-close-guard';
 import { SETTINGS_CATEGORIES } from './settingsCategories';
 
 function isSettingsIndexPath(pathname: string) {
@@ -30,6 +31,10 @@ export default function PrototypeSettingsLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   const closeSettings = useCallback(() => {
+    // A pane can be mid-flight (an import run); tearing the modal down under it
+    // would abandon work the user can't see from anywhere else. The header's close
+    // button stays available as the deliberate way out.
+    if (isSettingsCloseBlocked()) return;
     const to = readSettingsOpenerPath();
     navigate({ to: to as '/', replace: true });
   }, [navigate]);

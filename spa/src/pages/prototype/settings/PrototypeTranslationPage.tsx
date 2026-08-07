@@ -41,7 +41,7 @@ export default function PrototypeTranslationPage() {
               </span>
               <span className="proto-settings-list-row__trailing proto-settings-list-row__trailing--orb" aria-hidden>
                 {isSelected ? (
-                  <span className="proto-accent-check-orb">
+                  <span className="proto-accent-check-orb proto-accent-check-orb--selected">
                     <Icon name="check" size={11} />
                   </span>
                 ) : null}

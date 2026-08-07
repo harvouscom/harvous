@@ -5,7 +5,7 @@ export default function ProtoThreadTrailOrb({ active = false }: { active?: boole
   return (
     <span className="proto-thread-trail__orb" aria-hidden>
       {active ? (
-        <span className="proto-accent-check-orb">
+        <span className="proto-accent-check-orb proto-accent-check-orb--selected">
           <Icon name="check" size={11} />
         </span>
       ) : (

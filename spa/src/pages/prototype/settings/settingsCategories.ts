@@ -31,7 +31,8 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     key: 'translation',
     title: 'Default translation',
     route: prototypeHref('settings/translation'),
-    icon: 'book-open',
+    // Scroll, matching how scripture is marked everywhere else in the app.
+    icon: 'scroll',
     footnote: 'The translation used across the app.',
   },
   {

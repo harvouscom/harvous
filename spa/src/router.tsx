@@ -238,6 +238,17 @@ const churchDesignGalleryRoute = import.meta.env.DEV
     })
   : null;
 
+const importDesignGalleryRoute = import.meta.env.DEV
+  ? createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/__dev/import-design',
+      validateSearch: (search: Record<string, unknown>) => ({
+        scene: typeof search.scene === 'string' ? search.scene : undefined,
+      }),
+      component: lazyRouteComponent(() => import('./pages/dev/ImportDesignGalleryPage')),
+    })
+  : null;
+
 /** Prototype branch — pathless layout on dedicated hosts (/), /prototype elsewhere. */
 function buildPrototypeRouteBranch() {
   const onDedicatedHost = isDedicatedPrototypeHost();
@@ -643,6 +654,7 @@ function buildRouteTree() {
     ...(designSystemGalleryRoute ? [designSystemGalleryRoute] : []),
     ...(sharedSpacesDesignGalleryRoute ? [sharedSpacesDesignGalleryRoute] : []),
     ...(churchDesignGalleryRoute ? [churchDesignGalleryRoute] : []),
+    ...(importDesignGalleryRoute ? [importDesignGalleryRoute] : []),
     buildPrototypeRouteBranch(),
     notFoundRoute,
   ]);

@@ -59,15 +59,19 @@ describe('Generation 2B data architecture route contracts', () => {
   });
 
   it('creates imported notes, version 1, and durable highlight bindings atomically', () => {
+    // Both import paths — the single-request route and the session-based surface —
+    // insert through commitImportItem, so the atomicity guard lives with it.
+    const commit = source('server/utils/import-commit.ts');
+    expect(commit).toContain('await db.transaction(async (tx)');
+    expect(commit).toContain('createInitialNoteVersion(tx');
+    expect(commit).toContain('buildLegacyAnchorMigrationPatch');
+    expect(commit).toContain('resolvedVersionId: initialVersion.id');
+    expect(commit).not.toContain('await db.insert(Notes)');
+
     const user = source('server/routes/user.ts');
-    const importStart = user.indexOf("app.post('/api/user/import'");
-    const importEnd = user.indexOf('// ─── GET /api/profile/my-sharing', importStart);
-    const importRoute = user.slice(importStart, importEnd);
-    expect(importRoute).toContain('await db.transaction(async (tx)');
-    expect(importRoute).toContain('createInitialNoteVersion(tx');
-    expect(importRoute).toContain('buildLegacyAnchorMigrationPatch');
-    expect(importRoute).toContain('resolvedVersionId: initialVersion.id');
-    expect(importRoute).not.toContain('await db.insert(Notes)');
+    expect(user).toContain("from '../utils/import-commit'");
+    // No import route may reach around it and insert notes on its own.
+    expect(user).not.toContain('.insert(Notes)');
   });
 
   it('creates every scripture child with immutable version pointers in one transaction', () => {

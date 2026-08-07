@@ -127,6 +127,20 @@ export const RATE_LIMITS = {
   NOTE_CREATE_PER_HOUR: {
     maxRequests: 400,
     windowMs: 60 * 60 * 1000
+  },
+  /**
+   * Note creation inside an import run. Separate from the interactive bucket for two
+   * reasons: importing 200 notes at 30/min would take seven minutes of waiting, and
+   * charging the interactive bucket would starve the user's own note-taking for the
+   * rest of the hour. Abuse stays bounded by the per-session file/item caps.
+   */
+  IMPORT_NOTE_CREATE_PER_MINUTE: {
+    maxRequests: 120,
+    windowMs: 60 * 1000
+  },
+  IMPORT_NOTE_CREATE_PER_HOUR: {
+    maxRequests: 1500,
+    windowMs: 60 * 60 * 1000
   }
 } as const;
 
@@ -135,6 +149,8 @@ export const MAX_NOTE_CREATES_PER_SYNC_PUSH = 50;
 
 const NOTE_CREATE_MINUTE_KEY = 'note-create:window:1m';
 const NOTE_CREATE_HOUR_KEY = 'note-create:window:1h';
+const IMPORT_NOTE_CREATE_MINUTE_KEY = 'import-note-create:window:1m';
+const IMPORT_NOTE_CREATE_HOUR_KEY = 'import-note-create:window:1h';
 
 function getRecord(key: string, now: number, windowMs: number): RequestRecord {
   let record = rateLimitStore.get(key);
@@ -145,47 +161,60 @@ function getRecord(key: string, now: number, windowMs: number): RequestRecord {
   return record;
 }
 
+export type NoteCreateReservation =
+  | { allowed: true; remainingMinute: number; remainingHour: number; resetMinute: number; resetHour: number }
+  | { allowed: false; error: string; retryAfterSec: number };
+
+interface NoteCreateBudget {
+  minuteKey: string;
+  hourKey: string;
+  minute: RateLimitConfig;
+  hour: RateLimitConfig;
+  minuteError: string;
+  hourError: string;
+}
+
 /**
- * Atomically reserves `delta` note-creation slots against per-minute and per-hour caps.
+ * Atomically reserves `delta` slots against a paired per-minute + per-hour budget.
  * All-or-nothing: neither bucket is updated unless both allow the reservation.
  */
-export function tryConsumeNoteCreates(
+function tryConsumeBudget(
   userId: string | null,
   ip: string | undefined,
-  delta: number
-): { allowed: true; remainingMinute: number; remainingHour: number; resetMinute: number; resetHour: number } | { allowed: false; error: string; retryAfterSec: number } {
+  delta: number,
+  budget: NoteCreateBudget
+): NoteCreateReservation {
+  const now = Date.now();
   if (delta <= 0) {
-    const now = Date.now();
     return {
       allowed: true,
-      remainingMinute: RATE_LIMITS.NOTE_CREATE_PER_MINUTE.maxRequests,
-      remainingHour: RATE_LIMITS.NOTE_CREATE_PER_HOUR.maxRequests,
-      resetMinute: now + RATE_LIMITS.NOTE_CREATE_PER_MINUTE.windowMs,
-      resetHour: now + RATE_LIMITS.NOTE_CREATE_PER_HOUR.windowMs
+      remainingMinute: budget.minute.maxRequests,
+      remainingHour: budget.hour.maxRequests,
+      resetMinute: now + budget.minute.windowMs,
+      resetHour: now + budget.hour.windowMs
     };
   }
 
-  const now = Date.now();
-  const kMin = getRateLimitKey(userId, NOTE_CREATE_MINUTE_KEY, ip);
-  const kHr = getRateLimitKey(userId, NOTE_CREATE_HOUR_KEY, ip);
+  const kMin = getRateLimitKey(userId, budget.minuteKey, ip);
+  const kHr = getRateLimitKey(userId, budget.hourKey, ip);
 
-  const recMin = getRecord(kMin, now, RATE_LIMITS.NOTE_CREATE_PER_MINUTE.windowMs);
-  const recHr = getRecord(kHr, now, RATE_LIMITS.NOTE_CREATE_PER_HOUR.windowMs);
+  const recMin = getRecord(kMin, now, budget.minute.windowMs);
+  const recHr = getRecord(kHr, now, budget.hour.windowMs);
 
   const nextMin = recMin.count + delta;
   const nextHr = recHr.count + delta;
 
-  if (nextMin > RATE_LIMITS.NOTE_CREATE_PER_MINUTE.maxRequests) {
+  if (nextMin > budget.minute.maxRequests) {
     return {
       allowed: false,
-      error: `Too many notes created too quickly. Maximum ${RATE_LIMITS.NOTE_CREATE_PER_MINUTE.maxRequests} new notes per minute.`,
+      error: budget.minuteError,
       retryAfterSec: Math.max(1, Math.ceil((recMin.resetTime - now) / 1000))
     };
   }
-  if (nextHr > RATE_LIMITS.NOTE_CREATE_PER_HOUR.maxRequests) {
+  if (nextHr > budget.hour.maxRequests) {
     return {
       allowed: false,
-      error: `Note creation hourly limit reached (${RATE_LIMITS.NOTE_CREATE_PER_HOUR.maxRequests} per hour). Try again later.`,
+      error: budget.hourError,
       retryAfterSec: Math.max(1, Math.ceil((recHr.resetTime - now) / 1000))
     };
   }
@@ -197,11 +226,43 @@ export function tryConsumeNoteCreates(
 
   return {
     allowed: true,
-    remainingMinute: RATE_LIMITS.NOTE_CREATE_PER_MINUTE.maxRequests - recMin.count,
-    remainingHour: RATE_LIMITS.NOTE_CREATE_PER_HOUR.maxRequests - recHr.count,
+    remainingMinute: budget.minute.maxRequests - recMin.count,
+    remainingHour: budget.hour.maxRequests - recHr.count,
     resetMinute: recMin.resetTime,
     resetHour: recHr.resetTime
   };
+}
+
+/** Interactive note creation (POST /api/notes/create + note creates inside /api/sync/push). */
+export function tryConsumeNoteCreates(
+  userId: string | null,
+  ip: string | undefined,
+  delta: number
+): NoteCreateReservation {
+  return tryConsumeBudget(userId, ip, delta, {
+    minuteKey: NOTE_CREATE_MINUTE_KEY,
+    hourKey: NOTE_CREATE_HOUR_KEY,
+    minute: RATE_LIMITS.NOTE_CREATE_PER_MINUTE,
+    hour: RATE_LIMITS.NOTE_CREATE_PER_HOUR,
+    minuteError: `Too many notes created too quickly. Maximum ${RATE_LIMITS.NOTE_CREATE_PER_MINUTE.maxRequests} new notes per minute.`,
+    hourError: `Note creation hourly limit reached (${RATE_LIMITS.NOTE_CREATE_PER_HOUR.maxRequests} per hour). Try again later.`
+  });
+}
+
+/** Note creation inside an import run — its own budget, so imports and typing don't compete. */
+export function tryConsumeImportNoteCreates(
+  userId: string | null,
+  ip: string | undefined,
+  delta: number
+): NoteCreateReservation {
+  return tryConsumeBudget(userId, ip, delta, {
+    minuteKey: IMPORT_NOTE_CREATE_MINUTE_KEY,
+    hourKey: IMPORT_NOTE_CREATE_HOUR_KEY,
+    minute: RATE_LIMITS.IMPORT_NOTE_CREATE_PER_MINUTE,
+    hour: RATE_LIMITS.IMPORT_NOTE_CREATE_PER_HOUR,
+    minuteError: `Importing faster than we can keep up. Maximum ${RATE_LIMITS.IMPORT_NOTE_CREATE_PER_MINUTE.maxRequests} imported notes per minute.`,
+    hourError: `Import hourly limit reached (${RATE_LIMITS.IMPORT_NOTE_CREATE_PER_HOUR.maxRequests} notes per hour). Try again later.`
+  });
 }
 
 /**

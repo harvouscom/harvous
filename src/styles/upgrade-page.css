@@ -336,8 +336,14 @@
   opacity: 0.72;
 }
 
-/* Blue gradient check orb — same recipe as `.proto-accent-check-orb` /
-   scripture-pill confirm / info-panel apply buttons. */
+/* The quiet check, matching harvous.com/pricing and the in-app feature lists
+   (`.proto-accent-check-orb`). It was a blue gradient orb with a glow, which made
+   a column of "what's included" read as a stack of buttons.
+
+   Literal colours rather than --pds-* tokens on purpose: this card is always light
+   and deliberately does not follow app dark mode, so theme-flipping values would
+   invert it against a background that never moves. These are the pricing page's
+   own values. */
 .public-addon-letter__check {
   display: inline-flex;
   align-items: center;
@@ -346,9 +352,8 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--pds-bg-accent-button);
-  color: var(--pds-on-accent) !important;
-  box-shadow: var(--pds-shadow-accent-button);
+  background: #e5e6e9;
+  color: #8c8f99 !important;
   line-height: 0;
 }
 
@@ -359,11 +364,9 @@
 
 .public-addon-letter__check svg,
 .public-addon-letter__check svg path {
-  color: var(--pds-on-accent) !important;
-  fill: var(--pds-on-accent) !important;
+  color: #8c8f99 !important;
+  fill: #8c8f99 !important;
 }
-
-/* Keep blue check orbs on the always-light marketing card (do not follow app dark mode). */
 
 .public-addon-letter__cta {
   display: flex;

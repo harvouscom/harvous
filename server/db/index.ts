@@ -75,6 +75,8 @@ export {
   VotdPublishHistory,
   MonthlyAnalytics,
   AdminMonthlyReports,
+  ImportSessions,
+  ImportSessionItems,
   AppSyncCursors,
 } from './schema';
 

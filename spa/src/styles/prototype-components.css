@@ -79,6 +79,24 @@
   background: var(--pds-bg-chip);
 }
 
+/* The gathered pile standing alone (the summary). Sized down from the drop zone's
+   copy and squared up — the same stack, put away. */
+.proto-import-fan--gathered {
+  --proto-fan-card-w: 76px;
+  --proto-fan-card-h: 100px;
+  width: 116px;
+  height: 124px;
+  margin: 0 auto 14px;
+}
+
+.proto-import-fan--gathered .proto-import-fan__card {
+  transition: none;
+}
+
+.proto-import-fan--gathered .proto-import-fan__tag {
+  opacity: 0;
+}
+
 :is(.proto-theme, .proto-settings-modal) input[type='checkbox']:checked::before {
   transform: scale(1);
   opacity: 1;
@@ -1076,14 +1094,16 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   white-space: nowrap;
 }
 
+/* 600 now the base row is 500 — the checked row still has to out-weigh its
+   neighbours, and the fill and full-opacity icon carry the rest. */
 .proto-menu__popover--list-view .proto-menu-item[aria-checked='true'] {
   background: var(--pds-bg-control-strong);
-  font-weight: 500 !important;
+  font-weight: 600 !important;
 }
 
 .proto-menu__popover--list-view .proto-menu-item[aria-checked='true'] span,
 .proto-menu__popover--list-view .proto-menu-item[aria-checked='true'] .proto-menu-item__label {
-  font-weight: 500 !important;
+  font-weight: 600 !important;
 }
 
 .proto-menu__popover--list-view .proto-menu-item[aria-checked='true'] .proto-menu-item__icon {
@@ -1144,7 +1164,9 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   cursor: pointer;
   font-family: inherit;
   font-size: 14px;
-  font-weight: 400;
+  /* 500, matching the list-view menu's rows. At 400 the account menu read lighter
+     than every other popover it sits beside. */
+  font-weight: 500;
   color: var(--pds-text-primary);
   text-decoration: none;
   line-height: 1.35;
@@ -1165,8 +1187,11 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   }
 }
 
+/* Most menu rows put their text in a bare span rather than `.proto-menu-item__label`
+   (the account menu is one), so this rule — not the base — is what actually decides
+   their weight. It has to move with the base or the bump silently does nothing. */
 .proto-menu-item span:not(.proto-menu-item__label) {
-  font-weight: 400;
+  font-weight: 500;
 }
 
 .proto-menu-item:hover {
@@ -2125,6 +2150,15 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 
 .proto-chip-bar::-webkit-scrollbar {
   display: none;
+}
+
+/* In settings the bar is the pane's own header, not a control floating inside a
+   sidebar list, so it drops the 12px side inset and lines up with the content
+   below it. Scoped by parent rather than changing the shared component, which the
+   sidebar and search results also use. */
+.proto-settings__content > .proto-chip-bar {
+  margin-left: 0;
+  margin-right: 0;
 }
 
 /* Leading a list, the chip bar sits directly under the search field, which already
@@ -3643,6 +3677,14 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 }
 
 /* Blue gradient check orb — selection indicator (settings lists, matches info-panel apply btn). */
+/* The confirm mark: soft chip circle, muted tick — the same object as the checks on
+   harvous.com/pricing and the checkbox in the import list. It was a blue gradient
+   orb with a drop shadow, which read as a row of buttons when stacked down a plan's
+   feature list. Where this appears at all it means "yes, this one", so the mark's
+   presence carries the meaning and the colour doesn't have to shout it.
+
+   The chip fill flips with the theme on its own, so there's no dark-mode override
+   left to keep in sync. */
 .proto-accent-check-orb {
   display: inline-flex;
   align-items: center;
@@ -3651,9 +3693,8 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   height: 20px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: var(--pds-bg-accent-button);
-  color: var(--pds-on-accent) !important;
-  box-shadow: var(--pds-shadow-accent-button);
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-secondary) !important;
   line-height: 0;
 }
 
@@ -3664,18 +3705,33 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 
 .proto-accent-check-orb svg,
 .proto-accent-check-orb svg path {
+  color: var(--pds-text-secondary) !important;
+  fill: var(--pds-text-secondary) !important;
+}
+
+/* Blue is for "you picked this one", not for "this is included". A selected
+   translation or note is an answer to a question the user just asked, so it earns
+   the accent; a feature list marking what a plan contains does not. */
+.proto-accent-check-orb--selected {
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent) !important;
+  box-shadow: var(--pds-shadow-accent-button);
+}
+
+.proto-accent-check-orb--selected svg,
+.proto-accent-check-orb--selected svg path {
   color: var(--pds-on-accent) !important;
   fill: var(--pds-on-accent) !important;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-color-scheme='light']) .proto-accent-check-orb {
+  :root:not([data-color-scheme='light']) .proto-accent-check-orb--selected {
     background: var(--pds-selection-bg);
     box-shadow: none;
   }
 }
 
-:root[data-color-scheme='dark'] .proto-accent-check-orb {
+:root[data-color-scheme='dark'] .proto-accent-check-orb--selected {
   background: var(--pds-selection-bg);
   box-shadow: none;
 }
@@ -4591,8 +4647,11 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   height: 28px;
   border: 2px solid var(--pds-bg-page);
   border-radius: 50%;
-  background: var(--pds-bg-accent-button);
-  box-shadow: var(--pds-shadow-accent-button);
+  /* Grey with an ink glyph, in step with the other confirm/affordance marks. A
+     blue gradient badge on a photo drew more attention than editing the photo
+     deserves. */
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary);
 }
 
 /* ─── Settings action buttons ─────────────────────────────────────────────── */
@@ -4750,44 +4809,19 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   min-width: 0;
 }
 
-/* Match upgrade letter checks (`.public-addon-letter__check` / public accent), 16px. */
+/* Smaller here to sit against 13px feature text; colour comes from the base orb.
+   This used to hard-code the upgrade blue gradient and a glow, pinned in both
+   themes — a column of them read as a stack of buttons rather than a list of
+   what's included. The pricing page it was imitating uses the quiet grey mark. */
 .proto-settings-plan-features .proto-accent-check-orb {
   width: 16px;
   height: 16px;
   margin-top: 0.125rem;
-  background: linear-gradient(171deg, #5b8cff 7%, #3869e6 93%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    0 10px 24px -10px rgba(0, 110, 255, 0.6);
-  color: #fff !important;
 }
 
 .proto-settings-plan-features .proto-accent-check-orb svg {
   width: 9px;
   height: 9px;
-}
-
-.proto-settings-plan-features .proto-accent-check-orb svg,
-.proto-settings-plan-features .proto-accent-check-orb svg path {
-  color: #fff !important;
-  fill: #fff !important;
-}
-
-/* Keep the upgrade blue gradient in dark mode (do not flatten to selection yellow). */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-color-scheme='light']) .proto-settings-plan-features .proto-accent-check-orb {
-    background: linear-gradient(171deg, #5b8cff 7%, #3869e6 93%);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.3),
-      0 10px 24px -10px rgba(0, 110, 255, 0.6);
-  }
-}
-
-:root[data-color-scheme='dark'] .proto-settings-plan-features .proto-accent-check-orb {
-  background: linear-gradient(171deg, #5b8cff 7%, #3869e6 93%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    0 10px 24px -10px rgba(0, 110, 255, 0.6);
 }
 
 .proto-settings-plan-features__text {
@@ -14322,39 +14356,54 @@ p.proto-teaching-plan__divider {
   gap: 8px;
 }
 
+/* Ink running along a ruled line, not a blue pill.
+   The track is the same 4px rule the paper cards in the drop-zone illustration
+   are written with (--pds-paper-rule), and the fill is ink — so a file turning
+   into a note looks like a line being written, which is the one thing this app
+   is about. Squared-off 2px ends rather than a lozenge: a pen stroke has ends,
+   a capsule is a widget. */
 .proto-progress__track {
   position: relative;
   flex: 1;
-  height: 5px;
-  border-radius: 999px;
-  background: var(--pds-bg-track);
+  height: 4px;
+  border-radius: 2px;
+  background: var(--pds-paper-rule);
   overflow: hidden;
 }
 
 .proto-progress__fill {
   height: 100%;
   width: 0;
-  border-radius: 999px;
-  background: var(--pds-accent);
+  border-radius: 2px;
+  background: color-mix(in oklab, var(--pds-text-primary) 78%, transparent);
   transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.proto-progress__track--positive .proto-progress__fill {
-  background: var(--pds-success);
-}
-
-.proto-progress__track--critical .proto-progress__fill {
-  background: var(--pds-destructive);
-}
-
+/* Unknowable work (parsing) is a stroke travelling the rule, faded at both ends
+   like a nib passing rather than a block sliding under a window. */
 .proto-progress__track--indeterminate .proto-progress__fill {
-  width: 38%;
-  animation: proto-progress-slide 1.15s ease-in-out infinite;
+  width: 34%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--pds-text-primary) 72%, transparent) 45%,
+    color-mix(in oklab, var(--pds-text-primary) 72%, transparent) 55%,
+    transparent 100%
+  );
+  animation: proto-progress-slide 1.35s ease-in-out infinite;
 }
 
 @keyframes proto-progress-slide {
   0% { transform: translateX(-105%); }
   100% { transform: translateX(320%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-progress__track--indeterminate .proto-progress__fill {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
 }
 
 .proto-progress__percent {
@@ -14438,11 +14487,13 @@ p.proto-teaching-plan__divider {
   /* One knob for the whole hand: every card sits at a multiple of the step, so a
      narrow screen tightens the spread without shrinking the format labels. */
   --proto-fan-step: 57px;
-  --proto-fan-card-w: 108px;
+  --proto-fan-card-w: 88px;
+  --proto-fan-card-h: 116px;
   position: relative;
   width: 100%;
   max-width: calc(var(--proto-fan-step) * 4 + var(--proto-fan-card-w));
-  height: 140px;
+  /* Tall enough for a portrait sheet at its steepest rotation plus the y offsets. */
+  height: 164px;
   margin-bottom: 10px;
 }
 
@@ -14451,7 +14502,7 @@ p.proto-teaching-plan__divider {
   left: 50%;
   top: 50%;
   width: var(--proto-fan-card-w);
-  height: 88px;
+  height: var(--proto-fan-card-h);
   padding: 9px 10px;
   display: flex;
   flex-direction: column;
@@ -14510,10 +14561,10 @@ p.proto-teaching-plan__divider {
    the feature actually does — four loose files become one library — where spreading
    only said "look, four files", which the idle state already said. The labels going
    illegible as they stack is the point, not a cost. */
-.proto-import-drop--active .proto-import-fan__card--far-left { --proto-fan-x: -7px; --proto-fan-y: -5px; --proto-fan-rot: -2.5deg; }
-.proto-import-drop--active .proto-import-fan__card--left { --proto-fan-x: -2px; --proto-fan-y: -1px; --proto-fan-rot: 1.5deg; }
-.proto-import-drop--active .proto-import-fan__card--right { --proto-fan-x: 3px; --proto-fan-y: 3px; --proto-fan-rot: -1deg; }
-.proto-import-drop--active .proto-import-fan__card--far-right { --proto-fan-x: 8px; --proto-fan-y: 6px; --proto-fan-rot: 3deg; }
+:is(.proto-import-drop--active, .proto-import-fan--gathered) .proto-import-fan__card--far-left { --proto-fan-x: -7px; --proto-fan-y: -5px; --proto-fan-rot: -2.5deg; }
+:is(.proto-import-drop--active, .proto-import-fan--gathered) .proto-import-fan__card--left { --proto-fan-x: -2px; --proto-fan-y: -1px; --proto-fan-rot: 1.5deg; }
+:is(.proto-import-drop--active, .proto-import-fan--gathered) .proto-import-fan__card--right { --proto-fan-x: 3px; --proto-fan-y: 3px; --proto-fan-rot: -1deg; }
+:is(.proto-import-drop--active, .proto-import-fan--gathered) .proto-import-fan__card--far-right { --proto-fan-x: 8px; --proto-fan-y: 6px; --proto-fan-rot: 3deg; }
 
 /* Once gathered, the pile rests. Paper doesn't hover, and a looping float made the
    whole thing read as a magic trick — the founder letter's stack settles and stays
@@ -14694,10 +14745,9 @@ p.proto-teaching-plan__divider {
   border-color: var(--pds-success-border);
 }
 
-.proto-import-row--failed,
-.proto-import-row--parse-failed {
-  border-color: var(--pds-destructive);
-}
+/* A failed row looks like every other row. The red error line under the filename
+   says what went wrong and the retry sits beside it — outlining the whole row as
+   well made a handful of failures dominate a list of forty files that were fine. */
 
 .proto-import-row__type {
   flex: none;
@@ -14767,7 +14817,13 @@ p.proto-teaching-plan__divider {
   gap: 8px;
 }
 
+/* One chip, one colour. See statusChipFor() — a finished file is marked by the
+   tick, not by turning green, so a long list reads as a list instead of a
+   traffic-light board. */
 .proto-import-row__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 3px 9px;
   border-radius: 999px;
   font-size: 11px;
@@ -14777,24 +14833,8 @@ p.proto-teaching-plan__divider {
   color: var(--pds-text-secondary);
 }
 
-.proto-import-row__chip--active {
-  background: var(--pds-accent-active-bg);
-  color: var(--pds-accent);
-}
-
-.proto-import-row__chip--positive {
-  background: var(--pds-success-bg);
-  color: var(--pds-success);
-}
-
-.proto-import-row__chip--warning {
-  background: var(--pds-warning-bg);
-  color: var(--pds-warning);
-}
-
-.proto-import-row__chip--critical {
-  background: var(--pds-destructive-bg);
-  color: var(--pds-destructive);
+.proto-import-row__chip-check {
+  flex: none;
 }
 
 .proto-import-row__include {
@@ -14805,8 +14845,13 @@ p.proto-teaching-plan__divider {
   color: var(--pds-text-secondary);
 }
 
-.proto-import-row__remove {
+/* Trailing icon buttons on a row — retry and remove. Both are the same weight on
+   purpose: neither should outrank the row's own error text. */
+.proto-import-row__icon-btn {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
   background: transparent;
   padding: 4px;
@@ -14815,7 +14860,7 @@ p.proto-teaching-plan__divider {
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
 
-.proto-import-row__remove:hover {
+.proto-import-row__icon-btn:hover {
   background: var(--pds-bg-row-hover);
   color: var(--pds-text-primary);
 }
@@ -14853,6 +14898,8 @@ p.proto-teaching-plan__divider {
 /* Summary ------------------------------------------------------------------ */
 
 .proto-import-summary {
+  /* The shared column width for the perspective line, the ledger and the buttons. */
+  --proto-import-summary-measure: 324px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -14864,60 +14911,6 @@ p.proto-teaching-plan__divider {
   border: 1px solid var(--pds-border-control-soft, var(--pds-border-control));
 }
 
-.proto-import-summary__burst {
-  position: relative;
-  width: 92px;
-  height: 92px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.proto-import-summary__check {
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--pds-success);
-  color: var(--pds-on-accent);
-  animation: proto-import-check-pop 450ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-@keyframes proto-import-check-pop {
-  from { transform: scale(0.4); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-/* Six sprites thrown outward on a spring, fading before they land — a burst,
-   not a bloom, and no confetti library. */
-.proto-import-summary__spark {
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--pds-accent);
-  opacity: 0;
-  animation: proto-import-spark 750ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
-}
-
-.proto-import-summary__spark:nth-child(1) { --proto-spark-x: 46px; --proto-spark-y: 0px; }
-.proto-import-summary__spark:nth-child(2) { --proto-spark-x: 23px; --proto-spark-y: 40px; background: var(--pds-success); }
-.proto-import-summary__spark:nth-child(3) { --proto-spark-x: -23px; --proto-spark-y: 40px; }
-.proto-import-summary__spark:nth-child(4) { --proto-spark-x: -46px; --proto-spark-y: 0px; background: var(--pds-warning); }
-.proto-import-summary__spark:nth-child(5) { --proto-spark-x: -23px; --proto-spark-y: -40px; }
-.proto-import-summary__spark:nth-child(6) { --proto-spark-x: 23px; --proto-spark-y: -40px; background: var(--pds-success); }
-
-@keyframes proto-import-spark {
-  0% { transform: translate(0, 0) scale(0.2); opacity: 1; }
-  55% { opacity: 1; }
-  100% {
-    transform: translate(var(--proto-spark-x), var(--proto-spark-y)) scale(1);
-    opacity: 0;
-  }
-}
-
 .proto-import-summary__title {
   margin: 0;
   font-size: 21px;
@@ -14926,39 +14919,69 @@ p.proto-teaching-plan__divider {
   color: var(--pds-text-primary);
 }
 
+/* Everything under the heading shares one measure — the line, the ledger and the
+   buttons all start and end together, so the card reads as a single column
+   instead of three things of three different widths. */
 .proto-import-summary__perspective {
   margin: 0;
+  width: 100%;
+  max-width: var(--proto-import-summary-measure);
   font-size: 13.5px;
   color: var(--pds-text-secondary);
 }
 
+/* One column of rows, not a shelf of tiles. Read down, it's a plain account of
+   what arrived — icon and name on the left, count on the right — which is the
+   same shape as the app's other lists and carries far less weight than six chips
+   sitting under a heading. Icons are the sidebar's, so a note is the same
+   note-sticky here as in the list switcher. */
+/* The counts sit in their own card so the tally is one object you can take in at
+   a glance, rather than loose rows drifting on the summary's background. Page
+   background against the card's section grey — the same nesting the rest of the
+   app uses to put a list inside a panel. */
 .proto-import-summary__stats {
   list-style: none;
-  margin: 6px 0 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px 22px;
-}
-
-.proto-import-summary__stat {
+  width: 100%;
+  max-width: var(--proto-import-summary-measure);
+  margin: 12px 0 0;
+  padding: 3px 14px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 1px;
+  border-radius: var(--pds-radius-row, 10px);
+  background: var(--pds-bg-page);
+  border: 1px solid var(--pds-border-control-soft, var(--pds-border-control));
 }
 
-.proto-import-summary__stat-value {
-  font-size: 20px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--pds-text-primary);
+/* The card centres its text; these rows are a ledger and must read left. */
+.proto-import-summary__stat {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 2px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.proto-import-summary__stat + .proto-import-summary__stat {
+  border-top: 1px solid var(--pds-border-control-soft, var(--pds-border-control));
+}
+
+.proto-import-summary__stat-icon {
+  display: inline-flex;
+  line-height: 0;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
 
 .proto-import-summary__stat-label {
-  font-size: 11.5px;
+  flex: 1;
+  min-width: 0;
   color: var(--pds-text-secondary);
+}
+
+.proto-import-summary__stat-value {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--pds-text-primary);
 }
 
 .proto-import-summary__issues {
@@ -14979,18 +15002,18 @@ p.proto-teaching-plan__divider {
   background: var(--pds-bg-chip);
 }
 
+/* Just the glyph. The tinted disc behind it was a second alarm for the same fact —
+   the row already sits under "Needs a look" and the icon is already red. */
 .proto-import-summary__issue-icon {
   flex: none;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Nudge onto the title's optical baseline now there's no disc centring it. */
+  margin-top: 1px;
 }
 
 .proto-import-summary__issue-icon--critical {
-  background: var(--pds-destructive-bg);
   color: var(--pds-destructive);
 }
 
@@ -15018,12 +15041,36 @@ p.proto-teaching-plan__divider {
   color: var(--pds-text-secondary);
 }
 
+/* The one thing most people want next gets its own full-width row; the two
+   optional follow-ups share the row beneath it. Sizing the secondaries with
+   `flex: 1 1 0` rather than a fixed grid means the pair splits the row evenly
+   when Undo is offered and the single one fills it when it isn't. */
 .proto-import-summary__actions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: 8px;
+  width: 100%;
+  max-width: var(--proto-import-summary-measure);
   margin-top: 10px;
+}
+
+/* The two ends of the flow — the empty drop zone and the finished summary — get
+   full-size buttons, because in both the button is the whole point of the screen.
+   The compact strip, the toolbar and the row buttons stay small (see the shared
+   rule above); they sit beside content rather than being the content. Later in
+   the file than that rule, so it wins at equal specificity. */
+:is(.proto-import-summary__actions, .proto-import-drop__actions) > .proto-settings-btn {
+  padding: 13px 18px;
+  font-size: 15px;
+}
+
+.proto-import-summary__actions > .proto-settings-btn:not(.proto-settings-btn--secondary) {
+  flex: 1 0 100%;
+}
+
+.proto-import-summary__actions > .proto-settings-btn--secondary {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 @media (max-width: 600px) {
@@ -15035,12 +15082,12 @@ p.proto-teaching-plan__divider {
      labels stay at full size — they're the whole point of the illustration. */
   .proto-import-fan {
     --proto-fan-step: 42px;
-    --proto-fan-card-w: 86px;
-    height: 124px;
+    --proto-fan-card-w: 72px;
+    --proto-fan-card-h: 96px;
+    height: 140px;
   }
 
   .proto-import-fan__card {
-    height: 76px;
     padding: 7px 8px;
     gap: 5px;
   }
@@ -15081,13 +15128,7 @@ p.proto-teaching-plan__divider {
     animation: none;
   }
 
-  .proto-import-row,
-  .proto-import-summary__check,
-  .proto-import-summary__spark {
+  .proto-import-row {
     animation: none;
-  }
-
-  .proto-import-summary__spark {
-    display: none;
   }
 }

@@ -1840,6 +1840,100 @@ export const AdminMonthlyReports = pgTable(
   (table) => [uniqueIndex('AdminMonthlyReports_month_unique').on(table.month)],
 );
 
+// ─── ImportSessions / ImportSessionItems (multi-request import runs) ───────────
+
+/**
+ * One row per import run started from the import surface. The session exists
+ * because import is no longer a single request: files are uploaded and parsed
+ * one at a time, committed in small batches, then enriched and finalized. Serverless
+ * functions are stateless and multi-instance, so the cross-request state that used
+ * to live in local variables (parsed rows, the sourceId → new note id map, running
+ * counters) has to be durable.
+ *
+ * Row ids: `impsess_${crypto.randomUUID()}`. Sessions expire after 24h and are
+ * reaped opportunistically when the same user starts a new one.
+ */
+export const ImportSessions = pgTable(
+  'ImportSessions',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId').notNull(),
+    /** 'open' | 'done' | 'abandoned'. */
+    status: text('status').notNull().default('open'),
+    /**
+     * Backup-zip `manifest.json` connection pairs, by *portable* note id, as JSON
+     * `[{fromNoteId,toNoteId}]`. Remapped to real note ids at finalize. Capped so a
+     * hostile manifest can't balloon the row.
+     */
+    manifestConnections: text('manifestConnections'),
+    notesImported: integer('notesImported').notNull().default(0),
+    threadsCreated: integer('threadsCreated').notNull().default(0),
+    tagsCreated: integer('tagsCreated').notNull().default(0),
+    duplicatesSkipped: integer('duplicatesSkipped').notNull().default(0),
+    highlightsImported: integer('highlightsImported').notNull().default(0),
+    connectionsImported: integer('connectionsImported').notNull().default(0),
+    scriptureProcessed: integer('scriptureProcessed').notNull().default(0),
+    autoTagsApplied: integer('autoTagsApplied').notNull().default(0),
+    createdAt: ts('createdAt').notNull(),
+    updatedAt: ts('updatedAt'),
+    expiresAt: ts('expiresAt').notNull(),
+  },
+  (table) => [
+    index('ImportSessions_userIdIndex').on(table.userId),
+    index('ImportSessions_expiresAtIndex').on(table.expiresAt),
+  ],
+);
+
+/**
+ * One row per note that an uploaded file parsed into — a `.csv`, `.enex`, or
+ * combined markdown export yields many items for a single file, which is why the
+ * client's file rows and these items are not 1:1.
+ *
+ * `resultNoteId` is set both when an item commits and when it matches an existing
+ * note (duplicate). That is what lets finalize rebuild the sourceId → note id map
+ * with a single query, so a backup's connection graph still restores across
+ * request boundaries.
+ *
+ * Row ids: `impitem_${crypto.randomUUID()}`.
+ */
+export const ImportSessionItems = pgTable(
+  'ImportSessionItems',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('sessionId').notNull(),
+    userId: text('userId').notNull(),
+    /** Client row id, so per-file progress can be attributed back without extra bookkeeping. */
+    clientFileId: text('clientFileId'),
+    fileName: text('fileName').notNull(),
+    folderPath: text('folderPath'),
+    sourceType: text('sourceType').notNull(),
+    fileSize: integer('fileSize').notNull().default(0),
+    ord: integer('ord').notNull().default(0),
+    title: text('title').notNull(),
+    highlightCount: integer('highlightCount').notNull().default(0),
+    tagCount: integer('tagCount').notNull().default(0),
+    primaryCollection: text('primaryCollection'),
+    /** JSON `ParsedImportRow` minus the fields promoted to columns above. */
+    payload: text('payload').notNull(),
+    /** Portable `meta.id` from a Harvous backup, when present. */
+    sourceId: text('sourceId'),
+    /** 'parsed' | 'excluded' | 'committed' | 'duplicate' | 'failed'. */
+    status: text('status').notNull().default('parsed'),
+    /** Advisory at parse time ('id' | 'content' | null); re-checked authoritatively at commit. */
+    duplicateHint: text('duplicateHint'),
+    resultNoteId: text('resultNoteId'),
+    enrichedAt: ts('enrichedAt'),
+    error: text('error'),
+    createdAt: ts('createdAt').notNull(),
+    updatedAt: ts('updatedAt'),
+  },
+  (table) => [
+    index('ImportSessionItems_sessionIdIndex').on(table.sessionId),
+    index('ImportSessionItems_userIdIndex').on(table.userId),
+    index('ImportSessionItems_sessionId_statusIndex').on(table.sessionId, table.status),
+  ],
+);
+
 // ─── AppSyncCursors (durable cron watermarks) ─────────────────────────────────
 
 /**

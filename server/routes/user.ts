@@ -34,9 +34,9 @@
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
-  db, first, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata,
-  UserXP, Comments, ScriptureMetadata, Members, SpaceMemberships, SpaceInvites, NoteScriptureReferences, ResourceMetadata,
-  StudyThreadEntries, NoteConnections,
+  db, first, Notes, Threads, Spaces, Tags, NoteThreads, UserMetadata,
+  UserXP, Comments, Members, SpaceMemberships, SpaceInvites, NoteScriptureReferences, ResourceMetadata,
+  NoteConnections, ImportSessionItems,
   eq, and, ne, or, desc, asc, isNotNull, isNull, sql, inArray,
 } from '../db';
 import { nowISO } from '../db/dates';
@@ -81,26 +81,53 @@ import {
 // Pure @/utils (no astro:db)
 import { getSeasonDisplayName, getCurrentSeason } from '@/utils/season-helpers';
 import { handleAPIError } from '@/utils/error-handling';
-import { rateLimit, tryConsumeNoteCreates, getClientIP } from '@/utils/rate-limit';
+import {
+  rateLimit,
+  tryConsumeNoteCreates,
+  tryConsumeImportNoteCreates,
+  getClientIP,
+} from '@/utils/rate-limit';
 import { queueAudiencefulProductFlagsForUser } from '../utils/audienceful-product-flags';
 import type { AudiencefulProductFlags } from '@/utils/audienceful';
 import { validateName, validateColor } from '@/utils/validation';
 import { hashPinNew, validatePinFormat, verifyPin } from '@/utils/lock-pin-server';
-import { matchDuplicateNoteId } from '../utils/import-dedupe';
 import { generateUserExport, generateUserBackupZip, type ExportFormat } from '../utils/export-user-data';
-import { generateNoteId, generateThreadId, generateStudyThreadEntryId } from '@/utils/ids';
-import { THREAD_COLORS } from '@/utils/colors';
-import { parseImportFiles, type ParsedImportRow } from '../utils/parse-import-files';
-import type { ParsedMarkdownNote } from '@/utils/markdown-import-parser';
-import type { ParsedCSVNote } from '@/utils/csv-parser';
-import { markdownToHtml } from '@/utils/markdown-to-html';
-import { parseScriptureReference } from '@/utils/scripture-detector';
+import {
+  parseImportFiles,
+  parseImportEntry,
+  importFormatForFileName,
+  type ImportFormat,
+  type ParsedImportRow,
+} from '../utils/parse-import-files';
+import {
+  capitalizeForStorage,
+  commitImportItem,
+  loadUserDedupeIndex,
+  resolveImportNoteFields,
+} from '../utils/import-commit';
+import {
+  IMPORT_LIMITS,
+  abandonImportSession,
+  buildImportItemSummary,
+  buildImportSessionSummary,
+  bumpImportSessionCounters,
+  countImportSessionFiles,
+  countImportSessionItems,
+  createImportSession,
+  finalizeImportSession,
+  getImportSession,
+  getImportSessionItems,
+  getOpenImportSession,
+  importItemPayloadToRow,
+  insertImportItems,
+  isSupportedImportExtension,
+  setImportItemsIncluded,
+  storeImportManifest,
+  undoImportSession,
+} from '../utils/import-session';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { broadcastInvalidation } from '../utils/realtime';
-import { isMyPileDisplayTitle } from '@/utils/my-pile-thread';
 import { deleteNotesCascadeForUser } from '../utils/delete-note-cascade';
-import { getOrCreateTag } from '../utils/tag-helpers';
-import { serializeNoteSecondaryCollections } from '../utils/note-secondary-collections';
 import {
   runPrototypeUserMigration,
   userNeedsCollectionBackfill,
@@ -110,8 +137,6 @@ import {
   isPrototypeFolderStatsColumnMissing,
 } from '../utils/pg-undefined-relation';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
-import { createInitialNoteVersion } from '../utils/note-version-service';
-import { buildLegacyAnchorMigrationPatch } from '../utils/durable-note-anchor';
 import { enrichImportedNote } from '../utils/import-enrichment';
 
 const app = new Hono();
@@ -1499,212 +1524,73 @@ app.post('/api/user/import', requireAuth, async (c) => {
     // Map portable note id (from frontmatter/manifest) → newly inserted note id, for connection restore.
     const sourceIdToNewId = new Map<string, string>();
 
+    const dedupeIndex = await loadUserDedupeIndex(auth.userId);
+    let highestSimpleNoteId = effectiveHighest;
+
     for (let i = 0; i < allParsedNotes.length; i++) {
-      try {
-        const { note: parsedNote, portableBuild, primaryCollection, secondaryCollections } = allParsedNotes[i];
-        let title: string | null = null, content = '', threadColor: string | null = null;
-        let tags: string[] = [], createdDate: Date = new Date();
-        let scriptureReference: string | null = null, scriptureTranslation: string | null = null;
-        let sourceId: string | null = null;
-        let portableRefs: string[] = [];
-        // Folders come from frontmatter/directory structure (resolved in parseImportFiles).
-        const threadName: string | null = primaryCollection;
+      const parsedRow = allParsedNotes[i];
+      const outcome = await commitImportItem(parsedRow, {
+        userId: auth.userId,
+        format: format as ImportFormat,
+        highestSimpleNoteId,
+        dedupeIndex,
+        consumeRateSlot: () => tryConsumeNoteCreates(auth.userId, getClientIP(c.req.raw), 1),
+      });
 
-        if (format === 'csv-threads') {
-          const csvNote = parsedNote as ParsedCSVNote;
-          title = csvNote.noteTitle || null; content = csvNote.content;
-          threadColor = csvNote.threadColor || null;
-          tags = csvNote.tags || [];
-          createdDate = parseExportDate(csvNote.createdDate);
-        } else {
-          const mdNote = parsedNote as ParsedMarkdownNote;
-          title = mdNote.title || null;
-          sourceId = mdNote.portable?.meta.id || null;
-          if (portableBuild) {
-            content = portableBuild.htmlContent;
-          } else {
-            content = markdownToHtml(mdNote.content);
-          }
-          if (mdNote.threadColor && THREAD_COLORS.includes(mdNote.threadColor as any)) {
-            threadColor = mdNote.threadColor;
-          }
-          tags = mdNote.tags || [];
-          createdDate = parseExportDate(mdNote.createdDate);
-          scriptureReference = mdNote.scriptureReference || null;
-          scriptureTranslation = mdNote.scriptureTranslation || null;
-          portableRefs = Array.isArray(mdNote.portable?.meta?.refs)
-            ? mdNote.portable!.meta.refs!.filter((r): r is string => typeof r === 'string' && r.trim().length > 0)
-            : [];
-        }
-
-        const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
-        const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : null;
-
-        // Idempotent re-import: a backup carries the original note id (sourceId). If that note
-        // already exists for this user, skip it (don't clobber edits) and map the id so any
-        // connections to/from it still restore. Cross-account imports won't match — the id won't
-        // exist under this user — so the note inserts fresh below.
-        if (sourceId) {
-          const existingById = first(
-            await db.select({ id: Notes.id }).from(Notes)
-              .where(and(eq(Notes.id, sourceId), eq(Notes.userId, auth.userId))).limit(1),
-          );
-          if (existingById) { sourceIdToNewId.set(sourceId, existingById.id); duplicatesSkipped++; continue; }
-        }
-
-        // Fall back to content-based dedup. Map the source id to the matched note so connections
-        // survive even when the row was created without a preserved id.
-        const dupId = await findDuplicateNoteId(auth.userId, capitalizedTitle, capitalizedContent);
-        if (dupId) {
-          if (sourceId) sourceIdToNewId.set(sourceId, dupId);
-          duplicatesSkipped++;
-          continue;
-        }
-
-        const slot = tryConsumeNoteCreates(auth.userId, getClientIP(c.req.raw), 1);
-        if (!slot.allowed) {
-          errors.push(`Import paused: ${slot.error}`);
-          break;
-        }
-
-        const threadId = await getOrCreateThread(auth.userId, threadName || '', threadColor);
-        if (!createdThreadIds.has(threadId) && threadId !== 'thread_unorganized') { createdThreadIds.add(threadId); threadsCreated++; }
-
-        const nextSimpleNoteId: number = i === 0 ? effectiveHighest + 1 : (userMetadata!.highestSimpleNoteId ?? 0) + 1;
-        let noteType: 'default' | 'scripture' | 'resource' = scriptureReference ? 'scripture' : 'default';
-
-        const secondarySerialized = serializeNoteSecondaryCollections(secondaryCollections);
-        const { newNote, importedHighlightCount } = await db.transaction(async (tx) => {
-          const inserted = first(await tx.insert(Notes).values({
-            id: generateNoteId(), content: capitalizedContent, title: capitalizedTitle,
-            threadId: 'thread_unorganized', spaceId: null, simpleNoteId: nextSimpleNoteId,
-            noteType, userId: auth.userId, isPublic: false, createdAt: createdDate, contentEncrypted: false,
-            // Modern folder system (what the 2.0 UI displays). Explicit folders mark an override
-            // so auto-collection suggestion doesn't reshuffle the user's imported structure.
-            primaryCollection: primaryCollection || null,
-            secondaryCollections: secondarySerialized,
-            collectionUserOverride: !!primaryCollection,
-          }).returning())!;
-          const initialVersion = await createInitialNoteVersion(tx, {
-            noteId: inserted.id,
-            noteAuthorId: auth.userId,
-            content: {
-              title: inserted.title,
-              content: inserted.content,
-              contentEncrypted: inserted.contentEncrypted,
-            },
-            createdAt: createdDate,
-            source: 'import',
-          });
-
-          await tx.update(UserMetadata).set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })
-            .where(eq(UserMetadata.userId, auth.userId));
-
-          if (threadId !== 'thread_unorganized') {
-            await tx.insert(NoteThreads).values({
-              id: `note-thread-${crypto.randomUUID()}`,
-              noteId: inserted.id, threadId, createdAt: nowISO()
-            });
-            await tx.update(Threads).set({ updatedAt: nowISO() })
-              .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
-          }
-
-          if (scriptureReference && noteType === 'scripture') {
-            const parsedReference = parseScriptureReference(scriptureReference);
-            if (parsedReference) {
-              const verse = Array.isArray(parsedReference.verse) ? parsedReference.verse[0] : parsedReference.verse;
-              const verseEnd = Array.isArray(parsedReference.verse) ? parsedReference.verse[1] : undefined;
-              await tx.insert(ScriptureMetadata).values({
-                id: `scripture_${crypto.randomUUID()}`,
-                noteId: inserted.id, reference: scriptureReference, book: parsedReference.book,
-                chapter: parsedReference.chapter, verse, verseEnd, translation: scriptureTranslation || 'NET',
-                originalText: '', createdAt: nowISO()
-              });
-            }
-          }
-
-          let insertedHighlights = 0;
-          for (const row of portableBuild?.studyInserts ?? []) {
-            const migratedAt = new Date();
-            const anchorPatch = buildLegacyAnchorMigrationPatch({
-              baselineVersionId: initialVersion.id,
-              baselineContent: inserted.content,
-              anchorLocation: row.anchorLocation,
-              anchorLength: row.anchorLength,
-              anchorTextSnapshot: row.anchorTextSnapshot,
-              sourceSnippet: row.sourceSnippet,
-              migratedAt,
-            });
-            await tx.insert(StudyThreadEntries).values({
-              ...row,
-              parentNoteId: inserted.id,
-              userId: auth.userId,
-              spaceId: null,
-              ...anchorPatch,
-              resolvedVersionId: initialVersion.id,
-              createdAt: new Date(row.createdAt),
-              updatedAt: row.updatedAt ? new Date(row.updatedAt) : null,
-            });
-            insertedHighlights++;
-          }
-          return { newNote: inserted, importedHighlightCount: insertedHighlights };
-        });
-
-        if (sourceId) sourceIdToNewId.set(sourceId, newNote.id);
-        if (primaryCollection) createdFolders.add(primaryCollection);
-        for (const sc of secondaryCollections) createdFolders.add(sc);
-        userMetadata = { ...userMetadata!, highestSimpleNoteId: nextSimpleNoteId };
-        highlightsImported += importedHighlightCount;
-
-        // Resolve tag ids (sequential for dedup) then insert the note↔tag rows in one batch.
-        const noteTagRows: (typeof NoteTags.$inferInsert)[] = [];
-        const seenTagIds = new Set<string>();
-        for (const tagName of tags) {
-          try {
-            const { tagId, created: tagCreated } = await getOrCreateTag(auth.userId, tagName);
-            if (tagCreated) tagsCreated++;
-            if (seenTagIds.has(tagId)) continue;
-            seenTagIds.add(tagId);
-            noteTagRows.push({
-              id: `note-tag-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              noteId: newNote.id, tagId, isAutoGenerated: false, confidence: null, createdAt: nowISO(),
-            });
-          } catch (tagError) { errors.push(`Failed to create tag "${tagName}" for note ${i + 1}`); }
-        }
-        if (noteTagRows.length > 0) {
-          try { await db.insert(NoteTags).values(noteTagRows); }
-          catch (tagError) { errors.push(`Failed to attach tags for note ${i + 1}`); }
-        }
-
-        // Match create/update: auto-tags + scripture pills (body + portable refs). Non-fatal.
-        try {
-          const enrichment = await enrichImportedNote({
-            noteId: newNote.id,
-            userId: auth.userId,
-            threadId,
-            title: capitalizedTitle,
-            content: capitalizedContent,
-            noteType,
-            primaryCollection: primaryCollection || null,
-            secondaryCollections,
-            manualTagNames: tags,
-            additionalReferences: portableRefs,
-            defaultTranslation: scriptureTranslation || defaultTranslation,
-          });
-          autoTagsApplied += enrichment.autoTagsApplied;
-          scriptureProcessed += enrichment.scriptureResultCount;
-        } catch (enrichErr) {
-          errors.push(
-            `Failed to enrich note ${i + 1} (tags/scripture): ${
-              enrichErr instanceof Error ? enrichErr.message : 'Unknown error'
-            }`,
-          );
-        }
-
-        notesImported++;
-      } catch (noteError) {
-        errors.push(`Failed to import note ${i + 1}: ${noteError instanceof Error ? noteError.message : 'Unknown error'}`);
+      if (outcome.status === 'duplicate') {
+        if (outcome.sourceId && outcome.noteId) sourceIdToNewId.set(outcome.sourceId, outcome.noteId);
+        duplicatesSkipped++;
+        continue;
       }
+      if (outcome.status === 'rate-limited') {
+        errors.push(`Import paused: ${outcome.error}`);
+        break;
+      }
+      if (outcome.status === 'failed') {
+        errors.push(`Failed to import note ${i + 1}: ${outcome.error}`);
+        continue;
+      }
+
+      highestSimpleNoteId = outcome.highestSimpleNoteId;
+      if (outcome.sourceId) sourceIdToNewId.set(outcome.sourceId, outcome.noteId);
+      if (outcome.primaryCollection) createdFolders.add(outcome.primaryCollection);
+      for (const sc of outcome.secondaryCollections) createdFolders.add(sc);
+      if (!createdThreadIds.has(outcome.threadId) && outcome.threadId !== 'thread_unorganized') {
+        createdThreadIds.add(outcome.threadId);
+        threadsCreated++;
+      }
+      tagsCreated += outcome.tagsCreated;
+      highlightsImported += outcome.highlightsImported;
+      errors.push(...outcome.warnings);
+
+      // Match create/update: auto-tags + scripture pills (body + portable refs). Non-fatal.
+      const resolved = resolveImportNoteFields(parsedRow, format as ImportFormat);
+      const stored = capitalizeForStorage(resolved.title, resolved.content);
+      try {
+        const enrichment = await enrichImportedNote({
+          noteId: outcome.noteId,
+          userId: auth.userId,
+          threadId: outcome.threadId,
+          title: stored.title,
+          content: stored.content,
+          noteType: resolved.scriptureReference ? 'scripture' : 'default',
+          primaryCollection: outcome.primaryCollection,
+          secondaryCollections: outcome.secondaryCollections,
+          manualTagNames: resolved.tags,
+          additionalReferences: resolved.portableRefs,
+          defaultTranslation: resolved.scriptureTranslation || defaultTranslation,
+        });
+        autoTagsApplied += enrichment.autoTagsApplied;
+        scriptureProcessed += enrichment.scriptureResultCount;
+      } catch (enrichErr) {
+        errors.push(
+          `Failed to enrich note ${i + 1} (tags/scripture): ${
+            enrichErr instanceof Error ? enrichErr.message : 'Unknown error'
+          }`,
+        );
+      }
+
+      notesImported++;
     }
 
     // Restore the note-connection graph from a backup manifest (ids remapped to new notes).
@@ -1746,6 +1632,490 @@ app.post('/api/user/import', requireAuth, async (c) => {
   } catch (error: any) {
     console.error('Import error:', error);
     return c.json({ error: error.message || 'Failed to import data' }, 500);
+  }
+});
+
+// ─── Import sessions (/api/user/import/session/*) ────────────────────────────
+//
+// The import surface drives these: one request per uploaded file, then small
+// commit and enrich batches, then finalize. Splitting the work this way is what
+// makes honest per-file progress possible and keeps every request comfortably
+// inside the function timeout, however large the import is.
+
+/** UserMetadata must exist before notes can be numbered; imports may be a user's first write. */
+async function ensureUserMetadataForImport(userId: string) {
+  const existing = first(
+    await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1),
+  );
+  if (existing) return existing;
+
+  const existingNotes = await db
+    .select({ simpleNoteId: Notes.simpleNoteId })
+    .from(Notes)
+    .where(and(eq(Notes.userId, userId), isNotNull(Notes.simpleNoteId)))
+    .orderBy(desc(Notes.simpleNoteId))
+    .limit(1);
+  await db.insert(UserMetadata).values({
+    id: `user_metadata_${userId}`,
+    userId,
+    highestSimpleNoteId: existingNotes.length > 0 ? existingNotes[0].simpleNoteId || 0 : 0,
+    userColor: 'blue',
+    currentSeason: getCurrentSeason(),
+    createdAt: nowISO(),
+  });
+  return first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1))!;
+}
+
+app.post('/api/user/import/session', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const session = await createImportSession(auth.userId);
+    return c.json({
+      sessionId: session.id,
+      expiresAt: session.expiresAt,
+      limits: {
+        maxFileBytes: IMPORT_LIMITS.maxFileBytes,
+        maxFiles: IMPORT_LIMITS.maxFiles,
+        maxItems: IMPORT_LIMITS.maxItems,
+        maxCommitBatch: IMPORT_LIMITS.maxCommitBatch,
+        maxEnrichBatch: IMPORT_LIMITS.maxEnrichBatch,
+      },
+    });
+  } catch (error: unknown) {
+    const e = handleAPIError(error, { endpoint: '/api/user/import/session', action: 'import_session_create' });
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/user/import/session/:id/files', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const session = await getOpenImportSession(c.req.param('id') ?? '', auth.userId);
+    if (!session) return c.json({ error: 'Import session not found or already finished' }, 404);
+
+    const formData = await c.req.formData();
+    const file = formData.get('file') as File | null;
+    if (!file) return c.json({ error: 'A file is required' }, 400);
+
+    const fileName = file.name || 'import';
+    if (!isSupportedImportExtension(fileName)) {
+      return c.json({ error: `${fileName}: unsupported file type`, unsupported: [fileName] }, 400);
+    }
+    if (file.size > IMPORT_LIMITS.maxFileBytes) {
+      const mb = Math.round(IMPORT_LIMITS.maxFileBytes / (1024 * 1024));
+      return c.json({ error: `${fileName} is larger than the ${mb}MB limit` }, 413);
+    }
+
+    const [fileCount, itemCount] = await Promise.all([
+      countImportSessionFiles(session.id),
+      countImportSessionItems(session.id),
+    ]);
+    if (fileCount >= IMPORT_LIMITS.maxFiles) {
+      return c.json({ error: `This import already has ${IMPORT_LIMITS.maxFiles} files.` }, 409);
+    }
+    if (itemCount >= IMPORT_LIMITS.maxItems) {
+      return c.json({ error: `This import already has ${IMPORT_LIMITS.maxItems} notes.` }, 409);
+    }
+
+    const folderPathRaw = formData.get('folderPath');
+    const folderPath = typeof folderPathRaw === 'string' && folderPathRaw.trim() ? folderPathRaw.trim() : null;
+    const clientFileIdRaw = formData.get('clientFileId');
+    const clientFileId = typeof clientFileIdRaw === 'string' && clientFileIdRaw ? clientFileIdRaw : null;
+
+    const parsed = await parseImportEntry(
+      {
+        fileName,
+        folderPath,
+        text: () => file.text(),
+        buffer: () => file.arrayBuffer(),
+      },
+      importFormatForFileName(fileName),
+      itemCount,
+    );
+
+    const warnings = [...parsed.warnings];
+    let rows = parsed.rows;
+    if (rows.length > IMPORT_LIMITS.maxItemsPerFile) {
+      warnings.push(
+        `${fileName}: only the first ${IMPORT_LIMITS.maxItemsPerFile} of ${rows.length} notes were read.`,
+      );
+      rows = rows.slice(0, IMPORT_LIMITS.maxItemsPerFile);
+    }
+    if (rows.length > IMPORT_LIMITS.maxItems - itemCount) {
+      rows = rows.slice(0, Math.max(0, IMPORT_LIMITS.maxItems - itemCount));
+      warnings.push(`${fileName}: import is full at ${IMPORT_LIMITS.maxItems} notes.`);
+    }
+
+    // Advisory duplicate badge. Only the preserved-id case is checked here — it's a
+    // single indexed lookup, where content dedupe would mean reading the whole
+    // library for every file. Commit re-checks both, authoritatively.
+    const sourceIds = rows
+      .map((row) => (row.note as { portable?: { meta?: { id?: string } } }).portable?.meta?.id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+    const existingIds = new Set<string>();
+    if (sourceIds.length > 0) {
+      const found = await db
+        .select({ id: Notes.id })
+        .from(Notes)
+        .where(and(eq(Notes.userId, auth.userId), inArray(Notes.id, sourceIds)));
+      for (const row of found) existingIds.add(row.id);
+    }
+
+    const items = await insertImportItems({
+      sessionId: session.id,
+      userId: auth.userId,
+      clientFileId,
+      fileSize: file.size,
+      rows,
+      startOrd: itemCount,
+      duplicateHintFor: (row) => {
+        const sourceId =
+          (row.note as { portable?: { meta?: { id?: string } } }).portable?.meta?.id ?? null;
+        return { hint: sourceId && existingIds.has(sourceId) ? 'id' : null, sourceId };
+      },
+    });
+
+    return c.json({
+      items: items.map(buildImportItemSummary),
+      warnings,
+      unsupported: parsed.unsupported,
+    });
+  } catch (error: unknown) {
+    const e = handleAPIError(error, { endpoint: '/api/user/import/session/:id/files', action: 'import_session_file' });
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/user/import/session/:id/manifest', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const session = await getOpenImportSession(c.req.param('id') ?? '', auth.userId);
+    if (!session) return c.json({ error: 'Import session not found or already finished' }, 404);
+
+    const body = await c.req.json<{ connections?: Array<{ fromNoteId?: string; toNoteId?: string }> }>();
+    const stored = await storeImportManifest(
+      session.id,
+      (body.connections ?? []).filter(
+        (conn): conn is { fromNoteId: string; toNoteId: string } => !!conn?.fromNoteId && !!conn?.toNoteId,
+      ),
+    );
+    return c.json({ connections: stored });
+  } catch (error: unknown) {
+    const e = handleAPIError(error, { endpoint: '/api/user/import/session/:id/manifest', action: 'import_session_manifest' });
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/user/import/session/:id/exclude', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const session = await getOpenImportSession(c.req.param('id') ?? '', auth.userId);
+    if (!session) return c.json({ error: 'Import session not found or already finished' }, 404);
+
+    const body = await c.req.json<{ itemIds?: string[]; included?: boolean }>();
+    const itemIds = Array.isArray(body.itemIds) ? body.itemIds.filter((id) => typeof id === 'string') : [];
+    await setImportItemsIncluded(session.id, itemIds, body.included !== false);
+    return c.json({ success: true, updated: itemIds.length });
+  } catch (error: unknown) {
+    const e = handleAPIError(error, { endpoint: '/api/user/import/session/:id/exclude', action: 'import_session_exclude' });
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/user/import/session/:id/commit', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const session = await getOpenImportSession(c.req.param('id') ?? '', auth.userId);
+    if (!session) return c.json({ error: 'Import session not found or already finished' }, 404);
+
+    const body = await c.req.json<{ itemIds?: string[] }>();
+    const requestedIds = (Array.isArray(body.itemIds) ? body.itemIds : [])
+      .filter((id): id is string => typeof id === 'string')
+      .slice(0, IMPORT_LIMITS.maxCommitBatch);
+    if (requestedIds.length === 0) return c.json({ error: 'itemIds is required' }, 400);
+
+    const items = await db
+      .select()
+      .from(ImportSessionItems)
+      .where(
+        and(
+          eq(ImportSessionItems.sessionId, session.id),
+          eq(ImportSessionItems.userId, auth.userId),
+          eq(ImportSessionItems.status, 'parsed'),
+          inArray(ImportSessionItems.id, requestedIds),
+        ),
+      )
+      .orderBy(ImportSessionItems.ord);
+
+    await ensureUnorganizedThread(auth.userId);
+    await ensureUserMetadataForImport(auth.userId);
+
+    const dedupeIndex = await loadUserDedupeIndex(auth.userId);
+    let highestSimpleNoteId = await getEffectiveHighestSimpleNoteId(auth.userId);
+    const ip = getClientIP(c.req.raw);
+
+    const results: Array<{
+      itemId: string;
+      status: 'committed' | 'duplicate' | 'failed';
+      noteId?: string;
+      highlightsImported?: number;
+      error?: string;
+    }> = [];
+    const counters = {
+      notesImported: 0,
+      threadsCreated: 0,
+      tagsCreated: 0,
+      duplicatesSkipped: 0,
+      highlightsImported: 0,
+    };
+    let rateLimited: { retryAfterSeconds: number; message: string } | null = null;
+
+    for (const item of items) {
+      const row = importItemPayloadToRow(item);
+      const outcome = await commitImportItem(row, {
+        userId: auth.userId,
+        format: importFormatForFileName(item.fileName),
+        highestSimpleNoteId,
+        dedupeIndex,
+        consumeRateSlot: () => tryConsumeImportNoteCreates(auth.userId, ip, 1),
+      });
+
+      if (outcome.status === 'rate-limited') {
+        // Stop the batch, but report what already landed — a partial commit is a
+        // pause, not a failure, and the client resumes from the remaining items.
+        rateLimited = { retryAfterSeconds: outcome.retryAfterSec, message: outcome.error };
+        break;
+      }
+
+      if (outcome.status === 'duplicate') {
+        counters.duplicatesSkipped++;
+        await db
+          .update(ImportSessionItems)
+          .set({ status: 'duplicate', resultNoteId: outcome.noteId, updatedAt: new Date() })
+          .where(eq(ImportSessionItems.id, item.id));
+        results.push({ itemId: item.id, status: 'duplicate', noteId: outcome.noteId ?? undefined });
+        continue;
+      }
+
+      if (outcome.status === 'failed') {
+        await db
+          .update(ImportSessionItems)
+          .set({ status: 'failed', error: outcome.error, updatedAt: new Date() })
+          .where(eq(ImportSessionItems.id, item.id));
+        results.push({ itemId: item.id, status: 'failed', error: outcome.error });
+        continue;
+      }
+
+      highestSimpleNoteId = outcome.highestSimpleNoteId;
+      counters.notesImported++;
+      counters.tagsCreated += outcome.tagsCreated;
+      counters.highlightsImported += outcome.highlightsImported;
+      if (outcome.threadCreated) counters.threadsCreated++;
+
+      await db
+        .update(ImportSessionItems)
+        .set({ status: 'committed', resultNoteId: outcome.noteId, error: null, updatedAt: new Date() })
+        .where(eq(ImportSessionItems.id, item.id));
+      results.push({
+        itemId: item.id,
+        status: 'committed',
+        noteId: outcome.noteId,
+        highlightsImported: outcome.highlightsImported,
+      });
+    }
+
+    await bumpImportSessionCounters(session.id, counters);
+
+    return c.json({
+      results,
+      rateLimited: rateLimited
+        ? { retryAfterSeconds: rateLimited.retryAfterSeconds, message: rateLimited.message }
+        : undefined,
+    });
+  } catch (error: unknown) {
+    const e = handleAPIError(error, { endpoint: '/api/user/import/session/:id/commit', action: 'import_session_commit' });
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/user/import/session/:id/enrich', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const session = await getOpenImportSession(c.req.param('id') ?? '', auth.userId);
+    if (!session) return c.json({ error: 'Import session not found or already finished' }, 404);
+
+    const body = await c.req.json<{ itemIds?: string[] }>();
+    const requestedIds = (Array.isArray(body.itemIds) ? body.itemIds : [])
+      .filter((id): id is string => typeof id === 'string')
+      .slice(0, IMPORT_LIMITS.maxEnrichBatch);
+    if (requestedIds.length === 0) return c.json({ error: 'itemIds is required' }, 400);
+
+    const items = await db
+      .select()
+      .from(ImportSessionItems)
+      .where(
+        and(
+          eq(ImportSessionItems.sessionId, session.id),
+          eq(ImportSessionItems.userId, auth.userId),
+          eq(ImportSessionItems.status, 'committed'),
+          isNull(ImportSessionItems.enrichedAt),
+          inArray(ImportSessionItems.id, requestedIds),
+        ),
+      );
+
+    const metadata = await ensureUserMetadataForImport(auth.userId);
+    const defaultTranslation = metadata.defaultTranslation?.trim() || 'NET';
+
+    const results: Array<{
+      itemId: string;
+      autoTagsApplied: number;
+      scriptureProcessed: number;
+      skipped?: string;
+    }> = [];
+    const counters = { scriptureProcessed: 0, autoTagsApplied: 0 };
+
+    for (const item of items) {
+      if (!item.resultNoteId) {
+        results.push({ itemId: item.id, autoTagsApplied: 0, scriptureProcessed: 0, skipped: 'No note' });
+        continue;
+      }
+      const note = first(
+        await db
+          .select()
+          .from(Notes)
+          .where(and(eq(Notes.id, item.resultNoteId), eq(Notes.userId, auth.userId)))
+          .limit(1),
+      );
+      if (!note) {
+        results.push({ itemId: item.id, autoTagsApplied: 0, scriptureProcessed: 0, skipped: 'Note missing' });
+        continue;
+      }
+
+      const row = importItemPayloadToRow(item);
+      const resolved = resolveImportNoteFields(row, importFormatForFileName(item.fileName));
+      const noteThread = first(
+        await db
+          .select({ threadId: NoteThreads.threadId })
+          .from(NoteThreads)
+          .where(eq(NoteThreads.noteId, note.id))
+          .limit(1),
+      );
+
+      try {
+        const enrichment = await enrichImportedNote({
+          noteId: note.id,
+          userId: auth.userId,
+          threadId: noteThread?.threadId || 'thread_unorganized',
+          title: note.title,
+          content: note.content,
+          noteType: (note.noteType as 'default' | 'scripture' | 'resource') || 'default',
+          primaryCollection: note.primaryCollection,
+          secondaryCollections: row.secondaryCollections,
+          manualTagNames: resolved.tags,
+          additionalReferences: resolved.portableRefs,
+          defaultTranslation: resolved.scriptureTranslation || defaultTranslation,
+        });
+        counters.autoTagsApplied += enrichment.autoTagsApplied;
+        // Report the pills the user will actually see in the note rather than the
+        // processor's internal result count, which excludes references that resolved
+        // to scripture the account already had.
+        const enriched = first(
+          await db
+            .select({ content: Notes.content })
+            .from(Notes)
+            .where(eq(Notes.id, note.id))
+            .limit(1),
+        );
+        const pillCount = (enriched?.content.match(/data-scripture-reference=/g) ?? []).length;
+        const scriptureProcessed = Math.max(pillCount, enrichment.scriptureResultCount);
+        counters.scriptureProcessed += scriptureProcessed;
+        results.push({
+          itemId: item.id,
+          autoTagsApplied: enrichment.autoTagsApplied,
+          scriptureProcessed,
+        });
+      } catch (enrichErr) {
+        // The note is already saved; a scripture/tagging failure must not undo it.
+        results.push({
+          itemId: item.id,
+          autoTagsApplied: 0,
+          scriptureProcessed: 0,
+          skipped: enrichErr instanceof Error ? enrichErr.message : 'Enrichment failed',
+        });
+      }
+
+      await db
+        .update(ImportSessionItems)
+        .set({ enrichedAt: new Date(), updatedAt: new Date() })
+        .where(eq(ImportSessionItems.id, item.id));
+    }
+
+    await bumpImportSessionCounters(session.id, counters);
+
+    return c.json({ results });
+  } catch (error: unknown) {
+    const e = handleAPIError(error, { endpoint: '/api/user/import/session/:id/enrich', action: 'import_session_enrich' });
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/user/import/session/:id/finalize', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const finalized = await finalizeImportSession(c.req.param('id') ?? '', auth.userId);
+    if (!finalized) return c.json({ error: 'Import session not found' }, 404);
+
+    invalidateUserCache(auth.userId);
+    broadcastInvalidation(auth.userId, { type: 'sync:batch' });
+    return c.json(finalized);
+  } catch (error: unknown) {
+    const e = handleAPIError(error, { endpoint: '/api/user/import/session/:id/finalize', action: 'import_session_finalize' });
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.get('/api/user/import/session/:id', requireAuth, rateLimit('read'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const session = await getImportSession(c.req.param('id') ?? '', auth.userId);
+    if (!session) return c.json({ error: 'Import session not found' }, 404);
+    const items = await getImportSessionItems(session.id);
+    return c.json({
+      summary: buildImportSessionSummary(session),
+      expiresAt: session.expiresAt,
+      items: items.map(buildImportItemSummary),
+    });
+  } catch (error: unknown) {
+    const e = handleAPIError(error, { endpoint: '/api/user/import/session/:id', action: 'import_session_get' });
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.delete('/api/user/import/session/:id', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const session = await getImportSession(c.req.param('id') ?? '', auth.userId);
+    if (!session) return c.json({ error: 'Import session not found' }, 404);
+
+    // An unfinished session only holds parsed rows — dropping it costs the user
+    // nothing. A finished one means undo: take back the notes it created.
+    if (session.status !== 'done') {
+      await abandonImportSession(session.id, auth.userId);
+      return c.json({ success: true, undone: false });
+    }
+
+    const undone = await undoImportSession(session.id, auth.userId);
+    invalidateUserCache(auth.userId);
+    broadcastInvalidation(auth.userId, { type: 'sync:batch' });
+    return c.json({
+      success: true,
+      undone: true,
+      deletedNotes: undone?.deletedNoteIds.length ?? 0,
+      keptEditedNotes: undone?.keptEditedNoteIds.length ?? 0,
+    });
+  } catch (error: unknown) {
+    const e = handleAPIError(error, { endpoint: '/api/user/import/session/:id', action: 'import_session_delete' });
+    return c.json({ error: e.message }, 500);
   }
 });
 
@@ -1855,63 +2225,5 @@ app.get('/api/profile/my-shared-spaces', requireAuth, rateLimit('read'), async (
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-
-// ─── Import helper functions ─────────────────────────────────────────────────
-
-function getFolderPath(file: File): string | null {
-  const relativePath = (file as any).webkitRelativePath;
-  if (relativePath) {
-    const pathParts = relativePath.split('/');
-    if (pathParts.length > 1) { pathParts.pop(); return pathParts.join('/'); }
-  }
-  const fileName = file.name || '';
-  if (fileName.includes('/')) { const parts = fileName.split('/'); parts.pop(); return parts.join('/'); }
-  return null;
-}
-
-
-function parseExportDate(dateString: string | null): Date {
-  if (!dateString) return new Date();
-  const d = new Date(dateString);
-  return isNaN(d.getTime()) ? new Date() : d;
-}
-
-function getThreadColorFromTitle(threadTitle: string): string {
-  const availableColors = THREAD_COLORS.filter(color => color !== 'paper');
-  let hash = 0;
-  for (let i = 0; i < threadTitle.length; i++) {
-    hash = ((hash << 5) - hash) + threadTitle.charCodeAt(i);
-    hash = hash & hash;
-  }
-  return availableColors[Math.abs(hash) % availableColors.length];
-}
-
-async function getOrCreateThread(userId: string, threadTitle: string, threadColor?: string | null): Promise<string> {
-  if (!threadTitle || threadTitle.trim() === '' || isMyPileDisplayTitle(threadTitle)) {
-    await ensureUnorganizedThread(userId);
-    return 'thread_unorganized';
-  }
-  const existingThread = first(await db.select().from(Threads)
-    .where(and(eq(Threads.userId, userId), eq(Threads.title, threadTitle.trim()))).limit(1));
-  if (existingThread) return existingThread.id;
-
-  const capitalizedTitle = threadTitle.trim().charAt(0).toUpperCase() + threadTitle.trim().slice(1);
-  let finalColor: string | null = null;
-  if (threadColor && THREAD_COLORS.includes(threadColor as any)) finalColor = threadColor;
-  else finalColor = getThreadColorFromTitle(threadTitle.trim());
-
-  const newThread = first(await db.insert(Threads).values({
-    id: generateThreadId(), title: capitalizedTitle, subtitle: null, spaceId: null,
-    userId, isPublic: false, color: finalColor, isPinned: false, createdAt: nowISO(),
-  }).returning())!;
-  return newThread.id;
-}
-
-/** Returns the id of an existing note with matching normalized title + plaintext content, else null. */
-async function findDuplicateNoteId(userId: string, title: string | null, content: string): Promise<string | null> {
-  const existingNotes = await db.select({ id: Notes.id, title: Notes.title, content: Notes.content })
-    .from(Notes).where(eq(Notes.userId, userId));
-  return matchDuplicateNoteId(existingNotes, title, content);
-}
 
 export default app;

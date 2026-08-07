@@ -1,58 +1,46 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useQueryClient } from '@tanstack/react-query';
-import { api, apiUrl } from '../../../lib/api';
+import { api } from '../../../lib/api';
 import {
   fetchAndValidateUserExport,
   triggerAuthenticatedExportDownload,
   downloadUserBackupZip,
 } from '@/utils/download-user-export';
-import { refreshClientData } from '../../../lib/refresh-client-data';
-import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
+import { prototypeHomeRouteTo } from '@/lib/prototype-path';
+import ProtoChipBar from '../components/ProtoChipBar';
+import ImportWorkspace from '../import/ImportWorkspace';
+import { SettingsGroup, SettingsRow, SettingsShell } from './SettingsShell';
+import { setSettingsCloseBlocked } from './settings-close-guard';
 
 type ExportFormat = 'markdown' | 'csv-threads';
-type Busy =
-  | null
-  | 'export-md'
-  | 'export-csv'
-  | 'export-backup'
-  | 'import'
-  | 'import-preview'
-  | 'clear'
-  | 'delete';
+type Busy = null | 'export-md' | 'export-csv' | 'export-backup' | 'clear' | 'delete';
+type DataTab = 'import' | 'export' | 'danger';
 
-interface ImportPreviewDoc {
-  index: number;
-  fileName: string;
-  title: string;
-  highlightCount: number;
-  tagCount: number;
-  sourceType: string;
-  primaryCollection?: string | null;
-  secondaryCollections?: string[];
-}
+const DATA_TABS = [
+  { id: 'import' as const, label: 'Import' },
+  { id: 'export' as const, label: 'Export' },
+  { id: 'danger' as const, label: 'Danger zone' },
+];
 
-function SettingsSectionLabel({ children }: { children: ReactNode }) {
-  return <div className="pds-inspector-label proto-settings-section-label">{children}</div>;
-}
-
-function SettingsSectionHint({ children }: { children: ReactNode }) {
-  return <p className="pds-caption proto-settings-section-hint">{children}</p>;
-}
 
 export default function PrototypeDataPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null);
-  const importFormatRef = useRef<ExportFormat>('markdown');
-  const pendingImportFilesRef = useRef<File[]>([]);
+  // Import leads: it's the errand people arrive with, and export/danger are
+  // things you go looking for deliberately.
+  const [tab, setTab] = useState<DataTab>('import');
   const [busy, setBusy] = useState<Busy>(null);
+
+  /**
+   * A run in flight makes the modal un-dismissable. Closing it unmounts the engine
+   * mid-upload, and the settings modal otherwise closes on a stray click outside or
+   * an Escape — far too easy to do by accident during a several-minute import.
+   */
+  const setImportBusy = useCallback((importing: boolean) => {
+    setSettingsCloseBlocked(importing);
+  }, []);
+  useEffect(() => () => setSettingsCloseBlocked(false), []);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [importPreview, setImportPreview] = useState<ImportPreviewDoc[] | null>(null);
-  const [importSelected, setImportSelected] = useState<Set<number>>(new Set());
-  const [importWarnings, setImportWarnings] = useState<string[]>([]);
   // Two-step inline confirmation for destructive actions (no dialog framework).
   const [confirming, setConfirming] = useState<null | 'clear' | 'delete'>(null);
 
@@ -90,113 +78,6 @@ export default function PrototypeDataPage() {
     }
   };
 
-  const handlePickImport = (format: ExportFormat) => {
-    resetStatus();
-    importFormatRef.current = format;
-    fileInputRef.current?.click();
-  };
-
-  const handlePickFolderImport = () => {
-    resetStatus();
-    importFormatRef.current = 'markdown';
-    folderInputRef.current?.click();
-  };
-
-  const handleImportFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    setBusy('import-preview');
-    resetStatus();
-    setImportPreview(null);
-    pendingImportFilesRef.current = Array.from(files);
-    try {
-      const form = new FormData();
-      form.append('format', importFormatRef.current);
-      Array.from(files).forEach((f) => form.append('files', f));
-      const res = await fetch(apiUrl('/api/user/import/preview'), {
-        method: 'POST',
-        credentials: 'include',
-        body: form,
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        documents?: ImportPreviewDoc[];
-        warnings?: string[];
-        error?: string;
-      };
-      if (!res.ok || data.error) throw new Error(data.error || `Preview failed (${res.status})`);
-      const docs = data.documents ?? [];
-      setImportPreview(docs);
-      setImportSelected(new Set(docs.map((d) => d.index)));
-      setImportWarnings(data.warnings ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't preview import.");
-      pendingImportFilesRef.current = [];
-    } finally {
-      setBusy(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  const handleConfirmImport = async () => {
-    const files = pendingImportFilesRef.current;
-    if (!files.length || !importPreview?.length || importSelected.size === 0) return;
-    setBusy('import');
-    resetStatus();
-    try {
-      const form = new FormData();
-      form.append('format', importFormatRef.current);
-      form.append('selectedIndices', JSON.stringify([...importSelected]));
-      files.forEach((f) => form.append('files', f));
-      const res = await fetch(apiUrl('/api/user/import'), {
-        method: 'POST',
-        credentials: 'include',
-        body: form,
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        success?: boolean;
-        error?: string;
-        notesImported?: number;
-        highlightsImported?: number;
-        foldersCreated?: number;
-        duplicatesSkipped?: number;
-        scriptureProcessed?: number;
-        autoTagsApplied?: number;
-      };
-      if (!res.ok || data.error) throw new Error(data.error || `Import failed (${res.status})`);
-      const parts: string[] = [];
-      if (data.notesImported != null) parts.push(`${data.notesImported} note${data.notesImported === 1 ? '' : 's'}`);
-      if (data.highlightsImported != null && data.highlightsImported > 0) {
-        parts.push(`${data.highlightsImported} highlight${data.highlightsImported === 1 ? '' : 's'}`);
-      }
-      if (data.foldersCreated != null && data.foldersCreated > 0) {
-        parts.push(`${data.foldersCreated} folder${data.foldersCreated === 1 ? '' : 's'}`);
-      }
-      if (data.scriptureProcessed != null && data.scriptureProcessed > 0) {
-        parts.push(`${data.scriptureProcessed} scripture ref${data.scriptureProcessed === 1 ? '' : 's'}`);
-      }
-      if (data.autoTagsApplied != null && data.autoTagsApplied > 0) {
-        parts.push(`${data.autoTagsApplied} auto-tag${data.autoTagsApplied === 1 ? '' : 's'}`);
-      }
-      if (data.duplicatesSkipped != null && data.duplicatesSkipped > 0) {
-        parts.push(`${data.duplicatesSkipped} duplicate${data.duplicatesSkipped === 1 ? '' : 's'} skipped`);
-      }
-      setMessage(parts.length > 0 ? `Import complete (${parts.join(', ')}).` : 'Import complete.');
-      setImportPreview(null);
-      pendingImportFilesRef.current = [];
-      void refreshClientData(queryClient);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't import that file.");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const cancelImportReview = () => {
-    setImportPreview(null);
-    setImportSelected(new Set());
-    setImportWarnings([]);
-    pendingImportFilesRef.current = [];
-  };
-
   const handleClearData = async () => {
     setBusy('clear');
     resetStatus();
@@ -224,47 +105,27 @@ export default function PrototypeDataPage() {
     }
   };
 
-  const importBusy = busy === 'import-preview' || busy === 'import';
-  const reviewSummary = importPreview
-    ? (() => {
-        const totalHighlights = importPreview.reduce((s, d) => s + (d.highlightCount || 0), 0);
-        const folders = new Set(importPreview.map((d) => d.primaryCollection || 'Unsorted'));
-        return [
-          `${importPreview.length} note${importPreview.length === 1 ? '' : 's'}`,
-          totalHighlights > 0 ? `${totalHighlights} highlight${totalHighlights === 1 ? '' : 's'}` : null,
-          `${folders.size} folder${folders.size === 1 ? '' : 's'}`,
-        ]
-          .filter(Boolean)
-          .join(' · ');
-      })()
-    : '';
-  const allImportSelected = Boolean(importPreview && importSelected.size === importPreview.length);
-
   return (
-    <SettingsShell>
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept=".md,.markdown,.csv,.txt,.docx,.html,.htm,.pdf,.enex,.zip"
-        style={{ display: 'none' }}
-        onChange={(e) => handleImportFiles(e.target.files)}
+    // Import needs the room; export and danger are row lists that don't mind it.
+    <SettingsShell wide={tab === 'import'}>
+      <ProtoChipBar
+        ariaLabel="My Data sections"
+        options={DATA_TABS}
+        selectedId={tab}
+        onSelect={(next) => {
+          setConfirming(null);
+          resetStatus();
+          setTab(next);
+        }}
       />
-      <input
-        ref={folderInputRef}
-        type="file"
-        // @ts-expect-error non-standard directory-selection attributes
-        webkitdirectory=""
-        directory=""
-        multiple
-        style={{ display: 'none' }}
-        onChange={(e) => handleImportFiles(e.target.files)}
-      />
+      {tab === 'import' ? (
+        <ImportWorkspace
+          onBusyChange={setImportBusy}
+          onExit={() => navigate({ to: prototypeHomeRouteTo() })}
+        />
+      ) : null}
 
-      <SettingsIntro>Export, import, or delete your data.</SettingsIntro>
-
-      <SettingsSectionLabel>Export</SettingsSectionLabel>
-      <SettingsSectionHint>Recommended for leaving Harvous or switching devices.</SettingsSectionHint>
+      {tab === 'export' ? (
       <SettingsGroup>
         <SettingsRow
           label="Full backup (.zip)"
@@ -288,122 +149,9 @@ export default function PrototypeDataPage() {
           value={busy === 'export-csv' ? '…' : undefined}
         />
       </SettingsGroup>
-
-      <SettingsSectionLabel>Import</SettingsSectionLabel>
-      <SettingsGroup>
-        <SettingsRow
-          label="Import files"
-          sublabel="Markdown, text, Word, HTML, PDF, Evernote (.enex), or a Harvous backup zip."
-          trailing="none"
-          onClick={() => handlePickImport('markdown')}
-          value={importBusy ? '…' : undefined}
-        />
-        <SettingsRow
-          label="Import a folder"
-          sublabel="Keeps structure — each subfolder becomes a folder in Harvous."
-          trailing="none"
-          onClick={handlePickFolderImport}
-          value={importBusy ? '…' : undefined}
-        />
-        <SettingsRow
-          label="Import CSV"
-          sublabel="Spreadsheet of notes (folder, title, content, tags)."
-          trailing="none"
-          onClick={() => handlePickImport('csv-threads')}
-          value={importBusy ? '…' : undefined}
-        />
-      </SettingsGroup>
-
-      {importPreview && importPreview.length > 0 ? (
-        <>
-          <SettingsSectionLabel>Review import</SettingsSectionLabel>
-          <div className="proto-settings-import-review">
-            <div className="proto-settings-import-review__toolbar">
-              <span className="pds-caption" style={{ color: 'var(--pds-text-secondary)' }}>
-                {reviewSummary}
-              </span>
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--secondary proto-settings-import-review__select-all"
-                onClick={() =>
-                  setImportSelected(
-                    allImportSelected ? new Set() : new Set(importPreview.map((d) => d.index)),
-                  )
-                }
-              >
-                {allImportSelected ? 'Select none' : 'Select all'}
-              </button>
-            </div>
-            {importWarnings.length > 0 ? (
-              <ul className="pds-caption proto-settings-import-review__warnings">
-                {importWarnings.map((w) => (
-                  <li key={w}>{w}</li>
-                ))}
-              </ul>
-            ) : null}
-            <div className="proto-settings-import-review__list">
-              <SettingsGroup>
-                {importPreview.map((doc) => {
-                  const meta = [
-                    `→ ${doc.primaryCollection || 'Unsorted'}`,
-                    doc.highlightCount > 0
-                      ? `${doc.highlightCount} highlight${doc.highlightCount === 1 ? '' : 's'}`
-                      : null,
-                    doc.tagCount > 0 ? `${doc.tagCount} tag${doc.tagCount === 1 ? '' : 's'}` : null,
-                    doc.sourceType,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ');
-                  return (
-                    <label key={doc.index} className="proto-note-row proto-settings-import-review__row">
-                      <input
-                        type="checkbox"
-                        checked={importSelected.has(doc.index)}
-                        onChange={(e) => {
-                          setImportSelected((prev) => {
-                            const next = new Set(prev);
-                            if (e.target.checked) next.add(doc.index);
-                            else next.delete(doc.index);
-                            return next;
-                          });
-                        }}
-                      />
-                      <span className="proto-settings-list-row__main">
-                        <span className="pds-list-title" style={{ display: 'block' }}>
-                          {doc.title}
-                        </span>
-                        <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>
-                          {meta}
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </SettingsGroup>
-            </div>
-            <div className="proto-settings-import-review__actions">
-              <button
-                type="button"
-                className="proto-settings-btn"
-                disabled={busy === 'import' || importSelected.size === 0}
-                onClick={handleConfirmImport}
-              >
-                {busy === 'import' ? 'Importing…' : `Import ${importSelected.size} selected`}
-              </button>
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--secondary"
-                disabled={busy === 'import'}
-                onClick={cancelImportReview}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </>
       ) : null}
 
-      <SettingsSectionLabel>Danger zone</SettingsSectionLabel>
+      {tab === 'danger' ? (
       <SettingsGroup>
         {confirming === 'clear' ? (
           <ConfirmRow
@@ -442,6 +190,7 @@ export default function PrototypeDataPage() {
           />
         )}
       </SettingsGroup>
+      ) : null}
 
       {message ? <p className="pds-caption proto-settings-status">{message}</p> : null}
       {error ? <p className="proto-settings-status proto-settings-status--error">{error}</p> : null}

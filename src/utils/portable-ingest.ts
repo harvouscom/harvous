@@ -267,6 +267,102 @@ export function parseExternalMarkdownToPortable(md: string, titleFallback = 'Imp
   };
 }
 
+/**
+ * Evernote export (.enex) → one portable document per contained note.
+ *
+ * ENEX is XML with each note's body stored as an ENML (XHTML) CDATA blob. Parsed
+ * by string scanning rather than a real XML parser because exports routinely
+ * contain unescaped entities and malformed inner markup that a strict parser
+ * rejects outright — losing the whole file instead of one note.
+ * Mirrors the native parser in HarvousVaultImportFormats.swift.
+ */
+export function parseEnexToPortableDocs(xml: string, titleFallback = 'Imported note'): PortableNoteDocument[] {
+  const docs: PortableNoteDocument[] = [];
+  const chunks = xml.split('<note>');
+  for (const chunk of chunks.slice(1)) {
+    const block = chunk.split('</note>')[0];
+    if (!block) continue;
+    const title = firstXmlTagContent(block, 'title') || titleFallback;
+
+    const tags: string[] = [];
+    const tagRe = /<tag>([^<]+)<\/tag>/g;
+    let tm: RegExpExecArray | null;
+    while ((tm = tagRe.exec(block)) !== null) {
+      const t = decodeXmlEntities(tm[1]).trim();
+      if (t) tags.push(t);
+    }
+
+    const content = extractCdataAfterTag(block, 'content') ?? firstXmlTagContent(block, 'content') ?? '';
+    const enml = firstXmlTagContent(content, 'en-note') ?? content;
+    const html = enmlToHtml(enml);
+
+    // parseHtmlToPortable already extracts <mark>/background-color highlights and
+    // strips tags, so the ENML → HTML step only has to normalize Evernote's own
+    // elements into things it understands.
+    const parsed = parseHtmlToPortable(html, title);
+    docs.push({
+      ...parsed,
+      meta: {
+        ...parsed.meta,
+        title,
+        created: enexDateToIso(firstXmlTagContent(block, 'created')),
+        updated: enexDateToIso(firstXmlTagContent(block, 'updated')),
+        tags,
+      },
+    });
+  }
+  return docs;
+}
+
+/** Evernote-specific ENML elements → plain HTML the shared parser understands. */
+function enmlToHtml(enml: string): string {
+  return enml
+    .replace(/<en-todo[^>]*checked=["']true["'][^>]*\/?>/gi, '[x] ')
+    .replace(/<en-todo[^>]*\/?>/gi, '[ ] ')
+    .replace(/<en-media[^>]*\/?>/gi, '[attachment]')
+    .replace(/<\/?en-note[^>]*>/gi, '')
+    .replace(/<div>/gi, '<p>')
+    .replace(/<\/div>/gi, '</p>');
+}
+
+/** ENEX timestamps are `yyyyMMdd'T'HHmmssZ` (always UTC). */
+function enexDateToIso(raw: string | null): string | null {
+  if (!raw) return null;
+  const m = raw.trim().match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?$/);
+  if (!m) return null;
+  const iso = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function firstXmlTagContent(xml: string, tag: string): string | null {
+  const open = xml.indexOf(`<${tag}>`);
+  if (open === -1) return null;
+  const close = xml.indexOf(`</${tag}>`, open);
+  if (close === -1) return null;
+  return decodeXmlEntities(xml.slice(open + tag.length + 2, close)).trim();
+}
+
+function extractCdataAfterTag(xml: string, tag: string): string | null {
+  const open = xml.indexOf(`<${tag}>`);
+  if (open === -1) return null;
+  const start = xml.indexOf('<![CDATA[', open);
+  if (start === -1) return null;
+  const end = xml.indexOf(']]>', start);
+  if (end === -1) return null;
+  return xml.slice(start + 9, end);
+}
+
+function decodeXmlEntities(text: string): string {
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&amp;/g, '&');
+}
+
 function injectObsidianHighlights(body: string, highlights: PortableHighlight[]): string {
   let out = body;
   for (const h of highlights) {
@@ -305,6 +401,25 @@ export async function ingestFileToPortable(
     return parsePdfToPortable(buf, title);
   }
   return null;
+}
+
+/**
+ * Ingest a file into portable documents. One file usually means one note, but an
+ * Evernote `.enex` export holds a whole notebook, so the plural shape is the one
+ * import uses — each contained note becomes its own reviewable, dedupable row.
+ */
+export async function ingestFileToPortableDocs(
+  fileName: string,
+  data: ArrayBuffer | string,
+): Promise<PortableNoteDocument[]> {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  if (ext === 'enex') {
+    const title = fileName.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
+    const xml = typeof data === 'string' ? data : new TextDecoder().decode(data);
+    return parseEnexToPortableDocs(xml, title);
+  }
+  const single = await ingestFileToPortable(fileName, data);
+  return single ? [single] : [];
 }
 
 async function parsePdfToPortable(data: ArrayBuffer, title: string): Promise<PortableNoteDocument | null> {

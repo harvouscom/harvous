@@ -485,7 +485,7 @@ export default function PrototypeSermonEditorFields({
                     />
                     <span className="proto-service-editor__slot-orb" aria-hidden>
                       {checked ? (
-                        <span className="proto-accent-check-orb">
+                        <span className="proto-accent-check-orb proto-accent-check-orb--selected">
                           <Icon name="check" size={9} />
                         </span>
                       ) : (

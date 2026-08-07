@@ -211,7 +211,7 @@ function AddNotesListBody({
               >
                 <span className="proto-add-notes-sheet__select-slot" aria-hidden>
                   {selected ? (
-                    <span className="proto-accent-check-orb">
+                    <span className="proto-accent-check-orb proto-accent-check-orb--selected">
                       <Icon name="check" size={11} />
                     </span>
                   ) : (
