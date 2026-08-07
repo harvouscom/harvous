@@ -153,6 +153,33 @@ describe('expanded sidebar tool', () => {
     expect(shell.current.expandedSidebarTool).toBeNull();
   });
 
+  it('gets out of the way when a toolbar orb asks for a sidebar view', () => {
+    // Every top-nav orb that targets the sidebar (Home layer, list layer, search,
+    // list-mode cycle) routes through ensureSidebarExpanded. The expanded tool covers
+    // the sidebar's footprint, so leaving it open made those orbs look inert — the
+    // requested view rendered underneath a panel still sitting on top of it.
+    const shell = renderShell();
+    act(() => shell.current.openExpandedSidebar('planner'));
+
+    act(() => shell.current.ensureSidebarExpanded());
+    flushExit();
+    expect(shell.current.expandedSidebarTool).toBeNull();
+  });
+
+  it('leaves the sidebar itself expanded when it dismisses the tool', () => {
+    // The orb asked to *see* a sidebar view — dismissing the tool must not also take
+    // the sidebar down with it, which is what collapseDesktopSidebar does.
+    const shell = renderShell();
+    act(() => shell.current.toggleDesktopSidebar());
+    expect(shell.current.desktopSidebarCollapsed).toBe(true);
+
+    act(() => shell.current.openExpandedSidebar('planner'));
+    act(() => shell.current.ensureSidebarExpanded());
+    flushExit();
+    expect(shell.current.expandedSidebarTool).toBeNull();
+    expect(shell.current.desktopSidebarCollapsed).toBe(false);
+  });
+
   it('answers Back, and only its own Back', () => {
     const shell = renderShell();
     act(() => shell.current.openExpandedSidebar('planner'));

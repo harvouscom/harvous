@@ -1,4 +1,9 @@
 import { clearComposeRestoreStash } from '../lib/compose-session-restore';
+import { clearNoteDraft } from '@/utils/note-draft-store';
+import {
+  PROTOTYPE_DRAFT_NOTE_ID,
+  shouldClearStaleComposeDraftOnSessionStart,
+} from '@/utils/prototype-draft-compose-session';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { PROTO_EXPANDED_SIDEBAR_EXIT_MS, PROTO_PANEL_EXIT_MS } from './proto-motion';
 import {
@@ -385,6 +390,12 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [composeDraftActive, setComposeDraftActive] = useState(false);
   const [composeTargetSpaceIdOverride, setComposeTargetSpaceIdOverrideState] = useState<string | null>(null);
   const [composeSessionEpoch, setComposeSessionEpoch] = useState(0);
+  /**
+   * Read-side mirror of the epoch, so `beginPrototypeComposeSession` can branch on it
+   * synchronously. It must NOT live inside the `setComposeSessionEpoch` updater — React
+   * double-invokes updaters in StrictMode, which would advance it twice per compose.
+   */
+  const composeSessionEpochRef = useRef(0);
   const [standaloneScripturePassage, setStandaloneScripturePassage] = useState<StandaloneScripturePassageState | null>(
     null,
   );
@@ -824,6 +835,12 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
 
   const ensureSidebarExpanded = useCallback(() => {
     cancelSidebarExit();
+    /* Every toolbar orb that asks for a sidebar view routes through here, and the
+       expanded tool sits over the sidebar's footprint. Leaving it open meant the orb
+       appeared to do nothing — the requested view was rendered underneath a panel that
+       was still covering it. Collapsing it is the mirror of collapseDesktopSidebar,
+       which already takes the tool with it for the same anchoring reason. */
+    closeExpandedSidebar();
     if (isMobileSidebar) {
       dismissMobileRightPanels();
       pushMobileDrawerHistory();
@@ -831,7 +848,13 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     } else {
       setDesktopSidebarCollapsed(false);
     }
-  }, [cancelSidebarExit, dismissMobileRightPanels, isMobileSidebar, pushMobileDrawerHistory]);
+  }, [
+    cancelSidebarExit,
+    closeExpandedSidebar,
+    dismissMobileRightPanels,
+    isMobileSidebar,
+    pushMobileDrawerHistory,
+  ]);
 
   const openSidebarTagSearch = useCallback(
     (intent: SidebarTagSearchIntent) => {
@@ -956,6 +979,12 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     setComposeDraftActive(false);
   }, []);
   const beginPrototypeComposeSession = useCallback((options?: { targetSpaceId?: string }) => {
+    // Synchronous, at click time — see shouldClearStaleComposeDraftOnSessionStart. The
+    // equivalent clear in resetComposeSessionState runs in a passive effect, which React
+    // commits *after* the remounted editor's layout effect has already restored the draft.
+    if (shouldClearStaleComposeDraftOnSessionStart(composeSessionEpochRef.current)) {
+      clearNoteDraft(PROTOTYPE_DRAFT_NOTE_ID);
+    }
     setComposePersistedNoteIdState(null);
     setComposeDraftActive(true);
     const target = options?.targetSpaceId?.trim();
@@ -963,11 +992,11 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     setComposeTargetSpaceIdOverrideState(
       target ? (target.startsWith('space_') ? target : `space_${target}`) : null,
     );
-    let next = 0;
-    setComposeSessionEpoch((prev) => {
-      next = prev + 1;
-      return next;
-    });
+    // Advance via the ref, not a state updater: StrictMode double-invokes updaters, so
+    // deriving `next` from `prev` inside one would skip an epoch (and desync the ref).
+    const next = composeSessionEpochRef.current + 1;
+    composeSessionEpochRef.current = next;
+    setComposeSessionEpoch(next);
     return next;
   }, []);
   const openStandaloneScripturePassage = useCallback((value: StandaloneScripturePassageState) => {

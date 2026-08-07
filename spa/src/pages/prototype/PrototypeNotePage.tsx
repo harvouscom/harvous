@@ -104,6 +104,8 @@ import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highli
 import { api, APIError } from '../../lib/api';
 
 const DRAFT_NOTE_ID = 'note_draft';
+/** Stable identity so the epoch-mismatch fallback doesn't re-render on every pass. */
+const EMPTY_LIVE_NOTE_SNAPSHOT = { epoch: -1, title: '', content: '' };
 const EMPTY_NOTE_COLLECTIONS: string[] = [];
 
 /** Mention kinds offered inside a shared space — no 'library' (owner-scoped items). */
@@ -142,6 +144,40 @@ export function resolvePrototypeNoteLoadState(input: {
   if (input.isLoading) return 'loading';
   if (input.error) return input.error instanceof APIError && input.error.status === 404 ? 'not-found' : 'error';
   return 'not-found';
+}
+
+/**
+ * The shared space the inspector's destructive action applies to — null for a My Home
+ * read, which is what makes that action "Delete note" rather than "Remove from this space".
+ *
+ * Two rules, and no note data in either:
+ *
+ * 1. `?space=` names the space the note is being read *in*, but only a shared one counts.
+ *    `?space=<My Home>` is still a Home read, and Home is the one place a note cannot be
+ *    removed from.
+ * 2. `foreignSharedSpaceId` applies only when the note really is foreign. It falls back to
+ *    the note's own `spaceId`, so ungated it makes every shared note its own context —
+ *    which is how a plain My Home read of a shared note came to offer "Remove from this
+ *    space" with no space in view.
+ *
+ * Deliberately not the toolbar's `resolveNativeToolbarSharedContextId`: that also
+ * intersects against `note.spaces` and fails closed while they load, which is right for a
+ * menu but would make this value flip null → space after the first paint. The inspector
+ * feeds it straight into `useNavigationSharedSpaceAccess`, and that transition is a
+ * render loop.
+ */
+export function resolveInspectorSharedActionSpaceId(input: {
+  /** `?space=`, already normalized to the `space_` form. */
+  contextSpaceId: string | null | undefined;
+  personalHomeSpaceId: string | null | undefined;
+  isForeignSharedNote: boolean;
+  foreignSharedSpaceId: string | null | undefined;
+}): string | null {
+  const context = normalizePrototypeApiSpaceId(input.contextSpaceId);
+  const home = normalizePrototypeApiSpaceId(input.personalHomeSpaceId);
+  if (context && context !== home) return context;
+  if (input.isForeignSharedNote) return input.foreignSharedSpaceId?.trim() || null;
+  return null;
 }
 
 function sharedContextForSave(
@@ -436,6 +472,21 @@ export default function PrototypeNotePage() {
   const noteAssociationKey = note?.spaces
     ? note.spaces.map((space) => space.id).sort().join(',')
     : null;
+  /**
+   * The `?space=` value this effect has already pushed into the switcher.
+   *
+   * Convergence guard. `useActiveSpace` clears any selection it cannot resolve against
+   * nav rows, and it deliberately does not resolve the *personal* space (`type !==
+   * 'personal'`). So for `?space=<My Home id>` — or any deleted/left space — the two
+   * effects ping-ponged: this one asserted the id, that one cleared it, forever, until
+   * React gave up with "Maximum update depth exceeded" and the route died.
+   *
+   * Asserting once per context value is enough to honour the URL, and it terminates
+   * whether or not the id turns out to be resolvable. A later manual space switch is
+   * then left alone, which is correct: `useSwitchToSpace` owns that direction and
+   * re-stamps the URL itself.
+   */
+  const assertedContextSpaceRef = useRef<string | null>(null);
   useEffect(() => {
     if (isDraft) return;
     const normalizedActive = selectedSpaceId
@@ -444,11 +495,15 @@ export default function PrototypeNotePage() {
         : `space_${selectedSpaceId}`
       : null;
 
-    // `?space=` names the context this note was opened in — follow it.
+    // `?space=` names the context this note was opened in — follow it, once.
     if (contextSpaceId) {
-      if (normalizedActive !== contextSpaceId) setActiveSpaceId(contextSpaceId);
+      if (normalizedActive !== contextSpaceId && assertedContextSpaceRef.current !== contextSpaceId) {
+        assertedContextSpaceRef.current = contextSpaceId;
+        setActiveSpaceId(contextSpaceId);
+      }
       return;
     }
+    assertedContextSpaceRef.current = null;
 
     // No `?space=`: a Home read. Only correct the switcher once we positively know
     // the note has no association with the active space — never on unloaded data.
@@ -473,7 +528,29 @@ export default function PrototypeNotePage() {
     setActiveSpaceId,
   ]);
 
-  const [liveNoteSnapshot, setLiveNoteSnapshot] = useState({ title: '', content: '' });
+  /**
+   * Live editor text, stamped with the compose session that produced it.
+   *
+   * The stamp is checked at render time rather than the value being cleared in an effect.
+   * `resetComposeSessionState` is a passive effect, which React commits *after* the
+   * remounted editor's layout effect has already seeded its title from this value — so a
+   * passive clear can never stop the previous note's title bleeding into a brand-new
+   * compose. That leak is what put a finished note's title on a blank new note.
+   */
+  const [liveNoteSnapshotState, setLiveNoteSnapshotState] = useState({
+    epoch: 0,
+    title: '',
+    content: '',
+  });
+  const composeSessionEpochRef = useRef(composeSessionEpoch);
+  composeSessionEpochRef.current = composeSessionEpoch;
+  const setLiveNoteSnapshot = useCallback((snapshot: { title: string; content: string }) => {
+    setLiveNoteSnapshotState({ epoch: composeSessionEpochRef.current, ...snapshot });
+  }, []);
+  const liveNoteSnapshot =
+    liveNoteSnapshotState.epoch === composeSessionEpoch
+      ? liveNoteSnapshotState
+      : EMPTY_LIVE_NOTE_SNAPSHOT;
   const [templatePrefill, setTemplatePrefill] = useState<{
     title: string;
     content: string;
@@ -717,10 +794,12 @@ export default function PrototypeNotePage() {
   const templateSpaceAccess = useNavigationSharedSpaceAccess(
     templateSpaceId && templateSpaceId !== personalHomeSpaceId ? templateSpaceId : null,
   );
-  const sharedActionSpaceId =
-    contextSpaceId ||
-    foreignSharedSpaceId ||
-    (personalHomeSpaceId && effectiveSpaceId !== personalHomeSpaceId ? effectiveSpaceId : null);
+  const sharedActionSpaceId = resolveInspectorSharedActionSpaceId({
+    contextSpaceId,
+    personalHomeSpaceId,
+    isForeignSharedNote,
+    foreignSharedSpaceId,
+  });
   const effectiveSpaceIdRef = useRef(effectiveSpaceId);
   effectiveSpaceIdRef.current = effectiveSpaceId;
 
@@ -893,8 +972,10 @@ export default function PrototypeNotePage() {
     setTemplateApplyEpoch(0);
     templateProvenanceRef.current = null;
     setTemplateProvenance(null);
+    // Belt-and-braces only. The epoch stamp on liveNoteSnapshotState is what actually
+    // prevents the previous session's title leaking in — this effect runs too late.
     setLiveNoteSnapshot({ title: '', content: '' });
-  }, [setComposePersistedNoteId]);
+  }, [setComposePersistedNoteId, setLiveNoteSnapshot]);
 
   useEffect(() => {
     const prevEpoch = prevComposeSessionEpochRef.current;
@@ -962,6 +1043,12 @@ export default function PrototypeNotePage() {
     draftPersistPromiseRef.current = null;
 
     if (isComposeAdoption) {
+      // The URL caught up with a compose that already persisted, so nothing under the
+      // shared compose key is unsaved any more. Leaving it behind is what let a finished
+      // note reappear inside an unrelated later compose. Safe to drop here: the editor
+      // instance survives adoption holding the live body, and any further edit re-drafts
+      // under the real note id (see resolveNoteDraftWriteKey).
+      clearNoteDraft(DRAFT_NOTE_ID);
       setComposePersistedNoteId(null);
       draftPersistRemountRef.current = { content: '' };
       setDraftPersistRemountTick((t) => t + 1);
@@ -2075,6 +2162,7 @@ export default function PrototypeNotePage() {
                 contentIsPreview={!!note?.__contentIsPreview}
                 contentTruncated={!!note?.__contentTruncated}
                 previewLength={note?.__previewLength}
+                prototypeComposePersistedNoteId={adoptedComposeId}
                 isEditable={isEditable}
                 onSave={handleNoteSave}
                 onPrototypeEditorUnmount={handlePrototypeEditorUnmount}

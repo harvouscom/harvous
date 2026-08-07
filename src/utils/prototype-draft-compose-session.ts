@@ -33,6 +33,42 @@ export function shouldResetComposeSessionOnEpochChange(prevEpoch: number, nextEp
   return nextEpoch > prevEpoch;
 }
 
+/**
+ * Whether starting a compose session should first drop any stored `note_draft`.
+ *
+ * The compose draft key is a single constant shared by every compose session, and the
+ * editor's restore runs in a layout effect on the new mount — which React commits
+ * *before* any passive effect in the parent that would clear it. So a stale draft left by
+ * an earlier compose in this page session gets restored into the new, blank one. Clearing
+ * synchronously at the moment the session begins is the only ordering that reliably wins.
+ *
+ * Epoch 0 → 1 is exempt: that is the first compose since the page loaded, so a stored
+ * draft can only have come from a previous tab or a crash — the case the backstop exists
+ * for. Every later epoch means the previous compose was live in *this* session, so its
+ * content was either persisted to the server or deliberately abandoned.
+ */
+export function shouldClearStaleComposeDraftOnSessionStart(prevEpoch: number): boolean {
+  return prevEpoch >= 1;
+}
+
+/**
+ * Which draft key the editor should write to right now.
+ *
+ * Compose stays on the `note_draft` id until the URL idle-replaces to `/{id}`, so without
+ * this every keystroke *after* the note was created kept re-writing `note_draft` with
+ * content that was already on the server — stranding a draft that later restored itself
+ * into an unrelated compose. Once the compose has persisted, drafts belong to the real
+ * note, where the confirmed-save clear can reach them.
+ */
+export function resolveNoteDraftWriteKey(
+  noteId: string | null | undefined,
+  composePersistedNoteId: string | null | undefined,
+): string | null {
+  if (!noteId) return null;
+  if (noteId === PROTOTYPE_DRAFT_NOTE_ID && composePersistedNoteId) return composePersistedNoteId;
+  return noteId;
+}
+
 /** Keep CardFullEditable mounted while the adopted note detail query is still loading. */
 export function shouldKeepEditorDuringPersistedDraftLoad(
   isDraft: boolean,

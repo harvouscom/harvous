@@ -174,6 +174,39 @@ export type UpdateNoteMutationContext = {
   previousNotes: [QueryKey, NoteDetail | undefined][];
 };
 
+/**
+ * After a 409's refetch: did the server body end up saying what we tried to say?
+ *
+ * Reads every cached context for the note (a note opened with `?space=` caches under a
+ * suffixed key — same reason `findCachedNoteAcrossContexts` prefix-matches) and compares
+ * on words alone, since the server legitimately rewrites the markup around them. Clears
+ * the drafted attempt when it matches. Fails closed: any error, or no refetched copy to
+ * compare against, keeps the draft and lets the caller report the conflict.
+ */
+async function conflictResolvedItself(
+  queryClient: QueryClient,
+  noteId: string,
+  attemptedContent: string,
+): Promise<boolean> {
+  try {
+    const cached = queryClient
+      .getQueriesData<NoteDetail>({ queryKey: ['note', noteId] })
+      .map(([, data]) => data)
+      .filter((data): data is NoteDetail => typeof data?.content === 'string');
+    if (cached.length === 0) return false;
+
+    const { notePlainTextEquivalent } = await import('@/utils/note-draft-staleness');
+    if (!cached.some((data) => notePlainTextEquivalent(data.content, attemptedContent))) {
+      return false;
+    }
+    const { clearNoteDraft } = await import('@/utils/note-draft-store');
+    clearNoteDraft(noteId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function rollbackFailedNoteUpdate(
   queryClient: QueryClient,
   error: unknown,
@@ -210,6 +243,7 @@ export async function rollbackFailedNoteUpdate(
     // Someone else's save landed first. The refetch below replaces the body, so
     // the text this device typed has to be preserved *before* it disappears —
     // otherwise a co-editing conflict silently eats an edit.
+    let draftedAttempt = false;
     if (typeof attempted?.content === 'string') {
       try {
         const { saveNoteDraft } = await import('@/utils/note-draft-store');
@@ -217,20 +251,7 @@ export async function rollbackFailedNoteUpdate(
           title: attempted.title ?? '',
           content: attempted.content,
         });
-        window.dispatchEvent(
-          new CustomEvent('toast', {
-            detail: {
-              // Not "someone": a 409 can equally be another tab, a background job, or
-              // server-side processing that moved the version. Telling a solo user in
-              // their own private space that a person beat them to it is both false and
-              // alarming — it reads as data loss when nothing was lost.
-              // One clause, joined with a dash: toast.ts strips periods, which turned
-              // two sentences into a run-on ("…somewhere else Your version is…").
-              message: 'This note changed somewhere else — your version is saved as a draft',
-              type: 'info',
-            },
-          }),
-        );
+        draftedAttempt = true;
       } catch {
         /* the refetch below still needs to run */
       }
@@ -239,6 +260,32 @@ export async function rollbackFailedNoteUpdate(
       queryKey: ['note', noteId],
       refetchType: 'all',
     });
+    if (draftedAttempt) {
+      // Most 409s on a solo note aren't conflicts at all: server-side scripture
+      // processing rewrites the body (plain reference → pill markup) and moves the
+      // version while the editor still holds the old one. The refetch has landed by
+      // now, so ask the only question that matters — does the server copy already say
+      // what we tried to say? If so the draft is noise that would resurface later as
+      // a false "Restored unsaved changes", and there is nothing to report either.
+      //
+      // Trade-off: a genuinely concurrent formatting-only co-edit would drop the
+      // drafted attempt. Losing a bold beats a recurring phantom restore.
+      if (await conflictResolvedItself(queryClient, noteId, attempted?.content ?? '')) return;
+      window.dispatchEvent(
+        new CustomEvent('toast', {
+          detail: {
+            // Not "someone": a 409 can equally be another tab, a background job, or
+            // server-side processing that moved the version. Telling a solo user in
+            // their own private space that a person beat them to it is both false and
+            // alarming — it reads as data loss when nothing was lost.
+            // One clause, joined with a dash: toast.ts strips periods, which turned
+            // two sentences into a run-on ("…somewhere else Your version is…").
+            message: 'This note changed somewhere else — your version is saved as a draft',
+            type: 'info',
+          },
+        }),
+      );
+    }
     return;
   }
   if (error instanceof APIError && error.status === 429) {

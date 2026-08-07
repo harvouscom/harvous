@@ -1,10 +1,34 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { APIError } from '../../../lib/api';
 import { rollbackFailedNoteUpdate } from '../useUpdateNote';
 import type { NoteDetail } from '../../queries/useNote';
 
-vi.mock('@/utils/note-draft-store', () => ({ saveNoteDraft: vi.fn() }));
+const saveNoteDraft = vi.fn();
+const clearNoteDraft = vi.fn();
+vi.mock('@/utils/note-draft-store', () => ({
+  saveNoteDraft: (...args: unknown[]) => saveNoteDraft(...args),
+  clearNoteDraft: (...args: unknown[]) => clearNoteDraft(...args),
+}));
+
+/** Toasts ride a window CustomEvent — capture them to assert on what the user is told. */
+function captureToasts(): { messages: string[]; stop: () => void } {
+  const messages: string[] = [];
+  const handler = (e: Event) => {
+    messages.push((e as CustomEvent).detail?.message);
+  };
+  window.addEventListener('toast', handler);
+  return { messages, stop: () => window.removeEventListener('toast', handler) };
+}
+
+beforeEach(() => {
+  saveNoteDraft.mockClear();
+  clearNoteDraft.mockClear();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 /**
  * A 409 used to restore the onMutate snapshot before doing anything else. That snapshot
@@ -61,6 +85,83 @@ describe('rollbackFailedNoteUpdate on a version conflict', () => {
       (d) => (d as NoteDetail | undefined)?.currentVersion === 2,
     );
     expect(staleWrites).toEqual([]);
+  });
+
+  /**
+   * The false-restore loop: server-side scripture processing rewrites the body (plain
+   * reference → pill markup) and moves the version, so the editor's in-flight save 409s
+   * on a note nobody else touched. Drafting that attempt left a copy that differed from
+   * the server only in markup, which the restore path then resurrected on every open —
+   * surfacing as a phantom "Restored unsaved changes".
+   */
+  it('clears the draft and stays silent when the refetch already says what we tried to say', async () => {
+    const processed =
+      '<p>Read <span class="scripture-pill" data-scripture-reference="Romans 8:1">Romans 8:1</span> tonight</p>';
+    const qc = new QueryClient({
+      defaultOptions: { queries: { queryFn: async () => note({ content: processed }), retry: false } },
+    });
+    qc.setQueryData<NoteDetail>(['note', 'note_1'], note({ content: processed }));
+    const toasts = captureToasts();
+
+    await rollbackFailedNoteUpdate(
+      qc,
+      new APIError(409, 'conflict', 'NOTE_VERSION_CONFLICT'),
+      'note_1',
+      { previousNotes: [] },
+      { title: 'T', content: '<p>Read Romans 8:1 tonight</p>' },
+    );
+    toasts.stop();
+
+    expect(clearNoteDraft).toHaveBeenCalledWith('note_1');
+    expect(toasts.messages).toEqual([]);
+  });
+
+  it('keeps the draft and reports when the server body genuinely diverged', async () => {
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: { queryFn: async () => note({ content: '<p>a co-editor wrote this</p>' }), retry: false },
+      },
+    });
+    qc.setQueryData<NoteDetail>(['note', 'note_1'], note({ content: '<p>a co-editor wrote this</p>' }));
+    const toasts = captureToasts();
+
+    await rollbackFailedNoteUpdate(
+      qc,
+      new APIError(409, 'conflict', 'NOTE_VERSION_CONFLICT'),
+      'note_1',
+      { previousNotes: [] },
+      { title: 'T', content: '<p>but I wrote that</p>' },
+    );
+    toasts.stop();
+
+    expect(saveNoteDraft).toHaveBeenCalledWith('note_1', {
+      title: 'T',
+      content: '<p>but I wrote that</p>',
+    });
+    expect(clearNoteDraft).not.toHaveBeenCalled();
+    expect(toasts.messages).toEqual([
+      'This note changed somewhere else — your version is saved as a draft',
+    ]);
+  });
+
+  it('keeps the draft when there is no refetched copy to compare against', async () => {
+    // Fail closed: an unresolvable compare must never discard the only copy of an edit.
+    const qc = new QueryClient({
+      defaultOptions: { queries: { queryFn: async () => { throw new Error('offline'); }, retry: false } },
+    });
+    const toasts = captureToasts();
+
+    await rollbackFailedNoteUpdate(
+      qc,
+      new APIError(409, 'conflict', 'NOTE_VERSION_CONFLICT'),
+      'note_1',
+      { previousNotes: [] },
+      { title: 'T', content: '<p>typed</p>' },
+    );
+    toasts.stop();
+
+    expect(clearNoteDraft).not.toHaveBeenCalled();
+    expect(toasts.messages).toHaveLength(1);
   });
 
   it('still restores the snapshot for non-conflict failures', async () => {

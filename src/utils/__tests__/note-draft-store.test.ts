@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { saveNoteDraft, getNoteDraft, clearNoteDraft } from '../note-draft-store';
+import {
+  saveNoteDraft,
+  getNoteDraft,
+  clearNoteDraft,
+  isDraftFromThisPageSession,
+} from '../note-draft-store';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -54,6 +59,54 @@ describe('note-draft-store', () => {
     // Confirm the expired entry was cleared, not just filtered.
     vi.restoreAllMocks();
     expect(localStorage.getItem('harvous-note-draft-note_old')).toBeNull();
+  });
+
+  it('round-trips the truncation seam so a later full open can reattach the tail', () => {
+    saveNoteDraft('note_trunc', {
+      title: 't',
+      content: '<p>one</p><p>two edited</p>',
+      bodyTruncated: true,
+      previewHtml: '<p>one</p><p>two</p>',
+      previewLength: 20,
+    });
+    const draft = getNoteDraft('note_trunc');
+    expect(draft?.bodyTruncated).toBe(true);
+    expect(draft?.previewHtml).toBe('<p>one</p><p>two</p>');
+    expect(draft?.previewLength).toBe(20);
+  });
+
+  it('reads drafts written before the seam fields existed', () => {
+    localStorage.setItem(
+      'harvous-note-draft-note_legacy',
+      JSON.stringify({ title: 't', content: '<p>c</p>', savedAt: Date.now() }),
+    );
+    const draft = getNoteDraft('note_legacy');
+    expect(draft?.content).toBe('<p>c</p>');
+    expect(draft?.bodyTruncated).toBeUndefined();
+  });
+
+  it('stamps the page session and recognises its own writes', () => {
+    // The guard against resurrecting an already-saved compose: a draft written by the
+    // still-running page load is not recoverable work, because nothing crashed.
+    saveNoteDraft('note_session', { title: 't', content: '<p>c</p>' });
+    const draft = getNoteDraft('note_session');
+    expect(typeof draft?.pageSessionId).toBe('string');
+    expect(isDraftFromThisPageSession(draft)).toBe(true);
+  });
+
+  it('treats a draft from another page load — or an unstamped one — as foreign', () => {
+    localStorage.setItem(
+      'harvous-note-draft-note_prev',
+      JSON.stringify({ title: 't', content: '<p>c</p>', savedAt: Date.now(), pageSessionId: 'other-load' }),
+    );
+    expect(isDraftFromThisPageSession(getNoteDraft('note_prev'))).toBe(false);
+
+    localStorage.setItem(
+      'harvous-note-draft-note_unstamped',
+      JSON.stringify({ title: 't', content: '<p>c</p>', savedAt: Date.now() }),
+    );
+    expect(isDraftFromThisPageSession(getNoteDraft('note_unstamped'))).toBe(false);
+    expect(isDraftFromThisPageSession(null)).toBe(false);
   });
 
   it('returns null and does not throw for malformed stored JSON', () => {

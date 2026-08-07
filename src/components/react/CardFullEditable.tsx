@@ -107,7 +107,22 @@ import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
 import { stripStudyHighlightMarkInlineBackground } from '@/utils/note-html-highlight-marks';
 import { shouldInjectProcessedNoteContent } from '@/utils/prototype-editor-save';
 import { contentSyncWouldClobberScripturePillAccent } from '@/utils/scripture-pill-accent-sync';
-import { shouldAnnounceDraftRestore, saveNoteDraft, getNoteDraft, clearNoteDraft } from '@/utils/note-draft-store';
+import {
+  shouldAnnounceDraftRestore,
+  saveNoteDraft,
+  getNoteDraft,
+  clearNoteDraft,
+  isDraftFromThisPageSession,
+  type NoteDraft,
+} from '@/utils/note-draft-store';
+import {
+  PROTOTYPE_DRAFT_NOTE_ID,
+  resolveNoteDraftWriteKey,
+} from '@/utils/prototype-draft-compose-session';
+import {
+  noteHtmlEquivalentIgnoringScripturePills,
+  planTruncatedDraftRestore,
+} from '@/utils/note-draft-staleness';
 import { shouldSkipPrototypeUnloadSave } from '@/utils/prototype-note-save-guard';
 import { shouldUpgradePrototypeBodyFromServer } from '@/utils/prototype-note-body-upgrade';
 import { noteListPreviewTail } from '@/utils/note-list-preview';
@@ -176,6 +191,14 @@ interface CardFullEditableProps {
   contentTruncated?: boolean;
   /** Character offset into the stored body where a truncated `content` ends. */
   previewLength?: number;
+  /**
+   * While composing, the real note id the draft has already been persisted into.
+   *
+   * `noteId` stays `note_draft` until the URL idle-replaces to `/{id}`, so without this
+   * the local draft backstop keeps writing under the compose key for content that is
+   * already on the server — see `resolveNoteDraftWriteKey`.
+   */
+  prototypeComposePersistedNoteId?: string | null;
   className?: string;
   isEditable?: boolean;
   onSave?: (
@@ -359,6 +382,7 @@ export default function CardFullEditable({
   contentIsPreview = false,
   contentTruncated = false,
   previewLength,
+  prototypeComposePersistedNoteId = null,
   className = '',
   isEditable = true,
   onSave,
@@ -590,6 +614,32 @@ export default function CardFullEditable({
   onSaveRef.current = onSave;
   const noteIdRef = useRef(noteId);
   noteIdRef.current = noteId;
+  const composePersistedNoteIdRef = useRef(prototypeComposePersistedNoteId);
+  composePersistedNoteIdRef.current = prototypeComposePersistedNoteId;
+  /**
+   * Where local drafts go right now. Diverges from `noteId` only mid-compose, between the
+   * note being created and the URL catching up — see `resolveNoteDraftWriteKey`.
+   */
+  const activeDraftKey = useCallback(
+    () => resolveNoteDraftWriteKey(noteIdRef.current, composePersistedNoteIdRef.current),
+    [],
+  );
+  /**
+   * Seam metadata to store alongside a draft written from a truncated body, so a later
+   * full open can reattach the tail instead of restoring the prefix over the whole note.
+   * Empty (and therefore absent from the payload) whenever the body is complete.
+   */
+  const truncatedDraftSeam = useCallback((): Partial<NoteDraft> => {
+    if (!bodyTruncatedRef.current) return {};
+    const previewHtml = truncatedPreviewHtmlRef.current;
+    const previewLength = truncatedPreviewLengthRef.current;
+    if (typeof previewHtml !== 'string' || typeof previewLength !== 'number') {
+      // Truncated but no usable seam — still flag it so restore refuses to overwrite a
+      // full body with this prefix.
+      return { bodyTruncated: true };
+    }
+    return { bodyTruncated: true, previewHtml, previewLength };
+  }, []);
   const serverContentPropRef = useRef(content);
   serverContentPropRef.current = content;
 
@@ -915,11 +965,17 @@ export default function CardFullEditable({
           return;
         }
         // Body is a known-incomplete prefix — the save is held, and unmount means there
-        // is no upgrade coming to release it. Persist the edit locally instead; the next
-        // open restores it on top of the full body.
+        // is no upgrade coming to release it. Persist the edit locally instead, tagged
+        // with the seam so the next full open reattaches the tail rather than restoring
+        // this prefix over the whole note (see planTruncatedDraftRestore).
         if (bodyTruncatedRef.current) {
-          if (departingNoteId !== 'note_draft') {
-            saveNoteDraft(departingNoteId, { title: currentTitle, content: currentContent });
+          const truncatedDraftKey = activeDraftKey();
+          if (truncatedDraftKey && truncatedDraftKey !== PROTOTYPE_DRAFT_NOTE_ID) {
+            saveNoteDraft(truncatedDraftKey, {
+              title: currentTitle,
+              content: currentContent,
+              ...truncatedDraftSeam(),
+            });
           }
           return;
         }
@@ -1286,20 +1342,66 @@ export default function CardFullEditable({
     // copy. Marking userEditedSinceOpenRef keeps the autosave debounce + draft
     // writer alive so the restored content is persisted (and the draft cleared) on
     // the next save. Degrades to last-write-wins in the rare multi-device case.
-    const draft = noteId ? getNoteDraft(noteId) : null;
+    const storedDraft = noteId ? getNoteDraft(noteId) : null;
+
+    // A compose draft is only ever a *recovery* artifact. Every compose session shares the
+    // one `note_draft` key, so a draft this page load wrote is not lost work — the session
+    // that wrote it is still running, meaning the note was either persisted to the server
+    // or the user walked away from it on purpose. Restoring it into the next compose is
+    // what put a finished note back on screen in an unrelated space.
+    //
+    // Keyed on the page load rather than on compose-session bookkeeping because the
+    // remount that triggers this effect does not always come from starting a new compose,
+    // and a guard that only covers one of those paths leaves the rest broken.
+    const composeDraftIsSelfInflicted =
+      noteId === PROTOTYPE_DRAFT_NOTE_ID && isDraftFromThisPageSession(storedDraft);
+    if (composeDraftIsSelfInflicted && noteId) clearNoteDraft(noteId);
+    const draft = composeDraftIsSelfInflicted ? null : storedDraft;
+
     if (
       draft &&
       !isEffectivelyEmptyPrototypeNote(draft.title, draft.content) &&
       (repairHtmlForEditor(draft.content) !== initialContent || draft.title !== initialTitle)
     ) {
-      const draftBody = repairHtmlForEditor(draft.content);
+      let draftBody = repairHtmlForEditor(draft.content);
       // List preview seed can also land in the draft store. Restoring that snapshot
       // marks the session user-edited and blocks the preview→full TipTap upgrade.
       const draftLooksLikeListPreview =
         contentIsPreview &&
         draftBody.length <= initialContent.length &&
         draft.title === initialTitle;
-      if (!draftLooksLikeListPreview) {
+
+      // The compare above is HTML-literal, so a body the server merely re-marked reads as
+      // "unsaved" forever and restores on every open. Scripture processing is the common
+      // case: it runs server-side and wraps a plain reference in pill markup, which is the
+      // same words in different tags. Nothing to recover — drop the draft and seed normally.
+      const draftIsPillMarkupDriftOnly =
+        draft.title === initialTitle &&
+        noteHtmlEquivalentIgnoringScripturePills(draftBody, initialContent);
+
+      // A draft written from a list-truncated body is a known-incomplete prefix. Restoring
+      // it whole over a full body is what surfaced as "it came back, but only partial".
+      const truncatedPlan = draft.bodyTruncated
+        ? planTruncatedDraftRestore({
+            draftContent: draft.content,
+            draftPreviewHtml: draft.previewHtml,
+            draftPreviewLength: draft.previewLength,
+            // Seam offsets index the *stored* body, so compare against the raw prop.
+            serverContent: c,
+            serverIsTruncated: contentTruncated,
+            serverPreviewLength: previewLength,
+          })
+        : null;
+
+      if (draftIsPillMarkupDriftOnly || truncatedPlan?.action === 'skip-clear') {
+        if (noteId) clearNoteDraft(noteId);
+      } else if (truncatedPlan?.action === 'skip-keep') {
+        // Can't resolve this prefix against the body currently on screen. Leave the draft
+        // alone — a later full open reattaches its tail.
+      } else if (!draftLooksLikeListPreview) {
+        if (truncatedPlan?.action === 'restore-merged') {
+          draftBody = repairHtmlForEditor(truncatedPlan.content);
+        }
         hasLocalContentUpdate.current = true;
         userEditedSinceOpenRef.current = true;
         setEditTitle(draft.title);
@@ -1338,6 +1440,8 @@ export default function CardFullEditable({
     resourceTitle,
     resourceDescription,
     contentIsPreview,
+    contentTruncated,
+    previewLength,
   ]);
 
   // Foreign shared notes: body loads async after open — keep TipTap in sync with fetched content.
@@ -2597,6 +2701,14 @@ export default function CardFullEditable({
         );
         if (saveNoteId && liveTitle === currentTitle && liveContent === currentContent) {
           clearNoteDraft(saveNoteId);
+          // Mid-compose the draft may sit under either key: the persisted id once the
+          // prop has arrived, or still `note_draft` for the render between the create
+          // resolving and that prop landing. Clear both so neither can be stranded.
+          const draftKey = activeDraftKey();
+          if (draftKey && draftKey !== saveNoteId) clearNoteDraft(draftKey);
+          if (saveNoteId === PROTOTYPE_DRAFT_NOTE_ID && composePersistedNoteIdRef.current) {
+            clearNoteDraft(composePersistedNoteIdRef.current);
+          }
         }
       } catch {
         /* ignore */
@@ -2685,10 +2797,13 @@ export default function CardFullEditable({
     if (editorChromeMode !== 'prototypeNative') return;
     if (!effectiveIsEditable) return;
     if (!userEditedSinceOpenRef.current) return;
-    const id = noteIdRef.current;
-    if (!id || readOnlyLikeScriptureRef.current) return;
+    if (!noteIdRef.current || readOnlyLikeScriptureRef.current) return;
 
     const timerId = window.setTimeout(() => {
+      // Resolve inside the timer: the compose note may have persisted during the debounce,
+      // and the draft belongs to the real note the moment it exists.
+      const id = activeDraftKey();
+      if (!id) return;
       const titleNow = editTitleRef.current;
       const contentNow = noteHtmlForSave(
         editorInstanceRef.current,
@@ -2698,10 +2813,14 @@ export default function CardFullEditable({
         clearNoteDraft(id);
         return;
       }
-      saveNoteDraft(id, { title: titleNow, content: contentNow });
+      saveNoteDraft(id, {
+        title: titleNow,
+        content: contentNow,
+        ...truncatedDraftSeam(),
+      });
     }, 250);
     return () => window.clearTimeout(timerId);
-  }, [editorChromeMode, effectiveIsEditable, editTitle, editContent]);
+  }, [editorChromeMode, effectiveIsEditable, editTitle, editContent, activeDraftKey]);
 
   // Quiet chrome (templates): parent tracks empty vs typed without polling the DOM.
   useEffect(() => {
@@ -2739,7 +2858,8 @@ export default function CardFullEditable({
         return;
       }
 
-      const draft = getNoteDraft(departingNoteId);
+      const draftKey = activeDraftKey();
+      const draft = draftKey ? getNoteDraft(draftKey) : null;
       if (
         shouldSkipPrototypeUnloadSave({
           contentToSave: currentContent,
@@ -2758,7 +2878,13 @@ export default function CardFullEditable({
       // Synchronous local backstop first — localStorage survives unload even when
       // the keepalive PUT below is dropped, and it's the *only* recovery path for
       // a brand-new (note_draft) note, which has no server id to PUT against.
-      saveNoteDraft(departingNoteId, { title: currentTitle, content: currentContent });
+      if (draftKey) {
+        saveNoteDraft(draftKey, {
+          title: currentTitle,
+          content: currentContent,
+          ...truncatedDraftSeam(),
+        });
+      }
 
       // Body is a known-incomplete prefix: the draft above is the whole recovery
       // story. PUTting it would overwrite the note with its own preview — exactly
@@ -2778,10 +2904,12 @@ export default function CardFullEditable({
         return;
       }
 
-      // Drafts have no server note id yet — nothing to PUT against. The 700ms
-      // debounce normally creates them; if the user bails before that, the draft
-      // is intentionally discarded (matches isEffectivelyEmpty handling).
-      if (departingNoteId === 'note_draft') return;
+      // Compose has no server note id to PUT against. The 700ms debounce normally
+      // creates one; if the user bails before that, the draft is intentionally
+      // discarded (matches isEffectivelyEmpty handling). Once it *has* created one,
+      // the local write above already landed under that real id, so the next open
+      // recovers the edit even though this PUT is skipped.
+      if (departingNoteId === PROTOTYPE_DRAFT_NOTE_ID) return;
 
       try {
         const body = JSON.stringify({
@@ -2830,7 +2958,7 @@ export default function CardFullEditable({
       window.removeEventListener('pagehide', flush);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [editorChromeMode, effectiveIsEditable]);
+  }, [editorChromeMode, effectiveIsEditable, activeDraftKey, truncatedDraftSeam]);
 
   // Listen for keyboard shortcut to save when editing (Cmd+S)
   useEffect(() => {

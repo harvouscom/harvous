@@ -23,6 +23,44 @@ export interface NoteDraft {
   title: string;
   content: string;
   savedAt: number;
+  /**
+   * The body this draft was written from was a known-incomplete list preview.
+   *
+   * Restoring such a draft over a full body silently truncates the note, so the seam it
+   * was cut at travels with it: `previewHtml` is the prefix that was on screen and
+   * `previewLength` its offset into the stored body, which is exactly what
+   * `noteListPreviewTail` needs to reattach the missing tail. Absent on drafts written
+   * from a complete body — and on drafts written before this field existed.
+   */
+  bodyTruncated?: boolean;
+  previewHtml?: string;
+  previewLength?: number;
+  /**
+   * Which page load wrote this draft. See `isDraftFromThisPageSession`.
+   *
+   * Absent on drafts written before this field existed, which are therefore treated as
+   * foreign — the conservative reading, since a draft that predates this code can only
+   * have come from an earlier page load anyway.
+   */
+  pageSessionId?: string;
+}
+
+/**
+ * Identifies this page load. Regenerated on every reload, never persisted.
+ *
+ * A draft carrying this id was written by a session that is *still running* — so whatever
+ * happened to it, the tab did not crash and the page was not reloaded. That distinction is
+ * what separates "recover the user's lost work" from "resurrect a note we already saved",
+ * and it holds no matter which code path remounts the editor.
+ */
+const PAGE_SESSION_ID =
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `s${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+/** True when this draft was written by the page load that is still running. */
+export function isDraftFromThisPageSession(draft: NoteDraft | null | undefined): boolean {
+  return !!draft && draft.pageSessionId === PAGE_SESSION_ID;
 }
 
 function key(noteId: string): string {
@@ -32,7 +70,11 @@ function key(noteId: string): string {
 export function saveNoteDraft(noteId: string, draft: Omit<NoteDraft, 'savedAt'>): void {
   if (!noteId || typeof window === 'undefined') return;
   try {
-    const payload = JSON.stringify({ ...draft, savedAt: Date.now() } satisfies NoteDraft);
+    const payload = JSON.stringify({
+      ...draft,
+      savedAt: Date.now(),
+      pageSessionId: PAGE_SESSION_ID,
+    } satisfies NoteDraft);
     if (payload.length > MAX_DRAFT_BYTES) return;
     localStorage.setItem(key(noteId), payload);
   } catch {

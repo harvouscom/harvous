@@ -4,6 +4,8 @@ import {
   isAdoptedComposeSessionActive,
   isDraftComposeAdoptionTransition,
   prototypeComposeEditorKey,
+  resolveNoteDraftWriteKey,
+  shouldClearStaleComposeDraftOnSessionStart,
   shouldKeepEditorDuringPersistedDraftLoad,
   shouldResetComposeSessionOnEpochChange,
 } from '../prototype-draft-compose-session';
@@ -39,6 +41,39 @@ describe('shouldResetComposeSessionOnEpochChange', () => {
     expect(shouldResetComposeSessionOnEpochChange(2, 5)).toBe(true);
     expect(shouldResetComposeSessionOnEpochChange(1, 1)).toBe(false);
     expect(shouldResetComposeSessionOnEpochChange(3, 2)).toBe(false);
+  });
+});
+
+describe('shouldClearStaleComposeDraftOnSessionStart', () => {
+  it('spares the first compose after a page load — that draft is the crash backstop', () => {
+    expect(shouldClearStaleComposeDraftOnSessionStart(0)).toBe(false);
+  });
+
+  it('clears for every later compose in the same session', () => {
+    // By then the previous compose was live in this tab: its content either reached the
+    // server or was abandoned on purpose. Restoring it into a fresh compose is the bug.
+    expect(shouldClearStaleComposeDraftOnSessionStart(1)).toBe(true);
+    expect(shouldClearStaleComposeDraftOnSessionStart(7)).toBe(true);
+  });
+});
+
+describe('resolveNoteDraftWriteKey', () => {
+  it('sends drafts to the real note once the compose has persisted', () => {
+    // The regression: the editor keeps noteId === note_draft until the URL idle-replaces,
+    // so post-create keystrokes stranded a draft of already-saved content under that key.
+    expect(resolveNoteDraftWriteKey(PROTOTYPE_DRAFT_NOTE_ID, 'note_abc123')).toBe('note_abc123');
+  });
+
+  it('stays on the compose key before anything is persisted', () => {
+    expect(resolveNoteDraftWriteKey(PROTOTYPE_DRAFT_NOTE_ID, null)).toBe(PROTOTYPE_DRAFT_NOTE_ID);
+  });
+
+  it('never redirects an ordinary note away from its own key', () => {
+    expect(resolveNoteDraftWriteKey('note_other', 'note_abc123')).toBe('note_other');
+  });
+
+  it('is null with no note at all', () => {
+    expect(resolveNoteDraftWriteKey(null, 'note_abc123')).toBeNull();
   });
 });
 
