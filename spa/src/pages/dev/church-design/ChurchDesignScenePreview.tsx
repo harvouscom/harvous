@@ -989,7 +989,7 @@ function HubCongregantScene() {
             </div>
 
             <div className="proto-home-section">
-              <p className="proto-caption proto-home-section__eyebrow">More from your church</p>
+              <p className="proto-caption proto-home-section__eyebrow">Discover</p>
               <ul className="proto-church-hub__list">
                 <li>
                   <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-church-hub__browse-row">

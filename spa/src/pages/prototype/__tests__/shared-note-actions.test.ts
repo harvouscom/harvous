@@ -42,6 +42,7 @@ import {
 } from '../PrototypeNoteMoreMenu';
 import {
   draftSaveDestinationLabel,
+  resolveInspectorSharedActionSpaceId,
   resolvePrototypeNoteLoadState,
 } from '../PrototypeNotePage';
 import {
@@ -193,6 +194,67 @@ describe('canonical shared-note action contracts', () => {
     expect(REMOVE_NOTE_FROM_SPACE_CONFIRMATION.description).toMatch(/replies .*(kept|come back)/i);
     expect(DELETE_CANONICAL_NOTE_CONFIRMATION.description).toMatch(/every space/i);
     expect(DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION.description).toMatch(/can.t be undone/i);
+  });
+
+  it('never offers remove-from-space for a note read from My Home', () => {
+    // Regression: a note shared into a space, opened from the My Home list, offered
+    // "Remove from this space" with no space in view — because the context fell back to
+    // the note's own spaceId. Home is the source of truth; the action there is delete.
+    const home = 'space_home';
+    const fromHome = resolveInspectorSharedActionSpaceId({
+      contextSpaceId: undefined,
+      personalHomeSpaceId: home,
+      // `foreignSharedSpaceId` resolves to the note's own space even for own notes,
+      // so the foreign gate is what keeps it out of a Home read.
+      isForeignSharedNote: false,
+      foreignSharedSpaceId: 'space_A',
+    });
+    expect(fromHome).toBeNull();
+    expect(
+      resolveInspectorNoteAction({ sharedSpaceId: fromHome, isNoteAuthor: true, isSpaceOwner: false }),
+    ).toBe('delete-everywhere');
+
+    // `?space=<My Home>` is still a Home read.
+    expect(
+      resolveInspectorSharedActionSpaceId({
+        contextSpaceId: home,
+        personalHomeSpaceId: home,
+        isForeignSharedNote: false,
+        foreignSharedSpaceId: null,
+      }),
+    ).toBeNull();
+    // Bare and prefixed ids are the same space.
+    expect(
+      resolveInspectorSharedActionSpaceId({
+        contextSpaceId: 'home',
+        personalHomeSpaceId: home,
+        isForeignSharedNote: false,
+        foreignSharedSpaceId: null,
+      }),
+    ).toBeNull();
+  });
+
+  it('still offers remove when the note is genuinely read inside a shared space', () => {
+    const inSpace = resolveInspectorSharedActionSpaceId({
+      contextSpaceId: 'space_A',
+      personalHomeSpaceId: 'space_home',
+      isForeignSharedNote: false,
+      foreignSharedSpaceId: null,
+    });
+    expect(inSpace).toBe('space_A');
+    expect(
+      resolveInspectorNoteAction({ sharedSpaceId: inSpace, isNoteAuthor: true, isSpaceOwner: false }),
+    ).toBe('remove-from-space');
+
+    // A foreign note has no My Home copy, so its space is the only context there is.
+    expect(
+      resolveInspectorSharedActionSpaceId({
+        contextSpaceId: undefined,
+        personalHomeSpaceId: 'space_home',
+        isForeignSharedNote: true,
+        foreignSharedSpaceId: 'space_B',
+      }),
+    ).toBe('space_B');
   });
 
   it('keeps destructive copy to one sentence plus the reversibility clause', () => {

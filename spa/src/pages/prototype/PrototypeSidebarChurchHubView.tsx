@@ -575,7 +575,7 @@ export default function PrototypeSidebarChurchHubView() {
                 {browseChannels.length > 0 ? (
                   <div className="proto-home-section">
                     <p className="proto-caption proto-home-section__eyebrow">
-                      {manageOpen ? `All channels from ${churchName}` : `More from ${churchName}`}
+                      {manageOpen ? 'All channels' : 'Discover'}
                     </p>
                     <ul className="proto-church-hub__list">
                       {browseChannels.map((channel) => (

@@ -3439,8 +3439,15 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
   min-width: 0;
 }
 
+/* Two lines per space: the name on top, the co-edit control under it.
+   One line could not hold a space name, an action label and a 34px switch at the
+   inspector's 244px — the switch used to escape the card, and making the label
+   ellipsize instead just traded one defect for "Others c…", which says nothing
+   about what the switch does. An action label is the last thing that should
+   truncate, so it gets its own row and the name gets the full width. */
 .proto-inspector-space-list__item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 7px;
   font-size: 13px;
@@ -3456,23 +3463,31 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
 
 .proto-inspector-space-list__title {
   flex: 1 1 auto;
-  /* Keep enough room that short names like "Family" aren't crushed to "F…" */
-  min-width: 4.5rem;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .proto-inspector-space-co-edit {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  flex-shrink: 0;
-  margin-left: 8px;
-  gap: 6px;
-  max-width: 55%;
+  justify-content: space-between;
+  /* Own row, indented past the icon (12px) and its gap (7px) so it hangs under
+     the space name rather than under the icon. */
+  flex: 0 0 100%;
+  box-sizing: border-box;
+  padding-left: 19px;
+  min-width: 0;
+  gap: 10px;
 }
 
 .proto-inspector-space-co-edit__label {
+  /* Safety only — with its own row there is room to spare. The app reset sets
+     `* { flex-shrink: 0 }` (src/styles/global.css), so the ellipsis below never
+     engages without this. */
+  flex-shrink: 1;
+  min-width: 0;
   font-size: 11px;
   font-weight: 500;
   color: var(--pds-text-secondary);
@@ -7318,8 +7333,11 @@ html.harvous-prototype-route .harvous-delete-confirm__title {
   color: var(--pds-text-primary);
 }
 
+/* Card, not capsule. This was `--pds-radius-scripture` (999px, meant for inline
+   scripture pills) — on a two-line confirm that rounds into a blob, and the shell's
+   `overflow: hidden` then clips the first character of the title. */
 html.harvous-prototype-route .harvous-delete-confirm--stacked {
-  border-radius: var(--pds-radius-scripture);
+  border-radius: var(--pds-radius-card);
 }
 
 html.harvous-prototype-route .harvous-delete-confirm__description {
@@ -8805,15 +8823,6 @@ button.proto-appearance-hero__card {
   flex: 1 1 auto;
 }
 
-/* Clear the floating migration pill stack (z-index 2) so footer actions stay tappable. */
-.proto-sidebar-root--thread-review .proto-thread-review__actions {
-  bottom: 88px;
-}
-
-.proto-sidebar-root--thread-review .proto-thread-review__list {
-  padding-bottom: 160px;
-}
-
 .proto-thread-review__header {
   flex-shrink: 0;
   display: flex;
@@ -8863,14 +8872,17 @@ button.proto-appearance-hero__card {
 }
 
 .proto-thread-review__list {
-  padding-bottom: 72px;
+  flex: 1 1 auto;
 }
 
+/* Pinned under the list it belongs to — same recipe as `.proto-collection-grid-actions`.
+   `margin-top: auto` holds it at the bottom on short proposals; `sticky` keeps it in
+   view once the list scrolls. */
 .proto-thread-review__actions {
-  position: absolute;
+  flex-shrink: 0;
+  margin-top: auto;
+  position: sticky;
   bottom: 0;
-  left: 0;
-  right: 0;
   z-index: 10;
   display: flex;
   align-items: center;

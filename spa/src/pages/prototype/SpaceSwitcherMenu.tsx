@@ -281,8 +281,14 @@ export default function SpaceSwitcherMenu({
   });
   /** Pill when a space/channel is selected (title); My Home / My Church hubs stay circular orbs.
    * `iconOnly` (mobile unified toolbar) forces the plain orb — the name is still reachable
-   * from the sidebar/drawer space list, so the toolbar doesn't need to repeat it. */
-  const useSpaceSwitcherPill = showSharedSpaceToolbar && !iconOnly;
+   * from the sidebar/drawer space list, so the toolbar doesn't need to repeat it.
+   *
+   * A title is required, not incidental: the pill's padding is asymmetric because it is
+   * sized for icon + label, so rendering it with no label (nav hasn't resolved the space
+   * title yet, or the space has none) left dead space to the right of the icon. Without a
+   * label the plain orb is the correct shape — and it is the same one `iconOnly` already
+   * renders, tile icon included. */
+  const useSpaceSwitcherPill = showSharedSpaceToolbar && !iconOnly && Boolean(sharedSpaceLabel);
   // Pill: color tile + title. Hub modes: plain orb glyphs.
   const triggerIcon = activeIsMinistry ? (
     <ProtoSpaceMenuIcon color={space?.color || 'paper'} iconName="rss" />
@@ -595,9 +601,15 @@ export default function SpaceSwitcherMenu({
               <span className="proto-toolbar-space-switcher__icon" aria-hidden>
                 {triggerIcon}
               </span>
+              {/* Plain ellipsis, not `proto-marquee`, and the same treatment the folder
+                  chip beside it already uses. The marquee's `container-type: inline-size`
+                  zeroes an element's intrinsic contribution, and this pill is
+                  shrink-to-fit — so the title measured 0px wide and the pill rendered as
+                  an icon followed by its label-side padding. A title that never appears
+                  is a worse trade than a long one that ellipsizes to its `title`. */}
               {sharedSpaceLabel ? (
-                <span className="proto-toolbar-space-switcher__label proto-marquee" title={sharedSpaceLabel}>
-                  <span>{sharedSpaceLabel}</span>
+                <span className="proto-toolbar-space-switcher__label" title={sharedSpaceLabel}>
+                  {sharedSpaceLabel}
                 </span>
               ) : null}
             </>
