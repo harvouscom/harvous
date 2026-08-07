@@ -252,17 +252,6 @@ function CalendarBacklogRail({
           <span className="proto-planner-column__title">Ideas</span>
           <span className="proto-caption proto-planner-column__subtitle">Drag onto a day</span>
         </div>
-        {canWrite ? (
-          <button
-            type="button"
-            className="proto-side-panel__action-btn"
-            title="Add an idea"
-            aria-label="Add an idea"
-            onClick={() => onSelect({ mode: 'create', date: null })}
-          >
-            <Icon name="plus" size={12} />
-          </button>
-        ) : null}
       </header>
       <div className="proto-planner-column__body">
         {backlog.length === 0 ? (
@@ -280,6 +269,23 @@ function CalendarBacklogRail({
           ))
         )}
       </div>
+      {/*
+        At the end of the strip, not inside the header. Sitting after the label
+        it landed between "Drag onto a day" and the cards — a control adrift in
+        the middle of a bar, reading as punctuation between two things rather
+        than as the way to add one.
+      */}
+      {canWrite ? (
+        <button
+          type="button"
+          className="proto-side-panel__action-btn proto-planner-calendar__rail-add"
+          title="Add an idea"
+          aria-label="Add an idea"
+          onClick={() => onSelect({ mode: 'create', date: null })}
+        >
+          <Icon name="plus" size={12} />
+        </button>
+      ) : null}
     </aside>
   );
 }

@@ -10534,8 +10534,27 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 .proto-teaching-plan__divider {
   padding: 10px 13px 4px;
   margin-top: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/*
+  A heading, styled like the planner's own column heads rather than as an
+  eyebrow. It was uppercase and tracked at 13px, and dimmed twice over — a
+  50%-alpha colour with `opacity: 0.72` on top, ~36% effective — so "Upcoming"
+  was fainter than the rows it introduced while shouting in caps. The board's
+  column titles do this job in 12px semibold, and these are the same job in the
+  same tool.
+
+  Tag-qualified because the element also carries `proto-caption`, which sets a
+  size and weight from a single-class selector defined later in this file. Same
+  specificity means source order decides, and the caption was winning.
+*/
+p.proto-teaching-plan__divider {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+  opacity: 0.62;
 }
 
 /*
@@ -13691,17 +13710,30 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   flex-direction: row;
   align-items: stretch;
   min-height: 0;
-  border-radius: var(--pds-radius-card);
+  /* The day cells' radius, not the card's. At `--pds-radius-card` the strip
+     was 20px inside an 18px panel — rounder than the thing containing it,
+     which is what made it read as pasted on rather than part of the grid. The
+     cells directly above it are its real peers. */
+  border-radius: var(--pds-radius-row);
   background: var(--pds-bg-chip);
   border: 1px solid transparent;
   transition: border-color 0.12s ease;
 }
 
-/* The head sits beside the cards now, not above them. */
+/* The head sits beside the cards now, not above them, with a rule between the
+   two so the label reads as the strip's name rather than its first item. */
 .proto-planner-calendar__rail .proto-planner-column__head {
   flex: 0 0 auto;
   align-items: center;
-  padding: 8px 4px 8px 12px;
+  padding: 8px 12px;
+  border-right: 0.5px solid var(--pds-border-control);
+}
+
+/* Pinned to the far end of the strip. */
+.proto-planner-calendar__rail-add {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-right: 8px;
 }
 
 /* Cards run along the strip and scroll sideways when they outgrow it. The
