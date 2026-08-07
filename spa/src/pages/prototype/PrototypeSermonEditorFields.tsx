@@ -799,33 +799,41 @@ export default function PrototypeSermonEditorFields({
                 </span>
               </button>
             </div>
-          ) : (
+          ) : null
+        ) : null}
+        {/*
+          The two secondary acts share a row. Stacked full-width they were three
+          decks of button under the form — and equal width gave "Remove from
+          plan" the same weight as Save, which is not the shape of the choice.
+        */}
+        {isEditing && !repeatOpen ? (
+          <div className="proto-sheet-footer__row">
+            {!isUnscheduled ? (
+              <button
+                type="button"
+                className="proto-sheet-quiet-action"
+                disabled={actions.isPending}
+                onClick={() => {
+                  setNotice(null);
+                  setRepeatOpen(true);
+                }}
+              >
+                Repeat weekly
+              </button>
+            ) : null}
+            {/* "Remove" alone never said from what — and the answer matters
+                here, because it isn't the congregation's notes. Those survive;
+                the confirm says so, but the button shouldn't need the confirm
+                to be legible. */}
             <button
               type="button"
-              className="proto-sheet-quiet-action"
+              className="proto-sheet-quiet-action proto-sheet-quiet-action--danger"
               disabled={actions.isPending}
-              onClick={() => {
-                setNotice(null);
-                setRepeatOpen(true);
-              }}
+              onClick={remove}
             >
-              Repeat weekly
+              Remove from plan
             </button>
-          )
-        ) : null}
-        {isEditing ? (
-          // "Remove" alone never said from what — and the answer matters here,
-          // because it isn't the congregation's notes. Those survive; the
-          // confirm says so, but the button shouldn't need the confirm to be
-          // legible.
-          <button
-            type="button"
-            className="proto-sheet-quiet-action proto-sheet-quiet-action--danger"
-            disabled={actions.isPending}
-            onClick={remove}
-          >
-            Remove from plan
-          </button>
+          </div>
         ) : null}
       </div>
     </>

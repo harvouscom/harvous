@@ -150,6 +150,27 @@ export default function PrototypePlannerEditorPane({
             planKind={planKind}
             onDone={onClose}
             onNavigateAway={onNavigateAway}
+            /*
+              Through the slot, so it lands inside the scrolling fields and
+              above the footer. Composed after the form, it pushed Save,
+              Repeat and Remove into the middle of the pane with Resources
+              stranded underneath them.
+            */
+            trailingFields={
+              service ? (
+                <div className="proto-service-editor__section proto-planner-editor__resources">
+                  <PrototypePlannerResourcesField
+                    orgId={orgId}
+                    attached={service.resources ?? []}
+                    canWrite={canWrite}
+                    pending={attachActions.isPending}
+                    onChange={(itemIds) =>
+                      attachActions.mutate({ kind: 'attachments', serviceId: service.id, itemIds })
+                    }
+                  />
+                </div>
+              ) : null
+            }
           />
         ) : (
           <p className="proto-caption proto-planner__readonly">
@@ -159,25 +180,6 @@ export default function PrototypePlannerEditorPane({
           </p>
         )}
 
-        {/*
-          Only for a saved entry. Attachments are a join on a row that has to
-          exist first, and offering the picker mid-create would promise a link
-          the Save has not earned yet. Read-only viewers still see the list —
-          knowing what a week draws on is the point of showing it.
-        */}
-        {service ? (
-          <div className="proto-service-editor proto-planner-editor__resources">
-            <PrototypePlannerResourcesField
-              orgId={orgId}
-              attached={service.resources ?? []}
-              canWrite={canWrite}
-              pending={attachActions.isPending}
-              onChange={(itemIds) =>
-                attachActions.mutate({ kind: 'attachments', serviceId: service.id, itemIds })
-              }
-            />
-          </div>
-        ) : null}
       </div>
     </aside>
   );
