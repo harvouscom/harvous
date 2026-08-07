@@ -50,7 +50,9 @@ const VIEW_STORAGE_KEY = 'harvous-prototype-planner-view';
 const VIEWS: { id: PlannerView; label: string; icon: IconName }[] = [
   { id: 'board', label: 'Board', icon: 'table-columns' },
   { id: 'calendar', label: 'Calendar', icon: 'calendar' },
-  { id: 'list', label: 'List', icon: 'list-check' },
+  /* `list`, not `list-check`: the ticks read as completion, and a planned week
+     is not a task anyone checks off. */
+  { id: 'list', label: 'List', icon: 'list' },
 ];
 
 function readStoredView(): PlannerView {
