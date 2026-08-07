@@ -29,6 +29,7 @@ import {
 import { localTodayIso, planVocabulary, sermonTimeLabel } from '../../lib/church-services';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import ProtoServiceDateTile from './ProtoServiceDateTile';
+import PrototypeListEmptyState from './PrototypeListEmptyState';
 import PrototypeSermonEditorSheet from './PrototypeSermonEditorSheet';
 import PrototypeSeriesSheet from './PrototypeSeriesSheet';
 import PrototypePlannerScopeChips from './planner/PrototypePlannerScopeChips';
@@ -272,35 +273,68 @@ export default function PrototypeChurchTeachingPlanSection({
     <div className="proto-home-section">
       {scopeChips}
 
-      {/* A pane, not a disclosure — the hub's Church tools row is what opens
-          it, so the caret toggle that used to live here is gone. */}
-      <div className="proto-church-tools__lane-head">
-        <p className="proto-caption proto-home-section__eyebrow">
-          {data.services.length > 0
-            ? `${data.services.length} planned${activeSpace ? ` · ${activeSpace.title}` : ''}`
-            : 'Nothing planned yet'}
-        </p>
-        {canWrite ? (
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--control proto-glass-action"
-            disabled={actions.isPending}
-            onClick={() => openEditor(null)}
-          >
-            <Icon name="plus" size={12} aria-hidden />
-            <span className="proto-glass-action__label">{vocab.addLabel}</span>
-          </button>
-        ) : null}
-      </div>
+      {/*
+        A pane, not a disclosure — the hub's Church tools row is what opens it,
+        so the caret toggle that used to live here is gone.
+
+        Gone entirely when the plan is empty. Its count would only say what the
+        empty state says louder, and the scope name it carried is already on the
+        chip directly above — "Young Adults" twice, four lines apart. The add
+        button moves into the empty state's own stack, which is where the one
+        thing to do about an empty pane belongs.
+      */}
+      {data.services.length > 0 ? (
+        <div className="proto-church-tools__lane-head">
+          <p className="proto-caption proto-home-section__eyebrow">
+            {`${data.services.length} planned${activeSpace ? ` · ${activeSpace.title}` : ''}`}
+          </p>
+          {canWrite ? (
+            <button
+              type="button"
+              className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+              disabled={actions.isPending}
+              onClick={() => openEditor(null)}
+            >
+              <Icon name="plus" size={12} aria-hidden />
+              <span className="proto-glass-action__label">{vocab.addLabel}</span>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {data.services.length === 0 ? (
-        <p className="proto-caption proto-teaching-plan__empty">
-          {canWrite
-            ? vocab.emptyWritable
-            : readOnlyReason === 'role'
-              ? 'Nothing planned yet. A pastor or admin adds sermons here.'
-              : 'Nothing planned yet.'}
-        </p>
+        /*
+          The full empty state, not the caption it replaces. This pane is
+          mostly blank space when a plan has not started, and a grey sentence
+          under the heading read as a footnote to a list that was not there.
+          The icon and title name what the pane is for; the description is the
+          plan's own vocabulary, so a channel is invited to publish and a
+          gathering to meet.
+        */
+        <PrototypeListEmptyState
+          iconName="calendar-week"
+          title="Nothing planned yet"
+          description={
+            canWrite
+              ? vocab.emptyWritable
+              : readOnlyReason === 'role'
+                ? 'A pastor or admin adds sermons here.'
+                : undefined
+          }
+          action={
+            canWrite ? (
+              <button
+                type="button"
+                className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                disabled={actions.isPending}
+                onClick={() => openEditor(null)}
+              >
+                <Icon name="plus" size={12} aria-hidden />
+                <span className="proto-glass-action__label">{vocab.addLabel}</span>
+              </button>
+            ) : undefined
+          }
+        />
       ) : (
         <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
           {upcoming.map((service) => (

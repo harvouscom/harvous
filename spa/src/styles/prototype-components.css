@@ -5714,6 +5714,14 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   text-wrap: balance;
 }
 
+/* Enough air that the action reads as a next step rather than a caption's
+   last line, and centred with the column above it. */
+.proto-list-empty-state__action {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
 .proto-list-empty-state__owner-attribution {
   display: flex;
   flex-direction: column;
