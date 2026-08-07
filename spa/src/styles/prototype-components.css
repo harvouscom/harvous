@@ -13163,15 +13163,34 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 }
 
 @media (max-width: 899px) {
-  /* No room to centre a switcher between two edges — it wraps to its own row. */
+  /*
+    No room to centre a switcher between two edges — it drops to its own row.
+
+    Expressed as grid areas. This block used to say `flex-wrap: wrap` and
+    `order: 3; flex-basis: 100%`, written when the header was a flex row. Once
+    it became a grid the wrap and the basis became no-ops, but `order` still
+    drives grid auto-placement — so the toolbar was pushed past the actions and
+    the header read Planner, scope, "Add a sermon", Board/Calendar/List, with
+    the primary action stranded in the middle.
+  */
   .proto-sidebar-expanded-panel__header {
-    flex-wrap: wrap;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'lead actions'
+      'toolbar toolbar';
     gap: 8px;
   }
 
+  .proto-sidebar-expanded-panel__header-lead {
+    grid-area: lead;
+  }
+
+  .proto-sidebar-expanded-panel__actions {
+    grid-area: actions;
+  }
+
   .proto-sidebar-expanded-panel__toolbar {
-    order: 3;
-    flex-basis: 100%;
+    grid-area: toolbar;
     justify-content: flex-start;
   }
 
