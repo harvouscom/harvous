@@ -13322,13 +13322,25 @@ p.proto-teaching-plan__divider {
   overflow-y: hidden;
 }
 
+/*
+  Unfilled at rest.
+
+  Every column used to carry `--pds-bg-chip`, with the current week picked out
+  in a *lighter* fill — which is backwards twice over. Seven tinted slabs
+  dominated a board whose actual content is the cards, and the one week you are
+  standing in was the palest thing on screen. The weight sat on everything
+  except the thing that mattered.
+
+  The cards carry their own border and background, so they read perfectly well
+  against nothing; a column does not need a body to be a drop target.
+*/
 .proto-planner-column {
   flex: 0 0 232px;
   display: flex;
   flex-direction: column;
   min-height: 0;
   border-radius: var(--pds-radius-card);
-  background: var(--pds-bg-chip);
+  background: transparent;
   /* Transparent at rest so the drop highlight is a change of border rather
      than a layout shift — a column that grows a border on hover nudges every
      column after it while you are aiming at one. */
@@ -13336,9 +13348,10 @@ p.proto-teaching-plan__divider {
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 
-/* This week, so the eye lands on "now" before it starts scanning forward. */
+/* This week, and now the only filled column — so "now" is what the eye lands
+   on before it starts scanning forward, which is what the fill was for. */
 .proto-planner-column--current {
-  background: var(--pds-bg-modal-inset-highlight, var(--pds-bg-chip));
+  background: var(--pds-bg-chip);
 }
 
 .proto-planner-column--over {
@@ -13360,6 +13373,20 @@ p.proto-teaching-plan__divider {
   flex-direction: column;
   gap: 1px;
   min-width: 0;
+  /*
+    `flex: 1`, and it is why the week dates appear at all. The title inside is
+    a `.proto-marquee`, which sets `container-type: inline-size` — an element
+    with no intrinsic width of its own, so it can only be as wide as its parent
+    makes it. Sized to content, this box had nothing to measure and collapsed,
+    taking the title with it.
+
+    It went unnoticed because a subtitle rescued it: "Ideas / No date yet" and
+    "Aug 2 – 8 / This week" had a second line with real width, so those two
+    columns rendered. Every week without a subtitle — which is every future
+    week — showed a blank head, and the dates looked like they were missing
+    rather than measuring zero.
+  */
+  flex: 1;
 }
 
 .proto-planner-column__title {
@@ -14126,44 +14153,13 @@ p.proto-teaching-plan__divider {
   border-radius: var(--pds-radius-card, 16px);
   background: var(--pds-bg-section);
   border: 1px solid var(--pds-border-control-soft, var(--pds-border-control));
-  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+  /* No transition: the container itself no longer changes on drag-over. All the
+     motion lives in the fan. */
 }
 
-/* Hover reads as the surface warming up rather than a box turning blue: a soft
-   gradient wash in the brand blues, lit from the top where the files are coming
-   from, and a slow sheen that keeps drifting so the state feels live while the
-   pointer is held still. No outline — the colour shift and the moving stack say
-   "let go" on their own, and a hard edge only makes it look like a form field. */
-.proto-import-drop--active {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--pds-accent-gradient-start) 18%, transparent) 0%,
-      color-mix(in oklab, var(--pds-accent-gradient-end) 10%, transparent) 100%
-    ),
-    var(--pds-bg-section);
-}
-
-.proto-import-drop--active::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(
-    100deg,
-    transparent 35%,
-    color-mix(in oklab, var(--pds-accent-gradient-start) 18%, transparent) 50%,
-    transparent 65%
-  );
-  background-size: 260% 100%;
-  animation: proto-import-sheen 3.4s ease-in-out infinite;
-}
-
-@keyframes proto-import-sheen {
-  from { background-position: 130% 0; }
-  to { background-position: -30% 0; }
-}
+/* No outline, and no wash on the surface either — the papers gathering into a pile
+   and the heading changing to "Release to import" are the whole signal. Anything
+   painted behind them just competes with the one thing that's actually moving. */
 
 .proto-import-drop--full {
   padding: 44px 24px 34px;
@@ -14831,17 +14827,12 @@ p.proto-teaching-plan__divider {
   }
 
   /* The fan keeps its arrangement — that's the illustration — but stops sliding
-     between the two layouts, drifting, or catching the sheen. */
+     between the scatter and the pile, and stops drifting once gathered. */
   .proto-import-fan__card,
   .proto-import-drop--active .proto-import-fan__card,
   .proto-import-fan__tag {
     transition: none;
     animation: none;
-  }
-
-  .proto-import-drop--active::after {
-    animation: none;
-    opacity: 0;
   }
 
   .proto-import-row,
