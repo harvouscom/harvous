@@ -137,8 +137,9 @@ export default function PrototypeSeriesSheet({
   const content = (
     <>
       <div className="proto-study-thread-popover__header">
+        {/* The series' own name is the identification. A glyph beside it only
+            repeated "this is a series", which the sheet's contents say. */}
         <div className="proto-study-thread-popover__title-row">
-          <Icon name="timeline" size={13} aria-hidden />
           <span className="proto-study-thread-popover__title">{series.title}</span>
         </div>
         <button

@@ -585,9 +585,12 @@ const TEACHING_PLAN_ROWS = [
 
 /* The lane below the sermons, and the reason the date is a tile: both lanes
    have to start their titles on the same edge. */
+/* Dated, because the real lane draws a series with the same tile its sermons
+   use — the glyph this fixture carried was replaced in production and the
+   scene had drifted behind it. */
 const TEACHING_PLAN_SERIES = [
-  { title: 'Life in the Spirit', weeks: '8 weeks' },
-  { title: 'Advent', weeks: '4 weeks' },
+  { title: 'Life in the Spirit', iso: '2026-08-09', weeks: '8 weeks · Aug 9 – Sep 27' },
+  { title: 'Advent', iso: '2026-11-29', weeks: '4 weeks · Nov 29 – Dec 20' },
 ];
 
 /**
@@ -677,9 +680,7 @@ function TeachingPlanScene({ mode }: { mode: 'list' | 'lapsed' }) {
                   className="proto-church-tools__row"
                   disabled={lapsed}
                 >
-                  <span className="proto-church-tools__row-icon" aria-hidden>
-                    <Icon name="timeline" size={13} />
-                  </span>
+                  <ProtoServiceDateTile iso={entry.iso} />
                   <span className="proto-church-tools__row-text">
                     <span className="pds-list-title proto-church-tools__row-title">{entry.title}</span>
                     <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">{entry.weeks}</span>

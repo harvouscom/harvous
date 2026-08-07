@@ -7,7 +7,6 @@
  * never lands as a click.
  */
 import { useDraggable } from '@dnd-kit/core';
-import Icon from '@/components/react/Icon';
 import type { TeachingPlanSermon } from '../../../hooks/queries/useChurchTeachingPlan';
 
 export function PlannerCardBody({
@@ -41,9 +40,13 @@ export function PlannerCardBody({
       {service.seriesTitle ? (
         /* Caption weight, not a badge. The pill this replaced gave a series more
            visual weight than the sermon's own passage, which inverted the row:
-           what you preach outranks which run it belongs to. */
+           what you preach outranks which run it belongs to.
+
+           No glyph either. It stood in for the `·` a row would have used, but
+           a series does not need a symbol — its own name on its own line, in
+           the same tertiary caption as the passage above, already says what it
+           is. */
         <span className="proto-caption proto-planner-card__series">
-          <Icon name="timeline" size={9} aria-hidden />
           <span className="proto-planner-card__series-name">{service.seriesTitle}</span>
         </span>
       ) : null}
