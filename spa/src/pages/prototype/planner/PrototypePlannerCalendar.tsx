@@ -247,10 +247,13 @@ function CalendarBacklogRail({
       className={`proto-planner-calendar__rail${isOver && canWrite ? ' proto-planner-calendar__rail--over' : ''}`}
       aria-label="Ideas"
     >
+      {/* No subtitle. "Drag onto a day" instructed at the one moment nobody is
+          reading — a strip that is usually empty — and the drag it describes is
+          discovered by trying it, not by being told. The board's columns keep
+          theirs, where the second line carries a date rather than a hint. */}
       <header className="proto-planner-column__head">
         <div className="proto-planner-column__head-text">
           <span className="proto-planner-column__title">Ideas</span>
-          <span className="proto-caption proto-planner-column__subtitle">Drag onto a day</span>
         </div>
       </header>
       <div className="proto-planner-column__body">

@@ -13935,6 +13935,14 @@ p.proto-teaching-plan__divider {
   border-right: 0.5px solid var(--pds-border-control);
 }
 
+/* Alone on its line now, so it takes the size the subtitle under it used to
+   have — 12px was calibrated for a label with a second line beneath it, and
+   reads undersized against the cards it sits beside. Scoped to the rail: the
+   board's column titles still stack over a date. */
+.proto-planner-calendar__rail .proto-planner-column__title {
+  font-size: 13px;
+}
+
 /* Pinned to the far end of the strip. */
 .proto-planner-calendar__rail-add {
   flex: 0 0 auto;
