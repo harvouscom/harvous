@@ -139,7 +139,6 @@ export default function PrototypeCreateSharedThreadSheet({
     <>
       <div className="proto-study-thread-popover__header">
         <div className="proto-study-thread-popover__title-row">
-          <Icon name="arrow-right-arrow-left" size={13} aria-hidden />
           <span id={headingId} className="proto-study-thread-popover__title" role="heading" aria-level={2}>
             Start a Thread
           </span>

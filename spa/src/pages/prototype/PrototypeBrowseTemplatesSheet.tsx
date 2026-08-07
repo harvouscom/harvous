@@ -482,7 +482,6 @@ export default function PrototypeBrowseTemplatesSheet({
     <>
       <div className="proto-study-thread-popover__header">
         <div className="proto-study-thread-popover__title-row">
-          <Icon name="list-check" size={13} aria-hidden />
           <span className="proto-study-thread-popover__title">Templates</span>
         </div>
         <button

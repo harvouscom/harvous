@@ -130,7 +130,6 @@ export default function PrototypeLibraryItemEditorPane({
     <aside ref={paneRef} className="proto-planner-editor" aria-label={isEditing ? 'Edit resource' : 'Add a resource'}>
       <div className="proto-side-panel__header proto-side-panel__header--minimal">
         <span className="proto-side-panel__header-label">
-          <Icon name="newspaper" size={13} aria-hidden />
           {isEditing ? 'Edit resource' : 'Add a resource'}
         </span>
         <div className="proto-side-panel__header-actions">

@@ -77,7 +77,6 @@ export default function PrototypeChurchInviteSheet({
     <>
       <div className="proto-study-thread-popover__header">
         <div className="proto-study-thread-popover__title-row">
-          <Icon name="user-group" size={13} aria-hidden />
           <span className="proto-study-thread-popover__title">Invite to team</span>
         </div>
         <button

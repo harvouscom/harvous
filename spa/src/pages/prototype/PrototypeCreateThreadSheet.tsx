@@ -116,7 +116,6 @@ export default function PrototypeCreateThreadSheet({
     <>
       <div className="proto-study-thread-popover__header">
         <div className="proto-study-thread-popover__title-row">
-          <Icon name="arrow-right-arrow-left" size={13} aria-hidden />
           <span className="proto-study-thread-popover__title">New thread</span>
         </div>
         <button

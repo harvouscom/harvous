@@ -97,7 +97,6 @@ export default function PrototypeSuggestResourceSheet({
     <>
       <div className="proto-study-thread-popover__header">
         <div className="proto-study-thread-popover__title-row">
-          <Icon name="inbox" size={13} aria-hidden />
           <span className="proto-study-thread-popover__title">
             {sent ? 'Sent' : 'Suggest a resource'}
           </span>

@@ -135,7 +135,6 @@ export default function PrototypeCreateFolderSheet({
     <>
       <div className="proto-study-thread-popover__header">
         <div className="proto-study-thread-popover__title-row">
-          <Icon name="folder" size={13} aria-hidden />
           <span className="proto-study-thread-popover__title">New folder</span>
         </div>
         <button

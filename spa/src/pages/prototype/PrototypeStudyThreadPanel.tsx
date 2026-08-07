@@ -104,7 +104,6 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
     <>
       <div className="proto-side-panel__header proto-side-panel__header--minimal">
         <span className="proto-side-panel__header-label">
-          <Icon name="arrow-right-arrow-left" size={13} aria-hidden />
           Threads
         </span>
         <div className="proto-side-panel__header-actions">
