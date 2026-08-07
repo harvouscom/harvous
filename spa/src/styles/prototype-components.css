@@ -14358,7 +14358,7 @@ p.proto-teaching-plan__divider {
 
 /* Ink running along a ruled line, not a blue pill.
    The track is the same 4px rule the paper cards in the drop-zone illustration
-   are written with (--pds-paper-rule), and the fill is ink — so a file turning
+   are written with, and the fill is ink — so a file turning
    into a note looks like a line being written, which is the one thing this app
    is about. Squared-off 2px ends rather than a lozenge: a pen stroke has ends,
    a capsule is a widget. */
@@ -14367,7 +14367,7 @@ p.proto-teaching-plan__divider {
   flex: 1;
   height: 4px;
   border-radius: 2px;
-  background: var(--pds-paper-rule);
+  background: color-mix(in oklab, var(--pds-text-primary) 13%, transparent);
   overflow: hidden;
 }
 
@@ -14508,7 +14508,7 @@ p.proto-teaching-plan__divider {
   flex-direction: column;
   gap: 7px;
   border-radius: 4px;
-  border: 0.5px solid var(--pds-paper-rule);
+  border: 0.5px solid color-mix(in oklab, var(--pds-text-primary) 11%, transparent);
   /* Opaque on purpose: --pds-paper-sheet is 78% alpha, which is right for a single
      letter on a desk but turns a stack into a pile of tracing paper. */
   background-color: var(--pds-bg-page);
@@ -14613,10 +14613,75 @@ p.proto-teaching-plan__divider {
   gap: 6px;
 }
 
+/* ─── Danger zone ─────────────────────────────────────────────────────────────
+   Sits under the tabs rather than inside them, so it needs its own horizon: a
+   rule and a wide gap put real distance between "move my notes around" and
+   "destroy them". Below that it stays as small as it can — a label and two text
+   buttons, no card, no full-width rows. Weight here would read as invitation. */
+.proto-settings-danger {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 32px;
+  padding-top: 14px;
+  border-top: 1px solid var(--pds-border-control-soft, var(--pds-border-control));
+}
+
+.proto-settings-danger__label {
+  margin: 0;
+  opacity: 0.72;
+}
+
+/* Pushed to the far end of the same line as the label — one row, no card. */
+.proto-settings-danger__actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+/* Plain words, no red at rest. The "Danger zone" label and the confirm step both
+   say what these are; tinting the buttons as well made the corner shout before
+   anyone had touched it. Red appears once, on the Confirm button. */
+.proto-settings-danger__btn {
+  appearance: none;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.proto-settings-danger__btn:hover {
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary);
+}
+
+.proto-settings-danger__btn:focus-visible {
+  outline: none;
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary);
+  box-shadow: 0 0 0 2px var(--pds-accent-focus-ring);
+}
+
+/* The confirm needs the whole width, so it drops to its own line under the label. */
+.proto-settings-danger .proto-settings-confirm-row {
+  flex: 1 0 100%;
+}
+
+/* Neutral, not --pds-paper-rule. That token is the founder letter's warm stock
+   (#e7e4dc), and against the app's grey surfaces the whole stack picked up a
+   beige cast. Mixed from the text colour so it stays neutral and inverts with the
+   theme. */
 .proto-import-fan__rule {
   height: 4px;
   border-radius: 2px;
-  background: var(--pds-paper-rule);
+  background: color-mix(in oklab, var(--pds-text-primary) 13%, transparent);
 }
 
 

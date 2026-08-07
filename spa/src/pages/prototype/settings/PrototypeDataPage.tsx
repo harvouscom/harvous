@@ -14,12 +14,17 @@ import { setSettingsCloseBlocked } from './settings-close-guard';
 
 type ExportFormat = 'markdown' | 'csv-threads';
 type Busy = null | 'export-md' | 'export-csv' | 'export-backup' | 'clear' | 'delete';
-type DataTab = 'import' | 'export' | 'danger';
+/**
+ * Only the two that are peers. Import and export are the same errand in opposite
+ * directions, so toggling between them makes sense; clearing your library or
+ * deleting your account is a different kind of act, and a tab would present it as
+ * an equal third option. It sits below instead, quiet and out of the way.
+ */
+type DataTab = 'import' | 'export';
 
 const DATA_TABS = [
   { id: 'import' as const, label: 'Import' },
   { id: 'export' as const, label: 'Export' },
-  { id: 'danger' as const, label: 'Danger zone' },
 ];
 
 
@@ -35,7 +40,9 @@ export default function PrototypeDataPage() {
    * mid-upload, and the settings modal otherwise closes on a stray click outside or
    * an Escape — far too easy to do by accident during a several-minute import.
    */
+  const [importBusy, setImportBusyState] = useState(false);
   const setImportBusy = useCallback((importing: boolean) => {
+    setImportBusyState(importing);
     setSettingsCloseBlocked(importing);
   }, []);
   useEffect(() => () => setSettingsCloseBlocked(false), []);
@@ -151,45 +158,53 @@ export default function PrototypeDataPage() {
       </SettingsGroup>
       ) : null}
 
-      {tab === 'danger' ? (
-      <SettingsGroup>
-        {confirming === 'clear' ? (
+      {/* Always present, never a tab — and hidden mid-import, because offering to
+          clear the library while notes are being written into it is a trap. */}
+      {!importBusy ? (
+      <section className="proto-settings-danger">
+        <h2 className="pds-inspector-label proto-settings-danger__label">Danger zone</h2>
+
+        {/* Two quiet text buttons rather than two full-height rows in a card. These
+            aren't things to browse — they're things you'd only click on purpose, so
+            they take the least room that still leaves them reachable. The confirm
+            replaces them in place, which is also what keeps the prompt attached to
+            the button that raised it. */}
+        {confirming ? (
           <ConfirmRow
-            prompt="Clear all notes, folders, and highlights? Your account stays."
-            busy={busy === 'clear'}
-            onConfirm={handleClearData}
+            prompt={
+              confirming === 'clear'
+                ? 'Clear all notes, folders, and highlights? Your account stays.'
+                : "Permanently delete your account and all data? This can't be undone."
+            }
+            busy={busy === confirming}
+            onConfirm={confirming === 'clear' ? handleClearData : handleDeleteAccount}
             onCancel={() => setConfirming(null)}
           />
         ) : (
-          <SettingsRow
-            label="Clear all data"
-            destructive
-            trailing="none"
-            onClick={() => {
-              resetStatus();
-              setConfirming('clear');
-            }}
-          />
+          <div className="proto-settings-danger__actions">
+            <button
+              type="button"
+              className="proto-settings-danger__btn"
+              onClick={() => {
+                resetStatus();
+                setConfirming('clear');
+              }}
+            >
+              Clear all data
+            </button>
+            <button
+              type="button"
+              className="proto-settings-danger__btn"
+              onClick={() => {
+                resetStatus();
+                setConfirming('delete');
+              }}
+            >
+              Delete account
+            </button>
+          </div>
         )}
-        {confirming === 'delete' ? (
-          <ConfirmRow
-            prompt="Permanently delete your account and all data? This can't be undone."
-            busy={busy === 'delete'}
-            onConfirm={handleDeleteAccount}
-            onCancel={() => setConfirming(null)}
-          />
-        ) : (
-          <SettingsRow
-            label="Delete account"
-            destructive
-            trailing="none"
-            onClick={() => {
-              resetStatus();
-              setConfirming('delete');
-            }}
-          />
-        )}
-      </SettingsGroup>
+      </section>
       ) : null}
 
       {message ? <p className="pds-caption proto-settings-status">{message}</p> : null}
