@@ -35,6 +35,31 @@ import PrototypePlannerScopeChips from './planner/PrototypePlannerScopeChips';
 import { usePlannerScope } from './planner/usePlannerScope';
 import type { PlannableSpace } from '../../hooks/useChurchPlannerAccess';
 
+function parseIso(iso: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+}
+
+/**
+ * "Aug 9 – Sep 27", or "Aug 9 – 27" inside one month.
+ *
+ * Null for a one-week series: the tile beside it already shows that date, and
+ * "Aug 9 – Aug 9" is noise.
+ */
+function formatSeriesRun(run: { first: string; last: string }): string | null {
+  if (run.first === run.last) return null;
+  const from = parseIso(run.first);
+  const to = parseIso(run.last);
+  if (!from || !to) return null;
+  const month = (d: Date) => d.toLocaleDateString(undefined, { month: 'short' });
+  const start = `${month(from)} ${from.getDate()}`;
+  const end =
+    from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear()
+      ? `${to.getDate()}`
+      : `${month(to)} ${to.getDate()}`;
+  return `${start} – ${end}`;
+}
+
 /** Same row anatomy as Church tools, with the date where the icon would sit. */
 function SermonRow({
   service,
@@ -156,6 +181,28 @@ export default function PrototypeChurchTeachingPlanSection({
     const slots = onSpacePlan ? [] : (churchPlan.data?.serviceTimes ?? []);
     return (sermon: TeachingPlanSermon): string | null => sermonTimeLabel(sermon, slots);
   }, [onSpacePlan, churchPlan.data?.serviceTimes]);
+
+  /**
+   * When each series runs, derived from the sermons already in hand — the
+   * server sends no dates on a series, and it does not need to.
+   *
+   * Undated members are skipped rather than counted as the start: a series can
+   * hold a backlog idea, and "starts —" would be worse than saying nothing.
+   */
+  const seriesRunById = useMemo(() => {
+    const runs = new Map<string, { first: string; last: string }>();
+    for (const service of data?.services ?? []) {
+      if (!service.seriesId || !service.serviceDate) continue;
+      const run = runs.get(service.seriesId);
+      if (!run) {
+        runs.set(service.seriesId, { first: service.serviceDate, last: service.serviceDate });
+        continue;
+      }
+      if (service.serviceDate < run.first) run.first = service.serviceDate;
+      if (service.serviceDate > run.last) run.last = service.serviceDate;
+    }
+    return runs;
+  }, [data]);
 
   /*
     Which plan you are looking at. Hidden entirely when the church has no other
@@ -338,13 +385,25 @@ export default function PrototypeChurchTeachingPlanSection({
                   setOpenSeries(entry);
                 }}
               >
-                <span className="proto-church-tools__row-icon" aria-hidden>
-                  <Icon name="timeline" size={13} />
-                </span>
+                {/*
+                  The run's first date, in the same tile the sermon rows use.
+                  A generic glyph said only "this is a series", which the lane's
+                  own heading already says; the date says when it starts, and
+                  keeps both lanes' titles on one edge.
+                */}
+                <ProtoServiceDateTile iso={seriesRunById.get(entry.id)?.first ?? null} />
                 <span className="proto-church-tools__row-text">
                   <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={entry.title}><span>{entry.title}</span></span>
                   <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                     {entry.serviceCount === 1 ? '1 week' : `${entry.serviceCount} weeks`}
+                    {(() => {
+                      const run = seriesRunById.get(entry.id);
+                      const span = run ? formatSeriesRun(run) : null;
+                      /* The tile answers when it starts; this answers how far
+                         it runs. Absent for a single week, where the tile has
+                         already said everything there is to say. */
+                      return span ? ` · ${span}` : '';
+                    })()}
                   </span>
                 </span>
                 <span className="proto-church-tools__row-chevron" aria-hidden>
