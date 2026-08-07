@@ -18,6 +18,14 @@ export default function PrototypeEditorEmptyState() {
     <PrototypePaneEmptyState
       icon="note-sticky"
       title={title}
+      /* Dispatches the same event ⇧N fires rather than resolving a compose target
+         of its own — the shortcut's owner already knows which space to write into,
+         closes the mobile drawer, and navigates. Sharing the seam is also what
+         keeps this button and the "or press ⇧N" line beside it from drifting. */
+      action={{
+        label: 'New note',
+        onClick: () => window.dispatchEvent(new Event('prototypeShortcutNewNote')),
+      }}
       description={
         showKeyboardShortcuts ? (
           <>

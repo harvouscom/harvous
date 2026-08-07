@@ -2782,6 +2782,23 @@ export default function PrototypeSidebar({
                     onRetry={() => void fetchNextPage()}
                   />
                 ) : null}
+                {/* Below the pagination footer so it stays the last thing in the
+                    pane. Unlike the folder and thread footers this one shows while
+                    searching too: "nothing matched" is one of the better moments to
+                    start writing, and a new note is the app's whole point. Fires
+                    the ⇧N event rather than composing here — one owner decides
+                    which space a new note lands in. */}
+                {homeSpaceId ? (
+                  <div className="proto-collection-grid-actions">
+                    <button
+                      type="button"
+                      className="proto-collection-grid-actions__btn"
+                      onClick={() => window.dispatchEvent(new Event('prototypeShortcutNewNote'))}
+                    >
+                      New note
+                    </button>
+                  </div>
+                ) : null}
               </>
             ) : null}
 
