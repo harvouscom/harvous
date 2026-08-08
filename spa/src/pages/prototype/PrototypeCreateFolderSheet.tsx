@@ -29,6 +29,12 @@ export interface PrototypeCreateFolderSheetProps {
   spaceKind: FolderMutationSpaceKind;
   spaceNotes: SpaceNoteRow[];
   notesById: Map<string, SpaceNoteRow>;
+  /**
+   * Seed the picker's selection — used when the sheet is opened from multi-select, where
+   * the notes were already chosen in the list. Mirrors `initialSelectedNoteIds` on
+   * PrototypeCreateThreadSheet.
+   */
+  initialSelectedNoteIds?: string[];
   onCreated: (folderName: string) => void;
 }
 
@@ -39,6 +45,7 @@ export default function PrototypeCreateFolderSheet({
   spaceKind,
   spaceNotes,
   notesById,
+  initialSelectedNoteIds,
   onCreated,
 }: PrototypeCreateFolderSheetProps) {
   const { isMobileSidebar } = useProtoShell();
@@ -54,13 +61,19 @@ export default function PrototypeCreateFolderSheet({
   const useMyHomeCandidates = spaceKind === 'shared';
 
   useEffect(() => {
-    if (!open) {
-      setFolderName('');
-      setSelectedIds([]);
-      setCandidatePool([]);
-      setActionError(null);
+    if (open) {
+      // Seed on open rather than from initial state: the sheet is mounted long before it
+      // is opened, and the selection is made after that.
+      if (initialSelectedNoteIds?.length) setSelectedIds(initialSelectedNoteIds);
+      return;
     }
-  }, [open]);
+    setFolderName('');
+    setSelectedIds([]);
+    setCandidatePool([]);
+    setActionError(null);
+    // `initialSelectedNoteIds` is a fresh array each render; keying on its contents keeps
+    // this from re-seeding (and stomping edits) on every parent render while open.
+  }, [open, initialSelectedNoteIds?.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isPending = createFolder.isPending || addNotes.isPending || associateNote.isPending;
   const canSubmit = folderName.trim().length > 0 && !isPending;

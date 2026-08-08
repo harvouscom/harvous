@@ -76,6 +76,8 @@ export default function ListViewMenu({
     setSidebarListMode,
     setSidebarFolderDrilldown,
     ensureSidebarExpanded,
+    sidebarSelectMode,
+    setSidebarSelectMode,
   } = useProtoShell();
   const showShiftHints = usePrototypeShiftHints();
 
@@ -194,6 +196,37 @@ export default function ListViewMenu({
     </div>
   );
 
+  /**
+   * Select lives in its own group under the view modes — it is a different kind of thing
+   * (a mode you enter, not a view you pick), and putting it in the radio group would make
+   * it look like a seventh way to list notes.
+   *
+   * Only the note-bearing lists can be selected. Folders and Threads show cards, and
+   * Resources is a different entity entirely.
+   */
+  const canSelect = sidebarListMode === 'notes' || sidebarListMode === 'scripture';
+  const selectSection = canSelect ? (
+    <div className="proto-menu-section" role="group">
+      <button
+        type="button"
+        role="menuitem"
+        className="proto-menu-item"
+        onClick={() => {
+          setSidebarSelectMode(!sidebarSelectMode);
+          ensureSidebarExpanded();
+          setOpen(false);
+        }}
+      >
+        <span className="proto-menu-item__icon" aria-hidden>
+          <Icon name={sidebarSelectMode ? 'xmark' : 'check'} size={PROTO_TOOLBAR_ICON_SIZE} />
+        </span>
+        <span className="proto-menu-item__label">
+          {sidebarSelectMode ? 'Done selecting' : 'Select notes'}
+        </span>
+      </button>
+    </div>
+  ) : null;
+
   const popoverClassName = [
     'proto-menu__popover',
     'proto-menu__popover--list-view',
@@ -218,6 +251,7 @@ export default function ListViewMenu({
             }}
           >
             {menuSection}
+            {selectSection}
           </ProtoPopoverShell>,
           document.body,
         )
@@ -274,6 +308,7 @@ export default function ListViewMenu({
       {open && !isPortaled ? (
         <ProtoPopoverShell className={popoverClassName} role="menu" aria-label="List view">
           {menuSection}
+          {selectSection}
         </ProtoPopoverShell>
       ) : null}
       {portaledPopover}

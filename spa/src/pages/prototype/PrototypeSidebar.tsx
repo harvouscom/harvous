@@ -7,6 +7,16 @@ import ProtoChipBar, { type ProtoChipOption } from './components/ProtoChipBar';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
+import { useDeleteNotesBatch } from '../../hooks/mutations/useDeleteNotesBatch';
+import { useNavigation } from '../../hooks/queries/useNavigation';
+import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
+import { isPersonalSharedSpace } from '../../lib/church-settings';
+import { api } from '../../lib/api';
+import {
+  DELETE_NOTE_EVERYWHERE_CONFIRMATION,
+  REMOVE_NOTE_FROM_SPACE_CONFIRMATION,
+} from './proto-destructive-copy';
+import { useRemoveNotesFromSpaceBatch } from '../../hooks/mutations/useSpaceNoteAssociation';
 import { useDeleteHighlight } from '../../hooks/mutations/useDeleteHighlight';
 import { useRemoveFolder } from '../../hooks/mutations/useRemoveFolder';
 import { useRemoveNoteFromFolder } from '../../hooks/mutations/useRemoveNoteFromFolder';
@@ -110,9 +120,8 @@ import { useActiveSpace } from '../../hooks/useActiveSpace';
 import {
   canComposeInSpace,
   canCreateSidebarCollections as resolveCanCreateSidebarCollections,
-  canOrganizeSharedSpaceNote,
-  canPinSharedSpaceItem,
 } from '../../lib/shared-space-capabilities';
+import { everyRowAllows, resolveNoteRowCapabilities } from '../../lib/note-row-capabilities';
 import PrototypeAddNotesSheet from './PrototypeAddNotesSheet';
 import PrototypeCreateFolderSheet from './PrototypeCreateFolderSheet';
 import PrototypeCreateThreadSheet from './PrototypeCreateThreadSheet';
@@ -221,6 +230,10 @@ type PrototypeSidebarNoteRowProps = {
   sharedSpaceMemberByUserId?: Map<string, SpaceMemberRow>;
   /** Actual shared-space owner, not leader/member moderation role. */
   viewerIsSpaceOwner?: boolean;
+  /** Multi-select is on: the row toggles instead of opening, and shows a check orb. */
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelected?: (noteId: string) => void;
 };
 
 function PrototypeSidebarFolderCard({
@@ -716,6 +729,9 @@ function PrototypeSidebarNoteRow({
   trailReorder = null,
   sharedSpaceMemberByUserId,
   viewerIsSpaceOwner = false,
+  selectMode = false,
+  selected = false,
+  onToggleSelected,
 }: PrototypeSidebarNoteRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -762,15 +778,18 @@ function PrototypeSidebarNoteRow({
    */
   const sharedSpaceCount = row.sharedSpaceCount ?? 0;
   const showSharedIndicator = !isScopedSharedSpace && sharedSpaceCount > 0;
-  const mayOrganize = !isScopedSharedSpace || canOrganizeSharedSpaceNote({
-    isOwnNote: row.isOwnNote !== false,
-    isSpaceOwner: viewerIsSpaceOwner,
+  // Shared with the multi-select bulk bar — see `resolveNoteRowCapabilities`. Two
+  // surfaces deriving these rules separately is how they drift.
+  const { mayOrganize, mayPin, mayDelete, mayManageThread } = resolveNoteRowCapabilities({
+    isOwnNote: row.isOwnNote,
+    isScopedSharedSpace,
+    viewerIsSpaceOwner,
   });
-  const mayPin = !isScopedSharedSpace || canPinSharedSpaceItem({ isSpaceOwner: viewerIsSpaceOwner });
-  const mayDelete = !isScopedSharedSpace && row.isOwnNote !== false;
-  const mayManageThread = !isScopedSharedSpace || viewerIsSpaceOwner;
   const rowHideMenu =
     hideMenu ||
+    // While selecting, a per-row ⋯ competes with the batch being assembled — and its
+    // actions would apply to one note while the selection implies many.
+    selectMode ||
     (!mayPin && !mayDelete && !(folderRemoval && mayOrganize) && !(threadRemoval && mayManageThread));
 
   const onPin = () => {
@@ -860,15 +879,34 @@ function PrototypeSidebarNoteRow({
     <button
       type="button"
       className={rowMainClass}
+      // Select mode retargets the row's primary action rather than adding a control:
+      // a second button inside the row would also become a keyboard nav stop, because
+      // SIDEBAR_LIST_ROW_SELECTOR matches on `button.proto-note-row__main`.
+      aria-pressed={selectMode ? selected : undefined}
       onClick={() => {
         cancelHoverPrefetch();
+        if (selectMode) {
+          onToggleSelected?.(row.id);
+          return;
+        }
         onOpenNote(row);
       }}
-      onMouseEnter={scheduleHoverPrefetch}
+      onMouseEnter={selectMode ? undefined : scheduleHoverPrefetch}
       onMouseLeave={cancelHoverPrefetch}
-      onFocus={scheduleHoverPrefetch}
+      onFocus={selectMode ? undefined : scheduleHoverPrefetch}
       onBlur={cancelHoverPrefetch}
     >
+      {selectMode ? (
+        <span className="proto-select-slot" aria-hidden>
+          {selected ? (
+            <span className="proto-accent-check-orb proto-accent-check-orb--selected">
+              <Icon name="check" size={11} />
+            </span>
+          ) : (
+            <span className="proto-select-orb-idle" />
+          )}
+        </span>
+      ) : null}
       <div className={trailLayout ? 'proto-thread-trail__title-line' : 'proto-note-row__title-line'}>
         {pinned && !trailLayout ? (
           <span className="proto-note-row__pin" aria-hidden>
@@ -1136,10 +1174,16 @@ function PrototypeSidebarNoteRow({
   return (
     <li
       ref={rowRef}
-      className={['proto-note-row-item', row.isNewSinceVisit ? 'proto-note-row--unseen' : '']
+      className={[
+        'proto-note-row-item',
+        row.isNewSinceVisit ? 'proto-note-row--unseen' : '',
+        selectMode ? 'proto-note-row-item--selectable' : '',
+      ]
         .filter(Boolean)
         .join(' ')}
-      data-active={active ? 'true' : 'false'}
+      // In select mode "active" would mean the open note, which is not what the row is
+      // reporting any more — the selection is.
+      data-active={selectMode ? (selected ? 'true' : 'false') : active ? 'true' : 'false'}
     >
       {mainButton}
       {menuBlock}
@@ -1258,6 +1302,11 @@ export default function PrototypeSidebar({
     sidebarListMode: mode,
     sidebarListSpaceScope,
     setSidebarListSpaceScope,
+    sidebarSelectMode,
+    setSidebarSelectMode,
+    sidebarSelectedNoteIds,
+    setSidebarSelectedNoteIds,
+    toggleSidebarSelectedNoteId,
     setSidebarFolderDrilldown: setActiveFolderKey,
     sidebarFolderDrilldown: activeFolderKey,
     sidebarThreadDrilldownId,
@@ -1745,6 +1794,235 @@ export default function PrototypeSidebar({
     });
   }, [notes, q, activeFolderKey, tagFilter, tagNoteIdsQuery.data, tagNoteIdSet]);
 
+  const deleteNotesBatch = useDeleteNotesBatch();
+  const removeNotesFromSpace = useRemoveNotesFromSpaceBatch();
+
+  const [bulkFolderSheetOpen, setBulkFolderSheetOpen] = useState(false);
+  const [bulkShareSheetOpen, setBulkShareSheetOpen] = useState(false);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  const [bulkRemoveConfirmOpen, setBulkRemoveConfirmOpen] = useState(false);
+
+  const normalizeSpaceIdForCompare = (id: string | null | undefined) =>
+    !id ? '' : id.startsWith('space_') ? id : `space_${id}`;
+  const { data: bulkNav } = useNavigation();
+  /**
+   * Where a selection can be shared. Own spaces only — associating into a space you
+   * merely belong to is a different act (and `add-items` checks membership anyway), and
+   * ministry channels are read-only targets.
+   */
+  const bulkShareTargets = useMemo(
+    () =>
+      (bulkNav?.spaces ?? []).filter(
+        (sp) => isPersonalSharedSpace(sp) && normalizeSpaceIdForCompare(sp.id) !== normalizeSpaceIdForCompare(homeSpaceId),
+      ),
+    [bulkNav?.spaces, homeSpaceId],
+  );
+
+  const [bulkSharePending, setBulkSharePending] = useState(false);
+  /**
+   * `add-items` is the batch twin of `add-note` — it takes the whole id list, carries no
+   * write rate limit, and reports per-item problems in `errors` rather than failing the
+   * request. The SPA had never called it.
+   */
+  const onBulkShareToSpace = useCallback(
+    async (targetSpaceId: string) => {
+      const ids = [...sidebarSelectedNoteIds];
+      setBulkSharePending(true);
+      try {
+        const res = await api.post<{ updatedNotes?: number; errors?: string[] }>(
+          `/api/spaces/${encodeURIComponent(targetSpaceId)}/add-items`,
+          { noteIds: ids, threadIds: [] },
+        );
+        const went = res.updatedNotes ?? 0;
+        toast.success(
+          went === ids.length
+            ? `Shared ${went} note${went === 1 ? '' : 's'}`
+            : `Shared ${went} of ${ids.length} notes`,
+        );
+        setBulkShareSheetOpen(false);
+        setSidebarSelectMode(false);
+        // `['space', id, 'notes', …]` is the sidebar list's key (useSpace.ts).
+        void queryClient.invalidateQueries({ queryKey: ['space'] });
+        void queryClient.invalidateQueries({ queryKey: ['navigation'] });
+      } catch (err) {
+        toastError(err, 'Could not share these notes');
+      } finally {
+        setBulkSharePending(false);
+      }
+    },
+    [sidebarSelectedNoteIds, queryClient, setSidebarSelectMode],
+  );
+
+  /**
+   * Both bulk destructives report what actually went, not what was asked for. A batch can
+   * partially succeed — a note someone else already moved, a stale id — and one flat
+   * "Deleted" would be a lie.
+   */
+  const onConfirmBulkDelete = useCallback(() => {
+    const ids = [...sidebarSelectedNoteIds];
+    deleteNotesBatch.mutate(ids, {
+      onSuccess: (res) => {
+        setBulkDeleteConfirmOpen(false);
+        setSidebarSelectMode(false);
+        const went = res.deletedNoteIds?.length ?? 0;
+        toast.success(
+          went === ids.length
+            ? `Deleted ${went} note${went === 1 ? '' : 's'}`
+            : `Deleted ${went} of ${ids.length} notes`,
+        );
+      },
+      onError: (err) => {
+        setBulkDeleteConfirmOpen(false);
+        toastError(err, 'Could not delete these notes');
+      },
+    });
+  }, [sidebarSelectedNoteIds, deleteNotesBatch, setSidebarSelectMode]);
+
+  const onConfirmBulkRemoveFromSpace = useCallback(() => {
+    const ids = [...sidebarSelectedNoteIds];
+    // `homeSpaceId` is the scoped space while a shared space is in scope.
+    if (!isScopedSharedSpace || !homeSpaceId) return;
+    removeNotesFromSpace.mutate(
+      { spaceId: homeSpaceId, noteIds: ids },
+      {
+        onSuccess: (res) => {
+          setBulkRemoveConfirmOpen(false);
+          setSidebarSelectMode(false);
+          const went = res.removedNotes ?? 0;
+          toast.success(
+            went === ids.length
+              ? `Removed ${went} note${went === 1 ? '' : 's'}`
+              : `Removed ${went} of ${ids.length} notes`,
+          );
+        },
+        onError: (err) => {
+          setBulkRemoveConfirmOpen(false);
+          toastError(err, 'Could not remove these notes');
+        },
+      },
+    );
+  }, [sidebarSelectedNoteIds, isScopedSharedSpace, homeSpaceId, removeNotesFromSpace, setSidebarSelectMode]);
+
+  /** Ceiling matched to `copy-notes`' server-side `.slice(0, 50)`. */
+  const SELECTION_CAP = 50;
+  /**
+   * Folder assignment is the one action that still fans out to a request per note, and
+   * writes are capped at 20/min per endpoint — so it disables past that. Same rule as
+   * every other action, just triggered by size rather than permission: it greys out when
+   * it cannot apply to the whole selection.
+   */
+  const FOLDER_FANOUT_CAP = 20;
+
+  const selectedNoteIdSet = useMemo(() => new Set(sidebarSelectedNoteIds), [sidebarSelectedNoteIds]);
+
+  /** Rows currently listed, in list order — what "Select all" means. */
+  const selectableNotes = useMemo(
+    () => (sidebarSelectMode ? notesForMode.slice(0, SELECTION_CAP) : []),
+    [sidebarSelectMode, notesForMode],
+  );
+
+  const selectedRows = useMemo(
+    () => notesForMode.filter((n) => selectedNoteIdSet.has(n.id)),
+    [notesForMode, selectedNoteIdSet],
+  );
+
+  /**
+   * All-or-nothing: an action lights up only when every selected note can take it. One
+   * foreign note in the batch disables it rather than the action half-applying.
+   */
+  const bulkCapabilityRows = useMemo(
+    () =>
+      selectedRows.map((n) => ({
+        isOwnNote: n.isOwnNote,
+        isScopedSharedSpace,
+        viewerIsSpaceOwner,
+      })),
+    [selectedRows, isScopedSharedSpace, viewerIsSpaceOwner],
+  );
+
+  const bulkActions = useMemo(
+    () => ({
+      count: selectedRows.length,
+      canOrganize:
+        everyRowAllows(bulkCapabilityRows, 'mayOrganize') && selectedRows.length <= FOLDER_FANOUT_CAP,
+      canThread: everyRowAllows(bulkCapabilityRows, 'mayManageThread'),
+      canDelete: everyRowAllows(bulkCapabilityRows, 'mayDelete'),
+      canRemoveFromSpace: everyRowAllows(bulkCapabilityRows, 'mayRemoveFromSpace'),
+      canShare: everyRowAllows(bulkCapabilityRows, 'mayShareToSpace'),
+    }),
+    [bulkCapabilityRows, selectedRows.length],
+  );
+
+  const allSelectableSelected =
+    selectableNotes.length > 0 && selectableNotes.every((n) => selectedNoteIdSet.has(n.id));
+
+  const toggleSelectAll = useCallback(() => {
+    setSidebarSelectedNoteIds(allSelectableSelected ? [] : selectableNotes.map((n) => n.id));
+  }, [allSelectableSelected, selectableNotes, setSidebarSelectedNoteIds]);
+
+  /**
+   * Bulk action bar. Quiet controls on the `.proto-collection-grid-actions` recipe — four
+   * gradient buttons would read as four competing primary actions.
+   *
+   * The set swaps with scope rather than greying half of itself out: `mayDelete` is false
+   * for everyone inside a shared-space list and `mayShareToSpace` is false in any shared
+   * context, so a fixed bar would sit two-thirds dead there.
+   */
+  const bulkBar = (
+    <div className="proto-collection-grid-actions proto-bulk-bar">
+      <button
+        type="button"
+        className="proto-bulk-bar__btn"
+        disabled={!bulkActions.canOrganize}
+        title={
+          bulkActions.count > FOLDER_FANOUT_CAP
+            ? `Folder can take up to ${FOLDER_FANOUT_CAP} notes at a time`
+            : undefined
+        }
+        onClick={() => setBulkFolderSheetOpen(true)}
+      >
+        Folder
+      </button>
+      <button
+        type="button"
+        className="proto-bulk-bar__btn"
+        disabled={!bulkActions.canThread}
+        onClick={() => openCreateThreadSheet({ noteIds: sidebarSelectedNoteIds })}
+      >
+        Thread
+      </button>
+      {isScopedSharedSpace ? (
+        <button
+          type="button"
+          className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
+          disabled={!bulkActions.canRemoveFromSpace}
+          onClick={() => setBulkRemoveConfirmOpen(true)}
+        >
+          Remove
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            className="proto-bulk-bar__btn"
+            disabled={!bulkActions.canShare}
+            onClick={() => setBulkShareSheetOpen(true)}
+          >
+            Share
+          </button>
+          <button
+            type="button"
+            className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
+            disabled={!bulkActions.canDelete}
+            onClick={() => setBulkDeleteConfirmOpen(true)}
+          >
+            Delete
+          </button>
+        </>
+      )}
+    </div>
+  );
+
   const notesListPhase = computePrototypeNotesListPhase({
     homeSpaceId,
     authReady,
@@ -2160,6 +2438,9 @@ export default function PrototypeSidebar({
           isScopedSharedSpace={isScopedSharedSpace}
           sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
           viewerIsSpaceOwner={viewerIsSpaceOwner}
+          selectMode={sidebarSelectMode}
+          selected={selectedNoteIdSet.has(n.id)}
+          onToggleSelected={toggleSidebarSelectedNoteId}
           prefetchNote={prefetchNote}
           onOpenNote={(r) => {
             onNoteRow(r);
@@ -2588,7 +2869,33 @@ export default function PrototypeSidebar({
           />
         </div>
       ) : null}
-      {!isHomeLayer && !sidebarThreadProposal ? (
+      {sidebarSelectMode ? (
+        /* Replaces the search field while selecting — searching would change the list out
+           from under a selection, and the count is what matters here. */
+        <div className="proto-select-bar">
+          <button
+            type="button"
+            className="proto-select-bar__action"
+            onClick={toggleSelectAll}
+            disabled={selectableNotes.length === 0}
+          >
+            {allSelectableSelected ? 'Deselect all' : 'Select all'}
+          </button>
+          <span className="proto-select-bar__count">
+            {sidebarSelectedNoteIds.length === 0
+              ? 'Select notes'
+              : `${sidebarSelectedNoteIds.length} selected`}
+          </span>
+          <button
+            type="button"
+            className="proto-select-bar__action proto-select-bar__action--done"
+            onClick={() => setSidebarSelectMode(false)}
+          >
+            Done
+          </button>
+        </div>
+      ) : null}
+      {!isHomeLayer && !sidebarThreadProposal && !sidebarSelectMode ? (
       <div className="proto-sidebar-search">
         <PrototypeSearchInput
           inputRef={searchInputRef}
@@ -2765,6 +3072,9 @@ export default function PrototypeSidebar({
                         isScopedSharedSpace={isScopedSharedSpace}
                         sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
                         viewerIsSpaceOwner={viewerIsSpaceOwner}
+                        selectMode={sidebarSelectMode}
+                        selected={selectedNoteIdSet.has(row.id)}
+                        onToggleSelected={toggleSidebarSelectedNoteId}
                         prefetchNote={prefetchNote}
                         onOpenNote={(r) => {
                           onNoteRow(r);
@@ -2788,7 +3098,9 @@ export default function PrototypeSidebar({
                     start writing, and a new note is the app's whole point. Fires
                     the ⇧N event rather than composing here — one owner decides
                     which space a new note lands in. */}
-                {homeSpaceId ? (
+                {sidebarSelectMode ? (
+                  bulkBar
+                ) : homeSpaceId ? (
                   <div className="proto-collection-grid-actions">
                     <button
                       type="button"
@@ -2837,6 +3149,9 @@ export default function PrototypeSidebar({
                         isScopedSharedSpace={isScopedSharedSpace}
                         sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
                         viewerIsSpaceOwner={viewerIsSpaceOwner}
+                        selectMode={sidebarSelectMode}
+                        selected={selectedNoteIdSet.has(row.id)}
+                        onToggleSelected={toggleSidebarSelectedNoteId}
                         prefetchNote={prefetchNote}
                         folderRemoval={
                           typeof activeFolderKey === 'string' ? { folderName: activeFolderKey } : undefined
@@ -3369,6 +3684,72 @@ export default function PrototypeSidebar({
         )}
       </div>
 
+      {bulkShareSheetOpen ? (
+        <>
+          {/* Scrim: the picker is a menu, and a menu that only closes by choosing is a trap. */}
+          <div
+            className="proto-bulk-share__scrim"
+            role="presentation"
+            onClick={() => {
+              if (!bulkSharePending) setBulkShareSheetOpen(false);
+            }}
+          />
+          <div className="proto-menu__popover proto-bulk-share__popover" role="menu" aria-label="Share to a space">
+            <div className="proto-menu-section" role="group">
+              <p className="proto-menu-section-label">
+                {`Share ${sidebarSelectedNoteIds.length} note${sidebarSelectedNoteIds.length === 1 ? '' : 's'} to`}
+              </p>
+              {bulkShareTargets.length === 0 ? (
+                <p className="proto-caption" style={{ padding: '6px 10px' }}>
+                  No shared spaces yet.
+                </p>
+              ) : (
+                bulkShareTargets.map((sp) => (
+                  <button
+                    key={sp.id}
+                    type="button"
+                    role="menuitem"
+                    className="proto-menu-item"
+                    disabled={bulkSharePending}
+                    onClick={() => void onBulkShareToSpace(sp.id)}
+                  >
+                    <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
+                      <ProtoSpaceMenuIcon color={sp.color || 'paper'} />
+                    </span>
+                    <span className="proto-menu-item__label">{sp.title}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      ) : null}
+      {bulkDeleteConfirmOpen ? (
+        <ProtoConfirmDialog
+          placement="main-column-top-right"
+          title={`Delete ${sidebarSelectedNoteIds.length} note${sidebarSelectedNoteIds.length === 1 ? '' : 's'} everywhere?`}
+          description={DELETE_NOTE_EVERYWHERE_CONFIRMATION.description}
+          confirmLabel="Delete"
+          busy={deleteNotesBatch.isPending}
+          onConfirm={onConfirmBulkDelete}
+          onCancel={() => {
+            if (!deleteNotesBatch.isPending) setBulkDeleteConfirmOpen(false);
+          }}
+        />
+      ) : null}
+      {bulkRemoveConfirmOpen ? (
+        <ProtoConfirmDialog
+          placement="main-column-top-right"
+          title={`Remove ${sidebarSelectedNoteIds.length} note${sidebarSelectedNoteIds.length === 1 ? '' : 's'} from this space?`}
+          description={REMOVE_NOTE_FROM_SPACE_CONFIRMATION.description}
+          confirmLabel="Remove"
+          busy={removeNotesFromSpace.isPending}
+          onConfirm={onConfirmBulkRemoveFromSpace}
+          onCancel={() => {
+            if (!removeNotesFromSpace.isPending) setBulkRemoveConfirmOpen(false);
+          }}
+        />
+      ) : null}
       {highlightDeleteTarget ? (
         <ProtoConfirmDialog
           anchorRect={highlightDeleteTarget.anchorRect}
@@ -3436,13 +3817,19 @@ export default function PrototypeSidebar({
           />
           {canCreateSidebarCollections ? (
             <PrototypeCreateFolderSheet
-              open={createFolderSheetOpen}
-              onOpenChange={setCreateFolderSheetOpen}
+              open={createFolderSheetOpen || bulkFolderSheetOpen}
+              onOpenChange={(next) => {
+                setCreateFolderSheetOpen(next);
+                if (!next) setBulkFolderSheetOpen(false);
+              }}
+              initialSelectedNoteIds={bulkFolderSheetOpen ? sidebarSelectedNoteIds : undefined}
               spaceId={homeSpaceId}
               spaceKind={isScopedSharedSpace ? 'shared' : 'personal'}
               spaceNotes={notes}
               notesById={notesById}
               onCreated={(folderName) => {
+                setBulkFolderSheetOpen(false);
+                // setSidebarListMode clears any live selection on its way through.
                 setSidebarListMode('folders');
                 setActiveFolderKey(folderName);
               }}

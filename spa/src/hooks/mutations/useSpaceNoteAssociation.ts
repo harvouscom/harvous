@@ -124,6 +124,40 @@ type RemoveAssociationResponse = {
   removedNotes: number;
   errors?: string[];
 };
+/**
+ * Drop several notes' association with one space in a single request.
+ *
+ * `remove-items` has always taken an array — `useRemoveNoteFromSpace` just wraps one id in
+ * one — and it carries no write rate limit, so this is the batch path for multi-select
+ * with nothing new on the server.
+ *
+ * Unlike the single-note hook this does NOT throw on `errors[0]`: per-item failures are
+ * normal for a batch (a note someone else moved, a stale id), and the count of what
+ * actually went is the useful answer.
+ */
+export function useRemoveNotesFromSpaceBatch() {
+  const queryClient = useQueryClient();
+  const { homeSpaceId } = usePrototypeHomeSpaceId();
+  return useMutation({
+    mutationFn: async (input: { spaceId: string; noteIds: string[] }) => {
+      const sid = normalizeAssociationSpaceId(input.spaceId);
+      return api.post<RemoveAssociationResponse>(`/api/spaces/${encodeURIComponent(sid)}/remove-items`, {
+        noteIds: input.noteIds,
+        threadIds: [],
+      });
+    },
+    onSuccess: (_response, input) => {
+      for (const noteId of input.noteIds) {
+        invalidateSpaceNoteAssociationQueries(queryClient, input.spaceId, noteId, {
+          homeSpaceId,
+          sharedCountDelta: -1,
+        });
+      }
+    },
+  });
+}
+
+
 
 /** Archive only the shared-space association; the canonical My Home note remains. */
 export function useRemoveNoteFromSpace() {

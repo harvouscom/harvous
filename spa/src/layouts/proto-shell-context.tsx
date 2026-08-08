@@ -227,6 +227,16 @@ type ProtoShellContextValue = {
   sidebarListSpaceScope: SidebarListSpaceScope;
   setSidebarListSpaceScope: (scope: SidebarListSpaceScope) => void;
   /** Notes / folders / highlights / scripture sidebar list mode. */
+  /**
+   * Multi-select in the sidebar note list. Lives here rather than in `PrototypeSidebar`
+   * because the trigger is in `ListViewMenu` (rendered by `PrototypeSidebarToolbar`), a
+   * sibling of the component that owns the lists.
+   */
+  sidebarSelectMode: boolean;
+  setSidebarSelectMode: (on: boolean) => void;
+  sidebarSelectedNoteIds: string[];
+  setSidebarSelectedNoteIds: (ids: string[]) => void;
+  toggleSidebarSelectedNoteId: (id: string) => void;
   sidebarListMode: SidebarListMode;
   setSidebarListMode: (mode: SidebarListMode) => void;
   sidebarFolderDrilldown: SidebarFolderDrilldown;
@@ -590,6 +600,36 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
    * Always lands on the space layer and clears drill-downs: changing context
    * resets scope (mirrors native "switch context resets scope").
    */
+  const [sidebarSelectMode, setSidebarSelectModeState] = useState(false);
+  const [sidebarSelectedNoteIds, setSidebarSelectedNoteIdsState] = useState<string[]>([]);
+
+  /**
+   * Leave select mode and drop the selection.
+   *
+   * Called from every setter below that changes which notes the list is showing. A
+   * selection that outlives the list it was made in is how someone deletes the wrong five
+   * things — the ids stay valid, so nothing would fail loudly.
+   */
+  const exitSidebarSelectMode = useCallback(() => {
+    setSidebarSelectModeState(false);
+    setSidebarSelectedNoteIdsState([]);
+  }, []);
+
+  const setSidebarSelectMode = useCallback((on: boolean) => {
+    setSidebarSelectModeState(on);
+    if (!on) setSidebarSelectedNoteIdsState([]);
+  }, []);
+
+  const setSidebarSelectedNoteIds = useCallback((ids: string[]) => {
+    setSidebarSelectedNoteIdsState(ids);
+  }, []);
+
+  const toggleSidebarSelectedNoteId = useCallback((id: string) => {
+    setSidebarSelectedNoteIdsState((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }, []);
+
   const setLocation = useCallback((next: ProtoLocation) => {
     /*
       Only on a real move. Tools belong to the context that opened them — a
@@ -611,13 +651,14 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       ...(nextOrgId ? { activeChurchOrgId: nextOrgId } : { clearActiveChurchOrgId: true }),
     });
 
+    exitSidebarSelectMode();
     setSidebarListSpaceScopeState('space');
     clearPersistedDrilldowns();
     setSidebarFolderDrilldownState(undefined);
     setSidebarThreadDrilldownIdState(undefined);
     setScriptureDrillState({ level: 'books' });
     setSidebarLayerState('space');
-  }, [closeExpandedSidebar]);
+  }, [closeExpandedSidebar, exitSidebarSelectMode]);
 
   /**
    * Compatibility shim for callers that only know a space id. Prefer
@@ -644,6 +685,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const setSidebarListSpaceScope = useCallback((scope: SidebarListSpaceScope) => {
     setSidebarListSpaceScopeState((prev) => {
       if (prev === scope) return prev;
+      exitSidebarSelectMode();
       clearPersistedDrilldowns();
       setSidebarFolderDrilldownState(undefined);
       setSidebarThreadDrilldownIdState(undefined);
@@ -656,11 +698,12 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       }
       return scope;
     });
-  }, []);
+  }, [exitSidebarSelectMode]);
   const setSidebarFolderDrilldown = useCallback((value: SidebarFolderDrilldown) => {
+    exitSidebarSelectMode();
     setSidebarFolderDrilldownState(value);
     writePersistedSidebarNav({ folderDrill: value });
-  }, []);
+  }, [exitSidebarSelectMode]);
   const setSidebarThreadDrilldownId = useCallback((id: string | undefined) => {
     setSidebarThreadDrilldownIdState(id);
     if (id) {
@@ -670,11 +713,13 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     }
   }, []);
   const setScriptureDrill = useCallback((value: ScriptureDrillState) => {
+    exitSidebarSelectMode();
     setScriptureDrillState(value);
     writePersistedSidebarNav({ scriptureDrill: value });
-  }, []);
+  }, [exitSidebarSelectMode]);
   const setSidebarListMode = useCallback(
     (mode: SidebarListMode) => {
+      exitSidebarSelectMode();
       setSidebarListModeState(mode);
       // Picking a list mode always lands on the list layer (flips out of Home).
       setSidebarLayer('list');
@@ -690,7 +735,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
         writePersistedSidebarNav({ clearScriptureDrill: true });
       }
     },
-    [setSidebarFolderDrilldown, setSidebarLayer, setSidebarThreadDrilldownId],
+    [exitSidebarSelectMode, setSidebarFolderDrilldown, setSidebarLayer, setSidebarThreadDrilldownId],
   );
   const clearSidebarTagSearchIntent = useCallback(() => {
     setSidebarTagSearchIntent(null);
@@ -1031,6 +1076,11 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setActiveChurchOrgId,
       sidebarListSpaceScope,
       setSidebarListSpaceScope,
+      sidebarSelectMode,
+      setSidebarSelectMode,
+      sidebarSelectedNoteIds,
+      setSidebarSelectedNoteIds,
+      toggleSidebarSelectedNoteId,
       sidebarListMode,
       setSidebarListMode,
       sidebarFolderDrilldown,
@@ -1108,6 +1158,11 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setActiveChurchOrgId,
       sidebarListSpaceScope,
       setSidebarListSpaceScope,
+      sidebarSelectMode,
+      setSidebarSelectMode,
+      sidebarSelectedNoteIds,
+      setSidebarSelectedNoteIds,
+      toggleSidebarSelectedNoteId,
       sidebarListMode,
       setSidebarListMode,
       sidebarFolderDrilldown,

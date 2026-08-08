@@ -1897,6 +1897,90 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
   }
 });
 
+// ─── POST /api/notes/delete-batch ────────────────────────────────────────────
+
+/**
+ * Delete several of your own notes in one request.
+ *
+ * The cascade helper has always been array-capable, transactional and chunked — only the
+ * single-id wrapper was ever exposed over HTTP. Looping `/api/notes/delete` from the
+ * client instead is what forced multi-select to cap at 20: writes are rate limited per
+ * endpoint (20/min), so a bulk delete of 25 notes would 429 partway through, leaving the
+ * first twenty gone and no clean way to report it.
+ *
+ * Ownership is enforced inside the cascade (it selects on `Notes.userId`), so ids
+ * belonging to someone else are dropped rather than erroring — the response reports what
+ * actually went, and the caller compares against what it asked for.
+ */
+route.post('/api/notes/delete-batch', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as { noteIds?: unknown };
+    if (!Array.isArray(body.noteIds)) {
+      return c.json({ error: 'noteIds must be an array', code: 'INVALID_NOTE_IDS' }, 400);
+    }
+
+    const noteIds = [
+      ...new Set(
+        body.noteIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0),
+      ),
+    ];
+    if (noteIds.length === 0) {
+      return c.json({ success: true, deletedNoteIds: [], requestedCount: 0 });
+    }
+    // Matches the `copy-notes` ceiling so one selection cap covers every bulk action.
+    if (noteIds.length > 50) {
+      return c.json({ error: 'Too many notes', code: 'NOTE_IDS_TOO_LONG' }, 400);
+    }
+
+    const owned = await db
+      .select({ id: Notes.id, spaceId: Notes.spaceId, createdAt: Notes.createdAt })
+      .from(Notes)
+      .where(and(eq(Notes.userId, auth.userId), inArray(Notes.id, noteIds)));
+
+    if (owned.length === 0) {
+      return c.json({ error: 'Notes not found or access denied', code: 'NOT_FOUND' }, 404);
+    }
+
+    console.info('[api/notes/delete-batch]', {
+      userId: auth.userId,
+      requested: noteIds.length,
+      owned: owned.length,
+      source: c.req.header('X-Harvous-Delete-Source') ?? 'unknown',
+    });
+
+    const deleted = await deleteNotesCascadeForUser(auth.userId, owned.map((n) => n.id));
+    await recordDeletedEntities(auth.userId, 'note', deleted.deletedNoteIds);
+    await recordDeletedEntities(auth.userId, 'studyThread', deleted.deletedStudyThreadIds);
+
+    // Fire-and-forget, same as the single-note route.
+    (async () => {
+      for (const note of owned) {
+        try {
+          await revokeXPOnDeletion(auth.userId, note.id, note.createdAt);
+          await revokeAllXPForItem(auth.userId, note.id);
+        } catch {}
+      }
+    })().catch(() => {});
+
+    for (const spaceId of new Set(owned.map((n) => n.spaceId))) {
+      void broadcastNoteInvalidation(auth.userId, spaceId, { type: 'note:deleted', id: '' });
+    }
+
+    return c.json({
+      success: true,
+      deletedNoteIds: deleted.deletedNoteIds,
+      requestedCount: noteIds.length,
+    });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/notes/delete-batch',
+      action: 'delete_notes_batch',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── GET /api/notes/next-id ──────────────────────────────────────────────────
 route.get('/api/notes/next-id', requireAuth, async (c) => {
   try {
