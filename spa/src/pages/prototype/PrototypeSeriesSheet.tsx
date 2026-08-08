@@ -35,6 +35,9 @@ import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import ProtoServiceDateTile from './ProtoServiceDateTile';
+import ProtoDatePicker from './ProtoDatePicker';
+import { nextOccurrenceOfDay } from '../../lib/church-services';
+import { formatLocalDateInput } from '../../lib/proto-date-picker';
 import ProtoSelectMenu from './ProtoSelectMenu';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { SPACE_COVER_PICKER_COLORS, spacePickerSwatchColor } from '@/utils/space-cover';
@@ -45,6 +48,12 @@ export interface PrototypeSeriesSheetProps {
   series: TeachingPlanSeries | null;
   /** This series' sermons, ascending — the plan pane already holds them. */
   services: TeachingPlanSermon[];
+  /**
+   * Every sermon in this plan — the pool "add weeks that already exist" picks
+   * from. Passed whole rather than pre-filtered so the sheet can explain *why*
+   * a row is unavailable rather than silently omitting it.
+   */
+  planServices?: TeachingPlanSermon[];
   /** False for a teacher, or a lapsed church: the sheet reads, never writes. */
   canWrite: boolean;
   pending: boolean;
@@ -66,6 +75,18 @@ export interface PrototypeSeriesSheetProps {
   onAddWeeks: (series: TeachingPlanSeries, seedServiceId: string, weeks: number) => void;
   /** Drop the untouched placeholders — never a week anyone has written into. */
   onRemoveEmpty: (series: TeachingPlanSeries, serviceIds: string[]) => void;
+  /**
+   * Move sermons that already exist under this series. No new endpoint — this
+   * is N ordinary updates, which is also why it is all-or-nothing per row
+   * rather than a batch: a failure leaves the ones that landed, which is a
+   * state the plan can already show.
+   */
+  onAssign?: (series: TeachingPlanSeries, serviceIds: string[]) => void;
+  /** Teach this series again on new dates — the seasonal case. */
+  onRerun?: (
+    series: TeachingPlanSeries,
+    input: { startDate: string; copy: { titles: boolean; references: boolean; starterTemplate: boolean; resources: boolean } },
+  ) => void;
   onOpenChange: (open: boolean) => void;
 }
 
@@ -84,6 +105,9 @@ export default function PrototypeSeriesSheet({
   onDelete,
   onAddWeeks,
   onRemoveEmpty,
+  planServices = [],
+  onAssign,
+  onRerun,
   onOpenChange,
 }: PrototypeSeriesSheetProps) {
   const { isMobileSidebar } = useProtoShell();
@@ -93,6 +117,20 @@ export default function PrototypeSeriesSheet({
   const [description, setDescription] = useState('');
   /** How many weeks the "Add weeks" control will append. */
   const [addWeeks, setAddWeeks] = useState(3);
+  /** Which existing sermons are checked for moving under this series. */
+  const [assigning, setAssigning] = useState(false);
+  const [assignIds, setAssignIds] = useState<string[]>([]);
+  /** The re-run form, and what it carries across. */
+  const [rerunOpen, setRerunOpen] = useState(false);
+  const [rerunDate, setRerunDate] = useState('');
+  const [rerunCopy, setRerunCopy] = useState({
+    titles: true,
+    references: true,
+    starterTemplate: true,
+    /* Off: a handout carrying last year's dates, or a link that has since
+       moved, is worse than an empty shelf. */
+    resources: false,
+  });
 
   // Reset from the row each time the sheet opens, so an abandoned rename never
   // leaks into the next series you look at.
@@ -100,6 +138,10 @@ export default function PrototypeSeriesSheet({
     if (!open) return;
     setTitle(series?.title ?? '');
     setDescription(series?.description ?? '');
+    setAssigning(false);
+    setAssignIds([]);
+    setRerunOpen(false);
+    setRerunDate('');
   }, [open, series?.id]);
 
   const shouldUseSheetPresentation =
@@ -154,6 +196,10 @@ export default function PrototypeSeriesSheet({
     retitled or given a passage is their work, not scaffolding, and must
     survive a control called "remove empty weeks".
   */
+  /* Sermons with no series at all. Moving one *between* series is a different
+     decision and would quietly shorten somebody else's run. */
+  const assignable = planServices.filter((s) => !s.seriesId);
+
   const removable = services.filter(
     (s) => !s.reference && s.title.trim() === series.title.trim(),
   );
@@ -371,6 +417,189 @@ export default function PrototypeSeriesSheet({
               <p className="proto-caption proto-teaching-plan__empty">
                 Give one week a date first — a run is counted forward from one.
               </p>
+            )}
+          </div>
+        ) : null}
+
+        {/*
+          Weeks that already exist.
+
+          A pastor who has planned four standalone Sundays and then decides they
+          are one study had, until now, to open each sermon and retype the
+          series name. This is that, in one act — and it is deliberately not a
+          batch endpoint: N ordinary updates means a partial failure leaves the
+          ones that landed, which is a state the plan can already render.
+
+          Only sermons not already in a series are offered. Moving one *between*
+          series is a different decision, and doing it silently from here would
+          quietly empty somebody else's run.
+        */}
+        {canWrite && assignable.length > 0 ? (
+          <div className="proto-series-sheet__assign">
+            {assigning ? (
+              <>
+                <p className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+                  <span>Weeks to move here</span>
+                  <span className="proto-service-editor__optional">
+                    {assignIds.length} chosen
+                  </span>
+                </p>
+                <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools proto-series-sheet__assign-list">
+                  {assignable.map((service) => {
+                    const checked = assignIds.includes(service.id);
+                    return (
+                      <button
+                        key={service.id}
+                        type="button"
+                        className="proto-church-tools__row"
+                        aria-pressed={checked}
+                        disabled={pending}
+                        onClick={() =>
+                          setAssignIds((prev) =>
+                            checked ? prev.filter((id) => id !== service.id) : [...prev, service.id],
+                          )
+                        }
+                      >
+                        <ProtoServiceDateTile
+                          iso={service.serviceDate}
+                          unwritten={!service.reference}
+                        />
+                        <span className="proto-church-tools__row-text">
+                          <span className="pds-list-title proto-church-tools__row-title">
+                            {service.title}
+                          </span>
+                          <span className="proto-caption proto-church-tools__row-meta">
+                            {service.reference || 'No passage yet'}
+                          </span>
+                        </span>
+                        <span className="proto-church-tools__row-chevron" aria-hidden>
+                          <Icon name={checked ? 'check' : 'plus'} size={11} />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="proto-sheet-footer__row">
+                  <button
+                    type="button"
+                    className="proto-share-popover__primary"
+                    disabled={pending || assignIds.length === 0}
+                    onClick={() => onAssign?.(series, assignIds)}
+                  >
+                    {pending
+                      ? 'Moving…'
+                      : `Move ${assignIds.length === 1 ? '1 week' : `${assignIds.length} weeks`}`}
+                  </button>
+                  <button
+                    type="button"
+                    className="proto-sheet-quiet-action"
+                    disabled={pending}
+                    onClick={() => {
+                      setAssigning(false);
+                      setAssignIds([]);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : onAssign ? (
+              <button
+                type="button"
+                className="proto-sheet-quiet-action"
+                disabled={pending}
+                onClick={() => setAssigning(true)}
+              >
+                Move existing weeks here
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/*
+          Teach it again.
+
+          The seasonal case: Advent comes round every year, and last year's
+          outline is the best starting point there is. Deliberately unlike "Add
+          weeks", which extends *this* run forward into blank weeks — this
+          copies a finished study onto new dates, preserving the run's own day
+          offsets so a Christmas Eve stays a Christmas Eve.
+
+          Both runs end up labelled by year, because the moment a second run
+          exists is the moment "Advent" stops being an unambiguous name.
+        */}
+        {canWrite && onRerun && dated.length > 0 ? (
+          <div className="proto-series-sheet__rerun">
+            {rerunOpen ? (
+              <>
+                <p className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+                  <span>Start the new run on</span>
+                </p>
+                <ProtoDatePicker
+                  value={rerunDate || nextOccurrenceOfDay(null)}
+                  min={formatLocalDateInput(new Date())}
+                  onChange={setRerunDate}
+                  aria-label="First week of the new run"
+                />
+                <p className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+                  <span>Bring across</span>
+                </p>
+                {(
+                  [
+                    ['titles', 'Week titles'],
+                    ['references', 'Passages'],
+                    ['starterTemplate', 'Note starter'],
+                    ['resources', 'Attached resources'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key} className="proto-series-sheet__copy-toggle">
+                    <input
+                      type="checkbox"
+                      checked={rerunCopy[key]}
+                      disabled={pending}
+                      onChange={(e) =>
+                        setRerunCopy((prev) => ({ ...prev, [key]: e.target.checked }))
+                      }
+                    />
+                    <span className="proto-caption">{label}</span>
+                  </label>
+                ))}
+                <div className="proto-sheet-footer__row">
+                  <button
+                    type="button"
+                    className="proto-share-popover__primary"
+                    disabled={pending}
+                    onClick={() =>
+                      onRerun(series, {
+                        startDate: rerunDate || nextOccurrenceOfDay(null),
+                        copy: rerunCopy,
+                      })
+                    }
+                  >
+                    {pending ? 'Copying…' : `Copy ${dated.length === 1 ? '1 week' : `${dated.length} weeks`}`}
+                  </button>
+                  <button
+                    type="button"
+                    className="proto-sheet-quiet-action"
+                    disabled={pending}
+                    onClick={() => setRerunOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="proto-sheet-quiet-action"
+                disabled={pending}
+                onClick={() => {
+                  setRerunDate(nextOccurrenceOfDay(null));
+                  setRerunOpen(true);
+                }}
+              >
+                Teach this again
+              </button>
             )}
           </div>
         ) : null}

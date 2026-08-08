@@ -59,6 +59,7 @@ vi.mock('../../db', () => {
 });
 
 const {
+  nextFreeRunLabel,
   resolveSeriesForWrite,
   updateSeries,
   findOrCreateSeries,
@@ -390,5 +391,39 @@ describe('seasonal runs', () => {
     });
     expect(result).toMatchObject({ ok: true, seriesId: 'csrs_spirit' });
     expect(insertValues).not.toHaveBeenCalled();
+  });
+});
+
+describe('nextFreeRunLabel', () => {
+  it('takes the year when it is free', async () => {
+    selectRows.mockResolvedValue([]);
+    expect(await nextFreeRunLabel(CHURCH_SCOPE, 'Advent', '2027')).toBe('2027');
+  });
+
+  it('steps past a year already in use', async () => {
+    /*
+      The bug this exists for: re-running a study a few months after the first
+      run means both want the same year. Left alone, the second run claims the
+      year, the source's own labelling then violates the unique index, and the
+      route 500s *after* creating the series — leaving a run with no weeks in
+      it. Stepping to "2026 (2)" keeps both runs labelled and distinguishable.
+    */
+    let call = 0;
+    selectRows.mockImplementation(async () => (++call === 1 ? [{ id: 'csrs_taken' }] : []));
+    expect(await nextFreeRunLabel(CHURCH_SCOPE, 'Hello World', '2026')).toBe('2026 (2)');
+  });
+
+  it('keeps stepping while labels are taken', async () => {
+    let call = 0;
+    selectRows.mockImplementation(async () => (++call <= 2 ? [{ id: 'csrs_taken' }] : []));
+    expect(await nextFreeRunLabel(CHURCH_SCOPE, 'Advent', '2026')).toBe('2026 (3)');
+  });
+
+  it('falls back rather than looping forever', async () => {
+    // Bounded on purpose — an unbounded search against a unique index is how a
+    // save hangs. Twenty runs of one name in one plan is not a real church.
+    selectRows.mockResolvedValue([{ id: 'csrs_taken' }]);
+    const label = await nextFreeRunLabel(CHURCH_SCOPE, 'Advent', '2026');
+    expect(label).toMatch(/^2026 \(\d+\)$/);
   });
 });

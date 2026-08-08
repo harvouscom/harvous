@@ -62,6 +62,7 @@ import {
 import {
   createSeries,
   deleteSeries,
+  nextFreeRunLabel,
   getSeriesWithServices,
   listSeriesForPlan,
   updateSeries,
@@ -844,7 +845,37 @@ app.post('/api/church/spaces/:spaceId/series/rerun', requireAuth, rateLimit('wri
     }
 
     const copy = { ...DEFAULT_RERUN_COPY, ...(body.copy ?? {}) };
-    const newLabel = (body.runLabel ?? '').trim() || runLabelForDate(parsedStart.value);
+    /*
+      Label the source FIRST, then find a free label for the new run.
+
+      Order is load-bearing and the reverse of it is a real bug: computing the
+      new label against an unlabelled source lets both want "2026", and the
+      source's update then violates the uniqueness index — 500ing the route
+      after the new series row already exists, leaving a run with no weeks in
+      it. Claiming the source's label first means `nextFreeRunLabel` can see it
+      and steps to "2026 (2)".
+    */
+    if (!source.series.runLabel) {
+      const sourceLabel = runLabelForDate(
+        source.services.map((s) => s.serviceDate).filter(Boolean).sort()[0] ?? null,
+      );
+      if (sourceLabel) {
+        const labelled = await updateSeries(scope, source.series.id, { runLabel: sourceLabel });
+        /* If that name is somehow taken, leave the source bare rather than
+           failing the whole re-run — an unlabelled source is cosmetic, a lost
+           copy is not. */
+        if (!labelled.ok) {
+          // eslint-disable-next-line no-console
+          console.warn('[series/rerun] could not label the source run:', labelled.code);
+        }
+      }
+    }
+
+    const desiredLabel =
+      (body.runLabel ?? '').trim() || runLabelForDate(parsedStart.value) || 'Run';
+    /* The year is a preference. Two runs starting in the same year need more
+       than a year to tell them apart. */
+    const newLabel = await nextFreeRunLabel(scope, source.series.title, desiredLabel);
 
     const created = await createSeries(
       scope,
@@ -863,14 +894,6 @@ app.post('/api/church/spaces/:spaceId/series/rerun', requireAuth, rateLimit('wri
       );
     }
 
-    if (!source.series.runLabel) {
-      const sourceLabel = runLabelForDate(
-        source.services.map((s) => s.serviceDate).filter(Boolean).sort()[0] ?? null,
-      );
-      if (sourceLabel && sourceLabel !== newLabel) {
-        await updateSeries(scope, source.series.id, { runLabel: sourceLabel });
-      }
-    }
 
     const rows = buildRerunRows({
       source: source.services,

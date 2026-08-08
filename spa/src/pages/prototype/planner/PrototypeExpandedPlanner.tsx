@@ -367,6 +367,36 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
               }
               runSeries({ kind: 'series-delete', seriesId: entry.id }, () => setOpenSeries(null));
             }}
+            planServices={services}
+            onAssign={(entry, serviceIds) => {
+            /* N ordinary updates, fired in sequence. The last one closes the
+            sheet; an earlier failure leaves the ones that landed, which
+            the plan renders correctly either way. */
+            setSeriesError(null);
+            void (async () => {
+            try {
+            for (const serviceId of serviceIds) {
+            await actions.mutateAsync({ kind: 'update', serviceId, seriesId: entry.id });
+            }
+            setOpenSeries(null);
+            } catch (err) {
+            setSeriesError(
+            err instanceof Error ? err.message : 'Could not move those weeks',
+            );
+            }
+            })();
+            }}
+            onRerun={(entry, input) =>
+            runSeries(
+            {
+            kind: 'series-rerun',
+            sourceSeriesId: entry.id,
+            startDate: input.startDate,
+            copy: input.copy,
+            },
+            () => setOpenSeries(null),
+            )
+            }
             onAddWeeks={(_entry, seedServiceId, weeks) =>
               runSeries({ kind: 'repeat', serviceId: seedServiceId, weeks })
             }
