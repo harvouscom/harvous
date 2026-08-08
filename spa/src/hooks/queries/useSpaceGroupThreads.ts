@@ -14,6 +14,21 @@ export interface SpaceGroupStudyThread {
   updatedAt: string;
   noteCount: number;
   ownerUserId: string;
+  /** 'collection' | 'sequence' — a sequence is an authored study plan. */
+  mode: string;
+  /** 1-based step the cohort is on; 0 when this isn't a sequence. */
+  sequenceCurrentIndex: number;
+  /** Steps in the plan; 0 when this isn't a sequence. */
+  sequenceTotal: number;
+}
+
+/** "Step 3 of 8", or null when there is no plan to be partway through. */
+export function sequenceStepLabel(
+  thread: Pick<SpaceGroupStudyThread, 'mode' | 'sequenceCurrentIndex' | 'sequenceTotal'>,
+): string | null {
+  if (thread.mode !== 'sequence' || thread.sequenceTotal <= 0) return null;
+  if (thread.sequenceCurrentIndex <= 0) return `${thread.sequenceTotal} steps`;
+  return `Step ${thread.sequenceCurrentIndex} of ${thread.sequenceTotal}`;
 }
 
 export const spaceGroupThreadsQueryKey = (spaceId: string | undefined) =>

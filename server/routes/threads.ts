@@ -33,6 +33,13 @@ import { isUniqueViolationError } from '../utils/db-errors';
 import { repairMissingNoteThreadJunctionsForUser } from '../utils/thread-junction-repair';
 import { requireSpaceAccess, SpaceAccessError, isActualSpaceOwner } from '../utils/space-access';
 import {
+  canManageSpaceThreadStructure,
+  isSequenceMode,
+  loadLiveThreadNoteIds,
+  resolveSequenceState,
+  serializeSequenceNoteIds,
+} from '../utils/thread-sequence';
+import {
   assertSharedThreadNotePolicy,
   deleteThreadInTransaction,
   requireThreadReadAccess,
@@ -852,9 +859,207 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
     const responseNotes = threadAccessRow?.spaceId
       ? attributeSharedThreadNotesForViewer(result.notes, auth.userId)
       : result.notes;
-    return c.json({ notes: responseNotes, hasMore: result.hasMore, offset, limit });
+
+    /*
+      The whole ordered list goes to members, current step included. Dimming
+      steps ahead is pacing, not access control — every one of these notes is
+      already reachable from the space's own notes list and search, and a
+      "Step 3 of 8" derived from a list the member can't see would be a lie.
+    */
+    const sequenceThread = readAccess.thread;
+    let sequence: { currentNoteId: string | null; currentIndex: number; total: number } | null = null;
+    if (isSequenceMode(sequenceThread.mode)) {
+      // Resolved against every note in the Thread, not this page of them —
+      // "Step 3 of 8" counts the whole plan.
+      const state = resolveSequenceState(
+        sequenceThread,
+        await loadLiveThreadNoteIds(threadId, sequenceThread.spaceId),
+      );
+      sequence = {
+        currentNoteId: state.currentNoteId,
+        currentIndex: state.currentIndex,
+        total: state.total,
+      };
+    }
+
+    return c.json({
+      notes: responseNotes,
+      hasMore: result.hasMore,
+      offset,
+      limit,
+      mode: sequenceThread.mode ?? 'collection',
+      sequence,
+    });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/[threadId]/notes', action: 'get_thread_notes', threadId: c.req.param('threadId') });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/threads/:threadId/sequence ───────────────────────────────────
+/**
+ * Set a Thread's mode, its authored order, and the step the cohort is on.
+ *
+ * One endpoint for all three because they are one edit: reordering usually
+ * needs to re-point the current step in the same breath, and two requests
+ * would leave a window where the group is on a step that moved.
+ *
+ * "Advance" is not a verb here — the client sends the neighbouring note id.
+ * A server-side next/prev would have to guess what the leader was looking at,
+ * and would race a concurrent reorder; a note id says exactly which step.
+ */
+route.post('/api/threads/:threadId/sequence', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    let threadId = requireParam(c, 'threadId');
+    if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
+
+    const thread = first(
+      await db
+        .select({
+          id: Threads.id,
+          userId: Threads.userId,
+          spaceId: Threads.spaceId,
+          mode: Threads.mode,
+          sequenceNoteIds: Threads.sequenceNoteIds,
+          sequenceCurrentNoteId: Threads.sequenceCurrentNoteId,
+        })
+        .from(Threads)
+        .where(eq(Threads.id, threadId))
+        .limit(1),
+    );
+    if (!thread) return c.json({ error: 'Thread not found' }, 404);
+
+    if (thread.spaceId) {
+      let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
+      try {
+        access = await requireSpaceAccess(thread.spaceId, auth.userId);
+      } catch {
+        return c.json({ error: 'Thread not found' }, 404);
+      }
+      if (!canManageSpaceThreadStructure(access.space, access.role, auth.userId)) {
+        return c.json({
+          error:
+            access.space.type === 'public'
+              ? 'Ministry channels are read-only during the pilot'
+              : 'Only the space owner or a leader can change a study plan',
+          code: access.space.type === 'public' ? 'CHANNELS_READ_ONLY_PILOT' : 'FORBIDDEN',
+        }, 403);
+      }
+    } else if (thread.userId !== auth.userId) {
+      // A personal Thread is a private reading plan — its owner and nobody else.
+      return c.json({ error: 'Thread not found' }, 404);
+    }
+
+    const body = await c.req.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return c.json({ error: 'Expected a JSON body', code: 'BAD_REQUEST' }, 400);
+    }
+
+    const nextMode = body.mode === undefined ? null : body.mode;
+    if (nextMode !== null && nextMode !== 'collection' && nextMode !== 'sequence') {
+      return c.json({ error: 'mode must be "collection" or "sequence"', code: 'BAD_REQUEST' }, 400);
+    }
+
+    // Notes actually in this Thread, and — in a space — still associated with
+    // it. The stored order is advisory; this is what it gets checked against.
+    const liveNoteIds = await loadLiveThreadNoteIds(threadId, thread.spaceId);
+    const liveSet = new Set(liveNoteIds);
+
+    let orderedNoteIds: string[] | null = null;
+    if (body.orderedNoteIds !== undefined) {
+      if (!Array.isArray(body.orderedNoteIds)) {
+        return c.json({ error: 'orderedNoteIds must be an array', code: 'BAD_REQUEST' }, 400);
+      }
+      const seen = new Set<string>();
+      const ids: string[] = [];
+      for (const raw of body.orderedNoteIds) {
+        if (typeof raw !== 'string' || !raw) {
+          return c.json({ error: 'orderedNoteIds must be note ids', code: 'BAD_REQUEST' }, 400);
+        }
+        if (!liveSet.has(raw)) {
+          return c.json({
+            error: 'A step in that order is no longer in this Thread',
+            code: 'STEP_NOT_IN_THREAD',
+          }, 409);
+        }
+        if (seen.has(raw)) {
+          return c.json({ error: 'orderedNoteIds has a duplicate', code: 'BAD_REQUEST' }, 400);
+        }
+        seen.add(raw);
+        ids.push(raw);
+      }
+      orderedNoteIds = ids;
+    }
+
+    const resolved = resolveSequenceState(
+      {
+        sequenceNoteIds:
+          orderedNoteIds !== null ? serializeSequenceNoteIds(orderedNoteIds) : thread.sequenceNoteIds,
+        sequenceCurrentNoteId: thread.sequenceCurrentNoteId,
+      },
+      liveNoteIds,
+    );
+
+    let currentNoteId = resolved.currentNoteId;
+    if (body.currentNoteId !== undefined) {
+      if (body.currentNoteId === null) {
+        currentNoteId = resolved.orderedNoteIds[0] ?? null;
+      } else if (typeof body.currentNoteId !== 'string') {
+        return c.json({ error: 'currentNoteId must be a note id or null', code: 'BAD_REQUEST' }, 400);
+      } else if (!resolved.orderedNoteIds.includes(body.currentNoteId)) {
+        return c.json({
+          error: 'That step is not in this study plan',
+          code: 'STEP_NOT_IN_THREAD',
+        }, 409);
+      } else {
+        currentNoteId = body.currentNoteId;
+      }
+    }
+
+    const mode = nextMode ?? thread.mode ?? 'collection';
+    await db
+      .update(Threads)
+      .set({
+        mode,
+        sequenceNoteIds: serializeSequenceNoteIds(resolved.orderedNoteIds),
+        sequenceCurrentNoteId: currentNoteId,
+        updatedAt: nowISO(),
+      })
+      .where(eq(Threads.id, threadId));
+
+    if (thread.spaceId) {
+      const recipients = await db
+        .select({ userId: SpaceMemberships.userId })
+        .from(SpaceMemberships)
+        .where(eq(SpaceMemberships.spaceId, thread.spaceId));
+      for (const recipientId of new Set(recipients.map((row) => row.userId))) {
+        broadcastInvalidation(recipientId, { type: 'space:updated', id: thread.spaceId });
+      }
+    }
+    broadcastInvalidation(auth.userId, { type: 'thread:updated', id: threadId });
+
+    const currentIndex = currentNoteId ? resolved.orderedNoteIds.indexOf(currentNoteId) + 1 : 0;
+    return c.json({
+      success: true,
+      mode,
+      sequence: {
+        orderedNoteIds: resolved.orderedNoteIds,
+        currentNoteId,
+        currentIndex,
+        total: resolved.orderedNoteIds.length,
+      },
+    });
+  } catch (error: any) {
+    if (error instanceof SpaceAccessError) {
+      return c.json({ error: error.message, code: error.code }, error.status);
+    }
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/threads/[threadId]/sequence',
+      action: 'update_thread_sequence',
+      threadId: c.req.param('threadId'),
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

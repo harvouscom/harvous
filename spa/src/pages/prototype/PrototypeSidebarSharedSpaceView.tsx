@@ -14,6 +14,7 @@ import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { useSpace, useSpaceMembers, useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import {
   selectCurrentSpaceThread,
+  sequenceStepLabel,
   useSpaceGroupThreads,
   type SpaceGroupStudyThread,
 } from '../../hooks/queries/useSpaceGroupThreads';
@@ -523,7 +524,8 @@ function PrototypeSidebarSharedSpaceViewLive() {
         <p className="pds-list-preview proto-home-card__preview">
           {/* Only worth saying which one is current once there is more than one. */}
           {isCurrent && stacked ? 'Current · ' : ''}
-          {sharedThreadNoteCountPreview(thread.noteCount)}
+          {/* A study plan says where the group is; a collection says how big it is. */}
+          {sequenceStepLabel(thread) ?? sharedThreadNoteCountPreview(thread.noteCount)}
         </p>
       </div>
     );
@@ -632,6 +634,8 @@ function PrototypeSidebarSharedSpaceViewLive() {
         thread={drilledThread}
         spaceId={activeSpaceId}
         isOwner={canManageThreads}
+        /* Same verdict the server enforces: owner or leader, never a channel. */
+        canManageStructure={canManageThreads}
         canCompose={canComposeHere}
         backLabel={spaceTitle}
         onBack={() => setDrilledThread(null)}

@@ -48,6 +48,9 @@ function thread(id: string, isPinned = false): SpaceGroupStudyThread {
     updatedAt: '2026-07-09T12:00:00.000Z',
     noteCount: 2,
     ownerUserId: 'owner',
+    mode: 'collection',
+    sequenceCurrentIndex: 0,
+    sequenceTotal: 0,
   };
 }
 
