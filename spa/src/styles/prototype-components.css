@@ -13843,11 +13843,16 @@ p.proto-teaching-plan__divider {
    here the way it does in Browse Templates, whose list is a direct child of a
    fixed-height card.
 
+   The cap sits on `__picker`, not on `__scoped-list` — verified in the running
+   app, where an override aimed at the list computed to `max-height: none` and
+   the field stayed pinned at 260 anyway. Both presentations are inside
+   `.proto-create-folder-sheet`, so both were affected.
+
    Scoped to this one field. The obvious hook, `proto-service-editor-popover`,
    is a dead class with no rule anywhere *and* is shared with
    PrototypeSuggestResourceSheet — styling it would silently reshape an
    unrelated dialog. */
-.proto-service-editor__note-picker .proto-add-notes-sheet__scoped-list {
+.proto-service-editor__note-picker .proto-add-notes-sheet__picker {
   max-height: 320px;
 }
 
