@@ -59,6 +59,13 @@ export interface PrototypeSeriesSheetProps {
   pending: boolean;
   error: string | null;
   /**
+   * A partial success — "copied 3 of 8, stopped at Sep 6". Not an error, and
+   * deliberately not rendered as one: the run that landed is real and the
+   * pastor needs to see where it stopped, which is the whole reason the server
+   * reports the date rather than failing the batch.
+   */
+  notice?: string | null;
+  /**
    * Any subset of the series' own fields. Optional-per-field rather than a full
    * object so a colour change never resends a title and races a colleague's
    * rename — the same distinction the endpoint draws.
@@ -101,6 +108,7 @@ export default function PrototypeSeriesSheet({
   canWrite,
   pending,
   error,
+  notice = null,
   onUpdate,
   onDelete,
   onAddWeeks,

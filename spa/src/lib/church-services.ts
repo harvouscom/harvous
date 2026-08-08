@@ -399,6 +399,29 @@ export function planSermonNoteLink(options: {
   return actions;
 }
 
+/**
+ * What a re-run actually did.
+ *
+ * The endpoint stops at the first date whose service slots are already claimed
+ * and reports it, rather than skipping the week silently — "a plan with a hole
+ * the pastor did not notice is worse than a short one they can see". That only
+ * holds if the *client* says so too; discarding this is how a run that copied
+ * nothing looks like a run that did nothing.
+ */
+export function describeRerunResult(result: {
+  created: number;
+  stoppedAt?: string | null;
+  total: number;
+}): string | null {
+  const { created, stoppedAt, total } = result;
+  if (!stoppedAt && created >= total) return null;
+  const week = (n: number) => (n === 1 ? '1 week' : `${n} weeks`);
+  if (created === 0) {
+    return `Nothing copied — ${stoppedAt ?? 'that date'} already has a sermon at those times.`;
+  }
+  return `Copied ${week(created)} of ${week(total)}. Stopped at ${stoppedAt} — it already has a sermon at those times.`;
+}
+
 /** A series' extent through the plan, as both panes report it. */
 export type SeriesRunExtent = {
   /** First dated week, or '' when every member is still an undated idea. */

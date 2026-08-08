@@ -27,7 +27,11 @@ import {
   useChurchSpaceSermonActions,
 } from '../../../hooks/queries/useChurchSpacePlan';
 import { useChurchPlannerAccess } from '../../../hooks/useChurchPlannerAccess';
-import { buildSeriesAccentLookup, planVocabulary } from '../../../lib/church-services';
+import {
+  buildSeriesAccentLookup,
+  describeRerunResult,
+  planVocabulary,
+} from '../../../lib/church-services';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import ProtoSpaceLoading from '../ProtoSpaceLoading';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
@@ -88,6 +92,9 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
   const [selection, setSelection] = useState<PlannerSelection>(null);
   const [openSeries, setOpenSeries] = useState<TeachingPlanSeries | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
+  /* A re-run that stopped short is a partial success, not a failure — see
+     `describeRerunResult`. */
+  const [seriesNotice, setSeriesNotice] = useState<string | null>(null);
   const [creatingSeries, setCreatingSeries] = useState(false);
 
   const changeScope = useCallback(
@@ -348,6 +355,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
             canWrite={canWrite}
             pending={actions.isPending}
             error={seriesError}
+            notice={seriesNotice}
             onUpdate={(entry, changes) =>
               runSeries(
                 { kind: 'series-update', seriesId: entry.id, ...changes },
