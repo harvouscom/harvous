@@ -57,6 +57,7 @@ import {
   parseServiceDateInput,
   type ChurchServiceRow,
 } from '../utils/church-teaching-plan';
+import { buildChurchScriptureHeatmap } from '../utils/church-scripture-heatmap';
 import {
   attachmentsByServiceIds,
   setServiceAttachments,
@@ -946,6 +947,35 @@ app.post('/api/church/series/delete', requireAuth, rateLimit('write'), async (c)
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/series/delete',
       action: 'delete_church_series',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * Where the church has been dwelling — its planned passages, by book.
+ *
+ * Gated on `sermon_tools`, the same read as the plan itself, because that is
+ * exactly what this is: the plan, folded. Never sponsorship-gated — a lapsed
+ * church keeps looking at what it already taught.
+ *
+ * Counts only, and only of what staff themselves planned. See the util's
+ * docblock for why this deliberately does not read congregants' notes.
+ */
+app.get('/api/church/scripture-heatmap', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const orgId = (c.req.query('orgId') ?? '').trim();
+
+    const gate = await assertCanViewTeachingPlan(auth.userId, orgId);
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    const heatmap = await buildChurchScriptureHeatmap(gate.church.id, orgId);
+    return c.json({ church: { id: gate.church.id, name: gate.church.name }, ...heatmap });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/scripture-heatmap',
+      action: 'read_church_scripture_heatmap',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

@@ -15550,3 +15550,56 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
     animation: none;
   }
 }
+
+/*
+  Scripture map — how much of the church's teaching each book has carried.
+
+  Heat is relative to the church's own most-taught book, not to an absolute
+  scale: five weeks in Romans means one thing for a church with a hundred
+  planned weeks and another for one with eight. Levels rather than a continuous
+  ramp so the steps stay legible against glass at small sizes.
+*/
+.proto-scripture-map__swatch {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--pds-accent) 10%, transparent);
+}
+
+.proto-scripture-map__swatch[data-heat='1'] { background: color-mix(in srgb, var(--pds-accent) 18%, transparent); }
+.proto-scripture-map__swatch[data-heat='2'] { background: color-mix(in srgb, var(--pds-accent) 38%, transparent); }
+.proto-scripture-map__swatch[data-heat='3'] { background: color-mix(in srgb, var(--pds-accent) 62%, transparent); }
+.proto-scripture-map__swatch[data-heat='4'] { background: color-mix(in srgb, var(--pds-accent) 88%, transparent); }
+
+.proto-scripture-map__chapters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 12px 12px 40px;
+}
+
+.proto-scripture-map__chapter {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--pds-accent) 10%, transparent);
+  color: var(--pds-text-secondary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* At the top of the ramp the swatch is nearly solid accent, so the numeral has
+   to flip to the on-accent colour or it reads as a dark smudge. */
+.proto-scripture-map__chapter[data-heat='3'],
+.proto-scripture-map__chapter[data-heat='4'] {
+  color: var(--pds-on-accent);
+}
+
+.proto-scripture-map__chapter[data-heat='1'] { background: color-mix(in srgb, var(--pds-accent) 18%, transparent); }
+.proto-scripture-map__chapter[data-heat='2'] { background: color-mix(in srgb, var(--pds-accent) 38%, transparent); }
+.proto-scripture-map__chapter[data-heat='3'] { background: color-mix(in srgb, var(--pds-accent) 62%, transparent); }
+.proto-scripture-map__chapter[data-heat='4'] { background: color-mix(in srgb, var(--pds-accent) 88%, transparent); }
