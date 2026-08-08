@@ -36,6 +36,8 @@ import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import PrototypeSpacePeopleSheet from './PrototypeSpacePeopleSheet';
 import { ProtoToolsRowList, type ProtoToolRow } from './proto-tools-registry';
+import PrototypeSpaceLibrarySection from './PrototypeSpaceLibrarySection';
+import { spaceLibraryMeta, useSpaceLibrary } from '../../hooks/queries/useSpaceLibrary';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
@@ -244,6 +246,9 @@ function PrototypeSidebarSharedSpaceViewLive() {
   const [changeThreadOpen, setChangeThreadOpen] = useState(false);
   const [threadTab, setThreadTab] = useState<'current' | 'available'>('current');
   const [drilledThread, setDrilledThread] = useState<SharedThreadDrillTarget | null>(null);
+  /* Which space tool is open, if any. Local like the church hub's `toolsView`:
+     a route would fight the shell, which hosts the note page. */
+  const [spaceTool, setSpaceTool] = useState<'library' | null>(null);
   const [threadPinError, setThreadPinError] = useState<string | null>(null);
 
   const spaceQuery = useSpace(activeSpaceId ?? '');
@@ -298,12 +303,31 @@ function PrototypeSidebarSharedSpaceViewLive() {
   });
   /*
     A space's Tools card, sharing the church hub's row chrome via
-    `proto-tools-registry`. Empty today — the card renders nothing until a
-    space has a tool worth a door — but the derivation is the seam: when
-    per-space enablement lands it filters this array off the space payload
-    (a SpaceTools row per tool), not off another hard-coded conditional.
+    `proto-tools-registry`. When per-space enablement lands it filters this
+    array off the space payload (a SpaceTools row per tool), not off another
+    hard-coded conditional.
   */
-  const spaceToolRows = useMemo<ProtoToolRow[]>(() => [], []);
+  const spaceLibrary = useSpaceLibrary(activeSpaceId ?? null, {
+    /* Only a church room has a shelf behind it; the endpoint answers empty for
+       everything else, so don't ask on behalf of a personal Shared Space. */
+    enabled: Boolean(ministryMeta.orgId),
+  });
+  const spaceLibraryCount = spaceLibrary.data?.items.length ?? 0;
+  const spaceToolRows = useMemo<ProtoToolRow[]>(() => {
+    const rows: ProtoToolRow[] = [];
+    /* Offered to every member, not only whoever curates it — "what do we read
+       from" is a question the room asks, and the read is membership-gated. */
+    if (spaceLibraryCount > 0) {
+      rows.push({
+        key: 'space-library',
+        icon: 'newspaper',
+        title: 'Library',
+        meta: spaceLibraryMeta(spaceLibrary.data?.items ?? []),
+        onSelect: () => setSpaceTool('library'),
+      });
+    }
+    return rows;
+  }, [spaceLibraryCount, spaceLibrary.data?.items]);
 
   const canModerateChannel = canModerateMinistryChannel({
     isOwner: isSpaceOwner,
@@ -632,6 +656,40 @@ function PrototypeSidebarSharedSpaceViewLive() {
       <div className="proto-sidebar-root proto-shared-space-dashboard">
         {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
         <ProtoSpaceLoading label="Loading space" />
+      </div>
+    );
+  }
+
+  if (spaceTool === 'library') {
+    return (
+      <div className="proto-sidebar-root proto-shared-space-dashboard">
+        {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
+        {/* Same back-tile-beside-the-title header the Thread drilldown uses,
+            so stepping into a space tool feels like the same gesture. */}
+        <div className="proto-shared-thread-drilldown__header">
+          <div className="proto-shared-space-header__row">
+            <button
+              type="button"
+              className="proto-shared-space-header__church-icon proto-sidebar-back-tile"
+              aria-label={`Back to ${spaceTitle}`}
+              onClick={() => setSpaceTool(null)}
+            >
+              <Icon name="caret-left" size={16} aria-hidden />
+            </button>
+            <div className="proto-shared-thread-drilldown__meta">
+              <h2 className="pds-list-title proto-shared-thread-drilldown__title">Library</h2>
+              {/* Not "What {spaceTitle} studies from" — a long room name wraps
+                  the line and pushes the back tile out of alignment, and the
+                  header already says which room you are in. */}
+              <p className="proto-caption proto-shared-thread-drilldown__status">
+                What this room studies from
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="proto-sidebar-scroll proto-shared-thread-drilldown__scroll">
+          <PrototypeSpaceLibrarySection spaceId={activeSpaceId ?? null} />
+        </div>
       </div>
     );
   }
