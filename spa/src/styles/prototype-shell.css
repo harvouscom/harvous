@@ -1244,19 +1244,22 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   }
 }
 
-/* iOS standalone PWA: drop shell blur + heavy image wallpaper to avoid WebKit process kills.
-   Scoped to .harvous-proto-wallpaper-image only — a solid color preset (Sky/Lilac/etc.)
-   is cheap to render and must keep showing through via --pds-canvas-bg. */
-@media (max-width: 899px) {
-  html.ios-pwa.harvous-prototype-route.harvous-proto-wallpaper-image {
-    background-image: none !important;
-    background-color: var(--pds-canvas-default) !important;
-  }
+/* iOS standalone PWA: the installed app gets the same glass shell over the same wallpaper
+   as everywhere else. Both used to be stripped here to avoid WebKit process kills, which
+   left the PWA as a flat white card — a chosen photo never appeared, and the material the
+   rest of the app is built on went with it.
 
-  html.ios-pwa.harvous-prototype-route .proto-shell-frame {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    background: var(--pds-bg-page);
+   The compositor cost that actually mattered was `background-attachment: fixed`: it makes
+   WebKit re-composite a cover-sized image every time the viewport shifts under the URL bar
+   or the keyboard, and blur over a re-compositing backdrop is what pushed it over. Pinning
+   the canvas to `scroll` leaves the image a single static paint, so the blur above it has
+   something stable to sample and the glass can stay.
+
+   `prefers-reduced-transparency` (above) still opts out — that is a stated preference
+   rather than a guess about the device. */
+@media (max-width: 899px) {
+  html.ios-pwa.harvous-prototype-route {
+    background-attachment: scroll !important;
   }
 }
 

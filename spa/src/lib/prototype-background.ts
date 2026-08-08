@@ -402,16 +402,18 @@ export function isIosStandalonePwa(): boolean {
   return isIos && isPwa;
 }
 
-/** Prefer Paper + reduced blur on iOS standalone at mobile widths. */
+/**
+ * Reduce compositor cost on iOS standalone at mobile widths.
+ *
+ * The reduction is now entirely CSS-side (see prototype-shell.css): shell blur off, and
+ * the canvas image painted with `background-attachment: scroll`. Both were the expensive
+ * half of the renderer kills — a `fixed` backdrop makes WebKit re-composite the whole
+ * image on every scroll, and layering blur over it compounds that. The image itself is a
+ * single cover-sized paint, so it no longer has to be thrown away with them.
+ */
 export function shouldReducePrototypeCompositorOnMobile(): boolean {
   if (typeof window === 'undefined') return false;
   return isIosStandalonePwa() && window.matchMedia('(max-width: 899px)').matches;
-}
-
-function stripHeavyBackgroundForMobile(bg: ProtoBg): ProtoBg {
-  if (!shouldReducePrototypeCompositorOnMobile() || !bg) return bg;
-  if (bg.kind === 'image-preset') return null;
-  return bg;
 }
 
 export function writeBackgroundForMode(mode: 'light' | 'dark', bg: ProtoBg): void {
@@ -434,7 +436,7 @@ export function writeBackgroundForMode(mode: 'light' | 'dark', bg: ProtoBg): voi
 }
 
 export function readActiveBackground(): ProtoBg {
-  return stripHeavyBackgroundForMobile(readBackgroundForMode(isDarkAppearance() ? 'dark' : 'light'));
+  return readBackgroundForMode(isDarkAppearance() ? 'dark' : 'light');
 }
 
 // ─── Wallpaper classes ───────────────────────────────────────────────────────

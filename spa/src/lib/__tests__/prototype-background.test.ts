@@ -42,6 +42,7 @@ import {
   readBackgroundForMode,
   readActiveBackground,
   readColorSchemePreference,
+  shouldReducePrototypeCompositorOnMobile,
   writeBackgroundForMode,
   writeColorSchemePreference,
 } from '../prototype-background';
@@ -226,6 +227,54 @@ describe('per-mode background storage', () => {
     expect(readBackgroundForMode('light')).toBeNull();
     applyColorSchemePreference('light');
     expect(readActiveBackground()).toBeNull();
+  });
+
+  it('keeps an image wallpaper on an iOS standalone PWA at phone width', () => {
+    // Regression: readActiveBackground used to null out every image preset here, so a
+    // chosen photo silently never appeared on the installed PWA. The compositor cost it
+    // was avoiding (fixed attachment + shell blur) is handled in CSS instead — see the
+    // ios-pwa block in prototype-shell.css.
+    const userAgent = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15',
+    );
+    const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query: string) =>
+        ({
+          matches: /standalone|max-width: 899px/.test(query),
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          addListener: () => {},
+          removeListener: () => {},
+          onchange: null,
+          dispatchEvent: () => false,
+        }) as unknown as MediaQueryList,
+    );
+
+    const nightSky = imagePresetApplyValue(imagePresetById('night-sky')!);
+    writeBackgroundForMode('dark', nightSky);
+    applyColorSchemePreference('dark');
+
+    expect(shouldReducePrototypeCompositorOnMobile()).toBe(true);
+    expect(readActiveBackground()).toEqual(nightSky);
+
+    userAgent.mockRestore();
+    matchMedia.mockRestore();
+  });
+});
+
+describe('iOS PWA canvas rules', () => {
+  it('sheds fixed attachment rather than the wallpaper or the glass', () => {
+    const css = readFileSync(join(process.cwd(), 'spa/src/styles/prototype-shell.css'), 'utf8');
+    const block = css.slice(css.indexOf('html.ios-pwa.harvous-prototype-route {'));
+
+    // The one cost worth shedding: a cover-sized image re-composited on every viewport shift.
+    expect(block).toContain('background-attachment: scroll');
+    // Neither the image nor the shell material may be stripped to buy that back.
+    expect(css).not.toContain('html.ios-pwa.harvous-prototype-route.harvous-proto-wallpaper-image');
+    expect(css).not.toContain('html.ios-pwa.harvous-prototype-route .proto-shell-frame');
+    // A stated preference still opts out, unlike a guess about the device.
+    expect(css).toContain('@media (prefers-reduced-transparency: reduce)');
   });
 });
 
