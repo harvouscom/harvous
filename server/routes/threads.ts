@@ -32,6 +32,7 @@ import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { isUniqueViolationError } from '../utils/db-errors';
 import { repairMissingNoteThreadJunctionsForUser } from '../utils/thread-junction-repair';
 import { requireSpaceAccess, SpaceAccessError, isActualSpaceOwner } from '../utils/space-access';
+import { isPublishedSeriesThread } from '../utils/church-series-publish';
 import {
   canManageSpaceThreadStructure,
   isSequenceMode,
@@ -1216,7 +1217,14 @@ route.post('/api/threads/:threadId/share', requireAuth, async (c) => {
         await db.select({ type: Spaces.type }).from(Spaces).where(eq(Spaces.id, thread.spaceId)).limit(1),
       );
       if (!threadAllowsPublicBroadcast(space?.type)) {
-        if (action !== 'disable') {
+        /*
+          One crack in the rule, and only one: a published study plan. Its steps
+          are church-authored staff material written to be handed to a room, not
+          notes members wrote — which is the whole reason the rule exists. Asked
+          of the database, never of the request.
+        */
+        const publishedPlan = await isPublishedSeriesThread(threadId);
+        if (action !== 'disable' && !publishedPlan) {
           return c.json({
             error: 'Shared-space Threads cannot be published with public links',
             code: 'SHARED_THREAD_NOT_PUBLIC',

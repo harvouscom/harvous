@@ -4,6 +4,7 @@
  * Endpoints:
  *   GET  /api/shared/note/:shareToken
  *   GET  /api/shared/thread/:shareToken
+ *   GET  /api/shared/thread-plan/:shareToken   (published study plans only)
  *   POST /api/shared/add-note-to-harvous
  *   POST /api/shared/add-to-harvous
  *   GET  /api/invitations/:token          (410 — retired v1 invitations)
@@ -15,10 +16,12 @@ import { Hono } from 'hono';
 import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Notes, Threads, NoteThreads, UserMetadata, ScriptureMetadata, ResourceMetadata,
-  NoteScriptureReferences, Spaces,
-  eq, and, desc, asc, isNotNull, count, sql, inArray, lt,
+  NoteScriptureReferences, Spaces, SpaceInvites,
+  ChurchSeries, ChurchServicePublishedNotes, ChurchServices,
+  eq, and, desc, asc, isNotNull, isNull, count, sql, inArray, lt,
   first,
 } from '../db';
+import { parseSequenceNoteIds } from '../utils/thread-sequence';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
 import { generateNoteId, generateThreadId, isValidShareToken } from '@/utils/ids';
@@ -57,6 +60,131 @@ async function awardNoteCreatedXPInBatches(
 }
 
 // ─── Shared Note / Thread (public GET) ──────────────────────────────
+
+/**
+ * GET /api/shared/thread-plan/:shareToken — a published study plan's spine.
+ *
+ * The **spine only**: each week's title and passage, and nothing else. Never a
+ * note body, never an author, never a count of who is walking it. Someone who
+ * has not joined is being shown what the study covers so they can decide
+ * whether to; everything past that is for the room.
+ *
+ * Resolves only for a Thread that a series published. That check is what keeps
+ * `SHARED_THREAD_NOT_PUBLIC` meaningful: an ordinary space Thread's steps are
+ * notes members wrote, and no share token should ever make those public. Titles
+ * and passages here are staff-authored plan rows, read from `ChurchServices`
+ * rather than from the step notes, so even a member editing a step cannot push
+ * their own words onto a public page.
+ */
+app.get('/api/shared/thread-plan/:shareToken', async (c) => {
+  try {
+    const shareToken = requireParam(c, 'shareToken');
+    if (!isValidShareToken(shareToken)) return c.json({ error: 'Invalid share token format' }, 400);
+
+    const notFound = () =>
+      c.json({ error: 'Shared study plan not found or no longer available' }, 404);
+
+    const thread = first(
+      await db
+        .select({
+          id: Threads.id,
+          title: Threads.title,
+          subtitle: Threads.subtitle,
+          color: Threads.color,
+          spaceId: Threads.spaceId,
+          mode: Threads.mode,
+          sequenceNoteIds: Threads.sequenceNoteIds,
+        })
+        .from(Threads)
+        .where(and(eq(Threads.shareToken, shareToken), eq(Threads.isPublic, true)))
+        .limit(1),
+    );
+    if (!thread || !thread.spaceId || thread.mode !== 'sequence') return notFound();
+
+    /* The gate. Not "is it in a space" — "did a series publish it". */
+    const series = first(
+      await db
+        .select({ id: ChurchSeries.id, title: ChurchSeries.title })
+        .from(ChurchSeries)
+        .where(eq(ChurchSeries.publishedThreadId, thread.id))
+        .limit(1),
+    );
+    if (!series) return notFound();
+
+    const space = first(
+      await db
+        .select({ id: Spaces.id, title: Spaces.title, deletedAt: Spaces.deletedAt })
+        .from(Spaces)
+        .where(eq(Spaces.id, thread.spaceId))
+        .limit(1),
+    );
+    if (!space || space.deletedAt) return notFound();
+
+    /*
+      Titles and passages come from the plan rows, joined through the published
+      claim — not from the step notes. A member who renames a step is editing
+      the room's copy, not this page.
+    */
+    const stepRows = await db
+      .select({
+        noteId: ChurchServicePublishedNotes.noteId,
+        title: ChurchServices.title,
+        reference: ChurchServices.reference,
+        serviceDate: ChurchServices.serviceDate,
+      })
+      .from(ChurchServicePublishedNotes)
+      .innerJoin(ChurchServices, eq(ChurchServices.id, ChurchServicePublishedNotes.serviceId))
+      .innerJoin(NoteThreads, eq(NoteThreads.noteId, ChurchServicePublishedNotes.noteId))
+      .where(eq(NoteThreads.threadId, thread.id));
+
+    const byNoteId = new Map(stepRows.map((row) => [row.noteId, row]));
+    const ordered = parseSequenceNoteIds(thread.sequenceNoteIds)
+      .map((noteId) => byNoteId.get(noteId))
+      .filter((row): row is (typeof stepRows)[number] => Boolean(row));
+
+    /*
+      A join link only when the room already has an active one. Minting an
+      invite because a stranger loaded a page would be the page deciding who
+      may join, which is the room's decision.
+    */
+    const invite = first(
+      await db
+        .select({ token: SpaceInvites.token })
+        .from(SpaceInvites)
+        .where(
+          and(
+            eq(SpaceInvites.spaceId, space.id),
+            eq(SpaceInvites.kind, 'link'),
+            isNull(SpaceInvites.revokedAt),
+          ),
+        )
+        .limit(1),
+    );
+
+    return c.json({
+      plan: {
+        title: thread.title,
+        subtitle: thread.subtitle,
+        color: thread.color,
+        seriesTitle: series.title,
+      },
+      space: { title: space.title },
+      steps: ordered.map((row, index) => ({
+        step: index + 1,
+        title: row.title,
+        reference: row.reference,
+        serviceDate: row.serviceDate,
+      })),
+      joinToken: invite?.token ?? null,
+    });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/shared/thread-plan/[shareToken]',
+      action: 'get_shared_thread_plan',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
 
 /** GET /api/shared/note/:shareToken */
 app.get('/api/shared/note/:shareToken', async (c) => {

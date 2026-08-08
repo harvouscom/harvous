@@ -90,6 +90,27 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/**
+ * Whether this Thread is the artifact of publishing a series.
+ *
+ * The one narrow crack in `SHARED_THREAD_NOT_PUBLIC`. A space Thread normally
+ * cannot carry a public link because its steps are notes members wrote, and a
+ * public URL would expose their titles without their consent. A published plan
+ * is the opposite: every step is church-authored staff material, written to be
+ * handed to a room. That distinction is this function, and it is the only thing
+ * standing between the two — so it asks the database, never a request body.
+ */
+export async function isPublishedSeriesThread(threadId: string): Promise<boolean> {
+  const row = first(
+    await db
+      .select({ id: ChurchSeries.id })
+      .from(ChurchSeries)
+      .where(eq(ChurchSeries.publishedThreadId, threadId))
+      .limit(1),
+  );
+  return Boolean(row);
+}
+
 /** Which of these weeks already have a published step inside this Thread. */
 export async function publishedWeekIdsInThread(
   serviceIds: string[],
