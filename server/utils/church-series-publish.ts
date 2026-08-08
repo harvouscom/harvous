@@ -28,6 +28,7 @@ import {
   NoteThreads,
   Notes,
   SpaceNotes,
+  Spaces,
   Threads,
   and,
   asc,
@@ -106,6 +107,31 @@ export async function publishedWeekIdsInThread(
       ),
     );
   return new Set(rows.map((row) => row.serviceId));
+}
+
+/**
+ * The author's own "My Home", which is where every note in this codebase
+ * actually lives.
+ *
+ * `Notes.spaceId` is the note's home, and `SpaceNotes` is its association with
+ * a room — a note composed into a Shared Space has `spaceId` pointing at the
+ * author's personal space and a `SpaceNotes` row pointing at the room. Setting
+ * `Notes.spaceId` to the shared space instead would make published steps the
+ * only notes in the system shaped differently from every other one.
+ *
+ * Returns null when the author somehow has no personal space; the caller then
+ * leaves `spaceId` unset rather than inventing one.
+ */
+async function homeSpaceIdFor(userId: string): Promise<string | null> {
+  const personal = await db
+    .select({ id: Spaces.id, title: Spaces.title })
+    .from(Spaces)
+    .where(and(eq(Spaces.userId, userId), eq(Spaces.type, 'personal')));
+  return (
+    personal.find((row) => row.title.trim().toLowerCase() === 'my home')?.id ??
+    personal[0]?.id ??
+    null
+  );
 }
 
 /**
@@ -190,6 +216,7 @@ export async function publishSeriesAsStudyPlan(input: {
   const orderedNoteIds = existingSteps.map((row) => row.noteId);
 
   let simpleNoteId = await nextSimpleNoteIdFor(actorId);
+  const noteHomeSpaceId = await homeSpaceIdFor(actorId);
   let created = 0;
 
   for (const week of weeks) {
@@ -202,7 +229,9 @@ export async function publishSeriesAsStudyPlan(input: {
       content: stepNoteSeedContent(week),
       // The step's canonical Thread is the plan it belongs to.
       threadId,
-      spaceId,
+      /* The author's home, not the room — the room is the SpaceNotes row
+         below. See homeSpaceIdFor. */
+      spaceId: noteHomeSpaceId ?? spaceId,
       simpleNoteId: simpleNoteId++,
       noteType: 'default',
       userId: actorId,

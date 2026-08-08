@@ -71,6 +71,15 @@ describe('publish write path', () => {
     expect(text).toContain('orderedNoteIds.includes(currentThread.sequenceCurrentNoteId)');
   });
 
+  it("gives a step note the author's home space, not the room", () => {
+    // Notes.spaceId is the note's home; SpaceNotes is the room association.
+    // A step written straight into the shared space would be the only note in
+    // the system shaped differently from every other one.
+    const text = publish();
+    expect(text).toContain('homeSpaceIdFor');
+    expect(text).toContain('spaceId: noteHomeSpaceId ?? spaceId');
+  });
+
   it('orders undated backlog weeks after the dated ones', () => {
     const text = publish();
     expect(text).toContain('asc(ChurchServices.serviceDate)');
