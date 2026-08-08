@@ -109,6 +109,7 @@ export function SettingsRow({
   leadingIcon,
   leadingAccent,
   leadingClassName,
+  leadingNode,
   onClick,
   destructive = false,
   disabled = false,
@@ -125,6 +126,12 @@ export function SettingsRow({
   leadingAccent?: string;
   /** Extra class on the leading tile (e.g. branded Plus swatch). */
   leadingClassName?: string;
+  /**
+   * Leading slot rendered as-is, for tiles that carry their own colour and theme —
+   * a Shared Space icon has a per-space accent that `leadingAccent` (one flat colour,
+   * no light/dark handling) cannot express. Wins over `leadingIcon`.
+   */
+  leadingNode?: ReactNode;
   onClick?: () => void;
   destructive?: boolean;
   disabled?: boolean;
@@ -142,7 +149,16 @@ export function SettingsRow({
 
   const body = (
     <>
-      {leadingIcon ? (
+      {leadingNode ? (
+        <span
+          className={['proto-settings-list-row__leading', 'proto-settings-list-row__leading--bare', leadingClassName]
+            .filter(Boolean)
+            .join(' ')}
+          aria-hidden
+        >
+          {leadingNode}
+        </span>
+      ) : leadingIcon ? (
         <span
           className={['proto-settings-list-row__leading', leadingClassName].filter(Boolean).join(' ')}
           style={leadingAccent ? { color: leadingAccent } : undefined}

@@ -27,7 +27,7 @@ import {
 } from '../../lib/shared-note-membership';
 import {
   normalizeSharedSpaceSwitcherId,
-  orderPersonalSharedSpaces,
+  orderSwitcherSpaces,
 } from '../../lib/shared-space-switcher-order';
 import { PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
@@ -144,7 +144,7 @@ export default function PrototypeNoteMoreMenu({
     for (const s of nav?.memberOfSpaces ?? []) {
       if (isPersonalSharedSpace(s)) byId.set(normalizeSharedSpaceSwitcherId(s.id), s);
     }
-    return orderPersonalSharedSpaces([...byId.values()], profile?.sharedSpaceSwitcherOrder);
+    return orderSwitcherSpaces([...byId.values()], profile?.sharedSpaceSwitcherOrder);
   }, [nav?.spaces, nav?.memberOfSpaces, profile?.sharedSpaceSwitcherOrder]);
 
   /**

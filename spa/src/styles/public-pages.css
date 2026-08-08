@@ -47,7 +47,9 @@
   --pds-glass-rim: inset 0 -0.5px 0 color-mix(in srgb, var(--site-ink) 4%, transparent);
   --pds-selection-bg: var(--site-highlight);
   --pds-on-accent: #ffffff;
-  --pds-bg-accent-button: linear-gradient(171deg, #5b8cff 7%, #3869e6 93%);
+  /* Public cards remap the neutral tokens to stay light, but the accent is the
+     product's, not the page's — inherit the app's gradient rather than restating a
+     dimmer indigo here. */
   --pds-shadow-accent-button:
     inset 0 1px 0 rgba(255, 255, 255, 0.3),
     0 10px 24px -10px rgba(0, 110, 255, 0.6);
@@ -461,18 +463,14 @@
   pointer-events: auto;
 }
 
-/* Gradient blue pill — mirrors `/site/` CTAButton variant="primary":
-   `bg-[linear-gradient(180deg,#5a92ff_0%,#3869e6_55%,#2456d9_100%)]`,
-   inner highlight, inner bottom shade, soft accent glow, accent ring. */
+/* The app's accent gradient, not the marketing site's. A shared note or invite is
+   the first Harvous surface someone sees, and the CTA they press there should be the
+   same blue as the one inside the app — `/site/`'s indigo pill read as a different
+   product's button. Geometry (44px pill, inner highlight, bottom shade, glow) stays. */
 .public-cta-btn {
   width: 100%;
   height: 44px;
-  background: linear-gradient(
-    180deg,
-    #5a92ff 0%,
-    #3869e6 55%,
-    #2456d9 100%
-  );
+  background: var(--pds-bg-accent-button);
   color: #fff;
   border: none;
   border-radius: 999px;

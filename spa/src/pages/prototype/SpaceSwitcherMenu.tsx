@@ -31,15 +31,122 @@ import {
 } from '../../lib/church-settings';
 import {
   normalizeSharedSpaceSwitcherId,
-  orderPersonalSharedSpaces,
+  orderSwitcherSpaces,
 } from '../../lib/shared-space-switcher-order';
 import { useSharedSpaceSwitcherDragReorder } from '../../hooks/useSharedSpaceSwitcherDragReorder';
+import {
+  DndContext,
+  PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import CreateSharedSpaceSheet, { type CreateSpaceSheetKind } from './CreateSharedSpaceSheet';
 import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
 import { PROTO_MENU_CHECK_ICON_SIZE, PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE, PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
 import { UNLIMITED, isUnlimited } from '@/lib/shared-spaces-limits';
+
+type SpaceSwitcherDragController = ReturnType<typeof useSharedSpaceSwitcherDragReorder>;
+
+/**
+ * One space row, always sortable.
+ *
+ * A component rather than a render function because `useSortable` is a hook — calling it
+ * from inside a loop in the parent would change the parent's hook count with the number
+ * of spaces.
+ *
+ * The listeners sit on the ROW, not the handle, because touch has no hover and therefore
+ * no handle to press: the gesture has to start from the row itself. The sensors keep the
+ * two intents apart — a mouse click with no movement still selects the space, a 6px drag
+ * reorders, and on touch a tap selects while a 200ms hold lifts. The handle stays as the
+ * visual cue that a row can be moved, and as the keyboard activator.
+ */
+function SpaceSwitcherRow({
+  row,
+  nested,
+  isDragging,
+  checked,
+  onSelect,
+}: {
+  row: NavSpace;
+  nested: boolean;
+  isDragging: boolean;
+  checked: boolean;
+  onSelect: (row: NavSpace) => void;
+}) {
+  const spaceId = normalizeSharedSpaceSwitcherId(row.id);
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: spaceId });
+  // Active space: no new affordance (you're already there). Inactive: subtle dot only.
+  const hasUnseen = !checked && Boolean(row.newNoteCount && row.newNoteCount > 0);
+  const ministry = isMinistryBroadcastSpace(row);
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`proto-space-switcher__row proto-space-switcher__row--reorderable${
+        isDragging ? ' proto-space-switcher__row--dragging' : ''
+      }${nested ? ' proto-space-switcher__row--nested' : ''}`}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...listeners}
+    >
+      {/* Cue and keyboard activator. `attributes` (role, tabIndex, aria-describedby) go
+          here so screen readers get the drag instructions on a focusable element, while
+          the pointer/touch gesture belongs to the whole row above. */}
+      <span
+        ref={setActivatorNodeRef}
+        className="proto-space-switcher__drag-handle"
+        aria-label={`Reorder ${row.title}`}
+        title="Drag to reorder"
+        {...attributes}
+      >
+        <Icon name="bars" size={12} />
+      </span>
+      <button
+        type="button"
+        role="menuitemradio"
+        aria-checked={checked}
+        className="proto-menu-item proto-space-switcher__row-item"
+        title={row.title}
+        onClick={() => onSelect(row)}
+      >
+        <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
+          {ministry ? (
+            <ProtoSpaceMenuIcon color={row.color || 'paper'} iconName="rss" />
+          ) : (
+            <ProtoSpaceMenuIcon color={row.color || 'paper'} />
+          )}
+          {hasUnseen ? <span className="proto-space-switcher-dot" aria-hidden /> : null}
+        </span>
+        <span className="proto-menu-item__label proto-marquee" title={row.title}>
+          <span>{row.title}</span>
+        </span>
+        <span className="proto-menu-item__check" aria-hidden>
+          {checked ? <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} /> : null}
+        </span>
+      </button>
+    </div>
+  );
+}
 
 const SPACE_SWITCHER_POPOVER_WIDTH = 260;
 const SPACE_SWITCHER_POPOVER_FALLBACK_HEIGHT = 180;
@@ -124,11 +231,14 @@ export default function SpaceSwitcherMenu({
    */
   const churchSpaces = useMemo(() => {
     if (!myChurch?.orgId) return [] as NavSpace[];
-    return churchHubSpacesForOrg(
-      [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])],
-      myChurch.orgId,
+    return orderSwitcherSpaces(
+      churchHubSpacesForOrg(
+        [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])],
+        myChurch.orgId,
+      ),
+      profile?.sharedSpaceSwitcherOrder,
     );
-  }, [nav?.spaces, nav?.memberOfSpaces, myChurch?.orgId]);
+  }, [nav?.spaces, nav?.memberOfSpaces, myChurch?.orgId, profile?.sharedSpaceSwitcherOrder]);
 
   /** My Home: one list of personal Shared Spaces (hosted + joined), preference-ordered. */
   const personalSharedSpaces = useMemo(() => {
@@ -139,7 +249,7 @@ export default function SpaceSwitcherMenu({
     for (const s of nav?.memberOfSpaces ?? []) {
       if (isPersonalSharedSpace(s)) byId.set(normalizeSharedSpaceSwitcherId(s.id), s);
     }
-    return orderPersonalSharedSpaces([...byId.values()], profile?.sharedSpaceSwitcherOrder);
+    return orderSwitcherSpaces([...byId.values()], profile?.sharedSpaceSwitcherOrder);
   }, [nav?.spaces, nav?.memberOfSpaces, profile?.sharedSpaceSwitcherOrder]);
 
   const personalSharedIds = useMemo(
@@ -170,8 +280,32 @@ export default function SpaceSwitcherMenu({
     // Personal spaces are always listed now (flat menu), so reorder is available
     // whenever the menu is open rather than only in My Home mode.
     orderedSpaceIds: personalSharedIds,
-    enabled: open,
+    storedOrder: profile?.sharedSpaceSwitcherOrder,
   });
+  const churchSharedIds = useMemo(
+    () => churchSpaces.map((s) => normalizeSharedSpaceSwitcherId(s.id)),
+    [churchSpaces],
+  );
+  /**
+   * A second instance, not a shared one: a church channel and a personal space are
+   * different lists under different headings, and one hook would happily accept a drop
+   * across the boundary. Arrangement is a personal display preference either way — it
+   * changes nothing for anyone else in the church — so it needs no staff gate.
+   */
+  const churchDrag = useSharedSpaceSwitcherDragReorder({
+    orderedSpaceIds: churchSharedIds,
+    storedOrder: profile?.sharedSpaceSwitcherOrder,
+  });
+  /**
+   * Same pairing the planner board uses. The touch delay is what makes a lift distinct
+   * from a scroll, and the 8px tolerance is the half that matters: move further than that
+   * before the delay elapses and the drawer scrolls instead of the row lifting.
+   */
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
   const personalSpacesById = useMemo(() => {
     const map = new Map<string, NavSpace>();
     for (const s of personalSharedSpaces) {
@@ -194,8 +328,22 @@ export default function SpaceSwitcherMenu({
    */
   const visiblePersonalSpaces = displayedPersonalSpaces.slice(0, SWITCHER_SPACES_PER_PARENT);
   const personalOverflow = displayedPersonalSpaces.length - visiblePersonalSpaces.length;
-  const visibleChurchSpaces = churchSpaces.slice(0, SWITCHER_SPACES_PER_PARENT);
-  const churchOverflow = churchSpaces.length - visibleChurchSpaces.length;
+  const churchSpacesById = useMemo(() => {
+    const map = new Map<string, NavSpace>();
+    for (const s of churchSpaces) {
+      map.set(normalizeSharedSpaceSwitcherId(s.id), s);
+    }
+    return map;
+  }, [churchSpaces]);
+  const displayedChurchSpaces = useMemo(
+    () =>
+      churchDrag.displayOrderedIds
+        .map((id) => churchSpacesById.get(id))
+        .filter((s): s is NavSpace => Boolean(s)),
+    [churchSpacesById, churchDrag.displayOrderedIds],
+  );
+  const visibleChurchSpaces = displayedChurchSpaces.slice(0, SWITCHER_SPACES_PER_PARENT);
+  const churchOverflow = displayedChurchSpaces.length - visibleChurchSpaces.length;
 
   /** A parent row is checked when you're at that parent's hub (no space open). */
   const atHomeHub = protoLocation.parent.kind === 'home' && !activeSpaceId;
@@ -249,7 +397,9 @@ export default function SpaceSwitcherMenu({
   useEffect(() => {
     if (!open) return undefined;
     const onPointerDown = (e: MouseEvent) => {
-      if (spaceDrag.isDragging) return;
+      // Either list — a drag in progress must not be read as a click outside, or the
+      // menu closes out from under the row being moved.
+      if (spaceDrag.isDragging || churchDrag.isDragging) return;
       const target = e.target as Node;
       if (triggerRef.current?.contains(target)) return;
       if (popoverRef.current?.contains(target)) return;
@@ -264,7 +414,7 @@ export default function SpaceSwitcherMenu({
       document.removeEventListener('mousedown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [open, spaceDrag.isDragging]);
+  }, [open, spaceDrag.isDragging, churchDrag.isDragging]);
 
   if (!authReady) {
     return null;
@@ -351,75 +501,22 @@ export default function SpaceSwitcherMenu({
 
   function renderSpaceRow(
     row: NavSpace,
-    options?: { reorderIndex?: number; allowReorder?: boolean; nested?: boolean },
+    options?: {
+      nested?: boolean;
+      /** The list this row belongs to. Rows drag only among their own siblings. */
+      drag?: SpaceSwitcherDragController;
+    },
   ) {
-    const checked = activeSpaceId === normalizeSpaceId(row.id);
-    // Active space: no new affordance (you're already there). Inactive: subtle dot only.
-    const hasUnseen = !checked && Boolean(row.newNoteCount && row.newNoteCount > 0);
-    const ministry = isMinistryBroadcastSpace(row);
-    const spaceId = normalizeSharedSpaceSwitcherId(row.id);
-    const allowReorder = Boolean(options?.allowReorder && spaceDrag.showDragHandle);
-    const isDraggingRow = spaceDrag.draggingId === spaceId;
+    const drag = options?.drag ?? spaceDrag;
     return (
-      <div
+      <SpaceSwitcherRow
         key={row.id}
-        className={`proto-space-switcher__row${isDraggingRow ? ' proto-space-switcher__row--dragging' : ''}${
-          allowReorder ? ' proto-space-switcher__row--reorderable' : ''
-        }${options?.nested ? ' proto-space-switcher__row--nested' : ''}`}
-        onDragEnter={
-          allowReorder && options?.reorderIndex != null
-            ? (e) => spaceDrag.handleDragOver(e, options.reorderIndex!)
-            : undefined
-        }
-        onDragOver={
-          allowReorder && options?.reorderIndex != null
-            ? (e) => spaceDrag.handleDragOver(e, options.reorderIndex!)
-            : undefined
-        }
-        onDrop={allowReorder ? spaceDrag.handleDrop : undefined}
-      >
-        {allowReorder ? (
-          <button
-            type="button"
-            className="proto-space-switcher__drag-handle"
-            draggable
-            aria-label={`Reorder ${row.title}`}
-            title="Drag to reorder"
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            onDragStart={(e) => {
-              const rowEl = e.currentTarget.closest('.proto-space-switcher__row') as HTMLElement | null;
-              spaceDrag.handleDragStart(e, spaceId, rowEl);
-            }}
-            onDragEnd={spaceDrag.handleDragEnd}
-          >
-            <Icon name="ellipsis-vertical" size={12} />
-          </button>
-        ) : null}
-        <button
-          type="button"
-          role="menuitemradio"
-          aria-checked={checked}
-          className="proto-menu-item proto-space-switcher__row-item"
-          title={row.title}
-          onClick={() => selectSpace(row)}
-        >
-          <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
-            {ministry ? (
-              <ProtoSpaceMenuIcon color={row.color || 'paper'} iconName="rss" />
-            ) : (
-              <ProtoSpaceMenuIcon color={row.color || 'paper'} />
-            )}
-            {hasUnseen ? <span className="proto-space-switcher-dot" aria-hidden /> : null}
-          </span>
-          <span className="proto-menu-item__label proto-marquee" title={row.title}>
-            <span>{row.title}</span>
-          </span>
-          <span className="proto-menu-item__check" aria-hidden>
-            {checked ? <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} /> : null}
-          </span>
-        </button>
-      </div>
+        row={row}
+        nested={Boolean(options?.nested)}
+        isDragging={drag.draggingId === normalizeSharedSpaceSwitcherId(row.id)}
+        checked={activeSpaceId === normalizeSpaceId(row.id)}
+        onSelect={selectSpace}
+      />
     );
   }
 
@@ -451,18 +548,24 @@ export default function SpaceSwitcherMenu({
               </span>
             </button>
 
-            {visiblePersonalSpaces.map((space, index) =>
-              renderSpaceRow(space, { reorderIndex: index, allowReorder: true, nested: true }),
-            )}
-            {spaceDrag.showDragHandle ? (
-              <div
-                className="proto-space-switcher__drop-tail"
-                role="presentation"
-                onDragEnter={(e) => spaceDrag.handleDragOver(e, visiblePersonalSpaces.length)}
-                onDragOver={(e) => spaceDrag.handleDragOver(e, visiblePersonalSpaces.length)}
-                onDrop={spaceDrag.handleDrop}
-              />
-            ) : null}
+            {/* One context per list, not one shared: a single context would happily
+                accept a personal space dropped into the church group. */}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={(e: DragStartEvent) => spaceDrag.handleDragStart(String(e.active.id))}
+              onDragCancel={spaceDrag.handleDragCancel}
+              onDragEnd={(e: DragEndEvent) =>
+                spaceDrag.handleDragEnd(String(e.active.id), e.over ? String(e.over.id) : null)
+              }
+            >
+              <SortableContext
+                items={visiblePersonalSpaces.map((s) => normalizeSharedSpaceSwitcherId(s.id))}
+                strategy={verticalListSortingStrategy}
+              >
+                {visiblePersonalSpaces.map((space) => renderSpaceRow(space, { nested: true }))}
+              </SortableContext>
+            </DndContext>
             {personalOverflow > 0 ? (
               <button
                 type="button"
@@ -496,7 +599,24 @@ export default function SpaceSwitcherMenu({
                 </span>
               </button>
 
-              {visibleChurchSpaces.map((space) => renderSpaceRow(space, { nested: true }))}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={(e: DragStartEvent) => churchDrag.handleDragStart(String(e.active.id))}
+                onDragCancel={churchDrag.handleDragCancel}
+                onDragEnd={(e: DragEndEvent) =>
+                  churchDrag.handleDragEnd(String(e.active.id), e.over ? String(e.over.id) : null)
+                }
+              >
+                <SortableContext
+                  items={visibleChurchSpaces.map((s) => normalizeSharedSpaceSwitcherId(s.id))}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {visibleChurchSpaces.map((space) =>
+                    renderSpaceRow(space, { nested: true, drag: churchDrag }),
+                  )}
+                </SortableContext>
+              </DndContext>
               {churchOverflow > 0 ? (
                 <button
                   type="button"

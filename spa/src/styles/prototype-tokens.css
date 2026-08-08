@@ -24,8 +24,13 @@
   /* Clerk default theme follows system light/dark when this is set (see Clerk appearance docs). */
   color-scheme: light dark;
   /* OKLCH primitives — lightness chroma hue [/ alpha] */
-  --pds-lch-accent: 52% 0.18 265;
-  --pds-lch-accent-pressed: 45% 0.18 265;
+  /* Flat accent, tuned to the accent gradient it sits beside. The gradient runs
+     #2bb5ff (hue 239) → #006eff (hue 260); this used to sit at hue 265 with lower
+     chroma, which read as a duller, more violet blue wherever the two met — a
+     gradient CTA next to a flat-accent check looked like two different blues.
+     Lightness is unchanged on purpose: it carries the text contrast. */
+  --pds-lch-accent: 52% 0.21 260;
+  --pds-lch-accent-pressed: 45% 0.21 260;
   --pds-lch-scripture-fg: 48% 0.18 255;
   --pds-lch-scripture-accent: 58% 0.22 255;
 
@@ -526,8 +531,10 @@ html.harvous-proto-wallpaper-image {
 @media (prefers-color-scheme: dark) {
   :root:not([data-color-scheme="light"]) {
     --pds-accent-indicator: var(--pds-accent-gradient-start);
-    --pds-lch-accent: 62% 0.16 265;
-    --pds-lch-accent-pressed: 56% 0.16 265;
+    /* Dark: same family as the gradient, pulled toward its sky end (#2bb5ff, hue 239)
+       so it stays legible on dark surfaces. See the light value for why hue moved. */
+    --pds-lch-accent: 66% 0.17 252;
+    --pds-lch-accent-pressed: 60% 0.17 252;
     --pds-lch-scripture-fg: 72% 0.14 255;
     --pds-lch-scripture-accent: 62% 0.18 255;
     --scripture-pill-inner-shadow: inset 0 0 3px rgba(255, 255, 255, 0.036);
@@ -708,8 +715,8 @@ html.harvous-proto-wallpaper-image {
 
 :root[data-color-scheme="dark"] {
   --pds-accent-indicator: var(--pds-accent-gradient-start);
-  --pds-lch-accent: 62% 0.16 265;
-  --pds-lch-accent-pressed: 56% 0.16 265;
+  --pds-lch-accent: 66% 0.17 252;
+  --pds-lch-accent-pressed: 60% 0.17 252;
   --pds-lch-scripture-fg: 72% 0.14 255;
   --pds-lch-scripture-accent: 62% 0.18 255;
   --scripture-pill-inner-shadow: inset 0 0 3px rgba(255, 255, 255, 0.036);

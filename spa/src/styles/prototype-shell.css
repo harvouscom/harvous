@@ -39,6 +39,13 @@
     var(--proto-sidebar-w, var(--pds-sidebar-w)),
     var(--pds-sidebar-max-w)
   );
+  /* How far the format bar reaches past the paper on each side. Enough that the bar
+     reads as its own tray under the sheet rather than a border on it. */
+  --proto-format-toolbar-overhang: 14px;
+  /* Floor for that reach, so on a narrow column — where the paper is already near the
+     edges — the bar keeps the same breathing room the paper has (`--pds-editor-paper-inset-x`)
+     instead of running into the shell frame. */
+  --proto-format-toolbar-edge-gap: 12px;
   /* Transparent — shell frame carries the primary blur; inner grid has no stacked backdrop-filter. */
   background: transparent;
   display: grid;
@@ -184,9 +191,8 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
   max-height: var(--proto-dock-expanded-max-height, none);
 }
 
-/* Full-width bar; frosted surface + top hairline span the shell (behind the floating
-   sidebar). Toolbar content is inset to the paper edges (--proto-format-toolbar-paper-inset
-   and --proto-format-toolbar-paper-right-inset). */
+/* Non-format modes keep the full-width bar; toolbar content is inset to the paper edges
+   (--proto-format-toolbar-paper-inset and --proto-format-toolbar-paper-right-inset). */
 .proto-shell__editor-chrome-row .proto-editor-bottom-bar {
   width: 100%;
 }
@@ -195,12 +201,30 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
    occupying grid row 3 (which would shrink the paper). Taking the bar out of flow
    collapses the auto row to 0, so the paper (row 2) keeps full height and the bar
    overlays its bottom edge. Chrome row z-index (1) stays below the sidebar (2), so the
-   bar still passes behind the sidebar card. */
+   bar still passes behind the sidebar card.
+ *
+ * Width follows the paper, not the shell. Spanning the whole shell was fine when the
+ * editor filled it, but the paper caps at 720px — so on a wide window the bar became a
+ * band of frost running edge to edge with its controls huddled in the middle. Anchoring
+ * it to the measured paper edges (plus a small overhang) and rounding the top corners
+ * makes it read as a tray belonging to the sheet above it. */
 .proto-shell__editor-chrome-row .proto-editor-bottom-bar[data-mode='format'] {
   position: absolute;
-  left: 0;
-  right: 0;
   bottom: 0;
+  left: max(
+    var(--proto-format-toolbar-edge-gap),
+    calc(var(--proto-format-toolbar-paper-inset, 0px) - var(--proto-format-toolbar-overhang))
+  );
+  right: max(
+    var(--proto-format-toolbar-edge-gap),
+    calc(var(--proto-format-toolbar-paper-right-inset, 0px) - var(--proto-format-toolbar-overhang))
+  );
+  width: auto;
+  /* Hairline all the way round now that three sides are visible; the bottom runs off
+     the frame edge, so it stays open. */
+  border: 0.5px solid var(--pds-border);
+  border-bottom: none;
+  border-radius: var(--pds-shell-frame-radius) var(--pds-shell-frame-radius) 0 0;
 }
 
 .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
@@ -209,6 +233,15 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
 .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
   padding-left: var(--proto-format-toolbar-paper-inset, 0px);
   padding-right: var(--proto-format-toolbar-paper-right-inset, 0px);
+}
+
+/* The bar itself now carries the inset, so the host only pads by the overhang — pairing
+   it with the full paper inset would count the same gap twice. */
+.proto-shell__editor-chrome-row
+  .proto-editor-bottom-bar[data-mode='format']
+  .proto-editor-bottom-bar__format {
+  padding-left: var(--proto-format-toolbar-overhang);
+  padding-right: var(--proto-format-toolbar-overhang);
 }
 
 /* Inspector column (when open on desktop) */
@@ -615,6 +648,28 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     box-shadow: var(--pds-glass-rim);
   }
 
+  /* Against the keyboard the bar is a system-level strip, not a tray belonging to the
+     sheet — a floating rounded card with air down both sides would read as detached from
+     the keys it is sitting on. Full width and square here; the frame's own overflow
+     clips it to the rounded bottom corners. */
+  html[data-proto-keyboard-open]
+    .proto-shell__editor-chrome-row
+    .proto-editor-bottom-bar[data-mode='format'] {
+    left: 0;
+    right: 0;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+  }
+
+  html[data-proto-keyboard-open]
+    .proto-shell__editor-chrome-row
+    .proto-editor-bottom-bar[data-mode='format']
+    .proto-editor-bottom-bar__format {
+    padding-left: var(--proto-format-toolbar-paper-inset, 0px);
+    padding-right: var(--proto-format-toolbar-paper-right-inset, 0px);
+  }
+
   html[data-proto-keyboard-open] .proto-shell__study-dock-layer {
     display: none;
   }
@@ -988,6 +1043,7 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     transition: none;
   }
 
+  .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar[data-mode='format'],
   .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
   .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
   .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
@@ -1087,6 +1143,18 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
       transform 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
   }
 
+  /* The format bar's inset moved from the host's padding onto the bar's own edges, so
+     the edges are what has to ease when the sidebar or inspector changes the paper's
+     position — otherwise the bar snaps while everything beside it glides. */
+  .proto-shell__editor-chrome-row .proto-editor-bottom-bar[data-mode='format'] {
+    transition:
+      left 0.26s cubic-bezier(0.32, 0.72, 0.24, 1),
+      right 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
+  }
+
+  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)
+    .proto-shell__editor-chrome-row
+    .proto-editor-bottom-bar[data-mode='format'],
   .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)
     .proto-shell__editor-chrome-row
     .proto-editor-bottom-bar__format,

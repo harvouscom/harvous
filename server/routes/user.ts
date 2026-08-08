@@ -1112,8 +1112,15 @@ function parseSharedSpaceSwitcherOrder(raw: string | null | undefined): string[]
 // ─── POST /api/user/update-shared-space-switcher-order ────────────────────────
 
 /**
- * Per-user preference for My Home switcher order (personal Shared Spaces only).
- * Drops ids the user cannot access or that are not personal shared spaces.
+ * Per-user preference for space switcher order. Covers every list the switcher shows —
+ * My Home's personal Shared Spaces and a church's spaces/channels — in one array; each
+ * list picks out its own ids and ignores the rest.
+ *
+ * Drops ids the user cannot access. Church-scoped spaces are allowed now (they were
+ * excluded by an `orgId IS NULL` narrowing), but the gate is unchanged: an id survives
+ * only if the caller owns the space or holds a membership in it. Following a channel
+ * creates that membership, so a followed channel qualifies and an unfollowed one does
+ * not. Order here is a private display preference and changes nothing for anyone else.
  */
 app.post('/api/user/update-shared-space-switcher-order', requireAuth, rateLimit('write'), async (c) => {
   try {
@@ -1133,14 +1140,16 @@ app.post('/api/user/update-shared-space-switcher-order', requireAuth, rateLimit(
 
     let allowedIds = new Set<string>();
     if (uniqueRequested.length > 0) {
+      // 'public' covers ministry channels (public + orgId); 'personal' stays out — My Home
+      // is not a row anyone can drag.
+      const orderableTypes = ['shared', 'public'] as const;
       const owned = await db
         .select({ id: Spaces.id })
         .from(Spaces)
         .where(
           and(
             eq(Spaces.userId, auth.userId),
-            eq(Spaces.type, 'shared'),
-            isNull(Spaces.orgId),
+            inArray(Spaces.type, [...orderableTypes]),
             isNull(Spaces.deletedAt),
             inArray(Spaces.id, uniqueRequested),
           ),
@@ -1152,8 +1161,7 @@ app.post('/api/user/update-shared-space-switcher-order', requireAuth, rateLimit(
         .where(
           and(
             eq(SpaceMemberships.userId, auth.userId),
-            eq(Spaces.type, 'shared'),
-            isNull(Spaces.orgId),
+            inArray(Spaces.type, [...orderableTypes]),
             isNull(Spaces.deletedAt),
             inArray(Spaces.id, uniqueRequested),
           ),

@@ -1087,7 +1087,12 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
    planner scope picker — at the old 28px row while every other menu grew.
    Density belongs to `.proto-menu-item`; this rule decides width. */
 .proto-menu__popover--list-view .proto-menu-item {
-  width: auto;
+  /* `width: auto` on a `<button>` is shrink-to-fit, not stretch — so each row sized
+     to its own label and the hover pill came out ragged, ending short of the menu
+     edge on "Pin note" while "Share to a space…" ran the full width. The popover's
+     `width: max-content` already sizes the menu to its widest row; the rows just
+     have to fill it. */
+  width: 100%;
   min-width: 148px;
 }
 
@@ -1235,7 +1240,12 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--pds-accent);
+  /* Deliberately not blue. Blue belongs to the accent gradient — a filled orb, on
+     the one thing being affirmed. A flat `--pds-accent` glyph here made a third,
+     weaker blue that read as a different colour beside any gradient control. In a
+     menu the check's *presence* already carries the selection; it doesn't need a
+     hue to say so as well. */
+  color: var(--pds-text-secondary);
   flex-shrink: 0;
 }
 
@@ -3828,15 +3838,17 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   fill: var(--pds-on-accent) !important;
 }
 
+/* Dark mode keeps the accent gradient — it just drops the glow, which reads as
+   haze on a dark surface. It previously fell back to `--pds-selection-bg`, which
+   is the *text selection* highlight (amber, `#ffe8a8` light / warm amber in dark),
+   so the selected check rendered as an olive disc with no relation to the accent. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-color-scheme='light']) .proto-accent-check-orb--selected {
-    background: var(--pds-selection-bg);
     box-shadow: none;
   }
 }
 
 :root[data-color-scheme='dark'] .proto-accent-check-orb--selected {
-  background: var(--pds-selection-bg);
   box-shadow: none;
 }
 
@@ -5203,6 +5215,20 @@ html.harvous-prototype-route
   color: var(--pds-text-secondary);
 }
 
+/* The tile brings its own fill and colour (e.g. a Shared Space icon), so the
+   generic chip surface underneath would only box it in. */
+.proto-settings-list-row__leading--bare {
+  background: none;
+  border: none;
+}
+
+/* A static row dims to mark "not tappable", which is a statement about the text.
+   Applied to a colour swatch it just makes the space's colour read wrong, so the
+   tile stays at full strength. */
+.proto-settings__content .proto-note-row--disabled .proto-settings-list-row__leading--bare {
+  opacity: calc(1 / 0.72);
+}
+
 /* Harvous Plus — soft sky-blue gradient swatch + plus mark
    (cooler/softer than the accent check-orb #2bb5ff→#006eff). */
 .proto-settings-list-row__leading--plus {
@@ -5217,6 +5243,35 @@ html.harvous-prototype-route
   box-shadow:
     0 1px 2px color-mix(in oklab, var(--pds-highlight-sky-blue) 14%, transparent),
     inset 0 1px 0 color-mix(in oklab, #fff 55%, transparent);
+}
+
+/* Dark mode is not the light tile with a dark page colour mixed in. Two things
+   broke: the glyph mixes toward `--pds-thread-blue`, which is dark on purpose and
+   goes nearly invisible on a dark fill; and the hardcoded white inset lit the top
+   edge into a hard rim, so the tile read as an outlined box rather than a swatch.
+   Lift the glyph to the gradient's sky end and let the rim be a faint wash. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme='light']) .proto-settings-list-row__leading--plus {
+    color: var(--pds-accent-gradient-start);
+    background: linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--pds-accent-gradient-end) 20%, var(--pds-bg-page)),
+      color-mix(in oklab, var(--pds-accent-gradient-end) 10%, var(--pds-bg-page))
+    );
+    border: 0.5px solid color-mix(in oklab, var(--pds-accent-gradient-start) 18%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in oklab, #fff 8%, transparent);
+  }
+}
+
+:root[data-color-scheme='dark'] .proto-settings-list-row__leading--plus {
+  color: var(--pds-accent-gradient-start);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--pds-accent-gradient-end) 20%, var(--pds-bg-page)),
+    color-mix(in oklab, var(--pds-accent-gradient-end) 10%, var(--pds-bg-page))
+  );
+  border: 0.5px solid color-mix(in oklab, var(--pds-accent-gradient-start) 18%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, #fff 8%, transparent);
 }
 
 .proto-settings-list-row__trailing {
@@ -9427,6 +9482,165 @@ button.proto-appearance-hero__card {
   color: var(--pds-text-secondary);
 }
 
+/* ── Multi-select in the sidebar note list ──────────────────────────────────
+   Selection reuses the row itself: the check orb sits in the row's own button, so the
+   list keeps one focusable control per row and `SIDEBAR_LIST_ROW_SELECTOR` still works. */
+
+.proto-select-slot {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/*
+ * The row's button stacks a title line over a preview line. Selecting adds a leading orb,
+ * which has to sit beside BOTH — a flex row would make the orb, the title and the preview
+ * three columns and put the timestamp next to the title.
+ *
+ * Grid instead: the orb spans the full height of column one, everything else stays in
+ * column two in its original order.
+ */
+.proto-note-row-item--selectable .proto-note-row__main {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+}
+
+.proto-note-row-item--selectable .proto-note-row__main > .proto-select-slot {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  align-self: center;
+  margin-top: 0;
+}
+
+.proto-note-row-item--selectable .proto-note-row__main > *:not(.proto-select-slot) {
+  grid-column: 2;
+  min-width: 0;
+}
+
+/* Header — replaces the search field while selecting. */
+.proto-select-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 14px 8px;
+}
+
+.proto-select-bar__count {
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+  white-space: nowrap;
+}
+
+.proto-select-bar__action {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 4px 6px;
+  border-radius: var(--pds-radius-menu-item);
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.proto-select-bar__action:hover:not(:disabled),
+.proto-select-bar__action:focus-visible {
+  background: var(--pds-bg-subtle);
+  color: var(--pds-text-primary);
+}
+
+.proto-select-bar__action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Done closes the mode, so it carries the accent — the same "you picked this" blue the
+   check orbs use, and the only blue in the bar. */
+.proto-select-bar__action--done {
+  color: var(--pds-accent);
+  font-weight: 600;
+}
+
+/* Action bar — the `.proto-collection-grid-actions` pinned-footer recipe, but quiet
+   controls rather than the gradient primary: four gradient pills would read as four
+   competing primary actions. */
+.proto-bulk-bar {
+  display: flex;
+  gap: 6px;
+}
+
+.proto-bulk-bar .proto-bulk-bar__btn {
+  appearance: none;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-button);
+  background: var(--pds-bg-input);
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proto-bulk-bar .proto-bulk-bar__btn:hover:not(:disabled) {
+  background: var(--pds-bg-control);
+}
+
+/* Disabled is the resting state of at least one action most of the time (all-or-nothing),
+   so it has to read as "not now", not as broken. */
+.proto-bulk-bar .proto-bulk-bar__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Red on approach only — never a filled destructive pill sitting in a toolbar. */
+.proto-bulk-bar .proto-bulk-bar__btn--danger {
+  color: var(--pds-destructive);
+}
+
+.proto-bulk-bar .proto-bulk-bar__btn--danger:hover:not(:disabled) {
+  background: var(--pds-destructive-bg);
+}
+
+/* Share-to-space picker for a multi-selection. Anchored over the sidebar rather than
+   portaled to a trigger — the trigger is a bar button whose position depends on the
+   list's scroll height, and a menu that jumps as the list settles is worse than one
+   centred on the column it belongs to. */
+.proto-bulk-share__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--pds-z-modal-popover, 5000);
+}
+
+.proto-bulk-share__popover {
+  position: fixed;
+  left: 50%;
+  bottom: 84px;
+  transform: translateX(-50%);
+  max-width: min(300px, calc(100vw - 32px));
+  max-height: min(360px, 60vh);
+  overflow-y: auto;
+  z-index: calc(var(--pds-z-modal-popover, 5000) + 1);
+}
+
 /* ── Recall carousel (Home resurfacing) ─────────────────────────────────── */
 /* ─── Card stack ─────────────────────────────────────────────────────────────
    An overlapping deck that fans out on tap, replacing the dot-and-caret pager.
@@ -9488,8 +9702,27 @@ button.proto-appearance-hero__card {
   );
   height: calc(var(--peek-depth) * var(--stack-peek-step, 5px) + 10px);
   border-radius: 0 0 14px 14px;
-  background: var(--pds-paper-sheet);
-  box-shadow: var(--pds-paper-shadow-subtle);
+  /*
+   * The same material as the card in front, composited flat.
+   *
+   * These were `--pds-paper-sheet` (78% pure white) while the cards above them are
+   * warm glass, so the deck's back edges rendered brighter and cooler than its front
+   * card — depth read inside out, and against the canvas the overlap looked like a
+   * pale slab wedged under the stack rather than the edge of another card.
+   *
+   * Flat on purpose: `.proto-glass-surface` would match exactly, but that is a
+   * `backdrop-filter` per layer on an element that animates its position on hover.
+   * Only a few px of each layer is ever visible, over the same canvas the card
+   * samples, so the blur buys nothing the composite does not already give.
+   */
+  background-color: var(--pds-glass-shell);
+  background-image: linear-gradient(var(--pds-glass-panel-frost), var(--pds-glass-panel-frost));
+  /* Inset top: the card in front casts onto the one behind. That cast is what
+     separates the layers now that they share a colour — the old outer paper shadow
+     lit the seam instead, which is what made the band read as its own surface. */
+  box-shadow:
+    inset 0 2px 3px -2px rgba(0, 0, 0, 0.16),
+    0 1px 2px rgba(0, 0, 0, 0.05);
   opacity: calc(1 - var(--peek-depth) * 0.22);
   pointer-events: none;
   z-index: 0;
@@ -12259,6 +12492,14 @@ p.proto-teaching-plan__divider {
    its own — an in-flow handle shifted every reorderable row right, so personal
    spaces sat further in than church ones and neither lined up with its parent.
    Hidden until the row is hovered, with the icon fading out beneath it. */
+/*
+ * Desktop reveals the handle on hover, over the space icon — a quiet cue that the row can
+ * be moved, without a permanent column of grips down a menu whose job is switching.
+ *
+ * Touch never sees this: there is no hover, and no handle. The gesture there is a
+ * press-and-hold on the row itself, which is why the drag listeners live on the row
+ * rather than here (see SpaceSwitcherRow).
+ */
 .proto-space-switcher__row--reorderable .proto-space-switcher__drag-handle {
   position: absolute;
   left: 0;
@@ -12351,6 +12592,9 @@ p.proto-teaching-plan__divider {
 
 .proto-space-switcher__drag-handle {
   appearance: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
   flex: 0 0 22px;
   width: 22px;
   margin: 0;

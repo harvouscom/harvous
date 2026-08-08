@@ -3,6 +3,8 @@ import { useProfile } from '../../../hooks/queries/useProfile';
 import { useNavigation } from '../../../hooks/queries/useNavigation';
 import { useUpdateChurch } from '../../../hooks/mutations/useUpdateChurch';
 import { formatChurchLocation, staffedChurchSharedSpaces } from '../../../lib/church-settings';
+import { isMinistryBroadcastSpace } from '../../../lib/shared-space-capabilities';
+import ProtoSpaceMenuIcon from '../ProtoSpaceMenuIcon';
 import { SettingsGroup, SettingsRow, SettingsShell } from './SettingsShell';
 import { ErrorText } from './account/accountShared';
 import HmcChurchPicker, { type HmcChurchPick } from '@/components/react/HmcChurchPicker';
@@ -485,8 +487,16 @@ export default function PrototypeChurchPage() {
                 key={space.id}
                 label={space.title}
                 sublabel={spaceChurchSublabel(space)}
-                leadingIcon="user-group"
-                leadingAccent="var(--pds-highlight-sky-blue)"
+                // The space's own colour, not a fixed sky blue — this is the same tile
+                // the switcher and sidebar show for the space, and it handles light/dark.
+                leadingNode={
+                  <ProtoSpaceMenuIcon
+                    color={space.color || 'paper'}
+                    size={30}
+                    radius={8}
+                    iconName={isMinistryBroadcastSpace(space) ? 'rss' : 'user-group'}
+                  />
+                }
                 trailing="none"
                 disabled
               />
