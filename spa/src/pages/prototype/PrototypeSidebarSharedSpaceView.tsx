@@ -35,6 +35,7 @@ import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import PrototypeSpacePeopleSheet from './PrototypeSpacePeopleSheet';
+import { ProtoToolsRowList, type ProtoToolRow } from './proto-tools-registry';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
@@ -295,6 +296,15 @@ function PrototypeSidebarSharedSpaceViewLive() {
     type: ministryMeta.type,
     orgId: ministryMeta.orgId,
   });
+  /*
+    A space's Tools card, sharing the church hub's row chrome via
+    `proto-tools-registry`. Empty today — the card renders nothing until a
+    space has a tool worth a door — but the derivation is the seam: when
+    per-space enablement lands it filters this array off the space payload
+    (a SpaceTools row per tool), not off another hard-coded conditional.
+  */
+  const spaceToolRows = useMemo<ProtoToolRow[]>(() => [], []);
+
   const canModerateChannel = canModerateMinistryChannel({
     isOwner: isSpaceOwner,
     membershipRole,
@@ -861,6 +871,13 @@ function PrototypeSidebarSharedSpaceViewLive() {
                   ) : null}
                 </div>
               )}
+            </div>
+          ) : null}
+
+          {spaceToolRows.length > 0 ? (
+            <div className="proto-home-section">
+              <p className="proto-caption proto-home-section__eyebrow">Tools</p>
+              <ProtoToolsRowList rows={spaceToolRows} />
             </div>
           ) : null}
 
