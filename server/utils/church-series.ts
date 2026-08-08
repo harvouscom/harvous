@@ -534,3 +534,34 @@ async function findSeriesByRun(
   );
   return row?.id ?? null;
 }
+
+/**
+ * A run label of this name that is not taken yet.
+ *
+ * The label is normally the year, which distinguishes Advent 2026 from Advent
+ * 2027 — the case the whole feature exists for. It does not distinguish two
+ * runs that *start in the same year*, which is easy to reach by re-running a
+ * study a few months after the first one. Left alone that produced an
+ * unlabelled "Hello World" beside a labelled "Hello World · 2026": both real,
+ * neither telling you which was which, and exactly the asymmetry the
+ * label-both-runs rule was written to prevent.
+ *
+ * So the year is a *preference*, not a guarantee. If it is taken, this counts
+ * up — "2026", "2026 (2)", "2026 (3)" — until it finds one free. Bounded,
+ * because an unbounded loop against a unique index is how a save hangs.
+ */
+export async function nextFreeRunLabel(
+  scope: SeriesScope,
+  title: string,
+  desired: string,
+  executor: Executor = db,
+): Promise<string> {
+  const base = desired.trim().slice(0, 40) || 'Run';
+  for (let n = 1; n <= 20; n += 1) {
+    const candidate = n === 1 ? base : `${base} (${n})`;
+    if (!(await findSeriesByRun(scope, title, candidate, executor))) return candidate;
+  }
+  /* Twenty runs of one name in one plan is not a real church; falling back to
+     something unique beats looping or throwing. */
+  return `${base} (${Date.now().toString().slice(-4)})`;
+}

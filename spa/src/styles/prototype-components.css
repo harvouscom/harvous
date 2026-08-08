@@ -14128,6 +14128,31 @@ p.proto-teaching-plan__divider {
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
 
+/* Series sheet: moving existing weeks in, and re-running the whole study.
+   Both are progressive disclosure inside the sheet — a quiet action that
+   becomes a form in place, the same idiom the date picker and repeat control
+   already use here. */
+.proto-series-sheet__assign,
+.proto-series-sheet__rerun {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-2);
+}
+
+/* Capped so a plan with thirty unassigned Sundays does not push the sheet's
+   own actions off the bottom; the list scrolls inside the sheet's scroller. */
+.proto-series-sheet__assign-list {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.proto-series-sheet__copy-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  cursor: pointer;
+}
+
 /* ── Series accent ──────────────────────────────────────────────────────────
    One colour per series, exposed as a custom property so a card, a date tile,
    a run band, and a lane swatch all draw the same run in the same hue without
