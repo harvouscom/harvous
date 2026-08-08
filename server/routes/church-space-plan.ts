@@ -22,6 +22,7 @@
  *
  * Endpoints:
  *   GET  /api/church/spaces/:spaceId/plan
+ *   GET  /api/church/spaces/:spaceId/coming-up   (members, not staff)
  *   POST /api/church/spaces/:spaceId/services/create
  *   POST /api/church/spaces/:spaceId/services/update
  *   POST /api/church/spaces/:spaceId/services/repeat
@@ -34,7 +35,20 @@
  */
 
 import { Hono } from 'hono';
-import { db, first, ChurchServices, NoteTemplates, and, asc, eq } from '../db';
+import {
+  db,
+  first,
+  ChurchServices,
+  NoteTemplates,
+  and,
+  asc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+} from '../db';
+import { requireSpaceAccess } from '../utils/space-access';
+import { resolveViewerServiceNotes } from '../utils/church-teaching-plan';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
@@ -80,6 +94,14 @@ import {
 const app = new Hono();
 
 const TITLE_MAX = 120;
+
+/**
+ * How long a gathering stays on screen after it happened — the room is still
+ * writing up Wednesday on Thursday. Matches the church card's own grace.
+ */
+const SPACE_GATHERING_GRACE_DAYS = 4;
+/** A couple of months of plan is plenty for a card that shows one gathering. */
+const SPACE_GATHERING_WINDOW = 8;
 
 /**
  * What this plan's rows are: a channel publishes, every other space gathers.
@@ -1013,6 +1035,121 @@ app.post('/api/church/spaces/:spaceId/series/delete', requireAuth, rateLimit('wr
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/spaces/[spaceId]/series/delete',
       action: 'delete_church_space_series',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * The room's own next gathering, for the people who gather in it.
+ *
+ * The plan endpoint above is staff-gated: it hands back the whole schedule,
+ * every week's resources, and the scaffolding for editing them. A member needs
+ * one thing — what are we on this week, and let me write about it — so this is
+ * a separate, narrower read gated on **membership of the space**, not on
+ * `sermon_tools`.
+ *
+ * Deliberately one gathering and never a list: "one next gathering per context
+ * you joined, never a schedule of any context"
+ * (docs/future/CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md §1). This is the
+ * per-space half of the same doctrine the This Sunday card follows.
+ *
+ * `viewerNoteId` is the caller's OWN note and nobody else's — the same rule
+ * `resolveViewerServiceNotes` is held to everywhere it is used. A room must
+ * never learn who else has written this week.
+ */
+app.get('/api/church/spaces/:spaceId/coming-up', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = c.req.param('spaceId') ?? '';
+
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
+    try {
+      access = await requireSpaceAccess(spaceId, auth.userId);
+    } catch {
+      /* Not a member — indistinguishable from "no such room", on purpose. */
+      return c.json({ gathering: null });
+    }
+
+    /*
+      A channel has nothing to come up to: its entries are unpublished staff
+      intentions, and announcing one as a gathering would promise something the
+      church has not said. Same refusal the client made, moved server-side so
+      the payload cannot carry it at all.
+    */
+    if (isMinistryBroadcastSpaceRow(access.space)) return c.json({ gathering: null });
+
+    const cutoff = new Date();
+    cutoff.setUTCDate(cutoff.getUTCDate() - (SPACE_GATHERING_GRACE_DAYS + 1));
+    const from = cutoff.toISOString().slice(0, 10);
+
+    const rows = await db
+      .select()
+      .from(ChurchServices)
+      .where(
+        and(
+          eq(ChurchServices.spaceId, spaceId),
+          isNotNull(ChurchServices.serviceDate),
+          gte(ChurchServices.serviceDate, from),
+        ),
+      )
+      .orderBy(asc(ChurchServices.serviceDate))
+      .limit(SPACE_GATHERING_WINDOW);
+
+    if (rows.length === 0) return c.json({ gathering: null });
+
+    const seriesTitles = await seriesTitlesByServiceRows(rows);
+    const viewerNotes = await resolveViewerServiceNotes(
+      auth.userId,
+      rows.map((row) => row.id),
+    );
+
+    const templateIds = [
+      ...new Set(rows.map((r) => r.starterTemplateId).filter((id): id is string => Boolean(id))),
+    ];
+    const templates = templateIds.length
+      ? await db.select().from(NoteTemplates).where(inArray(NoteTemplates.id, templateIds))
+      : [];
+    const templateById = new Map(templates.map((t) => [t.id, t]));
+
+    return c.json({
+      space: {
+        id: access.space.id,
+        title: access.space.title,
+        meetingDay: access.space.meetingDay ?? null,
+        meetingTime: access.space.meetingTime ?? null,
+      },
+      /*
+        The window, not one row: which of these is "next" depends on the
+        viewer's own day, and the client already owns that judgement in
+        `currentSermonFor` — including the grace window that keeps Wednesday
+        on screen through Thursday.
+      */
+      services: rows.map((row) => {
+        const template = row.starterTemplateId ? templateById.get(row.starterTemplateId) : undefined;
+        return {
+          id: row.id,
+          serviceDate: row.serviceDate,
+          serviceTime: row.serviceTime,
+          times: row.serviceTime ? [row.serviceTime] : [],
+          title: row.title,
+          reference: row.reference,
+          seriesTitle: row.seriesId ? seriesTitles.get(row.seriesId) ?? null : null,
+          viewerNoteId: viewerNotes.get(row.id) ?? null,
+          starter: template
+            ? {
+                templateId: template.id,
+                templateName: template.name,
+                content: template.content,
+              }
+            : null,
+        };
+      }),
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/spaces/[spaceId]/coming-up',
+      action: 'read_space_coming_up',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

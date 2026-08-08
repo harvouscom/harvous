@@ -720,9 +720,13 @@ function PrototypeSidebarSharedSpaceViewLive() {
             only requested for someone who can already see the church's plans;
             everyone else, and every space without a plan, renders nothing.
           */}
+          {/* Members, not just staff: the read is membership-gated now, so the
+              people who actually gather here see what the room is on. Still
+              only asked of a church room — a personal Shared Space has no
+              plan to answer with. */}
           <PrototypeSpaceComingUp
             spaceId={activeSpaceId ?? null}
-            enabled={Boolean(ministryMeta.orgId) && canManageThreads}
+            enabled={Boolean(ministryMeta.orgId)}
           />
           {bannerNewCount > 0 ? (
             <div className="proto-home-section">
