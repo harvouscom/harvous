@@ -755,23 +755,51 @@ export const ChurchSeries = pgTable('ChurchSeries', {
   color: text('color'),
   /** One line on what this run is about. Staff-facing; never rendered to a congregant. */
   description: text('description'),
+  /**
+   * Which *run* of a recurring series this is — "2027", "Fall", or NULL.
+   *
+   * Churches run seasonal series under the same name every year: Advent, Lent,
+   * Easter. The uniqueness below was built to stop a typo forking "Life In the
+   * Spirit" from "Life in the Spirit", and it is right about that — but it
+   * cannot tell a typo apart from a season coming round again, so "Advent"
+   * could exist once per plan, ever.
+   *
+   * **NULL is the common case and behaves exactly as before.** Uniqueness folds
+   * this in through `coalesce(lower(runLabel), '')`, so a plan with one
+   * unlabelled "Advent" is constrained precisely as it was, and
+   * `findOrCreateSeries` resolves the free-text combobox against
+   * `runLabel IS NULL` — which is what keeps the typo guard intact and keeps
+   * this invisible to a church that never re-runs anything.
+   *
+   * Shown only when it disambiguates: one "Advent" reads "Advent"; two read
+   * "Advent · 2026" and "Advent · 2027". Re-running labels *both* runs, because
+   * the moment a second run exists is the moment the ambiguity does.
+   */
+  runLabel: text('runLabel'),
   createdBy: text('createdBy').notNull(),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 }, (table) => [
   /**
-   * One series per name per plan, case-insensitively — the whole point is that
-   * "Life In the Spirit" cannot become a second series beside "Life in the
-   * Spirit". Two partial indexes because `spaceId IS NULL` is a distinct scope
-   * and Postgres treats NULLs as distinct in a plain unique index, so the
+   * One series per name **per run** per plan, case-insensitively — so
+   * "Life In the Spirit" still cannot become a second series beside "Life in
+   * the Spirit", while Advent 2026 and Advent 2027 can both exist.
+   *
+   * Two partial indexes because `spaceId IS NULL` is a distinct scope and
+   * Postgres treats NULLs as distinct in a plain unique index, so the
    * church-plan half would not be constrained at all. Same shape and same
    * reason as `ChurchServices_space_date_unique`.
+   *
+   * `coalesce` rather than a plain column for the same reason: a NULL
+   * `runLabel` must collide with another NULL `runLabel`, which a raw column in
+   * a unique index would not. Both `coalesce` and `lower` are IMMUTABLE, so the
+   * expression index is legal.
    */
-  uniqueIndex('ChurchSeries_church_title_unique')
-    .on(table.churchId, sql`lower(${table.title})`)
+  uniqueIndex('ChurchSeries_church_title_run_unique')
+    .on(table.churchId, sql`lower(${table.title})`, sql`coalesce(lower(${table.runLabel}), '')`)
     .where(sql`${table.spaceId} IS NULL`),
-  uniqueIndex('ChurchSeries_space_title_unique')
-    .on(table.spaceId, sql`lower(${table.title})`)
+  uniqueIndex('ChurchSeries_space_title_run_unique')
+    .on(table.spaceId, sql`lower(${table.title})`, sql`coalesce(lower(${table.runLabel}), '')`)
     .where(sql`${table.spaceId} IS NOT NULL`),
   index('ChurchSeries_churchIdIndex').on(table.churchId),
 ]);

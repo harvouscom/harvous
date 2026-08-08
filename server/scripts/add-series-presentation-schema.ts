@@ -39,6 +39,24 @@ export const ADDITIVE_SERIES_PRESENTATION_DDL = [
   // the service id alone would make the cross-author lookup cheap, and that is
   // the query this schema deliberately does not want to serve.
   `CREATE INDEX IF NOT EXISTS "Notes_userId_plannedForServiceIdIndex" ON "Notes" ("userId", "plannedForServiceId")`,
+  // ── Seasonal series: the same name, twice ─────────────────────────────────
+  //
+  // Churches run Advent every year. The old uniqueness was on `lower(title)`
+  // alone, so "Advent" could exist once per plan forever — a guard built for
+  // typos that could not tell a typo from a season returning.
+  `ALTER TABLE "ChurchSeries" ADD COLUMN IF NOT EXISTS "runLabel" text`,
+  // Order matters and is safe: create the wider constraint FIRST. Every
+  // existing row has a NULL runLabel, which coalesces to '', so the new index
+  // permits exactly the data the old one already did — there is no window in
+  // which live rows violate it. Then the old, narrower pair can go.
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ChurchSeries_church_title_run_unique"
+     ON "ChurchSeries" ("churchId", lower("title"), coalesce(lower("runLabel"), ''))
+     WHERE "spaceId" IS NULL`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ChurchSeries_space_title_run_unique"
+     ON "ChurchSeries" ("spaceId", lower("title"), coalesce(lower("runLabel"), ''))
+     WHERE "spaceId" IS NOT NULL`,
+  `DROP INDEX IF EXISTS "ChurchSeries_church_title_unique"`,
+  `DROP INDEX IF EXISTS "ChurchSeries_space_title_unique"`,
 ] as const;
 
 export async function runAddSeriesPresentationSchema(

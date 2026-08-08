@@ -41,6 +41,7 @@ vi.mock('../../db', () => {
       title: 'title',
       color: 'color',
       description: 'description',
+      runLabel: 'runLabel',
       createdAt: 'createdAt',
     },
     ChurchServices: { id: 'id', seriesId: 'seriesId', serviceDate: 'serviceDate' },
@@ -353,5 +354,41 @@ describe('series contracts', () => {
     const deleteBody = code.slice(code.indexOf('export async function deleteSeries'));
     expect(deleteBody).toMatch(/set\(\{ seriesId: null \}\)/);
     expect(deleteBody).not.toMatch(/delete\(ChurchServices\)/);
+  });
+});
+
+describe('seasonal runs', () => {
+  /*
+    The constraint this feature relaxes was built to stop a typo forking a
+    series, and it is right about that — it just could not tell a typo from
+    Advent coming round again. These pin both halves: the fork guard still
+    holds, and a labelled run can exist beside an unlabelled one.
+  */
+  it('resolves a typed series name against the UNLABELLED run only', async () => {
+    selectRows.mockResolvedValue([{ id: 'csrs_advent_plain' }]);
+    const result = await resolveSeriesForWrite({
+      scope: CHURCH_SCOPE,
+      seriesTitle: 'Advent',
+      userId: 'u1',
+    });
+    expect(result).toMatchObject({ ok: true, seriesId: 'csrs_advent_plain' });
+    /*
+      The load-bearing assertion. Without `runLabel IS NULL` in that lookup, a
+      church with "Advent · 2026" and "Advent · 2027" would have a free-text
+      combobox that resolves to whichever row came back first — so typing
+      "Advent" on a new sermon could silently file it under last year's run.
+    */
+    expect(insertValues).not.toHaveBeenCalled();
+  });
+
+  it('keeps the typo guard: a case variant still resolves, never forks', async () => {
+    selectRows.mockResolvedValue([{ id: 'csrs_spirit' }]);
+    const result = await resolveSeriesForWrite({
+      scope: CHURCH_SCOPE,
+      seriesTitle: 'Life In The Spirit',
+      userId: 'u1',
+    });
+    expect(result).toMatchObject({ ok: true, seriesId: 'csrs_spirit' });
+    expect(insertValues).not.toHaveBeenCalled();
   });
 });

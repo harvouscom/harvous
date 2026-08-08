@@ -74,6 +74,8 @@ export type SerializedSeries = {
    */
   color: string | null;
   description: string | null;
+  /** "2027" for a seasonal re-run; null for a series with no sibling. */
+  runLabel: string | null;
 };
 
 /**
@@ -106,6 +108,7 @@ export async function listSeriesForPlan(scope: SeriesScope): Promise<SerializedS
       title: ChurchSeries.title,
       color: ChurchSeries.color,
       description: ChurchSeries.description,
+      runLabel: ChurchSeries.runLabel,
       serviceCount: sql<number>`count(${ChurchServices.id})::int`,
       lastDate: sql<string | null>`max(${ChurchServices.serviceDate})`,
     })
@@ -120,6 +123,7 @@ export async function listSeriesForPlan(scope: SeriesScope): Promise<SerializedS
       ChurchSeries.title,
       ChurchSeries.color,
       ChurchSeries.description,
+      ChurchSeries.runLabel,
       ChurchSeries.createdAt,
     )
     // NULLS LAST so a brand-new series with no sermons yet sits below the ones
@@ -136,6 +140,7 @@ export async function listSeriesForPlan(scope: SeriesScope): Promise<SerializedS
     // which the client already knows how to colour.
     color: isSeriesColor(row.color) ? row.color : null,
     description: row.description ?? null,
+    runLabel: row.runLabel ?? null,
   }));
 }
 
@@ -255,6 +260,20 @@ export async function findOrCreateSeries(
   return settled;
 }
 
+/**
+ * The unlabelled series of this name in this plan, if there is one.
+ *
+ * **`runLabel IS NULL` is the whole point.** Once seasonal runs exist, a plan
+ * can hold "Advent · 2026" and "Advent · 2027", and a lookup by title alone
+ * would be ambiguous — it is the free-text combobox's resolution path, so an
+ * ambiguous answer there is how a sermon silently joins last year's run.
+ *
+ * Restricting it to the unlabelled row keeps that path exactly as it was: one
+ * answer, or none. Labelled runs are only ever reached by id, from the flows
+ * that created them. It also keeps the typo guard intact — this is still what
+ * makes "Life In the Spirit" resolve to "Life in the Spirit" rather than
+ * forking it.
+ */
 async function findSeriesByTitle(
   scope: SeriesScope,
   title: string,
@@ -264,7 +283,13 @@ async function findSeriesByTitle(
     await executor
       .select({ id: ChurchSeries.id })
       .from(ChurchSeries)
-      .where(and(scopeWhere(scope), sql`lower(${ChurchSeries.title}) = lower(${title})`))
+      .where(
+        and(
+          scopeWhere(scope),
+          sql`lower(${ChurchSeries.title}) = lower(${title})`,
+          isNull(ChurchSeries.runLabel),
+        ),
+      )
       .limit(1),
   );
   return row?.id ?? null;

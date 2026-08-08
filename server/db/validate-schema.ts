@@ -130,6 +130,9 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     // id when `color` is unset, so their absence is a valid state, not a gap.
     'color',
     'description',
+    // Seasonal recurrence — see the column docblock. NULL for every run that
+    // has no sibling, which is most of them.
+    'runLabel',
     'createdBy',
     'createdAt',
     'updatedAt',
@@ -191,7 +194,7 @@ const REQUIRED_INDEXES: Record<string, readonly string[]> = {
   /** The one-answer guarantee, moved here from ChurchServices_church_date_unique. */
   ChurchServiceTimeAssignments: ['ChurchServiceTimeAssignments_slot_date_unique'],
   /** Both halves required — one index per plan scope, neither optional. */
-  ChurchSeries: ['ChurchSeries_church_title_unique', 'ChurchSeries_space_title_unique'],
+  ChurchSeries: ['ChurchSeries_church_title_run_unique', 'ChurchSeries_space_title_run_unique'],
   UserMetadata: ['UserMetadata_connectedChurchIdIndex', 'UserMetadata_hmcChurchIdIndex'],
   // The owner unique index is the lazy-creation race guard, not just a constraint.
   ResourceLibraries: ['ResourceLibraries_owner_unique'],
