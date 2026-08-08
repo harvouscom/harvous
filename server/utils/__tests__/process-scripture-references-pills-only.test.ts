@@ -57,12 +57,15 @@ describe('resolvePillNoteIdForProcessing', () => {
 describe('plain-text extraction around scripture pills', () => {
   const pill = (ref: string) =>
     `<span class="scripture-pill" data-scripture-reference="${ref}">${ref}</span>`;
+  /* These cases assert on what was *detected*, not on the pills written back,
+     so the owning note only has to be a real id. */
+  const noteId = 'note_parent_1';
 
   it('does not fuse a pill onto the word before it', () => {
     // Regression: the unwrap used `'$1'`, so "Ps Brian" + a Matthew pill became
     // "Ps BrianMatthew 6:19-21" — which is how the tag "Ps BrianMatthew" got written.
     const html = `<p>Ps Brian${pill('Matthew 6:19-21')}</p>`;
-    const { references } = transformCanonicalScriptureContent({ content: html, pillsOnly: true });
+    const { references } = transformCanonicalScriptureContent({ noteId, content: html, pillsOnly: true });
 
     expect(references).toContain('Matthew 6:19-21');
     expect(references.some((r) => /Brian/i.test(r))).toBe(false);
@@ -79,7 +82,7 @@ describe('plain-text extraction around scripture pills', () => {
 
   it('still finds a reference that already had a space before it', () => {
     const html = `<p>See ${pill('John 3:16')} today</p>`;
-    const { references } = transformCanonicalScriptureContent({ content: html, pillsOnly: true });
+    const { references } = transformCanonicalScriptureContent({ noteId, content: html, pillsOnly: true });
     expect(references).toContain('John 3:16');
   });
 });
