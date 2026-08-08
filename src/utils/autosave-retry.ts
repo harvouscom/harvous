@@ -47,6 +47,18 @@ interface ErrorLike {
   status?: number;
   code?: string;
   retryAfterSec?: number;
+  /**
+   * A thrower's own verdict, honored over any status-based guess.
+   *
+   * Exists because some save failures never reach the network and so carry no status —
+   * `MissingExpectedNoteVersionError` is the live example. Without this they fell into
+   * the "no status means the request never got a response" branch below, were treated as
+   * transient, and were retried five times; each attempt failed identically and toasted
+   * "Trouble saving…", so a deterministic, unfixable-by-waiting error looked like a flaky
+   * network. `src/` cannot import from `spa/`, so the error declares its kind rather than
+   * this module recognizing its class.
+   */
+  saveFailureKind?: SaveFailureKind;
 }
 
 /**
@@ -56,6 +68,12 @@ interface ErrorLike {
 export function classifySaveFailure(error: unknown): SaveFailureClassification {
   const err = (error ?? {}) as ErrorLike;
   const status = typeof err.status === 'number' ? err.status : undefined;
+
+  // A declared kind wins: the thrower knows things the status cannot say.
+  if (err.saveFailureKind) {
+    const declared = err.saveFailureKind;
+    return { kind: declared, retryable: declared === 'transient' || declared === 'rateLimited' };
+  }
 
   if (status === 409) return { kind: 'conflict', retryable: false };
   if (status === 403 || status === 404) return { kind: 'forbidden', retryable: false };
@@ -124,6 +142,10 @@ export function saveFailureMessage(kind: SaveFailureKind, gaveUp: boolean): stri
       return "You can't edit this note";
     case 'rateLimited':
       return 'Too many changes at once. Saving will pick back up in a moment';
+    // Not retryable, and not a permission problem — the save could not even be attempted
+    // safely. Say what to do instead of promising a retry that will never help.
+    case 'fatal':
+      return 'Could not save. Reload the note to pick your changes back up';
     default:
       return gaveUp
         ? "Still can't save. Your work is safe on this device — we'll retry when you edit again"

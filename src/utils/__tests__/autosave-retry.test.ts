@@ -144,3 +144,22 @@ describe('saveFailureMessage', () => {
     expect(saveFailureMessage('transient', true)).not.toBe(saveFailureMessage('transient', false));
   });
 });
+
+describe('declared failure kinds', () => {
+  it('honors an error that names its own kind over the status guess', () => {
+    // MissingExpectedNoteVersionError never reaches the network, so it has no status.
+    // Treated as status-less it looked transient and bought five pointless retries.
+    const declared = Object.assign(new Error('version unavailable'), {
+      saveFailureKind: 'fatal' as const,
+    });
+    expect(classifySaveFailure(declared)).toEqual({ kind: 'fatal', retryable: false });
+    expect(saveFailureMessage('fatal', false)).toMatch(/reload the note/i);
+  });
+
+  it('still treats a genuinely status-less network error as transient', () => {
+    expect(classifySaveFailure(new Error('offline'))).toEqual({
+      kind: 'transient',
+      retryable: true,
+    });
+  });
+});

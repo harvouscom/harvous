@@ -41,6 +41,7 @@ import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteParamSlug } from './proto-route-slugs';
 import ProtoDatePicker from './ProtoDatePicker';
 import { PrototypeAddNotesPicker } from './PrototypeAddNotesSheet';
+import { isPresentableServerMessage } from '../../lib/error-copy';
 
 export interface PrototypeSermonEditorFieldsProps {
   orgId: string | null;
@@ -402,9 +403,9 @@ export default function PrototypeSermonEditorFields({
         // ("Romans has 16 chapters.") — show it verbatim rather than a
         // generic failure, because it tells the pastor exactly what to fix.
         setError(
-          err instanceof APIError
+          err instanceof APIError && isPresentableServerMessage(err)
             ? err.message
-            : err instanceof Error
+            : err instanceof Error && isPresentableServerMessage(err)
               ? err.message
               : 'Could not save this sermon.',
         );

@@ -21,6 +21,7 @@ import ProtoTimePicker from './ProtoTimePicker';
 import { detectedTimeZone, listTimeZoneGroups } from '../../lib/time-zone-options';
 import { DEFAULT_SERVICE_TIME } from '../../lib/proto-time-picker';
 import { toast } from '@/utils/toast';
+import { isPresentableServerMessage } from '../../lib/error-copy';
 import { APIError } from '../../lib/api';
 import {
   useChurchSettings,
@@ -84,7 +85,7 @@ export default function PrototypeChurchSettingsSection({
   const busy = actions.isPending;
 
   const fail = (err: unknown, fallback: string) =>
-    toast.error(err instanceof APIError ? err.message : fallback);
+    toast.error(err instanceof APIError && isPresentableServerMessage(err) ? err.message : fallback);
 
   const saveTimezone = () => {
     actions.mutate(

@@ -18,6 +18,13 @@ interface UseStudyThreadMemberDragReorderOptions {
   enabled?: boolean;
 }
 
+/** Same ids, order ignored. */
+function sameIdMembership(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(a);
+  return b.every((id) => set.has(id));
+}
+
 function sameIdOrder(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((id, index) => id === b[index]);
 }
@@ -47,10 +54,21 @@ export function useStudyThreadMemberDragReorder({
     if (optimisticOrderRef.current) {
       if (sameIdOrder(optimisticOrderRef.current, orderedNoteIds)) {
         optimisticOrderRef.current = null;
-      } else {
+      } else if (sameIdMembership(optimisticOrderRef.current, orderedNoteIds)) {
+        // Same notes, different order — the server just hasn't caught up with the drag
+        // that is already on screen. Holding the optimistic order is the whole point.
         orderedIdsRef.current = optimisticOrderRef.current;
         setDisplayOrderedIds(optimisticOrderRef.current);
         return;
+      } else {
+        /**
+         * Different notes — the thread's membership changed under us (a note added from
+         * another surface, a sync flush, someone else's edit). The optimistic list is
+         * describing a thread that no longer exists, so keeping it meant the next drag
+         * submitted N ids for a thread that now has N+1, and the server rejected the
+         * whole reorder with INVALID_ORDER. Drop it and take the server's list.
+         */
+        optimisticOrderRef.current = null;
       }
     }
 

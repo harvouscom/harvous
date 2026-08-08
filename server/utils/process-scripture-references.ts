@@ -280,6 +280,27 @@ export function shouldPersistProcessedParentContent(
 }
 
 /**
+ * HTML → plain text for reference detection, without fusing words across a pill.
+ *
+ * Both call sites used to unwrap pills with `'$1'`, which concatenated the text either
+ * side of the span: `Ps Brian<span …>Matthew 6:19-21</span>` became `Ps BrianMatthew
+ * 6:19-21`. That fed the detector a reference glued to the preceding word, and fed the
+ * person-tag detector `/\bPs\.?\s+([A-Z][\w'-]+)\b/` the capture `BrianMatthew` —
+ * which is exactly the "Ps BrianMatthew" tag seen on notes in the wild.
+ *
+ * Padding to `' $1 '` cannot over-insert: the `\s+` collapse below normalizes any run of
+ * whitespace back to one space.
+ */
+function pillAwarePlainText(html: string): string {
+  return html
+    .replace(/<span[^>]*data-scripture-reference[^>]*>([\s\S]*?)<\/span>/gi, ' $1 ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+
+/**
  * Pure, non-persisting canonical save transform. Default authored notes use the
  * parent note id for scripture pills; legacy child-note modes retain their
  * existing processor path because child ids require database side effects.
@@ -292,11 +313,7 @@ export function transformCanonicalScriptureContent(input: {
 }): ScriptureContentTransformResult {
   const canonicalContent = canonicalizeNoteHtmlLineBreaks(input.content);
   if (!input.pillsOnly) return { updatedContent: canonicalContent, references: [] };
-  const plainText = canonicalContent
-    .replace(/<span[^>]*data-scripture-reference[^>]*>([\s\S]*?)<\/span>/gi, '$1')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const plainText = pillAwarePlainText(canonicalContent);
   const references = [
     ...new Set(
       detectScriptureReferences(plainText)
@@ -657,14 +674,7 @@ async function processScriptureReferencesInternal(
     }
   }
 
-  // Extract plain text from HTML content for detection
-  // Preserve existing scripture pills by extracting their text content
-  // This regex removes HTML tags but keeps text inside scripture pills
-  const plainText = noteContent
-    .replace(/<span[^>]*data-scripture-reference[^>]*>([\s\S]*?)<\/span>/gi, '$1') // Extract text from existing pills (handles nested HTML)
-    .replace(/<[^>]*>/g, ' ') // Remove remaining HTML tags
-    .replace(/\s+/g, ' ')
-    .trim();
+  const plainText = pillAwarePlainText(noteContent);
 
   // Detect all scripture references in the content; merge portable/explicit refs (import).
   const detectedReferences = mergeAdditionalScriptureReferences(

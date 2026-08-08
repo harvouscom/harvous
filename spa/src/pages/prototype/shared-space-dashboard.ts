@@ -132,8 +132,20 @@ export function buildSharedSpaceSocialIntro(input: {
       ownRecentCount += 1;
       continue;
     }
-    const key = row.authorUserId ?? row.authorDisplayName ?? 'other';
-    const displayName = row.authorDisplayName ?? 'Someone';
+    /**
+     * A row with no author at all is not evidence of a person — it is a row we failed to
+     * attribute. Skip it rather than inventing a contributor.
+     *
+     * It used to fall back to the key `'other'` and the name "Someone", which collapsed
+     * every unattributed row into one phantom collaborator with an inflated count. The
+     * rows were ours: cache writers that omitted the author fields (see
+     * `noteRowFromCreateResponse`). Those are fixed, and this is the guard that stops the
+     * next such gap from becoming a person in the greeting.
+     */
+    if (!row.authorUserId && !row.authorDisplayName) continue;
+
+    const key = row.authorUserId ?? row.authorDisplayName!;
+    const displayName = row.authorDisplayName ?? 'A member';
     const existing = byOther.get(key);
     if (existing) {
       existing.noteCount += 1;

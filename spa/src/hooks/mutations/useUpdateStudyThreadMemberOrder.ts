@@ -3,6 +3,7 @@ import { api, APIError } from '../../lib/api';
 import { normalizeNoteIdFromParam } from '../../pages/prototype/proto-route-slugs';
 import { type StudyThreadResponse } from '../queries/usePrototypeStudyThread';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
+import { toastError } from '../../lib/error-copy';
 
 export interface UpdateStudyThreadMemberOrderVariables {
   anchorNoteId: string;
@@ -43,14 +44,28 @@ export function useUpdateStudyThreadMemberOrder() {
         queryClient.invalidateQueries({ queryKey: ['prototype', 'space', scopeId, 'study-threads'] });
       }
     },
-    onError: (err) => {
-      const msg =
-        err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not reorder thread';
-      try {
-        window.toast?.error(msg);
-      } catch {
-        /* ignore */
+    onError: (err, variables) => {
+      /**
+       * Never print the server's sentence.
+       *
+       * This used to toast `err.message` verbatim, which is how a user saw
+       * "orderedNoteIds must include every note in the thread exactly once" — a
+       * validation contract written for a developer. INVALID_ORDER also means the
+       * client's picture of the thread is stale, so refetch it: the drag can then be
+       * repeated against the real membership instead of failing the same way again.
+       */
+      const stale = err instanceof APIError && err.code === 'INVALID_ORDER';
+      if (stale) {
+        void queryClient.invalidateQueries({
+          queryKey: ['prototype', 'note', variables.anchorNoteId, 'thread'],
+        });
       }
+      toastError(
+        err,
+        stale
+          ? 'This Thread changed while you were reordering. Try again'
+          : 'Could not reorder this Thread',
+      );
     },
   });
 }

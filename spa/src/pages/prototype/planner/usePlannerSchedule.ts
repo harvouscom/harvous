@@ -22,6 +22,7 @@ import {
   type ChurchSpacePlanResponse,
 } from '../../../hooks/queries/useChurchSpacePlan';
 import { resolveDropDate, type PlannerWeek } from '../../../lib/planner-board';
+import { isPresentableServerMessage } from '../../../lib/error-copy';
 
 type PlanPayload = TeachingPlanResponse | ChurchSpacePlanResponse;
 
@@ -96,9 +97,9 @@ export function usePlannerSchedule({
             /* The server's refusal names the collision ("That date already has
                a sermon…") — worth more verbatim than any wording here. */
             setError(
-              err instanceof APIError
+              err instanceof APIError && isPresentableServerMessage(err)
                 ? err.message
-                : err instanceof Error
+                : err instanceof Error && isPresentableServerMessage(err)
                   ? err.message
                   : 'Could not move this sermon.',
             );

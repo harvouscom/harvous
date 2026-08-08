@@ -132,6 +132,16 @@ export function buildUpdateNoteBody(
 }
 
 export class MissingExpectedNoteVersionError extends Error {
+  /**
+   * Declared so `classifySaveFailure` does not guess.
+   *
+   * This never reaches the network, so it carries no HTTP status — and the classifier
+   * reads a missing status as "the request never got a response", i.e. transient. That
+   * bought five identical retries and five "Trouble saving…" toasts for a condition no
+   * amount of waiting fixes. It is fatal: the note has to be reloaded.
+   */
+  readonly saveFailureKind = 'fatal' as const;
+
   constructor(noteId: string) {
     super(`Cannot save ${noteId} safely because its current version could not be loaded. Refresh and try again.`);
     this.name = 'MissingExpectedNoteVersionError';

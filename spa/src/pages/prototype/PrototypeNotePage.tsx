@@ -1792,6 +1792,21 @@ export default function PrototypeNotePage() {
     noteId,
     adoptedComposeId,
   );
+  /*
+    Church starters are authored from a note, so the capability has to reach the
+    inspector. Server's verdict only — never re-derived from a role string here.
+
+    Declared above the `noteLoadState` early returns below, and it has to stay there.
+    These two are hooks (`useProfile` and `useChurchStaffStatus` are both react-query),
+    and they used to sit further down beside the code that consumes them — so a render
+    that bailed at `loading` ran fewer hooks than the render after the note arrived, and
+    React threw "rendered more hooks than during the previous render" (#310) on every
+    note open. Neither depends on the note; only on the viewer.
+  */
+  const profileForTemplates = useProfile();
+  const churchOrgId = profileForTemplates.data?.connectedOrgId ?? null;
+  const { can: canChurchForTemplates } = useChurchStaffStatus(churchOrgId);
+
   const noteLoadState = resolvePrototypeNoteLoadState({
     isDraft,
     isLoading,
@@ -1932,13 +1947,6 @@ export default function PrototypeNotePage() {
       ? { id: note.startedFromTemplateId, name: note.startedFromTemplateName }
       : null;
 
-  /*
-    Church starters are authored from a note, so the capability has to reach the
-    inspector. Server's verdict only — never re-derived from a role string here.
-  */
-  const profileForTemplates = useProfile();
-  const churchOrgId = profileForTemplates.data?.connectedOrgId ?? null;
-  const { can: canChurchForTemplates } = useChurchStaffStatus(churchOrgId);
   const canManageChurchTemplates = canChurchForTemplates('manage_templates');
 
   /*

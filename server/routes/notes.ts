@@ -1629,7 +1629,21 @@ route.patch('/api/notes/:id/thread/member-order', requireAuth, rateLimit('write'
     });
     const repNoteId =
       pickStudyThreadRepresentativeNoteId(graph.degreeMap.keys(), graph.degreeMap) ?? focusNoteId;
-    const memberSet = new Set(graph.nodeIds);
+    /**
+     * Validate against the notes the client can actually see, not the raw edge graph.
+     *
+     * `graph.nodeIds` comes from traversing `NoteConnections` alone — it never checks the
+     * `Notes` table. The GET this reorder is built from returns `fetchStudyThreadNoteRows`,
+     * which keeps only rows that still exist and belong to the caller. So a single
+     * orphaned edge (a note deleted by a path that missed the cascade, or one that
+     * changed hands) made `nodeIds` permanently larger than anything the client could
+     * send, and *every* drag on that thread failed with INVALID_ORDER forever, with
+     * nothing the user could do about it.
+     *
+     * Ordering rows the viewer cannot see would be meaningless anyway.
+     */
+    const visibleRows = await fetchStudyThreadNoteRows(graph.nodeIds, auth.userId);
+    const memberSet = new Set(visibleRows.map((row) => row.id));
 
     const uniqueIds: string[] = [];
     const seen = new Set<string>();
@@ -1638,7 +1652,7 @@ route.patch('/api/notes/:id/thread/member-order', requireAuth, rateLimit('write'
       uniqueIds.push(id);
       seen.add(id);
     }
-    if (uniqueIds.length !== graph.nodeIds.length) {
+    if (uniqueIds.length !== memberSet.size) {
       return c.json(
         {
           success: false,

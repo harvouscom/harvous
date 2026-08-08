@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { detectPersonTags } from '@/utils/person-tag-detector';
 import {
   resolvePillNoteIdForProcessing,
   persistCanonicalScriptureContent,
@@ -50,5 +51,35 @@ describe('resolvePillNoteIdForProcessing', () => {
     expect(persistCanonicalScriptureContent.toString()).toContain(
       'updateCanonicalNoteInTransaction',
     );
+  });
+});
+
+describe('plain-text extraction around scripture pills', () => {
+  const pill = (ref: string) =>
+    `<span class="scripture-pill" data-scripture-reference="${ref}">${ref}</span>`;
+
+  it('does not fuse a pill onto the word before it', () => {
+    // Regression: the unwrap used `'$1'`, so "Ps Brian" + a Matthew pill became
+    // "Ps BrianMatthew 6:19-21" — which is how the tag "Ps BrianMatthew" got written.
+    const html = `<p>Ps Brian${pill('Matthew 6:19-21')}</p>`;
+    const { references } = transformCanonicalScriptureContent({ content: html, pillsOnly: true });
+
+    expect(references).toContain('Matthew 6:19-21');
+    expect(references.some((r) => /Brian/i.test(r))).toBe(false);
+  });
+
+  it('leaves the pastor name intact for the person-tag detector', () => {
+    // The detector reads the same plain text; before the fix it captured "BrianMatthew".
+    const fused = 'Ps BrianMatthew 6:19-21';
+    const separated = 'Ps Brian Matthew 6:19-21';
+    expect(detectPersonTags(fused)).toContain('Ps BrianMatthew');
+    expect(detectPersonTags(separated)).toContain('Ps Brian');
+    expect(detectPersonTags(separated)).not.toContain('Ps BrianMatthew');
+  });
+
+  it('still finds a reference that already had a space before it', () => {
+    const html = `<p>See ${pill('John 3:16')} today</p>`;
+    const { references } = transformCanonicalScriptureContent({ content: html, pillsOnly: true });
+    expect(references).toContain('John 3:16');
   });
 });

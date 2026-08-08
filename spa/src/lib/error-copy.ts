@@ -93,6 +93,23 @@ function isOfflineLike(error: unknown): boolean {
   return !(error instanceof APIError) && error instanceof Error;
 }
 
+/**
+ * Is this server message fit to show a user?
+ *
+ * Several church/planner surfaces deliberately print `err.message` because the server's
+ * validation prose is genuinely better than any generic line — "Romans has 16 chapters"
+ * tells a pastor exactly what to fix. But the same path also carries
+ * "A database error occurred", the standardizer's stand-in for a raw Drizzle
+ * `Failed query:` — driver-speak that reached a real user's screen. This lets those call
+ * sites keep the useful prose and fall back on the useless kind.
+ */
+export function isPresentableServerMessage(error: unknown): boolean {
+  const err = (error ?? {}) as { code?: string; message?: string };
+  if (err.code === 'DB_ERROR') return false;
+  if (typeof err.message !== 'string') return false;
+  return !/^(a database error occurred|failed query:)/i.test(err.message.trim());
+}
+
 export function presentError(
   error: unknown,
   fallback: string,

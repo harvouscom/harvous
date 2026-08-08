@@ -122,6 +122,14 @@ function spaceNoteRowFromNoteDetail(detail: NoteDetail): SpaceNoteRow {
     collectionUserOverride: detail.collectionUserOverride,
     resourceTitle: detail.resourceTitle ?? null,
     version: detail.version,
+    /**
+     * Carry attribution through. `NoteDetail` already has these; dropping them here
+     * produced list rows nobody could attribute, which the shared-space greeting then
+     * reported as a note shared with "Someone".
+     */
+    isOwnNote: detail.isOwnNote,
+    authorUserId: detail.authorUserId,
+    authorDisplayName: detail.authorDisplayName,
   };
 }
 

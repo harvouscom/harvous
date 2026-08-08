@@ -116,6 +116,17 @@ function noteRowFromCreateResponse(
     updatedAt: note.updatedAt ?? note.createdAt ?? now,
     simpleNoteId: note.simpleNoteId ?? null,
     isPinned: false,
+    /**
+     * The viewer authored this — say so.
+     *
+     * Without it the row is attribution-less, and inside a shared space
+     * `buildSharedSpaceSocialIntro` cannot tell it apart from a stranger's note: it
+     * bucketed every such row under one "Someone" chip, so the greeting told you that
+     * you and "Someone" shared notes when the other party was you. This row replaces
+     * the optimistic one on success and survives until the next refetch, so the wrong
+     * attribution was not momentary.
+     */
+    isOwnNote: true,
   };
 }
 
@@ -203,6 +214,9 @@ export function useCreateSimpleNote() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         isPinned: false,
+        // Same reason as `noteRowFromCreateResponse` — an unattributed row reads as a
+        // stranger's in a shared space.
+        isOwnNote: true,
       };
       for (const targetSpaceId of targetSpaceIds) {
         prependSpaceNoteToCache(queryClient, targetSpaceId, optimistic);

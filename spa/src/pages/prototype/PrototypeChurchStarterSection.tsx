@@ -27,6 +27,7 @@ import { useDeleteNoteTemplate } from '../../hooks/mutations/useDeleteNoteTempla
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
+import { isPresentableServerMessage } from '../../lib/error-copy';
 
 export interface PrototypeChurchStarterSectionProps {
   /** Server's `manage_templates` verdict — never re-derived from a role string. */
@@ -84,9 +85,9 @@ export default function PrototypeChurchStarterSection({
       toast.success('Church template updated');
     } catch (err) {
       setError(
-        err instanceof APIError
+        err instanceof APIError && isPresentableServerMessage(err)
           ? err.message
-          : err instanceof Error
+          : err instanceof Error && isPresentableServerMessage(err)
             ? err.message
             : 'Could not update this template.',
       );
@@ -108,9 +109,9 @@ export default function PrototypeChurchStarterSection({
       toast.success('Church template removed');
     } catch (err) {
       setError(
-        err instanceof APIError
+        err instanceof APIError && isPresentableServerMessage(err)
           ? err.message
-          : err instanceof Error
+          : err instanceof Error && isPresentableServerMessage(err)
             ? err.message
             : 'Could not remove this template.',
       );
