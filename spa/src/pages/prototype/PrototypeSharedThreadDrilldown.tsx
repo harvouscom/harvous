@@ -7,12 +7,17 @@ import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import {
   flattenThreadNotePages,
+  sequenceStepFor,
   useThreadNotes,
   type SharedThreadNote,
 } from '../../hooks/queries/useThreadNotes';
 import type { SpaceGroupStudyThread } from '../../hooks/queries/useSpaceGroupThreads';
 import { useSpaceNotes } from '../../hooks/queries/useSpace';
 import { useUpdateSharedThread } from '../../hooks/mutations/useUpdateSharedThread';
+import {
+  reorderSequenceStep,
+  useUpdateThreadSequence,
+} from '../../hooks/mutations/useUpdateThreadSequence';
 import { validSharedThreadColor } from '../../hooks/mutations/useCreateSharedThread';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
@@ -79,6 +84,7 @@ export default function PrototypeSharedThreadDrilldown({
   thread,
   spaceId,
   isOwner,
+  canManageStructure,
   canCompose = true,
   backLabel = 'Shared space',
   onBack,
@@ -90,6 +96,12 @@ export default function PrototypeSharedThreadDrilldown({
   thread: SharedThreadDrillTarget;
   spaceId: string;
   isOwner: boolean;
+  /**
+   * Who may author the plan — its mode, its order, its current step. Separate
+   * from `isOwner` because the server lets leaders do this too: the room
+   * outlives the staff member who created it. Falls back to `isOwner`.
+   */
+  canManageStructure?: boolean;
   /** When false (ministry broadcast channels), hide compose / add-existing. */
   canCompose?: boolean;
   /** Parent destination for the back control (space title). */
@@ -112,6 +124,8 @@ export default function PrototypeSharedThreadDrilldown({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(thread.title);
   const [renameError, setRenameError] = useState<string | null>(null);
+  const [sequenceError, setSequenceError] = useState<string | null>(null);
+  const updateSequence = useUpdateThreadSequence();
   const loadMoreRequestRef = useRef(false);
   const skipTitleBlurSaveRef = useRef(false);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -121,6 +135,39 @@ export default function PrototypeSharedThreadDrilldown({
     () => flattenThreadNotePages(notesQuery.data?.pages),
     [notesQuery.data?.pages],
   );
+  /*
+    Mode and step come off the first page — they describe the Thread, not the
+    slice of it we happen to be holding. The server resolves the step against
+    every note in the plan, so `total` survives pagination.
+  */
+  const firstPage = notesQuery.data?.pages?.[0];
+  const isSequence = firstPage?.mode === 'sequence';
+  const sequenceInfo = firstPage?.sequence ?? null;
+  /*
+    The server already returned the notes in authored order, so their position
+    here IS the plan. Reading the order off the rendered list rather than a
+    parallel id array keeps the two from disagreeing mid-reorder.
+  */
+  const orderedNoteIds = useMemo(() => notes.map((note) => note.id), [notes]);
+  const canManageSequence = canManageStructure ?? isOwner;
+  const sequenceLabel = isSequence && sequenceInfo && sequenceInfo.total > 0
+    ? sequenceInfo.currentIndex > 0
+      ? `Step ${sequenceInfo.currentIndex} of ${sequenceInfo.total}`
+      : `${sequenceInfo.total} steps`
+    : null;
+
+  async function applySequence(patch: {
+    mode?: 'collection' | 'sequence';
+    orderedNoteIds?: string[];
+    currentNoteId?: string | null;
+  }) {
+    setSequenceError(null);
+    try {
+      await updateSequence.mutateAsync({ threadId: thread.id, spaceId, ...patch });
+    } catch (error: any) {
+      setSequenceError(error?.message || 'Could not update the study plan.');
+    }
+  }
   const candidateNotes = useMemo(
     () => candidateNotesQuery.data?.pages.flatMap((page) => page.notes) ?? [],
     [candidateNotesQuery.data?.pages],
@@ -134,7 +181,8 @@ export default function PrototypeSharedThreadDrilldown({
     isError: notesQuery.isError && notes.length === 0,
     noteCount: notes.length,
   });
-  const showOwnerMenu = isOwner && (!thread.isPinned || Boolean(onRequestDelete));
+  const showOwnerMenu =
+    (isOwner && (!thread.isPinned || Boolean(onRequestDelete))) || canManageSequence;
   const showComposeActions = thread.isPinned && canCompose;
 
   useEffect(() => {
@@ -274,6 +322,7 @@ export default function PrototypeSharedThreadDrilldown({
             )}
             <p className="proto-caption proto-shared-thread-drilldown__status">
               {thread.isPinned ? 'Current Thread' : 'Thread'}
+              {sequenceLabel ? ` · ${sequenceLabel}` : ''}
             </p>
           </div>
           {showOwnerMenu ? (
@@ -320,6 +369,26 @@ export default function PrototypeSharedThreadDrilldown({
                       </span>
                       <span className="proto-menu-item__label">
                         {pinPending ? 'Setting…' : 'Set current'}
+                      </span>
+                    </button>
+                  ) : null}
+                  {canManageSequence ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="proto-menu-item"
+                      disabled={updateSequence.isPending}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        void applySequence({ mode: isSequence ? 'collection' : 'sequence' });
+                      }}
+                    >
+                      <span className="proto-menu-item__icon" aria-hidden>
+                        <Icon name="list-check" size={PROTO_TOOLBAR_ICON_SIZE} />
+                      </span>
+                      <span className="proto-menu-item__label">
+                        {isSequence ? 'Turn off study plan' : 'Make it a study plan'}
                       </span>
                     </button>
                   ) : null}
@@ -372,6 +441,12 @@ export default function PrototypeSharedThreadDrilldown({
             {pinError}
           </p>
         ) : null}
+
+        {sequenceError ? (
+          <p className="proto-connect-note-sheet__error" role="alert">
+            {sequenceError}
+          </p>
+        ) : null}
       </div>
 
       <div className="proto-sidebar-scroll proto-shared-thread-drilldown__scroll">
@@ -396,14 +471,46 @@ export default function PrototypeSharedThreadDrilldown({
         {state === 'ready' ? (
           <>
             <ul className="proto-shared-thread-note-list" aria-label={`Notes in ${thread.title}`}>
-              {notes.map((note) => {
+              {notes.map((note, index) => {
                 const preview = notePreview(note);
                 const date = protoRelativeCaption(note.lastUpdated);
+                /*
+                  Steps past the current one read as "not yet", not "not
+                  allowed" — these notes are reachable from the space's notes
+                  list and search either way. Dimming is pacing.
+                */
+                const step = sequenceStepFor(
+                  note.id,
+                  orderedNoteIds,
+                  sequenceInfo?.currentNoteId ?? null,
+                );
+                const stepNumber = step.stepNumber;
+                const isCurrentStep = isSequence && step.isCurrent;
+                const isAhead = isSequence && step.isAhead;
                 return (
-                  <li key={note.id} className="proto-note-row-item proto-shared-thread-note-row">
+                  <li
+                    key={note.id}
+                    className={`proto-note-row-item proto-shared-thread-note-row${
+                      isSequence ? ' proto-shared-thread-step' : ''
+                    }${isCurrentStep ? ' proto-shared-thread-step--current' : ''}${
+                      isAhead ? ' proto-shared-thread-step--ahead' : ''
+                    }`}
+                  >
                     <button type="button" className="proto-note-row__main" onClick={() => openNote(note.id)}>
                       <div className="proto-note-row__title-line">
-                        <span className="pds-list-title proto-note-row__title-text">{noteTitle(note)}</span>
+                        {isSequence ? (
+                          <span className="proto-shared-thread-step__badge" aria-hidden>
+                            {stepNumber}
+                          </span>
+                        ) : null}
+                        <span className="pds-list-title proto-note-row__title-text">
+                          {isSequence ? (
+                            <span className="proto-visually-hidden">{`Step ${stepNumber}${
+                              isCurrentStep ? ', current step' : ''
+                            }: `}</span>
+                          ) : null}
+                          {noteTitle(note)}
+                        </span>
                       </div>
                       {preview ? <div className="pds-list-preview proto-note-row__preview">{preview}</div> : null}
                       <div className="proto-shared-thread-note-row__meta">
@@ -416,6 +523,47 @@ export default function PrototypeSharedThreadDrilldown({
                         {date ? <span>{date}</span> : null}
                       </div>
                     </button>
+                    {isSequence && canManageSequence ? (
+                      <div className="proto-shared-thread-step__controls">
+                        <button
+                          type="button"
+                          className="proto-toolbar-icon-btn"
+                          aria-label={`Move ${noteTitle(note)} earlier`}
+                          disabled={index === 0 || updateSequence.isPending}
+                          onClick={() =>
+                            void applySequence({
+                              orderedNoteIds: reorderSequenceStep(orderedNoteIds, note.id, 'up'),
+                            })
+                          }
+                        >
+                          <Icon name="caret-up" size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          className="proto-toolbar-icon-btn"
+                          aria-label={`Move ${noteTitle(note)} later`}
+                          disabled={index === notes.length - 1 || updateSequence.isPending}
+                          onClick={() =>
+                            void applySequence({
+                              orderedNoteIds: reorderSequenceStep(orderedNoteIds, note.id, 'down'),
+                            })
+                          }
+                        >
+                          <Icon name="caret-down" size={11} />
+                        </button>
+                        {!isCurrentStep ? (
+                          <button
+                            type="button"
+                            className="proto-toolbar-icon-btn"
+                            aria-label={`Make ${noteTitle(note)} the current step`}
+                            disabled={updateSequence.isPending}
+                            onClick={() => void applySequence({ currentNoteId: note.id })}
+                          >
+                            <Icon name="thumbtack" size={11} />
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </li>
                 );
               })}

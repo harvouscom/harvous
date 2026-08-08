@@ -225,6 +225,70 @@
   font-size: 11px;
 }
 
+/*
+  Sequence Threads — a study plan the group moves through together.
+
+  A step ahead of the current one is dimmed, never hidden: it is pacing, not
+  access control. Every one of these notes is reachable from the space's own
+  notes list, so hiding would buy nothing and would make "Step 3 of 8" a lie.
+  Dimming stops at the row's own opacity — the row stays clickable, because a
+  member who wants to read ahead was always able to.
+*/
+.proto-shared-thread-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.proto-shared-thread-step .proto-note-row__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.proto-shared-thread-step__badge {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--pds-bg-surface-raised, rgb(0 0 0 / 6%));
+  color: var(--pds-text-tertiary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.proto-shared-thread-step--current .proto-shared-thread-step__badge {
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-text-on-accent, #fff);
+}
+
+.proto-shared-thread-step--ahead .proto-note-row__main {
+  opacity: 0.55;
+}
+
+.proto-shared-thread-step__controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-top: 4px;
+}
+
+.proto-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .proto-shared-thread-action {
     background: var(--pds-bg-surface);

@@ -40,12 +40,43 @@ export type SharedThreadNote = {
   };
 };
 
+export type ThreadSequenceInfo = {
+  currentNoteId: string | null;
+  /** 1-based. 0 when the plan has no steps yet. */
+  currentIndex: number;
+  total: number;
+};
+
 export type ThreadNotesPage = {
   notes: SharedThreadNote[];
   hasMore: boolean;
   offset: number;
   limit: number;
+  /** 'collection' | 'sequence'. */
+  mode: string;
+  /** Null unless this Thread is a sequence. */
+  sequence: ThreadSequenceInfo | null;
 };
+
+/**
+ * Which step a note is, and whether the cohort has reached it.
+ *
+ * `isAhead` drives dimming, which is pacing and not access control — the note
+ * is reachable from the space's notes list either way.
+ */
+export function sequenceStepFor(
+  noteId: string,
+  orderedNoteIds: string[],
+  currentNoteId: string | null,
+): { stepNumber: number; isCurrent: boolean; isAhead: boolean } {
+  const index = orderedNoteIds.indexOf(noteId);
+  const currentIndex = currentNoteId ? orderedNoteIds.indexOf(currentNoteId) : -1;
+  return {
+    stepNumber: index + 1,
+    isCurrent: index >= 0 && index === currentIndex,
+    isAhead: index >= 0 && currentIndex >= 0 && index > currentIndex,
+  };
+}
 
 export function flattenThreadNotePages(
   pages: Array<Pick<ThreadNotesPage, 'notes'>> | undefined,
@@ -105,6 +136,8 @@ export function useThreadNotes(threadId: string | undefined, spaceId: string | u
         hasMore?: boolean;
         offset?: number;
         limit?: number;
+        mode?: unknown;
+        sequence?: ThreadSequenceInfo | null;
       }>(`/api/threads/${encodeURIComponent(threadId!)}/notes`, { offset: pageParam, limit });
       return {
         notes: (response.notes ?? [])
@@ -118,6 +151,8 @@ export function useThreadNotes(threadId: string | undefined, spaceId: string | u
         hasMore: response.hasMore === true,
         offset: response.offset ?? pageParam,
         limit: response.limit ?? limit,
+        mode: typeof response.mode === 'string' ? response.mode : 'collection',
+        sequence: response.sequence ?? null,
       };
     },
     getNextPageParam: nextThreadNotesOffset,

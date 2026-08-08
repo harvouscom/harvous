@@ -30,6 +30,14 @@ import {
 } from './purge-onboarding-content';
 import { serializeSharedCanonicalNote } from './shared-note-serializer';
 import { requireThreadReadAccess } from './shared-space-lifecycle';
+import { isSequenceMode, sortNotesBySequence } from './thread-sequence';
+
+/**
+ * Ceiling on how many steps a sequence Thread pages in memory. A study plan is
+ * tens of steps; this is a guard against a pathological Thread, not a limit
+ * anyone should meet.
+ */
+const SEQUENCE_THREAD_FETCH_CAP = 500;
 
 export type AuthorAttribution = {
   displayName: string;
@@ -1191,7 +1199,12 @@ export async function getNotesForThreadForMember(
     const fetchLimit = limit + offset + 1;
     const contextThread = first(
       await db
-        .select({ spaceId: Threads.spaceId })
+        .select({
+          spaceId: Threads.spaceId,
+          mode: Threads.mode,
+          sequenceNoteIds: Threads.sequenceNoteIds,
+          sequenceCurrentNoteId: Threads.sequenceCurrentNoteId,
+        })
         .from(Threads)
         .where(eq(Threads.id, threadId))
         .limit(1),
@@ -1226,12 +1239,22 @@ export async function getNotesForThreadForMember(
         eq(Notes.contentEncrypted, false),
       ))
       .orderBy(...memberThreadOrderBy)
-      .limit(fetchLimit);
+      /*
+        A sequence is paginated by its authored order, which SQL here does not
+        know — slicing the most-recently-updated `fetchLimit` rows first would
+        hand back the wrong steps. Study plans are tens of steps, so fetch the
+        plan and page it in memory, under a cap that is far above any real one.
+      */
+      .limit(isSequenceMode(contextThread.mode) ? SEQUENCE_THREAD_FETCH_CAP : fetchLimit);
 
     const mappedMember = junctionNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
     const sortedAllNotes = isOnboardingThread(threadId)
       ? sortOnboardingThreadNotes(mappedMember)
-      : sortNotesByLastUpdated(mappedMember);
+      // A sequence Thread is read in the order someone authored, not the order
+      // it was last touched — recency is exactly what a study plan overrides.
+      : isSequenceMode(contextThread.mode)
+        ? sortNotesBySequence(mappedMember, contextThread)
+        : sortNotesByLastUpdated(mappedMember);
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 

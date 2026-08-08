@@ -115,6 +115,32 @@ export const Threads = pgTable(
     order: integer('order').notNull().default(0),
     shareToken: text('shareToken'),
     shareTokenCreatedAt: ts('shareTokenCreatedAt'),
+    /**
+     * 'collection' | 'sequence'. A collection is the Thread as it has always
+     * been — a bag of notes sorted by recency. A sequence is an authored
+     * study plan: an order someone chose, and a step the group is on.
+     */
+    mode: text('mode').notNull().default('collection'),
+    /**
+     * JSON `string[]` — the authored order, when mode='sequence'.
+     *
+     * Deliberately a column here rather than a `position` on NoteThreads.
+     * `StudyThreadMemberOrders.orderedNoteIds` already established stored
+     * ordering in this shape; one writer (owner/leader) makes whole-list
+     * writes atomic instead of resequencing N junction rows in a
+     * transaction; and a position column would oblige every existing
+     * junction write path to maintain an order that collection Threads do
+     * not have. Ids can go stale (a note leaves the space) — readers filter
+     * against live membership and writers rewrite the list, so drift is
+     * self-healing rather than something to migrate.
+     */
+    sequenceNoteIds: text('sequenceNoteIds'),
+    /**
+     * The step the cohort is on — a note id, NOT an index. A leader who
+     * inserts or reorders steps ahead of the current one must not silently
+     * move the group; "Step 3 of 8" is derived from this id's position.
+     */
+    sequenceCurrentNoteId: text('sequenceCurrentNoteId'),
   },
   (table) => [
     index('Threads_userIdIndex').on(table.userId),

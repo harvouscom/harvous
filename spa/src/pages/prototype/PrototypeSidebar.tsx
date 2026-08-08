@@ -2526,6 +2526,11 @@ export default function PrototypeSidebar({
                       updatedAt: '',
                       noteCount: 0,
                       ownerUserId: '',
+                      // Stand-in used only to name the Thread in a delete
+                      // confirmation, so it carries no plan of its own.
+                      mode: 'collection',
+                      sequenceCurrentIndex: 0,
+                      sequenceTotal: 0,
                     } satisfies SpaceGroupStudyThread);
                   setSharedThreadDeleteTarget({ thread: full, anchorRect });
                 }
