@@ -20,7 +20,10 @@
  *   POST /api/church/services/update
  *   POST /api/church/services/repeat
  *   POST /api/church/services/delete
- *   POST /api/church/series/rename
+ *   POST /api/church/services/link-note
+ *   POST /api/church/series/create
+ *   POST /api/church/series/rerun
+ *   POST /api/church/series/update
  *   POST /api/church/series/delete
  */
 
@@ -54,7 +57,9 @@ import {
 import {
   assertCanManageTeachingPlan,
   assertCanViewTeachingPlan,
+  linkNoteToService,
   parseServiceDateInput,
+  resolveViewerPlannedNotes,
   type ChurchServiceRow,
 } from '../utils/church-teaching-plan';
 import {
@@ -67,12 +72,21 @@ import {
   weeklyDatesAfter,
 } from '../utils/church-sermon-repeat';
 import {
+  createSeries,
   deleteSeries,
+  getSeriesWithServices,
   listSeriesForPlan,
-  renameSeries,
+  updateSeries,
   resolveSeriesForWrite,
   seriesTitlesByServiceRows,
 } from '../utils/church-series';
+import {
+  DEFAULT_RERUN_COPY,
+  buildRerunRows,
+  rerunDatesFor,
+  runLabelForDate,
+  type RerunCopyFlags,
+} from '../utils/church-series-rerun';
 
 const app = new Hono();
 
@@ -198,12 +212,16 @@ app.get('/api/church/services/plan', requireAuth, async (c) => {
     ]);
 
     const serviceIds = services.map((row) => row.id);
-    const [assignments, seriesTitles, attachments] = await Promise.all([
+    const [assignments, seriesTitles, attachments, viewerDrafts] = await Promise.all([
       serviceTimeIdsByService(serviceIds),
       seriesTitlesByServiceRows(services),
       /* Staff-gated read, so the resources a week draws on ride along rather
          than costing a request per row when the editor opens. */
       attachmentsByServiceIds(serviceIds),
+      /* The viewer's OWN sermon drafts, and only ever theirs — see
+         resolveViewerPlannedNotes. This is what turns "Write this sermon" into
+         "Open my draft" on a week they have already started. */
+      resolveViewerPlannedNotes(auth.userId, serviceIds),
     ]);
 
 
@@ -224,6 +242,12 @@ app.get('/api/church/services/plan', requireAuth, async (c) => {
       services: services.map((row) => ({
         ...serializeSermon(row, assignments.get(row.id) ?? [], seriesTitles),
         resources: attachments.get(row.id) ?? [],
+        /* Null for every week this viewer has not started, including ones a
+           colleague has. Never a count, never a name — see the helper. */
+        viewerDraftNoteId: viewerDrafts.get(row.id)?.noteId ?? null,
+        /* The note's own title, so the editor can name the linked note without
+           a second fetch — the picker's 30-row window may not contain it. */
+        viewerDraftNoteTitle: viewerDrafts.get(row.id)?.title ?? null,
       })),
       /*
         The church plan's own series, most recently *taught* first — what the
@@ -879,9 +903,342 @@ app.post('/api/church/services/delete', requireAuth, rateLimit('write'), async (
   }
 });
 
+// ─── The staff sermon draft ─────────────────────────────────────────────────
+/**
+ * POST /api/church/services/link-note — point one of your own notes at a week,
+ * or (with `noteId` and a null `serviceId`) let it go.
+ *
+ * **One endpoint serves both directions of the bridge.** "Write this sermon"
+ * creates a note the ordinary way and then links it; "Add to the teaching plan"
+ * creates a service through `/services/create` — with all of its date parsing,
+ * slot filtering, collision guards and series resolution — and then links it.
+ * A bespoke `create-from-note` would have had to restate every one of those
+ * rules, and the second copy is where they would drift.
+ *
+ * The two-call shape means a create can land and its link fail. That leaves a
+ * plan row the pastor can see and retry from — not a corrupt state — which is
+ * a better trade than a duplicated validator.
+ *
+ * Two gates, both required and neither sufficient: `assertCanManageTeachingPlan`
+ * for the plan side, and `linkNoteToService`'s own `userId` scope for the note
+ * side. Staff may not stamp a colleague's note, and an author may not stamp a
+ * plan they cannot manage.
+ */
+app.post('/api/church/services/link-note', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      orgId?: string;
+      noteId?: string;
+      /** Explicit null unlinks. An absent key is a bad request, not an unlink. */
+      serviceId?: string | null;
+    };
+
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? '').trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    const noteId = (body.noteId ?? '').trim();
+    if (!noteId) return c.json({ error: 'noteId is required', code: 'BAD_REQUEST' }, 400);
+    if (!('serviceId' in body)) {
+      return c.json({ error: 'serviceId is required', code: 'BAD_REQUEST' }, 400);
+    }
+
+    const serviceId = (body.serviceId ?? '').trim() || null;
+    if (serviceId) {
+      /* The row must be in *this church's own* plan. Without the scope check a
+         staffer could aim their note at a ministry's row, or another church's,
+         and the planner would then offer to open a draft from a plan that has
+         no idea it exists. */
+      const service = first(
+        await db
+          .select({ id: ChurchServices.id })
+          .from(ChurchServices)
+          .where(
+            and(
+              eq(ChurchServices.id, serviceId),
+              eq(ChurchServices.churchId, gate.church.id),
+              isNull(ChurchServices.spaceId),
+            ),
+          )
+          .limit(1),
+      );
+      if (!service) {
+        return c.json({ error: 'That sermon is not in this plan', code: 'NOT_FOUND' }, 404);
+      }
+    }
+
+    /* 404 rather than 403 on someone else's note: a stranger must not learn
+       that a note id exists. */
+    const linked = await linkNoteToService(auth.userId, noteId, serviceId);
+    if (!linked) return c.json({ error: 'Note not found', code: 'NOT_FOUND' }, 404);
+
+    return c.json({ success: true, noteId, serviceId });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/services/link-note',
+      action: 'link_sermon_draft',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── Series ─────────────────────────────────────────────────────────────────
 /**
- * Rename and delete only. There is no create endpoint on purpose: a series
+ * POST /api/church/series/create — name a series before any week exists.
+ *
+ * The plan deliberately had no create path: a series was born by naming it on a
+ * sermon, and an empty one was "a form to fill in, not a plan". That is still
+ * true of the *accidental* empty series, which is why `findOrCreateSeries`
+ * remains the combobox's path — but it withheld a real intention, which is
+ * "we are doing eight weeks in Romans this autumn" decided before week one.
+ *
+ * `firstDate` is optional and makes the difference between the two readings:
+ * with one, this creates the series *and* its opening week, so the pastor lands
+ * on something they can extend; without one, it creates the row alone, which
+ * every read path already renders.
+ */
+app.post('/api/church/series/create', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      orgId?: string;
+      title?: string;
+      color?: string | null;
+      description?: string | null;
+      runLabel?: string | null;
+      /** Optional opening week. Omit for a series with no sermons yet. */
+      firstDate?: string | null;
+    };
+
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? '').trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    const scope = { churchId: gate.church.id, spaceId: null };
+    const parsedDate = parseServiceDateInput(body.firstDate ?? null);
+    if (!parsedDate.ok) return c.json({ error: parsedDate.reason, code: 'BAD_REQUEST' }, 400);
+    const firstDate = parsedDate.kind === 'date' ? parsedDate.value : null;
+
+    const created = await createSeries(
+      scope,
+      {
+        title: String(body.title ?? ''),
+        color: body.color ?? null,
+        description: body.description ?? null,
+        runLabel: body.runLabel ?? null,
+      },
+      auth.userId,
+    );
+    if (!created.ok) {
+      return c.json(
+        { error: created.error, code: created.code },
+        created.code === 'SERIES_TITLE_TAKEN' ? 409 : 400,
+      );
+    }
+
+    /*
+      The opening week, named after the series — the same honest substitute
+      `repeat` uses, since `title` is NOT NULL and a pastor overwrites it first
+      thing. No passage: "next week is a different text" applies just as much to
+      the first one, and pre-filling it would put words in their mouth.
+    */
+    let serviceId: string | null = null;
+    if (firstDate) {
+      const row = first(
+        await db
+          .insert(ChurchServices)
+          .values({
+            id: `svc_${crypto.randomUUID()}`,
+            churchId: gate.church.id,
+            spaceId: null,
+            serviceDate: firstDate,
+            serviceTime: null,
+            title: created.series.title,
+            seriesId: created.series.id,
+            reference: null,
+            starterTemplateId: null,
+            kind: 'gathering' as const,
+            createdBy: auth.userId,
+            updatedBy: null,
+            createdAt: new Date(),
+            updatedAt: null,
+          })
+          .returning(),
+      );
+      serviceId = row?.id ?? null;
+    }
+
+    return c.json({
+      success: true,
+      series: {
+        id: created.series.id,
+        title: created.series.title,
+        color: created.series.color,
+        description: created.series.description,
+        runLabel: created.series.runLabel,
+      },
+      serviceId,
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/series/create',
+      action: 'create_church_series',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * POST /api/church/series/rerun — teach a finished series again.
+ *
+ * The seasonal case: a church runs Advent every year, and last year's outline
+ * is the best starting point it has. Deliberately the opposite of `repeat`,
+ * which refuses to copy a passage because *there* the next week is a different
+ * text. Both stances are right for their own job; see church-series-rerun.ts.
+ *
+ * Server-side for the reason `repeat` is: writes are capped at 20 a minute and
+ * a quarter is thirteen of them.
+ *
+ * Labels **both** runs. The source's `runLabel` is null until a second run
+ * exists — which is exactly the moment the ambiguity comes into being, and so
+ * the moment to resolve it. Otherwise the plan would read "Advent" beside
+ * "Advent 2027", which is worse than either.
+ */
+app.post('/api/church/series/rerun', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      orgId?: string;
+      sourceSeriesId?: string;
+      startDate?: string;
+      runLabel?: string;
+      copy?: Partial<RerunCopyFlags>;
+    };
+
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? '').trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    const scope = { churchId: gate.church.id, spaceId: null };
+    const sourceId = (body.sourceSeriesId ?? '').trim();
+    if (!sourceId) return c.json({ error: 'sourceSeriesId is required', code: 'BAD_REQUEST' }, 400);
+
+    const parsedStart = parseServiceDateInput(body.startDate ?? null);
+    if (!parsedStart.ok || parsedStart.kind !== 'date') {
+      return c.json({ error: 'startDate must be YYYY-MM-DD', code: 'BAD_REQUEST' }, 400);
+    }
+
+    const source = await getSeriesWithServices(scope, sourceId);
+    if (!source) return c.json({ error: 'That series is not in this plan', code: 'SERIES_NOT_FOUND' }, 404);
+
+    const dates = rerunDatesFor(source.services.map((s) => s.serviceDate), parsedStart.value);
+    if (!dates) {
+      return c.json(
+        { error: 'That series has no dated weeks to copy', code: 'NOTHING_TO_COPY' },
+        400,
+      );
+    }
+
+    const copy = { ...DEFAULT_RERUN_COPY, ...(body.copy ?? {}) };
+    /* Derived from the new run's own start rather than typed, so two runs of
+       one name are always told apart by when they happened. */
+    const newLabel = (body.runLabel ?? '').trim() || runLabelForDate(parsedStart.value);
+
+    const created = await createSeries(
+      scope,
+      {
+        title: source.series.title,
+        color: source.series.color,
+        description: source.series.description,
+        runLabel: newLabel,
+      },
+      auth.userId,
+    );
+    if (!created.ok) {
+      return c.json(
+        { error: created.error, code: created.code },
+        created.code === 'SERIES_TITLE_TAKEN' ? 409 : 400,
+      );
+    }
+
+    // Label the source too, now that it has a sibling.
+    if (!source.series.runLabel) {
+      const sourceLabel = runLabelForDate(
+        source.services.map((s) => s.serviceDate).filter(Boolean).sort()[0] ?? null,
+      );
+      if (sourceLabel && sourceLabel !== newLabel) {
+        await updateSeries(scope, source.series.id, { runLabel: sourceLabel });
+      }
+    }
+
+    const rows = buildRerunRows({
+      source: source.services,
+      dates,
+      seriesId: created.series.id,
+      seriesTitle: created.series.title,
+      churchId: gate.church.id,
+      spaceId: null,
+      copy,
+      userId: auth.userId,
+      now: new Date(),
+    });
+
+    /*
+      Inserted one at a time so a slot collision stops the run at the date it
+      happened rather than failing the whole copy — the same contract `repeat`
+      settled on, because a plan with a hole the pastor did not notice is worse
+      than a short one they can see.
+    */
+    const slotsBySource = await serviceTimeIdsByService(source.services.map((s) => s.id));
+    const sortedSource = source.services
+      .filter((s) => s.serviceDate)
+      .sort((a, b) => String(a.serviceDate).localeCompare(String(b.serviceDate)));
+    let createdCount = 0;
+    let stoppedAt: string | null = null;
+
+    for (let i = 0; i < rows.length; i += 1) {
+      const row = rows[i]!;
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(ChurchServices).values(row);
+          const slots = copy.titles ? (slotsBySource.get(sortedSource[i]!.id) ?? []) : [];
+          const usable = await filterServiceTimeIdsForChurch(gate.church.id, slots);
+          if (usable.length > 0 && row.serviceDate) {
+            await replaceServiceTimeAssignments(tx, {
+              serviceId: row.id!,
+              serviceDate: row.serviceDate,
+              serviceTimeIds: usable,
+            });
+          }
+        });
+        createdCount += 1;
+      } catch (error) {
+        /* Named, not any-unique: the collision worth stopping on is a service
+           slot already claimed on that date. Swallowing every unique violation
+           here would hide a genuine bug as a short run. */
+        if (isUniqueViolation(error, 'ChurchServiceTimeAssignments_slot_date_unique')) {
+          stoppedAt = row.serviceDate ?? null;
+          break;
+        }
+        throw error;
+      }
+    }
+
+    return c.json({
+      success: true,
+      series: { id: created.series.id, title: created.series.title, runLabel: created.series.runLabel },
+      created: createdCount,
+      stoppedAt,
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/series/rerun',
+      action: 'rerun_church_series',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * Update and delete only. There is no create endpoint on purpose: a series
  * comes into being by naming it on a sermon, which is how a pastor actually
  * thinks about it. An empty series with nothing under it is a form to fill in,
  * not a plan.
@@ -889,14 +1246,21 @@ app.post('/api/church/services/delete', requireAuth, rateLimit('write'), async (
  * Both sit behind `assertCanManageTeachingPlan` — the plan's own gate, called
  * rather than copied, so the church series and the church sermons can never
  * drift apart on who may touch them.
+ *
+ * This was `/series/rename` and replaced it outright rather than gaining a
+ * sibling — one writer per row, the same clean-break discipline the schema
+ * takes. Every field is optional: an absent key means "leave it", so setting a
+ * colour never has to resend a title and race someone else's rename.
  */
-app.post('/api/church/series/rename', requireAuth, rateLimit('write'), async (c) => {
+app.post('/api/church/series/update', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = (await c.req.json().catch(() => ({}))) as {
       orgId?: string;
       seriesId?: string;
       title?: string;
+      color?: string | null;
+      description?: string | null;
     };
 
     const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? '').trim());
@@ -905,23 +1269,30 @@ app.post('/api/church/series/rename', requireAuth, rateLimit('write'), async (c)
     const seriesId = (body.seriesId ?? '').trim();
     if (!seriesId) return c.json({ error: 'seriesId is required', code: 'BAD_REQUEST' }, 400);
 
-    const result = await renameSeries(
-      { churchId: gate.church.id, spaceId: null },
-      seriesId,
-      String(body.title ?? ''),
-    );
+    const result = await updateSeries({ churchId: gate.church.id, spaceId: null }, seriesId, {
+      // `in` rather than `!== undefined` on the raw body, so an explicit
+      // `null` reaches the helper as "clear it" instead of "leave it".
+      ...('title' in body ? { title: String(body.title ?? '') } : {}),
+      ...('color' in body ? { color: body.color ?? null } : {}),
+      ...('description' in body ? { description: body.description ?? null } : {}),
+    });
     if (!result.ok) {
       const status = result.code === 'BAD_REQUEST' ? 400 : result.code === 'SERIES_NOT_FOUND' ? 404 : 409;
       return c.json({ error: result.error, code: result.code }, status);
     }
     return c.json({
       success: true,
-      series: { id: result.series.id, title: result.series.title },
+      series: {
+        id: result.series.id,
+        title: result.series.title,
+        color: result.series.color,
+        description: result.series.description,
+      },
     });
   } catch (error) {
     const standardError = handleAPIError(error, {
-      endpoint: '/api/church/series/rename',
-      action: 'rename_church_series',
+      endpoint: '/api/church/series/update',
+      action: 'update_church_series',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

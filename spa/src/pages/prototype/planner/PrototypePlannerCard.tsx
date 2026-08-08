@@ -7,6 +7,7 @@
  * never lands as a click.
  */
 import { useDraggable } from '@dnd-kit/core';
+import type { SpaceCoverPickerColor } from '@/utils/space-cover';
 import type { TeachingPlanSermon } from '../../../hooks/queries/useChurchTeachingPlan';
 
 export function PlannerCardBody({
@@ -60,6 +61,7 @@ export default function PrototypePlannerCard({
   draggable,
   selected,
   compact,
+  accent,
   onSelect,
 }: {
   service: TeachingPlanSermon;
@@ -67,6 +69,16 @@ export default function PrototypePlannerCard({
   draggable: boolean;
   selected: boolean;
   compact?: boolean;
+  /**
+   * The series' colour, or null for a standalone sermon.
+   *
+   * A rail on the leading edge, never a badge. The pill this replaced was
+   * removed because it outweighed the sermon's own passage (see PlannerCardBody
+   * above), and the fix for "a series is invisible" must not reintroduce the
+   * thing that made it too visible. Structure, not a label — and the caption
+   * line stays, so the series is still named for anyone who cannot use colour.
+   */
+  accent?: SpaceCoverPickerColor | null;
   onSelect: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -92,6 +104,8 @@ export default function PrototypePlannerCard({
     <button
       ref={setNodeRef}
       type="button"
+      data-series-accent={accent ?? undefined}
+      data-in-series={accent ? 'true' : undefined}
       className={[
         'proto-planner-card',
         /* The pointer lands on the card, not on the 100px of title, so the card

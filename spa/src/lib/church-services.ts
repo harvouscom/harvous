@@ -11,6 +11,7 @@
  */
 import { buildVotdScripturePillHtml } from './votd-scripture-pill-html';
 import { formatLocalDateInput, parseLocalDateInput, startOfLocalDay } from './proto-date-picker';
+import { SPACE_COVER_PICKER_COLORS, type SpaceCoverPickerColor } from '@/utils/space-cover';
 
 /**
  * How long a service stays visible after its date, in days.
@@ -327,6 +328,160 @@ export function planVocabulary(
     addLabel: 'Add a gathering',
     emptyWritable: 'Plan what this ministry studies. Its members see it inside the space.',
     itemNoun: 'gathering',
+  };
+}
+
+/**
+ * The colour a series is drawn in.
+ *
+ * Colour is what turns eight cards into one run, so every series needs one —
+ * but making a pastor pick before the plan reads correctly would be a form to
+ * fill in before the feature works. So an unset colour derives a stable one
+ * from the row id: existing series are all coloured, differently from each
+ * other, the moment this ships, and picking a colour is an override rather
+ * than a prerequisite.
+ *
+ * Derived from the id rather than the title on purpose — a rename must not
+ * recolour a run mid-quarter, and the id is the only thing about a series that
+ * never changes.
+ *
+ * Never returns paper or cream: at the width of a rail or a run band, neither
+ * survives the page behind it. Same exclusion, same reason, as
+ * SPACE_COVER_PICKER_COLORS, which is the list this draws from.
+ */
+export function seriesAccent(
+  series: { id: string; color?: string | null } | null | undefined,
+): SpaceCoverPickerColor {
+  const chosen = series?.color;
+  if (chosen && (SPACE_COVER_PICKER_COLORS as readonly string[]).includes(chosen)) {
+    return chosen as SpaceCoverPickerColor;
+  }
+  const id = series?.id ?? '';
+  /* djb2, not a sum: "csrs_ab" and "csrs_ba" differ by their order alone, and a
+     plain character sum would hand two series in the same plan one colour. */
+  let hash = 5381;
+  for (let i = 0; i < id.length; i += 1) {
+    hash = ((hash << 5) + hash + id.charCodeAt(i)) | 0;
+  }
+  return SPACE_COVER_PICKER_COLORS[Math.abs(hash) % SPACE_COVER_PICKER_COLORS.length];
+}
+
+/** One `link-note` write. `serviceId: null` clears the note's link. */
+export type SermonNoteLinkAction = { noteId: string; serviceId: string | null };
+
+/**
+ * The writes needed to move a service's sermon draft from one note to another.
+ *
+ * **Unlink before link, always.** `plannedForServiceId` is a column on `Notes`,
+ * not a join row, so pointing a second note at a service does not displace the
+ * first — it leaves both stamped. `resolveViewerPlannedNotes` then reports
+ * whichever the database happened to return first, with no `ORDER BY` to make
+ * that stable. Swapping the picked note therefore has to clear the old one
+ * explicitly.
+ *
+ * Pure and separately tested because the bug it prevents is silent: both writes
+ * succeed, nothing errors, and the planner simply starts showing an arbitrary
+ * one of two drafts. Same shape and reason as `planSharedAddNotesRequest`.
+ */
+export function planSermonNoteLink(options: {
+  /** What the service was pointing at when the editor opened. */
+  previousNoteId: string | null;
+  /** What the pastor has picked now. Null = they cleared it. */
+  nextNoteId: string | null;
+  serviceId: string;
+}): SermonNoteLinkAction[] {
+  const { previousNoteId, nextNoteId, serviceId } = options;
+  // Nothing moved. Emitting a no-op write would invalidate the plan for free.
+  if (previousNoteId === nextNoteId) return [];
+  const actions: SermonNoteLinkAction[] = [];
+  if (previousNoteId) actions.push({ noteId: previousNoteId, serviceId: null });
+  if (nextNoteId) actions.push({ noteId: nextNoteId, serviceId });
+  return actions;
+}
+
+/** A series' extent through the plan, as both panes report it. */
+export type SeriesRunExtent = {
+  /** First dated week, or '' when every member is still an undated idea. */
+  first: string;
+  last: string;
+  /** Members with no passage — the honest measure of "how much is written". */
+  toFill: number;
+};
+
+/**
+ * Run extents keyed by series id.
+ *
+ * Shared by the church hub's compact Series lane and the planner's Series view
+ * so the two cannot disagree about how long a run is or how much of it is left.
+ *
+ * Undated members count toward `toFill` but never toward the dates: an idea
+ * filed under a series is a week nobody has written, and "starts —" would be
+ * worse than saying nothing.
+ */
+export function seriesRunsByServiceRows(
+  services: readonly { seriesId?: string | null; serviceDate: string | null; reference: string | null }[],
+): Map<string, SeriesRunExtent> {
+  const runs = new Map<string, SeriesRunExtent>();
+  for (const service of services) {
+    if (!service.seriesId) continue;
+    const unfilled = service.reference ? 0 : 1;
+    const run = runs.get(service.seriesId);
+    if (!run) {
+      runs.set(service.seriesId, {
+        first: service.serviceDate ?? '',
+        last: service.serviceDate ?? '',
+        toFill: unfilled,
+      });
+      continue;
+    }
+    run.toFill += unfilled;
+    if (!service.serviceDate) continue;
+    if (!run.first || service.serviceDate < run.first) run.first = service.serviceDate;
+    if (!run.last || service.serviceDate > run.last) run.last = service.serviceDate;
+  }
+  return runs;
+}
+
+/**
+ * "Aug 9 – Sep 27", or "Aug 9 – 27" inside one month.
+ *
+ * Null for a one-week series: the date tile beside it already shows that date,
+ * and "Aug 9 – Aug 9" is noise.
+ */
+export function formatSeriesRun(run: { first: string; last: string }): string | null {
+  if (!run.first || run.first === run.last) return null;
+  const from = parseLocalDateInput(run.first);
+  const to = parseLocalDateInput(run.last);
+  if (!from || !to) return null;
+  const month = (d: Date) => d.toLocaleDateString(undefined, { month: 'short' });
+  const start = `${month(from)} ${from.getDate()}`;
+  const end =
+    from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear()
+      ? `${to.getDate()}`
+      : `${month(to)} ${to.getDate()}`;
+  return `${start} – ${end}`;
+}
+
+/**
+ * One accent lookup for a whole plan, built once and handed to every surface.
+ *
+ * Board, calendar, and list all need "what colour is this sermon's series", and
+ * three call sites resolving it themselves is how the same run ends up two
+ * colours on two views. Returns null for a sermon with no series — which is a
+ * real answer, not a missing one, and the surfaces draw nothing for it.
+ */
+export function buildSeriesAccentLookup(
+  series: readonly { id: string; color?: string | null }[],
+): (seriesId: string | null | undefined) => SpaceCoverPickerColor | null {
+  const byId = new Map(series.map((entry) => [entry.id, entry]));
+  return (seriesId) => {
+    if (!seriesId) return null;
+    /*
+      A sermon can name a series the plan payload has not caught up with — a
+      colleague created it a moment ago. Deriving from the bare id keeps the run
+      coloured and stable rather than dropping the band until the next refetch.
+    */
+    return seriesAccent(byId.get(seriesId) ?? { id: seriesId });
   };
 }
 

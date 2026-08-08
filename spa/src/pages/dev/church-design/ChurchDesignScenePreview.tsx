@@ -17,6 +17,7 @@ import PrototypePlannerBoard from '../../prototype/planner/PrototypePlannerBoard
 import PrototypePlannerCalendar from '../../prototype/planner/PrototypePlannerCalendar';
 import PrototypePlannerList from '../../prototype/planner/PrototypePlannerList';
 import PrototypePlannerScopeChips from '../../prototype/planner/PrototypePlannerScopeChips';
+import PrototypePlannerSeries from '../../prototype/planner/PrototypePlannerSeries';
 import PrototypeLibraryManagerItems from '../../prototype/library/PrototypeLibraryManagerItems';
 import type { LibrarySelection } from '../../prototype/library/PrototypeExpandedLibraryManager';
 import type {
@@ -24,6 +25,7 @@ import type {
   PlannerView,
 } from '../../prototype/planner/PrototypeExpandedPlanner';
 import type { TeachingPlanSermon } from '../../../hooks/queries/useChurchTeachingPlan';
+import { buildSeriesAccentLookup } from '../../../lib/church-services';
 import type { ChurchDesignScene } from './sceneRegistry';
 import '@/styles/admin-usage.css';
 import '@/styles/admin-publish.css';
@@ -1224,6 +1226,28 @@ function plannerFixtures(): TeachingPlanSermon[] {
     },
     {
       ...base,
+      id: 'svc_5',
+      serviceDate: iso(nextSundayOffset + 21),
+      serviceTimeIds: ['cstm_morning'],
+      title: 'The God who waits',
+      seriesId: 'csrs_advent',
+      seriesTitle: 'Four kinds of waiting',
+      reference: 'Isaiah 64:1-9',
+    },
+    {
+      /* No passage yet — the placeholder card, still carrying its run. A week
+         the series is holding open is exactly what the rail has to survive. */
+      ...base,
+      id: 'svc_6',
+      serviceDate: iso(nextSundayOffset + 28),
+      serviceTimeIds: ['cstm_morning'],
+      title: 'Four kinds of waiting',
+      seriesId: 'csrs_advent',
+      seriesTitle: 'Four kinds of waiting',
+      reference: null,
+    },
+    {
+      ...base,
       id: 'svc_past',
       serviceDate: iso(nextSundayOffset - 7),
       serviceTimeIds: ['cstm_morning', 'cstm_late'],
@@ -1234,6 +1258,32 @@ function plannerFixtures(): TeachingPlanSermon[] {
     },
   ];
 }
+
+/* Two runs, two colours, and one of them left uncoloured on purpose: the
+   derived accent is what every pre-existing series will actually render with,
+   so the gallery has to show it beside a chosen one. */
+const PLANNER_SERIES = [
+  { id: 'csrs_spirit', color: 'purple' },
+  { id: 'csrs_advent', color: null },
+];
+
+/** The Series view's own rows — a chosen colour beside a derived one. */
+const PLANNER_SERIES_ROWS = [
+  {
+    id: 'csrs_spirit',
+    title: 'Life in the Spirit',
+    serviceCount: 4,
+    color: 'purple',
+    description: null,
+  },
+  {
+    id: 'csrs_advent',
+    title: 'Four kinds of waiting',
+    serviceCount: 2,
+    color: null,
+    description: 'Advent, one posture a week',
+  },
+];
 
 /* Enough channels that the switcher has to be a picker rather than a row of
    chips — the case a one-channel fixture would never show. */
@@ -1253,6 +1303,7 @@ function PlannerScene({ view, canWrite = true }: { view: PlannerView; canWrite?:
   const [planSpaceId, setPlanSpaceId] = useState<string | null>(null);
   const [lastChannelId, setLastChannelId] = useState<string | null>(null);
   const services = plannerFixtures();
+  const accentFor = buildSeriesAccentLookup(PLANNER_SERIES);
   const readOnlyReason = canWrite ? null : ('lapsed' as const);
   const noop = () => undefined;
 
@@ -1275,6 +1326,7 @@ function PlannerScene({ view, canWrite = true }: { view: PlannerView; canWrite?:
             <PrototypePlannerBoard
               services={services}
               serviceTimes={PLANNER_SERVICE_TIMES}
+              accentFor={accentFor}
               canWrite={canWrite}
               readOnlyReason={readOnlyReason}
               defaultDay={0}
@@ -1286,19 +1338,31 @@ function PlannerScene({ view, canWrite = true }: { view: PlannerView; canWrite?:
             <PrototypePlannerCalendar
               services={services}
               serviceTimes={PLANNER_SERVICE_TIMES}
+              accentFor={accentFor}
               canWrite={canWrite}
               selection={selection}
               onSelect={setSelection}
               onMoveToDate={noop}
             />
-          ) : (
+          ) : view === 'list' ? (
             <PrototypePlannerList
               services={services}
               serviceTimes={PLANNER_SERVICE_TIMES}
+              accentFor={accentFor}
               canWrite={canWrite}
               readOnlyReason={readOnlyReason}
               selection={selection}
               onSelect={setSelection}
+            />
+          ) : (
+            <PrototypePlannerSeries
+              series={PLANNER_SERIES_ROWS}
+              services={services}
+              accentFor={accentFor}
+              openSeriesId={null}
+              canWrite={canWrite}
+              onOpen={noop}
+              onNewSeries={noop}
             />
           )}
         </div>
@@ -1623,6 +1687,8 @@ export default function ChurchDesignScenePreview({ scene }: { scene: ChurchDesig
       return <PlannerScene view="calendar" />;
     case '18-planner-list':
       return <PlannerScene view="list" />;
+    case '18b-planner-series':
+      return <PlannerScene view="series" />;
     case '19-planner-board-readonly':
       return <PlannerScene view="board" canWrite={false} />;
     case '20-marquee-labels':

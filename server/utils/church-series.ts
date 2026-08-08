@@ -18,6 +18,7 @@
  * the scope they were cleared for, exactly as the service-time helpers do.
  */
 import { db, first, ChurchSeries, ChurchServices, and, asc, desc, eq, inArray, isNull, sql } from '../db';
+import { SPACE_COVER_PICKER_COLORS } from '@/utils/space-cover';
 
 /**
  * The `db` handle, or a transaction using it.
@@ -33,6 +34,27 @@ type Executor = Pick<typeof db, 'select' | 'insert' | 'update' | 'delete'>;
 /** Longest a series name may be — the same cap the sermon title uses. */
 export const SERIES_TITLE_MAX = 120;
 
+/** One line, not a paragraph — the lane that renders it has one line of room. */
+export const SERIES_DESCRIPTION_MAX = 200;
+
+/**
+ * Colours a series may take.
+ *
+ * The space cover picker's set rather than a new one, so a church never meets
+ * two different five-colour palettes in the same product. Cream/yellow and paper
+ * are out for the same reason they are out there: at the width a run band and a
+ * card rail are drawn, neither survives contact with the page behind it.
+ *
+ * Null is always allowed and is the common case — `seriesAccent` derives a
+ * stable colour from the row id, so an unset colour is "not chosen", never
+ * "no colour".
+ */
+export const SERIES_COLORS = SPACE_COVER_PICKER_COLORS;
+
+export function isSeriesColor(value: unknown): value is (typeof SERIES_COLORS)[number] {
+  return typeof value === 'string' && (SERIES_COLORS as readonly string[]).includes(value);
+}
+
 export type SeriesScope = {
   churchId: string;
   /** NULL = the church's own plan; set = that space's plan. */
@@ -46,6 +68,14 @@ export type SerializedSeries = {
   title: string;
   /** How many sermons sit under it — what makes a series page worth opening. */
   serviceCount: number;
+  /**
+   * A SERIES_COLORS token, or null for "not chosen" — which the client turns
+   * into a stable derived accent rather than into no colour at all.
+   */
+  color: string | null;
+  description: string | null;
+  /** "2027" for a seasonal re-run; null for a series with no sibling. */
+  runLabel: string | null;
 };
 
 /**
@@ -76,13 +106,26 @@ export async function listSeriesForPlan(scope: SeriesScope): Promise<SerializedS
     .select({
       id: ChurchSeries.id,
       title: ChurchSeries.title,
+      color: ChurchSeries.color,
+      description: ChurchSeries.description,
+      runLabel: ChurchSeries.runLabel,
       serviceCount: sql<number>`count(${ChurchServices.id})::int`,
       lastDate: sql<string | null>`max(${ChurchServices.serviceDate})`,
     })
     .from(ChurchSeries)
     .leftJoin(ChurchServices, eq(ChurchServices.seriesId, ChurchSeries.id))
     .where(scopeWhere(scope))
-    .groupBy(ChurchSeries.id, ChurchSeries.title, ChurchSeries.createdAt)
+    // Grouping by the primary key would be enough for Postgres, but every
+    // selected column is listed for the same reason the original was: the next
+    // person to add one should not have to learn that rule to keep this working.
+    .groupBy(
+      ChurchSeries.id,
+      ChurchSeries.title,
+      ChurchSeries.color,
+      ChurchSeries.description,
+      ChurchSeries.runLabel,
+      ChurchSeries.createdAt,
+    )
     // NULLS LAST so a brand-new series with no sermons yet sits below the ones
     // actually being taught, rather than on top because MAX(date) is NULL.
     .orderBy(sql`max(${ChurchServices.serviceDate}) DESC NULLS LAST`, desc(ChurchSeries.createdAt));
@@ -91,6 +134,13 @@ export async function listSeriesForPlan(scope: SeriesScope): Promise<SerializedS
     id: row.id,
     title: row.title,
     serviceCount: Number(row.serviceCount ?? 0),
+    // Re-checked on the way out, not just on the way in: a token written before
+    // the palette last changed must not reach the client as a class name that
+    // resolves to nothing. An unrecognised value degrades to "not chosen",
+    // which the client already knows how to colour.
+    color: isSeriesColor(row.color) ? row.color : null,
+    description: row.description ?? null,
+    runLabel: row.runLabel ?? null,
   }));
 }
 
@@ -210,6 +260,20 @@ export async function findOrCreateSeries(
   return settled;
 }
 
+/**
+ * The unlabelled series of this name in this plan, if there is one.
+ *
+ * **`runLabel IS NULL` is the whole point.** Once seasonal runs exist, a plan
+ * can hold "Advent · 2026" and "Advent · 2027", and a lookup by title alone
+ * would be ambiguous — it is the free-text combobox's resolution path, so an
+ * ambiguous answer there is how a sermon silently joins last year's run.
+ *
+ * Restricting it to the unlabelled row keeps that path exactly as it was: one
+ * answer, or none. Labelled runs are only ever reached by id, from the flows
+ * that created them. It also keeps the typo guard intact — this is still what
+ * makes "Life In the Spirit" resolve to "Life in the Spirit" rather than
+ * forking it.
+ */
 async function findSeriesByTitle(
   scope: SeriesScope,
   title: string,
@@ -219,7 +283,13 @@ async function findSeriesByTitle(
     await executor
       .select({ id: ChurchSeries.id })
       .from(ChurchSeries)
-      .where(and(scopeWhere(scope), sql`lower(${ChurchSeries.title}) = lower(${title})`))
+      .where(
+        and(
+          scopeWhere(scope),
+          sql`lower(${ChurchSeries.title}) = lower(${title})`,
+          isNull(ChurchSeries.runLabel),
+        ),
+      )
       .limit(1),
   );
   return row?.id ?? null;
@@ -247,29 +317,74 @@ export async function getSeriesWithServices(
 }
 
 /**
- * Rename inside the plan. Returns the reason on refusal so the route can pick a
- * status without re-deriving why.
+ * Edit a series inside the plan. Returns the reason on refusal so the route can
+ * pick a status without re-deriving why.
+ *
+ * Every field is optional and `undefined` means "leave it" — the same
+ * distinction `resolveSeriesForWrite` draws, so a colour change never has to
+ * resend a title and risk racing someone else's rename. `null` on `color` or
+ * `description` clears it; a title cannot be cleared, only replaced.
+ *
+ * This was `renameSeries`. It grew rather than gaining a sibling because the
+ * uniqueness check and the scoped `WHERE` are the parts worth having once, and
+ * a second writer touching the same row is how two sources of truth start.
  */
-export async function renameSeries(
+export async function updateSeries(
   scope: SeriesScope,
   seriesId: string,
-  title: string,
+  changes: {
+    title?: string;
+    color?: string | null;
+    description?: string | null;
+    /** Set when a second run of this name appears — see the column docblock. */
+    runLabel?: string | null;
+  },
 ): Promise<{ ok: true; series: ChurchSeriesRow } | { ok: false; code: string; error: string }> {
-  const trimmed = title.trim().slice(0, SERIES_TITLE_MAX);
-  if (!trimmed) return { ok: false, code: 'BAD_REQUEST', error: 'A series name is required' };
+  const patch: Partial<typeof ChurchSeries.$inferInsert> = {};
 
-  const clash = await findSeriesByTitle(scope, trimmed);
-  if (clash && clash !== seriesId) {
-    return {
-      ok: false,
-      code: 'SERIES_TITLE_TAKEN',
-      error: 'This plan already has a series with that name',
-    };
+  if (changes.title !== undefined) {
+    const trimmed = changes.title.trim().slice(0, SERIES_TITLE_MAX);
+    if (!trimmed) return { ok: false, code: 'BAD_REQUEST', error: 'A series name is required' };
+
+    const clash = await findSeriesByTitle(scope, trimmed);
+    if (clash && clash !== seriesId) {
+      return {
+        ok: false,
+        code: 'SERIES_TITLE_TAKEN',
+        error: 'This plan already has a series with that name',
+      };
+    }
+    patch.title = trimmed;
+  }
+
+  if (changes.color !== undefined) {
+    // Refused rather than silently dropped: a picker sending a colour this
+    // server does not know is a bug in the picker, and quietly storing null
+    // would show the pastor a colour they did not choose.
+    if (changes.color !== null && !isSeriesColor(changes.color)) {
+      return { ok: false, code: 'BAD_REQUEST', error: 'That is not a series colour' };
+    }
+    patch.color = changes.color;
+  }
+
+  if (changes.runLabel !== undefined) {
+    patch.runLabel = changes.runLabel?.trim().slice(0, 40) || null;
+  }
+
+  if (changes.description !== undefined) {
+    const trimmed = changes.description?.trim().slice(0, SERIES_DESCRIPTION_MAX) ?? '';
+    // An empty description is an absent one. Storing '' would make every
+    // "does this series have a description" check a two-part test forever.
+    patch.description = trimmed || null;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return { ok: false, code: 'BAD_REQUEST', error: 'Nothing to change' };
   }
 
   const updated = await db
     .update(ChurchSeries)
-    .set({ title: trimmed, updatedAt: new Date() })
+    .set({ ...patch, updatedAt: new Date() })
     .where(and(eq(ChurchSeries.id, seriesId), scopeWhere(scope)))
     .returning();
   const row = first(updated);
@@ -311,4 +426,111 @@ export async function deleteSeries(
     await tx.delete(ChurchSeries).where(eq(ChurchSeries.id, seriesId));
   });
   return { ok: true, detached };
+}
+
+/**
+ * Create a named series outright, rather than as a side effect of a sermon.
+ *
+ * The design deliberately had no create path: a series was born by naming it on
+ * a sermon, and "an empty series with nothing under it is a form to fill in,
+ * not a plan." That reasoning holds for the *accidental* empty series and is
+ * why `findOrCreateSeries` still exists — but it withheld something a pastor
+ * genuinely wants, which is to decide "we are doing eight weeks in Romans this
+ * autumn" before any single week exists. A zero-sermon series was already a
+ * state every read path rendered (`listSeriesForPlan` LEFT JOINs and orders
+ * NULLS LAST so a brand-new one sits below); only the door was missing.
+ *
+ * Unlike `findOrCreateSeries` this **refuses a name already in use** rather
+ * than returning it. The two have opposite jobs: that one resolves a typed name
+ * onto whatever it matches, this one asserts a new thing exists, and silently
+ * handing back somebody else's series would make "New series" a lie.
+ *
+ * `runLabel` is accepted so a re-run can mint its second Advent through the
+ * same path; it participates in uniqueness, so "Advent" and "Advent 2027" are
+ * different names as far as this is concerned.
+ */
+export async function createSeries(
+  scope: SeriesScope,
+  input: { title: string; color?: string | null; description?: string | null; runLabel?: string | null },
+  userId: string,
+  executor: Executor = db,
+): Promise<
+  { ok: true; series: ChurchSeriesRow } | { ok: false; code: string; error: string }
+> {
+  const title = input.title.trim().slice(0, SERIES_TITLE_MAX);
+  if (!title) return { ok: false, code: 'BAD_REQUEST', error: 'A series name is required' };
+  if (input.color != null && !isSeriesColor(input.color)) {
+    return { ok: false, code: 'BAD_REQUEST', error: 'That is not a series color' };
+  }
+  const runLabel = input.runLabel?.trim().slice(0, 40) || null;
+
+  /*
+    Checked before inserting so the common case gets the readable error, and
+    caught below anyway because the index is the real guard — two staff naming
+    the same series at once both find nothing here.
+  */
+  const clash = await findSeriesByRun(scope, title, runLabel, executor);
+  if (clash) {
+    return {
+      ok: false,
+      code: 'SERIES_TITLE_TAKEN',
+      error: runLabel
+        ? `This plan already has a "${title}" run called ${runLabel}`
+        : `This plan already has a series called "${title}"`,
+    };
+  }
+
+  const inserted = first(
+    await executor
+      .insert(ChurchSeries)
+      .values({
+        id: `csrs_${crypto.randomUUID()}`,
+        churchId: scope.churchId,
+        spaceId: scope.spaceId,
+        title,
+        color: input.color ?? null,
+        description: input.description?.trim().slice(0, SERIES_DESCRIPTION_MAX) || null,
+        runLabel,
+        createdBy: userId,
+        createdAt: new Date(),
+        updatedAt: null,
+      })
+      .onConflictDoNothing()
+      .returning(),
+  );
+  if (!inserted) {
+    // Lost the race; the winner's row is the answer, but this caller asked to
+    // *create* one, so it is still a refusal rather than a silent reuse.
+    return {
+      ok: false,
+      code: 'SERIES_TITLE_TAKEN',
+      error: `This plan already has a series called "${title}"`,
+    };
+  }
+  return { ok: true, series: inserted };
+}
+
+/** One series by name **and** run label — the uniqueness the index enforces. */
+async function findSeriesByRun(
+  scope: SeriesScope,
+  title: string,
+  runLabel: string | null,
+  executor: Executor = db,
+): Promise<string | null> {
+  const row = first(
+    await executor
+      .select({ id: ChurchSeries.id })
+      .from(ChurchSeries)
+      .where(
+        and(
+          scopeWhere(scope),
+          sql`lower(${ChurchSeries.title}) = lower(${title})`,
+          runLabel === null
+            ? isNull(ChurchSeries.runLabel)
+            : sql`lower(${ChurchSeries.runLabel}) = lower(${runLabel})`,
+        ),
+      )
+      .limit(1),
+  );
+  return row?.id ?? null;
 }

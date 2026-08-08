@@ -22,7 +22,7 @@ const SPACE_HANDLERS = [
   ["app.post('/api/church/spaces/:spaceId/services/delete'", 'assertCanManageSpaceTeachingPlan'],
   // Series ride the plan's own gate rather than growing one of their own —
   // otherwise who may rename Youth's series could drift from who may plan it.
-  ["app.post('/api/church/spaces/:spaceId/series/rename'", 'assertCanManageSpaceTeachingPlan'],
+  ["app.post('/api/church/spaces/:spaceId/series/update'", 'assertCanManageSpaceTeachingPlan'],
   ["app.post('/api/church/spaces/:spaceId/series/delete'", 'assertCanManageSpaceTeachingPlan'],
 ] as const;
 

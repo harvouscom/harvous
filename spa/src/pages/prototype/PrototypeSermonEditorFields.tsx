@@ -24,6 +24,8 @@ import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { APIError } from '../../lib/api';
 import { useNoteTemplates } from '../../hooks/queries/useNoteTemplates';
+import { planSermonNoteLink } from '../../lib/church-services';
+import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useChurchSpaceSermonActions } from '../../hooks/queries/useChurchSpacePlan';
 import {
   useChurchSermonActions,
@@ -38,6 +40,7 @@ import { checkScriptureReferenceValidity, normalizeScriptureReference } from '@/
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteParamSlug } from './proto-route-slugs';
 import ProtoDatePicker from './ProtoDatePicker';
+import { PrototypeAddNotesPicker } from './PrototypeAddNotesSheet';
 
 export interface PrototypeSermonEditorFieldsProps {
   orgId: string | null;
@@ -93,6 +96,13 @@ export interface PrototypeSermonEditorFieldsProps {
   /** About to route away to a note. Defaults to `onDone`. */
   onNavigateAway?: () => void;
   /**
+   * Whether this viewer may reshape the plan. The docked pane only mounts these
+   * fields when they can, so it never passes it; the sheet mounts them either
+   * way, and "Write this sermon" writes to a `manage_teaching_plan` route — a
+   * button that always 403s is worse than no button.
+   */
+  canWrite?: boolean;
+  /**
    * Fired when the form's height changes for a reason a parent cannot see —
    * the date picker opening, the series list appearing. The popover
    * presentation re-measures on it; the pane ignores it.
@@ -130,6 +140,7 @@ export default function PrototypeSermonEditorFields({
   trailingFields,
   onDone,
   onNavigateAway,
+  canWrite = true,
   onLayoutChange,
 }: PrototypeSermonEditorFieldsProps) {
   const navigate = useNavigate();
@@ -183,30 +194,50 @@ export default function PrototypeSermonEditorFields({
   const [debouncedReference, setDebouncedReference] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // Reset from the row being edited each time the editor becomes live, so a
-  // cancelled edit never leaks into the next one.
+  /*
+    Seed from the row being edited each time the editor becomes live, so a
+    cancelled edit never leaks into the next one.
+
+    **Keyed on the row's identity, not the row object.** It used to depend on
+    `service` itself, which looks equivalent and is not: every plan mutation
+    invalidates the query, and a refetched row that differs in any field — a
+    colleague's edit, or this editor's own note link landing — is a new object.
+    The effect then re-seeded every field from the server and discarded whatever
+    the pastor had typed. That was invisible while the only in-editor write
+    navigated away; the moment a note is linked in place it is data loss.
+
+    A form owns its state from the moment it opens. Re-seeding mid-edit was
+    never wanted, so the row is read through a ref and only its *identity*
+    triggers a reset.
+  */
+  const serviceRef = useRef(service);
+  serviceRef.current = service;
+  const serviceKey = service?.id ?? null;
   useEffect(() => {
     if (!active) return;
+    const row = serviceRef.current;
     setError(null);
     setNotice(null);
     setDatePickerOpen(false);
     setRepeatOpen(false);
     setSeriesListOpen(false);
     setServiceDate(
-      service
-        ? (service.serviceDate ?? '')
+      row
+        ? (row.serviceDate ?? '')
         : createDefaultDate !== undefined
           ? (createDefaultDate ?? '')
           : nextOccurrenceOfDay(defaultServiceDayRef.current),
     );
-    setServiceTimeIds(service?.serviceTimeIds ?? []);
-    setServiceTime(service?.serviceTime ?? '');
-    setTitle(service?.title ?? '');
-    setSeriesTitle(service?.seriesTitle ?? '');
-    setSeriesId(service?.seriesId ?? null);
-    setReference(service?.reference ?? '');
-    setStarterTemplateId(service?.starterTemplateId ?? '');
-  }, [active, service, createDefaultDate]);
+    setServiceTimeIds(row?.serviceTimeIds ?? []);
+    setServiceTime(row?.serviceTime ?? '');
+    setTitle(row?.title ?? '');
+    setSeriesTitle(row?.seriesTitle ?? '');
+    setSeriesId(row?.seriesId ?? null);
+    setReference(row?.reference ?? '');
+    setStarterTemplateId(row?.starterTemplateId ?? '');
+    setPickedNoteId(row?.viewerDraftNoteId ?? null);
+    setPickedNoteTitle(row?.viewerDraftNoteTitle ?? null);
+  }, [active, serviceKey, createDefaultDate]);
 
   /*
     Drop any service that no longer falls on the chosen day.
@@ -292,6 +323,25 @@ export default function PrototypeSermonEditorFields({
   }, [onLayoutChange, serviceDate, title, datePickerOpen, showSeriesList, historyNotes.length]);
 
   const orgTemplates = templates?.org ?? [];
+
+  /*
+    Which of the pastor's own notes this sermon *is*.
+
+    The direction that matters: a sermon is written before it is scheduled, so
+    the plan points at existing work rather than seeding new work. An earlier
+    build had this backwards — a "Write this sermon" button that created a
+    blank note from the plan row — which inverted where the work actually
+    starts.
+
+    `viewerDraftNoteId` is the server's answer for "which note did *I* link",
+    scoped to this viewer and nobody else. A colleague's draft never appears
+    here and never changes what this shows.
+  */
+  const { homeSpaceId } = usePrototypeHomeSpaceId();
+  const linkedNoteId = service?.viewerDraftNoteId ?? null;
+  const [pickedNoteId, setPickedNoteId] = useState<string | null>(null);
+  const [pickedNoteTitle, setPickedNoteTitle] = useState<string | null>(null);
+
   /*
     Only the services that fall on the chosen day. Offering Wednesday's slot for
     a Sunday sermon would let staff build a plan the calendar cannot honour, and
@@ -326,24 +376,64 @@ export default function PrototypeSermonEditorFields({
       reference: reference.trim() || null,
       starterTemplateId: starterTemplateId || null,
     };
-    actions.mutate(
-      isEditing ? { kind: 'update', serviceId: service!.id, ...payload } : { kind: 'create', ...payload },
-      {
-        onSuccess: () => onDone(),
-        onError: (err) => {
-          // The server's INVALID_REFERENCE carries the validator's own wording
-          // ("Romans has 16 chapters.") — show it verbatim rather than a
-          // generic failure, because it tells the pastor exactly what to fix.
-          setError(
-            err instanceof APIError
+    /*
+      Sequential, and awaited — `actions` is one mutation object, so overlapping
+      `mutate` calls would scramble a single `isPending` between them.
+
+      The note link is necessarily a second write: it needs a service id, and the
+      alternative (a bespoke create-from-note endpoint) would restate this
+      route's date parsing, slot filtering, collision guards and series
+      resolution. A create that lands and a link that fails leaves a real plan
+      row the pastor can see — say so rather than rolling back.
+    */
+    void (async () => {
+      let serviceId = isEditing ? service!.id : null;
+      try {
+        const res = await actions.mutateAsync(
+          isEditing
+            ? { kind: 'update', serviceId: service!.id, ...payload }
+            : { kind: 'create', ...payload },
+        );
+        if (!serviceId) {
+          serviceId = (res as { service?: { id?: string } } | undefined)?.service?.id ?? null;
+        }
+      } catch (err) {
+        // The server's INVALID_REFERENCE carries the validator's own wording
+        // ("Romans has 16 chapters.") — show it verbatim rather than a
+        // generic failure, because it tells the pastor exactly what to fix.
+        setError(
+          err instanceof APIError
+            ? err.message
+            : err instanceof Error
               ? err.message
-              : err instanceof Error
-                ? err.message
-                : 'Could not save this sermon.',
-          );
-        },
-      },
-    );
+              : 'Could not save this sermon.',
+        );
+        return;
+      }
+
+      /*
+        Unlink the old note before linking the new one — see
+        `planSermonNoteLink`. `plannedForServiceId` is a column, not a join row,
+        so writing the new link alone would leave both notes stamped and the
+        planner would report an arbitrary one of the two.
+      */
+      const links = serviceId
+        ? planSermonNoteLink({
+            previousNoteId: linkedNoteId,
+            nextNoteId: pickedNoteId,
+            serviceId,
+          })
+        : [];
+      try {
+        for (const link of links) await actions.mutateAsync({ kind: 'link-note', ...link });
+      } catch {
+        setError(
+          `Saved the ${noun}, but the note didn't link. Open it again to try.`,
+        );
+        return;
+      }
+      onDone();
+    })();
   };
 
   /**
@@ -684,6 +774,81 @@ export default function PrototypeSermonEditorFields({
             </p>
           ) : null}
         </div>
+
+        {/*
+          Which of my notes this sermon is.
+
+          Above the starter template on purpose: this answers "what did I write",
+          the starter answers "what does the congregation write into", and the
+          first is the one a pastor came here to say. Optional — a plan row for a
+          sermon not yet written is perfectly ordinary, which is why nothing here
+          gates Save.
+
+          Only when editing. A note is linked *to a service id*, and an unsaved
+          row has none; on create the pick is held in state and written straight
+          after the service exists.
+        */}
+        {canWrite && isEditing ? (
+          <>
+            <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+              <span>My notes for this {noun}</span>
+              <span className="proto-service-editor__optional">optional</span>
+            </label>
+            {pickedNoteId ? (
+              /* The linked note, in the same row shape the resources field uses
+                 — one thing attached, with the way to detach it on the right. */
+              <div className="proto-planner-resources__row">
+                <span className="proto-planner-resources__row-text">
+                  <span className="pds-list-title proto-marquee" title={pickedNoteTitle ?? undefined}>
+                    <span>{pickedNoteTitle?.trim() || 'Untitled note'}</span>
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="proto-side-panel__action-btn"
+                  aria-label="Unlink this note"
+                  title="Unlink"
+                  disabled={actions.isPending}
+                  onClick={() => {
+                    setPickedNoteId(null);
+                    setPickedNoteTitle(null);
+                  }}
+                >
+                  <Icon name="xmark" size={12} />
+                </button>
+              </div>
+            ) : homeSpaceId ? (
+              <div className="proto-service-editor__note-picker">
+                <PrototypeAddNotesPicker
+                  /*
+                    My Home, and deliberately no `candidateSource`. My Home is
+                    personal, so the server's `my-home` branch is skipped and the
+                    filter falls to "notes whose canonical home is My Home,
+                    authored by me" — which, because `resolveCanonicalCreateScope`
+                    files every shared-space note under My Home canonically, is
+                    every note this pastor has written. Passing `my-home` would
+                    be silently ignored here and would widen the *other* pickers
+                    that share this endpoint.
+                  */
+                  spaceId={homeSpaceId}
+                  selectionMode="single"
+                  listShell="scoped"
+                  ownNotesOnly
+                  excludeEncrypted
+                  isPending={actions.isPending}
+                  selectedIds={[]}
+                  onSelectedIdsChange={(ids) => setPickedNoteId(ids[0] ?? null)}
+                  onSelectedNoteChange={(candidate) =>
+                    setPickedNoteTitle(candidate?.title ?? null)
+                  }
+                  localEmptyHint="Nothing written yet."
+                />
+              </div>
+            ) : (
+              <p className="proto-caption proto-service-editor__starter-hint">Loading your notes…</p>
+            )}
+          </>
+        ) : null}
 
         {/*
           A church with no starters used to see nothing here at all, which made

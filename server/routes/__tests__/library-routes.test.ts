@@ -87,14 +87,56 @@ describe('resource library route contracts', () => {
     }
   });
 
+  /** One handler's source, from its `app.<verb>(` to the next one. */
+  const handlerBody = (marker: string) => {
+    const text = route();
+    const start = text.indexOf(marker);
+    expect(start, `${marker} not found`).toBeGreaterThan(-1);
+    const next = text.indexOf('\napp.', start + 1);
+    return text.slice(start, next === -1 ? undefined : next);
+  };
+
   it('keeps file access mint-time and private', () => {
     const text = route();
     // The storage key never reaches the client; open goes through the signed
-    // endpoint after the same owner check as everything else.
+    // endpoint after an access check made at mint time.
     expect(text).toContain('fileStorageKey stays server-side');
     expect(text).toContain('signedLibraryFileUrl(item.fileStorageKey)');
-    const fileBlock = text.slice(text.indexOf("app.get('/api/library/items/:id/file'"));
-    expect(fileBlock).toContain('findOwnedItem(auth.userId, id)');
+  });
+
+  /*
+    The two halves of one item must agree on who may see it.
+
+    They did not: `/file` was moved to `resolveVisibleItem` when uploads
+    shipped, and `/items/:id` — the route that backs dock chips and `@` library
+    mention pills — was left on `findOwnedItem`. A church resource could be
+    downloaded but not resolved, so every chip and pill pointing at one 404'd
+    for everybody except a personal owner who, for a church item, does not exist.
+
+    The old test could not catch it: it sliced from the `/file` handler to the
+    end of the file, so it was reading the *update* handler's `findOwnedItem`.
+    Hence the per-handler slice above.
+  */
+  it.each([
+    "app.get('/api/library/items/:id'",
+    "app.get('/api/library/items/:id/file'",
+  ])('resolves %s through the shared visibility check, not personal ownership', (marker) => {
+    const body = handlerBody(marker);
+    expect(body).toContain('resolveVisibleItem(auth.userId, id)');
+    expect(body).not.toContain('findOwnedItem');
+  });
+
+  it('still gates writes on personal ownership', () => {
+    // Reading a church item is a member's right; editing or archiving one is
+    // not, and goes through the church lane's own `manage_library` routes.
+    for (const marker of [
+      "app.post('/api/library/items/update'",
+      "app.post('/api/library/items/archive'",
+    ]) {
+      const body = handlerBody(marker);
+      expect(body, marker).toContain('findOwnedItem');
+      expect(body, marker).not.toContain('resolveVisibleItem');
+    }
   });
 
   it('enforces the upload cap and delegates MIME policy to the storage util', () => {

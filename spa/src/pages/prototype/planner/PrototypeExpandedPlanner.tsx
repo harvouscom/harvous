@@ -19,6 +19,7 @@ import type { ExpandedSidebarToolProps } from '../PrototypeExpandedSidebarHost';
 import {
   useChurchSermonActions,
   useChurchTeachingPlan,
+  type TeachingPlanSeries,
   type TeachingPlanSermon,
 } from '../../../hooks/queries/useChurchTeachingPlan';
 import {
@@ -26,7 +27,7 @@ import {
   useChurchSpaceSermonActions,
 } from '../../../hooks/queries/useChurchSpacePlan';
 import { useChurchPlannerAccess } from '../../../hooks/useChurchPlannerAccess';
-import { planVocabulary } from '../../../lib/church-services';
+import { buildSeriesAccentLookup, planVocabulary } from '../../../lib/church-services';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import ProtoSpaceLoading from '../ProtoSpaceLoading';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
@@ -35,10 +36,13 @@ import PrototypePlannerCalendar from './PrototypePlannerCalendar';
 import PrototypePlannerList from './PrototypePlannerList';
 import PrototypePlannerEditorPane from './PrototypePlannerEditorPane';
 import PrototypePlannerScopeChips from './PrototypePlannerScopeChips';
+import PrototypePlannerSeries from './PrototypePlannerSeries';
+import PrototypeNewSeriesSheet from './PrototypeNewSeriesSheet';
+import PrototypeSeriesSheet from '../PrototypeSeriesSheet';
 import { usePlannerSchedule } from './usePlannerSchedule';
 import { usePlannerScope } from './usePlannerScope';
 
-export type PlannerView = 'board' | 'calendar' | 'list';
+export type PlannerView = 'board' | 'calendar' | 'list' | 'series';
 export type PlannerSelection =
   | { mode: 'edit'; serviceId: string }
   /** `date` null = a new idea for the backlog; a string = the day you clicked. */
@@ -53,13 +57,19 @@ const VIEWS: { id: PlannerView; label: string; icon: IconName }[] = [
   /* `list`, not `list-check`: the ticks read as completion, and a planned week
      is not a task anyone checks off. */
   { id: 'list', label: 'List', icon: 'list' },
+  /* The plan by run. A fourth way of looking at the same rows, so it sits in
+     the same switcher — and it is where a series' colour, description, and
+     length are reached from, which is why the planner needs it at all. */
+  { id: 'series', label: 'Series', icon: 'layer-group' },
 ];
 
 function readStoredView(): PlannerView {
   if (typeof window === 'undefined') return 'board';
   try {
     const stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
-    if (stored === 'board' || stored === 'calendar' || stored === 'list') return stored;
+    if (stored === 'board' || stored === 'calendar' || stored === 'list' || stored === 'series') {
+      return stored;
+    }
   } catch {
     /* ignore */
   }
@@ -76,12 +86,18 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
   const { planSpaceId, lastChannelId, selectPlanScope } = usePlannerScope(orgId, plannableSpaces);
   const [view, setView] = useState<PlannerView>(readStoredView);
   const [selection, setSelection] = useState<PlannerSelection>(null);
+  const [openSeries, setOpenSeries] = useState<TeachingPlanSeries | null>(null);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
+  const [creatingSeries, setCreatingSeries] = useState(false);
 
   const changeScope = useCallback(
     (next: string | null) => {
       selectPlanScope(next);
-      /* A selection points at a row in the plan you just left. */
+      /* A selection points at a row in the plan you just left — and so does an
+         open series, which is scoped to its plan by construction. */
       setSelection(null);
+      setOpenSeries(null);
+      setCreatingSeries(false);
     },
     [selectPlanScope],
   );
@@ -98,8 +114,15 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
   const planKind = onSpacePlan ? spacePlan.data?.planKind : undefined;
   const vocab = planVocabulary({ onSpacePlan, planKind });
   const services = useMemo(() => data?.services ?? [], [data]);
-  const series = data?.series ?? [];
+  const series = useMemo(() => data?.series ?? [], [data]);
   const serviceTimes = onSpacePlan ? [] : (churchPlan.data?.serviceTimes ?? []);
+
+  /*
+    Built once here rather than in each view: board, calendar, and list all ask
+    "what colour is this run", and three answers is how the same series ends up
+    two colours on two tabs.
+  */
+  const accentFor = useMemo(() => buildSeriesAccentLookup(series), [series]);
 
   /*
     The plan's own gathering day, which is what an undated idea lands on when
@@ -127,6 +150,28 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
       /* ignore */
     }
   }, []);
+
+  /*
+    Re-read from the plan rather than holding the row that was clicked: after a
+    recolour the sheet must show the new swatch as selected, and a captured
+    object would keep showing the old one until it was reopened.
+  */
+  const openSeriesRow = useMemo<TeachingPlanSeries | null>(
+    () => (openSeries ? (series.find((s) => s.id === openSeries.id) ?? openSeries) : null),
+    [openSeries, series],
+  );
+
+  const runSeries = useCallback(
+    (action: Parameters<typeof actions.mutate>[0], onDone?: () => void) => {
+      setSeriesError(null);
+      actions.mutate(action, {
+        onSuccess: () => onDone?.(),
+        onError: (err) =>
+          setSeriesError(err instanceof Error ? err.message : 'Could not change this series'),
+      });
+    },
+    [actions],
+  );
 
   const editingService = useMemo<TeachingPlanSermon | null>(() => {
     if (selection?.mode !== 'edit') return null;
@@ -224,6 +269,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
               <PrototypePlannerBoard
                 services={services}
                 serviceTimes={serviceTimes}
+                accentFor={accentFor}
                 canWrite={canWrite}
                 readOnlyReason={readOnlyReason}
                 defaultDay={defaultDay}
@@ -235,23 +281,104 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
               <PrototypePlannerCalendar
                 services={services}
                 serviceTimes={serviceTimes}
+                accentFor={accentFor}
                 canWrite={canWrite}
                 selection={selection}
                 onSelect={setSelection}
                 onMoveToDate={schedule.moveToDate}
               />
-            ) : (
+            ) : view === 'list' ? (
               <PrototypePlannerList
                 services={services}
                 serviceTimes={serviceTimes}
+                accentFor={accentFor}
                 canWrite={canWrite}
                 readOnlyReason={readOnlyReason}
                 emptyWritable={vocab.emptyWritable}
                 selection={selection}
                 onSelect={setSelection}
               />
+            ) : (
+              creatingSeries ? (
+                <PrototypeNewSeriesSheet
+                  open
+                  pending={actions.isPending}
+                  error={seriesError}
+                  defaultDay={defaultDay}
+                  onCancel={() => {
+                    setSeriesError(null);
+                    setCreatingSeries(false);
+                  }}
+                  onCreate={(input) =>
+                    runSeries(
+                      {
+                        kind: 'series-create',
+                        title: input.title,
+                        color: input.color,
+                        firstDate: input.firstDate,
+                      },
+                      () => setCreatingSeries(false),
+                    )
+                  }
+                />
+              ) : (
+                <PrototypePlannerSeries
+                  series={series}
+                  services={services}
+                  accentFor={accentFor}
+                  openSeriesId={openSeries?.id ?? null}
+                  canWrite={canWrite}
+                  onOpen={(entry) => {
+                    setSeriesError(null);
+                    setOpenSeries(entry);
+                  }}
+                  onNewSeries={() => {
+                    setSeriesError(null);
+                    setCreatingSeries(true);
+                  }}
+                />
+              )
             )}
           </div>
+
+          <PrototypeSeriesSheet
+            open={openSeriesRow !== null}
+            series={openSeriesRow}
+            services={services.filter((s) => s.seriesId === openSeriesRow?.id)}
+            canWrite={canWrite}
+            pending={actions.isPending}
+            error={seriesError}
+            onUpdate={(entry, changes) =>
+              runSeries(
+                { kind: 'series-update', seriesId: entry.id, ...changes },
+                /* Only a rename closes it. Colour and description are edits you
+                   make while watching the run they change. */
+                'title' in changes ? () => setOpenSeries(null) : undefined,
+              )
+            }
+            onDelete={(entry) => {
+              const weeks = entry.serviceCount === 1 ? '1 week' : `${entry.serviceCount} weeks`;
+              if (
+                !window.confirm(
+                  `Delete "${entry.title}"? The ${weeks} under it stay in the plan — they just won't belong to a series.`,
+                )
+              ) {
+                return;
+              }
+              runSeries({ kind: 'series-delete', seriesId: entry.id }, () => setOpenSeries(null));
+            }}
+            onAddWeeks={(_entry, seedServiceId, weeks) =>
+              runSeries({ kind: 'repeat', serviceId: seedServiceId, weeks })
+            }
+            onRemoveEmpty={(_entry, serviceIds) => {
+              for (const serviceId of serviceIds) {
+                runSeries({ kind: 'delete', serviceId });
+              }
+            }}
+            onOpenChange={(next) => {
+              if (!next) setOpenSeries(null);
+            }}
+          />
 
           {selection ? (
             <PrototypePlannerEditorPane

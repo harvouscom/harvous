@@ -26,6 +26,9 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'startedFromTemplateName',
     'coEditEnabled',
     'coEditEnabledAt',
+    // The staff half of the sermon link. Named here so a database missing it
+    // fails loudly rather than silently dropping every "Write this sermon" link.
+    'plannedForServiceId',
   ],
   NoteVersions: [
     'id',
@@ -118,7 +121,22 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'updatedAt',
   ],
   ChurchServiceTimeAssignments: ['id', 'serviceId', 'serviceTimeId', 'serviceDate', 'createdAt'],
-  ChurchSeries: ['id', 'churchId', 'spaceId', 'title', 'createdBy', 'createdAt', 'updatedAt'],
+  ChurchSeries: [
+    'id',
+    'churchId',
+    'spaceId',
+    'title',
+    // Presentation. Both nullable — `seriesAccent` derives a colour from the row
+    // id when `color` is unset, so their absence is a valid state, not a gap.
+    'color',
+    'description',
+    // Seasonal recurrence — see the column docblock. NULL for every run that
+    // has no sibling, which is most of them.
+    'runLabel',
+    'createdBy',
+    'createdAt',
+    'updatedAt',
+  ],
   UserMetadata: ['hmcChurchId', 'connectedChurchId', 'connectedOrgId', 'connectedChurchAt'],
   ResourceLibraries: ['id', 'ownerKind', 'ownerId', 'title', 'createdAt', 'updatedAt'],
   LibraryItems: [
@@ -145,7 +163,12 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
 
 const REQUIRED_INDEXES: Record<string, readonly string[]> = {
   Spaces: ['Spaces_deletedAt_recoveryUntilIndex'],
-  Notes: ['Notes_copiedFromNoteIdIndex', 'Notes_startedFromServiceIdIndex'],
+  Notes: [
+    'Notes_copiedFromNoteIdIndex',
+    'Notes_startedFromServiceIdIndex',
+    // Leads with userId because that is the only way the column is queried.
+    'Notes_userId_plannedForServiceIdIndex',
+  ],
   NoteVersions: [
     'NoteVersions_note_version_unique',
     'NoteVersions_noteId_createdAtIndex',
@@ -171,7 +194,7 @@ const REQUIRED_INDEXES: Record<string, readonly string[]> = {
   /** The one-answer guarantee, moved here from ChurchServices_church_date_unique. */
   ChurchServiceTimeAssignments: ['ChurchServiceTimeAssignments_slot_date_unique'],
   /** Both halves required — one index per plan scope, neither optional. */
-  ChurchSeries: ['ChurchSeries_church_title_unique', 'ChurchSeries_space_title_unique'],
+  ChurchSeries: ['ChurchSeries_church_title_run_unique', 'ChurchSeries_space_title_run_unique'],
   UserMetadata: ['UserMetadata_connectedChurchIdIndex', 'UserMetadata_hmcChurchIdIndex'],
   // The owner unique index is the lazy-creation race guard, not just a constraint.
   ResourceLibraries: ['ResourceLibraries_owner_unique'],

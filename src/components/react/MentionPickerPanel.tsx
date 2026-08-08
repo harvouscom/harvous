@@ -31,10 +31,17 @@ const KIND_TABS: { id: MentionKindFilter; label: string; iconName?: IconName }[]
 /**
  * Tabs for a picker offering `kinds`.
  *
- * Kinds are per-context, not global: a shared-space note offers no Resources tab
- * because the author's personal library items can't resolve for other members
- * (docs/future/RESOURCE_LIBRARY.md §5.3). Showing a tab that is structurally
- * always empty would read as a bug.
+ * Kinds are per-context, not global, and a tab that *cannot* be filled in a
+ * context is hidden rather than shown empty — an always-empty tab reads as a
+ * bug.
+ *
+ * Resources used to be hidden in a shared space, on the grounds that the
+ * author's personal library items could not resolve for other members. That was
+ * a real limit and it is gone: a room offers its *own* shelf, which every member
+ * may already read, and `/api/library/items/:id` resolves through the shared
+ * visibility check rather than through personal ownership. A room with no shelf
+ * yet shows an empty Resources tab for the same reason a room with no threads
+ * shows an empty Threads tab — that is data, not a structural impossibility.
  */
 export function mentionKindTabsFor(kinds: readonly MentionKind[]): typeof KIND_TABS {
   return KIND_TABS.filter((tab) => tab.id === 'all' || kinds.includes(tab.id as MentionKind));

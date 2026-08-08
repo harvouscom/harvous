@@ -108,8 +108,20 @@ const DRAFT_NOTE_ID = 'note_draft';
 const EMPTY_LIVE_NOTE_SNAPSHOT = { epoch: -1, title: '', content: '' };
 const EMPTY_NOTE_COLLECTIONS: string[] = [];
 
-/** Mention kinds offered inside a shared space — no 'library' (owner-scoped items). */
-const SPACE_MENTION_KINDS: readonly MentionKind[] = ['note', 'thread', 'folder'];
+/**
+ * Mention kinds offered inside a shared space.
+ *
+ * Every kind, including 'library' — a room's shelf is exactly what its members
+ * may cite, and it is the thing that makes a resource *referenceable in study*
+ * rather than a file to download. The picker sources it from
+ * `GET /api/spaces/:spaceId/library` (membership-gated) and a personal shared
+ * space, which has no shelf, simply gets an empty list.
+ *
+ * Kept as its own constant rather than passing `undefined` so the shared-space
+ * contract stays explicit at the call site: this list is a decision about what a
+ * room may point at, and the next kind added should have to be considered here.
+ */
+const SPACE_MENTION_KINDS: readonly MentionKind[] = ['note', 'thread', 'folder', 'library'];
 
 /** Single source of truth for "is this draft landing in My Home" — the label and the
  *  audience-bar icon must agree, so both read this instead of re-deriving it. */
@@ -1929,6 +1941,37 @@ export default function PrototypeNotePage() {
   const { can: canChurchForTemplates } = useChurchStaffStatus(churchOrgId);
   const canManageChurchTemplates = canChurchForTemplates('manage_templates');
 
+  /*
+    The note → plan door, for staff only.
+
+    Gated on the server's `manage_teaching_plan` verdict — the same capability
+    the planner's writes need, so a teacher who may read the plan is not offered
+    a button that would 403. Draft notes are excluded: a plan row must point at
+    a note that exists.
+
+    Only for a note in the author's own home, never one being read inside a
+    shared space: a sermon draft is private, and "add this to the church's plan"
+    is not an offer to make about somebody else's note in somebody else's room.
+  */
+  const canManageChurchPlan = canChurchForTemplates('manage_teaching_plan');
+  const inspectorTeachingPlan =
+    canManageChurchPlan && churchOrgId && !isDraft && noteId && !sharedActionSpaceId
+      ? {
+          noteId,
+          noteTitle: liveNoteSnapshot.title || prototypeDisplayTitle,
+          /* The note's first scripture reference, so a sermon written on
+             Romans 8 lands on the plan already carrying its passage. Detected
+             from the live text rather than stored: the note is being edited,
+             and the plan should take what is actually in it. */
+          reference:
+            detectScriptureReferences(
+              (liveNoteSnapshot.content || editorNote.content || '').replace(/<[^>]*>/g, ' '),
+            )[0]?.reference ?? null,
+          churchOrgId,
+          plannedForServiceId: null,
+        }
+      : null;
+
   const inspectorTemplates = showTemplatesInInspector
     ? {
         spaceId: templateSpaceId,
@@ -2055,6 +2098,7 @@ export default function PrototypeNotePage() {
               activeActivityId={activeActivityId}
               isDraftCompose={isDraft}
               templates={inspectorTemplates}
+              teachingPlan={inspectorTeachingPlan}
             />
           </div>
           </>,
@@ -2088,6 +2132,7 @@ export default function PrototypeNotePage() {
                 activeActivityId={activeActivityId}
                 isDraftCompose={isDraft}
                 templates={inspectorTemplates}
+                teachingPlan={inspectorTeachingPlan}
               />
             </div>
           </>,

@@ -260,6 +260,7 @@ export function PrototypeAddNotesPicker({
   showOriginFilter = false,
   defaultOriginScope = 'this-space',
   ownNotesOnly = false,
+  excludeEncrypted = false,
 }: {
   spaceId: string;
   /** Loaded space notes — primary list source (unsorted / all). */
@@ -286,6 +287,15 @@ export function PrototypeAddNotesPicker({
   defaultOriginScope?: AddNotesOriginScope;
   /** Thread attach: only viewer-authored notes. */
   ownNotesOnly?: boolean;
+  /**
+   * Drop locked notes from the pool.
+   *
+   * Off by default because most consumers can use one: filing an encrypted note
+   * into a folder or a thread is legitimate, and the API keeps them in the pool
+   * for exactly that reason. Callers that would end up *reading* the note — or
+   * stamping it with a relationship they cannot honour — pass true.
+   */
+  excludeEncrypted?: boolean;
 }) {
   const { input: searchInput, setInput: setSearchInput, debounced } = useDebouncedSearchState(280);
   const [listScope, setListScope] = useState<AddNotesListScope>(defaultListScope);
@@ -379,6 +389,14 @@ export function PrototypeAddNotesPicker({
         pool = pool.filter((n) => n.isOwnNote !== false);
       }
     }
+    /*
+      Locked notes, dropped last so every source is covered — the API keeps them
+      in the pool on purpose (filing one into a folder is legitimate), and only
+      a caller that cannot *use* one asks for them out. A locked note would
+      otherwise show ciphertext in its preview line and still be selectable.
+      Same test as `filterCurrentThreadAttachmentCandidates` above.
+    */
+    if (excludeEncrypted) pool = pool.filter((n) => n.contentEncrypted !== true);
     return pool;
   }, [
     useLocalNotes,
@@ -390,6 +408,7 @@ export function PrototypeAddNotesPicker({
     showOriginFilter,
     useMyHomeSource,
     ownNotesOnly,
+    excludeEncrypted,
   ]);
 
   useEffect(() => {

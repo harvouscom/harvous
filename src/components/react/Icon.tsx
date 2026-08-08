@@ -87,6 +87,7 @@ import plugCircleXmarkSvg from '@fortawesome/fontawesome-free/svgs/solid/plug-ci
 import userShieldSvg from '@fortawesome/fontawesome-free/svgs/solid/user-shield.svg?raw';
 import chalkboardUserSvg from '@fortawesome/fontawesome-free/svgs/solid/chalkboard-user.svg?raw';
 import idBadgeSvg from '@fortawesome/fontawesome-free/svgs/solid/id-badge.svg?raw';
+import userPenSvg from '@fortawesome/fontawesome-free/svgs/solid/user-pen.svg?raw';
 import clockSvg from '@fortawesome/fontawesome-free/svgs/solid/clock.svg?raw';
 import heartPulseSvg from '@fortawesome/fontawesome-free/svgs/solid/heart-pulse.svg?raw';
 import envelopeSvg from '@fortawesome/fontawesome-free/svgs/solid/envelope.svg?raw';
@@ -271,6 +272,9 @@ const icons = {
   'user-shield': svgRootCurrentColor(userShieldSvg),
   'chalkboard-user': svgRootCurrentColor(chalkboardUserSvg),
   'id-badge': svgRootCurrentColor(idBadgeSvg),
+  // Coordinator, in the church role family — a figure with a pen, which is the
+  // hand that writes the plan down rather than the one that decides it.
+  'user-pen': svgRootCurrentColor(userPenSvg),
   'chart-line': svgRootCurrentColor(chartLineSvg),
   'chart-simple': svgRootCurrentColor(chartSimpleSvg),
   'calendar-week': svgRootCurrentColor(calendarWeekSvg),

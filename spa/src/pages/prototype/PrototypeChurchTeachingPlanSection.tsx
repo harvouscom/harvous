@@ -26,7 +26,13 @@ import {
   useChurchSpacePlan,
   useChurchSpaceSermonActions,
 } from '../../hooks/queries/useChurchSpacePlan';
-import { localTodayIso, planVocabulary, sermonTimeLabel } from '../../lib/church-services';
+import {
+  formatSeriesRun,
+  localTodayIso,
+  planVocabulary,
+  sermonTimeLabel,
+  seriesRunsByServiceRows,
+} from '../../lib/church-services';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import ProtoServiceDateTile from './ProtoServiceDateTile';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
@@ -35,31 +41,6 @@ import PrototypeSeriesSheet from './PrototypeSeriesSheet';
 import PrototypePlannerScopeChips from './planner/PrototypePlannerScopeChips';
 import { usePlannerScope } from './planner/usePlannerScope';
 import type { PlannableSpace } from '../../hooks/useChurchPlannerAccess';
-
-function parseIso(iso: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
-}
-
-/**
- * "Aug 9 – Sep 27", or "Aug 9 – 27" inside one month.
- *
- * Null for a one-week series: the tile beside it already shows that date, and
- * "Aug 9 – Aug 9" is noise.
- */
-function formatSeriesRun(run: { first: string; last: string }): string | null {
-  if (run.first === run.last) return null;
-  const from = parseIso(run.first);
-  const to = parseIso(run.last);
-  if (!from || !to) return null;
-  const month = (d: Date) => d.toLocaleDateString(undefined, { month: 'short' });
-  const start = `${month(from)} ${from.getDate()}`;
-  const end =
-    from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear()
-      ? `${to.getDate()}`
-      : `${month(to)} ${to.getDate()}`;
-  return `${start} – ${end}`;
-}
 
 /** Same row anatomy as Church tools, with the date where the icon would sit. */
 function SermonRow({
@@ -190,29 +171,12 @@ export default function PrototypeChurchTeachingPlanSection({
    * Undated members are skipped rather than counted as the start: a series can
    * hold a backlog idea, and "starts —" would be worse than saying nothing.
    */
-  const seriesRunById = useMemo(() => {
-    const runs = new Map<string, { first: string; last: string; toFill: number }>();
-    for (const service of data?.services ?? []) {
-      if (!service.seriesId) continue;
-      const run = runs.get(service.seriesId);
-      /* Counted across every member, dated or not — an undated idea in a series
-         is still a week nobody has written. */
-      const unfilled = service.reference ? 0 : 1;
-      if (!run) {
-        runs.set(service.seriesId, {
-          first: service.serviceDate ?? '',
-          last: service.serviceDate ?? '',
-          toFill: unfilled,
-        });
-        continue;
-      }
-      run.toFill += unfilled;
-      if (!service.serviceDate) continue;
-      if (!run.first || service.serviceDate < run.first) run.first = service.serviceDate;
-      if (!run.last || service.serviceDate > run.last) run.last = service.serviceDate;
-    }
-    return runs;
-  }, [data]);
+  /* Shared with the planner's Series view, so the two panes cannot disagree
+     about how long a run is or how much of it is still unwritten. */
+  const seriesRunById = useMemo(
+    () => seriesRunsByServiceRows(data?.services ?? []),
+    [data],
+  );
 
   /*
     Which plan you are looking at. Hidden entirely when the church has no other
@@ -442,7 +406,7 @@ export default function PrototypeChurchTeachingPlanSection({
                     {(() => {
                       const run = seriesRunById.get(entry.id);
                       if (!run) return '';
-                      const span = run.first ? formatSeriesRun(run) : null;
+                      const span = formatSeriesRun(run);
                       /* The tile answers when it starts, the span how far it
                          runs, and the count how much of it is actually
                          written. Each is absent when it would only repeat
@@ -486,8 +450,14 @@ export default function PrototypeChurchTeachingPlanSection({
         canWrite={canWrite}
         pending={actions.isPending}
         error={seriesError}
-        onRename={(entry, title) =>
-          runSeries({ kind: 'series-rename', seriesId: entry.id, title }, () => setOpenSeries(null))
+        onUpdate={(entry, changes) =>
+          runSeries(
+            { kind: 'series-update', seriesId: entry.id, ...changes },
+            /* Only a rename closes the sheet. Colour and description are edits
+               you make while looking at the run they change, so closing on them
+               would hide the result of the thing you just did. */
+            'title' in changes ? () => setOpenSeries(null) : undefined,
+          )
         }
         onDelete={(entry) => {
           /*

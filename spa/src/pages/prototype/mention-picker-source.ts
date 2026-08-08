@@ -12,6 +12,7 @@ import { buildFoldersFromNotes, mergeFoldersWithRegistry, type FolderBucket } fr
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import type { MentionPickerItem } from '@/components/react/mention-pill-types';
 import { useLibrary, type LibraryItem } from '../../hooks/queries/useLibrary';
+import { useSpaceLibrary } from '../../hooks/queries/useChurchLibrary';
 import { resourceFileLabel, resourceSourceLabel } from '@/utils/resource-source-label';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 
@@ -79,11 +80,25 @@ export function foldersToItems(folders: FolderBucket[], query: string, spaceId: 
 }
 
 /**
- * Library items are owner-scoped, not space-scoped, so they carry no spaceId —
- * the pill resolves through /api/library/items/:id, which fails closed for
- * anyone but the owner. Only offered in personal notes for that reason.
+ * Library items for the picker.
+ *
+ * `spaceId` is the room the item was offered from, or '' in a personal note
+ * where there is no room. It is context for the resolve, not ownership: a
+ * library item belongs to a library, and `/api/library/items/:id` decides
+ * visibility through `resolveVisibleItem` — personal ownership first, then the
+ * church rules the item declares.
+ *
+ * These used to be personal-notes-only, on the reasoning that the resolve
+ * "fails closed for anyone but the owner". That was true of the *route* and not
+ * of the model: a church item has no personal owner at all, so the rule 404'd
+ * even the staffer who added it. With the route on the shared check, a room's
+ * own shelf is exactly what its members may cite.
  */
-export function libraryItemsToItems(items: LibraryItem[], query: string): MentionPickerItem[] {
+export function libraryItemsToItems(
+  items: Pick<LibraryItem, 'id' | 'title' | 'kind' | 'fileMime' | 'fileBytes' | 'fileName' | 'sourceDomain' | 'sourceSiteName'>[],
+  query: string,
+  spaceId = '',
+): MentionPickerItem[] {
   const searchable = items.map((item) => ({
     item,
     title: item.title,
@@ -96,7 +111,7 @@ export function libraryItemsToItems(items: LibraryItem[], query: string): Mentio
   return matched.slice(0, ITEMS_PER_KIND).map(({ item, site }) => ({
     kind: 'library' as const,
     entityId: item.id,
-    spaceId: '',
+    spaceId,
     title: item.title,
     subtitle: site || undefined,
   }));
@@ -152,6 +167,20 @@ export function useMentionSource(scope: MentionSourceScope): (query: string) => 
   // Shares the cache key with the Resources sidebar list — usually already warm.
   const { data: libraryData } = useLibrary();
   const libraryItems = scope.mode === 'personal' ? (libraryData?.items ?? []) : [];
+
+  /*
+    The room's own shelf, for a note being written in it.
+
+    Membership-gated server-side, and the same query the space's Resources list
+    uses, so opening `@` in a room you are already reading costs nothing. A
+    personal note keeps the personal library instead — the two are different
+    catalogues, and unioning them would offer a group's handout inside a private
+    note whose audience never had it.
+  */
+  const { data: spaceLibraryData } = useSpaceLibrary(sharedSpaceId, {
+    enabled: scope.mode === 'shared',
+  });
+  const spaceLibraryItems = scope.mode === 'shared' ? (spaceLibraryData?.items ?? []) : [];
 
   const { data: nav } = useNavigation({ enabled: scope.mode === 'personal' });
   const otherSpaces = useMemo<NavSpace[]>(() => {
@@ -217,11 +246,13 @@ export function useMentionSource(scope: MentionSourceScope): (query: string) => 
             /* search endpoint unavailable — client-side notes still show */
           }
         }
-        // Matches the sidebar's own list-mode order (notes, folders, threads).
+        // Matches the sidebar's own list-mode order (notes, folders, threads,
+        // resources) — the same order a personal note gets below.
         return [
           ...dedupeNoteItemsById([...notes, ...ftsNotes]).slice(0, ITEMS_PER_KIND),
           ...foldersToItems(shared.folders, query, spaceId),
           ...threadsToItems(shared.threads, query, spaceId),
+          ...libraryItemsToItems(spaceLibraryItems, query, spaceId),
         ];
       }
 
@@ -263,6 +294,6 @@ export function useMentionSource(scope: MentionSourceScope): (query: string) => 
         ...libraryItemsToItems(libraryItems, query),
       ];
     },
-    [scope, shared.notes, shared.threads, shared.folders, personalHome.notes, personalHome.threads, personalHome.folders, otherSpaceQueries, libraryItems],
+    [scope, shared.notes, shared.threads, shared.folders, spaceLibraryItems, personalHome.notes, personalHome.threads, personalHome.folders, otherSpaceQueries, libraryItems],
   );
 }

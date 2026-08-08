@@ -9,6 +9,8 @@ import {
   nextOccurrenceOfDay,
   sermonEyebrow,
   planVocabulary,
+  planSermonNoteLink,
+  seriesAccent,
   sermonTimeLabel,
   starterFolderForSermon,
   starterNoteTitle,
@@ -435,5 +437,102 @@ describe('currentSermonFor with two sermons on one date', () => {
     const timeless = service({ serviceDate: '2026-08-09', title: 'Timeless' });
     expect(currentSermonFor([timeless, morning], '2026-08-09', null)?.title).toBe('Morning');
     expect(currentSermonFor([morning, timeless], '2026-08-09', null)?.title).toBe('Morning');
+  });
+});
+
+describe('seriesAccent', () => {
+  const PALETTE = ['blue', 'purple', 'orange', 'green', 'pink'];
+
+  it('uses the colour a pastor chose', () => {
+    expect(seriesAccent({ id: 'csrs_1', color: 'pink' })).toBe('pink');
+  });
+
+  it('derives a stable colour when none was chosen', () => {
+    // Stability is the whole contract: a run that changes colour between two
+    // renders reads as two different studies.
+    const first = seriesAccent({ id: 'csrs_romans' });
+    expect(PALETTE).toContain(first);
+    expect(seriesAccent({ id: 'csrs_romans' })).toBe(first);
+    expect(seriesAccent({ id: 'csrs_romans', color: null })).toBe(first);
+  });
+
+  it('ignores a colour outside the palette rather than drawing nothing', () => {
+    // A token written before the palette last changed must not resolve to a
+    // CSS class that does not exist — fall back to the derived colour.
+    const derived = seriesAccent({ id: 'csrs_1' });
+    expect(seriesAccent({ id: 'csrs_1', color: 'chartreuse' })).toBe(derived);
+    // Paper and cream are out of the palette for contrast reasons, so a stored
+    // one of those is treated the same way.
+    expect(seriesAccent({ id: 'csrs_1', color: 'paper' })).toBe(derived);
+    expect(seriesAccent({ id: 'csrs_1', color: 'yellow' })).toBe(derived);
+  });
+
+  it('never returns paper or cream', () => {
+    for (let i = 0; i < 60; i += 1) {
+      const color = seriesAccent({ id: `csrs_${i}` });
+      expect(PALETTE).toContain(color);
+    }
+  });
+
+  it('separates ids that differ only by order', () => {
+    // A plain character sum would collide these, handing two series in the
+    // same plan one colour — which is the one thing the derivation must not do.
+    expect(seriesAccent({ id: 'csrs_ab' })).not.toBe(seriesAccent({ id: 'csrs_ba' }));
+  });
+
+  it('spreads a realistic set of ids across the palette', () => {
+    const seen = new Set(
+      Array.from({ length: 40 }, (_, i) => seriesAccent({ id: `csrs_series_${i}` })),
+    );
+    // Not a distribution proof — just that it is not effectively constant,
+    // which a bad hash (or a mod against the wrong length) would make it.
+    expect(seen.size).toBeGreaterThan(2);
+  });
+
+  it('does not throw on a missing series', () => {
+    expect(PALETTE).toContain(seriesAccent(null));
+    expect(PALETTE).toContain(seriesAccent(undefined));
+  });
+});
+
+describe('planSermonNoteLink', () => {
+  const serviceId = 'svc_1';
+
+  it('emits nothing when the pick did not move', () => {
+    // A no-op write would still invalidate the plan and refetch for free.
+    expect(planSermonNoteLink({ previousNoteId: 'n1', nextNoteId: 'n1', serviceId })).toEqual([]);
+    expect(planSermonNoteLink({ previousNoteId: null, nextNoteId: null, serviceId })).toEqual([]);
+  });
+
+  it('links when nothing was picked before', () => {
+    expect(planSermonNoteLink({ previousNoteId: null, nextNoteId: 'n1', serviceId })).toEqual([
+      { noteId: 'n1', serviceId },
+    ]);
+  });
+
+  it('clears when the pick is removed', () => {
+    expect(planSermonNoteLink({ previousNoteId: 'n1', nextNoteId: null, serviceId })).toEqual([
+      { noteId: 'n1', serviceId: null },
+    ]);
+  });
+
+  it('unlinks the old note BEFORE linking the new one', () => {
+    /*
+      The whole reason this function exists. `plannedForServiceId` is a column
+      on Notes, so linking n2 without clearing n1 leaves both stamped, and
+      resolveViewerPlannedNotes reports whichever row came back first — with no
+      ORDER BY to make that stable. Both writes succeed and nothing errors, so
+      the failure is silent.
+    */
+    expect(planSermonNoteLink({ previousNoteId: 'n1', nextNoteId: 'n2', serviceId })).toEqual([
+      { noteId: 'n1', serviceId: null },
+      { noteId: 'n2', serviceId },
+    ]);
+  });
+
+  it('keeps the clear first even when order is the only difference', () => {
+    const actions = planSermonNoteLink({ previousNoteId: 'n1', nextNoteId: 'n2', serviceId });
+    expect(actions[0].serviceId).toBeNull();
+    expect(actions[1].serviceId).toBe(serviceId);
   });
 });

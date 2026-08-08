@@ -49,22 +49,29 @@ The billing code is complete and dormant. Turning it on is configuration, not de
 
 1. **Create the Clerk Organization** (Clerk dashboard). Staff and volunteers only —
    congregants are *never* Clerk org members. Hard cap of 20; pending invites count toward it.
-2. **Add the staff owner** to that org, and give them the `org:admin` role if they should
+2. **Define the custom roles** (Clerk dashboard, once per Clerk instance). Harvous ships
+   gating for `org:pastor`, `org:coordinator`, and `org:teacher`, but Clerk is where the
+   roles themselves exist — a role Harvous knows and Clerk does not is simply never
+   reported, and `capabilitiesForChurchRole` degrades it to publish-only. Nothing breaks
+   while a role is missing; it just cannot be assigned.
+3. **Add the staff owner** to that org, and give them the `org:admin` role if they should
    manage the roster and billing. Custom role `org:pastor` unlocks the teaching plan and
-   note templates; `org:teacher` unlocks seeing the plan and publishing, but not reshaping
-   what the church teaches. Neither gets roster access.
-3. **Register the church** at `/admin/churches` — pick the org from the list (no pasting
+   note templates; `org:coordinator` adds the church's own settings — timezone, default
+   meeting day, and service times — because organizing the calendar sermons are scheduled
+   into is that role's whole job; `org:teacher` unlocks seeing the plan and publishing, but
+   not reshaping what the church teaches. None of the three gets roster or billing access.
+4. **Register the church** at `/admin/churches` — pick the org from the list (no pasting
    opaque `org_` ids) and link its Here's My Church record so name and location stay accurate.
-4. **Start the pilot** — "Start 30-day pilot" or "90 days". Without this the church is
+5. **Start the pilot** — "Start 30-day pilot" or "90 days". Without this the church is
    unsponsored and its staff cannot create anything.
-5. **Create the first ministry channel.** Either the staff member does it from the My Church
+6. **Create the first ministry channel.** Either the staff member does it from the My Church
    hub, or an admin does it via `POST /api/admin/churches/:churchId/spaces` with an explicit
    `ownerUserId` (validated against the Clerk roster — never the Harvous system user, so
    ownership never needs migrating later).
-6. **The church invites its own staff** from the My Church hub. Acceptance reconciles
+7. **The church invites its own staff** from the My Church hub. Acceptance reconciles
    automatically via the Clerk webhook; "Sync staff" in the hub is the fallback if a webhook
    is missed.
-7. **Congregants connect themselves**: Settings → My Church → pick the church from the
+8. **Congregants connect themselves**: Settings → My Church → pick the church from the
    directory. That sets `connectedOrgId`. They then browse and follow channels in My Church,
    and followed channels feed Home.
 

@@ -61,6 +61,27 @@ export const ROLE_ADMIN = 'org:admin';
 /** Custom roles a church can define in Clerk to unlock teaching tooling. */
 export const ROLE_PASTOR = 'org:pastor';
 export const ROLE_TEACHER = 'org:teacher';
+/**
+ * The church administrator of teaching — the admin assistant, the worship or
+ * communications coordinator, the person who actually moves eleven sermons
+ * around a quarter.
+ *
+ * Holds everything a pastor holds, **plus `manage_church_settings`**, and that
+ * one difference is the whole role rather than an accident of drafting. A pastor
+ * is deliberately denied the church's clock because "setting the church's clock
+ * is administration, not teaching" — and administration of teaching is precisely
+ * this job. Someone who schedules sermons into service slots but cannot add the
+ * Christmas Eve 17:00 they are scheduling into is holding half a role.
+ *
+ * It is not a rank above pastor. It is the other half: a pastor decides what the
+ * church teaches, a coordinator maintains the machinery it is taught through.
+ * Neither one gets the roster or the money.
+ *
+ * Requires an `org:coordinator` custom role in the Clerk dashboard before it can
+ * be assigned. Until that exists, Clerk simply never reports the string and the
+ * unknown-role fallback below keeps everyone publishing.
+ */
+export const ROLE_COORDINATOR = 'org:coordinator';
 
 /**
  * Roles a church admin may assign from Harvous.
@@ -73,6 +94,7 @@ export const ROLE_TEACHER = 'org:teacher';
 export const ASSIGNABLE_CHURCH_ROLES = [
   ROLE_ADMIN,
   ROLE_PASTOR,
+  ROLE_COORDINATOR,
   ROLE_TEACHER,
   'org:member',
 ] as const;
@@ -87,8 +109,9 @@ export function isAssignableChurchRole(role: string): role is AssignableChurchRo
  * Capabilities for a staff member's Clerk org role.
  *
  * Every staff member can publish — that is what being staff means here. Admin
- * adds the roster, the money, and the church's own settings. Pastor and teacher
- * both get the sermon surfaces; only pastor reshapes what the church teaches.
+ * adds the roster, the money, and the church's own settings. Pastor, coordinator,
+ * and teacher all get the sermon surfaces; pastor and coordinator reshape what
+ * the church teaches, and the coordinator additionally keeps the church's clock.
  * Admin gets the teaching tooling too, so a one-person church is not locked out
  * of its own sermon template.
  */
@@ -98,17 +121,29 @@ export function capabilitiesForChurchRole(role: string | null | undefined): Chur
   if (role === ROLE_ADMIN) {
     capabilities.add('manage_staff');
     capabilities.add('manage_billing');
+  }
+  /* The church's clock — timezone, default meeting day, service times.
+     Administration rather than teaching, which is why a pastor does not get it;
+     a coordinator does, because administering the teaching calendar is the
+     whole of that job and the slots are what a sermon is scheduled into. */
+  if (role === ROLE_ADMIN || role === ROLE_COORDINATOR) {
     capabilities.add('manage_church_settings');
   }
   // Everyone who teaches gets the sermon surfaces, including *reading* the
   // church's plan — that is the thing they teach from.
-  if (role === ROLE_ADMIN || role === ROLE_PASTOR || role === ROLE_TEACHER) {
+  if (
+    role === ROLE_ADMIN ||
+    role === ROLE_PASTOR ||
+    role === ROLE_COORDINATOR ||
+    role === ROLE_TEACHER
+  ) {
     capabilities.add('sermon_tools');
   }
   // Deciding what the whole church teaches, and what it writes from, is a
-  // pastor/admin act. A teacher reads the plan and uses the starters; they
-  // don't set them.
-  if (role === ROLE_ADMIN || role === ROLE_PASTOR) {
+  // pastor/admin act — and a coordinator's, since organizing the plan without
+  // being able to change it is not a role. A teacher reads the plan and uses
+  // the starters; they don't set them.
+  if (role === ROLE_ADMIN || role === ROLE_PASTOR || role === ROLE_COORDINATOR) {
     capabilities.add('manage_templates');
     capabilities.add('manage_teaching_plan');
     /* Same reasoning as templates: what the church studies from is a

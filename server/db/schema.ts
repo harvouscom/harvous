@@ -199,12 +199,46 @@ export const Notes = pgTable(
     startedFromServiceId: text('startedFromServiceId'),
     /** Title snapshot so provenance survives the church editing or deleting the entry. */
     startedFromServiceTitle: text('startedFromServiceTitle'),
+    /**
+     * Teaching-plan service (`ChurchServices.id`) this note is being written
+     * **for** — the staff side of the sermon, where `startedFromServiceId` is
+     * the congregant side.
+     *
+     * **Why a second column and not that one.** They point at the same table and
+     * mean opposite directions: `startedFromServiceId` is *I took notes on this
+     * sermon* (receiving), this is *I am writing this sermon* (authoring). One
+     * column would force the planner to read rows congregants wrote, which is
+     * exactly the read "Review is never shared" forbids — and the contract test
+     * that enforces it would have had to be weakened to let the planner in.
+     *
+     * Privacy is the same rule, not a lesser one: **only ever read scoped to the
+     * viewer's own `userId`.** A pastor sees that *they* started a draft for a
+     * week; no route may tell one staff member that another has. The grep
+     * contract test in church-services-routes.test.ts holds both columns to it.
+     *
+     * Per-author by construction — a teaching team may have two people drafting
+     * the same Sunday, which is why this lives on the note rather than as a
+     * pointer on ChurchServices. A pointer there would be a second
+     * `channelSpaceId`; see docs/future/CHURCH_STUDY_MATERIAL_LINKING.md.
+     *
+     * No title snapshot twin. `startedFromServiceTitle` exists because a
+     * congregant's provenance must survive the church deleting the entry; here
+     * the note *is* the pastor's own work and a dangling id simply stops
+     * offering to open a plan row that no longer exists.
+     */
+    plannedForServiceId: text('plannedForServiceId'),
   },
   (table) => [
     index('Notes_userIdIndex').on(table.userId),
     index('Notes_linkedFromNoteIdIndex').on(table.linkedFromNoteId),
     index('Notes_copiedFromNoteIdIndex').on(table.copiedFromNoteId),
     index('Notes_startedFromServiceIdIndex').on(table.startedFromServiceId),
+    /**
+     * Always queried with the viewer's own userId (see the column docblock), so
+     * the index leads with it — a lone `plannedForServiceId` lookup is a query
+     * this schema does not want to make cheap.
+     */
+    index('Notes_userId_plannedForServiceIdIndex').on(table.userId, table.plannedForServiceId),
     index('Notes_userId_updatedAtIndex').on(table.userId, table.updatedAt),
     index('Notes_spaceIdIndex').on(table.spaceId),
     index('Notes_threadIdIndex').on(table.threadId),
@@ -706,23 +740,66 @@ export const ChurchSeries = pgTable('ChurchSeries', {
   /** NULL = the church plan; set = that space's plan. Immutable after create. */
   spaceId: text('spaceId'),
   title: text('title').notNull(),
+  /**
+   * A THREAD_COLORS token (`blue` | `purple` | `orange` | `green` | `pink`) — the
+   * same palette threads, spaces, and avatars already draw from, stored as a
+   * token rather than a hex so `getThreadColorCSS` resolves it to a CSS variable
+   * and light/dark comes for free. A stored hex would be a second palette that
+   * drifts from the first the next time the theme moves.
+   *
+   * **Nullable, and null is the common case.** `seriesAccent` derives a stable
+   * colour from the row id when this is unset, so every series that existed
+   * before this column is coloured the moment it ships and no backfill is owed.
+   * A pastor only ever *overrides* — which is why there is no default here.
+   */
+  color: text('color'),
+  /** One line on what this run is about. Staff-facing; never rendered to a congregant. */
+  description: text('description'),
+  /**
+   * Which *run* of a recurring series this is — "2027", "Fall", or NULL.
+   *
+   * Churches run seasonal series under the same name every year: Advent, Lent,
+   * Easter. The uniqueness below was built to stop a typo forking "Life In the
+   * Spirit" from "Life in the Spirit", and it is right about that — but it
+   * cannot tell a typo apart from a season coming round again, so "Advent"
+   * could exist once per plan, ever.
+   *
+   * **NULL is the common case and behaves exactly as before.** Uniqueness folds
+   * this in through `coalesce(lower(runLabel), '')`, so a plan with one
+   * unlabelled "Advent" is constrained precisely as it was, and
+   * `findOrCreateSeries` resolves the free-text combobox against
+   * `runLabel IS NULL` — which is what keeps the typo guard intact and keeps
+   * this invisible to a church that never re-runs anything.
+   *
+   * Shown only when it disambiguates: one "Advent" reads "Advent"; two read
+   * "Advent · 2026" and "Advent · 2027". Re-running labels *both* runs, because
+   * the moment a second run exists is the moment the ambiguity does.
+   */
+  runLabel: text('runLabel'),
   createdBy: text('createdBy').notNull(),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 }, (table) => [
   /**
-   * One series per name per plan, case-insensitively — the whole point is that
-   * "Life In the Spirit" cannot become a second series beside "Life in the
-   * Spirit". Two partial indexes because `spaceId IS NULL` is a distinct scope
-   * and Postgres treats NULLs as distinct in a plain unique index, so the
+   * One series per name **per run** per plan, case-insensitively — so
+   * "Life In the Spirit" still cannot become a second series beside "Life in
+   * the Spirit", while Advent 2026 and Advent 2027 can both exist.
+   *
+   * Two partial indexes because `spaceId IS NULL` is a distinct scope and
+   * Postgres treats NULLs as distinct in a plain unique index, so the
    * church-plan half would not be constrained at all. Same shape and same
    * reason as `ChurchServices_space_date_unique`.
+   *
+   * `coalesce` rather than a plain column for the same reason: a NULL
+   * `runLabel` must collide with another NULL `runLabel`, which a raw column in
+   * a unique index would not. Both `coalesce` and `lower` are IMMUTABLE, so the
+   * expression index is legal.
    */
-  uniqueIndex('ChurchSeries_church_title_unique')
-    .on(table.churchId, sql`lower(${table.title})`)
+  uniqueIndex('ChurchSeries_church_title_run_unique')
+    .on(table.churchId, sql`lower(${table.title})`, sql`coalesce(lower(${table.runLabel}), '')`)
     .where(sql`${table.spaceId} IS NULL`),
-  uniqueIndex('ChurchSeries_space_title_unique')
-    .on(table.spaceId, sql`lower(${table.title})`)
+  uniqueIndex('ChurchSeries_space_title_run_unique')
+    .on(table.spaceId, sql`lower(${table.title})`, sql`coalesce(lower(${table.runLabel}), '')`)
     .where(sql`${table.spaceId} IS NOT NULL`),
   index('ChurchSeries_churchIdIndex').on(table.churchId),
 ]);

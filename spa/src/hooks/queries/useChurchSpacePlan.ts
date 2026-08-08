@@ -86,7 +86,34 @@ type SpaceSermonAction =
   | ({ kind: 'update'; serviceId: string } & Partial<SpaceSermonDraft>)
   | { kind: 'delete'; serviceId: string }
   | { kind: 'repeat'; serviceId: string; weeks: number }
-  | { kind: 'series-rename'; seriesId: string; title: string }
+  | { kind: 'link-note'; noteId: string; serviceId: string | null }
+  | {
+      kind: 'series-create';
+      title: string;
+      color?: string | null;
+      description?: string | null;
+      firstDate?: string | null;
+    }
+  | {
+      kind: 'series-rerun';
+      sourceSeriesId: string;
+      startDate: string;
+      runLabel?: string;
+      copy?: {
+        titles?: boolean;
+        references?: boolean;
+        starterTemplate?: boolean;
+        resources?: boolean;
+      };
+    }
+  /** Optional past the id — an absent key means "leave it". Mirrors the church plan. */
+  | {
+      kind: 'series-update';
+      seriesId: string;
+      title?: string;
+      color?: string | null;
+      description?: string | null;
+    }
   | { kind: 'series-delete'; seriesId: string };
 
 /**
@@ -116,8 +143,14 @@ export function useChurchSpaceSermonActions(spaceId: string | null | undefined) 
           return api.post(`${room}/services/repeat`, rest);
         case 'attachments':
           return api.post(`${room}/services/attachments/set`, rest);
-        case 'series-rename':
-          return api.post(`${room}/series/rename`, rest);
+        case 'link-note':
+          return api.post(`${room}/services/link-note`, rest);
+        case 'series-create':
+          return api.post(`${room}/series/create`, rest);
+        case 'series-rerun':
+          return api.post(`${room}/series/rerun`, rest);
+        case 'series-update':
+          return api.post(`${room}/series/update`, rest);
         case 'series-delete':
           return api.post(`${room}/series/delete`, rest);
       }

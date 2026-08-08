@@ -5,10 +5,14 @@
  * this is a **staff** surface. A congregant still gets one card and one next
  * gathering; nothing in this sheet is congregant-facing.
  *
- * Two acts, both of which the string era could not offer:
+ * Three acts, all of which the string era could not offer:
  *   - **Rename**, which renames the series everywhere. Under `seriesTitle`,
  *     editing week 5 forked the series silently and left the other seven weeks
  *     under the old spelling.
+ *   - **Recolour**, which is what makes the run legible on the planner. Colour
+ *     is optional and stays optional: an unset series is already drawn in a
+ *     stable derived hue, so this picker changes a colour rather than supplying
+ *     a missing one, and nothing here is a prerequisite for the plan to read.
  *   - **Delete**, which detaches its sermons and never removes them. A
  *     destructive act on a label must not be a destructive act on the calendar,
  *     so the copy says exactly what survives.
@@ -32,6 +36,9 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import ProtoServiceDateTile from './ProtoServiceDateTile';
 import ProtoSelectMenu from './ProtoSelectMenu';
+import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
+import { SPACE_COVER_PICKER_COLORS, spacePickerSwatchColor } from '@/utils/space-cover';
+import { seriesAccent } from '../../lib/church-services';
 
 export interface PrototypeSeriesSheetProps {
   open: boolean;
@@ -42,7 +49,15 @@ export interface PrototypeSeriesSheetProps {
   canWrite: boolean;
   pending: boolean;
   error: string | null;
-  onRename: (series: TeachingPlanSeries, title: string) => void;
+  /**
+   * Any subset of the series' own fields. Optional-per-field rather than a full
+   * object so a colour change never resends a title and races a colleague's
+   * rename — the same distinction the endpoint draws.
+   */
+  onUpdate: (
+    series: TeachingPlanSeries,
+    changes: { title?: string; color?: string | null; description?: string | null },
+  ) => void;
   onDelete: (series: TeachingPlanSeries) => void;
   /**
    * Extend the run: `weeks` more Sundays after its last dated one, each a
@@ -65,7 +80,7 @@ export default function PrototypeSeriesSheet({
   canWrite,
   pending,
   error,
-  onRename,
+  onUpdate,
   onDelete,
   onAddWeeks,
   onRemoveEmpty,
@@ -75,6 +90,7 @@ export default function PrototypeSeriesSheet({
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   /** How many weeks the "Add weeks" control will append. */
   const [addWeeks, setAddWeeks] = useState(3);
 
@@ -83,6 +99,7 @@ export default function PrototypeSeriesSheet({
   useEffect(() => {
     if (!open) return;
     setTitle(series?.title ?? '');
+    setDescription(series?.description ?? '');
   }, [open, series?.id]);
 
   const shouldUseSheetPresentation =
@@ -109,6 +126,12 @@ export default function PrototypeSeriesSheet({
 
   const trimmed = title.trim();
   const renamed = trimmed.length > 0 && trimmed !== series.title;
+  const trimmedDescription = description.trim();
+  const describedDiffers = trimmedDescription !== (series.description ?? '').trim();
+  /* What the planner is drawing right now, chosen or derived — so the selected
+     swatch matches the run on screen rather than showing nothing until someone
+     picks. */
+  const shownColor = seriesAccent(series);
 
   /*
     Weeks are appended after the run's last dated one, so the seed is that row.
@@ -138,9 +161,22 @@ export default function PrototypeSeriesSheet({
   const content = (
     <>
       <div className="proto-study-thread-popover__header">
-        {/* The series' own name is the identification. A glyph beside it only
-            repeated "this is a series", which the sheet's contents say. */}
+        {/*
+          The tile earns its place now that it carries a *colour*.
+
+          It was dropped once, correctly: a generic glyph beside the name only
+          repeated "this is a series", which the sheet's contents already said.
+          What it says now is which run this is — the same hue the board's spine
+          and every card in the run are drawn in — so opening a series from the
+          plan confirms you opened the one you pointed at.
+        */}
         <div className="proto-study-thread-popover__title-row">
+          <ProtoSpaceMenuIcon
+            color={shownColor}
+            iconName="layer-group"
+            size={22}
+            radius={6}
+          />
           <span className="proto-study-thread-popover__title">{series.title}</span>
         </div>
         <button
@@ -172,12 +208,94 @@ export default function PrototypeSeriesSheet({
             disabled={pending}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && renamed && !pending) onRename(series, trimmed);
+              if (e.key === 'Enter' && renamed && !pending) onUpdate(series, { title: trimmed });
             }}
           />
         ) : (
           <p className="proto-caption proto-church-member__role">{series.title}</p>
         )}
+
+        {/*
+          Colour, saved on click rather than on a Save press.
+
+          It is a one-field change with an instantly visible result on the plan
+          behind this sheet, so a confirm step would only delay the feedback that
+          tells you whether you picked the right one. The name field keeps its
+          Enter-to-commit because a half-typed name is a real state and a
+          half-picked colour is not.
+        */}
+        {canWrite ? (
+          <>
+            <p className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+              <span>Color</span>
+              {/* Says the run is already drawn, so this reads as a change rather
+                  than as a required field nobody filled in. */}
+              {!series.color ? (
+                <span className="proto-service-editor__optional">Chosen for you</span>
+              ) : null}
+            </p>
+            <div
+              className="proto-space-cover-picker__tray"
+              role="radiogroup"
+              aria-label="Series color"
+            >
+              {SPACE_COVER_PICKER_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  role="radio"
+                  aria-checked={shownColor === c}
+                  aria-label={c}
+                  className={`proto-shared-space-settings__color proto-space-cover-picker__tray-swatch${
+                    shownColor === c ? ' proto-shared-space-settings__color--selected' : ''
+                  }`}
+                  style={{ ['--swatch-accent' as string]: spacePickerSwatchColor(c) }}
+                  title={c}
+                  disabled={pending}
+                  onClick={() => onUpdate(series, { color: c })}
+                >
+                  {shownColor === c ? <Icon name="check" size={12} /> : null}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {/* One line, for the pastor's own recall of what a run was about. Staff
+            only — no congregant surface reads it. */}
+        {canWrite ? (
+          <>
+            <label
+              className="proto-inspector-section-title proto-create-folder-sheet__field-label"
+              htmlFor="proto-series-description"
+            >
+              <span>What this run is about</span>
+              <span className="proto-service-editor__optional">Optional</span>
+            </label>
+            <input
+              id="proto-series-description"
+              type="text"
+              className="proto-create-folder-sheet__name-input"
+              value={description}
+              autoComplete="off"
+              placeholder="Eight weeks in Romans 8"
+              disabled={pending}
+              onChange={(e) => setDescription(e.target.value)}
+              onBlur={() => {
+                if (describedDiffers && !pending) {
+                  onUpdate(series, { description: trimmedDescription || null });
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && describedDiffers && !pending) {
+                  onUpdate(series, { description: trimmedDescription || null });
+                }
+              }}
+            />
+          </>
+        ) : series.description ? (
+          <p className="proto-caption proto-church-member__role">{series.description}</p>
+        ) : null}
 
         <p className="proto-inspector-section-title proto-create-folder-sheet__field-label">
           <span>{services.length === 1 ? '1 week' : `${services.length} weeks`}</span>
@@ -293,7 +411,7 @@ export default function PrototypeSeriesSheet({
             type="button"
             className="proto-share-popover__primary"
             disabled={!renamed || pending}
-            onClick={() => onRename(series, trimmed)}
+            onClick={() => onUpdate(series, { title: trimmed })}
           >
             {pending ? 'Saving…' : 'Rename series'}
           </button>

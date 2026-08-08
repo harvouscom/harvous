@@ -2,10 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   BACKLOG_DROPPABLE_ID,
   buildPlannerWeeks,
+  buildSeriesRuns,
   dayDroppableId,
   parseDroppableId,
   partitionPlan,
   resolveDropDate,
+  seriesIdsByDay,
+  seriesIdsByWeek,
   sermonsInWeek,
   weekDroppableId,
   type PlannerSermonLike,
@@ -133,5 +136,103 @@ describe('parseDroppableId', () => {
 
   it('returns null for a card id, so a card-on-card drop is not a move', () => {
     expect(parseDroppableId('svc_abc')).toBeNull();
+  });
+});
+
+describe('buildSeriesRuns', () => {
+  it('joins consecutive slots of one series into a single run', () => {
+    const runs = buildSeriesRuns([['romans'], ['romans'], ['romans']]);
+    expect(runs).toEqual([{ seriesId: 'romans', startIndex: 0, endIndex: 2 }]);
+  });
+
+  it('breaks a run at a gap rather than spanning the hole', () => {
+    /*
+      Weeks 1-2, a guest speaker, then weeks 4-5. Two runs is the honest
+      reading: a band claims one continuous stretch of teaching, and week 3
+      was not part of it.
+    */
+    const runs = buildSeriesRuns([['romans'], ['romans'], [], ['romans'], ['romans']]);
+    expect(runs).toEqual([
+      { seriesId: 'romans', startIndex: 0, endIndex: 1 },
+      { seriesId: 'romans', startIndex: 3, endIndex: 4 },
+    ]);
+  });
+
+  it('keeps two series in the same row apart', () => {
+    // A morning series and an evening series, which the schema calls ordinary.
+    const runs = buildSeriesRuns([
+      ['romans', 'psalms'],
+      ['romans', 'psalms'],
+      ['romans'],
+    ]);
+    expect(runs).toEqual([
+      { seriesId: 'psalms', startIndex: 0, endIndex: 1 },
+      { seriesId: 'romans', startIndex: 0, endIndex: 2 },
+    ]);
+  });
+
+  it('emits a one-slot run for a standalone week', () => {
+    expect(buildSeriesRuns([[], ['advent'], []])).toEqual([
+      { seriesId: 'advent', startIndex: 1, endIndex: 1 },
+    ]);
+  });
+
+  it('closes a run that reaches the last slot', () => {
+    // The open-run flush at the end is easy to forget and silently drops the
+    // band from the final column, which is the one a pastor is looking at.
+    expect(buildSeriesRuns([[], ['romans'], ['romans']])).toEqual([
+      { seriesId: 'romans', startIndex: 1, endIndex: 2 },
+    ]);
+  });
+
+  it('returns nothing for a row with no series at all', () => {
+    expect(buildSeriesRuns([[], [], []])).toEqual([]);
+    expect(buildSeriesRuns([])).toEqual([]);
+  });
+
+  it('orders by start, then by id, so a row renders the same way twice', () => {
+    const runs = buildSeriesRuns([['zeph'], ['acts', 'zeph']]);
+    expect(runs.map((r) => r.seriesId)).toEqual(['zeph', 'acts']);
+  });
+});
+
+describe('seriesIdsByDay / seriesIdsByWeek', () => {
+  type Row = PlannerSermonLike & { seriesId?: string | null };
+  const rows: Row[] = [
+    { id: 'a', serviceDate: '2026-08-09', seriesId: 'romans' },
+    { id: 'b', serviceDate: '2026-08-16', seriesId: 'romans' },
+    { id: 'c', serviceDate: '2026-08-16', seriesId: 'psalms' },
+    { id: 'd', serviceDate: '2026-08-23', seriesId: null },
+    // An undated idea. It must never reach a run — a band claims committed
+    // Sundays, and the backlog is by definition uncommitted.
+    { id: 'e', serviceDate: null, seriesId: 'romans' },
+  ];
+
+  it('maps days to the series standing on them, ignoring the backlog', () => {
+    const { byDate } = partitionPlan(rows);
+    expect(
+      seriesIdsByDay(byDate, ['2026-08-09', '2026-08-16', '2026-08-23']),
+    ).toEqual([['romans'], ['romans', 'psalms'], []]);
+  });
+
+  it('rolls a week column up to the series inside it', () => {
+    const { byDate } = partitionPlan(rows);
+    // Sunday-anchored weeks from the 9th: each holds one of the dates above.
+    const weeks = buildPlannerWeeks(0, '2026-08-09', 3);
+    expect(seriesIdsByWeek(byDate, weeks)).toEqual([
+      ['romans'],
+      ['romans', 'psalms'],
+      [],
+    ]);
+  });
+
+  it('produces a run spanning the week boundary the calendar splits', () => {
+    // The whole point of computing runs from one primitive: the board sees
+    // two consecutive weeks of Romans even though the calendar sees two
+    // separate rows.
+    const { byDate } = partitionPlan(rows);
+    const weeks = buildPlannerWeeks(0, '2026-08-09', 3);
+    const runs = buildSeriesRuns(seriesIdsByWeek(byDate, weeks));
+    expect(runs).toContainEqual({ seriesId: 'romans', startIndex: 0, endIndex: 1 });
   });
 });
