@@ -113,3 +113,58 @@ describe('space thread listing', () => {
     expect(text).toContain('canSeeUnpinned || thread.isPinned');
   });
 });
+
+describe('read-together pulse', () => {
+  const notesRoute = () => {
+    const text = threadRoutes();
+    const start = text.indexOf("route.get('/api/threads/:threadId/notes'");
+    const end = text.indexOf('// ─── POST /api/threads/:threadId/progress');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    return text.slice(start, end);
+  };
+
+  it('resolves counts only for someone who may manage the plan', () => {
+    const block = notesRoute();
+    const gate = block.indexOf('canManageSpaceThreadStructure');
+    const resolve = block.indexOf('readTogetherPulse');
+    expect(gate).toBeGreaterThan(-1);
+    expect(gate).toBeLessThan(resolve);
+  });
+
+  it('never serializes who — the promise is how many, never who', () => {
+    const text = source('server/utils/thread-sequence.ts');
+    const pulse = text.slice(
+      text.indexOf('export async function readTogetherPulse'),
+      text.indexOf('export function withOpenedStep'),
+    );
+    expect(pulse).toContain('memberCount');
+    // A userId in the returned shape would make this a roster.
+    expect(pulse).not.toMatch(/return[\s\S]*userId:/);
+  });
+});
+
+describe('POST /api/threads/:threadId/progress', () => {
+  const progressRoute = () => {
+    const text = threadRoutes();
+    const start = text.indexOf("route.post('/api/threads/:threadId/progress'");
+    const end = text.indexOf('// ─── POST /api/threads/:threadId/sequence');
+    expect(start).toBeGreaterThan(-1);
+    return text.slice(start, end > start ? end : undefined);
+  };
+
+  it("writes only the caller's own row", () => {
+    const block = progressRoute();
+    expect(block).toContain('eq(ThreadProgress.userId, auth.userId)');
+    // No route may take a userId from the request and write someone else's.
+    expect(block).not.toMatch(/body\??\.userId/);
+  });
+
+  it('ignores a step that is not in this plan', () => {
+    expect(progressRoute()).toContain('liveNoteIds.includes(noteId)');
+  });
+
+  it('stores nothing for a collection Thread', () => {
+    expect(progressRoute()).toContain('isSequenceMode(thread.mode)');
+  });
+});

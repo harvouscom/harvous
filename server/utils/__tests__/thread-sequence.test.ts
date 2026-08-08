@@ -3,6 +3,7 @@ import {
   canManageSpaceThreadStructure,
   parseSequenceNoteIds,
   resolveSequenceState,
+  withOpenedStep,
 } from '../thread-sequence';
 
 function space(overrides: Partial<{ type: string; userId: string; orgId: string | null }> = {}) {
@@ -121,5 +122,20 @@ describe('canManageSpaceThreadStructure', () => {
 
   it('refuses a missing space rather than assuming', () => {
     expect(canManageSpaceThreadStructure(null, 'owner', 'owner-1')).toBe(false);
+  });
+});
+
+describe('withOpenedStep', () => {
+  it('records a step the first time it is opened', () => {
+    expect(withOpenedStep(null, 'a')).toEqual(['a']);
+    expect(withOpenedStep('["a"]', 'b')).toEqual(['a', 'b']);
+  });
+
+  it('counts a person once however many times they reopen a step', () => {
+    expect(withOpenedStep('["a","b"]', 'a')).toEqual(['a', 'b']);
+  });
+
+  it('survives a row whose JSON has gone bad rather than losing the person', () => {
+    expect(withOpenedStep('not json', 'a')).toEqual(['a']);
   });
 });

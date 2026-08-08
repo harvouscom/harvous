@@ -269,6 +269,16 @@
   opacity: 0.55;
 }
 
+/*
+  The shepherd's line — "12 of 18 opened". Never rendered for a member: the
+  server withholds the numbers entirely rather than trusting this class to be
+  conditionally applied.
+*/
+.proto-shared-thread-step__pulse {
+  color: var(--pds-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
 .proto-shared-thread-step__controls {
   flex: none;
   display: flex;

@@ -47,6 +47,16 @@ export type ThreadSequenceInfo = {
   total: number;
 };
 
+/**
+ * How many people have opened each step. Present only for owner/leader — a
+ * member's payload never carries it, so there is nothing for the client to
+ * remember to hide.
+ */
+export type ThreadPulse = {
+  memberCount: number;
+  openedCountByNoteId: Record<string, number>;
+};
+
 export type ThreadNotesPage = {
   notes: SharedThreadNote[];
   hasMore: boolean;
@@ -56,7 +66,16 @@ export type ThreadNotesPage = {
   mode: string;
   /** Null unless this Thread is a sequence. */
   sequence: ThreadSequenceInfo | null;
+  /** Null unless this Thread is a sequence AND the viewer may manage it. */
+  pulse: ThreadPulse | null;
 };
+
+/** "12 of 18 opened" — the shepherd's line, never shown to the room. */
+export function pulseLabel(pulse: ThreadPulse | null, noteId: string): string | null {
+  if (!pulse || pulse.memberCount <= 0) return null;
+  const opened = pulse.openedCountByNoteId[noteId] ?? 0;
+  return `${opened} of ${pulse.memberCount} opened`;
+}
 
 /**
  * Which step a note is, and whether the cohort has reached it.
@@ -138,6 +157,7 @@ export function useThreadNotes(threadId: string | undefined, spaceId: string | u
         limit?: number;
         mode?: unknown;
         sequence?: ThreadSequenceInfo | null;
+        pulse?: ThreadPulse | null;
       }>(`/api/threads/${encodeURIComponent(threadId!)}/notes`, { offset: pageParam, limit });
       return {
         notes: (response.notes ?? [])
@@ -153,6 +173,7 @@ export function useThreadNotes(threadId: string | undefined, spaceId: string | u
         limit: response.limit ?? limit,
         mode: typeof response.mode === 'string' ? response.mode : 'collection',
         sequence: response.sequence ?? null,
+        pulse: response.pulse ?? null,
       };
     },
     getNextPageParam: nextThreadNotesOffset,

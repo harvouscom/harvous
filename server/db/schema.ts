@@ -152,6 +152,43 @@ export const Threads = pgTable(
   ],
 );
 
+/**
+ * How far one person has got through a sequence Thread.
+ *
+ * Exists to answer one question for the person shepherding a room — "is the
+ * group with me, or am I three weeks ahead of everybody" — and it is
+ * deliberately the narrowest thing that can answer it.
+ *
+ * **The read is a count, never a roster.** `openedNoteIds` is per-user because
+ * a count has to be computed from something, but no route may serialize whose
+ * row it came from: the church surfaces say "how many, never who", and a study
+ * plan is exactly where that promise matters most. The pulse read is also
+ * gated to owner/leader — a member is never shown counts about their own room,
+ * because "4 of 18 have opened this" reads as a scoreboard from below and as
+ * shepherding from above.
+ *
+ * "Opened", not "completed". Nothing here claims someone read, understood, or
+ * finished a step; the honest signal is that they turned the page, and naming
+ * the column for what it actually observes stops a later reader promising more.
+ *
+ * Row ids: composite `(threadId, userId)`.
+ */
+export const ThreadProgress = pgTable(
+  'ThreadProgress',
+  {
+    threadId: text('threadId').notNull(),
+    userId: text('userId').notNull(),
+    /** JSON `string[]` of step note ids this person has opened. */
+    openedNoteIds: text('openedNoteIds'),
+    startedAt: ts('startedAt').notNull(),
+    updatedAt: ts('updatedAt'),
+  },
+  (table) => [
+    primaryKey({ columns: [table.threadId, table.userId] }),
+    index('ThreadProgress_threadIdIndex').on(table.threadId),
+  ],
+);
+
 // ─── Notes ─────────────────────────────────────────────────────────────────────
 
 export const Notes = pgTable(

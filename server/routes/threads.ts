@@ -16,7 +16,7 @@
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
-  db, Threads, Notes, NoteThreads, NoteScriptureReferences, Spaces, SpaceNotes, SpaceMemberships,
+  db, Threads, ThreadProgress, Notes, NoteThreads, NoteScriptureReferences, Spaces, SpaceNotes, SpaceMemberships,
   eq, and, or, inArray, isNull,
   first,
 } from '../db';
@@ -36,8 +36,10 @@ import {
   canManageSpaceThreadStructure,
   isSequenceMode,
   loadLiveThreadNoteIds,
+  readTogetherPulse,
   resolveSequenceState,
   serializeSequenceNoteIds,
+  withOpenedStep,
 } from '../utils/thread-sequence';
 import {
   assertSharedThreadNotePolicy,
@@ -868,6 +870,13 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
     */
     const sequenceThread = readAccess.thread;
     let sequence: { currentNoteId: string | null; currentIndex: number; total: number } | null = null;
+    /*
+      The pulse is a shepherding instrument, not a scoreboard. Resolved only for
+      owner/leader — "4 of 18 have opened this" reads as encouragement from
+      above and as surveillance from below, so a member's payload never carries
+      it at all rather than the client being trusted to hide it.
+    */
+    let pulse: { memberCount: number; openedCountByNoteId: Record<string, number> } | null = null;
     if (isSequenceMode(sequenceThread.mode)) {
       // Resolved against every note in the Thread, not this page of them —
       // "Step 3 of 8" counts the whole plan.
@@ -880,6 +889,13 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
         currentIndex: state.currentIndex,
         total: state.total,
       };
+
+      if (sequenceThread.spaceId) {
+        const access = await requireSpaceAccess(sequenceThread.spaceId, auth.userId);
+        if (canManageSpaceThreadStructure(access.space, access.role, auth.userId)) {
+          pulse = await readTogetherPulse(threadId, sequenceThread.spaceId);
+        }
+      }
     }
 
     return c.json({
@@ -889,9 +905,84 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
       limit,
       mode: sequenceThread.mode ?? 'collection',
       sequence,
+      pulse,
     });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/[threadId]/notes', action: 'get_thread_notes', threadId: c.req.param('threadId') });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/threads/:threadId/progress ───────────────────────────────────
+/**
+ * Record that the caller opened a step.
+ *
+ * Fire-and-forget from the client's point of view: nothing in the UI waits on
+ * it, and a failure is silent, because the cost of losing one tick is a count
+ * being one low and the cost of blocking is a reader staring at a spinner.
+ *
+ * Only ever writes the caller's own row. There is no route anywhere that
+ * writes someone else's progress, and none that reads a single person's — the
+ * only read is the aggregate in `readTogetherPulse`.
+ */
+route.post('/api/threads/:threadId/progress', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    let threadId = requireParam(c, 'threadId');
+    if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
+
+    const readAccess = await readableThreadOrNull(threadId, auth.userId);
+    if (!readAccess) return c.json({ error: 'Thread not found' }, 404);
+    const thread = readAccess.thread;
+    /* Only a sequence has steps to be partway through. A collection Thread
+       silently accepts and stores nothing rather than 400ing a client that
+       raced a mode change. */
+    if (!isSequenceMode(thread.mode) || !thread.spaceId) return c.json({ success: true });
+
+    try {
+      await requireSpaceAccess(thread.spaceId, auth.userId);
+    } catch {
+      return c.json({ error: 'Thread not found' }, 404);
+    }
+
+    const body = await c.req.json().catch(() => null);
+    const noteId = typeof body?.noteId === 'string' ? body.noteId : '';
+    if (!noteId) return c.json({ error: 'noteId is required', code: 'BAD_REQUEST' }, 400);
+
+    const liveNoteIds = await loadLiveThreadNoteIds(threadId, thread.spaceId);
+    // A step that isn't in this plan is not progress through it.
+    if (!liveNoteIds.includes(noteId)) return c.json({ success: true });
+
+    const now = nowISO();
+    const existing = first(
+      await db
+        .select({ openedNoteIds: ThreadProgress.openedNoteIds })
+        .from(ThreadProgress)
+        .where(and(eq(ThreadProgress.threadId, threadId), eq(ThreadProgress.userId, auth.userId)))
+        .limit(1),
+    );
+    const opened = serializeSequenceNoteIds(withOpenedStep(existing?.openedNoteIds, noteId));
+
+    if (existing) {
+      await db
+        .update(ThreadProgress)
+        .set({ openedNoteIds: opened, updatedAt: now })
+        .where(and(eq(ThreadProgress.threadId, threadId), eq(ThreadProgress.userId, auth.userId)));
+    } else {
+      await db
+        .insert(ThreadProgress)
+        .values({ threadId, userId: auth.userId, openedNoteIds: opened, startedAt: now, updatedAt: now })
+        .onConflictDoNothing();
+    }
+
+    return c.json({ success: true });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/threads/[threadId]/progress',
+      action: 'record_thread_progress',
+      threadId: c.req.param('threadId'),
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
