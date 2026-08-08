@@ -25,6 +25,7 @@ import {
 import {
   useChurchSpacePlan,
   useChurchSpaceSermonActions,
+  type SpaceSermonAction,
 } from '../../hooks/queries/useChurchSpacePlan';
 import {
   formatSeriesRun,
@@ -222,13 +223,24 @@ export default function PrototypeChurchTeachingPlanSection({
     setSheetOpen(true);
   };
 
-  const runSeries = (action: Parameters<typeof actions.mutate>[0], onDone?: () => void) => {
+  /*
+    The two plans' action unions overlap but are not identical — publishing a
+    study plan exists only on a room's plan — so a union of mutations infers
+    their intersection, which is narrower than either. Branch instead of
+    casting: each plan's mutate keeps its own action type.
+  */
+  const runSeries = (
+    action: Parameters<typeof churchActions.mutate>[0] | SpaceSermonAction,
+    onDone?: () => void,
+  ) => {
     setSeriesError(null);
-    actions.mutate(action, {
+    const opts = {
       onSuccess: () => onDone?.(),
-      onError: (err) =>
+      onError: (err: unknown) =>
         setSeriesError(err instanceof Error ? err.message : 'Could not change this series'),
-    });
+    };
+    if (onSpacePlan) spaceActions.mutate(action as SpaceSermonAction, opts);
+    else churchActions.mutate(action as Parameters<typeof churchActions.mutate>[0], opts);
   };
 
   const activeSpace = plannableSpaces.find((s) => s.id === planSpaceId) ?? null;

@@ -25,6 +25,7 @@ import {
 import {
   useChurchSpacePlan,
   useChurchSpaceSermonActions,
+  type SpaceSermonAction,
 } from '../../../hooks/queries/useChurchSpacePlan';
 import { useChurchPlannerAccess } from '../../../hooks/useChurchPlannerAccess';
 import {
@@ -168,16 +169,27 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
     [openSeries, series],
   );
 
+  /*
+    The two plans' action unions overlap but are not identical — publishing a
+    study plan exists only on a room's plan — so the inferred parameter of a
+    union of mutations is their intersection, which is narrower than either.
+    The scope decides which `actions` this is, and every call site is already
+    gated on that same `onSpacePlan`, so widening here is the honest shape.
+  */
   const runSeries = useCallback(
-    (action: Parameters<typeof actions.mutate>[0], onDone?: () => void) => {
+    (action: Parameters<typeof churchActions.mutate>[0] | SpaceSermonAction, onDone?: () => void) => {
       setSeriesError(null);
-      actions.mutate(action, {
+      const opts = {
         onSuccess: () => onDone?.(),
-        onError: (err) =>
+        onError: (err: unknown) =>
           setSeriesError(err instanceof Error ? err.message : 'Could not change this series'),
-      });
+      };
+      // Branch rather than cast the union away: each plan's mutate keeps its
+      // own action type, so a variant only one of them has still typechecks.
+      if (onSpacePlan) spaceActions.mutate(action as SpaceSermonAction, opts);
+      else churchActions.mutate(action as Parameters<typeof churchActions.mutate>[0], opts);
     },
-    [actions],
+    [onSpacePlan, spaceActions, churchActions],
   );
 
   const editingService = useMemo<TeachingPlanSermon | null>(() => {
@@ -375,6 +387,16 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
               }
               runSeries({ kind: 'series-delete', seriesId: entry.id }, () => setOpenSeries(null));
             }}
+            /* Only a room's own plan can be published — the church-wide plan
+               has no single room to hand it to, and the server refuses it. */
+            onPublishThread={
+              onSpacePlan
+                ? (entry) =>
+                    runSeries({ kind: 'series-publish-thread', seriesId: entry.id }, () =>
+                      setOpenSeries(null),
+                    )
+                : undefined
+            }
             planServices={services}
             onAssign={(entry, serviceIds) => {
             /* N ordinary updates, fired in sequence. The last one closes the

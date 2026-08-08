@@ -77,6 +77,11 @@ export type SerializedSeries = {
   description: string | null;
   /** "2027" for a seasonal re-run; null for a series with no sibling. */
   runLabel: string | null;
+  /**
+   * The sequence Thread this series was published into, if any. Drives the
+   * planner offering "Update study plan" rather than "Publish" a second time.
+   */
+  publishedThreadId: string | null;
 };
 
 /**
@@ -110,6 +115,7 @@ export async function listSeriesForPlan(scope: SeriesScope): Promise<SerializedS
       color: ChurchSeries.color,
       description: ChurchSeries.description,
       runLabel: ChurchSeries.runLabel,
+      publishedThreadId: ChurchSeries.publishedThreadId,
       serviceCount: sql<number>`count(${ChurchServices.id})::int`,
       lastDate: sql<string | null>`max(${ChurchServices.serviceDate})`,
     })
@@ -125,6 +131,7 @@ export async function listSeriesForPlan(scope: SeriesScope): Promise<SerializedS
       ChurchSeries.color,
       ChurchSeries.description,
       ChurchSeries.runLabel,
+      ChurchSeries.publishedThreadId,
       ChurchSeries.createdAt,
     )
     // NULLS LAST so a brand-new series with no sermons yet sits below the ones
@@ -142,6 +149,7 @@ export async function listSeriesForPlan(scope: SeriesScope): Promise<SerializedS
     color: isSeriesColor(row.color) ? row.color : null,
     description: row.description ?? null,
     runLabel: row.runLabel ?? null,
+    publishedThreadId: row.publishedThreadId ?? null,
   }));
 }
 

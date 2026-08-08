@@ -13,6 +13,7 @@ import {
   SpaceNotes,
   NoteFingerprints,
   RecallEvents,
+  ChurchServicePublishedNotes,
   and,
   eq,
   inArray,
@@ -54,6 +55,7 @@ export const NOTE_DELETE_CASCADE_TABLES = [
   'NoteVersions',
   'NoteFingerprints',
   'RecallEvents',
+  'ChurchServicePublishedNotes',
   'Notes',
 ] as const;
 
@@ -136,6 +138,12 @@ export async function deleteNotesCascadeForUser(userId: string, noteIds: string[
       // RecallEvents.noteId is nullable, so this leaves generative rows alone.
       await tx.delete(NoteFingerprints).where(inArray(NoteFingerprints.noteId, chunk));
       await tx.delete(RecallEvents).where(inArray(RecallEvents.noteId, chunk));
+      // A published step's claim on the week it accompanies. Left behind, the
+      // week would still read as published and a republish would skip it —
+      // the series would be permanently missing a step no one could restore.
+      await tx
+        .delete(ChurchServicePublishedNotes)
+        .where(inArray(ChurchServicePublishedNotes.noteId, chunk));
       await tx
         .delete(Notes)
         .where(and(eq(Notes.userId, userId), inArray(Notes.id, chunk)));

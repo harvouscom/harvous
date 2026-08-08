@@ -802,6 +802,18 @@ export const ChurchSeries = pgTable('ChurchSeries', {
    * the moment a second run exists is the moment the ambiguity does.
    */
   runLabel: text('runLabel'),
+  /**
+   * The sequence Thread this series was published into, if it has been.
+   *
+   * A series is still not a Thread — this is the *artifact* of publishing one,
+   * which is why the pointer sits here instead of the series becoming the
+   * Thread. Republishing updates this Thread and appends only the weeks that
+   * are new; it never mints a second, so the congregation's study plan keeps
+   * its identity when a pastor adds week nine.
+   *
+   * Nulled when the Thread is deleted — see the thread delete/erase routes.
+   */
+  publishedThreadId: text('publishedThreadId'),
   createdBy: text('createdBy').notNull(),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
@@ -1762,6 +1774,50 @@ export const LibraryItemSuggestions = pgTable(
  *
  * Row ids: `svcli_${crypto.randomUUID()}`.
  */
+/**
+ * Published study material claiming the plan row it accompanies.
+ *
+ * This is the inversion `docs/future/CHURCH_STUDY_MATERIAL_LINKING.md` decided
+ * on and `ChurchServiceLibraryItems` explicitly deferred to: **material claims
+ * the service; the service does not point at a room.** Written today by the
+ * series → study-plan publish, one row per published step.
+ *
+ * It is NOT `Notes.startedFromServiceId`. That column is the *congregant's own*
+ * note started from a service, and its read path is scoped to a single user by
+ * a rule stated twice in church-teaching-plan.ts — "never widen it to other
+ * users". A published step is the opposite: church-authored, addressed to
+ * everyone in the room. Same lineage shape, different fact, so a different row
+ * rather than an overloaded column that no read path could then tell apart.
+ *
+ * Unique on `(serviceId, noteId)` rather than on `serviceId` alone, because the
+ * doc's whole argument against the removed pointer was that one service can
+ * legitimately carry several ministries' material. "One step per plan row per
+ * Thread" is narrower than this table and is enforced where it belongs — in the
+ * publish query, which asks what this Thread already holds.
+ *
+ * Row ids: `svcpub_${crypto.randomUUID()}`.
+ */
+export const ChurchServicePublishedNotes = pgTable(
+  'ChurchServicePublishedNotes',
+  {
+    id: text('id').primaryKey(),
+    serviceId: text('serviceId').notNull(),
+    noteId: text('noteId').notNull(),
+    publishedByUserId: text('publishedByUserId').notNull(),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    uniqueIndex('ChurchServicePublishedNotes_service_note_unique').on(
+      table.serviceId,
+      table.noteId,
+    ),
+    index('ChurchServicePublishedNotes_serviceIdIndex').on(table.serviceId),
+    /* "Which week is this note the study for?" — the congregant-facing read the
+       linking doc asks for, indexed now rather than after someone table-scans. */
+    index('ChurchServicePublishedNotes_noteIdIndex').on(table.noteId),
+  ],
+);
+
 export const ChurchServiceLibraryItems = pgTable(
   'ChurchServiceLibraryItems',
   {

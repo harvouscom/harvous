@@ -83,6 +83,12 @@ export type TeachingPlanSeries = {
    * title; a church that never re-runs anything should never see a label.
    */
   runLabel?: string | null;
+  /**
+   * The sequence Thread this series was published into as a study plan, if it
+   * has been. Present only on space plans — the church plan has no room to
+   * publish into. Optional so a payload cached before this shipped still parses.
+   */
+  publishedThreadId?: string | null;
 };
 
 export type TeachingPlanResponse = {

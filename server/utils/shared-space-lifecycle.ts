@@ -11,6 +11,7 @@ import {
   SpaceInvitations,
   Members,
   StudyThreadEntries,
+  ChurchSeries,
   and,
   eq,
   first,
@@ -649,6 +650,17 @@ export async function deleteThreadInTransaction(
       throw new SharedSpaceLifecycleError('Only the space owner can delete shared threads', 'FORBIDDEN', 403);
     }
   }
+
+  /*
+    A series that published this Thread must not keep pointing at it — a
+    dangling publishedThreadId would make the planner offer "Update study plan"
+    for a plan that no longer exists. Nulled here rather than in the delete
+    routes because this transaction is the one choke point both of them use.
+  */
+  await tx
+    .update(ChurchSeries)
+    .set({ publishedThreadId: null })
+    .where(eq(ChurchSeries.publishedThreadId, thread.id));
 
   const affected = (await tx
     .select({ noteId: NoteThreads.noteId })
