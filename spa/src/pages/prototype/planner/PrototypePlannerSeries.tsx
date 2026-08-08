@@ -25,8 +25,15 @@ import type {
   TeachingPlanSermon,
 } from '../../../hooks/queries/useChurchTeachingPlan';
 import { formatSeriesRun, seriesRunsByServiceRows } from '../../../lib/church-services';
-import ProtoServiceDateTile from '../ProtoServiceDateTile';
+import { parseLocalDateInput } from '../../../lib/proto-date-picker';
+import ProtoSpaceMenuIcon from '../ProtoSpaceMenuIcon';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
+
+/** "Aug 9" — for a one-week run, where `formatSeriesRun` returns null. */
+function formatSeriesStart(iso: string): string | null {
+  const d = parseLocalDateInput(iso);
+  return d ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : null;
+}
 
 export default function PrototypePlannerSeries({
   series,
@@ -73,13 +80,22 @@ export default function PrototypePlannerSeries({
               className="proto-church-tools__row proto-planner-list__row"
               onClick={() => onOpen(entry)}
             >
-              {/* The run's first date, in the tile every sermon row uses — so
-                  the two lists share an edge and a rhythm. `unwritten` marks a
-                  run with nothing written into it yet, the same hollow tile the
-                  sermon rows use for a week with no passage. */}
-              <ProtoServiceDateTile
-                iso={run?.first || null}
-                unwritten={toFill > 0 && toFill === entry.serviceCount}
+              {/*
+                A face, not a date.
+
+                Every other list in the app leads with the tile that says *what
+                kind of thing this is* — a space, a channel, a member — and a
+                series is a thing in exactly that sense, so it wears the same
+                primitive. This view is scanned for "which studies do we have",
+                which a face answers faster than a date; the run's own dates move
+                into the meta line below, where they read as span rather than as
+                identity.
+              */}
+              <ProtoSpaceMenuIcon
+                color={accentFor(entry.id) ?? 'paper'}
+                iconName="layer-group"
+                size={30}
+                radius={8}
               />
               <span className="proto-church-tools__row-text">
                 <span
@@ -93,7 +109,15 @@ export default function PrototypePlannerSeries({
                       and the count how much is actually written. Each is
                       dropped when it would only repeat a neighbour. */}
                   {entry.serviceCount === 1 ? '1 week' : `${entry.serviceCount} weeks`}
-                  {span ? ` · ${span}` : ''}
+                  {/* The span when there is one, the single date when the run is
+                      one week long — `formatSeriesRun` returns null there, and
+                      dropping the date entirely would lose the only "when" this
+                      row has now that the tile no longer carries it. */}
+                  {span
+                    ? ` · ${span}`
+                    : run?.first
+                      ? ` · ${formatSeriesStart(run.first) ?? ''}`
+                      : ''}
                   {toFill > 0 ? ` · ${toFill} to fill` : ''}
                   {entry.description ? ` · ${entry.description}` : ''}
                 </span>

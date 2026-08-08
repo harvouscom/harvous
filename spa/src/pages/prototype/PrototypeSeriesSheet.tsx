@@ -36,6 +36,7 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import ProtoServiceDateTile from './ProtoServiceDateTile';
 import ProtoSelectMenu from './ProtoSelectMenu';
+import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { SPACE_COVER_PICKER_COLORS, spacePickerSwatchColor } from '@/utils/space-cover';
 import { seriesAccent } from '../../lib/church-services';
 
@@ -160,9 +161,22 @@ export default function PrototypeSeriesSheet({
   const content = (
     <>
       <div className="proto-study-thread-popover__header">
-        {/* The series' own name is the identification. A glyph beside it only
-            repeated "this is a series", which the sheet's contents say. */}
+        {/*
+          The tile earns its place now that it carries a *colour*.
+
+          It was dropped once, correctly: a generic glyph beside the name only
+          repeated "this is a series", which the sheet's contents already said.
+          What it says now is which run this is — the same hue the board's spine
+          and every card in the run are drawn in — so opening a series from the
+          plan confirms you opened the one you pointed at.
+        */}
         <div className="proto-study-thread-popover__title-row">
+          <ProtoSpaceMenuIcon
+            color={shownColor}
+            iconName="layer-group"
+            size={22}
+            radius={6}
+          />
           <span className="proto-study-thread-popover__title">{series.title}</span>
         </div>
         <button
@@ -213,7 +227,7 @@ export default function PrototypeSeriesSheet({
         {canWrite ? (
           <>
             <p className="proto-inspector-section-title proto-create-folder-sheet__field-label">
-              <span>Colour</span>
+              <span>Color</span>
               {/* Says the run is already drawn, so this reads as a change rather
                   than as a required field nobody filled in. */}
               {!series.color ? (
@@ -223,7 +237,7 @@ export default function PrototypeSeriesSheet({
             <div
               className="proto-space-cover-picker__tray"
               role="radiogroup"
-              aria-label="Series colour"
+              aria-label="Series color"
             >
               {SPACE_COVER_PICKER_COLORS.map((c) => (
                 <button

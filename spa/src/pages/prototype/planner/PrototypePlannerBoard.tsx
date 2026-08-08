@@ -53,18 +53,32 @@ type ColumnBand = {
   accent: SpaceCoverPickerColor | null;
   /** Rendered only on the run's first column — a name per week is a stutter. */
   label: string | null;
+  /** "3 of 8", beside the name. Null unless this is the run's first column. */
+  progress: string | null;
+  /**
+   * Whether this week is written — every sermon it holds for this series has a
+   * passage. Filled segments read as done, hollow ones as still to write.
+   */
+  written: boolean;
   continuesLeft: boolean;
   continuesRight: boolean;
 };
 
 /**
- * The run band above a week's cards.
+ * The run band above a week's cards — a progress spine, not a rule.
  *
  * Bridged across the 10px column gap with negative margins on whichever side
  * the run carries on: a band that stopped at every column edge would draw eight
  * separate marks for one eight-week study, which is the thing this is here to
  * fix. Ends are rounded only where the run actually ends, so the shape itself
  * says "starts here", "passes through", "ends here".
+ *
+ * **Each column is a segment, and the segment is filled only when that week has
+ * a passage.** The board already draws one band per week column, so the
+ * segmentation costs nothing — and it turns a mark that only said "these weeks
+ * belong together" into one that also answers *how far through am I*. An
+ * eight-week run reads as five solid and three hollow without anyone reading a
+ * number, which is the whole reason colour is here rather than decoration.
  */
 function SeriesBands({ bands }: { bands: ColumnBand[] }) {
   if (bands.length === 0) return null;
@@ -75,6 +89,7 @@ function SeriesBands({ bands }: { bands: ColumnBand[] }) {
           key={band.seriesId}
           className={[
             'proto-planner-band',
+            band.written ? '' : 'proto-planner-band--unwritten',
             band.continuesLeft ? 'proto-planner-band--from-left' : '',
             band.continuesRight ? 'proto-planner-band--to-right' : '',
           ]
@@ -83,10 +98,14 @@ function SeriesBands({ bands }: { bands: ColumnBand[] }) {
           data-series-accent={band.accent ?? undefined}
         >
           {/* Named once, at the run's start. The label is what keeps this
-              readable without colour. */}
+              readable without colour; the count is what makes the fill legible
+              to anyone who would rather read it than scan it. */}
           {band.label ? (
             <span className="proto-caption proto-planner-band__label" title={band.label}>
               {band.label}
+              {band.progress ? (
+                <span className="proto-planner-band__progress">{band.progress}</span>
+              ) : null}
             </span>
           ) : null}
         </div>
@@ -213,20 +232,51 @@ export default function PrototypePlannerBoard({
   */
   const bandsByWeek = useMemo(() => {
     const titles = new Map<string, string>();
+    /*
+      Written/total per series, counted across the *whole plan* rather than the
+      visible columns — "3 of 8" has to mean three of the eight weeks in the
+      series, not three of however many happen to be on screen. A week counts as
+      written when it has a passage, the same test the placeholder card and the
+      series lane's "N to fill" already use.
+    */
+    const progress = new Map<string, { written: number; total: number }>();
     for (const service of services) {
-      if (service.seriesId && service.seriesTitle) titles.set(service.seriesId, service.seriesTitle);
+      if (!service.seriesId) continue;
+      if (service.seriesTitle) titles.set(service.seriesId, service.seriesTitle);
+      const entry = progress.get(service.seriesId) ?? { written: 0, total: 0 };
+      entry.total += 1;
+      if (service.reference) entry.written += 1;
+      progress.set(service.seriesId, entry);
     }
+
+    /** Is every sermon this week holds for this series written? */
+    const weekWritten = (seriesId: string, week: PlannerWeek) => {
+      const inWeek = sermonsInWeek(byDate, week).filter((s) => s.seriesId === seriesId);
+      return inWeek.length > 0 && inWeek.every((s) => Boolean(s.reference));
+    };
+
     const runs = buildSeriesRuns(seriesIdsByWeek(byDate, weeks));
-    return weeks.map((_week, index) =>
+    return weeks.map((week, index) =>
       runs
         .filter((run) => run.startIndex <= index && index <= run.endIndex)
-        .map<ColumnBand>((run) => ({
-          seriesId: run.seriesId,
-          accent: accentFor(run.seriesId),
-          label: run.startIndex === index ? (titles.get(run.seriesId) ?? null) : null,
-          continuesLeft: run.startIndex < index,
-          continuesRight: run.endIndex > index,
-        })),
+        .map<ColumnBand>((run) => {
+          const isFirst = run.startIndex === index;
+          const counts = progress.get(run.seriesId);
+          return {
+            seriesId: run.seriesId,
+            accent: accentFor(run.seriesId),
+            label: isFirst ? (titles.get(run.seriesId) ?? null) : null,
+            /* Only when some of it is still to write. A finished run saying
+               "8 of 8" is a number nobody needs. */
+            progress:
+              isFirst && counts && counts.written < counts.total
+                ? `${counts.written} of ${counts.total}`
+                : null,
+            written: weekWritten(run.seriesId, week),
+            continuesLeft: run.startIndex < index,
+            continuesRight: run.endIndex > index,
+          };
+        }),
     );
   }, [services, byDate, weeks, accentFor]);
 
