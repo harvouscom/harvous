@@ -18,7 +18,17 @@
  *     would buy nothing and would make "Step 3 of 8" a lie.
  */
 
-import { db, Notes, NoteThreads, SpaceNotes, eq, and, isNull } from '../db';
+import {
+  db,
+  Notes,
+  NoteThreads,
+  SpaceMemberships,
+  SpaceNotes,
+  ThreadProgress,
+  eq,
+  and,
+  isNull,
+} from '../db';
 import type { SpaceRole, SpaceRow } from './space-access';
 import { isActualSpaceOwner } from './space-access';
 
@@ -145,6 +155,53 @@ export async function loadLiveThreadNoteIds(
     .innerJoin(SpaceNotes, and(eq(SpaceNotes.noteId, Notes.id), eq(SpaceNotes.spaceId, spaceId)))
     .where(and(eq(NoteThreads.threadId, threadId), isNull(SpaceNotes.removedAt)));
   return rows.map((row) => row.noteId);
+}
+
+/**
+ * How many people have opened each step, for the person shepherding the room.
+ *
+ * Counts only. The per-user rows exist because a count has to be computed from
+ * something, but nothing here returns a userId, and no caller may add one: the
+ * church surfaces promise "how many, never who", and a study plan is where that
+ * promise matters most. See the ThreadProgress docblock.
+ *
+ * `memberCount` is every active membership including staff — a leader walking
+ * the plan with the room is part of the room, and excluding them would make
+ * the denominator disagree with the people count on the same screen.
+ */
+export async function readTogetherPulse(
+  threadId: string,
+  spaceId: string,
+): Promise<{ memberCount: number; openedCountByNoteId: Record<string, number> }> {
+  const [progressRows, memberRows] = await Promise.all([
+    db
+      .select({ openedNoteIds: ThreadProgress.openedNoteIds })
+      .from(ThreadProgress)
+      .where(eq(ThreadProgress.threadId, threadId)),
+    db
+      .select({ userId: SpaceMemberships.userId })
+      .from(SpaceMemberships)
+      .where(eq(SpaceMemberships.spaceId, spaceId)),
+  ]);
+
+  const openedCountByNoteId: Record<string, number> = {};
+  for (const row of progressRows) {
+    // One person counts once per step however many times they opened it.
+    for (const noteId of new Set(parseSequenceNoteIds(row.openedNoteIds))) {
+      openedCountByNoteId[noteId] = (openedCountByNoteId[noteId] ?? 0) + 1;
+    }
+  }
+
+  return {
+    memberCount: new Set(memberRows.map((row) => row.userId)).size,
+    openedCountByNoteId,
+  };
+}
+
+/** Add a step to someone's opened set, leaving the rest of their row alone. */
+export function withOpenedStep(existing: string | null | undefined, noteId: string): string[] {
+  const opened = parseSequenceNoteIds(existing);
+  return opened.includes(noteId) ? opened : [...opened, noteId];
 }
 
 /**

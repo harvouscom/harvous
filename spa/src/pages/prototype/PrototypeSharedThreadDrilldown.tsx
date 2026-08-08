@@ -7,10 +7,12 @@ import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import {
   flattenThreadNotePages,
+  pulseLabel,
   sequenceStepFor,
   useThreadNotes,
   type SharedThreadNote,
 } from '../../hooks/queries/useThreadNotes';
+import { api } from '../../lib/api';
 import type { SpaceGroupStudyThread } from '../../hooks/queries/useSpaceGroupThreads';
 import { useSpaceNotes } from '../../hooks/queries/useSpace';
 import { useUpdateSharedThread } from '../../hooks/mutations/useUpdateSharedThread';
@@ -143,6 +145,9 @@ export default function PrototypeSharedThreadDrilldown({
   const firstPage = notesQuery.data?.pages?.[0];
   const isSequence = firstPage?.mode === 'sequence';
   const sequenceInfo = firstPage?.sequence ?? null;
+  /* Present only when the server decided this viewer may see it — a member's
+     payload has no pulse at all, so there is nothing here to conditionally hide. */
+  const pulse = firstPage?.pulse ?? null;
   /*
     The server already returned the notes in authored order, so their position
     here IS the plan. Reading the order off the rendered list rather than a
@@ -196,6 +201,16 @@ export default function PrototypeSharedThreadDrilldown({
   }, [isEditingTitle]);
 
   const openNote = (noteId: string) => {
+    /*
+      Tell the server this step was opened. Fire-and-forget on purpose: nothing
+      on screen waits for it, and a lost tick costs one count rather than a
+      reader staring at a spinner. Only ever writes the caller's own row.
+    */
+    if (isSequence) {
+      void api
+        .post(`/api/threads/${encodeURIComponent(thread.id)}/progress`, { noteId })
+        .catch(() => {});
+    }
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     navigate(sharedThreadNoteNavigation(noteId, spaceId));
   };
@@ -485,6 +500,7 @@ export default function PrototypeSharedThreadDrilldown({
                   sequenceInfo?.currentNoteId ?? null,
                 );
                 const stepNumber = step.stepNumber;
+                const stepPulse = isSequence ? pulseLabel(pulse, note.id) : null;
                 const isCurrentStep = isSequence && step.isCurrent;
                 const isAhead = isSequence && step.isAhead;
                 return (
@@ -521,6 +537,11 @@ export default function PrototypeSharedThreadDrilldown({
                           isSelf={note.isOwnNote}
                         />
                         {date ? <span>{date}</span> : null}
+                        {/* Shepherding, not a scoreboard — the server only
+                            sends this to owner/leader. */}
+                        {stepPulse ? (
+                          <span className="proto-shared-thread-step__pulse">{stepPulse}</span>
+                        ) : null}
                       </div>
                     </button>
                     {isSequence && canManageSequence ? (

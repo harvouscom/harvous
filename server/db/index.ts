@@ -12,6 +12,7 @@ export { db, getDb, warmPostgresConnection } from './client';
 export {
   Spaces,
   Threads,
+  ThreadProgress,
   Notes,
   NoteVersions,
   SpaceNotes,
