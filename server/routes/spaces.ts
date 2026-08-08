@@ -2056,6 +2056,7 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
         createdAt: Notes.createdAt,
         content: Notes.content,
         userId: Notes.userId,
+        contentEncrypted: Notes.contentEncrypted,
       })
       .from(Notes)
       .where(and(...filters))
@@ -2087,6 +2088,14 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
         createdAt: r.createdAt ? r.createdAt.toISOString() : null,
         content: r.content ? stripHtmlForListPreview(r.content, 80) : '',
         isOwnNote: r.userId === auth.userId,
+        /*
+          Reported, not filtered. The personal branch of `baseFilters` above
+          deliberately keeps locked notes in the pool — filing one into a folder
+          or a thread is legitimate, and that branch serves create-folder and
+          create-thread search too. Callers that cannot *use* a locked note say
+          so themselves; see `excludeEncrypted` on PrototypeAddNotesPicker.
+        */
+        contentEncrypted: r.contentEncrypted === true,
         isAssociatedWithTarget:
           access.space.type === 'personal' ? true : associatedIds.has(r.id),
       })),

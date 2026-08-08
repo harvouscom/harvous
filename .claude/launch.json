@@ -16,6 +16,13 @@
       "autoPort": false
     },
     {
+      "name": "sermon-planning-spa",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:spa", "--", "--port", "4327"],
+      "port": 4327,
+      "autoPort": false
+    },
+    {
       "name": "shared-spaces-worktree",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:all", "--prefix", ".claude/worktrees/shared-spaces-foundation"],

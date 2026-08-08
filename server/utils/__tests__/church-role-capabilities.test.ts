@@ -7,6 +7,7 @@ import {
   hasChurchCapability,
   NO_CHURCH_CAPABILITIES,
   ROLE_ADMIN,
+  ROLE_COORDINATOR,
   ROLE_PASTOR,
   ROLE_TEACHER,
 } from '../church-role-capabilities';
@@ -47,10 +48,39 @@ describe('church role capabilities', () => {
     expect(caps).not.toContain('manage_church_settings');
   });
 
+  it('gives a coordinator the teaching tooling and the clock, but not the roster', () => {
+    const caps = capabilitiesForChurchRole(ROLE_COORDINATOR);
+    expect(caps).toContain('sermon_tools');
+    expect(caps).toContain('manage_teaching_plan');
+    expect(caps).toContain('manage_templates');
+    expect(caps).toContain('manage_library');
+    expect(caps).toContain('publish');
+    // The point of the role: scheduling sermons into slots is useless without
+    // the ability to add the slot you are scheduling into.
+    expect(caps).toContain('manage_church_settings');
+    // It is administration *of teaching*, never of the church itself.
+    expect(caps).not.toContain('manage_staff');
+    expect(caps).not.toContain('manage_billing');
+  });
+
+  it('separates coordinator from pastor by exactly one capability', () => {
+    /*
+      If these two ever collapse to the same set, one of them has stopped
+      earning its place in the picker. The difference is the church's clock, and
+      it runs the direction it does on purpose: a pastor decides what the church
+      teaches, a coordinator maintains the machinery it is taught through.
+    */
+    const pastor = new Set(capabilitiesForChurchRole(ROLE_PASTOR));
+    const coordinator = capabilitiesForChurchRole(ROLE_COORDINATOR);
+    expect(coordinator.filter((cap) => !pastor.has(cap))).toEqual(['manage_church_settings']);
+    // And nothing a pastor holds is taken away.
+    for (const cap of pastor) expect(coordinator).toContain(cap);
+  });
+
   it('lets every teaching role see the plan', () => {
     // `sermon_tools` is the *read*. Narrowing it would take the plan away from
     // the teachers who teach out of it, which is the regression to guard.
-    for (const role of [ROLE_ADMIN, ROLE_PASTOR, ROLE_TEACHER]) {
+    for (const role of [ROLE_ADMIN, ROLE_PASTOR, ROLE_COORDINATOR, ROLE_TEACHER]) {
       expect(capabilitiesForChurchRole(role)).toContain('sermon_tools');
     }
   });

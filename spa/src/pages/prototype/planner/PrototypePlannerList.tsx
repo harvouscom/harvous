@@ -12,6 +12,7 @@ import type {
   ChurchServiceTimeOption,
   TeachingPlanSermon,
 } from '../../../hooks/queries/useChurchTeachingPlan';
+import type { SpaceCoverPickerColor } from '@/utils/space-cover';
 import { localTodayIso, sermonTimeLabel } from '../../../lib/church-services';
 import ProtoServiceDateTile from '../ProtoServiceDateTile';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
@@ -20,12 +21,15 @@ import type { PlannerSelection } from './PrototypeExpandedPlanner';
 function Row({
   service,
   timeLabel,
+  accent,
   selected,
   past,
   onSelect,
 }: {
   service: TeachingPlanSermon;
   timeLabel: string | null;
+  /** Tints the date tile only — the series is still named in the meta line. */
+  accent: SpaceCoverPickerColor | null;
   selected: boolean;
   past?: boolean;
   onSelect: () => void;
@@ -33,6 +37,8 @@ function Row({
   return (
     <button
       type="button"
+      data-series-accent={accent ?? undefined}
+      data-in-series={accent ? 'true' : undefined}
       className={[
         'proto-church-tools__row',
         'proto-planner-list__row',
@@ -62,6 +68,7 @@ function Row({
 export default function PrototypePlannerList({
   services,
   serviceTimes,
+  accentFor,
   canWrite,
   readOnlyReason,
   emptyWritable,
@@ -70,6 +77,8 @@ export default function PrototypePlannerList({
 }: {
   services: TeachingPlanSermon[];
   serviceTimes: ChurchServiceTimeOption[];
+  /** Shared with the board and calendar so one run is one colour everywhere. */
+  accentFor: (seriesId: string | null | undefined) => SpaceCoverPickerColor | null;
   canWrite: boolean;
   readOnlyReason: 'lapsed' | 'role' | null;
   /** Scope-aware empty copy — a channel does not "add a sermon". */
@@ -102,6 +111,7 @@ export default function PrototypePlannerList({
             key={service.id}
             service={service}
             timeLabel={timeLabel(service)}
+            accent={accentFor(service.seriesId)}
             selected={isSelected(service)}
             past={past}
             onSelect={() => onSelect({ mode: 'edit', serviceId: service.id })}

@@ -22,6 +22,8 @@ export interface AddNotesCandidate {
   createdAt: string | null;
   content: string | null;
   isOwnNote?: boolean;
+  /** A locked note. Optional so a payload cached before this shipped still parses. */
+  contentEncrypted?: boolean;
   isAssociatedWithTarget?: boolean;
   /** Tag names when known (local fuzzy search); API matches tags server-side. */
   tagNames?: string[];

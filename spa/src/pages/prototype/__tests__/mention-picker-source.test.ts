@@ -120,13 +120,24 @@ function libItem(id: string, title: string, siteName: string | null = null): Lib
 }
 
 describe('libraryItemsToItems', () => {
-  it('carries no spaceId — library items belong to an owner, not a space', () => {
+  it('carries no spaceId in a personal note — there is no room to name', () => {
     const [item] = libraryItemsToItems([libItem('libi_1', 'Epistle to the Romans')], '');
     expect(item.kind).toBe('library');
     expect(item.entityId).toBe('libi_1');
-    // A non-empty spaceId here would make the pill claim a space it can't be
-    // resolved against; resolution goes through /api/library/items/:id instead.
     expect(item.spaceId).toBe('');
+  });
+
+  it('carries the room it was offered from, in a shared space', () => {
+    /*
+      The spaceId is resolve *context*, not ownership: an item belongs to a
+      library, and /api/library/items/:id decides visibility through
+      resolveVisibleItem. These used to be personal-notes-only on the reasoning
+      that the resolve "fails closed for anyone but the owner" — true of the
+      route as written, and false of the model, since a church item has no
+      personal owner at all and so 404'd even the staffer who added it.
+    */
+    const [item] = libraryItemsToItems([libItem('libi_1', 'Discussion guide')], '', 'space_1');
+    expect(item.spaceId).toBe('space_1');
   });
 
   it('subtitles with the bare domain, not the mangled site name', () => {
@@ -171,16 +182,36 @@ describe('libraryItemsToItems', () => {
 });
 
 describe('mention kind tabs', () => {
-  it('offers Resources only where the kind is available', () => {
-    // Personal notes get every kind; a shared space omits 'library' because a
-    // personal item can't resolve for other members.
+  it('offers Resources wherever the kind is available', () => {
+    // Both contexts get it now: a personal note offers the author's own
+    // library, a room offers its shelf.
     const personal = mentionKindTabsFor(['note', 'thread', 'folder', 'library']).map((t) => t.id);
     expect(personal).toContain('library');
 
-    const shared = mentionKindTabsFor(['note', 'thread', 'folder']).map((t) => t.id);
-    expect(shared).not.toContain('library');
-    // 'All' survives either way.
+    const shared = mentionKindTabsFor(['note', 'thread', 'folder', 'library']).map((t) => t.id);
+    expect(shared).toContain('library');
+    // 'All' leads either way.
     expect(shared[0]).toBe('all');
+  });
+
+  it('still hides a kind a context genuinely cannot offer', () => {
+    // The filter is the mechanism, and it has to keep working — an empty tab
+    // reads as a bug, so a context that drops a kind must lose its tab.
+    const withoutLibrary = mentionKindTabsFor(['note', 'thread', 'folder']).map((t) => t.id);
+    expect(withoutLibrary).not.toContain('library');
+  });
+
+  it('gives a shared space the same tab set as a personal note', () => {
+    // The regression this guards: a room whose picker sources its shelf but
+    // whose tab strip still hides Resources would put the items in 'All' and
+    // nowhere else.
+    expect(mentionKindFilterOrderFor(['note', 'thread', 'folder', 'library'])).toEqual([
+      'all',
+      'note',
+      'folder',
+      'thread',
+      'library',
+    ]);
   });
 
   it('cycles only through the tabs the context actually shows', () => {

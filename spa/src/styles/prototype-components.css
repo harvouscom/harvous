@@ -13833,6 +13833,153 @@ p.proto-teaching-plan__divider {
 
 /* ── Card ────────────────────────────────────────────────────────────────── */
 
+/* The note picker inside the sermon editor.
+
+   `.proto-add-notes-sheet__picker` is capped at 260px by the
+   `proto-create-folder-sheet` class the sermon sheet also wears, which leaves
+   the list a stub inside a much taller card. Raised rather than switched to
+   `flex: 1 1 auto`: `.proto-service-editor` is itself an `overflow-y: auto`
+   scroller with the footer pinned outside it, so a flexing child does not grow
+   here the way it does in Browse Templates, whose list is a direct child of a
+   fixed-height card.
+
+   Scoped to this one field. The obvious hook, `proto-service-editor-popover`,
+   is a dead class with no rule anywhere *and* is shared with
+   PrototypeSuggestResourceSheet — styling it would silently reshape an
+   unrelated dialog. */
+.proto-service-editor__note-picker .proto-add-notes-sheet__scoped-list {
+  max-height: 320px;
+}
+
+/* ── Series accent ──────────────────────────────────────────────────────────
+   One colour per series, exposed as a custom property so a card, a date tile,
+   a run band, and a lane swatch all draw the same run in the same hue without
+   four places agreeing by hand.
+
+   Mixed toward the page's own ink rather than used raw: `--pds-thread-*` is a
+   pastel *fill* token, sized for a tile, and at a 3px rail it disappears on a
+   light page. The mix gains contrast in both themes at once — light pastel
+   picks up ink, dark hue picks up near-white — so there is no second block to
+   keep in sync when the ramp moves.
+
+   Colour is never the only signal anywhere it is used: the series' name stays
+   on the card caption, in the list meta line, and on the band. */
+[data-series-accent='blue'] {
+  --pds-series-accent: color-mix(in oklab, var(--pds-thread-blue) 72%, var(--pds-text-primary));
+}
+[data-series-accent='purple'] {
+  --pds-series-accent: color-mix(in oklab, var(--pds-thread-purple) 72%, var(--pds-text-primary));
+}
+[data-series-accent='orange'] {
+  --pds-series-accent: color-mix(in oklab, var(--pds-thread-orange) 72%, var(--pds-text-primary));
+}
+[data-series-accent='green'] {
+  --pds-series-accent: color-mix(in oklab, var(--pds-thread-green) 72%, var(--pds-text-primary));
+}
+[data-series-accent='pink'] {
+  --pds-series-accent: color-mix(in oklab, var(--pds-thread-pink) 72%, var(--pds-text-primary));
+}
+
+/* ── Series on a day cell (calendar) ────────────────────────────────────────
+   A rule across the top of the cell, one segment per series standing on it.
+
+   Continuity here reads *down* the column, not across the row: an eight-week
+   series touches one cell per week row, so five Sundays wearing the same rule
+   is what a run looks like on a month grid. That is also why this is a full-
+   width rule rather than the board's bridged band — there is nothing adjacent
+   to bridge to. */
+.proto-planner-day__series {
+  display: flex;
+  gap: 2px;
+  margin: -1px -1px 1px;
+}
+
+.proto-planner-day__series-mark {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 3px;
+  border-radius: 0 0 2px 2px;
+  background: var(--pds-series-accent, transparent);
+}
+
+/* A day outside the month is context, not plan — its rule recedes with it so
+   the eye still stops at the month's own boundary. */
+.proto-planner-day--outside .proto-planner-day__series-mark {
+  opacity: 0.4;
+}
+
+/* ── Series on a list row ───────────────────────────────────────────────────
+   The date tile takes the run's hue. The tile rather than a rail because the
+   list is already a column of tiles — tinting the thing the eye lands on turns
+   a scan down the page into a read of which weeks belong together, without
+   adding a fifth element to the row.
+
+   Border only, not a fill: a filled tile would outrank the title beside it, and
+   the run is context for the sermon, never the headline. The series' name still
+   sits in the meta line, so nothing here depends on colour alone. */
+.proto-planner-list__row[data-in-series='true'] .proto-church-tools__row-date {
+  border-color: var(--pds-series-accent, var(--pds-border-control));
+  box-shadow: inset 0 0 0 1px var(--pds-series-accent, transparent);
+}
+
+/* ── Run bands (board) ──────────────────────────────────────────────────────
+   The spine that makes eight weeks read as one study.
+
+   `overflow: visible` is load-bearing: the band bridges the 10px column gap
+   with negative margins, so clipping it to the column would put the break back
+   exactly where the run is supposed to be continuous. */
+.proto-planner-column__bands {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 2px 6px;
+  overflow: visible;
+}
+
+.proto-planner-band {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 3px;
+  border-radius: 2px;
+  background: var(--pds-series-accent, var(--pds-border-control));
+}
+
+/* Squared and extended into the gutter wherever the run carries on. 10px is the
+   board's own column gap plus the 2px the band strip is inset by — if that gap
+   changes, these change with it or the spine grows a seam. */
+.proto-planner-band--from-left {
+  margin-left: -12px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.proto-planner-band--to-right {
+  margin-right: -12px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* The series' name, once, at the run's start. Sits above the band rather than
+   inside it: a 3px rule has no room for text, and thickening it to fit would
+   turn the spine into the banner this deliberately is not. */
+.proto-planner-band__label {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 2px);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+/* Room for that label to sit above the first band without overlapping the
+   column heading. Only the strip grows — the cards below do not move. */
+.proto-planner-column__bands:has(.proto-planner-band__label) {
+  padding-top: 15px;
+}
+
 .proto-planner-card {
   display: flex;
   flex-direction: column;
@@ -13846,6 +13993,40 @@ p.proto-teaching-plan__divider {
   text-align: left;
   cursor: grab;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+/*
+  A card's series, carried by the card's own border rather than by a rail added
+  beside it.
+
+  The first attempt was an inset pseudo-element with a padding offset to clear
+  it — a second piece of chrome, and a card whose title no longer lined up with
+  its neighbours'. The border is already there, already the thing that draws the
+  card's edge, and tinting one side of it costs no element and moves no text.
+  Restrained borders are the house style; this is that.
+
+  Left edge only, at 2px. A fully tinted border would outrank the card's own
+  title on every card in a run, and the run band above the column already
+  carries the colour at any weight this needs.
+*/
+.proto-planner-card[data-in-series='true'] {
+  border-left-color: var(--pds-series-accent, var(--pds-border-control));
+  border-left-width: 2px;
+  /* The pixel the thicker border takes, given back — so a card in a series and
+     one outside it keep their titles on the same vertical line. */
+  padding-left: 9px;
+}
+
+/* Hover brightens the whole border; the series edge keeps its own hue rather
+   than being flattened to the neutral. */
+.proto-planner-card[data-in-series='true']:hover {
+  border-left-color: var(--pds-series-accent, var(--pds-text-tertiary));
+}
+
+/* A week the series is holding open. The edge stays — the card is what is
+   unfinished, not the study it belongs to — and goes dashed with its box. */
+.proto-planner-card--placeholder[data-in-series='true'] {
+  border-left-style: dashed;
 }
 
 .proto-planner-card:hover {
@@ -13937,6 +14118,14 @@ p.proto-teaching-plan__divider {
   gap: 0;
   /* Tighter corner than a board card — a day cell holds chips, not cards. */
   border-radius: 6px;
+}
+
+/* A day cell has ~53px of width per chip, so the chip's series edge stays at
+   the card's 1px rather than thickening to 2 — and the rule across the top of
+   the cell is what actually says "this is one study" on a month grid. */
+.proto-planner-card--compact[data-in-series='true'] {
+  border-left-width: 1px;
+  padding-left: 6px;
 }
 
 /* Two lines in a day cell rather than one truncated one: "The Spiri…" and

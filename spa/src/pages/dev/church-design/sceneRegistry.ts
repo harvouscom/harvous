@@ -163,6 +163,15 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
     editFiles: ['spa/src/pages/prototype/planner/PrototypePlannerList.tsx'],
   },
   {
+    id: '18b-planner-series',
+    title: 'Expanded planner — series',
+    phase: 'Staff',
+    editFiles: [
+      'spa/src/pages/prototype/planner/PrototypePlannerSeries.tsx',
+      'spa/src/pages/prototype/PrototypeSeriesSheet.tsx',
+    ],
+  },
+  {
     id: '19-planner-board-readonly',
     title: 'Expanded planner — read-only (lapsed)',
     phase: 'Staff',

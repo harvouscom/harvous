@@ -26,6 +26,9 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'startedFromTemplateName',
     'coEditEnabled',
     'coEditEnabledAt',
+    // The staff half of the sermon link. Named here so a database missing it
+    // fails loudly rather than silently dropping every "Write this sermon" link.
+    'plannedForServiceId',
   ],
   NoteVersions: [
     'id',
@@ -118,7 +121,19 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'updatedAt',
   ],
   ChurchServiceTimeAssignments: ['id', 'serviceId', 'serviceTimeId', 'serviceDate', 'createdAt'],
-  ChurchSeries: ['id', 'churchId', 'spaceId', 'title', 'createdBy', 'createdAt', 'updatedAt'],
+  ChurchSeries: [
+    'id',
+    'churchId',
+    'spaceId',
+    'title',
+    // Presentation. Both nullable — `seriesAccent` derives a colour from the row
+    // id when `color` is unset, so their absence is a valid state, not a gap.
+    'color',
+    'description',
+    'createdBy',
+    'createdAt',
+    'updatedAt',
+  ],
   UserMetadata: ['hmcChurchId', 'connectedChurchId', 'connectedOrgId', 'connectedChurchAt'],
   ResourceLibraries: ['id', 'ownerKind', 'ownerId', 'title', 'createdAt', 'updatedAt'],
   LibraryItems: [
@@ -145,7 +160,12 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
 
 const REQUIRED_INDEXES: Record<string, readonly string[]> = {
   Spaces: ['Spaces_deletedAt_recoveryUntilIndex'],
-  Notes: ['Notes_copiedFromNoteIdIndex', 'Notes_startedFromServiceIdIndex'],
+  Notes: [
+    'Notes_copiedFromNoteIdIndex',
+    'Notes_startedFromServiceIdIndex',
+    // Leads with userId because that is the only way the column is queried.
+    'Notes_userId_plannedForServiceIdIndex',
+  ],
   NoteVersions: [
     'NoteVersions_note_version_unique',
     'NoteVersions_noteId_createdAtIndex',

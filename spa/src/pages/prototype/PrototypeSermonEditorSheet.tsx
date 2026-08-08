@@ -168,6 +168,7 @@ export default function PrototypeSermonEditorSheet({
           viewers still see the list — knowing what a week draws on is the
           point of showing it.
         */
+        canWrite={canWrite}
         trailingFields={
           service ? (
             <PrototypePlannerResourcesField

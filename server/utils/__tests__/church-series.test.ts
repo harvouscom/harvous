@@ -34,7 +34,15 @@ vi.mock('../../db', () => {
   return {
     db: chain,
     first: (rows: unknown[]) => rows?.[0],
-    ChurchSeries: { id: 'id', churchId: 'churchId', spaceId: 'spaceId', title: 'title', createdAt: 'createdAt' },
+    ChurchSeries: {
+      id: 'id',
+      churchId: 'churchId',
+      spaceId: 'spaceId',
+      title: 'title',
+      color: 'color',
+      description: 'description',
+      createdAt: 'createdAt',
+    },
     ChurchServices: { id: 'id', seriesId: 'seriesId', serviceDate: 'serviceDate' },
     and: (...args: unknown[]) => ({ op: 'and', args }),
     asc: vi.fn(),
@@ -49,9 +57,14 @@ vi.mock('../../db', () => {
   };
 });
 
-const { resolveSeriesForWrite, renameSeries, findOrCreateSeries, SERIES_TITLE_MAX } = await import(
-  '../church-series'
-);
+const {
+  resolveSeriesForWrite,
+  updateSeries,
+  findOrCreateSeries,
+  isSeriesColor,
+  SERIES_TITLE_MAX,
+  SERIES_DESCRIPTION_MAX,
+} = await import('../church-series');
 
 const CHURCH_SCOPE = { churchId: 'chur_1', spaceId: null };
 const YOUTH_SCOPE = { churchId: 'chur_1', spaceId: 'space_youth' };
@@ -216,30 +229,87 @@ describe('findOrCreateSeries', () => {
   });
 });
 
-describe('renameSeries', () => {
+describe('updateSeries', () => {
   it('refuses an empty name', async () => {
-    const result = await renameSeries(CHURCH_SCOPE, 'csrs_1', '   ');
+    const result = await updateSeries(CHURCH_SCOPE, 'csrs_1', { title: '   ' });
     expect(result).toMatchObject({ ok: false, code: 'BAD_REQUEST' });
   });
 
   it('refuses a name another series in the same plan already holds', async () => {
     selectRows.mockResolvedValue([{ id: 'csrs_other' }]);
-    const result = await renameSeries(CHURCH_SCOPE, 'csrs_1', 'Romans');
+    const result = await updateSeries(CHURCH_SCOPE, 'csrs_1', { title: 'Romans' });
     expect(result).toMatchObject({ ok: false, code: 'SERIES_TITLE_TAKEN' });
   });
 
   it('allows a rename that resolves to the same row (a case fix)', async () => {
     selectRows.mockResolvedValue([{ id: 'csrs_1' }]);
     updateReturning.mockResolvedValue([{ id: 'csrs_1', title: 'Romans' }]);
-    const result = await renameSeries(CHURCH_SCOPE, 'csrs_1', 'Romans');
+    const result = await updateSeries(CHURCH_SCOPE, 'csrs_1', { title: 'Romans' });
     expect(result).toMatchObject({ ok: true });
   });
 
   it('reports a series outside this plan as not found', async () => {
     selectRows.mockResolvedValue([]);
     updateReturning.mockResolvedValue([]);
-    const result = await renameSeries(YOUTH_SCOPE, 'csrs_church_plan', 'Anything');
+    const result = await updateSeries(YOUTH_SCOPE, 'csrs_church_plan', { title: 'Anything' });
     expect(result).toMatchObject({ ok: false, code: 'SERIES_NOT_FOUND' });
+  });
+
+  it('recolours without touching the title, so it cannot race a rename', async () => {
+    updateReturning.mockResolvedValue([{ id: 'csrs_1', title: 'Romans', color: 'purple' }]);
+    const result = await updateSeries(CHURCH_SCOPE, 'csrs_1', { color: 'purple' });
+    expect(result).toMatchObject({ ok: true });
+    // No uniqueness lookup fires when the title was not sent — that read is the
+    // rename's, and borrowing it here would make a colour change fail on a
+    // clash that has nothing to do with it.
+    expect(selectRows).not.toHaveBeenCalled();
+  });
+
+  it('refuses a colour outside the palette rather than storing null', async () => {
+    // Silently dropping it would show the pastor a colour they did not pick.
+    const result = await updateSeries(CHURCH_SCOPE, 'csrs_1', { color: 'chartreuse' });
+    expect(result).toMatchObject({ ok: false, code: 'BAD_REQUEST' });
+    expect(updateReturning).not.toHaveBeenCalled();
+  });
+
+  it('accepts an explicit null colour as "not chosen"', async () => {
+    updateReturning.mockResolvedValue([{ id: 'csrs_1', title: 'Romans', color: null }]);
+    const result = await updateSeries(CHURCH_SCOPE, 'csrs_1', { color: null });
+    expect(result).toMatchObject({ ok: true });
+  });
+
+  it('stores a blank description as null, not as an empty string', async () => {
+    updateReturning.mockResolvedValue([{ id: 'csrs_1', title: 'Romans', description: null }]);
+    await updateSeries(CHURCH_SCOPE, 'csrs_1', { description: '   ' });
+    expect(updateReturning).toHaveBeenCalled();
+  });
+
+  it('refuses a patch with nothing in it', async () => {
+    const result = await updateSeries(CHURCH_SCOPE, 'csrs_1', {});
+    expect(result).toMatchObject({ ok: false, code: 'BAD_REQUEST' });
+    expect(updateReturning).not.toHaveBeenCalled();
+  });
+
+  it('caps a long description rather than refusing it', async () => {
+    updateReturning.mockResolvedValue([{ id: 'csrs_1', title: 'Romans' }]);
+    const result = await updateSeries(CHURCH_SCOPE, 'csrs_1', {
+      description: 'x'.repeat(SERIES_DESCRIPTION_MAX + 50),
+    });
+    expect(result).toMatchObject({ ok: true });
+  });
+});
+
+describe('isSeriesColor', () => {
+  it('accepts the picker palette and nothing else', () => {
+    for (const color of ['blue', 'purple', 'orange', 'green', 'pink']) {
+      expect(isSeriesColor(color), color).toBe(true);
+    }
+    // Paper and cream are out for the same reason they are out of the space
+    // cover picker: at a rail's width neither survives the page behind it.
+    expect(isSeriesColor('paper')).toBe(false);
+    expect(isSeriesColor('yellow')).toBe(false);
+    expect(isSeriesColor(null)).toBe(false);
+    expect(isSeriesColor('#ff0000')).toBe(false);
   });
 });
 

@@ -28,12 +28,15 @@ import type {
   ChurchServiceTimeOption,
   TeachingPlanSermon,
 } from '../../../hooks/queries/useChurchTeachingPlan';
+import type { SpaceCoverPickerColor } from '@/utils/space-cover';
 import { localTodayIso, sermonTimeLabel } from '../../../lib/church-services';
 import {
   BACKLOG_DROPPABLE_ID,
   buildPlannerWeeks,
+  buildSeriesRuns,
   parseDroppableId,
   partitionPlan,
+  seriesIdsByWeek,
   sermonsInWeek,
   type PlannerWeek,
 } from '../../../lib/planner-board';
@@ -44,12 +47,61 @@ import type { PlannerSelection } from './PrototypeExpandedPlanner';
 const INITIAL_WEEKS = 8;
 const WEEKS_STEP = 8;
 
+/** One series crossing one week column, and which sides it carries on to. */
+type ColumnBand = {
+  seriesId: string;
+  accent: SpaceCoverPickerColor | null;
+  /** Rendered only on the run's first column — a name per week is a stutter. */
+  label: string | null;
+  continuesLeft: boolean;
+  continuesRight: boolean;
+};
+
+/**
+ * The run band above a week's cards.
+ *
+ * Bridged across the 10px column gap with negative margins on whichever side
+ * the run carries on: a band that stopped at every column edge would draw eight
+ * separate marks for one eight-week study, which is the thing this is here to
+ * fix. Ends are rounded only where the run actually ends, so the shape itself
+ * says "starts here", "passes through", "ends here".
+ */
+function SeriesBands({ bands }: { bands: ColumnBand[] }) {
+  if (bands.length === 0) return null;
+  return (
+    <div className="proto-planner-column__bands">
+      {bands.map((band) => (
+        <div
+          key={band.seriesId}
+          className={[
+            'proto-planner-band',
+            band.continuesLeft ? 'proto-planner-band--from-left' : '',
+            band.continuesRight ? 'proto-planner-band--to-right' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          data-series-accent={band.accent ?? undefined}
+        >
+          {/* Named once, at the run's start. The label is what keeps this
+              readable without colour. */}
+          {band.label ? (
+            <span className="proto-caption proto-planner-band__label" title={band.label}>
+              {band.label}
+            </span>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Column({
   id,
   title,
   subtitle,
   count,
   accented,
+  bands,
   canDrop,
   onAdd,
   children,
@@ -59,6 +111,7 @@ function Column({
   subtitle?: string;
   count: number;
   accented?: boolean;
+  bands?: ColumnBand[];
   canDrop: boolean;
   onAdd?: () => void;
   children: React.ReactNode;
@@ -95,6 +148,7 @@ function Column({
           </button>
         ) : null}
       </header>
+      <SeriesBands bands={bands ?? []} />
       <div className="proto-planner-column__body">
         {count === 0 ? (
           <p className="proto-caption proto-planner-column__empty">Nothing yet</p>
@@ -109,6 +163,7 @@ function Column({
 export default function PrototypePlannerBoard({
   services,
   serviceTimes,
+  accentFor,
   canWrite,
   readOnlyReason,
   defaultDay,
@@ -118,6 +173,8 @@ export default function PrototypePlannerBoard({
 }: {
   services: TeachingPlanSermon[];
   serviceTimes: ChurchServiceTimeOption[];
+  /** Shared with the other views so one run is one colour everywhere. */
+  accentFor: (seriesId: string | null | undefined) => SpaceCoverPickerColor | null;
   canWrite: boolean;
   readOnlyReason: 'lapsed' | 'role' | null;
   defaultDay: number | null;
@@ -148,6 +205,30 @@ export default function PrototypePlannerBoard({
   );
   const { backlog, byDate } = useMemo(() => partitionPlan(services), [services]);
   const timeLabel = (service: TeachingPlanSermon) => sermonTimeLabel(service, serviceTimes);
+
+  /*
+    Run bands, per week column. `seriesTitle` rides on the sermon rows already
+    (the plan payload joins it), so the label comes from the plan rather than
+    from a second lookup that could disagree with the card underneath it.
+  */
+  const bandsByWeek = useMemo(() => {
+    const titles = new Map<string, string>();
+    for (const service of services) {
+      if (service.seriesId && service.seriesTitle) titles.set(service.seriesId, service.seriesTitle);
+    }
+    const runs = buildSeriesRuns(seriesIdsByWeek(byDate, weeks));
+    return weeks.map((_week, index) =>
+      runs
+        .filter((run) => run.startIndex <= index && index <= run.endIndex)
+        .map<ColumnBand>((run) => ({
+          seriesId: run.seriesId,
+          accent: accentFor(run.seriesId),
+          label: run.startIndex === index ? (titles.get(run.seriesId) ?? null) : null,
+          continuesLeft: run.startIndex < index,
+          continuesRight: run.endIndex > index,
+        })),
+    );
+  }, [services, byDate, weeks, accentFor]);
 
   const dragging = draggingId ? services.find((s) => s.id === draggingId) ?? null : null;
 
@@ -189,6 +270,9 @@ export default function PrototypePlannerBoard({
               key={service.id}
               service={service}
               timeLabel={timeLabel(service)}
+              /* Ideas get the rail but never a band: an undated card belongs to
+                 a series without yet belonging to a stretch of weeks. */
+              accent={accentFor(service.seriesId)}
               draggable={canWrite}
               selected={selection?.mode === 'edit' && selection.serviceId === service.id}
               onSelect={() => onSelect({ mode: 'edit', serviceId: service.id })}
@@ -196,7 +280,7 @@ export default function PrototypePlannerBoard({
           ))}
         </Column>
 
-        {weeks.map((week) => {
+        {weeks.map((week, index) => {
           const inWeek = sermonsInWeek(byDate, week);
           return (
             <Column
@@ -206,6 +290,7 @@ export default function PrototypePlannerBoard({
               subtitle={week.isCurrent ? 'This week' : undefined}
               count={inWeek.length}
               accented={week.isCurrent}
+              bands={bandsByWeek[index]}
               canDrop={canWrite}
               onAdd={canWrite ? () => onSelect({ mode: 'create', date: week.startIso }) : undefined}
             >
@@ -214,6 +299,7 @@ export default function PrototypePlannerBoard({
                   key={service.id}
                   service={service}
                   timeLabel={timeLabel(service)}
+                  accent={accentFor(service.seriesId)}
                   draggable={canWrite}
                   selected={selection?.mode === 'edit' && selection.serviceId === service.id}
                   onSelect={() => onSelect({ mode: 'edit', serviceId: service.id })}
@@ -260,7 +346,11 @@ export default function PrototypePlannerBoard({
         ? createPortal(
             <DragOverlay dropAnimation={null}>
               {dragging ? (
-                <div className="proto-planner-card proto-planner-card--overlay">
+                <div
+                  className="proto-planner-card proto-planner-card--overlay"
+                  data-series-accent={accentFor(dragging.seriesId) ?? undefined}
+                  data-in-series={accentFor(dragging.seriesId) ? 'true' : undefined}
+                >
                   <PlannerCardBody service={dragging} timeLabel={timeLabel(dragging)} />
                 </div>
               ) : null}

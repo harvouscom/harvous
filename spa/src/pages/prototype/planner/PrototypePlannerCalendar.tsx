@@ -28,6 +28,7 @@ import type {
   ChurchServiceTimeOption,
   TeachingPlanSermon,
 } from '../../../hooks/queries/useChurchTeachingPlan';
+import type { SpaceCoverPickerColor } from '@/utils/space-cover';
 import { localTodayIso, sermonTimeLabel } from '../../../lib/church-services';
 import {
   addMonths,
@@ -46,6 +47,7 @@ function DayCell({
   day,
   inMonth,
   isToday,
+  accents,
   canDrop,
   onAdd,
   children,
@@ -54,6 +56,19 @@ function DayCell({
   day: number;
   inMonth: boolean;
   isToday: boolean;
+  /**
+   * The series standing on this day — usually one, two when a church runs a
+   * morning and an evening series.
+   *
+   * **A rule per cell, not a band across cells.** The board's run band works
+   * because its slots are consecutive *weeks*, which sit side by side. A month
+   * grid's slots are consecutive *days*, and an eight-week series touches one
+   * cell per row — so a horizontal band would be eight separate one-cell marks
+   * and say nothing. Here continuity reads *down* the column instead: five
+   * Sundays carrying the same rule is the run, and the week the colour changes
+   * is where the series did.
+   */
+  accents: SpaceCoverPickerColor[];
   canDrop: boolean;
   onAdd?: () => void;
   children: React.ReactNode;
@@ -71,6 +86,17 @@ function DayCell({
         .filter(Boolean)
         .join(' ')}
     >
+      {accents.length > 0 ? (
+        <div className="proto-planner-day__series" aria-hidden>
+          {accents.map((accent, index) => (
+            <span
+              key={`${accent}-${index}`}
+              className="proto-planner-day__series-mark"
+              data-series-accent={accent}
+            />
+          ))}
+        </div>
+      ) : null}
       <div className="proto-planner-day__head">
         <span className="proto-planner-day__number">{day}</span>
         {onAdd ? (
@@ -93,6 +119,7 @@ function DayCell({
 export default function PrototypePlannerCalendar({
   services,
   serviceTimes,
+  accentFor,
   canWrite,
   selection,
   onSelect,
@@ -100,6 +127,8 @@ export default function PrototypePlannerCalendar({
 }: {
   services: TeachingPlanSermon[];
   serviceTimes: ChurchServiceTimeOption[];
+  /** Shared with the board and list so one run is one colour everywhere. */
+  accentFor: (seriesId: string | null | undefined) => SpaceCoverPickerColor | null;
   canWrite: boolean;
   selection: PlannerSelection;
   onSelect: (selection: PlannerSelection) => void;
@@ -121,6 +150,23 @@ export default function PrototypePlannerCalendar({
   const { backlog, byDate } = useMemo(() => partitionPlan(services), [services]);
   const timeLabel = (service: TeachingPlanSermon) => sermonTimeLabel(service, serviceTimes);
   const dragging = draggingId ? services.find((s) => s.id === draggingId) ?? null : null;
+
+  /*
+    Deduped by *series*, not by colour: a morning and an evening sermon in the
+    same series is one run standing on that day and gets one mark. Two different
+    series get two, which is the case the marks exist to tell apart.
+  */
+  const accentsForDay = (iso: string): SpaceCoverPickerColor[] => {
+    const seen = new Set<string>();
+    const accents: SpaceCoverPickerColor[] = [];
+    for (const service of byDate.get(iso) ?? []) {
+      if (!service.seriesId || seen.has(service.seriesId)) continue;
+      seen.add(service.seriesId);
+      const accent = accentFor(service.seriesId);
+      if (accent) accents.push(accent);
+    }
+    return accents;
+  };
 
   const onDragEnd = (event: DragEndEvent) => {
     setDraggingId(null);
@@ -177,6 +223,7 @@ export default function PrototypePlannerCalendar({
                 day={cell.day}
                 inMonth={cell.inMonth}
                 isToday={cell.iso === today}
+                accents={accentsForDay(cell.iso)}
                 canDrop={canWrite}
                 onAdd={canWrite ? () => onSelect({ mode: 'create', date: cell.iso }) : undefined}
               >
@@ -185,6 +232,7 @@ export default function PrototypePlannerCalendar({
                     key={service.id}
                     service={service}
                     timeLabel={timeLabel(service)}
+                    accent={accentFor(service.seriesId)}
                     draggable={canWrite}
                     compact
                     selected={selection?.mode === 'edit' && selection.serviceId === service.id}
@@ -205,6 +253,7 @@ export default function PrototypePlannerCalendar({
         <CalendarBacklogRail
           backlog={backlog}
           timeLabel={timeLabel}
+          accentFor={accentFor}
           canWrite={canWrite}
           selection={selection}
           onSelect={onSelect}
@@ -215,7 +264,11 @@ export default function PrototypePlannerCalendar({
         ? createPortal(
             <DragOverlay dropAnimation={null}>
               {dragging ? (
-                <div className="proto-planner-card proto-planner-card--overlay">
+                <div
+                  className="proto-planner-card proto-planner-card--overlay"
+                  data-series-accent={accentFor(dragging.seriesId) ?? undefined}
+                  data-in-series={accentFor(dragging.seriesId) ? 'true' : undefined}
+                >
                   <PlannerCardBody service={dragging} timeLabel={timeLabel(dragging)} />
                 </div>
               ) : null}
@@ -230,12 +283,14 @@ export default function PrototypePlannerCalendar({
 function CalendarBacklogRail({
   backlog,
   timeLabel,
+  accentFor,
   canWrite,
   selection,
   onSelect,
 }: {
   backlog: TeachingPlanSermon[];
   timeLabel: (service: TeachingPlanSermon) => string | null;
+  accentFor: (seriesId: string | null | undefined) => SpaceCoverPickerColor | null;
   canWrite: boolean;
   selection: PlannerSelection;
   onSelect: (selection: PlannerSelection) => void;
@@ -265,6 +320,7 @@ function CalendarBacklogRail({
               key={service.id}
               service={service}
               timeLabel={timeLabel(service)}
+              accent={accentFor(service.seriesId)}
               draggable={canWrite}
               selected={selection?.mode === 'edit' && selection.serviceId === service.id}
               onSelect={() => onSelect({ mode: 'edit', serviceId: service.id })}

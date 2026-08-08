@@ -18,6 +18,7 @@
  * the scope they were cleared for, exactly as the service-time helpers do.
  */
 import { db, first, ChurchSeries, ChurchServices, and, asc, desc, eq, inArray, isNull, sql } from '../db';
+import { SPACE_COVER_PICKER_COLORS } from '@/utils/space-cover';
 
 /**
  * The `db` handle, or a transaction using it.
@@ -33,6 +34,27 @@ type Executor = Pick<typeof db, 'select' | 'insert' | 'update' | 'delete'>;
 /** Longest a series name may be — the same cap the sermon title uses. */
 export const SERIES_TITLE_MAX = 120;
 
+/** One line, not a paragraph — the lane that renders it has one line of room. */
+export const SERIES_DESCRIPTION_MAX = 200;
+
+/**
+ * Colours a series may take.
+ *
+ * The space cover picker's set rather than a new one, so a church never meets
+ * two different five-colour palettes in the same product. Cream/yellow and paper
+ * are out for the same reason they are out there: at the width a run band and a
+ * card rail are drawn, neither survives contact with the page behind it.
+ *
+ * Null is always allowed and is the common case — `seriesAccent` derives a
+ * stable colour from the row id, so an unset colour is "not chosen", never
+ * "no colour".
+ */
+export const SERIES_COLORS = SPACE_COVER_PICKER_COLORS;
+
+export function isSeriesColor(value: unknown): value is (typeof SERIES_COLORS)[number] {
+  return typeof value === 'string' && (SERIES_COLORS as readonly string[]).includes(value);
+}
+
 export type SeriesScope = {
   churchId: string;
   /** NULL = the church's own plan; set = that space's plan. */
@@ -46,6 +68,12 @@ export type SerializedSeries = {
   title: string;
   /** How many sermons sit under it — what makes a series page worth opening. */
   serviceCount: number;
+  /**
+   * A SERIES_COLORS token, or null for "not chosen" — which the client turns
+   * into a stable derived accent rather than into no colour at all.
+   */
+  color: string | null;
+  description: string | null;
 };
 
 /**
@@ -76,13 +104,24 @@ export async function listSeriesForPlan(scope: SeriesScope): Promise<SerializedS
     .select({
       id: ChurchSeries.id,
       title: ChurchSeries.title,
+      color: ChurchSeries.color,
+      description: ChurchSeries.description,
       serviceCount: sql<number>`count(${ChurchServices.id})::int`,
       lastDate: sql<string | null>`max(${ChurchServices.serviceDate})`,
     })
     .from(ChurchSeries)
     .leftJoin(ChurchServices, eq(ChurchServices.seriesId, ChurchSeries.id))
     .where(scopeWhere(scope))
-    .groupBy(ChurchSeries.id, ChurchSeries.title, ChurchSeries.createdAt)
+    // Grouping by the primary key would be enough for Postgres, but every
+    // selected column is listed for the same reason the original was: the next
+    // person to add one should not have to learn that rule to keep this working.
+    .groupBy(
+      ChurchSeries.id,
+      ChurchSeries.title,
+      ChurchSeries.color,
+      ChurchSeries.description,
+      ChurchSeries.createdAt,
+    )
     // NULLS LAST so a brand-new series with no sermons yet sits below the ones
     // actually being taught, rather than on top because MAX(date) is NULL.
     .orderBy(sql`max(${ChurchServices.serviceDate}) DESC NULLS LAST`, desc(ChurchSeries.createdAt));
@@ -91,6 +130,12 @@ export async function listSeriesForPlan(scope: SeriesScope): Promise<SerializedS
     id: row.id,
     title: row.title,
     serviceCount: Number(row.serviceCount ?? 0),
+    // Re-checked on the way out, not just on the way in: a token written before
+    // the palette last changed must not reach the client as a class name that
+    // resolves to nothing. An unrecognised value degrades to "not chosen",
+    // which the client already knows how to colour.
+    color: isSeriesColor(row.color) ? row.color : null,
+    description: row.description ?? null,
   }));
 }
 
@@ -247,29 +292,68 @@ export async function getSeriesWithServices(
 }
 
 /**
- * Rename inside the plan. Returns the reason on refusal so the route can pick a
- * status without re-deriving why.
+ * Edit a series inside the plan. Returns the reason on refusal so the route can
+ * pick a status without re-deriving why.
+ *
+ * Every field is optional and `undefined` means "leave it" — the same
+ * distinction `resolveSeriesForWrite` draws, so a colour change never has to
+ * resend a title and risk racing someone else's rename. `null` on `color` or
+ * `description` clears it; a title cannot be cleared, only replaced.
+ *
+ * This was `renameSeries`. It grew rather than gaining a sibling because the
+ * uniqueness check and the scoped `WHERE` are the parts worth having once, and
+ * a second writer touching the same row is how two sources of truth start.
  */
-export async function renameSeries(
+export async function updateSeries(
   scope: SeriesScope,
   seriesId: string,
-  title: string,
+  changes: {
+    title?: string;
+    color?: string | null;
+    description?: string | null;
+  },
 ): Promise<{ ok: true; series: ChurchSeriesRow } | { ok: false; code: string; error: string }> {
-  const trimmed = title.trim().slice(0, SERIES_TITLE_MAX);
-  if (!trimmed) return { ok: false, code: 'BAD_REQUEST', error: 'A series name is required' };
+  const patch: Partial<typeof ChurchSeries.$inferInsert> = {};
 
-  const clash = await findSeriesByTitle(scope, trimmed);
-  if (clash && clash !== seriesId) {
-    return {
-      ok: false,
-      code: 'SERIES_TITLE_TAKEN',
-      error: 'This plan already has a series with that name',
-    };
+  if (changes.title !== undefined) {
+    const trimmed = changes.title.trim().slice(0, SERIES_TITLE_MAX);
+    if (!trimmed) return { ok: false, code: 'BAD_REQUEST', error: 'A series name is required' };
+
+    const clash = await findSeriesByTitle(scope, trimmed);
+    if (clash && clash !== seriesId) {
+      return {
+        ok: false,
+        code: 'SERIES_TITLE_TAKEN',
+        error: 'This plan already has a series with that name',
+      };
+    }
+    patch.title = trimmed;
+  }
+
+  if (changes.color !== undefined) {
+    // Refused rather than silently dropped: a picker sending a colour this
+    // server does not know is a bug in the picker, and quietly storing null
+    // would show the pastor a colour they did not choose.
+    if (changes.color !== null && !isSeriesColor(changes.color)) {
+      return { ok: false, code: 'BAD_REQUEST', error: 'That is not a series colour' };
+    }
+    patch.color = changes.color;
+  }
+
+  if (changes.description !== undefined) {
+    const trimmed = changes.description?.trim().slice(0, SERIES_DESCRIPTION_MAX) ?? '';
+    // An empty description is an absent one. Storing '' would make every
+    // "does this series have a description" check a two-part test forever.
+    patch.description = trimmed || null;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return { ok: false, code: 'BAD_REQUEST', error: 'Nothing to change' };
   }
 
   const updated = await db
     .update(ChurchSeries)
-    .set({ title: trimmed, updatedAt: new Date() })
+    .set({ ...patch, updatedAt: new Date() })
     .where(and(eq(ChurchSeries.id, seriesId), scopeWhere(scope)))
     .returning();
   const row = first(updated);

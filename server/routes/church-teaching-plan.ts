@@ -20,7 +20,8 @@
  *   POST /api/church/services/update
  *   POST /api/church/services/repeat
  *   POST /api/church/services/delete
- *   POST /api/church/series/rename
+ *   POST /api/church/services/link-note
+ *   POST /api/church/series/update
  *   POST /api/church/series/delete
  */
 
@@ -54,7 +55,9 @@ import {
 import {
   assertCanManageTeachingPlan,
   assertCanViewTeachingPlan,
+  linkNoteToService,
   parseServiceDateInput,
+  resolveViewerPlannedNotes,
   type ChurchServiceRow,
 } from '../utils/church-teaching-plan';
 import {
@@ -69,7 +72,7 @@ import {
 import {
   deleteSeries,
   listSeriesForPlan,
-  renameSeries,
+  updateSeries,
   resolveSeriesForWrite,
   seriesTitlesByServiceRows,
 } from '../utils/church-series';
@@ -198,12 +201,16 @@ app.get('/api/church/services/plan', requireAuth, async (c) => {
     ]);
 
     const serviceIds = services.map((row) => row.id);
-    const [assignments, seriesTitles, attachments] = await Promise.all([
+    const [assignments, seriesTitles, attachments, viewerDrafts] = await Promise.all([
       serviceTimeIdsByService(serviceIds),
       seriesTitlesByServiceRows(services),
       /* Staff-gated read, so the resources a week draws on ride along rather
          than costing a request per row when the editor opens. */
       attachmentsByServiceIds(serviceIds),
+      /* The viewer's OWN sermon drafts, and only ever theirs — see
+         resolveViewerPlannedNotes. This is what turns "Write this sermon" into
+         "Open my draft" on a week they have already started. */
+      resolveViewerPlannedNotes(auth.userId, serviceIds),
     ]);
 
 
@@ -224,6 +231,12 @@ app.get('/api/church/services/plan', requireAuth, async (c) => {
       services: services.map((row) => ({
         ...serializeSermon(row, assignments.get(row.id) ?? [], seriesTitles),
         resources: attachments.get(row.id) ?? [],
+        /* Null for every week this viewer has not started, including ones a
+           colleague has. Never a count, never a name — see the helper. */
+        viewerDraftNoteId: viewerDrafts.get(row.id)?.noteId ?? null,
+        /* The note's own title, so the editor can name the linked note without
+           a second fetch — the picker's 30-row window may not contain it. */
+        viewerDraftNoteTitle: viewerDrafts.get(row.id)?.title ?? null,
       })),
       /*
         The church plan's own series, most recently *taught* first — what the
@@ -879,9 +892,88 @@ app.post('/api/church/services/delete', requireAuth, rateLimit('write'), async (
   }
 });
 
+// ─── The staff sermon draft ─────────────────────────────────────────────────
+/**
+ * POST /api/church/services/link-note — point one of your own notes at a week,
+ * or (with `noteId` and a null `serviceId`) let it go.
+ *
+ * **One endpoint serves both directions of the bridge.** "Write this sermon"
+ * creates a note the ordinary way and then links it; "Add to the teaching plan"
+ * creates a service through `/services/create` — with all of its date parsing,
+ * slot filtering, collision guards and series resolution — and then links it.
+ * A bespoke `create-from-note` would have had to restate every one of those
+ * rules, and the second copy is where they would drift.
+ *
+ * The two-call shape means a create can land and its link fail. That leaves a
+ * plan row the pastor can see and retry from — not a corrupt state — which is
+ * a better trade than a duplicated validator.
+ *
+ * Two gates, both required and neither sufficient: `assertCanManageTeachingPlan`
+ * for the plan side, and `linkNoteToService`'s own `userId` scope for the note
+ * side. Staff may not stamp a colleague's note, and an author may not stamp a
+ * plan they cannot manage.
+ */
+app.post('/api/church/services/link-note', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      orgId?: string;
+      noteId?: string;
+      /** Explicit null unlinks. An absent key is a bad request, not an unlink. */
+      serviceId?: string | null;
+    };
+
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? '').trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    const noteId = (body.noteId ?? '').trim();
+    if (!noteId) return c.json({ error: 'noteId is required', code: 'BAD_REQUEST' }, 400);
+    if (!('serviceId' in body)) {
+      return c.json({ error: 'serviceId is required', code: 'BAD_REQUEST' }, 400);
+    }
+
+    const serviceId = (body.serviceId ?? '').trim() || null;
+    if (serviceId) {
+      /* The row must be in *this church's own* plan. Without the scope check a
+         staffer could aim their note at a ministry's row, or another church's,
+         and the planner would then offer to open a draft from a plan that has
+         no idea it exists. */
+      const service = first(
+        await db
+          .select({ id: ChurchServices.id })
+          .from(ChurchServices)
+          .where(
+            and(
+              eq(ChurchServices.id, serviceId),
+              eq(ChurchServices.churchId, gate.church.id),
+              isNull(ChurchServices.spaceId),
+            ),
+          )
+          .limit(1),
+      );
+      if (!service) {
+        return c.json({ error: 'That sermon is not in this plan', code: 'NOT_FOUND' }, 404);
+      }
+    }
+
+    /* 404 rather than 403 on someone else's note: a stranger must not learn
+       that a note id exists. */
+    const linked = await linkNoteToService(auth.userId, noteId, serviceId);
+    if (!linked) return c.json({ error: 'Note not found', code: 'NOT_FOUND' }, 404);
+
+    return c.json({ success: true, noteId, serviceId });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/services/link-note',
+      action: 'link_sermon_draft',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── Series ─────────────────────────────────────────────────────────────────
 /**
- * Rename and delete only. There is no create endpoint on purpose: a series
+ * Update and delete only. There is no create endpoint on purpose: a series
  * comes into being by naming it on a sermon, which is how a pastor actually
  * thinks about it. An empty series with nothing under it is a form to fill in,
  * not a plan.
@@ -889,14 +981,21 @@ app.post('/api/church/services/delete', requireAuth, rateLimit('write'), async (
  * Both sit behind `assertCanManageTeachingPlan` — the plan's own gate, called
  * rather than copied, so the church series and the church sermons can never
  * drift apart on who may touch them.
+ *
+ * This was `/series/rename` and replaced it outright rather than gaining a
+ * sibling — one writer per row, the same clean-break discipline the schema
+ * takes. Every field is optional: an absent key means "leave it", so setting a
+ * colour never has to resend a title and race someone else's rename.
  */
-app.post('/api/church/series/rename', requireAuth, rateLimit('write'), async (c) => {
+app.post('/api/church/series/update', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = (await c.req.json().catch(() => ({}))) as {
       orgId?: string;
       seriesId?: string;
       title?: string;
+      color?: string | null;
+      description?: string | null;
     };
 
     const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? '').trim());
@@ -905,23 +1004,30 @@ app.post('/api/church/series/rename', requireAuth, rateLimit('write'), async (c)
     const seriesId = (body.seriesId ?? '').trim();
     if (!seriesId) return c.json({ error: 'seriesId is required', code: 'BAD_REQUEST' }, 400);
 
-    const result = await renameSeries(
-      { churchId: gate.church.id, spaceId: null },
-      seriesId,
-      String(body.title ?? ''),
-    );
+    const result = await updateSeries({ churchId: gate.church.id, spaceId: null }, seriesId, {
+      // `in` rather than `!== undefined` on the raw body, so an explicit
+      // `null` reaches the helper as "clear it" instead of "leave it".
+      ...('title' in body ? { title: String(body.title ?? '') } : {}),
+      ...('color' in body ? { color: body.color ?? null } : {}),
+      ...('description' in body ? { description: body.description ?? null } : {}),
+    });
     if (!result.ok) {
       const status = result.code === 'BAD_REQUEST' ? 400 : result.code === 'SERIES_NOT_FOUND' ? 404 : 409;
       return c.json({ error: result.error, code: result.code }, status);
     }
     return c.json({
       success: true,
-      series: { id: result.series.id, title: result.series.title },
+      series: {
+        id: result.series.id,
+        title: result.series.title,
+        color: result.series.color,
+        description: result.series.description,
+      },
     });
   } catch (error) {
     const standardError = handleAPIError(error, {
-      endpoint: '/api/church/series/rename',
-      action: 'rename_church_series',
+      endpoint: '/api/church/series/update',
+      action: 'update_church_series',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

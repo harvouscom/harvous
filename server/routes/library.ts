@@ -199,13 +199,24 @@ app.get('/api/library', requireAuth, async (c) => {
  *
  * Backs dock chips and `@` library mention pills. A pill carries only an id and
  * a frozen label, so this is where a stale or foreign reference fails closed.
+ *
+ * `resolveVisibleItem`, not `findOwnedItem`, for exactly the reason the sibling
+ * `/file` route was changed: a church or space item belongs to the church's
+ * library rather than to the person opening it, so an ownership test 404s every
+ * member — including the staffer who added it. The `/file` route was fixed when
+ * uploads shipped and this one was missed, which left the two halves of one item
+ * disagreeing: the download worked and the chip that offered it did not.
+ *
+ * "Fails closed" is unchanged and is what `resolveVisibleItem` is: personal
+ * ownership first, then the church rules the item itself declares — leaders-only
+ * and space scopes — and null for anyone outside them.
  */
 app.get('/api/library/items/:id', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const id = requireParam(c, 'id');
 
-    const item = await findOwnedItem(auth.userId, id);
+    const item = await resolveVisibleItem(auth.userId, id);
     if (!item) return c.json({ error: 'Library item not found', code: 'NOT_FOUND' }, 404);
 
     return c.json({ item: serializeItem(item), archived: item.archivedAt !== null });

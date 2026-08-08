@@ -173,3 +173,89 @@ export function sermonsInWeek<T extends PlannerSermonLike>(
   }
   return out;
 }
+
+/** One unbroken stretch of a single series, in slot indices. */
+export type SeriesRun = {
+  seriesId: string;
+  /** First slot this run occupies. */
+  startIndex: number;
+  /** Last slot, inclusive. Equal to `startIndex` for a one-slot run. */
+  endIndex: number;
+};
+
+/**
+ * Contiguous stretches of each series across an ordered row of slots.
+ *
+ * Deliberately slot-agnostic: a slot is a **day cell** on the calendar and a
+ * **week column** on the board, and both want the same answer — where does this
+ * run start, where does it stop. Keeping the shape abstract is what stops the
+ * two surfaces drifting into disagreeing about the extent of the same series,
+ * which is the bug the whole feature exists to avoid.
+ *
+ * Each slot carries *all* the series ids in it, not one: a church with a morning
+ * series and a different evening series has two sermons on one Sunday, which the
+ * schema calls ordinary rather than exotic. Runs are computed per series and may
+ * therefore overlap; the renderer decides how many to stack.
+ *
+ * **A gap ends a run.** A series preached weeks 1–2, interrupted by a guest
+ * speaker, then resumed weeks 4–5 yields two runs rather than one long band with
+ * a hole. That is the honest reading: the band claims "this is one continuous
+ * stretch of teaching", and week 3 was not.
+ *
+ * Ordered by start, then by series id, so a row renders the same way twice.
+ */
+export function buildSeriesRuns(slots: readonly (readonly string[])[]): SeriesRun[] {
+  const open = new Map<string, SeriesRun>();
+  const runs: SeriesRun[] = [];
+
+  slots.forEach((slot, index) => {
+    const present = new Set(slot);
+    // Close any run whose series is absent here before opening new ones, so a
+    // series that stops and restarts in adjacent slots cannot merge.
+    for (const [seriesId, run] of open) {
+      if (!present.has(seriesId)) {
+        runs.push(run);
+        open.delete(seriesId);
+      }
+    }
+    for (const seriesId of present) {
+      const run = open.get(seriesId);
+      if (run) run.endIndex = index;
+      else open.set(seriesId, { seriesId, startIndex: index, endIndex: index });
+    }
+  });
+
+  runs.push(...open.values());
+  return runs.sort(
+    (a, b) => a.startIndex - b.startIndex || a.seriesId.localeCompare(b.seriesId),
+  );
+}
+
+/**
+ * Series ids per day cell, for a row of the calendar month grid.
+ *
+ * Undated backlog rows never reach this — they are not in `byDate` — which is
+ * what keeps an uncommitted idea out of a run that claims a stretch of Sundays.
+ */
+export function seriesIdsByDay<T extends PlannerSermonLike & { seriesId?: string | null }>(
+  byDate: Map<string, T[]>,
+  isoDays: readonly string[],
+): string[][] {
+  return isoDays.map((iso) =>
+    (byDate.get(iso) ?? [])
+      .map((service) => service.seriesId)
+      .filter((id): id is string => Boolean(id)),
+  );
+}
+
+/** Series ids per week column, for the board's spine. */
+export function seriesIdsByWeek<T extends PlannerSermonLike & { seriesId?: string | null }>(
+  byDate: Map<string, T[]>,
+  weeks: readonly PlannerWeek[],
+): string[][] {
+  return weeks.map((week) =>
+    sermonsInWeek(byDate, week)
+      .map((service) => service.seriesId)
+      .filter((id): id is string => Boolean(id)),
+  );
+}

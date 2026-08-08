@@ -34,6 +34,17 @@ export type TeachingPlanSermon = {
   kind?: 'gathering' | 'content';
   /** Library items this entry draws on — staff prep, never congregant-facing. */
   resources?: AttachedResource[];
+  /**
+   * The **viewer's own** sermon draft for this week, or null.
+   *
+   * Never anyone else's, and there is no count: a colleague's draft is their
+   * private note, and surfacing that one exists would be the first
+   * church-facing read of note lineage. Optional so a payload cached before
+   * this shipped still parses.
+   */
+  viewerDraftNoteId?: string | null;
+  /** Its title, so the editor can name the linked note without a second fetch. */
+  viewerDraftNoteTitle?: string | null;
   /** Orders the planner's Ideas column. Optional so a payload cached before
    *  this shipped still parses. */
   createdAt?: string | null;
@@ -58,6 +69,14 @@ export type TeachingPlanSeries = {
   title: string;
   /** How many sermons sit under it; what makes the series worth opening. */
   serviceCount: number;
+  /**
+   * A thread-colour token, or null for "not chosen" — which is the common case.
+   * Never read this directly to draw with: `seriesAccent` in lib/church-services
+   * turns null into a stable derived colour, so an unset series still reads as
+   * one run rather than as no run.
+   */
+  color?: string | null;
+  description?: string | null;
 };
 
 export type TeachingPlanResponse = {
@@ -130,7 +149,17 @@ type SermonRepeat = {
 };
 
 type SeriesAction =
-  | { kind: 'series-rename'; seriesId: string; title: string }
+  /**
+   * Every field optional past the id: an absent key means "leave it", so
+   * recolouring never resends a title and races someone else's rename.
+   */
+  | {
+      kind: 'series-update';
+      seriesId: string;
+      title?: string;
+      color?: string | null;
+      description?: string | null;
+    }
   | { kind: 'series-delete'; seriesId: string };
 
 type SermonAction =
@@ -138,6 +167,8 @@ type SermonAction =
   | ({ kind: 'create' } & SermonDraft)
   | ({ kind: 'update'; serviceId: string } & Partial<SermonDraft>)
   | { kind: 'delete'; serviceId: string }
+  /** Point one of your own notes at a week, or pass null to let it go. */
+  | { kind: 'link-note'; noteId: string; serviceId: string | null }
   | SermonRepeat
   | SeriesAction;
 
@@ -167,10 +198,13 @@ export function useChurchSermonActions(orgId: string | null | undefined) {
             orgId: trimmedOrgId,
             ...rest,
           });
+        case 'link-note':
+          return api.post('/api/church/services/link-note', { orgId: trimmedOrgId, ...rest });
         // Series ride the same mutation because they invalidate the same
-        // queries — renaming one changes every sermon row that renders it.
-        case 'series-rename':
-          return api.post('/api/church/series/rename', { orgId: trimmedOrgId, ...rest });
+        // queries — renaming or recolouring one changes every sermon row and
+        // every run band that renders it.
+        case 'series-update':
+          return api.post('/api/church/series/update', { orgId: trimmedOrgId, ...rest });
         case 'series-delete':
           return api.post('/api/church/series/delete', { orgId: trimmedOrgId, ...rest });
       }

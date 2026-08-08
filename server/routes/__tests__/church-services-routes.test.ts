@@ -85,7 +85,7 @@ describe('staff writes (/api/church/services/*)', () => {
     ["app.post('/api/church/services/repeat'", 'assertCanManageTeachingPlan'],
     ["app.post('/api/church/services/delete'", 'assertCanManageTeachingPlan'],
     // Series ride the plan's own gate rather than growing one of their own.
-    ["app.post('/api/church/series/rename'", 'assertCanManageTeachingPlan'],
+    ["app.post('/api/church/series/update'", 'assertCanManageTeachingPlan'],
     ["app.post('/api/church/series/delete'", 'assertCanManageTeachingPlan'],
     // The read is deliberately the wider gate: `sermon_tools`, so a teacher
     // sees the plan they teach from, and no sponsorship check on a read.
@@ -154,7 +154,7 @@ describe('staff writes (/api/church/services/*)', () => {
       'services/update',
       'services/repeat',
       'services/delete',
-      'series/rename',
+      'series/update',
       'series/delete',
     ]) {
       const body = handlerBody(`app.post('/api/church/${path}'`);
@@ -169,7 +169,7 @@ describe('staff writes (/api/church/services/*)', () => {
       'services/update',
       'services/repeat',
       'services/delete',
-      'series/rename',
+      'series/update',
       'series/delete',
     ]) {
       const start = text.indexOf(`app.post('/api/church/${path}'`);
@@ -285,6 +285,60 @@ describe('privacy: no analytics on who took notes', () => {
       expect(code, path).not.toContain('startedFromServiceId');
       expect(code, path).not.toMatch(/\bNotes\b/);
     }
+  });
+
+  /*
+    The staff half of the same promise.
+
+    `plannedForServiceId` is the pastor writing a sermon, where
+    `startedFromServiceId` is the congregant receiving one. Opposite directions,
+    same rule: **only ever read scoped to the viewer's own userId.** A pastor may
+    see that they started a draft for a week; no route may tell them a colleague
+    has. Holding both columns to one discipline is what keeps "Review is never
+    shared" a property of the schema rather than of whoever wrote the last route.
+  */
+  it('keeps the staff draft column out of the route files entirely', () => {
+    for (const text of [churchRoutes(), staffRoutes()]) {
+      expect(withoutComments(text)).not.toContain('plannedForServiceId');
+    }
+  });
+
+  it('leaves the staff draft column with one viewer-scoped reader', () => {
+    const allowed = [
+      'server/utils/church-teaching-plan.ts', // resolveViewerPlannedNotes + linkNoteToService
+      'server/db/schema.ts',
+      'server/db/validate-schema.ts',
+      // Creates the column; it is DDL, not a read.
+      'server/scripts/add-series-presentation-schema.ts',
+    ];
+    const hits = execSync(
+      "grep -rl 'plannedForServiceId' server --include='*.ts' | grep -v '__tests__' || true",
+      { encoding: 'utf8' },
+    )
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .filter((file) => !allowed.includes(file))
+      .filter((file) => withoutComments(source(file)).includes('plannedForServiceId'));
+    expect(hits, `unexpected readers of the staff draft column: ${hits.join(', ')}`).toEqual([]);
+  });
+
+  it('scopes both of the lineage readers by the viewer', () => {
+    /*
+      The rule the two helpers exist to hold. A reader that dropped its userId
+      predicate would still compile, still return rows, and quietly turn a
+      private draft into a roster of who has written what.
+    */
+    const util = source('server/utils/church-teaching-plan.ts');
+    for (const helper of ['resolveViewerServiceNotes', 'resolveViewerPlannedNotes']) {
+      const start = util.indexOf(`export async function ${helper}`);
+      expect(start, `${helper} missing`).toBeGreaterThan(-1);
+      const body = util.slice(start, util.indexOf('\nexport ', start + 1));
+      expect(body, `${helper} is not viewer-scoped`).toContain('eq(Notes.userId, userId)');
+    }
+    // The write is scoped too: nothing may stamp somebody else's note.
+    const link = util.slice(util.indexOf('export async function linkNoteToService'));
+    expect(link).toContain('eq(Notes.userId, userId)');
   });
 
   it('leaves the lineage column with exactly one reader in the whole server', () => {

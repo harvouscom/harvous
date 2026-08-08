@@ -211,6 +211,81 @@ export async function resolveViewerServiceNotes(
   return map;
 }
 
+/**
+ * Map of serviceId → the viewer's own sermon draft written **for** it.
+ *
+ * The staff mirror of `resolveViewerServiceNotes` above, and held to the same
+ * rule for the same reason: **ALWAYS scoped by `userId`.** A pastor may learn
+ * that *they* started a draft for a week; no route may tell them that a
+ * colleague did. A teaching team where each person's private drafts are visible
+ * to the others is a different product decision from this one, and would be the
+ * first church-facing read of note lineage — which the contract test forbids
+ * outright. Phase 2's prep space is the sanctioned route to team visibility:
+ * people opt in by authoring in a shared room.
+ *
+ * Distinct from `startedFromServiceId`, which is the congregant receiving a
+ * sermon. This is the staff member writing one. See the column docblock.
+ */
+export async function resolveViewerPlannedNotes(
+  userId: string,
+  serviceIds: string[],
+): Promise<Map<string, { noteId: string; title: string | null }>> {
+  const ids = serviceIds.filter(Boolean);
+  if (ids.length === 0) return new Map();
+
+  const rows = await db
+    .select({ noteId: Notes.id, title: Notes.title, serviceId: Notes.plannedForServiceId })
+    .from(Notes)
+    .where(
+      and(
+        eq(Notes.userId, userId),
+        isNotNull(Notes.plannedForServiceId),
+        inArray(Notes.plannedForServiceId, ids),
+      ),
+    );
+
+  /*
+    First row wins, and the editor's job is to make sure there is only ever one.
+    `plannedForServiceId` is a column rather than a join row, so nothing here can
+    stop a second note pointing at the same service — `planSermonNoteLink` on the
+    client clears the old link before writing the new one. If a duplicate ever
+    does appear, this returns an arbitrary one of the two rather than failing,
+    which is the right failure mode for a read that only ever reports to the
+    author about their own notes.
+  */
+  const map = new Map<string, { noteId: string; title: string | null }>();
+  for (const row of rows) {
+    if (row.serviceId && !map.has(row.serviceId)) {
+      map.set(row.serviceId, { noteId: row.noteId, title: row.title });
+    }
+  }
+  return map;
+}
+
+/**
+ * Point one of the caller's own notes at a plan row, or clear it.
+ *
+ * Scoped by `userId` on the write as well as the read: the link is the author's
+ * statement about their own note, and nothing may stamp somebody else's. Returns
+ * false when the note is not theirs, which the route turns into a 404 rather
+ * than a 403 — a stranger should not learn a note id exists.
+ *
+ * Callers gate the *plan* side first (`assertCanManage*TeachingPlan`); this
+ * function owns only the note side.
+ */
+export async function linkNoteToService(
+  userId: string,
+  noteId: string,
+  serviceId: string | null,
+): Promise<boolean> {
+  const updated = await db
+    .update(Notes)
+    .set({ plannedForServiceId: serviceId })
+    .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)))
+    .returning({ id: Notes.id });
+  return updated.length > 0;
+}
+
 /*
  * `deriveSeriesTitles` lived here — distinct `seriesTitle` strings, most
  * recently dated first, to power the editor's picker. It is gone with the

@@ -26,7 +26,8 @@
  *   POST /api/church/spaces/:spaceId/services/update
  *   POST /api/church/spaces/:spaceId/services/repeat
  *   POST /api/church/spaces/:spaceId/services/delete
- *   POST /api/church/spaces/:spaceId/series/rename
+ *   POST /api/church/spaces/:spaceId/services/link-note
+ *   POST /api/church/spaces/:spaceId/series/update
  *   POST /api/church/spaces/:spaceId/series/delete
  */
 
@@ -37,6 +38,10 @@ import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
 import { isUniqueViolation } from '../utils/db-unique-violation';
 import { canonicalizeServiceReference } from '../utils/church-service-passage';
+import {
+  linkNoteToService,
+  resolveViewerPlannedNotes,
+} from '../utils/church-teaching-plan';
 import {
   assertCanManageSpaceTeachingPlan,
   assertCanViewSpaceTeachingPlan,
@@ -55,7 +60,7 @@ import {
 import {
   deleteSeries,
   listSeriesForPlan,
-  renameSeries,
+  updateSeries,
   resolveSeriesForWrite,
   seriesTitlesByServiceRows,
 } from '../utils/church-series';
@@ -170,8 +175,13 @@ app.get('/api/church/spaces/:spaceId/plan', requireAuth, async (c) => {
       listSeriesForPlan(scope),
     ]);
 
+    const serviceIds = services.map((row) => row.id);
     const seriesTitles = await seriesTitlesByServiceRows(services);
-    const attachments = await attachmentsByServiceIds(services.map((row) => row.id));
+    const attachments = await attachmentsByServiceIds(serviceIds);
+    /* The viewer's OWN drafts, never anyone else's — same rule and same helper
+       as the church plan. A granted volunteer leader reaches this endpoint, so
+       "only ever theirs" matters here more, not less. */
+    const viewerDrafts = await resolveViewerPlannedNotes(auth.userId, serviceIds);
 
     return c.json({
       church: { id: gate.church.id, name: gate.church.name },
@@ -195,6 +205,10 @@ app.get('/api/church/spaces/:spaceId/plan', requireAuth, async (c) => {
       services: services.map((row) => ({
         ...serializeSpaceSermon(row, seriesTitles),
         resources: attachments.get(row.id) ?? [],
+        viewerDraftNoteId: viewerDrafts.get(row.id)?.noteId ?? null,
+        /* The note's own title, so the editor can name the linked note without
+           a second fetch — the picker's 30-row window may not contain it. */
+        viewerDraftNoteTitle: viewerDrafts.get(row.id)?.title ?? null,
       })),
       // Per-plan vocabulary: Youth's series and the church's stay separate — the
       // scope is what keeps a volunteer leader out of the main service's rows.
@@ -624,41 +638,114 @@ app.post('/api/church/spaces/:spaceId/services/delete', requireAuth, rateLimit('
   }
 });
 
-// ─── Series ─────────────────────────────────────────────────────────────────
+// ─── The staff sermon draft ─────────────────────────────────────────────────
 /**
- * The space's own series, under the space's own gate. Rename and delete only,
- * for the same reason as the church plan: a series is born by naming it on a
- * gathering.
+ * The space mirror of `/api/church/services/link-note`, under the space plan's
+ * own gate — so a granted volunteer leader may write a draft for the ministry
+ * they run without holding any church capability.
  *
- * `assertCanManageSpaceTeachingPlan` is the widened OR — a granted volunteer
- * leader may rename Youth's series. That is exactly why `ChurchSeries` is
- * plan-scoped: the same person aimed at a church-plan series gets
- * SERIES_NOT_FOUND from `renameSeries`, not a 403 they could probe around.
+ * The row must be in *this space's* plan, which is what stops a leader aiming
+ * their note at the main service's Sunday.
  */
-app.post('/api/church/spaces/:spaceId/series/rename', requireAuth, rateLimit('write'), async (c) => {
+app.post('/api/church/spaces/:spaceId/services/link-note', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param('spaceId') ?? '');
     if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
 
-    const body = (await c.req.json().catch(() => ({}))) as { seriesId?: string; title?: string };
+    const body = (await c.req.json().catch(() => ({}))) as {
+      noteId?: string;
+      serviceId?: string | null;
+    };
+    const noteId = (body.noteId ?? '').trim();
+    if (!noteId) return c.json({ error: 'noteId is required', code: 'BAD_REQUEST' }, 400);
+    if (!('serviceId' in body)) {
+      return c.json({ error: 'serviceId is required', code: 'BAD_REQUEST' }, 400);
+    }
+
+    const serviceId = (body.serviceId ?? '').trim() || null;
+    if (serviceId) {
+      const service = first(
+        await db
+          .select({ id: ChurchServices.id })
+          .from(ChurchServices)
+          .where(
+            and(eq(ChurchServices.id, serviceId), eq(ChurchServices.spaceId, gate.space.id)),
+          )
+          .limit(1),
+      );
+      if (!service) {
+        return c.json({ error: 'That entry is not in this plan', code: 'NOT_FOUND' }, 404);
+      }
+    }
+
+    const linked = await linkNoteToService(auth.userId, noteId, serviceId);
+    if (!linked) return c.json({ error: 'Note not found', code: 'NOT_FOUND' }, 404);
+
+    return c.json({ success: true, noteId, serviceId });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/spaces/[spaceId]/services/link-note',
+      action: 'link_space_sermon_draft',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── Series ─────────────────────────────────────────────────────────────────
+/**
+ * The space's own series, under the space's own gate. Update and delete only,
+ * for the same reason as the church plan: a series is born by naming it on a
+ * gathering.
+ *
+ * `assertCanManageSpaceTeachingPlan` is the widened OR — a granted volunteer
+ * leader may recolour and rename Youth's series. That is exactly why
+ * `ChurchSeries` is plan-scoped: the same person aimed at a church-plan series
+ * gets SERIES_NOT_FOUND from `updateSeries`, not a 403 they could probe around.
+ */
+app.post('/api/church/spaces/:spaceId/series/update', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param('spaceId') ?? '');
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    const body = (await c.req.json().catch(() => ({}))) as {
+      seriesId?: string;
+      title?: string;
+      color?: string | null;
+      description?: string | null;
+    };
     const seriesId = (body.seriesId ?? '').trim();
     if (!seriesId) return c.json({ error: 'seriesId is required', code: 'BAD_REQUEST' }, 400);
 
-    const result = await renameSeries(
+    const result = await updateSeries(
       { churchId: gate.church.id, spaceId: gate.space.id },
       seriesId,
-      String(body.title ?? ''),
+      {
+        // `in` rather than `!== undefined`, so an explicit null clears rather
+        // than being read as "leave it". Same shape as the church plan's.
+        ...('title' in body ? { title: String(body.title ?? '') } : {}),
+        ...('color' in body ? { color: body.color ?? null } : {}),
+        ...('description' in body ? { description: body.description ?? null } : {}),
+      },
     );
     if (!result.ok) {
       const status = result.code === 'BAD_REQUEST' ? 400 : result.code === 'SERIES_NOT_FOUND' ? 404 : 409;
       return c.json({ error: result.error, code: result.code }, status);
     }
-    return c.json({ success: true, series: { id: result.series.id, title: result.series.title } });
+    return c.json({
+      success: true,
+      series: {
+        id: result.series.id,
+        title: result.series.title,
+        color: result.series.color,
+        description: result.series.description,
+      },
+    });
   } catch (error) {
     const standardError = handleAPIError(error, {
-      endpoint: '/api/church/spaces/[spaceId]/series/rename',
-      action: 'rename_church_space_series',
+      endpoint: '/api/church/spaces/[spaceId]/series/update',
+      action: 'update_church_space_series',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

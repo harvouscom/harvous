@@ -41,6 +41,9 @@ import ProtoConfirmDialog from './ProtoConfirmDialog';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import SharedNoteActivityPanel from './SharedNoteActivityPanel';
 import PrototypeInspectorTemplatesSection from './PrototypeInspectorTemplatesSection';
+import PrototypeInspectorTeachingPlanSection, {
+  type PrototypeInspectorTeachingPlanSectionProps,
+} from './PrototypeInspectorTeachingPlanSection';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { PrototypeSectionHeader } from './design-system';
 import { noteParamSlug } from './proto-route-slugs';
@@ -85,6 +88,12 @@ interface PrototypeInspectorPaneProps {
   /** Draft compose — light inspector (Templates + muted Info). */
   isDraftCompose?: boolean;
   templates?: PrototypeInspectorTemplatesProps | null;
+  /**
+   * Present only for a viewer the server says holds `manage_teaching_plan`.
+   * Null for everyone else, which is what keeps sermon tooling out of the
+   * general note inspector.
+   */
+  teachingPlan?: PrototypeInspectorTeachingPlanSectionProps | null;
 }
 
 export const REMOVE_NOTE_FROM_SPACE_CONFIRMATION = SHARED_REMOVE_NOTE_FROM_SPACE_CONFIRMATION;
@@ -113,6 +122,7 @@ export default function PrototypeInspectorPane({
   activeActivityId = null,
   isDraftCompose = false,
   templates = null,
+  teachingPlan = null,
 }: PrototypeInspectorPaneProps) {
   const { userId: authUserId } = useAuth();
   const queryClient = useQueryClient();
@@ -313,6 +323,10 @@ export default function PrototypeInspectorPane({
       </section>
 
       {templates ? <PrototypeInspectorTemplatesSection {...templates} /> : null}
+
+      {/* Staff only, and only ever present when the *server* said so — see the
+          section's own docblock. Absent for every general user. */}
+      {teachingPlan ? <PrototypeInspectorTeachingPlanSection {...teachingPlan} /> : null}
 
       {showActivityPanel && !isDraftCompose ? (
         <SharedNoteActivityPanel
