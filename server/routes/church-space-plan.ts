@@ -27,6 +27,8 @@
  *   POST /api/church/spaces/:spaceId/services/repeat
  *   POST /api/church/spaces/:spaceId/services/delete
  *   POST /api/church/spaces/:spaceId/services/link-note
+ *   POST /api/church/spaces/:spaceId/series/create
+ *   POST /api/church/spaces/:spaceId/series/rerun
  *   POST /api/church/spaces/:spaceId/series/update
  *   POST /api/church/spaces/:spaceId/series/delete
  */
@@ -58,12 +60,21 @@ import {
   weeklyDatesAfter,
 } from '../utils/church-sermon-repeat';
 import {
+  createSeries,
   deleteSeries,
+  getSeriesWithServices,
   listSeriesForPlan,
   updateSeries,
   resolveSeriesForWrite,
   seriesTitlesByServiceRows,
 } from '../utils/church-series';
+import {
+  DEFAULT_RERUN_COPY,
+  buildRerunRows,
+  rerunDatesFor,
+  runLabelForDate,
+  type RerunCopyFlags,
+} from '../utils/church-series-rerun';
 
 const app = new Hono();
 
@@ -693,6 +704,216 @@ app.post('/api/church/spaces/:spaceId/services/link-note', requireAuth, rateLimi
 });
 
 // ─── Series ─────────────────────────────────────────────────────────────────
+/**
+ * The space's own series create + re-run, under the space plan's gate — so a
+ * granted volunteer leader can plan their ministry's seasons without holding
+ * any church capability.
+ *
+ * Simpler than the church's mirror in one way that matters: a space gathers
+ * once, at its own `meetingTime`, so there are no service-time slots to copy
+ * and no slot collision to stop on. What can collide is
+ * `ChurchServices_space_date_unique` — one gathering per date — and the re-run
+ * stops at the first of those for the same reason the church one does.
+ */
+app.post('/api/church/spaces/:spaceId/series/create', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param('spaceId') ?? '');
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    const body = (await c.req.json().catch(() => ({}))) as {
+      title?: string;
+      color?: string | null;
+      description?: string | null;
+      firstDate?: string | null;
+    };
+    const scope = { churchId: gate.church.id, spaceId: gate.space.id };
+    const parsedDate = parseServiceDateInput(body.firstDate ?? null);
+    if (!parsedDate.ok) return c.json({ error: parsedDate.reason, code: 'BAD_REQUEST' }, 400);
+    const firstDate = parsedDate.kind === 'date' ? parsedDate.value : null;
+
+    const created = await createSeries(
+      scope,
+      {
+        title: String(body.title ?? ''),
+        color: body.color ?? null,
+        description: body.description ?? null,
+      },
+      auth.userId,
+    );
+    if (!created.ok) {
+      return c.json(
+        { error: created.error, code: created.code },
+        created.code === 'SERIES_TITLE_TAKEN' ? 409 : 400,
+      );
+    }
+
+    let serviceId: string | null = null;
+    if (firstDate) {
+      try {
+        const row = first(
+          await db
+            .insert(ChurchServices)
+            .values({
+              id: `svc_${crypto.randomUUID()}`,
+              churchId: gate.church.id,
+              spaceId: gate.space.id,
+              serviceDate: firstDate,
+              serviceTime: null,
+              title: created.series.title,
+              seriesId: created.series.id,
+              reference: null,
+              starterTemplateId: null,
+              kind: planKindForSpace(gate.space),
+              createdBy: auth.userId,
+              updatedBy: null,
+              createdAt: new Date(),
+              updatedAt: null,
+            })
+            .returning(),
+        );
+        serviceId = row?.id ?? null;
+      } catch (error) {
+        if (!isUniqueViolation(error, 'ChurchServices_space_date_unique')) throw error;
+        /* The series is real and the date was taken — say so rather than
+           rolling back a series the pastor did ask for. */
+        return c.json({
+          success: true,
+          series: {
+            id: created.series.id,
+            title: created.series.title,
+            color: created.series.color,
+            description: created.series.description,
+            runLabel: created.series.runLabel,
+          },
+          serviceId: null,
+          dateTaken: firstDate,
+        });
+      }
+    }
+
+    return c.json({
+      success: true,
+      series: {
+        id: created.series.id,
+        title: created.series.title,
+        color: created.series.color,
+        description: created.series.description,
+        runLabel: created.series.runLabel,
+      },
+      serviceId,
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/spaces/[spaceId]/series/create',
+      action: 'create_church_space_series',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+app.post('/api/church/spaces/:spaceId/series/rerun', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gate = await assertCanManageSpaceTeachingPlan(auth.userId, c.req.param('spaceId') ?? '');
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    const body = (await c.req.json().catch(() => ({}))) as {
+      sourceSeriesId?: string;
+      startDate?: string;
+      runLabel?: string;
+      copy?: Partial<RerunCopyFlags>;
+    };
+    const scope = { churchId: gate.church.id, spaceId: gate.space.id };
+    const sourceId = (body.sourceSeriesId ?? '').trim();
+    if (!sourceId) return c.json({ error: 'sourceSeriesId is required', code: 'BAD_REQUEST' }, 400);
+
+    const parsedStart = parseServiceDateInput(body.startDate ?? null);
+    if (!parsedStart.ok || parsedStart.kind !== 'date') {
+      return c.json({ error: 'startDate must be YYYY-MM-DD', code: 'BAD_REQUEST' }, 400);
+    }
+
+    const source = await getSeriesWithServices(scope, sourceId);
+    if (!source) {
+      return c.json({ error: 'That series is not in this plan', code: 'SERIES_NOT_FOUND' }, 404);
+    }
+
+    const dates = rerunDatesFor(source.services.map((s) => s.serviceDate), parsedStart.value);
+    if (!dates) {
+      return c.json({ error: 'That series has no dated weeks to copy', code: 'NOTHING_TO_COPY' }, 400);
+    }
+
+    const copy = { ...DEFAULT_RERUN_COPY, ...(body.copy ?? {}) };
+    const newLabel = (body.runLabel ?? '').trim() || runLabelForDate(parsedStart.value);
+
+    const created = await createSeries(
+      scope,
+      {
+        title: source.series.title,
+        color: source.series.color,
+        description: source.series.description,
+        runLabel: newLabel,
+      },
+      auth.userId,
+    );
+    if (!created.ok) {
+      return c.json(
+        { error: created.error, code: created.code },
+        created.code === 'SERIES_TITLE_TAKEN' ? 409 : 400,
+      );
+    }
+
+    if (!source.series.runLabel) {
+      const sourceLabel = runLabelForDate(
+        source.services.map((s) => s.serviceDate).filter(Boolean).sort()[0] ?? null,
+      );
+      if (sourceLabel && sourceLabel !== newLabel) {
+        await updateSeries(scope, source.series.id, { runLabel: sourceLabel });
+      }
+    }
+
+    const rows = buildRerunRows({
+      source: source.services,
+      dates,
+      seriesId: created.series.id,
+      seriesTitle: created.series.title,
+      churchId: gate.church.id,
+      spaceId: gate.space.id,
+      copy,
+      userId: auth.userId,
+      now: new Date(),
+    });
+
+    let createdCount = 0;
+    let stoppedAt: string | null = null;
+    for (const row of rows) {
+      try {
+        await db.insert(ChurchServices).values({ ...row, kind: planKindForSpace(gate.space) });
+        createdCount += 1;
+      } catch (error) {
+        if (isUniqueViolation(error, 'ChurchServices_space_date_unique')) {
+          stoppedAt = row.serviceDate ?? null;
+          break;
+        }
+        throw error;
+      }
+    }
+
+    return c.json({
+      success: true,
+      series: { id: created.series.id, title: created.series.title, runLabel: created.series.runLabel },
+      created: createdCount,
+      stoppedAt,
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/spaces/[spaceId]/series/rerun',
+      action: 'rerun_church_space_series',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 /**
  * The space's own series, under the space's own gate. Update and delete only,
  * for the same reason as the church plan: a series is born by naming it on a

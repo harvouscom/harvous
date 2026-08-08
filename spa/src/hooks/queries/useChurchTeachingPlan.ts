@@ -77,6 +77,12 @@ export type TeachingPlanSeries = {
    */
   color?: string | null;
   description?: string | null;
+  /**
+   * Which run of a recurring series this is — "2027", or null when the name has
+   * no sibling. Render it only when the plan holds more than one series of this
+   * title; a church that never re-runs anything should never see a label.
+   */
+  runLabel?: string | null;
 };
 
 export type TeachingPlanResponse = {
@@ -149,6 +155,27 @@ type SermonRepeat = {
 };
 
 type SeriesAction =
+  /** Name a series before any week exists. `firstDate` opens it with one. */
+  | {
+      kind: 'series-create';
+      title: string;
+      color?: string | null;
+      description?: string | null;
+      firstDate?: string | null;
+    }
+  /** Teach a finished series again on new dates — the seasonal case. */
+  | {
+      kind: 'series-rerun';
+      sourceSeriesId: string;
+      startDate: string;
+      runLabel?: string;
+      copy?: {
+        titles?: boolean;
+        references?: boolean;
+        starterTemplate?: boolean;
+        resources?: boolean;
+      };
+    }
   /**
    * Every field optional past the id: an absent key means "leave it", so
    * recolouring never resends a title and races someone else's rename.
@@ -203,6 +230,10 @@ export function useChurchSermonActions(orgId: string | null | undefined) {
         // Series ride the same mutation because they invalidate the same
         // queries — renaming or recolouring one changes every sermon row and
         // every run band that renders it.
+        case 'series-create':
+          return api.post('/api/church/series/create', { orgId: trimmedOrgId, ...rest });
+        case 'series-rerun':
+          return api.post('/api/church/series/rerun', { orgId: trimmedOrgId, ...rest });
         case 'series-update':
           return api.post('/api/church/series/update', { orgId: trimmedOrgId, ...rest });
         case 'series-delete':

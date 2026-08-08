@@ -40,31 +40,72 @@ export default function PrototypePlannerSeries({
   services,
   accentFor,
   openSeriesId,
+  canWrite,
   onOpen,
+  onNewSeries,
 }: {
   series: TeachingPlanSeries[];
   services: TeachingPlanSermon[];
   accentFor: (seriesId: string | null | undefined) => SpaceCoverPickerColor | null;
   openSeriesId: string | null;
+  canWrite: boolean;
   onOpen: (series: TeachingPlanSeries) => void;
+  onNewSeries: () => void;
 }) {
   const runs = seriesRunsByServiceRows(services);
+
+  /*
+    Which titles this plan holds more than once. A run label is shown only where
+    it disambiguates — a church with a single "Advent" should never meet the
+    concept, and one with two should never be asked to tell them apart by date
+    alone.
+  */
+  const repeatedTitles = new Set(
+    series
+      .map((entry) => entry.title.trim().toLowerCase())
+      .filter((title, i, all) => all.indexOf(title) !== i),
+  );
 
   if (series.length === 0) {
     return (
       <PrototypeListEmptyState
         iconName="layer-group"
         title="No series yet"
-        /* Says how one comes into being, because there is no "create series"
-           button anywhere and there deliberately never was: a series is born by
-           naming it on a sermon. */
-        description="Name a series on a sermon and its weeks collect here."
+        description={
+          canWrite
+            ? 'Start one here, or name a series on a sermon and its weeks collect under it.'
+            : 'A series appears here once someone names one on a sermon.'
+        }
+        action={
+          canWrite ? (
+            <button
+              type="button"
+              className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+              onClick={onNewSeries}
+            >
+              <Icon name="plus" size={12} aria-hidden />
+              <span className="proto-glass-action__label">New series</span>
+            </button>
+          ) : undefined
+        }
       />
     );
   }
 
   return (
     <div className="proto-planner-list">
+      {canWrite ? (
+        <div className="proto-planner-series__actions">
+          <button
+            type="button"
+            className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+            onClick={onNewSeries}
+          >
+            <Icon name="plus" size={12} aria-hidden />
+            <span className="proto-glass-action__label">New series</span>
+          </button>
+        </div>
+      ) : null}
       <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
         {series.map((entry) => {
           const run = runs.get(entry.id);
@@ -102,7 +143,13 @@ export default function PrototypePlannerSeries({
                   className="pds-list-title proto-church-tools__row-title proto-marquee"
                   title={entry.title}
                 >
-                  <span>{entry.title}</span>
+                  <span>
+                    {entry.title}
+                    {/* Only when this plan holds another run of the same name. */}
+                    {entry.runLabel && repeatedTitles.has(entry.title.trim().toLowerCase()) ? (
+                      <span className="proto-planner-series__run"> · {entry.runLabel}</span>
+                    ) : null}
+                  </span>
                 </span>
                 <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                   {/* The tile answers when it starts, the span how far it runs,

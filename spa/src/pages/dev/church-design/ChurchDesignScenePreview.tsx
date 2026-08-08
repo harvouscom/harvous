@@ -1360,7 +1360,9 @@ function PlannerScene({ view, canWrite = true }: { view: PlannerView; canWrite?:
               services={services}
               accentFor={accentFor}
               openSeriesId={null}
+              canWrite={canWrite}
               onOpen={noop}
+              onNewSeries={noop}
             />
           )}
         </div>

@@ -13856,6 +13856,34 @@ p.proto-teaching-plan__divider {
   max-height: 320px;
 }
 
+/* New-series form and the Series view's own action row. Both sit inside the
+   planner's list wrapper, so they inherit its padding and need only rhythm. */
+.proto-planner-series__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 0 var(--pds-space-2);
+}
+
+.proto-planner-new-series {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-2);
+  max-width: 420px;
+}
+
+.proto-planner-new-series__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  cursor: pointer;
+}
+
+/* The run label beside a repeated series name — tertiary, because which run it
+   is matters less than which study it is. */
+.proto-planner-series__run {
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
 /* ── Series accent ──────────────────────────────────────────────────────────
    One colour per series, exposed as a custom property so a card, a date tile,
    a run band, and a lane swatch all draw the same run in the same hue without

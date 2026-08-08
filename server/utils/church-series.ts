@@ -336,6 +336,8 @@ export async function updateSeries(
     title?: string;
     color?: string | null;
     description?: string | null;
+    /** Set when a second run of this name appears — see the column docblock. */
+    runLabel?: string | null;
   },
 ): Promise<{ ok: true; series: ChurchSeriesRow } | { ok: false; code: string; error: string }> {
   const patch: Partial<typeof ChurchSeries.$inferInsert> = {};
@@ -363,6 +365,10 @@ export async function updateSeries(
       return { ok: false, code: 'BAD_REQUEST', error: 'That is not a series colour' };
     }
     patch.color = changes.color;
+  }
+
+  if (changes.runLabel !== undefined) {
+    patch.runLabel = changes.runLabel?.trim().slice(0, 40) || null;
   }
 
   if (changes.description !== undefined) {
@@ -420,4 +426,111 @@ export async function deleteSeries(
     await tx.delete(ChurchSeries).where(eq(ChurchSeries.id, seriesId));
   });
   return { ok: true, detached };
+}
+
+/**
+ * Create a named series outright, rather than as a side effect of a sermon.
+ *
+ * The design deliberately had no create path: a series was born by naming it on
+ * a sermon, and "an empty series with nothing under it is a form to fill in,
+ * not a plan." That reasoning holds for the *accidental* empty series and is
+ * why `findOrCreateSeries` still exists — but it withheld something a pastor
+ * genuinely wants, which is to decide "we are doing eight weeks in Romans this
+ * autumn" before any single week exists. A zero-sermon series was already a
+ * state every read path rendered (`listSeriesForPlan` LEFT JOINs and orders
+ * NULLS LAST so a brand-new one sits below); only the door was missing.
+ *
+ * Unlike `findOrCreateSeries` this **refuses a name already in use** rather
+ * than returning it. The two have opposite jobs: that one resolves a typed name
+ * onto whatever it matches, this one asserts a new thing exists, and silently
+ * handing back somebody else's series would make "New series" a lie.
+ *
+ * `runLabel` is accepted so a re-run can mint its second Advent through the
+ * same path; it participates in uniqueness, so "Advent" and "Advent 2027" are
+ * different names as far as this is concerned.
+ */
+export async function createSeries(
+  scope: SeriesScope,
+  input: { title: string; color?: string | null; description?: string | null; runLabel?: string | null },
+  userId: string,
+  executor: Executor = db,
+): Promise<
+  { ok: true; series: ChurchSeriesRow } | { ok: false; code: string; error: string }
+> {
+  const title = input.title.trim().slice(0, SERIES_TITLE_MAX);
+  if (!title) return { ok: false, code: 'BAD_REQUEST', error: 'A series name is required' };
+  if (input.color != null && !isSeriesColor(input.color)) {
+    return { ok: false, code: 'BAD_REQUEST', error: 'That is not a series color' };
+  }
+  const runLabel = input.runLabel?.trim().slice(0, 40) || null;
+
+  /*
+    Checked before inserting so the common case gets the readable error, and
+    caught below anyway because the index is the real guard — two staff naming
+    the same series at once both find nothing here.
+  */
+  const clash = await findSeriesByRun(scope, title, runLabel, executor);
+  if (clash) {
+    return {
+      ok: false,
+      code: 'SERIES_TITLE_TAKEN',
+      error: runLabel
+        ? `This plan already has a "${title}" run called ${runLabel}`
+        : `This plan already has a series called "${title}"`,
+    };
+  }
+
+  const inserted = first(
+    await executor
+      .insert(ChurchSeries)
+      .values({
+        id: `csrs_${crypto.randomUUID()}`,
+        churchId: scope.churchId,
+        spaceId: scope.spaceId,
+        title,
+        color: input.color ?? null,
+        description: input.description?.trim().slice(0, SERIES_DESCRIPTION_MAX) || null,
+        runLabel,
+        createdBy: userId,
+        createdAt: new Date(),
+        updatedAt: null,
+      })
+      .onConflictDoNothing()
+      .returning(),
+  );
+  if (!inserted) {
+    // Lost the race; the winner's row is the answer, but this caller asked to
+    // *create* one, so it is still a refusal rather than a silent reuse.
+    return {
+      ok: false,
+      code: 'SERIES_TITLE_TAKEN',
+      error: `This plan already has a series called "${title}"`,
+    };
+  }
+  return { ok: true, series: inserted };
+}
+
+/** One series by name **and** run label — the uniqueness the index enforces. */
+async function findSeriesByRun(
+  scope: SeriesScope,
+  title: string,
+  runLabel: string | null,
+  executor: Executor = db,
+): Promise<string | null> {
+  const row = first(
+    await executor
+      .select({ id: ChurchSeries.id })
+      .from(ChurchSeries)
+      .where(
+        and(
+          scopeWhere(scope),
+          sql`lower(${ChurchSeries.title}) = lower(${title})`,
+          runLabel === null
+            ? isNull(ChurchSeries.runLabel)
+            : sql`lower(${ChurchSeries.runLabel}) = lower(${runLabel})`,
+        ),
+      )
+      .limit(1),
+  );
+  return row?.id ?? null;
 }

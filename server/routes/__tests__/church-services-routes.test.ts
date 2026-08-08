@@ -85,6 +85,8 @@ describe('staff writes (/api/church/services/*)', () => {
     ["app.post('/api/church/services/repeat'", 'assertCanManageTeachingPlan'],
     ["app.post('/api/church/services/delete'", 'assertCanManageTeachingPlan'],
     // Series ride the plan's own gate rather than growing one of their own.
+    ["app.post('/api/church/series/create'", 'assertCanManageTeachingPlan'],
+    ["app.post('/api/church/series/rerun'", 'assertCanManageTeachingPlan'],
     ["app.post('/api/church/series/update'", 'assertCanManageTeachingPlan'],
     ["app.post('/api/church/series/delete'", 'assertCanManageTeachingPlan'],
     // The read is deliberately the wider gate: `sermon_tools`, so a teacher
@@ -154,6 +156,8 @@ describe('staff writes (/api/church/services/*)', () => {
       'services/update',
       'services/repeat',
       'services/delete',
+      'series/create',
+      'series/rerun',
       'series/update',
       'series/delete',
     ]) {
@@ -169,6 +173,8 @@ describe('staff writes (/api/church/services/*)', () => {
       'services/update',
       'services/repeat',
       'services/delete',
+      'series/create',
+      'series/rerun',
       'series/update',
       'series/delete',
     ]) {

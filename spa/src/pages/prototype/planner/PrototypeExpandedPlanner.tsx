@@ -37,6 +37,7 @@ import PrototypePlannerList from './PrototypePlannerList';
 import PrototypePlannerEditorPane from './PrototypePlannerEditorPane';
 import PrototypePlannerScopeChips from './PrototypePlannerScopeChips';
 import PrototypePlannerSeries from './PrototypePlannerSeries';
+import PrototypeNewSeriesSheet from './PrototypeNewSeriesSheet';
 import PrototypeSeriesSheet from '../PrototypeSeriesSheet';
 import { usePlannerSchedule } from './usePlannerSchedule';
 import { usePlannerScope } from './usePlannerScope';
@@ -87,6 +88,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
   const [selection, setSelection] = useState<PlannerSelection>(null);
   const [openSeries, setOpenSeries] = useState<TeachingPlanSeries | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
+  const [creatingSeries, setCreatingSeries] = useState(false);
 
   const changeScope = useCallback(
     (next: string | null) => {
@@ -95,6 +97,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
          open series, which is scoped to its plan by construction. */
       setSelection(null);
       setOpenSeries(null);
+      setCreatingSeries(false);
     },
     [selectPlanScope],
   );
@@ -296,16 +299,45 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
                 onSelect={setSelection}
               />
             ) : (
-              <PrototypePlannerSeries
-                series={series}
-                services={services}
-                accentFor={accentFor}
-                openSeriesId={openSeries?.id ?? null}
-                onOpen={(entry) => {
-                  setSeriesError(null);
-                  setOpenSeries(entry);
-                }}
-              />
+              creatingSeries ? (
+                <PrototypeNewSeriesSheet
+                  open
+                  pending={actions.isPending}
+                  error={seriesError}
+                  defaultDay={defaultDay}
+                  onCancel={() => {
+                    setSeriesError(null);
+                    setCreatingSeries(false);
+                  }}
+                  onCreate={(input) =>
+                    runSeries(
+                      {
+                        kind: 'series-create',
+                        title: input.title,
+                        color: input.color,
+                        firstDate: input.firstDate,
+                      },
+                      () => setCreatingSeries(false),
+                    )
+                  }
+                />
+              ) : (
+                <PrototypePlannerSeries
+                  series={series}
+                  services={services}
+                  accentFor={accentFor}
+                  openSeriesId={openSeries?.id ?? null}
+                  canWrite={canWrite}
+                  onOpen={(entry) => {
+                    setSeriesError(null);
+                    setOpenSeries(entry);
+                  }}
+                  onNewSeries={() => {
+                    setSeriesError(null);
+                    setCreatingSeries(true);
+                  }}
+                />
+              )
             )}
           </div>
 
