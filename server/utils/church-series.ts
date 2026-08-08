@@ -19,6 +19,7 @@
  */
 import { db, first, ChurchSeries, ChurchServices, and, asc, desc, eq, inArray, isNull, sql } from '../db';
 import { SPACE_COVER_PICKER_COLORS } from '@/utils/space-cover';
+import { isUniqueViolation } from './db-unique-violation';
 
 /**
  * The `db` handle, or a transaction using it.
@@ -345,15 +346,6 @@ export async function updateSeries(
   if (changes.title !== undefined) {
     const trimmed = changes.title.trim().slice(0, SERIES_TITLE_MAX);
     if (!trimmed) return { ok: false, code: 'BAD_REQUEST', error: 'A series name is required' };
-
-    const clash = await findSeriesByTitle(scope, trimmed);
-    if (clash && clash !== seriesId) {
-      return {
-        ok: false,
-        code: 'SERIES_TITLE_TAKEN',
-        error: 'This plan already has a series with that name',
-      };
-    }
     patch.title = trimmed;
   }
 
@@ -382,11 +374,71 @@ export async function updateSeries(
     return { ok: false, code: 'BAD_REQUEST', error: 'Nothing to change' };
   }
 
-  const updated = await db
-    .update(ChurchSeries)
-    .set({ ...patch, updatedAt: new Date() })
-    .where(and(eq(ChurchSeries.id, seriesId), scopeWhere(scope)))
-    .returning();
+  /**
+   * Judge the pair this edit would produce, against the same shape the index enforces:
+   * `(scope, lower(title), coalesce(lower(runLabel), ''))`.
+   *
+   * This used `findSeriesByTitle`, which by design only ever looks at the *unlabelled*
+   * row — so it could not see a labelled twin. Renaming onto a plan that already held
+   * that title at the same run passed the guard and died in Postgres, surfacing as
+   * "A database error occurred". A `runLabel`-only change never entered the title branch
+   * at all, so nothing was checked — which is the re-run flow's exact path
+   * (`updateSeries(scope, id, { runLabel })` in church-teaching-plan).
+   *
+   * Only read the current row when it is actually needed: a colour or description edit
+   * cannot collide, and should not pay for a lookup to prove it.
+   */
+  if (patch.title !== undefined || patch.runLabel !== undefined) {
+    const current = first(
+      await db
+        .select()
+        .from(ChurchSeries)
+        .where(and(eq(ChurchSeries.id, seriesId), scopeWhere(scope)))
+        .limit(1),
+    );
+    if (!current) {
+      return { ok: false, code: 'SERIES_NOT_FOUND', error: 'That series is not part of this plan' };
+    }
+    const nextTitle = patch.title ?? current.title;
+    const nextRunLabel = patch.runLabel !== undefined ? patch.runLabel : current.runLabel;
+    const clash = await findSeriesByRun(scope, nextTitle, nextRunLabel ?? null);
+    if (clash && clash !== seriesId) {
+      return {
+        ok: false,
+        code: 'SERIES_TITLE_TAKEN',
+        error: nextRunLabel
+          ? `This plan already has a "${nextTitle}" run called ${nextRunLabel}`
+          : `This plan already has a series called "${nextTitle}"`,
+      };
+    }
+  }
+
+  /*
+    The check above cannot be atomic — two staff renaming toward the same pair both pass
+    it — so the index stays the authority and its rejection is translated rather than
+    escaping as a 500. Without this the loser of that race sees "A database error
+    occurred" for something the UI can state plainly.
+  */
+  let updated;
+  try {
+    updated = await db
+      .update(ChurchSeries)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(and(eq(ChurchSeries.id, seriesId), scopeWhere(scope)))
+      .returning();
+  } catch (error) {
+    if (
+      isUniqueViolation(error, 'ChurchSeries_church_title_run_unique') ||
+      isUniqueViolation(error, 'ChurchSeries_space_title_run_unique')
+    ) {
+      return {
+        ok: false,
+        code: 'SERIES_TITLE_TAKEN',
+        error: 'This plan already has a series with that name',
+      };
+    }
+    throw error;
+  }
   const row = first(updated);
   if (!row) return { ok: false, code: 'SERIES_NOT_FOUND', error: 'That series is not part of this plan' };
   return { ok: true, series: row };

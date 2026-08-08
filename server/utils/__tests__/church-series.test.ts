@@ -292,6 +292,39 @@ describe('updateSeries', () => {
     expect(updateReturning).not.toHaveBeenCalled();
   });
 
+  it('refuses a rename that would collide with a labelled run', async () => {
+    /*
+      Locks the behaviour, but note what this harness can and cannot show: the db mock
+      ignores WHERE clauses, so it cannot demonstrate that the lookup is now
+      runLabel-aware (the old `findSeriesByTitle` filtered `runLabel IS NULL` and would
+      have matched here too). The runLabel-only case below is the test that actually
+      fails against the old code.
+    */
+    selectRows.mockResolvedValue([{ id: 'csrs_other', title: 'Advent', runLabel: '2027' }]);
+    const result = await updateSeries(CHURCH_SCOPE, 'csrs_1', { title: 'Advent' });
+    expect(result).toMatchObject({ ok: false, code: 'SERIES_TITLE_TAKEN' });
+  });
+
+  it('checks a runLabel-only change, which used to be checked nowhere', async () => {
+    // The re-run flow calls exactly this shape — updateSeries(scope, id, { runLabel }).
+    selectRows.mockResolvedValue([{ id: 'csrs_other', title: 'Advent', runLabel: null }]);
+    const result = await updateSeries(CHURCH_SCOPE, 'csrs_1', { runLabel: '2027' });
+    expect(result).toMatchObject({ ok: false, code: 'SERIES_TITLE_TAKEN' });
+  });
+
+  it('translates a lost uniqueness race instead of letting it 500', async () => {
+    // The pre-check cannot be atomic; the index is the authority and its rejection is
+    // a sentence the UI can show, not a database error.
+    selectRows.mockResolvedValue([{ id: 'csrs_1', title: 'Advent', runLabel: null }]);
+    updateReturning.mockImplementationOnce(() => {
+      throw Object.assign(new Error('Failed query: update "ChurchSeries"'), {
+        cause: { constraint_name: 'ChurchSeries_church_title_run_unique' },
+      });
+    });
+    const result = await updateSeries(CHURCH_SCOPE, 'csrs_1', { title: 'Advent' });
+    expect(result).toMatchObject({ ok: false, code: 'SERIES_TITLE_TAKEN' });
+  });
+
   it('caps a long description rather than refusing it', async () => {
     updateReturning.mockResolvedValue([{ id: 'csrs_1', title: 'Romans' }]);
     const result = await updateSeries(CHURCH_SCOPE, 'csrs_1', {
