@@ -29,6 +29,7 @@ export {
   ChurchSeries,
   ChurchServiceTimes,
   ChurchServiceTimeAssignments,
+  ChurchServicePublishedNotes,
   NoteTemplates,
   UserMetadata,
   Entitlements,

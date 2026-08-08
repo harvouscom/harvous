@@ -3,6 +3,8 @@ import { useAuth } from '@clerk/clerk-react';
 import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import type { TeachingPlanSeries, TeachingPlanSermon } from './useChurchTeachingPlan';
+import { spaceGroupThreadsQueryKey } from './useSpaceGroupThreads';
+import { navigationQueryKeyPrefix } from './useNavigation';
 
 /** What a plan plans — see ChurchServices.kind. Server-decided, never inferred. */
 export type PlanKind = 'gathering' | 'content';
@@ -80,7 +82,7 @@ export type SpaceSermonDraft = {
   starterTemplateId?: string | null;
 };
 
-type SpaceSermonAction =
+export type SpaceSermonAction =
   | { kind: 'attachments'; serviceId: string; itemIds: string[] }
   | ({ kind: 'create' } & SpaceSermonDraft)
   | ({ kind: 'update'; serviceId: string } & Partial<SpaceSermonDraft>)
@@ -114,7 +116,12 @@ type SpaceSermonAction =
       color?: string | null;
       description?: string | null;
     }
-  | { kind: 'series-delete'; seriesId: string };
+  | { kind: 'series-delete'; seriesId: string }
+  /**
+   * Publish this series into the room as a study plan the group walks. Also
+   * the update path — republishing appends the weeks added since.
+   */
+  | { kind: 'series-publish-thread'; seriesId: string };
 
 /**
  * Create / update / delete a gathering on a space plan.
@@ -153,12 +160,21 @@ export function useChurchSpaceSermonActions(spaceId: string | null | undefined) 
           return api.post(`${room}/series/update`, rest);
         case 'series-delete':
           return api.post(`${room}/series/delete`, rest);
+        case 'series-publish-thread':
+          return api.post(`${room}/series/publish-thread`, rest);
       }
     },
-    onSettled: () => {
+    onSettled: (_data, _error, action) => {
       void queryClient.invalidateQueries({
         queryKey: churchSpacePlanQueryKey(userId, trimmed),
       });
+      /* Publishing writes a Thread and notes into the room, so the space's own
+         surfaces have to hear about it — the other actions touch only the plan. */
+      if (action?.kind === 'series-publish-thread' && trimmed) {
+        void queryClient.invalidateQueries({ queryKey: spaceGroupThreadsQueryKey(trimmed) });
+        void queryClient.invalidateQueries({ queryKey: ['space', trimmed, 'bootstrap'] });
+        void queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
+      }
       /*
         Deliberately does NOT invalidate the congregant sermons query. A space
         plan reaches Home only in P3 (context cards); until then "This Sunday"

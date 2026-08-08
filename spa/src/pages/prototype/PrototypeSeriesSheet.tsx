@@ -76,6 +76,11 @@ export interface PrototypeSeriesSheetProps {
   ) => void;
   onDelete: (series: TeachingPlanSeries) => void;
   /**
+   * Publish (or re-publish) this series into the room as a study plan.
+   * Absent on the church-wide plan, which has no single room to publish into.
+   */
+  onPublishThread?: (series: TeachingPlanSeries) => void;
+  /**
    * Extend the run: `weeks` more Sundays after its last dated one, each a
    * placeholder carrying the series name and no passage.
    */
@@ -107,6 +112,7 @@ export default function PrototypeSeriesSheet({
   services,
   canWrite,
   pending,
+  onPublishThread,
   error,
   notice = null,
   onUpdate,
@@ -609,6 +615,40 @@ export default function PrototypeSeriesSheet({
                 Teach this again
               </button>
             )}
+          </div>
+        ) : null}
+
+        {/*
+          Hand the series to the room as something to walk.
+
+          The plan is staff-side: dates, passages, who is preaching. Publishing
+          turns it into what the group actually sees — one note per week, in
+          order, with the room's current step marked. Republishing appends the
+          weeks added since, so this is the update path too rather than a
+          one-way door that would strand week nine.
+
+          Only ever offered on a room's own plan: the church-wide plan has no
+          single room to publish into, and the server refuses it outright.
+        */}
+        {canWrite && onPublishThread ? (
+          <div className="proto-series-sheet__publish">
+            <button
+              type="button"
+              className="proto-sheet-quiet-action"
+              disabled={pending || services.length === 0}
+              onClick={() => onPublishThread(series)}
+            >
+              {pending
+                ? 'Publishing…'
+                : series.publishedThreadId
+                  ? 'Update the study plan'
+                  : 'Publish as a study plan'}
+            </button>
+            {services.length === 0 ? (
+              <p className="proto-caption proto-teaching-plan__empty">
+                Add a week first — a study plan needs something to walk through.
+              </p>
+            ) : null}
           </div>
         ) : null}
 

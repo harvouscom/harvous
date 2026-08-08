@@ -34,7 +34,21 @@
  */
 
 import { Hono } from 'hono';
-import { db, first, ChurchServices, NoteTemplates, and, asc, eq } from '../db';
+import {
+  db,
+  first,
+  ChurchSeries,
+  ChurchServices,
+  NoteTemplates,
+  SpaceMemberships,
+  and,
+  asc,
+  eq,
+} from '../db';
+import { broadcastInvalidation } from '../utils/realtime';
+import { requireSpaceAccess } from '../utils/space-access';
+import { canManageSpaceThreadStructure } from '../utils/thread-sequence';
+import { publishSeriesAsStudyPlan } from '../utils/church-series-publish';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
@@ -1017,5 +1031,122 @@ app.post('/api/church/spaces/:spaceId/series/delete', requireAuth, rateLimit('wr
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+
+/**
+ * Publish a series into its own space as a sequence Thread — the study plan a
+ * room walks week by week.
+ *
+ * Two gates, both required and neither sufficient. The plan gate says the actor
+ * may author this ministry's teaching; the Thread gate says they may author
+ * this space's Thread structure. They are genuinely different questions — a
+ * granted volunteer leader passes the first through the grant arm — and
+ * publishing does both jobs at once.
+ *
+ * Scope is deliberately narrow in v1: a space-plan series publishes into the
+ * space that planned it, with no target picker. Cross-plan publishing means
+ * deciding what a church-plan series copied into a room even is, and the series
+ * docblock is clear that cross-plan reuse is a copy — its own feature.
+ */
+app.post(
+  '/api/church/spaces/:spaceId/series/publish-thread',
+  requireAuth,
+  rateLimit('write'),
+  async (c) => {
+    try {
+      const auth = getAuthenticatedAuth(c);
+      const spaceId = c.req.param('spaceId') ?? '';
+      const gate = await assertCanManageSpaceTeachingPlan(auth.userId, spaceId);
+      if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+      /* Channels are read-only in the pilot: there is no plan for a room the
+         congregation cannot write in. Refused before any row is touched. */
+      if (isMinistryBroadcastSpaceRow(gate.space)) {
+        return c.json({
+          error: 'Ministry channels are read-only during the pilot',
+          code: 'CHANNELS_READ_ONLY_PILOT',
+        }, 409);
+      }
+
+      let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
+      try {
+        access = await requireSpaceAccess(gate.space.id, auth.userId);
+      } catch {
+        return c.json({
+          error: 'You are not a member of this space',
+          code: 'SPACE_MEMBERSHIP_REQUIRED',
+        }, 403);
+      }
+      /*
+        A granted volunteer leader can plan a room they hold no membership in.
+        Publishing writes a Thread and notes *into* the space, so it needs the
+        membership too — say which of the two is missing rather than 403ing
+        with the plan gate's wording, which would read as "you can't plan this".
+      */
+      if (!canManageSpaceThreadStructure(access.space, access.role, auth.userId)) {
+        return c.json({
+          error: 'Only the space owner or a leader can publish a study plan here',
+          code: 'SPACE_THREAD_ROLE_REQUIRED',
+        }, 403);
+      }
+
+      const body = (await c.req.json().catch(() => ({}))) as { seriesId?: string };
+      const seriesId = (body.seriesId ?? '').trim();
+      if (!seriesId) return c.json({ error: 'seriesId is required', code: 'BAD_REQUEST' }, 400);
+
+      const series = first(
+        await db
+          .select({
+            id: ChurchSeries.id,
+            title: ChurchSeries.title,
+            color: ChurchSeries.color,
+            spaceId: ChurchSeries.spaceId,
+            churchId: ChurchSeries.churchId,
+            publishedThreadId: ChurchSeries.publishedThreadId,
+          })
+          .from(ChurchSeries)
+          .where(eq(ChurchSeries.id, seriesId))
+          .limit(1),
+      );
+      /* Scope is proven against the gate's own church and space, never the
+         caller's word for either. */
+      if (!series || series.churchId !== gate.church.id) {
+        return c.json({ error: 'Series not found', code: 'SERIES_NOT_FOUND' }, 404);
+      }
+      if (series.spaceId !== gate.space.id) {
+        return c.json({
+          error: "A church-wide series cannot be published into one room's plan",
+          code: 'CHURCH_PLAN_PUBLISH_UNSUPPORTED',
+        }, 409);
+      }
+
+      const result = await publishSeriesAsStudyPlan({
+        series: {
+          id: series.id,
+          title: series.title,
+          color: series.color,
+          publishedThreadId: series.publishedThreadId,
+        },
+        spaceId: gate.space.id,
+        actorId: auth.userId,
+      });
+
+      const recipients = await db
+        .select({ userId: SpaceMemberships.userId })
+        .from(SpaceMemberships)
+        .where(eq(SpaceMemberships.spaceId, gate.space.id));
+      for (const recipientId of new Set(recipients.map((row) => row.userId))) {
+        broadcastInvalidation(recipientId, { type: 'space:updated', id: gate.space.id });
+      }
+
+      return c.json({ success: true, ...result });
+    } catch (error) {
+      const standardError = handleAPIError(error, {
+        endpoint: '/api/church/spaces/[spaceId]/series/publish-thread',
+        action: 'publish_church_space_series_thread',
+      });
+      return c.json({ error: standardError.message, code: standardError.code }, 500);
+    }
+  },
+);
 
 export default app;
