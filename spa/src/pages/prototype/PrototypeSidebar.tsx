@@ -1962,6 +1962,8 @@ export default function PrototypeSidebar({
    * it cannot apply to the whole selection.
    */
   const FOLDER_FANOUT_CAP = 20;
+  /** Mirrors `MIN_THREAD_NOTES` in the create sheet — a Thread needs two ends. */
+  const MIN_BULK_THREAD_NOTES = 2;
 
   const selectedNoteIdSet = useMemo(() => new Set(sidebarSelectedNoteIds), [sidebarSelectedNoteIds]);
 
@@ -2044,7 +2046,13 @@ export default function PrototypeSidebar({
       count: selectedRows.length,
       canOrganize:
         everyRowAllows(bulkCapabilityRows, 'mayOrganize') && selectedRows.length <= FOLDER_FANOUT_CAP,
-      canThread: everyRowAllows(bulkCapabilityRows, 'mayManageThread'),
+      /* A Thread is a relationship between notes, so one note cannot be one —
+         `MIN_BULK_THREAD_NOTES` is the same floor the create sheet submits on.
+         Below it the action is not offered at all rather than offered and
+         refused at the far end of a form. */
+      canThread:
+        everyRowAllows(bulkCapabilityRows, 'mayManageThread') &&
+        selectedRows.length >= MIN_BULK_THREAD_NOTES,
       canDelete: everyRowAllows(bulkCapabilityRows, 'mayDelete'),
       canRemoveFromSpace: everyRowAllows(bulkCapabilityRows, 'mayRemoveFromSpace'),
       canShare: everyRowAllows(bulkCapabilityRows, 'mayShareToSpace'),
@@ -2085,16 +2093,17 @@ export default function PrototypeSidebar({
         <Icon name="folder" size={15} aria-hidden />
         <span className="proto-bulk-bar__label">Folder</span>
       </button>
-      <button
-        type="button"
-        className="proto-bulk-bar__btn"
-        disabled={!bulkActions.canThread}
-        title="Start a Thread from these notes"
-        onClick={() => openCreateThreadSheet({ noteIds: sidebarSelectedNoteIds })}
-      >
-        <Icon name="arrow-right-arrow-left" size={15} aria-hidden />
-        <span className="proto-bulk-bar__label">Thread</span>
-      </button>
+      {bulkActions.canThread ? (
+        <button
+          type="button"
+          className="proto-bulk-bar__btn"
+          title="Start a Thread from these notes"
+          onClick={() => openCreateThreadSheet({ noteIds: sidebarSelectedNoteIds })}
+        >
+          <Icon name="arrow-right-arrow-left" size={15} aria-hidden />
+          <span className="proto-bulk-bar__label">Thread</span>
+        </button>
+      ) : null}
       {isScopedSharedSpace ? (
         <button
           type="button"
