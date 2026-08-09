@@ -10,7 +10,7 @@
  * sermon's weekday. That is the point of the view — you came to this grid
  * because you wanted to say *which* day.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import {
   DndContext,
@@ -28,7 +28,8 @@ import type {
   ChurchServiceTimeOption,
   TeachingPlanSermon,
 } from '../../../hooks/queries/useChurchTeachingPlan';
-import type { SpaceCoverPickerColor } from '@/utils/space-cover';
+import { spaceIconAccentHex, type SpaceCoverPickerColor } from '@/utils/space-cover';
+import { getColorSchemeSnapshot, subscribeColorScheme } from '../../../lib/prototype-background';
 import { localTodayIso, sermonTimeLabel } from '../../../lib/church-services';
 import {
   addMonths,
@@ -48,6 +49,7 @@ function DayCell({
   inMonth,
   isToday,
   accents,
+  colorScheme,
   canDrop,
   onAdd,
   children,
@@ -69,6 +71,8 @@ function DayCell({
    * is where the series did.
    */
   accents: SpaceCoverPickerColor[];
+  /** Resolved once by the grid, not per cell — see the day map below. */
+  colorScheme: 'light' | 'dark';
   canDrop: boolean;
   onAdd?: () => void;
   children: React.ReactNode;
@@ -92,7 +96,9 @@ function DayCell({
             <span
               key={`${accent}-${index}`}
               className="proto-planner-day__series-mark"
-              data-series-accent={accent}
+              /* The tile colour, so the cell and the pill on the chip inside
+                 it are the same hue — see the CSS note. */
+              style={{ ['--space-icon-accent' as string]: spaceIconAccentHex(accent, colorScheme) }}
             />
           ))}
         </div>
@@ -135,6 +141,13 @@ export default function PrototypePlannerCalendar({
   onMoveToDate: (serviceId: string, iso: string | null) => void;
 }) {
   const today = localTodayIso();
+  /* Resolved once for the whole grid rather than per cell — 42 subscriptions
+     to the same store is 41 more than the month needs. */
+  const colorScheme = useSyncExternalStore(
+    subscribeColorScheme,
+    getColorSchemeSnapshot,
+    () => 'light' as const,
+  );
   const [cursor, setCursor] = useState(() => parseLocalDateInput(today) ?? new Date());
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
@@ -218,6 +231,7 @@ export default function PrototypePlannerCalendar({
           <div className="proto-planner-calendar__grid">
             {cells.map((cell) => (
               <DayCell
+                colorScheme={colorScheme}
                 key={cell.iso}
                 iso={cell.iso}
                 day={cell.day}

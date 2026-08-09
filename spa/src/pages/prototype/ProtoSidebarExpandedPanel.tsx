@@ -83,6 +83,39 @@ export default function ProtoSidebarExpandedPanel({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
 
+  /*
+    Tapping the page outside collapses it, the way every other floating surface
+    in the app behaves — the drawer sidebar, the desktop inspector, and every
+    popover. This panel covers the main pane without a scrim, so "outside" is
+    real estate a reader can see and will reach for.
+
+    `mousedown`, matching usePopoverDismiss: a `click` listener fires after the
+    button under the cursor has already acted, so closing on click would let a
+    stray press land on the note underneath on its way out.
+
+    Deliberately ignores drags that *start* inside — the board's cards are
+    dragged to column edges and past them, and releasing outside must not be
+    read as a dismissal.
+  */
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      const panel = panelRef.current;
+      if (!panel || !(event.target instanceof Node)) return;
+      if (panel.contains(event.target)) return;
+      /* Portaled children — select menus, date pickers, confirm dialogs — are
+         outside the panel in the DOM but inside it to the reader. */
+      if (
+        event.target instanceof Element &&
+        event.target.closest('[role="menu"], [role="dialog"], .proto-menu__popover, .proto-popover-shell')
+      ) {
+        return;
+      }
+      onClose();
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [onClose]);
+
   return (
     <div
       ref={panelRef}

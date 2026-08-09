@@ -15,7 +15,7 @@ import type {
 import type { SpaceCoverPickerColor } from '@/utils/space-cover';
 import { localTodayIso, sermonTimeLabel } from '../../../lib/church-services';
 import ProtoServiceDateTile from '../ProtoServiceDateTile';
-import ProtoSeriesMark from './ProtoSeriesMark';
+import ProtoSeriesPill from './ProtoSeriesPill';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
 import type { PlannerSelection } from './PrototypeExpandedPlanner';
 
@@ -63,8 +63,7 @@ function Row({
                   the date tile beside it — the tile answers "when", and a
                   border doing "which run" made it answer two questions at
                   once in a colour the eye had to decode. */}
-              <ProtoSeriesMark accent={accent} title={service.seriesTitle} />
-              {service.seriesTitle}
+              <ProtoSeriesPill accent={accent} name={service.seriesTitle} compact />
             </>
           ) : null}
         </span>

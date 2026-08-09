@@ -9,7 +9,7 @@
 import { useDraggable } from '@dnd-kit/core';
 import type { SpaceCoverPickerColor } from '@/utils/space-cover';
 import type { TeachingPlanSermon } from '../../../hooks/queries/useChurchTeachingPlan';
-import ProtoSeriesMark from './ProtoSeriesMark';
+import ProtoSeriesPill from './ProtoSeriesPill';
 
 export function PlannerCardBody({
   service,
@@ -53,8 +53,7 @@ export function PlannerCardBody({
            a place the eye never looks and at a weight that vanished against
            the canvas. */
         <span className="proto-caption proto-planner-card__series">
-          <ProtoSeriesMark accent={seriesAccent} title={service.seriesTitle} />
-          <span className="proto-planner-card__series-name">{service.seriesTitle}</span>
+          <ProtoSeriesPill accent={seriesAccent} name={service.seriesTitle} />
         </span>
       ) : null}
     </>

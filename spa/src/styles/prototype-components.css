@@ -14207,25 +14207,44 @@ p.proto-teaching-plan__divider {
   --pds-series-accent: color-mix(in oklab, var(--pds-thread-pink) 72%, var(--pds-text-primary));
 }
 
-/* ── The series mark ────────────────────────────────────────────────────────
-   One filled square, wherever a run needs naming. Replaced a band, a rule and
-   a tinted border — three weights of trim that each vanished against a warm
-   canvas at the size they were drawn. A fill holds its hue at 10px, which is
-   the only size a mark inline with caption text can be.
+/* ── The series pill ────────────────────────────────────────────────────────
+   A run, named and coloured in one object.
 
-   Inline-block with a nudge off the baseline rather than flex: it sits inside
-   running caption text, and a flex parent would break the line it belongs to. */
-.proto-series-mark {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  margin-right: 5px;
-  vertical-align: -1px;
-  border-radius: 3px;
-  background: var(--pds-series-accent, transparent);
-  /* Against a dark card the fill alone can read as a hole; the hairline keeps
-     the square's edge legible in both schemes without changing its colour. */
-  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);
+   The fill is `--space-icon-accent` — the icon block's own tile colour, set
+   inline by ProtoSeriesPill — and the label is the darkened, saturated
+   derivation of that same hue that every space tile uses for its glyph. Two
+   surfaces, one recipe, so a series' pill and its face in the Series view
+   cannot drift apart.
+
+   Replaced a 2px card border, a 3px calendar rule, a tinted date tile and a
+   9px chip. Each of those asked the reader to decode a hue with the name
+   somewhere else; the pill puts both in the same object. */
+.proto-series-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--space-icon-accent);
+  color: oklch(from var(--space-icon-accent) calc(l * 0.58) min(c * 3.5, 0.2) h);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: -2px;
+}
+
+/* On dark the tile fill is already deep, so the label flips rather than
+   darkening further — same rule the icon tiles follow. */
+.proto-series-pill--on-dark {
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.proto-series-pill--compact {
+  padding: 1px 6px;
+  font-size: 10px;
 }
 
 /* ── Series on a day cell (calendar) ────────────────────────────────────────
@@ -14251,10 +14270,15 @@ p.proto-teaching-plan__divider {
 .proto-planner-day__series-mark {
   flex: 1 1 auto;
   min-width: 0;
-  /* Low alpha on purpose: this sits under the date and the sermon chips, and
-     a run should colour the month the way a highlighter does — visible as a
-     streak down five Sundays, never competing with the text on top of it. */
-  background: color-mix(in oklab, var(--pds-series-accent, transparent) 14%, transparent);
+  /*
+    The icon block's own tile colour, not a bespoke mix. `--pds-series-accent`
+    was a 72%-toward-text darkening built for 2px trim, and washing a cell in
+    it needed an arbitrary alpha to become bearable — which is what made it
+    read as an odd grey-green rather than as the series. `--space-icon-accent`
+    is already the soft, light fill the series' own face wears, so the cell and
+    the pill on the chip inside it are the same colour by construction.
+  */
+  background: var(--space-icon-accent, transparent);
 }
 
 /* Two series on one day still need telling apart, and side-by-side washes

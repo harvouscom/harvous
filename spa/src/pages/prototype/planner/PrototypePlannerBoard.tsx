@@ -41,7 +41,7 @@ import {
   type PlannerWeek,
 } from '../../../lib/planner-board';
 import PrototypePlannerCard, { PlannerCardBody } from './PrototypePlannerCard';
-import ProtoSeriesMark from './ProtoSeriesMark';
+import ProtoSeriesPill from './ProtoSeriesPill';
 import type { PlannerSelection } from './PrototypeExpandedPlanner';
 
 /** A quarter at a glance, which is the unit a teaching plan is decided in. */
@@ -107,8 +107,7 @@ function SeriesBands({ bands }: { bands: ColumnBand[] }) {
                   its weeks are recognisably one thing. The band's own rule
                   stays: it is the only device here that can show a run
                   *continuing* across a column gap, which a mark cannot. */}
-              <ProtoSeriesMark accent={band.accent} title={band.label} />
-              {band.label}
+              <ProtoSeriesPill accent={band.accent} name={band.label} />
               {band.progress ? (
                 <span className="proto-planner-band__progress">{band.progress}</span>
               ) : null}
