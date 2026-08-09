@@ -1306,11 +1306,6 @@ html.harvous-prototype-route .proto-shell__editor-chrome-row {
   background: transparent;
 }
 
-html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
-  background-color: var(--pds-glass-shell);
-  background-image: none;
-}
-
 @media (prefers-reduced-transparency: reduce) {
   html.harvous-prototype-route .proto-shell-frame {
     backdrop-filter: none;
@@ -1422,4 +1417,19 @@ html.harvous-prototype-route .proto-editor-bottom-bar {
   box-shadow: var(--pds-glass-rim);
   -webkit-backdrop-filter: var(--pds-glass-blur);
   backdrop-filter: var(--pds-glass-blur);
+}
+
+/*
+  The format bar floats over the note pane, not over the wallpaper — same correction
+  as the drawer sidebar (8547080a5) and the inspector. At shell alpha (0.22-0.28 under
+  an image wallpaper, tuned so the photo reads through docked chrome) the note content
+  scrolling underneath read straight through the bar and collided with its own buttons.
+  Held opaque enough to occlude; frost gradient dropped since the floating material is
+  already solid enough without it. Must come after the .harvous-prototype-route rule
+  above (equal specificity, both classes present together) or that rule wins on
+  source order and silently reverts this.
+*/
+html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
+  background-color: var(--pds-glass-shell-floating);
+  background-image: none;
 }
