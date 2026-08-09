@@ -161,6 +161,7 @@
     "pdf-parse": "^2.4.5",
     "postgres": "^3.4.8",
     "posthog-js": "^1.292.0",
+    "protobufjs": "7.5.5",
     "puppeteer-core": "^23.11.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
