@@ -40,7 +40,7 @@ import { checkScriptureReferenceValidity, normalizeScriptureReference } from '@/
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteParamSlug } from './proto-route-slugs';
 import ProtoDatePicker from './ProtoDatePicker';
-import { PrototypeAddNotesPicker } from './PrototypeAddNotesSheet';
+import PrototypeSermonNoteSearch from './planner/PrototypeSermonNoteSearch';
 import { isPresentableServerMessage } from '../../lib/error-copy';
 
 export interface PrototypeSermonEditorFieldsProps {
@@ -820,29 +820,19 @@ export default function PrototypeSermonEditorFields({
               </div>
             ) : homeSpaceId ? (
               <div className="proto-service-editor__note-picker">
-                <PrototypeAddNotesPicker
-                  /*
-                    My Home, and deliberately no `candidateSource`. My Home is
-                    personal, so the server's `my-home` branch is skipped and the
-                    filter falls to "notes whose canonical home is My Home,
-                    authored by me" — which, because `resolveCanonicalCreateScope`
-                    files every shared-space note under My Home canonically, is
-                    every note this pastor has written. Passing `my-home` would
-                    be silently ignored here and would widen the *other* pickers
-                    that share this endpoint.
-                  */
-                  spaceId={homeSpaceId}
-                  selectionMode="single"
-                  listShell="scoped"
-                  ownNotesOnly
-                  excludeEncrypted
-                  isPending={actions.isPending}
-                  selectedIds={[]}
-                  onSelectedIdsChange={(ids) => setPickedNoteId(ids[0] ?? null)}
-                  onSelectedNoteChange={(candidate) =>
-                    setPickedNoteTitle(candidate?.title ?? null)
-                  }
-                  localEmptyHint="Nothing written yet."
+                {/*
+                  My Home, and deliberately so: `resolveCanonicalCreateScope`
+                  files every shared-space note under My Home canonically, so
+                  this pool is every note this pastor has written — not only
+                  the ones sitting loose in their personal space.
+                */}
+                <PrototypeSermonNoteSearch
+                  homeSpaceId={homeSpaceId}
+                  disabled={actions.isPending}
+                  onPick={(note) => {
+                    setPickedNoteId(note.id);
+                    setPickedNoteTitle(note.title ?? null);
+                  }}
                 />
               </div>
             ) : (

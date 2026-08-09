@@ -14110,8 +14110,19 @@ p.proto-teaching-plan__divider {
    is a dead class with no rule anywhere *and* is shared with
    PrototypeSuggestResourceSheet — styling it would silently reshape an
    unrelated dialog. */
-.proto-service-editor__note-picker .proto-add-notes-sheet__picker {
-  max-height: 320px;
+/*
+  Inline note search in the sermon editor. Replaced the borrowed thread picker,
+  which brought its own scroll well and shell; this is a field and a short list,
+  so it needs rhythm rather than a frame.
+*/
+.proto-sermon-note-search {
+  display: grid;
+  gap: 8px;
+}
+
+.proto-sermon-note-search .proto-church-tools__row-chevron {
+  /* A plus, not a caret: the row adds the note rather than navigating to it. */
+  color: var(--pds-text-tertiary);
 }
 
 /* New-series form and the Series view's own action row. Both sit inside the
