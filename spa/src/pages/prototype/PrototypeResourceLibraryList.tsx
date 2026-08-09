@@ -20,6 +20,10 @@ import {
   type ChurchLibraryItem,
 } from '../../hooks/queries/useChurchLibrary';
 import PrototypeSuggestResourceSheet from './PrototypeSuggestResourceSheet';
+import { useSuggestLibraryItem } from '../../hooks/queries/useChurchLibrary';
+import { useNavigation } from '../../hooks/queries/useNavigation';
+import { api } from '../../lib/api';
+import { toastError } from '../../lib/error-copy';
 import {
   useSpaceLibrary,
   useSpaceLibraryActions,
@@ -736,6 +740,21 @@ export default function PrototypeResourceLibraryList({
   );
   const selectionAnchorRef = useRef<string | null>(null);
   const [bulkRemoving, setBulkRemoving] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState<'suggest' | 'share' | null>(null);
+  const [shareTargetsOpen, setShareTargetsOpen] = useState(false);
+  const suggestItem = useSuggestLibraryItem();
+  const { data: navForShare } = useNavigation();
+  /*
+    Rooms whose shelf this reader may actually stock. Offering a space you can
+    only read from would be an action that always fails at the far end.
+  */
+  const shareTargets = useMemo(
+    () =>
+      (navForShare?.spaces ?? []).filter(
+        (sp) => sp.type === 'shared' || sp.type === 'public',
+      ),
+    [navForShare?.spaces],
+  );
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
@@ -855,8 +874,112 @@ export default function PrototypeResourceLibraryList({
     }
   }, [sidebarSelectedIds, archive, setSidebarSelection]);
 
+  /**
+   * The selected rows, as the shelf knows them — the actions below need their
+   * URLs, not just their ids.
+   */
+  const selectedResourceItems = useMemo(
+    () => items.filter((item) => selectedResourceIds.has(item.id)),
+    [items, selectedResourceIds],
+  );
+
+  /*
+    Both onward actions carry a link. A file lives in a private bucket behind a
+    signed URL that expires, so passing one to a church or another room would
+    hand over something that stops working — the endpoints take a URL for the
+    same reason. All-or-nothing, like every other bar here: one file in the
+    batch disables both rather than half-sending it.
+  */
+  const everySelectedIsLink =
+    selectedResourceItems.length > 0 &&
+    selectedResourceItems.every((item) => item.kind === 'link' && Boolean(item.sourceUrl));
+
+  const onBulkSuggestToChurch = useCallback(async () => {
+    setBulkBusy('suggest');
+    let sent = 0;
+    try {
+      for (const item of selectedResourceItems) {
+        if (!item.sourceUrl) continue;
+        await suggestItem.mutateAsync({ url: item.sourceUrl, title: item.title, note: null });
+        sent += 1;
+      }
+      window.toast?.success(sent === 1 ? 'Suggested to your church' : `Suggested ${sent} to your church`);
+    } catch (err) {
+      toastError(err, 'Could not suggest every resource');
+    } finally {
+      setBulkBusy(null);
+      setSidebarSelection('resource', []);
+    }
+  }, [selectedResourceItems, suggestItem, setSidebarSelection]);
+
+  const onBulkShareToSpace = useCallback(
+    async (spaceId: string, spaceTitle: string) => {
+      setBulkBusy('share');
+      setShareTargetsOpen(false);
+      let sent = 0;
+      try {
+        for (const item of selectedResourceItems) {
+          if (!item.sourceUrl) continue;
+          await api.post(`/api/church/spaces/${spaceId}/library/items/create`, {
+            url: item.sourceUrl,
+            title: item.title,
+            description: item.description ?? undefined,
+            siteName: item.sourceSiteName ?? undefined,
+          });
+          sent += 1;
+        }
+        window.toast?.success(`Added ${sent === 1 ? 'a resource' : `${sent} resources`} to ${spaceTitle}`);
+      } catch (err) {
+        toastError(err, `Could not add every resource to ${spaceTitle}`);
+      } finally {
+        setBulkBusy(null);
+        setSidebarSelection('resource', []);
+      }
+    },
+    [selectedResourceItems, setSidebarSelection],
+  );
+
   const resourceBulkBar = resourceSelectionActive ? (
     <div className="proto-collection-grid-actions proto-bulk-bar">
+      {/* Onward, then off your shelf. Suggesting proposes to staff who decide;
+          sharing puts it straight on a room's shelf, which is why only rooms you
+          may curate are offered. */}
+      {churchName ? (
+        <button
+          type="button"
+          className="proto-bulk-bar__btn"
+          disabled={!everySelectedIsLink || bulkBusy !== null}
+          title={
+            everySelectedIsLink
+              ? 'Propose these to your church'
+              : 'Files cannot be suggested — their links expire'
+          }
+          onClick={() => void onBulkSuggestToChurch()}
+        >
+          <Icon name="church" size={15} aria-hidden />
+          <span className="proto-bulk-bar__label">
+            {bulkBusy === 'suggest' ? 'Sending…' : 'Suggest'}
+          </span>
+        </button>
+      ) : null}
+      {shareTargets.length > 0 ? (
+        <button
+          type="button"
+          className="proto-bulk-bar__btn"
+          disabled={!everySelectedIsLink || bulkBusy !== null}
+          title={
+            everySelectedIsLink
+              ? 'Add these to a space you help run'
+              : 'Files cannot be shared this way — their links expire'
+          }
+          onClick={() => setShareTargetsOpen(true)}
+        >
+          <Icon name="user-group" size={15} aria-hidden />
+          <span className="proto-bulk-bar__label">
+            {bulkBusy === 'share' ? 'Adding…' : 'Share'}
+          </span>
+        </button>
+      ) : null}
       <button
         type="button"
         className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
@@ -1031,6 +1154,45 @@ export default function PrototypeResourceLibraryList({
             }
           />
         </div>
+      ) : null}
+
+      {/* Same anchored-menu shape the note bulk share uses: a scrim, because a
+          picker that only closes by choosing is a trap. */}
+      {shareTargetsOpen ? (
+        <>
+          <div
+            className="proto-bulk-share__scrim"
+            role="presentation"
+            onClick={() => setShareTargetsOpen(false)}
+          />
+          <div
+            className="proto-menu__popover proto-bulk-share__popover"
+            role="menu"
+            aria-label="Add to a space"
+          >
+            <div className="proto-menu-section" role="group">
+              <p className="proto-menu-section-label">
+                {`Add ${sidebarSelectedIds.length} resource${
+                  sidebarSelectedIds.length === 1 ? '' : 's'
+                } to`}
+              </p>
+              {shareTargets.map((sp) => (
+                <button
+                  key={sp.id}
+                  type="button"
+                  role="menuitem"
+                  className="proto-menu-item"
+                  onClick={() => void onBulkShareToSpace(sp.id, sp.title)}
+                >
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name="user-group" size={PROTO_TOOLBAR_ICON_SIZE} />
+                  </span>
+                  <span className="proto-menu-item__label">{sp.title}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
       ) : null}
 
       <PrototypeSuggestResourceSheet
