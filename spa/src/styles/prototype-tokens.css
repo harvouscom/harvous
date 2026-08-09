@@ -206,6 +206,20 @@
   --pds-bg-glass-strong: oklch(var(--pds-lch-bg-glass-strong));
   --pds-bg-glass-toolbar: oklch(var(--pds-lch-bg-glass-toolbar));
   /* Liquid glass — canvas tint + tiered backdrop-filter (see html.harvous-prototype-route tokens). */
+  /*
+   * Chrome that floats over *content* instead of over the canvas.
+   *
+   * `--pds-glass-shell` is tuned for the docked shell, where what shows through
+   * is wallpaper — and under an image wallpaper it drops to ~0.22 on purpose, so
+   * the photo reads. A drawer or sheet is the same chrome in a different place:
+   * it sits above the note pane, so at that alpha you read the editor *through*
+   * the sidebar. This is the same hue held opaque enough to occlude.
+   */
+  --pds-glass-shell-floating: color-mix(
+    in oklch,
+    var(--pds-canvas-bg, var(--pds-canvas-default)) 94%,
+    transparent
+  );
   --pds-glass-shell: color-mix(
     in oklch,
     var(--pds-canvas-bg, var(--pds-canvas-default)) 52%,
@@ -512,6 +526,9 @@ html.harvous-proto-wallpaper-image {
     from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1), 0.9) c h / 0.24
   );
   --pds-glass-shell: oklch(var(--pds-lch-bg-page) / 0.22);
+  /* See :root — a floating panel occludes content, so it does not follow the
+     wallpaper's low alpha. */
+  --pds-glass-shell-floating: oklch(var(--pds-lch-bg-page) / 0.94);
   --pds-glass-chrome: var(--pds-glass-shell);
   --pds-glass-panel-frost: oklch(var(--pds-lch-bg-page) / 0.06);
   --pds-glass-bar-frost: oklch(var(--pds-lch-bg-page) / 0.18);
@@ -609,6 +626,11 @@ html.harvous-proto-wallpaper-image {
     --pds-lch-bg-glass-strong: 20% 0.01 285 / 0.92;
     --pds-lch-bg-glass-toolbar: 20% 0.01 285 / 0.82;
 
+    --pds-glass-shell-floating: color-mix(
+      in oklch,
+      var(--pds-canvas-bg, var(--pds-canvas-default)) 92%,
+      transparent
+    );
     --pds-glass-shell: color-mix(
       in oklch,
       var(--pds-canvas-bg, var(--pds-canvas-default)) 56%,
@@ -704,6 +726,7 @@ html.harvous-proto-wallpaper-image {
       from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.62) c h / 0.3
     );
     --pds-glass-shell: oklch(var(--pds-lch-bg-page) / 0.28);
+    --pds-glass-shell-floating: oklch(var(--pds-lch-bg-page) / 0.9);
     --pds-glass-chrome: var(--pds-glass-shell);
     --pds-glass-panel-frost: oklch(var(--pds-lch-bg-page) / 0.08);
     --pds-glass-bar-frost: oklch(var(--pds-lch-bg-page) / 0.22);
@@ -791,6 +814,11 @@ html.harvous-proto-wallpaper-image {
   --pds-lch-bg-glass-strong: 20% 0.01 285 / 0.92;
   --pds-lch-bg-glass-toolbar: 20% 0.01 285 / 0.82;
 
+  --pds-glass-shell-floating: color-mix(
+    in oklch,
+    var(--pds-canvas-bg, var(--pds-canvas-default)) 92%,
+    transparent
+  );
   --pds-glass-shell: color-mix(
     in oklch,
     var(--pds-canvas-bg, var(--pds-canvas-default)) 56%,
@@ -885,6 +913,7 @@ html[data-color-scheme="dark"].harvous-proto-wallpaper-image {
     from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.62) c h / 0.3
   );
   --pds-glass-shell: oklch(var(--pds-lch-bg-page) / 0.28);
+  --pds-glass-shell-floating: oklch(var(--pds-lch-bg-page) / 0.9);
   --pds-glass-chrome: var(--pds-glass-shell);
   --pds-glass-panel-frost: oklch(var(--pds-lch-bg-page) / 0.08);
   --pds-glass-bar-frost: oklch(var(--pds-lch-bg-page) / 0.22);

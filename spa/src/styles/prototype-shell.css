@@ -711,7 +711,13 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     padding: 0;
     border-radius: var(--pds-shell-frame-radius);
     box-shadow: var(--pds-shadow-drawer), var(--pds-glass-rim);
-    background: var(--pds-glass-shell);
+    /*
+      The floating material, not the docked one. This panel is over the note
+      pane, not over the wallpaper — at the shell's alpha (0.22 under an image
+      wallpaper) the editor's own text and its blue New note button read
+      straight through the sidebar and collide with the rows.
+    */
+    background: var(--pds-glass-shell-floating);
     -webkit-backdrop-filter: var(--pds-glass-blur);
     backdrop-filter: var(--pds-glass-blur);
   }

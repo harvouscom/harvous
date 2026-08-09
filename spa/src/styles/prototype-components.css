@@ -10970,6 +10970,20 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   .proto-glass-action {
     padding: 7px 9px;
   }
+
+  /*
+    Except the lane's own add button, which has no title to crowd — it sits
+    alone on a row under "Shared spaces" or "Channels". Stripped to a bare
+    plus it stopped saying what it adds, and the two in that view became the
+    same anonymous glyph four rows apart.
+  */
+  .proto-church-tools__add .proto-glass-action__label {
+    display: inline;
+  }
+
+  .proto-church-tools__add {
+    padding: 7px 12px;
+  }
 }
 
 /* ─── My Church › Teaching plan (staff, role-gated on sermon_tools) ───────── */

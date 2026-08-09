@@ -39,6 +39,7 @@ import ProtoServiceDateTile from './ProtoServiceDateTile';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import PrototypeSermonEditorSheet from './PrototypeSermonEditorSheet';
 import PrototypeSeriesSheet from './PrototypeSeriesSheet';
+import PrototypeNewSeriesSheet from './planner/PrototypeNewSeriesSheet';
 import PrototypePlannerScopeChips from './planner/PrototypePlannerScopeChips';
 import { usePlannerScope } from './planner/usePlannerScope';
 import type { PlannableSpace } from '../../hooks/useChurchPlannerAccess';
@@ -118,6 +119,7 @@ export default function PrototypeChurchTeachingPlanSection({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [openSeries, setOpenSeries] = useState<TeachingPlanSeries | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
+  const [creatingSeries, setCreatingSeries] = useState(false);
   /* Shared with the expanded planner, so opening the board keeps your scope. */
   const { planSpaceId, lastChannelId, selectPlanScope } = usePlannerScope(orgId, plannableSpaces);
 
@@ -157,6 +159,14 @@ export default function PrototypeChurchTeachingPlanSection({
       past: [...dated.filter((s) => s.serviceDate! < today)].reverse(),
     };
   }, [data, today]);
+
+  /*
+    The plan's own gathering day, which is what a new series' first week lands
+    on. Same derivation as the expanded planner so both doors agree.
+  */
+  const defaultDay = onSpacePlan
+    ? (spacePlan.data?.space.meetingDay ?? null)
+    : (churchPlan.data?.serviceTimes?.[0]?.dayOfWeek ?? null);
 
   const timeLabelFor = useMemo(() => {
     // Only the church plan has slots; a space row's time is the space's own
@@ -392,6 +402,24 @@ export default function PrototypeChurchTeachingPlanSection({
               way "N planned" introduces the sermons above. */}
           <div className="proto-church-tools__lane-head proto-church-tools__lane-head--stacked">
             <p className="proto-caption proto-home-section__eyebrow">Series</p>
+            {/* The sermon lane above has had an add button since it shipped;
+                this lane listed runs you could open but gave no way to start
+                one, so naming a series before its first week was a trip to the
+                expanded planner. Same control, same sheet. */}
+            {canWrite ? (
+              <button
+                type="button"
+                className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                disabled={actions.isPending}
+                onClick={() => {
+                  setSeriesError(null);
+                  setCreatingSeries(true);
+                }}
+              >
+                <Icon name="plus" size={12} aria-hidden />
+                <span className="proto-glass-action__label">New series</span>
+              </button>
+            ) : null}
           </div>
           <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
             {data.series.map((entry) => (
@@ -451,6 +479,30 @@ export default function PrototypeChurchTeachingPlanSection({
           setSheetOpen(next);
           if (!next) setEditing(null);
         }}
+      />
+
+      {/* Naming a run before its first week exists — the same sheet the
+          expanded planner uses, so the two doors cannot drift apart. */}
+      <PrototypeNewSeriesSheet
+        open={creatingSeries}
+        pending={actions.isPending}
+        error={seriesError}
+        defaultDay={defaultDay}
+        onCancel={() => {
+          setSeriesError(null);
+          setCreatingSeries(false);
+        }}
+        onCreate={(input) =>
+          runSeries(
+            {
+              kind: 'series-create',
+              title: input.title,
+              color: input.color,
+              firstDate: input.firstDate,
+            },
+            () => setCreatingSeries(false),
+          )
+        }
       />
 
       <PrototypeSeriesSheet
