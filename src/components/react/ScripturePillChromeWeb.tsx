@@ -36,7 +36,7 @@ import {
 } from '@/components/react/TiptapReferenceSuggestion';
 import { useEastonsSlugIndex } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import { deriveReferenceFromPassageSelection } from '@/utils/derive-passage-selection-reference';
-import { isMobileDevice } from '@/utils/pwa-prompt';
+import { useCoarsePointer } from '../../../spa/src/lib/use-coarse-pointer';
 import '@/styles/harvous-menu-pill.css';
 import '@/styles/study-dock-card.css';
 import '@/styles/scripture-pill-chrome.css';
@@ -182,7 +182,14 @@ export default function ScripturePillChromeWeb({
     return crossChapter || verseRange;
   });
   const [trans, setTrans] = useState(translation || getCachedProfileData()?.defaultTranslation || 'NET');
+  // Reactive, unlike the `isMobileDevice()` UA sniff this replaced — that was read once during
+  // render and never re-evaluated, so the footer-vs-floating-capsule choice could not respond to
+  // a resize or to an iPad picking up a trackpad.
+  const isCoarsePointer = useCoarsePointer();
   const [showCrossRefs, setShowCrossRefs] = useState(false);
+  // Parity with cross-references: "Your notes" used to be unconditional, so there was a switch for
+  // other people's passages but none for your own. Per-dock, like showCrossRefs — resets on remount.
+  const [showRelatedNotes, setShowRelatedNotes] = useState(true);
   const [isExpandedInternal, setIsExpandedInternal] = useState(true);
   const isControlledExpanded = expandedControlled !== undefined && onExpandedChange !== undefined;
   const isExpanded = isControlledExpanded ? expandedControlled! : isExpandedInternal;
@@ -264,7 +271,9 @@ export default function ScripturePillChromeWeb({
   // So mousedown only records the pointer origin; the open action runs on click, and only when
   // the pointer didn't drag and no text selection resulted.
   const passagePointerDownRef = useRef<{ x: number; y: number } | null>(null);
-  const PASSAGE_TAP_SLOP_PX = 5;
+  // A finger wanders further than a mouse on a plain tap — 5px turned ordinary taps into
+  // "that was a drag, ignore it" and swallowed reference opens. iOS itself uses ~10.
+  const PASSAGE_TAP_SLOP_PX = isCoarsePointer ? 10 : 5;
 
   const focusPassageForTextSelection = useCallback((container: HTMLDivElement) => {
     if (document.activeElement?.closest?.('.ProseMirror')) {
@@ -354,7 +363,7 @@ export default function ScripturePillChromeWeb({
         onOpenPassageReference(word, { slug });
       }
     },
-    [onOpenPassageReference, editorChromeMode],
+    [onOpenPassageReference, editorChromeMode, PASSAGE_TAP_SLOP_PX],
   );
 
   const lastApplied = useRef({ ref: displayRefString, trans });
@@ -572,7 +581,14 @@ export default function ScripturePillChromeWeb({
       syncPassageSelectionFromDom();
     };
 
-    const handleScroll = () => setPassageSelection(null);
+    // On touch, dropping the selection on scroll is hostile: dragging a selection handle past the
+    // container edge scrolls it, and the momentum scroll after a successful selection would kill it
+    // outright. Re-measure the rect instead — syncPassageSelectionFromDom clears it on its own once
+    // the DOM selection is genuinely gone. A mouse can't scroll mid-drag, so keep the old behavior
+    // there (a scrolled-away floating capsule is worse than no capsule).
+    const handleScroll = isCoarsePointer
+      ? () => syncPassageSelectionFromDom()
+      : () => setPassageSelection(null);
 
     scrollEl.addEventListener('mouseup', handlePointerUp);
     scrollEl.addEventListener('touchend', handlePointerUp);
@@ -584,7 +600,7 @@ export default function ScripturePillChromeWeb({
       document.removeEventListener('selectionchange', handleSelectionChange);
       scrollEl.removeEventListener('scroll', handleScroll);
     };
-  }, [isExpanded, interactionActive, syncPassageSelectionFromDom]);
+  }, [isExpanded, interactionActive, syncPassageSelectionFromDom, isCoarsePointer]);
 
   const handleCreatePassageHighlight = useCallback(async () => {
     if (!passageSelection || !sourceNoteId || creatingHighlight) return;
@@ -709,7 +725,7 @@ export default function ScripturePillChromeWeb({
   }, [passageSelection, onPassageQuoteToNote]);
 
   const showMobilePassageActions =
-    isMobileDevice() &&
+    isCoarsePointer &&
     !!passageSelection &&
     !!sourceNoteId &&
     !!passageHtml &&
@@ -741,7 +757,10 @@ export default function ScripturePillChromeWeb({
           </span>
         </span>
       }
-      headerActions={
+      // The two passage toggles stay inline at every width — they are what you came to the card
+      // for, and below 420px `headerActions` folds into a `…` menu. The accent swatch can live
+      // there; a colour change is not a one-tap-per-visit action.
+      headerPrimaryActions={
         <>
           <button
             type="button"
@@ -753,10 +772,26 @@ export default function ScripturePillChromeWeb({
           >
             <Icon name="shuffle" size={12} />
           </button>
-          {onPillAccentChange ? (
-            <DockAccentSwatchButton selection={selectedSwatchKey} onSelectionChange={onPillAccentChange} />
-          ) : null}
+          <button
+            type="button"
+            className={`study-dock-card__header-btn${showRelatedNotes ? ' study-dock-card__header-btn--active' : ''}`}
+            onClick={() => setShowRelatedNotes((v) => !v)}
+            title={showRelatedNotes ? 'Hide where this appears in your notes' : 'Show where this appears in your notes'}
+            aria-pressed={showRelatedNotes}
+            aria-label={
+              showRelatedNotes
+                ? 'Hide where this appears in your notes'
+                : 'Show where this appears in your notes'
+            }
+          >
+            <Icon name="note-sticky" size={12} />
+          </button>
         </>
+      }
+      headerActions={
+        onPillAccentChange ? (
+          <DockAccentSwatchButton selection={selectedSwatchKey} onSelectionChange={onPillAccentChange} />
+        ) : null
       }
     >
       <div className="scripture-pill-chrome__reference-bar">
@@ -830,6 +865,7 @@ export default function ScripturePillChromeWeb({
               sourceNoteId={sourceNoteId}
               active={interactionActive && isExpanded}
               showCrossRefs={showCrossRefs}
+              showRelatedNotes={showRelatedNotes}
               onOpenScripturePassage={(ref) => onOpenScripturePassage?.(ref, trans)}
               onOpenEntity={(name, slug) => onOpenPassageReference?.(name, { slug })}
               onNavigateNote={onNavigateNote}
@@ -894,7 +930,7 @@ export default function ScripturePillChromeWeb({
         </div>
       ) : null}
     </StudyDockCardShell>
-    {passageSelection && passageActionBarPos && sourceNoteId && passageHtml && !readOnly && !isMobileDevice() && typeof document !== 'undefined'
+    {passageSelection && passageActionBarPos && sourceNoteId && passageHtml && !readOnly && !isCoarsePointer && typeof document !== 'undefined'
       ? createPortal(
           <div
             data-harvous-bottom-sheet-floating=""

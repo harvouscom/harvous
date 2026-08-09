@@ -538,6 +538,31 @@ describe('confirmScriptureDraftView with an inserted leading spacer', () => {
   });
 });
 
+describe('confirmScriptureDraftView owns the trailing spacer at a block end', () => {
+  // `ensureScripturePillSpacing` skips the trailing space when the pill ends its block, and
+  // `snapCursorOutsideScripturePill` used to insert it a beat later from selectionUpdate — after
+  // the confirm had already captured `caretPos` for the iOS caret resync, so the painted caret
+  // landed before the spacer while ProseMirror sat after it.
+  it('inserts the spacer in the confirm transaction and puts the caret past it', () => {
+    const { view, draftEnd, getState } = draftView('Exodus 16:13');
+    expect(confirmScriptureDraftView(view, draftEnd)).toBe('Exodus 16:13');
+
+    const state = getState();
+    const ranges = collectScripturePillRanges(state.doc, 'scripturePill');
+    expect(ranges).toHaveLength(1);
+    // One spacer, and the caret is on the far side of it — no second transaction required.
+    expect(state.doc.textBetween(ranges[0].end, ranges[0].end + 1)).toBe(' ');
+    expect(state.selection.from).toBe(ranges[0].end + 1);
+    expect(state.doc.textContent).toBe('Exodus 16:13 ');
+  });
+
+  it('does not double up when a spacer already follows the pill', () => {
+    const { view, draftEnd, getState } = draftView('Exodus 16:13', ' x');
+    expect(confirmScriptureDraftView(view, draftEnd)).toBe('Exodus 16:13');
+    expect(getState().doc.textContent).toBe('Exodus 16:13 x');
+  });
+});
+
 // ── Backspace-to-edit: a pill becomes editable text, and is never silently destroyed ──────────
 
 /** Paragraph containing a single committed pill, caret at the pill's trailing edge. */

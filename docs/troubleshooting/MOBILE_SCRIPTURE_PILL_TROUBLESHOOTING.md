@@ -292,9 +292,39 @@ with a committed pill earlier in the paragraph** (the reported repro), and a ref
 to wrap (the ✓ anchors to the last client rect now, since an inline box's `getBoundingClientRect`
 is the union of its fragments).
 
+### Round 16 (August 2026) — NEEDS DEVICE VERIFICATION
+
+Reported: the ✓ beside the **first** pill in a note is misaligned while every later one is fine, and
+committing with **space or Return** strands the caret at the far right instead of honouring the key.
+
+| # | Symptom | Root cause | Fix |
+|---|---------|-----------|-----|
+| 1 | First ✓ of a note misaligned, later ones fine | The mobile shell frame is resized **programmatically** — `apply()` in `SimplifiedPrototypeLayout` writes inline `height`/`margin-top` onto `.proto-shell-frame` and re-runs at rAF + 150ms + 450ms after `focusin` to ride out the keyboard animation and the Safari bottom-bar collapse. Those writes move every line of the editor and fire **no `scroll` and no `resize`**, which are the only signals `updatePos` listened to. The ✓ is positioned 260ms after the last keystroke — between two settle passes. On the first pill the keyboard is still settling; by the second, `apply()` is a no-op. | New `src/utils/proto-viewport-settle.ts`: `apply()` emits `harvous:proto-viewport-settle` when the committed frame geometry actually changes. The ✓ effect subscribes, plus a next-frame re-measure after the idle show. Every other fixed overlay subscribes too (selection bar, pill delete/edit floater, dock accent popover, dock `…` menu, menu-pill dropdown + sheet box). |
+| 2 | Space-commit leaves the caret at the far right | `resolveDetachedDraft` — the mobile space route, since space is never intercepted on mobile — called `confirmScriptureDraftView` **without `focus`**, so the `resyncMobileCaret` at the end of confirm was skipped. Enter and the ✓ both passed it; this was the only commit path that didn't, and the one users hit. | Pass `focus: editor.isFocused`. The `isFocused` guard keeps Round 9 intact: a caret that left because focus went to a dock is not stolen back. |
+| 3 | Return does nothing / caret lands wrong | Enter `preventDefault()`ed and committed, but never inserted the newline — and when the commit was refused (`midRangeEntry`, or a reference outside the canon) the key did nothing at all. | Enter now commits **without** `focus` (the resync would target a caret the split is about to invalidate), then `splitBlock`s, then resyncs against the new position. When the commit is refused it `cancelScriptureDraftView`s (so no orphan dashed span survives into saved HTML) and returns `false`, letting ProseMirror insert the newline on fresh state. Applies to desktop too — one mental model. |
+| 4 | Post-commit caret one position behind PM at a block end | `ensureScripturePillSpacing` is gated on `end < blockEnd`, so a pill ending its block got no trailing space from it; `snapCursorOutsideScripturePill` inserted one a beat later from `selectionUpdate` — after `caretPos` had been captured and the resync scheduled. | `confirmScriptureDraftView` inserts that spacer in its **own** transaction when the mapped `pillEnd` is at the block end. The gate inside `ensureScripturePillSpacing` is deliberately unchanged — it also runs on hydrate, where appending a space to every paragraph-final pill would rewrite saved HTML broadly. Test: "inserts the spacer in the confirm transaction and puts the caret past it". |
+
+**Verified in-browser (Chrome, mobile preset):** space-commit leaves the PM caret just past the pill
++ spacer; the draft ✓ anchors correctly beside the pill. **Not verifiable in-browser:** everything
+about *painted* caret position (Chrome is not iOS), and the Enter path at all — see the testing note
+below. Rounds 15 and 16 both need the same device pass; do them together.
+
+**You cannot test Enter-in-draft under the mobile preset.** ProseMirror's keydown edit handler
+early-returns for `keyCode === 13` when `browser.android && browser.chrome`, deferring to
+`beforeinput` — and the mobile preset emulates an Android Chrome UA, so `handleKeyDown` never sees
+Enter. iOS Safari is not Android, so the real path differs from what the emulator shows. Two more
+harness traps: `computer{action:"type"}` inserts text via `insertText` and fires **no keydowns** at
+all (so desktop draft detection never triggers), and React Fast Refresh does **not** re-register
+TipTap's `editorProps` — a change to `handleKeyDown` needs a full page reload, not HMR.
+
 ---
 
 ## iOS limitations & gotchas (durable)
+
+- **A `position: fixed` overlay must listen for the chrome-settle event, not just scroll/resize.**
+  On mobile note routes the shell frame resizes itself around the keyboard with no DOM event that
+  a viewport-anchored overlay can observe. Subscribe via `onProtoViewportSettle`
+  (`src/utils/proto-viewport-settle.ts`) alongside the usual listeners.
 
 - **No per-keystroke doc mutation on mobile.** The grow plugin is desktop-only. On mobile the draft uses the **`scriptureDraft` mark** with debounced `unifyScriptureDraftAtCursor` (~250ms idle) to fold range tails in one `addMark`.
 - **The ✓ confirm must be a portal OUTSIDE the editor.** iOS refuses to type next to an inline
@@ -348,3 +378,9 @@ is the union of its fragments).
   - Caret after committed pill + spacer (not before, not line end)
   - Bold not stuck on subsequent plain typing after abandoning a draft
   - Edit pencil opens the scripture dock (not inline draft edit)
+- Round 16 adds to that checklist:
+  - The ✓ is aligned beside the **first** pill in a fresh note, not only the second
+  - Commit with **space** — caret sits after the pill + spacer, not at the far right
+  - Commit with **Return** — the pill commits *and* the line breaks; caret starts the new line
+  - `Exodus 16:1315` + Return — the newline happens and the text drops to plain prose
+  - A draft inside an ordered list item with a committed pill earlier in the paragraph

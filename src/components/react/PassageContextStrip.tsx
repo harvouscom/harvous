@@ -44,6 +44,8 @@ export interface PassageContextStripProps {
   active: boolean;
   /** Whether the cross-references section is visible (toggled from the dock chrome). */
   showCrossRefs: boolean;
+  /** Whether the "Your notes" section is visible (toggled from the dock chrome). Defaults on. */
+  showRelatedNotes?: boolean;
   /** Cross-reference tapped — open it as a read-only passage card. */
   onOpenScripturePassage: (reference: string) => void;
   /** Person/place tapped — open the reference dock for the entity. */
@@ -118,6 +120,7 @@ export default function PassageContextStrip({
   sourceNoteId = null,
   active,
   showCrossRefs,
+  showRelatedNotes = true,
   onOpenScripturePassage,
   onOpenEntity,
   onNavigateNote,
@@ -173,7 +176,7 @@ export default function PassageContextStrip({
   // Computed with null guards so these (and the effect below) stay above the early
   // returns — hooks must run unconditionally on every render (Rules of Hooks).
   const hasCrossRefs = !!ctx && showCrossRefs && ctx.crossReferences.length > 0;
-  const hasNotes = !!ctx && ctx.relatedNotes.length > 0;
+  const hasNotes = !!ctx && showRelatedNotes && ctx.relatedNotes.length > 0;
 
   // Fire on every false→true transition of cross-refs visibility, not just once:
   // the strip stays mounted across toggles (only the section inside shows/hides), so a

@@ -33,7 +33,10 @@ export default function PrototypeEditorChromeBar() {
         <div
           ref={setFormatToolbarHostEl}
           className="proto-editor-bottom-bar__format"
-          style={{ display: editorChromeMode === 'format' ? 'flex' : 'none' }}
+          style={{
+            display:
+              editorChromeMode === 'format' || editorChromeMode === 'selection' ? 'flex' : 'none',
+          }}
         />
       </div>
     </div>

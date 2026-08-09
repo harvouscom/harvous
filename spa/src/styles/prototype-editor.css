@@ -1425,6 +1425,53 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   backdrop-filter: none;
 }
 
+/* ── Selection actions in the bottom chrome slot (touch) ──────────────────────
+   On iOS the system text callout lands on top of anything floating at the
+   selection and cannot be suppressed, so on coarse pointers these actions move
+   into the chrome bar instead. Labels come along: the bar is the only affordance
+   here, and a row of unlabelled 14px glyphs is not one. */
+.selection-action-bar--chrome-bar {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.selection-action-bar--chrome-bar .pds-native-selection-bar {
+  flex: 1 1 auto;
+  gap: 4px;
+  min-width: 0;
+  justify-content: space-evenly;
+}
+
+/* Only the chrome-bar variant shows text; the floating capsule stays icon-only. */
+.pds-native-selection-bar__label {
+  display: none;
+}
+
+.pds-native-selection-bar--toolbar .pds-native-selection-bar__label {
+  display: inline;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.pds-native-selection-bar--toolbar .pds-native-selection-bar__btn {
+  gap: 6px;
+  width: auto;
+  min-width: 44px; /* iOS minimum touch target */
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: var(--pds-radius-control, 8px);
+}
+
+/* The capsule's hairline rules read as clutter once the buttons carry labels. */
+.pds-native-selection-bar--toolbar .pds-native-selection-bar__rule {
+  display: none;
+}
+
 html.harvous-prototype-route .pds-native-selection-bar {
   color: var(--pds-text-primary);
 }

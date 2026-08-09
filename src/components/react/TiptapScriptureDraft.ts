@@ -10,6 +10,7 @@ import {
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { collectScripturePillRanges, ensureScripturePillSpacing } from '@/utils/scripture-pill-spacing';
+import { hasBlockGapAfter } from '@/utils/scripture-pill-block-gaps';
 import { isMobileDevice } from '@/utils/pwa-prompt';
 
 /**
@@ -1097,6 +1098,23 @@ export function confirmScriptureDraftView(
   const spacingMapping = tr.mapping.slice(stepsBeforeSpacing);
   const pillStart = spacingMapping.map(rawPillStart, 1);
   const pillEnd = spacingMapping.map(rawPillEnd, 1);
+
+  // `ensureScripturePillSpacing` is gated on `end < blockEnd`, so a pill that ends its block gets
+  // no trailing space from it — `snapCursorOutsideScripturePill` inserts one a beat later, in a
+  // SEPARATE transaction fired from selectionUpdate. That is too late: `caretPos` below is already
+  // captured, so the double-rAF resync then paints the native caret before the spacer while PM
+  // sits after it. Own the spacer here instead, so every position the resync uses is settled by
+  // the time we dispatch. (Deliberately not relaxing the gate inside `ensureScripturePillSpacing`
+  // — it also runs on hydrate, where appending a space to every paragraph-final pill would rewrite
+  // saved HTML across the board.)
+  try {
+    const $pillEnd = tr.doc.resolve(pillEnd);
+    if (pillEnd === $pillEnd.end($pillEnd.depth) && !hasBlockGapAfter(tr.doc, pillEnd)) {
+      tr.insertText(' ', pillEnd);
+    }
+  } catch {
+    /* leave it to the snap handler */
+  }
 
   let caret = pillEnd;
   const charAfter = tr.doc.textBetween(pillEnd, Math.min(pillEnd + 1, tr.doc.content.size));

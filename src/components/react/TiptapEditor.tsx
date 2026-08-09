@@ -106,6 +106,8 @@ import {
 import { findAdjacentPillBoundaries } from '@/utils/scripture-pill-adjacent';
 import { rangeContainsScripturePillMark, scripturePillSkipLeftTarget } from '@/utils/scripture-pill-range';
 import { hasBlockGapAfter, hasLostBlockGaps } from '@/utils/scripture-pill-block-gaps';
+import { onProtoViewportSettle } from '@/utils/proto-viewport-settle';
+import { useCoarsePointer } from '../../../spa/src/lib/use-coarse-pointer';
 import {
   ensureScripturePillSpacing,
   rangeCrossesHardBreak,
@@ -278,7 +280,7 @@ interface TiptapEditorProps {
    */
   forceBodyReplaceFromProps?: number;
   onPrototypeChromeModeChange?: (
-    mode: 'format' | 'scripture' | 'noteActions' | 'highlight' | 'reference' | 'hidden',
+    mode: 'format' | 'selection' | 'scripture' | 'noteActions' | 'highlight' | 'reference' | 'hidden',
   ) => void;
   /**
    * Prototype-only: when false and no inline `noteActions` host is rendered, use `hidden` instead of `noteActions`
@@ -696,6 +698,55 @@ type ScripturePillDeleteConfirmState = {
   reference: string;
   boundaries: { start: number; end: number };
 };
+
+/**
+ * Container for the note-body selection actions.
+ *
+ * `inChromeBar` (touch): the actions render as a row in the bottom chrome slot. iOS puts its own
+ * text callout — "Copy | Look Up | Translate" — directly over anything floating at the selection,
+ * and there is no web API to suppress it, so we vacate that space entirely. It is the same trade
+ * the scripture dock already makes for passage selections, and it buys full-width touch targets.
+ *
+ * Otherwise: a fixed capsule just below the selection, positioned by the caller.
+ */
+function SelectionBarShell({
+  inChromeBar,
+  barRef,
+  top,
+  left,
+  children,
+}: {
+  inChromeBar: boolean;
+  barRef: React.RefObject<HTMLDivElement | null>;
+  top: number;
+  left: number;
+  children: React.ReactNode;
+}) {
+  if (inChromeBar) {
+    return (
+      <div ref={barRef} className="selection-action-bar selection-action-bar--chrome-bar">
+        {children}
+      </div>
+    );
+  }
+  return (
+    <div
+      ref={barRef}
+      data-harvous-bottom-sheet-floating=""
+      className="selection-action-bar"
+      style={{
+        position: 'fixed',
+        top,
+        left,
+        transform: 'translateX(-50%)',
+        zIndex: 99999,
+        pointerEvents: 'auto',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 type MentionPickerState = {
   /** The `@query` range in the doc: from = position of `@`, to = caret. */
@@ -4139,6 +4190,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     reference: string;
     updating?: boolean; // true while API call is in flight
   } | null>(null);
+  // Reactive, unlike the `isMobileDevice()` UA sniff — an iPad gaining a trackpad flips this live.
+  const isCoarsePointer = useCoarsePointer();
   const [deleteConfirmPill, setDeleteConfirmPill] = useState<{
     rect: DOMRect;
     reference: string;
@@ -5067,9 +5120,34 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             return true;
           }
           if (event.key === 'Enter' || event.key === 'NumpadEnter') {
+            // Commit WITHOUT `focus` — the resync it would schedule targets the pre-split caret,
+            // which the block split below is about to invalidate. We re-run it after the split.
+            const committed = confirmScriptureDraftView(view, undefined, {});
+            if (!committed) {
+              // The draft refused to commit — mid-range entry (`Numbers 5:5` + a plain `-1` tail),
+              // or a reference outside the canon (`Exodus 16:1315`). Don't swallow the key: a
+              // Return that does nothing reads as broken. Resolve the draft first so no orphan
+              // dashed span survives the line break (it would serialize into the saved HTML and
+              // read as stuck bold text), then let ProseMirror insert the newline on fresh state.
+              cancelScriptureDraftView(view);
+              return false;
+            }
+            // Return means "done with this line", not just "accept the pill" — break the line too.
+            // splitBlock (the command Enter normally maps to) handles list items and the other
+            // block types correctly, where a raw tr.split would throw at some positions.
             event.preventDefault();
-            // focus:true so the caret stays visible after the commit instead of vanishing on iOS.
-            confirmScriptureDraftView(view, undefined, { focus: true });
+            editor
+              .chain()
+              .splitBlock()
+              .command(({ tr }: { tr: any }) => {
+                tr.setStoredMarks([]);
+                tr.scrollIntoView();
+                return true;
+              })
+              .run();
+            // The new block is empty, so plain domAtPos placement is correct here — no pill
+            // adjacency, hence no markFrom/markTo.
+            resyncMobileCaret(view, { focus: true, pos: view.state.selection.from });
             return true;
           }
           // Double-space confirms (desktop only — never intercept space on mobile: it breaks
@@ -5595,6 +5673,26 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       /* ignore */
     }
   }, [editor]);
+
+  /**
+   * Hand focus off to a dock the moment one expands, from whatever route opened it.
+   *
+   * On mobile the entire dock layer is `display: none` while the soft keyboard is up
+   * (`html[data-proto-keyboard-open] .proto-shell__study-dock-layer`, prototype-shell.css), so a
+   * dock that opens with the editor still focused is simply invisible. Individual open routes
+   * (pill tap, highlight tap) already blurred by hand; doing it on the transition covers the ones
+   * that didn't — cross-reference taps, reference suggestions, deep links — and any added later.
+   * Fires only on the false→true edge, so tapping back into the editor is never fought.
+   */
+  const anyStudyDockExpanded = studyDockStack.entries.some((e) => e.expanded);
+  const prevAnyStudyDockExpandedRef = useRef(false);
+  useEffect(() => {
+    const wasExpanded = prevAnyStudyDockExpandedRef.current;
+    prevAnyStudyDockExpandedRef.current = anyStudyDockExpanded;
+    if (!wasExpanded && anyStudyDockExpanded && editorChromeMode === 'prototypeNative') {
+      releaseEditorFocusForStudyDock();
+    }
+  }, [anyStudyDockExpanded, editorChromeMode, releaseEditorFocusForStudyDock]);
 
   const syncStudyThreadList = useCallback(
     (parentNoteId?: string | null) => {
@@ -6359,6 +6457,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     document.addEventListener('mousedown', handlePointerDownOutside);
     document.addEventListener('pointerdown', handlePointerDownOutside);
+    // Re-measure when the mobile shell frame resizes itself around the keyboard — no scroll or
+    // resize event accompanies that, so the bar would otherwise sit at the pre-settle coords.
+    const offSettle = onProtoViewportSettle(updateSelection);
 
     return () => {
       if (editor && !editor.isDestroyed) {
@@ -6366,6 +6467,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       document.removeEventListener('mousedown', handlePointerDownOutside);
       document.removeEventListener('pointerdown', handlePointerDownOutside);
+      offSettle();
     };
   }, [editor, enableCreateNoteFromSelection, editorChromeMode, clearSelectionActionBar]);
 
@@ -7249,7 +7351,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           return;
         }
       }
-      confirmScriptureDraftView(editor.view, detached.to, { onInvalid: 'finalize' });
+      // The caret left the draft. When it left by TYPING (the mobile space-commit route — space is
+      // never intercepted on mobile, so it lands as plain text and detaches the draft), this is a
+      // user confirm and must re-assert the native caret: iOS leaves the *painted* caret at the
+      // line end after the commit mutation even though the PM selection is correct. Every other
+      // commit route (Enter, the ✓) already passes `focus`; this one was the gap, and it is the
+      // one users actually hit. Guard on `isFocused` so a caret that left because focus went to a
+      // dock does NOT get stolen back (Round 9).
+      confirmScriptureDraftView(editor.view, detached.to, {
+        onInvalid: 'finalize',
+        focus: editor.isFocused,
+      });
     };
 
     let blurConfirmTimer: ReturnType<typeof setTimeout> | null = null;
@@ -7419,6 +7531,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       idleTimer = setTimeout(() => {
         idleTimer = null;
         updatePos();
+        // Measure again on the next frame: showing the ✓ is the moment the draft's inline box has
+        // just settled, and a sub-frame layout shift (fonts, the chrome row collapsing) would
+        // otherwise strand it at the pre-shift rect until the next scroll.
+        requestAnimationFrame(updatePos);
         if (canSafelyResyncMobileDraftIdleCaret(editor.state)) {
           const anchor = getScriptureDraftAnchorPos(editor.state);
           const draftRange = getScriptureDraftRange(editor.state);
@@ -7447,6 +7563,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
     vv?.addEventListener('resize', updatePos);
     vv?.addEventListener('scroll', updatePos);
+    // The mobile shell frame is resized programmatically across the keyboard-settle window, which
+    // moves every line of the editor without firing scroll/resize. That is what leaves the FIRST ✓
+    // of a note misaligned — it is measured 260ms after the last keystroke, between two settle
+    // passes, while later ones land after the frame has stopped moving.
+    const offSettle = onProtoViewportSettle(updatePos);
     return () => {
       if (idleTimer) clearTimeout(idleTimer);
       if (editor && !editor.isDestroyed) {
@@ -7457,8 +7578,26 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       window.removeEventListener('resize', updatePos);
       vv?.removeEventListener('resize', updatePos);
       vv?.removeEventListener('scroll', updatePos);
+      offSettle();
     };
   }, [editor, editorChromeMode]);
+
+  // The pill delete/edit floater is anchored to a DOMRect captured when it opened. Re-capture it
+  // when the mobile shell frame resizes around the keyboard — that moves the pill without firing
+  // scroll or resize, so the floater would otherwise detach from it.
+  useEffect(() => {
+    if (!editor || !deleteConfirmPill) return;
+    return onProtoViewportSettle(() => {
+      if (!isEditorValid(editor)) return;
+      const pillEl = editor.view.dom.querySelector(
+        `.scripture-pill[data-scripture-reference="${CSS.escape(deleteConfirmPill.reference)}"]`,
+      ) as HTMLElement | null;
+      if (!pillEl) return;
+      const next = { ...deleteConfirmPill, rect: pillEl.getBoundingClientRect() };
+      setDeleteConfirmPill(next);
+      deleteConfirmPillRef.current = next;
+    });
+  }, [editor, deleteConfirmPill]);
 
   // Handle create note from selection
   const handleCreateNoteFromSelection = async (
@@ -8182,6 +8321,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     !suppressFormatBarUntilBodySignalRef.current &&
     (isEditorFocused || showFormatBarForActivity || isPointerOverFormatToolbar);
 
+  /* Prototype column bar: undefined = inline fallback; null = host pending; element = portal target. */
+  const columnFormatToolbarPortal = formatToolbarPortalTarget !== undefined;
+
+  /* Touch: the selection actions take over the chrome slot rather than floating into the iOS
+     callout. Needs a real host to portal into, and a dock must not already own the chrome. */
+  const selectionActionsInChromeBar =
+    editorChromeMode === 'prototypeNative' &&
+    isCoarsePointer &&
+    enableCreateNoteFromSelection &&
+    selectionActionBar != null &&
+    !studyDockChromeTakesOver &&
+    !!formatToolbarPortalTarget;
+
   // A read-only body (co-edit off, or a foreign shared note) still fires TipTap's
   // `focus` event on click — `contenteditable="false"` doesn't stop that — so
   // without this the format bar offered editing tools that would do nothing.
@@ -8189,10 +8341,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editorChromeMode === 'prototypeNative' &&
     formatToolbarEngaged &&
     !studyDockChromeTakesOver &&
+    // Both portal into the same host; the selection actions win while a selection is live.
+    !selectionActionsInChromeBar &&
     editor?.isEditable !== false;
-
-  /* Prototype column bar: undefined = inline fallback; null = host pending; element = portal target. */
-  const columnFormatToolbarPortal = formatToolbarPortalTarget !== undefined;
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative' || !onPrototypeChromeModeChange) return;
@@ -8200,12 +8351,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     // TipTap's focus event on click, so without this the parent's bottom bar would
     // switch to 'format' — editing tools with nothing to act on — for a note the
     // click can't actually edit.
-    if (!formatToolbarEngaged || editor?.isEditable === false) {
-      onPrototypeChromeModeChange(prototypeNoteActionsChrome ? 'noteActions' : 'hidden');
-      return;
-    }
     if (studyDockChromeTakesOver) {
       onPrototypeChromeModeChange('hidden');
+      return;
+    }
+    // The selection row keeps the slot open even when the format bar itself has disengaged —
+    // on touch, tapping the bar's own buttons is not an editor-body signal.
+    if (selectionActionsInChromeBar) {
+      onPrototypeChromeModeChange('selection');
+      return;
+    }
+    if (!formatToolbarEngaged || editor?.isEditable === false) {
+      onPrototypeChromeModeChange(prototypeNoteActionsChrome ? 'noteActions' : 'hidden');
       return;
     }
     onPrototypeChromeModeChange('format');
@@ -8216,6 +8373,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     formatToolbarEngaged,
     editor?.isEditable,
     studyDockChromeTakesOver,
+    selectionActionsInChromeBar,
   ]);
 
   const syncTiptapContentScrollMask = useCallback(() => {
@@ -8985,22 +9143,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         {/* Custom floating selection action bar — positioned via selectionUpdate event */}
         {/* Uses createPortal like the translation picker for reliable positioning */}
         {selectionActionBar && enableCreateNoteFromSelection && createPortal(
-          <div
-            ref={createNoteBubbleRef}
-            data-harvous-bottom-sheet-floating=""
-            className="selection-action-bar"
-            style={{
-              position: 'fixed',
-              top: selectionActionBar.top,
-              left: selectionActionBar.left,
-              transform: 'translateX(-50%)',
-              zIndex: 99999,
-              pointerEvents: 'auto',
-            }}
+          <SelectionBarShell
+            inChromeBar={selectionActionsInChromeBar}
+            barRef={createNoteBubbleRef}
+            top={selectionActionBar.top}
+            left={selectionActionBar.left}
           >
             {editorChromeMode === 'prototypeNative' ? (
               <div
-                className="pds-native-selection-bar floating-picker-enter"
+                className={`pds-native-selection-bar${
+                  selectionActionsInChromeBar
+                    ? ' pds-native-selection-bar--toolbar'
+                    : ' floating-picker-enter'
+                }`}
                 onMouseDown={(e) => e.preventDefault()}
                 onPointerDown={(e) => e.preventDefault()}
               >
@@ -9132,6 +9287,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   }}
                 >
                   <Icon name="highlighter" size={14} />
+                  <span className="pds-native-selection-bar__label">Highlight</span>
                 </button>
                 {sourceNoteId && spaceId && !sharedAnnotationOverlayMode ? (
                   <>
@@ -9165,6 +9321,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       }}
                     >
                       <Icon name="arrow-right-arrow-left" size={14} />
+                      <span className="pds-native-selection-bar__label">Connect</span>
                     </button>
                   </>
                 ) : null}
@@ -9183,6 +9340,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   }}
                 >
                   <Icon name="pen-to-square" size={14} />
+                  <span className="pds-native-selection-bar__label">New note</span>
                 </button>
                 {selectionActionBar &&
                 rangeHasHighlightMark(editor, selectionActionBar.from, selectionActionBar.to) ? (
@@ -9246,6 +9404,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       }}
                     >
                       <Icon name="eraser" size={14} />
+                      <span className="pds-native-selection-bar__label">Clear</span>
                     </button>
                   </>
                 ) : null}
@@ -9298,8 +9457,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 </button>
               </div>
             )}
-          </div>,
-          document.body
+          </SelectionBarShell>,
+          selectionActionsInChromeBar && formatToolbarPortalTarget
+            ? formatToolbarPortalTarget
+            : document.body,
         )}
         {/* Delete confirmation floater — appears on first Backspace/Delete near a pill */}
         {deleteConfirmPill ? (

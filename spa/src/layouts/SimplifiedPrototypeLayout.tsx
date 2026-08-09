@@ -46,6 +46,7 @@ import { useActiveSpace } from '../hooks/useActiveSpace';
 import { useSharedSpaceVisitStamp } from '../hooks/useSharedSpaceVisit';
 import { resolvePrototypeSidebarVariant } from './resolve-prototype-sidebar-variant';
 import { updateStudyDockExpandedMaxHeight } from '@/utils/study-dock-layout';
+import { emitProtoViewportSettle } from '@/utils/proto-viewport-settle';
 import { isPrototypeDraftNoteSlug, normalizeNoteIdFromParam } from '../pages/prototype/proto-route-slugs';
 import { prototypeToolbarNoteDetailsAvailable } from '../pages/prototype/prototype-toolbar-note-details';
 import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
@@ -381,6 +382,15 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     const mq = window.matchMedia('(max-width: 899px)');
     const root = document.documentElement;
     let settleTimers: ReturnType<typeof setTimeout>[] = [];
+    // Last committed frame geometry. `apply()` re-runs several times per settle window and is
+    // usually a no-op; only announce the passes that actually moved the chrome, so overlay
+    // consumers don't re-measure three times for nothing. See utils/proto-viewport-settle.ts.
+    let appliedGeometry: string | null = null;
+    const announceGeometry = (next: string | null) => {
+      if (appliedGeometry === next) return;
+      appliedGeometry = next;
+      emitProtoViewportSettle();
+    };
     const clearSettleTimers = () => {
       settleTimers.forEach((t) => clearTimeout(t));
       settleTimers = [];
@@ -415,6 +425,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           frame.style.removeProperty('max-height');
           frame.style.removeProperty('margin-top');
         });
+      announceGeometry(null);
     };
 
     const clear = () => {
@@ -464,6 +475,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           frame.style.maxHeight = `${frameHeight}px`;
           frame.style.marginTop = `${frameInset + offsetTop}px`;
         });
+        announceGeometry(`${frameHeight}:${frameInset + offsetTop}`);
       } else {
         clearKeyboardState();
       }

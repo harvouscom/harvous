@@ -8,6 +8,7 @@ import {
   visualViewportOverlayStyle,
   type VisualViewportBox,
 } from '@/utils/visual-viewport-box';
+import { onProtoViewportSettle } from '@/utils/proto-viewport-settle';
 import '@/styles/harvous-menu-pill.css';
 
 export interface HarvousMenuPillOption {
@@ -114,7 +115,12 @@ export default function HarvousMenuPill({
 
   // Track the visible area while the sheet is open so it sits above the keyboard rather than
   // behind it. iOS fires visualViewport `scroll` (not just `resize`) as the keyboard animates.
-  useEffect(() => {
+  //
+  // useLayoutEffect, not useEffect: with a passive effect the sheet's FIRST paint has
+  // `viewportBox === null` and falls back to the `inset: 0` rule — the full layout viewport,
+  // which on iOS includes the area behind the keyboard. The slide-up animation then starts from
+  // the wrong box and visibly settles, which is what made the sheet look mispositioned/cut off.
+  useLayoutEffect(() => {
     if (!open || !isCoarse || typeof window === 'undefined') {
       setViewportBox(null);
       return;
@@ -125,10 +131,12 @@ export default function HarvousMenuPill({
     vv?.addEventListener('resize', sync);
     vv?.addEventListener('scroll', sync);
     window.addEventListener('resize', sync);
+    const offSettle = onProtoViewportSettle(sync);
     return () => {
       vv?.removeEventListener('resize', sync);
       vv?.removeEventListener('scroll', sync);
       window.removeEventListener('resize', sync);
+      offSettle();
     };
   }, [open, isCoarse]);
 
@@ -163,11 +171,13 @@ export default function HarvousMenuPill({
       const onReposition = () => updateMenuPosition();
       window.addEventListener('resize', onReposition);
       window.addEventListener('scroll', onReposition, true);
+      const offSettle = onProtoViewportSettle(onReposition);
       return () => {
         window.removeEventListener('pointerdown', onPointerDown, { capture: true });
         window.removeEventListener('keydown', onKeyDown);
         window.removeEventListener('resize', onReposition);
         window.removeEventListener('scroll', onReposition, true);
+        offSettle();
       };
     }
     return () => {
@@ -228,7 +238,21 @@ export default function HarvousMenuPill({
                     : undefined
                 }
               >
-                <div className="harvous-menu-pill__sheet-header">{ariaLabel}</div>
+                <div className="harvous-menu-pill__sheet-grabber" aria-hidden />
+                <div className="harvous-menu-pill__sheet-header">
+                  <span className="harvous-menu-pill__sheet-header-label">{ariaLabel}</span>
+                  {/* Backdrop-tap was the only way out — easy to miss when the sheet fills most
+                      of the visible area above the keyboard. */}
+                  <button
+                    type="button"
+                    className="harvous-menu-pill__sheet-close"
+                    aria-label="Close"
+                    onPointerDown={(e) => e.preventDefault()}
+                    onClick={close}
+                  >
+                    <Icon name="xmark" size={12} />
+                  </button>
+                </div>
                 <ul
                   ref={menuRef}
                   className="harvous-menu-pill__sheet-list"

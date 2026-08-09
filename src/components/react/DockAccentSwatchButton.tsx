@@ -8,6 +8,7 @@ import {
   STUDY_HIGHLIGHT_SWATCHES_WITH_NEUTRAL,
   studyDockAccentCssVar,
 } from '@/utils/study-highlight-accents';
+import { onProtoViewportSettle } from '@/utils/proto-viewport-settle';
 import '@/styles/highlight-dock-web.css';
 
 export interface DockAccentSwatchButtonProps {
@@ -111,12 +112,14 @@ export default function DockAccentSwatchButton({
     document.addEventListener('keydown', onKeyDown);
     window.addEventListener('resize', onReposition);
     window.addEventListener('scroll', onReposition, true);
+    const offSettle = onProtoViewportSettle(onReposition);
     return () => {
       document.removeEventListener('mousedown', onPointerDown);
       document.removeEventListener('touchstart', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onReposition);
       window.removeEventListener('scroll', onReposition, true);
+      offSettle();
     };
   }, [open, close, updatePopoverPosition]);
 

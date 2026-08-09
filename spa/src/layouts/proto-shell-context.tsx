@@ -190,6 +190,13 @@ export type StandaloneScripturePassageState = {
 /** Bottom chrome on note routes — format bar, scripture dock, etc. */
 export type PrototypeEditorChromeMode =
   | 'format'
+  /**
+   * Touch only: the note-body selection actions have taken over the format slot. On iOS the
+   * system text callout ("Copy | Look Up | Translate") lands right where a floating capsule at
+   * the selection would, and there is no API to suppress it — so we vacate that space and put
+   * our actions in the chrome bar instead, the same way the scripture dock does for passages.
+   */
+  | 'selection'
   | 'scripture'
   | 'highlight'
   | 'reference'

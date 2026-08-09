@@ -253,7 +253,7 @@ interface CardFullEditableProps {
    *  pinned to the bottom of the editor column. */
   formatToolbarPortalTarget?: HTMLElement | null;
   /** Prototype-only: bubbles up the current bottom chrome mode (format / scripture / highlight / search / noteActions / hidden). */
-  onPrototypeChromeModeChange?: (mode: 'format' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden') => void;
+  onPrototypeChromeModeChange?: (mode: 'format' | 'selection' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden') => void;
   /**
    * Prototype-only: when set, overrides whether the editor switches to note-actions chrome on blur /
    * when the format toolbar is inactive. Omit to derive from `noteActionsPortalTarget` or `prototypeNoteActionBar`.
@@ -657,7 +657,7 @@ export default function CardFullEditable({
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
   const [prototypeBottomChromeMode, setPrototypeBottomChromeModeInternal] = useState<
-    'format' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden'
+    'format' | 'selection' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden'
   >('noteActions');
   const [prototypeScripturePillOpenRequest, setPrototypeScripturePillOpenRequest] = useState<{
     reference: string;
@@ -676,7 +676,7 @@ export default function CardFullEditable({
     onPrototypeChromeModeChangeRef.current = onPrototypeChromeModeChange;
   }, [onPrototypeChromeModeChange]);
   const setPrototypeBottomChromeMode = useCallback(
-    (mode: 'format' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden') => {
+    (mode: 'format' | 'selection' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden') => {
       setPrototypeBottomChromeModeInternal(mode);
       onPrototypeChromeModeChangeRef.current?.(mode);
     },

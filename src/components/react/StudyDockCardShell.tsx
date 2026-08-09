@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
+import { onProtoViewportSettle } from '@/utils/proto-viewport-settle';
 import '@/styles/study-dock-card.css';
 
 const NARROW_BREAKPOINT = 420;
@@ -55,12 +56,14 @@ function OverflowMenu({ children }: { children: React.ReactNode }) {
     document.addEventListener('keydown', esc);
     window.addEventListener('resize', updatePos);
     window.addEventListener('scroll', updatePos, true);
+    const offSettle = onProtoViewportSettle(updatePos);
     return () => {
       document.removeEventListener('mousedown', dismiss);
       document.removeEventListener('touchstart', dismiss);
       document.removeEventListener('keydown', esc);
       window.removeEventListener('resize', updatePos);
       window.removeEventListener('scroll', updatePos, true);
+      offSettle();
     };
   }, [open, updatePos]);
 
@@ -123,7 +126,16 @@ export interface StudyDockCardShellProps {
   /** When true, title slot is a button that toggles expand. */
   headerTitleIsButton?: boolean;
   headerTrailing?: React.ReactNode;
-  /** Accent swatch, trash, etc. — inserted before chevron/X. */
+  /**
+   * Actions that stay inline at every width — never folded into the narrow overflow menu.
+   *
+   * The `…` menu below 420px was swallowing the controls people reach for most (the reference
+   * dock's Save ✓, the passage toggles), which on a phone means two taps and a hunt for a
+   * one-tap action. Put the primary one or two here; leave destructive and rarely-used controls
+   * in `headerActions`. Keep this short — the title truncates to make room.
+   */
+  headerPrimaryActions?: React.ReactNode;
+  /** Accent swatch, trash, etc. — inserted before chevron/X. Folds into `…` below 420px. */
   headerActions?: React.ReactNode;
   /** Primary action on the accent stripe — always visible (not buried in narrow overflow). */
   accentPrimaryAction?: {
@@ -151,6 +163,7 @@ export default function StudyDockCardShell({
   headerTitle,
   headerTitleIsButton = false,
   headerTrailing,
+  headerPrimaryActions,
   headerActions,
   accentPrimaryAction,
   children,
@@ -294,6 +307,7 @@ export default function StudyDockCardShell({
               <div className="study-dock-card__header-trailing">{headerTrailing}</div>
             ) : null}
             <div className="study-dock-card__header-actions" onClick={stopHeaderActionClickBubble}>
+              {expanded && headerPrimaryActions ? headerPrimaryActions : null}
               {expanded && headerActions ? (
                 isNarrow ? (
                   <OverflowMenu>{headerActions}</OverflowMenu>
@@ -303,6 +317,9 @@ export default function StudyDockCardShell({
                     <span className="study-dock-card__header-divider" aria-hidden />
                   </>
                 )
+              ) : null}
+              {expanded && headerPrimaryActions && !headerActions ? (
+                <span className="study-dock-card__header-divider" aria-hidden />
               ) : null}
               {expanded ? (
                 <button

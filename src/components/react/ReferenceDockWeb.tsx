@@ -198,10 +198,20 @@ export default function ReferenceDockWeb({
       </button>
     ) : null;
 
+  // Save and the passage toggle are the reasons you opened this card — they stay inline at every
+  // width. Below 420px `headerActions` collapses into a `…` menu, and burying a one-tap save
+  // behind two taps is exactly the friction this dock exists to avoid.
+  const headerPrimaryActions =
+    saveOrb || scriptureRefToggle ? (
+      <>
+        {saveOrb}
+        {scriptureRefToggle}
+      </>
+    ) : null;
+
   const headerActions =
     savedReferenceHighlight && (onChangeNoteHighlight || onRemoveNoteHighlight) ? (
       <>
-        {scriptureRefToggle}
         {onChangeNoteHighlight ? (
           <DockAccentSwatchButton
             selection={noteAccent}
@@ -223,11 +233,6 @@ export default function ReferenceDockWeb({
             <Icon name="trash-can" size={12} />
           </button>
         ) : null}
-      </>
-    ) : saveOrb || scriptureRefToggle ? (
-      <>
-        {saveOrb}
-        {scriptureRefToggle}
       </>
     ) : null;
 
@@ -254,6 +259,7 @@ export default function ReferenceDockWeb({
           ) : null}
         </span>
       }
+      headerPrimaryActions={headerPrimaryActions}
       headerActions={headerActions}
     >
       <div className="reference-dock-web__passage">

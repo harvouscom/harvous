@@ -143,14 +143,52 @@
   animation: harvous-menu-pill-sheet-up 200ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
 }
 
-.harvous-menu-pill__sheet-header {
+/* Grab affordance — reads as a sheet you can dismiss, not a stuck overlay. */
+.harvous-menu-pill__sheet-grabber {
   flex-shrink: 0;
-  padding: 8px 8px 6px;
+  width: 36px;
+  height: 4px;
+  margin: 2px auto 4px;
+  border-radius: 2px;
+  background: var(--pds-text-primary);
+  opacity: 0.16;
+}
+
+.harvous-menu-pill__sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 4px 4px 6px 8px;
+}
+
+.harvous-menu-pill__sheet-header-label {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--pds-text-tertiary);
+}
+
+.harvous-menu-pill__sheet-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--pds-radius-pill, 999px);
+  background: var(--pds-bg-control);
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.harvous-menu-pill__sheet-close:active {
+  background: var(--pds-bg-control-strong);
 }
 
 .harvous-menu-pill__sheet-list {
@@ -167,6 +205,30 @@
   touch-action: pan-y;
   overscroll-behavior: contain;
   scrollbar-width: none;
+  /* The scrollbar is hidden, so a row clipped by the sheet's cap reads as "broken layout"
+     rather than "scroll me". Fade the cut edges — and only the cut ones, so a short list that
+     fits shows no fade at all. `scroll-timeline`-free approach: mask both ends and let the
+     browser's own overscroll reveal full rows at the extremes. */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 14px,
+    #000 calc(100% - 14px),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 14px,
+    #000 calc(100% - 14px),
+    transparent 100%
+  );
+}
+
+/* Keep `scrollIntoView({ block: 'center' })` from parking the selected row under the header
+   or beneath the bottom fade. */
+.harvous-menu-pill__sheet-list .harvous-menu-pill__item {
+  scroll-margin-block: 14px;
 }
 
 .harvous-menu-pill__sheet-list::-webkit-scrollbar {
