@@ -1349,8 +1349,9 @@ export default function PrototypeSidebar({
     setSidebarListSpaceScope,
     sidebarSelectMode,
     setSidebarSelectMode,
-    sidebarSelectedNoteIds,
-    setSidebarSelectedNoteIds,
+    sidebarSelectionKind,
+    sidebarSelectedIds,
+    setSidebarSelection,
     setSidebarFolderDrilldown: setActiveFolderKey,
     sidebarFolderDrilldown: activeFolderKey,
     sidebarThreadDrilldownId,
@@ -1876,7 +1877,7 @@ export default function PrototypeSidebar({
    */
   const onBulkShareToSpace = useCallback(
     async (targetSpaceId: string) => {
-      const ids = [...sidebarSelectedNoteIds];
+      const ids = [...sidebarSelectedIds];
       setBulkSharePending(true);
       try {
         const res = await api.post<{ updatedNotes?: number; errors?: string[] }>(
@@ -1900,7 +1901,7 @@ export default function PrototypeSidebar({
         setBulkSharePending(false);
       }
     },
-    [sidebarSelectedNoteIds, queryClient, setSidebarSelectMode],
+    [sidebarSelectedIds, queryClient, setSidebarSelectMode],
   );
 
   /**
@@ -1909,7 +1910,7 @@ export default function PrototypeSidebar({
    * "Deleted" would be a lie.
    */
   const onConfirmBulkDelete = useCallback(() => {
-    const ids = [...sidebarSelectedNoteIds];
+    const ids = [...sidebarSelectedIds];
     deleteNotesBatch.mutate(ids, {
       onSuccess: (res) => {
         setBulkDeleteConfirmOpen(null);
@@ -1926,10 +1927,10 @@ export default function PrototypeSidebar({
         toastError(err, 'Could not delete these notes');
       },
     });
-  }, [sidebarSelectedNoteIds, deleteNotesBatch, setSidebarSelectMode]);
+  }, [sidebarSelectedIds, deleteNotesBatch, setSidebarSelectMode]);
 
   const onConfirmBulkRemoveFromSpace = useCallback(() => {
-    const ids = [...sidebarSelectedNoteIds];
+    const ids = [...sidebarSelectedIds];
     // `homeSpaceId` is the scoped space while a shared space is in scope.
     if (!isScopedSharedSpace || !homeSpaceId) return;
     removeNotesFromSpace.mutate(
@@ -1951,7 +1952,7 @@ export default function PrototypeSidebar({
         },
       },
     );
-  }, [sidebarSelectedNoteIds, isScopedSharedSpace, homeSpaceId, removeNotesFromSpace, setSidebarSelectMode]);
+  }, [sidebarSelectedIds, isScopedSharedSpace, homeSpaceId, removeNotesFromSpace, setSidebarSelectMode]);
 
   /** Ceiling matched to `copy-notes`' server-side `.slice(0, 50)`. */
   const SELECTION_CAP = NOTE_SELECTION_CAP;
@@ -1965,7 +1966,7 @@ export default function PrototypeSidebar({
   /** Mirrors `MIN_THREAD_NOTES` in the create sheet — a Thread needs two ends. */
   const MIN_BULK_THREAD_NOTES = 2;
 
-  const selectedNoteIdSet = useMemo(() => new Set(sidebarSelectedNoteIds), [sidebarSelectedNoteIds]);
+  const selectedNoteIdSet = useMemo(() => new Set(sidebarSelectedIds), [sidebarSelectedIds]);
 
   /** Rows currently listed, in list order — what "Select all" and a range mean. */
   const selectableNotes = useMemo(
@@ -1981,24 +1982,34 @@ export default function PrototypeSidebar({
    * The old explicit mode is still honoured so "Select notes" keeps working
    * from the list menu, but nothing requires it any more.
    */
-  const selectionActive = sidebarSelectMode || sidebarSelectedNoteIds.length > 0;
+  const selectionActive = sidebarSelectMode || sidebarSelectedIds.length > 0;
 
   /** Anchor for shift-click, so a range means "from the last one you touched". */
   const selectionAnchorRef = useRef<string | null>(null);
 
+  /**
+   * Every selection made in this file's note lists is a selection *of notes*.
+   * Named once here rather than repeating the kind at each call site — the
+   * folder, thread, highlight and resource bars each name their own.
+   */
+  const setSidebarSelectedNotes = useCallback(
+    (ids: string[]) => setSidebarSelection('note', ids),
+    [setSidebarSelection],
+  );
+
   const toggleNoteSelected = useCallback(
     (id: string) => {
       selectionAnchorRef.current = id;
-      setSidebarSelectedNoteIds(toggleNoteSelection(sidebarSelectedNoteIds, id));
+      setSidebarSelectedNotes(toggleNoteSelection(sidebarSelectedIds, id));
     },
-    [sidebarSelectedNoteIds, setSidebarSelectedNoteIds],
+    [sidebarSelectedIds, setSidebarSelectedNotes],
   );
 
   const selectRangeTo = useCallback(
     (id: string) => {
-      setSidebarSelectedNoteIds(
+      setSidebarSelectedNotes(
         extendNoteSelectionRange({
-          selected: sidebarSelectedNoteIds,
+          selected: sidebarSelectedIds,
           orderedIds: selectableNotes.map((n) => n.id),
           anchorId: selectionAnchorRef.current,
           targetId: id,
@@ -2006,7 +2017,7 @@ export default function PrototypeSidebar({
       );
       selectionAnchorRef.current = id;
     },
-    [selectableNotes, sidebarSelectedNoteIds, setSidebarSelectedNoteIds],
+    [selectableNotes, sidebarSelectedIds, setSidebarSelectedNotes],
   );
 
   /* Esc is the way out, which is why nothing needs a Done button. */
@@ -2014,13 +2025,13 @@ export default function PrototypeSidebar({
     if (!selectionActive) return undefined;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      setSidebarSelectedNoteIds([]);
+      setSidebarSelectedNotes([]);
       setSidebarSelectMode(false);
       selectionAnchorRef.current = null;
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [selectionActive, setSidebarSelectedNoteIds, setSidebarSelectMode]);
+  }, [selectionActive, setSidebarSelectedNotes, setSidebarSelectMode]);
 
   const selectedRows = useMemo(
     () => notesForMode.filter((n) => selectedNoteIdSet.has(n.id)),
@@ -2064,8 +2075,8 @@ export default function PrototypeSidebar({
     selectableNotes.length > 0 && selectableNotes.every((n) => selectedNoteIdSet.has(n.id));
 
   const toggleSelectAll = useCallback(() => {
-    setSidebarSelectedNoteIds(allSelectableSelected ? [] : selectableNotes.map((n) => n.id));
-  }, [allSelectableSelected, selectableNotes, setSidebarSelectedNoteIds]);
+    setSidebarSelectedNotes(allSelectableSelected ? [] : selectableNotes.map((n) => n.id));
+  }, [allSelectableSelected, selectableNotes, setSidebarSelectedNotes]);
 
   /**
    * Bulk action bar. Quiet controls on the `.proto-collection-grid-actions` recipe — four
@@ -2098,7 +2109,7 @@ export default function PrototypeSidebar({
           type="button"
           className="proto-bulk-bar__btn"
           title="Start a Thread from these notes"
-          onClick={() => openCreateThreadSheet({ noteIds: sidebarSelectedNoteIds })}
+          onClick={() => openCreateThreadSheet({ noteIds: sidebarSelectedIds })}
         >
           <Icon name="arrow-right-arrow-left" size={15} aria-hidden />
           <span className="proto-bulk-bar__label">Thread</span>
@@ -3013,15 +3024,15 @@ export default function PrototypeSidebar({
             {allSelectableSelected ? 'Deselect all' : 'Select all'}
           </button>
           <span className="proto-select-bar__count">
-            {sidebarSelectedNoteIds.length === 1
+            {sidebarSelectedIds.length === 1
               ? '1 selected'
-              : `${sidebarSelectedNoteIds.length} selected`}
+              : `${sidebarSelectedIds.length} selected`}
           </span>
           <button
             type="button"
             className="proto-select-bar__action proto-select-bar__action--done"
             onClick={() => {
-              setSidebarSelectedNoteIds([]);
+              setSidebarSelectedNotes([]);
               setSidebarSelectMode(false);
             }}
           >
@@ -3866,7 +3877,7 @@ export default function PrototypeSidebar({
           <div className="proto-menu__popover proto-bulk-share__popover" role="menu" aria-label="Share to a space">
             <div className="proto-menu-section" role="group">
               <p className="proto-menu-section-label">
-                {`Share ${sidebarSelectedNoteIds.length} note${sidebarSelectedNoteIds.length === 1 ? '' : 's'} to`}
+                {`Share ${sidebarSelectedIds.length} note${sidebarSelectedIds.length === 1 ? '' : 's'} to`}
               </p>
               {bulkShareTargets.length === 0 ? (
                 <p className="proto-caption" style={{ padding: '6px 10px' }}>
@@ -3898,7 +3909,7 @@ export default function PrototypeSidebar({
           anchorRect={bulkDeleteConfirmOpen}
           preferAbove
           alignRight
-          title={`Delete ${sidebarSelectedNoteIds.length} note${sidebarSelectedNoteIds.length === 1 ? '' : 's'} everywhere?`}
+          title={`Delete ${sidebarSelectedIds.length} note${sidebarSelectedIds.length === 1 ? '' : 's'} everywhere?`}
           description={DELETE_NOTE_EVERYWHERE_CONFIRMATION.description}
           confirmLabel="Delete"
           busy={deleteNotesBatch.isPending}
@@ -3913,7 +3924,7 @@ export default function PrototypeSidebar({
           anchorRect={bulkRemoveConfirmOpen}
           preferAbove
           alignRight
-          title={`Remove ${sidebarSelectedNoteIds.length} note${sidebarSelectedNoteIds.length === 1 ? '' : 's'} from this space?`}
+          title={`Remove ${sidebarSelectedIds.length} note${sidebarSelectedIds.length === 1 ? '' : 's'} from this space?`}
           description={REMOVE_NOTE_FROM_SPACE_CONFIRMATION.description}
           confirmLabel="Remove"
           busy={removeNotesFromSpace.isPending}
@@ -3995,7 +4006,7 @@ export default function PrototypeSidebar({
                 setCreateFolderSheetOpen(next);
                 if (!next) setBulkFolderSheetOpen(false);
               }}
-              initialSelectedNoteIds={bulkFolderSheetOpen ? sidebarSelectedNoteIds : undefined}
+              initialSelectedNoteIds={bulkFolderSheetOpen ? sidebarSelectedIds : undefined}
               spaceId={homeSpaceId}
               spaceKind={isScopedSharedSpace ? 'shared' : 'personal'}
               spaceNotes={notes}

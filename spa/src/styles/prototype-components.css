@@ -1892,6 +1892,8 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   justify-content: center;
   color: var(--pds-text-secondary);
   opacity: 0.92;
+  /* Hands its place to the selection orb on hover — see the multi-select block. */
+  transition: opacity 0.1s ease;
 }
 
 .proto-note-row__title-text {
@@ -9503,54 +9505,76 @@ button.proto-appearance-hero__card {
   color: var(--pds-text-secondary);
 }
 
-/* ── Multi-select in the sidebar note list ──────────────────────────────────
-   Selection reuses the row itself: the check orb sits in the row's own button, so the
-   list keeps one focusable control per row and `SIDEBAR_LIST_ROW_SELECTOR` still works. */
-
-.proto-select-slot {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  margin-top: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/*
- * The selection checkbox, mirroring the ⋯ on the other side of the row.
+/* ── Multi-select in the sidebar lists ──────────────────────────────────────
  *
- * A sibling of the row's main button rather than a child of it: the list's
- * keyboard nav matches `button.proto-note-row__main`, so this adds a pointer
- * target without adding an arrow-key stop.
+ * The checkbox costs the list nothing until it is wanted.
  *
- * Its slot is always reserved and only its contents fade, which is exactly how
- * the ⋯ behaves — reserving on hover instead would shift every title sideways
- * as the pointer travels down a list someone is trying to read.
+ * It used to hold a permanently reserved 30px column, which indented every
+ * title in every list for a control almost nobody was reaching for. Now it is
+ * absolutely positioned over the row's leading edge and the row makes room only
+ * while it is actually showing one:
+ *
+ *   - a row with a leading kind icon (highlights, resources, search results)
+ *     fades that icon out and the orb in, occupying its exact place: the
+ *     cleanest case, no reflow at all;
+ *   - a plain note row has no icon and only 10px of padding, too little to
+ *     overlay without landing on the title's first letter — so that row alone
+ *     insets while hovered, and every row insets while a selection stands.
+ *
+ * A hovered row moving 18px is a deliberate, contained affordance. Every row
+ * moving as the pointer travels down a list is what the old reserved column
+ * effectively looked like, and is what this avoids.
+ *
+ * The button stays a *sibling* of `.proto-note-row__main`: the list's keyboard
+ * nav matches `button.proto-note-row__main`, so this adds a pointer target
+ * without adding an arrow-key stop.
  */
 .proto-note-row__select {
   appearance: none;
   background: none;
   border: none;
   padding: 0;
-  flex-shrink: 0;
-  /* 10px of inset to clear the row's rounded left edge, then the 20px orb. The
-     main button adds the gap on its own side (below) — an orb that ends where
-     the title begins reads as one crowded object rather than a control beside
-     a note. */
-  width: 30px;
-  padding-left: 10px;
-  align-self: stretch;
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   cursor: pointer;
-  opacity: 1;
+  z-index: 1;
   transition: opacity 0.1s ease;
 }
 
+/* Rows that carry a leading glyph hand it over rather than move: the orb takes
+   the icon's own place, so nothing reflows. */
+.proto-note-row-item:hover .proto-note-row__kind-icon,
+.proto-note-row-item--selectable .proto-note-row__kind-icon,
+.proto-note-row-item--selected .proto-note-row__kind-icon {
+  opacity: 0;
+}
+
+.proto-note-row-item:has(.proto-note-row__kind-icon) .proto-note-row__select {
+  left: 10px;
+}
+
+/* Plain rows have nothing to hand over, so they step aside — this row while
+   hovered, all of them once a selection stands. */
+.proto-note-row-item:not(:has(.proto-note-row__kind-icon)):hover .proto-note-row__main,
+.proto-note-row-item--selectable:not(:has(.proto-note-row__kind-icon)) .proto-note-row__main {
+  padding-left: 32px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .proto-note-row-item:not(:has(.proto-note-row__kind-icon)) .proto-note-row__main {
+    transition: padding-left 0.12s ease;
+  }
+}
+
 /* Coarse pointers have no hover to reveal it, so it appears only once a
-   selection is under way — reached from the list menu's "Select notes". */
+   selection is under way — reached from the list menu's "Select…". */
 @media not all and (hover: hover) and (pointer: fine) {
   .proto-note-row-item:not(.proto-note-row-item--selectable) .proto-note-row__select {
     display: none;
@@ -9573,13 +9597,6 @@ button.proto-appearance-hero__card {
     opacity: 1;
     pointer-events: auto;
   }
-}
-
-/* The breathing room between orb and title. Kept on the button rather than the
-   slot so it is part of the text's own inset — the title, the preview and the
-   timestamp all start from the same edge. */
-.proto-note-row__select + .proto-note-row__main {
-  padding-left: 10px;
 }
 
 /* Header — sits above the search field while a selection stands. */

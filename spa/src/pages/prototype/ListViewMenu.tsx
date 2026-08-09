@@ -78,13 +78,13 @@ export default function ListViewMenu({
     ensureSidebarExpanded,
     sidebarSelectMode,
     setSidebarSelectMode,
-    sidebarSelectedNoteIds,
-    setSidebarSelectedNoteIds,
+    sidebarSelectedIds,
+    setSidebarSelection,
   } = useProtoShell();
   const showShiftHints = usePrototypeShiftHints();
   /* Selecting is a state now, not only a flag — a set built by clicking row
      checkboxes must read as "selecting" to this item too. */
-  const selectingNow = sidebarSelectMode || sidebarSelectedNoteIds.length > 0;
+  const selectingNow = sidebarSelectMode || sidebarSelectedIds.length > 0;
 
   const pick = (mode: SidebarListMode) => {
     setSidebarFolderDrilldown(undefined);
@@ -226,7 +226,7 @@ export default function ListViewMenu({
           setSidebarSelectMode(!on);
           /* Leaving has to drop the set as well as the flag, or the checkboxes
              stay lit and the action bar keeps standing with no way back. */
-          if (on) setSidebarSelectedNoteIds([]);
+          if (on) setSidebarSelection('note', []);
           ensureSidebarExpanded();
           setOpen(false);
         }}

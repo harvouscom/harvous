@@ -57,6 +57,21 @@ function readStoredSidebarWidth() {
  */
 export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture' | 'threads' | 'resources';
 
+/**
+ * What a sidebar multi-selection holds.
+ *
+ * Threads split into two because they are two different objects with two
+ * different actions behind them: a personal cluster is a set of connected
+ * notes, a shared Thread is a row in a room that only its owner may delete.
+ */
+export type SidebarSelectionKind =
+  | 'note'
+  | 'highlight'
+  | 'resource'
+  | 'folder'
+  | 'thread'
+  | 'sharedThread';
+
 /** Sidebar layer — Home space dashboard vs the list views. Only 'space' layer content today is My Home. */
 export type SidebarLayer = 'space' | 'list';
 
@@ -234,9 +249,18 @@ type ProtoShellContextValue = {
    */
   sidebarSelectMode: boolean;
   setSidebarSelectMode: (on: boolean) => void;
-  sidebarSelectedNoteIds: string[];
-  setSidebarSelectedNoteIds: (ids: string[]) => void;
-  toggleSidebarSelectedNoteId: (id: string) => void;
+  /**
+   * What the selected ids *are*.
+   *
+   * One kind at a time, deliberately: a bulk bar offers the actions of a single
+   * kind of thing, and a set holding two notes and a folder has no honest set
+   * of actions. Ticking a row of another kind replaces the selection rather
+   * than refusing it — a checkbox that declines to tick reads as broken.
+   */
+  sidebarSelectionKind: SidebarSelectionKind;
+  sidebarSelectedIds: string[];
+  /** Replaces the selection outright, kind included. */
+  setSidebarSelection: (kind: SidebarSelectionKind, ids: string[]) => void;
   sidebarListMode: SidebarListMode;
   setSidebarListMode: (mode: SidebarListMode) => void;
   sidebarFolderDrilldown: SidebarFolderDrilldown;
@@ -601,7 +625,11 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
    * resets scope (mirrors native "switch context resets scope").
    */
   const [sidebarSelectMode, setSidebarSelectModeState] = useState(false);
-  const [sidebarSelectedNoteIds, setSidebarSelectedNoteIdsState] = useState<string[]>([]);
+  const [sidebarSelectedIds, setSidebarSelectedIdsState] = useState<string[]>([]);
+  /* 'note' while nothing is selected — a kind is only meaningful alongside ids,
+     and a null here would make every read branch on emptiness twice. */
+  const [sidebarSelectionKind, setSidebarSelectionKindState] =
+    useState<SidebarSelectionKind>('note');
 
   /**
    * Leave select mode and drop the selection.
@@ -612,22 +640,17 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
    */
   const exitSidebarSelectMode = useCallback(() => {
     setSidebarSelectModeState(false);
-    setSidebarSelectedNoteIdsState([]);
+    setSidebarSelectedIdsState([]);
   }, []);
 
   const setSidebarSelectMode = useCallback((on: boolean) => {
     setSidebarSelectModeState(on);
-    if (!on) setSidebarSelectedNoteIdsState([]);
+    if (!on) setSidebarSelectedIdsState([]);
   }, []);
 
-  const setSidebarSelectedNoteIds = useCallback((ids: string[]) => {
-    setSidebarSelectedNoteIdsState(ids);
-  }, []);
-
-  const toggleSidebarSelectedNoteId = useCallback((id: string) => {
-    setSidebarSelectedNoteIdsState((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+  const setSidebarSelection = useCallback((kind: SidebarSelectionKind, ids: string[]) => {
+    setSidebarSelectionKindState(kind);
+    setSidebarSelectedIdsState(ids);
   }, []);
 
   const setLocation = useCallback((next: ProtoLocation) => {
@@ -1078,9 +1101,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarListSpaceScope,
       sidebarSelectMode,
       setSidebarSelectMode,
-      sidebarSelectedNoteIds,
-      setSidebarSelectedNoteIds,
-      toggleSidebarSelectedNoteId,
+      sidebarSelectionKind,
+      sidebarSelectedIds,
+      setSidebarSelection,
       sidebarListMode,
       setSidebarListMode,
       sidebarFolderDrilldown,
@@ -1160,9 +1183,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarListSpaceScope,
       sidebarSelectMode,
       setSidebarSelectMode,
-      sidebarSelectedNoteIds,
-      setSidebarSelectedNoteIds,
-      toggleSidebarSelectedNoteId,
+      sidebarSelectionKind,
+      sidebarSelectedIds,
+      setSidebarSelection,
       sidebarListMode,
       setSidebarListMode,
       sidebarFolderDrilldown,
