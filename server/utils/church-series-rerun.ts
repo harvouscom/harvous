@@ -97,7 +97,8 @@ export function buildRerunRows(input: {
   dates: readonly string[];
   seriesId: string;
   seriesTitle: string;
-  churchId: string;
+  /** Null for a churchless Shared Space's plan. */
+  churchId: string | null;
   spaceId: string | null;
   copy: RerunCopyFlags;
   userId: string;

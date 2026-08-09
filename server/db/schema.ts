@@ -799,7 +799,8 @@ export const ChurchServiceTimeAssignments = pgTable('ChurchServiceTimeAssignment
  */
 export const ChurchSeries = pgTable('ChurchSeries', {
   id: text('id').primaryKey(),
-  churchId: text('churchId').notNull(),
+  /** NULL = a churchless Shared Space's own plan. Same rule as `ChurchServices.churchId`. */
+  churchId: text('churchId'),
   /** NULL = the church plan; set = that space's plan. Immutable after create. */
   spaceId: text('spaceId'),
   title: text('title').notNull(),
@@ -919,12 +920,22 @@ export const ChurchSeries = pgTable('ChurchSeries', {
  */
 export const ChurchServices = pgTable('ChurchServices', {
   id: text('id').primaryKey(),
-  churchId: text('churchId').notNull(),
+  /**
+   * NULL = a churchless Shared Space's own plan.
+   *
+   * A group that meets without a church still meets on a rhythm, so a plan no
+   * longer requires one. The invariant `churchId IS NULL ⇒ spaceId IS NOT NULL`
+   * holds — a plan belongs to *some* room — and lives in the write routes
+   * rather than an index, because no partial unique expresses "exactly one of
+   * these is set" without also constraining which pairs are legal.
+   */
+  churchId: text('churchId'),
   /**
    * Which plan this sermon belongs to. NULL = the church's own plan; set = a
-   * ministry channel or church Shared Space that carries its own (Youth meets
-   * Wednesdays). See the docblock above for the same-church invariant and why
-   * this column is allowed where a denormalized `orgId` is not.
+   * ministry channel, a church Shared Space, or a churchless Shared Space that
+   * carries its own (Youth meets Wednesdays). See the docblock above for the
+   * same-church invariant and why this column is allowed where a denormalized
+   * `orgId` is not.
    */
   spaceId: text('spaceId'),
   /**

@@ -23,6 +23,19 @@ vi.mock('../clerk-org', () => ({
 }));
 
 /*
+  The space lane's two questions: are you in the room, and do you run it. Mocked
+  rather than driven through the db stub because the real `requireSpaceAccess`
+  reads the same Spaces/SpaceMemberships chain this file already uses for the
+  grant arm, and the two would end up answering each other's queries.
+*/
+const requireSpaceAccess = vi.fn();
+const canManageSpaceStructure = vi.fn();
+vi.mock('../space-access', () => ({
+  requireSpaceAccess: (...args: unknown[]) => requireSpaceAccess(...args),
+  canManageSpaceStructure: (...args: unknown[]) => canManageSpaceStructure(...args),
+}));
+
+/*
   '../../db', not '../db'. vi.mock resolves relative to *this* file, so '../db'
   would name `server/utils/db`, which does not exist — the mock would silently
   no-op and the real Supabase client would be constructed. (A sibling suite has
@@ -242,13 +255,71 @@ describe('granted leader — the P5 boundary', () => {
     expect(result).not.toMatchObject({ code: 'CHURCH_NOT_SPONSORED' });
   });
 
-  it('404s a granted leader on a room that is not a church space', async () => {
-    // A grant never upgrades what kind of room something is.
+  it('404s a granted leader on a personal space', async () => {
+    // A grant never upgrades what kind of room something is, and a plan is a
+    // thing a room shows other people.
     asGrantedVolunteer();
-    spaceRows.mockResolvedValue([{ ...YOUTH, orgId: null, type: 'shared' }]);
+    spaceRows.mockResolvedValue([{ ...YOUTH, orgId: null, type: 'personal' }]);
     expect(await assertCanManageSpaceTeachingPlan('user_volunteer', 'space_x')).toMatchObject({
       ok: false,
       status: 404,
+    });
+  });
+
+  describe('the space lane (a Shared Space with no church)', () => {
+    const CHURCHLESS = { ...YOUTH, orgId: null, type: 'shared' as const };
+
+    beforeEach(() => {
+      spaceRows.mockResolvedValue([CHURCHLESS]);
+    });
+
+    it('lets any member read the plan', async () => {
+      // It is the group's own schedule; `coming-up` already hands them a slice.
+      requireSpaceAccess.mockResolvedValue({ role: 'member', space: CHURCHLESS });
+      canManageSpaceStructure.mockReturnValue(false);
+      expect(await assertCanViewSpaceTeachingPlan('user_member', 'space_x')).toMatchObject({
+        ok: true,
+        lane: 'space',
+        church: null,
+      });
+    });
+
+    it('refuses a plain member the write', async () => {
+      requireSpaceAccess.mockResolvedValue({ role: 'member', space: CHURCHLESS });
+      canManageSpaceStructure.mockReturnValue(false);
+      expect(await assertCanManageSpaceTeachingPlan('user_member', 'space_x')).toMatchObject({
+        ok: false,
+        status: 403,
+        code: 'PLAN_SPACE_ROLE_REQUIRED',
+      });
+    });
+
+    it('lets whoever runs the room write', async () => {
+      requireSpaceAccess.mockResolvedValue({ role: 'leader', space: CHURCHLESS });
+      canManageSpaceStructure.mockReturnValue(true);
+      expect(await assertCanManageSpaceTeachingPlan('user_leader', 'space_x')).toMatchObject({
+        ok: true,
+        lane: 'space',
+        church: null,
+      });
+    });
+
+    it('404s a stranger rather than telling them the room exists', async () => {
+      requireSpaceAccess.mockRejectedValue(new Error('no access'));
+      expect(await assertCanViewSpaceTeachingPlan('user_stranger', 'space_x')).toMatchObject({
+        ok: false,
+        status: 404,
+      });
+    });
+
+    it('never consults church billing', async () => {
+      // There is no church to be lapsed. A sponsorship check here would be a
+      // question about someone else's org leaking into this room.
+      requireSpaceAccess.mockResolvedValue({ role: 'owner', space: CHURCHLESS });
+      canManageSpaceStructure.mockReturnValue(true);
+      await assertCanManageSpaceTeachingPlan('user_owner', 'space_x');
+      expect(churchIsSponsored).not.toHaveBeenCalled();
+      expect(getActiveChurchByOrgId).not.toHaveBeenCalled();
     });
   });
 

@@ -67,6 +67,7 @@ import {
 import {
   assertCanManageSpaceTeachingPlan,
   assertCanViewSpaceTeachingPlan,
+  type SpacePlanGateResult,
 } from '../utils/church-space-plan';
 import { parseServiceDateInput, type ChurchServiceRow } from '../utils/church-teaching-plan';
 import { isMinistryBroadcastSpaceRow } from '../utils/channel-publish-cadence';
@@ -172,24 +173,38 @@ function serializeSpaceSermon(row: ChurchServiceRow, seriesTitles?: Map<string, 
   };
 }
 
-/** The starter template must belong to this church, same guard as the church plan. */
+/**
+ * A starter must belong to the plan that names it.
+ *
+ * Church lane: this church's org templates, same guard as the church plan.
+ * Space lane: templates scoped to *this room* — deliberately not the planner's
+ * personal ones. A starter is handed to everyone who takes notes on that
+ * gathering, and a private template's name would travel with it.
+ */
 async function validateStarter(
-  orgId: string,
+  gate: Extract<SpacePlanGateResult, { ok: true }>,
   starterTemplateId: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string; code: string }> {
   if (!starterTemplateId) return { ok: true };
+  const owner =
+    gate.lane === 'church' && gate.church
+      ? eq(NoteTemplates.orgId, gate.church.orgId)
+      : eq(NoteTemplates.spaceId, gate.space.id);
   const template = first(
     await db
       .select({ id: NoteTemplates.id })
       .from(NoteTemplates)
-      .where(and(eq(NoteTemplates.id, starterTemplateId), eq(NoteTemplates.orgId, orgId)))
+      .where(and(eq(NoteTemplates.id, starterTemplateId), owner))
       .limit(1),
   );
   if (!template) {
     return {
       ok: false,
       code: 'TEMPLATE_NOT_FOUND',
-      error: 'That starter template is not one of your church templates',
+      error:
+        gate.lane === 'church'
+          ? 'That starter template is not one of your church templates'
+          : 'That starter template is not one of this space’s templates',
     };
   }
   return { ok: true };
@@ -202,7 +217,7 @@ app.get('/api/church/spaces/:spaceId/plan', requireAuth, async (c) => {
     const gate = await assertCanViewSpaceTeachingPlan(auth.userId, c.req.param('spaceId') ?? '');
     if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
 
-    const scope = { churchId: gate.church.id, spaceId: gate.space.id };
+    const scope = { churchId: (gate.church?.id ?? null), spaceId: gate.space.id };
 
     // The series list is keyed on the scope, not on the rows — see the church
     // plan's twin. Only the joined titles have to wait for the sermons.
@@ -223,8 +238,18 @@ app.get('/api/church/spaces/:spaceId/plan', requireAuth, async (c) => {
        "only ever theirs" matters here more, not less. */
     const viewerDrafts = await resolveViewerPlannedNotes(auth.userId, serviceIds);
 
+    /*
+      Whether this reader may also write. The church lane has always answered
+      this client-side from church capabilities, but the space lane has no
+      capabilities to read — the answer lives in the room's membership role, so
+      the server has to say. One extra gate call rather than shipping the role
+      and re-deriving the rule in the client.
+    */
+    const manage = await assertCanManageSpaceTeachingPlan(auth.userId, gate.space.id);
+
     return c.json({
-      church: { id: gate.church.id, name: gate.church.name },
+      church: gate.church ? { id: gate.church.id, name: gate.church.name } : null,
+      viewer: { canManage: manage.ok },
       /*
         What this plan plans. Sent once at the top rather than left for the
         client to infer from the space's type — the server already decides it
@@ -288,7 +313,7 @@ app.post('/api/church/spaces/:spaceId/services/create', requireAuth, rateLimit('
     if (!passage.ok) return c.json({ error: passage.reason, code: 'INVALID_REFERENCE' }, 400);
 
     const starterTemplateId = clean(body.starterTemplateId, 200);
-    const starter = await validateStarter(gate.church.orgId, starterTemplateId);
+    const starter = await validateStarter(gate, starterTemplateId);
     if (!starter.ok) return c.json({ error: starter.error, code: starter.code }, 400);
 
     const now = new Date();
@@ -305,7 +330,7 @@ app.post('/api/church/spaces/:spaceId/services/create', requireAuth, rateLimit('
     const refusal: { reason: { code: string; error: string } | null } = { reason: null };
     const row = {
       id: `svc_${crypto.randomUUID()}`,
-      churchId: gate.church.id,
+      churchId: (gate.church?.id ?? null),
       spaceId: gate.space.id,
       serviceDate,
       // A space gathers at its own meetingTime; a per-row override is the
@@ -328,7 +353,7 @@ app.post('/api/church/spaces/:spaceId/services/create', requireAuth, rateLimit('
         // Scoped to this space: a seriesId from the church plan resolves to
         // SERIES_NOT_FOUND rather than pointing a Youth gathering at it.
         const series = await resolveSeriesForWrite({
-          scope: { churchId: gate.church.id, spaceId: gate.space.id },
+          scope: { churchId: (gate.church?.id ?? null), spaceId: gate.space.id },
           seriesId: body.seriesId,
           seriesTitle: body.seriesTitle,
           userId: auth.userId,
@@ -430,7 +455,7 @@ app.post('/api/church/spaces/:spaceId/services/update', requireAuth, rateLimit('
     }
     if (body.starterTemplateId !== undefined) {
       const starterTemplateId = clean(body.starterTemplateId, 200);
-      const starter = await validateStarter(gate.church.orgId, starterTemplateId);
+      const starter = await validateStarter(gate, starterTemplateId);
       if (!starter.ok) return c.json({ error: starter.error, code: starter.code }, 400);
       updates.starterTemplateId = starterTemplateId;
     }
@@ -442,7 +467,7 @@ app.post('/api/church/spaces/:spaceId/services/update', requireAuth, rateLimit('
         // series this named on the way in.
         if (body.seriesId !== undefined || body.seriesTitle !== undefined) {
           const series = await resolveSeriesForWrite({
-            scope: { churchId: gate.church.id, spaceId: gate.space.id },
+            scope: { churchId: (gate.church?.id ?? null), spaceId: gate.space.id },
             seriesId: body.seriesId,
             seriesTitle: body.seriesTitle,
             userId: auth.userId,
@@ -520,7 +545,7 @@ app.post(
       const result = await setServiceAttachments({
         serviceId,
         itemIds,
-        churchId: gate.church.id,
+        churchId: (gate.church?.id ?? null),
         spaceId: gate.space.id,
         userId: auth.userId,
       });
@@ -603,7 +628,7 @@ app.post('/api/church/spaces/:spaceId/services/repeat', requireAuth, rateLimit('
     for (const serviceDate of dates) {
       const row = {
         id: `svc_${crypto.randomUUID()}`,
-        churchId: gate.church.id,
+        churchId: (gate.church?.id ?? null),
         spaceId: gate.space.id,
         serviceDate,
         serviceTime: null,
@@ -756,7 +781,7 @@ app.post('/api/church/spaces/:spaceId/series/create', requireAuth, rateLimit('wr
       description?: string | null;
       firstDate?: string | null;
     };
-    const scope = { churchId: gate.church.id, spaceId: gate.space.id };
+    const scope = { churchId: (gate.church?.id ?? null), spaceId: gate.space.id };
     const parsedDate = parseServiceDateInput(body.firstDate ?? null);
     if (!parsedDate.ok) return c.json({ error: parsedDate.reason, code: 'BAD_REQUEST' }, 400);
     const firstDate = parsedDate.kind === 'date' ? parsedDate.value : null;
@@ -785,7 +810,7 @@ app.post('/api/church/spaces/:spaceId/series/create', requireAuth, rateLimit('wr
             .insert(ChurchServices)
             .values({
               id: `svc_${crypto.randomUUID()}`,
-              churchId: gate.church.id,
+              churchId: (gate.church?.id ?? null),
               spaceId: gate.space.id,
               serviceDate: firstDate,
               serviceTime: null,
@@ -853,7 +878,7 @@ app.post('/api/church/spaces/:spaceId/series/rerun', requireAuth, rateLimit('wri
       runLabel?: string;
       copy?: Partial<RerunCopyFlags>;
     };
-    const scope = { churchId: gate.church.id, spaceId: gate.space.id };
+    const scope = { churchId: (gate.church?.id ?? null), spaceId: gate.space.id };
     const sourceId = (body.sourceSeriesId ?? '').trim();
     if (!sourceId) return c.json({ error: 'sourceSeriesId is required', code: 'BAD_REQUEST' }, 400);
 
@@ -928,7 +953,7 @@ app.post('/api/church/spaces/:spaceId/series/rerun', requireAuth, rateLimit('wri
       dates,
       seriesId: created.series.id,
       seriesTitle: created.series.title,
-      churchId: gate.church.id,
+      churchId: (gate.church?.id ?? null),
       spaceId: gate.space.id,
       copy,
       userId: auth.userId,
@@ -991,7 +1016,7 @@ app.post('/api/church/spaces/:spaceId/series/update', requireAuth, rateLimit('wr
     if (!seriesId) return c.json({ error: 'seriesId is required', code: 'BAD_REQUEST' }, 400);
 
     const result = await updateSeries(
-      { churchId: gate.church.id, spaceId: gate.space.id },
+      { churchId: (gate.church?.id ?? null), spaceId: gate.space.id },
       seriesId,
       {
         // `in` rather than `!== undefined`, so an explicit null clears rather
@@ -1034,7 +1059,7 @@ app.post('/api/church/spaces/:spaceId/series/delete', requireAuth, rateLimit('wr
     const seriesId = (body.seriesId ?? '').trim();
     if (!seriesId) return c.json({ error: 'seriesId is required', code: 'BAD_REQUEST' }, 400);
 
-    const result = await deleteSeries({ churchId: gate.church.id, spaceId: gate.space.id }, seriesId);
+    const result = await deleteSeries({ churchId: (gate.church?.id ?? null), spaceId: gate.space.id }, seriesId);
     if (!result.ok) return c.json({ error: result.error, code: result.code }, 404);
     return c.json({ success: true, detached: result.detached });
   } catch (error) {
@@ -1123,7 +1148,7 @@ app.post(
       );
       /* Scope is proven against the gate's own church and space, never the
          caller's word for either. */
-      if (!series || series.churchId !== gate.church.id) {
+      if (!series || series.churchId !== (gate.church?.id ?? null)) {
         return c.json({ error: 'Series not found', code: 'SERIES_NOT_FOUND' }, 404);
       }
       if (series.spaceId !== gate.space.id) {

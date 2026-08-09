@@ -57,7 +57,8 @@ export function isSeriesColor(value: unknown): value is (typeof SERIES_COLORS)[n
 }
 
 export type SeriesScope = {
-  churchId: string;
+  /** NULL = a churchless Shared Space's own plan, which `spaceId` then names. */
+  churchId: string | null;
   /** NULL = the church's own plan; set = that space's plan. */
   spaceId: string | null;
 };
@@ -93,7 +94,9 @@ export type SerializedSeries = {
  */
 function scopeWhere(scope: SeriesScope) {
   return and(
-    eq(ChurchSeries.churchId, scope.churchId),
+    scope.churchId === null
+      ? isNull(ChurchSeries.churchId)
+      : eq(ChurchSeries.churchId, scope.churchId),
     scope.spaceId === null ? isNull(ChurchSeries.spaceId) : eq(ChurchSeries.spaceId, scope.spaceId),
   );
 }

@@ -11,9 +11,17 @@
  * — exists → active → **staff** → [write: sponsored] → Clerk role → capability.
  * That ordering is what keeps a signed-in stranger from learning whether a
  * church has lapsed, and it goes subtly wrong on the second copy.
+ *
+ * **Two lanes.** A Shared Space with no church behind it plans on its own
+ * authority: read is any member's, write is `canManageSpaceStructure` — the
+ * same rule that already decides who makes that room's folders and threads, and
+ * the same bargain `assertCanManageSpaceLibrary` strikes for its shelf. A group
+ * that meets without a church still meets on a rhythm. `lane` on the result
+ * says which set of rules answered, and `church` is null for the space lane.
  */
 import { db, first, Spaces, and, eq, isNull } from '../db';
 import { isChurchOrgSpaceRow } from './channel-publish-cadence';
+import { canManageSpaceStructure, requireSpaceAccess, type SpaceRole } from './space-access';
 import { isGrantedSpaceLeader } from './church-space-leaders';
 import { CHURCH_LAPSED_CODE, CHURCH_LAPSED_ERROR, churchIsSponsored } from './church-entitlement';
 import { getActiveChurchByOrgId } from './church-staff';
@@ -26,7 +34,20 @@ import {
 export type SpaceRow = typeof Spaces.$inferSelect;
 
 export type SpacePlanGateResult =
-  | { ok: true; church: Extract<ChurchOrgAccessResult, { ok: true }>['church']; space: SpaceRow }
+  | {
+      ok: true;
+      /**
+       * Which set of rules answered. `'church'` is the original lane — the room
+       * belongs to a church and the church's ordering decided. `'space'` is a
+       * Shared Space with no church behind it, where the room itself decides.
+       *
+       * Routes branch on this rather than on `church === null` so the two
+       * questions stay separable: a lane is a policy, a church is a row.
+       */
+      lane: 'church' | 'space';
+      church: Extract<ChurchOrgAccessResult, { ok: true }>['church'] | null;
+      space: SpaceRow;
+    }
   | Extract<ChurchOrgAccessResult, { ok: false }>;
 
 /**
@@ -41,6 +62,12 @@ async function resolveSpacePlanAccess(
   userId: string,
   spaceId: string,
   rule: ChurchOrgAccessRule,
+  /*
+    Kept off `ChurchOrgAccessRule` on purpose: that type is shared with the
+    church plan, which has no space lane to describe. The church arm reads the
+    rule; the space arm reads this.
+  */
+  opts: { spaceLaneWrite: boolean },
 ): Promise<SpacePlanGateResult> {
   const id = String(spaceId ?? '').trim();
   if (!id) {
@@ -54,8 +81,46 @@ async function resolveSpacePlanAccess(
       .where(and(eq(Spaces.id, id), isNull(Spaces.deletedAt)))
       .limit(1),
   );
-  if (!space || !space.isActive || !isChurchOrgSpaceRow(space) || !space.orgId) {
+  if (!space || !space.isActive) {
     return { ok: false, status: 404, code: 'SPACE_NOT_FOUND', error: 'Space not found' };
+  }
+
+  /*
+    No church behind the room: its own lane, gated by who runs the room — the
+    same bargain `assertCanManageSpaceLibrary` already strikes for the shelf. A
+    group that meets without a church still meets on a rhythm, and the room's
+    structure rules are the ones that already answer "who arranges this".
+
+    A personal space gets neither lane: a plan is a thing a room shows other
+    people. 404 rather than 403 throughout, so a probe cannot tell "not yours"
+    from "does not exist".
+  */
+  if (!isChurchOrgSpaceRow(space) || !space.orgId) {
+    if (space.type !== 'shared') {
+      return { ok: false, status: 404, code: 'SPACE_NOT_FOUND', error: 'Space not found' };
+    }
+
+    let role: SpaceRole | null = null;
+    try {
+      ({ role } = await requireSpaceAccess(space.id, userId));
+    } catch {
+      return { ok: false, status: 404, code: 'SPACE_NOT_FOUND', error: 'Space not found' };
+    }
+
+    /*
+      Reading is every member's — it is the group's own schedule, and the
+      `coming-up` window already hands them a slice of it one entry at a time.
+      Only `write` narrows to whoever runs the room.
+    */
+    if (opts.spaceLaneWrite && !canManageSpaceStructure(space, role)) {
+      return {
+        ok: false,
+        status: 403,
+        code: 'PLAN_SPACE_ROLE_REQUIRED',
+        error: 'Only this space’s leaders can change its plan',
+      };
+    }
+    return { ok: true, lane: 'space', church: null, space };
   }
 
   /*
@@ -67,7 +132,7 @@ async function resolveSpacePlanAccess(
   const access = await resolveChurchOrgAccess(userId, space.orgId, rule);
   if (!access.ok) return access;
 
-  return { ok: true, church: access.church, space };
+  return { ok: true, lane: 'church', church: access.church, space };
 }
 
 /** The staff *read* of a space plan. `sermon_tools`; never sponsorship-gated. */
@@ -81,7 +146,7 @@ export function assertCanViewSpaceTeachingPlan(
     staffError: 'Only church staff can see this plan',
     roleError: 'Your role does not include the teaching plan',
     sponsorshipGated: false,
-  });
+  }, { spaceLaneWrite: false });
 }
 
 /**
@@ -107,7 +172,7 @@ export async function assertCanManageSpaceTeachingPlan(
     staffError: 'Only church staff can manage this plan',
     roleError: 'A pastor or admin plans this ministry',
     sponsorshipGated: true,
-  });
+  }, { spaceLaneWrite: true });
   if (viaCapability.ok) return viaCapability;
 
   /*
@@ -165,5 +230,7 @@ async function resolveGrantedLeaderAccess(
     return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
   }
 
-  return { ok: true, church, space };
+  /* A grant only ever widens who may plan a *church* room — the space lane has
+     no grants to widen, because whoever runs the room already qualifies. */
+  return { ok: true, lane: 'church', church, space };
 }

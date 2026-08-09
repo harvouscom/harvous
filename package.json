@@ -83,6 +83,8 @@
     "library:schema:apply": "tsx server/scripts/add-resource-library-schema.ts --apply",
     "channel-links:schema": "tsx server/scripts/add-space-channel-links-schema.ts",
     "channel-links:schema:apply": "tsx server/scripts/add-space-channel-links-schema.ts --apply",
+    "space-plans:schema": "tsx server/scripts/add-space-owned-plans-schema.ts",
+    "space-plans:schema:apply": "tsx server/scripts/add-space-owned-plans-schema.ts --apply",
     "series:schema": "tsx server/scripts/add-series-presentation-schema.ts",
     "series:schema:apply": "tsx server/scripts/add-series-presentation-schema.ts --apply",
     "shared-spaces:schema:additive": "tsx server/scripts/add-shared-spaces-schema.ts",

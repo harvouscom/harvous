@@ -115,7 +115,10 @@ describe('publish route', () => {
 
   it('proves the series belongs to the gate\'s own church and space', () => {
     const block = routeBlock();
-    expect(block).toContain('series.churchId !== gate.church.id');
+    /* `?? null` because a churchless Shared Space's plan has no church: the
+       comparison still has to hold, with null matching null, so a series from
+       one room can never be published from another. */
+    expect(block).toContain('series.churchId !== (gate.church?.id ?? null)');
     expect(block).toContain('series.spaceId !== gate.space.id');
   });
 

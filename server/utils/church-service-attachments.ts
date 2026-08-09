@@ -96,14 +96,16 @@ export type AttachmentWriteResult =
  *
  * Both the service and every item are re-scoped here rather than trusted:
  * `serviceId` must belong to the plan the caller was gated on, and every item
- * must live in *this church's* library. A personal item is refused outright —
- * it is invisible to co-staff, so attaching one would put a resource on the
- * plan that nobody else on the team can open.
+ * must live in the shelf that plan draws from — the church's library, or the
+ * room's own when the plan has no church behind it. A personal item is refused
+ * either way: it is invisible to everyone else, so attaching one would put a
+ * resource on the plan that nobody but its owner can open.
  */
 export async function setServiceAttachments(input: {
   serviceId: string;
   itemIds: readonly string[];
-  churchId: string;
+  /** Null for a churchless Shared Space's plan, which draws from its own shelf. */
+  churchId: string | null;
   /** Null for the church plan; a space id narrows to that plan. */
   spaceId: string | null;
   userId: string;
@@ -126,7 +128,9 @@ export async function setServiceAttachments(input: {
       .where(
         and(
           eq(ChurchServices.id, serviceId),
-          eq(ChurchServices.churchId, churchId),
+          churchId === null
+            ? isNull(ChurchServices.churchId)
+            : eq(ChurchServices.churchId, churchId),
           /* `eq(col, null)` is never true in SQL — the church plan is the
              rows where spaceId IS NULL, and that needs its own predicate. */
           spaceId === null
@@ -149,8 +153,11 @@ export async function setServiceAttachments(input: {
       .where(
         and(
           inArray(LibraryItems.id, unique),
-          eq(ResourceLibraries.ownerKind, 'church'),
-          eq(ResourceLibraries.ownerId, churchId),
+          /* The shelf the plan draws from: the church's, or — with no church
+             behind it — the room's own, the one `ensureSpaceLibrary` creates. */
+          ...(churchId === null
+            ? [eq(ResourceLibraries.ownerKind, 'space'), eq(ResourceLibraries.ownerId, spaceId ?? '')]
+            : [eq(ResourceLibraries.ownerKind, 'church'), eq(ResourceLibraries.ownerId, churchId)]),
         ),
       );
     if (owned.length !== unique.length) {
