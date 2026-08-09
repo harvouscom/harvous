@@ -2069,29 +2069,36 @@ export default function PrototypeSidebar({
         disabled={!bulkActions.canOrganize}
         title={
           bulkActions.count > FOLDER_FANOUT_CAP
-            ? `Folder can take up to ${FOLDER_FANOUT_CAP} notes at a time`
-            : undefined
+            ? `A folder can take up to ${FOLDER_FANOUT_CAP} notes at a time`
+            : 'Put these notes in a folder'
         }
         onClick={() => setBulkFolderSheetOpen(true)}
       >
-        Folder
+        {/* "Folder", not "File" — this app has literal files on its shelves now,
+            and the verb would read as the noun. The icon carries the doing. */}
+        <Icon name="folder" size={15} aria-hidden />
+        <span className="proto-bulk-bar__label">Folder</span>
       </button>
       <button
         type="button"
         className="proto-bulk-bar__btn"
         disabled={!bulkActions.canThread}
+        title="Start a Thread from these notes"
         onClick={() => openCreateThreadSheet({ noteIds: sidebarSelectedNoteIds })}
       >
-        Thread
+        <Icon name="arrow-right-arrow-left" size={15} aria-hidden />
+        <span className="proto-bulk-bar__label">Thread</span>
       </button>
       {isScopedSharedSpace ? (
         <button
           type="button"
           className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
           disabled={!bulkActions.canRemoveFromSpace}
+          title="Take these notes out of this space"
           onClick={() => setBulkRemoveConfirmOpen(true)}
         >
-          Remove
+          <Icon name="circle-minus" size={15} aria-hidden />
+          <span className="proto-bulk-bar__label">Remove</span>
         </button>
       ) : (
         <>
@@ -2099,17 +2106,21 @@ export default function PrototypeSidebar({
             type="button"
             className="proto-bulk-bar__btn"
             disabled={!bulkActions.canShare}
+            title="Share these notes to a space"
             onClick={() => setBulkShareSheetOpen(true)}
           >
-            Share
+            <Icon name="share" size={15} aria-hidden />
+            <span className="proto-bulk-bar__label">Share</span>
           </button>
           <button
             type="button"
             className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
             disabled={!bulkActions.canDelete}
+            title="Delete these notes"
             onClick={() => setBulkDeleteConfirmOpen(true)}
           >
-            Delete
+            <Icon name="trash-can" size={15} aria-hidden />
+            <span className="proto-bulk-bar__label">Delete</span>
           </button>
         </>
       )}

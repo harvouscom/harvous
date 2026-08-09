@@ -9534,11 +9534,12 @@ button.proto-appearance-hero__card {
   border: none;
   padding: 0;
   flex-shrink: 0;
-  /* 8px of inset so the orb clears the row's rounded left edge, then the orb
-     itself. The row's main button gives up its own 10px of left padding in
-     exchange, so a title moves right by less than half the slot's width. */
-  width: 26px;
-  padding-left: 8px;
+  /* 10px of inset to clear the row's rounded left edge, then the 20px orb. The
+     main button adds the gap on its own side (below) — an orb that ends where
+     the title begins reads as one crowded object rather than a control beside
+     a note. */
+  width: 30px;
+  padding-left: 10px;
   align-self: stretch;
   display: flex;
   align-items: center;
@@ -9574,10 +9575,11 @@ button.proto-appearance-hero__card {
   }
 }
 
-/* The main button already carries 10px of left padding; the reserved slot
-   supplies the rest, so the text does not drift right of where it has always sat. */
+/* The breathing room between orb and title. Kept on the button rather than the
+   slot so it is part of the text's own inset — the title, the preview and the
+   timestamp all start from the same edge. */
 .proto-note-row__select + .proto-note-row__main {
-  padding-left: 0;
+  padding-left: 10px;
 }
 
 /* Header — sits above the search field while a selection stands. */
@@ -9633,28 +9635,68 @@ button.proto-appearance-hero__card {
 /* Action bar — the `.proto-collection-grid-actions` pinned-footer recipe, but quiet
    controls rather than the gradient primary: four gradient pills would read as four
    competing primary actions. */
-.proto-bulk-bar {
-  display: flex;
-  gap: 6px;
+/*
+ * Opaque, not the ghost surface the "New note" footer uses.
+ *
+ * That footer sits under a list you are reading; this one sits under a list you
+ * are acting on, and rows scrolling through a translucent bar made the actions
+ * read as floating debris over the notes rather than a place to act. It is also
+ * why the top edge is a real border and not a fade.
+ */
+.proto-collection-grid-actions.proto-bulk-bar {
+  background: var(--pds-bg-page, #fff);
+  border-top: 0.5px solid var(--pds-border-control-strong, var(--pds-border-control));
+  padding: 8px 10px 12px;
 }
 
+:root[data-color-scheme='dark'] .proto-collection-grid-actions.proto-bulk-bar {
+  background: var(--pds-bg-elevated, var(--pds-bg-page));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme='light']) .proto-collection-grid-actions.proto-bulk-bar {
+    background: var(--pds-bg-elevated, var(--pds-bg-page));
+  }
+}
+
+.proto-bulk-bar {
+  display: flex;
+  gap: 4px;
+}
+
+/*
+ * Icon over label. "Folder" and "Thread" as bare words name the thing, not the
+ * doing — the icon is what says which verb, and the word underneath confirms it.
+ * Stacking also buys each action the width to keep a readable label in a
+ * sidebar this narrow, where four side-by-side labels ellipsed themselves.
+ */
 .proto-bulk-bar .proto-bulk-bar__btn {
   appearance: none;
   flex: 1 1 0;
   min-width: 0;
-  min-height: 34px;
-  padding: 0 8px;
+  min-height: 46px;
+  padding: 6px 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   border: 0.5px solid var(--pds-border-control);
   border-radius: var(--pds-radius-button);
   background: var(--pds-bg-input);
   font-family: var(--pds-font-body);
-  font-size: 12px;
-  font-weight: 500;
   color: var(--pds-text-primary);
   cursor: pointer;
-  white-space: nowrap;
+}
+
+.proto-bulk-bar__label {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .proto-bulk-bar .proto-bulk-bar__btn:hover:not(:disabled) {
