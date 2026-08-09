@@ -590,7 +590,17 @@ function HighlightRow({
   authorUserId,
   isOwnHighlight = true,
   sharedSpaceMemberByUserId,
+  selectable = false,
+  selectMode = false,
+  selected = false,
+  onToggleSelected,
+  onSelectRangeTo,
 }: {
+  selectable?: boolean;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelected?: () => void;
+  onSelectRangeTo?: () => void;
   isActive: boolean;
   isPinned: boolean;
   entryKind: string | null | undefined;
@@ -616,17 +626,56 @@ function HighlightRow({
   return (
     <li
       ref={rowRef}
-      className="proto-note-row-item"
-      data-active={isActive ? 'true' : 'false'}
+      className={[
+        'proto-note-row-item',
+        selectMode ? 'proto-note-row-item--selectable' : '',
+        selected ? 'proto-note-row-item--selected' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      data-active={selectMode ? (selected ? 'true' : 'false') : isActive ? 'true' : 'false'}
       onContextMenu={(e) => {
         e.preventDefault();
         setMenuOpen(true);
       }}
     >
+      {/* Sibling of the main button, over the kind icon's own place — see the
+          multi-select CSS block for why it is not a child. */}
+      {selectable ? (
+        <button
+          type="button"
+          className="proto-note-row__select"
+          role="checkbox"
+          aria-checked={selected}
+          aria-label={selected ? `Deselect ${title}` : `Select ${title}`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.shiftKey && onSelectRangeTo) onSelectRangeTo();
+            else onToggleSelected?.();
+          }}
+        >
+          {selected ? (
+            <span className="proto-accent-check-orb proto-accent-check-orb--selected">
+              <Icon name="check" size={11} />
+            </span>
+          ) : (
+            <span className="proto-select-orb-idle" />
+          )}
+        </button>
+      ) : null}
       <button
         type="button"
         className="proto-note-row__main"
-        onClick={onOpen}
+        onClick={(e) => {
+          /* Same bargain as a note row: ⌘ adds, shift takes a range, and once
+             something is held a plain click keeps selecting rather than
+             navigating away from the set you were building. */
+          if (e.metaKey || e.ctrlKey) return onToggleSelected?.();
+          if (e.shiftKey && onSelectRangeTo) return onSelectRangeTo();
+          if (selectMode) return onToggleSelected?.();
+          onOpen();
+        }}
         aria-label={`${highlightEntryKindAriaLabel(entryKind)}: ${title}`}
       >
         <div className="proto-note-row__title-line">
@@ -1983,9 +2032,15 @@ export default function PrototypeSidebar({
    * from the list menu, but nothing requires it any more.
    */
   const selectionActive = sidebarSelectMode || sidebarSelectedIds.length > 0;
+  /* A note row is in a selecting frame of mind only when *notes* are being
+     selected — a standing highlight selection must not retarget its click. */
+  const noteSelectionActive =
+    sidebarSelectMode || (sidebarSelectionKind === 'note' && sidebarSelectedIds.length > 0);
 
   /** Anchor for shift-click, so a range means "from the last one you touched". */
   const selectionAnchorRef = useRef<string | null>(null);
+  /* Anchored to the button that raised it, like every other delete here. */
+  const [bulkHighlightDeleteAnchor, setBulkHighlightDeleteAnchor] = useState<DOMRect | null>(null);
 
   /**
    * Every selection made in this file's note lists is a selection *of notes*.
@@ -2073,10 +2128,6 @@ export default function PrototypeSidebar({
 
   const allSelectableSelected =
     selectableNotes.length > 0 && selectableNotes.every((n) => selectedNoteIdSet.has(n.id));
-
-  const toggleSelectAll = useCallback(() => {
-    setSidebarSelectedNotes(allSelectableSelected ? [] : selectableNotes.map((n) => n.id));
-  }, [allSelectableSelected, selectableNotes, setSidebarSelectedNotes]);
 
   /**
    * Bulk action bar. Quiet controls on the `.proto-collection-grid-actions` recipe — four
@@ -2262,6 +2313,96 @@ export default function PrototypeSidebar({
     const unpinned = searched.filter((r) => !pinnedSet.has(r.id));
     return [...pinned, ...unpinned];
   }, [highlightsQuery.data, q, highlightKindFilter, pinnedHighlightIds]);
+
+  /*
+    Highlights select in their own right: the ids in the store are highlight
+    ids, and the bar below offers what a highlight can actually take. The kind
+    is what keeps the two from being confused for one another.
+  */
+  const highlightSelectionActive =
+    sidebarSelectionKind === 'highlight' && sidebarSelectedIds.length > 0;
+  const selectedHighlightIdSet = useMemo(
+    () => new Set(highlightSelectionActive ? sidebarSelectedIds : []),
+    [highlightSelectionActive, sidebarSelectedIds],
+  );
+  /** In list order, so a range means what the eye means by it. */
+  const selectableHighlightIds = useMemo(
+    () =>
+      filteredHighlights
+        .filter((r) => r.isOwnHighlight !== false || !isScopedSharedSpace)
+        .map((r) => r.id)
+        .slice(0, NOTE_SELECTION_CAP),
+    [filteredHighlights, isScopedSharedSpace],
+  );
+  const toggleHighlightSelected = useCallback(
+    (id: string) => {
+      selectionAnchorRef.current = id;
+      /* Switching kind starts a fresh set — see `sidebarSelectionKind`. */
+      const base = sidebarSelectionKind === 'highlight' ? sidebarSelectedIds : [];
+      setSidebarSelection('highlight', toggleNoteSelection(base, id));
+    },
+    [sidebarSelectionKind, sidebarSelectedIds, setSidebarSelection],
+  );
+  const selectHighlightRangeTo = useCallback(
+    (id: string) => {
+      const base = sidebarSelectionKind === 'highlight' ? sidebarSelectedIds : [];
+      setSidebarSelection(
+        'highlight',
+        extendNoteSelectionRange({
+          selected: base,
+          orderedIds: selectableHighlightIds,
+          anchorId: selectionAnchorRef.current,
+          targetId: id,
+        }),
+      );
+      selectionAnchorRef.current = id;
+    },
+    [sidebarSelectionKind, sidebarSelectedIds, selectableHighlightIds, setSidebarSelection],
+  );
+
+  /**
+   * What a batch of highlights can take.
+   *
+   * Pin is local to this device (`proto-pinned-stores`), so it fans out for
+   * free. Delete goes one request per highlight — at a cap of 50 a batch
+   * endpoint would be machinery for a rounding error, and the per-row mutation
+   * already invalidates correctly.
+   */
+  const highlightBulkBar = (
+    <div className="proto-collection-grid-actions proto-bulk-bar">
+      <button
+        type="button"
+        className="proto-bulk-bar__btn"
+        title="Pin these highlights"
+        onClick={() => {
+          for (const id of sidebarSelectedIds) togglePinnedHighlight(id);
+          setSidebarSelection('highlight', []);
+        }}
+      >
+        <Icon name="thumbtack" size={15} aria-hidden />
+        <span className="proto-bulk-bar__label">Pin</span>
+      </button>
+      <button
+        type="button"
+        className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
+        title="Delete these highlights"
+        onClick={(e) => setBulkHighlightDeleteAnchor(e.currentTarget.getBoundingClientRect())}
+      >
+        <Icon name="trash-can" size={15} aria-hidden />
+        <span className="proto-bulk-bar__label">Delete</span>
+      </button>
+    </div>
+  );
+
+  /* "Select all" means the list you are looking at, whatever kind it holds. */
+  const selectAllTargets =
+    sidebarSelectionKind === 'highlight' && selectionActive
+      ? selectableHighlightIds
+      : selectableNotes.map((n) => n.id);
+  const toggleSelectAll = useCallback(() => {
+    const kind = selectionActive ? sidebarSelectionKind : 'note';
+    setSidebarSelection(kind, allSelectableSelected ? [] : selectAllTargets);
+  }, [allSelectableSelected, selectAllTargets, selectionActive, sidebarSelectionKind, setSidebarSelection]);
 
   const filteredScriptureBooks = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -2568,7 +2709,7 @@ export default function PrototypeSidebar({
           isScopedSharedSpace={isScopedSharedSpace}
           sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
           viewerIsSpaceOwner={viewerIsSpaceOwner}
-          selectMode={selectionActive}
+          selectMode={noteSelectionActive}
           selectable
           selected={selectedNoteIdSet.has(n.id)}
           onToggleSelected={toggleNoteSelected}
@@ -2693,6 +2834,32 @@ export default function PrototypeSidebar({
         },
       },
     );
+  };
+
+  /**
+   * One request per highlight, awaited in order.
+   *
+   * At a cap of 50 a batch endpoint would be machinery for a rounding error,
+   * and a partial failure has to leave the ones that did delete deleted — so
+   * the selection is cleared regardless and the error names what stalled.
+   */
+  const onConfirmBulkDeleteHighlights = async () => {
+    if (!homeSpaceId) return;
+    const rows = filteredHighlights.filter((r) => selectedHighlightIdSet.has(r.id));
+    try {
+      for (const row of rows) {
+        await deleteHighlight.mutateAsync({
+          id: row.id,
+          spaceId: homeSpaceId,
+          parentNoteId: row.parentNoteId,
+        });
+      }
+    } catch (err) {
+      toastError(err, 'Could not delete every highlight');
+    } finally {
+      setBulkHighlightDeleteAnchor(null);
+      setSidebarSelection('highlight', []);
+    }
   };
 
   const onHighlightRow = (r: PrototypeHighlightStudyThreadRow) => {
@@ -3019,7 +3186,7 @@ export default function PrototypeSidebar({
             type="button"
             className="proto-select-bar__action"
             onClick={toggleSelectAll}
-            disabled={selectableNotes.length === 0}
+            disabled={selectAllTargets.length === 0}
           >
             {allSelectableSelected ? 'Deselect all' : 'Select all'}
           </button>
@@ -3032,7 +3199,7 @@ export default function PrototypeSidebar({
             type="button"
             className="proto-select-bar__action proto-select-bar__action--done"
             onClick={() => {
-              setSidebarSelectedNotes([]);
+              setSidebarSelection(sidebarSelectionKind, []);
               setSidebarSelectMode(false);
             }}
           >
@@ -3217,7 +3384,7 @@ export default function PrototypeSidebar({
                         isScopedSharedSpace={isScopedSharedSpace}
                         sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
                         viewerIsSpaceOwner={viewerIsSpaceOwner}
-                        selectMode={selectionActive}
+                        selectMode={noteSelectionActive}
                         selectable
                         selected={selectedNoteIdSet.has(row.id)}
                         onToggleSelected={toggleNoteSelected}
@@ -3305,7 +3472,7 @@ export default function PrototypeSidebar({
                         isScopedSharedSpace={isScopedSharedSpace}
                         sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
                         viewerIsSpaceOwner={viewerIsSpaceOwner}
-                        selectMode={selectionActive}
+                        selectMode={noteSelectionActive}
                         selectable
                         selected={selectedNoteIdSet.has(row.id)}
                         onToggleSelected={toggleNoteSelected}
@@ -3467,6 +3634,11 @@ export default function PrototypeSidebar({
                           authorColor={r.authorColor}
                           authorUserId={r.userId}
                           isOwnHighlight={r.isOwnHighlight !== false}
+                          selectable={r.isOwnHighlight !== false || !isScopedSharedSpace}
+                          selectMode={highlightSelectionActive}
+                          selected={selectedHighlightIdSet.has(r.id)}
+                          onToggleSelected={() => toggleHighlightSelected(r.id)}
+                          onSelectRangeTo={() => selectHighlightRangeTo(r.id)}
                           onOpen={() => onHighlightRow(r)}
                           onTogglePin={() => togglePinnedHighlight(r.id)}
                           onDelete={(anchorRect) => onRequestDeleteHighlight(r, anchorRect)}
@@ -3479,6 +3651,7 @@ export default function PrototypeSidebar({
                     })}
                   </ul>
                 )}
+                {highlightSelectionActive ? highlightBulkBar : null}
               </>
             ) : null}
 
@@ -3931,6 +4104,22 @@ export default function PrototypeSidebar({
           onConfirm={onConfirmBulkRemoveFromSpace}
           onCancel={() => {
             if (!removeNotesFromSpace.isPending) setBulkRemoveConfirmOpen(null);
+          }}
+        />
+      ) : null}
+      {bulkHighlightDeleteAnchor ? (
+        <ProtoConfirmDialog
+          anchorRect={bulkHighlightDeleteAnchor}
+          preferAbove
+          alignRight
+          title={`Delete ${sidebarSelectedIds.length} highlight${
+            sidebarSelectedIds.length === 1 ? '' : 's'
+          }?`}
+          confirmLabel="Delete"
+          busy={deleteHighlight.isPending}
+          onConfirm={() => void onConfirmBulkDeleteHighlights()}
+          onCancel={() => {
+            if (!deleteHighlight.isPending) setBulkHighlightDeleteAnchor(null);
           }}
         />
       ) : null}

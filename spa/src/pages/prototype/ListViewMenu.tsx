@@ -209,7 +209,14 @@ export default function ListViewMenu({
    * Only the note-bearing lists can be selected. Folders and Threads show cards, and
    * Resources is a different entity entirely.
    */
-  const canSelect = sidebarListMode === 'notes' || sidebarListMode === 'scripture';
+  /* Touch has no hover to reveal a row's checkbox, so this entry is the only
+     way in there — which is why it tracks the selectable modes rather than
+     staying at notes. */
+  const canSelect =
+    sidebarListMode === 'notes' ||
+    sidebarListMode === 'scripture' ||
+    sidebarListMode === 'highlights';
+  const selectNoun = sidebarListMode === 'highlights' ? 'highlights' : 'notes';
   const selectSection = canSelect ? (
     <div className="proto-menu-section" role="group">
       <button
@@ -235,7 +242,7 @@ export default function ListViewMenu({
           <Icon name={selectingNow ? 'xmark' : 'check'} size={PROTO_TOOLBAR_ICON_SIZE} />
         </span>
         <span className="proto-menu-item__label">
-          {selectingNow ? 'Done selecting' : 'Select notes'}
+          {selectingNow ? 'Done selecting' : `Select ${selectNoun}`}
         </span>
       </button>
     </div>
