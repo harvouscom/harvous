@@ -6,7 +6,9 @@ import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePr
 import type { StudyThreadCluster } from '../../hooks/queries/usePrototypeStudyThreads';
 import ProtoChipBar, { type ProtoChipOption } from './components/ProtoChipBar';
 import { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
-import PrototypeSidebarSearchResultItem from './PrototypeSidebarSearchResultItem';
+import PrototypeSidebarSearchResultItem, {
+  type SearchResultSelection,
+} from './PrototypeSidebarSearchResultItem';
 import { SIDEBAR_NO_MATCH_COPY } from './sidebar-no-match-copy';
 import {
   SIDEBAR_ELSEWHERE_TYPE_OPTIONS,
@@ -53,6 +55,8 @@ export type PrototypeSidebarSearchResultsProps = {
   myHomeData?: Omit<UniversalSearchData, 'ftsNotes'>;
   myHomeNotesById?: Map<string, SpaceNoteRow>;
   myHomeHighlightsById?: Map<string, PrototypeHighlightStudyThreadRow>;
+  /** Lets note and highlight results join a selection made in the list behind. */
+  selection?: SearchResultSelection;
 };
 
 function SearchResultSection({
@@ -61,12 +65,14 @@ function SearchResultSection({
   highlightsById,
   isResultActive,
   onActivateResult,
+  selection,
 }: {
   results: SidebarSearchResult[];
   notesById: Map<string, SpaceNoteRow>;
   highlightsById: Map<string, PrototypeHighlightStudyThreadRow>;
   isResultActive: (result: SidebarSearchResult) => boolean;
   onActivateResult: (result: SidebarSearchResult) => void;
+  selection?: SearchResultSelection;
 }) {
   return (
     <ul className="proto-note-list">
@@ -78,6 +84,7 @@ function SearchResultSection({
           onActivate={() => onActivateResult(result)}
           notesById={notesById}
           highlightsById={highlightsById}
+          selection={selection}
         />
       ))}
     </ul>
@@ -101,6 +108,7 @@ export default function PrototypeSidebarSearchResults({
   myHomeData,
   myHomeNotesById,
   myHomeHighlightsById,
+  selection,
 }: PrototypeSidebarSearchResultsProps) {
   const [searchScope, setSearchScope] = useState<SidebarSearchScope>('active');
   const [elsewhereTypeFilter, setElsewhereTypeFilter] = useState<SidebarElsewhereTypeFilter>('all');
@@ -249,6 +257,7 @@ export default function PrototypeSidebarSearchResults({
             highlightsById={visibleHighlightsById}
             isResultActive={isResultActive}
             onActivateResult={onActivateResult}
+            selection={selection}
           />
         )}
       </div>

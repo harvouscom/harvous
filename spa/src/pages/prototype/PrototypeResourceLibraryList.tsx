@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import Icon from '@/components/react/Icon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import ProtoRowSelectCheckbox from './ProtoRowSelectCheckbox';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { extendNoteSelectionRange, toggleNoteSelection } from '../../lib/note-selection';
 import {
@@ -102,27 +103,12 @@ function ResourceRow({
       }}
     >
       {selectable ? (
-        <button
-          type="button"
-          className="proto-note-row__select"
-          role="checkbox"
-          aria-checked={selected}
-          aria-label={selected ? `Deselect ${item.title}` : `Select ${item.title}`}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (e.shiftKey && onSelectRangeTo) onSelectRangeTo();
-            else onToggleSelected?.();
-          }}
-        >
-          {selected ? (
-            <span className="proto-accent-check-orb proto-accent-check-orb--selected">
-              <Icon name="check" size={11} />
-            </span>
-          ) : (
-            <span className="proto-select-orb-idle" />
-          )}
-        </button>
+        <ProtoRowSelectCheckbox
+          selected={selected}
+          label={item.title}
+          onToggle={() => onToggleSelected?.()}
+          onRangeTo={() => onSelectRangeTo?.()}
+        />
       ) : null}
       <button
         type="button"

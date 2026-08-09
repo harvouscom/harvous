@@ -90,6 +90,7 @@ import PrototypeSidebarHomeView from './PrototypeSidebarHomeView';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeListEmptyState, { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
 import PrototypeResourceLibraryList from './PrototypeResourceLibraryList';
+import ProtoRowSelectCheckbox from './ProtoRowSelectCheckbox';
 import {
   extendNoteSelectionRange,
   toggleNoteSelection,
@@ -642,27 +643,12 @@ function HighlightRow({
       {/* Sibling of the main button, over the kind icon's own place — see the
           multi-select CSS block for why it is not a child. */}
       {selectable ? (
-        <button
-          type="button"
-          className="proto-note-row__select"
-          role="checkbox"
-          aria-checked={selected}
-          aria-label={selected ? `Deselect ${title}` : `Select ${title}`}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (e.shiftKey && onSelectRangeTo) onSelectRangeTo();
-            else onToggleSelected?.();
-          }}
-        >
-          {selected ? (
-            <span className="proto-accent-check-orb proto-accent-check-orb--selected">
-              <Icon name="check" size={11} />
-            </span>
-          ) : (
-            <span className="proto-select-orb-idle" />
-          )}
-        </button>
+        <ProtoRowSelectCheckbox
+          selected={selected}
+          label={title}
+          onToggle={() => onToggleSelected?.()}
+          onRangeTo={() => onSelectRangeTo?.()}
+        />
       ) : null}
       <button
         type="button"
@@ -1257,27 +1243,12 @@ function PrototypeSidebarNoteRow({
         walk the list one row at a time.
       */}
       {selectable ? (
-        <button
-          type="button"
-          className="proto-note-row__select"
-          role="checkbox"
-          aria-checked={selected}
-          aria-label={selected ? `Deselect ${title}` : `Select ${title}`}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (e.shiftKey && onSelectRangeTo) onSelectRangeTo(row.id);
-            else onToggleSelected?.(row.id);
-          }}
-        >
-          {selected ? (
-            <span className="proto-accent-check-orb proto-accent-check-orb--selected">
-              <Icon name="check" size={11} />
-            </span>
-          ) : (
-            <span className="proto-select-orb-idle" />
-          )}
-        </button>
+        <ProtoRowSelectCheckbox
+          selected={selected}
+          label={title}
+          onToggle={() => onToggleSelected?.(row.id)}
+          onRangeTo={() => onSelectRangeTo?.(row.id)}
+        />
       ) : null}
       {mainButton}
       {menuBlock}
@@ -2128,6 +2099,45 @@ export default function PrototypeSidebar({
 
   const allSelectableSelected =
     selectableNotes.length > 0 && selectableNotes.every((n) => selectedNoteIdSet.has(n.id));
+
+  /**
+   * What a search result may do about selection.
+   *
+   * Results are a different row component over the same underlying things, so
+   * rather than teaching that component the shell's rules it is handed a
+   * function that answers per row. Notes and highlights answer; a folder or a
+   * book result gets null, because those are places you go rather than things
+   * you act on in bulk from here.
+   *
+   * No shift-range here. A range needs an order, and the only order that would
+   * not surprise the reader is the one on screen — which this component does
+   * not hold, because the results are built one level down. ⌘-click and plain
+   * click both still add, so the gesture that is missing is the convenience,
+   * not the capability.
+   */
+  const searchResultSelection = useMemo(
+    () => ({
+      for: (kind: 'note' | 'highlight', id: string, label: string) => {
+        const active = sidebarSelectionKind === kind && sidebarSelectedIds.length > 0;
+        const selected = active && sidebarSelectedIds.includes(id);
+        const base = sidebarSelectionKind === kind ? sidebarSelectedIds : [];
+        const onToggle = () => {
+          selectionAnchorRef.current = id;
+          setSidebarSelection(kind, toggleNoteSelection(base, id));
+        };
+        return {
+          selectMode: active,
+          selected,
+          checkbox: {
+            selected,
+            label,
+            onToggle,
+          },
+        };
+      },
+    }),
+    [sidebarSelectionKind, sidebarSelectedIds, setSidebarSelection],
+  );
 
   /**
    * Bulk action bar. Quiet controls on the `.proto-collection-grid-actions` recipe — four
@@ -3327,7 +3337,9 @@ export default function PrototypeSidebar({
             </div>
           </div>
         ) : searchActive ? (
+          <>
           <PrototypeSidebarSearchResults
+            selection={searchResultSelection}
             query={q}
             homeSpaceId={homeSpaceId}
             activeNoteFullId={activeNoteFullId}
@@ -3346,6 +3358,12 @@ export default function PrototypeSidebar({
             myHomeNotesById={myHomeNotesById}
             myHomeHighlightsById={myHomeHighlightsById}
           />
+          {/* Search replaces the list body, so a selection made before typing —
+              or built out of the results themselves — would otherwise lose the
+              actions that go with it. */}
+          {noteSelectionActive && sidebarSelectedIds.length > 0 ? bulkBar : null}
+          {highlightSelectionActive ? highlightBulkBar : null}
+          </>
         ) : (
           <>
             {mode === 'notes' ? (

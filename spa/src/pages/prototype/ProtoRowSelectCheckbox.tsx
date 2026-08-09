@@ -1,0 +1,53 @@
+/**
+ * The selection checkbox on a sidebar list row.
+ *
+ * A *sibling* of the row's main button, never a child: the list's keyboard
+ * navigation matches `button.proto-note-row__main`
+ * (`useListKeyboardNavigation`), so nesting this would make every row two
+ * arrow-key stops, and a button inside a button is invalid markup besides.
+ *
+ * Where it appears and when it fades is entirely CSS — see the multi-select
+ * block in `prototype-components.css`. Rows that carry a leading kind icon hand
+ * that icon's exact place over; rows without one step aside while hovered.
+ */
+import Icon from '@/components/react/Icon';
+
+export default function ProtoRowSelectCheckbox({
+  selected,
+  label,
+  onToggle,
+  onRangeTo,
+}: {
+  selected: boolean;
+  /** The row's title — what "Select …" / "Deselect …" names for a screen reader. */
+  label: string;
+  onToggle?: () => void;
+  /** Shift-click extends from the last row touched. Omit where a range is meaningless. */
+  onRangeTo?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="proto-note-row__select"
+      role="checkbox"
+      aria-checked={selected}
+      aria-label={selected ? `Deselect ${label}` : `Select ${label}`}
+      onClick={(e) => {
+        /* The row's own click must not also fire: on most of these rows that
+           would open the thing you were trying to tick. */
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.shiftKey && onRangeTo) onRangeTo();
+        else onToggle?.();
+      }}
+    >
+      {selected ? (
+        <span className="proto-accent-check-orb proto-accent-check-orb--selected">
+          <Icon name="check" size={11} />
+        </span>
+      ) : (
+        <span className="proto-select-orb-idle" />
+      )}
+    </button>
+  );
+}
