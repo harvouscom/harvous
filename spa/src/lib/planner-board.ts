@@ -263,67 +263,129 @@ export function seriesIdsByWeek<T extends PlannerSermonLike & { seriesId?: strin
 /**
  * Where a series' band sits on a month grid.
  *
- * The calendar is the planner's picture of *time*, so a run's continuity
- * belongs here rather than on the board, whose columns are one week each and
- * whose job is what you are planning, not how long it lasts. The band replaced
- * a wash of the whole day cell: a wash colours the days a series touches, but
- * says nothing about the space between them, and a series that meets on two
- * days of one week read as two unrelated tinted squares.
+ * A series is a *period*, not a set of Sundays. A church eight weeks into
+ * Romans is in Romans on the Wednesday too, so the band spans the whole
+ * interval from the run's first dated week to its last, and the days between
+ * belong to it. Drawing only the days that hold a service produced one-cell
+ * dashes that said "something here" rather than "this is a run".
  *
- * One band per series per week row, spanning that row's first to last day for
- * the run — so a weekly series is one cell wide and a conference is five.
- * Rows are computed rather than the whole month spanned, because a month grid
- * wraps: a band from the 30th to the 2nd would have to cross a line break,
- * which grid cannot draw and a reader would not follow.
+ * The interval is then clipped to each week row, because a month grid wraps: a
+ * band from the 30th to the 2nd would have to cross a line break that grid
+ * cannot draw and a reader would not follow. So an eight-week run is eight
+ * bands, each full-width, reading as one column of colour down the month —
+ * and a run that starts mid-week starts mid-row, which is the truth.
  */
 export type CalendarSeriesBand = {
   key: string;
   /** 1-based CSS grid row, counting the weekday header out. */
   row: number;
-  /** 1-based CSS grid column of the run's first day in this row. */
+  /** 1-based CSS grid column where the run enters this row. */
   colStart: number;
   /** How many columns it covers. */
   colSpan: number;
   seriesId: string;
   label: string | null;
+  /** True when the run reaches this row from the one above. */
+  continuesFromPrev: boolean;
+  /** True when it carries on into the row below. */
+  continuesToNext: boolean;
+  /**
+   * Which stacked line this band sits on within its row, from 0.
+   *
+   * Two runs can cover the same days — a Sunday series and a midweek one — and
+   * without lanes they draw at the same offset and bleed through each other.
+   * Packed first-fit: a band takes the topmost lane no other band in that row
+   * already occupies at those columns, so unrelated runs share a lane when
+   * they do not touch and separate only when they must.
+   */
+  lane: number;
 };
+
+/** How many stacked band lines each week row needs, indexed by row - 1. */
+export function calendarBandLanesByRow(bands: readonly CalendarSeriesBand[]): number[] {
+  const lanes: number[] = [];
+  for (const band of bands) {
+    const index = band.row - 1;
+    lanes[index] = Math.max(lanes[index] ?? 0, band.lane + 1);
+  }
+  return lanes;
+}
 
 export function calendarSeriesBands(
   cells: readonly { iso: string }[],
   servicesByDate: ReadonlyMap<string, readonly { seriesId: string | null; seriesTitle: string | null }[]>,
 ): CalendarSeriesBand[] {
+  /** seriesId → the first and last cell index the run touches on this grid. */
+  const extent = new Map<string, { first: number; last: number; label: string | null }>();
+
+  cells.forEach((cell, index) => {
+    for (const service of servicesByDate.get(cell.iso) ?? []) {
+      if (!service.seriesId) continue;
+      const found = extent.get(service.seriesId);
+      if (found) {
+        found.first = Math.min(found.first, index);
+        found.last = Math.max(found.last, index);
+        found.label = found.label ?? service.seriesTitle;
+      } else {
+        extent.set(service.seriesId, { first: index, last: index, label: service.seriesTitle });
+      }
+    }
+  });
+
   const bands: CalendarSeriesBand[] = [];
   const weeks = Math.ceil(cells.length / 7);
 
-  for (let week = 0; week < weeks; week += 1) {
-    /** seriesId → the columns it occupies in this row, and its name. */
-    const spans = new Map<string, { min: number; max: number; label: string | null }>();
+  for (const [seriesId, run] of extent) {
+    for (let week = 0; week < weeks; week += 1) {
+      const rowFirst = week * 7;
+      const rowLast = rowFirst + 6;
+      // No overlap with this row at all.
+      if (run.last < rowFirst || run.first > rowLast) continue;
 
-    for (let col = 0; col < 7; col += 1) {
-      const cell = cells[week * 7 + col];
-      if (!cell) continue;
-      for (const service of servicesByDate.get(cell.iso) ?? []) {
-        if (!service.seriesId) continue;
-        const existing = spans.get(service.seriesId);
-        if (existing) {
-          existing.min = Math.min(existing.min, col);
-          existing.max = Math.max(existing.max, col);
-          existing.label = existing.label ?? service.seriesTitle;
-        } else {
-          spans.set(service.seriesId, { min: col, max: col, label: service.seriesTitle });
-        }
-      }
-    }
-
-    for (const [seriesId, span] of spans) {
+      const from = Math.max(run.first, rowFirst);
+      const to = Math.min(run.last, rowLast);
       bands.push({
         key: `${week}:${seriesId}`,
         row: week + 1,
-        colStart: span.min + 1,
-        colSpan: span.max - span.min + 1,
+        colStart: (from % 7) + 1,
+        colSpan: to - from + 1,
         seriesId,
-        label: span.label,
+        label: run.label,
+        continuesFromPrev: run.first < rowFirst,
+        continuesToNext: run.last > rowLast,
+        /* Assigned below, once every band in the row is known. */
+        lane: 0,
       });
+    }
+  }
+
+  /*
+    Lane packing, per row. Longest bands first so a run crossing the whole week
+    takes the top line and shorter ones tuck beneath it, rather than a one-day
+    band claiming lane 0 and pushing the week-long run down.
+  */
+  const byRow = new Map<number, CalendarSeriesBand[]>();
+  for (const band of bands) {
+    const list = byRow.get(band.row);
+    if (list) list.push(band);
+    else byRow.set(band.row, [band]);
+  }
+
+  for (const rowBands of byRow.values()) {
+    rowBands.sort((a, b) => b.colSpan - a.colSpan || a.colStart - b.colStart);
+    /** Per lane, the columns already spoken for. */
+    const occupied: Array<Array<{ start: number; end: number }>> = [];
+    for (const band of rowBands) {
+      const start = band.colStart;
+      const end = band.colStart + band.colSpan - 1;
+      let lane = 0;
+      while (
+        occupied[lane]?.some((taken) => start <= taken.end && end >= taken.start)
+      ) {
+        lane += 1;
+      }
+      band.lane = lane;
+      (occupied[lane] ??= []).push({ start, end });
     }
   }
 

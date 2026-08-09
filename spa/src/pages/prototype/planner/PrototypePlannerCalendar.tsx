@@ -38,6 +38,7 @@ import {
   parseLocalDateInput,
 } from '../../../lib/proto-date-picker';
 import {
+  calendarBandLanesByRow,
   calendarSeriesBands,
   dayDroppableId,
   parseDroppableId,
@@ -56,6 +57,7 @@ function DayCell({
   colorScheme,
   gridRow,
   gridColumn,
+  bandLanes,
   canDrop,
   onAdd,
   children,
@@ -81,6 +83,8 @@ function DayCell({
   /** Explicit placement — see the call site. */
   gridRow: number;
   gridColumn: number;
+  /** Band lines above this row's cells; their height is reserved as padding. */
+  bandLanes: number;
   canDrop: boolean;
   onAdd?: () => void;
   children: React.ReactNode;
@@ -89,7 +93,7 @@ function DayCell({
   return (
     <div
       ref={setNodeRef}
-      style={{ gridRow, gridColumn }}
+      style={{ gridRow, gridColumn, ['--band-lanes' as string]: bandLanes }}
       className={[
         'proto-planner-day',
         inMonth ? '' : 'proto-planner-day--outside',
@@ -161,6 +165,9 @@ export default function PrototypePlannerCalendar({
   /* One band per series per week row — see calendarSeriesBands for why a run
      never spans a row break. */
   const seriesBands = useMemo(() => calendarSeriesBands(cells, byDate), [cells, byDate]);
+  /* How many band lines each week row has to make room for, so a cell's own
+     content starts below them instead of underneath. */
+  const bandLanes = useMemo(() => calendarBandLanesByRow(seriesBands), [seriesBands]);
   const timeLabel = (service: TeachingPlanSermon) => sermonTimeLabel(service, serviceTimes);
   const dragging = draggingId ? services.find((s) => s.id === draggingId) ?? null : null;
 
@@ -226,10 +233,20 @@ export default function PrototypePlannerCalendar({
             {seriesBands.map((band) => (
               <span
                 key={band.key}
-                className="proto-planner-calendar__band"
+                className={[
+                  'proto-planner-calendar__band',
+                  /* Square where the run carries on, rounded where it starts or
+                     stops — so a reader can see which end is an edge and which
+                     is a wrap. */
+                  band.continuesFromPrev ? 'proto-planner-calendar__band--from-prev' : '',
+                  band.continuesToNext ? 'proto-planner-calendar__band--to-next' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 style={{
                   gridRow: band.row,
                   gridColumn: `${band.colStart} / span ${band.colSpan}`,
+                  ['--band-lane' as string]: band.lane,
                   ['--space-icon-accent' as string]: spaceIconAccentHex(
                     accentFor(band.seriesId) ?? 'paper',
                     colorScheme,
@@ -251,6 +268,7 @@ export default function PrototypePlannerCalendar({
                 */
                 gridRow={Math.floor(index / 7) + 1}
                 gridColumn={(index % 7) + 1}
+                bandLanes={bandLanes[Math.floor(index / 7)] ?? 0}
                 iso={cell.iso}
                 day={cell.day}
                 inMonth={cell.inMonth}
