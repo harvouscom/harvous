@@ -1961,8 +1961,14 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 
 /*
  * ⋯ menu: show on row hover for mouse desktops; keep visible on touch / coarse pointers (no reliable hover).
- * Keyboard: :focus-within shows trigger while the row’s main button or menu has focus.
+ * Keyboard: :focus-visible shows the trigger while the row's main button or menu holds keyboard focus.
  * Open popover: .proto-note-row__menu--open keeps the trigger visible (matches :has(...) but works if focus moves).
+ *
+ * `:focus-visible`, not `:focus-within`. A mouse click leaves focus on the
+ * button it clicked, so `:focus-within` kept that row's ⋯ lit after the pointer
+ * moved away — two rows showing a trigger at once, and the stuck one acting on
+ * a row the reader was no longer looking at. `:focus-visible` matches keyboard
+ * focus only, so tabbing still reveals it and clicking no longer strands it.
  */
 @media (hover: hover) and (pointer: fine) {
   .proto-note-row-item .proto-note-row__menu-trigger {
@@ -1971,7 +1977,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   }
 
   .proto-note-row-item:hover .proto-note-row__menu-trigger,
-  .proto-note-row-item:focus-within .proto-note-row__menu-trigger,
+  .proto-note-row-item:has(:focus-visible) .proto-note-row__menu-trigger,
   .proto-note-row-item:has(.proto-note-row__menu--open) .proto-note-row__menu-trigger {
     opacity: 1;
     pointer-events: auto;
@@ -6975,8 +6981,10 @@ button.proto-home-greeting__chip--passage {
     pointer-events: none;
   }
 
+  /* :focus-visible for the same reason as the note row's ⋯ — a mouse click must
+     not strand a trigger lit on a card the reader has moved away from. */
   .proto-collection-grid-item:hover .proto-collection-card__menu-trigger,
-  .proto-collection-grid-item:focus-within .proto-collection-card__menu-trigger,
+  .proto-collection-grid-item:has(:focus-visible) .proto-collection-card__menu-trigger,
   .proto-collection-grid-item:has(.proto-collection-card__menu--open) .proto-collection-card__menu-trigger {
     opacity: 1;
     pointer-events: auto;
@@ -8439,7 +8447,7 @@ button.proto-appearance-hero__card {
 }
 
 .proto-sidebar-thread-trail .proto-thread-trail__step:hover .proto-note-row__menu-trigger,
-.proto-sidebar-thread-trail .proto-thread-trail__step:focus-within .proto-note-row__menu-trigger,
+.proto-sidebar-thread-trail .proto-thread-trail__step:has(:focus-visible) .proto-note-row__menu-trigger,
 .proto-sidebar-thread-trail .proto-thread-trail__step:has(.proto-note-row__menu--open) .proto-note-row__menu-trigger {
   opacity: 1;
   pointer-events: auto;
@@ -8452,7 +8460,7 @@ button.proto-appearance-hero__card {
   }
 
   .proto-sidebar-thread-trail .proto-thread-trail__step:hover .proto-note-row__menu-trigger,
-  .proto-sidebar-thread-trail .proto-thread-trail__step:focus-within .proto-note-row__menu-trigger,
+  .proto-sidebar-thread-trail .proto-thread-trail__step:has(:focus-visible) .proto-note-row__menu-trigger,
   .proto-sidebar-thread-trail .proto-thread-trail__step:has(.proto-note-row__menu--open) .proto-note-row__menu-trigger {
     opacity: 1;
     pointer-events: auto;

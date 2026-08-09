@@ -17,6 +17,11 @@ import {
   type ChurchLibraryItem,
 } from '../../hooks/queries/useChurchLibrary';
 import PrototypeSuggestResourceSheet from './PrototypeSuggestResourceSheet';
+import {
+  useSpaceLibrary,
+  useSpaceLibraryActions,
+  type SpaceLibraryItem,
+} from '../../hooks/queries/useSpaceLibrary';
 import PrototypeListEmptyState, { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
 import PrototypeSidebarRowMenuPopover from './PrototypeSidebarRowMenuPopover';
 import ProtoChipBar from './components/ProtoChipBar';
@@ -531,13 +536,138 @@ function ChurchResourceRow({
   );
 }
 
+/**
+ * This room's shelf, in the list view's own row anatomy.
+ *
+ * The scope bar above already asked "this space or My Home", so this answers
+ * only the first — no source chips, because a room's shelf has one source and a
+ * filter with a single option is furniture. The other scope keeps the All / My
+ * Library / Church Library chips, which is the same question one level down.
+ */
+function SpaceShelfList({
+  items,
+  query,
+  isPending,
+  isError,
+  canManage,
+}: {
+  items: SpaceLibraryItem[];
+  query: string;
+  isPending: boolean;
+  isError: boolean;
+  canManage: boolean;
+}) {
+  const trimmed = query.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    if (!trimmed) return items;
+    return items.filter((item) =>
+      [item.title, item.sourceSiteName, item.sourceDomain, item.description]
+        .filter(Boolean)
+        .some((field) => field!.toLowerCase().includes(trimmed)),
+    );
+  }, [items, trimmed]);
+
+  if (isPending) return <ProtoSpaceLoading label="Loading resources" />;
+  if (isError) {
+    return (
+      <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
+        Could not load this space&apos;s resources.
+      </p>
+    );
+  }
+
+  if (filtered.length === 0) {
+    return trimmed ? (
+      <PrototypeListNoMatchEmptyState title="No resources match" />
+    ) : (
+      <PrototypeListEmptyState
+        iconName="newspaper"
+        title="Nothing on the shelf yet"
+        description={
+          canManage
+            ? 'Add a link or a file and everyone in this space will see it here.'
+            : 'Resources added for this space will show up here.'
+        }
+      />
+    );
+  }
+
+  return (
+    <ul className="proto-note-list">
+      {filtered.map((item) => (
+        <SpaceResourceRow
+          key={item.id}
+          item={item}
+          onOpen={() => {
+            if (item.kind === 'file') void openLibraryFileItem(item.id);
+            else if (item.sourceUrl) window.open(item.sourceUrl, '_blank', 'noopener');
+          }}
+        />
+      ))}
+    </ul>
+  );
+}
+
+/** A space-shelf row. Same anatomy as the church one, minus the church's name. */
+function SpaceResourceRow({
+  item,
+  onOpen,
+}: {
+  item: SpaceLibraryItem;
+  onOpen: () => void;
+}) {
+  const subtitle = [
+    item.kind === 'file'
+      ? resourceFileLabel(item.fileMime, null, item.fileName)
+      : resourceSourceLabel(item.sourceDomain, item.sourceSiteName),
+    item.pinned ? 'Pinned' : null,
+  ]
+    .filter(Boolean)
+    .join('  ·  ');
+
+  return (
+    <li className="proto-note-row-item">
+      <button
+        type="button"
+        className="proto-note-row__main"
+        onClick={onOpen}
+        aria-label={`Space resource: ${item.title}`}
+      >
+        <div className="proto-note-row__title-line">
+          <span className="proto-note-row__kind-icon" aria-hidden>
+            <Icon name="newspaper" size={11} />
+          </span>
+          <span
+            className="pds-list-title proto-note-row__title-text proto-marquee"
+            title={item.title}
+          >
+            <span>{item.title}</span>
+          </span>
+        </div>
+        {subtitle ? (
+          <div className="pds-list-preview proto-note-row__preview">
+            <span className="pds-list-timestamp">{subtitle}</span>
+          </div>
+        ) : null}
+      </button>
+    </li>
+  );
+}
+
 export default function PrototypeResourceLibraryList({
   query,
   onOpenResource,
+  spaceId = null,
 }: {
   /** Sidebar search text — filters by title, site name, and domain. */
   query: string;
   onOpenResource: (item: LibraryItem) => void;
+  /**
+   * Set when the list is scoped to a shared space ("This space"). The personal
+   * and church shelves are what "My Home" means, so they are a different scope
+   * rather than a section of this one.
+   */
+  spaceId?: string | null;
 }) {
   const libraryQuery = useLibrary();
   /*
@@ -546,6 +676,11 @@ export default function PrototypeResourceLibraryList({
     on the row, not a place they should have to go and look.
   */
   const churchQuery = useChurchLibraryUnion();
+  /* The room's own shelf, when scoped to it. Both hooks are called
+     unconditionally and no-op without a space id. */
+  const spaceQuery = useSpaceLibrary(spaceId, { enabled: Boolean(spaceId) });
+  const spaceActions = useSpaceLibraryActions(spaceId);
+  const spaceCanManage = spaceQuery.data?.canManage ?? false;
   const archive = useArchiveLibraryItem();
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
@@ -655,7 +790,15 @@ export default function PrototypeResourceLibraryList({
           <span>Drop to add a resource</span>
         </div>
       ) : null}
-      {libraryQuery.isLoading ? (
+      {spaceId ? (
+        <SpaceShelfList
+          items={spaceQuery.data?.items ?? []}
+          query={query}
+          isPending={spaceQuery.isPending}
+          isError={spaceQuery.isError}
+          canManage={spaceCanManage}
+        />
+      ) : libraryQuery.isLoading ? (
         <ProtoSpaceLoading label="Loading resources" />
       ) : libraryQuery.isError ? (
         <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
@@ -747,13 +890,28 @@ export default function PrototypeResourceLibraryList({
           here" is always in the same place and always the gradient button.
           At the top it was a full-width control you had to scroll past to reach
           what you came to read. */}
-      <div className="proto-resource-footer">
-        <AddResourceForm
-          onSaved={() => libraryQuery.refetch()}
-          droppedFile={droppedFile}
-          onDroppedFileConsumed={() => setDroppedFile(null)}
-        />
-      </div>
+      {/* One footer, pointed at whichever shelf is in scope. A member with no
+          right to curate the room gets none at all — the scope decides where a
+          resource would land, so a second button for the other shelf would be
+          offering to add it somewhere the reader is not looking. */}
+      {!spaceId || spaceCanManage ? (
+        <div className="proto-resource-footer">
+          <AddResourceForm
+            onSaved={() => (spaceId ? undefined : void libraryQuery.refetch())}
+            droppedFile={droppedFile}
+            onDroppedFileConsumed={() => setDroppedFile(null)}
+            destination={
+              spaceId
+                ? {
+                    busy: spaceActions.isPending,
+                    saveLink: (input) => spaceActions.mutateAsync({ kind: 'link', ...input }),
+                    saveFile: (input) => spaceActions.mutateAsync({ kind: 'upload', ...input }),
+                  }
+                : undefined
+            }
+          />
+        </div>
+      ) : null}
 
       <PrototypeSuggestResourceSheet
         open={suggestOpen}

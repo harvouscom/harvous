@@ -39,7 +39,6 @@ import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import PrototypeSpacePeopleSheet from './PrototypeSpacePeopleSheet';
 import { ProtoToolsRowList, type ProtoToolRow } from './proto-tools-registry';
-import PrototypeSpaceLibrarySection from './PrototypeSpaceLibrarySection';
 import { spaceLibraryMeta, useSpaceLibrary } from '../../hooks/queries/useSpaceLibrary';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
@@ -238,6 +237,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
     isMobileSidebar,
     setSidebarLayer,
     setSidebarListMode,
+    setSidebarListSpaceScope,
     setScriptureDrill,
     ensureSidebarExpanded,
     closeDrawer,
@@ -251,7 +251,6 @@ function PrototypeSidebarSharedSpaceViewLive() {
   const [drilledThread, setDrilledThread] = useState<SharedThreadDrillTarget | null>(null);
   /* Which space tool is open, if any. Local like the church hub's `toolsView`:
      a route would fight the shell, which hosts the note page. */
-  const [spaceTool, setSpaceTool] = useState<'library' | null>(null);
   const [threadPinError, setThreadPinError] = useState<string | null>(null);
 
   const spaceQuery = useSpace(activeSpaceId ?? '');
@@ -349,7 +348,13 @@ function PrototypeSidebarSharedSpaceViewLive() {
         icon: 'newspaper',
         title: 'Library',
         meta: spaceLibraryMeta(spaceLibrary.data?.items ?? []),
-        onSelect: () => setSpaceTool('library'),
+        /* Into the Resources list, scoped to this room — the same surface the
+           sidebar's own Resources mode uses, rather than a second shelf that
+           looks like the list but is not it. */
+        onSelect: () => {
+          setSidebarListSpaceScope('space');
+          goToListMode('resources');
+        },
       });
     }
     return rows;
@@ -687,39 +692,6 @@ function PrototypeSidebarSharedSpaceViewLive() {
     );
   }
 
-  if (spaceTool === 'library') {
-    return (
-      <div className="proto-sidebar-root proto-shared-space-dashboard">
-        {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
-        {/* Same back-tile-beside-the-title header the Thread drilldown uses,
-            so stepping into a space tool feels like the same gesture. */}
-        <div className="proto-shared-thread-drilldown__header">
-          <div className="proto-shared-space-header__row">
-            <button
-              type="button"
-              className="proto-shared-space-header__church-icon proto-sidebar-back-tile"
-              aria-label={`Back to ${spaceTitle}`}
-              onClick={() => setSpaceTool(null)}
-            >
-              <Icon name="caret-left" size={16} aria-hidden />
-            </button>
-            <div className="proto-shared-thread-drilldown__meta">
-              <h2 className="pds-list-title proto-shared-thread-drilldown__title">Library</h2>
-              {/* Not "What {spaceTitle} studies from" — a long room name wraps
-                  the line and pushes the back tile out of alignment, and the
-                  header already says which room you are in. */}
-              <p className="proto-caption proto-shared-thread-drilldown__status">
-                What this room studies from
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="proto-sidebar-scroll proto-shared-thread-drilldown__scroll">
-          <PrototypeSpaceLibrarySection spaceId={activeSpaceId ?? null} />
-        </div>
-      </div>
-    );
-  }
 
   if (drilledThread) {
     return (
@@ -989,13 +961,6 @@ function PrototypeSidebarSharedSpaceViewLive() {
             </div>
           ) : null}
 
-          {spaceToolRows.length > 0 ? (
-            <div className="proto-home-section">
-              <p className="proto-caption proto-home-section__eyebrow">Tools</p>
-              <ProtoToolsRowList rows={spaceToolRows} />
-            </div>
-          ) : null}
-
           {totalNoteCount === 0 ? (
             <div className="proto-home-section">
               {canComposeHere ? (
@@ -1084,6 +1049,18 @@ function PrototypeSidebarSharedSpaceViewLive() {
 
             </>
           )}
+
+          {/*
+            Below the room's own activity, not above it. Tools are how you act
+            on a space; the cards above are what is happening in it, and that
+            is what someone opening the room came to see.
+          */}
+          {spaceToolRows.length > 0 ? (
+            <div className="proto-home-section">
+              <p className="proto-caption proto-home-section__eyebrow">Tools</p>
+              <ProtoToolsRowList rows={spaceToolRows} />
+            </div>
+          ) : null}
         </div>
       </div>
 

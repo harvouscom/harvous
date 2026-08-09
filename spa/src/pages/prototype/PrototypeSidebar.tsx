@@ -3339,7 +3339,19 @@ export default function PrototypeSidebar({
             ) : null}
 
             {mode === 'resources' ? (
-              <PrototypeResourceLibraryList query={q} onOpenResource={onResourceRow} />
+              <PrototypeResourceLibraryList
+                query={q}
+                onOpenResource={onResourceRow}
+                /* "This space" means this room's shelf; "My Home" means the
+                   personal and church ones, which is what the source chips
+                   inside the list already separate. Without this the scope bar
+                   was above a list that ignored it. */
+                spaceId={
+                  shellIsSharedSpace && sidebarListSpaceScope !== 'my-home'
+                    ? (scopedSpaceId ?? null)
+                    : null
+                }
+              />
             ) : null}
 
             {mode === 'threads' && sidebarThreadDrilldownId && !isSharedSpaceThreadDrillId(sidebarThreadDrilldownId) ? (
