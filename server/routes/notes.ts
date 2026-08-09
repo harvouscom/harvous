@@ -2854,7 +2854,20 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
           linkedFromNotes = incomingEdges.map((e) => toRef(e.fromNoteId)).filter(Boolean);
           linkedToNotes = outgoingEdges.map((e) => toRef(e.toNoteId)).filter(Boolean);
         }
-      } catch { linkedFromNotes = []; linkedToNotes = []; }
+      } catch (error) {
+        /*
+          Was a bare `catch {}` that swallowed the error and returned two empty
+          arrays — so a note with real connections and a failing query looked
+          exactly like a note with none. That is precisely the shape of bug you
+          cannot find from the outside: the UI is empty and the server is calm.
+        */
+        console.error('[note details] connections lookup failed', {
+          noteId,
+          error: error instanceof Error ? error.message : error,
+        });
+        linkedFromNotes = [];
+        linkedToNotes = [];
+      }
     }
 
     let studyThreads: any[] = [];

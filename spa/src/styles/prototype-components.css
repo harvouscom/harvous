@@ -14140,12 +14140,12 @@ p.proto-teaching-plan__divider {
   which brought its own scroll well and shell; this is a field and a short list,
   so it needs rhythm rather than a frame.
 */
-.proto-sermon-note-search {
+.proto-note-search {
   display: grid;
   gap: 8px;
 }
 
-.proto-sermon-note-search .proto-church-tools__row-chevron {
+.proto-note-search .proto-church-tools__row-chevron {
   /* A plus, not a caret: the row adds the note rather than navigating to it. */
   color: var(--pds-text-tertiary);
 }
@@ -16290,3 +16290,33 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 .proto-scripture-map__chapter[data-heat='2'] { background: color-mix(in srgb, var(--pds-accent) 38%, transparent); }
 .proto-scripture-map__chapter[data-heat='3'] { background: color-mix(in srgb, var(--pds-accent) 62%, transparent); }
 .proto-scripture-map__chapter[data-heat='4'] { background: color-mix(in srgb, var(--pds-accent) 88%, transparent); }
+
+/* ── Inspector › Thread ─────────────────────────────────────────────────────
+   Connecting a note happens in place now. It used to open a floating sheet
+   over the note you were connecting *from* — the one thing you need in view
+   while deciding what relates to it — so the surface moved into the column
+   that was already about this note.
+
+   These replace inline styles that were doing the same job in JSX. */
+.proto-inspector-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.proto-inspector-connect {
+  margin-bottom: 10px;
+}
+
+.proto-inspector-connections {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.proto-inspector-connections__group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

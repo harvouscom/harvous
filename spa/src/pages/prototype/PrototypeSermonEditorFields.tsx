@@ -41,7 +41,7 @@ import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteParamSlug } from './proto-route-slugs';
 import ProtoDatePicker from './ProtoDatePicker';
 import ProtoSelectMenu from './ProtoSelectMenu';
-import PrototypeSermonNoteSearch from './planner/PrototypeSermonNoteSearch';
+import ProtoNoteSearch from './ProtoNoteSearch';
 import { isPresentableServerMessage } from '../../lib/error-copy';
 
 export interface PrototypeSermonEditorFieldsProps {
@@ -827,7 +827,7 @@ export default function PrototypeSermonEditorFields({
                   this pool is every note this pastor has written — not only
                   the ones sitting loose in their personal space.
                 */}
-                <PrototypeSermonNoteSearch
+                <ProtoNoteSearch
                   homeSpaceId={homeSpaceId}
                   disabled={actions.isPending}
                   onPick={(note) => {

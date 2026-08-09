@@ -33,9 +33,10 @@ import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { useRemoveNoteFromSpace } from '../../hooks/mutations/useSpaceNoteAssociation';
 import { useDisconnectNote } from '../../hooks/mutations/useDisconnectNote';
+import { useConnectNote } from '../../hooks/mutations/useConnectNote';
+import ProtoNoteSearch from './ProtoNoteSearch';
 import { useNavigationSharedSpaceAccess } from '../../hooks/queries/useNavigation';
 import { useProtoShell } from '../../layouts/proto-shell-context';
-import PrototypeConnectNoteSheet from './PrototypeConnectNoteSheet';
 import PrototypeFolderTagEditor from './PrototypeFolderTagEditor';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
@@ -127,6 +128,7 @@ export default function PrototypeInspectorPane({
   const { userId: authUserId } = useAuth();
   const queryClient = useQueryClient();
   const [connectOpen, setConnectOpen] = useState(false);
+  const connectNote = useConnectNote();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const deleteAnchorRef = useRef<HTMLElement | null>(null);
   const navigate = useNavigate();
@@ -378,30 +380,62 @@ export default function PrototypeInspectorPane({
         />
       </section>
 
-      {/* Thread — My Home connection cluster for this note */}
+      {/*
+        Thread — the notes this one is connected to, and the way to connect
+        another.
+
+        Connecting used to open a floating sheet over the note you were
+        connecting *from*, which is the one thing you need to see while
+        deciding what relates to it. It is inline now: the search opens in
+        place, the pool excludes what is already attached, and picking one
+        connects it without the surface ever leaving.
+      */}
       <section className="proto-inspector-section">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div className="proto-inspector-section__head">
           <PrototypeSectionHeader style={{ marginBottom: 0 }}>Thread</PrototypeSectionHeader>
           {spaceId ? (
             <button
               type="button"
               className="proto-inspector-connect-btn"
-              title="Add another note to this Thread"
-              aria-label="Add another note to this Thread"
-              onClick={() => setConnectOpen(true)}
+              title={connectOpen ? 'Done connecting' : 'Connect another note'}
+              aria-label={connectOpen ? 'Done connecting' : 'Connect another note'}
+              aria-expanded={connectOpen}
+              onClick={() => setConnectOpen((open) => !open)}
             >
-              <Icon name="plus" size={12} aria-hidden />
-              Add
+              <Icon name={connectOpen ? 'xmark' : 'plus'} size={12} aria-hidden />
+              {connectOpen ? 'Done' : 'Connect'}
             </button>
           ) : null}
         </div>
+
+        {spaceId && connectOpen ? (
+          <div className="proto-inspector-connect">
+            <ProtoNoteSearch
+              homeSpaceId={spaceId}
+              disabled={connectNote.isPending}
+              /* Never offer what is already on the Thread, in either
+                 direction — picking it would be a no-op the reader has to
+                 discover by trying. */
+              excludeNoteIds={[note.id, ...connectedNoteIds]}
+              placeholder="Search notes to connect"
+              onPick={(picked) => {
+                connectNote.mutate({
+                  parentNoteId: note.id,
+                  linkedNoteId: picked.id,
+                  spaceId,
+                });
+              }}
+            />
+          </div>
+        ) : null}
+
         {hasConnections ? (
           <>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="proto-inspector-connections">
               {linkedFromNotes.length > 0 && (
                 <div>
                   <p className="proto-inspector-connections-sublabel">Linked from</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div className="proto-inspector-connections__group">
                     {linkedFromNotes.map((n) => (
                       <ConnectedNoteRow
                         key={n.id}
@@ -417,7 +451,7 @@ export default function PrototypeInspectorPane({
               {linkedToNotes.length > 0 && (
                 <div>
                   <p className="proto-inspector-connections-sublabel">Links to</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div className="proto-inspector-connections__group">
                     {linkedToNotes.map((n) => (
                       <ConnectedNoteRow
                         key={n.id}
@@ -440,7 +474,7 @@ export default function PrototypeInspectorPane({
               <span>Open Thread</span>
             </button>
           </>
-        ) : (
+        ) : connectOpen ? null : (
           <p className="proto-inspector-muted">Add a related note to start a Thread.</p>
         )}
       </section>
@@ -454,16 +488,7 @@ export default function PrototypeInspectorPane({
         />
       </section>
 
-      {spaceId ? (
-        <PrototypeConnectNoteSheet
-          open={connectOpen}
-          onOpenChange={setConnectOpen}
-          spaceId={spaceId}
-          parentNoteId={note.id}
-          placement="main-column-top-right"
-          connectedNoteIds={connectedNoteIds}
-        />
-      ) : null}
+
         </>
       ) : null}
 
