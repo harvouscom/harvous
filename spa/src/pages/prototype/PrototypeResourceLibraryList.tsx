@@ -594,12 +594,18 @@ function SpaceShelfList({
   isPending,
   isError,
   canManage,
+  onRemoveItem,
+  onTogglePin,
+  removingId,
 }: {
   items: SpaceLibraryItem[];
   query: string;
   isPending: boolean;
   isError: boolean;
   canManage: boolean;
+  onRemoveItem: (item: SpaceLibraryItem) => void;
+  onTogglePin: (item: SpaceLibraryItem) => void;
+  removingId: string | null;
 }) {
   const trimmed = query.trim().toLowerCase();
   const filtered = useMemo(() => {
@@ -646,6 +652,10 @@ function SpaceShelfList({
             if (item.kind === 'file') void openLibraryFileItem(item.id);
             else if (item.sourceUrl) window.open(item.sourceUrl, '_blank', 'noopener');
           }}
+          canManage={canManage}
+          onRemove={() => onRemoveItem(item)}
+          onTogglePin={() => onTogglePin(item)}
+          isRemoving={removingId === item.id}
         />
       ))}
     </ul>
@@ -656,10 +666,26 @@ function SpaceShelfList({
 function SpaceResourceRow({
   item,
   onOpen,
+  canManage = false,
+  onRemove,
+  onTogglePin,
+  isRemoving = false,
 }: {
   item: SpaceLibraryItem;
   onOpen: () => void;
+  /*
+    Whoever stocks this room's shelf can also tidy it. The server answers this
+    on the shelf itself (`canManage`), so the row never re-derives who a leader
+    is — it only asks whether the reader was already told they may.
+  */
+  canManage?: boolean;
+  onRemove?: () => void;
+  onTogglePin?: () => void;
+  isRemoving?: boolean;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rowRef = useRef<HTMLLIElement>(null);
+  const menuRootRef = useRef<HTMLDivElement>(null);
   const subtitle = [
     item.kind === 'file'
       ? resourceFileLabel(item.fileMime, null, item.fileName)
@@ -670,7 +696,18 @@ function SpaceResourceRow({
     .join('  ·  ');
 
   return (
-    <li className="proto-note-row-item">
+    <li
+      ref={rowRef}
+      className="proto-note-row-item"
+      onContextMenu={
+        canManage
+          ? (e) => {
+              e.preventDefault();
+              setMenuOpen(true);
+            }
+          : undefined
+      }
+    >
       <button
         type="button"
         className="proto-note-row__main"
@@ -694,6 +731,70 @@ function SpaceResourceRow({
           </div>
         ) : null}
       </button>
+      {canManage ? (
+        <div
+          className={`proto-menu proto-note-row__menu${menuOpen ? ' proto-note-row__menu--open' : ''}`}
+          ref={menuRootRef}
+        >
+          <button
+            type="button"
+            className="proto-note-row__menu-trigger"
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            aria-label="Resource actions"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMenuOpen((o) => !o);
+            }}
+          >
+            <Icon name="ellipsis-vertical" size={14} />
+          </button>
+          <PrototypeSidebarRowMenuPopover
+            open={menuOpen}
+            rowRef={rowRef}
+            triggerRootRef={menuRootRef}
+            onDismiss={() => setMenuOpen(false)}
+            aria-label="Resource actions"
+          >
+            <div className="proto-menu-section" role="group">
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onTogglePin?.();
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="thumbtack" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span className="proto-menu-item__label">
+                  {item.pinned ? 'Unpin from this space' : 'Pin to this space'}
+                </span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item proto-menu-item--destructive"
+                disabled={isRemoving}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onRemove?.();
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="trash-can" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span className="proto-menu-item__label">Remove from this space</span>
+              </button>
+            </div>
+          </PrototypeSidebarRowMenuPopover>
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -742,6 +843,7 @@ export default function PrototypeResourceLibraryList({
   const [bulkRemoving, setBulkRemoving] = useState(false);
   const [bulkBusy, setBulkBusy] = useState<'suggest' | 'share' | null>(null);
   const [shareTargetsOpen, setShareTargetsOpen] = useState(false);
+  const [spaceRemovingId, setSpaceRemovingId] = useState<string | null>(null);
   const suggestItem = useSuggestLibraryItem();
   const { data: navForShare } = useNavigation();
   /*
@@ -1036,6 +1138,19 @@ export default function PrototypeResourceLibraryList({
           isPending={spaceQuery.isPending}
           isError={spaceQuery.isError}
           canManage={spaceCanManage}
+          removingId={spaceRemovingId}
+          onRemoveItem={(item) => {
+            setSpaceRemovingId(item.id);
+            void spaceActions
+              .mutateAsync({ kind: 'archive', itemId: item.id })
+              .catch((err) => toastError(err, 'Could not remove that resource'))
+              .finally(() => setSpaceRemovingId(null));
+          }}
+          onTogglePin={(item) => {
+            void spaceActions
+              .mutateAsync({ kind: 'pin', itemId: item.id, pinned: !item.pinned })
+              .catch((err) => toastError(err, 'Could not change that pin'));
+          }}
         />
       ) : libraryQuery.isLoading ? (
         <ProtoSpaceLoading label="Loading resources" />

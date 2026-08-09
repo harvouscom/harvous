@@ -560,4 +560,78 @@ app.post(
   },
 );
 
+// ─── POST /api/church/spaces/:spaceId/library/items/archive ─────────────────
+/**
+ * Taking a resource off this room's shelf.
+ *
+ * Only what the room *owns*. An org-wide item is the church's, and a leader who
+ * could archive one would be deleting it out from under every other room that
+ * shows it — unpinning is what "not this one, not here" means for those, and
+ * `pins/set` already says it.
+ *
+ * Soft, like both other lanes: a note that already cites the item degrades to a
+ * dead-but-labelled chip rather than a 404.
+ */
+app.post(
+  '/api/church/spaces/:spaceId/library/items/archive',
+  requireAuth,
+  rateLimit('write'),
+  async (c) => {
+    try {
+      const auth = getAuthenticatedAuth(c);
+      const spaceId = c.req.param('spaceId') ?? '';
+      const gate = await assertCanManageSpaceLibrary(auth.userId, spaceId);
+      if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+      const body = (await c.req.json().catch(() => ({}))) as { id?: string };
+      const itemId = clean(body.id, 200);
+      if (!itemId) return c.json({ error: 'id is required', code: 'BAD_REQUEST' }, 400);
+
+      /* The room's own shelf, not the church's. A church-lane space still has
+         one only once something has been put on it, so a missing library is a
+         legitimate "nothing of yours to archive" rather than an error. */
+      const library = await findSpaceLibrary(gate.space.id);
+      const existing = library
+        ? first(
+            await db
+              .select({ id: LibraryItems.id })
+              .from(LibraryItems)
+              .where(and(eq(LibraryItems.id, itemId), eq(LibraryItems.libraryId, library.id)))
+              .limit(1),
+          )
+        : undefined;
+      if (!existing) {
+        return c.json(
+          { error: 'That resource is not this space\'s to remove', code: 'ITEM_NOT_FOUND' },
+          404,
+        );
+      }
+
+      const now = new Date();
+      await db
+        .update(LibraryItems)
+        .set({ archivedAt: now, updatedAt: now })
+        .where(eq(LibraryItems.id, itemId));
+      /* The pin row would otherwise keep ordering a shelf slot for an item that
+         is no longer on it. */
+      await db
+        .delete(LibraryItemSpacePins)
+        .where(
+          and(
+            eq(LibraryItemSpacePins.spaceId, gate.space.id),
+            eq(LibraryItemSpacePins.libraryItemId, itemId),
+          ),
+        );
+
+      return c.json({ success: true });
+    } catch (error) {
+      const standardError = handleAPIError(error, {
+        endpoint: '/api/church/spaces/[spaceId]/library/items/archive',
+        action: 'space_library_archive',
+      });
+      return c.json({ error: standardError.message, code: standardError.code }, 500);
+    }
+  },
+);
+
 export default app;

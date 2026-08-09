@@ -71,12 +71,15 @@ export function spaceLibraryMeta(items: SpaceLibraryItem[]): string {
 export type SpaceLibraryAction =
   | { kind: 'link'; url: string; title?: string; description?: string }
   | { kind: 'upload'; file: File; title?: string; description?: string }
-  | { kind: 'pin'; itemId: string; pinned: boolean; sortOrder?: number };
+  | { kind: 'pin'; itemId: string; pinned: boolean; sortOrder?: number }
+  /* Only what the room owns. An org-wide item belongs to the church; taking it
+     out of this room is `pin: false`, not an archive. */
+  | { kind: 'archive'; itemId: string };
 
 /**
  * Stocking one room's shelf.
  *
- * One mutation for all three writes because they invalidate the same shelf and
+ * One mutation for every write because they invalidate the same shelf and
  * a caller choosing between three hooks would have to know which lane the room
  * is in — the thing the server exists to hide.
  */
@@ -89,6 +92,10 @@ export function useSpaceLibraryActions(spaceId: string | null | undefined) {
     mutationFn: async (action: SpaceLibraryAction) => {
       if (!trimmed) throw new Error('No space');
       const base = `/api/church/spaces/${encodeURIComponent(trimmed)}/library`;
+
+      if (action.kind === 'archive') {
+        return api.post<{ success: boolean }>(`${base}/items/archive`, { id: action.itemId });
+      }
 
       if (action.kind === 'pin') {
         return api.post<{ success: boolean }>(`${base}/pins/set`, {

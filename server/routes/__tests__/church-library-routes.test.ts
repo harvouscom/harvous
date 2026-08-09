@@ -155,6 +155,7 @@ describe('space lane', () => {
     "app.post(\n  '/api/church/spaces/:spaceId/library/items/create'",
     "app.post(\n  '/api/church/spaces/:spaceId/library/items/upload'",
     "app.post(\n  '/api/church/spaces/:spaceId/library/pins/set'",
+    "app.post(\n  '/api/church/spaces/:spaceId/library/items/archive'",
   ] as const;
 
   it.each(SPACE_WRITE_HANDLERS)('gates %s before any DB access', (marker) => {
