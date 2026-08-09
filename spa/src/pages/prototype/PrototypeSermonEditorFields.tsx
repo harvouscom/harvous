@@ -40,6 +40,7 @@ import { checkScriptureReferenceValidity, normalizeScriptureReference } from '@/
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteParamSlug } from './proto-route-slugs';
 import ProtoDatePicker from './ProtoDatePicker';
+import ProtoSelectMenu from './ProtoSelectMenu';
 import PrototypeSermonNoteSearch from './planner/PrototypeSermonNoteSearch';
 import { isPresentableServerMessage } from '../../lib/error-copy';
 
@@ -848,11 +849,15 @@ export default function PrototypeSermonEditorFields({
         */}
         {orgTemplates.length === 0 && canManageChurchTemplates && onOpenStarters ? (
           <>
+            {/* Same label as the populated field below — a church with no
+                templates yet should learn what the setting is, not meet a
+                different name for it once they have one. */}
             <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
-              Notes start from
+              When someone takes notes
             </label>
             <p className="proto-caption proto-service-editor__starter-hint">
-              Just the passage. Save a template to give everyone a shape to write into.
+              They get the passage and a blank page. Save a template to give everyone a
+              shape to write into.
             </p>
             {/* The app's secondary action pill — same control as Add a sermon and
                 New space. Noticeable without competing with Save, which is the
@@ -873,25 +878,36 @@ export default function PrototypeSermonEditorFields({
 
         {orgTemplates.length > 0 ? (
           <>
-            <label
-              className="proto-inspector-section-title proto-create-folder-sheet__field-label"
-              htmlFor="proto-service-template"
-            >
-              Notes start from
+            {/*
+              Named for the outcome, not the mechanism. "Notes start from"
+              described the field's own plumbing and never said whose notes it
+              shapes — a pastor reasonably read it as a setting for their own
+              sermon prep. It is the page the congregation lands on when they
+              tap Take notes on this week, so the label says that and the hint
+              says what the current choice actually gives them.
+            */}
+            <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+              <span>When someone takes notes</span>
+              <span className="proto-service-editor__optional">optional</span>
             </label>
-            <select
-              id="proto-service-template"
-              className="proto-create-folder-sheet__name-input"
+            <ProtoSelectMenu
+              label="What a congregant's notes on this week start with"
               value={starterTemplateId}
-              onChange={(e) => setStarterTemplateId(e.target.value)}
-            >
-              <option value="">Just the passage</option>
-              {orgTemplates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.name}
-                </option>
-              ))}
-            </select>
+              disabled={actions.isPending}
+              onChange={setStarterTemplateId}
+              options={[
+                { value: '', label: 'Start with just the passage' },
+                ...orgTemplates.map((template) => ({
+                  value: template.id,
+                  label: `Start from ${template.name}`,
+                })),
+              ]}
+            />
+            <p className="proto-caption proto-service-editor__starter-hint">
+              {starterTemplateId
+                ? 'Everyone who takes notes on this week gets this template to write into.'
+                : 'Everyone who takes notes on this week gets the passage and a blank page.'}
+            </p>
           </>
         ) : null}
 
@@ -945,21 +961,19 @@ export default function PrototypeSermonEditorFields({
         {isEditing && !isUnscheduled ? (
           repeatOpen ? (
             <div className="proto-service-editor__repeat">
-              <select
-                aria-label="How many more weeks"
-                className="proto-create-folder-sheet__name-input proto-service-editor__repeat-select"
+              <ProtoSelectMenu
+                label="How many more weeks"
+                className="proto-service-editor__repeat-select"
                 value={repeatWeeks}
                 disabled={actions.isPending}
-                onChange={(e) => setRepeatWeeks(Number(e.target.value))}
-              >
-                {[3, 5, 7, 11].map((weeks) => (
-                  <option key={weeks} value={weeks}>
-                    {/* Counted as the series a pastor would say out loud: a
-                        "four-week series" is this week plus three more. */}
-                    {weeks + 1}-week series
-                  </option>
-                ))}
-              </select>
+                onChange={setRepeatWeeks}
+                options={[3, 5, 7, 11].map((weeks) => ({
+                  value: weeks,
+                  /* Counted as the series a pastor would say out loud: a
+                     "four-week series" is this week plus three more. */
+                  label: `${weeks + 1}-week series`,
+                }))}
+              />
               <button
                 type="button"
                 className="proto-glass-surface proto-glass-surface--control proto-glass-action"
