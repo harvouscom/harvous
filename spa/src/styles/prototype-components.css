@@ -6990,8 +6990,11 @@ button.proto-home-greeting__chip--passage {
   border: none;
   padding: 0;
   position: absolute;
-  top: 6px;
-  left: 6px;
+  /* Level with the card's own glyph row (10px padding + half of its 22px), so
+     the orb and the icon it steps aside for sit on one line. */
+  top: 21px;
+  transform: translateY(-50%);
+  left: 9px;
   width: 20px;
   height: 20px;
   display: flex;
@@ -7000,6 +7003,36 @@ button.proto-home-greeting__chip--passage {
   cursor: pointer;
   z-index: 2;
   transition: opacity 0.1s ease;
+}
+
+/* The card steps aside exactly as a row does — same gesture, card scale. Its
+   glyph stays put relative to the text under it, so what the card is remains
+   legible while you pick which cards to act on. */
+.proto-collection-grid-item:hover .proto-collection-card,
+.proto-collection-grid-item--selectable .proto-collection-card {
+  padding-left: 33px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .proto-collection-card {
+    transition:
+      background 0.1s ease,
+      box-shadow 0.1s ease,
+      transform 0.1s ease,
+      padding-left 0.12s ease;
+  }
+}
+
+/*
+ * A selected card says so on the card, not only in a 20px corner.
+ *
+ * These sit two-up in a grid where the eye scans titles, not checkboxes; the
+ * ring is what makes "four of these are selected" answerable at a glance.
+ */
+.proto-collection-grid-item--selected .proto-collection-card {
+  border-color: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--pds-accent);
+  background: color-mix(in oklab, var(--pds-accent) 8%, transparent);
 }
 
 /* Coarse pointers have no hover, so it appears only once selecting is under
@@ -9550,17 +9583,11 @@ button.proto-appearance-hero__card {
  *
  * It used to hold a permanently reserved 30px column, which indented every
  * title in every list for a control almost nobody was reaching for. Now it is
- * absolutely positioned over the row's leading edge and the row makes room only
- * while it is actually showing one:
+ * absolutely positioned over the row's leading edge, and the row insets to make
+ * the room only while it is actually showing one — the orb sits in what the row
+ * vacates. Every row, whatever it carries: see the note on stepping aside below.
  *
- *   - a row with a leading kind icon (highlights, resources, search results)
- *     fades that icon out and the orb in, occupying its exact place: the
- *     cleanest case, no reflow at all;
- *   - a plain note row has no icon and only 10px of padding, too little to
- *     overlay without landing on the title's first letter — so that row alone
- *     insets while hovered, and every row insets while a selection stands.
- *
- * A hovered row moving 18px is a deliberate, contained affordance. Every row
+ * A hovered row moving 22px is a deliberate, contained affordance. Every row
  * moving as the pointer travels down a list is what the old reserved column
  * effectively looked like, and is what this avoids.
  *
@@ -9587,27 +9614,35 @@ button.proto-appearance-hero__card {
   transition: opacity 0.1s ease;
 }
 
-/* Rows that carry a leading glyph hand it over rather than move: the orb takes
-   the icon's own place, so nothing reflows. */
-.proto-note-row-item:hover .proto-note-row__kind-icon,
-.proto-note-row-item--selectable .proto-note-row__kind-icon,
-.proto-note-row-item--selected .proto-note-row__kind-icon {
-  opacity: 0;
+/*
+ * Every row steps aside. One move, whatever the row carries.
+ *
+ * Rows with a leading glyph used to hand it over instead — the icon faded and
+ * the orb took its exact place, which cost nothing in layout but cost the
+ * glyph. A resource stopped saying it was a resource at the moment you were
+ * picking which resources to act on, and the two halves of one list behaved
+ * differently for a reason no reader could see. Stepping aside keeps the glyph
+ * and reads the same everywhere.
+ *
+ * This row while hovered; all of them once a selection stands.
+ */
+.proto-note-row-item:has(.proto-note-row__select):hover .proto-note-row__main {
+  padding-left: 32px;
 }
 
-.proto-note-row-item:has(.proto-note-row__kind-icon) .proto-note-row__select {
-  left: 10px;
-}
-
-/* Plain rows have nothing to hand over, so they step aside — this row while
-   hovered, all of them once a selection stands. */
-.proto-note-row-item:not(:has(.proto-note-row__kind-icon)):hover .proto-note-row__main,
-.proto-note-row-item--selectable:not(:has(.proto-note-row__kind-icon)) .proto-note-row__main {
+/*
+ * Once a selection stands the whole list insets, not only the rows that can
+ * join it. Some lists mix in rows that are nobody's to act on — a church's
+ * resource on your own shelf — and letting those stay flush left a ragged edge
+ * that read as a bug rather than as a rule. They inset with everything else and
+ * simply show no orb, which says the same thing without breaking the column.
+ */
+.proto-note-list:has(.proto-note-row-item--selectable) .proto-note-row__main {
   padding-left: 32px;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .proto-note-row-item:not(:has(.proto-note-row__kind-icon)) .proto-note-row__main {
+  .proto-note-row-item .proto-note-row__main {
     transition: padding-left 0.12s ease;
   }
 }
