@@ -82,6 +82,17 @@ export type NotePurpose =
 export function notePurposeModel(input: {
   composePurpose: ComposePurpose | null;
   startedFromServiceTitle?: string | null;
+  /**
+   * The note's own space is a church space, not My Home — which is the difference
+   * between the two surfaces that set a service title. "This Sunday" on Home creates
+   * into My Home; "Coming up" creates into the room it belongs to.
+   *
+   * Derived rather than stored. A `startedFromServiceKind` column would be sturdier if
+   * those surfaces ever stop differing this way, but it would also be null for every
+   * note already written, so every existing note would keep the old copy. This reads
+   * correctly for them too.
+   */
+  startedInChurchSpace?: boolean;
   dismissed?: boolean;
 }): NotePurpose | null {
   if (input.dismissed) return null;
@@ -94,9 +105,23 @@ export function notePurposeModel(input: {
     };
   }
 
+  /*
+    Name the occasion, not the sermon.
+
+    The title was the sermon's own, and `starterNoteTitle` derives the note's title from
+    that same sermon — so the banner sat directly above a heading saying the same words.
+    It cost a line and told the reader nothing. What is actually worth saying is which
+    occasion these notes are for.
+  */
   const service = input.startedFromServiceTitle?.trim();
   if (service) {
-    return { kind: 'service', label: `Writing notes for ${service}`, actionLabel: null };
+    return {
+      kind: 'service',
+      label: input.startedInChurchSpace
+        ? 'Writing notes for the next gathering'
+        : "Writing notes for this week's sermon",
+      actionLabel: null,
+    };
   }
 
   return null;

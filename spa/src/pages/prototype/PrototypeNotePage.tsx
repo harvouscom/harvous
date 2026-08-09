@@ -1294,10 +1294,26 @@ export default function PrototypeNotePage() {
       notePurposeModel({
         composePurpose,
         startedFromServiceTitle: note?.startedFromServiceTitle ?? null,
+        // Which occasion the banner names — see notePurposeModel. A note born in a room
+        // came from that room's "Coming up"; one in My Home came from "This Sunday".
+        startedInChurchSpace: Boolean(
+          resolvedSpaceFromNote &&
+            personalHomeSpaceId &&
+            normalizePrototypeApiSpaceId(resolvedSpaceFromNote) !==
+              normalizePrototypeApiSpaceId(personalHomeSpaceId),
+        ),
         dismissed: isPurposeDismissed(isDraft ? null : noteId),
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [composePurpose, note?.startedFromServiceTitle, isDraft, noteId, purposeDismissals],
+    [
+      composePurpose,
+      note?.startedFromServiceTitle,
+      resolvedSpaceFromNote,
+      personalHomeSpaceId,
+      isDraft,
+      noteId,
+      purposeDismissals,
+    ],
   );
   const handleDismissPurpose = useCallback(() => {
     dismissPurpose(isDraft ? null : noteId);

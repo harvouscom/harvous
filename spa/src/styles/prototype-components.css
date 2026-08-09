@@ -10482,6 +10482,38 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   between registers would jump the caret. Actions sit on the right, in the
   space the co-edit register uses for Done.
 */
+/*
+  The purpose line wraps; the co-edit register does not.
+
+  `.proto-shared-readonly-banner__status` is `flex-shrink: 0` with `line-height: 1`,
+  which is right for the co-edit register — "You have the pen" is a fixed phrase sized to
+  sit level with the Done button. The purpose register carries a sermon title someone
+  else chose, so it has no length budget: unshrinkable, it pushed the dismiss button off
+  the paper instead of wrapping, and at `line-height: 1` wrapped lines would have
+  collided anyway.
+
+  Scoped to this register rather than loosened on the shared class, so the co-edit
+  banner's alignment is untouched. Growing taller here is safe: escalation to `loud`
+  mid-typing is what must not change height, and a title's length is fixed for the life
+  of the note.
+*/
+.proto-purpose-banner .proto-shared-readonly-banner__status {
+  flex-shrink: 1;
+  min-width: 0;
+  line-height: 1.35;
+  /* Icon to the first line, not floating beside the middle of two. */
+  align-items: flex-start;
+}
+
+.proto-purpose-banner .proto-shared-readonly-banner__icon {
+  /* Optical centring against the first line's cap height. */
+  margin-top: 1px;
+}
+
+.proto-purpose-banner {
+  align-items: flex-start;
+}
+
 .proto-purpose-banner__actions {
   display: inline-flex;
   align-items: center;
