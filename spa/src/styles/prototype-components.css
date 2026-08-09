@@ -273,6 +273,22 @@
   backdrop-filter: var(--proto-glass-blur, var(--pds-glass-blur-elevated));
 }
 
+/*
+  The inspector floats, so it takes the floating material — the same correction the
+  drawer sidebar got in 8547080a5.
+  
+  Both instances sit over the note pane rather than over the wallpaper: the desktop one
+  is absolutely positioned across the editor's right edge, the mobile one is
+  `position: fixed` with the drawer's shadow. At the shell alpha (0.22 under an image
+  wallpaper, chosen so the photo reads through a docked surface) the editor's text and
+  its blue New note button read straight through the panel and collide with the rows
+  behind it. Held opaque enough to occlude, in the same hue across all six theme blocks.
+*/
+.proto-inspector-desktop,
+.proto-inspector-mobile-panel {
+  background: var(--pds-glass-shell-floating);
+}
+
 /* Pseudo-element anchoring — omit mobile inspector (shell.css sets position: fixed <900px). */
 .proto-glass-surface,
 .proto-daily-passage-pill,
