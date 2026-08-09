@@ -42,6 +42,13 @@ import PrototypePaneEmptyState from './PrototypePaneEmptyState';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeNoteAudienceBar from './PrototypeNoteAudienceBar';
 import {
+  dismissPurpose,
+  getComposePurpose,
+  isPurposeDismissed,
+  notePurposeModel,
+  setComposePurpose,
+} from '../../lib/compose-purpose';
+import {
   noteAudienceLabel,
   resolveCoEditFollower,
   resolveNoteEditStatusVisibility,
@@ -1270,6 +1277,37 @@ export default function PrototypeNotePage() {
    * even in Home — coEditFollower below has already made the editor non-editable,
    * and a locked editor with no visible reason is worse than the noise we're cutting.
    */
+  /*
+    What this note is for. Almost always nothing — a note is just a note.
+    `purposeDismissals` exists only to re-render on dismiss; the durable answer
+    lives in localStorage, keyed per note, because dismissing a hint is not a
+    fact anyone else needs.
+  */
+  const [purposeDismissals, setPurposeDismissals] = useState(0);
+  const composePurpose = useMemo(
+    () => (isDraft || composeDraftActive ? getComposePurpose() : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isDraft, composeDraftActive, purposeDismissals],
+  );
+  const notePurpose = useMemo(
+    () =>
+      notePurposeModel({
+        composePurpose,
+        startedFromServiceTitle: note?.startedFromServiceTitle ?? null,
+        dismissed: isPurposeDismissed(isDraft ? null : noteId),
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [composePurpose, note?.startedFromServiceTitle, isDraft, noteId, purposeDismissals],
+  );
+  const handleDismissPurpose = useCallback(() => {
+    dismissPurpose(isDraft ? null : noteId);
+    /* A draft's purpose lives in sessionStorage, so clearing it *is* the
+       dismissal; a saved note's is a localStorage key. Either way the memo
+       above needs a reason to re-run. */
+    if (isDraft) setComposePurpose(null);
+    setPurposeDismissals((n) => n + 1);
+  }, [isDraft, noteId]);
+
   const audienceBarMode = useMemo(
     () =>
       resolveNoteEditStatusVisibility({
@@ -2190,6 +2228,9 @@ export default function PrototypeNotePage() {
                 isAuthorSelf={isOwnNote}
                 status={sharedNoteEditStatus}
                 onReleasePen={pen.release}
+                purpose={notePurpose}
+                onPurposeAction={openInspector}
+                onDismissPurpose={handleDismissPurpose}
               />
               {showSharedHighlightOverlay ? (
                 <SharedStudyHighlightOverlay

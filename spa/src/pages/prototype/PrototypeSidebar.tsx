@@ -3133,13 +3133,22 @@ export default function PrototypeSidebar({
                       No notes in this folder.
                     </p>
                     {typeof activeFolderKey === 'string' ? (
-                      <button
-                        type="button"
-                        className="proto-drill-empty__cta"
-                        onClick={() => setAddNotesSheetOpen(true)}
-                      >
-                        Add notes
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="proto-drill-empty__cta"
+                          onClick={() => window.dispatchEvent(new Event('prototypeShortcutNewNote'))}
+                        >
+                          New note
+                        </button>
+                        <button
+                          type="button"
+                          className="proto-drill-empty__cta proto-drill-empty__cta--secondary"
+                          onClick={() => setAddNotesSheetOpen(true)}
+                        >
+                          Add notes
+                        </button>
+                      </>
                     ) : null}
                   </div>
                 ) : (
@@ -3346,9 +3355,19 @@ export default function PrototypeSidebar({
                     <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center', opacity: 0.7 }}>
                       No notes in this thread.
                     </p>
+                    {/* Writing one is the other half of filling a Thread, and
+                        this only ever offered to move notes that already
+                        existed. Lands in this Thread rather than loose. */}
                     <button
                       type="button"
                       className="proto-drill-empty__cta"
+                      onClick={() => composeInSharedThread(sidebarThreadDrilldownId)}
+                    >
+                      New note
+                    </button>
+                    <button
+                      type="button"
+                      className="proto-drill-empty__cta proto-drill-empty__cta--secondary"
                       onClick={() => setAddNotesSheetOpen(true)}
                     >
                       Add notes

@@ -19,6 +19,7 @@ import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { APIError } from '../../lib/api';
 import { useDeleteNoteTemplate } from '../../hooks/mutations/useDeleteNoteTemplate';
+import { setComposePurpose } from '../../lib/compose-purpose';
 import {
   useNoteTemplates,
   type ApplyableNoteTemplate,
@@ -484,6 +485,24 @@ export default function PrototypeBrowseTemplatesSheet({
         <div className="proto-study-thread-popover__title-row">
           <span className="proto-study-thread-popover__title">Templates</span>
         </div>
+        {/*
+          The one entry point "create a template" has ever had. A template is a
+          note you later save as one, so this cannot open a template editor —
+          it opens a blank note carrying the intention, and the note's own
+          header offers Save as template from there.
+        */}
+        <button
+          type="button"
+          className="proto-study-thread-popover__header-action pds-caption"
+          onClick={() => {
+            onOpenChange(false);
+            setComposePurpose('template');
+            window.dispatchEvent(new Event('prototypeShortcutNewNote'));
+          }}
+        >
+          <Icon name="plus" size={11} aria-hidden />
+          <span>New</span>
+        </button>
         <button
           type="button"
           className="proto-side-panel__action-btn"

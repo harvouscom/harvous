@@ -4734,6 +4734,19 @@ html.harvous-prototype-route
   cursor: pointer;
 }
 
+/* Two ways to fill an empty Thread or folder — writing one, or moving ones you
+   already have. Writing leads, so the second drops its fill and reads as the
+   alternative rather than a second equal button. */
+.proto-drill-empty__cta--secondary {
+  border-color: transparent;
+  background: none;
+  color: var(--pds-text-secondary);
+}
+
+.proto-drill-empty__cta--secondary:hover {
+  background: var(--pds-bg-subtle);
+}
+
 .proto-list-create-empty {
   display: flex;
   flex: 1 0 auto;
@@ -10215,6 +10228,97 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   color: var(--pds-text-secondary);
   font-weight: 500;
   line-height: 1;
+}
+
+/*
+  Purpose register. Inherits the banner's fixed min-height rather than setting
+  its own — escalation to `loud` happens mid-typing, and any height difference
+  between registers would jump the caret. Actions sit on the right, in the
+  space the co-edit register uses for Done.
+*/
+.proto-purpose-banner__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.proto-purpose-banner__action {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--pds-accent);
+  font-weight: 500;
+  line-height: 1;
+  transition: background 0.12s ease;
+}
+
+.proto-purpose-banner__action:hover {
+  background: var(--pds-bg-subtle);
+}
+
+.proto-purpose-banner__action:focus-visible {
+  outline: none;
+  background: var(--pds-bg-chip);
+}
+
+/* Dismiss is deliberately the quieter of the two: "this is just a note" is
+   always available but is not what the bar is offering. */
+.proto-purpose-banner__dismiss {
+  appearance: none;
+  background: none;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--pds-text-secondary);
+  opacity: 0.55;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+
+.proto-purpose-banner__dismiss:hover {
+  opacity: 1;
+  background: var(--pds-bg-subtle);
+}
+
+.proto-purpose-banner__dismiss:focus-visible {
+  outline: none;
+  opacity: 1;
+  background: var(--pds-bg-chip);
+}
+
+/* Sits beside Close in a popover header, reading as an action rather than a
+   title — same register as the sheet's own chrome. */
+.proto-study-thread-popover__header-action {
+  appearance: none;
+  background: none;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  margin-left: auto;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--pds-accent);
+  font-weight: 500;
+  transition: background 0.12s ease;
+}
+
+.proto-study-thread-popover__header-action:hover {
+  background: var(--pds-bg-subtle);
+}
+
+.proto-study-thread-popover__header-action:focus-visible {
+  outline: none;
+  background: var(--pds-bg-chip);
 }
 
 .proto-shared-readonly-banner__icon {
