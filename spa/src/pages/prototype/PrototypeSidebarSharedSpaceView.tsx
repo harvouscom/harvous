@@ -39,6 +39,7 @@ import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import PrototypeSpacePeopleSheet from './PrototypeSpacePeopleSheet';
 import { ProtoToolsRowList, type ProtoToolRow } from './proto-tools-registry';
+import { companionToolRow } from '../../lib/space-companion';
 import { spaceLibraryMeta, useSpaceLibrary } from '../../hooks/queries/useSpaceLibrary';
 import { useChurchSpacePlan } from '../../hooks/queries/useChurchSpacePlan';
 import { markPendingPlannerIntent } from '../../lib/pending-planner-intent';
@@ -304,11 +305,6 @@ function PrototypeSidebarSharedSpaceViewLive() {
   });
   const companionRoom =
     companionQuery.data?.companionChannel ?? companionQuery.data?.companionOfSpace ?? null;
-  const companionLabel = companionRoom
-    ? isMinistryChannel
-      ? `Companion of ${companionRoom.title}`
-      : `Channel: ${companionRoom.title}`
-    : '';
 
   const selfDisplayName = resolveProfileFirstName(user, null) || 'You';
   const isSpaceOwner =
@@ -428,6 +424,38 @@ function PrototypeSidebarSharedSpaceViewLive() {
     activeSpaceId,
     openExpandedSidebar,
   ]);
+
+  /*
+    The ministry's other room, in a section of its own directly above Tools.
+
+    Not a tool: everything under Tools is something you do to this room, and
+    this is a door out of it. Its own eyebrow says the relationship, which frees
+    the row to be the plain name of where you would land — and keeps Tools the
+    last section, as the room's activity already keeps it below the cards.
+
+    It carries none of that room's colour. A companion is a sibling, not a
+    source, and tinting by it would imply this room's material came from there —
+    settled once already in the linking post-mortem.
+
+    It used to be a chip in the header, a third stacked line under the title
+    costing about a quarter of the header's height.
+  */
+  const companionRows = useMemo<ProtoToolRow[]>(() => {
+    const companion = companionToolRow(companionRoom, isMinistryChannel);
+    if (!companion) return [];
+    return [
+      {
+        key: 'space-companion',
+        icon: companion.icon,
+        title: companion.title,
+        meta: companion.meta,
+        onSelect: () => {
+          ensureSidebarExpanded();
+          switchToSpace(companion.spaceId);
+        },
+      },
+    ];
+  }, [companionRoom, isMinistryChannel, ensureSidebarExpanded, switchToSpace]);
 
   const canModerateChannel = canModerateMinistryChannel({
     isOwner: isSpaceOwner,
@@ -825,30 +853,6 @@ function PrototypeSidebarSharedSpaceViewLive() {
                 ) : null}
               </button>
             ) : null}
-            {/*
-              The ministry's other room. Names it and goes there, and carries
-              none of that room's colour — a companion is a sibling, not a
-              source, and tinting by it would imply this room's material came
-              from there. Settled once already in the linking post-mortem.
-            */}
-            {companionRoom ? (
-              <button
-                type="button"
-                className="proto-shared-space-header__companion"
-                onClick={() => {
-                  ensureSidebarExpanded();
-                  switchToSpace(
-                    companionRoom.id.startsWith('space_')
-                      ? companionRoom.id
-                      : `space_${companionRoom.id}`,
-                  );
-                }}
-                title={companionLabel}
-              >
-                <Icon name={isMinistryChannel ? 'user-group' : 'rss'} size={11} />
-                <span>{companionLabel}</span>
-              </button>
-            ) : null}
           </div>
           <div className="proto-shared-space-header__actions">
             <button
@@ -1122,10 +1126,18 @@ function PrototypeSidebarSharedSpaceViewLive() {
             </>
           )}
 
+          {companionRows.length > 0 ? (
+            <div className="proto-home-section">
+              <p className="proto-caption proto-home-section__eyebrow">Paired with</p>
+              <ProtoToolsRowList rows={companionRows} />
+            </div>
+          ) : null}
+
           {/*
             Below the room's own activity, not above it. Tools are how you act
             on a space; the cards above are what is happening in it, and that
-            is what someone opening the room came to see.
+            is what someone opening the room came to see. It stays the last
+            section — the paired room sits above it, not inside it.
           */}
           {spaceToolRows.length > 0 ? (
             <div className="proto-home-section">
