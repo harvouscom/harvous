@@ -1,7 +1,7 @@
 /**
  * The sermon form itself — every field, and the save/repeat/remove actions.
  *
- * Split out of `PrototypeSermonEditorSheet` when the expanded planner needed
+ * Split out of the old sermon editor sheet when the expanded planner needed
  * the same form as a docked pane rather than a popover. The two presentations
  * differ only in what surrounds them, and duplicating eight hundred lines of
  * field logic to change a wrapper is how the series combobox ends up behaving

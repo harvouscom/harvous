@@ -46,6 +46,7 @@ import PrototypeNewSeriesSheet from './PrototypeNewSeriesSheet';
 import PrototypeSeriesSheet from '../PrototypeSeriesSheet';
 import { usePlannerSchedule } from './usePlannerSchedule';
 import { usePlannerScope } from './usePlannerScope';
+import { consumePendingPlannerIntent } from '../../../lib/pending-planner-intent';
 
 export type PlannerView = 'board' | 'calendar' | 'list' | 'series';
 export type PlannerSelection =
@@ -90,7 +91,20 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
   /* Shared with the compact pane, so expanding keeps the plan you were on. */
   const { planSpaceId, lastChannelId, selectPlanScope } = usePlannerScope(orgId, plannableSpaces);
   const [view, setView] = useState<PlannerView>(readStoredView);
-  const [selection, setSelection] = useState<PlannerSelection>(null);
+  /*
+    Seeded from the hub's handoff so "Add a sermon" in the compact pane lands
+    with the editor already open, rather than expanding to a board and asking
+    the pastor to find the button again. Read in the initializer, not an
+    effect: an effect would render the empty planner for a frame first, and
+    the flag is one-shot so a second render must not re-open anything.
+  */
+  const [selection, setSelection] = useState<PlannerSelection>(() => {
+    const intent = consumePendingPlannerIntent();
+    if (!intent) return null;
+    return intent.mode === 'edit'
+      ? { mode: 'edit', serviceId: intent.serviceId }
+      : { mode: 'create', date: intent.date };
+  });
   const [openSeries, setOpenSeries] = useState<TeachingPlanSeries | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
   /* A re-run that stopped short is a partial success, not a failure — see

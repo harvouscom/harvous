@@ -9,7 +9,7 @@
  * Service times are a list rather than one default because churches hold more
  * than one: 9:00 and 10:45 on a Sunday morning hear the same sermon, and the
  * evening service hears a different one. A sermon then picks which of these it
- * fills — see PrototypeSermonEditorSheet.
+ * fills — see PrototypeSermonEditorFields.
  *
  * Display and defaults only. Nothing here schedules, reminds, or notifies —
  * see docs/future/CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md §1.

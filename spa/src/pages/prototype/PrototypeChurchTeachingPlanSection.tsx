@@ -37,11 +37,12 @@ import {
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import ProtoServiceDateTile from './ProtoServiceDateTile';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
-import PrototypeSermonEditorSheet from './PrototypeSermonEditorSheet';
 import PrototypeSeriesSheet from './PrototypeSeriesSheet';
 import PrototypeNewSeriesSheet from './planner/PrototypeNewSeriesSheet';
 import PrototypePlannerScopeChips from './planner/PrototypePlannerScopeChips';
 import { usePlannerScope } from './planner/usePlannerScope';
+import { markPendingPlannerIntent } from '../../lib/pending-planner-intent';
+import { useProtoShell } from '../../layouts/proto-shell-context';
 import type { PlannableSpace } from '../../hooks/useChurchPlannerAccess';
 
 /** Same row anatomy as Church tools, with the date where the icon would sit. */
@@ -115,8 +116,7 @@ export default function PrototypeChurchTeachingPlanSection({
   /** Hub callback that switches to the Church starters pane. */
   onOpenStarters?: () => void;
 }) {
-  const [editing, setEditing] = useState<TeachingPlanSermon | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const { openExpandedSidebar } = useProtoShell();
   const [openSeries, setOpenSeries] = useState<TeachingPlanSeries | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
   const [creatingSeries, setCreatingSeries] = useState(false);
@@ -228,9 +228,19 @@ export default function PrototypeChurchTeachingPlanSection({
     );
   }
 
+  /*
+    Hand off to the expanded planner rather than opening a modal over the pane.
+    The editor there is a docked rail beside the plan you are editing against,
+    which is the whole reason it exists — a sheet covered the weeks either side
+    of the one being written, and the fields it had to stack (date, title,
+    series, passage, times, starter, resources, notes, repeat) never fit a
+    sidebar-width modal without becoming a scroll well.
+  */
   const openEditor = (service: TeachingPlanSermon | null) => {
-    setEditing(service);
-    setSheetOpen(true);
+    markPendingPlannerIntent(
+      service ? { mode: 'edit', serviceId: service.id } : { mode: 'create', date: null },
+    );
+    openExpandedSidebar('planner');
   };
 
   /*
@@ -463,23 +473,6 @@ export default function PrototypeChurchTeachingPlanSection({
           </div>
         </>
       ) : null}
-
-      <PrototypeSermonEditorSheet
-        open={sheetOpen}
-        orgId={orgId}
-        service={editing}
-        series={data.series}
-        serviceTimes={onSpacePlan ? [] : (churchPlan.data?.serviceTimes ?? [])}
-        planSpaceId={planSpaceId}
-        planKind={planKind}
-        canWrite={canWrite}
-        canManageChurchTemplates={canManageChurchTemplates}
-        onOpenStarters={onOpenStarters}
-        onOpenChange={(next) => {
-          setSheetOpen(next);
-          if (!next) setEditing(null);
-        }}
-      />
 
       {/* Naming a run before its first week exists — the same sheet the
           expanded planner uses, so the two doors cannot drift apart. */}
