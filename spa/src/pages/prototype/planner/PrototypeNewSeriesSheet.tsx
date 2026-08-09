@@ -29,6 +29,7 @@ export default function PrototypeNewSeriesSheet({
   defaultDay,
   onCreate,
   onCancel,
+  showHeading = true,
 }: {
   open: boolean;
   pending: boolean;
@@ -37,6 +38,8 @@ export default function PrototypeNewSeriesSheet({
   defaultDay: number | null;
   onCreate: (input: { title: string; color: string | null; firstDate: string | null }) => void;
   onCancel: () => void;
+  /** False when a rail header already names the form. */
+  showHeading?: boolean;
 }) {
   const [title, setTitle] = useState('');
   const [color, setColor] = useState<string | null>(null);
@@ -62,7 +65,12 @@ export default function PrototypeNewSeriesSheet({
 
   return (
     <div className="proto-planner-new-series">
-      <PrototypeSectionHeader variant="inspector">New series</PrototypeSectionHeader>
+      {/* The rail it docks in already carries this title; a second one under
+          the first read as two headings for one form. Kept for the compact
+          pane, where the form has no header above it. */}
+      {showHeading ? (
+        <PrototypeSectionHeader variant="inspector">New series</PrototypeSectionHeader>
+      ) : null}
 
       <label
         className="proto-inspector-section-title proto-create-folder-sheet__field-label"

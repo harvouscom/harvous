@@ -14002,9 +14002,16 @@ p.proto-teaching-plan__divider {
     background while sharing the edge.
   */
   border-color: transparent;
+  /*
+    Two padding-box layers, not one. `--pds-bg-chip` is a 6%-alpha fill, so a
+    single translucent layer let the gradient show through the whole cell —
+    the border read as a full blue wash. An opaque page layer underneath keeps
+    the gradient where it belongs: in the 1px border.
+  */
   background:
     linear-gradient(var(--drop-surface, var(--pds-bg-chip)), var(--drop-surface, var(--pds-bg-chip)))
       padding-box,
+    linear-gradient(var(--pds-bg-page), var(--pds-bg-page)) padding-box,
     var(--pds-bg-accent-button) border-box;
 
 }
@@ -14156,6 +14163,13 @@ p.proto-teaching-plan__divider {
   flex-direction: column;
   gap: var(--pds-space-2);
   max-width: 420px;
+}
+
+/* Docked as a rail beside the series list — same width and frame as the sermon
+   editor, so the two ways of adding to a plan sit in the same place. Inside it
+   the form fills the rail rather than keeping its own narrower cap. */
+.proto-planner-editor--form .proto-planner-new-series {
+  max-width: none;
 }
 
 .proto-planner-new-series__toggle {
@@ -14705,7 +14719,10 @@ p.proto-teaching-plan__divider {
   height: 16px;
   padding: 0 4px;
   border-radius: 999px;
-  background: var(--pds-accent);
+  /* The brand gradient, like every other blue the app commits to — a flat
+     accent disc read as a different blue sitting next to the real one. */
+  background: var(--pds-bg-accent-button);
+  box-shadow: var(--pds-shadow-accent-button);
   color: var(--pds-on-accent, #fff);
 }
 
@@ -14721,9 +14738,16 @@ p.proto-teaching-plan__divider {
     background while sharing the edge.
   */
   border-color: transparent;
+  /*
+    Two padding-box layers, not one. `--pds-bg-chip` is a 6%-alpha fill, so a
+    single translucent layer let the gradient show through the whole cell —
+    the border read as a full blue wash. An opaque page layer underneath keeps
+    the gradient where it belongs: in the 1px border.
+  */
   background:
     linear-gradient(var(--drop-surface, var(--pds-bg-chip)), var(--drop-surface, var(--pds-bg-chip)))
       padding-box,
+    linear-gradient(var(--pds-bg-page), var(--pds-bg-page)) padding-box,
     var(--pds-bg-accent-button) border-box;
 
 }
@@ -14852,9 +14876,16 @@ p.proto-teaching-plan__divider {
     background while sharing the edge.
   */
   border-color: transparent;
+  /*
+    Two padding-box layers, not one. `--pds-bg-chip` is a 6%-alpha fill, so a
+    single translucent layer let the gradient show through the whole cell —
+    the border read as a full blue wash. An opaque page layer underneath keeps
+    the gradient where it belongs: in the 1px border.
+  */
   background:
     linear-gradient(var(--drop-surface, var(--pds-bg-chip)), var(--drop-surface, var(--pds-bg-chip)))
       padding-box,
+    linear-gradient(var(--pds-bg-page), var(--pds-bg-page)) padding-box,
     var(--pds-bg-accent-button) border-box;
 
 }

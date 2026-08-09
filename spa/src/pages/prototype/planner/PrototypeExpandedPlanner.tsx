@@ -332,29 +332,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
                 onSelect={setSelection}
               />
             ) : (
-              creatingSeries ? (
-                <PrototypeNewSeriesSheet
-                  open
-                  pending={actions.isPending}
-                  error={seriesError}
-                  defaultDay={defaultDay}
-                  onCancel={() => {
-                    setSeriesError(null);
-                    setCreatingSeries(false);
-                  }}
-                  onCreate={(input) =>
-                    runSeries(
-                      {
-                        kind: 'series-create',
-                        title: input.title,
-                        color: input.color,
-                        firstDate: input.firstDate,
-                      },
-                      () => setCreatingSeries(false),
-                    )
-                  }
-                />
-              ) : (
+              (
                 <PrototypePlannerSeries
                   series={series}
                   services={services}
@@ -453,6 +431,65 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
               if (!next) setOpenSeries(null);
             }}
           />
+
+          {/*
+            Docked beside the series list, not in place of it. Rendered inline
+            it replaced the whole view: a 420px form floating in a 950px pane,
+            the list you were adding to gone, and the form's own actions pushed
+            below the fold by the date picker. Same rail the sermon editor uses,
+            so both ways of adding to a plan sit in the same place.
+          */}
+          {creatingSeries ? (
+            <aside
+              className="proto-planner-editor proto-planner-editor--form"
+              aria-label="New series"
+            >
+              {/* The editor rail's own header, not a hand-rolled one — the
+                  first attempt stacked the close button under the title
+                  because the classes it used did not exist. */}
+              <div className="proto-side-panel__header proto-side-panel__header--minimal">
+                <span className="proto-side-panel__header-label">New series</span>
+                <div className="proto-side-panel__header-actions">
+                  <button
+                    type="button"
+                    className="proto-side-panel__action-btn"
+                    title="Close"
+                    aria-label="Close new series"
+                    onClick={() => {
+                      setSeriesError(null);
+                      setCreatingSeries(false);
+                    }}
+                  >
+                    <Icon name="xmark" size={12} />
+                  </button>
+                </div>
+              </div>
+              <div className="proto-planner-editor__body proto-create-folder-sheet">
+                <PrototypeNewSeriesSheet
+                  open
+                  showHeading={false}
+                  pending={actions.isPending}
+                  error={seriesError}
+                  defaultDay={defaultDay}
+                  onCancel={() => {
+                    setSeriesError(null);
+                    setCreatingSeries(false);
+                  }}
+                  onCreate={(input) =>
+                    runSeries(
+                      {
+                        kind: 'series-create',
+                        title: input.title,
+                        color: input.color,
+                        firstDate: input.firstDate,
+                      },
+                      () => setCreatingSeries(false),
+                    )
+                  }
+                />
+              </div>
+            </aside>
+          ) : null}
 
           {selection ? (
             <PrototypePlannerEditorPane
