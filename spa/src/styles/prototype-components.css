@@ -9699,8 +9699,23 @@ button.proto-appearance-hero__card {
   white-space: nowrap;
 }
 
-.proto-bulk-bar .proto-bulk-bar__btn:hover:not(:disabled) {
-  background: var(--pds-bg-control);
+/* `-control-hover`, not `-control`. The plain control fill is a half-step from
+   the input fill these rest on, so the old hover was a state you could not see
+   land. Focus takes the same treatment so the keyboard is told what the pointer
+   is told. */
+.proto-bulk-bar .proto-bulk-bar__btn:hover:not(:disabled),
+.proto-bulk-bar .proto-bulk-bar__btn:focus-visible:not(:disabled) {
+  background: var(--pds-bg-control-hover);
+  border-color: var(--pds-border-control-strong, var(--pds-border-control));
+}
+
+.proto-bulk-bar .proto-bulk-bar__btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--pds-accent) 35%, transparent);
+}
+
+.proto-bulk-bar .proto-bulk-bar__btn:active:not(:disabled) {
+  transform: translateY(0.5px);
 }
 
 /* Disabled is the resting state of at least one action most of the time (all-or-nothing),
@@ -9710,13 +9725,51 @@ button.proto-appearance-hero__card {
   cursor: default;
 }
 
-/* Red on approach only — never a filled destructive pill sitting in a toolbar. */
-.proto-bulk-bar .proto-bulk-bar__btn--danger {
-  color: var(--pds-destructive);
+/*
+ * Delete: neutral at rest, solid on approach — the same bargain
+ * `.proto-side-panel__action-btn--danger` and `.proto-settings-danger__btn`
+ * strike. A destructive control that is already red before you reach it spends
+ * its warning on everyone who was only passing by.
+ *
+ * What changed is the approach state, not the rule: it used to arrive as
+ * `--pds-destructive-bg` at 8% alpha, which on a 46px button was a colour you
+ * had to look for to find. Full fill, white label, white glyph.
+ *
+ * See the note on the long prefix below before touching either colour.
+ */
+html.harvous-prototype-route
+  button[class*='proto-'].proto-bulk-bar__btn.proto-bulk-bar__btn--danger:hover:not(:disabled),
+html.harvous-prototype-route
+  button[class*='proto-'].proto-bulk-bar__btn.proto-bulk-bar__btn--danger:hover:not(:disabled) *,
+html.harvous-prototype-route
+  button[class*='proto-'].proto-bulk-bar__btn.proto-bulk-bar__btn--danger:focus-visible:not(:disabled),
+html.harvous-prototype-route
+  button[class*='proto-'].proto-bulk-bar__btn.proto-bulk-bar__btn--danger:focus-visible:not(:disabled) * {
+  color: var(--pds-on-accent) !important;
 }
 
-.proto-bulk-bar .proto-bulk-bar__btn--danger:hover:not(:disabled) {
-  background: var(--pds-destructive-bg);
+html.harvous-prototype-route
+  button[class*='proto-'].proto-bulk-bar__btn.proto-bulk-bar__btn--danger:hover:not(:disabled),
+html.harvous-prototype-route
+  button[class*='proto-'].proto-bulk-bar__btn.proto-bulk-bar__btn--danger:focus-visible:not(:disabled) {
+  background-color: var(--pds-destructive);
+  border-color: transparent;
+}
+
+/*
+ * The prefix is not decoration. A global rule —
+ * `html.harvous-prototype-route button[class*="proto-"]`, and crucially its
+ * `button *` arm — pins every prototype button **and every descendant** to
+ * text-primary with `!important`. At (0,2,2) it outranks anything shorter, so
+ * setting `color` on the button alone does nothing here: the label span and the
+ * svg are targeted directly rather than inheriting, and the fill would land
+ * under a dark label and a dark glyph. `.proto-settings-danger__btn` wins its
+ * white text the same way; this follows it and extends the reach to the
+ * descendants the icon-over-label shape introduced.
+ */
+html.harvous-prototype-route
+  button[class*='proto-'].proto-bulk-bar__btn.proto-bulk-bar__btn--danger:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--pds-destructive) 40%, transparent);
 }
 
 /* Share-to-space picker for a multi-selection. Anchored over the sidebar rather than

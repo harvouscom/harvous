@@ -1843,8 +1843,14 @@ export default function PrototypeSidebar({
 
   const [bulkFolderSheetOpen, setBulkFolderSheetOpen] = useState(false);
   const [bulkShareSheetOpen, setBulkShareSheetOpen] = useState(false);
-  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
-  const [bulkRemoveConfirmOpen, setBulkRemoveConfirmOpen] = useState(false);
+  /*
+    The confirm anchors to the button that raised it, like every other delete in
+    this file. `main-column-top-right` put it in the opposite corner of the
+    window from a bar pinned to the bottom of the sidebar — far enough that it
+    read as an unrelated alert rather than an answer to the tap.
+  */
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState<DOMRect | null>(null);
+  const [bulkRemoveConfirmOpen, setBulkRemoveConfirmOpen] = useState<DOMRect | null>(null);
 
   const normalizeSpaceIdForCompare = (id: string | null | undefined) =>
     !id ? '' : id.startsWith('space_') ? id : `space_${id}`;
@@ -1906,7 +1912,7 @@ export default function PrototypeSidebar({
     const ids = [...sidebarSelectedNoteIds];
     deleteNotesBatch.mutate(ids, {
       onSuccess: (res) => {
-        setBulkDeleteConfirmOpen(false);
+        setBulkDeleteConfirmOpen(null);
         setSidebarSelectMode(false);
         const went = res.deletedNoteIds?.length ?? 0;
         toast.success(
@@ -1916,7 +1922,7 @@ export default function PrototypeSidebar({
         );
       },
       onError: (err) => {
-        setBulkDeleteConfirmOpen(false);
+        setBulkDeleteConfirmOpen(null);
         toastError(err, 'Could not delete these notes');
       },
     });
@@ -1930,7 +1936,7 @@ export default function PrototypeSidebar({
       { spaceId: homeSpaceId, noteIds: ids },
       {
         onSuccess: (res) => {
-          setBulkRemoveConfirmOpen(false);
+          setBulkRemoveConfirmOpen(null);
           setSidebarSelectMode(false);
           const went = res.removedNotes ?? 0;
           toast.success(
@@ -1940,7 +1946,7 @@ export default function PrototypeSidebar({
           );
         },
         onError: (err) => {
-          setBulkRemoveConfirmOpen(false);
+          setBulkRemoveConfirmOpen(null);
           toastError(err, 'Could not remove these notes');
         },
       },
@@ -2095,7 +2101,7 @@ export default function PrototypeSidebar({
           className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
           disabled={!bulkActions.canRemoveFromSpace}
           title="Take these notes out of this space"
-          onClick={() => setBulkRemoveConfirmOpen(true)}
+          onClick={(e) => setBulkRemoveConfirmOpen(e.currentTarget.getBoundingClientRect())}
         >
           <Icon name="circle-minus" size={15} aria-hidden />
           <span className="proto-bulk-bar__label">Remove</span>
@@ -2117,7 +2123,7 @@ export default function PrototypeSidebar({
             className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
             disabled={!bulkActions.canDelete}
             title="Delete these notes"
-            onClick={() => setBulkDeleteConfirmOpen(true)}
+            onClick={(e) => setBulkDeleteConfirmOpen(e.currentTarget.getBoundingClientRect())}
           >
             <Icon name="trash-can" size={15} aria-hidden />
             <span className="proto-bulk-bar__label">Delete</span>
@@ -3880,27 +3886,31 @@ export default function PrototypeSidebar({
       ) : null}
       {bulkDeleteConfirmOpen ? (
         <ProtoConfirmDialog
-          placement="main-column-top-right"
+          anchorRect={bulkDeleteConfirmOpen}
+          preferAbove
+          alignRight
           title={`Delete ${sidebarSelectedNoteIds.length} note${sidebarSelectedNoteIds.length === 1 ? '' : 's'} everywhere?`}
           description={DELETE_NOTE_EVERYWHERE_CONFIRMATION.description}
           confirmLabel="Delete"
           busy={deleteNotesBatch.isPending}
           onConfirm={onConfirmBulkDelete}
           onCancel={() => {
-            if (!deleteNotesBatch.isPending) setBulkDeleteConfirmOpen(false);
+            if (!deleteNotesBatch.isPending) setBulkDeleteConfirmOpen(null);
           }}
         />
       ) : null}
       {bulkRemoveConfirmOpen ? (
         <ProtoConfirmDialog
-          placement="main-column-top-right"
+          anchorRect={bulkRemoveConfirmOpen}
+          preferAbove
+          alignRight
           title={`Remove ${sidebarSelectedNoteIds.length} note${sidebarSelectedNoteIds.length === 1 ? '' : 's'} from this space?`}
           description={REMOVE_NOTE_FROM_SPACE_CONFIRMATION.description}
           confirmLabel="Remove"
           busy={removeNotesFromSpace.isPending}
           onConfirm={onConfirmBulkRemoveFromSpace}
           onCancel={() => {
-            if (!removeNotesFromSpace.isPending) setBulkRemoveConfirmOpen(false);
+            if (!removeNotesFromSpace.isPending) setBulkRemoveConfirmOpen(null);
           }}
         />
       ) : null}
