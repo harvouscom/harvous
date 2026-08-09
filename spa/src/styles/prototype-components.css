@@ -9710,13 +9710,27 @@ button.proto-appearance-hero__card {
    * card — depth read inside out, and against the canvas the overlap looked like a
    * pale slab wedged under the stack rather than the edge of another card.
    *
-   * Flat on purpose: `.proto-glass-surface` would match exactly, but that is a
-   * `backdrop-filter` per layer on an element that animates its position on hover.
-   * Only a few px of each layer is ever visible, over the same canvas the card
-   * samples, so the blur buys nothing the composite does not already give.
+   * (The original note here argued the blur "buys nothing the composite does
+   * not already give". It does: the composite is a fixed colour and the card
+   * is a sampler, so they agree only where the canvas happens to match.)
    */
+  /*
+    The card's own material, sampled — not a flat stand-in for it.
+
+    Compositing `--pds-glass-shell` + frost was an approximation of glass, and
+    an approximation cannot track what real glass is sampling: the card in
+    front blurs whatever canvas is behind it, while these layers stayed one
+    fixed colour. Over a warm gradient the deck's back edges stopped matching
+    its front card and read as a solid slab wedged under the stack.
+
+    The blur the original note worried about is two elements deep and only
+    animates on hover, which is well inside what a compositor handles — and
+    "cheap but wrong" was costing more than the filter ever did.
+  */
   background-color: var(--pds-glass-shell);
   background-image: linear-gradient(var(--pds-glass-panel-frost), var(--pds-glass-panel-frost));
+  -webkit-backdrop-filter: var(--pds-glass-blur);
+  backdrop-filter: var(--pds-glass-blur);
   /* Inset top: the card in front casts onto the one behind. That cast is what
      separates the layers now that they share a colour — the old outer paper shadow
      lit the seam instead, which is what made the band read as its own surface. */
