@@ -12,6 +12,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import Icon from '@/components/react/Icon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import { useProtoShell } from '../../layouts/proto-shell-context';
+import { extendNoteSelectionRange, toggleNoteSelection } from '../../lib/note-selection';
 import {
   useChurchLibraryUnion,
   type ChurchLibraryItem,
@@ -46,11 +48,26 @@ function ResourceRow({
   onOpen,
   onArchive,
   isArchiving,
+  selectable = false,
+  selectMode = false,
+  selected = false,
+  onToggleSelected,
+  onSelectRangeTo,
 }: {
   item: LibraryItem;
   onOpen: () => void;
   onArchive: () => void;
   isArchiving: boolean;
+  /*
+    Only personal rows. A church's or a room's shelf is not this reader's to
+    clear, so those rows get no checkbox at all rather than a checkbox whose
+    every action would be refused.
+  */
+  selectable?: boolean;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelected?: () => void;
+  onSelectRangeTo?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const rowRef = useRef<HTMLLIElement>(null);
@@ -72,16 +89,53 @@ function ResourceRow({
   return (
     <li
       ref={rowRef}
-      className="proto-note-row-item"
+      className={[
+        'proto-note-row-item',
+        selectMode ? 'proto-note-row-item--selectable' : '',
+        selected ? 'proto-note-row-item--selected' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       onContextMenu={(e) => {
         e.preventDefault();
         setMenuOpen(true);
       }}
     >
+      {selectable ? (
+        <button
+          type="button"
+          className="proto-note-row__select"
+          role="checkbox"
+          aria-checked={selected}
+          aria-label={selected ? `Deselect ${item.title}` : `Select ${item.title}`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.shiftKey && onSelectRangeTo) onSelectRangeTo();
+            else onToggleSelected?.();
+          }}
+        >
+          {selected ? (
+            <span className="proto-accent-check-orb proto-accent-check-orb--selected">
+              <Icon name="check" size={11} />
+            </span>
+          ) : (
+            <span className="proto-select-orb-idle" />
+          )}
+        </button>
+      ) : null}
       <button
         type="button"
         className="proto-note-row__main"
-        onClick={onOpen}
+        onClick={(e) => {
+          if (e.metaKey || e.ctrlKey) return onToggleSelected?.();
+          if (e.shiftKey && onSelectRangeTo) return onSelectRangeTo();
+          /* Opening a resource leaves the app, so a standing selection must
+             retarget the click — otherwise building a set of five sends you to
+             five other sites. */
+          if (selectMode) return onToggleSelected?.();
+          onOpen();
+        }}
         aria-label={`Resource: ${item.title}`}
       >
         <div className="proto-note-row__title-line">
@@ -682,6 +736,20 @@ export default function PrototypeResourceLibraryList({
   const spaceActions = useSpaceLibraryActions(spaceId);
   const spaceCanManage = spaceQuery.data?.canManage ?? false;
   const archive = useArchiveLibraryItem();
+  /*
+    Selecting resources. Personal rows only — the ids here are library item ids,
+    and the kind on the shell's selection is what keeps them from being read as
+    note ids by the note list's own bar.
+  */
+  const { sidebarSelectionKind, sidebarSelectedIds, setSidebarSelection } = useProtoShell();
+  const resourceSelectionActive =
+    sidebarSelectionKind === 'resource' && sidebarSelectedIds.length > 0;
+  const selectedResourceIds = useMemo(
+    () => new Set(resourceSelectionActive ? sidebarSelectedIds : []),
+    [resourceSelectionActive, sidebarSelectedIds],
+  );
+  const selectionAnchorRef = useRef<string | null>(null);
+  const [bulkRemoving, setBulkRemoving] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
@@ -753,6 +821,68 @@ export default function PrototypeResourceLibraryList({
         at(b.item.updatedAt ?? b.item.createdAt) - at(a.item.updatedAt ?? a.item.createdAt),
     );
   }, [filtered, filteredChurch, showYours, showChurch]);
+
+  /** In list order, personal rows only — what a range means here. */
+  const selectableResourceIds = useMemo(
+    () => mergedRows.filter((r) => r.source === 'mine').map((r) => r.item.id),
+    [mergedRows],
+  );
+  const toggleResourceSelected = useCallback(
+    (id: string) => {
+      selectionAnchorRef.current = id;
+      const base = sidebarSelectionKind === 'resource' ? sidebarSelectedIds : [];
+      setSidebarSelection('resource', toggleNoteSelection(base, id));
+    },
+    [sidebarSelectionKind, sidebarSelectedIds, setSidebarSelection],
+  );
+  const selectResourceRangeTo = useCallback(
+    (id: string) => {
+      const base = sidebarSelectionKind === 'resource' ? sidebarSelectedIds : [];
+      setSidebarSelection(
+        'resource',
+        extendNoteSelectionRange({
+          selected: base,
+          orderedIds: selectableResourceIds,
+          anchorId: selectionAnchorRef.current,
+          targetId: id,
+        }),
+      );
+      selectionAnchorRef.current = id;
+    },
+    [sidebarSelectionKind, sidebarSelectedIds, selectableResourceIds, setSidebarSelection],
+  );
+
+  /**
+   * Removing a batch. "Remove" rather than "Delete": archiving takes an item off
+   * your shelf without destroying anything, which is what the row's own menu
+   * already calls it.
+   */
+  const onBulkRemoveResources = useCallback(async () => {
+    setBulkRemoving(true);
+    try {
+      for (const id of sidebarSelectedIds) await archive.mutateAsync(id);
+    } catch {
+      /* The ones that archived stay archived; the shelf refetches either way. */
+    } finally {
+      setBulkRemoving(false);
+      setSidebarSelection('resource', []);
+    }
+  }, [sidebarSelectedIds, archive, setSidebarSelection]);
+
+  const resourceBulkBar = resourceSelectionActive ? (
+    <div className="proto-collection-grid-actions proto-bulk-bar">
+      <button
+        type="button"
+        className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
+        disabled={bulkRemoving}
+        title="Take these off your shelf"
+        onClick={() => void onBulkRemoveResources()}
+      >
+        <Icon name="trash-can" size={15} aria-hidden />
+        <span className="proto-bulk-bar__label">{bulkRemoving ? 'Removing…' : 'Remove'}</span>
+      </button>
+    </div>
+  ) : null;
 
   const hasFiles = (e: DragEvent) => e.dataTransfer?.types?.includes('Files');
 
@@ -840,6 +970,11 @@ export default function PrototypeResourceLibraryList({
                 <ResourceRow
                   key={row.key}
                   item={row.item}
+                  selectable
+                  selectMode={resourceSelectionActive}
+                  selected={selectedResourceIds.has(row.item.id)}
+                  onToggleSelected={() => toggleResourceSelected(row.item.id)}
+                  onSelectRangeTo={() => selectResourceRangeTo(row.item.id)}
                   onOpen={() => onOpenResource(row.item)}
                   isArchiving={archive.isPending && archivingId === row.item.id}
                   onArchive={() => {
@@ -890,11 +1025,10 @@ export default function PrototypeResourceLibraryList({
           here" is always in the same place and always the gradient button.
           At the top it was a full-width control you had to scroll past to reach
           what you came to read. */}
-      {/* One footer, pointed at whichever shelf is in scope. A member with no
-          right to curate the room gets none at all — the scope decides where a
-          resource would land, so a second button for the other shelf would be
-          offering to add it somewhere the reader is not looking. */}
-      {!spaceId || spaceCanManage ? (
+      {/* While a selection stands its actions take the footer's place — adding a
+          resource is not what you are in the middle of. */}
+      {resourceBulkBar}
+      {!resourceBulkBar && (!spaceId || spaceCanManage) ? (
         <div className="proto-resource-footer">
           <AddResourceForm
             onSaved={() => (spaceId ? undefined : void libraryQuery.refetch())}
