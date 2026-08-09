@@ -148,6 +148,103 @@ describe('resolveVisibleItem', () => {
   });
 });
 
+describe('space lane', () => {
+  const spaceRoutes = () => source('server/routes/church-space-library.ts');
+
+  const SPACE_WRITE_HANDLERS = [
+    "app.post(\n  '/api/church/spaces/:spaceId/library/items/create'",
+    "app.post(\n  '/api/church/spaces/:spaceId/library/items/upload'",
+    "app.post(\n  '/api/church/spaces/:spaceId/library/pins/set'",
+  ] as const;
+
+  it.each(SPACE_WRITE_HANDLERS)('gates %s before any DB access', (marker) => {
+    const body = handlerBody(spaceRoutes(), marker);
+    const gateAt = body.indexOf('assertCanManageSpaceLibrary');
+    expect(gateAt, 'handler has no curation gate').toBeGreaterThan(-1);
+    for (const write of ['db.insert(', 'db.update(', 'db.delete(', 'db.transaction(']) {
+      const at = body.indexOf(write);
+      if (at === -1) continue;
+      expect(gateAt, `${write} runs before the gate`).toBeLessThan(at);
+    }
+  });
+
+  it.each(SPACE_WRITE_HANDLERS)('rate-limits %s', (marker) => {
+    expect(handlerBody(spaceRoutes(), marker)).toContain("rateLimit('write')");
+  });
+
+  it('never lets a space write reach org scope', () => {
+    // A leader curating their own room must not be able to publish to the whole
+    // church. Scope is the room in the path, never a body field.
+    for (const marker of SPACE_WRITE_HANDLERS.slice(0, 2)) {
+      const body = handlerBody(spaceRoutes(), marker);
+      expect(body, marker).toContain("scopeKind: 'space'");
+      expect(body, marker).not.toMatch(/scopeKind:\s*'org'/);
+      expect(body, marker).not.toContain('body.scopes');
+      expect(body, marker).toContain('spaceId: gate.space.id');
+    }
+  });
+
+  it('writes a scope row only in the church lane', () => {
+    // A space-owned item's library *is* its scope; a second statement of it
+    // could disagree with the first.
+    for (const marker of SPACE_WRITE_HANDLERS.slice(0, 2)) {
+      const body = handlerBody(spaceRoutes(), marker);
+      const scopeInsert = body.indexOf('tx.insert(LibraryItemScopes)');
+      expect(scopeInsert, marker).toBeGreaterThan(-1);
+      expect(body.slice(0, scopeInsert), marker).toMatch(/gate\.lane === 'church'/);
+    }
+  });
+
+  it('pins only items from the library the room actually curates', () => {
+    // Otherwise a leader could pin a row off another church's — or another
+    // room's — shelf into their own.
+    const body = handlerBody(spaceRoutes(), SPACE_WRITE_HANDLERS[2]);
+    expect(body).toContain('findChurchLibrary(gate.church.id)');
+    expect(body).toContain('findSpaceLibrary(gate.space.id)');
+    expect(body).toContain('eq(LibraryItems.libraryId, library.id)');
+  });
+
+  it('answers canManage from the write gate, not the read gate', () => {
+    // `sermon_tools` lets a teacher read leaders-only material; it does not let
+    // them curate. Deriving canManage from the read gate would hand them the
+    // add affordances and then have the server refuse.
+    const body = handlerBody(spaceRoutes(), "app.get('/api/spaces/:spaceId/library'");
+    expect(body).toMatch(/canManage:[\s\S]{0,120}assertCanManageSpaceLibrary/);
+    expect(body).not.toMatch(/canManage:\s*seesLeaderOnly/);
+  });
+
+  it('gives a personal space no shelf in either direction', () => {
+    // A shelf is a thing a room shows other people.
+    const body = handlerBody(spaceRoutes(), "app.get('/api/spaces/:spaceId/library'");
+    expect(body).toMatch(/space\.type === 'personal'/);
+    expect(access()).toMatch(/space\.type === 'personal'\) return refusal/);
+  });
+
+  it('gates a churchless room on who runs it, not on church capabilities', () => {
+    const text = access();
+    const fn = text.slice(
+      text.indexOf('export async function assertCanManageSpaceLibrary'),
+      text.indexOf('async function memberSpaceIdsForChurch'),
+    );
+    expect(fn).toContain('canManageSpaceStructure(space, role)');
+    expect(fn).toMatch(/lane: 'space'/);
+    expect(fn).toMatch(/lane: 'church'/);
+  });
+});
+
+describe('resolveVisibleItem, space-owned lane', () => {
+  it('admits a space item on membership alone', () => {
+    // Space-owned items carry no audience or scope rows — the room they belong
+    // to already answers both questions.
+    const text = access();
+    const fn = text.slice(text.indexOf('export async function resolveVisibleItem'));
+    const at = fn.indexOf("ownerKind, 'space'");
+    expect(at).toBeGreaterThan(-1);
+    expect(fn.indexOf("ownerKind, 'user'")).toBeLessThan(at);
+    expect(fn.slice(at)).toContain('SpaceMemberships.userId, userId');
+  });
+});
+
 describe('suggestion box', () => {
   const suggestions = () => source('server/routes/church-library-suggestions.ts');
 

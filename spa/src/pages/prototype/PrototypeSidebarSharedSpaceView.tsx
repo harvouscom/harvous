@@ -309,16 +309,21 @@ function PrototypeSidebarSharedSpaceViewLive() {
     hard-coded conditional.
   */
   const spaceLibrary = useSpaceLibrary(activeSpaceId ?? null, {
-    /* Only a church room has a shelf behind it; the endpoint answers empty for
-       everything else, so don't ask on behalf of a personal Shared Space. */
-    enabled: Boolean(ministryMeta.orgId),
+    /* Every room that is not a personal space has a shelf now — a church one
+       reads the church's items scoped to it, any other owns its own. Only a
+       personal space has nobody to show it to. */
+    enabled: ministryMeta.type !== 'personal',
   });
   const spaceLibraryCount = spaceLibrary.data?.items.length ?? 0;
+  const canManageSpaceLibrary = spaceLibrary.data?.canManage ?? false;
   const spaceToolRows = useMemo<ProtoToolRow[]>(() => {
     const rows: ProtoToolRow[] = [];
     /* Offered to every member, not only whoever curates it — "what do we read
-       from" is a question the room asks, and the read is membership-gated. */
-    if (spaceLibraryCount > 0) {
+       from" is a question the room asks, and the read is membership-gated.
+       Shown to a curator while still empty, because otherwise the one person
+       who could put the first thing on the shelf is the one person who cannot
+       find it. */
+    if (spaceLibraryCount > 0 || canManageSpaceLibrary) {
       rows.push({
         key: 'space-library',
         icon: 'newspaper',
@@ -328,7 +333,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
       });
     }
     return rows;
-  }, [spaceLibraryCount, spaceLibrary.data?.items]);
+  }, [spaceLibraryCount, canManageSpaceLibrary, spaceLibrary.data?.items]);
 
   const canModerateChannel = canModerateMinistryChannel({
     isOwner: isSpaceOwner,

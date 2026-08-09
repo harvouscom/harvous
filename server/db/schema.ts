@@ -1604,9 +1604,19 @@ export const ResourceLibraries = pgTable(
   'ResourceLibraries',
   {
     id: text('id').primaryKey(),
-    /** 'user' | 'church' — 'school' later. */
+    /**
+     * 'user' | 'church' | 'space' — 'school' later.
+     *
+     * 'space' is a room that owns its shelf outright, which is every Shared
+     * Space with no church behind it. A church room deliberately does not get
+     * one: its shelf is the church's items scoped to it, so "where does this
+     * item live" keeps exactly one answer per room.
+     */
     ownerKind: text('ownerKind').notNull(),
-    /** Clerk userId when ownerKind='user'; Churches.id when 'church'. */
+    /**
+     * Clerk userId when ownerKind='user'; Churches.id when 'church';
+     * Spaces.id when 'space'.
+     */
     ownerId: text('ownerId').notNull(),
     title: text('title').notNull(),
     createdAt: ts('createdAt').notNull(),

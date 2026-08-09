@@ -192,16 +192,34 @@ type AddStage =
  *
  * Dropping a file anywhere on the list jumps straight to confirm, so the common
  * case skips the menu entirely.
+ *
+ * Exported because a room's shelf asks for exactly this form with a different
+ * destination. Only the two saves differ; the staging, the link preview, the
+ * error copy and the drop handling are the same decisions either way, and a
+ * second copy of them would be a second place for them to drift.
  */
-function AddResourceForm({
+export function AddResourceForm({
   onSaved,
   droppedFile,
   onDroppedFileConsumed,
+  destination,
 }: {
   onSaved: () => void;
   /** File dropped on the list — adopted as if it had been picked here. */
   droppedFile?: File | null;
   onDroppedFileConsumed?: () => void;
+  /** Where a save lands. Defaults to the viewer's own library. */
+  destination?: {
+    saveLink: (input: {
+      url: string;
+      title?: string;
+      description?: string;
+      siteName?: string;
+      image?: string;
+    }) => Promise<unknown>;
+    saveFile: (input: { file: File; title?: string }) => Promise<unknown>;
+    busy: boolean;
+  };
 }) {
   const [stage, setStage] = useState<AddStage>({ step: 'idle' });
   const [url, setUrl] = useState('');
@@ -219,7 +237,8 @@ function AddResourceForm({
     description: string;
   } | null>(null);
 
-  const busy = preview.isPending || create.isPending || upload.isPending;
+  const busy =
+    preview.isPending || (destination ? destination.busy : create.isPending || upload.isPending);
 
   const reset = () => {
     setStage({ step: 'idle' });
@@ -272,17 +291,19 @@ function AddResourceForm({
     setError(null);
     try {
       if (file) {
-        await upload.mutateAsync({ file, title: title.trim() || undefined });
+        const input = { file, title: title.trim() || undefined };
+        await (destination ? destination.saveFile(input) : upload.mutateAsync(input));
       } else {
         const trimmed = url.trim();
         if (!trimmed) return;
-        await create.mutateAsync({
+        const input = {
           url: trimmed,
           title: title.trim() || undefined,
           description: pendingMeta?.description || undefined,
           siteName: pendingMeta?.siteName ?? undefined,
           image: pendingMeta?.image ?? undefined,
-        });
+        };
+        await (destination ? destination.saveLink(input) : create.mutateAsync(input));
       }
       reset();
       onSaved();

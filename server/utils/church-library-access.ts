@@ -36,6 +36,7 @@ import {
 import { resolveChurchOrgAccess, type ChurchOrgAccessResult } from './church-org-access';
 import { isChurchOrgSpaceRow } from './channel-publish-cadence';
 import { isGrantedSpaceLeader } from './church-space-leaders';
+import { canManageSpaceStructure, requireSpaceAccess, type SpaceRole } from './space-access';
 
 type LibraryRow = typeof ResourceLibraries.$inferSelect;
 export type LibraryItemRow = typeof LibraryItems.$inferSelect;
@@ -116,6 +117,52 @@ export async function ensureChurchLibrary(
   }
 }
 
+/** A space's own library, or null before anything has been saved into it. */
+export async function findSpaceLibrary(spaceId: string): Promise<LibraryRow | null> {
+  return (
+    first(
+      await db
+        .select()
+        .from(ResourceLibraries)
+        .where(and(eq(ResourceLibraries.ownerKind, 'space'), eq(ResourceLibraries.ownerId, spaceId)))
+        .limit(1),
+    ) ?? null
+  );
+}
+
+/**
+ * A space's own library, created on first use.
+ *
+ * Same lazy-create race as the church and personal ones: the unique index on
+ * (ownerKind, ownerId) rejects the loser, who re-reads the winner's row.
+ */
+export async function ensureSpaceLibrary(
+  spaceId: string,
+  spaceTitle: string,
+): Promise<LibraryRow> {
+  const existing = await findSpaceLibrary(spaceId);
+  if (existing) return existing;
+
+  const timestamp = new Date();
+  const row: LibraryRow = {
+    id: `lib_${crypto.randomUUID()}`,
+    ownerKind: 'space',
+    ownerId: spaceId,
+    title: libraryTitleFor(spaceTitle),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+
+  try {
+    await db.insert(ResourceLibraries).values(row);
+    return row;
+  } catch (error) {
+    const raced = await findSpaceLibrary(spaceId);
+    if (!raced) throw error;
+    return raced;
+  }
+}
+
 /** Curating the library: add, edit, scope, archive, and review suggestions. */
 export async function assertCanManageChurchLibrary(
   userId: string,
@@ -153,17 +200,38 @@ export async function assertCanViewChurchLibrary(
 }
 
 export type SpaceLibraryAccess =
-  | { ok: true; church: { id: string; name: string; orgId: string }; space: typeof Spaces.$inferSelect }
+  | {
+      ok: true;
+      /** Items live in the church's library, scoped to this room. */
+      lane: 'church';
+      church: { id: string; name: string; orgId: string };
+      space: typeof Spaces.$inferSelect;
+    }
+  | {
+      ok: true;
+      /** Items live in the room's own library — no church behind it. */
+      lane: 'space';
+      church: null;
+      space: typeof Spaces.$inferSelect;
+    }
   | { ok: false; status: 403 | 404; error: string; code: string };
 
 /**
- * Curating one space's shelf.
+ * Curating one space's shelf, in whichever lane the room has.
  *
- * Widened OR, cloned from the space plan's gate: church-wide `manage_library`,
- * **or** a granted leader of this exact space. A volunteer who runs Youth
- * curates Youth's resources without a Clerk seat and without any church
- * capability — `isGrantedSpaceLeader` is the whole of what they hold, and it
- * must never grow into "is this person important".
+ * A church room curates *the church's* items scoped to it: widened OR, cloned
+ * from the space plan's gate — church-wide `manage_library`, **or** a granted
+ * leader of this exact space. A volunteer who runs Youth curates Youth's
+ * resources without a Clerk seat and without any church capability;
+ * `isGrantedSpaceLeader` is the whole of what they hold, and it must never grow
+ * into "is this person important".
+ *
+ * A Shared Space with no church behind it owns its shelf outright, and the
+ * question collapses to the one the rest of the room's structure already asks:
+ * `canManageSpaceStructure`. Whoever creates that room's folders and threads
+ * stocks its shelf — resources are structure, not a separate privilege.
+ *
+ * Personal spaces get neither. A shelf is a thing a room shows other people.
  */
 export async function assertCanManageSpaceLibrary(
   userId: string,
@@ -185,9 +253,32 @@ export async function assertCanManageSpaceLibrary(
       .where(and(eq(Spaces.id, trimmed), isNull(Spaces.deletedAt)))
       .limit(1),
   );
-  /* A personal space has no church behind it — 404 rather than 403, so a probe
-     cannot tell "not yours" from "does not exist". */
-  if (!space || !space.isActive || !isChurchOrgSpaceRow(space) || !space.orgId) return refusal;
+  if (!space || !space.isActive) return refusal;
+
+  /* No church behind the room: its own lane, gated by who runs the room.
+     404 for a personal space rather than 403, so a probe cannot tell "not
+     yours" from "does not exist". */
+  if (!isChurchOrgSpaceRow(space) || !space.orgId) {
+    if (space.type === 'personal') return refusal;
+
+    let role: SpaceRole | null = null;
+    try {
+      ({ role } = await requireSpaceAccess(space.id, userId));
+    } catch {
+      /* Not a member — same refusal a stranger gets for a room that is not
+         theirs, and deliberately indistinguishable from one that is gone. */
+      return refusal;
+    }
+    if (!canManageSpaceStructure(space, role)) {
+      return {
+        ok: false,
+        status: 403,
+        error: 'Only this space’s leaders can change its resources',
+        code: 'LIBRARY_SPACE_ROLE_REQUIRED',
+      };
+    }
+    return { ok: true, lane: 'space', church: null, space };
+  }
 
   const church = first(
     await db
@@ -199,10 +290,10 @@ export async function assertCanManageSpaceLibrary(
   if (!church) return refusal;
 
   const viaCapability = await assertCanManageChurchLibrary(userId, space.orgId);
-  if (viaCapability.ok) return { ok: true, church, space };
+  if (viaCapability.ok) return { ok: true, lane: 'church', church, space };
 
   if (await isGrantedSpaceLeader(userId, space.id)) {
-    return { ok: true, church, space };
+    return { ok: true, lane: 'church', church, space };
   }
 
   return {
@@ -330,6 +421,33 @@ export async function resolveVisibleItem(
       .limit(1),
   )?.item;
   if (owned) return owned;
+
+  /* A room's own shelf. Membership in that room is the whole check — a
+     space-owned item carries no audience or scope rows, because the room it
+     belongs to is already the answer to both. */
+  const spaceOwned = first(
+    await db
+      .select({ item: LibraryItems, spaceId: ResourceLibraries.ownerId })
+      .from(LibraryItems)
+      .innerJoin(ResourceLibraries, eq(LibraryItems.libraryId, ResourceLibraries.id))
+      .where(and(eq(LibraryItems.id, itemId), eq(ResourceLibraries.ownerKind, 'space')))
+      .limit(1),
+  );
+  if (spaceOwned) {
+    const membership = first(
+      await db
+        .select({ id: SpaceMemberships.id })
+        .from(SpaceMemberships)
+        .where(
+          and(
+            eq(SpaceMemberships.spaceId, spaceOwned.spaceId),
+            eq(SpaceMemberships.userId, userId),
+          ),
+        )
+        .limit(1),
+    );
+    return membership ? spaceOwned.item : null;
+  }
 
   const viewer = await resolveChurchLibraryViewer(userId);
   if (viewer.kind === 'none') return null;
