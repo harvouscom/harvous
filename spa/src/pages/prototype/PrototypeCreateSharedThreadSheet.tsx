@@ -4,6 +4,7 @@ import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
 import { useCreateSharedThread, type CreatedSharedThread } from '../../hooks/mutations/useCreateSharedThread';
 import { useSetCurrentSpaceThread } from '../../hooks/mutations/useSetCurrentSpaceThread';
+import { useAttachNotesToCurrentThread } from '../../hooks/mutations/useAttachNotesToCurrentThread';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
@@ -18,6 +19,12 @@ type Props = {
   spaceId: string;
   spaceColor?: string | null;
   isOwner: boolean;
+  /**
+   * Notes chosen before this opened — from the sidebar's multi-select.
+   * Attached after create, because a shared Thread is created from a title
+   * alone; there is no note picker in this sheet to show them in.
+   */
+  initialNoteIds?: string[];
   onCreated: (thread: CreatedSharedThread) => void;
   onPinFailure?: () => Promise<unknown> | unknown;
 };
@@ -38,12 +45,14 @@ export default function PrototypeCreateSharedThreadSheet({
   spaceId,
   spaceColor,
   isOwner,
+  initialNoteIds,
   onCreated,
   onPinFailure,
 }: Props) {
   const { isMobileSidebar } = useProtoShell();
   const createThread = useCreateSharedThread();
   const setCurrent = useSetCurrentSpaceThread();
+  const attachNotes = useAttachNotesToCurrentThread();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
@@ -115,6 +124,23 @@ export default function PrototypeCreateSharedThreadSheet({
     try {
       const thread = await createThread.mutateAsync({ spaceId, title, color: spaceColor });
       setCreatedThread(thread);
+      /*
+        Notes chosen before opening this, in two steps because creating a shared
+        Thread takes a title and nothing else. Attaching before the pin so the
+        Thread the space lands on already has its notes in it rather than
+        filling in a beat later.
+
+        A failure here does not fail the create: the Thread exists, and saying so
+        while offering the notes again beats an error that implies nothing
+        happened.
+      */
+      if (initialNoteIds?.length) {
+        try {
+          await attachNotes.mutateAsync({ spaceId, threadId: thread.id, noteIds: initialNoteIds });
+        } catch {
+          setActionError('Thread created, but those notes could not be added to it.');
+        }
+      }
       await pinCreatedThread(thread);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Could not start this Thread.');
@@ -172,6 +198,16 @@ export default function PrototypeCreateSharedThreadSheet({
           disabled={isPending || createdThread !== null}
         />
       </div>
+
+      {/* This sheet has no note list, so without a line saying so the selection
+          you made a moment ago vanishes into a title field. */}
+      {initialNoteIds?.length && !createdThread ? (
+        <p className="proto-caption">
+          {initialNoteIds.length === 1
+            ? 'Starts with the 1 note you selected.'
+            : `Starts with the ${initialNoteIds.length} notes you selected.`}
+        </p>
+      ) : null}
 
       {createdThread ? (
         <p className="proto-caption">“{createdThread.title}” was created. Retry setting this same Thread as current.</p>

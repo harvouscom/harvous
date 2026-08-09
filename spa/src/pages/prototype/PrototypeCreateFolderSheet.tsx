@@ -189,7 +189,11 @@ export default function PrototypeCreateFolderSheet({
         onSelectedIdsChange={setSelectedIds}
         onPoolChange={setCandidatePool}
         showListScopeToggle={!useMyHomeCandidates}
-        defaultListScope={useMyHomeCandidates ? 'all' : 'unsorted'}
+        /* Same reason as the thread sheet: "Unsorted" hides anything already
+           filed, so notes chosen in the sidebar arrived invisible and unticked. */
+        defaultListScope={
+          useMyHomeCandidates || initialSelectedNoteIds?.length ? 'all' : 'unsorted'
+        }
         showOriginFilter={useMyHomeCandidates}
         defaultOriginScope="this-space"
       />

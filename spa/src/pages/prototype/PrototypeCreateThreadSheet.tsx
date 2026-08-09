@@ -158,7 +158,14 @@ export default function PrototypeCreateThreadSheet({
         selectedIds={selectedIds}
         onSelectedIdsChange={setSelectedIds}
         showListScopeToggle
-        defaultListScope="unsorted"
+        /*
+          Arriving with notes already chosen means opening on the scope that can
+          show them. "Unsorted" hides anything already filed, so a selection made
+          in the sidebar landed in a picker where none of it appeared and nothing
+          was ticked — the Create button lighting up was the only sign it had
+          been carried across at all.
+        */
+        defaultListScope={initialSelectedNoteIds?.length ? 'all' : 'unsorted'}
       />
 
       {actionError ? (

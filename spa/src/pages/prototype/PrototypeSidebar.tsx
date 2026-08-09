@@ -4009,6 +4009,7 @@ export default function PrototypeSidebar({
               spaceId={homeSpaceId}
               spaceColor={activeSharedSpace?.color}
               isOwner={viewerIsSpaceOwner}
+              initialNoteIds={createThreadPrefill?.noteIds}
               onPinFailure={() => groupThreadsQuery.refetch()}
               onCreated={(thread) => {
                 setSidebarListMode('threads');
