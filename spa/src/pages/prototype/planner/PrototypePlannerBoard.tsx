@@ -33,10 +33,8 @@ import { localTodayIso, sermonTimeLabel } from '../../../lib/church-services';
 import {
   BACKLOG_DROPPABLE_ID,
   buildPlannerWeeks,
-  buildSeriesRuns,
   parseDroppableId,
   partitionPlan,
-  seriesIdsByWeek,
   sermonsInWeek,
   type PlannerWeek,
 } from '../../../lib/planner-board';
@@ -49,21 +47,6 @@ const INITIAL_WEEKS = 8;
 const WEEKS_STEP = 8;
 
 /** One series crossing one week column, and which sides it carries on to. */
-type ColumnBand = {
-  seriesId: string;
-  accent: SpaceCoverPickerColor | null;
-  /** Rendered only on the run's first column — a name per week is a stutter. */
-  label: string | null;
-  /** "3 of 8", beside the name. Null unless this is the run's first column. */
-  progress: string | null;
-  /**
-   * Whether this week is written — every sermon it holds for this series has a
-   * passage. Filled segments read as done, hollow ones as still to write.
-   */
-  written: boolean;
-  continuesLeft: boolean;
-  continuesRight: boolean;
-};
 
 /**
  * The run band above a week's cards — a progress spine, not a rule.
@@ -81,43 +64,6 @@ type ColumnBand = {
  * eight-week run reads as five solid and three hollow without anyone reading a
  * number, which is the whole reason colour is here rather than decoration.
  */
-function SeriesBands({ bands }: { bands: ColumnBand[] }) {
-  if (bands.length === 0) return null;
-  return (
-    <div className="proto-planner-column__bands">
-      {bands.map((band) => (
-        <div
-          key={band.seriesId}
-          className={[
-            'proto-planner-band',
-            band.written ? '' : 'proto-planner-band--unwritten',
-            band.continuesLeft ? 'proto-planner-band--from-left' : '',
-            band.continuesRight ? 'proto-planner-band--to-right' : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-          data-series-accent={band.accent ?? undefined}
-        >
-          {/* Named once, at the run's start. The label is what keeps this
-              readable without colour; the count is what makes the fill legible
-              to anyone who would rather read it than scan it. */}
-          {band.label ? (
-            <span className="proto-caption proto-planner-band__label" title={band.label}>
-              {/* The same mark the cards below it wear, so the run's header and
-                  its weeks are recognisably one thing. The band's own rule
-                  stays: it is the only device here that can show a run
-                  *continuing* across a column gap, which a mark cannot. */}
-              <ProtoSeriesPill accent={band.accent} name={band.label} />
-              {band.progress ? (
-                <span className="proto-planner-band__progress">{band.progress}</span>
-              ) : null}
-            </span>
-          ) : null}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function Column({
   id,
@@ -125,7 +71,6 @@ function Column({
   subtitle,
   count,
   accented,
-  bands,
   canDrop,
   onAdd,
   children,
@@ -135,7 +80,6 @@ function Column({
   subtitle?: string;
   count: number;
   accented?: boolean;
-  bands?: ColumnBand[];
   canDrop: boolean;
   onAdd?: () => void;
   children: React.ReactNode;
@@ -172,7 +116,10 @@ function Column({
           </button>
         ) : null}
       </header>
-      <SeriesBands bands={bands ?? []} />
+      {/* The run band moved to the calendar. A board column is one week, and
+          how long a run lasts is a question about time — which the calendar
+          answers by spanning the days it covers. Here the pill on each card
+          says which run it belongs to, and that is the whole job. */}
       <div className="proto-planner-column__body">
         {count === 0 ? (
           <p className="proto-caption proto-planner-column__empty">Nothing yet</p>
@@ -235,56 +182,6 @@ export default function PrototypePlannerBoard({
     (the plan payload joins it), so the label comes from the plan rather than
     from a second lookup that could disagree with the card underneath it.
   */
-  const bandsByWeek = useMemo(() => {
-    const titles = new Map<string, string>();
-    /*
-      Written/total per series, counted across the *whole plan* rather than the
-      visible columns — "3 of 8" has to mean three of the eight weeks in the
-      series, not three of however many happen to be on screen. A week counts as
-      written when it has a passage, the same test the placeholder card and the
-      series lane's "N to fill" already use.
-    */
-    const progress = new Map<string, { written: number; total: number }>();
-    for (const service of services) {
-      if (!service.seriesId) continue;
-      if (service.seriesTitle) titles.set(service.seriesId, service.seriesTitle);
-      const entry = progress.get(service.seriesId) ?? { written: 0, total: 0 };
-      entry.total += 1;
-      if (service.reference) entry.written += 1;
-      progress.set(service.seriesId, entry);
-    }
-
-    /** Is every sermon this week holds for this series written? */
-    const weekWritten = (seriesId: string, week: PlannerWeek) => {
-      const inWeek = sermonsInWeek(byDate, week).filter((s) => s.seriesId === seriesId);
-      return inWeek.length > 0 && inWeek.every((s) => Boolean(s.reference));
-    };
-
-    const runs = buildSeriesRuns(seriesIdsByWeek(byDate, weeks));
-    return weeks.map((week, index) =>
-      runs
-        .filter((run) => run.startIndex <= index && index <= run.endIndex)
-        .map<ColumnBand>((run) => {
-          const isFirst = run.startIndex === index;
-          const counts = progress.get(run.seriesId);
-          return {
-            seriesId: run.seriesId,
-            accent: accentFor(run.seriesId),
-            label: isFirst ? (titles.get(run.seriesId) ?? null) : null,
-            /* Only when some of it is still to write. A finished run saying
-               "8 of 8" is a number nobody needs. */
-            progress:
-              isFirst && counts && counts.written < counts.total
-                ? `${counts.written} of ${counts.total}`
-                : null,
-            written: weekWritten(run.seriesId, week),
-            continuesLeft: run.startIndex < index,
-            continuesRight: run.endIndex > index,
-          };
-        }),
-    );
-  }, [services, byDate, weeks, accentFor]);
-
   const dragging = draggingId ? services.find((s) => s.id === draggingId) ?? null : null;
 
   const onDragEnd = (event: DragEndEvent) => {
@@ -345,7 +242,6 @@ export default function PrototypePlannerBoard({
               subtitle={week.isCurrent ? 'This week' : undefined}
               count={inWeek.length}
               accented={week.isCurrent}
-              bands={bandsByWeek[index]}
               canDrop={canWrite}
               onAdd={canWrite ? () => onSelect({ mode: 'create', date: week.startIso }) : undefined}
             >

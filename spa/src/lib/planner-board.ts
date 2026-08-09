@@ -259,3 +259,73 @@ export function seriesIdsByWeek<T extends PlannerSermonLike & { seriesId?: strin
       .filter((id): id is string => Boolean(id)),
   );
 }
+
+/**
+ * Where a series' band sits on a month grid.
+ *
+ * The calendar is the planner's picture of *time*, so a run's continuity
+ * belongs here rather than on the board, whose columns are one week each and
+ * whose job is what you are planning, not how long it lasts. The band replaced
+ * a wash of the whole day cell: a wash colours the days a series touches, but
+ * says nothing about the space between them, and a series that meets on two
+ * days of one week read as two unrelated tinted squares.
+ *
+ * One band per series per week row, spanning that row's first to last day for
+ * the run — so a weekly series is one cell wide and a conference is five.
+ * Rows are computed rather than the whole month spanned, because a month grid
+ * wraps: a band from the 30th to the 2nd would have to cross a line break,
+ * which grid cannot draw and a reader would not follow.
+ */
+export type CalendarSeriesBand = {
+  key: string;
+  /** 1-based CSS grid row, counting the weekday header out. */
+  row: number;
+  /** 1-based CSS grid column of the run's first day in this row. */
+  colStart: number;
+  /** How many columns it covers. */
+  colSpan: number;
+  seriesId: string;
+  label: string | null;
+};
+
+export function calendarSeriesBands(
+  cells: readonly { iso: string }[],
+  servicesByDate: ReadonlyMap<string, readonly { seriesId: string | null; seriesTitle: string | null }[]>,
+): CalendarSeriesBand[] {
+  const bands: CalendarSeriesBand[] = [];
+  const weeks = Math.ceil(cells.length / 7);
+
+  for (let week = 0; week < weeks; week += 1) {
+    /** seriesId → the columns it occupies in this row, and its name. */
+    const spans = new Map<string, { min: number; max: number; label: string | null }>();
+
+    for (let col = 0; col < 7; col += 1) {
+      const cell = cells[week * 7 + col];
+      if (!cell) continue;
+      for (const service of servicesByDate.get(cell.iso) ?? []) {
+        if (!service.seriesId) continue;
+        const existing = spans.get(service.seriesId);
+        if (existing) {
+          existing.min = Math.min(existing.min, col);
+          existing.max = Math.max(existing.max, col);
+          existing.label = existing.label ?? service.seriesTitle;
+        } else {
+          spans.set(service.seriesId, { min: col, max: col, label: service.seriesTitle });
+        }
+      }
+    }
+
+    for (const [seriesId, span] of spans) {
+      bands.push({
+        key: `${week}:${seriesId}`,
+        row: week + 1,
+        colStart: span.min + 1,
+        colSpan: span.max - span.min + 1,
+        seriesId,
+        label: span.label,
+      });
+    }
+  }
+
+  return bands;
+}

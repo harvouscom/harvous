@@ -37,7 +37,12 @@ import {
   formatProtoDatePickerMonthLabel,
   parseLocalDateInput,
 } from '../../../lib/proto-date-picker';
-import { dayDroppableId, parseDroppableId, partitionPlan } from '../../../lib/planner-board';
+import {
+  calendarSeriesBands,
+  dayDroppableId,
+  parseDroppableId,
+  partitionPlan,
+} from '../../../lib/planner-board';
 import PrototypePlannerCard, { PlannerCardBody } from './PrototypePlannerCard';
 import type { PlannerSelection } from './PrototypeExpandedPlanner';
 
@@ -48,8 +53,9 @@ function DayCell({
   day,
   inMonth,
   isToday,
-  accents,
   colorScheme,
+  gridRow,
+  gridColumn,
   canDrop,
   onAdd,
   children,
@@ -70,9 +76,11 @@ function DayCell({
    * Sundays carrying the same rule is the run, and the week the colour changes
    * is where the series did.
    */
-  accents: SpaceCoverPickerColor[];
   /** Resolved once by the grid, not per cell — see the day map below. */
   colorScheme: 'light' | 'dark';
+  /** Explicit placement — see the call site. */
+  gridRow: number;
+  gridColumn: number;
   canDrop: boolean;
   onAdd?: () => void;
   children: React.ReactNode;
@@ -81,6 +89,7 @@ function DayCell({
   return (
     <div
       ref={setNodeRef}
+      style={{ gridRow, gridColumn }}
       className={[
         'proto-planner-day',
         inMonth ? '' : 'proto-planner-day--outside',
@@ -90,19 +99,6 @@ function DayCell({
         .filter(Boolean)
         .join(' ')}
     >
-      {accents.length > 0 ? (
-        <div className="proto-planner-day__series" aria-hidden>
-          {accents.map((accent, index) => (
-            <span
-              key={`${accent}-${index}`}
-              className="proto-planner-day__series-mark"
-              /* The tile colour, so the cell and the pill on the chip inside
-                 it are the same hue — see the CSS note. */
-              style={{ ['--space-icon-accent' as string]: spaceIconAccentHex(accent, colorScheme) }}
-            />
-          ))}
-        </div>
-      ) : null}
       <div className="proto-planner-day__head">
         <span className="proto-planner-day__number">{day}</span>
         {onAdd ? (
@@ -161,6 +157,10 @@ export default function PrototypePlannerCalendar({
     [cursor],
   );
   const { backlog, byDate } = useMemo(() => partitionPlan(services), [services]);
+
+  /* One band per series per week row — see calendarSeriesBands for why a run
+     never spans a row break. */
+  const seriesBands = useMemo(() => calendarSeriesBands(cells, byDate), [cells, byDate]);
   const timeLabel = (service: TeachingPlanSermon) => sermonTimeLabel(service, serviceTimes);
   const dragging = draggingId ? services.find((s) => s.id === draggingId) ?? null : null;
 
@@ -169,18 +169,6 @@ export default function PrototypePlannerCalendar({
     same series is one run standing on that day and gets one mark. Two different
     series get two, which is the case the marks exist to tell apart.
   */
-  const accentsForDay = (iso: string): SpaceCoverPickerColor[] => {
-    const seen = new Set<string>();
-    const accents: SpaceCoverPickerColor[] = [];
-    for (const service of byDate.get(iso) ?? []) {
-      if (!service.seriesId || seen.has(service.seriesId)) continue;
-      seen.add(service.seriesId);
-      const accent = accentFor(service.seriesId);
-      if (accent) accents.push(accent);
-    }
-    return accents;
-  };
-
   const onDragEnd = (event: DragEndEvent) => {
     setDraggingId(null);
     const overId = event.over ? String(event.over.id) : null;
@@ -229,15 +217,44 @@ export default function PrototypePlannerCalendar({
           </div>
 
           <div className="proto-planner-calendar__grid">
-            {cells.map((cell) => (
+            {/*
+              Bands first, so they paint under the cells' own content. They are
+              grid items placed on the same tracks as the days they cover —
+              grid allows the overlap, which is what lets a run read as one
+              object spanning several columns instead of N tinted squares.
+            */}
+            {seriesBands.map((band) => (
+              <span
+                key={band.key}
+                className="proto-planner-calendar__band"
+                style={{
+                  gridRow: band.row,
+                  gridColumn: `${band.colStart} / span ${band.colSpan}`,
+                  ['--space-icon-accent' as string]: spaceIconAccentHex(
+                    accentFor(band.seriesId) ?? 'paper',
+                    colorScheme,
+                  ),
+                }}
+                title={band.label ?? undefined}
+                aria-hidden
+              />
+            ))}
+            {cells.map((cell, index) => (
               <DayCell
                 colorScheme={colorScheme}
                 key={cell.iso}
+                /*
+                  Placed explicitly, not auto-flowed. The bands above are grid
+                  items with their own row/column, and an explicitly placed item
+                  makes auto-placement skip the cells it occupies — which slid
+                  every day after the first band a column to the right.
+                */
+                gridRow={Math.floor(index / 7) + 1}
+                gridColumn={(index % 7) + 1}
                 iso={cell.iso}
                 day={cell.day}
                 inMonth={cell.inMonth}
                 isToday={cell.iso === today}
-                accents={accentsForDay(cell.iso)}
                 canDrop={canWrite}
                 onAdd={canWrite ? () => onSelect({ mode: 'create', date: cell.iso }) : undefined}
               >

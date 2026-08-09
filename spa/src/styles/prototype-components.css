@@ -14247,50 +14247,27 @@ p.proto-teaching-plan__divider {
   font-size: 10px;
 }
 
-/* ── Series on a day cell (calendar) ────────────────────────────────────────
-   A rule across the top of the cell, one segment per series standing on it.
+/* ── Series bands (calendar) ────────────────────────────────────────────────
+   A run drawn across the days it covers, on the view that represents time.
 
-   Continuity here reads *down* the column, not across the row: an eight-week
-   series touches one cell per week row, so five Sundays wearing the same rule
-   is what a run looks like on a month grid. That is also why this is a full-
-   width rule rather than the board's bridged band — there is nothing adjacent
-   to bridge to. */
-.proto-planner-day__series {
-  /* Absolutely placed so the wash fills the cell behind its content rather
-     than taking a strip of it — a 3px rule read as a border on a grid that is
-     already ruled, which is exactly why a run did not show as a run. */
-  position: absolute;
-  inset: 0;
-  display: flex;
-  border-radius: inherit;
-  overflow: hidden;
-  pointer-events: none;
-}
+   This replaced a wash of each day cell. A wash colours the days a series
+   touches but says nothing about the space between them, so a run meeting
+   twice in one week read as two unrelated tinted squares — and on a grid that
+   is already ruled, a tinted cell reads as a state (selected, today) rather
+   than as a span.
 
-.proto-planner-day__series-mark {
-  flex: 1 1 auto;
-  min-width: 0;
-  /*
-    The icon block's own tile colour, not a bespoke mix. `--pds-series-accent`
-    was a 72%-toward-text darkening built for 2px trim, and washing a cell in
-    it needed an arbitrary alpha to become bearable — which is what made it
-    read as an odd grey-green rather than as the series. `--space-icon-accent`
-    is already the soft, light fill the series' own face wears, so the cell and
-    the pill on the chip inside it are the same colour by construction.
-  */
+   Placed as a grid item over the same tracks as the days beneath it, which is
+   what lets one element cover several columns. `pointer-events: none` keeps
+   the day cells' own drop targets and add buttons reachable through it. */
+.proto-planner-calendar__band {
+  align-self: start;
+  margin: 2px 2px 0;
+  height: 4px;
+  border-radius: 999px;
   background: var(--space-icon-accent, transparent);
-}
-
-/* Two series on one day still need telling apart, and side-by-side washes
-   meet with no seam. A hairline between them costs nothing when there is one. */
-.proto-planner-day__series-mark + .proto-planner-day__series-mark {
-  border-left: 0.5px solid var(--pds-border);
-}
-
-/* A day outside the month is context, not plan — its wash recedes with it so
-   the eye still stops at the month's own boundary. */
-.proto-planner-day--outside .proto-planner-day__series-mark {
-  opacity: 0.4;
+  pointer-events: none;
+  /* Under the cells' content, above their background. */
+  z-index: 0;
 }
 
 /* ── Series on a list row ───────────────────────────────────────────────────
@@ -14410,11 +14387,10 @@ p.proto-teaching-plan__divider {
   carries the colour at any weight this needs.
 */
 .proto-planner-card[data-in-series='true'] {
-  /* No tinted left border. It sat on the edge a reader never looks at, at a
-     weight that disappeared against the canvas, and it was one of four ways
-     the planner said "series" — see .proto-series-mark, which is now the one
-     way. Kept as a hook: the attribute still marks the card for anything that
-     needs to know, without spending the border on it. */
+  /* No tinted left border, and no run band above the column either — the board
+     plans a week at a time, and how long a run lasts is the calendar's
+     question. The card's pill says which run it belongs to; that is the whole
+     job here. Kept as a hook for anything that needs to know. */
 }
 
 /* Hover brightens the whole border; the series edge keeps its own hue rather
@@ -14647,8 +14623,6 @@ p.proto-teaching-plan__divider {
 }
 
 .proto-planner-day {
-  /* Containing block for the series wash, which fills the cell behind its
-     content — see .proto-planner-day__series. */
   position: relative;
   display: flex;
   flex-direction: column;
@@ -14686,7 +14660,7 @@ p.proto-teaching-plan__divider {
   border-color: var(--pds-accent, var(--pds-text-primary));
 }
 
-/* Above the wash, which is inset:0 behind everything in the cell. */
+/* Above the series band, which is a grid item painted under the cells. */
 .proto-planner-day__head,
 .proto-planner-day .proto-planner-card {
   position: relative;
