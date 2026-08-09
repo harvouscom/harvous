@@ -560,6 +560,77 @@ app.post(
   },
 );
 
+// ─── POST /api/church/spaces/:spaceId/library/items/update ──────────────────
+/**
+ * Correcting what a resource on this room's shelf says.
+ *
+ * Title and description only. What the resource *is* — its link, its file — is
+ * not editable: swapping the target under a title everyone already recognises
+ * is how a shelf starts lying about itself. Wrong thing on the shelf is a
+ * remove and an add.
+ *
+ * Scoped to the room's own library for the same reason `archive` is: an
+ * org-wide item is the church's to word, not a leader's.
+ */
+app.post(
+  '/api/church/spaces/:spaceId/library/items/update',
+  requireAuth,
+  rateLimit('write'),
+  async (c) => {
+    try {
+      const auth = getAuthenticatedAuth(c);
+      const gate = await assertCanManageSpaceLibrary(auth.userId, c.req.param('spaceId') ?? '');
+      if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+      const body = (await c.req.json().catch(() => ({}))) as {
+        id?: string;
+        title?: string;
+        description?: string | null;
+      };
+      const itemId = clean(body.id, 200);
+      if (!itemId) return c.json({ error: 'id is required', code: 'BAD_REQUEST' }, 400);
+
+      const library = await findSpaceLibrary(gate.space.id);
+      const existing = library
+        ? first(
+            await db
+              .select({ id: LibraryItems.id })
+              .from(LibraryItems)
+              .where(and(eq(LibraryItems.id, itemId), eq(LibraryItems.libraryId, library.id)))
+              .limit(1),
+          )
+        : undefined;
+      if (!existing) {
+        return c.json(
+          { error: "That resource is not this space's to edit", code: 'ITEM_NOT_FOUND' },
+          404,
+        );
+      }
+
+      const updates: { updatedAt: Date; title?: string; description?: string | null } = {
+        updatedAt: new Date(),
+      };
+      if (body.title !== undefined) {
+        const title = clean(body.title, TITLE_MAX_LENGTH);
+        if (!title) return c.json({ error: 'A title is required', code: 'BAD_REQUEST' }, 400);
+        updates.title = title;
+      }
+      if (body.description !== undefined) {
+        updates.description = clean(body.description, DESCRIPTION_MAX_LENGTH);
+      }
+
+      await db.update(LibraryItems).set(updates).where(eq(LibraryItems.id, itemId));
+      return c.json({ success: true });
+    } catch (error) {
+      const standardError = handleAPIError(error, {
+        endpoint: '/api/church/spaces/[spaceId]/library/items/update',
+        action: 'space_library_update',
+      });
+      return c.json({ error: standardError.message, code: standardError.code }, 500);
+    }
+  },
+);
+
 // ─── POST /api/church/spaces/:spaceId/library/items/archive ─────────────────
 /**
  * Taking a resource off this room's shelf.

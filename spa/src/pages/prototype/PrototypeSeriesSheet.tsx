@@ -24,6 +24,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
+import ProtoConfirmDialog from './ProtoConfirmDialog';
 import type {
   TeachingPlanSeries,
   TeachingPlanSermon,
@@ -214,6 +215,12 @@ export default function PrototypeSeriesSheet({
      decision and would quietly shorten somebody else's run. */
   const assignable = planServices.filter((s) => !s.seriesId);
 
+  /* Both confirms live here rather than in the parent: this is where the
+     buttons are, and an anchored confirm needs the rect of the thing that
+     raised it. The parents used to ask with `window.confirm` from inside a
+     callback, which is also why they could not anchor. */
+  const [emptyAnchor, setEmptyAnchor] = useState<DOMRect | null>(null);
+  const [deleteAnchor, setDeleteAnchor] = useState<DOMRect | null>(null);
   const removable = services.filter(
     (s) => !s.reference && s.title.trim() === series.title.trim(),
   );
@@ -657,19 +664,7 @@ export default function PrototypeSeriesSheet({
             type="button"
             className="proto-sheet-quiet-action"
             disabled={pending}
-            onClick={() => {
-              const count = removable.length;
-              if (
-                !window.confirm(
-                  count === 1
-                    ? 'Remove the one empty week from this series? Nothing written is touched.'
-                    : `Remove ${count} empty weeks from this series? Nothing written is touched.`,
-                )
-              ) {
-                return;
-              }
-              onRemoveEmpty(series, removable.map((s) => s.id));
-            }}
+            onClick={(e) => setEmptyAnchor(e.currentTarget.getBoundingClientRect())}
           >
             {removable.length === 1 ? 'Remove 1 empty week' : `Remove ${removable.length} empty weeks`}
           </button>
@@ -696,11 +691,54 @@ export default function PrototypeSeriesSheet({
             type="button"
             className="proto-sheet-quiet-action proto-sheet-quiet-action--danger"
             disabled={pending}
-            onClick={() => onDelete(series)}
+            onClick={(e) => setDeleteAnchor(e.currentTarget.getBoundingClientRect())}
           >
             Delete series
           </button>
         </div>
+      ) : null}
+
+      {emptyAnchor ? (
+        <ProtoConfirmDialog
+          anchorRect={emptyAnchor}
+          preferAbove
+          alignRight
+          title={
+            removable.length === 1
+              ? 'Remove the one empty week?'
+              : `Remove ${removable.length} empty weeks?`
+          }
+          description="Nothing written is touched."
+          confirmLabel="Remove"
+          busy={pending}
+          onConfirm={() => {
+            setEmptyAnchor(null);
+            onRemoveEmpty(
+              series,
+              removable.map((s) => s.id),
+            );
+          }}
+          onCancel={() => setEmptyAnchor(null)}
+        />
+      ) : null}
+
+      {deleteAnchor ? (
+        <ProtoConfirmDialog
+          anchorRect={deleteAnchor}
+          preferAbove
+          alignRight
+          title={`Delete "${series.title}"?`}
+          description={`The ${
+            services.length === 1 ? '1 week' : `${services.length} weeks`
+          } under it stay in the plan — they just won't belong to a series.`}
+          confirmLabel="Delete"
+          busy={pending}
+          onConfirm={() => {
+            setDeleteAnchor(null);
+            onDelete(series);
+          }}
+          onCancel={() => setDeleteAnchor(null)}
+        />
       ) : null}
     </>
   );

@@ -74,7 +74,10 @@ export type SpaceLibraryAction =
   | { kind: 'pin'; itemId: string; pinned: boolean; sortOrder?: number }
   /* Only what the room owns. An org-wide item belongs to the church; taking it
      out of this room is `pin: false`, not an archive. */
-  | { kind: 'archive'; itemId: string };
+  | { kind: 'archive'; itemId: string }
+  /* Title and description only — what the resource points at is fixed once
+     added, so a shelf cannot quietly start meaning something else. */
+  | { kind: 'update'; itemId: string; title?: string; description?: string | null };
 
 /**
  * Stocking one room's shelf.
@@ -92,6 +95,14 @@ export function useSpaceLibraryActions(spaceId: string | null | undefined) {
     mutationFn: async (action: SpaceLibraryAction) => {
       if (!trimmed) throw new Error('No space');
       const base = `/api/church/spaces/${encodeURIComponent(trimmed)}/library`;
+
+      if (action.kind === 'update') {
+        return api.post<{ success: boolean }>(`${base}/items/update`, {
+          id: action.itemId,
+          title: action.title,
+          description: action.description,
+        });
+      }
 
       if (action.kind === 'archive') {
         return api.post<{ success: boolean }>(`${base}/items/archive`, { id: action.itemId });

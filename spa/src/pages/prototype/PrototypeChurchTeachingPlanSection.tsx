@@ -522,14 +522,6 @@ export default function PrototypeChurchTeachingPlanSection({
             and it is the whole reason delete is offered at all: the sermons
             stay, they simply stop belonging to a series.
           */
-          const weeks = entry.serviceCount === 1 ? '1 week' : `${entry.serviceCount} weeks`;
-          if (
-            !window.confirm(
-              `Delete "${entry.title}"? The ${weeks} under it stay in the plan — they just won't belong to a series.`,
-            )
-          ) {
-            return;
-          }
           runSeries({ kind: 'series-delete', seriesId: entry.id }, () => setOpenSeries(null));
         }}
         /*

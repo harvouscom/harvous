@@ -20,6 +20,7 @@
  * adding a week to is nearly always the current one.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import ProtoConfirmDialog from './ProtoConfirmDialog';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { APIError } from '../../lib/api';
@@ -470,11 +471,10 @@ export default function PrototypeSermonEditorFields({
     );
   };
 
+  const [removeAnchor, setRemoveAnchor] = useState<DOMRect | null>(null);
+
   const remove = () => {
     if (!service) return;
-    if (!window.confirm(`Remove ${service.title} from the plan? Notes people already took stay in their own Harvous.`)) {
-      return;
-    }
     setError(null);
     actions.mutate(
       { kind: 'delete', serviceId: service.id },
@@ -1015,13 +1015,34 @@ export default function PrototypeSermonEditorFields({
               type="button"
               className="proto-sheet-quiet-action proto-sheet-quiet-action--danger"
               disabled={actions.isPending}
-              onClick={remove}
+              onClick={(e) => setRemoveAnchor(e.currentTarget.getBoundingClientRect())}
             >
               Remove from plan
             </button>
           </div>
         ) : null}
       </div>
+      {/* Anchored to the button that raised it, like every other destructive
+          confirm in the prototype. This used to be `window.confirm` — an OS
+          dialog with its own type, radius and buttons, dropped into the middle
+          of a surface that has spent every other pixel not looking like that. */}
+      {removeAnchor ? (
+        <ProtoConfirmDialog
+          anchorRect={removeAnchor}
+          preferAbove
+          alignRight
+          title={`Remove ${service?.title ?? "this"} from the plan?`}
+          description="Notes people already took stay in their own Harvous."
+          confirmLabel="Remove"
+          busy={actions.isPending}
+          onConfirm={() => {
+            setRemoveAnchor(null);
+            remove();
+          }}
+          onCancel={() => setRemoveAnchor(null)}
+        />
+      ) : null}
     </>
+
   );
 }

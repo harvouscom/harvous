@@ -596,6 +596,7 @@ function SpaceShelfList({
   canManage,
   onRemoveItem,
   onTogglePin,
+  onRenameItem,
   removingId,
 }: {
   items: SpaceLibraryItem[];
@@ -605,6 +606,7 @@ function SpaceShelfList({
   canManage: boolean;
   onRemoveItem: (item: SpaceLibraryItem) => void;
   onTogglePin: (item: SpaceLibraryItem) => void;
+  onRenameItem: (item: SpaceLibraryItem, title: string) => void;
   removingId: string | null;
 }) {
   const trimmed = query.trim().toLowerCase();
@@ -655,6 +657,7 @@ function SpaceShelfList({
           canManage={canManage}
           onRemove={() => onRemoveItem(item)}
           onTogglePin={() => onTogglePin(item)}
+          onRename={(title) => onRenameItem(item, title)}
           isRemoving={removingId === item.id}
         />
       ))}
@@ -669,6 +672,7 @@ function SpaceResourceRow({
   canManage = false,
   onRemove,
   onTogglePin,
+  onRename,
   isRemoving = false,
 }: {
   item: SpaceLibraryItem;
@@ -681,9 +685,14 @@ function SpaceResourceRow({
   canManage?: boolean;
   onRemove?: () => void;
   onTogglePin?: () => void;
+  onRename?: (title: string) => void;
   isRemoving?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  /* Renaming happens in the row rather than a sheet: the title is already
+     right there, and a sheet to change one line asks more than it gives. */
+  const [renaming, setRenaming] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(item.title);
   const rowRef = useRef<HTMLLIElement>(null);
   const menuRootRef = useRef<HTMLDivElement>(null);
   const subtitle = [
@@ -708,6 +717,35 @@ function SpaceResourceRow({
           : undefined
       }
     >
+      {renaming ? (
+        <div className="proto-note-row__main proto-note-row__rename">
+          <input
+            className="proto-create-folder-sheet__name-input"
+            value={draftTitle}
+            autoFocus
+            aria-label={`Rename ${item.title}`}
+            onChange={(e) => setDraftTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                const next = draftTitle.trim();
+                if (next && next !== item.title) onRename?.(next);
+                setRenaming(false);
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setDraftTitle(item.title);
+                setRenaming(false);
+              }
+            }}
+            onBlur={() => {
+              const next = draftTitle.trim();
+              if (next && next !== item.title) onRename?.(next);
+              setRenaming(false);
+            }}
+          />
+        </div>
+      ) : (
       <button
         type="button"
         className="proto-note-row__main"
@@ -731,7 +769,8 @@ function SpaceResourceRow({
           </div>
         ) : null}
       </button>
-      {canManage ? (
+      )}
+      {canManage && !renaming ? (
         <div
           className={`proto-menu proto-note-row__menu${menuOpen ? ' proto-note-row__menu--open' : ''}`}
           ref={menuRootRef}
@@ -758,6 +797,22 @@ function SpaceResourceRow({
             aria-label="Resource actions"
           >
             <div className="proto-menu-section" role="group">
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  setDraftTitle(item.title);
+                  setRenaming(true);
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="pen" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span className="proto-menu-item__label">Rename</span>
+              </button>
               <button
                 type="button"
                 role="menuitem"
@@ -1150,6 +1205,11 @@ export default function PrototypeResourceLibraryList({
             void spaceActions
               .mutateAsync({ kind: 'pin', itemId: item.id, pinned: !item.pinned })
               .catch((err) => toastError(err, 'Could not change that pin'));
+          }}
+          onRenameItem={(item, title) => {
+            void spaceActions
+              .mutateAsync({ kind: 'update', itemId: item.id, title })
+              .catch((err) => toastError(err, 'Could not rename that resource'));
           }}
         />
       ) : libraryQuery.isLoading ? (

@@ -209,10 +209,11 @@ export default function PrototypeChurchStaffSection({
         onSetRole={(member, role) => run({ kind: 'role', userId: member.userId, role })}
         pending={actions.isPending}
         error={openMember ? error : null}
-        onRemove={(member) => {
-          if (!window.confirm(`Remove ${member.displayName} from your team?`)) return;
-          run({ kind: 'remove', userId: member.userId }, () => setOpenMember(null));
-        }}
+        /* The sheet asks before calling this — the confirm belongs with the
+           button, not with the handler behind it. */
+        onRemove={(member) =>
+          run({ kind: 'remove', userId: member.userId }, () => setOpenMember(null))
+        }
         onOpenChange={(next) => {
           if (!next) {
             setOpenMember(null);

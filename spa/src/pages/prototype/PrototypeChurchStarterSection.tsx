@@ -11,6 +11,7 @@
  * church has, renaming one, describing it, and removing it.
  */
 import { useState } from 'react';
+import ProtoConfirmDialog from './ProtoConfirmDialog';
 import Icon from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
 import { NOTE_TEMPLATE_DESCRIPTION_MAX_LENGTH } from '@/data/note-templates';
@@ -94,14 +95,15 @@ export default function PrototypeChurchStarterSection({
     }
   };
 
+  /* The rect of the row's own delete button, and the template it belongs to —
+     an anchored confirm needs both, and `window.confirm` needed neither, which
+     is how it ended up asking from the middle of the screen. */
+  const [removeTarget, setRemoveTarget] = useState<{
+    template: StoredNoteTemplate;
+    anchorRect: DOMRect;
+  } | null>(null);
+
   const remove = async (template: StoredNoteTemplate) => {
-    if (
-      !window.confirm(
-        `Remove ${template.name} from your church's templates? Notes already written from it are untouched.`,
-      )
-    ) {
-      return;
-    }
     setError(null);
     try {
       await deleteTemplate.mutateAsync(template.id);
@@ -224,7 +226,9 @@ export default function PrototypeChurchStarterSection({
                     type="button"
                     className="proto-sheet-quiet-action proto-sheet-quiet-action--danger"
                     disabled={saving}
-                    onClick={() => void remove(template)}
+                    onClick={(e) =>
+                      setRemoveTarget({ template, anchorRect: e.currentTarget.getBoundingClientRect() })
+                    }
                   >
                     Remove from church
                   </button>
@@ -273,6 +277,23 @@ export default function PrototypeChurchStarterSection({
         <p className="proto-connect-note-sheet__error" role="alert">
           {error}
         </p>
+      ) : null}
+      {removeTarget ? (
+        <ProtoConfirmDialog
+          anchorRect={removeTarget.anchorRect}
+          preferAbove
+          alignRight
+          title={`Remove ${removeTarget.template.name}?`}
+          description="Notes already written from it are untouched."
+          confirmLabel="Remove"
+          busy={deleteTemplate.isPending}
+          onConfirm={() => {
+            const target = removeTarget.template;
+            setRemoveTarget(null);
+            void remove(target);
+          }}
+          onCancel={() => setRemoveTarget(null)}
+        />
       ) : null}
     </div>
   );

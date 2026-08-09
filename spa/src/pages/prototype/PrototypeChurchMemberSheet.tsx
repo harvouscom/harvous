@@ -13,10 +13,11 @@
  * (demoting yourself mid-request strands the church) and the last admin's
  * (a church with no admin can't get back into its own roster).
  */
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
+import ProtoConfirmDialog from './ProtoConfirmDialog';
 import type { ChurchStaffMember } from '../../hooks/queries/useChurchStaff';
 import { ASSIGNABLE_CHURCH_ROLES, churchRoleIcon } from '../../lib/church-roles';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -54,6 +55,10 @@ export default function PrototypeChurchMemberSheet({
   onRemove,
   onOpenChange,
 }: PrototypeChurchMemberSheetProps) {
+  /* Asked here, where the button is — the parent used to ask with
+     `window.confirm` from inside a callback, which is also why it could not
+     anchor to anything. */
+  const [removeAnchor, setRemoveAnchor] = useState<DOMRect | null>(null);
   const { isMobileSidebar } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -165,7 +170,7 @@ export default function PrototypeChurchMemberSheet({
             type="button"
             className="proto-sheet-quiet-action proto-sheet-quiet-action--danger"
             disabled={pending}
-            onClick={() => onRemove(member)}
+            onClick={(e) => setRemoveAnchor(e.currentTarget.getBoundingClientRect())}
           >
             {pending ? 'Removing…' : 'Remove from team'}
           </button>
@@ -217,6 +222,22 @@ export default function PrototypeChurchMemberSheet({
       >
         {content}
       </DrawerContent>
+      {removeAnchor && member ? (
+        <ProtoConfirmDialog
+          anchorRect={removeAnchor}
+          preferAbove
+          alignRight
+          title={`Remove ${member.displayName} from your team?`}
+          description="They keep their own notes; they just lose staff access."
+          confirmLabel="Remove"
+          busy={pending}
+          onConfirm={() => {
+            setRemoveAnchor(null);
+            onRemove(member);
+          }}
+          onCancel={() => setRemoveAnchor(null)}
+        />
+      ) : null}
     </Drawer.Root>
   );
 }

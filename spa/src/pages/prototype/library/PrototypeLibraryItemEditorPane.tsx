@@ -6,6 +6,7 @@
  * and a menu is what made the old shape unanswerable at a glance.
  */
 import { useEffect, useRef, useState } from 'react';
+import ProtoConfirmDialog from '../ProtoConfirmDialog';
 import Icon from '@/components/react/Icon';
 import { APIError } from '../../../lib/api';
 import type { PlannableSpace } from '../../../hooks/useChurchPlannerAccess';
@@ -247,11 +248,10 @@ export default function PrototypeLibraryItemEditorPane({
     );
   };
 
+  const [removeAnchor, setRemoveAnchor] = useState<DOMRect | null>(null);
+
   const remove = () => {
     if (!item) return;
-    if (!window.confirm(`Remove ${item.title} from the library? Notes that cite it keep working.`)) {
-      return;
-    }
     setError(null);
     actions.mutate(
       { kind: 'archive', id: item.id },
@@ -468,13 +468,34 @@ export default function PrototypeLibraryItemEditorPane({
               type="button"
               className="proto-sheet-quiet-action proto-sheet-quiet-action--danger"
               disabled={actions.isPending}
-              onClick={remove}
+              onClick={(e) => setRemoveAnchor(e.currentTarget.getBoundingClientRect())}
             >
               Remove from library
             </button>
           ) : null}
         </div>
       </div>
+      {/* Anchored to the button that raised it, like every other destructive
+          confirm in the prototype. This used to be `window.confirm` — an OS
+          dialog with its own type, radius and buttons, dropped into the middle
+          of a surface that has spent every other pixel not looking like that. */}
+      {removeAnchor ? (
+        <ProtoConfirmDialog
+          anchorRect={removeAnchor}
+          preferAbove
+          alignRight
+          title={`Remove ${item?.title ?? "this"} from the library?`}
+          description="Notes that cite it keep working."
+          confirmLabel="Remove"
+          busy={actions.isPending}
+          onConfirm={() => {
+            setRemoveAnchor(null);
+            remove();
+          }}
+          onCancel={() => setRemoveAnchor(null)}
+        />
+      ) : null}
     </aside>
+
   );
 }
