@@ -123,6 +123,7 @@ import {
 import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle, validateColor } from '@/utils/validation';
 import { rateLimit } from '@/utils/rate-limit';
+import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { generateSpaceId, generateShareToken, generateNoteId } from '@/utils/ids';
 import { idToUrl } from '@/utils/url-helpers';
 import { getHarvousSystemUserId } from '../utils/harvous-admin';
@@ -2028,21 +2029,48 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
     if (excludeIds.length === 1) baseFilters.push(ne(Notes.id, excludeIds[0]!));
     else if (excludeIds.length > 1) baseFilters.push(notInArray(Notes.id, excludeIds));
 
-    // Title, body, and tag names (substring ILIKE — same family as short /api/search queries).
+    /*
+      Same two-tier search as `/api/search`, not the short-query half of it.
+
+      This started as substring ILIKE only, with a comment calling it "the same
+      family as short /api/search queries" — true, and fine while this was a
+      modal you opened on purpose. It is an always-open field in the inspector
+      now, and people type into it the way they type into the search bar: they
+      expect "running" to find "run" and they expect the best match first.
+
+      So: full-text search with English stemming, GIN-indexed, OR'd with
+      substring ILIKE for the partial words stemming would miss ("tab" →
+      "tables"), ranked by ts_rank and falling back to recency. Under three
+      characters FTS is skipped entirely — `plainto_tsquery('go')` matches
+      almost nothing useful, so short queries stay pure substring.
+    */
+    const useFTS = q.length >= MIN_SEARCH_QUERY_LENGTH;
     const searchPattern = `%${q}%`;
+    const tsQuery = sql`plainto_tsquery('english', ${q})`;
+    const noteTsVector = sql`to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || COALESCE(${Notes.content}, ''))`;
+
+    /*
+      Tag matches are scoped to the searcher's own tags, matching /api/search.
+      `Tags` are per-user, so an unscoped match in a shared space would let one
+      member's private label surface another member's note.
+    */
+    const tagMatchSql = sql`EXISTS (
+      SELECT 1 FROM ${NoteTags}
+      INNER JOIN ${Tags} ON ${Tags.id} = ${NoteTags.tagId}
+      WHERE ${NoteTags.noteId} = ${Notes.id}
+        AND ${Tags.userId} = ${auth.userId}
+        AND ${Tags.name} ILIKE ${searchPattern}
+    )`;
+
     const filters =
       q.length >= 1
         ? [
             ...baseFilters,
             or(
+              ...(useFTS ? [sql`${noteTsVector} @@ ${tsQuery}`] : []),
               sql`COALESCE(${Notes.title}, '') ILIKE ${searchPattern}`,
               sql`COALESCE(${Notes.content}, '') ILIKE ${searchPattern}`,
-              sql`EXISTS (
-                SELECT 1 FROM ${NoteTags}
-                INNER JOIN ${Tags} ON ${Tags.id} = ${NoteTags.tagId}
-                WHERE ${NoteTags.noteId} = ${Notes.id}
-                  AND ${Tags.name} ILIKE ${searchPattern}
-              )`,
+              tagMatchSql,
             ),
           ]
         : baseFilters;
@@ -2060,7 +2088,16 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
       })
       .from(Notes)
       .where(and(...filters))
-      .orderBy(desc(Notes.updatedAt))
+      /* Best match first when there is a query to rank against; recency
+         otherwise, which is what browsing an unfiltered list wants. */
+      .orderBy(
+        ...(useFTS && q.length >= 1
+          ? [
+              sql`CASE WHEN ${noteTsVector} @@ ${tsQuery} THEN ts_rank(${noteTsVector}, ${tsQuery}) ELSE -1::real END DESC`,
+            ]
+          : []),
+        desc(Notes.updatedAt),
+      )
       .limit(limit);
 
     let associatedIds = new Set<string>();
