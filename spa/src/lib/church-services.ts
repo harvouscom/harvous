@@ -306,7 +306,16 @@ export type PlanVocabulary = {
 };
 
 export function planVocabulary(
-  scope: { onSpacePlan: boolean; planKind?: 'gathering' | 'content' },
+  scope: {
+    onSpacePlan: boolean;
+    planKind?: 'gathering' | 'content';
+    /**
+     * False for a Shared Space planning on its own authority. Only reaches the
+     * empty state: "ministry" is a church's word for a room, and a book club
+     * that meets on Tuesdays is not one.
+     */
+    hasChurch?: boolean;
+  },
 ): PlanVocabulary {
   if (!scope.onSpacePlan) {
     return {
@@ -326,7 +335,10 @@ export function planVocabulary(
   }
   return {
     addLabel: 'Add a gathering',
-    emptyWritable: 'Plan what this ministry studies. Its members see it inside the space.',
+    emptyWritable:
+      scope.hasChurch === false
+        ? 'Plan what this group studies. Everyone in the space sees what is coming up.'
+        : 'Plan what this ministry studies. Its members see it inside the space.',
     itemNoun: 'gathering',
   };
 }

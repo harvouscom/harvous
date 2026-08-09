@@ -62,13 +62,16 @@ describe('GET /api/church/spaces/:spaceId/coming-up', () => {
 });
 
 describe('the space dashboard', () => {
-  it('no longer hides the card behind thread-management rights', () => {
+  it('asks in any room that can hold a plan, not behind thread rights', () => {
     const text = source('spa/src/pages/prototype/PrototypeSidebarSharedSpaceView.tsx');
     const call = text.slice(
       text.indexOf('<PrototypeSpaceComingUp'),
       text.indexOf('<PrototypeSpaceComingUp') + 260,
     );
-    expect(call).toContain('ministryMeta.orgId');
+    /* Was `ministryMeta.orgId` — a church condition that predated churchless
+       plans. Any non-personal room can hold one now, and the endpoint behind
+       this was only ever gated on membership. */
+    expect(call).toContain("ministryMeta.type !== 'personal'");
     expect(call).not.toContain('canManageThreads');
   });
 });

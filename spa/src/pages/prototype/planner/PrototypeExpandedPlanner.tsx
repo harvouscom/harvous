@@ -46,6 +46,7 @@ import PrototypeNewSeriesSheet from './PrototypeNewSeriesSheet';
 import PrototypeSeriesSheet from '../PrototypeSeriesSheet';
 import { usePlannerSchedule } from './usePlannerSchedule';
 import { usePlannerScope } from './usePlannerScope';
+import { useSpaceCompanion } from '../../../hooks/queries/useChannelLinks';
 import { consumePendingPlannerIntent } from '../../../lib/pending-planner-intent';
 
 export type PlannerView = 'board' | 'calendar' | 'list' | 'series';
@@ -98,13 +99,33 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
     effect: an effect would render the empty planner for a frame first, and
     the flag is one-shot so a second render must not re-open anything.
   */
-  const [selection, setSelection] = useState<PlannerSelection>(() => {
+  /*
+    One read of the one-shot intent, for both things it can carry: what to open,
+    and which room to open it on. Two `consume` calls would race for the same
+    key and the second would find it already cleared.
+  */
+  const [entry] = useState(() => {
     const intent = consumePendingPlannerIntent();
-    if (!intent) return null;
-    return intent.mode === 'edit'
-      ? { mode: 'edit', serviceId: intent.serviceId }
-      : { mode: 'create', date: intent.date };
+    const initialSelection: PlannerSelection =
+      intent?.mode === 'edit'
+        ? { mode: 'edit', serviceId: intent.serviceId }
+        : intent?.mode === 'create'
+          ? { mode: 'create', date: intent.date }
+          : null;
+    return { selection: initialSelection, spaceId: intent?.scopeSpaceId ?? null };
   });
+  const [selection, setSelection] = useState<PlannerSelection>(entry.selection);
+  /*
+    Opened from a room rather than from the church hub.
+
+    Its scope lives here rather than in `usePlannerScope`, whose store is keyed
+    by org: a churchless room has no org to key on, and even when it has one,
+    restoring the church's remembered scope over the room you just opened would
+    be answering a question nobody asked. The chips still move this — it is only
+    where it starts that differs.
+  */
+  const [spaceEntryScope, setSpaceEntryScope] = useState<string | null>(entry.spaceId);
+  const spaceEntry = entry.spaceId !== null;
   const [openSeries, setOpenSeries] = useState<TeachingPlanSeries | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
   /* A re-run that stopped short is a partial success, not a failure — see
@@ -114,27 +135,86 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
 
   const changeScope = useCallback(
     (next: string | null) => {
-      selectPlanScope(next);
+      if (spaceEntry) setSpaceEntryScope(next);
+      else selectPlanScope(next);
       /* A selection points at a row in the plan you just left — and so does an
          open series, which is scoped to its plan by construction. */
       setSelection(null);
       setOpenSeries(null);
       setCreatingSeries(false);
     },
-    [selectPlanScope],
+    [selectPlanScope, spaceEntry],
   );
 
-  const churchPlan = useChurchTeachingPlan(orgId, { enabled: canView && planSpaceId === null });
-  const spacePlan = useChurchSpacePlan(planSpaceId, { enabled: canView && planSpaceId !== null });
-  const churchActions = useChurchSermonActions(orgId);
-  const spaceActions = useChurchSpaceSermonActions(planSpaceId);
+  /** The plan actually on screen: the room we came from, or the hub's scope. */
+  const scopeSpaceId = spaceEntry ? spaceEntryScope : planSpaceId;
 
-  const onSpacePlan = planSpaceId !== null;
+  /*
+    A room's plan answers for itself who may read and write it — the space lane
+    has no church capabilities to consult, so `useChurchPlannerAccess` returns
+    nothing for a churchless room and cannot be the gate here. Fetching is
+    therefore not gated on `canView`: the request *is* the permission check, and
+    a refusal simply leaves the query in error.
+  */
+  const churchPlan = useChurchTeachingPlan(orgId, {
+    enabled: canView && scopeSpaceId === null && !spaceEntry,
+  });
+  const spacePlan = useChurchSpacePlan(scopeSpaceId, {
+    enabled: scopeSpaceId !== null && (canView || spaceEntry),
+  });
+  const churchActions = useChurchSermonActions(orgId);
+  const spaceActions = useChurchSpaceSermonActions(scopeSpaceId);
+
+  const onSpacePlan = scopeSpaceId !== null;
   const data = onSpacePlan ? spacePlan.data : churchPlan.data;
   const actions = onSpacePlan ? spaceActions : churchActions;
   /* Server-decided; a channel plans content, everything else gathers. */
   const planKind = onSpacePlan ? spacePlan.data?.planKind : undefined;
-  const vocab = planVocabulary({ onSpacePlan, planKind });
+  /*
+    Whether this plan has a church behind it. Only the empty-state wording turns
+    on it, but "this ministry" is a church's word for a room and a Tuesday book
+    club is not one.
+  */
+  const hasChurch = onSpacePlan ? spacePlan.data?.church !== null : true;
+  const vocab = planVocabulary({ onSpacePlan, planKind, hasChurch });
+
+  /*
+    Who is allowed what, in the lane that applies. A room entered directly is
+    answered by its own payload — `viewer.canManage` is the server's word, since
+    the space lane's rule is a membership role the client has no business
+    re-deriving. The church hub keeps the capability answers it always had.
+  */
+  /*
+    The room we came from and the channel it feeds, when there is one.
+    Membership-gated, so a member asking is not a leak — and the *plan* of the
+    companion is probed separately below, because being able to see that a room
+    has a channel is not the same as being allowed to plan it.
+  */
+  const companion = useSpaceCompanion(entry.spaceId, { enabled: spaceEntry });
+  const companionChannel = companion.data?.companionChannel ?? null;
+  const companionPlan = useChurchSpacePlan(companionChannel?.id ?? null, {
+    enabled: Boolean(companionChannel),
+  });
+  /*
+    Probing the plan rather than re-deriving "may this person plan a channel"
+    from staff and grant rules the server already owns. If the query refuses,
+    the chip simply is not offered.
+  */
+  const scopePair =
+    spaceEntry && companionChannel && !companionPlan.isError && entry.spaceId
+      ? {
+          space: {
+            id: entry.spaceId,
+            title: spacePlan.data?.space.title ?? 'This space',
+          },
+          channel: { id: companionChannel.id, title: companionChannel.title },
+        }
+      : null;
+
+  const effectiveCanView = spaceEntry ? !spacePlan.isError : canView;
+  const effectiveCanWrite = spaceEntry
+    ? Boolean(spacePlan.data?.viewer?.canManage)
+    : canWrite;
   const services = useMemo(() => data?.services ?? [], [data]);
   const series = useMemo(() => data?.series ?? [], [data]);
   const serviceTimes = onSpacePlan ? [] : (churchPlan.data?.serviceTimes ?? []);
@@ -157,7 +237,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
     : (churchPlan.data?.serviceTimes?.[0]?.dayOfWeek ?? null);
 
   const schedule = usePlannerSchedule({
-    planSpaceId,
+    planSpaceId: scopeSpaceId,
     orgId,
     services,
     actions,
@@ -233,12 +313,20 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
     toolbar slot beside Board/Calendar/List. Those change how you look; this
     changes what you are looking at.
   */
-  const scopeSwitcher = canView ? (
+  /*
+    Entered from a room with no companion: there is nothing to switch to, and
+    the church-hub bar would offer the church's plan and a ministry to someone
+    who came here to arrange one room — including someone whose room has no
+    church at all.
+  */
+  const showScopeSwitcher = effectiveCanView && (!spaceEntry || scopePair !== null);
+  const scopeSwitcher = showScopeSwitcher ? (
     <PrototypePlannerScopeChips
       plannableSpaces={plannableSpaces}
-      planSpaceId={planSpaceId}
+      planSpaceId={scopeSpaceId}
       lastChannelId={lastChannelId}
       onChange={changeScope}
+      pair={scopePair}
     />
   ) : undefined;
 
@@ -265,9 +353,9 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
       label="Planner"
       title={title}
       scope={scopeSwitcher}
-      toolbar={canView ? viewSwitcher : undefined}
+      toolbar={effectiveCanView ? viewSwitcher : undefined}
       actions={
-        canWrite ? (
+        effectiveCanWrite ? (
           <button
             type="button"
             className="proto-glass-surface proto-glass-surface--control proto-glass-action"
@@ -281,7 +369,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
       exiting={exiting}
       onClose={onClose}
     >
-      {!canView ? (
+      {!effectiveCanView ? (
         <PrototypeListEmptyState
           iconName="user-shield"
           title="For church staff"
@@ -303,7 +391,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
                 services={services}
                 serviceTimes={serviceTimes}
                 accentFor={accentFor}
-                canWrite={canWrite}
+                canWrite={effectiveCanWrite}
                 readOnlyReason={readOnlyReason}
                 defaultDay={defaultDay}
                 selection={selection}
@@ -315,7 +403,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
                 services={services}
                 serviceTimes={serviceTimes}
                 accentFor={accentFor}
-                canWrite={canWrite}
+                canWrite={effectiveCanWrite}
                 selection={selection}
                 onSelect={setSelection}
                 onMoveToDate={schedule.moveToDate}
@@ -325,7 +413,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
                 services={services}
                 serviceTimes={serviceTimes}
                 accentFor={accentFor}
-                canWrite={canWrite}
+                canWrite={effectiveCanWrite}
                 readOnlyReason={readOnlyReason}
                 emptyWritable={vocab.emptyWritable}
                 selection={selection}
@@ -338,7 +426,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
                   services={services}
                   accentFor={accentFor}
                   openSeriesId={openSeries?.id ?? null}
-                  canWrite={canWrite}
+                  canWrite={effectiveCanWrite}
                   onOpen={(entry) => {
                     setSeriesError(null);
                     setOpenSeries(entry);
@@ -356,7 +444,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
             open={openSeriesRow !== null}
             series={openSeriesRow}
             services={services.filter((s) => s.seriesId === openSeriesRow?.id)}
-            canWrite={canWrite}
+            canWrite={effectiveCanWrite}
             pending={actions.isPending}
             error={seriesError}
             notice={seriesNotice}
@@ -494,12 +582,12 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
           {selection ? (
             <PrototypePlannerEditorPane
               orgId={orgId}
-              planSpaceId={planSpaceId}
+              planSpaceId={scopeSpaceId}
               service={editingService}
               createDate={selection.mode === 'create' ? selection.date : undefined}
               series={series}
               serviceTimes={serviceTimes}
-              canWrite={canWrite}
+              canWrite={effectiveCanWrite}
               readOnlyReason={readOnlyReason}
               canManageChurchTemplates={canManageChurchTemplates}
               planKind={planKind}

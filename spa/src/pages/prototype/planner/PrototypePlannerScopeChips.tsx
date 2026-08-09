@@ -29,18 +29,35 @@ const POPOVER_WIDTH = 240;
 const POPOVER_FALLBACK_HEIGHT = 220;
 const POPOVER_OFFSET = 6;
 
+/** Two rooms that plan side by side: a Shared Space and the channel it feeds. */
+export type PlannerScopePair = {
+  space: { id: string; title: string; color?: string | null };
+  channel: { id: string; title: string; color?: string | null };
+};
+
 export default function PrototypePlannerScopeChips({
   plannableSpaces,
   planSpaceId,
   onChange,
   /** Remembers which channel the second chip returns to. */
   lastChannelId,
+  pair = null,
 }: {
   plannableSpaces: PlannableSpace[];
   /** null = the church's own plan. */
   planSpaceId: string | null;
   onChange: (planSpaceId: string | null) => void;
   lastChannelId: string | null;
+  /**
+   * Set when the planner was opened from a room that has a companion channel.
+   *
+   * Then the bar is those two rooms and nothing else — there is no "Church"
+   * position, because you did not arrive from the church and the church's plan
+   * is not what you came to arrange. The two plans stay independent row sets;
+   * this only puts them a click apart, so the person planning Wednesday and the
+   * person planning what gets published are the same person, not two.
+   */
+  pair?: PlannerScopePair | null;
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -97,6 +114,38 @@ export default function PrototypePlannerScopeChips({
       document.removeEventListener('keydown', onKeyDown, true);
     };
   }, [open]);
+
+  /*
+    Paired mode: two named rooms, no picker and no church position. Rendered
+    before the church-hub bar's own guard, because a paired room is switchable
+    whether or not the viewer has any plannable church spaces at all — a
+    churchless group has none by definition.
+  */
+  if (pair) {
+    const rooms = [pair.space, pair.channel];
+    return (
+      <div className="proto-chip-bar proto-planner-scope" role="radiogroup" aria-label="Plan">
+        {rooms.map((room) => {
+          const selected = planSpaceId === room.id;
+          return (
+            <button
+              key={room.id}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              className={`proto-chip${selected ? ' proto-chip--selected' : ''}`}
+              title={room.title}
+              onClick={() => onChange(room.id)}
+            >
+              <span className="proto-planner-scope__channel-name proto-marquee">
+                <span>{room.title}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
   if (plannableSpaces.length === 0) return null;
 

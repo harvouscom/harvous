@@ -40,6 +40,10 @@ import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highli
 import PrototypeSpacePeopleSheet from './PrototypeSpacePeopleSheet';
 import { ProtoToolsRowList, type ProtoToolRow } from './proto-tools-registry';
 import { spaceLibraryMeta, useSpaceLibrary } from '../../hooks/queries/useSpaceLibrary';
+import { useChurchSpacePlan } from '../../hooks/queries/useChurchSpacePlan';
+import { markPendingPlannerIntent } from '../../lib/pending-planner-intent';
+import { localTodayIso } from '../../lib/church-services';
+import { parseLocalDateInput } from '../../lib/proto-date-picker';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
@@ -238,6 +242,7 @@ function PrototypeSidebarSharedSpaceViewLive() {
     setSidebarLayer,
     setSidebarListMode,
     setSidebarListSpaceScope,
+    openExpandedSidebar,
     setScriptureDrill,
     ensureSidebarExpanded,
     closeDrawer,
@@ -335,6 +340,37 @@ function PrototypeSidebarSharedSpaceViewLive() {
   });
   const spaceLibraryCount = spaceLibrary.data?.items.length ?? 0;
   const canManageSpaceLibrary = spaceLibrary.data?.canManage ?? false;
+
+  /*
+    The room's plan, for the Tools row's count and its visibility. A refusal is
+    an ordinary answer here — a member of a church room without `sermon_tools`
+    is told no, and the row simply does not appear — so `isError` is read rather
+    than surfaced.
+  */
+  const spacePlan = useChurchSpacePlan(activeSpaceId ?? null, {
+    enabled: ministryMeta.type !== 'personal',
+  });
+  const spacePlanCount = spacePlan.data?.services.length ?? 0;
+  const canManageSpacePlan = spacePlan.data?.viewer?.canManage ?? false;
+  const spacePlanMeta = useMemo(() => {
+    const services = spacePlan.data?.services ?? [];
+    /* The next dated gathering is the answer to "what is this for"; a count is
+       the fallback when there is nothing upcoming to name.
+
+       `localTodayIso`, not `toISOString` — a service date is a day on the
+       room's wall calendar, and UTC turns a Sunday evening into Monday for
+       anyone west of it. */
+    const today = localTodayIso();
+    const next = services
+      .filter((s) => s.serviceDate && s.serviceDate >= today)
+      .sort((a, b) => String(a.serviceDate).localeCompare(String(b.serviceDate)))[0];
+    const when = next?.serviceDate ? parseLocalDateInput(next.serviceDate) : null;
+    if (when) {
+      return `Next · ${when.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+    }
+    if (services.length === 0) return 'Nothing planned yet';
+    return `${services.length} planned`;
+  }, [spacePlan.data?.services]);
   const spaceToolRows = useMemo<ProtoToolRow[]>(() => {
     const rows: ProtoToolRow[] = [];
     /* Offered to every member, not only whoever curates it — "what do we read
@@ -357,8 +393,41 @@ function PrototypeSidebarSharedSpaceViewLive() {
         },
       });
     }
+    /*
+      The room's own rhythm. Same bargain as the shelf above: offered to every
+      member once there is something to see, and to whoever runs the room while
+      it is still empty — otherwise the one person who could plan the first
+      gathering is the one person who cannot find where.
+
+      Not on a channel's own view. A channel's plan is reached from the space it
+      is paired with, as the second chip, because planning what gets published
+      is the same sitting as planning the gathering it comes out of.
+    */
+    if (!isMinistryChannel && (spacePlanCount > 0 || canManageSpacePlan)) {
+      rows.push({
+        key: 'space-planner',
+        icon: 'calendar',
+        title: 'Planner',
+        meta: spacePlanMeta,
+        chevron: 'expand',
+        onSelect: () => {
+          if (activeSpaceId) markPendingPlannerIntent({ mode: 'scope', scopeSpaceId: activeSpaceId });
+          openExpandedSidebar('planner');
+        },
+      });
+    }
     return rows;
-  }, [spaceLibraryCount, canManageSpaceLibrary, spaceLibrary.data?.items]);
+  }, [
+    spaceLibraryCount,
+    canManageSpaceLibrary,
+    spaceLibrary.data?.items,
+    isMinistryChannel,
+    spacePlanCount,
+    canManageSpacePlan,
+    spacePlanMeta,
+    activeSpaceId,
+    openExpandedSidebar,
+  ]);
 
   const canModerateChannel = canModerateMinistryChannel({
     isOwner: isSpaceOwner,
@@ -817,9 +886,12 @@ function PrototypeSidebarSharedSpaceViewLive() {
               people who actually gather here see what the room is on. Still
               only asked of a church room — a personal Shared Space has no
               plan to answer with. */}
+          {/* Any room that can hold a plan can say what is coming up. The org
+              condition predated churchless plans; the endpoint behind it was
+              only ever gated on membership. */}
           <PrototypeSpaceComingUp
             spaceId={activeSpaceId ?? null}
-            enabled={Boolean(ministryMeta.orgId)}
+            enabled={ministryMeta.type !== 'personal'}
           />
           {bannerNewCount > 0 ? (
             <div className="proto-home-section">

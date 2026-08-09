@@ -358,6 +358,25 @@ describe('planVocabulary', () => {
     expect(channel.addLabel).not.toBe(church.addLabel);
     expect(channel.emptyWritable).not.toBe(church.emptyWritable);
   });
+
+  it('does not call a churchless room a ministry', () => {
+    // "Ministry" is a church's word for a room. A Tuesday book club is not one.
+    const v = planVocabulary({ onSpacePlan: true, planKind: 'gathering', hasChurch: false });
+    expect(v.addLabel).toBe('Add a gathering');
+    expect(v.emptyWritable).not.toContain('ministry');
+    expect(v.emptyWritable).not.toContain('church');
+  });
+
+  it('keeps the ministry wording when there is a church', () => {
+    // Absent `hasChurch` has to read as "has one": every payload cached before
+    // churchless plans shipped came from a church room.
+    expect(planVocabulary({ onSpacePlan: true, planKind: 'gathering' }).emptyWritable).toContain(
+      'ministry',
+    );
+    expect(
+      planVocabulary({ onSpacePlan: true, planKind: 'gathering', hasChurch: true }).emptyWritable,
+    ).toContain('ministry');
+  });
 });
 
 describe('sermonTimeLabel', () => {

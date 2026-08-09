@@ -18,7 +18,16 @@ export type PlanKind = 'gathering' | 'content';
  * either plan without branching on which was asked for.
  */
 export type ChurchSpacePlanResponse = {
-  church: { id: string; name: string };
+  /** Null when the room plans on its own authority, with no church behind it. */
+  church: { id: string; name: string } | null;
+  /**
+   * Whether this reader may also write.
+   *
+   * The server's word rather than a client derivation: a churchless room's rule
+   * is a membership role, and re-deriving it here would be a second copy of a
+   * permission. Optional so a payload cached before this shipped still parses.
+   */
+  viewer?: { canManage: boolean };
   /**
    * A ministry channel publishes ('content'); every other space gathers.
    * Optional so a payload cached before this shipped still parses — absent
