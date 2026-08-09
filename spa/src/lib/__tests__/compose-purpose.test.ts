@@ -15,7 +15,8 @@ describe('notePurposeModel', () => {
     /*
       The note's own title is derived from the same sermon, so echoing it here put the
       banner directly above a heading of the same words. Which occasion the notes are
-      for is the part the reader cannot already see.
+      for is the part the reader cannot already see — and "writing notes" is what the
+      whole surface is, so it says only the occasion.
     */
     const purpose = notePurposeModel({
       composePurpose: null,
@@ -23,21 +24,21 @@ describe('notePurposeModel', () => {
     });
     expect(purpose).toEqual({
       kind: 'service',
-      label: "Writing notes for this week's sermon",
+      label: "This week's sermon",
       actionLabel: null,
     });
     expect(purpose?.label).not.toContain('The Weight of Grace');
   });
 
   it('does not claim "this week" for a note started in a room', () => {
-    // "Coming up" is the room's *next* gathering, which can be weeks out — the one
-    // place the Home wording would have been a small lie.
+    // "Coming up" is the room's *next* sermon, which can be weeks out — the one place
+    // the Home wording would have been a small lie.
     const purpose = notePurposeModel({
       composePurpose: null,
       startedFromServiceTitle: 'The Weight of Grace',
       startedInChurchSpace: true,
     });
-    expect(purpose?.label).toBe('Writing notes for the next gathering');
+    expect(purpose?.label).toBe('The next sermon');
   });
 
   it('still says nothing when there was no service to start from', () => {

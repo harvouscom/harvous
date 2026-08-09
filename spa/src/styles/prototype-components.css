@@ -4706,6 +4706,14 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   margin-top: auto;
   position: sticky;
   bottom: 0;
+  /*
+    Above the rows that scroll under it. Being later in the DOM is not enough once a row
+    carries its own z-index: `.proto-note-row__select` is absolutely positioned at
+    z-index 1, so an unticked checkbox painted straight through this bar. Matches the
+    10 `.proto-thread-review__actions` already sets — and stays below the 80 a row takes
+    while its ⋯ menu is open, so an open menu still clears the footer.
+  */
+  z-index: 10;
   padding: 10px 14px 14px;
   border-top: 0.5px solid var(--pds-border-control);
   background: var(--pds-bg-ghost);

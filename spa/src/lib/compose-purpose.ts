@@ -85,7 +85,8 @@ export function notePurposeModel(input: {
   /**
    * The note's own space is a church space, not My Home — which is the difference
    * between the two surfaces that set a service title. "This Sunday" on Home creates
-   * into My Home; "Coming up" creates into the room it belongs to.
+   * into My Home and is genuinely this week; "Coming up" creates into the room it
+   * belongs to and is that room's *next* sermon, which can be weeks out.
    *
    * Derived rather than stored. A `startedFromServiceKind` column would be sturdier if
    * those surfaces ever stop differing this way, but it would also be null for every
@@ -106,20 +107,22 @@ export function notePurposeModel(input: {
   }
 
   /*
-    Name the occasion, not the sermon.
+    Name the occasion, and only the occasion.
 
-    The title was the sermon's own, and `starterNoteTitle` derives the note's title from
-    that same sermon — so the banner sat directly above a heading saying the same words.
-    It cost a line and told the reader nothing. What is actually worth saying is which
-    occasion these notes are for.
+    Two things were redundant. The sermon's title, because `starterNoteTitle` derives the
+    note's title from that same sermon — the banner sat directly above a heading saying
+    the same words. And "Writing notes for", because writing notes is what this whole
+    surface is; a register above the paper does not need to announce it.
+
+    "Sermon" is the product's own word for both of these — `sermonEyebrow`,
+    `ChurchSermon`, `starterFolderForSermon`. "Gathering" only ever appeared in a code
+    docblock.
   */
   const service = input.startedFromServiceTitle?.trim();
   if (service) {
     return {
       kind: 'service',
-      label: input.startedInChurchSpace
-        ? 'Writing notes for the next gathering'
-        : "Writing notes for this week's sermon",
+      label: input.startedInChurchSpace ? 'The next sermon' : "This week's sermon",
       actionLabel: null,
     };
   }
