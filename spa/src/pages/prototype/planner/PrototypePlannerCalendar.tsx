@@ -269,7 +269,11 @@ export default function PrototypePlannerCalendar({
                   data-series-accent={accentFor(dragging.seriesId) ?? undefined}
                   data-in-series={accentFor(dragging.seriesId) ? 'true' : undefined}
                 >
-                  <PlannerCardBody service={dragging} timeLabel={timeLabel(dragging)} />
+                  <PlannerCardBody
+                    service={dragging}
+                    timeLabel={timeLabel(dragging)}
+                    seriesAccent={accentFor(dragging.seriesId)}
+                  />
                 </div>
               ) : null}
             </DragOverlay>,

@@ -41,6 +41,7 @@ import {
   type PlannerWeek,
 } from '../../../lib/planner-board';
 import PrototypePlannerCard, { PlannerCardBody } from './PrototypePlannerCard';
+import ProtoSeriesMark from './ProtoSeriesMark';
 import type { PlannerSelection } from './PrototypeExpandedPlanner';
 
 /** A quarter at a glance, which is the unit a teaching plan is decided in. */
@@ -102,6 +103,11 @@ function SeriesBands({ bands }: { bands: ColumnBand[] }) {
               to anyone who would rather read it than scan it. */}
           {band.label ? (
             <span className="proto-caption proto-planner-band__label" title={band.label}>
+              {/* The same mark the cards below it wear, so the run's header and
+                  its weeks are recognisably one thing. The band's own rule
+                  stays: it is the only device here that can show a run
+                  *continuing* across a column gap, which a mark cannot. */}
+              <ProtoSeriesMark accent={band.accent} title={band.label} />
               {band.label}
               {band.progress ? (
                 <span className="proto-planner-band__progress">{band.progress}</span>
@@ -401,7 +407,11 @@ export default function PrototypePlannerBoard({
                   data-series-accent={accentFor(dragging.seriesId) ?? undefined}
                   data-in-series={accentFor(dragging.seriesId) ? 'true' : undefined}
                 >
-                  <PlannerCardBody service={dragging} timeLabel={timeLabel(dragging)} />
+                  <PlannerCardBody
+                    service={dragging}
+                    timeLabel={timeLabel(dragging)}
+                    seriesAccent={accentFor(dragging.seriesId)}
+                  />
                 </div>
               ) : null}
             </DragOverlay>,

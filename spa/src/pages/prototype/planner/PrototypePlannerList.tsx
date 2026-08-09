@@ -15,6 +15,7 @@ import type {
 import type { SpaceCoverPickerColor } from '@/utils/space-cover';
 import { localTodayIso, sermonTimeLabel } from '../../../lib/church-services';
 import ProtoServiceDateTile from '../ProtoServiceDateTile';
+import ProtoSeriesMark from './ProtoSeriesMark';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
 import type { PlannerSelection } from './PrototypeExpandedPlanner';
 
@@ -55,7 +56,17 @@ function Row({
         <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
           {timeLabel ? `${timeLabel} · ` : ''}
           {service.reference || 'No passage yet'}
-          {service.seriesTitle ? ` · ${service.seriesTitle}` : ''}
+          {service.seriesTitle ? (
+            <>
+              {' · '}
+              {/* The run's colour travels with its name, rather than tinting
+                  the date tile beside it — the tile answers "when", and a
+                  border doing "which run" made it answer two questions at
+                  once in a colour the eye had to decode. */}
+              <ProtoSeriesMark accent={accent} title={service.seriesTitle} />
+              {service.seriesTitle}
+            </>
+          ) : null}
         </span>
       </span>
       <span className="proto-church-tools__row-chevron" aria-hidden>

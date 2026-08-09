@@ -14207,6 +14207,27 @@ p.proto-teaching-plan__divider {
   --pds-series-accent: color-mix(in oklab, var(--pds-thread-pink) 72%, var(--pds-text-primary));
 }
 
+/* ── The series mark ────────────────────────────────────────────────────────
+   One filled square, wherever a run needs naming. Replaced a band, a rule and
+   a tinted border — three weights of trim that each vanished against a warm
+   canvas at the size they were drawn. A fill holds its hue at 10px, which is
+   the only size a mark inline with caption text can be.
+
+   Inline-block with a nudge off the baseline rather than flex: it sits inside
+   running caption text, and a flex parent would break the line it belongs to. */
+.proto-series-mark {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  vertical-align: -1px;
+  border-radius: 3px;
+  background: var(--pds-series-accent, transparent);
+  /* Against a dark card the fill alone can read as a hole; the hairline keeps
+     the square's edge legible in both schemes without changing its colour. */
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);
+}
+
 /* ── Series on a day cell (calendar) ────────────────────────────────────────
    A rule across the top of the cell, one segment per series standing on it.
 
@@ -14216,38 +14237,45 @@ p.proto-teaching-plan__divider {
    width rule rather than the board's bridged band — there is nothing adjacent
    to bridge to. */
 .proto-planner-day__series {
+  /* Absolutely placed so the wash fills the cell behind its content rather
+     than taking a strip of it — a 3px rule read as a border on a grid that is
+     already ruled, which is exactly why a run did not show as a run. */
+  position: absolute;
+  inset: 0;
   display: flex;
-  gap: 2px;
-  margin: -1px -1px 1px;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .proto-planner-day__series-mark {
   flex: 1 1 auto;
   min-width: 0;
-  height: 3px;
-  border-radius: 0 0 2px 2px;
-  background: var(--pds-series-accent, transparent);
+  /* Low alpha on purpose: this sits under the date and the sermon chips, and
+     a run should colour the month the way a highlighter does — visible as a
+     streak down five Sundays, never competing with the text on top of it. */
+  background: color-mix(in oklab, var(--pds-series-accent, transparent) 14%, transparent);
 }
 
-/* A day outside the month is context, not plan — its rule recedes with it so
+/* Two series on one day still need telling apart, and side-by-side washes
+   meet with no seam. A hairline between them costs nothing when there is one. */
+.proto-planner-day__series-mark + .proto-planner-day__series-mark {
+  border-left: 0.5px solid var(--pds-border);
+}
+
+/* A day outside the month is context, not plan — its wash recedes with it so
    the eye still stops at the month's own boundary. */
 .proto-planner-day--outside .proto-planner-day__series-mark {
   opacity: 0.4;
 }
 
 /* ── Series on a list row ───────────────────────────────────────────────────
-   The date tile takes the run's hue. The tile rather than a rail because the
-   list is already a column of tiles — tinting the thing the eye lands on turns
-   a scan down the page into a read of which weeks belong together, without
-   adding a fifth element to the row.
-
-   Border only, not a fill: a filled tile would outrank the title beside it, and
-   the run is context for the sermon, never the headline. The series' name still
-   sits in the meta line, so nothing here depends on colour alone. */
-.proto-planner-list__row[data-in-series='true'] .proto-church-tools__row-date {
-  border-color: var(--pds-series-accent, var(--pds-border-control));
-  box-shadow: inset 0 0 0 1px var(--pds-series-accent, transparent);
-}
+   The date tile used to take the run's hue. It no longer does: the tile
+   answers "when", and tinting its border made it answer "which run" as well,
+   in a colour the reader had to decode with nothing beside it to decode
+   against. The mark now travels with the series' own name in the meta line —
+   colour for the scan, the name for the answer — and the tile is left to say
+   the one thing it is for. */
 
 /* ── Run bands (board) ──────────────────────────────────────────────────────
    The spine that makes eight weeks read as one study.
@@ -14358,11 +14386,11 @@ p.proto-teaching-plan__divider {
   carries the colour at any weight this needs.
 */
 .proto-planner-card[data-in-series='true'] {
-  border-left-color: var(--pds-series-accent, var(--pds-border-control));
-  border-left-width: 2px;
-  /* The pixel the thicker border takes, given back — so a card in a series and
-     one outside it keep their titles on the same vertical line. */
-  padding-left: 9px;
+  /* No tinted left border. It sat on the edge a reader never looks at, at a
+     weight that disappeared against the canvas, and it was one of four ways
+     the planner said "series" — see .proto-series-mark, which is now the one
+     way. Kept as a hook: the attribute still marks the card for anything that
+     needs to know, without spending the border on it. */
 }
 
 /* Hover brightens the whole border; the series edge keeps its own hue rather
@@ -14595,6 +14623,9 @@ p.proto-teaching-plan__divider {
 }
 
 .proto-planner-day {
+  /* Containing block for the series wash, which fills the cell behind its
+     content — see .proto-planner-day__series. */
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -14629,6 +14660,13 @@ p.proto-teaching-plan__divider {
 
 .proto-planner-day--over {
   border-color: var(--pds-accent, var(--pds-text-primary));
+}
+
+/* Above the wash, which is inset:0 behind everything in the cell. */
+.proto-planner-day__head,
+.proto-planner-day .proto-planner-card {
+  position: relative;
+  z-index: 1;
 }
 
 .proto-planner-day__head {

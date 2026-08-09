@@ -9,16 +9,20 @@
 import { useDraggable } from '@dnd-kit/core';
 import type { SpaceCoverPickerColor } from '@/utils/space-cover';
 import type { TeachingPlanSermon } from '../../../hooks/queries/useChurchTeachingPlan';
+import ProtoSeriesMark from './ProtoSeriesMark';
 
 export function PlannerCardBody({
   service,
   timeLabel,
   compact,
+  seriesAccent = null,
 }: {
   service: TeachingPlanSermon;
   timeLabel: string | null;
   /** Calendar chips have a day cell's width, not a column's. */
   compact?: boolean;
+  /** The run's colour, for the mark beside its name. Null for a standalone week. */
+  seriesAccent?: SpaceCoverPickerColor | null;
 }) {
   return (
     <>
@@ -43,11 +47,13 @@ export function PlannerCardBody({
            visual weight than the sermon's own passage, which inverted the row:
            what you preach outranks which run it belongs to.
 
-           No glyph either. It stood in for the `·` a row would have used, but
-           a series does not need a symbol — its own name on its own line, in
-           the same tertiary caption as the passage above, already says what it
-           is. */
+           The mark is not a glyph in that sense — it carries the run's colour,
+           which is the thing a scan down a column is actually following. It
+           replaced the card's tinted left border, which said the same thing in
+           a place the eye never looks and at a weight that vanished against
+           the canvas. */
         <span className="proto-caption proto-planner-card__series">
+          <ProtoSeriesMark accent={seriesAccent} title={service.seriesTitle} />
           <span className="proto-planner-card__series-name">{service.seriesTitle}</span>
         </span>
       ) : null}
@@ -128,7 +134,12 @@ export default function PrototypePlannerCard({
       {...listeners}
       {...attributes}
     >
-      <PlannerCardBody service={service} timeLabel={timeLabel} compact={compact} />
+      <PlannerCardBody
+        service={service}
+        timeLabel={timeLabel}
+        compact={compact}
+        seriesAccent={accent ?? null}
+      />
     </button>
   );
 }
