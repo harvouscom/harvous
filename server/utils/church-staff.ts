@@ -152,3 +152,22 @@ export async function assertCanCreateMinistryChannel(
     'Only church staff can create ministry channels',
   );
 }
+
+/**
+ * Gate for pairing a Shared Space with the ministry channel it broadcasts
+ * through.
+ *
+ * The same gate that creates either room, deliberately: which rooms a ministry
+ * has, and which of them speak to each other, is one decision about church
+ * topology rather than a teaching one.
+ */
+export async function assertCanManageChannelLinks(
+  userId: string,
+  orgId: string,
+): Promise<ChurchStaffGateResult> {
+  return assertChurchStaffOrgWrite(
+    userId,
+    orgId,
+    'Only church staff can pair a space with a channel',
+  );
+}

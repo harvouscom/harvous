@@ -38,6 +38,7 @@ import PrototypeChurchStarterSection from './PrototypeChurchStarterSection';
 import PrototypeChurchSettingsSection from './PrototypeChurchSettingsSection';
 import PrototypeChurchScriptureMapSection from './PrototypeChurchScriptureMapSection';
 import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
+import PrototypeChannelPairingSection from './PrototypeChannelPairingSection';
 
 function normalizeSpaceId(id: string): string {
   return id.startsWith('space_') ? id : `space_${id}`;
@@ -638,6 +639,14 @@ export default function PrototypeSidebarChurchHubView() {
                     </div>
                   )}
                 </div>
+
+                {canCreateChurchContent ? (
+                  <PrototypeChannelPairingSection
+                    orgId={orgId}
+                    sharedSpaces={sharedSpaces}
+                    channels={ministryChannels}
+                  />
+                ) : null}
 
                 <div className="proto-home-section">
                   <p className="proto-caption proto-home-section__eyebrow">Channels</p>

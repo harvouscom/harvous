@@ -19,6 +19,8 @@ import {
   type SpaceGroupStudyThread,
 } from '../../hooks/queries/useSpaceGroupThreads';
 import { useSetCurrentSpaceThread } from '../../hooks/mutations/useSetCurrentSpaceThread';
+import { useSpaceCompanion } from '../../hooks/queries/useChannelLinks';
+import { useSwitchToSpace } from '../../hooks/useSwitchToSpace';
 import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import {
   getSharedSpaceUnseenSince,
@@ -285,6 +287,24 @@ function PrototypeSidebarSharedSpaceViewLive() {
   const { can: canChurchForSpace } = useChurchStaffStatus(ministryMeta.orgId ?? null);
   const canComposeHere = canComposeInSpace(ministryMeta);
   const churchEyebrow = navSpace?.churchName?.trim() || null;
+
+  /*
+    The ministry's other room, when a church has paired them. Asked per room
+    rather than read off the nav payload, and resolved live server-side, so a
+    channel that was deleted comes back as "unpaired" instead of a chip that
+    goes nowhere.
+  */
+  const switchToSpace = useSwitchToSpace();
+  const companionQuery = useSpaceCompanion(activeSpaceId ?? null, {
+    enabled: Boolean(ministryMeta.orgId),
+  });
+  const companionRoom =
+    companionQuery.data?.companionChannel ?? companionQuery.data?.companionOfSpace ?? null;
+  const companionLabel = companionRoom
+    ? isMinistryChannel
+      ? `Companion of ${companionRoom.title}`
+      : `Channel: ${companionRoom.title}`
+    : '';
 
   const selfDisplayName = resolveProfileFirstName(user, null) || 'You';
   const isSpaceOwner =
@@ -762,6 +782,30 @@ function PrototypeSidebarSharedSpaceViewLive() {
                     <span className="proto-shared-space-header__invite">Invite</span>
                   </>
                 ) : null}
+              </button>
+            ) : null}
+            {/*
+              The ministry's other room. Names it and goes there, and carries
+              none of that room's colour — a companion is a sibling, not a
+              source, and tinting by it would imply this room's material came
+              from there. Settled once already in the linking post-mortem.
+            */}
+            {companionRoom ? (
+              <button
+                type="button"
+                className="proto-shared-space-header__companion"
+                onClick={() => {
+                  ensureSidebarExpanded();
+                  switchToSpace(
+                    companionRoom.id.startsWith('space_')
+                      ? companionRoom.id
+                      : `space_${companionRoom.id}`,
+                  );
+                }}
+                title={companionLabel}
+              >
+                <Icon name={isMinistryChannel ? 'user-group' : 'rss'} size={11} />
+                <span>{companionLabel}</span>
               </button>
             ) : null}
           </div>

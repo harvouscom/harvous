@@ -1887,6 +1887,52 @@ export const ChurchServiceLibraryItems = pgTable(
   ],
 );
 
+/**
+ * A ministry's two rooms, paired: the Shared Space where a group meets and the
+ * ministry channel it broadcasts through.
+ *
+ * Read `CHURCH_STUDY_MATERIAL_LINKING.md` before touching this. The pointer that
+ * doc buries — `ChurchServices.channelSpaceId` — failed for four reasons, and
+ * this row is a different relationship on every one of them: it is **room to
+ * room** rather than service-to-room, so it never promises material *about* a
+ * sermon and delivers a container instead; it sits at the grain the
+ * relationship actually changes at (a ministry gets a channel once, not once
+ * per week); and church staff author it, which is right because room topology
+ * is theirs. That doc's inversion — material claiming a service — is a
+ * different question and stays unaffected.
+ *
+ * **The row is not the relation.** Both halves are re-verified on every read
+ * (`resolveCompanionChannel`): still present, still active, still the same org,
+ * still the right `Spaces.type`. Deleting either room silently un-pairs them
+ * rather than leaving a tombstone to surface, which is the read-side semantics
+ * `channelSpaceId` never defined and the reason it could dangle.
+ *
+ * Unique on `spaceId`: a room broadcasts through one channel or none. A channel
+ * may be the companion of only one space for the same reason, enforced on the
+ * write path rather than by a second index, since "which space is this channel
+ * for" is a question with one answer only while the pairing exists.
+ *
+ * Row ids: `scl_${crypto.randomUUID()}`.
+ */
+export const ChurchSpaceChannelLinks = pgTable(
+  'ChurchSpaceChannelLinks',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('orgId').notNull(),
+    /** The Shared Space (`Spaces.type='shared'`) that meets. */
+    spaceId: text('spaceId').notNull(),
+    /** The ministry channel (`Spaces.type='public'`) it broadcasts through. */
+    channelSpaceId: text('channelSpaceId').notNull(),
+    createdByUserId: text('createdByUserId').notNull(),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    uniqueIndex('ChurchSpaceChannelLinks_space_unique').on(table.spaceId),
+    index('ChurchSpaceChannelLinks_channelSpaceIdIndex').on(table.channelSpaceId),
+    index('ChurchSpaceChannelLinks_orgIdIndex').on(table.orgId),
+  ],
+);
+
 // ─── InboxItems ────────────────────────────────────────────────────────────────
 
 export const InboxItems = pgTable('InboxItems', {

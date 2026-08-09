@@ -10891,6 +10891,70 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   margin-top: 8px;
 }
 
+/*
+  Channel pairing: the options belong to the row above, so they are inset and
+  share its surface rather than floating over it. Expanding in place keeps both
+  lanes visible while choosing, which is the whole reason this lives in the hub.
+*/
+.proto-channel-pairing__options {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 6px 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.proto-channel-pairing__option {
+  appearance: none;
+  background: none;
+  border: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--pds-text-primary);
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.proto-channel-pairing__option:hover:not(:disabled) {
+  background: var(--pds-bg-subtle);
+}
+
+.proto-channel-pairing__option:focus-visible {
+  outline: none;
+  background: var(--pds-bg-chip);
+}
+
+/* Already speaking for another space: shown, not hidden, so "why not that one"
+   is answered where it is asked. */
+.proto-channel-pairing__option:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.proto-channel-pairing__option-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-channel-pairing__option-note {
+  flex: 0 0 auto;
+  color: var(--pds-text-secondary);
+}
+
+.proto-channel-pairing__option--clear {
+  color: var(--pds-text-secondary);
+}
+
 /* Empty lane: caption and action on one row instead of three stacked lines. */
 .proto-church-tools__empty-row {
   display: flex;
@@ -11755,6 +11819,46 @@ p.proto-teaching-plan__divider {
 .proto-shared-space-header__invite {
   color: var(--pds-accent);
   font-weight: 500;
+}
+
+/*
+  The ministry's other room. Same quiet register as the people row it sits
+  under — a sibling room is context, not an action the header is asking for.
+  Deliberately no colour from the room it points at: see the "do not tint"
+  finding in CHURCH_STUDY_MATERIAL_LINKING.md.
+*/
+.proto-shared-space-header__companion {
+  appearance: none;
+  background: none;
+  border: none;
+  margin: -1px -4px;
+  padding: 1px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  max-width: 100%;
+  color: var(--pds-text-secondary);
+  font-size: 12px;
+  line-height: 1.3;
+  transition: background 0.12s ease;
+}
+
+.proto-shared-space-header__companion > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-shared-space-header__companion:hover {
+  background: var(--pds-bg-subtle);
+}
+
+.proto-shared-space-header__companion:focus-visible {
+  outline: none;
+  background: var(--pds-bg-chip);
 }
 
 .proto-shared-space-header__actions {
