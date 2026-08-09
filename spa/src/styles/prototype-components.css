@@ -9518,33 +9518,69 @@ button.proto-appearance-hero__card {
 }
 
 /*
- * The row's button stacks a title line over a preview line. Selecting adds a leading orb,
- * which has to sit beside BOTH — a flex row would make the orb, the title and the preview
- * three columns and put the timestamp next to the title.
+ * The selection checkbox, mirroring the ⋯ on the other side of the row.
  *
- * Grid instead: the orb spans the full height of column one, everything else stays in
- * column two in its original order.
+ * A sibling of the row's main button rather than a child of it: the list's
+ * keyboard nav matches `button.proto-note-row__main`, so this adds a pointer
+ * target without adding an arrow-key stop.
+ *
+ * Its slot is always reserved and only its contents fade, which is exactly how
+ * the ⋯ behaves — reserving on hover instead would shift every title sideways
+ * as the pointer travels down a list someone is trying to read.
  */
-.proto-note-row-item--selectable .proto-note-row__main {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  column-gap: 10px;
-  align-items: start;
+.proto-note-row__select {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  flex-shrink: 0;
+  /* 8px of inset so the orb clears the row's rounded left edge, then the orb
+     itself. The row's main button gives up its own 10px of left padding in
+     exchange, so a title moves right by less than half the slot's width. */
+  width: 26px;
+  padding-left: 8px;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer;
+  opacity: 1;
+  transition: opacity 0.1s ease;
 }
 
-.proto-note-row-item--selectable .proto-note-row__main > .proto-select-slot {
-  grid-column: 1;
-  grid-row: 1 / -1;
-  align-self: center;
-  margin-top: 0;
+/* Coarse pointers have no hover to reveal it, so it appears only once a
+   selection is under way — reached from the list menu's "Select notes". */
+@media not all and (hover: hover) and (pointer: fine) {
+  .proto-note-row-item:not(.proto-note-row-item--selectable) .proto-note-row__select {
+    display: none;
+  }
 }
 
-.proto-note-row-item--selectable .proto-note-row__main > *:not(.proto-select-slot) {
-  grid-column: 2;
-  min-width: 0;
+@media (hover: hover) and (pointer: fine) {
+  .proto-note-row-item .proto-note-row__select {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Hover to find it, keyboard focus to reach it, and always once it is holding
+     something — a checked box that faded out would be a selection you could not
+     see you had made. */
+  .proto-note-row-item:hover .proto-note-row__select,
+  .proto-note-row-item:has(:focus-visible) .proto-note-row__select,
+  .proto-note-row-item--selected .proto-note-row__select,
+  .proto-note-row-item--selectable .proto-note-row__select {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
-/* Header — replaces the search field while selecting. */
+/* The main button already carries 10px of left padding; the reserved slot
+   supplies the rest, so the text does not drift right of where it has always sat. */
+.proto-note-row__select + .proto-note-row__main {
+  padding-left: 0;
+}
+
+/* Header — sits above the search field while a selection stands. */
 .proto-select-bar {
   flex-shrink: 0;
   display: flex;

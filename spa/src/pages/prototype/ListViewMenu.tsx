@@ -78,8 +78,13 @@ export default function ListViewMenu({
     ensureSidebarExpanded,
     sidebarSelectMode,
     setSidebarSelectMode,
+    sidebarSelectedNoteIds,
+    setSidebarSelectedNoteIds,
   } = useProtoShell();
   const showShiftHints = usePrototypeShiftHints();
+  /* Selecting is a state now, not only a flag — a set built by clicking row
+     checkboxes must read as "selecting" to this item too. */
+  const selectingNow = sidebarSelectMode || sidebarSelectedNoteIds.length > 0;
 
   const pick = (mode: SidebarListMode) => {
     setSidebarFolderDrilldown(undefined);
@@ -211,17 +216,26 @@ export default function ListViewMenu({
         type="button"
         role="menuitem"
         className="proto-menu-item"
+        /*
+          Still here for touch, where there is no hover to reveal a row's
+          checkbox. On a mouse this is the slow way round — hovering a row or
+          ⌘-clicking it starts the same selection without opening anything.
+        */
         onClick={() => {
-          setSidebarSelectMode(!sidebarSelectMode);
+          const on = selectingNow;
+          setSidebarSelectMode(!on);
+          /* Leaving has to drop the set as well as the flag, or the checkboxes
+             stay lit and the action bar keeps standing with no way back. */
+          if (on) setSidebarSelectedNoteIds([]);
           ensureSidebarExpanded();
           setOpen(false);
         }}
       >
         <span className="proto-menu-item__icon" aria-hidden>
-          <Icon name={sidebarSelectMode ? 'xmark' : 'check'} size={PROTO_TOOLBAR_ICON_SIZE} />
+          <Icon name={selectingNow ? 'xmark' : 'check'} size={PROTO_TOOLBAR_ICON_SIZE} />
         </span>
         <span className="proto-menu-item__label">
-          {sidebarSelectMode ? 'Done selecting' : 'Select notes'}
+          {selectingNow ? 'Done selecting' : 'Select notes'}
         </span>
       </button>
     </div>

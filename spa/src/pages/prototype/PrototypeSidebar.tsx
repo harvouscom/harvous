@@ -90,6 +90,11 @@ import PrototypeSidebarHomeView from './PrototypeSidebarHomeView';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeListEmptyState, { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
 import PrototypeResourceLibraryList from './PrototypeResourceLibraryList';
+import {
+  extendNoteSelectionRange,
+  toggleNoteSelection,
+  NOTE_SELECTION_CAP,
+} from '../../lib/note-selection';
 import { openLibraryFileItem, type LibraryItem } from '../../hooks/queries/useLibrary';
 import { SIDEBAR_NO_MATCH_COPY } from './sidebar-no-match-copy';
 import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
@@ -232,6 +237,10 @@ type PrototypeSidebarNoteRowProps = {
   viewerIsSpaceOwner?: boolean;
   /** Multi-select is on: the row toggles instead of opening, and shows a check orb. */
   selectMode?: boolean;
+  /** Shift-click: extend the selection from the last one touched to this row. */
+  onSelectRangeTo?: (id: string) => void;
+  /** Whether this row may be selected at all — drives the hover checkbox. */
+  selectable?: boolean;
   selected?: boolean;
   onToggleSelected?: (noteId: string) => void;
 };
@@ -732,6 +741,8 @@ function PrototypeSidebarNoteRow({
   selectMode = false,
   selected = false,
   onToggleSelected,
+  onSelectRangeTo,
+  selectable = false,
 }: PrototypeSidebarNoteRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -883,8 +894,23 @@ function PrototypeSidebarNoteRow({
       // a second button inside the row would also become a keyboard nav stop, because
       // SIDEBAR_LIST_ROW_SELECTOR matches on `button.proto-note-row__main`.
       aria-pressed={selectMode ? selected : undefined}
-      onClick={() => {
+      onClick={(e) => {
         cancelHoverPrefetch();
+        /* ⌘/Ctrl adds one, Shift takes a range — the two gestures every list on
+           this platform already answers to. They work from a standing start, so
+           selecting never begins with a trip to a menu. */
+        if (e.metaKey || e.ctrlKey) {
+          onToggleSelected?.(row.id);
+          return;
+        }
+        if (e.shiftKey && onSelectRangeTo) {
+          onSelectRangeTo(row.id);
+          return;
+        }
+        /* Once something is selected the list is in a selecting frame of mind,
+           so a plain click keeps selecting rather than yanking you into a note
+           and dropping the set you were building. Esc or the last deselect ends
+           it — there is no mode to leave. */
         if (selectMode) {
           onToggleSelected?.(row.id);
           return;
@@ -896,17 +922,6 @@ function PrototypeSidebarNoteRow({
       onFocus={selectMode ? undefined : scheduleHoverPrefetch}
       onBlur={cancelHoverPrefetch}
     >
-      {selectMode ? (
-        <span className="proto-select-slot" aria-hidden>
-          {selected ? (
-            <span className="proto-accent-check-orb proto-accent-check-orb--selected">
-              <Icon name="check" size={11} />
-            </span>
-          ) : (
-            <span className="proto-select-orb-idle" />
-          )}
-        </span>
-      ) : null}
       <div className={trailLayout ? 'proto-thread-trail__title-line' : 'proto-note-row__title-line'}>
         {pinned && !trailLayout ? (
           <span className="proto-note-row__pin" aria-hidden>
@@ -1178,13 +1193,43 @@ function PrototypeSidebarNoteRow({
         'proto-note-row-item',
         row.isNewSinceVisit ? 'proto-note-row--unseen' : '',
         selectMode ? 'proto-note-row-item--selectable' : '',
+        selected ? 'proto-note-row-item--selected' : '',
       ]
         .filter(Boolean)
         .join(' ')}
-      // In select mode "active" would mean the open note, which is not what the row is
-      // reporting any more — the selection is.
+      // While a selection stands "active" would mean the open note, which is not what
+      // the row is reporting any more — the selection is.
       data-active={selectMode ? (selected ? 'true' : 'false') : active ? 'true' : 'false'}
     >
+      {/*
+        Sibling of the main button, not a child of it. `SIDEBAR_LIST_ROW_SELECTOR`
+        matches `button.proto-note-row__main`, so a differently-classed button here
+        adds a pointer target without adding a keyboard nav stop — arrow keys still
+        walk the list one row at a time.
+      */}
+      {selectable ? (
+        <button
+          type="button"
+          className="proto-note-row__select"
+          role="checkbox"
+          aria-checked={selected}
+          aria-label={selected ? `Deselect ${title}` : `Select ${title}`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.shiftKey && onSelectRangeTo) onSelectRangeTo(row.id);
+            else onToggleSelected?.(row.id);
+          }}
+        >
+          {selected ? (
+            <span className="proto-accent-check-orb proto-accent-check-orb--selected">
+              <Icon name="check" size={11} />
+            </span>
+          ) : (
+            <span className="proto-select-orb-idle" />
+          )}
+        </button>
+      ) : null}
       {mainButton}
       {menuBlock}
       {deleteDialog}
@@ -1306,7 +1351,6 @@ export default function PrototypeSidebar({
     setSidebarSelectMode,
     sidebarSelectedNoteIds,
     setSidebarSelectedNoteIds,
-    toggleSidebarSelectedNoteId,
     setSidebarFolderDrilldown: setActiveFolderKey,
     sidebarFolderDrilldown: activeFolderKey,
     sidebarThreadDrilldownId,
@@ -1904,7 +1948,7 @@ export default function PrototypeSidebar({
   }, [sidebarSelectedNoteIds, isScopedSharedSpace, homeSpaceId, removeNotesFromSpace, setSidebarSelectMode]);
 
   /** Ceiling matched to `copy-notes`' server-side `.slice(0, 50)`. */
-  const SELECTION_CAP = 50;
+  const SELECTION_CAP = NOTE_SELECTION_CAP;
   /**
    * Folder assignment is the one action that still fans out to a request per note, and
    * writes are capped at 20/min per endpoint — so it disables past that. Same rule as
@@ -1915,11 +1959,60 @@ export default function PrototypeSidebar({
 
   const selectedNoteIdSet = useMemo(() => new Set(sidebarSelectedNoteIds), [sidebarSelectedNoteIds]);
 
-  /** Rows currently listed, in list order — what "Select all" means. */
+  /** Rows currently listed, in list order — what "Select all" and a range mean. */
   const selectableNotes = useMemo(
-    () => (sidebarSelectMode ? notesForMode.slice(0, SELECTION_CAP) : []),
-    [sidebarSelectMode, notesForMode],
+    () => notesForMode.slice(0, SELECTION_CAP),
+    [notesForMode],
   );
+
+  /**
+   * Selecting is a state, not a mode.
+   *
+   * It begins the moment one note is selected — by its hover checkbox or a
+   * ⌘-click — and ends when the last one is deselected or Esc clears the set.
+   * The old explicit mode is still honoured so "Select notes" keeps working
+   * from the list menu, but nothing requires it any more.
+   */
+  const selectionActive = sidebarSelectMode || sidebarSelectedNoteIds.length > 0;
+
+  /** Anchor for shift-click, so a range means "from the last one you touched". */
+  const selectionAnchorRef = useRef<string | null>(null);
+
+  const toggleNoteSelected = useCallback(
+    (id: string) => {
+      selectionAnchorRef.current = id;
+      setSidebarSelectedNoteIds(toggleNoteSelection(sidebarSelectedNoteIds, id));
+    },
+    [sidebarSelectedNoteIds, setSidebarSelectedNoteIds],
+  );
+
+  const selectRangeTo = useCallback(
+    (id: string) => {
+      setSidebarSelectedNoteIds(
+        extendNoteSelectionRange({
+          selected: sidebarSelectedNoteIds,
+          orderedIds: selectableNotes.map((n) => n.id),
+          anchorId: selectionAnchorRef.current,
+          targetId: id,
+        }),
+      );
+      selectionAnchorRef.current = id;
+    },
+    [selectableNotes, sidebarSelectedNoteIds, setSidebarSelectedNoteIds],
+  );
+
+  /* Esc is the way out, which is why nothing needs a Done button. */
+  useEffect(() => {
+    if (!selectionActive) return undefined;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setSidebarSelectedNoteIds([]);
+      setSidebarSelectMode(false);
+      selectionAnchorRef.current = null;
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [selectionActive, setSidebarSelectedNoteIds, setSidebarSelectMode]);
 
   const selectedRows = useMemo(
     () => notesForMode.filter((n) => selectedNoteIdSet.has(n.id)),
@@ -2438,9 +2531,11 @@ export default function PrototypeSidebar({
           isScopedSharedSpace={isScopedSharedSpace}
           sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
           viewerIsSpaceOwner={viewerIsSpaceOwner}
-          selectMode={sidebarSelectMode}
+          selectMode={selectionActive}
+          selectable
           selected={selectedNoteIdSet.has(n.id)}
-          onToggleSelected={toggleSidebarSelectedNoteId}
+          onToggleSelected={toggleNoteSelected}
+          onSelectRangeTo={selectRangeTo}
           prefetchNote={prefetchNote}
           onOpenNote={(r) => {
             onNoteRow(r);
@@ -2874,9 +2969,14 @@ export default function PrototypeSidebar({
           />
         </div>
       ) : null}
-      {sidebarSelectMode ? (
-        /* Replaces the search field while selecting — searching would change the list out
-           from under a selection, and the count is what matters here. */
+      {selectionActive ? (
+        /*
+          Sits above the search field rather than replacing it. The old bar took
+          the search away to protect the selection from a changing list, but that
+          also meant entering selection cost you the thing you were using to find
+          what to select. Selection survives a filter now; the count says what
+          you are holding, and Clear says how to stop.
+        */
         <div className="proto-select-bar">
           <button
             type="button"
@@ -2887,20 +2987,23 @@ export default function PrototypeSidebar({
             {allSelectableSelected ? 'Deselect all' : 'Select all'}
           </button>
           <span className="proto-select-bar__count">
-            {sidebarSelectedNoteIds.length === 0
-              ? 'Select notes'
+            {sidebarSelectedNoteIds.length === 1
+              ? '1 selected'
               : `${sidebarSelectedNoteIds.length} selected`}
           </span>
           <button
             type="button"
             className="proto-select-bar__action proto-select-bar__action--done"
-            onClick={() => setSidebarSelectMode(false)}
+            onClick={() => {
+              setSidebarSelectedNoteIds([]);
+              setSidebarSelectMode(false);
+            }}
           >
-            Done
+            Clear
           </button>
         </div>
       ) : null}
-      {!isHomeLayer && !sidebarThreadProposal && !sidebarSelectMode ? (
+      {!isHomeLayer && !sidebarThreadProposal ? (
       <div className="proto-sidebar-search">
         <PrototypeSearchInput
           inputRef={searchInputRef}
@@ -3077,9 +3180,11 @@ export default function PrototypeSidebar({
                         isScopedSharedSpace={isScopedSharedSpace}
                         sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
                         viewerIsSpaceOwner={viewerIsSpaceOwner}
-                        selectMode={sidebarSelectMode}
+                        selectMode={selectionActive}
+                        selectable
                         selected={selectedNoteIdSet.has(row.id)}
-                        onToggleSelected={toggleSidebarSelectedNoteId}
+                        onToggleSelected={toggleNoteSelected}
+                        onSelectRangeTo={selectRangeTo}
                         prefetchNote={prefetchNote}
                         onOpenNote={(r) => {
                           onNoteRow(r);
@@ -3103,7 +3208,7 @@ export default function PrototypeSidebar({
                     start writing, and a new note is the app's whole point. Fires
                     the ⇧N event rather than composing here — one owner decides
                     which space a new note lands in. */}
-                {sidebarSelectMode ? (
+                {selectionActive ? (
                   bulkBar
                 ) : homeSpaceId ? (
                   <div className="proto-collection-grid-actions">
@@ -3163,9 +3268,11 @@ export default function PrototypeSidebar({
                         isScopedSharedSpace={isScopedSharedSpace}
                         sharedSpaceMemberByUserId={sharedSpaceMemberByUserId}
                         viewerIsSpaceOwner={viewerIsSpaceOwner}
-                        selectMode={sidebarSelectMode}
+                        selectMode={selectionActive}
+                        selectable
                         selected={selectedNoteIdSet.has(row.id)}
-                        onToggleSelected={toggleSidebarSelectedNoteId}
+                        onToggleSelected={toggleNoteSelected}
+                        onSelectRangeTo={selectRangeTo}
                         prefetchNote={prefetchNote}
                         folderRemoval={
                           typeof activeFolderKey === 'string' ? { folderName: activeFolderKey } : undefined
