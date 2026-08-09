@@ -71,6 +71,17 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     visualBaseline: true,
   },
   {
+    id: 'ds-05b-row-select',
+    title: 'Row selection',
+    phase: 'Primitives',
+    editFiles: [
+      'spa/src/pages/prototype/ProtoRowSelectCheckbox.tsx',
+      'spa/src/styles/prototype-components.css',
+    ],
+    screenshotSlug: 'ds-05b-row-select',
+    visualBaseline: true,
+  },
+  {
     id: 'ds-06-search',
     title: 'Search field',
     phase: 'Primitives',

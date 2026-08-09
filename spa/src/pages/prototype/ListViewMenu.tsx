@@ -215,8 +215,20 @@ export default function ListViewMenu({
   const canSelect =
     sidebarListMode === 'notes' ||
     sidebarListMode === 'scripture' ||
-    sidebarListMode === 'highlights';
-  const selectNoun = sidebarListMode === 'highlights' ? 'highlights' : 'notes';
+    sidebarListMode === 'highlights' ||
+    sidebarListMode === 'folders' ||
+    sidebarListMode === 'threads' ||
+    sidebarListMode === 'resources';
+  const selectNoun =
+    sidebarListMode === 'highlights'
+      ? 'highlights'
+      : sidebarListMode === 'folders'
+        ? 'folders'
+        : sidebarListMode === 'threads'
+          ? 'Threads'
+        : sidebarListMode === 'resources'
+          ? 'resources'
+          : 'notes';
   const selectSection = canSelect ? (
     <div className="proto-menu-section" role="group">
       <button

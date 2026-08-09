@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import DeleteConfirmBar from '@/components/react/DeleteConfirmBar';
 import Icon from '@/components/react/Icon';
+import ProtoRowSelectCheckbox from '../../prototype/ProtoRowSelectCheckbox';
 import {
   PrototypeListEmptyState,
   PrototypeListRow,
@@ -177,6 +178,67 @@ function SectionHeaderScene() {
       <PrototypeSectionHeader variant="inspector">Inspector</PrototypeSectionHeader>
       <PrototypeSectionHeader variant="search">Search group</PrototypeSectionHeader>
       <PrototypeSectionHeader variant="list">List section</PrototypeSectionHeader>
+    </div>
+  );
+}
+
+/**
+ * How a row offers to be selected.
+ *
+ * Three states, because the reveal differs by what the row already has. A row
+ * with a leading kind icon hands that icon's place over — nothing moves. A row
+ * without one steps aside while hovered. Selected is always visible: a checked
+ * box that faded out would be a selection you could not see you had made.
+ *
+ * Rendered inert here — hovering a gallery fixture proves nothing about a real
+ * list, and the states have to be visible side by side to be compared at all.
+ */
+function RowSelectScene() {
+  return (
+    <div className="pds-scene-stack">
+      <ul className="proto-note-list" style={{ maxWidth: 320 }}>
+        <li className="proto-note-row-item">
+          <button type="button" className="proto-note-row__main">
+            <div className="proto-note-row__title-line">
+              <span className="proto-note-row__kind-icon" aria-hidden>
+                <Icon name="highlighter" size={11} />
+              </span>
+              <span className="pds-list-title proto-note-row__title-text">At rest</span>
+            </div>
+            <div className="pds-list-preview proto-note-row__preview">
+              <span className="pds-list-timestamp">The row keeps its own glyph</span>
+            </div>
+          </button>
+        </li>
+        <li className="proto-note-row-item proto-note-row-item--selectable">
+          <ProtoRowSelectCheckbox selected={false} label="Offered" onToggle={() => {}} />
+          <button type="button" className="proto-note-row__main">
+            <div className="proto-note-row__title-line">
+              <span className="proto-note-row__kind-icon" aria-hidden>
+                <Icon name="highlighter" size={11} />
+              </span>
+              <span className="pds-list-title proto-note-row__title-text">Offered</span>
+            </div>
+            <div className="pds-list-preview proto-note-row__preview">
+              <span className="pds-list-timestamp">The glyph hands its place over</span>
+            </div>
+          </button>
+        </li>
+        <li className="proto-note-row-item proto-note-row-item--selectable proto-note-row-item--selected">
+          <ProtoRowSelectCheckbox selected label="Selected" onToggle={() => {}} />
+          <button type="button" className="proto-note-row__main">
+            <div className="proto-note-row__title-line">
+              <span className="proto-note-row__kind-icon" aria-hidden>
+                <Icon name="highlighter" size={11} />
+              </span>
+              <span className="pds-list-title proto-note-row__title-text">Selected</span>
+            </div>
+            <div className="pds-list-preview proto-note-row__preview">
+              <span className="pds-list-timestamp">Always visible, never faded</span>
+            </div>
+          </button>
+        </li>
+      </ul>
     </div>
   );
 }
@@ -463,6 +525,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <SectionHeaderScene />;
     case 'ds-05-list-row':
       return <ListRowScene />;
+    case 'ds-05b-row-select':
+      return <RowSelectScene />;
     case 'ds-06-search':
       return <SearchScene />;
     case 'ds-08-empty':

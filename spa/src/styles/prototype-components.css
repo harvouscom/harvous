@@ -6977,7 +6977,42 @@ button.proto-home-greeting__chip--passage {
   cursor: pointer;
 }
 
+/*
+ * A card's selection checkbox: top-left, mirroring the ⋯ opposite it.
+ *
+ * A card carries no leading glyph to hand over and has no padding to inset
+ * into, so unlike a list row it overlays a corner — the same move the menu
+ * already makes on the other side, so the two read as one pair.
+ */
+.proto-collection-card__select {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+  transition: opacity 0.1s ease;
+}
+
+/* Coarse pointers have no hover, so it appears only once selecting is under
+   way — reached from the list menu, as everywhere else. */
+@media not all and (hover: hover) and (pointer: fine) {
+  .proto-collection-grid-item:not(.proto-collection-grid-item--selectable)
+    .proto-collection-card__select {
+    display: none;
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
+  .proto-collection-grid-item .proto-collection-card__select,
   .proto-collection-grid-item .proto-collection-card__menu-trigger {
     opacity: 0;
     pointer-events: none;
@@ -6987,7 +7022,11 @@ button.proto-home-greeting__chip--passage {
      not strand a trigger lit on a card the reader has moved away from. */
   .proto-collection-grid-item:hover .proto-collection-card__menu-trigger,
   .proto-collection-grid-item:has(:focus-visible) .proto-collection-card__menu-trigger,
-  .proto-collection-grid-item:has(.proto-collection-card__menu--open) .proto-collection-card__menu-trigger {
+  .proto-collection-grid-item:has(.proto-collection-card__menu--open) .proto-collection-card__menu-trigger,
+  .proto-collection-grid-item:hover .proto-collection-card__select,
+  .proto-collection-grid-item:has(:focus-visible) .proto-collection-card__select,
+  .proto-collection-grid-item--selectable .proto-collection-card__select,
+  .proto-collection-grid-item--selected .proto-collection-card__select {
     opacity: 1;
     pointer-events: auto;
   }

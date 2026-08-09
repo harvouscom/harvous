@@ -254,6 +254,10 @@ function PrototypeSidebarFolderCard({
   onDelete,
   isDeleting,
   showMenu = true,
+  selectable = false,
+  selectMode = false,
+  selected = false,
+  onToggleSelected,
 }: {
   folder: FolderBucket;
   isPinned: boolean;
@@ -262,6 +266,11 @@ function PrototypeSidebarFolderCard({
   onDelete: (anchorRect: DOMRect) => void;
   isDeleting: boolean;
   showMenu?: boolean;
+  /** Named folders only — "Unsorted" is a bucket, not a thing you can act on. */
+  selectable?: boolean;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelected?: () => void;
 }) {
   const isNamed = folder.name !== null;
   const title = folder.name ?? 'Unsorted';
@@ -270,8 +279,51 @@ function PrototypeSidebarFolderCard({
   const menuRootRef = useRef<HTMLDivElement>(null);
 
   return (
-    <li ref={rowRef} className="proto-collection-grid-item">
-      <button type="button" className="proto-collection-card" onClick={onOpen} aria-label={`${title}, ${folder.count} notes`}>
+    <li
+      ref={rowRef}
+      className={[
+        'proto-collection-grid-item',
+        selectMode ? 'proto-collection-grid-item--selectable' : '',
+        selected ? 'proto-collection-grid-item--selected' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      {/* Top-left, mirroring the ⋯ opposite it. A card has no leading glyph to
+          hand over and no room to inset, so the checkbox overlays a corner the
+          way that menu already does. */}
+      {selectable ? (
+        <button
+          type="button"
+          className="proto-collection-card__select"
+          role="checkbox"
+          aria-checked={selected}
+          aria-label={selected ? `Deselect ${title}` : `Select ${title}`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleSelected?.();
+          }}
+        >
+          {selected ? (
+            <span className="proto-accent-check-orb proto-accent-check-orb--selected">
+              <Icon name="check" size={11} />
+            </span>
+          ) : (
+            <span className="proto-select-orb-idle" />
+          )}
+        </button>
+      ) : null}
+      <button
+        type="button"
+        className="proto-collection-card"
+        onClick={(e) => {
+          if (selectable && (e.metaKey || e.ctrlKey)) return onToggleSelected?.();
+          if (selectMode && selectable) return onToggleSelected?.();
+          onOpen();
+        }}
+        aria-label={`${title}, ${folder.count} notes`}
+      >
         <span className="proto-collection-card__icon">
           {isPinned ? (
             <span className="proto-collection-card__pin" aria-hidden>
@@ -362,6 +414,10 @@ function PrototypeSidebarThreadCard({
   onDelete,
   isDeleting,
   showMenu = true,
+  selectable = false,
+  selectMode = false,
+  selected = false,
+  onToggleSelected,
 }: {
   cluster: StudyThreadCluster;
   title: string;
@@ -371,6 +427,10 @@ function PrototypeSidebarThreadCard({
   onDelete: (anchorRect: DOMRect) => void;
   isDeleting: boolean;
   showMenu?: boolean;
+  selectable?: boolean;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelected?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const rowRef = useRef<HTMLLIElement>(null);
@@ -378,11 +438,46 @@ function PrototypeSidebarThreadCard({
   const preview = `${cluster.noteCount} note${cluster.noteCount !== 1 ? 's' : ''}`;
 
   return (
-    <li ref={rowRef} className="proto-collection-grid-item">
+    <li
+      ref={rowRef}
+      className={[
+        'proto-collection-grid-item',
+        selectMode ? 'proto-collection-grid-item--selectable' : '',
+        selected ? 'proto-collection-grid-item--selected' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      {selectable ? (
+        <button
+          type="button"
+          className="proto-collection-card__select"
+          role="checkbox"
+          aria-checked={selected}
+          aria-label={selected ? `Deselect ${title}` : `Select ${title}`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleSelected?.();
+          }}
+        >
+          {selected ? (
+            <span className="proto-accent-check-orb proto-accent-check-orb--selected">
+              <Icon name="check" size={11} />
+            </span>
+          ) : (
+            <span className="proto-select-orb-idle" />
+          )}
+        </button>
+      ) : null}
       <button
         type="button"
         className="proto-collection-card"
-        onClick={onOpen}
+        onClick={(e) => {
+          if (selectable && (e.metaKey || e.ctrlKey)) return onToggleSelected?.();
+          if (selectMode && selectable) return onToggleSelected?.();
+          onOpen();
+        }}
         aria-label={`${title}, ${preview}`}
       >
         <span className="proto-collection-card__icon">
@@ -2736,7 +2831,139 @@ export default function PrototypeSidebar({
 
   const deleteHighlight = useDeleteHighlight();
   const removeFolder = useRemoveFolder();
+
+  /*
+    Folders select by *name*, which is what identifies one everywhere else in
+    this file — `useRemoveFolder` takes a folderName, and the pin store keys on
+    `folderRowId(name)`. "Unsorted" has no name and is not a thing you can act
+    on, so it never carries a checkbox.
+  */
+  const folderSelectionActive =
+    sidebarSelectionKind === 'folder' && sidebarSelectedIds.length > 0;
+  const folderSelectedIdSet = useMemo(
+    () => new Set(folderSelectionActive ? sidebarSelectedIds : []),
+    [folderSelectionActive, sidebarSelectedIds],
+  );
+  const toggleFolderSelected = useCallback(
+    (name: string) => {
+      if (!name) return;
+      const base = sidebarSelectionKind === 'folder' ? sidebarSelectedIds : [];
+      setSidebarSelection('folder', toggleNoteSelection(base, name));
+    },
+    [sidebarSelectionKind, sidebarSelectedIds, setSidebarSelection],
+  );
+  const [bulkFolderDeleteAnchor, setBulkFolderDeleteAnchor] = useState<DOMRect | null>(null);
+
+  /**
+   * Deleting folders in bulk strips the label from their notes — the notes
+   * themselves are never touched, which is what `useRemoveFolder` already means
+   * and why the confirm says so.
+   */
+  const onConfirmBulkDeleteFolders = async () => {
+    if (!homeSpaceId) return;
+    try {
+      for (const name of sidebarSelectedIds) {
+        await removeFolder.mutateAsync({ spaceId: homeSpaceId, folderName: name });
+      }
+    } catch (err) {
+      toastError(err, 'Could not remove every folder');
+    } finally {
+      setBulkFolderDeleteAnchor(null);
+      setSidebarSelection('folder', []);
+    }
+  };
+
+  const folderBulkBar = (
+    <div className="proto-collection-grid-actions proto-bulk-bar">
+      <button
+        type="button"
+        className="proto-bulk-bar__btn"
+        title="Pin these folders"
+        onClick={() => {
+          for (const name of sidebarSelectedIds) togglePinnedFolder(folderRowId(name));
+          setSidebarSelection('folder', []);
+        }}
+      >
+        <Icon name="thumbtack" size={15} aria-hidden />
+        <span className="proto-bulk-bar__label">Pin</span>
+      </button>
+      <button
+        type="button"
+        className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
+        title="Remove these folders — the notes in them stay"
+        onClick={(e) => setBulkFolderDeleteAnchor(e.currentTarget.getBoundingClientRect())}
+      >
+        <Icon name="trash-can" size={15} aria-hidden />
+        <span className="proto-bulk-bar__label">Delete</span>
+      </button>
+    </div>
+  );
   const removeThreadCluster = useRemoveThreadCluster();
+
+  /*
+    Threads select by cluster id. Removing one takes its member notes out of the
+    cluster — the notes stay, which is what `useRemoveThreadCluster` means and
+    why the confirm says so rather than calling it a delete.
+  */
+  const threadSelectionActive =
+    sidebarSelectionKind === 'thread' && sidebarSelectedIds.length > 0;
+  const threadSelectedIdSet = useMemo(
+    () => new Set(threadSelectionActive ? sidebarSelectedIds : []),
+    [threadSelectionActive, sidebarSelectedIds],
+  );
+  const toggleThreadSelected = useCallback(
+    (id: string) => {
+      const base = sidebarSelectionKind === 'thread' ? sidebarSelectedIds : [];
+      setSidebarSelection('thread', toggleNoteSelection(base, id));
+    },
+    [sidebarSelectionKind, sidebarSelectedIds, setSidebarSelection],
+  );
+  const [bulkThreadDeleteAnchor, setBulkThreadDeleteAnchor] = useState<DOMRect | null>(null);
+
+  const onConfirmBulkRemoveThreads = async () => {
+    if (!homeSpaceId) return;
+    const chosen = filteredThreads.filter((c) => threadSelectedIdSet.has(c.id));
+    try {
+      for (const cluster of chosen) {
+        await removeThreadCluster.mutateAsync({
+          spaceId: homeSpaceId,
+          memberIds: cluster.memberIds,
+        });
+        setPinnedThreadClusterIds(removePinnedThreadClusterId(homeSpaceId, cluster.id));
+      }
+    } catch (err) {
+      toastError(err, 'Could not remove every Thread');
+    } finally {
+      setBulkThreadDeleteAnchor(null);
+      setSidebarSelection('thread', []);
+    }
+  };
+
+  const threadBulkBar = (
+    <div className="proto-collection-grid-actions proto-bulk-bar">
+      <button
+        type="button"
+        className="proto-bulk-bar__btn"
+        title="Pin these Threads"
+        onClick={() => {
+          for (const id of sidebarSelectedIds) togglePinnedThreadCluster(id);
+          setSidebarSelection('thread', []);
+        }}
+      >
+        <Icon name="thumbtack" size={15} aria-hidden />
+        <span className="proto-bulk-bar__label">Pin</span>
+      </button>
+      <button
+        type="button"
+        className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
+        title="Break these Threads apart — the notes stay"
+        onClick={(e) => setBulkThreadDeleteAnchor(e.currentTarget.getBoundingClientRect())}
+      >
+        <Icon name="trash-can" size={15} aria-hidden />
+        <span className="proto-bulk-bar__label">Remove</span>
+      </button>
+    </div>
+  );
   const deleteSharedThread = useDeleteSharedThread();
   const setCurrentSpaceThread = useSetCurrentSpaceThread();
   const [sharedThreadDeleteTarget, setSharedThreadDeleteTarget] = useState<{
@@ -3558,15 +3785,24 @@ export default function PrototypeSidebar({
                       onTogglePin={() => togglePinnedFolder(folderRowId(col.name))}
                       onDelete={(anchorRect) => onRequestDeleteFolder(col, anchorRect)}
                       showMenu={!isScopedSharedSpace || viewerIsSpaceOwner}
+                      selectable={
+                        col.name !== null && (!isScopedSharedSpace || viewerIsSpaceOwner)
+                      }
+                      selectMode={folderSelectionActive}
+                      selected={folderSelectedIdSet.has(col.name ?? '')}
+                      onToggleSelected={() => toggleFolderSelected(col.name ?? '')}
                       isDeleting={
                         removeFolder.isPending && removeFolder.variables?.folderName === col.name
                       }
                     />
                   ))}
                 </ul>
+                {/* While folders are selected their actions take the footer's
+                    place — making a new folder is not what you are doing. */}
+                {folderSelectionActive ? folderBulkBar : null}
                 {/* After the grid, not before it: the footer is the last thing in
                     the pane, so the list starts at the top where reading starts. */}
-                {!q.trim() && canCreateSidebarCollections ? (
+                {!folderSelectionActive && !q.trim() && canCreateSidebarCollections ? (
                   <div className="proto-collection-grid-actions">
                     <button
                       type="button"
@@ -3921,12 +4157,17 @@ export default function PrototypeSidebar({
                           onTogglePin={() => togglePinnedThreadCluster(cluster.id)}
                           onDelete={(anchorRect) => onRequestDeleteThreadCluster(cluster, title, anchorRect)}
                           showMenu={!isScopedSharedSpace || viewerIsSpaceOwner}
+                          selectable={!isScopedSharedSpace || viewerIsSpaceOwner}
+                          selectMode={threadSelectionActive}
+                          selected={threadSelectedIdSet.has(cluster.id)}
+                          onToggleSelected={() => toggleThreadSelected(cluster.id)}
                           isDeleting={removeThreadCluster.isPending && threadDeleteTarget?.cluster.id === cluster.id}
                         />
                       );
                     })}
                   </ul>
-                  {!q.trim() && canCreateSidebarCollections ? (
+                  {threadSelectionActive ? threadBulkBar : null}
+                  {!threadSelectionActive && !q.trim() && canCreateSidebarCollections ? (
                     <div className="proto-collection-grid-actions">
                       <button
                         type="button"
@@ -4152,6 +4393,23 @@ export default function PrototypeSidebar({
           }}
         />
       ) : null}
+      {bulkFolderDeleteAnchor ? (
+        <ProtoConfirmDialog
+          anchorRect={bulkFolderDeleteAnchor}
+          preferAbove
+          alignRight
+          title={`Remove ${sidebarSelectedIds.length} folder${
+            sidebarSelectedIds.length === 1 ? '' : 's'
+          }?`}
+          description="The notes in them stay — only the folder goes."
+          confirmLabel="Remove"
+          busy={removeFolder.isPending}
+          onConfirm={() => void onConfirmBulkDeleteFolders()}
+          onCancel={() => {
+            if (!removeFolder.isPending) setBulkFolderDeleteAnchor(null);
+          }}
+        />
+      ) : null}
       {folderDeleteTarget ? (
         <ProtoConfirmDialog
           anchorRect={folderDeleteTarget.anchorRect}
@@ -4160,6 +4418,23 @@ export default function PrototypeSidebar({
           onConfirm={onConfirmDeleteFolder}
           onCancel={() => {
             if (!removeFolder.isPending) setFolderDeleteTarget(null);
+          }}
+        />
+      ) : null}
+      {bulkThreadDeleteAnchor ? (
+        <ProtoConfirmDialog
+          anchorRect={bulkThreadDeleteAnchor}
+          preferAbove
+          alignRight
+          title={`Remove ${sidebarSelectedIds.length} Thread${
+            sidebarSelectedIds.length === 1 ? '' : 's'
+          }?`}
+          description="The notes in them stay — only the connections go."
+          confirmLabel="Remove"
+          busy={removeThreadCluster.isPending}
+          onConfirm={() => void onConfirmBulkRemoveThreads()}
+          onCancel={() => {
+            if (!removeThreadCluster.isPending) setBulkThreadDeleteAnchor(null);
           }}
         />
       ) : null}
