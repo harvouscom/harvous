@@ -147,6 +147,24 @@ describe('planTruncatedDraftRestore', () => {
     ).toEqual({ action: 'skip-keep' });
   });
 
+  it('drops a stale pre-merge draft instead of duplicating its own text (regression)', () => {
+    // Reproduces the duplication bug: the draft was written just before an earlier
+    // session spliced the real tail onto exactly this draft content and saved it. The
+    // seam still validates (nothing before the seam changed), but concatenating a tail
+    // sliced from the now-already-merged server body would repeat "two EDITED".
+    const draftContent = '<p>one</p><p>two EDITED</p>';
+    const alreadyMergedServerContent = '<p>one</p><p>two EDITED</p><p>three</p>';
+    expect(
+      planTruncatedDraftRestore({
+        draftContent,
+        draftPreviewHtml: preview,
+        draftPreviewLength: preview.length,
+        serverContent: alreadyMergedServerContent,
+        serverIsTruncated: false,
+      }),
+    ).toEqual({ action: 'skip-clear' });
+  });
+
   it('drops a seamless legacy draft whose text the full body already contains', () => {
     expect(
       planTruncatedDraftRestore({

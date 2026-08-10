@@ -164,6 +164,14 @@ export function planTruncatedDraftRestore(input: {
     serverContent.slice(0, draftPreviewLength) === draftPreviewHtml;
   if (!seamValid) return { action: 'skip-clear' };
 
+  // The server may already hold this draft's own content plus the real tail — e.g. an
+  // earlier session spliced and saved the merge, but the draft itself is a stale snapshot
+  // taken just before that (never reconciled, because the process died before the next
+  // write). Slicing a "tail" from an already-merged server body and appending it to this
+  // stale draft would duplicate the draft's own text. If the server already says
+  // everything the draft says, there's nothing left to recover.
+  if (serverContent.startsWith(draftContent)) return { action: 'skip-clear' };
+
   const tail = serverContent.slice(draftPreviewLength);
   return tail ? { action: 'restore-merged', content: draftContent + tail } : { action: 'restore' };
 }

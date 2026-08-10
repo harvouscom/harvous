@@ -1507,12 +1507,14 @@ export default function CardFullEditable({
       truncatedPreviewLengthRef.current = null;
       truncatedPreviewHtmlRef.current = null;
       const editor = editorInstanceRef.current;
+      let mergedForDraft: string | null = null;
       if (tail && editor && !editor.isDestroyed) {
         editor.commands.insertContentAt(editor.state.doc.content.size, tail);
         const merged = editor.getHTML();
         setDisplayContent(merged);
         setEditContent(merged);
         editContentRef.current = merged;
+        mergedForDraft = merged;
       } else if (!tail && isTiptapBodyEmpty(editContentRef.current) && !isTiptapBodyEmpty(full)) {
         // Nothing to splice and the editor is empty — take the server body outright
         // rather than saving an empty doc over it.
@@ -1520,6 +1522,29 @@ export default function CardFullEditable({
         setEditContent(full);
         editContentRef.current = full;
         setForceBodyReplaceRevision((r) => r + 1);
+        mergedForDraft = full;
+      }
+      // Reconcile the local draft synchronously, right here — not on the next 250ms
+      // debounce tick. The draft on disk right now still carries the *pre-merge* body
+      // tagged `bodyTruncated: true` with the old seam. If the process dies before that
+      // debounce fires (a PWA backgrounded and killed by the OS won't reliably fire
+      // pagehide), the stale draft survives. The save fired below persists the merged
+      // body, and the text before the seam offset is unchanged by it — so on a later
+      // open, the stale draft's seam still validates against that (now-merged) server
+      // content, and `planTruncatedDraftRestore` slices the "tail" from a body that
+      // already contains the text the user typed. `draftContent + tail` then duplicates
+      // that block. Writing the merged, now-untruncated draft here (truncatedDraftSeam()
+      // correctly returns {} since bodyTruncatedRef was just cleared above) closes the
+      // window.
+      if (mergedForDraft !== null) {
+        const draftKey = activeDraftKey();
+        if (draftKey) {
+          saveNoteDraft(draftKey, {
+            title: editTitleRef.current,
+            content: mergedForDraft,
+            ...truncatedDraftSeam(),
+          });
+        }
       }
       seededFromPreviewRef.current = false;
       // Now that the body is whole, send the save this session has been holding.
