@@ -189,7 +189,7 @@ export default function ScripturePillChromeWeb({
   const [showCrossRefs, setShowCrossRefs] = useState(false);
   // Parity with cross-references: "Your notes" used to be unconditional, so there was a switch for
   // other people's passages but none for your own. Per-dock, like showCrossRefs — resets on remount.
-  const [showRelatedNotes, setShowRelatedNotes] = useState(true);
+  const [showRelatedNotes, setShowRelatedNotes] = useState(false);
   const [isExpandedInternal, setIsExpandedInternal] = useState(true);
   const isControlledExpanded = expandedControlled !== undefined && onExpandedChange !== undefined;
   const isExpanded = isControlledExpanded ? expandedControlled! : isExpandedInternal;
