@@ -240,7 +240,7 @@ type PrototypeSidebarNoteRowProps = {
   selectMode?: boolean;
   /** Shift-click: extend the selection from the last one touched to this row. */
   onSelectRangeTo?: (id: string) => void;
-  /** Whether this row may be selected at all — drives the hover checkbox. */
+  /** Whether this row may be selected at all — drives the row's checkbox. */
   selectable?: boolean;
   selected?: boolean;
   onToggleSelected?: (noteId: string) => void;
@@ -2090,12 +2090,10 @@ export default function PrototypeSidebar({
   );
 
   /**
-   * Selecting is a state, not a mode.
-   *
-   * It begins the moment one note is selected — by its hover checkbox or a
-   * ⌘-click — and ends when the last one is deselected or Esc clears the set.
-   * The old explicit mode is still honoured so "Select notes" keeps working
-   * from the list menu, but nothing requires it any more.
+   * Selecting starts from the list menu's "Select…" — the only entry point,
+   * now that the checkbox no longer reveals itself on hover — but a ⌘-click
+   * still adds a note to the set directly. Either way it ends when the last
+   * one is deselected or Esc clears the set.
    */
   const selectionActive = sidebarSelectMode || sidebarSelectedIds.length > 0;
   /* A note row is in a selecting frame of mind only when *notes* are being

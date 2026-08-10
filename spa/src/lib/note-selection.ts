@@ -1,10 +1,9 @@
 /**
- * Selecting several notes without a mode to enter first.
+ * Selecting several notes.
  *
- * A selection begins the moment one note is picked — by its hover checkbox or a
- * ⌘-click — and ends when the last one is dropped. There is no "select mode" to
- * turn on, which is why these are pure functions over the current set rather
- * than transitions of a state machine.
+ * The set is picked with the list menu's "Select…" or a ⌘-click, and ends
+ * when the last note is dropped. These are pure functions over the current
+ * set rather than transitions of a state machine.
  */
 
 /** Ceiling matched to `copy-notes`' server-side `.slice(0, 50)`. */

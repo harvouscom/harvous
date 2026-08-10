@@ -209,9 +209,8 @@ export default function ListViewMenu({
    * Only the note-bearing lists can be selected. Folders and Threads show cards, and
    * Resources is a different entity entirely.
    */
-  /* Touch has no hover to reveal a row's checkbox, so this entry is the only
-     way in there — which is why it tracks the selectable modes rather than
-     staying at notes. */
+  /* The only way into selecting — there is no hover reveal any more, so this
+     entry tracks every selectable mode rather than staying at notes. */
   const canSelect =
     sidebarListMode === 'notes' ||
     sidebarListMode === 'scripture' ||
@@ -235,11 +234,6 @@ export default function ListViewMenu({
         type="button"
         role="menuitem"
         className="proto-menu-item"
-        /*
-          Still here for touch, where there is no hover to reveal a row's
-          checkbox. On a mouse this is the slow way round — hovering a row or
-          ⌘-clicking it starts the same selection without opening anything.
-        */
         onClick={() => {
           const on = selectingNow;
           setSidebarSelectMode(!on);

@@ -6,9 +6,9 @@
  * (`useListKeyboardNavigation`), so nesting this would make every row two
  * arrow-key stops, and a button inside a button is invalid markup besides.
  *
- * Where it appears and when it fades is entirely CSS — see the multi-select
- * block in `prototype-components.css`. Rows that carry a leading kind icon hand
- * that icon's exact place over; rows without one step aside while hovered.
+ * Whether it shows at all is entirely CSS — see the multi-select block in
+ * `prototype-components.css`. It's hidden until the list menu's "Select…"
+ * turns selecting on for the whole list; there is no per-row hover reveal.
  */
 import Icon from '@/components/react/Icon';
 
