@@ -8876,8 +8876,11 @@ button.proto-appearance-hero__card {
   transition: opacity var(--pds-duration-press) ease;
 }
 
+/* Same reason as the space switcher's handle: a drag that ends leaves focus on
+   the activator, and `:focus-within` kept the grip lit after the pointer had
+   long gone. */
 .proto-thread-trail__step:hover .proto-thread-trail__drag-handle,
-.proto-thread-trail__step:focus-within .proto-thread-trail__drag-handle {
+.proto-thread-trail__step:has(:focus-visible) .proto-thread-trail__drag-handle {
   opacity: 0.75;
 }
 
@@ -13565,13 +13568,21 @@ html.harvous-prototype-route
   transition: opacity 0.12s;
 }
 
+/*
+ * `:has(:focus-visible)`, not `:focus-within`.
+ *
+ * dnd-kit returns focus to the activator when a drag ends, so after dropping a
+ * row with the mouse the handle stayed lit — and the space icon stayed hidden
+ * behind it — until you clicked somewhere else. That focus is programmatic, so
+ * it never matches `:focus-visible`, while a real Tab still does.
+ */
 .proto-space-switcher__row--reorderable:hover .proto-space-switcher__drag-handle,
-.proto-space-switcher__row--reorderable:focus-within .proto-space-switcher__drag-handle {
+.proto-space-switcher__row--reorderable:has(:focus-visible) .proto-space-switcher__drag-handle {
   opacity: 0.75;
 }
 
 .proto-space-switcher__row--reorderable:hover .proto-menu-item__icon--space,
-.proto-space-switcher__row--reorderable:focus-within .proto-menu-item__icon--space {
+.proto-space-switcher__row--reorderable:has(:focus-visible) .proto-menu-item__icon--space {
   opacity: 0;
 }
 
