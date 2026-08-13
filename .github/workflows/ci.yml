@@ -78,3 +78,33 @@ jobs:
 
       - name: Bundle budget ratchet
         run: npm run perf:check
+
+  # Only the marquee spec, not the whole gallery config. The other gallery specs assert on
+  # screenshots whose baselines were taken on macOS, and font rendering differs enough on Ubuntu
+  # that they would fail here for reasons nobody wants to chase. This one measures rendered
+  # widths and only cares whether a label is zero pixels wide, which no platform disagrees about.
+  #
+  # It needs no database and no Clerk session — dev-gallery routes are fixtures — which is why it
+  # can run here while the rest of the Playwright suite deliberately does not.
+  marquee-width:
+    name: Marquee labels have width
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate build-time sources
+        run: node scripts/generate-founder-letter.js
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Measure marquee widths across the dev galleries
+        run: npx playwright test --config playwright.gallery.config.ts marquee-width --workers=1

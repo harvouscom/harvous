@@ -9,6 +9,9 @@ export default defineConfig({
   testMatch: [
     'design-system-gallery.spec.ts',
     'shared-spaces-design-gallery.spec.ts',
+    // Measures rendered widths across every gallery scene. Lives here rather than in the
+    // general suite because it needs the galleries served, and they are what this config runs.
+    'marquee-width.spec.ts',
   ],
   timeout: 30_000,
   retries: 0,

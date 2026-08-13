@@ -1412,25 +1412,60 @@ function MarqueeScene() {
           </div>
         </div>
 
+        {/*
+          Both scope bars, and both inside `__header-lead` — which is the whole point.
+
+          This scene used to render the church-hub bar alone and bare, outside that container.
+          That missed the bug twice over: `__header-lead` is where the chips are `flex: 0 0 auto`
+          (sized to their content), and paired mode is the shape where *every* chip is a
+          marquee, so nothing holds the bar open. The gallery stayed green across 91 scenes
+          while the real planner drew an empty pill.
+        */}
         <div>
           <p className="proto-caption" style={{ marginBottom: 6, opacity: 0.6 }}>
-            Scope chip (hovers itself)
+            Scope chip — church hub (hovers itself)
           </p>
-          <div className="proto-chip-bar proto-planner-scope" role="radiogroup" aria-label="Plan">
-            <button type="button" role="radio" aria-checked={false} className="proto-chip">
-              Church
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked
-              className="proto-chip proto-planner-scope__channel proto-chip--selected"
-            >
-              <span className="proto-planner-scope__channel-name proto-marquee" title={long}>
-                <span>{long}</span>
-              </span>
-              <Icon name="caret-down" size={9} aria-hidden className="proto-planner-scope__caret" />
-            </button>
+          <div className="proto-sidebar-expanded-panel__header-lead">
+            <div className="proto-chip-bar proto-planner-scope" role="radiogroup" aria-label="Plan">
+              <button type="button" role="radio" aria-checked={false} className="proto-chip">
+                Church
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked
+                className="proto-chip proto-planner-scope__channel proto-chip--selected"
+              >
+                <span className="proto-planner-scope__channel-name proto-marquee" title={long}>
+                  <span>{long}</span>
+                </span>
+                <Icon name="caret-down" size={9} aria-hidden className="proto-planner-scope__caret" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p className="proto-caption" style={{ marginBottom: 6, opacity: 0.6 }}>
+            Scope chip — paired room (both labels are marquees)
+          </p>
+          <div className="proto-sidebar-expanded-panel__header-lead">
+            <div className="proto-chip-bar proto-planner-scope" role="radiogroup" aria-label="Plan">
+              {[long, longer].map((title, i) => (
+                <button
+                  key={title}
+                  type="button"
+                  role="radio"
+                  aria-checked={i === 0}
+                  className={`proto-chip proto-planner-scope__room${i === 0 ? ' proto-chip--selected' : ''}`}
+                  title={title}
+                >
+                  <span className="proto-planner-scope__channel-name proto-marquee">
+                    <span>{title}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
