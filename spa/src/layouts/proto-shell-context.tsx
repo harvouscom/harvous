@@ -2,6 +2,7 @@ import { clearComposeRestoreStash } from '../lib/compose-session-restore';
 import { clearNoteDraft } from '@/utils/note-draft-store';
 import {
   PROTOTYPE_DRAFT_NOTE_ID,
+  resolveComposeSeed,
   shouldClearStaleComposeDraftOnSessionStart,
 } from '@/utils/prototype-draft-compose-session';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -180,6 +181,27 @@ function prototypeFolderChipsEqual(
 /** Toolbar folder chip value — isolated so note-page edits don't re-render the whole shell. */
 const PrototypeFolderChipContext = createContext<PrototypeFolderChip | null>(null);
 
+/**
+ * What a compose session opens with, when the affordance that started it already knows.
+ *
+ * The point is that "add this" paints instantly: the editor mounts with the passage or the
+ * sermon title already in it and persists in the background, rather than the caller awaiting a
+ * create round trip to learn a note id before it can navigate anywhere.
+ */
+export type PrototypeComposeSeed = {
+  title?: string;
+  contentHtml?: string;
+  /** Carried through to the create call so provenance survives the deferred persist. */
+  startedFromServiceId?: string;
+  startedFromServiceTitle?: string;
+  startedFromTemplateId?: string;
+  startedFromTemplateName?: string;
+  /** Folder the starting affordance already knows about (e.g. a sermon series). */
+  primaryCollection?: string;
+  /** Chosen by a human (a series name), so the auto-folder pass must not overwrite it. */
+  collectionUserOverride?: boolean;
+};
+
 /** Scripture-passage highlight opened from Highlights list — main pane shows standalone passage (native dock parity). */
 export type StandaloneScripturePassageState = {
   canonicalReference: string;
@@ -339,7 +361,15 @@ type ProtoShellContextValue = {
   clearComposeTargetSpaceIdOverride: () => void;
   /** Retarget an in-progress draft to a different space. */
   setComposeTargetSpaceId: (spaceId: string | null) => void;
-  beginPrototypeComposeSession: (options?: { targetSpaceId?: string }) => number;
+  beginPrototypeComposeSession: (options?: {
+    targetSpaceId?: string;
+    seed?: PrototypeComposeSeed;
+  }) => number;
+  /**
+   * Seed for the *current* compose session, or null. Already epoch-checked — a seed left over
+   * from a previous session reads as null here rather than leaking into this note.
+   */
+  composeSeed: PrototypeComposeSeed | null;
   standaloneScripturePassage: StandaloneScripturePassageState | null;
   openStandaloneScripturePassage: (value: StandaloneScripturePassageState) => void;
   dismissStandaloneScripturePassage: () => void;
@@ -431,6 +461,23 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [composeDraftActive, setComposeDraftActive] = useState(false);
   const [composeTargetSpaceIdOverride, setComposeTargetSpaceIdOverrideState] = useState<string | null>(null);
   const [composeSessionEpoch, setComposeSessionEpoch] = useState(0);
+  /**
+   * Title/body a compose session opens with, when the thing that started it already knows what
+   * the note should say — the daily passage, a sermon starter, a "keep going in Romans" card.
+   *
+   * Stamped with the epoch it belongs to, exactly like `liveNoteSnapshot`, and read only when
+   * the two match. That is the whole safety story: a seed cannot outlive its session and turn
+   * up in the next note the way compose drafts once did.
+   *
+   * Deliberately NOT routed through `saveNoteDraft`. The draft store is a crash-recovery
+   * artifact, and CardFullEditable treats any `note_draft` written by the current page session
+   * as self-inflicted and clears it — a seed written there would be thrown away before the
+   * editor read it.
+   */
+  const [composeSeedState, setComposeSeedState] = useState<{
+    seed: PrototypeComposeSeed;
+    epoch: number;
+  } | null>(null);
   /**
    * Read-side mirror of the epoch, so `beginPrototypeComposeSession` can branch on it
    * synchronously. It must NOT live inside the `setComposeSessionEpoch` updater — React
@@ -1053,27 +1100,40 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const clearComposeDraftActive = useCallback(() => {
     setComposeDraftActive(false);
   }, []);
-  const beginPrototypeComposeSession = useCallback((options?: { targetSpaceId?: string }) => {
-    // Synchronous, at click time — see shouldClearStaleComposeDraftOnSessionStart. The
-    // equivalent clear in resetComposeSessionState runs in a passive effect, which React
-    // commits *after* the remounted editor's layout effect has already restored the draft.
-    if (shouldClearStaleComposeDraftOnSessionStart(composeSessionEpochRef.current)) {
-      clearNoteDraft(PROTOTYPE_DRAFT_NOTE_ID);
-    }
-    setComposePersistedNoteIdState(null);
-    setComposeDraftActive(true);
-    const target = options?.targetSpaceId?.trim();
-    setComposeGroupThreadId(null);
-    setComposeTargetSpaceIdOverrideState(
-      target ? (target.startsWith('space_') ? target : `space_${target}`) : null,
-    );
-    // Advance via the ref, not a state updater: StrictMode double-invokes updaters, so
-    // deriving `next` from `prev` inside one would skip an epoch (and desync the ref).
-    const next = composeSessionEpochRef.current + 1;
-    composeSessionEpochRef.current = next;
-    setComposeSessionEpoch(next);
-    return next;
-  }, []);
+  const beginPrototypeComposeSession = useCallback(
+    (options?: { targetSpaceId?: string; seed?: PrototypeComposeSeed }) => {
+      // Synchronous, at click time — see shouldClearStaleComposeDraftOnSessionStart. The
+      // equivalent clear in resetComposeSessionState runs in a passive effect, which React
+      // commits *after* the remounted editor's layout effect has already restored the draft.
+      if (shouldClearStaleComposeDraftOnSessionStart(composeSessionEpochRef.current)) {
+        clearNoteDraft(PROTOTYPE_DRAFT_NOTE_ID);
+      }
+      setComposePersistedNoteIdState(null);
+      setComposeDraftActive(true);
+      const target = options?.targetSpaceId?.trim();
+      setComposeGroupThreadId(null);
+      setComposeTargetSpaceIdOverrideState(
+        target ? (target.startsWith('space_') ? target : `space_${target}`) : null,
+      );
+      // Advance via the ref, not a state updater: StrictMode double-invokes updaters, so
+      // deriving `next` from `prev` inside one would skip an epoch (and desync the ref).
+      const next = composeSessionEpochRef.current + 1;
+      composeSessionEpochRef.current = next;
+      setComposeSessionEpoch(next);
+      // Stamped with the epoch it was created for, and set in the same synchronous pass, so
+      // the editor that mounts for *this* session is the only one that can read it.
+      setComposeSeedState(options?.seed ? { seed: options.seed, epoch: next } : null);
+      return next;
+    },
+    [],
+  );
+  /**
+   * Epoch-gated read. A seed belongs to exactly one compose session; once the epoch moves on it
+   * reads as absent, so it can never surface in a later note. Same guard shape as
+   * `liveNoteSnapshot`, and the reason a seed is safe where a compose *draft* was not.
+   */
+  const composeSeed = resolveComposeSeed(composeSeedState, composeSessionEpoch);
+
   const openStandaloneScripturePassage = useCallback((value: StandaloneScripturePassageState) => {
     setStandaloneScripturePassage(value);
   }, []);
@@ -1150,6 +1210,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       composeDraftActive,
       clearComposeDraftActive,
       composeSessionEpoch,
+      composeSeed,
       composeTargetSpaceIdOverride,
       clearComposeTargetSpaceIdOverride,
       setComposeTargetSpaceId,
@@ -1231,6 +1292,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       composeDraftActive,
       clearComposeDraftActive,
       composeSessionEpoch,
+      composeSeed,
       composeTargetSpaceIdOverride,
       clearComposeTargetSpaceIdOverride,
       setComposeTargetSpaceId,

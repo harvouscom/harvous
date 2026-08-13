@@ -122,15 +122,15 @@ import { useCrossRefGaps } from '../../hooks/queries/useCrossRefGaps';
 import { findMostRecentNoteForScriptureReference } from '@/utils/scripture-passage-drill';
 import type { CrossRefGap } from '../../hooks/queries/useCrossRefGaps';
 import { useConnectSuggestions } from '../../hooks/queries/useConnectSuggestions';
+import { useChurchSermons } from '../../hooks/queries/useChurchSermons';
+import { useChurchFeed } from '../../hooks/queries/useChurchFeed';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
-import PrototypeHomeChurchFeed from './PrototypeHomeChurchFeed';
+import PrototypeHomeChurchFeed, { HOME_FEED_LIMIT } from './PrototypeHomeChurchFeed';
 import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
 import { noteParamSlug } from './proto-route-slugs';
 import { bibleBookChapterCounts } from '@/utils/bible-book-chapters';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
-import { useCreateSimpleNote, alertCreateNoteFailure } from '../../hooks/mutations/useCreateSimpleNote';
-import { getNoteIdFromCreateResponse } from '../../hooks/queries/useNote';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { HOME_INTRO_LIST_MODES, type SidebarListModeEntry } from './proto-sidebar-list-modes';
 import type { SidebarListMode } from '../../layouts/proto-shell-context';
@@ -602,6 +602,14 @@ export default function PrototypeSidebarHomeView({
   const { isLoaded: clerkLoaded } = useUser();
   const fingerprintsQuery = useNoteFingerprints();
   const recallHistoryQuery = useRecallEventHistory();
+  // Declared up here, above the presentation gate, because the gate reads their settled state.
+  // They used to sit further down beside the recall memo that consumes them, which put them
+  // out of the gate's reach — so each one landed after Home had already painted and inserted a
+  // card into a deck the reader was looking at.
+  const crossRefGapsQuery = useCrossRefGaps();
+  const connectSuggestionsQuery = useConnectSuggestions();
+  const churchSermonsQuery = useChurchSermons();
+  const churchFeedQuery = useChurchFeed({ limit: HOME_FEED_LIMIT });
   const {
     meaningWeightById,
     fingerprintsById,
@@ -639,6 +647,28 @@ export default function PrototypeSidebarHomeView({
       referenceWordConnectionsQuery.isPending,
       referenceWordConnectionsQuery.data != null,
     );
+  const crossRefGapsSettled = isQuerySettled(
+    crossRefGapsQuery.isPending,
+    crossRefGapsQuery.data != null,
+  );
+  const connectSuggestionsSettled = isQuerySettled(
+    connectSuggestionsQuery.isPending,
+    connectSuggestionsQuery.data != null,
+  );
+  const recallHistorySettled = isQuerySettled(
+    recallHistoryQuery.isPending,
+    recallHistoryQuery.data != null,
+  );
+  // Read here purely to gate on. PrototypeHomeThisSunday and PrototypeHomeChurchFeed each call
+  // these themselves and return null until they resolve — "This Sunday" sits *above* the daily
+  // passage, so it arriving late pushes the passage pill, the continue card and the whole recall
+  // deck down. React Query dedupes by key, so subscribing again here costs one cache read, not a
+  // second request.
+  const churchSermonsSettled = isQuerySettled(
+    churchSermonsQuery.isPending,
+    churchSermonsQuery.data != null,
+  );
+  const churchFeedSettled = isQuerySettled(churchFeedQuery.isPending, churchFeedQuery.data != null);
 
   // Home used to paint the moment notes resolved, then insert or remove a whole section
   // each time one of ~9 independent queries landed — the visible jumping. Wait for them
@@ -654,6 +684,11 @@ export default function PrototypeSidebarHomeView({
     connectionsSettled,
     highlightsSettled,
     votdSettled,
+    crossRefGapsSettled,
+    connectSuggestionsSettled,
+    recallHistorySettled,
+    churchSermonsSettled,
+    churchFeedSettled,
   });
 
   // Backstop: a disabled query stays `isPending` forever in React Query v5, so without a
@@ -996,36 +1031,26 @@ export default function PrototypeSidebarHomeView({
   // ── Generative recall: seed a draft note + derive prompts (Phase 1, client-side) ──
   const season = useMemo(() => currentLiturgicalSeason(new Date()), []);
 
-  // Create a seeded note (title + optional scripture pill) and open it. PrototypeNotePage (which catches
-  // `openNewNotePanel`) isn't mounted on Home, so we create directly here, like its handler does.
-  const createDraftNote = useCreateSimpleNote();
+  /**
+   * Open a seeded note (title + optional scripture pill) immediately.
+   *
+   * This used to `await createDraftNote.mutateAsync` and only navigate once the server had
+   * returned an id, which meant every generative recall card sat `aria-busy` for a round trip
+   * after a tap. It also needed a re-entrancy guard, because the card stayed on screen while
+   * the create was in flight and a second tap made a second note. The compose session is
+   * synchronous and single — both problems go away with the await.
+   */
   const startDraftNote = useCallback(
-    async (opts: { title?: string; contentHtml?: string }) => {
+    (opts: { title?: string; contentHtml?: string }) => {
       if (!homeSpaceId) return;
-      // Guard the whole round trip: the card stays on screen while the create is in
-      // flight, so a second tap used to start a second create and leave two notes
-      // behind. Same guard PrototypeDailyPassagePill already uses.
-      if (createDraftNote.isPending) return;
       if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-      try {
-        const res = await createDraftNote.mutateAsync({
-          spaceId: homeSpaceId,
-          title: opts.title ?? '',
-          content: opts.contentHtml || '<p></p>',
-        });
-        const createdId = getNoteIdFromCreateResponse(res);
-        if (createdId) {
-          navigate({
-            to: prototypeNoteRouteTo(),
-            params: { noteId: noteParamSlug(createdId) },
-            search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
-          });
-        }
-      } catch (err) {
-        alertCreateNoteFailure(err);
-      }
+      beginPrototypeComposeSession({
+        targetSpaceId: homeSpaceId,
+        seed: { title: opts.title, contentHtml: opts.contentHtml },
+      });
+      navigate({ to: prototypeHomeRouteTo() });
     },
-    [homeSpaceId, isMobileSidebar, closeDrawer, createDraftNote, navigate],
+    [homeSpaceId, isMobileSidebar, closeDrawer, beginPrototypeComposeSession, navigate],
   );
 
   const openCrossRefGap = useCallback(
@@ -1110,10 +1135,9 @@ export default function PrototypeSidebarHomeView({
   );
 
   // ── Generative recall Phase 2 (backend queries) ──
-  const crossRefGapsQuery = useCrossRefGaps();
+  // The queries themselves are declared above the presentation gate, which reads their settled
+  // state; only the derived values live here, next to what consumes them.
   const topCrossRefGap = crossRefGapsQuery.data?.[0];
-
-  const connectSuggestionsQuery = useConnectSuggestions();
   const topConnectSuggestion = connectSuggestionsQuery.data?.[0];
 
   // ── Recall carousel (Home resurfacing) ──
@@ -1156,17 +1180,17 @@ export default function PrototypeSidebarHomeView({
       } else if (isHighlightUnannotated(spotlightHighlight) && isAnnotatableHighlight(spotlightHighlight)) {
         pushAnnotateHighlightRecallCard(out, spotlightHighlight, onOpenHighlight, usedHighlightIds);
       } else {
-        out.push({
-          id: spotlightHighlight.id,
-          kind: 'highlight',
-          noteId: spotlightHighlight.id,
-          score: 0.55,
-          eyebrow: 'A highlight to revisit',
-          title: prototypeHighlightListTitle(spotlightHighlight),
-          meta: prototypeHighlightSubtitlePreview(spotlightHighlight, spotlightHighlight.parentNoteTitle),
-          iconName: highlightEntryKindIconName(spotlightHighlight.entryKind),
-          onOpen: () => onOpenHighlight(spotlightHighlight),
-        });
+        // Through the helper, not inline. This branch used to build the same card by hand,
+        // which meant it never registered itself in `usedHighlightIds` the way both sibling
+        // branches do — so when the spotlight highlight also matched the continue-book chapter
+        // or the cross-ref gap below, it was emitted a second time with an identical id.
+        pushRevisitHighlightRecallCard(
+          out,
+          spotlightHighlight,
+          onOpenHighlight,
+          usedHighlightIds,
+          prototypeHighlightSubtitlePreview(spotlightHighlight, spotlightHighlight.parentNoteTitle),
+        );
       }
     }
 
@@ -1670,7 +1694,6 @@ export default function PrototypeSidebarHomeView({
             onOpened={handleRecallOpened}
             onRecallSynced={handleRecallSynced}
             homeSpaceId={homeSpaceId}
-            creatingNote={createDraftNote.isPending}
           />
         </div>
       ) : null}

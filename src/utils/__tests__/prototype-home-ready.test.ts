@@ -48,6 +48,11 @@ describe('isPrototypeHomePresentationReady', () => {
     connectionsSettled: true,
     highlightsSettled: true,
     votdSettled: true,
+    crossRefGapsSettled: true,
+    connectSuggestionsSettled: true,
+    recallHistorySettled: true,
+    churchSermonsSettled: true,
+    churchFeedSettled: true,
   };
 
   it('returns true when all presentation deps are settled', () => {
@@ -69,6 +74,23 @@ describe('isPrototypeHomePresentationReady', () => {
   it('returns false while highlights are still loading', () => {
     expect(isPrototypeHomePresentationReady({ ...readyBase, highlightsSettled: false })).toBe(false);
   });
+
+  /**
+   * These five used to sit outside the gate, and each one landing after first paint moved
+   * Home under the reader: cross-ref gaps and connect suggestions *add* a recall card, recall
+   * history supplies the snooze set that *removes* cards, and the two church sections return
+   * null until their own query resolves — with "This Sunday" above the daily passage, so its
+   * arrival pushes the whole rest of the view down.
+   */
+  it.each([
+    ['crossRefGapsSettled'],
+    ['connectSuggestionsSettled'],
+    ['recallHistorySettled'],
+    ['churchSermonsSettled'],
+    ['churchFeedSettled'],
+  ] as const)('returns false while %s is still loading', (flag) => {
+    expect(isPrototypeHomePresentationReady({ ...readyBase, [flag]: false })).toBe(false);
+  });
 });
 
 describe('home readiness composition', () => {
@@ -82,6 +104,11 @@ describe('home readiness composition', () => {
     connectionsSettled: true,
     highlightsSettled: true,
     votdSettled: true,
+    crossRefGapsSettled: true,
+    connectSuggestionsSettled: true,
+    recallHistorySettled: true,
+    churchSermonsSettled: true,
+    churchFeedSettled: true,
   };
 
   it('is not ready on notes alone', () => {

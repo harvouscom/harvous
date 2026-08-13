@@ -1,13 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { prototypeNoteRouteTo } from '@/lib/prototype-path';
+import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
-import {
-  alertCreateNoteFailure,
-  useCreateSimpleNote,
-} from '../../hooks/mutations/useCreateSimpleNote';
-import { getNoteIdFromCreateResponse } from '../../hooks/queries/useNote';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import { useProtoShell } from '../../layouts/proto-shell-context';
@@ -15,7 +10,6 @@ import {
   findPersistedDailyPassageNote,
   hasDailyPassageNote,
   isVotdPassageCardDismissedToday,
-  noteMatchesDailyPassage,
   recordVotdEngagement,
   setVotdDismissedToday,
   type VotdToday,
@@ -35,10 +29,6 @@ type Props = {
   onOpenScripturePassage: (bookOrder: number, passageKey: string) => void;
 };
 
-function isOfflineQueuedCreate(res: unknown): boolean {
-  return Boolean(res && typeof res === 'object' && 'offlineQueued' in res && (res as { offlineQueued: boolean }).offlineQueued);
-}
-
 export default function PrototypeDailyPassagePill({
   homeSpaceId,
   notes,
@@ -48,8 +38,7 @@ export default function PrototypeDailyPassagePill({
 }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const createNote = useCreateSimpleNote();
-  const { isMobileSidebar, closeDrawer } = useProtoShell();
+  const { isMobileSidebar, closeDrawer, beginPrototypeComposeSession } = useProtoShell();
   const [dismissedToday, setDismissedToday] = useState(isVotdPassageCardDismissedToday);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -58,8 +47,10 @@ export default function PrototypeDailyPassagePill({
     [notes, votd.reference],
   );
 
-  const dailyPassageNoteExists =
-    hasDailyPassageNote(notes, scriptureBooks, votd.reference) && !createNote.isPending;
+  // No `&& !createNote.isPending` term any more. There is no in-flight create to hide behind:
+  // compose opens the editor synchronously, so the affordance no longer flickers between
+  // "add" and "view notes" while a round trip lands.
+  const dailyPassageNoteExists = hasDailyPassageNote(notes, scriptureBooks, votd.reference);
 
   useEffect(() => {
     void fetchVerseHtml(votd.reference, votd.translation);
@@ -99,6 +90,15 @@ export default function PrototypeDailyPassagePill({
     }
   }, [afterNav, matchingNote, onOpenScripturePassage, openNote, scriptureBooks, votd.reference]);
 
+  /**
+   * Opens the editor on the passage immediately.
+   *
+   * This used to `createNote.mutate` and wait for `onSuccess` to learn a note id before it
+   * could navigate — so the tap disabled the button and then sat there for a full round trip,
+   * which on a phone is most of a second of nothing happening. The compose session is
+   * synchronous: seed it with the passage, land on the editor, and let `persistDraftNote`
+   * create the row in the background. Same path the "New note" button has always used.
+   */
   const studyNow = useCallback(
     (v: VotdToday) => {
       if (!homeSpaceId) return;
@@ -107,36 +107,24 @@ export default function PrototypeDailyPassagePill({
         openNote(persisted.id);
         return;
       }
-      if (createNote.isPending) return;
-      createNote.mutate(
-        {
-          spaceId: homeSpaceId,
-          title: '',
-          content: buildVotdScripturePillHtml(v.reference, v.translation),
-          noteType: 'default',
-        },
-        {
-          onSuccess: (res) => {
-            if (isOfflineQueuedCreate(res)) {
-              const optimistic = notes.find(
-                (n) => n.id.startsWith('local_') && noteMatchesDailyPassage(n, v.reference),
-              );
-              if (optimistic) openNote(optimistic.id);
-              return;
-            }
-            recordVotdEngagement('add_note');
-            invalidateScriptureIndex();
-            const nid = getNoteIdFromCreateResponse(res);
-            if (nid) openNote(nid);
-            else alert('Create succeeded but response had no note id.');
-          },
-          onError: (err) => {
-            alertCreateNoteFailure(err);
-          },
-        },
-      );
+      recordVotdEngagement('add_note');
+      invalidateScriptureIndex();
+      beginPrototypeComposeSession({
+        targetSpaceId: homeSpaceId,
+        seed: { contentHtml: buildVotdScripturePillHtml(v.reference, v.translation) },
+      });
+      afterNav();
+      navigate({ to: prototypeHomeRouteTo() });
     },
-    [createNote, homeSpaceId, invalidateScriptureIndex, notes, openNote],
+    [
+      afterNav,
+      beginPrototypeComposeSession,
+      homeSpaceId,
+      invalidateScriptureIndex,
+      navigate,
+      notes,
+      openNote,
+    ],
   );
 
   const handleDismiss = useCallback(() => {
@@ -191,7 +179,6 @@ export default function PrototypeDailyPassagePill({
               type="button"
               className="proto-daily-passage-pill__orb"
               aria-label="Add passage to notes"
-              disabled={createNote.isPending}
               onClick={() => studyNow(votd)}
             >
               <Icon name="plus" size={12} />
@@ -203,7 +190,7 @@ export default function PrototypeDailyPassagePill({
       <PrototypeVotdPassageSheet
         votd={votd}
         open={sheetOpen}
-        showsAddFAB={!dailyPassageNoteExists && !createNote.isPending}
+        showsAddFAB={!dailyPassageNoteExists}
         onClose={() => setSheetOpen(false)}
         onAdd={() => {
           setSheetOpen(false);

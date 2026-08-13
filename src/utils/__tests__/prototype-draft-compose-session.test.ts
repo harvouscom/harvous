@@ -8,6 +8,7 @@ import {
   shouldClearStaleComposeDraftOnSessionStart,
   shouldKeepEditorDuringPersistedDraftLoad,
   shouldResetComposeSessionOnEpochChange,
+  resolveComposeSeed,
 } from '../prototype-draft-compose-session';
 
 describe('isDraftComposeAdoptionTransition', () => {
@@ -104,5 +105,32 @@ describe('isAdoptedComposeSessionActive', () => {
   it('is inactive with no adopted id', () => {
     expect(isAdoptedComposeSessionActive(false, 'note_abc123', null)).toBe(false);
     expect(isAdoptedComposeSessionActive(true, 'note_draft', null)).toBe(false);
+  });
+});
+
+describe('resolveComposeSeed', () => {
+  const seed = { title: 'Romans 9', contentHtml: '<p>pill</p>' };
+
+  it('returns the seed while its own compose session is current', () => {
+    expect(resolveComposeSeed({ seed, epoch: 3 }, 3)).toBe(seed);
+  });
+
+  it('returns null once the epoch has moved on', () => {
+    // The regression this exists to prevent, and the reason a seed cannot live in the
+    // note-draft store: tap "add today's passage", leave without saving, start any new note,
+    // and the passage would be sitting in it — the same leak
+    // shouldClearStaleComposeDraftOnSessionStart was added for.
+    expect(resolveComposeSeed({ seed, epoch: 3 }, 4)).toBeNull();
+  });
+
+  it('returns null for a seed stamped ahead of the current epoch', () => {
+    // Shouldn't happen — the stamp and the bump are set in the same synchronous pass — but
+    // an equality check rather than `<=` means a desync fails closed rather than leaking.
+    expect(resolveComposeSeed({ seed, epoch: 5 }, 4)).toBeNull();
+  });
+
+  it('returns null when there is no seed', () => {
+    expect(resolveComposeSeed(null, 1)).toBeNull();
+    expect(resolveComposeSeed(undefined, 1)).toBeNull();
   });
 });

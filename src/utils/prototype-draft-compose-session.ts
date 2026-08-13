@@ -52,6 +52,28 @@ export function shouldClearStaleComposeDraftOnSessionStart(prevEpoch: number): b
 }
 
 /**
+ * The seed a compose session opens with, or null once its session is over.
+ *
+ * A seed is what the affordance that started compose already knew the note should say — a
+ * daily passage, a sermon starter. It is stamped with the epoch it was created for and only
+ * readable while that epoch is current.
+ *
+ * The epoch stamp is the entire safety mechanism, and it is not optional. Seeds cannot go
+ * through the note-draft store: that key is shared by every compose session, and restoring a
+ * leftover draft into the next one is exactly what put a finished note back on screen in an
+ * unrelated space (see `shouldClearStaleComposeDraftOnSessionStart`). Without the epoch check
+ * a seed would reproduce that bug precisely — tap "add today's passage", back out without
+ * saving, start any new note, and the passage would be sitting in it.
+ */
+export function resolveComposeSeed<T>(
+  stamped: { seed: T; epoch: number } | null | undefined,
+  currentEpoch: number,
+): T | null {
+  if (!stamped) return null;
+  return stamped.epoch === currentEpoch ? stamped.seed : null;
+}
+
+/**
  * Which draft key the editor should write to right now.
  *
  * Compose stays on the `note_draft` id until the URL idle-replaces to `/{id}`, so without

@@ -21,6 +21,8 @@ import SignUpPage from './pages/SignUpPage';
 import SimplifiedPrototypeLayout from './layouts/SimplifiedPrototypeLayout';
 import PrototypeHomePage from './pages/prototype/PrototypeHomePage';
 import PrototypeRouteErrorState from './pages/prototype/PrototypeRouteErrorState';
+import ProtoRoutePending from './pages/prototype/ProtoRoutePending';
+import { PROTO_ROUTE_PENDING_DELAY_MS, PROTO_ROUTE_PENDING_MIN_MS } from './layouts/proto-motion';
 import PrototypeSettingsLayout from './pages/prototype/settings/PrototypeSettingsLayout';
 import PrototypeSettingsIndex from './pages/prototype/settings/PrototypeSettingsIndex';
 import PrototypeAccountPage from './pages/prototype/settings/PrototypeAccountPage';
@@ -663,6 +665,14 @@ function buildRouteTree() {
 export const router = createRouter({
   routeTree: buildRouteTree(),
   defaultErrorComponent: PrototypeRouteErrorState,
+  // Every settings category, the admin pages and the dev galleries are `lazyRouteComponent`s.
+  // Without a pending component their pane renders *nothing* between the tap and the chunk
+  // arriving — and TanStack's 1000ms `defaultPendingMs` meant even adding one would stay
+  // invisible for the length of a typical chunk fetch. On a PWA cold cache that gap is the
+  // whole "settings sheets don't respond right away" report.
+  defaultPendingComponent: ProtoRoutePending,
+  defaultPendingMs: PROTO_ROUTE_PENDING_DELAY_MS,
+  defaultPendingMinMs: PROTO_ROUTE_PENDING_MIN_MS,
   parseSearch: parsePrototypeSearch,
   // No parser arg → do not JSON-quote flat string values (avoids %22 around space ids).
   stringifySearch: stringifySearchWith(JSON.stringify),

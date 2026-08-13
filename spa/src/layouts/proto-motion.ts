@@ -41,6 +41,20 @@ export const PROTO_POPOVER_MOTION_MS = 120;
  */
 export const PROTO_VOTD_SHEET_MOTION_MS = 220;
 
+/**
+ * Router pending-state timings for lazy routes.
+ *
+ * TanStack's `defaultPendingMs` default is 1000ms, which for a route whose component is a
+ * `lazyRouteComponent` means up to a second of a literally empty pane before anything is drawn.
+ * On a PWA cold cache that is the whole "settings doesn't respond when I tap it" report.
+ *
+ * DELAY is short enough that a chunk fetch shows *something*, long enough that an
+ * already-cached chunk resolves without a spinner flashing. MIN keeps the indicator up once
+ * shown, so a near-threshold load doesn't strobe.
+ */
+export const PROTO_ROUTE_PENDING_DELAY_MS = 150;
+export const PROTO_ROUTE_PENDING_MIN_MS = 300;
+
 /** Founder letter paper leaf fan — MUST stay in lockstep with `.proto-paper-leaf` transition in prototype-components.css. */
 export const PROTO_FOUNDER_LETTER_PAPER_MS = 900;
 

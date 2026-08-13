@@ -17,14 +17,9 @@
  */
 import { useCallback, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { prototypeNoteRouteTo } from '@/lib/prototype-path';
+import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import Icon from '@/components/react/Icon';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
-import {
-  alertCreateNoteFailure,
-  useCreateSimpleNote,
-} from '../../hooks/mutations/useCreateSimpleNote';
-import { getNoteIdFromCreateResponse } from '../../hooks/queries/useNote';
 import { useChurchSermons } from '../../hooks/queries/useChurchSermons';
 import {
   buildStarterContent,
@@ -35,7 +30,6 @@ import {
   starterNoteTitle,
   type ChurchSermon,
 } from '../../lib/church-services';
-import { markPendingNoteFocus } from '../../lib/pending-note-focus';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { noteParamSlug } from './proto-route-slugs';
 
@@ -43,17 +37,9 @@ type Props = {
   homeSpaceId: string | null;
 };
 
-function isOfflineQueuedCreate(res: unknown): boolean {
-  return Boolean(
-    res && typeof res === 'object' && 'offlineQueued' in res &&
-      (res as { offlineQueued: boolean }).offlineQueued,
-  );
-}
-
 export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
   const navigate = useNavigate();
-  const createNote = useCreateSimpleNote();
-  const { isMobileSidebar, closeDrawer } = useProtoShell();
+  const { isMobileSidebar, closeDrawer, beginPrototypeComposeSession } = useProtoShell();
   const { data } = useChurchSermons();
 
   const service = useMemo(
@@ -61,15 +47,19 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
     [data],
   );
 
+  const afterNav = useCallback(() => {
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+  }, [closeDrawer, isMobileSidebar]);
+
   const openNote = useCallback(
     (noteId: string) => {
       navigate({
         to: prototypeNoteRouteTo(),
         params: { noteId: noteParamSlug(noteId) },
       });
-      if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+      afterNav();
     },
-    [closeDrawer, isMobileSidebar, navigate],
+    [afterNav, navigate],
   );
 
   const takeNotes = useCallback(
@@ -80,7 +70,7 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
         openNote(svc.viewerNoteId);
         return;
       }
-      if (!homeSpaceId || createNote.isPending) return;
+      if (!homeSpaceId) return;
 
       // Series → folder, so eight weeks of one study land together instead of
       // scattering across whatever each week's text happened to be about.
@@ -89,12 +79,16 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
       // which is what used to make a fresh note 409 its own first autosave.
       const folder = starterFolderForSermon(svc);
 
-      createNote.mutate(
-        {
-          spaceId: homeSpaceId,
+      // Opens the editor now and creates the row behind it. This was the slowest of the
+      // "add" affordances to react, because it awaited a create that also had to resolve the
+      // series folder and both provenance ids before it knew a note id to navigate to — so
+      // the button disabled itself and nothing moved until the whole round trip landed. All
+      // of that now rides the seed into `persistDraftNote`.
+      beginPrototypeComposeSession({
+        targetSpaceId: homeSpaceId,
+        seed: {
           title: starterNoteTitle(svc),
-          content: buildStarterContent(svc, getEffectiveDefaultTranslation()),
-          noteType: 'default',
+          contentHtml: buildStarterContent(svc, getEffectiveDefaultTranslation()),
           startedFromServiceId: svc.id,
           startedFromServiceTitle: svc.title,
           ...(folder
@@ -112,24 +106,11 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
               }
             : {}),
         },
-        {
-          onSuccess: (res) => {
-            // Offline: the optimistic row is already in the list and the create
-            // is queued. Don't navigate to an id the router can't resolve.
-            if (isOfflineQueuedCreate(res)) return;
-            const nid = getNoteIdFromCreateResponse(res);
-            if (nid) {
-              // The editor mounts after this navigation, so it can't be focused
-              // from here — leave a one-shot, id-keyed flag it picks up itself.
-              markPendingNoteFocus(nid);
-              openNote(nid);
-            }
-          },
-          onError: (err) => alertCreateNoteFailure(err),
-        },
-      );
+      });
+      afterNav();
+      navigate({ to: prototypeHomeRouteTo() });
     },
-    [createNote, homeSpaceId, openNote],
+    [afterNav, beginPrototypeComposeSession, homeSpaceId, navigate, openNote],
   );
 
   if (!data?.connected || !service) return null;
@@ -152,7 +133,7 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
         type="button"
         className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable proto-this-sunday"
         aria-label={hasNote ? 'Open my note on this service' : 'New note on this service'}
-        disabled={createNote.isPending || (!homeSpaceId && !hasNote)}
+        disabled={!homeSpaceId && !hasNote}
         onClick={() => takeNotes(service)}
       >
         <p className="proto-caption proto-home-card__eyebrow">{eyebrow}&rsquo;s sermon</p>

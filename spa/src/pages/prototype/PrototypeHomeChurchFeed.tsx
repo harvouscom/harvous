@@ -21,7 +21,12 @@ import { noteParamSlug } from './proto-route-slugs';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 
 /** Rows shown on Home; the channel itself holds the full history. */
-const HOME_FEED_LIMIT = 3;
+/**
+ * Exported so PrototypeSidebarHomeView can subscribe to the same query for its presentation
+ * gate. React Query keys on the params, so a different limit there would mean a *second*
+ * request rather than a shared cache read — these two must not drift apart.
+ */
+export const HOME_FEED_LIMIT = 3;
 
 function ChurchFeedCard({
   item,

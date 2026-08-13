@@ -99,6 +99,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               role="menuitem"
               className="proto-menu-item"
               onPointerEnter={prefetchSettingsOpenPath}
+              onPointerDown={prefetchSettingsOpenPath}
               onFocus={prefetchSettingsOpenPath}
               onClick={() => {
                 setOpen(false);

@@ -1657,6 +1657,42 @@ describe('selectRecallOpportunities', () => {
     expect(before).toEqual(['a']);
     expect(after[0]).toBe('new');
   });
+
+  /**
+   * Home assembles candidates from a dozen independent push sites and several can reach the
+   * same underlying row. The one that actually shipped: the spotlight highlight was pushed
+   * inline without registering in `usedHighlightIds`, so whenever it also matched the
+   * continue-book chapter lookup it came through twice with a byte-identical id — a card the
+   * reader saw twice, and a React duplicate-key error. Both are guarded here, at the one point
+   * every push site funnels through.
+   */
+  it('never returns the same id twice', () => {
+    const dupe = [
+      c('h1', 'highlight', 0.55),
+      c('a', 'arc', 0.9),
+      c('h1', 'highlight', 0.55),
+    ];
+    const ids = selectRecallOpportunities(dupe).map((o) => o.id);
+    expect(ids).toEqual([...new Set(ids)]);
+    expect(ids.filter((id) => id === 'h1')).toHaveLength(1);
+  });
+
+  it('keeps the first occurrence when a duplicate id appears', () => {
+    const first = { ...c('h1', 'highlight', 0.55), eyebrow: 'first' } as any;
+    const second = { ...c('h1', 'highlight', 0.55), eyebrow: 'second' } as any;
+    const out = selectRecallOpportunities([first, second]);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.eyebrow).toBe('first');
+  });
+
+  it('dedupes before the limit, so a duplicate cannot displace a real card', () => {
+    const cands = [
+      c('a', 'arc', 0.9),
+      c('a', 'arc', 0.9),
+      c('p', 'passage', 0.8),
+    ];
+    expect(selectRecallOpportunities(cands, { limit: 2 }).map((o) => o.id)).toEqual(['a', 'p']);
+  });
 });
 
 describe('pickRecallTrend + recallTrendLine', () => {

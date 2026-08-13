@@ -1538,7 +1538,18 @@ export function selectRecallOpportunities<T extends RecallCandidate>(
   const snoozed = new Set(options.snoozedIds ?? []);
   const limit = options.limit ?? 6;
 
-  const live = candidates.filter((c) => !snoozed.has(c.id));
+  // Callers assemble candidates from a dozen independent push sites, several of which can
+  // surface the same underlying row — the spotlight highlight and the continue-book chapter
+  // lookup resolve to a byte-identical id whenever they land on the same chapter. Both
+  // consumers key on `id`, so a duplicate is a React duplicate-key error as well as a card the
+  // reader sees twice. Deduping here covers every push site at once, which is why it belongs
+  // in the pure function rather than at each call site.
+  const seen = new Set<string>();
+  const live = candidates.filter((c) => {
+    if (snoozed.has(c.id) || seen.has(c.id)) return false;
+    seen.add(c.id);
+    return true;
+  });
   if (live.length === 0) return [];
 
   const sorted = [...live].sort(compareRecallUsefulness);
@@ -1547,6 +1558,12 @@ export function selectRecallOpportunities<T extends RecallCandidate>(
   const head = varied[0]!;
   let tail = varied.slice(1);
 
+  // The offset is taken modulo `tail.length`, so this rotation is inherently sensitive to how
+  // many candidates exist: if membership changes, everything in the tail moves. That is fine —
+  // and unavoidable for a rotation — *provided* it only ever runs on a settled list. It is the
+  // caller's job to not render a half-assembled deck; Home does that via
+  // `isPrototypeHomePresentationReady`, which is why every query feeding this must be in that
+  // gate. Five were missing and each late arrival reshuffled the deck under the reader.
   if (options.dayIndex != null && tail.length > 1) {
     const salt = options.rotationSalt ?? 0;
     const offset = (((options.dayIndex + salt) % tail.length) + tail.length) % tail.length;

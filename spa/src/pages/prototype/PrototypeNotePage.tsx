@@ -290,6 +290,7 @@ export default function PrototypeNotePage() {
     setPrototypeFolderChip,
     setComposePersistedNoteId,
     composeDraftActive,
+    composeSeed,
     composeSessionEpoch,
     composeTargetSpaceIdOverride,
     clearComposeTargetSpaceIdOverride,
@@ -566,10 +567,16 @@ export default function PrototypeNotePage() {
   const setLiveNoteSnapshot = useCallback((snapshot: { title: string; content: string }) => {
     setLiveNoteSnapshotState({ epoch: composeSessionEpochRef.current, ...snapshot });
   }, []);
-  const liveNoteSnapshot =
-    liveNoteSnapshotState.epoch === composeSessionEpoch
-      ? liveNoteSnapshotState
-      : EMPTY_LIVE_NOTE_SNAPSHOT;
+  /**
+   * True once the editor has reported content for *this* compose session. Distinct from "the
+   * snapshot is empty": a user who deliberately clears a seeded note has a live snapshot that
+   * happens to be blank, and must not have the seed handed back to them on the next render.
+   */
+  const hasLiveNoteSnapshot = liveNoteSnapshotState.epoch === composeSessionEpoch;
+  const liveNoteSnapshot = hasLiveNoteSnapshot ? liveNoteSnapshotState : EMPTY_LIVE_NOTE_SNAPSHOT;
+  /** persistDraftNote runs long after the click, outside this render — read the seed via a ref. */
+  const composeSeedRef = useRef(composeSeed);
+  composeSeedRef.current = composeSeed;
   const [templatePrefill, setTemplatePrefill] = useState<{
     title: string;
     content: string;
@@ -1605,12 +1612,32 @@ export default function PrototypeNotePage() {
         spaceId,
         personalHomeSpaceId,
       );
-      const provenanceExtras = templateProvenanceRef.current
-        ? {
-            startedFromTemplateId: templateProvenanceRef.current.id,
-            startedFromTemplateName: templateProvenanceRef.current.name,
-          }
-        : {};
+      const provenanceExtras = {
+        // Where the compose session came from, when it was started by something that knew —
+        // a sermon starter, a template card. The persist happens well after the click that
+        // carried this, so it has to ride the seed rather than the call stack.
+        ...(composeSeedRef.current?.startedFromServiceId
+          ? { startedFromServiceId: composeSeedRef.current.startedFromServiceId }
+          : {}),
+        ...(composeSeedRef.current?.startedFromServiceTitle
+          ? { startedFromServiceTitle: composeSeedRef.current.startedFromServiceTitle }
+          : {}),
+        ...(composeSeedRef.current?.startedFromTemplateId
+          ? {
+              startedFromTemplateId: composeSeedRef.current.startedFromTemplateId,
+              ...(composeSeedRef.current.startedFromTemplateName
+                ? { startedFromTemplateName: composeSeedRef.current.startedFromTemplateName }
+                : {}),
+            }
+          : {}),
+        // A template applied in-session is the more specific signal, so it wins.
+        ...(templateProvenanceRef.current
+          ? {
+              startedFromTemplateId: templateProvenanceRef.current.id,
+              startedFromTemplateName: templateProvenanceRef.current.name,
+            }
+          : {}),
+      };
       const updatePersisted = async (id: string) => {
         const result = await updateNoteMutationRef.current.mutateAsync({
           noteId: id,
@@ -1658,6 +1685,17 @@ export default function PrototypeNotePage() {
             // "this note changed somewhere else". It only ever reproduced with a scripture
             // reference because that is what makes folder auto-assign produce a folder at
             // all. Shared spaces keep organization on SpaceNotes — patched separately below.
+            //
+            // A seeded folder (a sermon series) is the starting point; anything the editor has
+            // since resolved wins over it, hence the seed spreading first.
+            ...(!sharedContextSpaceId && composeSeedRef.current?.primaryCollection
+              ? {
+                  primaryCollection: composeSeedRef.current.primaryCollection,
+                  ...(composeSeedRef.current.collectionUserOverride
+                    ? { collectionUserOverride: true }
+                    : {}),
+                }
+              : {}),
             ...(!sharedContextSpaceId && collectionExtras ? collectionExtras : {}),
           });
           const createdId = getNoteIdFromCreateResponse(res);
@@ -1923,8 +1961,14 @@ export default function PrototypeNotePage() {
   const editorNote = usePersistedDraftStub
     ? {
         // Prefer live typing / template over empty props so adoption doesn't blank TipTap.
-        title: templatePrefill?.title ?? liveNoteSnapshot.title ?? '',
-        content: templatePrefill?.content ?? liveNoteSnapshot.content ?? '',
+        // The seed is only consulted before the editor has reported anything for this session —
+        // it is what compose *opened* with, so a `hasLiveNoteSnapshot` check rather than a
+        // truthiness check on the snapshot: clearing a seeded note leaves a live-but-blank
+        // snapshot, and falling back to the seed there would type the passage back in.
+        title: templatePrefill?.title ?? (hasLiveNoteSnapshot ? liveNoteSnapshot.title : composeSeed?.title ?? ''),
+        content:
+          templatePrefill?.content ??
+          (hasLiveNoteSnapshot ? liveNoteSnapshot.content : composeSeed?.contentHtml ?? ''),
         noteType: (templatePrefill?.noteType || 'default') as 'default' | 'scripture' | 'resource',
         version: undefined as number | undefined,
         resourceTitle: undefined as string | undefined,

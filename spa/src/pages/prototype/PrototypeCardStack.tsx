@@ -36,11 +36,18 @@ export default function PrototypeCardStack<T extends { id: string }>({
   renderItem,
   /** Label for the collapsed stack's accessible name; count is appended. */
   collapsedLabel = 'Show all',
+  onActiveChange,
 }: {
   items: T[];
   ariaLabel: string;
   renderItem: (item: T, index: number, mode: CardStackRenderMode) => ReactNode;
   collapsedLabel?: string;
+  /**
+   * Fires with whatever card is currently on top. Memoize it — it's an effect dependency.
+   * Exists because the stack owns `activeIndex`, so a caller that needs to know what the
+   * reader is actually looking at (impression tracking) cannot work it out for itself.
+   */
+  onActiveChange?: (item: T | undefined) => void;
 }) {
   const [fanned, setFanned] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -70,12 +77,35 @@ export default function PrototypeCardStack<T extends { id: string }>({
   const index = Math.min(Math.max(activeIndex, 0), Math.max(len - 1, 0));
   const active = items[index];
 
+  /**
+   * Follow the card by identity, not by position.
+   *
+   * This used to only clamp into range, which meant any reorder of `items` left the deck
+   * showing whatever had landed at the old index — a different card than the one the reader
+   * was looking at a moment ago. PrototypeRecallCarousel carried a correct version of this
+   * logic, but against its own `activeIndex` state that never reached render, so it did
+   * nothing. The index that actually decides what's on top is this one, so the rule lives here.
+   *
+   * A card that has genuinely gone (usually snoozed) holds the position instead of snapping
+   * back to the front.
+   */
   const idsKey = items.map((item) => item.id).join('|');
+  const activeIdRef = useRef<string | null>(null);
+  activeIdRef.current = active?.id ?? activeIdRef.current;
   useEffect(() => {
-    setActiveIndex((i) => Math.min(Math.max(i, 0), Math.max(items.length - 1, 0)));
+    const keptId = activeIdRef.current;
+    const nextIndex = keptId ? items.findIndex((item) => item.id === keptId) : -1;
+    setActiveIndex((i) =>
+      nextIndex >= 0 ? nextIndex : Math.min(Math.max(i, 0), Math.max(items.length - 1, 0)),
+    );
     // Keyed on the id set: a re-render with the same cards must not move the user.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey]);
+
+  /** Lets a caller track what is genuinely on top (impressions) rather than guessing. */
+  useEffect(() => {
+    onActiveChange?.(active);
+  }, [active, onActiveChange]);
 
   // Collapsing when the deck empties out from under us keeps "Show less" from
   // being the only thing left on screen.

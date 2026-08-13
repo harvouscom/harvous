@@ -1788,8 +1788,14 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   z-index: 80;
 }
 
-.proto-note-row-item:hover {
-  background: var(--pds-bg-row-hover);
+/* Touch latches :hover onto the last-tapped element until you tap elsewhere, and the mobile
+   drawer is a transform rather than an unmount — so the list keeps this row lit the whole time
+   you're in the note, and it's still lit when the drawer slides back. Same reason
+   :focus-visible replaced :focus below; hover just never got the same treatment. */
+@media (hover: hover) and (pointer: fine) {
+  .proto-note-row-item:hover {
+    background: var(--pds-bg-row-hover);
+  }
 }
 
 .proto-note-row-item[data-active='true'] {
@@ -2081,8 +2087,10 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   font-family: var(--pds-font-body) !important;
 }
 
-.proto-note-row:hover {
-  background: var(--pds-bg-row-hover);
+@media (hover: hover) and (pointer: fine) {
+  .proto-note-row:hover {
+    background: var(--pds-bg-row-hover);
+  }
 }
 
 .proto-note-row[data-active='true'] {
@@ -5208,12 +5216,20 @@ html.harvous-prototype-route
   border-radius: 0;
 }
 
-.proto-settings__content .proto-note-row:hover,
+/* [data-active] stays unconditional — that's the selected row, not a pointer state. Only the
+   bare :hover needs the capability guard, or a tapped settings row stays lit on touch. */
 .proto-settings__content .proto-note-row[data-active='true'],
-.proto-settings__content .proto-note-row[data-active='true']:hover,
 .proto-settings__content .proto-note-row[data-active='true']:focus-visible {
   background: var(--pds-bg-row-selected);
   box-shadow: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-settings__content .proto-note-row:hover,
+  .proto-settings__content .proto-note-row[data-active='true']:hover {
+    background: var(--pds-bg-row-selected);
+    box-shadow: none;
+  }
 }
 
 /* Status-only rows (e.g. Plus grant with no Polar portal) — not a control. */
@@ -5478,6 +5494,12 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
 
 .proto-settings-sheet.proto-settings-sheet {
   padding: 0;
+  /* Vaul positions the sheet from its measured height. With only a max-height, an empty pane
+     (a lazy category chunk still loading) measures short, the sheet animates to that height,
+     and then the body arrives and it re-settles — the sheet visibly grows a beat after it
+     lands. A floor means it measures the same height whether or not the pane has painted yet.
+     min() with vh so short viewports still get a sheet rather than an overflowing one. */
+  min-height: min(60vh, 520px);
   max-height: min(92vh, 820px);
   display: flex;
   flex-direction: column;
@@ -6598,8 +6620,13 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   No per-section stagger. The delays were keyed on `:nth-child`, so the last
   section landed 160ms after the first — on a short dashboard that reads as a
   straggler arriving late rather than as a sequence, i.e. a second load. Every
-  section is ready before `--enter` goes on (the view waits for all its queries),
-  so they have no reason to arrive apart.
+  section is ready before `--enter` goes on, so they have no reason to arrive apart.
+
+  That last claim depends entirely on `isPrototypeHomePresentationReady` covering *every*
+  query Home renders from. It was untrue for a while: five weren't in the gate, so their
+  sections mounted inside the 560ms `--enter` window and each animated in from opacity 0,
+  shoving its siblings — the reason Home appeared to settle twice. If a new Home query gets
+  added, it goes in that gate, or this comment quietly becomes a lie again.
 */
 
 @media (prefers-reduced-motion: reduce) {
@@ -7119,9 +7146,11 @@ button.proto-home-greeting__chip--passage {
   color: var(--pds-text-primary) !important;
 }
 
-.proto-collection-card:hover {
-  background: var(--pds-bg-control-strong);
-  box-shadow: var(--pds-paper-shadow), var(--pds-glass-rim);
+@media (hover: hover) and (pointer: fine) {
+  .proto-collection-card:hover {
+    background: var(--pds-bg-control-strong);
+    box-shadow: var(--pds-paper-shadow), var(--pds-glass-rim);
+  }
 }
 
 .proto-collection-card:active {
@@ -8624,15 +8653,24 @@ button.proto-appearance-hero__card {
   color: var(--pds-text-primary);
 }
 
-/* Disconnect button on a note row */
+/* Disconnect button on a note row.
+   Hidden only where there's a real pointer to reveal it with — same shape as the row menu
+   trigger above. Hiding it unconditionally left it at opacity 0 on touch with no dependable
+   way back: hover latches on tap, so it would appear and then stay lit on whichever row was
+   last touched. On touch it is simply always visible. */
 .proto-side-panel__disconnect-row-btn {
-  opacity: 0;
   transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease !important;
 }
 
-.proto-note-row-item:hover .proto-side-panel__disconnect-row-btn,
-.proto-note-row-item:focus-within .proto-side-panel__disconnect-row-btn {
-  opacity: 1;
+@media (hover: hover) and (pointer: fine) {
+  .proto-side-panel__disconnect-row-btn {
+    opacity: 0;
+  }
+
+  .proto-note-row-item:hover .proto-side-panel__disconnect-row-btn,
+  .proto-note-row-item:focus-within .proto-side-panel__disconnect-row-btn {
+    opacity: 1;
+  }
 }
 
 .proto-side-panel__disconnect-row-btn--confirm {

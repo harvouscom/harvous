@@ -24,14 +24,9 @@
 import { useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
-import { prototypeNoteRouteTo } from '@/lib/prototype-path';
+import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { useSpaceComingUp } from '../../hooks/queries/useSpaceComingUp';
-import {
-  alertCreateNoteFailure,
-  useCreateSimpleNote,
-} from '../../hooks/mutations/useCreateSimpleNote';
-import { getNoteIdFromCreateResponse } from '../../hooks/queries/useNote';
 import {
   buildStarterContent,
   currentSermonFor,
@@ -42,7 +37,6 @@ import {
   weekdayLabel,
   type ChurchSermon,
 } from '../../lib/church-services';
-import { markPendingNoteFocus } from '../../lib/pending-note-focus';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { noteParamSlug } from './proto-route-slugs';
 
@@ -56,17 +50,9 @@ export interface PrototypeSpaceComingUpProps {
   enabled?: boolean;
 }
 
-function isOfflineQueuedCreate(res: unknown): boolean {
-  return Boolean(
-    res && typeof res === 'object' && 'offlineQueued' in res &&
-      (res as { offlineQueued: boolean }).offlineQueued,
-  );
-}
-
 export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSpaceComingUpProps) {
   const navigate = useNavigate();
-  const { isMobileSidebar, closeDrawer } = useProtoShell();
-  const createNote = useCreateSimpleNote();
+  const { isMobileSidebar, closeDrawer, beginPrototypeComposeSession } = useProtoShell();
   const { data } = useSpaceComingUp(spaceId, { enabled });
 
   const openNote = useCallback(
@@ -85,7 +71,7 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
         openNote(gathering.viewerNoteId);
         return;
       }
-      if (!spaceId || createNote.isPending) return;
+      if (!spaceId) return;
 
       /*
         Written into the room, not into My Home — unlike the church's Sunday
@@ -94,12 +80,13 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
       */
       const folder = starterFolderForSermon(gathering);
 
-      createNote.mutate(
-        {
-          spaceId,
+      // Editor first, create behind it — same reasoning as PrototypeHomeThisSunday, which this
+      // has always mirrored line for line.
+      beginPrototypeComposeSession({
+        targetSpaceId: spaceId,
+        seed: {
           title: starterNoteTitle(gathering),
-          content: buildStarterContent(gathering, getEffectiveDefaultTranslation()),
-          noteType: 'default',
+          contentHtml: buildStarterContent(gathering, getEffectiveDefaultTranslation()),
           startedFromServiceId: gathering.id,
           startedFromServiceTitle: gathering.title,
           ...(folder
@@ -118,22 +105,12 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
               }
             : {}),
         },
-        {
-          onSuccess: (res) => {
-            // Offline: the optimistic row is already in the list and the create
-            // is queued. Don't navigate to an id the router can't resolve.
-            if (isOfflineQueuedCreate(res)) return;
-            const nid = getNoteIdFromCreateResponse(res);
-            if (nid) {
-              markPendingNoteFocus(nid);
-              openNote(nid);
-            }
-          },
-          onError: (err) => alertCreateNoteFailure(err),
-        },
-      );
+      });
+      // The old path reached this through openNote, which closed the drawer on the way.
+      if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+      navigate({ to: prototypeHomeRouteTo() });
     },
-    [createNote, openNote, spaceId],
+    [beginPrototypeComposeSession, closeDrawer, isMobileSidebar, navigate, openNote, spaceId],
   );
 
   /*
@@ -176,7 +153,6 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
           aria-label={
             hasNote ? 'Open my note on this gathering' : 'New note on this gathering'
           }
-          disabled={createNote.isPending}
           onClick={() => takeNotes(gathering)}
         >
           <span className="proto-church-tools__row-icon" aria-hidden>

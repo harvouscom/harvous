@@ -38,6 +38,16 @@ export interface PrototypeHomePresentationReadyInput {
   highlightsSettled: boolean;
   /** Daily passage pill — settle even when the day has no VOTD. */
   votdSettled: boolean;
+  /** Cross-ref gaps — feeds the `crossrefGap` recall card. */
+  crossRefGapsSettled: boolean;
+  /** Connect suggestions — feeds the `connectNotes` recall card. */
+  connectSuggestionsSettled: boolean;
+  /** Recall event history — supplies the snooze set, which *removes* cards. */
+  recallHistorySettled: boolean;
+  /** "This Sunday" — self-gates on its own query and sits above the daily passage. */
+  churchSermonsSettled: boolean;
+  /** Church feed — self-gates on its own query. */
+  churchFeedSettled: boolean;
 }
 
 /**
@@ -46,6 +56,18 @@ export interface PrototypeHomePresentationReadyInput {
  *
  * Uses query *settled* (fetched or cached), never “has rows”, so a slow/empty
  * auxiliary cannot strand the shell on loading dots forever.
+ *
+ * Every query that can add, remove or reorder something on Home belongs here. Five were
+ * missing and each one landing after first paint moved the view under the reader: the three
+ * recall-deck queries (cross-ref gaps and connect suggestions *add* cards; recall history
+ * supplies the snooze set, which *removes* them), plus the two church sections that return
+ * `null` until their own query resolves — and "This Sunday" sits above the daily passage, so
+ * its arrival pushes everything below it down.
+ *
+ * When adding a flag, add it to {@link PrototypeHomePresentationReadyInput} as well. This
+ * function has already been bitten once by exactly that: the call site passed five flags the
+ * parameter type didn't declare and all five were silently dropped, so Home painted early
+ * anyway. `npm run typecheck:ratchet` now catches it.
  */
 export function isPrototypeHomePresentationReady(input: PrototypeHomePresentationReadyInput): boolean {
   if (!input.notesReady || !input.clerkLoaded) return false;
@@ -56,6 +78,11 @@ export function isPrototypeHomePresentationReady(input: PrototypeHomePresentatio
     input.scriptureSettled &&
     input.connectionsSettled &&
     input.highlightsSettled &&
-    input.votdSettled
+    input.votdSettled &&
+    input.crossRefGapsSettled &&
+    input.connectSuggestionsSettled &&
+    input.recallHistorySettled &&
+    input.churchSermonsSettled &&
+    input.churchFeedSettled
   );
 }
