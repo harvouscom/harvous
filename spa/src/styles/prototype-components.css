@@ -14402,6 +14402,16 @@ p.proto-teaching-plan__divider {
   min-width: 0;
 }
 
+/* Paired mode is two named rooms and no "Church" position, so there is no content-sized chip
+   to hold the bar open — both labels are marquees, and a marquee has no width of its own.
+   They split the bar evenly instead, which is the same trick `__channel` uses above and the
+   reason the church-hub bar never showed this. Without it both chips collapse to their 20px
+   of padding and the bar draws as an empty pill. */
+.proto-sidebar-expanded-panel__header-lead .proto-planner-scope .proto-planner-scope__room {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .proto-chip-bar.proto-planner__scope {
   margin: 10px 14px 4px;
   flex: 0 0 auto;

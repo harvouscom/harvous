@@ -209,10 +209,12 @@ export default function PrototypePlannerBoard({
       onDragEnd={onDragEnd}
     >
       <div className="proto-planner-board">
+        {/* No subtitle. The week columns use theirs to say *which* week ("This week"),
+            which is information; "No date yet" only restated what the column is already
+            called and what its emptiness already shows. */}
         <Column
           id={BACKLOG_DROPPABLE_ID}
           title="Ideas"
-          subtitle="No date yet"
           count={backlog.length}
           canDrop={canWrite}
           onAdd={canWrite ? () => onSelect({ mode: 'create', date: null }) : undefined}

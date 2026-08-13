@@ -133,7 +133,17 @@ export default function PrototypePlannerScopeChips({
               type="button"
               role="radio"
               aria-checked={selected}
-              className={`proto-chip${selected ? ' proto-chip--selected' : ''}`}
+              /*
+                `__room` is what gives these chips a width, and it is load-bearing.
+
+                Both chips here are label-only, and the label is a `.proto-marquee` — an
+                element whose width must come from its parent, never its own text. The
+                church-hub bar below solves this by letting its `__channel` chip take the
+                bar's remaining width; paired mode had no equivalent, so both chips sized to
+                a child that measured 0 and the whole bar rendered as an empty pill with the
+                room names still in the DOM.
+              */
+              className={`proto-chip proto-planner-scope__room${selected ? ' proto-chip--selected' : ''}`}
               title={room.title}
               onClick={() => onChange(room.id)}
             >
