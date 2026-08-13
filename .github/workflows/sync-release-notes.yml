@@ -6,6 +6,11 @@ on:
     paths:
       - "Changelog/**"
       - "scripts/export-changelog-csv.js"
+  # Run it by hand. The export is a backfill — it adds every changelog at or above the CSV's
+  # highest version and skips what is already there — so this is both safe to re-run and the
+  # way to catch up after the sync has been down, without waiting for the next release or
+  # pushing an empty commit to fake a trigger.
+  workflow_dispatch:
 
 permissions:
   contents: read
