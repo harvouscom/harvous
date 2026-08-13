@@ -24,12 +24,23 @@ export default defineConfig({
     chunkSizeWarningLimit: 2500,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'clerk': ['@clerk/clerk-react'],
-          'router': ['@tanstack/react-router'],
-          'query': ['@tanstack/react-query'],
-          'tiptap': ['@tiptap/react', '@tiptap/core', '@tiptap/starter-kit'],
+        // Matched on resolved module path, not package name. The object form
+        // (`{'react-vendor': ['react', 'react-dom']}`) silently produced a 1-byte
+        // react-vendor chunk and shipped React inside the main bundle: React's real code
+        // lives in `react/cjs/react.production.js`, reached through the package entry, and
+        // the entry alone is what the object form moves. The build succeeded and the split
+        // never happened. `scripts/check-perf-budget.mjs` now fails on an empty named chunk
+        // so this cannot go unnoticed again.
+        //
+        // Each test needs the trailing slash: `node_modules/react/` must not swallow
+        // `node_modules/react-dom/` or `node_modules/react-is/`.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react-vendor';
+          if (id.includes('node_modules/@clerk/')) return 'clerk';
+          if (id.includes('node_modules/@tanstack/react-router')) return 'router';
+          if (id.includes('node_modules/@tanstack/react-query')) return 'query';
+          if (id.includes('node_modules/@tiptap/')) return 'tiptap';
         },
       },
     },
@@ -70,6 +81,19 @@ export default defineConfig({
             }
           });
         },
+      },
+    },
+  },
+  // `vite preview` serves the real built output — hashed chunks, manualChunks splits, minified
+  // — which dev mode never exercises. Without this proxy every /api call 404s against the static
+  // server, so the only way to look at a production build was to deploy it. Any bundle or
+  // chunk-ordering work needs to load the built app against a live API to be verifiable.
+  preview: {
+    port: 4324,
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:3001',
+        changeOrigin: true,
       },
     },
   },

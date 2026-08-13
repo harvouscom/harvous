@@ -9,6 +9,13 @@
       "autoPort": false
     },
     {
+      "name": "spa-built",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview:spa"],
+      "port": 4324,
+      "autoPort": false
+    },
+    {
       "name": "site",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "site", "--", "--port", "4356"],

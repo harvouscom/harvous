@@ -1,0 +1,12 @@
+{
+  "initialPayloadGzip": 1104323,
+  "chunks": {
+    "index.js": 720589,
+    "index.css": 130716,
+    "tiptap.js": 120672,
+    "react-vendor.js": 60895,
+    "router.js": 29127,
+    "clerk.js": 28601,
+    "query.js": 13723
+  }
+}

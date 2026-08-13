@@ -23,6 +23,21 @@ This project uses a team of specialized agents as slash commands. Each agent own
 
 **Release notes style:** Markdown under `release-notes/` is plain text only — no emoji in titles, section headers, or body (`release-notes/README.md`, `release-notes/TEMPLATE.md`). The marketing agent owns this convention.
 
+### Cross-cutting
+
+| Command | Domain |
+|---|---|
+| `/performance-agent` | Speed, snappiness, responsiveness — bundle budgets, render cost, interaction latency, optimistic mutations, build and chunking |
+
+Routes differently from the specialists above: it owns measurement and budgets (`perf:check`, the
+budget ratchet, `docs/performance/`), but the slow paths live inside editor/content/data/design
+files, so it may edit those after reading the owning agent's context file — and must name the
+cross-domain touch in its response. Reach for it when something feels slow or late, when adding a
+dependency or a route, or for a performance review of a change.
+
+**Bundle budget:** `npm run build:spa && npm run perf:check` guards the initial payload; CI runs it.
+Raising a budget takes `npm run perf:baseline` plus a reason in the commit message.
+
 ### Coordinator (opt-in)
 
 Use `/coordinator` only when:

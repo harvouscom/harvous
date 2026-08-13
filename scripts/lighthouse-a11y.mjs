@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 /**
  * Build SPA (unless --skip-build), serve dist-spa with vite preview, run Lighthouse
- * accessibility on a fixed URL list. Exits 1 if any score is below 100%.
+ * on a fixed URL list.
+ *
+ * Accessibility (default) is a gate: exits 1 if any score is below 100%.
+ * Performance (--perf) is reported only — lab-simulated scores are too noisy between runs
+ * to gate on. The deterministic bundle gate is `npm run perf:check`.
  *
  * Usage:
  *   npm run lighthouse:a11y
  *   npm run lighthouse:a11y -- --skip-build
+ *   npm run lighthouse:perf              # performance category instead (reported, not gated)
  *
  * Env:
  *   LH_PORT   Preview port (default 4174 — avoids clashing with dev :4322)
@@ -28,6 +33,14 @@ const pathsFromEnv = process.env.LH_URLS
 const URLS = pathsFromEnv.map((p) => `http://localhost:${PORT}${p.startsWith('/') ? p : `/${p}`}`);
 
 const skipBuild = process.argv.includes('--skip-build');
+/**
+ * `--perf` runs the performance category instead of accessibility, reusing this harness
+ * rather than standing up a second one — the build, preview server and Chrome launch are
+ * identical. Accessibility is a hard gate at 100; performance is reported only (see the
+ * comment at the audit call for why).
+ */
+const perfMode = process.argv.includes('--perf');
+const label = perfMode ? 'lighthouse:perf' : 'lighthouse:a11y';
 
 function waitForServer(url, maxMs) {
   const deadline = Date.now() + maxMs;
@@ -47,7 +60,7 @@ function waitForServer(url, maxMs) {
 
 async function main() {
   if (!skipBuild) {
-    console.log('[lighthouse:a11y] npm run build:spa …');
+    console.log(`[${label}] npm run build:spa …`);
     execSync('npm run build:spa', { cwd: ROOT, stdio: 'inherit' });
   }
 
@@ -88,12 +101,28 @@ async function main() {
     try {
       let failed = false;
       for (const url of URLS) {
-        console.log('[lighthouse:a11y] Auditing', url);
+        console.log(`[${label}] Auditing`, url);
         const runnerResult = await lighthouse(url, {
           logLevel: 'error',
-          onlyCategories: ['accessibility'],
+          onlyCategories: perfMode ? ['performance'] : ['accessibility'],
           port: chrome.port,
         });
+
+        if (perfMode) {
+          // Reported, never gated. Lighthouse performance is lab-simulated and noisy enough
+          // between runs that a threshold here would either be meaningless or block merges at
+          // random. The gate that has teeth is `npm run perf:check` (deterministic bytes); this
+          // is for the field metrics bytes can't show. See the performance-agent skill,
+          // invariant 3 — interaction latency outranks page-load scores anyway.
+          const score = runnerResult.lhr.categories.performance.score;
+          console.log(`  performance: ${score == null ? 'n/a' : Math.round(score * 100)}`);
+          for (const id of ['first-contentful-paint', 'largest-contentful-paint', 'total-blocking-time', 'cumulative-layout-shift', 'speed-index']) {
+            const audit = runnerResult.lhr.audits[id];
+            if (audit?.displayValue) console.log(`    ${id}: ${audit.displayValue}`);
+          }
+          continue;
+        }
+
         const score = runnerResult.lhr.categories.accessibility.score;
         const pct = score == null ? null : Math.round(score * 100);
         console.log(`  accessibility: ${pct}`);
@@ -114,10 +143,10 @@ async function main() {
     await new Promise((r) => setTimeout(r, 500));
   }
 
-  console.log('[lighthouse:a11y] All accessibility scores are 100.');
+  console.log(perfMode ? `[${label}] Done.` : `[${label}] All accessibility scores are 100.`);
 }
 
 main().catch((e) => {
-  console.error('[lighthouse:a11y]', e);
+  console.error(`[${label}]`, e);
   process.exit(1);
 });

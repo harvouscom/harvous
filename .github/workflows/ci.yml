@@ -51,3 +51,30 @@ jobs:
       # See docs/future/TYPECHECK_DEBT.md.
       - name: Typecheck ratchet
         run: npm run typecheck:ratchet
+
+  # Separate job because it needs a real build, and dist-spa/ is gitignored. Every step in
+  # `npm run precommit` is fast and build-free, so this belongs here rather than there.
+  #
+  # Guards the SPA's initial payload — the entry script, its modulepreload siblings and the
+  # stylesheet, which every route waits for including sign-in. It went from 1.6 MB to 2.53 MB
+  # while documented-but-ungated in docs/route-based-code-splitting.md, and grew 94 KB gzipped
+  # in the single week before this job existed. See scripts/check-perf-budget.mjs.
+  bundle-budget:
+    name: Bundle budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SPA
+        run: npm run build:spa
+
+      - name: Bundle budget ratchet
+        run: npm run perf:check

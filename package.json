@@ -12,7 +12,7 @@
   "scripts": {
     "dev": "npm run dev:all",
     "build": "node scripts/inject-sw-cache-version.js && node scripts/sync-appearance-image-presets.js && npm run build:api && npm run build:spa",
-    "preview": "vite preview --port 4322",
+    "preview": "vite preview",
     "db:sync": "node -r dotenv/config node_modules/.bin/drizzle-kit push --config drizzle.config.ts && npm run db:rls",
     "db:push": "node -r dotenv/config node_modules/.bin/drizzle-kit push --config drizzle.config.ts && npm run db:rls",
     "db:rls": "tsx scripts/run-enable-rls.ts",
@@ -26,7 +26,7 @@
     "dev:spa": "node scripts/sync-appearance-image-presets.js && vite",
     "dev:prod-spa": "VITE_CLERK_PUBLISHABLE_KEY=pk_live_Y2xlcmsuaGFydm91cy5jb20k VITE_API_PROXY_TARGET=https://app.harvous.com vite",
     "build:spa": "vite build",
-    "preview:spa": "vite preview --port 4322",
+    "preview:spa": "vite preview",
     "build:native": "npm run build:spa && node_modules/.bin/cap sync",
     "cap:sync": "npm run build:spa && node_modules/.bin/cap sync",
     "cap:ios": "npm run cap:sync && node_modules/.bin/cap open ios",
@@ -94,7 +94,10 @@
     "shared-spaces:verify": "tsx server/scripts/verify-canonical-space-notes.ts",
     "typecheck": "tsc --noEmit",
     "typecheck:ratchet": "node scripts/check-typecheck-baseline.mjs",
-    "typecheck:baseline": "node scripts/check-typecheck-baseline.mjs --update"
+    "typecheck:baseline": "node scripts/check-typecheck-baseline.mjs --update",
+    "perf:check": "node scripts/check-perf-budget.mjs",
+    "perf:baseline": "node scripts/check-perf-budget.mjs --update",
+    "lighthouse:perf": "node scripts/lighthouse-a11y.mjs --perf"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
