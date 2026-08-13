@@ -13662,9 +13662,16 @@ html.harvous-prototype-route
   transform: translateX(3px);
 }
 
+/*
+ * `:focus-visible` only — a bare `:focus` here is what kept the handle lit
+ * after a mouse drag, and it outranked the reveal rule further up the file
+ * because it lands later at the same specificity. dnd-kit gives the activator
+ * focus when a drag ends, so plain `:focus` matches on a row the pointer left
+ * long ago; `:focus-visible` never does for pointer-driven focus and still
+ * does for a real Tab.
+ */
 .proto-space-switcher__row:hover .proto-space-switcher__drag-handle,
 .proto-space-switcher__drag-handle:hover,
-.proto-space-switcher__drag-handle:focus,
 .proto-space-switcher__drag-handle:focus-visible {
   opacity: 1;
   color: var(--pds-text-secondary);
